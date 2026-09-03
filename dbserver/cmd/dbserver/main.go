@@ -31,7 +31,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 
 	dbv1 "github.com/jeanluca/w2pp-openwyd/api/db/v1"
@@ -115,7 +114,7 @@ func runImportNPCs(args []string, logger *slog.Logger) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	pool, err := pgxpool.New(ctx, *dsn)
+	pool, err := store.Pool(ctx, *dsn)
 	if err != nil {
 		return fmt.Errorf("connect: %w", err)
 	}
@@ -415,7 +414,7 @@ func runSeedAccount(args []string, logger *slog.Logger) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.New(ctx, *dsn)
+	pool, err := store.Pool(ctx, *dsn)
 	if err != nil {
 		return fmt.Errorf("connect: %w", err)
 	}
@@ -460,7 +459,7 @@ func runServe(args []string, logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := pgxpool.New(ctx, *dsn)
+	pool, err := store.Pool(ctx, *dsn)
 	if err != nil {
 		return fmt.Errorf("connect: %w", err)
 	}
@@ -563,7 +562,7 @@ func persist(rep *convert.Report, dsn string, logger *slog.Logger) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.New(ctx, dsn)
+	pool, err := store.Pool(ctx, dsn)
 	if err != nil {
 		return fmt.Errorf("connect: %w", err)
 	}

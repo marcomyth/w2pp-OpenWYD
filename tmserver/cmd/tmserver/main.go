@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	_ "net/http/pprof" // registers /debug/pprof on DefaultServeMux; only reachable via -pprof-addr
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -101,6 +102,7 @@ func run(logger *slog.Logger) error {
 	rejectChecksum := flag.Bool("reject-checksum", false, "drop connections on CPSock checksum mismatch (Fase 7; off by default)")
 	maxMsgPerSec := flag.Float64("max-msg-per-sec", 200, "per-connection inbound message rate limit (0 = disabled)")
 	msgBurst := flag.Int("msg-burst", 400, "per-connection message burst depth")
+	idleTimeoutSec := flag.Int("idle-timeout-sec", envInt("W2PP_IDLE_TIMEOUT_SEC", 0), "drop a connection that sends nothing for this many seconds (0 = disabled). An authenticated socket that goes silent otherwise holds one of the 1000 session slots forever. Off by default because the real client's idle cadence is unconfirmed — enable once a capture shows it, or a legitimate idle player gets disconnected")
 	contentDir := flag.String("content", os.Getenv("W2PP_CONTENT"), "path to the Release/ content tree (empty = skip; validates rates/catalogs/maps at boot)")
 	npcEditing := flag.Bool("npc-editing", envBool("W2PP_NPC_EDITING", false), "enable the moderator NPC-editing overlay (npc-editing-plan.md); needs -dbserver and -content. OFF by default: turn it on only after `dbserver import-npcs` has seeded npc_definition, else DB-managed merchant NPCs would be skipped from NPCGener.txt with nothing to replace them")
 	mobStatEditing := flag.Bool("mob-stat-editing", envBool("W2PP_MOB_STAT_EDITING", false), "enable the moderator mob/NPC template stat overlay (mob-template-editing-plan.md, the equivalent-tool successor to the legacy EDITAPPMOB); needs -dbserver and -content. Applied ONCE at boot, like every other content load — a moderator edit needs a tmServer restart to take effect (EDITAPPMOB itself required a server restart too), independent of -npc-editing")
@@ -114,6 +116,7 @@ func run(logger *slog.Logger) error {
 	newbieEvent := flag.Bool("newbie-event", envBool("W2PP_NEWBIE_EVENT", false), "NewbieEventServer: +15% exp and newbie under-100 bonus (gameconfig)")
 	kefraLive := flag.Bool("kefra-live", envBool("W2PP_KEFRA_LIVE", false), "KefraLive: when false, PvE exp is halved (default legacy KefraLive=0)")
 	logSends := flag.Bool("log-sends", envBool("W2PP_LOG_SENDS", false), "log every S→C frame (conn/type/id/len) — client-freeze diagnostics (investigacao-freeze-cliente.md); high volume, enable only while reproducing an incident")
+	pprofAddr := flag.String("pprof-addr", os.Getenv("W2PP_PPROF_ADDR"), "expose net/http/pprof on this address (empty disables). Bind to loopback or a private network only — these endpoints dump memory and let any caller start a CPU profile. Without it nothing on the box can answer whether the process is leaking goroutines")
 	// Cast-buff duration tuning (issue #229). The legacy formula is
 	// (AffectTime+1)*(100+Special)/100 ticks of 8s, which puts an endgame character
 	// at 30-100 min per buff — reported as far too long three times over (#92, #202,
@@ -315,6 +318,7 @@ func run(logger *slog.Logger) error {
 		RejectChecksum: *rejectChecksum,
 		MaxMsgPerSec:   *maxMsgPerSec,
 		MsgBurst:       *msgBurst,
+		IdleTimeout:    time.Duration(*idleTimeoutSec) * time.Second,
 		StatusFile:     statusFile,
 		ItemRanges:     itemRanges,
 		LogSends:       *logSends,
@@ -348,6 +352,11 @@ func run(logger *slog.Logger) error {
 	// HTTP server on the game port.
 	if *statusAddr != "" {
 		go serveStatusHTTP(ctx, *statusAddr, statusFile, logger)
+	}
+
+	// Profiling endpoint, opt-in and on its own listener (see -pprof-addr).
+	if *pprofAddr != "" {
+		go servePprof(ctx, *pprofAddr, logger)
 	}
 
 	// Populate the world with NPCs/monsters from NPCGener.txt (before Serve starts
@@ -581,6 +590,24 @@ func serveStatusHTTP(ctx context.Context, addr, statusFile string, logger *slog.
 	logger.Info("status server listening", "addr", addr)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Warn("status server stopped", "err", err)
+	}
+}
+
+// servePprof exposes net/http/pprof on its own listener, mirroring the status
+// server's shape (own address, closed with the context).
+//
+// It is opt-in because these endpoints dump the heap and let any caller start a
+// CPU profile — they belong on loopback or a private network, never beside the
+// game port. It exists at all because the process otherwise ships with no
+// profiling surface whatsoever, which makes "is it leaking goroutines?"
+// unanswerable on a running server, and a leak is what turns a silent bug into
+// a rising bill on usage-priced hosting.
+func servePprof(ctx context.Context, addr string, logger *slog.Logger) {
+	srv := &http.Server{Addr: addr, Handler: http.DefaultServeMux}
+	go func() { <-ctx.Done(); _ = srv.Close() }()
+	logger.Info("pprof listening", "addr", addr)
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		logger.Warn("pprof server stopped", "err", err)
 	}
 }
 

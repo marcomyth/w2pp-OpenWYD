@@ -20,7 +20,6 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
@@ -73,7 +72,7 @@ func run(logger *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := pgxpool.New(ctx, *dsn)
+	pool, err := store.Pool(ctx, *dsn)
 	if err != nil {
 		return fmt.Errorf("connect: %w", err)
 	}

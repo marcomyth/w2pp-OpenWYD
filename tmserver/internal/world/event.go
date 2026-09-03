@@ -197,6 +197,12 @@ func (w *World) readLoop(s *Session) {
 	fr := protocol.NewFramer(s.conn)
 	bucket := newTokenBucket(w.cfg.MaxMsgPerSec, w.cfg.MsgBurst, time.Now())
 	for {
+		// Config.IdleTimeout bounds how long a silent authenticated session may
+		// hold its slot. Renewed per frame, so an active player never trips it.
+		// cfg is immutable after New, so reading it off the loop is race-free.
+		if w.cfg.IdleTimeout > 0 {
+			_ = s.conn.SetReadDeadline(time.Now().Add(w.cfg.IdleTimeout))
+		}
 		frame, err := fr.ReadFrame()
 		if err != nil {
 			w.emit(disconnectEvent{s: s, err: err})
