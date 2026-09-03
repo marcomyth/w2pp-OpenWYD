@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -98,6 +99,18 @@ type Config struct {
 	// disconnects the offending connection, protecting the reactor (NF1).
 	MaxMsgPerSec float64
 	MsgBurst     int
+
+	// IdleTimeout drops a connection that sends nothing for this long. The
+	// handshake deadline is cleared once a connection becomes a session
+	// (edge.go), so an authenticated socket that goes silent holds one of the
+	// MaxUser slots and its goroutine indefinitely — no exploit required, just an
+	// open socket that stops talking.
+	//
+	// OFF by default (0), for the same reason RejectChecksum is: the real
+	// client's idle cadence is not documented in the migration notes, and a
+	// timeout shorter than it would disconnect legitimate players. Enable once a
+	// capture shows how often an idle client actually sends.
+	IdleTimeout time.Duration
 
 	// ItemRanges maps item index → its catalog EF_RANGE value (content
 	// ItemList.Ranges). SpawnMob uses it to derive a mob's attack reach from its
@@ -259,7 +272,7 @@ const slowEventThreshold = 100 * time.Millisecond
 // traced to its handler (freeze investigation instrumentation).
 func (w *World) applyTimed(ev event) {
 	start := time.Now()
-	ev.apply(w)
+	w.applyRecovered(ev)
 	d := time.Since(start)
 	if d < slowEventThreshold {
 		return
@@ -274,6 +287,57 @@ func (w *World) applyTimed(ev event) {
 	default:
 		w.log.Warn("slow world event", "dur_ms", d.Milliseconds(), "kind", fmt.Sprintf("%T", ev))
 	}
+}
+
+// applyRecovered runs one loop event and contains a handler panic to the session
+// that caused it.
+//
+// Why this has to exist: the loop is the single owner of ALL world state, so an
+// unrecovered panic does not merely fail one request — it takes the process down
+// with every player on it. Handlers parse bytes straight off the client edge,
+// where a malformed frame reaching an out-of-range index is the realistic
+// failure mode, so the blast radius has to be one session and not the server.
+//
+// The trade-off is deliberate: a recovered handler may leave that session's
+// state half-mutated, so the session is dropped rather than resumed. Corrupt
+// state for one player beats a crash for everyone.
+func (w *World) applyRecovered(ev event) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			return
+		}
+		conn := -1
+		var sess *Session
+		switch e := ev.(type) {
+		case frameEvent:
+			sess = e.s
+		case callbackEvent:
+			sess, conn = e.sess, e.conn
+		case disconnectEvent:
+			sess = e.s
+		}
+		if sess != nil {
+			conn = sess.Conn
+		}
+		w.log.Error("recovered panic in world loop",
+			"kind", fmt.Sprintf("%T", ev),
+			"conn", conn,
+			"panic", fmt.Sprint(r),
+			"stack", string(debug.Stack()))
+		if sess == nil {
+			return
+		}
+		// Teardown reads the same state the first panic may have corrupted, so it
+		// can panic again; containing that keeps the loop alive either way.
+		defer func() {
+			if r2 := recover(); r2 != nil {
+				w.log.Error("panic while dropping session after panic", "conn", conn, "panic", fmt.Sprint(r2))
+			}
+		}()
+		w.removeSession(sess) // closes the socket as part of teardown
+	}()
+	ev.apply(w)
 }
 
 // shutdown drains active sessions: persist players in-world, then stop their I/O.
