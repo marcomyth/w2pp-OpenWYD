@@ -103,6 +103,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.tickTowerWar(w)
 	d.tickCastle(w)
 	d.tickWaterRooms(w)
+	d.tickPesadelo(w)
 	d.respawnMobs(w)
 	d.generateMobs(w)
 	// World events (issue #116). tickWeather sits after generateMobs so this
@@ -405,7 +406,8 @@ func (d *Dispatcher) respawnMobs(w *world.World) {
 // so a respawn/regeneration is seen immediately rather than only when a player
 // next walks (revealMobsInView). MarkSeen guards against a duplicate CreateMob
 // if that walk-reveal also fires this tick.
-func (d *Dispatcher) revealSpawned(w *world.World, ids []int) {
+func (d *Dispatcher) revealSpawned(w *world.World, ids []int) int {
+	sent := 0
 	for _, id := range ids {
 		mob := w.Entity(id)
 		if mob == nil {
@@ -415,9 +417,11 @@ func (d *Dispatcher) revealSpawned(w *world.World, ids []int) {
 		w.ForEachInView(id, func(vs *world.Session, _ *world.Entity) {
 			if w.MarkSeen(vs, id) {
 				w.SendTo(vs, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, body)
+				sent++
 			}
 		})
 	}
+	return sent
 }
 
 // inSafeCity reports whether player conn is standing inside a city rectangle —

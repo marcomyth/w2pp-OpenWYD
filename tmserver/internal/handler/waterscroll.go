@@ -278,13 +278,22 @@ func (d *Dispatcher) useWaterScroll(w *world.World, s *world.Session, e *world.E
 	// four blocks with the legacy's weights: 40% +8, 10% +9, 10% +10, 40% +11.
 	base := waterVariants[variant].genBase
 	spawnedBlock := room
+	var spawned []int
 	if room < waterDeadRoom {
-		d.revealSpawned(w, w.GenerateMob(base+room))
-		d.revealSpawned(w, w.GenerateMob(base+room))
+		spawned = append(spawned, w.GenerateMob(base+room)...)
+		spawned = append(spawned, w.GenerateMob(base+room)...)
 	} else {
 		spawnedBlock = waterBossBlock(w.Rand().Intn(10))
-		d.revealSpawned(w, w.GenerateMob(base+spawnedBlock))
+		spawned = append(spawned, w.GenerateMob(base+spawnedBlock)...)
 	}
+	created := d.revealSpawned(w, spawned)
+	// Diagnostic for the invisible-mob reports: `spawned` is what the generator
+	// actually created, `created` how many of those the caller's client was told
+	// about. A gap means the reveal — not the spawn — is dropping them, and the
+	// mob is there but undrawn. The two counts are usually equal.
+	d.log.Info("water room populated",
+		"account", s.AccountName, "variant", variant, "room", room,
+		"block", base+spawnedBlock, "spawned", len(spawned), "createmob_sent", created)
 
 	// Announce the tally AFTER spawning, so the count is the room's real
 	// population rather than whatever the block held a moment earlier.
