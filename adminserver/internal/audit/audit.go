@@ -1,0 +1,169 @@
+// Package audit records and reads the admin panel's action log.
+//
+// The queries live here rather than in internal/store on purpose. Every service
+// embeds internal/, so adding to it redeploys tmServer, dbServer, binServer and
+// webServer — restarting the live game to ship a panel screen. No game service
+// reads this table, so there is nothing to share; keeping it local is what lets
+// the panel's own changes stay inside /adminserver/**.
+//
+// The table refuses UPDATE and DELETE at the database level (migration 0022), so
+// nothing here needs to defend the append-only property — it cannot be violated
+// through this package or around it.
+package audit
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+// Action names. Kept as constants so a typo becomes a compile error rather than
+// a row nobody can filter for later.
+const (
+	ActionSetRole    = "SET_ROLE"
+	ActionSetBlocked = "SET_BLOCKED"
+	ActionSetVip     = "SET_VIP"
+)
+
+// listLimit caps one page of the log.
+const listLimit = 100
+
+// Record is one action to write, as the caller knows it.
+type Record struct {
+	ActorID   int64
+	ActorRole string // the role AT THE TIME of the action, not looked up later
+	Action    string
+	TargetID  int64 // 0 when the action has no target
+	Old, New  any   // marshalled to JSONB; nil writes SQL NULL
+}
+
+// Entry is one row as the log page shows it, with names resolved.
+type Entry struct {
+	ID         int64
+	ActorID    int64
+	ActorName  string
+	ActorRole  string
+	Action     string
+	TargetID   int64
+	TargetName string
+	Old, New   string // pretty-printed JSON, or "" when absent
+	CreatedAt  time.Time
+}
+
+// Store reads and writes the log.
+type Store struct{ pool *pgxpool.Pool }
+
+// New wraps a pool.
+func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
+
+// Write appends one entry.
+//
+// It returns an error rather than swallowing one, and every caller must treat a
+// failure as a failure of the action itself: an administrative change that was
+// applied but not recorded is exactly the change nobody can explain afterwards.
+func (s *Store) Write(ctx context.Context, r Record) error {
+	oldJSON, err := toJSON(r.Old)
+	if err != nil {
+		return fmt.Errorf("audit: encode old value: %w", err)
+	}
+	newJSON, err := toJSON(r.New)
+	if err != nil {
+		return fmt.Errorf("audit: encode new value: %w", err)
+	}
+
+	var target any
+	if r.TargetID != 0 {
+		target = r.TargetID
+	}
+
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO admin_audit_log
+		    (actor_account_id, actor_role, action, target_account_id, old_value, new_value)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		r.ActorID, r.ActorRole, r.Action, target, oldJSON, newJSON)
+	if err != nil {
+		return fmt.Errorf("audit: write %s: %w", r.Action, err)
+	}
+	return nil
+}
+
+// List returns the most recent entries, newest first. A non-zero targetID
+// narrows to one account's history.
+func (s *Store) List(ctx context.Context, targetID int64) ([]Entry, error) {
+	// One query with a nullable filter rather than two: the difference is a
+	// parameter, and two near-identical SQL strings drift apart over time.
+	rows, err := s.pool.Query(ctx, `
+		SELECT l.id, l.actor_account_id, COALESCE(a.name, ''), l.actor_role, l.action,
+		       COALESCE(l.target_account_id, 0), COALESCE(t.name, ''),
+		       l.old_value, l.new_value, l.created_at
+		  FROM admin_audit_log l
+		  LEFT JOIN account a ON a.id = l.actor_account_id
+		  LEFT JOIN account t ON t.id = l.target_account_id
+		 WHERE $1::bigint IS NULL OR l.target_account_id = $1
+		 ORDER BY l.created_at DESC, l.id DESC
+		 LIMIT $2`, nullableID(targetID), listLimit)
+	if err != nil {
+		return nil, fmt.Errorf("audit: list: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]Entry, 0, listLimit)
+	for rows.Next() {
+		var e Entry
+		var oldRaw, newRaw []byte
+		if err := rows.Scan(&e.ID, &e.ActorID, &e.ActorName, &e.ActorRole, &e.Action,
+			&e.TargetID, &e.TargetName, &oldRaw, &newRaw, &e.CreatedAt); err != nil {
+			return nil, fmt.Errorf("audit: scan entry: %w", err)
+		}
+		e.Old = compact(oldRaw)
+		e.New = compact(newRaw)
+		out = append(out, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("audit: list: %w", err)
+	}
+	return out, nil
+}
+
+// Limit reports the page cap, so the UI can say the list is partial without
+// duplicating the number.
+func (s *Store) Limit() int { return listLimit }
+
+func nullableID(id int64) any {
+	if id == 0 {
+		return nil
+	}
+	return id
+}
+
+func toJSON(v any) (any, error) {
+	if v == nil {
+		return nil, nil
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// compact renders stored JSONB for display. An unreadable value is shown as
+// stored rather than dropped: the log is evidence, and hiding a row because its
+// payload does not parse is the wrong failure.
+func compact(raw []byte) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var v map[string]any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return string(raw)
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return string(raw)
+	}
+	return string(b)
+}

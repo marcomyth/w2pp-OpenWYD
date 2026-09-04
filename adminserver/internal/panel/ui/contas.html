@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Contas — Painel OpenWYD</title>
+{{template "head" .}}
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Contas</h1>
+  <p class="sub">Busca por início do nome. Sem termo, mostra as primeiras em ordem alfabética.</p>
+
+  <form class="busca" method="get" action="/contas">
+    <input name="q" value="{{.Query}}" placeholder="Começo do nome da conta"
+           autocapitalize="off" spellcheck="false" autofocus>
+    <button type="submit">Buscar</button>
+  </form>
+
+  {{if .Contas}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Conta</th>
+            <th>Cargo</th>
+            <th>Situação</th>
+            <th>E-mail</th>
+            <th class="num">Doação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Contas}}
+          <tr>
+            <td><a href="/contas/{{.Name}}">{{.Name}}</a></td>
+            <td>{{if ne .Role "player"}}<span class="cargo">{{.Role}}</span>{{else}}{{.Role}}{{end}}</td>
+            <td>{{if .IsBlocked}}<span class="bloq">bloqueada</span>{{else}}ativa{{end}}</td>
+            <td>{{if .Email}}{{.Email}}{{else}}—{{end}}</td>
+            <td class="num">{{.DonateBalance}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{if .Truncado}}
+      <p class="sub" style="margin-top:18px">
+        Mostrando as primeiras {{.Limite}}. Refine a busca para ver o resto.
+      </p>
+    {{end}}
+  {{else}}
+    <div class="vazio">
+      {{if .Query}}Nenhuma conta começa com “{{.Query}}”.{{else}}Nenhuma conta cadastrada.{{end}}
+    </div>
+  {{end}}
+</main>
+</body>
+</html>
