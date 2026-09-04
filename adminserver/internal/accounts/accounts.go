@@ -283,3 +283,29 @@ func (s *Store) ClearVip(ctx context.Context, _, targetID int64) (*time.Time, er
 func VipActive(until *time.Time) bool {
 	return until != nil && until.After(time.Now())
 }
+
+// --- pendências de reinício ---
+
+// PendingSince reports how many mob/NPC template stat overrides were edited
+// after the given moment, and when the most recent edit was.
+//
+// It counts ONLY that table. NPC definitions, shops and item prices are polled
+// by the tmServer every ~15 seconds and apply live; template stat overrides are
+// read once at boot and there is no hot reload — the code says so, and notes
+// that the legacy EDITAPPMOB behaved the same way. Counting the live ones would
+// make the warning cry wolf, and a warning people learn to ignore is worse than
+// none.
+func (s *Store) PendingSince(ctx context.Context, since time.Time) (n int, last time.Time, err error) {
+	var lastNull *time.Time
+	err = s.pool.QueryRow(ctx, `
+		SELECT count(*), max(updated_at)
+		  FROM mob_template_stat
+		 WHERE updated_at > $1`, since).Scan(&n, &lastNull)
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("accounts: pending overrides: %w", err)
+	}
+	if lastNull != nil {
+		last = *lastNull
+	}
+	return n, last, nil
+}

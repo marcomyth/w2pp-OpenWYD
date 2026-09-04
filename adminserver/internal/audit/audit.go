@@ -27,6 +27,7 @@ const (
 	ActionSetBlocked   = "SET_BLOCKED"
 	ActionSetVip       = "SET_VIP"
 	ActionSetItemPrice = "SET_ITEM_PRICE"
+	ActionRestartGame  = "RESTART_GAME"
 )
 
 // listLimit caps one page of the log.

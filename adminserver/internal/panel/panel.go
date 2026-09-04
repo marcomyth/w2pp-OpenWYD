@@ -24,6 +24,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
@@ -77,6 +78,7 @@ type AuditLog interface {
 // reading and changing an account are different privileges and different risks.
 type Writer interface {
 	Get(ctx context.Context, id int64) (accounts.Details, error)
+	PendingSince(ctx context.Context, since time.Time) (int, time.Time, error)
 	SetRole(ctx context.Context, actorID, targetID int64, role string) (string, error)
 	SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool) (bool, error)
 	AddVipDays(ctx context.Context, actorID, targetID int64, days int) (prev, next *time.Time, err error)
@@ -92,9 +94,17 @@ type GameData interface {
 	CatalogVersion() string
 }
 
+// Platform is the hosting API, used to report the game server's boot time and
+// restart it. Optional: without it the restart card is hidden.
+type Platform interface {
+	Latest(ctx context.Context) (plataforma.Deployment, error)
+	Restart(ctx context.Context, deploymentID string) error
+}
+
 // Config wires the handler.
 type Config struct {
 	Accounts   Accounts
+	Platform   Platform
 	GameData   GameData
 	Writer     Writer
 	Audit      AuditLog
@@ -155,6 +165,9 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("GET /contas", h.requireStaff(http.HandlerFunc(h.contas)))
 	mux.Handle("GET /contas/{nome}", h.requireStaff(http.HandlerFunc(h.conta)))
 	mux.Handle("GET /auditoria", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.auditoria))))
+	if h.cfg.Platform != nil {
+		mux.Handle("POST /servidor/reiniciar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.reiniciar))))
+	}
 	mux.Handle("POST /contas/{nome}/cargo", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setCargo))))
 	mux.Handle("POST /contas/{nome}/bloqueio", h.requireStaff(http.HandlerFunc(h.setBloqueio)))
 	mux.Handle("POST /contas/{nome}/vip", h.requireStaff(http.HandlerFunc(h.setVip)))
@@ -199,7 +212,15 @@ func (h *Handler) loginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
-	h.render(w, "index.html", struct{ page }{pageFor(r, "inicio", h.cfg.GameData != nil)})
+	h.render(w, "index.html", struct {
+		page
+		Servidor estadoServidor
+		Aviso    string
+	}{
+		pageFor(r, "inicio", h.cfg.GameData != nil),
+		h.statusServidor(r),
+		r.URL.Query().Get("aviso"),
+	})
 }
 
 // contas lists accounts whose name starts with the query. A blank query lists the
@@ -920,4 +941,102 @@ func (h *Handler) setPreco(w http.ResponseWriter, r *http.Request) {
 	h.cfg.Logger.Info("item price changed", "actor", sess.AccountName, "item", indice, "price", preco)
 	http.Redirect(w, r, "/itens?q="+url.QueryEscape(r.PostFormValue("q"))+"&aviso="+url.QueryEscape(msg),
 		http.StatusSeeOther)
+}
+
+// --- estado do servidor de jogo e reinício ---
+
+// estadoServidor is what the home page shows about the game server.
+type estadoServidor struct {
+	Conhecido    bool   // false when the platform could not be reached
+	Erro         string // why, when it could not
+	NoAr         string // how long since boot, already worded
+	Pendentes    int    // template-stat edits made after that boot
+	UltimaEdicao time.Time
+	DeployID     string
+}
+
+// statusServidor gathers the boot time and the pending edits made after it.
+//
+// Both failures are soft. The home page is where staff land, and it must not
+// break because the hosting API is slow or a token expired — it says so and
+// carries on.
+func (h *Handler) statusServidor(r *http.Request) estadoServidor {
+	if h.cfg.Platform == nil {
+		return estadoServidor{}
+	}
+	dep, err := h.cfg.Platform.Latest(r.Context())
+	if err != nil {
+		h.cfg.Logger.Warn("platform status unavailable", "err", err)
+		return estadoServidor{Erro: "Não consegui falar com a hospedagem."}
+	}
+
+	est := estadoServidor{Conhecido: true, DeployID: dep.ID, NoAr: desde(dep.CreatedAt)}
+	n, last, err := h.cfg.Writer.PendingSince(r.Context(), dep.CreatedAt)
+	if err != nil {
+		h.cfg.Logger.Error("pending overrides failed", "err", err)
+		return est
+	}
+	est.Pendentes, est.UltimaEdicao = n, last
+	return est
+}
+
+// reiniciar restarts the game server. Admin only.
+//
+// Restart, not redeploy: the image running is the one wanted, and rebuilding
+// would take minutes and could pick up a commit nobody meant to ship.
+func (h *Handler) reiniciar(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	sess, _ := staffFrom(r.Context())
+
+	dep, err := h.cfg.Platform.Latest(r.Context())
+	if err != nil {
+		h.cfg.Logger.Error("restart: could not find the deployment", "err", err)
+		http.Error(w, "Não consegui falar com a hospedagem.", http.StatusBadGateway)
+		return
+	}
+
+	// Audited BEFORE the restart, not after: the restart is what makes the panel
+	// stop being able to tell anyone anything for a while, and an action nobody
+	// can explain is exactly what this log exists to prevent.
+	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: audit.ActionRestartGame,
+		New:    map[string]any{"deployment": dep.ID},
+	}); err != nil {
+		h.cfg.Logger.Error("restart NOT audited; refusing", "err", err)
+		http.Error(w, "Não consegui registrar a ação na auditoria, então não reiniciei.",
+			http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.cfg.Platform.Restart(r.Context(), dep.ID); err != nil {
+		h.cfg.Logger.Error("restart failed", "deployment", dep.ID, "err", err)
+		http.Error(w, "A hospedagem recusou o reinício.", http.StatusBadGateway)
+		return
+	}
+
+	h.cfg.Logger.Info("game server restart requested", "actor", sess.AccountName, "deployment", dep.ID)
+	http.Redirect(w, r, "/?aviso="+url.QueryEscape(
+		"Reinício pedido. O servidor salva quem está online antes de sair e volta em cerca de um minuto."),
+		http.StatusSeeOther)
+}
+
+// desde words an elapsed time the way someone reads it out loud.
+func desde(t time.Time) string {
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "menos de um minuto"
+	case d < time.Hour:
+		return fmt.Sprintf("%d min", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%dh%02d", int(d.Hours()), int(d.Minutes())%60)
+	default:
+		return fmt.Sprintf("%d dias", int(d.Hours()/24))
+	}
 }

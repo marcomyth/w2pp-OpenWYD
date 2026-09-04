@@ -3,11 +3,65 @@
 <head>
 <title>Painel OpenWYD</title>
 {{template "head" .}}
+<style>
+  .cartao {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+    padding: 20px 22px; margin-bottom: 28px;
+  }
+  .cartao.pendente { border-left: 3px solid var(--warn); }
+  .cartao h2 { margin: 0 0 4px; }
+  .cartao .linha-estado {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px;
+    margin-bottom: 14px; font-size: 14px; color: var(--ink-2);
+  }
+  .cartao .dica { font-size: 12.5px; color: var(--ink-3); margin: 10px 0 0; max-width: 58ch; }
+  .grande { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; }
+</style>
 </head>
 <body>
 {{template "topbar" .}}
 
 <main>
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  {{if .Servidor.Conhecido}}
+  <div class="cartao{{if .Servidor.Pendentes}} pendente{{end}}">
+    <h2>Servidor de jogo</h2>
+    <div class="linha-estado">
+      <span>no ar há <span class="grande">{{.Servidor.NoAr}}</span></span>
+      {{if .Servidor.Pendentes}}
+        <span class="bloq">{{.Servidor.Pendentes}} edição(ões) aguardando reinício</span>
+      {{else}}
+        <span>nenhuma edição pendente</span>
+      {{end}}
+    </div>
+
+    {{if .IsAdmin}}
+      <form method="post" action="/servidor/reiniciar">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <button type="submit">Reiniciar o servidor de jogo</button>
+      </form>
+    {{end}}
+
+    <p class="dica">
+      {{if .Servidor.Pendentes}}
+        Atributos de monstro são lidos uma única vez, quando o servidor sobe —
+        não existe recarga ao vivo para eles. Última edição
+        {{.Servidor.UltimaEdicao.Local.Format "02/01 15:04"}}.
+      {{else}}
+        NPCs, lojas e preços de item entram sozinhos em até 15 segundos. Só
+        atributos de monstro precisam de reinício.
+      {{end}}
+      Ao reiniciar, quem está jogando é salvo e desconectado; volta em cerca de um minuto.
+    </p>
+  </div>
+  {{else if .Servidor.Erro}}
+  <div class="cartao">
+    <h2>Servidor de jogo</h2>
+    <p class="dica" style="margin-top:0">{{.Servidor.Erro}} O painel continua funcionando normalmente.</p>
+  </div>
+  {{end}}
+
   <h1>Você está autenticado</h1>
   <p class="sub">
     O cargo foi lido do banco nesta requisição, não no momento em que você entrou.
@@ -16,20 +70,8 @@
 
   <p style="margin-bottom:26px">
     <a class="botao" href="/contas">Ver contas</a>
+    {{if .HasItems}}<a class="botao" href="/itens">Ver itens</a>{{end}}
   </p>
-
-  <h2>O que ainda não existe</h2>
-  <div class="tw">
-    <table>
-      <thead><tr><th>Etapa</th><th>Estado</th></tr></thead>
-      <tbody>
-        <tr><td>Buscar e ver conta</td><td>pronto</td></tr>
-        <tr><td>Auditoria — registro imutável</td><td>pendente</td></tr>
-        <tr><td>Cargo e bloqueio</td><td>pendente</td></tr>
-        <tr><td>VIP por prazo</td><td>pendente</td></tr>
-      </tbody>
-    </table>
-  </div>
 </main>
 </body>
 </html>
