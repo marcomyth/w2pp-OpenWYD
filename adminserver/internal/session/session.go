@@ -30,6 +30,7 @@ const tokenBytes = 32
 type Session struct {
 	AccountID   int64
 	AccountName string // for audit lines and the panel header; never for authorization
+	CSRF        string // form token; see below
 	Created     time.Time
 	Expires     time.Time
 }
@@ -57,10 +58,22 @@ func (s *Store) Create(accountID int64, accountName string) (string, Session, er
 	}
 	token := base64.RawURLEncoding.EncodeToString(raw)
 
+	// A second independent secret, per session, for form submissions.
+	//
+	// SameSite=Strict already stops a cross-site POST from carrying the session
+	// cookie in a current browser. This is the belt to that suspenders: it does
+	// not depend on the browser honouring a cookie attribute, and it survives
+	// the day someone relaxes SameSite to make a link from elsewhere work.
+	csrfRaw := make([]byte, tokenBytes)
+	if _, err := rand.Read(csrfRaw); err != nil {
+		return "", Session{}, err
+	}
+
 	now := s.now()
 	sess := Session{
 		AccountID:   accountID,
 		AccountName: accountName,
+		CSRF:        base64.RawURLEncoding.EncodeToString(csrfRaw),
 		Created:     now,
 		Expires:     now.Add(s.ttl),
 	}
