@@ -1037,16 +1037,20 @@ func TestAccountPageShowsVipEmailAndBalance(t *testing.T) {
 
 // fakeGameData stands in for the webServer link.
 type fakeGameData struct {
-	mu        sync.Mutex
-	itens     []gamedata.Item
-	setCalls  [][2]int64 // index, price
-	listErr   error
-	setErr    error
-	versao    string
-	npcs      []gamedata.NPC
-	npcsErr   error
-	shopErr   error
-	shopSaves [][]gamedata.ShopItem
+	mu          sync.Mutex
+	itens       []gamedata.Item
+	setCalls    [][2]int64 // index, price
+	listErr     error
+	setErr      error
+	versao      string
+	npcs        []gamedata.NPC
+	npcsErr     error
+	shopErr     error
+	shopSaves   [][]gamedata.ShopItem
+	saved       []gamedata.NPC
+	visible     []bool
+	deleted     []int64
+	npcWriteErr error
 }
 
 func newFakeGameData() *fakeGameData {
@@ -1122,6 +1126,41 @@ func (f *fakeGameData) SetShop(_ context.Context, _ int64, npcID int64, items []
 		return f.shopErr
 	}
 	f.shopSaves = append(f.shopSaves, items)
+	return nil
+}
+
+func (f *fakeGameData) SaveNPC(_ context.Context, _ int64, n gamedata.NPC) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.npcWriteErr != nil {
+		return f.npcWriteErr
+	}
+	f.saved = append(f.saved, n)
+	for i := range f.npcs {
+		if f.npcs[i].Slug == n.Slug {
+			f.npcs[i] = n
+		}
+	}
+	return nil
+}
+
+func (f *fakeGameData) SetNPCVisible(_ context.Context, _ int64, npcID int64, enabled bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.npcWriteErr != nil {
+		return f.npcWriteErr
+	}
+	f.visible = append(f.visible, enabled)
+	return nil
+}
+
+func (f *fakeGameData) DeleteNPC(_ context.Context, _ int64, npcID int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.npcWriteErr != nil {
+		return f.npcWriteErr
+	}
+	f.deleted = append(f.deleted, npcID)
 	return nil
 }
 
@@ -1553,5 +1592,140 @@ func TestWebServerRefusalIsExplained(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "não reconhece esta conta") {
 		t.Errorf("the message does not explain the disagreement: %q", rec.Body.String())
+	}
+}
+
+// --- escrita de NPC ---
+
+func TestSetLugarPreservesFieldsTheFormDoesNotCarry(t *testing.T) {
+	// The service replaces the whole row, keyed on slug. If the handler built an
+	// NPC from the form instead of editing the one it read, route type and
+	// merchant kind would silently become zero.
+	game := newFakeGameData()
+	game.npcs[0].RouteType = 3
+	game.npcs[0].Merchant = 8
+	h := newTestPanelGame(t, newFakeAudit(), game)
+	post, token := signedInPost(t, h)
+
+	rec := post("/npcs/5/lugar", url.Values{
+		"csrf": {token}, "mapa": {"1"}, "x": {"500"}, "y": {"600"}, "nome": {"Novo Nome"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(game.saved) != 1 {
+		t.Fatalf("saves = %d, want 1", len(game.saved))
+	}
+	got := game.saved[0]
+	if got.MapID != 1 || got.X != 500 || got.Y != 600 || got.DisplayName != "Novo Nome" {
+		t.Errorf("saved = %+v, want the form's values", got)
+	}
+	if got.RouteType != 3 || got.Merchant != 8 {
+		t.Errorf("route type / merchant lost: got %d and %d, want 3 and 8", got.RouteType, got.Merchant)
+	}
+	if got.Slug != "mercador-armia" {
+		t.Errorf("slug = %q, want the original — the service keys on it", got.Slug)
+	}
+}
+
+func TestSetLugarRejectsBadCoordinates(t *testing.T) {
+	h := newTestPanelGame(t, newFakeAudit(), newFakeGameData())
+	post, token := signedInPost(t, h)
+	for _, f := range []url.Values{
+		{"csrf": {token}, "mapa": {"0"}, "x": {"-1"}, "y": {"10"}},
+		{"csrf": {token}, "mapa": {"0"}, "x": {"abc"}, "y": {"10"}},
+		{"csrf": {token}, "mapa": {""}, "x": {"1"}, "y": {"1"}},
+	} {
+		if rec := post("/npcs/5/lugar", f); rec.Code != http.StatusBadRequest {
+			t.Errorf("%v: status = %d, want 400", f, rec.Code)
+		}
+	}
+}
+
+func TestVisibilityTogglesAndIsAudited(t *testing.T) {
+	game := newFakeGameData() // starts Enabled
+	log := newFakeAudit()
+	h := newTestPanelGame(t, log, game)
+	post, token := signedInPost(t, h)
+
+	rec := post("/npcs/5/visibilidade", url.Values{"csrf": {token}, "visivel": {"0"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if len(game.visible) != 1 || game.visible[0] {
+		t.Fatalf("visibility calls = %v, want one false", game.visible)
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(loc, "some do mapa") {
+		t.Errorf("the message does not say what happens in game: %q", loc)
+	}
+	if len(log.recorded()) != 1 {
+		t.Error("hiding an NPC was not audited")
+	}
+}
+
+func TestDeleteIsAdminOnly(t *testing.T) {
+	game := newFakeGameData()
+	hm, err := New(Config{
+		Accounts: withTarget(roleModerator), Writer: newFakeWriter(), GameData: game,
+		Audit: newFakeAudit(), Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	post, token := signedInPost(t, hm.Routes())
+	if rec := post("/npcs/5/apagar", url.Values{"csrf": {token}}); rec.Code != http.StatusForbidden {
+		t.Fatalf("moderator delete: status = %d, want 403", rec.Code)
+	}
+	if len(game.deleted) != 0 {
+		t.Fatal("a refused request still deleted the NPC")
+	}
+}
+
+func TestDeleteIsNotAttemptedWhenItCannotBeAudited(t *testing.T) {
+	// Once deleted there is no row left to describe, so the record has to exist
+	// first or the action becomes unexplainable.
+	game := newFakeGameData()
+	log := newFakeAudit()
+	log.failWrite = errors.New("banco fora do ar")
+	h := newTestPanelGame(t, log, game)
+	post, token := signedInPost(t, h)
+
+	rec := post("/npcs/5/apagar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if len(game.deleted) != 0 {
+		t.Fatal("the NPC was deleted even though the action could not be recorded")
+	}
+}
+
+func TestContentOwnedDeleteIsExplained(t *testing.T) {
+	game := newFakeGameData()
+	game.npcWriteErr = gamedata.ErrContentOwned
+	h := newTestPanelGame(t, newFakeAudit(), game)
+	post, token := signedInPost(t, h)
+
+	rec := post("/npcs/5/apagar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "deixe oculto") {
+		t.Errorf("the message does not offer the way out: %q", rec.Body.String())
+	}
+}
+
+func TestNpcWritesNeedTheCSRFToken(t *testing.T) {
+	game := newFakeGameData()
+	h := newTestPanelGame(t, newFakeAudit(), game)
+	post, _ := signedInPost(t, h)
+	for _, path := range []string{"/npcs/5/lugar", "/npcs/5/visibilidade", "/npcs/5/apagar"} {
+		if rec := post(path, url.Values{"mapa": {"0"}, "x": {"1"}, "y": {"1"}}); rec.Code != http.StatusForbidden {
+			t.Errorf("%s: status = %d, want 403", path, rec.Code)
+		}
+	}
+	if len(game.saved)+len(game.visible)+len(game.deleted) != 0 {
+		t.Fatal("a request without the token changed something")
 	}
 }

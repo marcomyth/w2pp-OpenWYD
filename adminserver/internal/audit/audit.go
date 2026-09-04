@@ -29,6 +29,8 @@ const (
 	ActionSetItemPrice = "SET_ITEM_PRICE"
 	ActionRestartGame  = "RESTART_GAME"
 	ActionSetNpcShop   = "SET_NPC_SHOP"
+	ActionSetNpc       = "SET_NPC"
+	ActionDeleteNpc    = "DELETE_NPC"
 )
 
 // listLimit caps one page of the log.

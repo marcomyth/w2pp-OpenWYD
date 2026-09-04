@@ -180,6 +180,10 @@ var (
 	ErrForbidden = errors.New("gamedata: caller is not a moderator")
 	ErrInvalid   = errors.New("gamedata: the service rejected the request")
 	ErrNotFound  = errors.New("gamedata: not found")
+	// ErrContentOwned means the definition came from the content tree and can be
+	// hidden but not deleted. Deleting it would leave NPCGener.txt spawning
+	// something the database no longer describes, so the service refuses.
+	ErrContentOwned = errors.New("gamedata: definition is owned by the content tree")
 )
 
 // NPC is one merchant definition with its stock.
@@ -191,6 +195,7 @@ type NPC struct {
 	Enabled      bool
 	MapID        int32
 	X, Y         int32
+	RouteType    int32
 	Merchant     int32
 	Origin       string
 	Shop         []ShopItem
@@ -269,7 +274,7 @@ func npcFromProto(n *webv1.AdminNpc) NPC {
 		ID: n.GetId(), Slug: n.GetSlug(), DisplayName: n.GetDisplayName(),
 		TemplateName: n.GetTemplateName(), Enabled: n.GetEnabled(),
 		MapID: n.GetMapId(), X: n.GetPosX(), Y: n.GetPosY(),
-		Merchant: n.GetMerchant(), Origin: n.GetOrigin(),
+		RouteType: n.GetRouteType(), Merchant: n.GetMerchant(), Origin: n.GetOrigin(),
 	}
 	for _, s := range n.GetShop() {
 		out.Shop = append(out.Shop, ShopItem{
@@ -296,6 +301,8 @@ func resultErr(r webv1.AdminResult) error {
 		return ErrForbidden
 	case webv1.AdminResult_ADMIN_RESULT_NOT_FOUND:
 		return ErrNotFound
+	case webv1.AdminResult_ADMIN_RESULT_CONTENT_OWNED:
+		return ErrContentOwned
 	default:
 		return ErrInvalid
 	}
@@ -304,3 +311,49 @@ func resultErr(r webv1.AdminResult) error {
 // MaxShopSlot exposes the stock bound so the UI renders exactly the slots the
 // service accepts, instead of guessing.
 func MaxShopSlot() int { return maxShopSlot }
+
+// SaveNPC updates a definition. The service keys on slug rather than id, so the
+// caller passes the whole NPC back — which is why the panel reads it first and
+// edits fields on the value it got, instead of assembling one from a form and
+// blanking whatever the form does not carry.
+func (c *Client) SaveNPC(ctx context.Context, moderatorID int64, n NPC) error {
+	resp, err := c.npc.UpsertNpc(ctx, &webv1.UpsertNpcRequest{
+		ModeratorId:  moderatorID,
+		Slug:         n.Slug,
+		TemplateName: n.TemplateName,
+		DisplayName:  n.DisplayName,
+		Enabled:      n.Enabled,
+		MapId:        n.MapID,
+		PosX:         n.X,
+		PosY:         n.Y,
+		RouteType:    n.RouteType,
+		Merchant:     n.Merchant,
+	})
+	if err != nil {
+		return fmt.Errorf("gamedata: save npc %q: %w", n.Slug, err)
+	}
+	return resultErr(resp.GetResult())
+}
+
+// SetNPCVisible shows or hides a definition.
+func (c *Client) SetNPCVisible(ctx context.Context, moderatorID, npcID int64, enabled bool) error {
+	resp, err := c.npc.SetNpcVisibility(ctx, &webv1.SetNpcVisibilityRequest{
+		ModeratorId: moderatorID, NpcId: npcID, Enabled: enabled,
+	})
+	if err != nil {
+		return fmt.Errorf("gamedata: set npc visibility %d: %w", npcID, err)
+	}
+	return resultErr(resp.GetResult())
+}
+
+// DeleteNPC removes a definition. Content-owned ones come back as
+// ErrContentOwned: they must be hidden instead.
+func (c *Client) DeleteNPC(ctx context.Context, moderatorID, npcID int64) error {
+	resp, err := c.npc.DeleteNpc(ctx, &webv1.DeleteNpcRequest{
+		ModeratorId: moderatorID, NpcId: npcID,
+	})
+	if err != nil {
+		return fmt.Errorf("gamedata: delete npc %d: %w", npcID, err)
+	}
+	return resultErr(resp.GetResult())
+}
