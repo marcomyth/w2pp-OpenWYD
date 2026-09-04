@@ -93,6 +93,18 @@ const (
 	// NoticeAlreadyDone (_NN_Youve_Done_It_Already) — a one-shot quest hand-in
 	// (e.g. CAPAVERDE_TRADE) was already completed.
 	NoticeAlreadyDone
+
+	// Pergaminho da Água gates (_MSG_UseItem.cpp:1755/1762/1771).
+	//
+	// NoticeSomeoneOnQuest is _NN_Someone_is_on_quest (Language.txt:295,
+	// "Outros jogadores já estão realizando esta quest."). The legacy passes the
+	// occupant's name and a count to sprintf, but the string carries no format
+	// verbs, so both are discarded and every player sees the generic text — we
+	// reproduce that and log the name instead.
+	NoticeSomeoneOnQuest
+	// NoticePartyLeaderOnly is _NN_Party_Leader_Only (Language.txt:229, "Uso
+	// restrito ao líder do grupo.").
+	NoticePartyLeaderOnly
 )
 
 // notify sends a client notification.

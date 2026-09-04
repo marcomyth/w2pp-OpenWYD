@@ -2221,10 +2221,11 @@ func TestUseSeloDoGuerreiro(t *testing.T) {
 	}
 }
 
-// TestUseWaterScrollRejected is the issue #135 "safe fallback" for the 3 blocked
-// items: the real behavior needs data absent from Source/, so it must reject
-// cleanly (NoticeCantUseHere + resync) instead of no-op'ing — a no-op would
-// recreate the exact "phantom consumption reverts on move" bug this fix closes.
+// TestUseWaterScrollRejected covers the Pergaminho da Água area gate: the hero
+// stands at (5,5), nowhere near the Agua_A rooms, so the scroll is refused with
+// NoticeCantUseHere and the slot is resynced UNCONSUMED. Refusing without eating
+// the item is the property that matters — a no-op would recreate the "phantom
+// consumption reverts on move" bug of issue #135.
 func TestUseWaterScrollRejected(t *testing.T) {
 	db := newDB()
 	st := world.CharacterState{Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000}

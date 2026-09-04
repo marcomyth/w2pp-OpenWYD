@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ItemList — OpenWYD</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --panel: #fff; --fg: #17181c; --muted: #6b7280;
+    --line: #e3e4e8; --accent: #b45309; --chip: #eef0f4; --hover: #f0f1f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171a; --panel: #1d1e22; --fg: #e8e9ec; --muted: #9aa0aa;
+      --line: #2c2e34; --accent: #f0a640; --chip: #2a2c32; --hover: #24262b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.45 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    position: sticky; top: 0; z-index: 5; background: var(--panel);
+    border-bottom: 1px solid var(--line); padding: 12px 16px;
+  }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 650; letter-spacing: .2px; }
+  h1 span { color: var(--muted); font-weight: 400; font-size: 13px; }
+  input[type=search], select {
+    background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 10px; font: inherit;
+  }
+  input[type=search] { min-width: 320px; flex: 1 1 320px; }
+  input[type=search]:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .count { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  main { padding: 0 16px 48px; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--muted); font-weight: 600; padding: 10px 8px;
+    border-bottom: 1px solid var(--line); position: sticky; background: var(--bg);
+    /* --head-h is measured at runtime: the header grows and shrinks with the
+       tab (the filter row hides on the commands tab). */
+    top: var(--head-h, 61px);
+  }
+  td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover { background: var(--hover); }
+  .num { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+  .idx { color: var(--accent); font-weight: 600; }
+  .muted { color: var(--muted); }
+  .chip {
+    display: inline-block; background: var(--chip); border-radius: 4px;
+    padding: 1px 6px; margin: 1px 3px 1px 0; font-size: 12px;
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .icon { width: 35px; height: 35px; image-rendering: pixelated; display: block; }
+  .icon-ph { width: 35px; height: 35px; border: 1px dashed var(--line); border-radius: 4px; }
+  .detail td { background: var(--chip); }
+  .detail dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; }
+  .detail dt { color: var(--muted); font-size: 12px; }
+  .detail dd { margin: 0; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+  .empty { padding: 40px 8px; color: var(--muted); text-align: center; }
+  .more { padding: 14px 8px; color: var(--muted); font-size: 13px; }
+  .chip[title] { cursor: help; border-bottom: 1px dotted var(--muted); }
+  button {
+    background: var(--bg); color: var(--fg); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 12px; font: inherit; cursor: pointer;
+  }
+  button:hover { background: var(--hover); }
+  #legend[hidden] { display: none; }
+  #legend {
+    position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, .55);
+    display: flex; justify-content: flex-end;
+  }
+  .sheet {
+    background: var(--panel); width: min(760px, 100%); height: 100%;
+    overflow-y: auto; padding: 18px 20px 40px; border-left: 1px solid var(--line);
+  }
+  .sheet h2 { font-size: 15px; margin: 0 0 4px; }
+  .sheet p { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .sheet table { font-size: 13px; }
+  .sheet th { top: 0; background: var(--panel); }
+  .flag {
+    display: inline-block; font-size: 11px; border-radius: 3px; padding: 0 5px;
+    border: 1px solid var(--line); color: var(--muted); margin-right: 4px;
+  }
+  .flag.on { color: var(--accent); border-color: var(--accent); }
+  .sheet-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .tabs { display: flex; gap: 4px; }
+  .tab { border-radius: 6px 6px 0 0; border-bottom-color: transparent; }
+  .tab.on { color: var(--accent); border-color: var(--accent); font-weight: 600; }
+  [hidden] { display: none !important; }
+  header .row + .row { margin-top: 10px; }
+  .cmd {
+    border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+    margin: 10px 0; background: var(--panel);
+  }
+  .cmd-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .cmd code {
+    font-family: ui-monospace, Consolas, monospace; font-size: 14px;
+    color: var(--accent); font-weight: 600;
+  }
+  .cmd .target {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .04em;
+    border: 1px solid var(--line); border-radius: 3px; padding: 0 5px; color: var(--muted);
+  }
+  .cmd .alias { color: var(--muted); font-size: 12px; font-family: ui-monospace, Consolas, monospace; }
+  .cmd p { margin: 7px 0 0; }
+  .cmd ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+  .cmd li { margin: 3px 0; }
+  .intro {
+    border-left: 3px solid var(--accent); background: var(--chip);
+    padding: 12px 14px; border-radius: 0 8px 8px 0; margin: 16px 0 6px;
+  }
+  .intro code { font-family: ui-monospace, Consolas, monospace; }
+  .intro ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <h1>OpenWYD <span id="meta"></span></h1>
+    <nav class="tabs">
+      <button class="tab on" type="button" data-tab="items">Itens</button>
+      <button class="tab" type="button" data-tab="cmds">Comandos ADM</button>
+    </nav>
+  </div>
+  <div class="row" id="filters">
+    <input type="search" id="q" placeholder="nome, indice ou EF_ (ex.: bau, 4140, EF_VOLATILE)" autocomplete="off" spellcheck="false">
+    <select id="kind">
+      <option value="">todos os tipos</option>
+      <option value="equip">equipavel (vol 0)</option>
+      <option value="cons">consumivel (vol &gt; 0)</option>
+    </select>
+    <select id="grade"><option value="">todas as grades</option></select>
+    <select id="slot"><option value="">todos os slots</option></select>
+    <button id="legendBtn" type="button">Legenda</button>
+    <span class="count" id="count"></span>
+  </div>
+</header>
+<div id="legend" hidden>
+  <div class="sheet">
+    <div class="sheet-head">
+      <div>
+        <h2>Legenda dos efeitos</h2>
+        <p>
+          Ids e significados de <code>Source/Code/ItemEffect.h</code>. Os comentarios
+          coreanos foram decodificados de CP949 e traduzidos.
+          <strong>score</strong> = o tmserver soma esse efeito nos atributos do personagem;
+          <strong>refino</strong> = o efeito nao esta na lista de isencao de
+          <code>Basedef.cpp:1854</code>, entao o valor e escalado por (refino+10)/10
+          quando lido por aquela funcao. Nem todo consumidor passa por ela: as datas
+          de validade, por exemplo, sao lidas direto por <code>BASE_CheckItemDate</code>.
+        </p>
+      </div>
+      <button id="legendClose" type="button">Fechar</button>
+    </div>
+    <table>
+      <thead>
+        <tr><th style="width:56px">Id</th><th style="width:170px">Token</th><th>Significado</th><th style="width:120px">Flags</th></tr>
+      </thead>
+      <tbody id="legendRows"></tbody>
+    </table>
+  </div>
+</div>
+<main>
+  <section id="viewCmds" hidden>
+    <div class="intro" id="cmdIntro"></div>
+    <div id="cmdList"></div>
+  </section>
+  <section id="viewItems">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:44px"></th>
+        <th style="width:70px">Indice</th>
+        <th>Nome</th>
+        <th style="width:64px">Vol</th>
+        <th style="width:66px">Grade</th>
+        <th>Slots</th>
+        <th style="width:110px">Preco</th>
+        <th style="width:60px">Nivel</th>
+        <th>Efeitos</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div id="foot"></div>
+  </section>
+</main>
+<script>
+"use strict";
+var LIMIT = 300;
+var DATA = { items: [], catalogVersion: "", iconPack: "" };
+var open = {};
+
+var qEl = document.getElementById("q");
+var kindEl = document.getElementById("kind");
+var gradeEl = document.getElementById("grade");
+var slotEl = document.getElementById("slot");
+var rowsEl = document.getElementById("rows");
+var countEl = document.getElementById("count");
+var footEl = document.getElementById("foot");
+var metaEl = document.getElementById("meta");
+
+// fold strips accents and case so "bau" matches "Bau de Experiencia" with its
+// real accents - the catalog is full of them and nobody types them in a hurry.
+function fold(s) {
+  return String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+  });
+}
+function fmt(n) { return Number(n).toLocaleString("pt-BR"); }
+
+// tip builds the hover text for one EF_ chip from the legend the server ships.
+// An unknown token is reported as such instead of silently showing nothing -
+// that means the catalog carries an effect ItemEffect.h does not define.
+function tip(name) {
+  var e = DATA.legend && DATA.legend[name];
+  if (!e) return name + " - token nao encontrado em ItemEffect.h";
+  var parts = [name + " (id " + e.id + ")", e.label];
+  if (e.note) parts.push(e.note);
+  parts.push(e.score ? "entra nos atributos" : "nao entra nos atributos");
+  parts.push(e.refine ? "escala com o refino" : "isento do refino");
+  return parts.join(" - ");
+}
+
+function render() {
+  var terms = fold(qEl.value).split(/\s+/).filter(Boolean);
+  var kind = kindEl.value, grade = gradeEl.value, slot = slotEl.value;
+  var hits = [];
+  for (var i = 0; i < DATA.items.length; i++) {
+    var it = DATA.items[i];
+    if (kind === "equip" && it.volatile !== 0) continue;
+    if (kind === "cons" && it.volatile === 0) continue;
+    if (grade !== "" && String(it.grade) !== grade) continue;
+    if (slot !== "" && it.slots.indexOf(slot) === -1) continue;
+    var ok = true;
+    for (var t = 0; t < terms.length; t++) {
+      if (it._hay.indexOf(terms[t]) === -1) { ok = false; break; }
+    }
+    if (!ok) continue;
+    hits.push(it);
+  }
+
+  countEl.textContent = fmt(hits.length) + " de " + fmt(DATA.items.length);
+  var shown = hits.slice(0, LIMIT);
+  var html = "";
+  for (var j = 0; j < shown.length; j++) {
+    var x = shown[j];
+    var icon = (DATA.iconPack && x.iconKey)
+      ? '<img class="icon" loading="lazy" alt="" src="/icons/' + encodeURIComponent(DATA.iconPack) + "/" + encodeURIComponent(x.iconKey) + '.png">'
+      : '<div class="icon-ph"></div>';
+    var effs = "";
+    for (var k = 0; k < x.effects.length; k++) {
+      var ef = x.effects[k];
+      effs += '<span class="chip" title="' + esc(tip(ef.name)) + '">'
+        + esc(ef.name.replace(/^EF_/, "")) + " " + fmt(ef.value) + "</span>";
+    }
+    var slots = x.slots.length ? esc(x.slots.join(", ")) : '<span class="muted">-</span>';
+    html += '<tr data-i="' + x.index + '">'
+      + "<td>" + icon + "</td>"
+      + '<td class="num idx">' + x.index + "</td>"
+      + "<td>" + esc(x.name) + "</td>"
+      + '<td class="num">' + (x.volatile ? x.volatile : '<span class="muted">0</span>') + "</td>"
+      + '<td class="num">' + (x.grade ? x.grade : '<span class="muted">-</span>') + "</td>"
+      + "<td>" + slots + "</td>"
+      + '<td class="num">' + (x.price ? fmt(x.price) : '<span class="muted">0</span>') + "</td>"
+      + '<td class="num">' + (x.req.lvl ? x.req.lvl : '<span class="muted">-</span>') + "</td>"
+      + "<td>" + (effs || '<span class="muted">-</span>') + "</td>"
+      + "</tr>";
+    if (open[x.index]) html += detailRow(x);
+  }
+  rowsEl.innerHTML = html || '<tr><td colspan="9" class="empty">Nenhum item bate com esse filtro.</td></tr>';
+  footEl.innerHTML = hits.length > LIMIT
+    ? '<div class="more">Mostrando os primeiros ' + LIMIT + " de " + fmt(hits.length) + ". Refine a busca para ver o resto.</div>"
+    : "";
+}
+
+function detailRow(x) {
+  var r = x.req;
+  var pairs = [["Nivel", r.lvl], ["For", r.str], ["Int", r.int], ["Des", r.dex], ["Con", r.con]];
+  var req = [];
+  for (var i = 0; i < pairs.length; i++) {
+    if (pairs[i][1]) req.push(pairs[i][0] + " " + pairs[i][1]);
+  }
+  var reqTxt = req.length ? req.join("  ") : "nenhum";
+  var all = [];
+  for (var k = 0; k < x.effects.length; k++) all.push(x.effects[k].name + " " + x.effects[k].value);
+  return '<tr class="detail"><td></td><td colspan="8"><dl>'
+    + "<dt>nome cru</dt><dd>" + esc(x.raw) + "</dd>"
+    + "<dt>mesh.textura</dt><dd>" + x.mesh + "." + x.texture + "</dd>"
+    + "<dt>slot mask</dt><dd>" + x.slotMask + (x.slots.length ? "  (" + esc(x.slots.join(", ")) + ")" : "") + "</dd>"
+    + "<dt>requisitos</dt><dd>" + esc(reqTxt) + "</dd>"
+    + "<dt>efeitos</dt><dd>" + esc(all.length ? all.join("   ") : "nenhum") + "</dd>"
+    + "<dt>icone</dt><dd>" + (x.iconKey ? esc(x.iconKey) : "sem mapeamento no cliente") + "</dd>"
+    + "</dl></td></tr>";
+}
+
+rowsEl.addEventListener("click", function (ev) {
+  var tr = ev.target.closest("tr[data-i]");
+  if (!tr) return;
+  var i = tr.getAttribute("data-i");
+  if (open[i]) { delete open[i]; } else { open[i] = 1; }
+  render();
+});
+
+[qEl, kindEl, gradeEl, slotEl].forEach(function (el) {
+  el.addEventListener("input", render);
+});
+
+// --- abas ---------------------------------------------------------------
+var viewItems = document.getElementById("viewItems");
+var viewCmds = document.getElementById("viewCmds");
+var filtersEl = document.getElementById("filters");
+
+// syncHeadHeight keeps the sticky table header glued to the bottom of the page
+// header, which changes height when the filter row hides.
+function syncHeadHeight() {
+  var h = document.querySelector("header").offsetHeight;
+  document.documentElement.style.setProperty("--head-h", h + "px");
+}
+window.addEventListener("resize", syncHeadHeight);
+
+function showTab(which) {
+  var items = which === "items";
+  viewItems.hidden = !items;
+  viewCmds.hidden = items;
+  filtersEl.hidden = !items; // busca e contagem só fazem sentido no catálogo
+  var tabs = document.querySelectorAll(".tab");
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.toggle("on", tabs[i].dataset.tab === which);
+  }
+  if (items) { qEl.focus(); } else { renderCommands(); }
+  syncHeadHeight();
+}
+document.querySelector(".tabs").addEventListener("click", function (ev) {
+  var t = ev.target.closest(".tab");
+  if (t) showTab(t.dataset.tab);
+});
+
+function renderCommands() {
+  var bus = DATA.bus;
+  if (!bus || document.getElementById("cmdList").innerHTML) return;
+
+  var notes = "";
+  for (var n = 0; n < bus.notes.length; n++) notes += "<li>" + esc(bus.notes[n]) + "</li>";
+  document.getElementById("cmdIntro").innerHTML =
+    "<div><strong>Entrada:</strong> <code>" + esc(bus.entry) + "</code></div>"
+    + "<div><strong>Requer:</strong> <code>" + esc(bus.access) + "</code></div>"
+    + "<ul>" + notes + "</ul>";
+
+  var html = "";
+  for (var i = 0; i < bus.commands.length; i++) {
+    var c = bus.commands[i];
+    var alias = c.aliases && c.aliases.length
+      ? '<span class="alias">tambem: ' + esc(c.aliases.map(function (a) { return "/gm " + a; }).join(", ")) + "</span>"
+      : "";
+    var notesHTML = "";
+    if (c.notes && c.notes.length) {
+      notesHTML = "<ul>";
+      for (var k = 0; k < c.notes.length; k++) notesHTML += "<li>" + esc(c.notes[k]) + "</li>";
+      notesHTML += "</ul>";
+    }
+    html += '<div class="cmd">'
+      + '<div class="cmd-head"><code>/gm ' + esc(c.name) + (c.args ? " " + esc(c.args) : "") + "</code>"
+      + '<span class="target">' + esc(c.target) + "</span>" + alias + "</div>"
+      + "<p>" + esc(c.summary) + "</p>" + notesHTML + "</div>";
+  }
+  document.getElementById("cmdList").innerHTML = html;
+}
+
+var legendEl = document.getElementById("legend");
+function renderLegend() {
+  var names = Object.keys(DATA.legend || {});
+  names.sort(function (a, b) { return DATA.legend[a].id - DATA.legend[b].id; });
+  var html = "";
+  for (var i = 0; i < names.length; i++) {
+    var e = DATA.legend[names[i]];
+    var meaning = esc(e.label || "");
+    if (e.note) meaning += ' <span class="muted">' + esc(e.note) + "</span>";
+    html += "<tr>"
+      + '<td class="num">' + e.id + "</td>"
+      + '<td class="num">' + esc(names[i]) + "</td>"
+      + "<td>" + meaning + "</td>"
+      + "<td>"
+      + '<span class="flag' + (e.score ? " on" : "") + '">score</span>'
+      + '<span class="flag' + (e.refine ? " on" : "") + '">refino</span>'
+      + "</td></tr>";
+  }
+  document.getElementById("legendRows").innerHTML = html;
+}
+function toggleLegend(show) {
+  if (show && !document.getElementById("legendRows").innerHTML) renderLegend();
+  legendEl.hidden = !show;
+}
+document.getElementById("legendBtn").addEventListener("click", function () { toggleLegend(true); });
+document.getElementById("legendClose").addEventListener("click", function () { toggleLegend(false); });
+legendEl.addEventListener("click", function (ev) {
+  if (ev.target === legendEl) toggleLegend(false); // click on the backdrop
+});
+document.addEventListener("keydown", function (ev) {
+  if (ev.key === "/" && document.activeElement !== qEl && !viewItems.hidden) {
+    ev.preventDefault(); qEl.focus(); qEl.select();
+  }
+  if (ev.key !== "Escape") return;
+  if (!legendEl.hidden) { toggleLegend(false); return; }
+  if (document.activeElement === qEl) { qEl.value = ""; render(); }
+});
+
+fetch("/api/items").then(function (r) { return r.json(); }).then(function (d) {
+  DATA = d;
+  var grades = {}, slots = {};
+  for (var i = 0; i < d.items.length; i++) {
+    var it = d.items[i];
+    // Precompute the haystack once: filtering 6.4k rows on every keystroke has
+    // to scan a flat string, not rebuild one per item per key.
+    var names = [];
+    for (var e = 0; e < it.effects.length; e++) names.push(it.effects[e].name);
+    it._hay = fold(it.name + " " + it.raw + " " + it.index + " " + names.join(" "));
+    if (it.grade) grades[it.grade] = 1;
+    for (var s = 0; s < it.slots.length; s++) slots[it.slots[s]] = 1;
+  }
+  Object.keys(grades).sort(function (a, b) { return a - b; }).forEach(function (g) {
+    gradeEl.insertAdjacentHTML("beforeend", '<option value="' + g + '">grade ' + g + "</option>");
+  });
+  Object.keys(slots).sort().forEach(function (s) {
+    slotEl.insertAdjacentHTML("beforeend", '<option value="' + esc(s) + '">' + esc(s) + "</option>");
+  });
+  metaEl.textContent = d.iconPack ? "- icones ativos" : "- sem pacote de icones";
+  metaEl.title = "catalog " + String(d.catalogVersion).slice(0, 12);
+  render();
+  syncHeadHeight();
+  qEl.focus();
+}).catch(function (e) {
+  rowsEl.innerHTML = '<tr><td colspan="9" class="empty">Falha ao carregar /api/items: ' + esc(e.message) + "</td></tr>";
+});
+</script>
+</body>
+</html>
