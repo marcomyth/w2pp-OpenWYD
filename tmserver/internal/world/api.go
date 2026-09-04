@@ -128,7 +128,15 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 		SegmentX: x, SegmentY: y,
 		WaitTicks: sp.SegWait[0],
 	}
-	e.NonCombatNPC = nonCombatNPC(e.Merchant, e.Clan, e.X, e.Y)
+	// Water-dungeon rooms are combat content, whatever their Merchant byte says.
+	// Imp_ ships Merchant=64 and nonCombatNPC reads any non-zero value as a
+	// service NPC, which made the room 4 monsters invulnerable. The legacy
+	// protects only Merchant 1/4/43/100 (_MSG_Attack.cpp:339), so nothing that
+	// spawns in these rooms qualifies. Scoped to the dungeon on purpose: the
+	// blanket rule wrongly shields real monsters elsewhere too, but widening it
+	// is a separate call — it would expose ~376 spawn blocks at once.
+	e.NonCombatNPC = nonCombatNPC(e.Merchant, e.Clan, e.X, e.Y) &&
+		!IsWaterDungeonGenerator(int(sp.GenIndex))
 	for i, r := range b.Resist {
 		e.Resist[i] = int16(r)
 	}
