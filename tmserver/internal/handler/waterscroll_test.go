@@ -227,3 +227,33 @@ func TestWaterCountdownUnits(t *testing.T) {
 		})
 	}
 }
+
+// TestWaterRewardPaysOncePerRun is the anti-farm invariant. The clear is
+// detected from the block's population reaching its last mob, and that can
+// happen repeatedly within one run — which is how a single M scroll minted six.
+// The payout is charged to the run, so only the first clear pays.
+func TestWaterRewardPaysOncePerRun(t *testing.T) {
+	d := &Dispatcher{}
+
+	if !d.claimWaterReward(waterM, 0) {
+		t.Fatal("first clear of a fresh run did not pay")
+	}
+	for i := 0; i < 5; i++ {
+		if d.claimWaterReward(waterM, 0) {
+			t.Fatalf("clear %d paid again within the same run", i+2)
+		}
+	}
+	// Other rooms and other dungeons keep their own credit.
+	if !d.claimWaterReward(waterM, 1) {
+		t.Error("room 1 of the same dungeon was blocked by room 0's payout")
+	}
+	if !d.claimWaterReward(waterN, 0) {
+		t.Error("dungeon N was blocked by dungeon M's payout")
+	}
+
+	// Re-entering re-arms the room: a new run owes a new reward.
+	d.events.waterPaid[waterM][0] = false
+	if !d.claimWaterReward(waterM, 0) {
+		t.Error("a fresh run did not re-arm the payout")
+	}
+}

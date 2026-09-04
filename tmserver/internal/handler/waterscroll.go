@@ -228,6 +228,8 @@ func (d *Dispatcher) useWaterScroll(w *world.World, s *world.Session, e *world.E
 		countdown = waterBossTime
 	}
 	d.events.water[variant][room] = countdown
+	// A fresh run: this room owes exactly one reward again.
+	d.events.waterPaid[variant][room] = false
 
 	dest := waterScrollPosition[variant][room]
 	d.enterWaterRoom(w, s, e, dest, countdown)
@@ -307,6 +309,11 @@ func (d *Dispatcher) waterRoomCleared(w *world.World, reward, mob *world.Entity)
 	if gen == nil || gen.CurrentNumMob != 1 {
 		return // not the last one down yet
 	}
+	if !d.claimWaterReward(variant, room) {
+		d.log.Info("water room already rewarded this run; skipping payout",
+			"variant", variant, "room", room)
+		return
+	}
 
 	leader := reward
 	if reward.Leader != 0 {
@@ -329,6 +336,22 @@ func (d *Dispatcher) waterRoomCleared(w *world.World, reward, mob *world.Entity)
 	d.broadcastWaterCountdown(w, leader, d.events.water[variant][room])
 	d.log.Info("water room cleared",
 		"variant", variant, "room", room, "leader", leader.Name, "remaining", d.events.water[variant][room])
+}
+
+// claimWaterReward takes the single payout a room run owes, returning false if
+// the run already paid.
+//
+// The clear is detected from the block's population reaching its last mob, and
+// that condition can be met more than once per run: a respawn, the second
+// GenerateMob of entry, or mobs left over from an expired run all bring the
+// count back down. Charging the payout to the RUN rather than to the count is
+// what keeps one scroll from minting many.
+func (d *Dispatcher) claimWaterReward(variant, room int) bool {
+	if d.events.waterPaid[variant][room] {
+		return false
+	}
+	d.events.waterPaid[variant][room] = true
+	return true
 }
 
 // grantNextWaterScroll puts the next scroll of the chain in the leader's bag.

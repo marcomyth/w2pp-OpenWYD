@@ -252,6 +252,12 @@ type worldEventState struct {
 	// countdown, in 2-second units, by variant then room. 0 = the room is not
 	// running. See waterscroll.go.
 	water [3][10]uint8
+	// waterPaid records that the current run of a room already handed out its
+	// reward. The clear reward fires when the block's population reaches its last
+	// mob, so ANY later repopulation — a respawn, a second GenerateMob, mobs left
+	// over from an expired run — would otherwise pay again and turn the dungeon
+	// into an infinite scroll farm. Armed on entry, cleared on payout.
+	waterPaid [3][10]bool
 }
 
 // New builds a Dispatcher with the batch-1 routes registered.
