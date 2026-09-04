@@ -34,8 +34,12 @@ import (
 	"syscall"
 	"time"
 
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/panel"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
@@ -73,6 +77,9 @@ func run(logger *slog.Logger) error {
 	// on http://localhost cannot log in without this. Off by default: the flag
 	// has to be asked for, never assumed.
 	insecureCookies := flag.Bool("insecure-cookies", false, "omit the Secure flag on the session cookie (local HTTP only)")
+	// Optional. Without it the item pages are hidden rather than broken, so the
+	// panel still runs against nothing but the database.
+	webAddr := flag.String("webserver", os.Getenv("W2PP_WEBSERVER"), "webServer gRPC address for the item pages (empty = hide them)")
 	flag.Parse()
 
 	if *dsn == "" {
@@ -88,8 +95,27 @@ func run(logger *slog.Logger) error {
 	}
 	defer pool.Close()
 
+	var game panel.GameData
+	if *webAddr != "" {
+		// Insecure credentials: this link stays on the platform's private
+		// network, exactly like tmServer's to dbServer. Give it mTLS the day
+		// that link gets it, not before — a lone service with certificates the
+		// others lack is a maintenance trap, not a security gain.
+		conn, err := grpc.NewClient(*webAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			return fmt.Errorf("webserver dial: %w", err)
+		}
+		defer func() { _ = conn.Close() }()
+		game = gamedata.New(conn)
+		logger.Info("webServer wired", "addr", *webAddr)
+	} else {
+		logger.Warn("no webServer configured; item pages are hidden",
+			"configuration", "W2PP_WEBSERVER")
+	}
+
 	handler, err := panel.New(panel.Config{
 		Accounts:   store.New(pool),
+		GameData:   game,
 		Writer:     accounts.New(pool),
 		Audit:      audit.New(pool),
 		Sessions:   session.New(*sessionTTL),

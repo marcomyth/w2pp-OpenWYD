@@ -197,11 +197,16 @@ func (s *Store) Get(ctx context.Context, id int64) (Details, error) {
 // other reading silently takes time away from a paying player, and it is the
 // reading a naive `now() + interval` produces.
 //
-// There is deliberately no self-grant guard. VIP is an entitlement, not
-// authority: granting it to yourself cannot lock anyone out or escalate what you
-// can do, and the audit entry names who did it. Blocking it would also stop
-// staff testing their own change, which is a real thing they need to do.
-func (s *Store) AddVipDays(ctx context.Context, actorID, targetID int64, days int) (prev, next *time.Time, err error) {
+// There is deliberately no self-grant guard, which is why the actor is accepted
+// and then ignored here. VIP is an entitlement, not authority: granting it to
+// yourself cannot lock anyone out or escalate what you can do, and the audit
+// entry the caller writes names who did it. Blocking it would also stop staff
+// testing their own change, which is a real thing they need to do.
+//
+// The parameter stays for symmetry with SetRole and SetBlocked, where it is load
+// bearing: a guard added here later should not have to change the signature and
+// every caller with it.
+func (s *Store) AddVipDays(ctx context.Context, _, targetID int64, days int) (prev, next *time.Time, err error) {
 	if days < MinVipDays || days > MaxVipDays {
 		return nil, nil, ErrVipDays
 	}
@@ -244,7 +249,7 @@ func (s *Store) AddVipDays(ctx context.Context, actorID, targetID int64, days in
 // It writes NULL rather than a past date: "never had VIP" and "had VIP, taken
 // away" read the same to anything that compares against now(), and the audit log
 // is where the difference is preserved.
-func (s *Store) ClearVip(ctx context.Context, actorID, targetID int64) (*time.Time, error) {
+func (s *Store) ClearVip(ctx context.Context, _, targetID int64) (*time.Time, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("accounts: begin: %w", err)

@@ -17,6 +17,7 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
@@ -1020,5 +1021,187 @@ func TestAccountPageShowsVipEmailAndBalance(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("account page missing %q", want)
 		}
+	}
+}
+
+// --- itens ---
+
+// fakeGameData stands in for the webServer link.
+type fakeGameData struct {
+	mu       sync.Mutex
+	itens    []gamedata.Item
+	setCalls [][2]int64 // index, price
+	listErr  error
+	setErr   error
+	versao   string
+}
+
+func newFakeGameData() *fakeGameData {
+	return &fakeGameData{
+		versao: "abc123",
+		itens: []gamedata.Item{
+			{Index: 1415, Name: "Sapatos_Pele_de_Animal(A)", DisplayName: "Sapatos Pele de Animal (A)",
+				Grade: 1, Slots: []string{"boots"}},
+			{Index: 2000, Name: "Espada_Longa", DisplayName: "Espada Longa",
+				Grade: 2, Slots: []string{"weapon"}, Price: 5000, Overridden: true},
+		},
+	}
+}
+
+func (f *fakeGameData) CatalogVersion() string { return f.versao }
+
+func (f *fakeGameData) Items(_ context.Context, _ int64, query string) ([]gamedata.Item, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	if query == "" {
+		return f.itens, nil
+	}
+	out := []gamedata.Item{}
+	for _, it := range f.itens {
+		if strings.Contains(strings.ToLower(it.DisplayName), strings.ToLower(query)) {
+			out = append(out, it)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeGameData) SetPrice(_ context.Context, _ int64, index int32, price int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.setErr != nil {
+		return f.setErr
+	}
+	f.setCalls = append(f.setCalls, [2]int64{int64(index), price})
+	return nil
+}
+
+// newTestPanelGame builds a panel with the webServer link present.
+func newTestPanelGame(t *testing.T, log AuditLog, game GameData) http.Handler {
+	t.Helper()
+	h, err := New(Config{
+		Accounts:   withTarget(roleAdmin),
+		Writer:     newFakeWriter(),
+		GameData:   game,
+		Audit:      log,
+		Sessions:   session.New(time.Hour),
+		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}
+
+func TestItensPageIsHiddenWithoutAWebServer(t *testing.T) {
+	// The panel has to run standalone; a missing webServer hides the pages
+	// rather than serving one that errors on every load.
+	get := signedIn(t, newTestPanel(t, withTarget(roleAdmin)))
+	if rec := get("/itens"); rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 when no webServer is configured", rec.Code)
+	}
+	if strings.Contains(get("/").Body.String(), `href="/itens"`) {
+		t.Error("the nav offers a link to a page that does not exist")
+	}
+}
+
+func TestItensListsAndFilters(t *testing.T) {
+	game := newFakeGameData()
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), game))
+
+	all := get("/itens").Body.String()
+	if !strings.Contains(all, "Sapatos Pele de Animal") || !strings.Contains(all, "Espada Longa") {
+		t.Error("catalog listing is missing an item")
+	}
+	if !strings.Contains(all, "exceção") {
+		t.Error("an overridden price is not marked as such")
+	}
+	if !strings.Contains(all, game.versao) {
+		t.Error("the catalog version is not shown, so a stale page is unrecognisable")
+	}
+	if strings.Contains(all, `href="/itens"`) == false {
+		t.Error("the nav does not offer the items page when it exists")
+	}
+
+	filtrado := get("/itens?q=espada").Body.String()
+	if strings.Contains(filtrado, "Sapatos") {
+		t.Error("search returned a non-matching item")
+	}
+}
+
+func TestSetPrecoSendsAndAudits(t *testing.T) {
+	game := newFakeGameData()
+	log := newFakeAudit()
+	h := newTestPanelGame(t, log, game)
+	post, token := signedInPost(t, h)
+
+	rec := post("/itens/1415/preco", url.Values{"csrf": {token}, "preco": {"250"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(game.setCalls) != 1 || game.setCalls[0] != [2]int64{1415, 250} {
+		t.Fatalf("SetPrice calls = %v, want one {1415, 250}", game.setCalls)
+	}
+	recs := log.recorded()
+	if len(recs) != 1 || recs[0].Action != audit.ActionSetItemPrice {
+		t.Fatalf("audit = %+v, want one SET_ITEM_PRICE", recs)
+	}
+}
+
+func TestEmptyPriceClearsTheOverride(t *testing.T) {
+	// Empty and zero are different: one removes the exception, the other makes
+	// the item free. A number box cannot express the first, so blank means clear.
+	game := newFakeGameData()
+	h := newTestPanelGame(t, newFakeAudit(), game)
+	post, token := signedInPost(t, h)
+
+	post("/itens/2000/preco", url.Values{"csrf": {token}, "preco": {""}})
+	if len(game.setCalls) != 1 || game.setCalls[0][1] != -1 {
+		t.Fatalf("SetPrice calls = %v, want the clear sentinel (-1)", game.setCalls)
+	}
+
+	post("/itens/2000/preco", url.Values{"csrf": {token}, "preco": {"0"}})
+	if len(game.setCalls) != 2 || game.setCalls[1][1] != 0 {
+		t.Fatalf("SetPrice calls = %v, want an explicit zero as the second", game.setCalls)
+	}
+}
+
+func TestSetPrecoRejectsBadInput(t *testing.T) {
+	h := newTestPanelGame(t, newFakeAudit(), newFakeGameData())
+	post, token := signedInPost(t, h)
+	for _, p := range []string{"abc", "-5", "1.5"} {
+		if rec := post("/itens/1415/preco", url.Values{"csrf": {token}, "preco": {p}}); rec.Code != http.StatusBadRequest {
+			t.Errorf("preco=%q: status = %d, want 400", p, rec.Code)
+		}
+	}
+	if rec := post("/itens/0/preco", url.Values{"csrf": {token}, "preco": {"10"}}); rec.Code != http.StatusBadRequest {
+		t.Errorf("item 0: status = %d, want 400", rec.Code)
+	}
+}
+
+func TestSetPrecoNeedsTheCSRFToken(t *testing.T) {
+	h := newTestPanelGame(t, newFakeAudit(), newFakeGameData())
+	post, _ := signedInPost(t, h)
+	if rec := post("/itens/1415/preco", url.Values{"preco": {"250"}}); rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestWebServerFailureIsNotAPanelFailure(t *testing.T) {
+	// The webServer redeploys on its own schedule. A page that reads as broken
+	// during that window sends staff looking in the wrong place.
+	game := newFakeGameData()
+	game.listErr = errors.New("connection refused")
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), game))
+
+	rec := get("/itens")
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502 — the failure is upstream, not here", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "reiniciando") {
+		t.Error("the message does not point at the right service")
 	}
 }
