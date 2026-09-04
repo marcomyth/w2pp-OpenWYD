@@ -14,9 +14,11 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
@@ -59,9 +61,17 @@ type Accounts interface {
 	ListCharacters(ctx context.Context, accountID int64) ([]domain.Character, error)
 }
 
+// AuditLog is the panel's view of the action log. Reading is all this file
+// needs; the write side belongs to whichever handler performs the action.
+type AuditLog interface {
+	List(ctx context.Context, targetID int64) ([]audit.Entry, error)
+	Limit() int
+}
+
 // Config wires the handler.
 type Config struct {
 	Accounts   Accounts
+	Audit      AuditLog
 	Sessions   *session.Store
 	Logger     *slog.Logger
 	SecureOnly bool // Secure flag on the cookie; false only for local HTTP dev
@@ -118,6 +128,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("GET /{$}", h.requireStaff(http.HandlerFunc(h.home)))
 	mux.Handle("GET /contas", h.requireStaff(http.HandlerFunc(h.contas)))
 	mux.Handle("GET /contas/{nome}", h.requireStaff(http.HandlerFunc(h.conta)))
+	mux.Handle("GET /auditoria", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.auditoria))))
 
 	return securityHeaders(mux)
 }
@@ -128,11 +139,13 @@ type page struct {
 	Account string
 	Role    string
 	Nav     string
+	IsAdmin bool // hides nav entries the viewer would only be refused from
 }
 
 func pageFor(r *http.Request, nav string) page {
 	sess, _ := staffFrom(r.Context())
-	return page{Account: sess.AccountName, Role: roleFrom(r.Context()), Nav: nav}
+	role := roleFrom(r.Context())
+	return page{Account: sess.AccountName, Role: role, Nav: nav, IsAdmin: role == roleAdmin}
 }
 
 // --- pages ---
@@ -210,6 +223,56 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		pageFor(r, "contas"),
 		contaView{ID: auth.ID, Name: nome, Role: auth.Role, IsBlocked: auth.IsBlocked},
 		chars,
+	})
+}
+
+// onlyAdmin narrows a staff route to the admin tier. It runs INSIDE requireStaff,
+// so the role it reads is the one fetched from the database for this request.
+//
+// A moderator gets 403 rather than a redirect: they are signed in and their
+// session is fine, so bouncing them to the login form would read as a bug.
+func (h *Handler) onlyAdmin(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if roleFrom(r.Context()) != roleAdmin {
+			sess, _ := staffFrom(r.Context())
+			h.cfg.Logger.Warn("admin-only route refused",
+				"account", sess.AccountName, "role", roleFrom(r.Context()), "path", r.URL.Path)
+			w.WriteHeader(http.StatusForbidden)
+			h.render(w, "negado.html", struct{ page }{pageFor(r, "")})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// auditoria shows the action log, optionally narrowed to one account.
+func (h *Handler) auditoria(w http.ResponseWriter, r *http.Request) {
+	var alvo int64
+	if v := r.URL.Query().Get("conta"); v != "" {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || id <= 0 {
+			http.Error(w, "Conta inválida.", http.StatusBadRequest)
+			return
+		}
+		alvo = id
+	}
+
+	entradas, err := h.cfg.Audit.List(r.Context(), alvo)
+	if err != nil {
+		h.cfg.Logger.Error("audit list failed", "target", alvo, "err", err)
+		http.Error(w, "Erro ao carregar a auditoria.", http.StatusInternalServerError)
+		return
+	}
+
+	h.render(w, "auditoria.html", struct {
+		page
+		Entradas []audit.Entry
+		Alvo     int64
+		Limite   int
+		Truncado bool
+	}{
+		pageFor(r, "auditoria"), entradas, alvo, h.cfg.Audit.Limit(),
+		len(entradas) == h.cfg.Audit.Limit(),
 	})
 }
 

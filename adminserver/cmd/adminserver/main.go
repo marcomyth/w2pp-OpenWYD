@@ -34,6 +34,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/panel"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
@@ -88,6 +89,7 @@ func run(logger *slog.Logger) error {
 
 	handler, err := panel.New(panel.Config{
 		Accounts:   store.New(pool),
+		Audit:      audit.New(pool),
 		Sessions:   session.New(*sessionTTL),
 		Logger:     logger,
 		SecureOnly: !*insecureCookies,

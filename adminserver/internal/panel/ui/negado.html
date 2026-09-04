@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Sem acesso — Painel OpenWYD</title>
+{{template "head" .}}
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Esta página é só para administradores</h1>
+  <p class="sub">
+    Você está autenticado como <strong>{{.Account}}</strong>, com cargo
+    <strong>{{.Role}}</strong>. Essa parte do painel exige o cargo
+    <strong>admin</strong>.
+  </p>
+  <p><a class="botao" href="/">Voltar ao início</a></p>
+</main>
+</body>
+</html>
