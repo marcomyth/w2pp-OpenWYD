@@ -1,0 +1,97 @@
+{{define "head"}}
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    color-scheme: light dark;
+    --ground: #f4f5f2; --surface: #fff; --ink: #15181a; --ink-2: #555f63;
+    --ink-3: #7c868a; --rule: #d8dcd6; --accent: #1f6f5c; --chip-bg: #e4efea;
+    --warn: #8c5310; --warn-bg: #f6eada;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #131719; --surface: #1a1f21; --ink: #e7eae5; --ink-2: #a0aaad;
+      --ink-3: #7b8588; --rule: #2b3235; --accent: #56ac90; --chip-bg: #1b302b;
+      --warn: #d69a54; --warn-bg: #2e2418;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font: 15px/1.6 ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  header {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    justify-content: space-between; padding: 13px 22px;
+    background: var(--surface); border-bottom: 1px solid var(--rule);
+  }
+  header nav { display: flex; align-items: baseline; gap: 18px; }
+  header a { color: var(--ink-2); text-decoration: none; font-size: 14px; }
+  header a:hover, header a.on { color: var(--ink); }
+  header .marca { font-weight: 600; font-size: 15px; color: var(--ink); letter-spacing: -0.01em; }
+  .quem { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink-2); }
+  .cargo {
+    font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--accent); background: var(--chip-bg); padding: 2px 7px; border-radius: 3px;
+  }
+  .bloq {
+    font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--warn); background: var(--warn-bg); padding: 2px 7px; border-radius: 3px;
+  }
+  button, .botao {
+    font: inherit; font-size: 13px; cursor: pointer; color: var(--ink-2);
+    background: none; border: 1px solid var(--rule); border-radius: 3px; padding: 5px 11px;
+    text-decoration: none; display: inline-block;
+  }
+  button:hover, .botao:hover { color: var(--ink); border-color: var(--ink-2); }
+  main { max-width: 900px; margin: 0 auto; padding: 32px 22px 64px; }
+  h1 { font-size: 1.3rem; margin: 0 0 6px; letter-spacing: -0.015em; }
+  .sub { color: var(--ink-2); font-size: 14px; margin: 0 0 26px; }
+  p { color: var(--ink-2); max-width: 62ch; }
+  a { color: var(--accent); }
+  .tw { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 14px; }
+  th {
+    text-align: left; font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 600; padding: 0 14px 8px 0;
+    border-bottom: 1px solid var(--rule); white-space: nowrap;
+  }
+  td {
+    padding: 10px 14px 10px 0; border-bottom: 1px solid var(--rule);
+    color: var(--ink-2); vertical-align: middle;
+  }
+  td:first-child { color: var(--ink); }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; padding-right: 22px; }
+  th.num { text-align: right; padding-right: 22px; }
+  tbody tr:hover td { background: var(--surface); }
+  .vazio {
+    border: 1px dashed var(--rule); border-radius: 4px; padding: 28px 22px;
+    color: var(--ink-2); text-align: center; font-size: 14px;
+  }
+  .busca { display: flex; gap: 10px; margin-bottom: 24px; max-width: 460px; }
+  .busca input {
+    flex: 1; padding: 8px 11px; font: inherit; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 3px;
+  }
+  .busca input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 18px 28px; margin-bottom: 34px; }
+  .campo .rot { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 3px; }
+  .campo .val { font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  h2 { font-size: 1rem; margin: 0 0 12px; letter-spacing: -0.005em; }
+</style>
+{{end}}
+
+{{define "topbar"}}
+<header>
+  <nav>
+    <span class="marca">Painel OpenWYD</span>
+    <a href="/" {{if eq .Nav "inicio"}}class="on"{{end}}>Início</a>
+    <a href="/contas" {{if eq .Nav "contas"}}class="on"{{end}}>Contas</a>
+  </nav>
+  <div class="quem">
+    <span>{{.Account}}</span>
+    <span class="cargo">{{.Role}}</span>
+    <form method="post" action="/logout"><button type="submit">Sair</button></form>
+  </div>
+</header>
+{{end}}

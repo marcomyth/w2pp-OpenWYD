@@ -2,17 +2,20 @@ package panel
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
+	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
@@ -31,14 +34,60 @@ var hashOnce = sync.OnceValue(func() string {
 
 // fakeAccounts is an in-memory stand-in for the store, keyed by canonical name.
 type fakeAccounts struct {
-	mu   sync.Mutex
-	rows map[string]store.AccountAuth
+	mu    sync.Mutex
+	rows  map[string]store.AccountAuth
+	chars map[int64][]domain.Character
 }
 
 func newFakeAccounts(role string) *fakeAccounts {
-	return &fakeAccounts{rows: map[string]store.AccountAuth{
-		"chefe": {ID: 42, PassHash: hashOnce(), Role: role},
-	}}
+	return &fakeAccounts{
+		rows: map[string]store.AccountAuth{
+			"chefe": {ID: 42, PassHash: hashOnce(), Role: role},
+		},
+		chars: map[int64][]domain.Character{},
+	}
+}
+
+// add registers another account, so listing and search have something to sort.
+func (f *fakeAccounts) add(name string, id int64, role string, blocked bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.rows[name] = store.AccountAuth{ID: id, PassHash: hashOnce(), Role: role, IsBlocked: blocked}
+}
+
+func (f *fakeAccounts) addChar(accountID int64, c domain.Character) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.chars[accountID] = append(f.chars[accountID], c)
+}
+
+func (f *fakeAccounts) SearchAccountsByNamePrefix(_ context.Context, prefix string, limit int) ([]domain.AccountSummary, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	names := make([]string, 0, len(f.rows))
+	for n := range f.rows {
+		if strings.HasPrefix(n, prefix) {
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names) // the real query is ORDER BY name
+	out := make([]domain.AccountSummary, 0, len(names))
+	for _, n := range names {
+		if len(out) == limit {
+			break
+		}
+		a := f.rows[n]
+		out = append(out, domain.AccountSummary{
+			ID: a.ID, Name: n, Role: a.Role, IsBlocked: a.IsBlocked,
+		})
+	}
+	return out, nil
+}
+
+func (f *fakeAccounts) ListCharacters(_ context.Context, accountID int64) ([]domain.Character, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.chars[accountID], nil
 }
 
 func (f *fakeAccounts) AccountByName(_ context.Context, name string) (store.AccountAuth, error) {
@@ -311,5 +360,134 @@ func TestClientIPPrefersLeftmostForwarded(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "203.0.113.7, 70.41.3.18")
 	if got := clientIP(req); got != "203.0.113.7" {
 		t.Fatalf("clientIP = %q, want the original client 203.0.113.7", got)
+	}
+}
+
+// --- contas ---
+
+// signedIn logs in and returns a getter that carries the session cookie.
+func signedIn(t *testing.T, h http.Handler) func(path string) *httptest.ResponseRecorder {
+	t.Helper()
+	c := sessionCookie(postLogin(h, "chefe", testPassword))
+	if c == nil {
+		t.Fatal("login did not set a cookie")
+	}
+	return func(path string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.AddCookie(c)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+}
+
+func TestContasNeedsASession(t *testing.T) {
+	h := newTestPanel(t, newFakeAccounts(roleAdmin))
+	for _, path := range []string{"/contas", "/contas/chefe"} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusSeeOther {
+			t.Errorf("%s: status = %d, want 303 to /login", path, rec.Code)
+		}
+	}
+}
+
+func TestContasListsAndFiltersByPrefix(t *testing.T) {
+	acc := newFakeAccounts(roleAdmin)
+	acc.add("ana", 2, "player", false)
+	acc.add("andre", 3, "moderator", false)
+	acc.add("bruno", 4, "player", true)
+	h := newTestPanel(t, acc)
+	get := signedIn(t, h)
+
+	all := get("/contas").Body.String()
+	for _, name := range []string{"ana", "andre", "bruno", "chefe"} {
+		if !strings.Contains(all, name) {
+			t.Errorf("listing without a query omitted %q", name)
+		}
+	}
+
+	// The blocked account has to be visible as blocked; that is the point of the
+	// column for someone triaging a support ticket.
+	if !strings.Contains(all, "bloqueada") {
+		t.Error("listing does not mark the blocked account")
+	}
+
+	filtered := get("/contas?q=an").Body.String()
+	if !strings.Contains(filtered, "andre") || !strings.Contains(filtered, "ana") {
+		t.Error("prefix search dropped a matching account")
+	}
+	if strings.Contains(filtered, "bruno") {
+		t.Error("prefix search returned a non-matching account")
+	}
+}
+
+func TestContasSearchIsCaseInsensitive(t *testing.T) {
+	// Names are stored canonical, so typing the name as it looks in game must work.
+	acc := newFakeAccounts(roleAdmin)
+	acc.add("ana", 2, "player", false)
+	get := signedIn(t, newTestPanel(t, acc))
+	if !strings.Contains(get("/contas?q=ANA").Body.String(), "ana") {
+		t.Error("uppercase query found nothing")
+	}
+}
+
+func TestContasCapsTheListingAndSaysSo(t *testing.T) {
+	acc := newFakeAccounts(roleAdmin)
+	for i := 0; i < searchLimit+10; i++ {
+		acc.add(fmt.Sprintf("conta%03d", i), int64(1000+i), "player", false)
+	}
+	body := signedIn(t, newTestPanel(t, acc))("/contas").Body.String()
+	if !strings.Contains(body, "Refine a busca") {
+		t.Error("over the cap, the page does not say the list is partial")
+	}
+	if strings.Count(body, "<tr>") > searchLimit+1 { // +1 for the header row
+		t.Error("more rows rendered than the cap allows")
+	}
+}
+
+func TestContaShowsAccountAndCharacters(t *testing.T) {
+	acc := newFakeAccounts(roleAdmin)
+	acc.addChar(42, domain.Character{Slot: 0, Name: "Hanteste", Level: 7, Coin: 900000, Hp: 105, MaxHp: 105})
+	body := signedIn(t, newTestPanel(t, acc))("/contas/chefe").Body.String()
+
+	for _, want := range []string{"chefe", "Hanteste", "900000", "105"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("detail page missing %q", want)
+		}
+	}
+}
+
+func TestContaPathIsCaseInsensitive(t *testing.T) {
+	get := signedIn(t, newTestPanel(t, newFakeAccounts(roleAdmin)))
+	if rec := get("/contas/CHEFE"); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+}
+
+func TestContaUnknownIs404(t *testing.T) {
+	get := signedIn(t, newTestPanel(t, newFakeAccounts(roleAdmin)))
+	if rec := get("/contas/ninguem"); rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestContaNeverRendersThePasswordHash(t *testing.T) {
+	// store.AccountAuth carries pass_hash, so the detail handler projects into a
+	// view type instead of handing the row to the template. If that ever gets
+	// undone, the hash lands in staff browsers and in any page cache.
+	acc := newFakeAccounts(roleAdmin)
+	acc.addChar(42, domain.Character{Slot: 0, Name: "Hanteste", Level: 7})
+	body := signedIn(t, newTestPanel(t, acc))("/contas/chefe").Body.String()
+
+	if strings.Contains(body, "$argon2id$") || strings.Contains(body, hashOnce()) {
+		t.Fatal("the password hash was rendered into the page")
+	}
+}
+
+func TestContaWithNoCharacters(t *testing.T) {
+	body := signedIn(t, newTestPanel(t, newFakeAccounts(roleAdmin)))("/contas/chefe").Body.String()
+	if !strings.Contains(body, "ainda não criou personagem") {
+		t.Error("empty roster does not say so")
 	}
 }

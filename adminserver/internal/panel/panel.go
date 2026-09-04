@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
+	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
@@ -41,11 +42,21 @@ const (
 // from "wrong password" hands an attacker a way to enumerate staff accounts.
 const loginFailed = "Usuário ou senha inválidos, ou a conta não tem acesso ao painel."
 
+// searchLimit caps a listing. Staff search by name; the cap exists so a blank
+// query cannot pull the whole account table into one page.
+const searchLimit = 50
+
 // Accounts is the slice of the store this package needs. Narrow on purpose, so
 // the handlers can be tested without a database.
+//
+// Every method here already existed for other callers. That is deliberate: the
+// panel reads a schema it does not own, and adding to internal/store would drag
+// the game services into this feature's deploys for a read-only screen.
 type Accounts interface {
 	AccountByName(ctx context.Context, name string) (store.AccountAuth, error)
 	AccountRole(ctx context.Context, id int64) (string, error)
+	SearchAccountsByNamePrefix(ctx context.Context, prefix string, limit int) ([]domain.AccountSummary, error)
+	ListCharacters(ctx context.Context, accountID int64) ([]domain.Character, error)
 }
 
 // Config wires the handler.
@@ -105,8 +116,23 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /login", h.login)
 	mux.HandleFunc("POST /logout", h.logout)
 	mux.Handle("GET /{$}", h.requireStaff(http.HandlerFunc(h.home)))
+	mux.Handle("GET /contas", h.requireStaff(http.HandlerFunc(h.contas)))
+	mux.Handle("GET /contas/{nome}", h.requireStaff(http.HandlerFunc(h.conta)))
 
 	return securityHeaders(mux)
+}
+
+// page carries what every signed-in template needs: who is looking, with what
+// authority, and which nav entry to mark.
+type page struct {
+	Account string
+	Role    string
+	Nav     string
+}
+
+func pageFor(r *http.Request, nav string) page {
+	sess, _ := staffFrom(r.Context())
+	return page{Account: sess.AccountName, Role: roleFrom(r.Context()), Nav: nav}
 }
 
 // --- pages ---
@@ -121,11 +147,79 @@ func (h *Handler) loginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
-	sess, _ := staffFrom(r.Context())
-	h.render(w, "index.html", map[string]any{
-		"Account": sess.AccountName,
-		"Role":    roleFrom(r.Context()),
+	h.render(w, "index.html", struct{ page }{pageFor(r, "inicio")})
+}
+
+// contas lists accounts whose name starts with the query. A blank query lists the
+// first page alphabetically, which is the useful default on a small server and
+// still bounded by searchLimit.
+func (h *Handler) contas(w http.ResponseWriter, r *http.Request) {
+	// Lowercased for the same reason login is: names are stored canonical, so a
+	// staff member typing "Chefe" must find "chefe" rather than nothing.
+	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+
+	// One over the cap, so "there is more" is known rather than guessed at.
+	found, err := h.cfg.Accounts.SearchAccountsByNamePrefix(r.Context(), q, searchLimit+1)
+	if err != nil {
+		h.cfg.Logger.Error("account search failed", "query", q, "err", err)
+		http.Error(w, "Erro ao buscar contas.", http.StatusInternalServerError)
+		return
+	}
+	truncado := len(found) > searchLimit
+	if truncado {
+		found = found[:searchLimit]
+	}
+
+	h.render(w, "contas.html", struct {
+		page
+		Query    string
+		Contas   []domain.AccountSummary
+		Truncado bool
+		Limite   int
+	}{pageFor(r, "contas"), q, found, truncado, searchLimit})
+}
+
+// conta shows one account and its characters.
+func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
+	nome := strings.ToLower(strings.TrimSpace(r.PathValue("nome")))
+
+	auth, err := h.cfg.Accounts.AccountByName(r.Context(), nome)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		h.cfg.Logger.Error("account lookup failed", "account", nome, "err", err)
+		http.Error(w, "Erro ao carregar a conta.", http.StatusInternalServerError)
+		return
+	}
+
+	chars, err := h.cfg.Accounts.ListCharacters(r.Context(), auth.ID)
+	if err != nil {
+		// The account is worth showing even if the character list fails; losing
+		// the roster should not blank out the role and block status too.
+		h.cfg.Logger.Error("character list failed", "account", nome, "id", auth.ID, "err", err)
+		chars = nil
+	}
+
+	h.render(w, "conta.html", struct {
+		page
+		Conta       contaView
+		Personagens []domain.Character
+	}{
+		pageFor(r, "contas"),
+		contaView{ID: auth.ID, Name: nome, Role: auth.Role, IsBlocked: auth.IsBlocked},
+		chars,
 	})
+}
+
+// contaView is what the detail page shows. It exists so the password hash that
+// rides along in store.AccountAuth never reaches a template.
+type contaView struct {
+	ID        int64
+	Name      string
+	Role      string
+	IsBlocked bool
 }
 
 // --- login / logout ---
