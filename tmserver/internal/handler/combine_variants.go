@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -179,16 +182,35 @@ func (d *Dispatcher) combineItemLindy(w *world.World, s *world.Session, _ protoc
 	if !ok {
 		return
 	}
-	if e.ClassMaster != classMasterArch || (e.Level != 354 && e.Level != 369) || !combine.MatchLindy(it[:]) {
+	// archUnlockLevel picks the pending unlock and accepts the character at or
+	// above its level, instead of the legacy equality check — see arch.go for why
+	// and for the price paid on success.
+	//
+	// Every rejection below is silent on the wire (the client only ever gets
+	// "invalid"), so each is logged with the input that failed. The recipe is
+	// unforgiving — 7 slots, exact indices, exact stack sizes — and without this a
+	// player reporting "it just doesn't unlock" leaves nothing to go on.
+	questLevel, eligible := archUnlockLevel(e)
+	if !eligible || !combine.MatchLindy(it[:]) {
+		d.log.Info("lindy unlock rejected",
+			"conn", s.Conn, "account", s.AccountName,
+			"classmaster", e.ClassMaster, "level", e.Level,
+			"arch355", e.ArchLv355, "arch370", e.ArchLv370,
+			"quest_level", questLevel, "level_ok", eligible,
+			"recipe_ok", combine.MatchLindy(it[:]), "slots", combineSlotSummary(it[:]))
 		sendCombineComplete(w, s, combineInvalid)
 		return
 	}
-	if (e.Level == 354 && e.ArchLv355 != 0) || (e.Level == 369 && (e.ArchLv370 != 0 || e.Fame <= 0)) {
+	// Fame is the extra price of the second unlock (_MSG_CombineItemLindy.cpp:55).
+	if questLevel == level.ArchGateLv370 && e.Fame <= 0 {
+		d.log.Info("lindy unlock refused: no fame",
+			"conn", s.Conn, "account", s.AccountName, "level", e.Level, "fame", e.Fame)
 		sendCombineComplete(w, s, combineInvalid)
 		return
 	}
 	consumePositions(w, s, e, sl, active, nil)
-	if e.Level == 354 {
+	stranded := e.Level - questLevel
+	if questLevel == level.ArchGateLv355 {
 		e.ArchLv355 = 1
 		cape := int16(3193)
 		switch e.Clan {
@@ -203,8 +225,41 @@ func (d *Dispatcher) combineItemLindy(w *world.World, s *world.Session, _ protoc
 		e.ArchLv370 = 1
 		e.Fame--
 	}
+	if stranded > 0 {
+		d.downlevelArch(e, questLevel)
+		d.sendScore(w, s, e)
+		d.sendEtc(w, s, e)
+		// The client is told in plain text: a silent level drop reads as data
+		// loss. The panel is the only free-text channel this port has.
+		w.Send(s, protocol.MsgExpPanel, protocol.EncodeExpPanelBody(
+			fmt.Sprintf("Desbloqueio concluído — nível ajustado para %d", questLevel+1),
+			expPanelDefaultColor))
+	}
+	d.log.Info("lindy unlock granted",
+		"conn", s.Conn, "account", s.AccountName,
+		"quest_level", questLevel, "levels_taken_back", stranded, "level", e.Level)
 	sendCombineComplete(w, s, combineSuccess)
 	w.SaveCharacterAsync(s)
+}
+
+// combineSlotSummary renders the combine grid as "idx×amount" per occupied slot,
+// for the rejection logs above. MatchLindy is positional, so the order matters as
+// much as the contents.
+func combineSlotSummary(items []world.Item) string {
+	var b strings.Builder
+	for i, it := range items {
+		if it.Index == 0 {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		fmt.Fprintf(&b, "[%d]=%d×%d", i, it.Index, refine.Amount(it))
+	}
+	if b.Len() == 0 {
+		return "(empty)"
+	}
+	return b.String()
 }
 
 // Ehre is implemented separately below because each recipe has a distinct output.

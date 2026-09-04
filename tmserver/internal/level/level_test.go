@@ -52,7 +52,7 @@ func TestExpApply(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ExpApply(tt.exp, tt.attacker, tt.target); got != tt.want {
+			if got := ExpApply(tt.exp, tt.attacker, tt.target, Tier{ClassMaster: classMortal}); got != tt.want {
 				t.Errorf("ExpApply(%d,%d,%d) = %d, want %d", tt.exp, tt.attacker, tt.target, got, tt.want)
 			}
 		})

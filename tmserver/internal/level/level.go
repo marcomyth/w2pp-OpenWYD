@@ -3,9 +3,15 @@
 // BASE_GetHpMp / BASE_GetBonusScorePoint in the original source). Like the combat
 // package it is isolated from I/O so it can be golden-tested exactly.
 //
-// Scope: the MORTAL (ClassMaster 2, Basedef.h:238) solo path — the dominant case. ARCH/CELESTIAL
-// tiers (different curve g_pNextLevel_2, quest gates, half-exp) and party
-// distribution are NOT modeled here yet; the world tracks no tier state for them.
+// Scope: the solo path. The MORTAL (ClassMaster 2, Basedef.h:238) case is the
+// dominant one; the ARCH and CELESTIAL tiers are modeled for the curve
+// (g_pNextLevel_2, NextLevelExpTier), the quest gates at 355/370 and 40/90
+// (Tier, ExpApply) and the Arch half-exp. Party distribution is NOT modeled.
+//
+// Still missing from the celestial path: GetExpApply's `attacker = MAX_LEVEL`
+// substitution (GetFunc.cpp:1049), which makes a celestial earn from level-400
+// mobs only. Porting it would cut celestial rewards at low mob levels to zero,
+// so it is left for whoever tunes that tier deliberately.
 package level
 
 // MaxLevel is MAX_LEVEL (Basedef.h:177): a MORTAL (or ARCH) never levels past it.
@@ -105,13 +111,62 @@ func ForExpTier(exp int64, classMaster uint8) int32 {
 	return result
 }
 
-// ExpApply is GetExpApply for the MORTAL path (GetFunc.cpp:1028): it scales the
-// mob's base reward by the attacker↔target level ratio. attacker is the killer's
-// level, target the mob's. Higher-level targets give a bonus (capped at 200%); a
-// killer far above the mob (ratio < 80% and level ≥ 49) is penalised.
-func ExpApply(exp int64, attacker, target int32) int64 {
+// The tier quest walls: a character stops earning experience — and stops
+// levelling — once it reaches one of these levels with the matching quest flag
+// still unset (GetFunc.cpp:1032-1046 and CMob.cpp:1107,1110). They are the
+// *internal* levels, one below what the client shows: ArchGateLv355 = 354 is the
+// character the player reads as level 355.
+const (
+	ArchGateLv355 int32 = 354
+	ArchGateLv370 int32 = 369
+	CelGateLv40   int32 = 39
+	CelGateLv90   int32 = 89
+)
+
+// Tier is the character-tier state GetExpApply reads out of STRUCT_MOBEXTRA
+// (GetFunc.cpp:1028): the ClassMaster plus the quest flags that open each tier's
+// level wall. The zero value means "quest not done", matching the legacy flag
+// semantics where 0 is locked.
+type Tier struct {
+	ClassMaster uint8
+	ArchLv355   bool // QuestInfo.Arch.Level355
+	ArchLv370   bool // QuestInfo.Arch.Level370
+	CelLv40     bool // QuestInfo.Celestial.Lv40
+	CelLv90     bool // QuestInfo.Celestial.Lv90
+}
+
+// ExpApply is GetExpApply (GetFunc.cpp:1028): it applies the tier's quest gates
+// and half-exp penalty, then scales the mob's base reward by the attacker↔target
+// level ratio. attacker is the killer's level, target the mob's. Higher-level
+// targets give a bonus (capped at 200%); a killer far above the mob (ratio < 80%
+// and level ≥ 49) is penalised.
+//
+// The gates are what make the walls at 355/370 (Arch) and 40/90 (Celestial)
+// walls at all: without them a character walks straight past the level where its
+// unlock quest is handed out, and the quest — which demands the *exact* level —
+// becomes unreachable for good (see combineItemLindy).
+func ExpApply(exp int64, attacker, target int32, tier Tier) int64 {
 	if exp <= 0 {
 		return 0
+	}
+	switch tier.ClassMaster {
+	case classArch:
+		if attacker >= ArchGateLv355 && !tier.ArchLv355 {
+			return 0
+		}
+		if attacker >= ArchGateLv370 && !tier.ArchLv370 {
+			return 0
+		}
+		// (int)(exp * 0.50) at :1039. exp > 0 here, so the C truncation toward
+		// zero and Go's integer division agree.
+		exp /= 2
+	case classCelestial:
+		if attacker >= CelGateLv40 && !tier.CelLv40 {
+			return 0
+		}
+		if attacker >= CelGateLv90 && !tier.CelLv90 {
+			return 0
+		}
 	}
 	if target > MaxLevel+1 || attacker < 0 || target < 0 {
 		return exp

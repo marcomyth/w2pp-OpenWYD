@@ -36,8 +36,9 @@ type ExpEvents struct {
 // Not modeled (deferred with the systems they belong to): the party split and
 // its g_EmptyMob/PARTYBONUS factor, the fairy-pet bonus, the RvR-war +5%, and
 // the DayLog/Hold banking (:1386-1408).
-func SoloExpReward(mobExp int64, killerLevel, mobLevel int32, classMaster uint8, expBonus int32, ev ExpEvents) int64 {
-	isExp := ExpApply(mobExp, killerLevel, mobLevel)
+func SoloExpReward(mobExp int64, killerLevel, mobLevel int32, tier Tier, expBonus int32, ev ExpEvents) int64 {
+	classMaster := tier.ClassMaster
+	isExp := ExpApply(mobExp, killerLevel, mobLevel, tier)
 	if isExp <= 0 {
 		return 0
 	}

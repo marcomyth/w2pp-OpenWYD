@@ -13,7 +13,7 @@
 ✅ /noatun: se teleportará para Noatun <br/>
 ✅ /red: se teleportará para o rei de Akelonia <br/>
 ✅ /blue: se teleportará para o rei de Hekalotia <br/>
-✅ /arch: se teleportará para a cidade dos reinos (apenas o teleporte; o destrave do Arch é ⏳) <br/>
+✅ /arch: se teleportará para a cidade dos reinos (apenas o teleporte; o destrave em si é feito na NPC Lindy, ver abaixo) <br/>
 ✅ /reino: teleporta de acordo com a capa — capa de Hekalotia (azul) leva ao rei de Hekalotia, capa de Akelonia (vermelha) ao rei de Akelonia, e qualquer capa neutra (sem capa, Capa Branca do Monstro #550, capa verde/Manto do Aprendiz #4006, …) à cidade dos reinos — comando novo, não existe na fonte legada <br/>
 ⏳ /crias: se teleportará para o drop de crias (Sleipnir e Svaldfire) — sem coordenada na fonte legada <br/>
 ✅ /destravar40: destrava o level 40 do celestial (seta o gate `QuestInfo.Celestial.Lv40`; efetivo só para chars Celestial) <br/>
@@ -67,6 +67,26 @@ personagem retornará à seleção para recarregar a progressão.
 Faça as quest dos quatros cristais no seu Arch para liberar mais pontos.
 - Dê /red ou /blue para ir direto para o rei desejado.
 • Não precisa transformar o Lac, somente separe 10 que já vai funcionar
+
+**Destrave do Arch (níveis 355 e 370) — NPC Lindy.** O Arch para de ganhar
+experiência ao chegar no 355 e no 370 até fazer o destrave; é assim no servidor
+original e é o que mantém o personagem dentro da janela da quest. A receita é
+posicional, nos 7 primeiros espaços da composição e nesta ordem exata:
+
+| Espaço | Item |
+|---|---|
+| 1 e 2 | Poeira de Lactolerium (#413) em pilha de **exatamente 10** |
+| 3 | Pergaminho Selado (#4127) |
+| 4 a 7 | Poeira de Lactolerium (#413) avulsa, uma por espaço |
+
+O destrave do 355 entrega a capa do reino (Hekalotia, Akelonia ou Aventureiros,
+conforme o clã); o do 370 consome 1 de Fama e exige Fama > 0.
+
+Se o personagem passou do nível sem ter feito o destrave (possível em contas
+antigas, antes do gate de experiência existir), a NPC ainda aceita a receita —
+mas o personagem **volta para o nível da quest**, perdendo os níveis ganhos
+indevidamente. Isso é uma divergência deliberada do servidor original, que exige
+o nível exato e deixaria a conta travada para sempre.
 
 Para destravar o lv 40 e 90 do Cele utilize o comando /destravar40 e /destravar90
 

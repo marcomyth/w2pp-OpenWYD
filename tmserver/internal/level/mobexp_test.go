@@ -12,7 +12,7 @@ func TestMobExpPacing(t *testing.T) {
 		if e <= 0 {
 			t.Fatalf("MobExpForLevel(%d) = %d, want > 0", lvl, e)
 		}
-		gain := SoloExpReward(e, lvl, lvl, classMortal, 0, ExpEvents{})
+		gain := SoloExpReward(e, lvl, lvl, Tier{ClassMaster: classMortal}, 0, ExpEvents{})
 		if gain <= 0 {
 			t.Fatalf("level %d: reward pipeline returned %d for template exp %d", lvl, gain, e)
 		}
@@ -40,7 +40,7 @@ func TestMobExpForLevelClamps(t *testing.T) {
 // that would recreate the "no EXP" symptom the curve exists to fix.
 func TestMobExpNeverGated(t *testing.T) {
 	for lvl := int32(1); lvl <= MaxLevel; lvl++ {
-		if gain := SoloExpReward(MobExpForLevel(lvl), lvl, lvl, classMortal, 0, ExpEvents{}); gain <= 0 {
+		if gain := SoloExpReward(MobExpForLevel(lvl), lvl, lvl, Tier{ClassMaster: classMortal}, 0, ExpEvents{}); gain <= 0 {
 			t.Fatalf("level %d: same-level kill gained %d exp", lvl, gain)
 		}
 	}
