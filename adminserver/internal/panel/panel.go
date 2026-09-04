@@ -92,6 +92,12 @@ type GameData interface {
 	Items(ctx context.Context, moderatorID int64, query string) ([]gamedata.Item, error)
 	SetPrice(ctx context.Context, moderatorID int64, itemIndex int32, price int64) error
 	CatalogVersion() string
+	NPCs(ctx context.Context, moderatorID int64, query string) ([]gamedata.NPC, error)
+	NPC(ctx context.Context, moderatorID, id int64) (gamedata.NPC, error)
+	SetShop(ctx context.Context, moderatorID, npcID int64, items []gamedata.ShopItem) error
+	SaveNPC(ctx context.Context, moderatorID int64, n gamedata.NPC) error
+	SetNPCVisible(ctx context.Context, moderatorID, npcID int64, enabled bool) error
+	DeleteNPC(ctx context.Context, moderatorID, npcID int64) error
 }
 
 // Platform is the hosting API, used to report the game server's boot time and
@@ -174,6 +180,12 @@ func (h *Handler) Routes() http.Handler {
 	if h.cfg.GameData != nil {
 		mux.Handle("GET /itens", h.requireStaff(http.HandlerFunc(h.itens)))
 		mux.Handle("POST /itens/{indice}/preco", h.requireStaff(http.HandlerFunc(h.setPreco)))
+		mux.Handle("GET /npcs", h.requireStaff(http.HandlerFunc(h.npcs)))
+		mux.Handle("GET /npcs/{id}", h.requireStaff(http.HandlerFunc(h.npc)))
+		mux.Handle("POST /npcs/{id}/loja", h.requireStaff(http.HandlerFunc(h.setLoja)))
+		mux.Handle("POST /npcs/{id}/lugar", h.requireStaff(http.HandlerFunc(h.setLugar)))
+		mux.Handle("POST /npcs/{id}/visibilidade", h.requireStaff(http.HandlerFunc(h.setVisivel)))
+		mux.Handle("POST /npcs/{id}/apagar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.apagarNPC))))
 	}
 
 	return securityHeaders(mux)
@@ -1039,4 +1051,291 @@ func desde(t time.Time) string {
 	default:
 		return fmt.Sprintf("%d dias", int(d.Hours()/24))
 	}
+}
+
+// --- npcs e lojas ---
+
+// npcs lists the merchant definitions the moderator can edit.
+func (h *Handler) npcs(w http.ResponseWriter, r *http.Request) {
+	sess, _ := staffFrom(r.Context())
+	q := r.URL.Query().Get("q")
+
+	achados, err := h.cfg.GameData.NPCs(r.Context(), sess.AccountID, q)
+	if err != nil {
+		h.recusaGameData(w, r, "listar NPCs", err)
+		return
+	}
+	h.render(w, "npcs.html", struct {
+		page
+		Query string
+		NPCs  []gamedata.NPC
+		Aviso string
+	}{pageFor(r, "npcs", true), q, achados, r.URL.Query().Get("aviso")})
+}
+
+// npc shows one merchant and the 27 stock slots the service accepts.
+func (h *Handler) npc(w http.ResponseWriter, r *http.Request) {
+	sess, _ := staffFrom(r.Context())
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "NPC inválido.", http.StatusBadRequest)
+		return
+	}
+
+	n, err := h.cfg.GameData.NPC(r.Context(), sess.AccountID, id)
+	if err != nil {
+		h.recusaGameData(w, r, "carregar o NPC", err)
+		return
+	}
+
+	// Render every slot, not only the occupied ones: an empty slot is where you
+	// add stock, and a table that hides them gives no way in.
+	slots := make([]gamedata.ShopItem, gamedata.MaxShopSlot()+1)
+	for i := range slots {
+		slots[i].Slot = int32(i)
+	}
+	for _, it := range n.Shop {
+		if int(it.Slot) < len(slots) {
+			slots[it.Slot] = it
+		}
+	}
+
+	h.render(w, "npc.html", struct {
+		page
+		NPC   gamedata.NPC
+		Slots []gamedata.ShopItem
+		Aviso string
+	}{pageFor(r, "npcs", true), n, slots, r.URL.Query().Get("aviso")})
+}
+
+// setLoja replaces a merchant's stock with whatever the form carries.
+func (h *Handler) setLoja(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "NPC inválido.", http.StatusBadRequest)
+		return
+	}
+
+	itens := make([]gamedata.ShopItem, 0, gamedata.MaxShopSlot()+1)
+	for slot := 0; slot <= gamedata.MaxShopSlot(); slot++ {
+		bruto := strings.TrimSpace(r.PostFormValue(fmt.Sprintf("item%d", slot)))
+		if bruto == "" || bruto == "0" {
+			continue // empty slot: simply not sent
+		}
+		idx, err := strconv.Atoi(bruto)
+		if err != nil || idx <= 0 {
+			http.Error(w, fmt.Sprintf("Item inválido no espaço %d.", slot), http.StatusBadRequest)
+			return
+		}
+		qtd, err := strconv.Atoi(strings.TrimSpace(r.PostFormValue(fmt.Sprintf("qtd%d", slot))))
+		if err != nil || qtd < 1 {
+			qtd = 1
+		}
+		it := gamedata.ShopItem{Slot: int32(slot), ItemIndex: int32(idx), Quantity: int32(qtd)}
+		// Effects ride along as hidden fields. The panel edits WHAT is sold, not
+		// how it is enchanted; dropping them on save would quietly strip stock
+		// that someone configured elsewhere.
+		for e := 0; e < 3; e++ {
+			it.Eff[e][0] = int32(formInt(r, fmt.Sprintf("eff%d_%d", slot, e)))
+			it.Eff[e][1] = int32(formInt(r, fmt.Sprintf("effv%d_%d", slot, e)))
+		}
+		itens = append(itens, it)
+	}
+
+	sess, _ := staffFrom(r.Context())
+	if err := h.cfg.GameData.SetShop(r.Context(), sess.AccountID, id, itens); err != nil {
+		h.recusaGameData(w, r, "gravar a loja", err)
+		return
+	}
+
+	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: audit.ActionSetNpcShop,
+		New:    map[string]any{"npc_id": id, "slots": len(itens)},
+	}); err != nil {
+		h.cfg.Logger.Error("shop changed but NOT audited", "npc", id, "err", err)
+		http.Error(w, "A loja foi alterada, mas a auditoria falhou. Avise quem cuida do servidor.",
+			http.StatusInternalServerError)
+		return
+	}
+
+	h.cfg.Logger.Info("npc shop changed", "actor", sess.AccountName, "npc", id, "slots", len(itens))
+	http.Redirect(w, r, fmt.Sprintf("/npcs/%d?aviso=%s", id,
+		url.QueryEscape(fmt.Sprintf("Loja gravada com %d item(ns). Entra em jogo em até 15 segundos.", len(itens)))),
+		http.StatusSeeOther)
+}
+
+// recusaGameData turns a refusal from the webServer into something actionable.
+func (h *Handler) recusaGameData(w http.ResponseWriter, r *http.Request, acao string, err error) {
+	switch {
+	case errors.Is(err, gamedata.ErrNotFound):
+		http.NotFound(w, r)
+	case errors.Is(err, gamedata.ErrForbidden):
+		// The panel already checked the role, so this means the webServer sees a
+		// different one — worth saying plainly instead of a generic refusal.
+		h.cfg.Logger.Warn("webserver refused a staff request", "acao", acao, "err", err)
+		http.Error(w, "O webServer recusou: ele não reconhece esta conta como moderadora.",
+			http.StatusForbidden)
+	case errors.Is(err, gamedata.ErrContentOwned):
+		http.Error(w, "Este NPC vem do conteúdo do jogo e não pode ser apagado — deixe oculto.",
+			http.StatusConflict)
+	case errors.Is(err, gamedata.ErrInvalid):
+		http.Error(w, "O webServer recusou os dados enviados.", http.StatusBadRequest)
+	default:
+		h.cfg.Logger.Error("gamedata call failed", "acao", acao, "err", err)
+		http.Error(w, "Erro ao "+acao+". O webServer pode estar reiniciando.", http.StatusBadGateway)
+	}
+}
+
+// formInt reads an optional integer field, treating anything unparseable as 0.
+// Used only for the effect pairs, which the form carries through unchanged.
+func formInt(r *http.Request, name string) int {
+	v, err := strconv.Atoi(strings.TrimSpace(r.PostFormValue(name)))
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+// npcAlvo resolves the NPC named in the path, for a write.
+func (h *Handler) npcAlvo(w http.ResponseWriter, r *http.Request) (gamedata.NPC, bool) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "NPC inválido.", http.StatusBadRequest)
+		return gamedata.NPC{}, false
+	}
+	sess, _ := staffFrom(r.Context())
+	n, err := h.cfg.GameData.NPC(r.Context(), sess.AccountID, id)
+	if err != nil {
+		h.recusaGameData(w, r, "carregar o NPC", err)
+		return gamedata.NPC{}, false
+	}
+	return n, true
+}
+
+// setLugar moves an NPC and renames it.
+//
+// It reads the definition first and edits the value it got, rather than building
+// one from the form: the service keys on slug and replaces the whole row, so a
+// field the form does not carry — route type, merchant kind — would be blanked.
+func (h *Handler) setLugar(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	n, ok := h.npcAlvo(w, r)
+	if !ok {
+		return
+	}
+	antes := map[string]any{"map": n.MapID, "x": n.X, "y": n.Y, "nome": n.DisplayName}
+
+	x, errX := strconv.Atoi(strings.TrimSpace(r.PostFormValue("x")))
+	y, errY := strconv.Atoi(strings.TrimSpace(r.PostFormValue("y")))
+	mapa, errM := strconv.Atoi(strings.TrimSpace(r.PostFormValue("mapa")))
+	if errX != nil || errY != nil || errM != nil || x < 0 || y < 0 || mapa < 0 {
+		http.Error(w, "Mapa e coordenadas precisam ser números não negativos.", http.StatusBadRequest)
+		return
+	}
+	n.MapID, n.X, n.Y = int32(mapa), int32(x), int32(y)
+	n.DisplayName = strings.TrimSpace(r.PostFormValue("nome"))
+
+	sess, _ := staffFrom(r.Context())
+	if err := h.cfg.GameData.SaveNPC(r.Context(), sess.AccountID, n); err != nil {
+		h.recusaGameData(w, r, "gravar o NPC", err)
+		return
+	}
+	if err := h.auditNPC(r, sess, audit.ActionSetNpc, n.ID, antes,
+		map[string]any{"map": n.MapID, "x": n.X, "y": n.Y, "nome": n.DisplayName}); err != nil {
+		http.Error(w, "O NPC foi alterado, mas a auditoria falhou. Avise quem cuida do servidor.",
+			http.StatusInternalServerError)
+		return
+	}
+	h.redirectNPC(w, r, n.ID, "NPC gravado. Entra em jogo em até 15 segundos.")
+}
+
+// setVisivel shows or hides an NPC.
+func (h *Handler) setVisivel(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	n, ok := h.npcAlvo(w, r)
+	if !ok {
+		return
+	}
+	visivel := r.PostFormValue("visivel") == "1"
+	sess, _ := staffFrom(r.Context())
+
+	if err := h.cfg.GameData.SetNPCVisible(r.Context(), sess.AccountID, n.ID, visivel); err != nil {
+		h.recusaGameData(w, r, "mudar a visibilidade", err)
+		return
+	}
+	if err := h.auditNPC(r, sess, audit.ActionSetNpc, n.ID,
+		map[string]any{"visivel": n.Enabled}, map[string]any{"visivel": visivel}); err != nil {
+		http.Error(w, "O NPC foi alterado, mas a auditoria falhou. Avise quem cuida do servidor.",
+			http.StatusInternalServerError)
+		return
+	}
+	msg := "NPC oculto. Ele some do mapa em até 15 segundos."
+	if visivel {
+		msg = "NPC visível. Ele aparece no mapa em até 15 segundos."
+	}
+	h.redirectNPC(w, r, n.ID, msg)
+}
+
+// apagarNPC deletes a definition. Admin only: hiding is reversible from the same
+// screen, deleting is not.
+func (h *Handler) apagarNPC(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	n, ok := h.npcAlvo(w, r)
+	if !ok {
+		return
+	}
+	sess, _ := staffFrom(r.Context())
+
+	// Audited before the delete: afterwards there is no row left to describe.
+	if err := h.auditNPC(r, sess, audit.ActionDeleteNpc, n.ID,
+		map[string]any{"slug": n.Slug, "nome": n.DisplayName, "map": n.MapID, "x": n.X, "y": n.Y}, nil); err != nil {
+		http.Error(w, "Não consegui registrar a ação na auditoria, então não apaguei.",
+			http.StatusInternalServerError)
+		return
+	}
+	if err := h.cfg.GameData.DeleteNPC(r.Context(), sess.AccountID, n.ID); err != nil {
+		h.recusaGameData(w, r, "apagar o NPC", err)
+		return
+	}
+	h.cfg.Logger.Info("npc deleted", "actor", sess.AccountName, "npc", n.ID, "slug", n.Slug)
+	http.Redirect(w, r, "/npcs?aviso="+url.QueryEscape("NPC apagado."), http.StatusSeeOther)
+}
+
+func (h *Handler) auditNPC(r *http.Request, sess session.Session, acao string, npcID int64, antes, depois any) error {
+	err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: acao,
+		Old:    map[string]any{"npc_id": npcID, "antes": antes},
+		New:    map[string]any{"npc_id": npcID, "depois": depois},
+	})
+	if err != nil {
+		h.cfg.Logger.Error("npc changed but NOT audited", "npc", npcID, "acao", acao, "err", err)
+	}
+	return err
+}
+
+func (h *Handler) redirectNPC(w http.ResponseWriter, r *http.Request, id int64, msg string) {
+	http.Redirect(w, r, fmt.Sprintf("/npcs/%d?aviso=%s", id, url.QueryEscape(msg)), http.StatusSeeOther)
 }

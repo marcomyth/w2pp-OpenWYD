@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>{{if .NPC.DisplayName}}{{.NPC.DisplayName}}{{else}}{{.NPC.Slug}}{{end}} — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  td.slot { font-variant-numeric: tabular-nums; color: var(--ink-3); width: 4ch; }
+  td.campo-item input, td.campo-qtd input {
+    width: 100%; padding: 5px 8px; font: inherit; font-size: 13px; color: var(--ink);
+    background: var(--ground); border: 1px solid var(--rule); border-radius: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  td.campo-item { width: 12ch; }
+  td.campo-qtd { width: 9ch; }
+  td input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .barra-salvar {
+    position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--rule);
+    padding: 14px 0; margin-top: 8px; display: flex; align-items: center; gap: 16px;
+  }
+  .barra-salvar .dica { margin: 0; }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>{{if .NPC.DisplayName}}{{.NPC.DisplayName}}{{else}}{{.NPC.Slug}}{{end}}</h1>
+  <p class="sub"><a href="/npcs">Voltar para a lista</a></p>
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  <div class="campos">
+    <div class="campo"><div class="rot">Identificador</div><div class="val">{{.NPC.ID}}</div></div>
+    <div class="campo"><div class="rot">Modelo</div><div class="val">{{.NPC.TemplateName}}</div></div>
+    <div class="campo"><div class="rot">Posição</div><div class="val">mapa {{.NPC.MapID}} &middot; {{.NPC.X}}, {{.NPC.Y}}</div></div>
+    <div class="campo">
+      <div class="rot">Situação</div>
+      <div class="val">{{if .NPC.Enabled}}visível{{else}}<span class="bloq">oculto</span>{{end}}</div>
+    </div>
+  </div>
+
+  <div class="acoes">
+    <form method="post" action="/npcs/{{.NPC.ID}}/lugar" class="acao-bloco">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label for="nome">Nome e lugar</label>
+      <div class="linha">
+        <input id="nome" name="nome" value="{{.NPC.DisplayName}}" placeholder="nome exibido" aria-label="Nome exibido">
+      </div>
+      <div class="linha" style="margin-top:8px">
+        <input name="mapa" type="number" min="0" value="{{.NPC.MapID}}" aria-label="Mapa" title="Mapa">
+        <input name="x" type="number" min="0" value="{{.NPC.X}}" aria-label="Coordenada X" title="X">
+        <input name="y" type="number" min="0" value="{{.NPC.Y}}" aria-label="Coordenada Y" title="Y">
+        <button type="submit">Gravar</button>
+      </div>
+      <p class="dica">Mapa, X e Y. O NPC anda para o lugar novo em até 15 segundos.</p>
+    </form>
+
+    <form method="post" action="/npcs/{{.NPC.ID}}/visibilidade" class="acao-bloco">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="visivel" value="{{if .NPC.Enabled}}0{{else}}1{{end}}">
+      <label>Presença no mapa</label>
+      <div class="linha">
+        <button type="submit">{{if .NPC.Enabled}}Ocultar NPC{{else}}Mostrar NPC{{end}}</button>
+      </div>
+      <p class="dica">Ocultar é reversível e não apaga a configuração da loja.</p>
+    </form>
+
+    {{if .IsAdmin}}
+    <form method="post" action="/npcs/{{.NPC.ID}}/apagar" class="acao-bloco">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>Apagar</label>
+      <div class="linha"><button type="submit">Apagar definitivamente</button></div>
+      <p class="dica">
+        Não tem volta. NPC que vem do conteúdo do jogo não pode ser apagado — só ocultado.
+      </p>
+    </form>
+    {{end}}
+  </div>
+
+  <h2>O que este NPC vende</h2>
+  <p class="sub">
+    Cada linha é um espaço da loja. Deixe o item em branco para esvaziar o espaço.
+    O preço vem do catálogo ou da exceção definida em <a href="/itens">Itens</a>.
+  </p>
+
+  <form method="post" action="/npcs/{{.NPC.ID}}/loja">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th class="num">Espaço</th><th>Item (índice)</th><th>Quantidade</th></tr>
+        </thead>
+        <tbody>
+          {{range .Slots}}
+          {{$slot := .Slot}}
+          <tr>
+            <td class="slot num">{{.Slot}}</td>
+            <td class="campo-item">
+              <input name="item{{.Slot}}" type="number" min="0" inputmode="numeric"
+                     value="{{if .ItemIndex}}{{.ItemIndex}}{{end}}"
+                     aria-label="Item do espaço {{.Slot}}">
+            </td>
+            <td class="campo-qtd">
+              <input name="qtd{{.Slot}}" type="number" min="1" inputmode="numeric"
+                     value="{{if .ItemIndex}}{{if .Quantity}}{{.Quantity}}{{else}}1{{end}}{{end}}"
+                     aria-label="Quantidade do espaço {{.Slot}}">
+              {{/* The three effect pairs ride through untouched: the panel edits
+                   WHAT is sold, not how a sold item is enchanted, and dropping
+                   them on save would quietly strip stock configured elsewhere. */}}
+              {{range $i, $e := .Eff}}
+              <input type="hidden" name="eff{{$slot}}_{{$i}}" value="{{index $e 0}}">
+              <input type="hidden" name="effv{{$slot}}_{{$i}}" value="{{index $e 1}}">
+              {{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="barra-salvar">
+      <button type="submit">Gravar loja</button>
+      <p class="dica">Entra em jogo em até 15 segundos, sem reiniciar.</p>
+    </div>
+  </form>
+</main>
+</body>
+</html>

@@ -97,6 +97,8 @@
     flex: 1; padding: 7px 9px; font: inherit; color: var(--ink);
     background: var(--ground); border: 1px solid var(--rule); border-radius: 3px;
   }
+  .acao-bloco input[type="text"],
+  .acao-bloco input:not([type]),
   .acao-bloco input[type="number"] {
     flex: 1; min-width: 0; padding: 7px 9px; font: inherit; color: var(--ink);
     background: var(--ground); border: 1px solid var(--rule); border-radius: 3px;
@@ -114,6 +116,7 @@
     <a href="/" {{if eq .Nav "inicio"}}class="on"{{end}}>Início</a>
     <a href="/contas" {{if eq .Nav "contas"}}class="on"{{end}}>Contas</a>
     {{if .HasItems}}<a href="/itens" {{if eq .Nav "itens"}}class="on"{{end}}>Itens</a>{{end}}
+    {{if .HasItems}}<a href="/npcs" {{if eq .Nav "npcs"}}class="on"{{end}}>NPCs</a>{{end}}
     {{if .IsAdmin}}<a href="/auditoria" {{if eq .Nav "auditoria"}}class="on"{{end}}>Auditoria</a>{{end}}
   </nav>
   <div class="quem">
