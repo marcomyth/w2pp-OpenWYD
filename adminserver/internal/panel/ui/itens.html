@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Itens — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  td.idx { font-variant-numeric: tabular-nums; color: var(--ink-3); }
+  td.preco form { display: flex; gap: 6px; align-items: center; }
+  td.preco input {
+    width: 9ch; padding: 4px 7px; font: inherit; font-size: 13px; color: var(--ink);
+    background: var(--ground); border: 1px solid var(--rule); border-radius: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  td.preco input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  td.preco button { padding: 4px 9px; font-size: 12px; }
+  .marca-override {
+    font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--accent); white-space: nowrap;
+  }
+  .versao { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Itens</h1>
+  <p class="sub">
+    Catálogo do servidor. O preço em branco usa o valor do catálogo; preencher
+    cria uma exceção, apagar volta ao original.
+    {{if .Versao}}<br><span class="versao">catálogo {{.Versao}}</span>{{end}}
+  </p>
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  <form class="busca" method="get" action="/itens">
+    <input name="q" value="{{.Query}}" placeholder="Nome do item" autocapitalize="off" spellcheck="false" autofocus>
+    <button type="submit">Buscar</button>
+  </form>
+
+  {{if .Itens}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th class="num">Índice</th>
+            <th>Item</th>
+            <th>Onde equipa</th>
+            <th class="num">Grau</th>
+            <th>Preço</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Itens}}
+          <tr>
+            <td class="idx num">{{.Index}}</td>
+            <td>{{.DisplayName}}</td>
+            <td>{{if .Slots}}{{range $i, $s := .Slots}}{{if $i}}, {{end}}{{$s}}{{end}}{{else}}&mdash;{{end}}</td>
+            <td class="num">{{.Grade}}</td>
+            <td class="preco">
+              <form method="post" action="/itens/{{.Index}}/preco">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <input type="hidden" name="q" value="{{$.Query}}">
+                <input name="preco" type="number" min="0" inputmode="numeric"
+                       value="{{if .Overridden}}{{.Price}}{{end}}"
+                       aria-label="Preço do item {{.Index}}">
+                <button type="submit">Gravar</button>
+                {{if .Overridden}}<span class="marca-override">exceção</span>{{end}}
+              </form>
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{if .Truncado}}
+      <p class="sub" style="margin-top:18px">
+        Mostrando os primeiros {{.Limite}}. Refine a busca para ver o resto.
+      </p>
+    {{end}}
+  {{else}}
+    <div class="vazio">
+      {{if .Query}}Nenhum item com “{{.Query}}” no nome.
+      {{else}}O catálogo veio vazio. O webServer pode estar sem a pasta de conteúdo.{{end}}
+    </div>
+  {{end}}
+</main>
+</body>
+</html>

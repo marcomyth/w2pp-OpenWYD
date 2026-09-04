@@ -23,9 +23,10 @@ import (
 // Action names. Kept as constants so a typo becomes a compile error rather than
 // a row nobody can filter for later.
 const (
-	ActionSetRole    = "SET_ROLE"
-	ActionSetBlocked = "SET_BLOCKED"
-	ActionSetVip     = "SET_VIP"
+	ActionSetRole      = "SET_ROLE"
+	ActionSetBlocked   = "SET_BLOCKED"
+	ActionSetVip       = "SET_VIP"
+	ActionSetItemPrice = "SET_ITEM_PRICE"
 )
 
 // listLimit caps one page of the log.

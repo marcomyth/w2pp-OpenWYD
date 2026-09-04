@@ -23,6 +23,7 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
@@ -82,9 +83,19 @@ type Writer interface {
 	ClearVip(ctx context.Context, actorID, targetID int64) (*time.Time, error)
 }
 
+// GameData is the panel's window onto the webServer's admin services. Optional:
+// with no webServer address the item pages are hidden rather than broken, so the
+// panel still runs standalone.
+type GameData interface {
+	Items(ctx context.Context, moderatorID int64, query string) ([]gamedata.Item, error)
+	SetPrice(ctx context.Context, moderatorID int64, itemIndex int32, price int64) error
+	CatalogVersion() string
+}
+
 // Config wires the handler.
 type Config struct {
 	Accounts   Accounts
+	GameData   GameData
 	Writer     Writer
 	Audit      AuditLog
 	Sessions   *session.Store
@@ -147,6 +158,10 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("POST /contas/{nome}/cargo", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setCargo))))
 	mux.Handle("POST /contas/{nome}/bloqueio", h.requireStaff(http.HandlerFunc(h.setBloqueio)))
 	mux.Handle("POST /contas/{nome}/vip", h.requireStaff(http.HandlerFunc(h.setVip)))
+	if h.cfg.GameData != nil {
+		mux.Handle("GET /itens", h.requireStaff(http.HandlerFunc(h.itens)))
+		mux.Handle("POST /itens/{indice}/preco", h.requireStaff(http.HandlerFunc(h.setPreco)))
+	}
 
 	return securityHeaders(mux)
 }
@@ -159,15 +174,16 @@ type page struct {
 	Role      string
 	Nav       string
 	IsAdmin   bool   // hides nav entries the viewer would only be refused from
+	HasItems  bool   // the item pages exist only when a webServer is configured
 	CSRF      string // every form that changes something carries this back
 }
 
-func pageFor(r *http.Request, nav string) page {
+func pageFor(r *http.Request, nav string, hasItems bool) page {
 	sess, _ := staffFrom(r.Context())
 	role := roleFrom(r.Context())
 	return page{
 		Account: sess.AccountName, AccountID: sess.AccountID, Role: role,
-		Nav: nav, IsAdmin: role == roleAdmin, CSRF: sess.CSRF,
+		Nav: nav, IsAdmin: role == roleAdmin, HasItems: hasItems, CSRF: sess.CSRF,
 	}
 }
 
@@ -183,7 +199,7 @@ func (h *Handler) loginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
-	h.render(w, "index.html", struct{ page }{pageFor(r, "inicio")})
+	h.render(w, "index.html", struct{ page }{pageFor(r, "inicio", h.cfg.GameData != nil)})
 }
 
 // contas lists accounts whose name starts with the query. A blank query lists the
@@ -212,7 +228,7 @@ func (h *Handler) contas(w http.ResponseWriter, r *http.Request) {
 		Contas   []domain.AccountSummary
 		Truncado bool
 		Limite   int
-	}{pageFor(r, "contas"), q, found, truncado, searchLimit})
+	}{pageFor(r, "contas", h.cfg.GameData != nil), q, found, truncado, searchLimit})
 }
 
 // conta shows one account and its characters.
@@ -249,7 +265,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		det = accounts.Details{}
 	}
 
-	p := pageFor(r, "contas")
+	p := pageFor(r, "contas", h.cfg.GameData != nil)
 	h.render(w, "conta.html", struct {
 		page
 		Conta       contaView
@@ -284,7 +300,7 @@ func (h *Handler) onlyAdmin(next http.Handler) http.Handler {
 			h.cfg.Logger.Warn("admin-only route refused",
 				"account", sess.AccountName, "role", roleFrom(r.Context()), "path", r.URL.Path)
 			w.WriteHeader(http.StatusForbidden)
-			h.render(w, "negado.html", struct{ page }{pageFor(r, "")})
+			h.render(w, "negado.html", struct{ page }{pageFor(r, "", h.cfg.GameData != nil)})
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -317,7 +333,7 @@ func (h *Handler) auditoria(w http.ResponseWriter, r *http.Request) {
 		Limite   int
 		Truncado bool
 	}{
-		pageFor(r, "auditoria"), entradas, alvo, h.cfg.Audit.Limit(),
+		pageFor(r, "auditoria", h.cfg.GameData != nil), entradas, alvo, h.cfg.Audit.Limit(),
 		len(entradas) == h.cfg.Audit.Limit(),
 	})
 }
@@ -805,4 +821,103 @@ func vipJSON(t *time.Time) any {
 		return nil
 	}
 	return t.UTC().Format(time.RFC3339)
+}
+
+// --- itens ---
+
+// itensLimit caps one page of the catalog. It holds ~3200 entries, and rendering
+// all of them is slower to read than it is to fetch.
+const itensLimit = 100
+
+// itens lists the item catalog with any price overrides merged in.
+func (h *Handler) itens(w http.ResponseWriter, r *http.Request) {
+	sess, _ := staffFrom(r.Context())
+	q := r.URL.Query().Get("q")
+
+	achados, err := h.cfg.GameData.Items(r.Context(), sess.AccountID, q)
+	if err != nil {
+		h.cfg.Logger.Error("item catalog failed", "query", q, "err", err)
+		http.Error(w, "Erro ao carregar o catálogo. O webServer pode estar reiniciando.",
+			http.StatusBadGateway)
+		return
+	}
+	truncado := len(achados) > itensLimit
+	if truncado {
+		achados = achados[:itensLimit]
+	}
+
+	h.render(w, "itens.html", struct {
+		page
+		Query    string
+		Itens    []gamedata.Item
+		Truncado bool
+		Limite   int
+		Versao   string
+		Aviso    string
+	}{
+		pageFor(r, "itens", true), q, achados, truncado, itensLimit,
+		h.cfg.GameData.CatalogVersion(), r.URL.Query().Get("aviso"),
+	})
+}
+
+// setPreco overrides an item's price, or clears the override when the field is
+// left empty. The rule lives in the webServer; the panel carries the request and
+// records who asked.
+func (h *Handler) setPreco(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	indice, err := strconv.ParseInt(r.PathValue("indice"), 10, 32)
+	if err != nil || indice <= 0 {
+		http.Error(w, "Item inválido.", http.StatusBadRequest)
+		return
+	}
+
+	// An empty field clears the override rather than meaning zero: "no override"
+	// and "free" are different, and a number box cannot express the first.
+	bruto := strings.TrimSpace(r.PostFormValue("preco"))
+	preco := int64(-1)
+	if bruto != "" {
+		preco, err = strconv.ParseInt(bruto, 10, 64)
+		if err != nil || preco < 0 {
+			http.Error(w, "Preço inválido.", http.StatusBadRequest)
+			return
+		}
+	}
+
+	sess, _ := staffFrom(r.Context())
+	if err := h.cfg.GameData.SetPrice(r.Context(), sess.AccountID, int32(indice), preco); err != nil {
+		h.cfg.Logger.Error("set item price failed", "item", indice, "price", preco, "err", err)
+		http.Error(w, "O webServer recusou a alteração.", http.StatusBadGateway)
+		return
+	}
+
+	// Audited in the panel's own log, not the webServer's. The point of this log
+	// is one place to answer "who changed what", and an action that lands in a
+	// different service's log defeats that.
+	novo := any(preco)
+	if preco < 0 {
+		novo = nil
+	}
+	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: audit.ActionSetItemPrice,
+		New:    map[string]any{"item_index": indice, "price": novo},
+	}); err != nil {
+		h.cfg.Logger.Error("item price changed but NOT audited", "item", indice, "err", err)
+		http.Error(w, "O preço foi alterado, mas a auditoria falhou. Avise quem cuida do servidor.",
+			http.StatusInternalServerError)
+		return
+	}
+
+	msg := fmt.Sprintf("Preço do item %d definido em %d.", indice, preco)
+	if preco < 0 {
+		msg = fmt.Sprintf("Item %d voltou ao preço do catálogo.", indice)
+	}
+	h.cfg.Logger.Info("item price changed", "actor", sess.AccountName, "item", indice, "price", preco)
+	http.Redirect(w, r, "/itens?q="+url.QueryEscape(r.PostFormValue("q"))+"&aviso="+url.QueryEscape(msg),
+		http.StatusSeeOther)
 }
