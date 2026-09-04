@@ -192,8 +192,12 @@ type fakeWriter struct {
 	blkCall    []bool
 	lastActor  int64 // who the handler said was acting
 	lastTarget int64 // and on whom
+	vipDays    []int
+	vipCleared int
 	prevRole   string
 	prevBlk    bool
+	prevVip    *time.Time
+	details    accounts.Details
 	err        error
 }
 
@@ -208,6 +212,41 @@ func (f *fakeWriter) SetRole(_ context.Context, actorID, targetID int64, role st
 	}
 	f.roleCall = append(f.roleCall, role)
 	return f.prevRole, nil
+}
+
+func (f *fakeWriter) Get(_ context.Context, _ int64) (accounts.Details, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.details, nil
+}
+
+func (f *fakeWriter) AddVipDays(_ context.Context, actorID, targetID int64, days int) (*time.Time, *time.Time, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastActor, f.lastTarget = actorID, targetID
+	if f.err != nil {
+		return nil, nil, f.err
+	}
+	f.vipDays = append(f.vipDays, days)
+	// Mirror the real extension rule so the handler's message can be tested:
+	// count from the later of now and the current expiry.
+	from := time.Now()
+	if f.prevVip != nil && f.prevVip.After(from) {
+		from = *f.prevVip
+	}
+	novo := from.AddDate(0, 0, days)
+	return f.prevVip, &novo, nil
+}
+
+func (f *fakeWriter) ClearVip(_ context.Context, actorID, targetID int64) (*time.Time, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.lastActor, f.lastTarget = actorID, targetID
+	if f.err != nil {
+		return nil, f.err
+	}
+	f.vipCleared++
+	return f.prevVip, nil
 }
 
 func (f *fakeWriter) SetBlocked(_ context.Context, actorID, targetID int64, blocked bool) (bool, error) {
@@ -864,5 +903,122 @@ func TestBlockSaysItOnlyAppliesAtLogin(t *testing.T) {
 	decoded, _ := url.QueryUnescape(rec.Header().Get("Location"))
 	if !strings.Contains(decoded, "continua até sair") {
 		t.Errorf("staff are not told a blocked player stays online: %q", decoded)
+	}
+}
+
+// --- vip ---
+
+func TestVipGrantIsAuditedAndReported(t *testing.T) {
+	wr := newFakeWriter()
+	log := newFakeAudit()
+	h := newTestPanelFull(t, withTarget(roleModerator), log, wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/vip", url.Values{"csrf": {token}, "dias": {"30"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(wr.vipDays) != 1 || wr.vipDays[0] != 30 {
+		t.Fatalf("writer calls = %v, want one grant of 30", wr.vipDays)
+	}
+
+	recs := log.recorded()
+	if len(recs) != 1 || recs[0].Action != audit.ActionSetVip {
+		t.Fatalf("audit entries = %+v, want one SET_VIP", recs)
+	}
+}
+
+func TestVipGrantOnTopOfAnActiveOneSaysItExtended(t *testing.T) {
+	// Staff who read "VIP até <date>" on an already-active account cannot tell
+	// whether the remaining days survived. Saying "estendido de X para Y" is what
+	// stops somebody granting the days a second time.
+	wr := newFakeWriter()
+	ate := time.Now().AddDate(0, 0, 10)
+	wr.prevVip = &ate
+	h := newTestPanelFull(t, withTarget(roleModerator), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/vip", url.Values{"csrf": {token}, "dias": {"30"}})
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(loc, "estendido") {
+		t.Fatalf("message %q does not say the grant extended the existing one", loc)
+	}
+}
+
+func TestVipRemoval(t *testing.T) {
+	wr := newFakeWriter()
+	ate := time.Now().AddDate(0, 0, 5)
+	wr.prevVip = &ate
+	log := newFakeAudit()
+	h := newTestPanelFull(t, withTarget(roleModerator), log, wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/vip", url.Values{"csrf": {token}, "remover": {"1"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if wr.vipCleared != 1 {
+		t.Fatalf("ClearVip calls = %d, want 1", wr.vipCleared)
+	}
+	if len(log.recorded()) != 1 {
+		t.Error("removing VIP was not audited")
+	}
+}
+
+func TestVipRemovalOnAnAccountWithoutVipChangesNothing(t *testing.T) {
+	wr := newFakeWriter() // prevVip stays nil
+	log := newFakeAudit()
+	h := newTestPanelFull(t, withTarget(roleModerator), log, wr)
+	post, token := signedInPost(t, h)
+
+	post("/contas/ana/vip", url.Values{"csrf": {token}, "remover": {"1"}})
+	if len(log.recorded()) != 0 {
+		t.Error("a no-op removal was written to the audit log")
+	}
+}
+
+func TestVipRejectsABadDayCount(t *testing.T) {
+	h := newTestPanelFull(t, withTarget(roleModerator), newFakeAudit(), newFakeWriter())
+	post, token := signedInPost(t, h)
+	for _, d := range []string{"", "abc", "1,5"} {
+		if rec := post("/contas/ana/vip", url.Values{"csrf": {token}, "dias": {d}}); rec.Code != http.StatusBadRequest {
+			t.Errorf("dias=%q: status = %d, want 400", d, rec.Code)
+		}
+	}
+}
+
+func TestVipOutOfRangeIsExplained(t *testing.T) {
+	wr := newFakeWriter()
+	wr.err = accounts.ErrVipDays
+	h := newTestPanelFull(t, withTarget(roleModerator), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/vip", url.Values{"csrf": {token}, "dias": {"99999"}})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "3650") {
+		t.Errorf("the message does not say the allowed range: %q", rec.Body.String())
+	}
+}
+
+func TestVipNeedsTheCSRFToken(t *testing.T) {
+	h := newTestPanelFull(t, withTarget(roleModerator), newFakeAudit(), newFakeWriter())
+	post, _ := signedInPost(t, h)
+	if rec := post("/contas/ana/vip", url.Values{"dias": {"30"}}); rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestAccountPageShowsVipEmailAndBalance(t *testing.T) {
+	wr := newFakeWriter()
+	ate := time.Now().AddDate(0, 0, 12)
+	wr.details = accounts.Details{Email: "chefe@exemplo.com", DonateBalance: 4200, VipUntil: &ate}
+	body := signedIn(t, newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr))("/contas/ana").Body.String()
+
+	for _, want := range []string{"chefe@exemplo.com", "4200", ate.Local().Format("02/01/2006")} {
+		if !strings.Contains(body, want) {
+			t.Errorf("account page missing %q", want)
+		}
 	}
 }

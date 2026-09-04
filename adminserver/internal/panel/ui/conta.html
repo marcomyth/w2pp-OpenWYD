@@ -31,6 +31,26 @@
       </div>
     </div>
     <div class="campo">
+      <div class="rot">VIP</div>
+      <div class="val">
+        {{if .Conta.VipActive}}
+          <span class="cargo">até {{.Conta.VipUntil.Local.Format "02/01/2006"}}</span>
+        {{else if .Conta.VipUntil}}
+          <span class="bloq">expirou {{.Conta.VipUntil.Local.Format "02/01/2006"}}</span>
+        {{else}}
+          não
+        {{end}}
+      </div>
+    </div>
+    <div class="campo">
+      <div class="rot">E-mail</div>
+      <div class="val">{{if .Conta.Email}}{{.Conta.Email}}{{else}}&mdash;{{end}}</div>
+    </div>
+    <div class="campo">
+      <div class="rot">Saldo de doação</div>
+      <div class="val">{{.Conta.DonateBalance}}</div>
+    </div>
+    <div class="campo">
       <div class="rot">Personagens</div>
       <div class="val">{{len .Personagens}}</div>
     </div>
@@ -56,6 +76,32 @@
           <button type="submit">Aplicar</button>
         </div>
         <p class="dica">O cargo vale no jogo e no painel. Ele é lido em toda requisição.</p>
+      </form>
+      {{end}}
+
+      <form method="post" action="/contas/{{.Conta.Name}}/vip" class="acao-bloco">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label for="dias">VIP</label>
+        <div class="linha">
+          <input id="dias" name="dias" type="number" min="1" max="3650" value="30" required>
+          <button type="submit">Adicionar dias</button>
+        </div>
+        <p class="dica">
+          {{if .Conta.VipActive}}
+            Soma ao prazo atual, não substitui: os dias que faltam continuam valendo.
+          {{else}}
+            Conta a partir de hoje.
+          {{end}}
+        </p>
+      </form>
+
+      {{if .Conta.VipUntil}}
+      <form method="post" action="/contas/{{.Conta.Name}}/vip" class="acao-bloco">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input type="hidden" name="remover" value="1">
+        <label>Retirar VIP</label>
+        <div class="linha"><button type="submit">Remover agora</button></div>
+        <p class="dica">Zera o prazo. A retirada fica registrada na auditoria.</p>
       </form>
       {{end}}
 
