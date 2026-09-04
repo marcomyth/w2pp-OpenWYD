@@ -9,15 +9,18 @@ package panel
 
 import (
 	"context"
+	"crypto/subtle"
 	"embed"
 	"errors"
 	"html/template"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
@@ -61,16 +64,24 @@ type Accounts interface {
 	ListCharacters(ctx context.Context, accountID int64) ([]domain.Character, error)
 }
 
-// AuditLog is the panel's view of the action log. Reading is all this file
-// needs; the write side belongs to whichever handler performs the action.
+// AuditLog is the panel's view of the action log.
 type AuditLog interface {
+	Write(ctx context.Context, r audit.Record) error
 	List(ctx context.Context, targetID int64) ([]audit.Entry, error)
 	Limit() int
+}
+
+// Writer performs the panel's account writes. Separate from Accounts because
+// reading and changing an account are different privileges and different risks.
+type Writer interface {
+	SetRole(ctx context.Context, actorID, targetID int64, role string) (string, error)
+	SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool) (bool, error)
 }
 
 // Config wires the handler.
 type Config struct {
 	Accounts   Accounts
+	Writer     Writer
 	Audit      AuditLog
 	Sessions   *session.Store
 	Logger     *slog.Logger
@@ -129,6 +140,8 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("GET /contas", h.requireStaff(http.HandlerFunc(h.contas)))
 	mux.Handle("GET /contas/{nome}", h.requireStaff(http.HandlerFunc(h.conta)))
 	mux.Handle("GET /auditoria", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.auditoria))))
+	mux.Handle("POST /contas/{nome}/cargo", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setCargo))))
+	mux.Handle("POST /contas/{nome}/bloqueio", h.requireStaff(http.HandlerFunc(h.setBloqueio)))
 
 	return securityHeaders(mux)
 }
@@ -136,16 +149,21 @@ func (h *Handler) Routes() http.Handler {
 // page carries what every signed-in template needs: who is looking, with what
 // authority, and which nav entry to mark.
 type page struct {
-	Account string
-	Role    string
-	Nav     string
-	IsAdmin bool // hides nav entries the viewer would only be refused from
+	Account   string
+	AccountID int64
+	Role      string
+	Nav       string
+	IsAdmin   bool   // hides nav entries the viewer would only be refused from
+	CSRF      string // every form that changes something carries this back
 }
 
 func pageFor(r *http.Request, nav string) page {
 	sess, _ := staffFrom(r.Context())
 	role := roleFrom(r.Context())
-	return page{Account: sess.AccountName, Role: role, Nav: nav, IsAdmin: role == roleAdmin}
+	return page{
+		Account: sess.AccountName, AccountID: sess.AccountID, Role: role,
+		Nav: nav, IsAdmin: role == roleAdmin, CSRF: sess.CSRF,
+	}
 }
 
 // --- pages ---
@@ -215,14 +233,22 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		chars = nil
 	}
 
+	p := pageFor(r, "contas")
 	h.render(w, "conta.html", struct {
 		page
 		Conta       contaView
 		Personagens []domain.Character
+		Aviso       string
+		EhVoce      bool
 	}{
-		pageFor(r, "contas"),
+		p,
 		contaView{ID: auth.ID, Name: nome, Role: auth.Role, IsBlocked: auth.IsBlocked},
 		chars,
+		r.URL.Query().Get("aviso"),
+		// The forms are hidden on your own account rather than shown and then
+		// refused: the writer rejects self-changes anyway, and offering a control
+		// that always fails is worse than not offering it.
+		p.AccountID == auth.ID,
 	})
 }
 
@@ -502,4 +528,166 @@ func clientIP(r *http.Request) string {
 		return strings.TrimSpace(f)
 	}
 	return r.RemoteAddr
+}
+
+// --- writes ---
+
+// checkCSRF verifies the form token against the session's.
+//
+// SameSite=Strict already blocks a cross-site POST from carrying the cookie in
+// a current browser. This does not depend on that: it survives an older browser,
+// and it survives the day someone relaxes SameSite so a link from elsewhere
+// works. Constant-time compare because the token is a secret like any other.
+func (h *Handler) checkCSRF(w http.ResponseWriter, r *http.Request) bool {
+	sess, ok := staffFrom(r.Context())
+	if !ok {
+		http.Error(w, "Sessão inválida.", http.StatusForbidden)
+		return false
+	}
+	got := r.PostFormValue("csrf")
+	if subtle.ConstantTimeCompare([]byte(got), []byte(sess.CSRF)) != 1 {
+		h.cfg.Logger.Warn("csrf mismatch", "account", sess.AccountName, "path", r.URL.Path)
+		http.Error(w, "Formulário expirado. Recarregue a página e tente de novo.", http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
+// alvo resolves the account named in the path, for a write.
+func (h *Handler) alvo(w http.ResponseWriter, r *http.Request) (string, store.AccountAuth, bool) {
+	nome := strings.ToLower(strings.TrimSpace(r.PathValue("nome")))
+	auth, err := h.cfg.Accounts.AccountByName(r.Context(), nome)
+	if errors.Is(err, store.ErrNotFound) {
+		http.NotFound(w, r)
+		return "", store.AccountAuth{}, false
+	}
+	if err != nil {
+		h.cfg.Logger.Error("write target lookup failed", "account", nome, "err", err)
+		http.Error(w, "Erro ao carregar a conta.", http.StatusInternalServerError)
+		return "", store.AccountAuth{}, false
+	}
+	return nome, auth, true
+}
+
+// setCargo promotes or demotes an account. Admin only.
+func (h *Handler) setCargo(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	nome, auth, ok := h.alvo(w, r)
+	if !ok {
+		return
+	}
+	novo := r.PostFormValue("cargo")
+	sess, _ := staffFrom(r.Context())
+
+	anterior, err := h.cfg.Writer.SetRole(r.Context(), sess.AccountID, auth.ID, novo)
+	if err != nil {
+		h.recusa(w, r, nome, err)
+		return
+	}
+	if anterior == novo {
+		h.redirectConta(w, r, nome, "Nada mudou: a conta já tinha esse cargo.")
+		return
+	}
+
+	// Record before reporting success. A change that was applied but not recorded
+	// is the change nobody can explain later, so a failed recording is reported
+	// as a failure even though the write already landed — better a staff member
+	// who re-checks than a log with a hole in it.
+	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: audit.ActionSetRole, TargetID: auth.ID,
+		Old: map[string]any{"role": anterior}, New: map[string]any{"role": novo},
+	}); err != nil {
+		h.cfg.Logger.Error("role changed but NOT audited", "actor", sess.AccountName,
+			"target", nome, "from", anterior, "to", novo, "err", err)
+		http.Error(w, "O cargo foi alterado, mas a auditoria falhou. Avise quem cuida do servidor.",
+			http.StatusInternalServerError)
+		return
+	}
+
+	h.cfg.Logger.Info("role changed", "actor", sess.AccountName, "target", nome,
+		"from", anterior, "to", novo)
+	h.redirectConta(w, r, nome, "Cargo alterado de "+anterior+" para "+novo+".")
+}
+
+// setBloqueio blocks or unblocks an account. Moderator and above.
+func (h *Handler) setBloqueio(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	nome, auth, ok := h.alvo(w, r)
+	if !ok {
+		return
+	}
+	bloquear := r.PostFormValue("bloquear") == "1"
+	sess, _ := staffFrom(r.Context())
+
+	anterior, err := h.cfg.Writer.SetBlocked(r.Context(), sess.AccountID, auth.ID, bloquear)
+	if err != nil {
+		h.recusa(w, r, nome, err)
+		return
+	}
+	if anterior == bloquear {
+		h.redirectConta(w, r, nome, "Nada mudou: a conta já estava assim.")
+		return
+	}
+
+	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: audit.ActionSetBlocked, TargetID: auth.ID,
+		Old: map[string]any{"blocked": anterior}, New: map[string]any{"blocked": bloquear},
+	}); err != nil {
+		h.cfg.Logger.Error("block changed but NOT audited", "actor", sess.AccountName,
+			"target", nome, "blocked", bloquear, "err", err)
+		http.Error(w, "A conta foi alterada, mas a auditoria falhou. Avise quem cuida do servidor.",
+			http.StatusInternalServerError)
+		return
+	}
+
+	// Blocking does not end a live game session; the block is read at login.
+	// Say so, rather than letting staff assume the player dropped.
+	msg := "Conta desbloqueada."
+	if bloquear {
+		msg = "Conta bloqueada. Se o jogador estiver online, ele continua até sair."
+	}
+	h.cfg.Logger.Info("block changed", "actor", sess.AccountName, "target", nome, "blocked", bloquear)
+	h.redirectConta(w, r, nome, msg)
+}
+
+// recusa turns a refusal from the writer into a message the staff member can act
+// on. Anything unrecognised is a 500: an unexplained failure must not read as a
+// polite "no".
+func (h *Handler) recusa(w http.ResponseWriter, r *http.Request, nome string, err error) {
+	switch {
+	case errors.Is(err, accounts.ErrSelf):
+		h.redirectConta(w, r, nome, "Você não pode alterar o próprio acesso.")
+	case errors.Is(err, accounts.ErrLastAdmin):
+		h.redirectConta(w, r, nome,
+			"Este é o último admin. Promova outra conta antes de rebaixar esta.")
+	case errors.Is(err, accounts.ErrUnknownRole):
+		http.Error(w, "Cargo inválido.", http.StatusBadRequest)
+	case errors.Is(err, accounts.ErrNotFound):
+		http.NotFound(w, r)
+	default:
+		h.cfg.Logger.Error("account write failed", "target", nome, "err", err)
+		http.Error(w, "Erro ao gravar a alteração.", http.StatusInternalServerError)
+	}
+}
+
+// redirectConta bounces back to the account page with a message.
+//
+// A redirect rather than rendering here: a POST that answers with a page leaves
+// the browser able to repeat the write on refresh, and repeating a block or a
+// demotion is not harmless.
+func (h *Handler) redirectConta(w http.ResponseWriter, r *http.Request, nome, msg string) {
+	http.Redirect(w, r, "/contas/"+url.PathEscape(nome)+"?aviso="+url.QueryEscape(msg),
+		http.StatusSeeOther)
 }

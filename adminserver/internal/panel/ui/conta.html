@@ -11,6 +11,8 @@
   <h1>{{.Conta.Name}}</h1>
   <p class="sub"><a href="/contas">Voltar para a busca</a></p>
 
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
   <div class="campos">
     <div class="campo">
       <div class="rot">Identificador</div>
@@ -33,6 +35,45 @@
       <div class="val">{{len .Personagens}}</div>
     </div>
   </div>
+
+  {{if .EhVoce}}
+    <p class="sub" style="margin-bottom:34px">
+      Esta é a sua própria conta. Alterar o próprio cargo ou bloqueio não é
+      permitido — seria o único caminho sem volta pelo painel.
+    </p>
+  {{else}}
+    <div class="acoes">
+      {{if .IsAdmin}}
+      <form method="post" action="/contas/{{.Conta.Name}}/cargo" class="acao-bloco">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label for="cargo">Cargo</label>
+        <div class="linha">
+          <select id="cargo" name="cargo">
+            <option value="player"    {{if eq .Conta.Role "player"}}selected{{end}}>player</option>
+            <option value="moderator" {{if eq .Conta.Role "moderator"}}selected{{end}}>moderator</option>
+            <option value="admin"     {{if eq .Conta.Role "admin"}}selected{{end}}>admin</option>
+          </select>
+          <button type="submit">Aplicar</button>
+        </div>
+        <p class="dica">O cargo vale no jogo e no painel. Ele é lido em toda requisição.</p>
+      </form>
+      {{end}}
+
+      <form method="post" action="/contas/{{.Conta.Name}}/bloqueio" class="acao-bloco">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input type="hidden" name="bloquear" value="{{if .Conta.IsBlocked}}0{{else}}1{{end}}">
+        <label>Acesso</label>
+        <div class="linha">
+          <button type="submit">
+            {{if .Conta.IsBlocked}}Desbloquear conta{{else}}Bloquear conta{{end}}
+          </button>
+        </div>
+        <p class="dica">
+          O bloqueio é conferido no login. Quem já estiver jogando continua até sair.
+        </p>
+      </form>
+    </div>
+  {{end}}
 
   <h2>Personagens</h2>
   {{if .Personagens}}
