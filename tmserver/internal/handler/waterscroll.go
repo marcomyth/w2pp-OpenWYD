@@ -190,15 +190,26 @@ func (d *Dispatcher) useWaterScroll(w *world.World, s *world.Session, e *world.E
 		d.rejectUnimplementedConsumable(w, s, e, src)
 		return
 	}
+	// Logged on EVERY attempt, before the gates. The notify() wire format is
+	// still a placeholder (notice.go), so a refused scroll looks exactly like a
+	// dead handler on the client: this line is the only way to tell "the gate
+	// said no" from "this code never ran".
+	d.log.Info("water scroll attempt",
+		"account", s.AccountName, "vol", vol, "variant", variant, "room", room,
+		"x", e.X, "y", e.Y, "leader", e.Leader)
 
 	// Gate 1: inside the dungeon, or on the staging tile that starts a chain.
 	if !insideAnyWaterRoom(variant, e.X, e.Y) && !onWaterStagingTile(e.X, e.Y) {
+		d.log.Info("water scroll refused: outside the dungeon",
+			"account", s.AccountName, "x", e.X, "y", e.Y, "variant", variant)
 		d.refuseWaterScroll(w, s, e, src, NoticeCantUseHere)
 		return
 	}
 	// Gate 2: party members cannot open a room; only the leader (Leader == 0)
 	// may, and the whole party rides along.
 	if e.Leader != 0 {
+		d.log.Info("water scroll refused: not the party leader",
+			"account", s.AccountName, "leader", e.Leader)
 		d.refuseWaterScroll(w, s, e, src, NoticePartyLeaderOnly)
 		return
 	}
