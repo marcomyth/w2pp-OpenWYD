@@ -1,4 +1,4 @@
-.PHONY: build binaries test lint fmt vet run run-local vuln tidy proto certs certs-clean exp-data item-icons item-icons-publish
+.PHONY: build binaries test lint fmt vet run run-local vuln tidy proto certs certs-clean exp-data item-icons item-icons-publish item-browser
 
 build:
 	go build ./...
@@ -27,6 +27,12 @@ item-icons:
 # writes every returned URL to docs/audits/item-icons-upload-<version>.json.
 item-icons-publish:
 	sh ./scripts/upload-item-icons-storage-manager.sh
+
+# Searchable local view of Release/Common/ItemList.csv (dev/GM tool, loopback
+# only, no auth). Pass ICONS=dist/item-icons after `make item-icons` to get the
+# real client icons instead of placeholders.
+item-browser:
+	go run ./webserver/cmd/itembrowser -content Release -addr "$${ADDR:-127.0.0.1:8088}" -icons "$(ICONS)"
 
 test:
 	go test -race -cover ./...
