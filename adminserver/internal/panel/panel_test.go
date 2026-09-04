@@ -18,6 +18,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
@@ -188,18 +189,20 @@ func newTestPanel(t *testing.T, acc Accounts) http.Handler {
 
 // fakeWriter records the writes asked of it and can be made to refuse.
 type fakeWriter struct {
-	mu         sync.Mutex
-	roleCall   []string
-	blkCall    []bool
-	lastActor  int64 // who the handler said was acting
-	lastTarget int64 // and on whom
-	vipDays    []int
-	vipCleared int
-	prevRole   string
-	prevBlk    bool
-	prevVip    *time.Time
-	details    accounts.Details
-	err        error
+	mu           sync.Mutex
+	roleCall     []string
+	blkCall      []bool
+	lastActor    int64 // who the handler said was acting
+	lastTarget   int64 // and on whom
+	vipDays      []int
+	vipCleared   int
+	prevRole     string
+	prevBlk      bool
+	prevVip      *time.Time
+	pendentes    int
+	ultimaEdicao time.Time
+	details      accounts.Details
+	err          error
 }
 
 func newFakeWriter() *fakeWriter { return &fakeWriter{prevRole: "player"} }
@@ -213,6 +216,12 @@ func (f *fakeWriter) SetRole(_ context.Context, actorID, targetID int64, role st
 	}
 	f.roleCall = append(f.roleCall, role)
 	return f.prevRole, nil
+}
+
+func (f *fakeWriter) PendingSince(_ context.Context, _ time.Time) (int, time.Time, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.pendentes, f.ultimaEdicao, nil
 }
 
 func (f *fakeWriter) Get(_ context.Context, _ int64) (accounts.Details, error) {
@@ -1203,5 +1212,178 @@ func TestWebServerFailureIsNotAPanelFailure(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "reiniciando") {
 		t.Error("the message does not point at the right service")
+	}
+}
+
+// --- estado do servidor e reinicio ---
+
+// fakePlatform stands in for the hosting API.
+type fakePlatform struct {
+	mu        sync.Mutex
+	dep       plataforma.Deployment
+	latestErr error
+	restartEr error
+	restarts  []string
+}
+
+func newFakePlatform() *fakePlatform {
+	return &fakePlatform{dep: plataforma.Deployment{
+		ID: "dep-1", Status: "SUCCESS", CreatedAt: time.Now().Add(-3 * time.Hour),
+	}}
+}
+
+func (f *fakePlatform) Latest(context.Context) (plataforma.Deployment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.dep, f.latestErr
+}
+
+func (f *fakePlatform) Restart(_ context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.restartEr != nil {
+		return f.restartEr
+	}
+	f.restarts = append(f.restarts, id)
+	return nil
+}
+
+func newTestPanelPlat(t *testing.T, log AuditLog, wr Writer, plat Platform) http.Handler {
+	t.Helper()
+	h, err := New(Config{
+		Accounts:   withTarget(roleAdmin),
+		Writer:     wr,
+		Platform:   plat,
+		Audit:      log,
+		Sessions:   session.New(time.Hour),
+		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}
+
+func TestHomeShowsUptimeAndNoPending(t *testing.T) {
+	body := signedIn(t, newTestPanelPlat(t, newFakeAudit(), newFakeWriter(), newFakePlatform()))("/").Body.String()
+	if !strings.Contains(body, "no ar há") {
+		t.Error("uptime not shown")
+	}
+	if !strings.Contains(body, "nenhuma edição pendente") {
+		t.Error("the no-pending state is not stated")
+	}
+	// The reassurance that matters: staff must not think every edit needs this.
+	if !strings.Contains(body, "15 segundos") {
+		t.Error("the page does not say NPC and price edits apply on their own")
+	}
+}
+
+func TestHomeWarnsAboutPendingEdits(t *testing.T) {
+	wr := newFakeWriter()
+	wr.pendentes = 3
+	wr.ultimaEdicao = time.Now().Add(-20 * time.Minute)
+	body := signedIn(t, newTestPanelPlat(t, newFakeAudit(), wr, newFakePlatform()))("/").Body.String()
+
+	if !strings.Contains(body, "3 edição") {
+		t.Error("the pending count is not shown")
+	}
+	if !strings.Contains(body, "não existe recarga ao vivo") {
+		t.Error("the page does not explain why a restart is needed")
+	}
+}
+
+func TestRestartIsAdminOnlyAndAudited(t *testing.T) {
+	plat := newFakePlatform()
+	log := newFakeAudit()
+	h := newTestPanelPlat(t, log, newFakeWriter(), plat)
+	post, token := signedInPost(t, h)
+
+	rec := post("/servidor/reiniciar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(plat.restarts) != 1 || plat.restarts[0] != "dep-1" {
+		t.Fatalf("restarts = %v, want one for dep-1", plat.restarts)
+	}
+	recs := log.recorded()
+	if len(recs) != 1 || recs[0].Action != audit.ActionRestartGame {
+		t.Fatalf("audit = %+v, want one RESTART_GAME", recs)
+	}
+}
+
+func TestRestartRefusedForModerators(t *testing.T) {
+	plat := newFakePlatform()
+	h := newTestPanelPlat(t, newFakeAudit(), newFakeWriter(), plat)
+	// Rebuild with a moderator session by using the moderator account set.
+	hm, err := New(Config{
+		Accounts: withTarget(roleModerator), Writer: newFakeWriter(), Platform: plat,
+		Audit: newFakeAudit(), Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	post, token := signedInPost(t, hm.Routes())
+	if rec := post("/servidor/reiniciar", url.Values{"csrf": {token}}); rec.Code != http.StatusForbidden {
+		t.Fatalf("moderator restart: status = %d, want 403", rec.Code)
+	}
+	if len(plat.restarts) != 0 {
+		t.Fatal("a refused request still restarted the server")
+	}
+	_ = h
+}
+
+func TestRestartIsNotAttemptedWhenItCannotBeAudited(t *testing.T) {
+	// Refusing outright, rather than restarting and logging nothing: a restart
+	// nobody can explain is the exact thing the log exists to prevent, and it is
+	// the one action that also takes the panel's own reporting offline.
+	plat := newFakePlatform()
+	log := newFakeAudit()
+	log.failWrite = errors.New("banco fora do ar")
+	h := newTestPanelPlat(t, log, newFakeWriter(), plat)
+	post, token := signedInPost(t, h)
+
+	rec := post("/servidor/reiniciar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if len(plat.restarts) != 0 {
+		t.Fatal("the server was restarted even though the action could not be recorded")
+	}
+}
+
+func TestRestartNeedsTheCSRFToken(t *testing.T) {
+	plat := newFakePlatform()
+	h := newTestPanelPlat(t, newFakeAudit(), newFakeWriter(), plat)
+	post, _ := signedInPost(t, h)
+	if rec := post("/servidor/reiniciar", url.Values{}); rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	if len(plat.restarts) != 0 {
+		t.Fatal("a request without the token restarted the server")
+	}
+}
+
+func TestHostingFailureDoesNotBreakTheHomePage(t *testing.T) {
+	plat := newFakePlatform()
+	plat.latestErr = errors.New("token expirado")
+	rec := signedIn(t, newTestPanelPlat(t, newFakeAudit(), newFakeWriter(), plat))("/")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — the home page must survive a hosting outage", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "continua funcionando normalmente") {
+		t.Error("the page does not reassure that the panel itself is fine")
+	}
+}
+
+func TestRestartCardIsHiddenWithoutTheHostingAPI(t *testing.T) {
+	get := signedIn(t, newTestPanel(t, withTarget(roleAdmin)))
+	body := get("/").Body.String()
+	if strings.Contains(body, "Servidor de jogo") {
+		t.Error("the card is shown with no hosting API configured")
+	}
+	if rec := get("/servidor/reiniciar"); rec.Code != http.StatusNotFound {
+		t.Errorf("route exists without the hosting API: status = %d", rec.Code)
 	}
 }

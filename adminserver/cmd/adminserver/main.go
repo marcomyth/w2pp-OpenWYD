@@ -41,6 +41,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/panel"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
@@ -113,7 +114,26 @@ func run(logger *slog.Logger) error {
 			"configuration", "W2PP_WEBSERVER")
 	}
 
+	// Hosting API, for the game-server status card and its restart button. The
+	// project and environment ids are injected into every service by the
+	// platform; only the token and the game service's id have to be set by hand.
+	var plat panel.Platform
+	platCfg := plataforma.Config{
+		Token:         os.Getenv("RAILWAY_API_TOKEN"),
+		ProjectID:     os.Getenv("RAILWAY_PROJECT_ID"),
+		EnvironmentID: os.Getenv("RAILWAY_ENVIRONMENT_ID"),
+		ServiceID:     os.Getenv("W2PP_TMSERVER_SERVICE_ID"),
+	}
+	if platCfg.Ready() {
+		plat = plataforma.New(platCfg)
+		logger.Info("hosting API wired", "service", platCfg.ServiceID)
+	} else {
+		logger.Warn("no hosting API configured; the restart card is hidden",
+			"configuration", "RAILWAY_API_TOKEN + W2PP_TMSERVER_SERVICE_ID")
+	}
+
 	handler, err := panel.New(panel.Config{
+		Platform:   plat,
 		Accounts:   store.New(pool),
 		GameData:   game,
 		Writer:     accounts.New(pool),
