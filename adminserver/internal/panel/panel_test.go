@@ -1049,6 +1049,7 @@ type fakeGameData struct {
 	shopSaves   [][]gamedata.ShopItem
 	saved       []gamedata.NPC
 	visible     []bool
+	visibleFor  []int64
 	deleted     []int64
 	npcWriteErr error
 }
@@ -1150,6 +1151,9 @@ func (f *fakeGameData) SetNPCVisible(_ context.Context, _ int64, npcID int64, en
 	if f.npcWriteErr != nil {
 		return f.npcWriteErr
 	}
+	// The id is recorded, not ignored: a handler that hides the wrong NPC would
+	// otherwise pass, since the visibility flag alone looks identical.
+	f.visibleFor = append(f.visibleFor, npcID)
 	f.visible = append(f.visible, enabled)
 	return nil
 }
@@ -1654,6 +1658,9 @@ func TestVisibilityTogglesAndIsAudited(t *testing.T) {
 	}
 	if len(game.visible) != 1 || game.visible[0] {
 		t.Fatalf("visibility calls = %v, want one false", game.visible)
+	}
+	if len(game.visibleFor) != 1 || game.visibleFor[0] != 5 {
+		t.Fatalf("hid NPC %v, want the one in the path (5)", game.visibleFor)
 	}
 	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
 	if !strings.Contains(loc, "some do mapa") {
