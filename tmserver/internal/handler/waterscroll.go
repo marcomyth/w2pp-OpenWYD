@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -275,11 +277,19 @@ func (d *Dispatcher) useWaterScroll(w *world.World, s *world.Session, e *world.E
 	// tops the block up to MaxNumMob with two calls); the boss room draws one of
 	// four blocks with the legacy's weights: 40% +8, 10% +9, 10% +10, 40% +11.
 	base := waterVariants[variant].genBase
+	spawnedBlock := room
 	if room < waterDeadRoom {
 		d.revealSpawned(w, w.GenerateMob(base+room))
 		d.revealSpawned(w, w.GenerateMob(base+room))
 	} else {
-		d.revealSpawned(w, w.GenerateMob(base+waterBossBlock(w.Rand().Intn(10))))
+		spawnedBlock = waterBossBlock(w.Rand().Intn(10))
+		d.revealSpawned(w, w.GenerateMob(base+spawnedBlock))
+	}
+
+	// Announce the tally AFTER spawning, so the count is the room's real
+	// population rather than whatever the block held a moment earlier.
+	if gen := w.GeneratorAt(base + spawnedBlock); gen != nil {
+		d.announceWaterRoom(w, e, fmt.Sprintf("%s: %d monstros", waterRoomLabel(room), gen.CurrentNumMob))
 	}
 
 	consumeOneItem(&e.Carry[src])
@@ -343,8 +353,21 @@ func (d *Dispatcher) waterRoomCleared(w *world.World, reward, mob *world.Entity)
 		return
 	}
 	gen := w.GeneratorAt(int(mob.GenIndex))
-	if gen == nil || gen.CurrentNumMob != 1 {
-		return // not the last one down yet
+	if gen == nil {
+		return
+	}
+
+	leaderForCount := reward
+	if reward.Leader != 0 {
+		if le := w.Entity(reward.Leader); le != nil {
+			leaderForCount = le
+		}
+	}
+	// CurrentNumMob is still counting this mob — mobKilled runs before DespawnMob
+	// decrements it — so what is left after this death is one less.
+	if remaining := gen.CurrentNumMob - 1; remaining > 0 {
+		d.announceWaterRoom(w, leaderForCount, fmt.Sprintf("%s: faltam %d", waterRoomLabel(room), remaining))
+		return
 	}
 	if !d.claimWaterReward(variant, room) {
 		d.log.Info("water room already rewarded this run; skipping payout",
@@ -352,12 +375,7 @@ func (d *Dispatcher) waterRoomCleared(w *world.World, reward, mob *world.Entity)
 		return
 	}
 
-	leader := reward
-	if reward.Leader != 0 {
-		if le := w.Entity(reward.Leader); le != nil {
-			leader = le
-		}
-	}
+	leader := leaderForCount
 
 	cut := uint8(waterRoomClearTime)
 	if room >= waterDeadRoom {
@@ -369,6 +387,9 @@ func (d *Dispatcher) waterRoomCleared(w *world.World, reward, mob *world.Entity)
 
 	if room < waterDeadRoom {
 		d.grantNextWaterScroll(w, leader, variant, room)
+		d.announceWaterRoom(w, leader, waterRoomLabel(room)+" limpa! Use o proximo pergaminho.")
+	} else {
+		d.announceWaterRoom(w, leader, waterRoomLabel(room)+" limpa!")
 	}
 	d.broadcastWaterCountdown(w, leader, d.events.water[variant][room])
 	d.log.Info("water room cleared",
@@ -403,6 +424,33 @@ func (d *Dispatcher) grantNextWaterScroll(w *world.World, leader *world.Entity, 
 	leader.Carry[slot] = next
 	if ls := w.Session(leader.ID); ls != nil {
 		d.sendSlot(w, ls, world.ItemPlaceCarry, slot, next)
+	}
+}
+
+// waterRoomLabel names a room for the players. The legacy numbers rooms from 0;
+// players count the scrolls from LV1, so the label is one-based.
+func waterRoomLabel(room int) string {
+	if room >= waterDeadRoom {
+		return "Boss"
+	}
+	return fmt.Sprintf("Sala %d", room+1)
+}
+
+// announceWaterRoom sends one chat line to the leader and every online party
+// member. The countdown has its own wire signal (MSG_StartTime) but carries a
+// single number, so the monster tally needs a channel of its own.
+func (d *Dispatcher) announceWaterRoom(w *world.World, leader *world.Entity, text string) {
+	if ls := w.Session(leader.ID); ls != nil {
+		d.sendChatText(w, ls, text)
+	}
+	for i := 0; i < world.MaxParty; i++ {
+		member := leader.PartyList[i]
+		if member <= 0 || member == leader.ID {
+			continue
+		}
+		if ms := w.Session(member); ms != nil && ms.Mode == world.UserPlay {
+			d.sendChatText(w, ms, text)
+		}
 	}
 }
 
