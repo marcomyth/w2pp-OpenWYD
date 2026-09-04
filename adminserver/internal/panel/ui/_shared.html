@@ -114,6 +114,7 @@
     <a href="/" {{if eq .Nav "inicio"}}class="on"{{end}}>Início</a>
     <a href="/contas" {{if eq .Nav "contas"}}class="on"{{end}}>Contas</a>
     {{if .HasItems}}<a href="/itens" {{if eq .Nav "itens"}}class="on"{{end}}>Itens</a>{{end}}
+    {{if .HasItems}}<a href="/npcs" {{if eq .Nav "npcs"}}class="on"{{end}}>NPCs</a>{{end}}
     {{if .IsAdmin}}<a href="/auditoria" {{if eq .Nav "auditoria"}}class="on"{{end}}>Auditoria</a>{{end}}
   </nav>
   <div class="quem">

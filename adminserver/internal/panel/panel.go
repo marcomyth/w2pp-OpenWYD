@@ -92,6 +92,9 @@ type GameData interface {
 	Items(ctx context.Context, moderatorID int64, query string) ([]gamedata.Item, error)
 	SetPrice(ctx context.Context, moderatorID int64, itemIndex int32, price int64) error
 	CatalogVersion() string
+	NPCs(ctx context.Context, moderatorID int64, query string) ([]gamedata.NPC, error)
+	NPC(ctx context.Context, moderatorID, id int64) (gamedata.NPC, error)
+	SetShop(ctx context.Context, moderatorID, npcID int64, items []gamedata.ShopItem) error
 }
 
 // Platform is the hosting API, used to report the game server's boot time and
@@ -174,6 +177,9 @@ func (h *Handler) Routes() http.Handler {
 	if h.cfg.GameData != nil {
 		mux.Handle("GET /itens", h.requireStaff(http.HandlerFunc(h.itens)))
 		mux.Handle("POST /itens/{indice}/preco", h.requireStaff(http.HandlerFunc(h.setPreco)))
+		mux.Handle("GET /npcs", h.requireStaff(http.HandlerFunc(h.npcs)))
+		mux.Handle("GET /npcs/{id}", h.requireStaff(http.HandlerFunc(h.npc)))
+		mux.Handle("POST /npcs/{id}/loja", h.requireStaff(http.HandlerFunc(h.setLoja)))
 	}
 
 	return securityHeaders(mux)
@@ -1039,4 +1045,151 @@ func desde(t time.Time) string {
 	default:
 		return fmt.Sprintf("%d dias", int(d.Hours()/24))
 	}
+}
+
+// --- npcs e lojas ---
+
+// npcs lists the merchant definitions the moderator can edit.
+func (h *Handler) npcs(w http.ResponseWriter, r *http.Request) {
+	sess, _ := staffFrom(r.Context())
+	q := r.URL.Query().Get("q")
+
+	achados, err := h.cfg.GameData.NPCs(r.Context(), sess.AccountID, q)
+	if err != nil {
+		h.recusaGameData(w, r, "listar NPCs", err)
+		return
+	}
+	h.render(w, "npcs.html", struct {
+		page
+		Query string
+		NPCs  []gamedata.NPC
+		Aviso string
+	}{pageFor(r, "npcs", true), q, achados, r.URL.Query().Get("aviso")})
+}
+
+// npc shows one merchant and the 27 stock slots the service accepts.
+func (h *Handler) npc(w http.ResponseWriter, r *http.Request) {
+	sess, _ := staffFrom(r.Context())
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "NPC inválido.", http.StatusBadRequest)
+		return
+	}
+
+	n, err := h.cfg.GameData.NPC(r.Context(), sess.AccountID, id)
+	if err != nil {
+		h.recusaGameData(w, r, "carregar o NPC", err)
+		return
+	}
+
+	// Render every slot, not only the occupied ones: an empty slot is where you
+	// add stock, and a table that hides them gives no way in.
+	slots := make([]gamedata.ShopItem, gamedata.MaxShopSlot()+1)
+	for i := range slots {
+		slots[i].Slot = int32(i)
+	}
+	for _, it := range n.Shop {
+		if int(it.Slot) < len(slots) {
+			slots[it.Slot] = it
+		}
+	}
+
+	h.render(w, "npc.html", struct {
+		page
+		NPC   gamedata.NPC
+		Slots []gamedata.ShopItem
+		Aviso string
+	}{pageFor(r, "npcs", true), n, slots, r.URL.Query().Get("aviso")})
+}
+
+// setLoja replaces a merchant's stock with whatever the form carries.
+func (h *Handler) setLoja(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil || id <= 0 {
+		http.Error(w, "NPC inválido.", http.StatusBadRequest)
+		return
+	}
+
+	itens := make([]gamedata.ShopItem, 0, gamedata.MaxShopSlot()+1)
+	for slot := 0; slot <= gamedata.MaxShopSlot(); slot++ {
+		bruto := strings.TrimSpace(r.PostFormValue(fmt.Sprintf("item%d", slot)))
+		if bruto == "" || bruto == "0" {
+			continue // empty slot: simply not sent
+		}
+		idx, err := strconv.Atoi(bruto)
+		if err != nil || idx <= 0 {
+			http.Error(w, fmt.Sprintf("Item inválido no espaço %d.", slot), http.StatusBadRequest)
+			return
+		}
+		qtd, err := strconv.Atoi(strings.TrimSpace(r.PostFormValue(fmt.Sprintf("qtd%d", slot))))
+		if err != nil || qtd < 1 {
+			qtd = 1
+		}
+		it := gamedata.ShopItem{Slot: int32(slot), ItemIndex: int32(idx), Quantity: int32(qtd)}
+		// Effects ride along as hidden fields. The panel edits WHAT is sold, not
+		// how it is enchanted; dropping them on save would quietly strip stock
+		// that someone configured elsewhere.
+		for e := 0; e < 3; e++ {
+			it.Eff[e][0] = int32(formInt(r, fmt.Sprintf("eff%d_%d", slot, e)))
+			it.Eff[e][1] = int32(formInt(r, fmt.Sprintf("effv%d_%d", slot, e)))
+		}
+		itens = append(itens, it)
+	}
+
+	sess, _ := staffFrom(r.Context())
+	if err := h.cfg.GameData.SetShop(r.Context(), sess.AccountID, id, itens); err != nil {
+		h.recusaGameData(w, r, "gravar a loja", err)
+		return
+	}
+
+	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: audit.ActionSetNpcShop,
+		New:    map[string]any{"npc_id": id, "slots": len(itens)},
+	}); err != nil {
+		h.cfg.Logger.Error("shop changed but NOT audited", "npc", id, "err", err)
+		http.Error(w, "A loja foi alterada, mas a auditoria falhou. Avise quem cuida do servidor.",
+			http.StatusInternalServerError)
+		return
+	}
+
+	h.cfg.Logger.Info("npc shop changed", "actor", sess.AccountName, "npc", id, "slots", len(itens))
+	http.Redirect(w, r, fmt.Sprintf("/npcs/%d?aviso=%s", id,
+		url.QueryEscape(fmt.Sprintf("Loja gravada com %d item(ns). Entra em jogo em até 15 segundos.", len(itens)))),
+		http.StatusSeeOther)
+}
+
+// recusaGameData turns a refusal from the webServer into something actionable.
+func (h *Handler) recusaGameData(w http.ResponseWriter, r *http.Request, acao string, err error) {
+	switch {
+	case errors.Is(err, gamedata.ErrNotFound):
+		http.NotFound(w, r)
+	case errors.Is(err, gamedata.ErrForbidden):
+		// The panel already checked the role, so this means the webServer sees a
+		// different one — worth saying plainly instead of a generic refusal.
+		h.cfg.Logger.Warn("webserver refused a staff request", "acao", acao, "err", err)
+		http.Error(w, "O webServer recusou: ele não reconhece esta conta como moderadora.",
+			http.StatusForbidden)
+	case errors.Is(err, gamedata.ErrInvalid):
+		http.Error(w, "O webServer recusou os dados enviados.", http.StatusBadRequest)
+	default:
+		h.cfg.Logger.Error("gamedata call failed", "acao", acao, "err", err)
+		http.Error(w, "Erro ao "+acao+". O webServer pode estar reiniciando.", http.StatusBadGateway)
+	}
+}
+
+// formInt reads an optional integer field, treating anything unparseable as 0.
+// Used only for the effect pairs, which the form carries through unchanged.
+func formInt(r *http.Request, name string) int {
+	v, err := strconv.Atoi(strings.TrimSpace(r.PostFormValue(name)))
+	if err != nil {
+		return 0
+	}
+	return v
 }

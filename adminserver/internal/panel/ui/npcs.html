@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>NPCs — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  td.coord { font-variant-numeric: tabular-nums; color: var(--ink-3); white-space: nowrap; }
+  .origem { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>NPCs</h1>
+  <p class="sub">Vendedores gerenciados pelo banco. Alterações entram no jogo em até 15 segundos.</p>
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  <form class="busca" method="get" action="/npcs">
+    <input name="q" value="{{.Query}}" placeholder="Nome do NPC" autocapitalize="off" spellcheck="false" autofocus>
+    <button type="submit">Buscar</button>
+  </form>
+
+  {{if .NPCs}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>NPC</th>
+            <th>Situação</th>
+            <th class="num">Itens à venda</th>
+            <th>Posição</th>
+            <th>Origem</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .NPCs}}
+          <tr>
+            <td><a href="/npcs/{{.ID}}">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Slug}}{{end}}</a></td>
+            <td>{{if .Enabled}}visível{{else}}<span class="bloq">oculto</span>{{end}}</td>
+            <td class="num">{{len .Shop}}</td>
+            <td class="coord">mapa {{.MapID}} &middot; {{.X}}, {{.Y}}</td>
+            <td><span class="origem">{{.Origin}}</span></td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  {{else}}
+    <div class="vazio">
+      {{if .Query}}Nenhum NPC com “{{.Query}}” no nome.
+      {{else}}Nenhum NPC gerenciado pelo banco. O dbServer popula essa lista ao subir.{{end}}
+    </div>
+  {{end}}
+</main>
+</body>
+</html>

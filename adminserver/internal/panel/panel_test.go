@@ -1037,12 +1037,16 @@ func TestAccountPageShowsVipEmailAndBalance(t *testing.T) {
 
 // fakeGameData stands in for the webServer link.
 type fakeGameData struct {
-	mu       sync.Mutex
-	itens    []gamedata.Item
-	setCalls [][2]int64 // index, price
-	listErr  error
-	setErr   error
-	versao   string
+	mu        sync.Mutex
+	itens     []gamedata.Item
+	setCalls  [][2]int64 // index, price
+	listErr   error
+	setErr    error
+	versao    string
+	npcs      []gamedata.NPC
+	npcsErr   error
+	shopErr   error
+	shopSaves [][]gamedata.ShopItem
 }
 
 func newFakeGameData() *fakeGameData {
@@ -1054,6 +1058,14 @@ func newFakeGameData() *fakeGameData {
 			{Index: 2000, Name: "Espada_Longa", DisplayName: "Espada Longa",
 				Grade: 2, Slots: []string{"weapon"}, Price: 5000, Overridden: true},
 		},
+		npcs: []gamedata.NPC{{
+			ID: 5, Slug: "mercador-armia", DisplayName: "Mercador de Armia",
+			TemplateName: "Mercador", Enabled: true, MapID: 0, X: 2100, Y: 2100,
+			Origin: "content",
+			Shop: []gamedata.ShopItem{
+				{Slot: 0, ItemIndex: 1415, Quantity: 1, Eff: [3][2]int32{{7, 42}, {0, 0}, {0, 0}}},
+			},
+		}},
 	}
 }
 
@@ -1075,6 +1087,42 @@ func (f *fakeGameData) Items(_ context.Context, _ int64, query string) ([]gameda
 		}
 	}
 	return out, nil
+}
+
+func (f *fakeGameData) NPCs(_ context.Context, _ int64, query string) ([]gamedata.NPC, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.npcsErr != nil {
+		return nil, f.npcsErr
+	}
+	out := []gamedata.NPC{}
+	for _, n := range f.npcs {
+		if query == "" || strings.Contains(strings.ToLower(n.DisplayName), strings.ToLower(query)) {
+			out = append(out, n)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeGameData) NPC(_ context.Context, _ int64, id int64) (gamedata.NPC, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, n := range f.npcs {
+		if n.ID == id {
+			return n, nil
+		}
+	}
+	return gamedata.NPC{}, gamedata.ErrNotFound
+}
+
+func (f *fakeGameData) SetShop(_ context.Context, _ int64, npcID int64, items []gamedata.ShopItem) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.shopErr != nil {
+		return f.shopErr
+	}
+	f.shopSaves = append(f.shopSaves, items)
+	return nil
 }
 
 func (f *fakeGameData) SetPrice(_ context.Context, _ int64, index int32, price int64) error {
@@ -1385,5 +1433,125 @@ func TestRestartCardIsHiddenWithoutTheHostingAPI(t *testing.T) {
 	}
 	if rec := get("/servidor/reiniciar"); rec.Code != http.StatusNotFound {
 		t.Errorf("route exists without the hosting API: status = %d", rec.Code)
+	}
+}
+
+// --- npcs e lojas ---
+
+func TestNpcsListsAndFilters(t *testing.T) {
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	body := get("/npcs").Body.String()
+	if !strings.Contains(body, "Mercador de Armia") {
+		t.Error("the NPC listing is empty")
+	}
+	if strings.Contains(get("/npcs?q=zzz").Body.String(), "Mercador de Armia") {
+		t.Error("search returned a non-matching NPC")
+	}
+}
+
+func TestNpcPageRendersEveryStockSlot(t *testing.T) {
+	// Occupied slots only would leave no way to ADD stock — the empty rows are
+	// the input, not decoration.
+	body := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))("/npcs/5").Body.String()
+	for _, name := range []string{`name="item0"`, `name="item26"`, `name="qtd26"`} {
+		if !strings.Contains(body, name) {
+			t.Errorf("missing form field %s", name)
+		}
+	}
+	if strings.Contains(body, `name="item27"`) {
+		t.Error("rendered a slot the service does not accept")
+	}
+	if !strings.Contains(body, `value="1415"`) {
+		t.Error("the existing stock is not filled in")
+	}
+}
+
+func TestNpcPageCarriesEffectsThrough(t *testing.T) {
+	body := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))("/npcs/5").Body.String()
+	if !strings.Contains(body, `name="eff0_0" value="7"`) || !strings.Contains(body, `name="effv0_0" value="42"`) {
+		t.Fatal("the effect pair of an existing stock item is not carried in the form")
+	}
+}
+
+func TestSetLojaSavesAndAudits(t *testing.T) {
+	game := newFakeGameData()
+	log := newFakeAudit()
+	h := newTestPanelGame(t, log, game)
+	post, token := signedInPost(t, h)
+
+	form := url.Values{"csrf": {token}, "item0": {"1415"}, "qtd0": {"3"},
+		"eff0_0": {"7"}, "effv0_0": {"42"}, "item1": {"2000"}, "qtd1": {"1"}}
+	rec := post("/npcs/5/loja", form)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(game.shopSaves) != 1 {
+		t.Fatalf("shop saves = %d, want 1", len(game.shopSaves))
+	}
+	saved := game.shopSaves[0]
+	if len(saved) != 2 {
+		t.Fatalf("saved %d items, want 2", len(saved))
+	}
+	if saved[0].ItemIndex != 1415 || saved[0].Quantity != 3 {
+		t.Errorf("first slot = %+v, want item 1415 x3", saved[0])
+	}
+	if saved[0].Eff[0] != [2]int32{7, 42} {
+		t.Errorf("the effect pair was lost on save: %v", saved[0].Eff[0])
+	}
+	if len(log.recorded()) != 1 || log.recorded()[0].Action != audit.ActionSetNpcShop {
+		t.Error("the shop change was not audited")
+	}
+}
+
+func TestEmptySlotsAreSimplyNotSent(t *testing.T) {
+	game := newFakeGameData()
+	h := newTestPanelGame(t, newFakeAudit(), game)
+	post, token := signedInPost(t, h)
+
+	// Everything blank: the shop is emptied rather than left alone.
+	post("/npcs/5/loja", url.Values{"csrf": {token}})
+	if len(game.shopSaves) != 1 || len(game.shopSaves[0]) != 0 {
+		t.Fatalf("saves = %v, want one empty list", game.shopSaves)
+	}
+}
+
+func TestSetLojaRejectsABadItem(t *testing.T) {
+	h := newTestPanelGame(t, newFakeAudit(), newFakeGameData())
+	post, token := signedInPost(t, h)
+	if rec := post("/npcs/5/loja", url.Values{"csrf": {token}, "item0": {"abc"}}); rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestSetLojaNeedsTheCSRFToken(t *testing.T) {
+	game := newFakeGameData()
+	h := newTestPanelGame(t, newFakeAudit(), game)
+	post, _ := signedInPost(t, h)
+	if rec := post("/npcs/5/loja", url.Values{"item0": {"1415"}}); rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	if len(game.shopSaves) != 0 {
+		t.Fatal("a request without the token changed the shop")
+	}
+}
+
+func TestUnknownNpcIs404(t *testing.T) {
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	if rec := get("/npcs/999"); rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestWebServerRefusalIsExplained(t *testing.T) {
+	// The panel already checked the role, so a FORBIDDEN from the webServer means
+	// the two disagree — worth saying, not hiding behind a generic error.
+	game := newFakeGameData()
+	game.npcsErr = gamedata.ErrForbidden
+	rec := signedIn(t, newTestPanelGame(t, newFakeAudit(), game))("/npcs")
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "não reconhece esta conta") {
+		t.Errorf("the message does not explain the disagreement: %q", rec.Body.String())
 	}
 }
