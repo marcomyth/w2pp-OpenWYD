@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
@@ -127,11 +128,46 @@ func (f *fakeAccounts) setBlocked(name string, blocked bool) {
 	f.rows[name] = a
 }
 
+// fakeAudit is an in-memory action log.
+type fakeAudit struct {
+	mu      sync.Mutex
+	entries []audit.Entry
+	limit   int
+}
+
+func newFakeAudit() *fakeAudit { return &fakeAudit{limit: 100} }
+
+func (f *fakeAudit) Limit() int { return f.limit }
+
+func (f *fakeAudit) List(_ context.Context, targetID int64) ([]audit.Entry, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]audit.Entry, 0, len(f.entries))
+	for _, e := range f.entries {
+		if targetID == 0 || e.TargetID == targetID {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeAudit) add(e audit.Entry) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.entries = append(f.entries, e)
+}
+
 // newTestPanel builds a handler over the given accounts, with logs discarded.
 func newTestPanel(t *testing.T, acc Accounts) http.Handler {
 	t.Helper()
+	return newTestPanelWith(t, acc, newFakeAudit())
+}
+
+func newTestPanelWith(t *testing.T, acc Accounts, log AuditLog) http.Handler {
+	t.Helper()
 	h, err := New(Config{
 		Accounts:   acc,
+		Audit:      log,
 		Sessions:   session.New(time.Hour),
 		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 		SecureOnly: true,
@@ -489,5 +525,87 @@ func TestContaWithNoCharacters(t *testing.T) {
 	body := signedIn(t, newTestPanel(t, newFakeAccounts(roleAdmin)))("/contas/chefe").Body.String()
 	if !strings.Contains(body, "ainda não criou personagem") {
 		t.Error("empty roster does not say so")
+	}
+}
+
+// --- auditoria ---
+
+func TestAuditoriaIsAdminOnly(t *testing.T) {
+	// A moderator is signed in and their session is fine, so they get 403 with an
+	// explanation — not a redirect to login, which would read as a bug.
+	acc := newFakeAccounts(roleModerator)
+	get := signedIn(t, newTestPanel(t, acc))
+	rec := get("/auditoria")
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("moderator status = %d, want 403", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "só para administradores") {
+		t.Error("403 page does not explain why")
+	}
+}
+
+func TestAuditoriaNavIsHiddenFromModerators(t *testing.T) {
+	mod := signedIn(t, newTestPanel(t, newFakeAccounts(roleModerator)))("/")
+	if strings.Contains(mod.Body.String(), `href="/auditoria"`) {
+		t.Error("a moderator is offered a link they will be refused from")
+	}
+	adm := signedIn(t, newTestPanel(t, newFakeAccounts(roleAdmin)))("/")
+	if !strings.Contains(adm.Body.String(), `href="/auditoria"`) {
+		t.Error("an admin is not offered the audit link")
+	}
+}
+
+func TestAuditoriaListsEntries(t *testing.T) {
+	log := newFakeAudit()
+	log.add(audit.Entry{
+		ID: 1, ActorID: 42, ActorName: "chefe", ActorRole: roleAdmin,
+		Action: audit.ActionSetRole, TargetID: 7, TargetName: "ana",
+		Old: `{"role":"player"}`, New: `{"role":"moderator"}`,
+		CreatedAt: time.Date(2026, 9, 4, 17, 30, 0, 0, time.UTC),
+	})
+	body := signedIn(t, newTestPanelWith(t, newFakeAccounts(roleAdmin), log))("/auditoria").Body.String()
+
+	for _, want := range []string{"chefe", "SET_ROLE", "ana", "player", "moderator", "04/09 17:30"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("audit page missing %q", want)
+		}
+	}
+}
+
+func TestAuditoriaFiltersByAccount(t *testing.T) {
+	log := newFakeAudit()
+	log.add(audit.Entry{ID: 1, ActorName: "chefe", ActorRole: roleAdmin,
+		Action: audit.ActionSetRole, TargetID: 7, TargetName: "ana"})
+	log.add(audit.Entry{ID: 2, ActorName: "chefe", ActorRole: roleAdmin,
+		Action: audit.ActionSetBlocked, TargetID: 9, TargetName: "bruno"})
+	get := signedIn(t, newTestPanelWith(t, newFakeAccounts(roleAdmin), log))
+
+	all := get("/auditoria").Body.String()
+	if !strings.Contains(all, "ana") || !strings.Contains(all, "bruno") {
+		t.Fatal("unfiltered page is missing an entry")
+	}
+
+	one := get("/auditoria?conta=7").Body.String()
+	if !strings.Contains(one, "ana") {
+		t.Error("filtered page dropped the matching entry")
+	}
+	if strings.Contains(one, "bruno") {
+		t.Error("filtered page kept a non-matching entry")
+	}
+}
+
+func TestAuditoriaRejectsABadAccountFilter(t *testing.T) {
+	get := signedIn(t, newTestPanel(t, newFakeAccounts(roleAdmin)))
+	for _, q := range []string{"abc", "-1", "0"} {
+		if rec := get("/auditoria?conta=" + q); rec.Code != http.StatusBadRequest {
+			t.Errorf("conta=%s: status = %d, want 400", q, rec.Code)
+		}
+	}
+}
+
+func TestAuditoriaEmpty(t *testing.T) {
+	body := signedIn(t, newTestPanel(t, newFakeAccounts(roleAdmin)))("/auditoria").Body.String()
+	if !strings.Contains(body, "Nenhuma ação administrativa registrada") {
+		t.Error("empty log does not say so")
 	}
 }

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Auditoria — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  td.quando { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.mudanca { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
+  td.mudanca .de { color: var(--ink-3); }
+  .acao {
+    font-size: 11px; letter-spacing: .06em; font-family: ui-monospace, Consolas, monospace;
+    color: var(--ink); background: var(--chip-bg); padding: 2px 6px; border-radius: 3px;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Auditoria</h1>
+  <p class="sub">
+    {{if .Alvo}}
+      Ações sobre a conta {{.Alvo}}. <a href="/auditoria">Ver todas</a>
+    {{else}}
+      Toda ação administrativa, mais recente primeiro. O registro não pode ser
+      alterado nem apagado — o banco recusa.
+    {{end}}
+  </p>
+
+  {{if .Entradas}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Quando</th>
+            <th>Quem</th>
+            <th>Ação</th>
+            <th>Sobre</th>
+            <th>Mudança</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Entradas}}
+          <tr>
+            <td class="quando">{{.CreatedAt.Format "02/01 15:04"}}</td>
+            <td>
+              {{if .ActorName}}{{.ActorName}}{{else}}conta {{.ActorID}}{{end}}
+              <span class="cargo">{{.ActorRole}}</span>
+            </td>
+            <td><span class="acao">{{.Action}}</span></td>
+            <td>
+              {{if .TargetName}}<a href="/contas/{{.TargetName}}">{{.TargetName}}</a>
+              {{else if .TargetID}}conta {{.TargetID}}
+              {{else}}—{{end}}
+            </td>
+            <td class="mudanca">
+              {{if .Old}}<span class="de">{{.Old}}</span> &rarr; {{end}}
+              {{if .New}}{{.New}}{{else if not .Old}}—{{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{if .Truncado}}
+      <p class="sub" style="margin-top:18px">
+        Mostrando as {{.Limite}} mais recentes.
+      </p>
+    {{end}}
+  {{else}}
+    <div class="vazio">
+      {{if .Alvo}}Nenhuma ação registrada sobre esta conta.
+      {{else}}Nenhuma ação administrativa registrada ainda.{{end}}
+    </div>
+  {{end}}
+</main>
+</body>
+</html>
