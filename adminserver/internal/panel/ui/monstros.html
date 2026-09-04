@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Monstros — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  td.modelo { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--ink-3); }
+  .reinicio {
+    background: var(--warn-bg); border: 1px solid var(--rule); border-left: 3px solid var(--warn);
+    border-radius: 3px; padding: 11px 15px; margin-bottom: 26px; font-size: 14px; color: var(--ink);
+  }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Monstros</h1>
+  <p class="sub">
+    Os modelos de monstro do servidor. Editar um deles cria uma exceção sobre o
+    arquivo de conteúdo; limpar a exceção devolve os valores originais.
+  </p>
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  <div class="reinicio">
+    Diferente de item e NPC, o que você mudar aqui <strong>só vale depois de
+    reiniciar o servidor</strong>. Os números do monstro são lidos uma única vez,
+    na hora que o jogo sobe. A página inicial mostra quantas edições estão
+    esperando reinício.
+  </div>
+
+  <form class="busca" method="get" action="/monstros">
+    <input name="q" value="{{.Query}}" placeholder="Nome do monstro" autocapitalize="off" spellcheck="false" autofocus>
+    <button type="submit">Buscar</button>
+  </form>
+
+  {{if .Templates}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Monstro</th>
+            <th>Modelo</th>
+            <th class="num">Vendedor</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Templates}}
+          <tr>
+            <td><a href="/monstros/{{.Name}}">{{if .DisplayName}}{{.DisplayName}}{{else}}{{.Name}}{{end}}</a></td>
+            <td class="modelo">{{.Name}}</td>
+            <td class="num">{{if .Merchant}}{{.Merchant}}{{else}}&mdash;{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{if .Truncado}}
+      <p class="sub" style="margin-top:18px">
+        Mostrando os primeiros {{.Limite}}. Refine a busca para ver o resto.
+      </p>
+    {{end}}
+  {{else}}
+    <div class="vazio">
+      {{if .Query}}Nenhum monstro com “{{.Query}}” no nome.
+      {{else}}Nenhum modelo veio do webServer. Ele pode estar sem a pasta de conteúdo.{{end}}
+    </div>
+  {{end}}
+</main>
+</body>
+</html>

@@ -31,6 +31,8 @@ const (
 	ActionSetNpcShop   = "SET_NPC_SHOP"
 	ActionSetNpc       = "SET_NPC"
 	ActionDeleteNpc    = "DELETE_NPC"
+	ActionSetMobStat   = "SET_MOB_STAT"
+	ActionClearMobStat = "CLEAR_MOB_STAT"
 )
 
 // listLimit caps one page of the log.

@@ -1052,6 +1052,12 @@ type fakeGameData struct {
 	visibleFor  []int64
 	deleted     []int64
 	npcWriteErr error
+	mobs        []gamedata.MobTemplate
+	mobRows     map[string]mobRow
+	mobSaved    []gamedata.MobStat
+	mobCleared  []string
+	mobErr      error
+	mobWriteErr error
 }
 
 func newFakeGameData() *fakeGameData {
@@ -1071,6 +1077,17 @@ func newFakeGameData() *fakeGameData {
 				{Slot: 0, ItemIndex: 1415, Quantity: 1, Eff: [3][2]int32{{7, 42}, {0, 0}, {0, 0}}},
 			},
 		}},
+		mobs: []gamedata.MobTemplate{
+			{Name: "Kentania", DisplayName: "Kentania"},
+			{Name: "Mercador", DisplayName: "Mercador de Armia", Merchant: 8},
+		},
+		mobRows: map[string]mobRow{
+			"Kentania": {
+				exibido: "Kentania Velha", overridden: true,
+				valores: map[string]int64{"level": 10, "exp": 5000, "resist1": 7},
+			},
+			"Mercador": {valores: map[string]int64{"level": 1}},
+		},
 	}
 }
 
@@ -1734,5 +1751,269 @@ func TestNpcWritesNeedTheCSRFToken(t *testing.T) {
 	}
 	if len(game.saved)+len(game.visible)+len(game.deleted) != 0 {
 		t.Fatal("a request without the token changed something")
+	}
+}
+
+// --- monstros ---
+
+// mobRow is what the fake knows about one template, as plain numbers.
+//
+// A fresh gamedata.MobStat is built on every read, the way the real client gets
+// a fresh message from each RPC reply. Handing out one shared value would let a
+// handler's edits reach the fake's own state even when the save never happened,
+// and a test asserting on the save would then pass for the wrong reason.
+type mobRow struct {
+	exibido    string
+	overridden bool
+	valores    map[string]int64
+}
+
+func (f *fakeGameData) MobTemplates(_ context.Context, _ int64, query string) ([]gamedata.MobTemplate, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.mobErr != nil {
+		return nil, f.mobErr
+	}
+	q := strings.ToLower(query)
+	out := []gamedata.MobTemplate{}
+	for _, m := range f.mobs {
+		if q == "" || strings.Contains(strings.ToLower(m.DisplayName), q) ||
+			strings.Contains(strings.ToLower(m.Name), q) {
+			out = append(out, m)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeGameData) MobStat(_ context.Context, _ int64, name string) (gamedata.MobStat, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.mobErr != nil {
+		return gamedata.MobStat{}, f.mobErr
+	}
+	row, ok := f.mobRows[name]
+	if !ok {
+		return gamedata.MobStat{}, gamedata.ErrNotFound
+	}
+	s := gamedata.NewMobStat(name, row.overridden)
+	s.SetDisplayName(row.exibido)
+	for nome, v := range row.valores {
+		if !s.Set(nome, v) {
+			return gamedata.MobStat{}, fmt.Errorf("fake: campo %q nao existe no formulario", nome)
+		}
+	}
+	return s, nil
+}
+
+func (f *fakeGameData) SaveMobStat(_ context.Context, _ int64, m gamedata.MobStat) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.mobWriteErr != nil {
+		return f.mobWriteErr
+	}
+	f.mobSaved = append(f.mobSaved, m)
+	return nil
+}
+
+func (f *fakeGameData) ClearMobStat(_ context.Context, _ int64, name string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.mobWriteErr != nil {
+		return f.mobWriteErr
+	}
+	f.mobCleared = append(f.mobCleared, name)
+	return nil
+}
+
+// campoDe reads one field back out of a saved stat, by its form name.
+func campoDe(t *testing.T, m gamedata.MobStat, nome string) int64 {
+	t.Helper()
+	for _, c := range m.Fields() {
+		if c.Nome == nome {
+			return c.Valor
+		}
+	}
+	t.Fatalf("campo %q não existe no formulário", nome)
+	return 0
+}
+
+func TestMonstrosListaEFiltra(t *testing.T) {
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+
+	body := get("/monstros").Body.String()
+	for _, want := range []string{"Kentania", "Mercador de Armia"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a lista não traz %q", want)
+		}
+	}
+
+	body = get("/monstros?q=kentania").Body.String()
+	if !strings.Contains(body, "Kentania") {
+		t.Error("a busca perdeu o monstro procurado")
+	}
+	if strings.Contains(body, "Mercador de Armia") {
+		t.Error("a busca trouxe quem não bate com o termo")
+	}
+}
+
+func TestMonstroMostraOsNumerosEOAvisoDeReinicio(t *testing.T) {
+	// The warning is the whole reason this screen differs from itens and npcs:
+	// there an edit lands within ~15s, here it waits for a boot. A moderator who
+	// does not read that will report the panel as broken.
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	body := get("/monstros/Kentania").Body.String()
+
+	for _, want := range []string{
+		"Nível",
+		`name="level" type="number" step="1"`,
+		`value="10"`,
+		"Kentania Velha",
+		"só vale depois de reiniciar o servidor",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a página do monstro não traz %q", want)
+		}
+	}
+}
+
+func TestMonstroDesconhecidoE404(t *testing.T) {
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	if rec := get("/monstros/NaoExiste"); rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+}
+
+func TestSetMonstroPreservaOsCamposQueOFormularioNaoCarrega(t *testing.T) {
+	// Upsert replaces the whole override row. If the handler built a fresh
+	// message from the request instead of editing the one it read, every field
+	// the form leaves out — the equipment list above all, which has its own RPC
+	// and no place on this screen — would be silently zeroed.
+	game := newFakeGameData()
+	log := newFakeAudit()
+	post, token := signedInPost(t, newTestPanelGame(t, log, game))
+
+	rec := post("/monstros/Kentania", url.Values{"csrf": {token}, "level": {"42"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(game.mobSaved) != 1 {
+		t.Fatalf("saves = %d, want 1", len(game.mobSaved))
+	}
+	got := game.mobSaved[0]
+	if v := campoDe(t, got, "level"); v != 42 {
+		t.Errorf("level = %d, want 42", v)
+	}
+	if v := campoDe(t, got, "exp"); v != 5000 {
+		t.Errorf("exp = %d, want 5000 — o formulário não mandou, tinha que ficar como estava", v)
+	}
+	if v := campoDe(t, got, "resist1"); v != 7 {
+		t.Errorf("resist1 = %d, want 7 — o formulário não mandou, tinha que ficar como estava", v)
+	}
+	if got.Name() != "Kentania" {
+		t.Errorf("template = %q, want Kentania — o serviço grava por esse nome", got.Name())
+	}
+	if len(log.recorded()) != 1 {
+		t.Error("a edição do monstro não foi auditada")
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(loc, "reiniciar") {
+		t.Errorf("o aviso não diz que falta reiniciar: %q", loc)
+	}
+}
+
+func TestSetMonstroNaoApagaONomeQuandoOCampoNaoVem(t *testing.T) {
+	// Absent means "leave it"; present-but-empty means "clear it". Treating both
+	// as empty would let a partial post wipe the in-game name, which is the
+	// opposite of how every number on the form behaves.
+	game := newFakeGameData()
+	post, token := signedInPost(t, newTestPanelGame(t, newFakeAudit(), game))
+
+	if rec := post("/monstros/Kentania", url.Values{"csrf": {token}, "level": {"42"}}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if got := game.mobSaved[0].DisplayName(); got != "Kentania Velha" {
+		t.Errorf("nome exibido = %q, want Kentania Velha", got)
+	}
+
+	if rec := post("/monstros/Kentania", url.Values{
+		"csrf": {token}, "level": {"42"}, "display_name": {""},
+	}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if got := game.mobSaved[1].DisplayName(); got != "" {
+		t.Errorf("nome exibido = %q, want vazio — o campo veio em branco de propósito", got)
+	}
+}
+
+func TestSetMonstroRecusaValorInvalido(t *testing.T) {
+	game := newFakeGameData()
+	post, token := signedInPost(t, newTestPanelGame(t, newFakeAudit(), game))
+
+	rec := post("/monstros/Kentania", url.Values{"csrf": {token}, "level": {"abc"}})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if len(game.mobSaved) != 0 {
+		t.Fatal("um valor ilegível ainda assim gravou")
+	}
+}
+
+func TestSetMonstroPrecisaDoCSRF(t *testing.T) {
+	game := newFakeGameData()
+	post, _ := signedInPost(t, newTestPanelGame(t, newFakeAudit(), game))
+	if rec := post("/monstros/Kentania", url.Values{"level": {"42"}}); rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	if len(game.mobSaved) != 0 {
+		t.Fatal("uma requisição sem o token gravou o monstro")
+	}
+}
+
+func TestLimparMonstroChamaOServicoEAudita(t *testing.T) {
+	game := newFakeGameData()
+	log := newFakeAudit()
+	post, token := signedInPost(t, newTestPanelGame(t, log, game))
+
+	rec := post("/monstros/Kentania/limpar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(game.mobCleared) != 1 || game.mobCleared[0] != "Kentania" {
+		t.Fatalf("limpou %v, want o monstro do caminho (Kentania)", game.mobCleared)
+	}
+	if len(log.recorded()) != 1 {
+		t.Error("a limpeza não foi auditada")
+	}
+}
+
+func TestMonstroAlteradoMasNaoAuditadoFalha(t *testing.T) {
+	// The write already happened, so the response has to say so rather than read
+	// as a plain failure the operator would retry.
+	game := newFakeGameData()
+	log := newFakeAudit()
+	log.failWrite = errors.New("banco fora do ar")
+	post, token := signedInPost(t, newTestPanelGame(t, log, game))
+
+	rec := post("/monstros/Kentania", url.Values{"csrf": {token}, "level": {"42"}})
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if len(game.mobSaved) != 1 {
+		t.Fatal("a gravação não aconteceu — a mensagem de erro estaria mentindo")
+	}
+	if !strings.Contains(rec.Body.String(), "foi alterado") {
+		t.Errorf("a resposta não avisa que a mudança já valeu: %q", rec.Body.String())
+	}
+}
+
+func TestMonstrosSomeSemWebServer(t *testing.T) {
+	get := signedIn(t, newTestPanel(t, withTarget(roleAdmin)))
+	for _, p := range []string{"/monstros", "/monstros/Kentania"} {
+		if rec := get(p); rec.Code != http.StatusNotFound {
+			t.Errorf("%s: status = %d, want 404 sem webServer", p, rec.Code)
+		}
+	}
+	if strings.Contains(get("/").Body.String(), `href="/monstros"`) {
+		t.Error("o menu oferece um link para uma página que não existe")
 	}
 }

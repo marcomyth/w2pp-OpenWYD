@@ -98,6 +98,10 @@ type GameData interface {
 	SaveNPC(ctx context.Context, moderatorID int64, n gamedata.NPC) error
 	SetNPCVisible(ctx context.Context, moderatorID, npcID int64, enabled bool) error
 	DeleteNPC(ctx context.Context, moderatorID, npcID int64) error
+	MobTemplates(ctx context.Context, moderatorID int64, query string) ([]gamedata.MobTemplate, error)
+	MobStat(ctx context.Context, moderatorID int64, name string) (gamedata.MobStat, error)
+	SaveMobStat(ctx context.Context, moderatorID int64, m gamedata.MobStat) error
+	ClearMobStat(ctx context.Context, moderatorID int64, name string) error
 }
 
 // Platform is the hosting API, used to report the game server's boot time and
@@ -186,6 +190,10 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("POST /npcs/{id}/lugar", h.requireStaff(http.HandlerFunc(h.setLugar)))
 		mux.Handle("POST /npcs/{id}/visibilidade", h.requireStaff(http.HandlerFunc(h.setVisivel)))
 		mux.Handle("POST /npcs/{id}/apagar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.apagarNPC))))
+		mux.Handle("GET /monstros", h.requireStaff(http.HandlerFunc(h.monstros)))
+		mux.Handle("GET /monstros/{nome}", h.requireStaff(http.HandlerFunc(h.monstro)))
+		mux.Handle("POST /monstros/{nome}", h.requireStaff(http.HandlerFunc(h.setMonstro)))
+		mux.Handle("POST /monstros/{nome}/limpar", h.requireStaff(http.HandlerFunc(h.limparMonstro)))
 	}
 
 	return securityHeaders(mux)
@@ -1339,3 +1347,9 @@ func (h *Handler) auditNPC(r *http.Request, sess session.Session, acao string, n
 func (h *Handler) redirectNPC(w http.ResponseWriter, r *http.Request, id int64, msg string) {
 	http.Redirect(w, r, fmt.Sprintf("/npcs/%d?aviso=%s", id, url.QueryEscape(msg)), http.StatusSeeOther)
 }
+
+// urlPath and urlQuery keep the escaping choice in one place: a path segment and
+// a query value need different rules, and mixing them is how a template name
+// with a space or a dot stops round-tripping.
+func urlPath(v string) string  { return url.PathEscape(v) }
+func urlQuery(v string) string { return url.QueryEscape(v) }
