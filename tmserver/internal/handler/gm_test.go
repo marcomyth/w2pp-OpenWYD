@@ -90,9 +90,20 @@ func TestGMItem(t *testing.T) {
 	defer c.Close()
 
 	gmFrame(t, c, "item 1234")
-	got := expect(t, c, protocol.MsgCNFGetItem)
-	if slot := le(got[0:4]); slot != 0 {
+
+	// MSG_SendItem, not MSG_CNFGetItem: the grant has to carry the item, because
+	// the client never saw it on the ground and has nothing to fill the slot
+	// with otherwise. Body layout is EncodeSendItemBody: invType, slot, item.
+	got := expect(t, c, protocol.MsgSendItem)
+	if invType := le16(got[0:2]); invType != protocol.ItemPlaceCarry {
+		t.Errorf("invType = %d, want ItemPlaceCarry (%d)", invType, protocol.ItemPlaceCarry)
+	}
+	if slot := le16(got[2:4]); slot != 0 {
 		t.Errorf("granted slot = %d, want 0 (first free)", slot)
+	}
+	if idx := le16(got[4:6]); idx != 1234 {
+		t.Errorf("item index on the wire = %d, want 1234 — a slot update with no\n"+
+			"item index is what crashed the client", idx)
 	}
 }
 

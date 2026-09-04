@@ -214,7 +214,16 @@ func (d *Dispatcher) gmItem(w *world.World, s *world.Session, rest string) {
 		setItemAmount(&it, qty)
 	}
 	e.Carry[slot] = it
-	w.Send(s, protocol.MsgCNFGetItem, slotPayload(slot))
+	// Tell the client WHAT landed in the slot, not merely that something did.
+	//
+	// _MSG_CNFGetItem (0x0171) carries the slot and nothing else, because it
+	// confirms a pickup: the client already knows the item — it saw it lying on
+	// the ground and asked for that specific id (handlers/_MSG_GetItem.md). A GM
+	// grant never was on the ground, so the confirmation points at a ground item
+	// that does not exist and the client fills the slot from garbage, then dies
+	// drawing it. MSG_SendItem is the slot update the NPC shop already uses for
+	// exactly this shape — an item appearing in the inventory without a pickup.
+	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, slot, itemToSel(it)))
 	d.log.Info("gm item", "account", s.AccountName, "item", id, "amount", qty, "slot", slot)
 }
 
