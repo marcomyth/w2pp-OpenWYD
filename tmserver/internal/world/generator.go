@@ -73,6 +73,36 @@ func (w *World) DBManagedGeneratorCount() int {
 	return n
 }
 
+// Water-dungeon generator bases (WATER_N/M/A_INITIAL, Basedef.h:361-363). Each
+// base owns 12 consecutive NPCGener blocks: +0..+7 are the eight numbered rooms
+// and +8..+11 the four boss candidates.
+const (
+	WaterGenBaseN = 171
+	WaterGenBaseM = 10
+	WaterGenBaseA = 183
+
+	// waterGenSpan is how many blocks each dungeon owns.
+	waterGenSpan = 12
+)
+
+// IsWaterDungeonGenerator reports whether an NPCGener block belongs to a
+// Pergaminho da Água room.
+//
+// These blocks are spawned on demand, when a party opens the room with a scroll
+// (handler/waterscroll.go), so the boot populate must skip them. Populating them
+// up front — which is what this fork does for every other MinuteGenerate<=0
+// block — would leave the rooms permanently occupied: entry refuses a non-empty
+// room, and the clear reward fires on the last mob dying, which would never
+// happen for monsters nobody was sent in to fight.
+func IsWaterDungeonGenerator(idx int) bool {
+	for _, base := range [...]int{WaterGenBaseN, WaterGenBaseM, WaterGenBaseA} {
+		if idx >= base && idx < base+waterGenSpan {
+			return true
+		}
+	}
+	return false
+}
+
 // ClearGenerator removes every live entity and queued respawn owned by one
 // generator slot before a DB snapshot replaces its recipe. Loop-only.
 func (w *World) ClearGenerator(idx int) {

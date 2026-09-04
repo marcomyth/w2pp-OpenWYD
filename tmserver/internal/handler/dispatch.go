@@ -248,6 +248,10 @@ type worldEventState struct {
 	tower        worldevents.Tower
 	towerOwner   uint16
 	castle       worldevents.Castle
+	// water is WaterClear1[3][10] (Server.cpp): the Pergaminho da Água room
+	// countdown, in 2-second units, by variant then room. 0 = the room is not
+	// running. See waterscroll.go.
+	water [3][10]uint8
 }
 
 // New builds a Dispatcher with the batch-1 routes registered.

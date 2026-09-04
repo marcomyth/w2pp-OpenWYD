@@ -366,12 +366,10 @@ const (
 	volChocolate   = 204 // Chocolate do Amor (_MSG_UseItem.cpp:6082-6131)
 	volCoracaoDoce = 205 // Coração Doce (_MSG_UseItem.cpp:6030-6079)
 
-	// Blocked: real behavior needs data that doesn't exist anywhere in the
-	// available Source/ tree (repo-wide grep, not just this file) — see the
-	// reject cases below for what's missing per item.
-	volWaterMLo, volWaterMHi = 21, 30   // Pergaminho da Água (M), _MSG_UseItem.cpp:1726
-	volWaterNLo, volWaterNHi = 131, 140 // Pergaminho da Água (N), _MSG_UseItem.cpp:1920
-	volWaterALo, volWaterAHi = 161, 170 // Pergaminho da Água (A), _MSG_UseItem.cpp:2025
+	// The Pergaminho da Água ranges moved to waterscroll.go, which owns the
+	// dungeon. They were blocked here on the belief that the room coordinates were
+	// missing from Source/; the table is in fact Server.cpp:342 (the original grep
+	// only covered _MSG_UseItem.cpp, and the declaration lives in Server.cpp).
 
 	// itemSeloDoGuerreiro and itemPedraMisteriosa carry no EF_VOLATILE in the
 	// catalog (BASE_GetItemAbility falls back to 0), so the legacy — and this
@@ -511,13 +509,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useEntradaTerritorio(w, s, e, src)
 	case vol == volHuntingScroll:
 		d.useHuntingScroll(w, s, e, src, body.WarpID)
-	case vol >= volWaterMLo && vol <= volWaterMHi,
-		vol >= volWaterNLo && vol <= volWaterNHi,
-		vol >= volWaterALo && vol <= volWaterAHi:
-		// issue #135: real behavior needs data absent from Source/ (see the const
-		// block above) — reject honestly instead of no-op'ing, so the client never
-		// shows a consumption the next slot resync would revert.
-		d.rejectUnimplementedConsumable(w, s, e, src)
+	case isWaterScrollVolatile(vol):
+		d.useWaterScroll(w, s, e, src, vol)
 	default:
 		// issue #204: do not silently no-op unknown consumables. The client may
 		// optimistically remove them, then the next slot resync (buy/move/save)
