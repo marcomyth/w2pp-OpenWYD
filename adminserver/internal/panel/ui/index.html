@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel OpenWYD</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --ground: #f4f5f2; --surface: #fff; --ink: #15181a; --ink-2: #555f63;
+    --rule: #d8dcd6; --accent: #1f6f5c; --chip-bg: #e4efea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #131719; --surface: #1a1f21; --ink: #e7eae5; --ink-2: #a0aaad;
+      --rule: #2b3235; --accent: #56ac90; --chip-bg: #1b302b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font: 15px/1.6 ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  header {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    justify-content: space-between;
+    padding: 14px 22px; background: var(--surface); border-bottom: 1px solid var(--rule);
+  }
+  header strong { font-size: 15px; letter-spacing: -0.01em; }
+  .quem { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink-2); }
+  .cargo {
+    font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--accent); background: var(--chip-bg); padding: 2px 7px; border-radius: 3px;
+  }
+  button {
+    font: inherit; font-size: 13px; cursor: pointer; color: var(--ink-2);
+    background: none; border: 1px solid var(--rule); border-radius: 3px; padding: 4px 10px;
+  }
+  button:hover { color: var(--ink); border-color: var(--ink-2); }
+  main { max-width: 680px; margin: 0 auto; padding: 40px 22px; }
+  h1 { font-size: 1.35rem; margin: 0 0 10px; letter-spacing: -0.015em; }
+  p { color: var(--ink-2); max-width: 60ch; margin: 0 0 12px; }
+  ol { color: var(--ink-2); max-width: 60ch; padding-left: 20px; }
+  li { margin-bottom: 6px; }
+  li b { color: var(--ink); font-weight: 600; }
+</style>
+</head>
+<body>
+  <header>
+    <strong>Painel OpenWYD</strong>
+    <div class="quem">
+      <span>{{.Account}}</span>
+      <span class="cargo">{{.Role}}</span>
+      <form method="post" action="/logout"><button type="submit">Sair</button></form>
+    </div>
+  </header>
+
+  <main>
+    <h1>Você está autenticado</h1>
+    <p>
+      A sessão funciona e o cargo foi lido do banco agora, nesta requisição —
+      não no momento em que você entrou. Se alguém tirar seu acesso, ele cai na
+      próxima página que você abrir.
+    </p>
+    <p>O que vem a seguir, em ordem:</p>
+    <ol>
+      <li><b>Contas</b> — buscar e ver conta, personagens, cargo, VIP e bloqueio</li>
+      <li><b>Auditoria</b> — registro imutável, antes de existir a primeira escrita</li>
+      <li><b>Cargo e bloqueio</b> — promover, rebaixar, bloquear</li>
+      <li><b>VIP</b> — conceder e retirar por prazo</li>
+    </ol>
+  </main>
+</body>
+</html>

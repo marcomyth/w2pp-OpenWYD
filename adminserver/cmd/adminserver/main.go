@@ -13,13 +13,13 @@
 // gRPC here would mean grpc-web plus a proxy, or a second service whose only job
 // is translation. Both cost more than they return for a staff-only panel.
 //
-// This first cut serves only /healthz. That is the point: it puts the deploy
-// pipeline — build arg, port binding, domain, health probe — under test while
-// there is still nothing else that could be blamed for a failure.
+// It does NOT run migrations. dbServer and webServer share store.Migrate and
+// whichever boots first brings the schema up; the panel only reads a schema it
+// does not own, which is what keeps deleting the service a complete undo.
 //
 // Usage:
 //
-//	adminserver [-addr :8080]
+//	adminserver [-addr :8080] -dsn <postgres-url> [-session-ttl 2h] [-insecure-cookies]
 package main
 
 import (
@@ -33,6 +33,10 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/panel"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
+	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
 
 // Shutdown budget. Long enough to finish an in-flight request, short enough that
@@ -61,14 +65,40 @@ func main() {
 // run serves HTTP until the process receives SIGINT/SIGTERM, then drains.
 func run(logger *slog.Logger) error {
 	addr := flag.String("addr", defaultAddr(), "HTTP listen address")
+	dsn := flag.String("dsn", envOr("DATABASE_URL", os.Getenv("W2PP_DB_DSN")), "PostgreSQL DSN (or DATABASE_URL)")
+	sessionTTL := flag.Duration("session-ttl", 2*time.Hour, "how long a staff session stays valid")
+	// Browsers drop a Secure cookie sent over plain HTTP, so local development
+	// on http://localhost cannot log in without this. Off by default: the flag
+	// has to be asked for, never assumed.
+	insecureCookies := flag.Bool("insecure-cookies", false, "omit the Secure flag on the session cookie (local HTTP only)")
 	flag.Parse()
+
+	if *dsn == "" {
+		return fmt.Errorf("-dsn (or DATABASE_URL) is required")
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	pool, err := store.Pool(ctx, *dsn)
+	if err != nil {
+		return fmt.Errorf("connect: %w", err)
+	}
+	defer pool.Close()
+
+	handler, err := panel.New(panel.Config{
+		Accounts:   store.New(pool),
+		Sessions:   session.New(*sessionTTL),
+		Logger:     logger,
+		SecureOnly: !*insecureCookies,
+	})
+	if err != nil {
+		return fmt.Errorf("build panel: %w", err)
+	}
+
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           routes(logger),
+		Handler:           handler.Routes(),
 		ReadHeaderTimeout: readHeaderTimeout,
 		ReadTimeout:       readTimeout,
 		WriteTimeout:      writeTimeout,
@@ -77,7 +107,8 @@ func run(logger *slog.Logger) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		logger.Info("adminserver listening", "addr", *addr)
+		logger.Info("adminserver listening", "addr", *addr, "session_ttl", *sessionTTL,
+			"secure_cookies", !*insecureCookies)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- fmt.Errorf("serve: %w", err)
 			return
@@ -99,35 +130,6 @@ func run(logger *slog.Logger) error {
 	}
 }
 
-// routes builds the mux. Everything the panel will grow lands here behind a
-// session gate; /healthz is the one route that must never have one.
-func routes(logger *slog.Logger) http.Handler {
-	mux := http.NewServeMux()
-
-	// Liveness. It answers from memory and touches nothing — no database, no
-	// disk, no outbound call. A probe that depends on Postgres turns a slow
-	// query into a restart, and a restart loop into an outage that looks like a
-	// database problem while actually being caused by the probe. It also must
-	// not be logged per request: the platform calls it on a schedule forever,
-	// and that noise buries the events worth reading.
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		_, _ = w.Write([]byte("ok\n"))
-	})
-
-	// Placeholder root. Replaced by the embedded UI once there is one; until
-	// then it answers so a browser hitting the domain gets something honest
-	// instead of a 404 that reads as a broken deploy.
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		logger.Info("root requested", "ip", clientIP(r))
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		_, _ = w.Write([]byte("adminserver up; painel ainda nao implantado\n"))
-	})
-
-	return mux
-}
-
 // defaultAddr honours the port the platform assigns. Railway (and most PaaS)
 // inject PORT and route to it; binding a hardcoded port there means the health
 // probe hits a closed socket and the deploy is marked failed with the process
@@ -139,12 +141,9 @@ func defaultAddr() string {
 	return ":8080"
 }
 
-// clientIP prefers the forwarded address, since the service always runs behind
-// the platform's proxy and RemoteAddr is that proxy for every request. The value
-// is caller-controlled, so it is fit for logs and never for authorization.
-func clientIP(r *http.Request) string {
-	if f := r.Header.Get("X-Forwarded-For"); f != "" {
-		return f
+func envOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
-	return r.RemoteAddr
+	return def
 }
