@@ -9,6 +9,7 @@ binaries:
 	go build -o bin/dbserver ./dbserver/cmd/dbserver
 	go build -o bin/binserver ./binserver/cmd/binserver
 	go build -o bin/webserver ./webserver/cmd/webserver
+	go build -o bin/adminserver ./adminserver/cmd/adminserver
 	go build -o bin/exptool ./tmserver/cmd/exptool
 
 # Restamp the monster templates' Exp field with the balanced curve (issue #43).
