@@ -12,6 +12,7 @@ import (
 	"crypto/subtle"
 	"embed"
 	"errors"
+	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -74,8 +75,11 @@ type AuditLog interface {
 // Writer performs the panel's account writes. Separate from Accounts because
 // reading and changing an account are different privileges and different risks.
 type Writer interface {
+	Get(ctx context.Context, id int64) (accounts.Details, error)
 	SetRole(ctx context.Context, actorID, targetID int64, role string) (string, error)
 	SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool) (bool, error)
+	AddVipDays(ctx context.Context, actorID, targetID int64, days int) (prev, next *time.Time, err error)
+	ClearVip(ctx context.Context, actorID, targetID int64) (*time.Time, error)
 }
 
 // Config wires the handler.
@@ -142,6 +146,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("GET /auditoria", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.auditoria))))
 	mux.Handle("POST /contas/{nome}/cargo", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setCargo))))
 	mux.Handle("POST /contas/{nome}/bloqueio", h.requireStaff(http.HandlerFunc(h.setBloqueio)))
+	mux.Handle("POST /contas/{nome}/vip", h.requireStaff(http.HandlerFunc(h.setVip)))
 
 	return securityHeaders(mux)
 }
@@ -233,6 +238,17 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		chars = nil
 	}
 
+	// Details is a panel-owned read, so it carries what the store's auth row does
+	// not: the VIP expiry, plus the email and donate balance the page had to go
+	// without while there was no such read.
+	det, err := h.cfg.Writer.Get(r.Context(), auth.ID)
+	if err != nil {
+		h.cfg.Logger.Error("account details failed", "account", nome, "id", auth.ID, "err", err)
+		// Same reasoning as the roster: losing the extras should not blank out
+		// the role and block status, which are what most visits are about.
+		det = accounts.Details{}
+	}
+
 	p := pageFor(r, "contas")
 	h.render(w, "conta.html", struct {
 		page
@@ -242,7 +258,11 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		EhVoce      bool
 	}{
 		p,
-		contaView{ID: auth.ID, Name: nome, Role: auth.Role, IsBlocked: auth.IsBlocked},
+		contaView{
+			ID: auth.ID, Name: nome, Role: auth.Role, IsBlocked: auth.IsBlocked,
+			Email: det.Email, DonateBalance: det.DonateBalance,
+			VipUntil: det.VipUntil, VipActive: accounts.VipActive(det.VipUntil),
+		},
 		chars,
 		r.URL.Query().Get("aviso"),
 		// The forms are hidden on your own account rather than shown and then
@@ -305,10 +325,14 @@ func (h *Handler) auditoria(w http.ResponseWriter, r *http.Request) {
 // contaView is what the detail page shows. It exists so the password hash that
 // rides along in store.AccountAuth never reaches a template.
 type contaView struct {
-	ID        int64
-	Name      string
-	Role      string
-	IsBlocked bool
+	ID            int64
+	Name          string
+	Role          string
+	IsBlocked     bool
+	Email         string
+	DonateBalance int32
+	VipUntil      *time.Time
+	VipActive     bool // expiry compared against now, which is the whole mechanism
 }
 
 // --- login / logout ---
@@ -674,6 +698,9 @@ func (h *Handler) recusa(w http.ResponseWriter, r *http.Request, nome string, er
 			"Este é o último admin. Promova outra conta antes de rebaixar esta.")
 	case errors.Is(err, accounts.ErrUnknownRole):
 		http.Error(w, "Cargo inválido.", http.StatusBadRequest)
+	case errors.Is(err, accounts.ErrVipDays):
+		http.Error(w, fmt.Sprintf("Informe de %d a %d dias.", accounts.MinVipDays, accounts.MaxVipDays),
+			http.StatusBadRequest)
 	case errors.Is(err, accounts.ErrNotFound):
 		http.NotFound(w, r)
 	default:
@@ -690,4 +717,92 @@ func (h *Handler) recusa(w http.ResponseWriter, r *http.Request, nome string, er
 func (h *Handler) redirectConta(w http.ResponseWriter, r *http.Request, nome, msg string) {
 	http.Redirect(w, r, "/contas/"+url.PathEscape(nome)+"?aviso="+url.QueryEscape(msg),
 		http.StatusSeeOther)
+}
+
+// setVip grants, extends or removes VIP. Moderator and above.
+func (h *Handler) setVip(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	nome, auth, ok := h.alvo(w, r)
+	if !ok {
+		return
+	}
+	sess, _ := staffFrom(r.Context())
+
+	if r.PostFormValue("remover") == "1" {
+		anterior, err := h.cfg.Writer.ClearVip(r.Context(), sess.AccountID, auth.ID)
+		if err != nil {
+			h.recusa(w, r, nome, err)
+			return
+		}
+		if anterior == nil {
+			h.redirectConta(w, r, nome, "Nada mudou: a conta não tinha VIP.")
+			return
+		}
+		if err := h.auditVip(r, sess, auth.ID, nome, anterior, nil); err != nil {
+			h.vipAuditFailed(w, err)
+			return
+		}
+		h.redirectConta(w, r, nome, "VIP removido.")
+		return
+	}
+
+	dias, err := strconv.Atoi(strings.TrimSpace(r.PostFormValue("dias")))
+	if err != nil {
+		http.Error(w, "Quantidade de dias inválida.", http.StatusBadRequest)
+		return
+	}
+	anterior, novo, err := h.cfg.Writer.AddVipDays(r.Context(), sess.AccountID, auth.ID, dias)
+	if err != nil {
+		h.recusa(w, r, nome, err)
+		return
+	}
+	if err := h.auditVip(r, sess, auth.ID, nome, anterior, novo); err != nil {
+		h.vipAuditFailed(w, err)
+		return
+	}
+
+	msg := fmt.Sprintf("VIP até %s.", novo.Local().Format("02/01/2006"))
+	if anterior != nil && anterior.After(time.Now()) {
+		// Say it extended rather than replaced, so nobody grants the days twice
+		// believing the first grant was lost.
+		msg = fmt.Sprintf("VIP estendido de %s para %s.",
+			anterior.Local().Format("02/01/2006"), novo.Local().Format("02/01/2006"))
+	}
+	h.cfg.Logger.Info("vip changed", "actor", sess.AccountName, "target", nome, "days", dias)
+	h.redirectConta(w, r, nome, msg)
+}
+
+// auditVip records a VIP change. Dates go in as RFC3339 so the log is readable
+// and sortable without knowing the panel's display format.
+func (h *Handler) auditVip(r *http.Request, sess session.Session, targetID int64, nome string, prev, next *time.Time) error {
+	err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: audit.ActionSetVip, TargetID: targetID,
+		Old: map[string]any{"vip_until": vipJSON(prev)},
+		New: map[string]any{"vip_until": vipJSON(next)},
+	})
+	if err != nil {
+		h.cfg.Logger.Error("vip changed but NOT audited",
+			"actor", sess.AccountName, "target", nome, "err", err)
+	}
+	return err
+}
+
+func (h *Handler) vipAuditFailed(w http.ResponseWriter, _ error) {
+	http.Error(w, "O VIP foi alterado, mas a auditoria falhou. Avise quem cuida do servidor.",
+		http.StatusInternalServerError)
+}
+
+// vipJSON renders an expiry for the log: a real null when there is none, rather
+// than a zero date that reads as 1 January year one.
+func vipJSON(t *time.Time) any {
+	if t == nil {
+		return nil
+	}
+	return t.UTC().Format(time.RFC3339)
 }

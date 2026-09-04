@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -148,4 +149,132 @@ func (s *Store) SetBlocked(ctx context.Context, actorID, targetID int64, blocked
 		return false, fmt.Errorf("accounts: commit: %w", err)
 	}
 	return previous, nil
+}
+
+// --- VIP ---
+
+// VIP grant bounds. A day count outside this is a typo, not an intention: one
+// day is the smallest useful grant, and ten years is longer than the server is
+// likely to outlive. Refusing beats writing a date nobody meant.
+const (
+	MinVipDays = 1
+	MaxVipDays = 3650
+)
+
+// ErrVipDays is returned for a grant length outside the bounds above.
+var ErrVipDays = errors.New("accounts: vip day count out of range")
+
+// Details is what the panel shows about an account beyond its auth row.
+//
+// It exists here rather than in internal/store for the same reason the writes
+// do — and it carries the email and donate balance the account page had to go
+// without while there was no panel-owned read.
+type Details struct {
+	Email         string
+	DonateBalance int32
+	VipUntil      *time.Time // nil means the account has never been VIP
+}
+
+// Get reads the panel-facing fields of one account.
+func (s *Store) Get(ctx context.Context, id int64) (Details, error) {
+	var d Details
+	err := s.pool.QueryRow(ctx,
+		`SELECT email, donate_balance, vip_until FROM account WHERE id = $1`, id).
+		Scan(&d.Email, &d.DonateBalance, &d.VipUntil)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Details{}, ErrNotFound
+	}
+	if err != nil {
+		return Details{}, fmt.Errorf("accounts: get %d: %w", id, err)
+	}
+	return d, nil
+}
+
+// AddVipDays extends an account's VIP and returns the dates before and after.
+//
+// Extension counts from whichever is later: now, or the current expiry. Adding
+// thirty days to somebody who still has ten left gives forty, not thirty — the
+// other reading silently takes time away from a paying player, and it is the
+// reading a naive `now() + interval` produces.
+//
+// There is deliberately no self-grant guard. VIP is an entitlement, not
+// authority: granting it to yourself cannot lock anyone out or escalate what you
+// can do, and the audit entry names who did it. Blocking it would also stop
+// staff testing their own change, which is a real thing they need to do.
+func (s *Store) AddVipDays(ctx context.Context, actorID, targetID int64, days int) (prev, next *time.Time, err error) {
+	if days < MinVipDays || days > MaxVipDays {
+		return nil, nil, ErrVipDays
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("accounts: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// FOR UPDATE so two grants landing together both extend, instead of the
+	// second computing its new date from the value the first has already
+	// replaced — which would silently drop one of the two grants.
+	var current *time.Time
+	err = tx.QueryRow(ctx, `SELECT vip_until FROM account WHERE id = $1 FOR UPDATE`, targetID).Scan(&current)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, nil, fmt.Errorf("accounts: read vip: %w", err)
+	}
+
+	from := time.Now().UTC()
+	if current != nil && current.After(from) {
+		from = current.UTC()
+	}
+	novo := from.AddDate(0, 0, days)
+
+	if _, err := tx.Exec(ctx, `UPDATE account SET vip_until = $2 WHERE id = $1`, targetID, novo); err != nil {
+		return nil, nil, fmt.Errorf("accounts: set vip: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, nil, fmt.Errorf("accounts: commit: %w", err)
+	}
+	return current, &novo, nil
+}
+
+// ClearVip removes VIP immediately and returns the date it had.
+//
+// It writes NULL rather than a past date: "never had VIP" and "had VIP, taken
+// away" read the same to anything that compares against now(), and the audit log
+// is where the difference is preserved.
+func (s *Store) ClearVip(ctx context.Context, actorID, targetID int64) (*time.Time, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("accounts: begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var current *time.Time
+	err = tx.QueryRow(ctx, `SELECT vip_until FROM account WHERE id = $1 FOR UPDATE`, targetID).Scan(&current)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("accounts: read vip: %w", err)
+	}
+	if current == nil {
+		return nil, nil // already not VIP
+	}
+
+	if _, err := tx.Exec(ctx, `UPDATE account SET vip_until = NULL WHERE id = $1`, targetID); err != nil {
+		return nil, fmt.Errorf("accounts: clear vip: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("accounts: commit: %w", err)
+	}
+	return current, nil
+}
+
+// VipActive reports whether a stored expiry means the account is VIP right now.
+// Comparing against now() is the whole expiry mechanism: nothing sweeps the
+// column, so a lapsed date simply stops counting.
+func VipActive(until *time.Time) bool {
+	return until != nil && until.After(time.Now())
 }
