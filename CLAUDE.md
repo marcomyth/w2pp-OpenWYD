@@ -18,7 +18,7 @@ Module path: `github.com/jeanluca/w2pp-openwyd` (Go 1.25/1.26, Linux/Docker targ
 
 ```bash
 make build          # go build ./...
-make binaries       # build each service into bin/ (tmserver, dbserver, binserver, webserver)
+make binaries       # build each service into bin/ (tmserver, dbserver, binserver, webserver, adminserver)
 make test           # go test -race -cover ./...
 make lint           # golangci-lint run (needs golangci-lint v2; staticcheck/govet/errcheck/gosec)
 make vet            # go vet ./...
@@ -49,8 +49,8 @@ server. The account has no characters — create them in the client.
 
 ## Architecture
 
-Four microservices (`migration-plan.md §3.5`). Only the client↔tmServer edge speaks the legacy
-protocol; internal links are gRPC (+mTLS):
+Four game microservices (`migration-plan.md §3.5`), plus a standalone staff panel. Only the
+client↔tmServer edge speaks the legacy protocol; internal links are gRPC (+mTLS):
 
 - **tmServer** (`tmserver/`, port `8281` game + `80` status) — the game server. Speaks the legacy
   **CPSock** wire protocol to the client and owns all in-memory world state. Channel-status page
@@ -67,6 +67,12 @@ protocol; internal links are gRPC (+mTLS):
   argon2id hashing. **Critical constraint:** the web never writes live character state — see
   `docs/migration/web-platform-plan.md` (the single-owner loop makes direct writes a dup/lost-write
   hazard; grants flow through a `delivery_queue` the tmServer drains).
+- **adminServer** (`adminserver/`, port from `PORT`, default `8080`) — the staff admin panel
+  (accounts, role, VIP, audit) as **plain HTTP with an embedded UI**, not gRPC: it is opened in a
+  browser, and gRPC there would cost grpc-web plus a proxy. It is deliberately **standalone and
+  deletable** — no other service imports it, and the only shared resource is the `account` database,
+  where every change it needs is additive. Not on the game path: it never writes live character
+  state, for the same single-owner reason as webServer.
 
 Wiring is in each `cmd/<svc>/main.go` (flags, logging, gRPC clients, listeners, graceful shutdown
 via signal-cancelled context). tmServer degrades gracefully: without `-dbserver` it uses no-op
