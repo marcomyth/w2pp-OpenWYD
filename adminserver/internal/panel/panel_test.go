@@ -2,6 +2,7 @@ package panel
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
@@ -130,9 +132,11 @@ func (f *fakeAccounts) setBlocked(name string, blocked bool) {
 
 // fakeAudit is an in-memory action log.
 type fakeAudit struct {
-	mu      sync.Mutex
-	entries []audit.Entry
-	limit   int
+	mu        sync.Mutex
+	entries   []audit.Entry
+	written   []audit.Record
+	failWrite error
+	limit     int
 }
 
 func newFakeAudit() *fakeAudit { return &fakeAudit{limit: 100} }
@@ -151,6 +155,24 @@ func (f *fakeAudit) List(_ context.Context, targetID int64) ([]audit.Entry, erro
 	return out, nil
 }
 
+// Write records what a handler asked to log, and can be made to fail so the
+// "changed but not audited" path is exercised rather than assumed.
+func (f *fakeAudit) Write(_ context.Context, r audit.Record) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.failWrite != nil {
+		return f.failWrite
+	}
+	f.written = append(f.written, r)
+	return nil
+}
+
+func (f *fakeAudit) recorded() []audit.Record {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]audit.Record(nil), f.written...)
+}
+
 func (f *fakeAudit) add(e audit.Entry) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -163,10 +185,48 @@ func newTestPanel(t *testing.T, acc Accounts) http.Handler {
 	return newTestPanelWith(t, acc, newFakeAudit())
 }
 
+// fakeWriter records the writes asked of it and can be made to refuse.
+type fakeWriter struct {
+	mu       sync.Mutex
+	roleCall []string
+	blkCall  []bool
+	prevRole string
+	prevBlk  bool
+	err      error
+}
+
+func newFakeWriter() *fakeWriter { return &fakeWriter{prevRole: "player"} }
+
+func (f *fakeWriter) SetRole(_ context.Context, actorID, targetID int64, role string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return "", f.err
+	}
+	f.roleCall = append(f.roleCall, role)
+	return f.prevRole, nil
+}
+
+func (f *fakeWriter) SetBlocked(_ context.Context, actorID, targetID int64, blocked bool) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return false, f.err
+	}
+	f.blkCall = append(f.blkCall, blocked)
+	return f.prevBlk, nil
+}
+
 func newTestPanelWith(t *testing.T, acc Accounts, log AuditLog) http.Handler {
+	t.Helper()
+	return newTestPanelFull(t, acc, log, newFakeWriter())
+}
+
+func newTestPanelFull(t *testing.T, acc Accounts, log AuditLog, wr Writer) http.Handler {
 	t.Helper()
 	h, err := New(Config{
 		Accounts:   acc,
+		Writer:     wr,
 		Audit:      log,
 		Sessions:   session.New(time.Hour),
 		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -607,5 +667,189 @@ func TestAuditoriaEmpty(t *testing.T) {
 	body := signedIn(t, newTestPanel(t, newFakeAccounts(roleAdmin)))("/auditoria").Body.String()
 	if !strings.Contains(body, "Nenhuma ação administrativa registrada") {
 		t.Error("empty log does not say so")
+	}
+}
+
+// --- escritas: cargo e bloqueio ---
+
+// signedInPost logs in and returns a poster that carries the cookie and, unless
+// told otherwise, the session's real CSRF token.
+func signedInPost(t *testing.T, h http.Handler) (func(path string, form url.Values) *httptest.ResponseRecorder, string) {
+	t.Helper()
+	c := sessionCookie(postLogin(h, "chefe", testPassword))
+	if c == nil {
+		t.Fatal("login did not set a cookie")
+	}
+	// The token is rendered into every form; read it back the way a browser would.
+	req := httptest.NewRequest(http.MethodGet, "/contas/ana", nil)
+	req.AddCookie(c)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	token := csrfFrom(rec.Body.String())
+
+	return func(path string, form url.Values) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.AddCookie(c)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}, token
+}
+
+func csrfFrom(body string) string {
+	const marker = `name="csrf" value="`
+	i := strings.Index(body, marker)
+	if i < 0 {
+		return ""
+	}
+	rest := body[i+len(marker):]
+	j := strings.Index(rest, `"`)
+	if j < 0 {
+		return ""
+	}
+	return rest[:j]
+}
+
+// withTarget gives the panel an account other than the signed-in one to act on.
+func withTarget(role string) *fakeAccounts {
+	acc := newFakeAccounts(role)
+	acc.add("ana", 7, "player", false)
+	return acc
+}
+
+func TestSetCargoAppliesAndAudits(t *testing.T) {
+	acc := withTarget(roleAdmin)
+	log := newFakeAudit()
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, acc, log, wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/cargo", url.Values{"csrf": {token}, "cargo": {"moderator"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(wr.roleCall) != 1 || wr.roleCall[0] != "moderator" {
+		t.Fatalf("writer calls = %v, want one moderator", wr.roleCall)
+	}
+
+	recs := log.recorded()
+	if len(recs) != 1 {
+		t.Fatalf("audit entries = %d, want 1", len(recs))
+	}
+	if recs[0].Action != audit.ActionSetRole || recs[0].TargetID != 7 {
+		t.Fatalf("audit entry = %+v, want SET_ROLE on 7", recs[0])
+	}
+	if recs[0].ActorRole != roleAdmin {
+		t.Errorf("actor role = %q, want the role at the time (%s)", recs[0].ActorRole, roleAdmin)
+	}
+}
+
+func TestWritesRequireTheCSRFToken(t *testing.T) {
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), newFakeWriter())
+	post, token := signedInPost(t, h)
+
+	cases := []struct {
+		name string
+		form url.Values
+	}{
+		{"sem token", url.Values{"cargo": {"moderator"}}},
+		{"token errado", url.Values{"csrf": {"nao-e-o-token"}, "cargo": {"moderator"}}},
+		{"token de outra sessao", url.Values{"csrf": {token + "x"}, "cargo": {"moderator"}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, path := range []string{"/contas/ana/cargo", "/contas/ana/bloqueio"} {
+				if rec := post(path, tc.form); rec.Code != http.StatusForbidden {
+					t.Errorf("%s: status = %d, want 403", path, rec.Code)
+				}
+			}
+		})
+	}
+}
+
+func TestSetCargoIsAdminOnly(t *testing.T) {
+	// A moderator may block, but not promote.
+	h := newTestPanelFull(t, withTarget(roleModerator), newFakeAudit(), newFakeWriter())
+	post, token := signedInPost(t, h)
+
+	if rec := post("/contas/ana/cargo", url.Values{"csrf": {token}, "cargo": {"admin"}}); rec.Code != http.StatusForbidden {
+		t.Errorf("moderator changing role: status = %d, want 403", rec.Code)
+	}
+	if rec := post("/contas/ana/bloqueio", url.Values{"csrf": {token}, "bloquear": {"1"}}); rec.Code != http.StatusSeeOther {
+		t.Errorf("moderator blocking: status = %d, want 303", rec.Code)
+	}
+}
+
+func TestRefusalsAreExplained(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"propria conta", accounts.ErrSelf, "próprio acesso"},
+		{"ultimo admin", accounts.ErrLastAdmin, "último admin"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			wr := newFakeWriter()
+			wr.err = tc.err
+			h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+			post, token := signedInPost(t, h)
+
+			rec := post("/contas/ana/cargo", url.Values{"csrf": {token}, "cargo": {"player"}})
+			if rec.Code != http.StatusSeeOther {
+				t.Fatalf("status = %d, want 303 back to the account page", rec.Code)
+			}
+			loc := rec.Header().Get("Location")
+			decoded, _ := url.QueryUnescape(loc)
+			if !strings.Contains(decoded, tc.want) {
+				t.Fatalf("redirect %q does not explain the refusal (want %q)", decoded, tc.want)
+			}
+		})
+	}
+}
+
+func TestAChangeThatCannotBeAuditedIsReportedAsAFailure(t *testing.T) {
+	// The audit write failing must not pass silently. Staff have to know the log
+	// has a hole rather than trust a green screen.
+	log := newFakeAudit()
+	log.failWrite = errors.New("banco fora do ar")
+	h := newTestPanelFull(t, withTarget(roleAdmin), log, newFakeWriter())
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/cargo", url.Values{"csrf": {token}, "cargo": {"moderator"}})
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "auditoria falhou") {
+		t.Errorf("the page does not say the audit failed: %q", rec.Body.String())
+	}
+}
+
+func TestOwnAccountShowsNoControls(t *testing.T) {
+	get := signedIn(t, newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), newFakeWriter()))
+
+	mine := get("/contas/chefe").Body.String()
+	if strings.Contains(mine, `action="/contas/chefe/cargo"`) {
+		t.Error("the panel offers a control on your own account that always fails")
+	}
+	if !strings.Contains(mine, "sua própria conta") {
+		t.Error("no explanation of why the controls are absent")
+	}
+
+	other := get("/contas/ana").Body.String()
+	if !strings.Contains(other, `action="/contas/ana/cargo"`) {
+		t.Error("the role form is missing on another account")
+	}
+}
+
+func TestBlockSaysItOnlyAppliesAtLogin(t *testing.T) {
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), newFakeWriter())
+	post, token := signedInPost(t, h)
+	rec := post("/contas/ana/bloqueio", url.Values{"csrf": {token}, "bloquear": {"1"}})
+	decoded, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(decoded, "continua até sair") {
+		t.Errorf("staff are not told a blocked player stays online: %q", decoded)
 	}
 }
