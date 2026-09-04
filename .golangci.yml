@@ -18,6 +18,10 @@ linters:
         # The legacy GM tool file is genuinely named "Comandos GM.txt" (Portuguese
         # for "commands"), cited verbatim as an evidence source.
         - comandos
+        # Portuguese for "monsters", in player-facing game text and in the admin
+        # panel's routes. misspell reads it as a typo for "monstrous"; this is a
+        # Portuguese-language server and the word is correct as written.
+        - monstros
   exclusions:
     generated: lax
     presets:
