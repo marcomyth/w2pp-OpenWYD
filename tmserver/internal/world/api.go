@@ -247,7 +247,12 @@ func (w *World) DespawnMob(id int, removeType int32) {
 	// givers) don't die, so only schedule monsters (Merchant==0) killed in
 	// combat (removeType 1). Summoned pets never respawn — they carry a
 	// Template too, but their lifecycle belongs to the summoner.
+	// Water-dungeon rooms are the exception to that queue: their population is
+	// the run itself. Respawning a cleared room 15s later would refill it under
+	// the party that just finished it, and the clear reward — which fires as the
+	// LAST mob dies — could then trigger again on the refill.
 	if removeType == 1 && e.Merchant == 0 && !e.NonCombatNPC && e.Template != nil && e.Summoner == 0 &&
+		!IsWaterDungeonGenerator(int(e.GenIndex)) &&
 		(gen == nil || gen.MinuteGenerate <= 0) {
 		w.respawnQueue = append(w.respawnQueue, respawnEntry{
 			spawn: MobSpawn{
