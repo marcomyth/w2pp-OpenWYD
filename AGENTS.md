@@ -14,6 +14,7 @@ This project is a **big-bang rewrite in Go** of the legacy WYD (With Your Destin
     *   `dbserver/`: Persistence (PostgreSQL, pgx v5).
     *   `binserver/`: Billing server.
     *   `webserver/`: Web-API (Account creation, verification).
+    *   `adminserver/`: Staff admin panel (plain HTTP + embedded UI). Deliberately standalone and deletable — nothing else imports it.
 *   **Shared Packages:**
     *   `internal/`: Shared domain model, store/migration logic, secrets/hashing (Argon2id), and TLS.
 *   **Legacy Code & Binaries:**

@@ -15,7 +15,7 @@ ARG SVC
 # later on a "no such file" that never names the missing build-arg. Platforms
 # that pass service variables as build args (Railway, Cloud Build) make this an
 # easy and expensive mistake to repeat once per service.
-RUN test -n "$SVC" || (echo "SVC build-arg is required (one of: tmserver, dbserver, binserver, webserver)" >&2 && false)
+RUN test -n "$SVC" || (echo "SVC build-arg is required (one of: tmserver, dbserver, binserver, webserver, adminserver)" >&2 && false)
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/app ./${SVC}/cmd/${SVC}
 
 # Distroless static: minimal, includes CA certs, runs as nonroot.

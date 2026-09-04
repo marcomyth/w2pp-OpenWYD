@@ -87,7 +87,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        svc: [tmserver, dbserver, binserver, webserver]
+        svc: [tmserver, dbserver, binserver, webserver, adminserver]
     steps:
       - uses: actions/checkout@v4
 
