@@ -187,12 +187,14 @@ func newTestPanel(t *testing.T, acc Accounts) http.Handler {
 
 // fakeWriter records the writes asked of it and can be made to refuse.
 type fakeWriter struct {
-	mu       sync.Mutex
-	roleCall []string
-	blkCall  []bool
-	prevRole string
-	prevBlk  bool
-	err      error
+	mu         sync.Mutex
+	roleCall   []string
+	blkCall    []bool
+	lastActor  int64 // who the handler said was acting
+	lastTarget int64 // and on whom
+	prevRole   string
+	prevBlk    bool
+	err        error
 }
 
 func newFakeWriter() *fakeWriter { return &fakeWriter{prevRole: "player"} }
@@ -200,6 +202,7 @@ func newFakeWriter() *fakeWriter { return &fakeWriter{prevRole: "player"} }
 func (f *fakeWriter) SetRole(_ context.Context, actorID, targetID int64, role string) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.lastActor, f.lastTarget = actorID, targetID
 	if f.err != nil {
 		return "", f.err
 	}
@@ -210,6 +213,7 @@ func (f *fakeWriter) SetRole(_ context.Context, actorID, targetID int64, role st
 func (f *fakeWriter) SetBlocked(_ context.Context, actorID, targetID int64, blocked bool) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.lastActor, f.lastTarget = actorID, targetID
 	if f.err != nil {
 		return false, f.err
 	}
@@ -731,6 +735,15 @@ func TestSetCargoAppliesAndAudits(t *testing.T) {
 	}
 	if len(wr.roleCall) != 1 || wr.roleCall[0] != "moderator" {
 		t.Fatalf("writer calls = %v, want one moderator", wr.roleCall)
+	}
+	// The actor comes from the session, never from the form: a request that could
+	// name its own actor would let anyone attribute a change to someone else, and
+	// the self-change and last-admin guards both key off this value.
+	if wr.lastActor != 42 {
+		t.Errorf("actor passed to the writer = %d, want the signed-in account (42)", wr.lastActor)
+	}
+	if wr.lastTarget != 7 {
+		t.Errorf("target passed to the writer = %d, want the account in the path (7)", wr.lastTarget)
 	}
 
 	recs := log.recorded()
