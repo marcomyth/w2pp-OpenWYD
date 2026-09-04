@@ -257,3 +257,44 @@ func TestWaterRewardPaysOncePerRun(t *testing.T) {
 		t.Error("a fresh run did not re-arm the payout")
 	}
 }
+
+// TestWaterClassGate pins the per-chain tier scoping (a server rule, not legacy).
+func TestWaterClassGate(t *testing.T) {
+	tests := []struct {
+		name    string
+		variant int
+		class   uint8
+		level   int32
+		want    bool
+	}{
+		// N: mortals only.
+		{"N mortal", waterN, classMasterMortal, 399, true},
+		{"N arch", waterN, classMasterArch, 200, false},
+		{"N celestial", waterN, classMasterCelestial, 10, false},
+
+		// M: arch at any level, celestial only to 40.
+		{"M arch low", waterM, classMasterArch, 1, true},
+		{"M arch max", waterM, classMasterArch, 399, true},
+		{"M celestial at the cap", waterM, classMasterCelestial, 40, true},
+		{"M celestial past the cap", waterM, classMasterCelestial, 41, false},
+		{"M mortal", waterM, classMasterMortal, 399, false},
+		{"M subcelestial", waterM, classMasterCelestialCS, 10, false},
+		{"M supreme celestial", waterM, classMasterSCelestial, 10, false},
+
+		// A: every celestial tier, uncapped.
+		{"A celestial", waterA, classMasterCelestial, 199, true},
+		{"A subcelestial", waterA, classMasterCelestialCS, 199, true},
+		{"A supreme celestial", waterA, classMasterSCelestial, 199, true},
+		{"A celestial past the M cap", waterA, classMasterCelestial, 41, true},
+		{"A arch", waterA, classMasterArch, 399, false},
+		{"A mortal", waterA, classMasterMortal, 399, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := waterClassAllowed(tc.variant, tc.class, tc.level); got != tc.want {
+				t.Errorf("waterClassAllowed(%d, class %d, level %d) = %v, want %v",
+					tc.variant, tc.class, tc.level, got, tc.want)
+			}
+		})
+	}
+}

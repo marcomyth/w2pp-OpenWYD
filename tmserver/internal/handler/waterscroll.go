@@ -102,6 +102,34 @@ const (
 // (ProcessSecMinTimer.cpp:1586).
 var waterExit = [2]int16{1965, 1769}
 
+// waterMCelestialMaxLevel caps the Celestial's access to the M chain. Arch has
+// no cap of its own — MaxLevel (399) is already the ceiling for that tier.
+const waterMCelestialMaxLevel = 40
+
+// waterClassAllowed gates each chain to a progression tier.
+//
+// DELIBERATE DIVERGENCE: the legacy has no class gate at all — any character can
+// open any water room. This is a server rule, scoping each chain so a maxed
+// character cannot farm the entry-tier dungeon:
+//
+//	N  Mortal only.
+//	M  Arch at any level, plus Celestial up to level 40.
+//	A  every celestial tier (Celestial, CelestialCS, SCelestial), no cap.
+func waterClassAllowed(variant int, classMaster uint8, level int32) bool {
+	switch variant {
+	case waterN:
+		return classMaster == classMasterMortal
+	case waterM:
+		if classMaster == classMasterArch {
+			return true
+		}
+		return classMaster == classMasterCelestial && level <= waterMCelestialMaxLevel
+	case waterA:
+		return isCelestialTier(classMaster)
+	}
+	return false
+}
+
 // waterRoomForVolatile maps an EF_VOLATILE to its dungeon and room. The dead
 // room 8 is deliberately unmapped: no item selects it.
 func waterRoomForVolatile(vol int) (variant, room int, ok bool) {
@@ -203,6 +231,15 @@ func (d *Dispatcher) useWaterScroll(w *world.World, s *world.Session, e *world.E
 		d.log.Info("water scroll refused: outside the dungeon",
 			"account", s.AccountName, "x", e.X, "y", e.Y, "variant", variant)
 		d.refuseWaterScroll(w, s, e, src, NoticeCantUseHere)
+		return
+	}
+	// Gate 1b: the chain is scoped to a progression tier (server rule, see
+	// waterClassAllowed). It sits AFTER the area check so someone nowhere near
+	// the dungeon is told where to stand rather than which class to be.
+	if !waterClassAllowed(variant, e.ClassMaster, e.Level) {
+		d.log.Info("water scroll refused: class not allowed in this chain",
+			"account", s.AccountName, "variant", variant, "classMaster", e.ClassMaster, "level", e.Level)
+		d.refuseWaterScroll(w, s, e, src, NoticeWaterClassNotAllowed)
 		return
 	}
 	// Gate 2: party members cannot open a room; only the leader (Leader == 0)

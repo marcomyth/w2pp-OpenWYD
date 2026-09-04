@@ -105,6 +105,12 @@ const (
 	// NoticePartyLeaderOnly is _NN_Party_Leader_Only (Language.txt:229, "Uso
 	// restrito ao líder do grupo.").
 	NoticePartyLeaderOnly
+
+	// NoticeWaterClassNotAllowed refuses a water scroll whose chain is scoped to
+	// another progression tier. It has NO legacy counterpart — the original lets
+	// any class open any room — so there is no _NN_ id to match; it exists for
+	// the server rule documented on waterClassAllowed.
+	NoticeWaterClassNotAllowed
 )
 
 // notify sends a client notification.
