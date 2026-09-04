@@ -50,11 +50,14 @@ type Client struct {
 	catalog webv1.ItemCatalogServiceClient
 	npc     webv1.NpcAdminServiceClient
 
-	mu       sync.Mutex
-	cached   []*webv1.ItemCatalogEntry
-	version  string
-	fetched  time.Time
-	inFlight bool
+	// Guards the cache below. Two requests missing at once both fetch, which is
+	// the right trade here: collapsing them would need a second lock held across
+	// a network call, and a staff panel does not have the traffic to make the
+	// duplicate round trip cost anything.
+	mu      sync.Mutex
+	cached  []*webv1.ItemCatalogEntry
+	version string
+	fetched time.Time
 }
 
 // New wraps a connection to the webServer.
