@@ -61,23 +61,23 @@ var nextLevel = [...]int64{
 // CELESTIAL/CELESTIALCS/SCELESTIAL (CMob.cpp:1092-1093). Celestial levels run
 // 0..MaxCLevel (199).
 //
-// PLACEHOLDER — the real long-long values are NOT in the local source (Basedef.cpp
-// ships the array literal and is absent here, exactly like the Mortal curve, which
-// was transcribed from captura-wyd-levelup.md). Until the Windows-agent capture lands
-// (see docs/migration/prompts/captura-celestial-curve.md) this is a synthetic,
-// strictly increasing ramp so the tier level-up logic and its 39→40 / 89→90 gates can
-// be exercised end-to-end. These are NOT parity-correct thresholds — do not ship a
-// live Celestial against them. Replace with the captured array + a golden anchor test
-// (like TestNextLevelTable) when available.
-var nextLevel2 = celestialPlaceholderCurve()
+// The curve is a straight line: Basedef.cpp:696 spells the array out as
+// 0, 20000000, 40000000, 60000000 … up to 8000000000 at index 400, so every entry
+// is index × 20 million. (The literal's final slot, 8200000000 at 401, is a
+// ceiling past MAX_CLEVEL and outside the range we index.)
+//
+// It used to be a synthetic ramp, written when the array literal was believed
+// absent from the local source. It is not absent, and the stand-in was wrong by
+// more than an order of magnitude: it put level 2 at 2,300,000 where the client
+// draws 40,000,000. A Celestial's bar and level-ups therefore disagreed with the
+// client entirely — visible the moment one was played.
+var nextLevel2 = celestialCurve()
 
-// celestialPlaceholderCurve builds the synthetic stand-in for g_pNextLevel_2: a
-// strictly increasing ramp over 0..MaxCLevel+1. Deliberately obvious (not real
-// capture data) so it can never be mistaken for parity-correct thresholds.
-func celestialPlaceholderCurve() [MaxCLevel + 2]int64 {
+// celestialCurve builds g_pNextLevel_2 over 0..MaxCLevel+1.
+func celestialCurve() [MaxCLevel + 2]int64 {
 	var c [MaxCLevel + 2]int64
-	for i := 1; i < len(c); i++ {
-		c[i] = c[i-1] + 1_000_000 + int64(i)*100_000
+	for i := range c {
+		c[i] = int64(i) * 20_000_000
 	}
 	return c
 }
