@@ -163,6 +163,7 @@ func run(logger *slog.Logger) error {
 	var sancRate *content.SancRate
 	var compRate *content.CompRate
 	var questRates *content.QuestRates
+	var language *content.Language
 	if *contentDir != "" {
 		c, err := loadContent(*contentDir, logger)
 		if err != nil {
@@ -181,6 +182,7 @@ func run(logger *slog.Logger) error {
 		sancRate = c.sanc
 		compRate = c.comp
 		questRates = c.quests
+		language = c.language
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -340,6 +342,7 @@ func run(logger *slog.Logger) error {
 		CombineCatalog:  odinCatalog,
 		CompRate:        compRate,
 		QuestRates:      questRates,
+		Language:        language,
 		NpcConfig:       npcConfig,
 		WorldEvents:     worldEvents,
 		CastleQuests:    castleQuests,
@@ -678,13 +681,22 @@ func loadContent(dir string, logger *slog.Logger) (*loadedContent, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The string table is optional but load-bearing for anything the server says:
+	// without it only the notices with a compiled fallback reach the player, and
+	// every other refusal is silent (handler/notice.go). Warn loudly rather than
+	// fail, because a server with no text still runs.
+	language, err := content.LoadLanguage(filepath.Join(dir, "TMsrv", "run", "Language.txt"))
+	if err != nil {
+		logger.Warn("language table not loaded: most notifications will be silent", "err", err)
+	}
+
 	// The Ori/Lac rates are worth logging outright: SancRate.txt only overrides the
 	// indices it lists, so a broken mount silently leaves the compiled defaults and
 	// the operator would otherwise not notice.
 	logger.Info("content loaded",
 		"comprate_families", comp.Families(),
 		"sancrate_ori", sancRow(sanc, 0), "sancrate_lac", sancRow(sanc, 1),
-		"items", items.Len(), "skills", skills.Len())
+		"items", items.Len(), "skills", skills.Len(), "language_lines", language.Len())
 
 	// Maps are optional: 17 MiB HeightMap + 1 MiB AttributeMap aren't required to
 	// accept logins; warn rather than fail when they aren't mounted. When both
@@ -706,18 +718,19 @@ func loadContent(dir string, logger *slog.Logger) (*loadedContent, error) {
 	} else if hm != nil || attr != nil {
 		logger.Warn("mob pathfinding disabled: need BOTH HeightMap.dat and AttributeMap.dat")
 	}
-	return &loadedContent{items: items, comp: comp, sanc: sanc, quests: quests, skills: skills, heights: heights}, nil
+	return &loadedContent{items: items, comp: comp, sanc: sanc, quests: quests, skills: skills, heights: heights, language: language}, nil
 }
 
 // loadedContent is what a mounted Release/ tree yields. It is a struct rather
 // than a return list only because the list had grown past readability.
 type loadedContent struct {
-	items   *content.ItemList
-	comp    *content.CompRate
-	sanc    *content.SancRate
-	quests  *content.QuestRates
-	skills  *content.SkillData
-	heights *content.Grid
+	items    *content.ItemList
+	comp     *content.CompRate
+	sanc     *content.SancRate
+	quests   *content.QuestRates
+	skills   *content.SkillData
+	heights  *content.Grid
+	language *content.Language
 }
 
 // sancRow renders one anvil's rate row for the boot log.

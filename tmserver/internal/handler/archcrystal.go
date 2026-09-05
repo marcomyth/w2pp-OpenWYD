@@ -47,13 +47,11 @@ func (d *Dispatcher) useArchCrystal(w *world.World, s *world.Session, e *world.E
 	// Both refusals echo the item back, undoing the removal the client already
 	// performed when the player dragged it (:3395, :3402).
 	//
-	// The text goes straight through sendClientMessage instead of the Notice
-	// enum: that enum is iota-ordered and another session is actively reworking
-	// notice.go, and two branches appending to the same iota block silently
-	// renumber each other's codes.
+	// The line the player reads is _NN_Youve_Done_It_Already, carried by notify
+	// through the message panel (notice.go); the local literal that used to be
+	// sent beside it would now arrive twice.
 	if current >= stage {
 		d.notify(w, s, NoticeAlreadyDone)
-		sendClientMessage(w, s, msgAlreadyDone)
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}
@@ -114,7 +112,6 @@ func (d *Dispatcher) useArchCrystal(w *world.World, s *world.Session, e *world.E
 // conversion — see sendClientMessage.
 const (
 	msgNeedBeforeQuest = "Antes você deve concluir a quest anterior."
-	msgAlreadyDone     = "Você já realizou esta quest."
 )
 
 // archCrystalName is the crystal's in-game name, for the completion line's %s

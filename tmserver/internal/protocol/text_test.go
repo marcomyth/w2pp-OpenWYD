@@ -51,3 +51,40 @@ func TestEncodeMessagePanelBody(t *testing.T) {
 		t.Errorf("text ran past byte %d — the legacy NULs the tail", messagePanelTextMax)
 	}
 }
+
+func TestFromClientText(t *testing.T) {
+	cases := []struct {
+		name string
+		in   []byte
+		want string
+	}{
+		{"ascii", []byte("Refine"), "Refine"},
+		{"latin1", []byte{'R', 'e', 'f', 'i', 'n', 'a', 0xE7, 0xE3, 'o'}, "Refinação"},
+		{"cp1252 punct", []byte{'a', 0x97, 'b'}, "a—b"},
+		{"unassigned byte", []byte{'a', 0x81, 'b'}, "a?b"},
+		{"empty", nil, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := FromClientText(c.in); got != c.want {
+				t.Errorf("FromClientText(%v)=%q, want %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+// Text that survives ClientText must come back unchanged: this is the round trip
+// a Language.txt line takes on its way to the player.
+func TestClientTextRoundTrip(t *testing.T) {
+	for _, s := range []string{
+		"Obteve sucesso na refinação.",
+		"Uso restrito ao líder do grupo.",
+		"Não é possível durante a auto venda.",
+		"8ª Skill pode ser somente da 1ª Classe.",
+		"plain ascii",
+	} {
+		if got := FromClientText(ClientText(s)); got != s {
+			t.Errorf("round trip of %q gave %q", s, got)
+		}
+	}
+}

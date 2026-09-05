@@ -113,6 +113,11 @@ type Config struct {
 	// rejected and skill learning is refused (no costs are knowable without it).
 	Spells *content.SkillData
 
+	// Language is the client string table (TMsrv/run/Language.txt), the source of
+	// the text every notification carries. When nil, notices fall back to the
+	// compiled noticeText table and the rest stay silent (notice.go).
+	Language *content.Language
+
 	// Heights is the walkability grid the mob AI paths over: HeightMap.dat with
 	// AttributeMap.dat already baked in (route.Bake, the boot-time
 	// BASE_ApplyAttribute). Read-only after boot, so sharing it with the loop is
@@ -171,6 +176,7 @@ type Dispatcher struct {
 	sancRate        refine.RateTable             // dust-refine success table (g_pSancRate)
 	expEvents       level.ExpEvents              // global EXP event flags
 	spells          *content.SkillData           // skill catalog (g_pSpell)
+	lang            *content.Language            // client string table (notification text)
 	heights         *content.Grid                // baked walkability grid (mob pathfinding)
 	now             func() time.Time             // wall clock for calendar-gated guild ops
 	maxNightmare    int                          // Pesadelo runs per window per tier (Server.cpp:687)
@@ -321,6 +327,7 @@ func New(cfg Config) *Dispatcher {
 		sancRate:         cfg.SancRate,
 		expEvents:        cfg.ExpEvents,
 		spells:           cfg.Spells,
+		lang:             cfg.Language,
 		heights:          cfg.Heights,
 		now:              cfg.Now,
 		maxNightmare:     cfg.MaxNightmare,
