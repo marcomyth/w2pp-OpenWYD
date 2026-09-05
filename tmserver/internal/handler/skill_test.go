@@ -635,3 +635,44 @@ func TestMasteryRefusalsAreClientSafe(t *testing.T) {
 		t.Error("the two refusals are identical; the legacy distinguishes a temporary cap from the final one")
 	}
 }
+
+// Two learn-skill rules the legacy applies only outside the celestial tiers.
+func TestLearnSkillCelestialWaivers(t *testing.T) {
+	// The affordability check reads a flat 1500 for a celestial
+	// (_MSG_ApplyBonus.cpp:145-146), not the character's remaining points.
+	affordable := func(cm uint8, have uint16) int {
+		if isCelestialTier(cm) {
+			return skillBonusCelestial
+		}
+		return int(have)
+	}
+	if got := affordable(classMasterMortal, 40); got != 40 {
+		t.Errorf("mortal affordability = %d, want its own 40", got)
+	}
+	if got := affordable(classMasterArch, 40); got != 40 {
+		t.Errorf("arch affordability = %d, want its own 40", got)
+	}
+	if got := affordable(classMasterCelestial, 40); got != skillBonusCelestial {
+		t.Errorf("celestial affordability = %d, want the flat %d", got, skillBonusCelestial)
+	}
+
+	// The level requirement is zero for a celestial (:190) — it is level 1 and
+	// would otherwise be locked out of its own kit.
+	reqLevel := func(cm uint8, catalog int32) int32 {
+		if isCelestialTier(cm) {
+			return 0
+		}
+		return catalog
+	}
+	if got := reqLevel(classMasterMortal, 220); got != 220 {
+		t.Errorf("mortal keeps its level requirement, got %d", got)
+	}
+	if got := reqLevel(classMasterArch, 220); got != 220 {
+		t.Errorf("arch keeps its level requirement, got %d", got)
+	}
+	for _, cm := range []uint8{classMasterCelestial, classMasterCelestialCS, classMasterSCelestial} {
+		if got := reqLevel(cm, 220); got != 0 {
+			t.Errorf("celestial tier %d level requirement = %d, want 0", cm, got)
+		}
+	}
+}

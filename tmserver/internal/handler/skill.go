@@ -71,7 +71,20 @@ func (d *Dispatcher) learnSkill(w *world.World, s *world.Session, e *world.Entit
 	if !ok {
 		return
 	}
-	if sp.SkillPoint > int(e.SkillBonus) {
+	// What the affordability check measures is NOT the character's points for a
+	// celestial: the legacy substitutes a flat 1500 there
+	// (_MSG_ApplyBonus.cpp:145-146), while the debit below still comes off the
+	// real balance. So a celestial may learn any skill priced under 1500 no
+	// matter what it has left — an intentional allowance for a tier that is
+	// rebuilding its whole kit at level 0, reproduced rather than "corrected".
+	affordable := int(e.SkillBonus)
+	if isCelestialTier(e.ClassMaster) {
+		affordable = skillBonusCelestial
+	}
+	if sp.SkillPoint > affordable {
+		d.log.Info("learn skill refused: not enough points",
+			"conn", s.Conn, "account", s.AccountName, "skill", skillpos,
+			"cost", sp.SkillPoint, "have", e.SkillBonus, "affordable", affordable)
 		d.notify(w, s, NoticeNotEnoughSkillPoint)
 		return
 	}
@@ -80,6 +93,8 @@ func (d *Dispatcher) learnSkill(w *world.World, s *world.Session, e *world.Entit
 		// The 8th skill of each tree is exclusive: only one of the three, only
 		// after the tree's 7 previous skills, and it costs 50M gold on top.
 		if e.LearnedSkill&(1<<7|1<<15|1<<23) != 0 {
+			d.log.Info("learn skill refused: an 8th is already learned",
+				"conn", s.Conn, "account", s.AccountName, "skill", skillpos)
 			d.notify(w, s, NoticeOnlyOneEighthSkill)
 			return
 		}
@@ -90,15 +105,23 @@ func (d *Dispatcher) learnSkill(w *world.World, s *world.Session, e *world.Entit
 			}
 		}
 		if learned != 7 {
+			d.log.Info("learn skill refused: tree incomplete",
+				"conn", s.Conn, "account", s.AccountName, "skill", skillpos,
+				"learned_before_it", learned, "mask", e.LearnedSkill)
 			d.notify(w, s, NoticeLearnPrereq)
 			return
 		}
 		if e.Coin < eighthSkillCoin {
+			d.log.Info("learn skill refused: gold",
+				"conn", s.Conn, "account", s.AccountName, "skill", skillpos,
+				"gold", e.Coin, "needed", eighthSkillCoin)
 			d.notify(w, s, NoticeNotEnoughCoin)
 			return
 		}
 	}
 	if e.LearnedSkill&(1<<skillpos) != 0 {
+		d.log.Info("learn skill refused: already learned",
+			"conn", s.Conn, "account", s.AccountName, "skill", skillpos)
 		d.notify(w, s, NoticeAlreadyLearned)
 		return
 	}
@@ -106,11 +129,26 @@ func (d *Dispatcher) learnSkill(w *world.World, s *world.Session, e *world.Entit
 	// ItemList.csv, but the gate is kept): level, and per-tree mastery vs the
 	// live Special[1..3].
 	if req, ok := d.itemReqs[detail]; ok {
-		if e.Level < int32(req.Lvl) {
+		// The LEVEL requirement applies to Mortal and Arch only; every celestial
+		// tier reads it as zero (_MSG_ApplyBonus.cpp:190). A reborn Celestial is
+		// level 1, so enforcing it would lock the tier out of its own kit the
+		// moment a skill carries any requirement at all. The mastery requirements
+		// below are NOT waived — the legacy checks those for everyone.
+		reqLvl := int32(req.Lvl)
+		if isCelestialTier(e.ClassMaster) {
+			reqLvl = 0
+		}
+		if e.Level < reqLvl {
+			d.log.Info("learn skill refused: level",
+				"conn", s.Conn, "account", s.AccountName, "skill", skillpos,
+				"level", e.Level, "required", reqLvl)
 			d.notify(w, s, NoticeReqNotMet)
 			return
 		}
 		if e.Special[1] < req.Int || e.Special[2] < req.Dex || e.Special[3] < req.Con {
+			d.log.Info("learn skill refused: mastery",
+				"conn", s.Conn, "account", s.AccountName, "skill", skillpos,
+				"special", e.Special, "req_int", req.Int, "req_dex", req.Dex, "req_con", req.Con)
 			d.notify(w, s, NoticeReqNotMet)
 			return
 		}
