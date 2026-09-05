@@ -636,6 +636,38 @@ func (w *World) SessionMode(conn int) (Mode, bool) {
 	return w.sessions[conn].Mode, true
 }
 
+// SkipCheckTick is the sentinel a client sends when its own tick must not be
+// used for timing checks (Basedef.h:232). The original replaces it with server
+// time; any other value it echoes back untouched.
+const SkipCheckTick = 235543242
+
+// SendEcho queues a frame that must reach the client carrying the ClientTick it
+// ARRIVED with, rather than the server clock every other message is stamped with.
+//
+// The attack reply needs this. The original edits the client's own frame in place
+// and multicasts that same buffer, replacing the tick only when it is the
+// SKIPCHECKTICK sentinel (_MSG_Attack.cpp:1745-1750) — so an attack comes back
+// stamped with the tick the client sent. That is how the client recognises the
+// reply as the answer to its OWN swing and takes the attacker status out of it.
+// Stamped with server time it reads as somebody else's attack: the damage still
+// lands, but the experience in it is not the reader's to take, which is why the
+// exp bar never moved and no gain floated. Loop-only, like enqueue.
+func (w *World) SendEcho(s *Session, h protocol.Header, payload []byte) {
+	if h.ClientTick == 0 || h.ClientTick == SkipCheckTick {
+		h.ClientTick = w.cfg.Now()
+	}
+	s.noteSend(h, len(payload))
+	if w.cfg.LogSends {
+		w.log.Info("send packet", "conn", s.Conn, "type", formatSendType(h.Type), "id", h.ID, "len", len(payload))
+	}
+	select {
+	case s.out <- outFrame{header: h, payload: payload}:
+	default:
+		w.log.Warn("session out queue full; dropping connection", "conn", s.Conn)
+		w.dropSession(s)
+	}
+}
+
 // ActiveSessions counts non-nil sessions (loop-only helper).
 func (w *World) ActiveSessions() int {
 	n := 0

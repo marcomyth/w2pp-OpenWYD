@@ -370,10 +370,15 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 	// meant this client, which attacks with 0x039D, was answered with a message it
 	// had not asked for: no floating exp gain, no bar movement, only the level
 	// changing (that arrives separately, in UpdateScore).
-	hdr := protocol.Header{Type: h.Type, ID: protocol.IDScene}
-	w.SendTo(s, hdr, payload)
+	// The CLIENT TICK is the frame's own too, and for the same reason: the original
+	// keeps it and only substitutes server time for the SKIPCHECKTICK sentinel
+	// (_MSG_Attack.cpp:1745). It is how the client tells the answer to its own swing
+	// from a bystander's — and it only takes CurrentExp out of its own. Every other
+	// message is stamped with the server clock, so this needs SendEcho.
+	hdr := protocol.Header{Type: h.Type, ID: protocol.IDScene, ClientTick: h.ClientTick}
+	w.SendEcho(s, hdr, payload)
 	w.ForEachInView(s.Conn, func(vs *world.Session, _ *world.Entity) {
-		w.SendTo(vs, hdr, payload)
+		w.SendEcho(vs, hdr, payload)
 	})
 	for _, tid := range hpSyncTargets {
 		ts := w.Session(tid)
