@@ -39,6 +39,7 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/entrega"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/panel"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
@@ -141,6 +142,7 @@ func run(logger *slog.Logger) error {
 		Accounts:   store.New(pool),
 		GameData:   game,
 		Writer:     accounts.New(pool),
+		Entregas:   entrega.New(pool),
 		Audit:      audit.New(pool),
 		Sessions:   session.New(*sessionTTL),
 		Logger:     logger,

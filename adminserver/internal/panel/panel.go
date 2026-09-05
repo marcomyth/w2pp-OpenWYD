@@ -23,6 +23,7 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/entrega"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
@@ -108,6 +109,18 @@ type GameData interface {
 	Drops(ctx context.Context, moderatorID int64, item, mob string) ([]gamedata.Drop, error)
 }
 
+// Deliveries is the item mailbox. Kept as an interface for the same reason the
+// others are: the panel has to be testable without a database.
+//
+// Nothing new was built in the game for this. delivery_queue already exists for
+// the donate shop and the tmServer drains it at login, so a grant made here
+// arrives through a path that has been in production.
+type Deliveries interface {
+	Enfileirar(ctx context.Context, actorID, contaID int64, it entrega.Item) (int64, error)
+	Pendentes(ctx context.Context, contaID int64) ([]entrega.Pendente, error)
+	Cancelar(ctx context.Context, contaID, entregaID int64) error
+}
+
 // Platform is the hosting API, used to report the game server's boot time and
 // restart it. Optional: without it the restart card is hidden.
 type Platform interface {
@@ -119,6 +132,7 @@ type Platform interface {
 type Config struct {
 	Accounts   Accounts
 	Platform   Platform
+	Entregas   Deliveries
 	GameData   GameData
 	Writer     Writer
 	Audit      AuditLog
@@ -185,6 +199,10 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("POST /contas/{nome}/cargo", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setCargo))))
 	mux.Handle("POST /contas/{nome}/bloqueio", h.requireStaff(http.HandlerFunc(h.setBloqueio)))
 	mux.Handle("POST /contas/{nome}/vip", h.requireStaff(http.HandlerFunc(h.setVip)))
+	if h.cfg.Entregas != nil {
+		mux.Handle("POST /contas/{nome}/entregar", h.requireStaff(http.HandlerFunc(h.entregarItem)))
+		mux.Handle("POST /contas/{nome}/entregas/{entrega}/cancelar", h.requireStaff(http.HandlerFunc(h.cancelarEntrega)))
+	}
 	if h.cfg.GameData != nil {
 		mux.Handle("GET /itens", h.requireStaff(http.HandlerFunc(h.itens)))
 		mux.Handle("POST /itens/{indice}/preco", h.requireStaff(http.HandlerFunc(h.setPreco)))
@@ -314,13 +332,27 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		det = accounts.Details{}
 	}
 
+	// The mailbox is listed even when it fails to load, for the same reason the
+	// roster is: losing it should not blank out the role and block status, which
+	// is what most visits to this page are about.
+	var pendentes []entrega.Pendente
+	if h.cfg.Entregas != nil {
+		pendentes, err = h.cfg.Entregas.Pendentes(r.Context(), auth.ID)
+		if err != nil {
+			h.cfg.Logger.Error("pending deliveries failed", "account", nome, "id", auth.ID, "err", err)
+			pendentes = nil
+		}
+	}
+
 	p := pageFor(r, "contas", h.cfg.GameData != nil)
 	h.render(w, "conta.html", struct {
 		page
-		Conta       contaView
-		Personagens []domain.Character
-		Aviso       string
-		EhVoce      bool
+		Conta        contaView
+		Personagens  []domain.Character
+		Pendentes    []entrega.Pendente
+		PodeEntregar bool
+		Aviso        string
+		EhVoce       bool
 	}{
 		p,
 		contaView{
@@ -329,6 +361,8 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 			VipUntil: det.VipUntil, VipActive: accounts.VipActive(det.VipUntil),
 		},
 		chars,
+		pendentes,
+		h.cfg.Entregas != nil,
 		r.URL.Query().Get("aviso"),
 		// The forms are hidden on your own account rather than shown and then
 		// refused: the writer rejects self-changes anyway, and offering a control

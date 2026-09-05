@@ -17,6 +17,7 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/entrega"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
@@ -2369,5 +2370,212 @@ func TestDropsNoMenuComWebServer(t *testing.T) {
 	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
 	if !strings.Contains(get("/").Body.String(), `href="/drops"`) {
 		t.Error("o menu não oferece a página de drops")
+	}
+}
+
+// --- entrega de item ---
+
+// fakeEntregas stands in for the item mailbox.
+type fakeEntregas struct {
+	mu         sync.Mutex
+	fila       []entrega.Pendente
+	enfileirou []entrega.Item
+	paraConta  []int64
+	cancelou   []int64
+	erroFila   error
+	erroEnf    error
+	erroCancel error
+}
+
+func (f *fakeEntregas) Enfileirar(_ context.Context, _, contaID int64, it entrega.Item) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.erroEnf != nil {
+		return 0, f.erroEnf
+	}
+	// The account id is recorded, not ignored: a handler that granted to the
+	// wrong account would otherwise pass, since the item alone looks identical.
+	f.paraConta = append(f.paraConta, contaID)
+	f.enfileirou = append(f.enfileirou, it)
+	return int64(len(f.enfileirou)), nil
+}
+
+func (f *fakeEntregas) Pendentes(_ context.Context, _ int64) ([]entrega.Pendente, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.fila, f.erroFila
+}
+
+func (f *fakeEntregas) Cancelar(_ context.Context, _, entregaID int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.erroCancel != nil {
+		return f.erroCancel
+	}
+	f.cancelou = append(f.cancelou, entregaID)
+	return nil
+}
+
+// newTestPanelEntrega builds a panel with the mailbox and the webServer present.
+func newTestPanelEntrega(t *testing.T, log AuditLog, game GameData, ent Deliveries) http.Handler {
+	t.Helper()
+	h, err := New(Config{
+		Accounts:   withTarget(roleAdmin),
+		Writer:     newFakeWriter(),
+		GameData:   game,
+		Entregas:   ent,
+		Audit:      log,
+		Sessions:   session.New(time.Hour),
+		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}
+
+func TestEntregaEnfileiraEAvisaQuePrecisaRelogar(t *testing.T) {
+	// The queue drains at login. A moderator who does not read that will grant an
+	// item, watch nothing happen for the player standing in front of them, and
+	// report the panel as broken.
+	ent := &fakeEntregas{}
+	log := newFakeAudit()
+	post, token := signedInPost(t, newTestPanelEntrega(t, log, newFakeGameData(), ent))
+
+	rec := post("/contas/ana/entregar", url.Values{
+		"csrf": {token}, "item": {"1415"}, "dias": {"30"},
+		"eff0": {"7"}, "effv0": {"42"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(ent.enfileirou) != 1 {
+		t.Fatalf("entregas = %d, want 1", len(ent.enfileirou))
+	}
+	got := ent.enfileirou[0]
+	if got.Index != 1415 || got.Dias != 30 || got.Eff[0] != [2]uint8{7, 42} {
+		t.Errorf("entregou %+v, want item 1415 por 30 dias com efeito 7/42", got)
+	}
+	if len(ent.paraConta) != 1 || ent.paraConta[0] != 7 {
+		t.Errorf("entregou para a conta %v, want a do caminho", ent.paraConta)
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(loc, "próximo login") {
+		t.Errorf("o aviso não diz que só chega no próximo login: %q", loc)
+	}
+	if len(log.recorded()) != 1 {
+		t.Error("a entrega não foi auditada")
+	}
+}
+
+func TestEntregaRecusaItemForaDoCatalogo(t *testing.T) {
+	// The mailbox would accept any number and the game would then try to
+	// materialize an item that is not in ItemList.csv.
+	ent := &fakeEntregas{}
+	post, token := signedInPost(t, newTestPanelEntrega(t, newFakeAudit(), newFakeGameData(), ent))
+
+	rec := post("/contas/ana/entregar", url.Values{"csrf": {token}, "item": {"999999"}})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "catálogo") {
+		t.Errorf("a mensagem não explica o problema: %q", rec.Body.String())
+	}
+	if len(ent.enfileirou) != 0 {
+		t.Fatal("um item inexistente ainda assim entrou na fila")
+	}
+}
+
+func TestEntregaRecusaCamposInvalidos(t *testing.T) {
+	ent := &fakeEntregas{}
+	post, token := signedInPost(t, newTestPanelEntrega(t, newFakeAudit(), newFakeGameData(), ent))
+
+	for _, f := range []url.Values{
+		{"csrf": {token}},                                     // sem item
+		{"csrf": {token}, "item": {"0"}},                      // índice zero
+		{"csrf": {token}, "item": {"abc"}},                    // ilegível
+		{"csrf": {token}, "item": {"1415"}, "dias": {"-1"}},   // prazo negativo
+		{"csrf": {token}, "item": {"1415"}, "eff0": {"300"}},  // efeito acima de 255
+		{"csrf": {token}, "item": {"1415"}, "effv0": {"300"}}, // valor acima de 255
+	} {
+		if rec := post("/contas/ana/entregar", f); rec.Code != http.StatusBadRequest {
+			t.Errorf("%v: status = %d, want 400", f, rec.Code)
+		}
+	}
+	if len(ent.enfileirou) != 0 {
+		t.Fatal("um formulário recusado ainda assim entregou")
+	}
+}
+
+func TestEntregaPrecisaDoCSRF(t *testing.T) {
+	ent := &fakeEntregas{}
+	post, _ := signedInPost(t, newTestPanelEntrega(t, newFakeAudit(), newFakeGameData(), ent))
+	if rec := post("/contas/ana/entregar", url.Values{"item": {"1415"}}); rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	if len(ent.enfileirou) != 0 {
+		t.Fatal("uma requisição sem o token entregou")
+	}
+}
+
+func TestFilaApareceNaPaginaDaConta(t *testing.T) {
+	ent := &fakeEntregas{fila: []entrega.Pendente{
+		{ID: 3, ItemIndex: 1415, Eff: [3][2]uint8{{7, 42}}, CriadoEm: time.Now(), Origem: "painel:1"},
+	}}
+	get := signedIn(t, newTestPanelEntrega(t, newFakeAudit(), newFakeGameData(), ent))
+	body := get("/contas/ana").Body.String()
+
+	for _, want := range []string{"Entregar item", "Na fila", "1415", "7/42", "permanente"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a página da conta não traz %q", want)
+		}
+	}
+	if !strings.Contains(body, `action="/contas/ana/entregas/3/cancelar"`) {
+		t.Error("a fila não oferece o botão de cancelar")
+	}
+}
+
+func TestCancelarEntregaChamaOServicoEAudita(t *testing.T) {
+	ent := &fakeEntregas{}
+	log := newFakeAudit()
+	post, token := signedInPost(t, newTestPanelEntrega(t, log, newFakeGameData(), ent))
+
+	rec := post("/contas/ana/entregas/3/cancelar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(ent.cancelou) != 1 || ent.cancelou[0] != 3 {
+		t.Fatalf("cancelou %v, want a entrega do caminho (3)", ent.cancelou)
+	}
+	if len(log.recorded()) != 1 {
+		t.Error("o cancelamento não foi auditado")
+	}
+}
+
+func TestCancelarItemJaEntregueExplicaOPorque(t *testing.T) {
+	// A button that silently does nothing is worse than one that says why.
+	ent := &fakeEntregas{erroCancel: entrega.ErrJaEntregue}
+	post, token := signedInPost(t, newTestPanelEntrega(t, newFakeAudit(), newFakeGameData(), ent))
+
+	rec := post("/contas/ana/entregas/3/cancelar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "já recebeu") {
+		t.Errorf("a mensagem não explica: %q", rec.Body.String())
+	}
+}
+
+func TestEntregaSomeSemAFilaConfigurada(t *testing.T) {
+	// The panel has to run standalone; without the mailbox the controls are
+	// hidden rather than shown and then failing.
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	if strings.Contains(get("/contas/ana").Body.String(), "Entregar item") {
+		t.Error("a página oferece entregar item sem a fila configurada")
+	}
+	post, token := signedInPost(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	if rec := post("/contas/ana/entregar", url.Values{"csrf": {token}, "item": {"1415"}}); rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 sem a fila", rec.Code)
 	}
 }
