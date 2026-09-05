@@ -143,12 +143,13 @@ type World struct {
 
 	sessions []*Session    // index = conn ∈ [0, MaxUser)
 	entities []*Entity     // index space shared with players (domain-model.md §1)
-	// nextMobSlot is where the next mob-id search starts, so ids are handed out
-	// in rotation instead of always reusing the lowest free slot. See SpawnMobAt.
-	nextMobSlot int
 	ground   []*GroundItem // pItem[]: items on the floor, index ∈ [1, MaxItem)
 	grid     *Grid
 	rng      *rng.MSVC // loop-owned MSVC LCG (parity; like the original global rand())
+
+	// nextMobSlot is where the next mob-id search starts, so ids are handed out
+	// in rotation instead of always reusing the lowest free slot. See SpawnMobAt.
+	nextMobSlot int
 
 	// cargo is the account-shared warehouse, keyed by account id. It is loaded on
 	// account login and lives for the whole account session (it spans character
