@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/binary"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
@@ -299,6 +300,15 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		// equip/unequip recomputes (refreshScore) reflect gear changes without double-
 		// counting the gear already baked into the stored CurrentScore.
 		d.deriveBaseScore(e)
+		// ScoreBonus is re-derived here for the same reason SkillBonus is, and from
+		// the same place in the legacy: ProcessDBMessage.cpp:816-817 calls
+		// BASE_GetBonusSkillPoint AND BASE_GetBonusScorePoint side by side when a
+		// character loads. Only the skill half was ported, so the stored grant was
+		// simply trusted — a character whose points were computed by an older or
+		// wrong formula kept the wrong number forever, with no way to repair it
+		// short of gaining a level. It runs after deriveBaseScore because it reads
+		// the equipment-free attributes that call establishes.
+		e.ScoreBonus = uint16(level.ScoreBonus(scoreBonusInput(e)))
 		// Re-apply a still-active Divine buff from the persisted deadline (the buff is
 		// read-time, so this doesn't affect the base just derived). Expired → dropped.
 		if st.DivineEnd > time.Now().Unix() {
