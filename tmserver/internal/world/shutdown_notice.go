@@ -23,13 +23,14 @@ const shutdownNotice = "O servidor esta sendo reiniciado. Voce sera desconectado
 // on it, and the alternative (returning immediately) would close the sockets
 // before the frame left the process.
 func (w *World) announceShutdown() {
-	payload := append(protocol.ClientText(shutdownNotice), 0) // NUL-terminated chat line
+	// SendNotice (SendFunc.cpp:139): the message panel, to everyone in world.
+	// HEADER.ID is ZERO — the id names who said the line, so the receiver's own
+	// conn made the client attribute the restart warning to the player reading it
+	// ("[Nick]> O servidor esta sendo reiniciado"). Zero means the server.
+	payload := protocol.EncodeMessagePanelBody(shutdownNotice)
 	sent := 0
 	w.ForEachPlaying(-1, func(s *Session, _ *Entity) {
-		// HEADER.ID = the receiver's own conn: the client renders the line as
-		// coming from the server rather than from another player, the same shape
-		// /gm notice uses.
-		w.SendTo(s, protocol.Header{Type: protocol.MsgMessageChat, ID: uint16(s.Conn)}, payload)
+		w.SendTo(s, protocol.Header{Type: protocol.MsgMessagePanel, ID: 0}, payload)
 		sent++
 	})
 	if sent == 0 {

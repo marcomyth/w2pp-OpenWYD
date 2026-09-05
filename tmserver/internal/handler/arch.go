@@ -95,11 +95,16 @@ func subBonus(pool uint16, n int32) uint16 {
 // every "here is what just happened" line — including the Lindy unlock's
 // _NN_Processing_Complete — and this port had the opcode but never a payload
 // encoder, so nothing the server said ever reached the player.
+// HEADER.ID is ZERO, not the receiver's conn (SendFunc.cpp:34, `sm_mp.ID = 0`).
+// The id is how the client decides who said a line: sending the player's own
+// conn makes their own name the source, which is why server text arrived looking
+// like the player had typed it ("[Nick]> O servidor esta sendo reiniciado").
+// Zero means "the server".
 func sendClientMessage(w *world.World, s *world.Session, text string) {
 	if s == nil || text == "" {
 		return
 	}
-	w.Send(s, protocol.MsgMessagePanel, protocol.EncodeMessagePanelBody(text))
+	w.SendTo(s, protocol.Header{Type: protocol.MsgMessagePanel, ID: 0}, protocol.EncodeMessagePanelBody(text))
 }
 
 // msgProcessingComplete is _NN_Processing_Complete (Language.txt:158), the line

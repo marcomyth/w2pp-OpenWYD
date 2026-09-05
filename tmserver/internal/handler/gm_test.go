@@ -121,7 +121,9 @@ func TestGMSetLevel(t *testing.T) {
 	}
 }
 
-// TestGMNotice verifies /gm notice reaches every player as a chat line, prefixed.
+// TestGMNotice verifies /gm notice reaches every player as a SERVER line, not as
+// something a player said: SendNotice is SendClientMessage in a loop
+// (SendFunc.cpp:139), so it is the message panel, and HEADER.ID is zero.
 func TestGMNotice(t *testing.T) {
 	addr, stop, _ := startServerClock(t, gmDB())
 	defer stop()
@@ -131,8 +133,14 @@ func TestGMNotice(t *testing.T) {
 	defer other.Close()
 
 	gmFrame(t, mod, "notice server restarting")
-	p := expect(t, other, protocol.MsgMessageChat)
-	if got := cstr(p); got != "[GM] server restarting" {
+	h, p, ok := expectHeader(t, other, protocol.MsgMessagePanel)
+	if !ok {
+		t.Fatal("no MSG_MessagePanel reached the other player")
+	}
+	if h.ID != 0 {
+		t.Errorf("HEADER.ID = %d, want 0 (the line is from the server, not a player)", h.ID)
+	}
+	if got := decodePanel(p); got != "[GM] server restarting" {
 		t.Errorf("notice text = %q, want %q", got, "[GM] server restarting")
 	}
 }
