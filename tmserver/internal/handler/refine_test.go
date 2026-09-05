@@ -547,7 +547,7 @@ func TestRefineFailEmotionDependsOnFace(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := uint16(motionRefineFailBare)
+			got := motionRefineFailBare
 			if tt.equip/10 != 0 {
 				got = motionRefineFailFaced
 			}
