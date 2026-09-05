@@ -1063,6 +1063,9 @@ type fakeGameData struct {
 	itemCleared  []int32
 	itemStatErr  error
 	itemWriteErr error
+	drops        []gamedata.Drop
+	dropsPedidos [][2]string
+	dropsErr     error
 }
 
 func newFakeGameData() *fakeGameData {
@@ -1092,6 +1095,17 @@ func newFakeGameData() *fakeGameData {
 				valores: map[string]int64{"level": 10, "exp": 5000, "resist1": 7},
 			},
 			"Mercador": {valores: map[string]int64{"level": 1}},
+		},
+		drops: []gamedata.Drop{
+			{ItemIndex: 2000, ItemName: "Espada Longa", Mobs: []gamedata.DropMob{
+				// Divisor 36 is a common slot on a low-level mob: the case where the
+				// raw table (900) is off by twenty-five times.
+				{TemplateName: "Kentania", MobName: "Kentania", MobLevel: 5, Slot: 0, Divisor: 36},
+			}},
+			{ItemIndex: 1415, ItemName: "Poção", Mobs: []gamedata.DropMob{
+				// Slot 11 is the hard override: guaranteed, whatever the table says.
+				{TemplateName: "Kentania", MobName: "Kentania", MobLevel: 5, Slot: 11, Divisor: 1},
+			}},
 		},
 		itemRows: map[int32]itemRow{
 			// A weapon carrying one of each kind of number: a stat the editor is
@@ -2252,5 +2266,108 @@ func TestAtributosDeItemSomemSemWebServer(t *testing.T) {
 	get := signedIn(t, newTestPanel(t, withTarget(roleAdmin)))
 	if rec := get("/itens/2000/atributos"); rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404 sem webServer", rec.Code)
+	}
+}
+
+// --- drops ---
+
+func (f *fakeGameData) Drops(_ context.Context, _ int64, item, mob string) ([]gamedata.Drop, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.dropsErr != nil {
+		return nil, f.dropsErr
+	}
+	f.dropsPedidos = append(f.dropsPedidos, [2]string{item, mob})
+	return f.drops, nil
+}
+
+func TestDropsPedeUmFiltroAntesDeListar(t *testing.T) {
+	// Unfiltered, the report is the whole catalog crossed with every mob
+	// template. Asking for a term is cheaper than rendering and truncating it.
+	game := newFakeGameData()
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), game))
+
+	body := get("/drops").Body.String()
+	if !strings.Contains(body, "Busque por um item") {
+		t.Errorf("a página sem filtro não pede uma busca: %q", body)
+	}
+	if len(game.dropsPedidos) != 0 {
+		t.Error("a página sem filtro ainda assim consultou o webServer")
+	}
+}
+
+func TestDropsMostraChanceEMortes(t *testing.T) {
+	game := newFakeGameData()
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), game))
+	body := get("/drops?item=espada").Body.String()
+
+	for _, want := range []string{
+		"Espada Longa",
+		"Kentania",
+		"2.78%", // divisor 36
+		">36<",  // mortes até cair
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a página de drops não traz %q", want)
+		}
+	}
+	if len(game.dropsPedidos) != 1 || game.dropsPedidos[0][0] != "espada" {
+		t.Errorf("consultou %v, want o termo do formulário", game.dropsPedidos)
+	}
+}
+
+func TestDropsMarcaOSlotGarantidoEmVezDePorcentagem(t *testing.T) {
+	// Slot 11 always drops. Printing it as a percentage is the exact mistake the
+	// raw rate table invites, and the one this screen exists to avoid.
+	game := newFakeGameData()
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), game))
+	body := get("/drops?item=poção").Body.String()
+
+	if !strings.Contains(body, "sempre cai") {
+		t.Error("o slot garantido não foi marcado")
+	}
+	if strings.Contains(body, "0.111%") {
+		t.Error("o slot garantido foi impresso como uma raridade")
+	}
+}
+
+func TestDropsAvisaQueONivelDoMonstroConta(t *testing.T) {
+	// Without this the numbers look like a property of the slot, and a moderator
+	// comparing two mobs would not understand why they differ.
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	body := get("/drops").Body.String()
+	if !strings.Contains(body, "nível do monstro") {
+		t.Error("a página não explica que a chance depende do nível do monstro")
+	}
+	if !strings.Contains(body, "slot 11 sempre cai") {
+		t.Error("a página não avisa do slot garantido")
+	}
+}
+
+func TestDropsBuscaTambemPorMonstro(t *testing.T) {
+	game := newFakeGameData()
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), game))
+	if rec := get("/drops?mob=kentania"); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if len(game.dropsPedidos) != 1 || game.dropsPedidos[0][1] != "kentania" {
+		t.Errorf("consultou %v, want o nome do monstro", game.dropsPedidos)
+	}
+}
+
+func TestDropsSomemSemWebServer(t *testing.T) {
+	get := signedIn(t, newTestPanel(t, withTarget(roleAdmin)))
+	if rec := get("/drops"); rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 sem webServer", rec.Code)
+	}
+	if strings.Contains(get("/").Body.String(), `href="/drops"`) {
+		t.Error("o menu oferece um link para uma página que não existe")
+	}
+}
+
+func TestDropsNoMenuComWebServer(t *testing.T) {
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	if !strings.Contains(get("/").Body.String(), `href="/drops"`) {
+		t.Error("o menu não oferece a página de drops")
 	}
 }

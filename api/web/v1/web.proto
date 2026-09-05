@@ -365,6 +365,17 @@ message DropItemMob {
   int32 mob_level = 3;      // STRUCT_MOB.CurrentScore.Level
   int32 slot = 4;           // Carry[] slot; controls the base drop divisor
   int32 rate_divisor = 5;   // g_pDropRate[slot]; larger means rarer
+  // effective_divisor is the number the game actually rolls against for this
+  // mob and slot: one kill in effective_divisor drops the item, so the chance is
+  // 100/effective_divisor per cent.
+  //
+  // rate_divisor is the raw table value and is NOT the chance. The mob level
+  // scales it, and four Carry slots are hard overrides — slot 11 is guaranteed,
+  // where the table alone would suggest one kill in four. A UI must show this
+  // field, not that one.
+  //
+  // Computed with a killer drop bonus of 0: the floor every player shares.
+  int32 effective_divisor = 6;
 }
 
 message DropItemEntry {
@@ -391,6 +402,17 @@ message MobDropItem {
   int32 item_index = 2;
   string item_name = 3;
   int32 rate_divisor = 4;  // g_pDropRate[slot]; larger means rarer
+  // effective_divisor is the number the game actually rolls against for this
+  // mob and slot: one kill in effective_divisor drops the item, so the chance is
+  // 100/effective_divisor per cent.
+  //
+  // rate_divisor is the raw table value and is NOT the chance. The mob level
+  // scales it, and four Carry slots are hard overrides — slot 11 is guaranteed,
+  // where the table alone would suggest one kill in four. A UI must show this
+  // field, not that one.
+  //
+  // Computed with a killer drop bonus of 0: the floor every player shares.
+  int32 effective_divisor = 5;
 }
 
 message MobDropEntry {
