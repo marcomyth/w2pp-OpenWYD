@@ -245,7 +245,7 @@ func (d *Dispatcher) gmItem(w *world.World, s *world.Session, rest string) {
 	// is not in this path. Leaving the raw effects would give the player a costume
 	// showing a validity that never arrives; worse, itemToSel re-derives those
 	// three from ExpiresAt on every send, so they would not even survive the trip.
-	if exp, ok := expiryFromEffects(int16(id), effects, time.Now()); ok {
+	if exp, ok := expiryFromEffects(effects, time.Now()); ok {
 		it.Effects = [3]world.Effect{}
 		it.ExpiresAt = exp
 	}
