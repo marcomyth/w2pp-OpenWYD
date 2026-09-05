@@ -282,7 +282,12 @@ func (d *Dispatcher) useWaterScroll(w *world.World, s *world.Session, e *world.E
 		spawnedBlock = waterBossBlock(w.Rand().Intn(10))
 	}
 	spawned := d.populateWaterRoom(w, base+spawnedBlock)
-	created := d.revealSpawned(w, spawned)
+	// Announce a few now and queue the rest (drainWaterReveal). Sending a room's
+	// whole population in one frame is what leaves some of them undrawn.
+	created := d.revealSpawned(w, spawned[:min(len(spawned), waterRevealPerTick)])
+	if len(spawned) > waterRevealPerTick {
+		d.events.waterReveal = append(d.events.waterReveal, spawned[waterRevealPerTick:]...)
+	}
 	// Diagnostic for the invisible-mob reports: `spawned` is what the generator
 	// actually created, `created` how many of those the caller's client was told
 	// about. A gap means the reveal — not the spawn — is dropping them, and the
@@ -366,6 +371,33 @@ func countDistinctVisuals(w *world.World, ids []int) int {
 		seen[sig] = struct{}{}
 	}
 	return len(seen)
+}
+
+// waterRevealPerTick is how many freshly spawned monsters a room announces per
+// tick (1s). A room fills with up to 20 identical mobs at once, and revealing
+// them in a single frame leaves some undrawn on the client: players see the same
+// creature rendered correctly and broken side by side, and a golden hydra whose
+// ten instances came out as three different models. Everything the server sends
+// is provably identical for all of them — same template, same visual codes, and
+// the log confirms every CreateMob leaves — so the divergence is the client
+// failing to load that many models in one frame.
+//
+// This is OUR burst to fix: the legacy never had it. There the rooms started
+// empty and the monsters appeared as the player walked, one at a time. Spreading
+// the announcement restores that pacing without giving up the on-entry spawn.
+const waterRevealPerTick = 4
+
+// drainWaterReveal announces the next slice of queued monsters. Entities already
+// exist in the world from the moment they spawn — this only paces how the
+// clients are told about them.
+func (d *Dispatcher) drainWaterReveal(w *world.World) {
+	if len(d.events.waterReveal) == 0 {
+		return
+	}
+	n := min(len(d.events.waterReveal), waterRevealPerTick)
+	d.revealSpawned(w, d.events.waterReveal[:n])
+	// Drop the drained head, keeping the backing array for the next room.
+	d.events.waterReveal = append(d.events.waterReveal[:0], d.events.waterReveal[n:]...)
 }
 
 // waterBossBlock maps a 0..9 roll to a boss block offset
