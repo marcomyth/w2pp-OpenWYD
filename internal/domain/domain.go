@@ -505,3 +505,86 @@ type AccountSummary struct {
 	Role          string
 	IsBlocked     bool
 }
+
+// ItemStat is a moderator's replacement for one catalog item's static numbers
+// (0023_item_stats): what the item requires to equip, and the base effects it
+// grants while equipped.
+//
+// It replaces the item's whole effect list rather than merging into it. Merging
+// would need a value meaning "not overridden", and 0 cannot be that value — 0 is
+// a legitimate setting for every field here. Replacing keeps the rule sayable in
+// one sentence, at the cost of the editor having to seed a new override from
+// Release/Common/ItemList.csv, which the webServer does because it is the only
+// service that mounts the content tree.
+//
+// That is also why the identity-ish fields at the bottom are carried. Nobody
+// balances a server by editing WType, but the effect list holds it, and dropping
+// it on save would strip a weapon of its type the first time somebody raised its
+// damage.
+//
+// Every field is int16 because STRUCT_EFFECT carries an int16 value; a wider
+// type would only let the panel store a number the loader then truncates.
+//
+// Applied ONCE at boot, like MobTemplateStat: these numbers feed the equip score
+// model, which is recomputed per character, so a live swap would leave two
+// players wearing the same item with different stats until each recomputed.
+type ItemStat struct {
+	ItemIndex int32
+
+	// Requirement to equip: ItemList.csv column 3, "Lvl.Str.Int.Dex.Con".
+	ReqLevel int16
+	ReqStr   int16
+	ReqInt   int16
+	ReqDex   int16
+	ReqCon   int16
+
+	// Combat
+	Damage    int16
+	DamageAdd int16
+	AC        int16
+	ACAdd     int16
+	Magic     int16
+	MagicAdd  int16
+	Critical  int16
+	Critical2 int16
+	RunSpeed  int16
+
+	// Attributes
+	Str int16
+	Int int16
+	Dex int16
+	Con int16
+
+	// Life
+	Hp     int16
+	HpAdd  int16
+	HpAdd2 int16
+	Mp     int16
+	MpAdd  int16
+	MpAdd2 int16
+
+	// Resistances
+	Resist1   int16
+	Resist2   int16
+	Resist3   int16
+	Resist4   int16
+	ResistAll int16
+
+	// Masteries
+	Special1   int16
+	Special2   int16
+	Special3   int16
+	Special4   int16
+	SpecialAll int16
+
+	// Identity and mechanics — carried, not balanced. See the note above.
+	ItemLevel int16
+	ItemType  int16
+	MobType   int16
+	WType     int16
+	Pos       int16
+	Sanc      int16
+	NoSanc    int16
+	Incubate  int16
+	IncuDelay int16
+}
