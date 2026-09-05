@@ -3,7 +3,6 @@ package handler
 import (
 	"fmt"
 
-	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -83,7 +82,19 @@ func (d *Dispatcher) sendWelcome(w *world.World, s *world.Session) {
 		NewbieEvent: d.expEvents.NewbieEvent,
 		KefraLive:   d.expEvents.KefraLive,
 	}
-	// HEADER.ID is zero for the same reason every other server line carries zero:
-	// the id names the speaker, and this is the server talking (SendFunc.cpp:34).
-	w.SendTo(s, protocol.Header{Type: protocol.MsgMessageBoxOk, ID: 0}, protocol.EncodeMessageBoxBody(welcomeText(e.Name, ev)))
+	// The message panel, NOT MSG_MessageBoxOk.
+	//
+	// The box was the obvious fit — it stays until dismissed, where the panel
+	// scrolls away with chat — and its layout is in Basedef.h:1535, so the frame
+	// was correct. The client disagreed: a capture shows 25 MALFORMED boxes (the
+	// 4-byte notify placeholder) passing harmlessly through a 594-frame session,
+	// and then a single WELL-FORMED one as the last frame before the client closed
+	// the socket. It ignores the frame it cannot parse and dies on the one it can,
+	// which points at what the box DOES — a modal, raised while the world is still
+	// being built — rather than at the bytes.
+	//
+	// So the greeting rides the channel that demonstrably works. Making it stay on
+	// screen needs a different mechanism, and one confirmed against the client
+	// before it goes near the login path again.
+	sendClientMessage(w, s, welcomeText(e.Name, ev))
 }
