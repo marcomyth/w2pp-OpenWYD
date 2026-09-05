@@ -160,3 +160,45 @@ func TestDownlevelArchNoopAtQuestLevel(t *testing.T) {
 		t.Errorf("downlevelArch mutated a character already at the quest level")
 	}
 }
+
+// The level-370 cape bonus is a SERVER RULE, not parity: the original grants
+// nothing for that unlock. The resistance half is derived from the persisted
+// flag, which is what makes it survive a relog — Resist itself has no base term
+// to store it in.
+func TestArchCape370Resist(t *testing.T) {
+	tests := []struct {
+		name        string
+		classMaster uint8
+		lv370       uint8
+		want        int16
+	}{
+		{"arch with the unlock done", classMasterArch, 1, archCape370Resist},
+		{"arch without it", classMasterArch, 0, 0},
+		{"mortal never gets it", classMasterMortal, 1, 0},
+		{"celestial never gets it", classMasterCelestial, 1, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &world.Entity{ClassMaster: tt.classMaster, ArchLv370: tt.lv370}
+			if got := archCapeResist(e); got != tt.want {
+				t.Errorf("archCapeResist() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// The bonus has to be there on a character loaded fresh from the database, with
+// no hand-in happening in this session — that is the relog case.
+func TestArchCape370ResistSurvivesRelog(t *testing.T) {
+	d, w, e := mobKilledWorld(t)
+	e.ClassMaster = classMasterArch
+	e.Level = 369
+	e.ArchLv370 = 1 // as it comes back from the DB
+	d.refreshScore(e)
+	for i, got := range e.Resist {
+		if got != archCape370Resist {
+			t.Errorf("Resist[%d] = %d, want %d — the cape bonus vanished on reload", i, got, archCape370Resist)
+		}
+	}
+	_ = w
+}

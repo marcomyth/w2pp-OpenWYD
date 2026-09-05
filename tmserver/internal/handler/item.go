@@ -2258,7 +2258,7 @@ func (d *Dispatcher) refreshScore(e *world.Entity) {
 		e.Magic = clampInt16(mountMagicScore(b.magicRaw) + d.classWeaponMagic(e))
 		e.Parry = int(b.parry)
 		for i := range e.Resist {
-			e.Resist[i] = clampResist(int16(b.resist) + int16(b.itemResist[i]))
+			e.Resist[i] = clampResist(int16(b.resist) + int16(b.itemResist[i]) + archCapeResist(e))
 		}
 	}
 	d.applyAffectScore(e)

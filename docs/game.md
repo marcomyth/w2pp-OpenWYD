@@ -86,6 +86,15 @@ posicional, nos 7 primeiros espaços da composição e nesta ordem exata:
 O destrave do 355 entrega a capa do reino (Hekalotia, Akelonia ou Aventureiros,
 conforme o clã); o do 370 consome 1 de Fama e exige Fama > 0.
 
+**Bônus da capa no 370 — regra deste servidor, não do legado.** Concluir o
+destrave do 370 dá **+120 de HP base** e **+8 de resistência** nos quatro
+elementos (Sagrado, Trovão, Fogo e Gelo). O servidor original não dá nada nesse
+destrave: a flag `QuestInfo.Arch.Level370` é lida em apenas três lugares, todos
+travas de nível ou de experiência. A divergência é deliberada — a quest custa 1
+de Fama e segura a progressão até ser feita, então deixa algo em troca. O HP
+fica no BaseScore (persiste pelo MaxHp); a resistência é derivada da flag a cada
+login, porque Resist não tem termo base onde pudesse ser guardada.
+
 Se o personagem passou do nível sem ter feito o destrave (possível em contas
 antigas, antes do gate de experiência existir), a NPC ainda aceita a receita —
 mas o personagem **volta para o nível da quest**, perdendo os níveis ganhos

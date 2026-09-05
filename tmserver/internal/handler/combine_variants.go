@@ -224,6 +224,12 @@ func (d *Dispatcher) combineItemLindy(w *world.World, s *world.Session, _ protoc
 	} else {
 		e.ArchLv370 = 1
 		e.Fame--
+		// The cape reward (server rule — see archCape370HP). The HP lands on the
+		// BaseScore so it persists through MaxHp; the resistance half is derived
+		// from the flag by archCapeResist, so nothing to do for it here.
+		e.BaseMaxHP = addClamp(e.BaseMaxHP, archCape370HP, level.MaxHPCap)
+		d.refreshScore(e)
+		d.sendScore(w, s, e)
 	}
 	if stranded > 0 {
 		d.downlevelArch(e, questLevel)

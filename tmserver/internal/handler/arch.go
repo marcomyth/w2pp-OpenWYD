@@ -105,3 +105,29 @@ func sendClientMessage(w *world.World, s *world.Session, text string) {
 // from the string table because nothing else in this port loads Language.txt
 // yet; the text is copied verbatim from the shipped file.
 const msgProcessingComplete = "Processo de combinação foi concluído."
+
+// The reward for the level-370 unlock. SERVER RULE, NOT PARITY: the original
+// grants nothing here — QuestInfo.Arch.Level370 is read in exactly three places
+// (CMob.cpp:1110, GetFunc.cpp:1035 and the Lindy handler), all of them gates. A
+// quest that costs a point of Fame and holds the character's progression
+// hostage until it is done deserves to leave something behind, so this server
+// attaches a cape bonus to it.
+const (
+	archCape370HP     int32 = 120
+	archCape370Resist int16 = 8
+)
+
+// archCapeResist is the resistance the level-370 cape carries, added to all four
+// elements. It is DERIVED from the persisted quest flag rather than stored,
+// because Resist has no base term at all — refreshScore builds it purely from
+// equipment (the legacy has no base term either). Deriving keeps that true while
+// still surviving a relog, the same trick playerBaseAC uses for the crystals.
+//
+// The HP half needs none of this: it lands on BaseMaxHP at hand-in time and
+// rides the persisted MaxHp.
+func archCapeResist(e *world.Entity) int16 {
+	if e.ClassMaster == classMasterArch && e.ArchLv370 != 0 {
+		return archCape370Resist
+	}
+	return 0
+}
