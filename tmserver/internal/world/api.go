@@ -92,8 +92,23 @@ func (w *World) SpawnMob(template []byte, x, y int16) int {
 // via the tick).
 func (w *World) SpawnMobAt(sp MobSpawn) int {
 	template, x, y := sp.Template, sp.X, sp.Y
+	// Hand out the NEXT free slot rather than the lowest one, so a freed id goes
+	// cold before it comes back. A mob id is the handle the client keys its own
+	// entity table on, and it holds that entry past our RemoveMob; told to create
+	// a new mob under an id it still believes in, it keeps the old model and only
+	// moves it. Lowest-free made that certain instead of unlikely: an instance
+	// room frees its twenty slots and the next room is handed the same twenty,
+	// every time — which is why a water room came out wearing the previous room's
+	// monsters, Troll Ghouls drawn as the Dark Elves before them, and why the
+	// FIRST room of a run always looked right. 24000 slots means an id sits out
+	// more than a thousand rooms before its turn returns.
+	span := MaxMob - MaxUser
+	if w.nextMobSlot < MaxUser || w.nextMobSlot >= MaxMob {
+		w.nextMobSlot = MaxUser
+	}
 	id := -1
-	for i := MaxUser; i < MaxMob; i++ {
+	for n := 0; n < span; n++ {
+		i := MaxUser + (w.nextMobSlot-MaxUser+n)%span
 		if w.entities[i] == nil {
 			id = i
 			break
@@ -102,6 +117,7 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 	if id < 0 {
 		return -1
 	}
+	w.nextMobSlot = MaxUser + (id-MaxUser+1)%span
 	b := protocol.ParseMobBasics(template)
 	e := &Entity{
 		ID: id, Mode: MobIdle, Name: b.Name, Clan: b.Clan, Class: b.Class, Merchant: b.Merchant,
