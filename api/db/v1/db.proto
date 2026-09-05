@@ -481,6 +481,14 @@ service NpcConfigService {
   // there is no hot-reload for this feature (EDITAPPMOB itself required a
   // server restart too).
   rpc ListMobTemplateStats(ListMobTemplateStatsRequest) returns (ListMobTemplateStatsResponse);
+  // ListItemStats returns every moderator-edited item base stat override
+  // (0023_item_stats), the item-side sibling of ListMobTemplateStats. Applied
+  // by tmServer once at boot for the same reason: these numbers feed the equip
+  // score model, which is recomputed per character, so a live swap would leave
+  // two players wearing the same item with different stats. Unlike the price
+  // overrides in ListNpcDefinitions, which are read at the moment of a shop
+  // transaction and hot-reload safely.
+  rpc ListItemStats(ListItemStatsRequest) returns (ListItemStatsResponse);
 }
 
 message NpcConfigVersionRequest {}
@@ -645,4 +653,64 @@ message MobTemplateStat {
   int32 resist3 = 38;
   int32 resist4 = 39;
   repeated MobTemplateEquipItem equip = 40;
+}
+
+message ListItemStatsRequest {}
+message ListItemStatsResponse {
+  repeated ItemStat overrides = 1;
+}
+
+// ItemStat replaces one catalog item's static numbers: what it requires to
+// equip, and the base effects it grants while equipped. It is the whole effect
+// list, not a patch over it — merging would need a value meaning "not
+// overridden", and 0 is a legitimate setting for every field here.
+//
+// Values are int32 on the wire but int16 in the game: STRUCT_EFFECT carries an
+// int16, and the loader narrows regardless. proto3 has no 16-bit scalar, so the
+// narrowing lives in the client rather than the contract.
+message ItemStat {
+  int32 item_index = 1;
+  int32 req_level = 2;  // requirement to equip: ItemList.csv "Lvl.Str.Int.Dex.Con"
+  int32 req_str = 3;
+  int32 req_int = 4;
+  int32 req_dex = 5;
+  int32 req_con = 6;
+  int32 damage = 7;  // combat
+  int32 damageadd = 8;
+  int32 ac = 9;
+  int32 acadd = 10;
+  int32 magic = 11;
+  int32 magicadd = 12;
+  int32 critical = 13;
+  int32 critical2 = 14;
+  int32 runspeed = 15;
+  int32 str = 16;  // attributes
+  int32 intel = 17;  // "int" is reserved in several targets
+  int32 dex = 18;
+  int32 con = 19;
+  int32 hp = 20;  // life
+  int32 hpadd = 21;
+  int32 hpadd2 = 22;
+  int32 mp = 23;
+  int32 mpadd = 24;
+  int32 mpadd2 = 25;
+  int32 resist1 = 26;  // resistances
+  int32 resist2 = 27;
+  int32 resist3 = 28;
+  int32 resist4 = 29;
+  int32 resistall = 30;
+  int32 special1 = 31;  // masteries
+  int32 special2 = 32;
+  int32 special3 = 33;
+  int32 special4 = 34;
+  int32 specialall = 35;
+  int32 itemlevel = 36;  // identity and mechanics — carried, not balanced
+  int32 itemtype = 37;
+  int32 mobtype = 38;
+  int32 wtype = 39;
+  int32 pos = 40;
+  int32 sanc = 41;
+  int32 nosanc = 42;
+  int32 incubate = 43;
+  int32 incudelay = 44;
 }

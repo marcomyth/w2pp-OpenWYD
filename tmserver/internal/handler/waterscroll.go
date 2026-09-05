@@ -278,14 +278,10 @@ func (d *Dispatcher) useWaterScroll(w *world.World, s *world.Session, e *world.E
 	// four blocks with the legacy's weights: 40% +8, 10% +9, 10% +10, 40% +11.
 	base := waterVariants[variant].genBase
 	spawnedBlock := room
-	var spawned []int
-	if room < waterDeadRoom {
-		spawned = append(spawned, w.GenerateMob(base+room)...)
-		spawned = append(spawned, w.GenerateMob(base+room)...)
-	} else {
+	if room >= waterDeadRoom {
 		spawnedBlock = waterBossBlock(w.Rand().Intn(10))
-		spawned = append(spawned, w.GenerateMob(base+spawnedBlock)...)
 	}
+	spawned := d.populateWaterRoom(w, base+spawnedBlock)
 	created := d.revealSpawned(w, spawned)
 	// Diagnostic for the invisible-mob reports: `spawned` is what the generator
 	// actually created, `created` how many of those the caller's client was told
@@ -305,6 +301,44 @@ func (d *Dispatcher) useWaterScroll(w *world.World, s *world.Session, e *world.E
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 	d.log.Info("water scroll used",
 		"account", s.AccountName, "variant", variant, "room", room, "countdown", countdown)
+}
+
+// waterRoomMobCap is the population a room is filled to. The shipped generator
+// blocks disagree wildly — MaxNumMob is 8 on the Aqua Golem room, 24 on most and
+// 38 on the Troll Ghoul one — which made a run's difficulty depend on which room
+// you opened. One cap for every room, every chain.
+const waterRoomMobCap = 20
+
+// populateWaterRoom gives a room its monsters for one run.
+//
+// It CLEARS the block first. Without that, a run whose timer expired leaves its
+// monsters alive forever (ClearAreaTeleport only moves players), the block stays
+// at MaxNumMob, and the next GenerateMob returns nothing — the room opens empty.
+// That single leak explained every population symptom: rooms starting at 24, at
+// 15, at 25, or at zero; leftovers standing where nobody could reach them; and
+// stale entity ids the client had already drawn as a different monster.
+//
+// GenerateMob spawns a whole group at a time, so the last batch can overshoot
+// the cap; the surplus is despawned as removeType 1 BEFORE anything is revealed,
+// which is the only path that decrements CurrentNumMob (the clear detection and
+// the on-screen tally both read it). No client ever saw those ids.
+func (d *Dispatcher) populateWaterRoom(w *world.World, block int) []int {
+	w.ClearGenerator(block)
+
+	var ids []int
+	for len(ids) < waterRoomMobCap {
+		batch := w.GenerateMob(block)
+		if len(batch) == 0 {
+			break // block exhausted (MaxNumMob) or the floor is full
+		}
+		ids = append(ids, batch...)
+	}
+	for len(ids) > waterRoomMobCap {
+		last := len(ids) - 1
+		w.DespawnMob(ids[last], 1)
+		ids = ids[:last]
+	}
+	return ids
 }
 
 // waterBossBlock maps a 0..9 roll to a boss block offset
@@ -445,12 +479,17 @@ func waterRoomLabel(room int) string {
 	return fmt.Sprintf("Sala %d", room+1)
 }
 
-// announceWaterRoom sends one chat line to the leader and every online party
-// member. The countdown has its own wire signal (MSG_StartTime) but carries a
-// single number, so the monster tally needs a channel of its own.
+// announceWaterRoom pushes one status line to the leader and every online party
+// member.
+//
+// It uses the notification panel, not chat: routed through sendChatText the
+// tally came out of the player's own mouth, mixed into conversation. The panel
+// is the same channel the EXP gain and the Arch unlock use — the port's only
+// free-text system surface.
 func (d *Dispatcher) announceWaterRoom(w *world.World, leader *world.Entity, text string) {
+	body := protocol.EncodeExpPanelBody(text, expPanelDefaultColor)
 	if ls := w.Session(leader.ID); ls != nil {
-		d.sendChatText(w, ls, text)
+		w.Send(ls, protocol.MsgExpPanel, body)
 	}
 	for i := 0; i < world.MaxParty; i++ {
 		member := leader.PartyList[i]
@@ -458,7 +497,7 @@ func (d *Dispatcher) announceWaterRoom(w *world.World, leader *world.Entity, tex
 			continue
 		}
 		if ms := w.Session(member); ms != nil && ms.Mode == world.UserPlay {
-			d.sendChatText(w, ms, text)
+			w.Send(ms, protocol.MsgExpPanel, body)
 		}
 	}
 }
@@ -530,6 +569,19 @@ func (d *Dispatcher) clearWaterRoom(w *world.World, variant, room int) {
 	// ForEachPlaying is walking.
 	for _, s := range evicted {
 		d.doTeleport(w, s, waterExit[0], waterExit[1])
+	}
+	// Take the monsters with them. The legacy leaves them standing, which is the
+	// leak that filled the block to MaxNumMob and made the next run open into an
+	// empty room — see populateWaterRoom. Entry clears the block too; doing it
+	// here as well keeps abandoned monsters from wandering the dungeon in the
+	// meantime.
+	base := waterVariants[variant].genBase
+	if room < waterDeadRoom {
+		w.ClearGenerator(base + room)
+	} else {
+		for off := waterDeadRoom; off <= 11; off++ {
+			w.ClearGenerator(base + off) // any of the four boss blocks may be live
+		}
 	}
 	if len(evicted) > 0 {
 		d.log.Info("water room expired", "variant", variant, "room", room, "evicted", len(evicted))

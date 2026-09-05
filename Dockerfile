@@ -16,7 +16,12 @@ ARG SVC
 # that pass service variables as build args (Railway, Cloud Build) make this an
 # easy and expensive mistake to repeat once per service.
 RUN test -n "$SVC" || (echo "SVC build-arg is required (one of: tmserver, dbserver, binserver, webserver, adminserver)" >&2 && false)
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/app ./${SVC}/cmd/${SVC}
+# Stamp the build so every service can say which revision is serving. Without a
+# value the binary falls back to the toolchain's VCS stamp; platforms that build
+# from a git checkout should pass GIT_COMMIT/BUILT_AT as build args.
+ARG GIT_COMMIT=""
+ARG BUILT_AT=""
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X github.com/jeanluca/w2pp-openwyd/internal/buildinfo.Commit=${GIT_COMMIT} -X github.com/jeanluca/w2pp-openwyd/internal/buildinfo.BuiltAt=${BUILT_AT}" -o /out/app ./${SVC}/cmd/${SVC}
 
 # Distroless static: minimal, includes CA certs, runs as nonroot.
 FROM gcr.io/distroless/static-debian12:nonroot

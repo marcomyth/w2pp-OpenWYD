@@ -27,6 +27,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/buildinfo"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/binclient"
@@ -34,6 +35,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/dbclient"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/handler"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/itemstat"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/mobstat"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/npccfg"
@@ -106,6 +108,7 @@ func run(logger *slog.Logger) error {
 	contentDir := flag.String("content", os.Getenv("W2PP_CONTENT"), "path to the Release/ content tree (empty = skip; validates rates/catalogs/maps at boot)")
 	npcEditing := flag.Bool("npc-editing", envBool("W2PP_NPC_EDITING", false), "enable the moderator NPC-editing overlay (npc-editing-plan.md); needs -dbserver and -content. OFF by default: turn it on only after `dbserver import-npcs` has seeded npc_definition, else DB-managed merchant NPCs would be skipped from NPCGener.txt with nothing to replace them")
 	mobStatEditing := flag.Bool("mob-stat-editing", envBool("W2PP_MOB_STAT_EDITING", false), "enable the moderator mob/NPC template stat overlay (mob-template-editing-plan.md, the equivalent-tool successor to the legacy EDITAPPMOB); needs -dbserver and -content. Applied ONCE at boot, like every other content load — a moderator edit needs a tmServer restart to take effect (EDITAPPMOB itself required a server restart too), independent of -npc-editing")
+	itemStatEditing := flag.Bool("item-stat-editing", envBool("W2PP_ITEM_STAT_EDITING", false), "enable the moderator item base stat overlay (0023_item_stats): what a catalog item requires to equip and the effects it grants. Needs -dbserver and -content. Applied ONCE at boot like -mob-stat-editing, and for a sharper reason — these numbers feed the equip score model, which is recomputed per character, so a live swap would leave two players wearing the same item with different stats. Independent of -mob-stat-editing")
 	defStatusAddr := os.Getenv("W2PP_STATUS_ADDR")
 	if defStatusAddr == "" {
 		defStatusAddr = ":80"
@@ -130,6 +133,10 @@ func run(logger *slog.Logger) error {
 	// dbServer/binServer addresses are the knobs most often misconfigured in a
 	// container deploy (version-mismatch drops, or "produced zero addresses" when
 	// an internal hostname is wrong), so surface them before anything connects.
+	// Which build is serving. Reading a bug report against the wrong binary has
+	// cost several full test rounds: a fix that looks ineffective is often just
+	// an older container still running. This line makes that checkable.
+	logger.Info("tmserver build", "revision", buildinfo.Revision(), "built", buildinfo.Built())
 	logger.Info("tmserver config",
 		"client_version", *clientVersion,
 		"dbserver", addrOrNone(*dbAddr),
@@ -154,6 +161,7 @@ func run(logger *slog.Logger) error {
 	var heights *content.Grid
 	var sancRate *content.SancRate
 	var compRate *content.CompRate
+	var questRates *content.QuestRates
 	if *contentDir != "" {
 		c, err := loadContent(*contentDir, logger)
 		if err != nil {
@@ -171,6 +179,7 @@ func run(logger *slog.Logger) error {
 		heights = c.heights
 		sancRate = c.sanc
 		compRate = c.comp
+		questRates = c.quests
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -267,6 +276,31 @@ func run(logger *slog.Logger) error {
 		logger.Info("mob template stat overlay enabled (moderator editing)", "overrides", len(mobStatOverrides))
 	}
 
+	// Moderator item base stat overlay (0023_item_stats), the item-side sibling
+	// of the block above and applied at the same moment and for the same kind of
+	// reason: an item's effects feed the equip score model, which is recomputed
+	// per character, so swapping them under a running server would leave two
+	// players wearing the same item with different stats until each happened to
+	// recompute. Item PRICE is the deliberate contrast — it rides the ~15s NPC
+	// config poll and hot-reloads safely, because a price is only read at the
+	// moment of a shop transaction.
+	//
+	// Applied here, over the maps loadContent just built, before the dispatcher
+	// is constructed from them and before anything else can read them.
+	if *itemStatEditing {
+		if dbConn == nil || *contentDir == "" {
+			return fmt.Errorf("-item-stat-editing requires both -dbserver (config source) and -content (the item catalog to override)")
+		}
+		fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		overrides, ferr := dbclient.NewItemStatSource(dbConn).Fetch(fetchCtx)
+		cancel()
+		if ferr != nil {
+			return fmt.Errorf("fetch item stat overrides: %w", ferr)
+		}
+		itemstat.Apply(itemEffects, itemReqs, overrides)
+		logger.Info("item base stat overlay enabled (moderator editing)", "overrides", len(overrides))
+	}
+
 	// Moderator NPC-editing overlay (npc-editing-plan.md): the single switch is
 	// -npc-editing (W2PP_NPC_EDITING), off by default so an unseeded DB never makes
 	// the NPCGener.txt merchants vanish. When on, it MUST have a dbServer (the config
@@ -304,6 +338,7 @@ func run(logger *slog.Logger) error {
 		OdinCatalog:     odinCatalog,
 		CombineCatalog:  odinCatalog,
 		CompRate:        compRate,
+		QuestRates:      questRates,
 		NpcConfig:       npcConfig,
 		WorldEvents:     worldEvents,
 		CastleQuests:    castleQuests,
@@ -624,6 +659,10 @@ func loadContent(dir string, logger *slog.Logger) (*loadedContent, error) {
 	if err != nil {
 		return nil, err
 	}
+	quests, err := content.LoadQuestRates(filepath.Join(dir, "Common", "Settings", "QuestsRate.txt"))
+	if err != nil {
+		return nil, err
+	}
 	items, err := content.LoadItemList(filepath.Join(dir, "Common", "ItemList.csv"))
 	if err != nil {
 		return nil, err
@@ -660,7 +699,7 @@ func loadContent(dir string, logger *slog.Logger) (*loadedContent, error) {
 	} else if hm != nil || attr != nil {
 		logger.Warn("mob pathfinding disabled: need BOTH HeightMap.dat and AttributeMap.dat")
 	}
-	return &loadedContent{items: items, comp: comp, sanc: sanc, skills: skills, heights: heights}, nil
+	return &loadedContent{items: items, comp: comp, sanc: sanc, quests: quests, skills: skills, heights: heights}, nil
 }
 
 // loadedContent is what a mounted Release/ tree yields. It is a struct rather
@@ -669,6 +708,7 @@ type loadedContent struct {
 	items   *content.ItemList
 	comp    *content.CompRate
 	sanc    *content.SancRate
+	quests  *content.QuestRates
 	skills  *content.SkillData
 	heights *content.Grid
 }

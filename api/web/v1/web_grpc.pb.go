@@ -3355,3 +3355,217 @@ var DonateRevenueAdminService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "api/web/v1/web.proto",
 }
+
+const (
+	ItemStatAdminService_GetItemStat_FullMethodName    = "/web.v1.ItemStatAdminService/GetItemStat"
+	ItemStatAdminService_UpsertItemStat_FullMethodName = "/web.v1.ItemStatAdminService/UpsertItemStat"
+	ItemStatAdminService_DeleteItemStat_FullMethodName = "/web.v1.ItemStatAdminService/DeleteItemStat"
+)
+
+// ItemStatAdminServiceClient is the client API for ItemStatAdminService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// ItemStatAdminService is the moderator-facing item base stat editor
+// (0023_item_stats), the item-side sibling of MobTemplateAdminService. It edits
+// cold config in Postgres — what a catalog item requires to equip and the
+// effects it grants — never live game state.
+//
+// The tmServer applies an edit only at its next boot, because these numbers feed
+// the equip score model, which is recomputed per character: swapping them under
+// a running server would leave two players wearing the same item with different
+// stats. Item PRICE, edited through NpcAdminService.SetItemPrice, is the
+// contrast — it hot-reloads within ~15s, because a price is only read at the
+// moment of a shop transaction.
+type ItemStatAdminServiceClient interface {
+	// GetItemStat returns an item's override, or a read-through of the catalog's
+	// own numbers when it has none, so an editor never opens on zeros. Saving a
+	// zeroed form would strip the item, since an override replaces the whole
+	// effect list rather than merging into it.
+	GetItemStat(ctx context.Context, in *GetItemStatRequest, opts ...grpc.CallOption) (*GetItemStatResponse, error)
+	// UpsertItemStat writes the override whole.
+	UpsertItemStat(ctx context.Context, in *UpsertItemStatRequest, opts ...grpc.CallOption) (*AdminAck, error)
+	// DeleteItemStat drops the override so ItemList.csv applies again.
+	DeleteItemStat(ctx context.Context, in *DeleteItemStatRequest, opts ...grpc.CallOption) (*AdminAck, error)
+}
+
+type itemStatAdminServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewItemStatAdminServiceClient(cc grpc.ClientConnInterface) ItemStatAdminServiceClient {
+	return &itemStatAdminServiceClient{cc}
+}
+
+func (c *itemStatAdminServiceClient) GetItemStat(ctx context.Context, in *GetItemStatRequest, opts ...grpc.CallOption) (*GetItemStatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetItemStatResponse)
+	err := c.cc.Invoke(ctx, ItemStatAdminService_GetItemStat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *itemStatAdminServiceClient) UpsertItemStat(ctx context.Context, in *UpsertItemStatRequest, opts ...grpc.CallOption) (*AdminAck, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdminAck)
+	err := c.cc.Invoke(ctx, ItemStatAdminService_UpsertItemStat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *itemStatAdminServiceClient) DeleteItemStat(ctx context.Context, in *DeleteItemStatRequest, opts ...grpc.CallOption) (*AdminAck, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdminAck)
+	err := c.cc.Invoke(ctx, ItemStatAdminService_DeleteItemStat_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ItemStatAdminServiceServer is the server API for ItemStatAdminService service.
+// All implementations must embed UnimplementedItemStatAdminServiceServer
+// for forward compatibility.
+//
+// ItemStatAdminService is the moderator-facing item base stat editor
+// (0023_item_stats), the item-side sibling of MobTemplateAdminService. It edits
+// cold config in Postgres — what a catalog item requires to equip and the
+// effects it grants — never live game state.
+//
+// The tmServer applies an edit only at its next boot, because these numbers feed
+// the equip score model, which is recomputed per character: swapping them under
+// a running server would leave two players wearing the same item with different
+// stats. Item PRICE, edited through NpcAdminService.SetItemPrice, is the
+// contrast — it hot-reloads within ~15s, because a price is only read at the
+// moment of a shop transaction.
+type ItemStatAdminServiceServer interface {
+	// GetItemStat returns an item's override, or a read-through of the catalog's
+	// own numbers when it has none, so an editor never opens on zeros. Saving a
+	// zeroed form would strip the item, since an override replaces the whole
+	// effect list rather than merging into it.
+	GetItemStat(context.Context, *GetItemStatRequest) (*GetItemStatResponse, error)
+	// UpsertItemStat writes the override whole.
+	UpsertItemStat(context.Context, *UpsertItemStatRequest) (*AdminAck, error)
+	// DeleteItemStat drops the override so ItemList.csv applies again.
+	DeleteItemStat(context.Context, *DeleteItemStatRequest) (*AdminAck, error)
+	mustEmbedUnimplementedItemStatAdminServiceServer()
+}
+
+// UnimplementedItemStatAdminServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedItemStatAdminServiceServer struct{}
+
+func (UnimplementedItemStatAdminServiceServer) GetItemStat(context.Context, *GetItemStatRequest) (*GetItemStatResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetItemStat not implemented")
+}
+func (UnimplementedItemStatAdminServiceServer) UpsertItemStat(context.Context, *UpsertItemStatRequest) (*AdminAck, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpsertItemStat not implemented")
+}
+func (UnimplementedItemStatAdminServiceServer) DeleteItemStat(context.Context, *DeleteItemStatRequest) (*AdminAck, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteItemStat not implemented")
+}
+func (UnimplementedItemStatAdminServiceServer) mustEmbedUnimplementedItemStatAdminServiceServer() {}
+func (UnimplementedItemStatAdminServiceServer) testEmbeddedByValue()                              {}
+
+// UnsafeItemStatAdminServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ItemStatAdminServiceServer will
+// result in compilation errors.
+type UnsafeItemStatAdminServiceServer interface {
+	mustEmbedUnimplementedItemStatAdminServiceServer()
+}
+
+func RegisterItemStatAdminServiceServer(s grpc.ServiceRegistrar, srv ItemStatAdminServiceServer) {
+	// If the following call panics, it indicates UnimplementedItemStatAdminServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ItemStatAdminService_ServiceDesc, srv)
+}
+
+func _ItemStatAdminService_GetItemStat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetItemStatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ItemStatAdminServiceServer).GetItemStat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ItemStatAdminService_GetItemStat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ItemStatAdminServiceServer).GetItemStat(ctx, req.(*GetItemStatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ItemStatAdminService_UpsertItemStat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertItemStatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ItemStatAdminServiceServer).UpsertItemStat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ItemStatAdminService_UpsertItemStat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ItemStatAdminServiceServer).UpsertItemStat(ctx, req.(*UpsertItemStatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ItemStatAdminService_DeleteItemStat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteItemStatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ItemStatAdminServiceServer).DeleteItemStat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ItemStatAdminService_DeleteItemStat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ItemStatAdminServiceServer).DeleteItemStat(ctx, req.(*DeleteItemStatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// ItemStatAdminService_ServiceDesc is the grpc.ServiceDesc for ItemStatAdminService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ItemStatAdminService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "web.v1.ItemStatAdminService",
+	HandlerType: (*ItemStatAdminServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetItemStat",
+			Handler:    _ItemStatAdminService_GetItemStat_Handler,
+		},
+		{
+			MethodName: "UpsertItemStat",
+			Handler:    _ItemStatAdminService_UpsertItemStat_Handler,
+		},
+		{
+			MethodName: "DeleteItemStat",
+			Handler:    _ItemStatAdminService_DeleteItemStat_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/web/v1/web.proto",
+}

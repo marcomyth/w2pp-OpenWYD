@@ -286,21 +286,23 @@ func VipActive(until *time.Time) bool {
 
 // --- pendências de reinício ---
 
-// PendingSince reports how many mob/NPC template stat overrides were edited
-// after the given moment, and when the most recent edit was.
+// PendingSince reports how many boot-bound overrides were edited after the
+// given moment, and when the most recent edit was.
 //
-// It counts ONLY that table. NPC definitions, shops and item prices are polled
-// by the tmServer every ~15 seconds and apply live; template stat overrides are
-// read once at boot and there is no hot reload — the code says so, and notes
-// that the legacy EDITAPPMOB behaved the same way. Counting the live ones would
-// make the warning cry wolf, and a warning people learn to ignore is worse than
-// none.
+// It counts the two boot-bound tables and nothing else. NPC definitions, shops
+// and item PRICES are polled by the tmServer every ~15 seconds and apply live;
+// mob template stats and item base stats are read once at boot and there is no
+// hot reload — the code says so, and notes that the legacy EDITAPPMOB behaved
+// the same way. Counting the live ones would make the warning cry wolf, and a
+// warning people learn to ignore is worse than none.
 func (s *Store) PendingSince(ctx context.Context, since time.Time) (n int, last time.Time, err error) {
 	var lastNull *time.Time
 	err = s.pool.QueryRow(ctx, `
-		SELECT count(*), max(updated_at)
-		  FROM mob_template_stat
-		 WHERE updated_at > $1`, since).Scan(&n, &lastNull)
+		SELECT count(*), max(updated_at) FROM (
+			SELECT updated_at FROM mob_template_stat WHERE updated_at > $1
+			UNION ALL
+			SELECT updated_at FROM item_stat WHERE updated_at > $1
+		) AS pendentes`, since).Scan(&n, &lastNull)
 	if err != nil {
 		return 0, time.Time{}, fmt.Errorf("accounts: pending overrides: %w", err)
 	}

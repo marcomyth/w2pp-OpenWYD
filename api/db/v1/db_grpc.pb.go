@@ -1344,6 +1344,7 @@ const (
 	NpcConfigService_NpcConfigVersion_FullMethodName     = "/db.v1.NpcConfigService/NpcConfigVersion"
 	NpcConfigService_ListNpcDefinitions_FullMethodName   = "/db.v1.NpcConfigService/ListNpcDefinitions"
 	NpcConfigService_ListMobTemplateStats_FullMethodName = "/db.v1.NpcConfigService/ListMobTemplateStats"
+	NpcConfigService_ListItemStats_FullMethodName        = "/db.v1.NpcConfigService/ListItemStats"
 )
 
 // NpcConfigServiceClient is the client API for NpcConfigService service.
@@ -1369,6 +1370,14 @@ type NpcConfigServiceClient interface {
 	// there is no hot-reload for this feature (EDITAPPMOB itself required a
 	// server restart too).
 	ListMobTemplateStats(ctx context.Context, in *ListMobTemplateStatsRequest, opts ...grpc.CallOption) (*ListMobTemplateStatsResponse, error)
+	// ListItemStats returns every moderator-edited item base stat override
+	// (0023_item_stats), the item-side sibling of ListMobTemplateStats. Applied
+	// by tmServer once at boot for the same reason: these numbers feed the equip
+	// score model, which is recomputed per character, so a live swap would leave
+	// two players wearing the same item with different stats. Unlike the price
+	// overrides in ListNpcDefinitions, which are read at the moment of a shop
+	// transaction and hot-reload safely.
+	ListItemStats(ctx context.Context, in *ListItemStatsRequest, opts ...grpc.CallOption) (*ListItemStatsResponse, error)
 }
 
 type npcConfigServiceClient struct {
@@ -1409,6 +1418,16 @@ func (c *npcConfigServiceClient) ListMobTemplateStats(ctx context.Context, in *L
 	return out, nil
 }
 
+func (c *npcConfigServiceClient) ListItemStats(ctx context.Context, in *ListItemStatsRequest, opts ...grpc.CallOption) (*ListItemStatsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListItemStatsResponse)
+	err := c.cc.Invoke(ctx, NpcConfigService_ListItemStats_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NpcConfigServiceServer is the server API for NpcConfigService service.
 // All implementations must embed UnimplementedNpcConfigServiceServer
 // for forward compatibility.
@@ -1432,6 +1451,14 @@ type NpcConfigServiceServer interface {
 	// there is no hot-reload for this feature (EDITAPPMOB itself required a
 	// server restart too).
 	ListMobTemplateStats(context.Context, *ListMobTemplateStatsRequest) (*ListMobTemplateStatsResponse, error)
+	// ListItemStats returns every moderator-edited item base stat override
+	// (0023_item_stats), the item-side sibling of ListMobTemplateStats. Applied
+	// by tmServer once at boot for the same reason: these numbers feed the equip
+	// score model, which is recomputed per character, so a live swap would leave
+	// two players wearing the same item with different stats. Unlike the price
+	// overrides in ListNpcDefinitions, which are read at the moment of a shop
+	// transaction and hot-reload safely.
+	ListItemStats(context.Context, *ListItemStatsRequest) (*ListItemStatsResponse, error)
 	mustEmbedUnimplementedNpcConfigServiceServer()
 }
 
@@ -1450,6 +1477,9 @@ func (UnimplementedNpcConfigServiceServer) ListNpcDefinitions(context.Context, *
 }
 func (UnimplementedNpcConfigServiceServer) ListMobTemplateStats(context.Context, *ListMobTemplateStatsRequest) (*ListMobTemplateStatsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListMobTemplateStats not implemented")
+}
+func (UnimplementedNpcConfigServiceServer) ListItemStats(context.Context, *ListItemStatsRequest) (*ListItemStatsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListItemStats not implemented")
 }
 func (UnimplementedNpcConfigServiceServer) mustEmbedUnimplementedNpcConfigServiceServer() {}
 func (UnimplementedNpcConfigServiceServer) testEmbeddedByValue()                          {}
@@ -1526,6 +1556,24 @@ func _NpcConfigService_ListMobTemplateStats_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NpcConfigService_ListItemStats_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListItemStatsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NpcConfigServiceServer).ListItemStats(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NpcConfigService_ListItemStats_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NpcConfigServiceServer).ListItemStats(ctx, req.(*ListItemStatsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NpcConfigService_ServiceDesc is the grpc.ServiceDesc for NpcConfigService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1544,6 +1592,10 @@ var NpcConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListMobTemplateStats",
 			Handler:    _NpcConfigService_ListMobTemplateStats_Handler,
+		},
+		{
+			MethodName: "ListItemStats",
+			Handler:    _NpcConfigService_ListItemStats_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/itemeffect"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemicons"
 )
 
@@ -53,6 +54,17 @@ type Entry struct {
 	// IconURL is the public URL returned by storage-manager-server. Empty means
 	// the generated pack has not been uploaded or the item has no mapping.
 	IconURL string
+
+	// Effects is what the item grants while equipped, and Req what a character
+	// must have to equip it. Both come from the same row, parsed by the package
+	// the tmServer parses them with, so the numbers a moderator is shown are the
+	// numbers the game is using.
+	//
+	// They exist for one screen: the item stat editor seeds a new override from
+	// these, because an override replaces an item's whole effect list and a form
+	// that opened on zeros would strip the item the first time it was saved.
+	Effects []itemeffect.BaseEffect
+	Req     itemeffect.Req
 }
 
 // Catalog is the scanned item list plus a fingerprint of the file it came from.
@@ -161,6 +173,9 @@ func Scan(contentDir string) (Catalog, error) {
 		// nPos is a signed short, so capes (bit 15) arrive as -32768; mask to
 		// 16 bits before decoding or the whole mask reads as negative.
 		slotMask := number(column(fields, 6)) & 0xFFFF
+		// An all-zero or malformed requirement column reports false and stays
+		// the zero value, which is the same thing the tmServer stores for it.
+		req, _ := itemeffect.ParseReq(column(fields, 3))
 		byIndex[int32(idx)] = Entry{
 			Index:       int32(idx),
 			Name:        name,
@@ -170,6 +185,8 @@ func Scan(contentDir string) (Catalog, error) {
 			SlotMask:    slotMask,
 			Slots:       decodeSlots(slotMask),
 			Grade:       number(column(fields, 8)),
+			Effects:     itemeffect.ParsePairs(fields),
+			Req:         req,
 		}
 	}
 	if err := sc.Err(); err != nil {

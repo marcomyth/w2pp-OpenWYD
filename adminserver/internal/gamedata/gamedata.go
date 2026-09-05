@@ -48,9 +48,10 @@ type Item struct {
 
 // Client talks to the webServer.
 type Client struct {
-	catalog webv1.ItemCatalogServiceClient
-	npc     webv1.NpcAdminServiceClient
-	mob     webv1.MobTemplateAdminServiceClient
+	catalog  webv1.ItemCatalogServiceClient
+	npc      webv1.NpcAdminServiceClient
+	mob      webv1.MobTemplateAdminServiceClient
+	itemStat webv1.ItemStatAdminServiceClient
 
 	// Guards the cache below. Two requests missing at once both fetch, which is
 	// the right trade here: collapsing them would need a second lock held across
@@ -65,9 +66,10 @@ type Client struct {
 // New wraps a connection to the webServer.
 func New(conn grpc.ClientConnInterface) *Client {
 	return &Client{
-		catalog: webv1.NewItemCatalogServiceClient(conn),
-		npc:     webv1.NewNpcAdminServiceClient(conn),
-		mob:     webv1.NewMobTemplateAdminServiceClient(conn),
+		catalog:  webv1.NewItemCatalogServiceClient(conn),
+		npc:      webv1.NewNpcAdminServiceClient(conn),
+		mob:      webv1.NewMobTemplateAdminServiceClient(conn),
+		itemStat: webv1.NewItemStatAdminServiceClient(conn),
 	}
 }
 
