@@ -79,3 +79,38 @@ func TestClearSeenAllOnDespawn(t *testing.T) {
 		t.Errorf("seen still contains %d after despawn, want cleared", id)
 	}
 }
+
+// TestSeenTracksAnnouncement verifies Seen answers "has this client been told
+// about the entity" without recording anything itself. Broadcasts that name an
+// entity (movement, attack) consult it before forwarding a frame: the client
+// builds an unknown id out of its stale pMob[] slot and draws the previous
+// occupant's model, so a frame must never arrive before the CreateMob.
+func TestSeenTracksAnnouncement(t *testing.T) {
+	w := New(Config{GridDim: 16}, slogDiscard(), nil, nil)
+	s := &Session{Conn: 0}
+	w.sessions[0] = s
+
+	id := w.SpawnMob(make([]byte, structMobTemplateSize), 5, 6)
+	if w.Seen(s, id) {
+		t.Fatal("Seen = true before any CreateMob, want false")
+	}
+	// Seen must not mark: two calls in a row still report unseen.
+	if w.Seen(s, id) {
+		t.Fatal("Seen recorded the entity, want a pure query")
+	}
+
+	w.MarkSeen(s, id)
+	if !w.Seen(s, id) {
+		t.Fatal("Seen = false after MarkSeen, want true")
+	}
+
+	w.UnmarkSeen(s, id)
+	if w.Seen(s, id) {
+		t.Fatal("Seen = true after UnmarkSeen, want false")
+	}
+
+	// A nil session (no client attached) is never told anything.
+	if w.Seen(nil, id) {
+		t.Fatal("Seen(nil) = true, want false")
+	}
+}

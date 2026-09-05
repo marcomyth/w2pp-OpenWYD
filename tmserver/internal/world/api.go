@@ -305,6 +305,18 @@ func (w *World) MarkSeen(s *Session, id int) bool {
 	return true
 }
 
+// Seen reports whether session s's client has already been told about entity id
+// (a CreateMob went out and no RemoveMob since). Unlike MarkSeen it records
+// nothing, so a broadcast can check before forwarding a frame that names an
+// entity the client may not know about yet.
+func (w *World) Seen(s *Session, id int) bool {
+	if s == nil || s.seen == nil {
+		return false
+	}
+	_, ok := s.seen[id]
+	return ok
+}
+
 // UnmarkSeen forgets that session s's client knows entity id, so a later
 // MarkSeen sends a fresh CreateMob. Must accompany every RemoveMob, or an
 // entity that walks back into view is never re-created.

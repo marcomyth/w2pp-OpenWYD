@@ -47,6 +47,24 @@ func (d *Dispatcher) moveMulticast(w *world.World, moverID int, oldX, oldY int16
 		inNew := chebyshev(newX, newY, e.X, e.Y) <= world.ViewRange
 		switch {
 		case inOld:
+			// The watcher was already in range, so legacy assumes its client
+			// knows the mover. Ours may not: a mob can spawn inside an occupied
+			// window and start walking before any CreateMob went out. The client
+			// then builds the entity from an Action naming an id it has never
+			// heard of, and draws whatever sits in that recycled pMob[] slot —
+			// a bare default body, or the previous occupant's model. Announce it
+			// first, exactly as the inNew branch does, so every frame lands on an
+			// entity the client already knows.
+			if !w.Seen(s, moverID) {
+				if moverBody == nil {
+					moverCreateType, moverBody = createMobViewPacket(w, mover, 0)
+				}
+				w.MarkSeen(s, moverID)
+				w.SendTo(s, protocol.Header{Type: moverCreateType, ID: protocol.IDScene}, moverBody)
+				if moverSess != nil {
+					w.SendTo(s, protocol.Header{Type: protocol.MsgPKInfo, ID: uint16(moverID)}, protocol.EncodeStandardParm(pkInfoParm(mover)))
+				}
+			}
 			// Legacy old-window order: the raw frame first, then the boundary
 			// RemoveMob (SendFunc.cpp:813-830).
 			if payload != nil {

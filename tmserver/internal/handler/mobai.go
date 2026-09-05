@@ -103,7 +103,6 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.tickTowerWar(w)
 	d.tickCastle(w)
 	d.tickWaterRooms(w)
-	d.drainWaterReveal(w)
 	d.tickPesadelo(w)
 	d.respawnMobs(w)
 	d.generateMobs(w)
@@ -434,6 +433,27 @@ func (d *Dispatcher) revealSpawned(w *world.World, ids []int) int {
 	return sent
 }
 
+// ensureSeenMob announces mob id to vs when its client has not been told about
+// it yet, so a frame that names the mob never arrives before the mob itself.
+// Same reason as the inOld branch of moveMulticast: on an unknown id the client
+// invents the entity out of its stale pMob[] slot and draws the wrong model.
+func (d *Dispatcher) ensureSeenMob(w *world.World, vs *world.Session, id int) {
+	if w.Seen(vs, id) {
+		return
+	}
+	mob := w.Entity(id)
+	if mob == nil {
+		return
+	}
+	w.MarkSeen(vs, id)
+	// Evict whatever the client still holds under this recycled id, as
+	// revealSpawned does, then create.
+	w.SendTo(vs, protocol.Header{Type: protocol.MsgRemoveMob, ID: uint16(id)},
+		protocol.EncodeRemoveMobBody(0))
+	ty, body := createMobViewPacket(w, mob, 0)
+	w.SendTo(vs, protocol.Header{Type: ty, ID: protocol.IDScene}, body)
+}
+
 // inSafeCity reports whether player conn is standing inside a city rectangle —
 // a safe zone where mobs neither aggro nor attack (so a respawned player can
 // recover). Mirrors the original town no-combat behaviour (BASE_GetVillage).
@@ -682,6 +702,7 @@ func (d *Dispatcher) mobAttack(w *world.World, id int, e, target *world.Entity) 
 	// acting (attacking, auto-potting). The target is in-view, so it receives this.
 	payload := body.Encode()
 	w.ForEachInView(id, func(vs *world.Session, _ *world.Entity) {
+		d.ensureSeenMob(w, vs, id)
 		w.SendTo(vs, protocol.Header{Type: protocol.MsgAttack, ID: protocol.IDScene}, payload)
 	})
 
