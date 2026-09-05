@@ -122,11 +122,11 @@ func runImportNPCs(args []string, logger *slog.Logger) error {
 	if err := store.Migrate(ctx, pool); err != nil {
 		return err
 	}
-	inserted, err := store.New(pool).SeedNPCDefinitions(ctx, defs)
+	inserted, pruned, err := store.New(pool).SeedNPCDefinitions(ctx, defs)
 	if err != nil {
 		return fmt.Errorf("seed npc definitions: %w", err)
 	}
-	logger.Info("import complete", "inserted", inserted, "already_present", len(defs)-inserted)
+	logger.Info("import complete", "inserted", inserted, "already_present", len(defs)-inserted, "pruned_orphans", pruned)
 	return nil
 }
 
@@ -475,11 +475,15 @@ func runServe(args []string, logger *slog.Logger) error {
 		if len(defs) == 0 {
 			return fmt.Errorf("NPC generator catalog is empty")
 		}
-		seeded, seedErr := store.New(pool).SeedNPCDefinitions(ctx, defs)
+		seeded, pruned, seedErr := store.New(pool).SeedNPCDefinitions(ctx, defs)
 		if seedErr != nil {
 			return fmt.Errorf("reconcile NPC generator catalog: %w", seedErr)
 		}
-		logger.Info("NPC generator catalog reconciled", "expected", len(defs), "processed", seeded)
+		// pruned counts definitions the catalog no longer produces, deleted so they
+		// stop being materialized as duplicate NPCs. Non-zero right after a
+		// NPCGener.txt edit is expected; non-zero on an unchanged file is not.
+		logger.Info("NPC generator catalog reconciled",
+			"expected", len(defs), "processed", seeded, "pruned_orphans", pruned)
 	}
 
 	creds, err := secure.ServerCreds(secure.Config{CertFile: *tlsCert, KeyFile: *tlsKey, CAFile: *tlsCA})
