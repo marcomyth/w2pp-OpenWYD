@@ -49,7 +49,7 @@
       <div class="cartao">
         <h2>Equipamento</h2>
         <div class="grade g-equip">
-          {{range .Equip}}{{template "slot" (dict "It" . "Destino" "char_equip")}}{{end}}
+          {{range .Equip}}{{template "slot" (dict "It" . "Href" (printf "?onde=char_equip&slot=%d" .Slot) "Sel" (and $.Sel.Ativa (eq $.Sel.Destino "char_equip") (eq $.Sel.Slot .Slot)))}}{{end}}
         </div>
       </div>
 
@@ -60,7 +60,7 @@
           <span class="d">{{.Limite}} de 60 · a Bolsa do Andarilho abre 15 por vez</span>
         </div>
         <div class="grade g-carry">
-          {{range .Carry}}{{template "slot" (dict "It" . "Destino" "char_carry")}}{{end}}
+          {{range .Carry}}{{template "slot" (dict "It" . "Href" (printf "?onde=char_carry&slot=%d" .Slot) "Sel" (and $.Sel.Ativa (eq $.Sel.Destino "char_carry") (eq $.Sel.Slot .Slot)))}}{{end}}
         </div>
         <p class="sub" style="margin:10px 0 0;font-size:12.5px">
           Slots hachurados estão fora da faixa liberada: um item colocado ali existe no banco e
@@ -76,7 +76,7 @@
         </div>
         <div class="rolagem">
           <div class="grade g-cargo">
-            {{range .Cargo}}{{template "slot" (dict "It" . "Destino" "account_cargo")}}{{end}}
+            {{range .Cargo}}{{template "slot" (dict "It" . "Href" (printf "?onde=account_cargo&slot=%d" .Slot) "Sel" (and $.Sel.Ativa (eq $.Sel.Destino "account_cargo") (eq $.Sel.Slot .Slot)))}}{{end}}
           </div>
         </div>
       </div>
@@ -90,35 +90,42 @@
           <input type="hidden" name="csrf" value="{{.CSRF}}">
           <label class="campo-rot" for="destino">Onde</label>
           <select id="destino" name="destino">
-            <option value="char_carry">Inventário</option>
-            <option value="char_equip">Equipamento</option>
-            <option value="account_cargo">Baú da conta</option>
+            <option value="char_carry" {{if eq .Sel.Destino "char_carry"}}selected{{end}}>Inventário</option>
+            <option value="char_equip" {{if eq .Sel.Destino "char_equip"}}selected{{end}}>Equipamento</option>
+            <option value="account_cargo" {{if eq .Sel.Destino "account_cargo"}}selected{{end}}>Baú da conta</option>
           </select>
           <div style="height:9px"></div>
           <div class="par-campo">
             <div>
               <label class="campo-rot" for="indice">Índice do item</label>
-              <input id="indice" name="indice" inputmode="numeric" placeholder="ex.: 700">
+              <input id="indice" name="indice" inputmode="numeric" placeholder="ex.: 700"
+                     value="{{if and .Sel.Ativa (not .Sel.Item.Vazio)}}{{.Sel.Item.Index}}{{end}}">
             </div>
             <div>
               <label class="campo-rot" for="slot">Slot</label>
-              <input id="slot" name="slot" inputmode="numeric" value="0" required>
+              <input id="slot" name="slot" inputmode="numeric" required
+                     value="{{if .Sel.Ativa}}{{.Sel.Slot}}{{else}}0{{end}}">
             </div>
           </div>
           <div class="par-campo">
-            <div><label class="campo-rot" for="eff1">Efeito 1</label><input id="eff1" name="eff1" inputmode="numeric" placeholder="0"></div>
-            <div><label class="campo-rot" for="effv1">Valor</label><input id="effv1" name="effv1" inputmode="numeric" placeholder="0"></div>
+            <div><label class="campo-rot" for="eff1">Efeito 1</label><input id="eff1" name="eff1" inputmode="numeric" placeholder="0" value="{{if .Sel.Ativa}}{{(index .Sel.Item.Efeitos 0).Tipo}}{{end}}"></div>
+            <div><label class="campo-rot" for="effv1">Valor</label><input id="effv1" name="effv1" inputmode="numeric" placeholder="0" value="{{if .Sel.Ativa}}{{(index .Sel.Item.Efeitos 0).Valor}}{{end}}"></div>
           </div>
           <div class="par-campo">
-            <div><label class="campo-rot" for="eff2">Efeito 2</label><input id="eff2" name="eff2" inputmode="numeric" placeholder="0"></div>
-            <div><label class="campo-rot" for="effv2">Valor</label><input id="effv2" name="effv2" inputmode="numeric" placeholder="0"></div>
+            <div><label class="campo-rot" for="eff2">Efeito 2</label><input id="eff2" name="eff2" inputmode="numeric" placeholder="0" value="{{if .Sel.Ativa}}{{(index .Sel.Item.Efeitos 1).Tipo}}{{end}}"></div>
+            <div><label class="campo-rot" for="effv2">Valor</label><input id="effv2" name="effv2" inputmode="numeric" placeholder="0" value="{{if .Sel.Ativa}}{{(index .Sel.Item.Efeitos 1).Valor}}{{end}}"></div>
           </div>
           <div class="par-campo">
-            <div><label class="campo-rot" for="eff3">Efeito 3</label><input id="eff3" name="eff3" inputmode="numeric" placeholder="0"></div>
-            <div><label class="campo-rot" for="effv3">Valor</label><input id="effv3" name="effv3" inputmode="numeric" placeholder="0"></div>
+            <div><label class="campo-rot" for="eff3">Efeito 3</label><input id="eff3" name="eff3" inputmode="numeric" placeholder="0" value="{{if .Sel.Ativa}}{{(index .Sel.Item.Efeitos 2).Tipo}}{{end}}"></div>
+            <div><label class="campo-rot" for="effv3">Valor</label><input id="effv3" name="effv3" inputmode="numeric" placeholder="0" value="{{if .Sel.Ativa}}{{(index .Sel.Item.Efeitos 2).Valor}}{{end}}"></div>
           </div>
           <p class="sub" style="font-size:12px;margin:2px 0 12px">
-            Refino é o efeito 43. Clique num slot da grade para preencher este formulário.
+            {{if .Sel.Ativa}}
+              Editando o slot <strong>{{.Sel.Slot}}</strong>{{if not .Sel.Item.Vazio}} — {{.Sel.Item.Nome}}{{end}}.
+              Refino é o efeito 43.
+            {{else}}
+              Clique num slot da grade para carregar o que há nele. Refino é o efeito 43.
+            {{end}}
           </p>
           <div style="display:flex;gap:8px">
             <button type="submit" name="remover" value="1" {{if not .Editavel}}disabled{{end}}>Limpar slot</button>
@@ -162,42 +169,17 @@
   </div>
 </main>
 
-<script>
-  // Clicking a slot fills the form: the grid is where a moderator looks, and
-  // retyping the slot number from it is where mistakes come from.
-  document.querySelectorAll(".slot").forEach(function (b) {
-    b.addEventListener("click", function () {
-      var destino = document.getElementById("destino");
-      var campos = { indice: b.dataset.indice, slot: b.dataset.slot,
-                     eff1: b.dataset.eff1, effv1: b.dataset.effv1,
-                     eff2: b.dataset.eff2, effv2: b.dataset.effv2,
-                     eff3: b.dataset.eff3, effv3: b.dataset.effv3 };
-      if (!destino) { return; } // read-only view for moderators
-      destino.value = b.dataset.destino;
-      Object.keys(campos).forEach(function (k) {
-        var el = document.getElementById(k);
-        if (el) { el.value = campos[k] || ""; }
-      });
-      document.querySelectorAll(".slot").forEach(function (o) { o.style.outline = ""; });
-      b.style.outline = "2px solid var(--accent)";
-    });
-  });
-</script>
 </body>
 </html>
 
 {{/* One inventory cell. Carries its item in data- attributes so the form can be
      filled without a round trip. */}}
 {{define "slot"}}
-<button type="button" class="slot{{if not .It.Vazio}} cheio{{end}}{{if not .It.Alcancavel}} travado{{end}}{{if .It.Marcador}} marcador{{end}}"
-        data-destino="{{.Destino}}" data-slot="{{.It.Slot}}" data-indice="{{if .It.Vazio}}{{else}}{{.It.Index}}{{end}}"
-        data-eff1="{{(index .It.Efeitos 0).Tipo}}" data-effv1="{{(index .It.Efeitos 0).Valor}}"
-        data-eff2="{{(index .It.Efeitos 1).Tipo}}" data-effv2="{{(index .It.Efeitos 1).Valor}}"
-        data-eff3="{{(index .It.Efeitos 2).Tipo}}" data-effv3="{{(index .It.Efeitos 2).Valor}}"
-        title="Slot {{.It.Slot}}{{if not .It.Vazio}} — {{.It.Nome}}{{end}}{{if not .It.Alcancavel}} (fora da faixa liberada){{end}}">
+<a class="slot{{if not .It.Vazio}} cheio{{end}}{{if not .It.Alcancavel}} travado{{end}}{{if .It.Marcador}} marcador{{end}}{{if .Sel}} escolhido{{end}}"
+   href="{{.Href}}"
+   title="Slot {{.It.Slot}}{{if not .It.Vazio}} — {{.It.Nome}}{{end}}{{if not .It.Alcancavel}} (fora da faixa liberada){{end}}">
   <span class="idx">{{.It.Slot}}</span>
   {{if gt .It.Refino 0}}<span class="sanc">+{{.It.Refino}}</span>{{end}}
-  {{if .It.IconURL}}<img src="{{.It.IconURL}}" alt="">{{end}}
   <span class="nome">{{.It.Nome}}</span>
-</button>
+</a>
 {{end}}

@@ -1,10 +1,12 @@
 package panel
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/personagem"
@@ -197,4 +199,115 @@ func TestAtributosDoFormCamposEmBranco(t *testing.T) {
 	if a.Level != 400 || a.Str != 0 {
 		t.Errorf("atributos = %+v", a)
 	}
+}
+
+// The panel serves default-src 'none' with no script-src, so inline JavaScript
+// never runs in production. A grid that filled the form from an onclick looked
+// alive locally and was dead in the browser — clicking a slot did nothing, which
+// is exactly how this was found. No template may reintroduce a script.
+func TestTelasNaoDependemDeJavaScript(t *testing.T) {
+	entradas, err := uiFS.ReadDir("ui")
+	if err != nil {
+		t.Fatalf("ler ui: %v", err)
+	}
+	for _, e := range entradas {
+		if e.IsDir() {
+			continue
+		}
+		raw, err := uiFS.ReadFile("ui/" + e.Name())
+		if err != nil {
+			t.Fatalf("ler %s: %v", e.Name(), err)
+		}
+		corpo := strings.ToLower(string(raw))
+		if strings.Contains(corpo, "<script") {
+			t.Errorf("%s tem <script>: a CSP do painel bloqueia, então ele nunca roda", e.Name())
+		}
+		// onclick= and friends are blocked by the same policy.
+		for _, atributo := range []string{"onclick=", "onchange=", "onsubmit=", "onload="} {
+			if strings.Contains(corpo, atributo) {
+				t.Errorf("%s usa %s: bloqueado pela CSP", e.Name(), atributo)
+			}
+		}
+	}
+}
+
+// The same policy has no img-src, so an <img> renders as a broken box. The item
+// grids show names, not icons, for that reason.
+func TestTelasNaoCarregamImagens(t *testing.T) {
+	entradas, _ := uiFS.ReadDir("ui")
+	for _, e := range entradas {
+		raw, err := uiFS.ReadFile("ui/" + e.Name())
+		if err != nil {
+			continue
+		}
+		if strings.Contains(strings.ToLower(string(raw)), "<img") {
+			t.Errorf("%s tem <img>: a CSP não permite img-src", e.Name())
+		}
+	}
+}
+
+// Picking a slot has to survive without scripts: the grid links carry the choice
+// in the query string and the server sends the form back filled.
+func TestSelecaoDeSlotVemDaQueryString(t *testing.T) {
+	ficha := fichaTeste(false)
+	ficha.Carry[3] = personagem.Item{Slot: 3, Index: 700, Eff1: efSanc, EffV1: 9}
+
+	sel := selecaoDe(reqCom("?onde=char_carry&slot=3"), ficha, nil)
+	if !sel.Ativa {
+		t.Fatal("seleção deveria estar ativa")
+	}
+	if sel.Destino != "char_carry" || sel.Slot != 3 {
+		t.Errorf("seleção = %+v", sel)
+	}
+	if sel.Item.Index != 700 || sel.Item.Refino != 9 {
+		t.Errorf("item da seleção = %+v, want índice 700 refino 9", sel.Item)
+	}
+}
+
+// An empty slot is still a valid pick — it is how an item gets put somewhere.
+func TestSelecaoDeSlotVazio(t *testing.T) {
+	sel := selecaoDe(reqCom("?onde=char_equip&slot=5"), fichaTeste(false), nil)
+	if !sel.Ativa || sel.Slot != 5 {
+		t.Fatalf("seleção = %+v", sel)
+	}
+	if !sel.Item.Vazio {
+		t.Errorf("slot 5 deveria estar vazio, veio %+v", sel.Item)
+	}
+}
+
+func TestSelecaoInvalidaEIgnorada(t *testing.T) {
+	for _, q := range []string{"", "?onde=char_carry", "?slot=3", "?onde=inventado&slot=3", "?onde=char_carry&slot=abc"} {
+		if sel := selecaoDe(reqCom(q), fichaTeste(false), nil); sel.Ativa {
+			t.Errorf("query %q não deveria selecionar nada, veio %+v", q, sel)
+		}
+	}
+}
+
+func reqCom(query string) *http.Request {
+	return httptest.NewRequest("GET", "/contas/ana/personagens/Vandalyzz"+query, nil)
+}
+
+// fichaTeste is a character with the three containers allocated, so a slot pick
+// always resolves to something.
+func fichaTeste(emJogo bool) personagem.Ficha {
+	f := personagem.Ficha{
+		ID: 42, AccountID: 7, Nome: "Vandalyzz", Level: 400,
+		Equip: make([]personagem.Item, personagem.MaxEquip),
+		Carry: make([]personagem.Item, personagem.MaxCarry),
+		Cargo: make([]personagem.Item, personagem.MaxCargo),
+	}
+	for i := range f.Equip {
+		f.Equip[i].Slot = i
+	}
+	for i := range f.Carry {
+		f.Carry[i].Slot = i
+	}
+	for i := range f.Cargo {
+		f.Cargo[i].Slot = i
+	}
+	if emJogo {
+		agora := time.Now()
+		f.OnlineDesde = &agora
+	}
+	return f
 }

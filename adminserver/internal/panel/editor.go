@@ -147,6 +147,56 @@ func grade(itens []personagem.Item, catalogo map[int32]gamedata.Item, limite int
 	return out
 }
 
+// selecao is the slot the operator picked, carried in the query string.
+//
+// The picking is a plain link, not a click handler, because the panel serves a
+// Content-Security-Policy of default-src 'none' with no script-src: inline
+// JavaScript does not run here at all, and a grid that filled the form from an
+// onclick would look alive locally and be dead in production. Every other screen
+// in this panel is scripts-free for the same reason.
+type selecao struct {
+	Ativa   bool
+	Destino string
+	Slot    int
+	Item    itemView
+}
+
+// selecaoDe reads ?onde=&slot= and resolves it against the loaded character, so
+// the form comes back filled with what is actually in that slot.
+func selecaoDe(r *http.Request, f personagem.Ficha, catalogo map[int32]gamedata.Item) selecao {
+	onde := r.URL.Query().Get("onde")
+	bruto := r.URL.Query().Get("slot")
+	if onde == "" || bruto == "" {
+		return selecao{}
+	}
+	slot, err := strconv.Atoi(bruto)
+	if err != nil {
+		return selecao{}
+	}
+	dest := personagem.Destino(onde)
+	if _, conhecido := destinoValido(dest); !conhecido {
+		return selecao{}
+	}
+	it := itemDoSlot(f, dest, slot)
+	if it.Slot != slot {
+		// itemDoSlot returns the zero value for an out-of-range slot; keep the
+		// slot the operator asked for so the form still targets it.
+		it = personagem.Item{Slot: slot}
+	}
+	linhas := grade([]personagem.Item{it}, catalogo, 0, false)
+	return selecao{Ativa: true, Destino: onde, Slot: slot, Item: linhas[0]}
+}
+
+// destinoValido reports whether dest is a container this package writes to.
+func destinoValido(dest personagem.Destino) (personagem.Destino, bool) {
+	switch dest {
+	case personagem.DestinoEquip, personagem.DestinoCarry, personagem.DestinoCargo:
+		return dest, true
+	default:
+		return "", false
+	}
+}
+
 // editor renders one character's items and attributes.
 func (h *Handler) editor(w http.ResponseWriter, r *http.Request) {
 	nome, auth, ok := h.alvo(w, r)
@@ -160,6 +210,7 @@ func (h *Handler) editor(w http.ResponseWriter, r *http.Request) {
 
 	catalogo := h.catalogo(r)
 	limite := ficha.LimiteCarry()
+	sel := selecaoDe(r, ficha, catalogo)
 
 	h.render(w, "editor.html", struct {
 		page
@@ -169,6 +220,7 @@ func (h *Handler) editor(w http.ResponseWriter, r *http.Request) {
 		Carry  []itemView
 		Cargo  []itemView
 		Limite int
+		Sel    selecao
 		// Editavel is the condition every form hangs off: the character has left
 		// play, which is the moment its last save committed and the database
 		// became the authority again.
@@ -179,7 +231,7 @@ func (h *Handler) editor(w http.ResponseWriter, r *http.Request) {
 		grade(ficha.Equip, catalogo, 0, false),
 		grade(ficha.Carry, catalogo, limite, true),
 		grade(ficha.Cargo, catalogo, 0, false),
-		limite,
+		limite, sel,
 		!ficha.EmJogo(),
 		r.URL.Query().Get("aviso"),
 	})

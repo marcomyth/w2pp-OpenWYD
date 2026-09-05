@@ -244,6 +244,9 @@
     text-align: left; cursor: pointer; overflow: hidden; font: inherit; color: inherit;
   }
   .slot:hover { border-color: var(--ink-3); }
+  .slot, .slot:visited { text-decoration: none; color: inherit; }
+  .slot.escolhido { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .slot.travado { pointer-events: none; }
   .slot.cheio { background: var(--surface); }
   .slot .idx {
     position: absolute; top: 2px; left: 4px; font-size: 9px; color: var(--ink-3);

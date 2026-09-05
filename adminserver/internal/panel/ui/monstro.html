@@ -98,7 +98,7 @@
       em vários casos, o que ele derruba. Clique num slot para carregar o formulário.
     </p>
     <div class="grade g-equip">
-      {{range .Equip}}{{template "slot" (dict "It" . "Destino" "mob_equip")}}{{end}}
+      {{range .Equip}}{{template "slot" (dict "It" . "Href" (printf "?slot=%d" .Slot) "Sel" (eq $.Sel .Slot))}}{{end}}
     </div>
 
     <form method="post" action="/monstros/{{.Nome}}/equip" style="margin-top:16px;max-width:420px">
@@ -106,49 +106,33 @@
       <div class="par-campo">
         <div>
           <label class="campo-rot" for="indice">Índice do item</label>
-          <input id="indice" name="indice" inputmode="numeric" placeholder="ex.: 144">
+          <input id="indice" name="indice" inputmode="numeric" placeholder="ex.: 144" value="{{if and (ge .Sel 0) (not .Escolhido.Vazio)}}{{.Escolhido.Index}}{{end}}">
         </div>
         <div>
           <label class="campo-rot" for="slot">Slot</label>
-          <input id="slot" name="slot" inputmode="numeric" value="0" required>
+          <input id="slot" name="slot" inputmode="numeric" required value="{{if ge .Sel 0}}{{.Sel}}{{else}}0{{end}}">
         </div>
       </div>
       <div class="par-campo">
-        <div><label class="campo-rot" for="eff1">Efeito 1</label><input id="eff1" name="eff1" inputmode="numeric" placeholder="0"></div>
-        <div><label class="campo-rot" for="effv1">Valor</label><input id="effv1" name="effv1" inputmode="numeric" placeholder="0"></div>
+        <div><label class="campo-rot" for="eff1">Efeito 1</label><input id="eff1" name="eff1" inputmode="numeric" placeholder="0" value="{{if ge .Sel 0}}{{(index .Escolhido.Efeitos 0).Tipo}}{{end}}"></div>
+        <div><label class="campo-rot" for="effv1">Valor</label><input id="effv1" name="effv1" inputmode="numeric" placeholder="0" value="{{if ge .Sel 0}}{{(index .Escolhido.Efeitos 0).Valor}}{{end}}"></div>
       </div>
       <div class="par-campo">
-        <div><label class="campo-rot" for="eff2">Efeito 2</label><input id="eff2" name="eff2" inputmode="numeric" placeholder="0"></div>
-        <div><label class="campo-rot" for="effv2">Valor</label><input id="effv2" name="effv2" inputmode="numeric" placeholder="0"></div>
+        <div><label class="campo-rot" for="eff2">Efeito 2</label><input id="eff2" name="eff2" inputmode="numeric" placeholder="0" value="{{if ge .Sel 0}}{{(index .Escolhido.Efeitos 1).Tipo}}{{end}}"></div>
+        <div><label class="campo-rot" for="effv2">Valor</label><input id="effv2" name="effv2" inputmode="numeric" placeholder="0" value="{{if ge .Sel 0}}{{(index .Escolhido.Efeitos 1).Valor}}{{end}}"></div>
       </div>
       <div class="par-campo">
-        <div><label class="campo-rot" for="eff3">Efeito 3</label><input id="eff3" name="eff3" inputmode="numeric" placeholder="0"></div>
-        <div><label class="campo-rot" for="effv3">Valor</label><input id="effv3" name="effv3" inputmode="numeric" placeholder="0"></div>
+        <div><label class="campo-rot" for="eff3">Efeito 3</label><input id="eff3" name="eff3" inputmode="numeric" placeholder="0" value="{{if ge .Sel 0}}{{(index .Escolhido.Efeitos 2).Tipo}}{{end}}"></div>
+        <div><label class="campo-rot" for="effv3">Valor</label><input id="effv3" name="effv3" inputmode="numeric" placeholder="0" value="{{if ge .Sel 0}}{{(index .Escolhido.Efeitos 2).Valor}}{{end}}"></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:10px">
         <button type="submit" name="remover" value="1">Limpar slot</button>
         <button type="submit" class="principal">Gravar slot</button>
       </div>
-      <p class="dica">Refino é o efeito 43. Como os números acima, só vale depois de reiniciar.</p>
+      <p class="dica">{{if ge .Sel 0}}Editando o slot <strong>{{.Sel}}</strong>{{if not .Escolhido.Vazio}} — {{.Escolhido.Nome}}{{end}}. {{else}}Clique num slot para carregar o que há nele. {{end}}Refino é o efeito 43. Como os números acima, só vale depois de reiniciar.</p>
     </form>
   </div>
 
-  <script>
-    document.querySelectorAll(".slot").forEach(function (b) {
-      b.addEventListener("click", function () {
-        var campos = { indice: b.dataset.indice, slot: b.dataset.slot,
-                       eff1: b.dataset.eff1, effv1: b.dataset.effv1,
-                       eff2: b.dataset.eff2, effv2: b.dataset.effv2,
-                       eff3: b.dataset.eff3, effv3: b.dataset.effv3 };
-        Object.keys(campos).forEach(function (k) {
-          var el = document.getElementById(k);
-          if (el) { el.value = campos[k] || ""; }
-        });
-        document.querySelectorAll(".slot").forEach(function (o) { o.style.outline = ""; });
-        b.style.outline = "2px solid var(--accent)";
-      });
-    });
-  </script>
 
   {{if .Overridden}}
   <div class="limpar">
