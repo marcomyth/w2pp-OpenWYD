@@ -251,11 +251,22 @@ func (d *Dispatcher) quest(w *world.World, s *world.Session, _ protocol.Header, 
 }
 
 func (d *Dispatcher) kingQuest(w *world.World, s *world.Session, e, npc *world.Entity, confirm int) {
-	if confirm != 0 && e.ClassMaster == classMasterMortal && e.Level >= 299 &&
+	// Immortality Stone + Sephirot equipped is the entry condition for BOTH of
+	// the King's transformations (_MSG_Quest.cpp:769). Which one runs depends on
+	// what else the player carries: with the four Secret Stones it is the Ideal
+	// Stone fusion, otherwise the Mortal→Arch rebirth. The stones come first,
+	// exactly as the legacy orders them — an Arch candidate holding all four
+	// wanted the fusion.
+	if confirm != 0 &&
 		e.Equip[idealStoneEquipSlot].Index == idealStoneItem &&
 		e.Equip[sephirotEquipSlot].Index >= archSephirotMin && e.Equip[sephirotEquipSlot].Index <= archSephirotMax {
-		d.kingArch(w, s, e, npc, confirm)
-		return
+		if d.kingIdealStone(w, s, e) {
+			return
+		}
+		if e.ClassMaster == classMasterMortal && e.Level >= 299 {
+			d.kingArch(w, s, e, npc, confirm)
+			return
+		}
 	}
 	d.kingCapeService(w, s, e, npc, confirm)
 }

@@ -34,6 +34,10 @@ linters:
         # operate this server, and misspell has no Portuguese dictionary to check
         # against — so ordinary words keep colliding with English ones.
         - deram
+        # Portuguese for "secret", as in the Pedras Secretas the King fuses into
+        # the Pedra Ideal. misspell reads it as a typo for "secrets"; the item
+        # names are cited verbatim from the shipped catalog.
+        - secretas
   exclusions:
     generated: lax
     presets:
