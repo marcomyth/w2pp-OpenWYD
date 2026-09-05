@@ -37,7 +37,6 @@ const (
 // UNVERIFIED / deferred: party EXP distribution (the unreliable g_EmptyMob/UNK
 // divisors).
 func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
-	d.announceMobKill(w, killer, mob)
 	d.kingdomKingKilled(w, mob)
 	reward := killer
 	if killer.Summoner != 0 {
@@ -78,6 +77,7 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 	// handler's MSG_Attack echo (CurrentExp); grantExp also applies any level-ups.
 	// Clan 4 mobs never award EXP: the legacy wraps the whole distribution in
 	// `MOB.Clan != 4` (MobKilled.cpp:402); gold and drops sit outside that gate.
+	expBefore := reward.Exp
 	if mob.Clan != 4 {
 		d.grantExp(w, ks, reward, mob)
 	}
@@ -106,6 +106,11 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 	}
 
 	sendDieAction(w, mob)
+
+	// The kill confirmation goes out here, immediately before the despawn, which is
+	// where the original multicasts it (MobKilled.cpp:3129) — and late enough to
+	// carry what the kill was worth.
+	d.announceMobKill(w, reward, mob, reward.Exp-expBefore)
 
 	// Despawn: tell in-view clients the mob died (RemoveMob, type 1 = death) and
 	// free its grid cell + entity slot, so the corpse disappears and it can't be
@@ -393,21 +398,22 @@ func addClamp(v, inc, limit int32) int32 {
 // confirmation the original sends on EVERY death path, immediately before
 // DeleteMob (MobKilled.cpp:3129, and the branches at 346/1435/3004/3011).
 //
-// We never sent it, and that is why experience was correct and invisible. The
-// number the client floats in green is not carried by any packet — the original
-// memsets this message and never assigns its Exp field (MobKilled.cpp:324-331),
-// and STRUCT_SCORE has no Exp at all, so the only experience on the wire is the
-// CurrentExp inside the attack reply. That reply was verified byte for byte:
-// right message type, the client's own tick, the right AttackerID, the right
-// value at CurrentExp@12. What was missing was the EVENT that tells the client a
-// kill happened, so it never had a moment at which to draw the gain.
+// We never sent it, and that is why experience was correct and invisible: this is
+// the EVENT that tells the client a kill happened, and without it the client had
+// the right total and no moment at which to draw the gain.
+//
+// The original memsets the message and leaves its Exp field at zero
+// (MobKilled.cpp:324-331), since the number it floats is derived from the
+// CurrentExp totals the attack replies carry. We pass the gain anyway, because it
+// costs a field that would otherwise be zero and it is the honest value for
+// anything that reads it.
 //
 // HEADER.ID = ESCENE_FIELD, as the original sets on the message (MobKilled.cpp:320).
-func (d *Dispatcher) announceMobKill(w *world.World, killer, mob *world.Entity) {
+func (d *Dispatcher) announceMobKill(w *world.World, killer, mob *world.Entity, exp int64) {
 	if mob == nil || killer == nil {
 		return
 	}
-	body := protocol.EncodeCNFMobKillBody(uint16(mob.ID), uint16(killer.ID))
+	body := protocol.EncodeCNFMobKillBody(uint16(mob.ID), uint16(killer.ID), exp)
 	hdr := protocol.Header{Type: protocol.MsgCNFMobKill, ID: protocol.IDScene}
 	// Around the DYING mob, which is where GridMulticast is centred — everyone who
 	// can see the death, the killer included.

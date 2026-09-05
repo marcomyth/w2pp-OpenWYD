@@ -189,20 +189,32 @@ const (
 	MsgCNFMobKill Type = 0x0338 // 824  S→C MSG_CNFMobKill (a monster died, and to whom)
 )
 
-// MsgCNFMobKillBodySize is the packed body of MSG_CNFMobKill: Hold(4) +
-// KilledMob(2) + Killer(2) + Exp(8).
-const MsgCNFMobKillBodySize = 16
+// MsgCNFMobKill body layout. This struct is NOT packed: the pack(push,1) region
+// that covers its neighbours closes at Basedef.h:1850 and the next one only opens
+// at 2451, so MSG_CNFMobKill is laid out with NATURAL alignment (MSVC x86) like
+// the save structures — see the offset rules in CLAUDE.md.
+//
+// The header is 12 bytes, so the fields fall out as:
+//
+//	int       Hold       body  0.. 3
+//	u16       KilledMob  body  4.. 5
+//	u16       Killer     body  6.. 7
+//	(padding)            body  8..11   ← long long must start 8-aligned
+//	long long Exp        body 12..19
+//
+// Sending it packed (16 bytes, Exp at 8) makes the client read its Exp from
+// bytes 12..19 of a buffer that ends at 15, which is what filled the experience
+// panel with garbage.
+const (
+	MsgCNFMobKillBodySize = 20
+	cnfMobKillExpOffset   = 12
+)
 
 // EncodeCNFMobKillBody builds the kill confirmation (Basedef.h:1876-1884).
-//
-// Exp is deliberately zero: the original memsets the message and never assigns
-// that field (MobKilled.cpp:324-331), so the number the client floats cannot be
-// coming from here — it comes from the CurrentExp the attack reply carries. What
-// this message supplies is the EVENT, which is why sending the experience without
-// it left the value correct and invisible.
-func EncodeCNFMobKillBody(killedMob, killer uint16) []byte {
+func EncodeCNFMobKillBody(killedMob, killer uint16, exp int64) []byte {
 	body := make([]byte, MsgCNFMobKillBodySize)
 	binary.LittleEndian.PutUint16(body[4:], killedMob)
 	binary.LittleEndian.PutUint16(body[6:], killer)
+	binary.LittleEndian.PutUint64(body[cnfMobKillExpOffset:], uint64(exp))
 	return body
 }

@@ -358,15 +358,14 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 	// experience. CurrentExp is how the client refreshes its exp bar — there is no
 	// separate exp packet (STRUCT_SCORE has no Exp field, and MobKilled sends none).
 	//
-	// The experience is the total from BEFORE this swing resolved, which is the one
-	// piece of the original's ordering we had inverted. It reads the attacker's Exp
-	// at _MSG_Attack.cpp:1743, multicasts at :1750, and only then runs MobKilled —
-	// so the killing blow's own frame carries the pre-kill total and the gain rides
-	// out on the NEXT swing. We granted first and reported after, which put the
-	// increase in the very frame where the client is also processing a death. Every
-	// other field checked out against the original — type, tick, AttackerID, and the
-	// eight bytes at CurrentExp@12 — leaving this ordering as the last difference.
-	writeAttackerStatus(payload, h.Type, e.HP, e.MP, expBefore, body.ReqMp)
+	// The experience is the total AFTER this swing, kill included. The original
+	// happens to read it before MobKilled runs (_MSG_Attack.cpp:1743-1750) so its
+	// gain rides out on the following frame, and reproducing that ordering here was
+	// a mistake with a very visible symptom: the client derives the floating gain
+	// from the DIFFERENCE between the totals it is sent, so a killing blow that
+	// reports the pre-kill total is a difference of zero. It drew "EXP +0" and
+	// "Adquiriu 0 de experiência" on every kill.
+	writeAttackerStatus(payload, h.Type, e.HP, e.MP, e.Exp, body.ReqMp)
 
 	// Broadcast the server-authoritative result with HEADER.ID = ESCENE_FIELD, exactly
 	// as the original (_MSG_Attack.cpp:25 `m->ID = ESCENE_FIELD`). This matters for the
