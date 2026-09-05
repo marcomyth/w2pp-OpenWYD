@@ -77,7 +77,6 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 	// handler's MSG_Attack echo (CurrentExp); grantExp also applies any level-ups.
 	// Clan 4 mobs never award EXP: the legacy wraps the whole distribution in
 	// `MOB.Clan != 4` (MobKilled.cpp:402); gold and drops sit outside that gate.
-	expBefore := reward.Exp
 	if mob.Clan != 4 {
 		d.grantExp(w, ks, reward, mob)
 	}
@@ -108,9 +107,14 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 	sendDieAction(w, mob)
 
 	// The kill confirmation goes out here, immediately before the despawn, which is
-	// where the original multicasts it (MobKilled.cpp:3129) — and late enough to
-	// carry what the kill was worth.
-	d.announceMobKill(w, reward, mob, reward.Exp-expBefore)
+	// where the original multicasts it (MobKilled.cpp:3129).
+	//
+	// Its Exp field is the killer's TOTAL, not what this kill was worth. Passing the
+	// gain looked like the kinder choice and was wrong in a way the client shows
+	// plainly: it takes this number as the experience it now has, so the character
+	// window read "EXP 5.350" — the last mob's reward — while the server held
+	// 6,173,399.
+	d.announceMobKill(w, reward, mob, reward.Exp)
 
 	// Despawn: tell in-view clients the mob died (RemoveMob, type 1 = death) and
 	// free its grid cell + entity slot, so the corpse disappears and it can't be
@@ -402,11 +406,12 @@ func addClamp(v, inc, limit int32) int32 {
 // the EVENT that tells the client a kill happened, and without it the client had
 // the right total and no moment at which to draw the gain.
 //
-// The original memsets the message and leaves its Exp field at zero
-// (MobKilled.cpp:324-331), since the number it floats is derived from the
-// CurrentExp totals the attack replies carry. We pass the gain anyway, because it
-// costs a field that would otherwise be zero and it is the honest value for
-// anything that reads it.
+// exp is the killer's TOTAL experience, not this kill's reward. The original
+// memsets the message and never assigns the field (MobKilled.cpp:324-331), so the
+// zero it ships says nothing about what belongs there — but the client takes this
+// number as the experience the character now HAS. Filling it with the gain, which
+// read as the friendlier choice, put "EXP 5.350" in the character window on a
+// character holding six million.
 //
 // HEADER.ID = ESCENE_FIELD, as the original sets on the message (MobKilled.cpp:320).
 func (d *Dispatcher) announceMobKill(w *world.World, killer, mob *world.Entity, exp int64) {
