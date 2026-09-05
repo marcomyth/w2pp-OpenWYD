@@ -289,7 +289,14 @@ func (d *Dispatcher) useWaterScroll(w *world.World, s *world.Session, e *world.E
 	// mob is there but undrawn. The two counts are usually equal.
 	d.log.Info("water room populated",
 		"account", s.AccountName, "variant", variant, "room", room,
-		"block", base+spawnedBlock, "spawned", len(spawned), "createmob_sent", created)
+		"block", base+spawnedBlock, "spawned", len(spawned), "createmob_sent", created,
+		// Players report a room where SOME monsters of one block render correctly
+		// and others do not, at the same time. Every mob of a block is built from
+		// the same template, so the visual the server sends should be identical
+		// for all of them — this counts the distinct ones. More than 1 means the
+		// server IS varying it and the bug is here; exactly 1 proves the server
+		// sends one appearance and the divergence is client-side.
+		"distinct_visuals", countDistinctVisuals(w, spawned))
 
 	// Announce the tally AFTER spawning, so the count is the room's real
 	// population rather than whatever the block held a moment earlier.
@@ -339,6 +346,26 @@ func (d *Dispatcher) populateWaterRoom(w *world.World, block int) []int {
 		ids = ids[:last]
 	}
 	return ids
+}
+
+// countDistinctVisuals reports how many different appearances a freshly spawned
+// group carries. The appearance the client draws comes from CreateMob.Equip
+// (the 16 visual item codes) plus the AnctCode overlay, both derived from the
+// template at spawn — so one block should yield exactly one signature.
+func countDistinctVisuals(w *world.World, ids []int) int {
+	seen := make(map[[32]byte]struct{}, 4)
+	for _, id := range ids {
+		e := w.Entity(id)
+		if e == nil {
+			continue
+		}
+		var sig [32]byte
+		for i, code := range e.EquipVisual {
+			sig[i*2], sig[i*2+1] = byte(code), byte(code>>8)
+		}
+		seen[sig] = struct{}{}
+	}
+	return len(seen)
 }
 
 // waterBossBlock maps a 0..9 roll to a boss block offset
