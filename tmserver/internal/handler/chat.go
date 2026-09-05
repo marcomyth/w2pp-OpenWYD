@@ -183,6 +183,18 @@ func (d *Dispatcher) runCommand(w *world.World, s *world.Session, name string, a
 		d.arcana(w, s)
 		return true
 	}
+	if cmd == "time" {
+		d.showTime(w, s)
+		return true
+	}
+	if cmd == "online" {
+		d.showOnline(w, s)
+		return true
+	}
+	if cmd == "day" {
+		d.showDay(w, s)
+		return true
+	}
 	if cmd == "nt" {
 		d.showNightmareTickets(w, s)
 		return true
