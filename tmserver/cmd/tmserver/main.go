@@ -356,9 +356,14 @@ func run(logger *slog.Logger) error {
 		MaxMsgPerSec:   *maxMsgPerSec,
 		MsgBurst:       *msgBurst,
 		IdleTimeout:    time.Duration(*idleTimeoutSec) * time.Second,
-		StatusFile:     statusFile,
-		ItemRanges:     itemRanges,
-		LogSends:       *logSends,
+		// Long enough for the "server is restarting" frame to leave the socket,
+		// short enough to leave the character saves their share of the SIGTERM →
+		// SIGKILL window (Docker's default grace is 10s). Only production sets
+		// this; tests leave it zero so they do not pay it on every world.
+		ShutdownGrace: 2 * time.Second,
+		StatusFile:    statusFile,
+		ItemRanges:    itemRanges,
+		LogSends:      *logSends,
 	}, logger, persist, dispatch.Handle)
 	// Mob-AI pulse: monsters acquire/chase/melee nearby players each tick (mobai.go).
 	w.SetTickHandler(world.DefaultMobTick, dispatch.Tick)

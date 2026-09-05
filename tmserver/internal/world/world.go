@@ -87,6 +87,12 @@ type Config struct {
 	OutBuffer  int           // per-session outbound queue depth
 	EventQueue int           // inbound event queue depth
 	Now        func() uint32 // server clock (ClientTick); injectable for tests
+	// ShutdownGrace is how long the loop waits after warning players that the
+	// server is stopping, so their sockets flush the frame before shutdown closes
+	// them. ZERO means announce and move on, which is what tests want: they spin
+	// worlds up and down constantly and would otherwise pay this on every one.
+	// cmd/tmserver sets the real value.
+	ShutdownGrace time.Duration
 
 	// Hardening (Fase 7, migration-plan.md §5), all opt-in:
 	// RejectChecksum drops a connection on a CPSock checksum mismatch. The legacy
@@ -247,6 +253,7 @@ func (w *World) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			w.announceShutdown()
 			w.shutdown()
 			return ctx.Err()
 		case cb := <-w.callbacks:
@@ -256,6 +263,7 @@ func (w *World) Run(ctx context.Context) error {
 		}
 		select {
 		case <-ctx.Done():
+			w.announceShutdown()
 			w.shutdown()
 			return ctx.Err()
 		case cb := <-w.callbacks:
