@@ -355,7 +355,21 @@ func (d *Dispatcher) combineItemEhre(w *world.World, s *world.Session, _ protoco
 		return
 	}
 	if id == 8 {
-		e.Soul = ehreSoul(it[0].Index, it[1].Index, it[2].Index)
+		// The legacy assigns extra.Soul from a chain of if/else-if with NO final
+		// else (_MSG_CombineItemEhre.cpp:318-350): a stone order that matches no
+		// recipe leaves the existing Soul untouched. Assigning ehreSoul's result
+		// unconditionally instead ERASED it — the function returns 0 for "no
+		// match", and 0 is "no soul configured", so one wrong order silently wiped
+		// a configured Soul while the combine still reported success. The stones
+		// are consumed either way, as in the original.
+		if soul := ehreSoul(it[0].Index, it[1].Index, it[2].Index); soul != 0 {
+			e.Soul = soul
+		} else {
+			d.log.Info("ehre soul: no recipe for this stone order",
+				"conn", s.Conn, "account", s.AccountName,
+				"stones", [3]int16{it[0].Index, it[1].Index, it[2].Index}, "soul", e.Soul)
+			sendClientMessage(w, s, msgSoulNoRecipe)
+		}
 		sendCombineComplete(w, s, combineSuccess)
 		w.SaveCharacterAsync(s)
 		return
@@ -418,6 +432,18 @@ func ehreAddEffect(it *world.Item, eff uint8, add, maxValue int) {
 	}
 }
 
+// The two Soul lines the player has no other way to read: the combine reports
+// success whatever the stone order, and the buff shows its icon whatever the
+// configuration.
+const (
+	msgSoulNoRecipe      = "Essa ordem de pedras não configura nenhuma Alma."
+	msgSoulNotConfigured = "Sua Alma não está configurada — combine as pedras na Ehre."
+)
+
+// ehreSoul maps the three Ehre stones, IN ORDER, to a Soul configuration
+// (_MSG_CombineItemEhre.cpp:318-350). It returns 0 for an order that matches no
+// recipe; the caller must treat that as "leave the Soul alone", never as a value
+// to assign — 0 means "no Soul configured".
 func ehreSoul(a, b, c int16) uint8 {
 	switch [3]int16{a, b, c} {
 	case [3]int16{2441, 2441, 2441}:

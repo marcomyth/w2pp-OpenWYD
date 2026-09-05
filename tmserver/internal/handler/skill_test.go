@@ -1,13 +1,16 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"io"
 	"log/slog"
 	"net"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -377,34 +380,63 @@ func TestDeriveSkillBonus(t *testing.T) {
 	}
 }
 
-func TestLearnedSkillBitModulo24(t *testing.T) {
+// Class skills take skillnum%24; the shared rows 96-103 take skillnum-72, which
+// lands them on the Sephira bits 24-31 the books and the Kibita unlock grant.
+// This used to assert %24 for the whole range, which put the Soul (102) on bit 6
+// and left bit 30 — the only one the Kibita quest sets — unread.
+func TestLearnedSkillBitSephiraRange(t *testing.T) {
 	cases := []struct {
 		skill int
 		want  int32
+		why   string
 	}{
-		{0, 1 << 0},
-		{23, 1 << 23},
-		{96, 1 << 0},
-		{103, 1 << 7},
-		{200, 1 << 8},
-		{224, 1 << 8},
-		{247, 1 << 7},
+		{0, 1 << 0, "first class skill"},
+		{23, 1 << 23, "last class skill"},
+		{96, 1 << 24, "first Sephira row ↔ book Vol 31"},
+		{102, 1 << 30, "Limite da Alma ↔ the Kibita Soul bit"},
+		{103, -1 << 31, "last Sephira row ↔ book Vol 38 (bit 31, signed)"},
+		{200, 1 << 8, "past the Sephira range: %24 fallback"},
+		{224, 1 << 8, "past the Sephira range: %24 fallback"},
+		{247, 1 << 7, "past the Sephira range: %24 fallback"},
 	}
 	for _, tt := range cases {
 		if got := learnedSkillBit(tt.skill); got != tt.want {
-			t.Fatalf("learnedSkillBit(%d) = %#x, want %#x", tt.skill, got, tt.want)
+			t.Errorf("learnedSkillBit(%d) = %#x, want %#x (%s)", tt.skill, got, tt.want, tt.why)
 		}
 	}
 }
 
-func TestValidateCastSharedSkillsUseModulo24LearnedMask(t *testing.T) {
+// A reborn Celestial carries LearnedSkill = 1<<30 and nothing else until it
+// rebuys its class tree. Gating the Soul on bit 6 refused it outright — and the
+// refusal is a crack error, so the player saw the skill do nothing at all.
+func TestValidateCastSoulUsesTheKibitaBit(t *testing.T) {
+	d := New(Config{Spells: content.NewSkillData([]content.Spell{
+		{Index: 102, Name: "Limite da Alma", AffectType: 29, AffectTime: 150},
+	})})
+	w := world.New(world.Config{GridDim: 16}, slog.Default(), nil, nil)
+	s := &world.Session{Conn: 1}
+	e := &world.Entity{ID: 1, Level: 1, ClassMaster: classMasterCelestial, LearnedSkill: 1 << 30}
+
+	if _, ok := d.validateCast(w, s, e, 102, 1000); !ok {
+		t.Fatal("validateCast refused the Soul for a celestial holding bit 30")
+	}
+	// Without the Kibita bit it must refuse, whatever class skills are held.
+	e.LearnedSkill = (1 << 6) | (1 << 7)
+	if _, ok := d.validateCast(w, s, e, 102, 1000); ok {
+		t.Fatal("validateCast accepted the Soul on a class-skill bit instead of bit 30")
+	}
+}
+
+func TestValidateCastSharedSkillsUseTheirOwnLearnedBit(t *testing.T) {
 	d := New(Config{Spells: content.NewSkillData([]content.Spell{
 		{Index: 96, Name: "Poder Superior"},
 		{Index: 200, Name: "Protecao Divina"},
 	})})
 	w := world.New(world.Config{GridDim: 16}, slog.Default(), nil, nil)
 	s := &world.Session{Conn: 1}
-	e := &world.Entity{ID: 1, Level: 80, LearnedSkill: (1 << 0) | (1 << 8)}
+	// Bit 24 is skill 96's own (its Sephira book); bit 8 is what row 200 still
+	// takes through the %24 fallback.
+	e := &world.Entity{ID: 1, Level: 80, LearnedSkill: (1 << 24) | (1 << 8)}
 	e.Special[1] = 30
 	e.Special[2] = 45
 
@@ -412,6 +444,14 @@ func TestValidateCastSharedSkillsUseModulo24LearnedMask(t *testing.T) {
 	if !ok || !cast.isSkill || cast.special != 30 {
 		t.Fatalf("validateCast skill 96 = ok %v cast %+v, want tree-1 special", ok, cast)
 	}
+	// Holding the first class skill is no longer enough for a Sephira row.
+	e.LearnedSkill &^= 1 << 24
+	e.LearnedSkill |= 1 << 0
+	if _, ok := d.validateCast(w, s, e, 96, 1000); ok {
+		t.Fatal("validateCast accepted skill 96 without its Sephira book bit")
+	}
+	e.LearnedSkill = (1 << 24) | (1 << 8)
+	s.CrackError = 0
 	cast, ok = d.validateCast(w, s, e, 200, 1000)
 	if !ok || !cast.isSkill || cast.special != 45 {
 		t.Fatalf("validateCast skill 200 = ok %v cast %+v, want modulo learned tree-2 special", ok, cast)
@@ -464,20 +504,34 @@ func TestLearnSkill(t *testing.T) {
 
 	// Learning it again refuses (already learned).
 	send(t, c, protocol.MsgApplyBonus, learnBody(5000))
-	if ty, p, ok := readMaybe(t, c); !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeAlreadyLearned {
-		t.Errorf("got %#x/%d, want already-learned notice", ty, noticeCode(t, p))
-	}
+	expectRefusal(t, c, NoticeAlreadyLearned, msgAlreadyLearned)
 
 	// Another class's skill (Foema index 24 → detail 5024) refuses.
 	send(t, c, protocol.MsgApplyBonus, learnBody(5024))
-	if ty, p, ok := readMaybe(t, c); !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeOtherClassSkill {
-		t.Errorf("got %#x/%d, want other-class notice", ty, noticeCode(t, p))
-	}
+	expectRefusal(t, c, NoticeOtherClassSkill, msgOtherClassSkill)
 
 	// The 8th skill (detail 5007) needs the 7 previous ones first.
 	send(t, c, protocol.MsgApplyBonus, learnBody(5007))
-	if ty, p, ok := readMaybe(t, c); !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeLearnPrereq {
-		t.Errorf("got %#x/%d, want prereq notice", ty, noticeCode(t, p))
+	expectRefusal(t, c, NoticeLearnPrereq, msgBeforeEighthSkill)
+}
+
+// expectRefusal reads the two frames a learn refusal now sends: the numeric
+// notice the client turns into a box, then the words on the panel. Asserting
+// only the first is what let "clicked and nothing happened" ship — and it would
+// also leave the panel frame queued, desynchronising every later read.
+func expectRefusal(t *testing.T, c net.Conn, want Notice, text string) {
+	t.Helper()
+	ty, p, ok := readMaybe(t, c)
+	if !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != want {
+		t.Fatalf("got %#x/%d, want notice %d", ty, noticeCode(t, p), want)
+	}
+	ty, p, ok = readMaybe(t, c)
+	if !ok || ty != protocol.MsgMessagePanel {
+		t.Fatalf("got %#x ok=%v, want the panel line for notice %d", ty, ok, want)
+	}
+	got := string(bytes.TrimRight(p, "\x00"))
+	if want := string(protocol.ClientText(text)); got != want {
+		t.Errorf("panel says %q, want %q", got, want)
 	}
 }
 
@@ -623,12 +677,29 @@ func TestMasteryAllowanceByTier(t *testing.T) {
 	}
 }
 
-// Both refusal strings must survive the client's Windows-1252 encoding — they
-// are Go literals, so an accent would arrive as mojibake.
+// Every refusal string must survive the client's Windows-1252 encoding. This
+// used to compare byte lengths, which is only a valid test for pure ASCII: an
+// accent is two UTF-8 bytes and one CP1252 byte, so a correctly encodable "Não"
+// legitimately shrinks and the old assertion called it a failure. What actually
+// signals an unrepresentable character is ClientText substituting '?'.
 func TestMasteryRefusalsAreClientSafe(t *testing.T) {
-	for _, msg := range []string{msgMaxPointNow, msgMaxPoint200} {
-		if got := protocol.ClientText(msg); len(got) != len(msg) {
-			t.Errorf("%q changes length when encoded: it carries characters outside the client's codepage", msg)
+	msgs := []string{
+		msgMaxPointNow, msgMaxPoint200, msgAlreadyLearned, msgNeedLevelToLearn,
+		msgNeedMasteryToLearn, msgOnlyOneEighthSkill, msgBeforeEighthSkill,
+		msgOtherClassSkill,
+	}
+	for _, msg := range msgs {
+		encoded := protocol.ClientText(msg)
+		if len(encoded) != utf8.RuneCountInString(msg) {
+			t.Errorf("%q does not encode to one byte per rune", msg)
+		}
+		if bytes.ContainsRune(encoded, '?') && !strings.ContainsRune(msg, '?') {
+			t.Errorf("%q carries a character outside the client's codepage", msg)
+		}
+		// MSG_MessagePanel.String[128] leaves 94 usable bytes; a longer line is
+		// silently truncated on screen.
+		if len(encoded) > 94 {
+			t.Errorf("%q is %d bytes encoded, over the panel's 94", msg, len(encoded))
 		}
 	}
 	if msgMaxPointNow == msgMaxPoint200 {

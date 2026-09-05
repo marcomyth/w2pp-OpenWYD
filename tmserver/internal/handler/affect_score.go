@@ -245,6 +245,10 @@ func applyConHpBuff(e *world.Entity, level, value int32) {
 	e.AffCon += clampInt16(v)
 }
 
+// affectSoul is the wire affect type of Limite da Alma (skill 102), the buff
+// whose whole effect is the Soul multiplier below.
+const affectSoul = 29
+
 const (
 	soulF  = 2
 	soulI  = 3

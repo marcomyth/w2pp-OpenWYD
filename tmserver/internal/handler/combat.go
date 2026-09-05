@@ -450,14 +450,17 @@ func (d *Dispatcher) validateCast(w *world.World, s *world.Session, e *world.Ent
 	}
 	cast := castInfo{isSkill: true, spell: spell}
 	if tick != protocol.SkipCheckTick {
-		// Class gate only applies to the four base-class blocks. Shared/Sephira
-		// rows (96+) skip it, but still use the same live learned gate:
-		// LearnedSkill & (1 << (skillnum % 24)). The old SecLearnedSkill branch in
-		// _MSG_Attack is unreachable because it sits under skillnum>=MAX_SKILLINDEX.
+		// Class gate only applies to the four base-class blocks; the shared/Sephira
+		// rows (96+) belong to no class and skip it. They are still gated on being
+		// learned, but on their OWN bit — see learnedSkillBit, which restores the
+		// skillnum-72 mapping the shipped legacy lost to a raised MAX_SKILLINDEX.
 		if content.SkillClass(skillnum) <= 3 && content.SkillClass(skillnum) != int(e.Class) {
 			return castInfo{}, false
 		}
 		if e.LearnedSkill&learnedSkillBit(skillnum) == 0 {
+			d.log.Info("cast refused: skill not learned",
+				"conn", s.Conn, "account", s.AccountName, "skill", skillnum,
+				"need_bit", learnedSkillBit(skillnum), "mask", e.LearnedSkill)
 			w.AddCrackError(s, 8, 10)
 			return castInfo{}, false
 		}
@@ -487,7 +490,39 @@ func (d *Dispatcher) validateCast(w *world.World, s *world.Session, e *world.Ent
 	return cast, true
 }
 
+// sephiraSkillLo / sephiraSkillHi bound the shared skills that are not owned by
+// a class: 96-103 map one-to-one onto LearnedSkill bits 24-31 as skillnum-72.
+// That is the range the Sephira books grant (Vol 31-38 → bit Vol-7, useSkillBook)
+// and where the Kibita unlock puts the Soul (bit 30 ↔ skill 102, Limite da Alma).
+const (
+	sephiraSkillLo = 96
+	sephiraSkillHi = 103
+)
+
+// learnedSkillBit is the LearnedSkill bit a cast requires.
+//
+// DIVERGENCE FROM THE SHIPPED LEGACY, deliberate. _MSG_Attack.cpp:155-190 has two
+// gates: skillnum-72 for the 96+ shared skills, and skillnum%24 for class skills.
+// The first sits under `if (skillnum >= MAX_SKILLINDEX)`, and MAX_SKILLINDEX was
+// raised from 103 to 248 (Basedef.h:200 still carries the old value in a comment),
+// so it became unreachable and every skill fell through to %24. That leaves skill
+// 102 gated on bit 6 — an ordinary class skill — while the bit the Kibita quest
+// actually grants (30) is never read, and the Sephira books grant bits nothing
+// checks. The mapping skillnum-72 is not a coincidence: 96..103 → 24..31 is
+// exactly the book range, and 102 → 30 is exactly the Soul. The dead branch is
+// the intent; this restores it.
+//
+// The visible consequence: skills 96-101 now need their book, where before any
+// character holding the first six class skills could cast them. Skill 97 (the
+// mortar) keeps the bit gate rather than the legacy's exemption, because the
+// legacy exempts it only to gate on a placed item 746 instead — a check this port
+// does not model yet, so dropping the bit check would leave it with no gate.
+//
+// Indices past 103 keep the %24 fallback: their bit would shift out of an int32.
 func learnedSkillBit(skillnum int) int32 {
+	if skillnum >= sephiraSkillLo && skillnum <= sephiraSkillHi {
+		return int32(1) << uint(skillnum-72)
+	}
 	return int32(1) << uint(skillnum%content.MaxSkill)
 }
 
@@ -620,6 +655,19 @@ func (d *Dispatcher) applyCastAffect(w *world.World, e, target *world.Entity, ti
 	}
 	if !applied {
 		return
+	}
+	// Affect 29 (Limite da Alma, skill 102) multiplies attributes by the
+	// character's CONFIGURED Soul — every branch of the legacy reads extra.Soul
+	// and none has a default (Basedef.cpp:3050-3110), so with Soul unset the buff
+	// installs, ticks its full duration and changes nothing. On screen that is
+	// indistinguishable from a skill that did not fire, and the client never says
+	// why. The Soul is chosen with the Ehre combine (recipe 8).
+	if sp.AffectType == affectSoul && target.Soul == 0 {
+		if ts := w.Session(tid); ts != nil {
+			sendClientMessage(w, ts, msgSoulNotConfigured)
+		}
+		d.log.Info("soul buff cast with no soul configured",
+			"target", tid, "class_master", target.ClassMaster)
 	}
 	// A landed transform (skills 64/66/68/70/71) also swaps the body mesh, which
 	// everyone in view must render — the legacy follows the SetAffect with
