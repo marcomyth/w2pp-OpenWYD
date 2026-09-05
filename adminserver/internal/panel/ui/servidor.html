@@ -14,6 +14,13 @@
   }
   td.acao form { margin: 0; }
   td.acao button { padding: 4px 9px; font-size: 12px; }
+  .reinicio-cartao {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+    padding: 18px 20px; margin-bottom: 26px;
+  }
+  .reinicio-cartao .linha-estado { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--ink-2); }
+  .reinicio-cartao .calmo { color: var(--ink-3); font-size: 13px; }
+  .reinicio-cartao .dica { font-size: 12.5px; color: var(--ink-3); margin: 10px 0 0; max-width: 52ch; }
   .selecao { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
 </style>
 </head>
@@ -45,6 +52,35 @@
     o corte por inatividade desligado, então uma conexão que caiu sem avisar
     continua contando até alguém derrubar.
   </div>
+  {{end}}
+
+  {{if .Servidor.Conhecido}}
+  <div class="reinicio-cartao">
+    <div class="linha-estado">
+      <span>no ar há <strong>{{.Servidor.NoAr}}</strong></span>
+      {{if .Servidor.Pendentes}}
+        <span class="bloq">{{.Servidor.Pendentes}} edição(ões) aguardando reinício</span>
+      {{else}}
+        <span class="calmo">nenhuma edição pendente</span>
+      {{end}}
+    </div>
+    {{if .IsAdmin}}
+      <form method="post" action="/servidor/reiniciar" style="margin-top:12px">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input type="hidden" name="voltar" value="/servidor">
+        <button type="submit">Reiniciar o servidor de jogo</button>
+      </form>
+    {{else}}
+      <p class="dica" style="margin-top:10px">Só um admin pode reiniciar.</p>
+    {{end}}
+    <p class="dica">
+      Quem está jogando é salvo e desconectado; o servidor volta em cerca de um
+      minuto. Não existe ligar e desligar separados — reiniciar é a única parada
+      que sabe voltar sozinha.
+    </p>
+  </div>
+  {{else if .Servidor.Erro}}
+  <div class="erro">{{.Servidor.Erro}}</div>
   {{end}}
 
   <div class="acoes">

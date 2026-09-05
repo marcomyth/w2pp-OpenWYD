@@ -3434,3 +3434,80 @@ func TestVigenteSegueAMesmaRegraDoLogin(t *testing.T) {
 		}
 	}
 }
+
+// --- o cartao de reinicio na aba Servidor ---
+
+// newTestPanelJogoPlat builds a panel with both the live link and the hosting
+// API, which is what the Servidor tab needs to show everything it offers.
+func newTestPanelJogoPlat(t *testing.T, j Live, p Platform) http.Handler {
+	t.Helper()
+	h, err := New(Config{
+		Accounts:   withTarget(roleAdmin),
+		Writer:     newFakeWriter(),
+		Jogo:       j,
+		Platform:   p,
+		Audit:      newFakeAudit(),
+		Sessions:   session.New(time.Hour),
+		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}
+
+func TestAbaServidorTrazOBotaoDeReiniciar(t *testing.T) {
+	// The only restart button used to live on Início. This tab is where anyone
+	// looks for a server control, and finding kick and broadcast but no restart
+	// reads as the feature being missing — which is exactly what happened.
+	get := signedIn(t, newTestPanelJogoPlat(t, &fakeJogo{estado: estadoDeTeste()}, newFakePlatform()))
+	body := get("/servidor").Body.String()
+
+	if !strings.Contains(body, `action="/servidor/reiniciar"`) {
+		t.Error("a aba Servidor não oferece o reinício")
+	}
+	if !strings.Contains(body, "no ar há") {
+		t.Error("a aba Servidor não mostra há quanto tempo o servidor está de pé")
+	}
+	if !strings.Contains(body, "ligar e desligar separados") {
+		t.Error("a aba não explica que só existe reiniciar")
+	}
+}
+
+func TestReinicioVoltaParaAAbaDeOndeSaiu(t *testing.T) {
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, &fakeJogo{}, newFakePlatform()))
+
+	rec := post("/servidor/reiniciar", url.Values{"csrf": {token}, "voltar": {"/servidor"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/servidor?") {
+		t.Errorf("voltou para %q, want a aba Servidor", loc)
+	}
+}
+
+func TestReinicioDaPaginaInicialContinuaNaInicial(t *testing.T) {
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, &fakeJogo{}, newFakePlatform()))
+
+	rec := post("/servidor/reiniciar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/?") {
+		t.Errorf("voltou para %q, want a página inicial", loc)
+	}
+}
+
+func TestVoltarSoAceitaOsCaminhosConhecidos(t *testing.T) {
+	// The field comes from a form, so it is caller-controlled. An open redirect
+	// is not worth the convenience of a general "back where I was".
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, &fakeJogo{}, newFakePlatform()))
+
+	for _, destino := range []string{"https://exemplo.invalido", "//exemplo.invalido", "/contas"} {
+		rec := post("/servidor/reiniciar", url.Values{"csrf": {token}, "voltar": {destino}})
+		if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/?") {
+			t.Errorf("voltar=%q levou para %q, want a página inicial", destino, loc)
+		}
+	}
+}
