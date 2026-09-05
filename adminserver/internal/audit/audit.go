@@ -41,6 +41,8 @@ const (
 	ActionKick           = "KICK"
 	ActionBroadcast      = "BROADCAST"
 	ActionSafeRestart    = "SAFE_RESTART"
+	ActionStopGame       = "STOP_GAME"
+	ActionStartGame      = "START_GAME"
 )
 
 // listLimit caps one page of the log.

@@ -64,7 +64,12 @@
   {{if .Servidor.Conhecido}}
   <div class="reinicio-cartao">
     <div class="linha-estado">
+      {{if .Servidor.Rodando}}
       <span>no ar há <strong>{{.Servidor.NoAr}}</strong></span>
+      {{else}}
+      <span class="bloq">servidor desligado</span>
+      <span class="calmo">estado na hospedagem: {{.Servidor.Estado}}</span>
+      {{end}}
       {{if .Servidor.Pendentes}}
         <span class="bloq">{{.Servidor.Pendentes}} edição(ões) aguardando reinício</span>
       {{else}}
@@ -72,7 +77,19 @@
       {{end}}
     </div>
     {{if .IsAdmin}}
-      {{if .HasSeguro}}
+      {{if not .Servidor.Rodando}}
+      <form method="post" action="/servidor/ligar" style="margin-top:14px">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <button type="submit">Ligar o servidor</button>
+        <p class="dica">
+          Reusa a imagem já construída — volta em cerca de um minuto, sem
+          reconstruir e sem pegar commit novo. Pode apertar mesmo se ele já
+          estiver de pé.
+        </p>
+      </form>
+      {{end}}
+
+      {{if and .HasSeguro .Servidor.Rodando}}
       <form method="post" action="/servidor/reiniciar-seguro" style="margin-top:14px">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <label for="aviso-reinicio">Aviso antes de reiniciar</label>
@@ -88,6 +105,22 @@
       </form>
       {{end}}
 
+      {{if and .HasSeguro .Servidor.Rodando}}
+      <form method="post" action="/servidor/desligar" style="margin-top:14px">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label for="aviso-desligar">Aviso antes de desligar</label>
+        <input id="aviso-desligar" name="aviso" type="text" maxlength="95"
+               placeholder="deixe vazio para o aviso padrão" style="width:100%;margin:6px 0 10px">
+        <button type="submit">Desligar o servidor</button>
+        <p class="dica">
+          Salva e desconecta todo mundo, confirma as gravações, e só então tira o
+          servidor do ar. As variáveis e o volume ficam — isto não é apagar. O
+          botão Ligar traz de volta.
+        </p>
+      </form>
+      {{end}}
+
+      {{if .Servidor.Rodando}}
       <form method="post" action="/servidor/reiniciar" style="margin-top:14px">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <input type="hidden" name="voltar" value="/servidor">
@@ -99,14 +132,14 @@
           {{if .HasSeguro}}Prefira o de cima.{{end}}
         </p>
       </form>
+      {{end}}
     {{else}}
       <p class="dica" style="margin-top:10px">Só um admin pode reiniciar.</p>
     {{end}}
     <p class="dica">
-      Não existe ligar e desligar separados — reiniciar é a única parada que sabe
-      voltar sozinha. Se precisar deixar o servidor fora do ar, faça o reinício
-      seguro primeiro e desligue pela Railway: depois dele ninguém tem nada a
-      perder.
+      Desligar aqui não é apagar: o serviço, as variáveis e o volume ficam
+      intactos, e Ligar traz o mesmo deployment de volta. O painel da Railway só
+      oferece apagar, que leva tudo junto.
     </p>
   </div>
   {{else if .Servidor.Erro}}

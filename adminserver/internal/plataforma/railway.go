@@ -175,3 +175,74 @@ func (c *Client) do(ctx context.Context, query string, vars map[string]any, out 
 	}
 	return nil
 }
+
+// LatestAny returns the service's most recent deployment whatever its state.
+//
+// Latest filters to successful ones, which is right for "how long has it been
+// up" and wrong for turning the server back on: a stopped deployment is the one
+// that has to be found, and filtering by success could hide it and leave the
+// panel with no id to redeploy — the server off and no button to fix it.
+func (c *Client) LatestAny(ctx context.Context) (Deployment, error) {
+	const q = `query($input: DeploymentListInput!) {
+	  deployments(input: $input, first: 1) {
+	    edges { node { id status createdAt } }
+	  }
+	}`
+	vars := map[string]any{
+		"input": map[string]any{
+			"projectId":     c.cfg.ProjectID,
+			"environmentId": c.cfg.EnvironmentID,
+			"serviceId":     c.cfg.ServiceID,
+		},
+	}
+
+	var out struct {
+		Deployments struct {
+			Edges []struct {
+				Node struct {
+					ID        string    `json:"id"`
+					Status    string    `json:"status"`
+					CreatedAt time.Time `json:"createdAt"`
+				} `json:"node"`
+			} `json:"edges"`
+		} `json:"deployments"`
+	}
+	if err := c.do(ctx, q, vars, &out); err != nil {
+		return Deployment{}, err
+	}
+	if len(out.Deployments.Edges) == 0 {
+		return Deployment{}, fmt.Errorf("plataforma: no deployment at all for service %s", c.cfg.ServiceID)
+	}
+	n := out.Deployments.Edges[0].Node
+	return Deployment{ID: n.ID, Status: n.Status, CreatedAt: n.CreatedAt}, nil
+}
+
+// NoAr reports whether a deployment status means the service is running.
+//
+// The platform has more states than "up" and "down" — building, deploying,
+// crashed, removed — and only one of them means players can connect. Anything
+// else is offered to the operator as "turn it on", which is safe to press when
+// it is already on.
+func NoAr(status string) bool { return status == "SUCCESS" }
+
+// Stop takes the deployment down without deleting the service.
+//
+// The service, its variables and its volume all survive: this is the "off"
+// switch the dashboard does not offer, where the only button there is Delete.
+// Redeploy brings the same deployment back.
+func (c *Client) Stop(ctx context.Context, deploymentID string) error {
+	const m = `mutation($id: String!) { deploymentStop(id: $id) }`
+	return c.do(ctx, m, map[string]any{"id": deploymentID}, &struct{}{})
+}
+
+// Redeploy brings a stopped deployment back up.
+//
+// usePreviousImageTag reuses the image that was already built: turning the
+// server back on must not become a rebuild, which would take minutes and could
+// pick up a commit nobody meant to ship.
+func (c *Client) Redeploy(ctx context.Context, deploymentID string) error {
+	const m = `mutation($id: String!) {
+	  deploymentRedeploy(id: $id, usePreviousImageTag: true) { id }
+	}`
+	return c.do(ctx, m, map[string]any{"id": deploymentID}, &struct{}{})
+}

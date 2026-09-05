@@ -151,6 +151,9 @@ type TradeLog interface {
 type Platform interface {
 	Latest(ctx context.Context) (plataforma.Deployment, error)
 	Restart(ctx context.Context, deploymentID string) error
+	LatestAny(ctx context.Context) (plataforma.Deployment, error)
+	Stop(ctx context.Context, deploymentID string) error
+	Redeploy(ctx context.Context, deploymentID string) error
 }
 
 // Config wires the handler.
@@ -229,6 +232,8 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("POST /servidor/aviso", h.requireStaff(http.HandlerFunc(h.avisarTodos)))
 		if h.cfg.Platform != nil {
 			mux.Handle("POST /servidor/reiniciar-seguro", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.reinicioSeguro))))
+			mux.Handle("POST /servidor/desligar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.desligarServidor))))
+			mux.Handle("POST /servidor/ligar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.ligarServidor))))
 		}
 	}
 	if h.cfg.Platform != nil {
@@ -1138,6 +1143,11 @@ type estadoServidor struct {
 	Pendentes    int    // template-stat edits made after that boot
 	UltimaEdicao time.Time
 	DeployID     string
+	// Rodando is false when the deployment exists but is not up — stopped by the
+	// Desligar button, crashed, or still building. The page offers Ligar then,
+	// which is safe to press when it is already running.
+	Rodando bool
+	Estado  string // the platform's own word for it, shown when not running
 }
 
 // statusServidor gathers the boot time and the pending edits made after it.
@@ -1149,13 +1159,24 @@ func (h *Handler) statusServidor(r *http.Request) estadoServidor {
 	if h.cfg.Platform == nil {
 		return estadoServidor{}
 	}
-	dep, err := h.cfg.Platform.Latest(r.Context())
+	// LatestAny, not Latest: a stopped deployment is exactly the one this page
+	// has to be able to show, and filtering to successful ones would render the
+	// server as unreachable instead of as off.
+	dep, err := h.cfg.Platform.LatestAny(r.Context())
 	if err != nil {
 		h.cfg.Logger.Warn("platform status unavailable", "err", err)
 		return estadoServidor{Erro: "Não consegui falar com a hospedagem."}
 	}
 
-	est := estadoServidor{Conhecido: true, DeployID: dep.ID, NoAr: desde(dep.CreatedAt)}
+	est := estadoServidor{
+		Conhecido: true, DeployID: dep.ID, NoAr: desde(dep.CreatedAt),
+		Rodando: plataforma.NoAr(dep.Status), Estado: dep.Status,
+	}
+	if !est.Rodando {
+		// Pending edits are counted against a boot that has not happened. Asking
+		// would only produce a number that means nothing yet.
+		return est
+	}
 	n, last, err := h.cfg.Writer.PendingSince(r.Context(), dep.CreatedAt)
 	if err != nil {
 		h.cfg.Logger.Error("pending overrides failed", "err", err)

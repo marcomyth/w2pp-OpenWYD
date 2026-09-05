@@ -1389,11 +1389,14 @@ func TestWebServerFailureIsNotAPanelFailure(t *testing.T) {
 
 // fakePlatform stands in for the hosting API.
 type fakePlatform struct {
-	mu        sync.Mutex
-	dep       plataforma.Deployment
-	latestErr error
-	restartEr error
-	restarts  []string
+	mu            sync.Mutex
+	dep           plataforma.Deployment
+	latestErr     error
+	restartEr     error
+	restarts      []string
+	stops         []string
+	redeploys     []string
+	usouLatestAny int
 }
 
 func newFakePlatform() *fakePlatform {
@@ -1413,6 +1416,33 @@ func (f *fakePlatform) restartCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.restarts)
+}
+
+func (f *fakePlatform) LatestAny(context.Context) (plataforma.Deployment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.usouLatestAny++
+	return f.dep, f.latestErr
+}
+
+func (f *fakePlatform) Stop(_ context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.stops = append(f.stops, id)
+	return nil
+}
+
+func (f *fakePlatform) Redeploy(_ context.Context, id string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.redeploys = append(f.redeploys, id)
+	return nil
+}
+
+func (f *fakePlatform) stopCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.stops)
 }
 
 func (f *fakePlatform) Restart(_ context.Context, id string) error {
@@ -3098,6 +3128,7 @@ type fakeJogo struct {
 	avisados             int32
 	derrubados           int32
 	drenouAntesDoRestart bool
+	drenouAntesDoStop    bool
 	plat                 *fakePlatform // set to observe the ORDER of drain and restart
 }
 
@@ -3137,6 +3168,9 @@ func (f *fakeJogo) Drenar(_ context.Context, aviso string) (jogo.Drenagem, error
 	// emptying would still pass every count assertion and lose the data.
 	if f.plat == nil || f.plat.restartCount() == 0 {
 		f.drenouAntesDoRestart = true
+	}
+	if f.plat == nil || f.plat.stopCount() == 0 {
+		f.drenouAntesDoStop = true
 	}
 	f.drenagens = append(f.drenagens, aviso)
 	return jogo.Drenagem{Avisados: f.avisados, Derrubados: f.derrubados}, nil
@@ -3505,8 +3539,8 @@ func TestAbaServidorTrazOBotaoDeReiniciar(t *testing.T) {
 	if !strings.Contains(body, "no ar há") {
 		t.Error("a aba Servidor não mostra há quanto tempo o servidor está de pé")
 	}
-	if !strings.Contains(body, "ligar e desligar separados") {
-		t.Error("a aba não explica que só existe reiniciar")
+	if !strings.Contains(body, "não é apagar") {
+		t.Error("a aba não distingue desligar de apagar, que é a confusão que a Railway cria")
 	}
 }
 
@@ -3688,7 +3722,152 @@ func TestAbaServidorOferecaOsDoisReinicios(t *testing.T) {
 	if !strings.Contains(body, "sem relógio") {
 		t.Error("a página não explica por que um é mais seguro que o outro")
 	}
-	if !strings.Contains(body, "desligue pela Railway") {
-		t.Error("a página não diz como desligar de vez sem perder nada")
+	if !strings.Contains(body, `action="/servidor/desligar"`) {
+		t.Error("a página não oferece desligar")
+	}
+}
+
+// --- ligar e desligar ---
+
+func TestDesligarEsvaziaAntesDeTirarDoAr(t *testing.T) {
+	// Stopping is the exact moment unsaved progress disappears, so the drain has
+	// to come first — same order as the safe restart, same reason.
+	j := &fakeJogo{derrubados: 2, avisados: 2}
+	plat := newFakePlatform()
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, j, plat))
+
+	rec := post("/servidor/desligar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(j.drenagens) != 1 {
+		t.Fatalf("drenagens = %d, want 1", len(j.drenagens))
+	}
+	if len(plat.stops) != 1 {
+		t.Fatalf("desligamentos = %d, want 1", len(plat.stops))
+	}
+	if !j.drenouAntesDoStop {
+		t.Error("desligou antes de esvaziar — a ordem é o que salva o progresso")
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(loc, "Ligar") {
+		t.Errorf("aviso = %q, want dizer como trazer de volta", loc)
+	}
+}
+
+func TestDesligarNaoDesligaSeAsGravacoesNaoConfirmam(t *testing.T) {
+	j := &fakeJogo{drenarErr: fmt.Errorf("x: %w", jogo.ErrForaDoAr)}
+	plat := newFakePlatform()
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, j, plat))
+
+	rec := post("/servidor/desligar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", rec.Code)
+	}
+	if len(plat.stops) != 0 {
+		t.Fatal("desligou mesmo sem as gravações confirmarem")
+	}
+	if !strings.Contains(rec.Body.String(), "NÃO desliguei") {
+		t.Errorf("a mensagem não deixa claro: %q", rec.Body.String())
+	}
+}
+
+func TestLigarUsaODeploymentMaisRecenteSejaQualForOEstado(t *testing.T) {
+	// Stopping may leave a status the "successful only" filter hides. If the
+	// start button looked there, the one control that fixes an off server would
+	// be the one that could not find anything to press.
+	plat := newFakePlatform()
+	plat.dep.Status = "REMOVED"
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, &fakeJogo{}, plat))
+
+	rec := post("/servidor/ligar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(plat.redeploys) != 1 || plat.redeploys[0] != "dep-1" {
+		t.Fatalf("redeploys = %v, want [dep-1]", plat.redeploys)
+	}
+	if plat.usouLatestAny == 0 {
+		t.Error("procurou o deployment com o filtro de sucesso, que esconderia um parado")
+	}
+}
+
+func TestPaginaMostraDesligadoEOfereceLigar(t *testing.T) {
+	plat := newFakePlatform()
+	plat.dep.Status = "REMOVED"
+	get := signedIn(t, newTestPanelJogoPlat(t, &fakeJogo{}, plat))
+	body := get("/servidor").Body.String()
+
+	if !strings.Contains(body, "servidor desligado") {
+		t.Error("a página não diz que o servidor está desligado")
+	}
+	if !strings.Contains(body, `action="/servidor/ligar"`) {
+		t.Error("a página não oferece ligar")
+	}
+	if strings.Contains(body, `action="/servidor/desligar"`) {
+		t.Error("a página oferece desligar um servidor que já está desligado")
+	}
+	if strings.Contains(body, `action="/servidor/reiniciar"`) {
+		t.Error("a página oferece reiniciar um servidor que está desligado")
+	}
+}
+
+func TestPaginaComServidorNoArNaoOfereceLigar(t *testing.T) {
+	get := signedIn(t, newTestPanelJogoPlat(t, &fakeJogo{estado: estadoDeTeste()}, newFakePlatform()))
+	body := get("/servidor").Body.String()
+
+	if strings.Contains(body, `action="/servidor/ligar"`) {
+		t.Error("oferece ligar um servidor que já está no ar")
+	}
+	if !strings.Contains(body, `action="/servidor/desligar"`) {
+		t.Error("não oferece desligar um servidor no ar")
+	}
+	if !strings.Contains(body, "não é apagar") {
+		t.Error("a página não explica que desligar preserva as variáveis e o volume")
+	}
+}
+
+func TestLigarEDesligarSaoAdminOnly(t *testing.T) {
+	j := &fakeJogo{}
+	plat := newFakePlatform()
+	h, err := New(Config{
+		Accounts: withTarget(roleModerator), Writer: newFakeWriter(), Jogo: j, Platform: plat,
+		Audit: newFakeAudit(), Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	post, token := signedInPost(t, h.Routes())
+
+	for _, rota := range []string{"/servidor/desligar", "/servidor/ligar"} {
+		if rec := post(rota, url.Values{"csrf": {token}}); rec.Code != http.StatusForbidden {
+			t.Errorf("%s como moderador: status = %d, want 403", rota, rec.Code)
+		}
+	}
+	if len(plat.stops) != 0 || len(plat.redeploys) != 0 {
+		t.Fatal("um moderador ligou ou desligou o servidor")
+	}
+}
+
+func TestLigarNaoLigaSemAuditoria(t *testing.T) {
+	plat := newFakePlatform()
+	log := newFakeAudit()
+	log.failWrite = errors.New("banco fora do ar")
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Jogo: &fakeJogo{}, Platform: plat,
+		Audit: log, Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	post, token := signedInPost(t, h.Routes())
+
+	if rec := post("/servidor/ligar", url.Values{"csrf": {token}}); rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if len(plat.redeploys) != 0 {
+		t.Fatal("ligou sem registrar na auditoria")
 	}
 }

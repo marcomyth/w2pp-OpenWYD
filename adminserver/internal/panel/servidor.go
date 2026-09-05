@@ -220,3 +220,117 @@ func (h *Handler) reinicioSeguro(w http.ResponseWriter, r *http.Request) {
 		"Reinício seguro: %d sessão(ões) salva(s) e encerrada(s) antes de o servidor sair. Volta em cerca de um minuto.",
 		dren.Derrubados))
 }
+
+// desligarServidor empties the game server and then takes it down.
+//
+// The platform dashboard has no off switch — the only button beside a service is
+// Delete, which also destroys its variables and its volume. deploymentStop takes
+// the deployment down and leaves all of that in place, and Redeploy brings the
+// same one back, so this is a real pair rather than a one-way door.
+//
+// It drains first for the same reason the safe restart does: stopping is exactly
+// the moment when unsaved progress disappears. If the drain fails, nothing is
+// stopped.
+func (h *Handler) desligarServidor(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	sess, _ := staffFrom(r.Context())
+
+	aviso := strings.TrimSpace(r.PostFormValue("aviso"))
+	if aviso == "" {
+		aviso = "O servidor vai sair do ar agora."
+	}
+
+	dep, err := h.cfg.Platform.LatestAny(r.Context())
+	if err != nil {
+		h.cfg.Logger.Error("shutdown: platform unavailable", "err", err)
+		http.Error(w, "Não consegui falar com a hospedagem, então não mexi no servidor.",
+			http.StatusBadGateway)
+		return
+	}
+
+	dren, err := h.cfg.Jogo.Drenar(r.Context(), aviso)
+	if err != nil {
+		h.cfg.Logger.Error("shutdown: drain failed; NOT stopping", "err", err)
+		http.Error(w,
+			"Esvaziei o servidor mas as gravações não confirmaram, então NÃO desliguei. "+
+				"Detalhe: "+explicaJogo(err), http.StatusBadGateway)
+		return
+	}
+
+	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: audit.ActionStopGame,
+		New: map[string]any{
+			"deployment": dep.ID, "avisados": dren.Avisados, "derrubados": dren.Derrubados,
+		},
+	}); err != nil {
+		h.cfg.Logger.Error("drained but NOT audited; refusing to stop", "err", err)
+		http.Error(w,
+			"Os jogadores foram salvos e desconectados, mas a auditoria falhou, então não desliguei. "+
+				"O servidor está de pé e vazio.", http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.cfg.Platform.Stop(r.Context(), dep.ID); err != nil {
+		h.cfg.Logger.Error("shutdown refused", "deployment", dep.ID, "err", err)
+		http.Error(w,
+			"Os jogadores foram salvos e desconectados, mas a hospedagem recusou desligar. "+
+				"Ninguém perdeu nada; o servidor está vazio e de pé.", http.StatusBadGateway)
+		return
+	}
+
+	h.cfg.Logger.Info("game server stopped", "actor", sess.AccountName,
+		"deployment", dep.ID, "derrubados", dren.Derrubados)
+	h.redirectServidor(w, r, fmt.Sprintf(
+		"Servidor desligado. %d sessão(ões) salva(s) antes. Use Ligar para trazer de volta.",
+		dren.Derrubados))
+}
+
+// ligarServidor brings a stopped deployment back.
+//
+// It redeploys whatever the most recent deployment is, whatever its state, and
+// not the most recent SUCCESSFUL one: stopping may well leave a status that the
+// success filter hides, and then the button that fixes the situation would be
+// the one that could not find anything to press.
+func (h *Handler) ligarServidor(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	sess, _ := staffFrom(r.Context())
+
+	dep, err := h.cfg.Platform.LatestAny(r.Context())
+	if err != nil {
+		h.cfg.Logger.Error("start: platform unavailable", "err", err)
+		http.Error(w, "Não consegui falar com a hospedagem.", http.StatusBadGateway)
+		return
+	}
+
+	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: audit.ActionStartGame,
+		New:    map[string]any{"deployment": dep.ID, "estado_anterior": dep.Status},
+	}); err != nil {
+		h.cfg.Logger.Error("start NOT audited; refusing", "err", err)
+		http.Error(w, "Não consegui registrar a ação na auditoria, então não liguei.",
+			http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.cfg.Platform.Redeploy(r.Context(), dep.ID); err != nil {
+		h.cfg.Logger.Error("start refused", "deployment", dep.ID, "err", err)
+		http.Error(w, "A hospedagem recusou ligar o servidor.", http.StatusBadGateway)
+		return
+	}
+
+	h.cfg.Logger.Info("game server started", "actor", sess.AccountName, "deployment", dep.ID)
+	h.redirectServidor(w, r,
+		"Ligando. O servidor reusa a imagem já construída, então volta em cerca de um minuto sem reconstruir.")
+}
