@@ -23,16 +23,18 @@ import (
 // Action names. Kept as constants so a typo becomes a compile error rather than
 // a row nobody can filter for later.
 const (
-	ActionSetRole      = "SET_ROLE"
-	ActionSetBlocked   = "SET_BLOCKED"
-	ActionSetVip       = "SET_VIP"
-	ActionSetItemPrice = "SET_ITEM_PRICE"
-	ActionRestartGame  = "RESTART_GAME"
-	ActionSetNpcShop   = "SET_NPC_SHOP"
-	ActionSetNpc       = "SET_NPC"
-	ActionDeleteNpc    = "DELETE_NPC"
-	ActionSetMobStat   = "SET_MOB_STAT"
-	ActionClearMobStat = "CLEAR_MOB_STAT"
+	ActionSetRole       = "SET_ROLE"
+	ActionSetBlocked    = "SET_BLOCKED"
+	ActionSetVip        = "SET_VIP"
+	ActionSetItemPrice  = "SET_ITEM_PRICE"
+	ActionRestartGame   = "RESTART_GAME"
+	ActionSetNpcShop    = "SET_NPC_SHOP"
+	ActionSetNpc        = "SET_NPC"
+	ActionDeleteNpc     = "DELETE_NPC"
+	ActionSetMobStat    = "SET_MOB_STAT"
+	ActionClearMobStat  = "CLEAR_MOB_STAT"
+	ActionSetItemStat   = "SET_ITEM_STAT"
+	ActionClearItemStat = "CLEAR_ITEM_STAT"
 )
 
 // listLimit caps one page of the log.
