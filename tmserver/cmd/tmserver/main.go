@@ -34,6 +34,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/dbclient"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/handler"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/itemstat"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/mobstat"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/npccfg"
@@ -106,6 +107,7 @@ func run(logger *slog.Logger) error {
 	contentDir := flag.String("content", os.Getenv("W2PP_CONTENT"), "path to the Release/ content tree (empty = skip; validates rates/catalogs/maps at boot)")
 	npcEditing := flag.Bool("npc-editing", envBool("W2PP_NPC_EDITING", false), "enable the moderator NPC-editing overlay (npc-editing-plan.md); needs -dbserver and -content. OFF by default: turn it on only after `dbserver import-npcs` has seeded npc_definition, else DB-managed merchant NPCs would be skipped from NPCGener.txt with nothing to replace them")
 	mobStatEditing := flag.Bool("mob-stat-editing", envBool("W2PP_MOB_STAT_EDITING", false), "enable the moderator mob/NPC template stat overlay (mob-template-editing-plan.md, the equivalent-tool successor to the legacy EDITAPPMOB); needs -dbserver and -content. Applied ONCE at boot, like every other content load — a moderator edit needs a tmServer restart to take effect (EDITAPPMOB itself required a server restart too), independent of -npc-editing")
+	itemStatEditing := flag.Bool("item-stat-editing", envBool("W2PP_ITEM_STAT_EDITING", false), "enable the moderator item base stat overlay (0023_item_stats): what a catalog item requires to equip and the effects it grants. Needs -dbserver and -content. Applied ONCE at boot like -mob-stat-editing, and for a sharper reason — these numbers feed the equip score model, which is recomputed per character, so a live swap would leave two players wearing the same item with different stats. Independent of -mob-stat-editing")
 	defStatusAddr := os.Getenv("W2PP_STATUS_ADDR")
 	if defStatusAddr == "" {
 		defStatusAddr = ":80"
@@ -265,6 +267,31 @@ func run(logger *slog.Logger) error {
 		}
 		mobStatOverrides = overrides
 		logger.Info("mob template stat overlay enabled (moderator editing)", "overrides", len(mobStatOverrides))
+	}
+
+	// Moderator item base stat overlay (0023_item_stats), the item-side sibling
+	// of the block above and applied at the same moment and for the same kind of
+	// reason: an item's effects feed the equip score model, which is recomputed
+	// per character, so swapping them under a running server would leave two
+	// players wearing the same item with different stats until each happened to
+	// recompute. Item PRICE is the deliberate contrast — it rides the ~15s NPC
+	// config poll and hot-reloads safely, because a price is only read at the
+	// moment of a shop transaction.
+	//
+	// Applied here, over the maps loadContent just built, before the dispatcher
+	// is constructed from them and before anything else can read them.
+	if *itemStatEditing {
+		if dbConn == nil || *contentDir == "" {
+			return fmt.Errorf("-item-stat-editing requires both -dbserver (config source) and -content (the item catalog to override)")
+		}
+		fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		overrides, ferr := dbclient.NewItemStatSource(dbConn).Fetch(fetchCtx)
+		cancel()
+		if ferr != nil {
+			return fmt.Errorf("fetch item stat overrides: %w", ferr)
+		}
+		itemstat.Apply(itemEffects, itemReqs, overrides)
+		logger.Info("item base stat overlay enabled (moderator editing)", "overrides", len(overrides))
 	}
 
 	// Moderator NPC-editing overlay (npc-editing-plan.md): the single switch is
