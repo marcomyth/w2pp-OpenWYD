@@ -311,3 +311,49 @@ func fichaTeste(emJogo bool) personagem.Ficha {
 	}
 	return f
 }
+
+// Emptying a slot is the most common edit there is. Refusing a blank index with
+// "índice inválido" — as this did — sends the operator hunting for a number to
+// type when what they wanted was nothing at all.
+func TestIndiceVazioEsvaziaOSlot(t *testing.T) {
+	for _, bruto := range []string{"", "   ", "0"} {
+		r := httptest.NewRequest("POST", "/", strings.NewReader(url.Values{"indice": {bruto}}.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		it, err := itemDoForm(r, 4)
+		if err != nil {
+			t.Errorf("índice %q: %v — deveria esvaziar, não recusar", bruto, err)
+			continue
+		}
+		if !it.Vazio() || it.Slot != 4 {
+			t.Errorf("índice %q = %+v, want item vazio no slot 4", bruto, it)
+		}
+	}
+}
+
+// A real typo still has to be refused: "abc" is not an attempt to empty a slot.
+func TestIndiceInvalidoAindaERecusado(t *testing.T) {
+	for _, bruto := range []string{"abc", "-1", "40000"} {
+		r := httptest.NewRequest("POST", "/", strings.NewReader(url.Values{"indice": {bruto}}.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if _, err := itemDoForm(r, 0); err == nil {
+			t.Errorf("índice %q deveria ser recusado", bruto)
+		}
+	}
+}
+
+// Picking an item from the search puts THAT item in the form, not whatever the
+// slot still holds — otherwise choosing a replacement would show the old one.
+func TestIndiceNaQueryVenceOItemDoSlot(t *testing.T) {
+	ficha := fichaTeste(false)
+	ficha.Carry[2] = personagem.Item{Slot: 2, Index: 400}
+
+	sel := selecaoDe(reqCom("?onde=char_carry&slot=2&indice=700"), ficha, nil)
+	if sel.Item.Index != 700 {
+		t.Errorf("índice = %d, want 700 (o escolhido na busca)", sel.Item.Index)
+	}
+	// And without it, the slot's own item is what shows.
+	sel = selecaoDe(reqCom("?onde=char_carry&slot=2"), ficha, nil)
+	if sel.Item.Index != 400 {
+		t.Errorf("índice = %d, want 400 (o que está no slot)", sel.Item.Index)
+	}
+}

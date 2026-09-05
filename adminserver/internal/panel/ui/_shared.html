@@ -246,6 +246,15 @@
   .slot:hover { border-color: var(--ink-3); }
   .slot, .slot:visited { text-decoration: none; color: inherit; }
   .slot.escolhido { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .busca-item { display: flex; gap: 7px; }
+  .busca-item input { flex: 1; min-width: 0; }
+  .achados { list-style: none; margin: 12px 0 0; padding: 0; max-height: 260px; overflow-y: auto; }
+  .achados li { border-bottom: 1px solid var(--rule); }
+  .achados li:last-child { border-bottom: 0; }
+  .achados a { display: block; padding: 7px 4px; text-decoration: none; color: var(--ink-2); }
+  .achados a:hover { background: var(--ground); color: var(--ink); }
+  .achados .ach-nome { display: block; font-size: 13.5px; color: var(--ink); }
+  .achados .ach-meta { display: block; font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
   .slot.travado { pointer-events: none; }
   .slot.cheio { background: var(--surface); }
   .slot .idx {

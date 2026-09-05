@@ -84,6 +84,42 @@
 
     <div>
       {{if .IsAdmin}}
+      {{if .Sel.Ativa}}
+      <div class="cartao">
+        <h2>Procurar item</h2>
+        <form method="get" class="busca-item">
+          <input type="hidden" name="onde" value="{{.Sel.Destino}}">
+          <input type="hidden" name="slot" value="{{.Sel.Slot}}">
+          <input name="q" value="{{.Sel.Busca}}" placeholder="nome ou índice — ex.: guardião, 700"
+                 autocomplete="off" spellcheck="false">
+          <button type="submit">Buscar</button>
+        </form>
+        {{if .Sel.Busca}}
+          {{if .Sel.Achados}}
+            <ul class="achados">
+              {{range .Sel.Achados}}
+              <li>
+                <a href="{{.Href}}">
+                  <span class="ach-nome">{{.Nome}}</span>
+                  <span class="ach-meta">{{.Index}}{{if .Onde}} · {{.Onde}}{{end}}</span>
+                </a>
+              </li>
+              {{end}}
+            </ul>
+            {{if gt .Sel.Demais 0}}
+              <p class="sub" style="margin:8px 0 0;font-size:12px">
+                e mais {{.Sel.Demais}} — refine a busca.
+              </p>
+            {{end}}
+          {{else}}
+            <p class="sub" style="margin:10px 0 0;font-size:12.5px">
+              Nada com “{{.Sel.Busca}}”.
+            </p>
+          {{end}}
+        {{end}}
+      </div>
+      {{end}}
+
       <div class="cartao">
         <h2>Gravar slot</h2>
         <form method="post" action="/contas/{{.Conta}}/personagens/{{.Ficha.Nome}}/slot">

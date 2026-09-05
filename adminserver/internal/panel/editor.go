@@ -159,7 +159,26 @@ type selecao struct {
 	Destino string
 	Slot    int
 	Item    itemView
+	// Busca is what the operator typed to look an item up, and Achados the
+	// matches. Searching is a GET on this same page rather than a live dropdown
+	// for the same reason the grid uses links: no script runs here.
+	Busca   string
+	Achados []itemAchado
+	Demais  int // matches beyond the ones listed
 }
+
+// itemAchado is one catalog hit, with the link that puts it in the form.
+type itemAchado struct {
+	Index int32
+	Nome  string
+	Onde  string // where it equips, for telling apart items with similar names
+	Href  string
+}
+
+// maxAchados caps the result list. The catalog has thousands of entries and this
+// renders inside a side panel: past a couple dozen the list stops being a
+// shortcut and becomes something to scroll through.
+const maxAchados = 25
 
 // selecaoDe reads ?onde=&slot= and resolves it against the loaded character, so
 // the form comes back filled with what is actually in that slot.
@@ -183,8 +202,57 @@ func selecaoDe(r *http.Request, f personagem.Ficha, catalogo map[int32]gamedata.
 		// slot the operator asked for so the form still targets it.
 		it = personagem.Item{Slot: slot}
 	}
+	// An index in the query wins over what is in the slot: it means the operator
+	// just picked an item from the search and expects to see THAT, not what the
+	// slot still holds.
+	if q := r.URL.Query().Get("indice"); q != "" {
+		if n, err := strconv.Atoi(q); err == nil && n >= 0 && n <= 32767 {
+			it = personagem.Item{Slot: slot, Index: int16(n)}
+		}
+	}
 	linhas := grade([]personagem.Item{it}, catalogo, 0, false)
 	return selecao{Ativa: true, Destino: onde, Slot: slot, Item: linhas[0]}
+}
+
+// buscaItens looks the catalog up by name or index and builds the picker links.
+//
+// The index is matched too, because half the time the operator already knows the
+// number and is only confirming which item it is.
+func (h *Handler) buscaItens(r *http.Request, sel selecao) selecao {
+	sel.Busca = strings.TrimSpace(r.URL.Query().Get("q"))
+	if sel.Busca == "" || h.cfg.GameData == nil {
+		return sel
+	}
+	sess, _ := staffFrom(r.Context())
+	itens, err := h.cfg.GameData.Items(r.Context(), sess.AccountID, sel.Busca)
+	if err != nil {
+		h.cfg.Logger.Error("item search failed", "q", sel.Busca, "err", err)
+		return sel
+	}
+	// Items() matches on name only; an all-digits query is almost certainly an
+	// index, so resolve that too rather than answering "nada encontrado" for a
+	// number that exists.
+	if n, err := strconv.Atoi(sel.Busca); err == nil {
+		if catalogo, e := h.cfg.GameData.ItemLookup(r.Context()); e == nil {
+			if it, ok := catalogo[int32(n)]; ok {
+				itens = append([]gamedata.Item{it}, itens...)
+			}
+		}
+	}
+	for i, it := range itens {
+		if i >= maxAchados {
+			sel.Demais = len(itens) - maxAchados
+			break
+		}
+		sel.Achados = append(sel.Achados, itemAchado{
+			Index: it.Index,
+			Nome:  it.DisplayName,
+			Onde:  strings.Join(it.Slots, ", "),
+			Href: fmt.Sprintf("?onde=%s&slot=%d&indice=%d&q=%s",
+				url.QueryEscape(sel.Destino), sel.Slot, it.Index, url.QueryEscape(sel.Busca)),
+		})
+	}
+	return sel
 }
 
 // destinoValido reports whether dest is a container this package writes to.
@@ -210,7 +278,7 @@ func (h *Handler) editor(w http.ResponseWriter, r *http.Request) {
 
 	catalogo := h.catalogo(r)
 	limite := ficha.LimiteCarry()
-	sel := selecaoDe(r, ficha, catalogo)
+	sel := h.buscaItens(r, selecaoDe(r, ficha, catalogo))
 
 	h.render(w, "editor.html", struct {
 		page
@@ -374,10 +442,22 @@ func slotAlcancavel(f personagem.Ficha, slot int) bool {
 }
 
 // itemDoForm parses the slot form into an item.
+// An empty index means "leave this slot empty", not a typo. Emptying a slot is
+// the most common edit there is, and refusing it with "índice inválido" — as
+// this did — sends the operator hunting for a number to type when what they
+// wanted was nothing at all. Zero is the same thing: it is how an empty slot is
+// stored.
 func itemDoForm(r *http.Request, slot int) (personagem.Item, error) {
-	indice, err := strconv.Atoi(strings.TrimSpace(r.PostFormValue("indice")))
+	bruto := strings.TrimSpace(r.PostFormValue("indice"))
+	if bruto == "" {
+		return personagem.Item{Slot: slot}, nil
+	}
+	indice, err := strconv.Atoi(bruto)
 	if err != nil || indice < 0 || indice > 32767 {
 		return personagem.Item{}, errors.New("índice de item inválido")
+	}
+	if indice == 0 {
+		return personagem.Item{Slot: slot}, nil
 	}
 	it := personagem.Item{Slot: slot, Index: int16(indice)}
 	pares := []struct {
