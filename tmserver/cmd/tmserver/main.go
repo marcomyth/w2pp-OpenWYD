@@ -27,12 +27,14 @@ import (
 
 	"google.golang.org/grpc"
 
+	gamev1 "github.com/jeanluca/w2pp-openwyd/api/game/v1"
 	"github.com/jeanluca/w2pp-openwyd/internal/buildinfo"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/binclient"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/control"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/dbclient"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/handler"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/itemstat"
@@ -109,6 +111,7 @@ func run(logger *slog.Logger) error {
 	npcEditing := flag.Bool("npc-editing", envBool("W2PP_NPC_EDITING", false), "enable the moderator NPC-editing overlay (npc-editing-plan.md); needs -dbserver and -content. OFF by default: turn it on only after `dbserver import-npcs` has seeded npc_definition, else DB-managed merchant NPCs would be skipped from NPCGener.txt with nothing to replace them")
 	mobStatEditing := flag.Bool("mob-stat-editing", envBool("W2PP_MOB_STAT_EDITING", false), "enable the moderator mob/NPC template stat overlay (mob-template-editing-plan.md, the equivalent-tool successor to the legacy EDITAPPMOB); needs -dbserver and -content. Applied ONCE at boot, like every other content load — a moderator edit needs a tmServer restart to take effect (EDITAPPMOB itself required a server restart too), independent of -npc-editing")
 	itemStatEditing := flag.Bool("item-stat-editing", envBool("W2PP_ITEM_STAT_EDITING", false), "enable the moderator item base stat overlay (0023_item_stats): what a catalog item requires to equip and the effects it grants. Needs -dbserver and -content. Applied ONCE at boot like -mob-stat-editing, and for a sharper reason — these numbers feed the equip score model, which is recomputed per character, so a live swap would leave two players wearing the same item with different stats. Independent of -mob-stat-editing")
+	controlAddr := flag.String("control-addr", os.Getenv("W2PP_CONTROL_ADDR"), "listen address for the admin control API (kick, broadcast, who is online). Empty disables it. Requires W2PP_CONTROL_TOKEN: the tmServer has no database and cannot check a moderator role, so it authenticates the caller as the panel by shared secret and trusts the panel's own role check and audit trail")
 	defStatusAddr := os.Getenv("W2PP_STATUS_ADDR")
 	if defStatusAddr == "" {
 		defStatusAddr = ":80"
@@ -423,6 +426,34 @@ func run(logger *slog.Logger) error {
 		dispatch.ApplyWorldEventConfigBoot(w)
 	}
 	dispatch.ApplyGuildStateBoot(w)
+
+	// Admin control API (kick, broadcast, who is online). Off unless an address
+	// is given, and it refuses to start without a token rather than falling back
+	// to an open endpoint: secure.ServerCreds returns insecure credentials when
+	// TLS is unconfigured, so "wire it like the other services" would have
+	// shipped an unauthenticated way to kick every player off the server.
+	if *controlAddr != "" {
+		ctl, cerr := control.NewServer(w, os.Getenv("W2PP_CONTROL_TOKEN"), logger)
+		if cerr != nil {
+			return fmt.Errorf("-control-addr is set but the API cannot start: %w", cerr)
+		}
+		cln, lerr := net.Listen("tcp", *controlAddr)
+		if lerr != nil {
+			return fmt.Errorf("listen on control address: %w", lerr)
+		}
+		gsrv := grpc.NewServer(grpc.UnaryInterceptor(ctl.Interceptor()))
+		gamev1.RegisterGameControlServiceServer(gsrv, ctl)
+		go func() {
+			<-ctx.Done()
+			gsrv.GracefulStop()
+		}()
+		go func() {
+			if serr := gsrv.Serve(cln); serr != nil {
+				logger.Error("control api stopped", "err", serr)
+			}
+		}()
+		logger.Info("control api listening", "addr", *controlAddr)
+	}
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {

@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package game.v1;
+
+option go_package = "github.com/jeanluca/w2pp-openwyd/api/game/v1;gamev1";
+
+// GameControlService is the tmServer's inbound control surface: the first one it
+// has ever had. Until now the game server only listened on the client port, so
+// nothing could ask it who was playing or tell it to do anything.
+//
+// It exists for the admin panel. Every call is a moderator action the panel has
+// already authorized against account.role and recorded in its audit log — the
+// tmServer has no database of its own and cannot re-check either, which is why
+// the listener refuses to start without a shared token and treats whoever
+// presents it as the panel.
+//
+// Every RPC crosses into the single-owner game loop through World.GoDetached and
+// waits for the loop to answer. That queue is drained ahead of player input, so
+// these calls must stay one-shot: a screen that polled this on a timer would
+// front-run gameplay.
+service GameControlService {
+  // ListOnline returns the sessions the server currently holds.
+  rpc ListOnline(ListOnlineRequest) returns (ListOnlineResponse);
+  // Kick ends every session of one account, whatever screen it is on.
+  rpc Kick(KickRequest) returns (KickResponse);
+  // Broadcast sends a notice to everyone in play.
+  rpc Broadcast(BroadcastRequest) returns (BroadcastResponse);
+}
+
+message ListOnlineRequest {}
+
+message ListOnlineResponse {
+  repeated OnlinePlayer players = 1;
+  // in_play counts sessions with a character in the world; connected counts
+  // every session the server holds, including the ones still on the character
+  // screen. They are different numbers and both have been called "online".
+  int32 in_play = 2;
+  int32 connected = 3;
+}
+
+message OnlinePlayer {
+  string account_name = 1;
+  string character_name = 2;  // empty while the account is still choosing
+  int32 level = 3;
+  int32 map_x = 4;
+  int32 map_y = 5;
+  bool in_play = 6;           // false = connected but not in the world yet
+  string ip = 7;
+}
+
+message KickRequest {
+  // account_name, not character: the panel works in accounts, and a player on
+  // the character screen has no character name to match on. Matching by
+  // character is how the in-game /gm ban misses anyone who has not entered the
+  // world yet.
+  string account_name = 1;
+}
+message KickResponse {
+  // sessions is how many were ended. Zero means the account was not connected,
+  // which is not an error — it is the answer.
+  int32 sessions = 1;
+}
+
+message BroadcastRequest {
+  string message = 1;
+}
+message BroadcastResponse {
+  // recipients is how many players in play received it.
+  int32 recipients = 1;
+}

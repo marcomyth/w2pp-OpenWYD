@@ -457,6 +457,26 @@ func (w *World) AddCrackError(s *Session, group, code int) {
 // CrackErrorLimit is the crack-error count at which a session is dropped.
 const CrackErrorLimit = 10
 
+// ForEachSession calls fn for every session the server holds, in any mode, with
+// the caller's entity when it has one and nil when it does not. Loop-only.
+//
+// ForEachPlaying is the neighbour and covers only sessions already in the world.
+// The difference matters for anything that acts on an ACCOUNT rather than a
+// character: someone still on the character screen is connected, is not playing,
+// and is invisible to ForEachPlaying — which is how the in-game ban misses them.
+func (w *World) ForEachSession(fn func(*Session, *Entity)) {
+	for _, s := range w.sessions {
+		if s == nil {
+			continue
+		}
+		e := w.entities[s.Conn]
+		if e != nil && e.Mode != MobUser {
+			e = nil
+		}
+		fn(s, e)
+	}
+}
+
 // Close tears down a session (e.g. after a fatal validation failure).
 func (w *World) Close(s *Session) { w.removeSession(s) }
 

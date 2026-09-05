@@ -77,7 +77,7 @@ run-local:
 proto:
 	protoc --go_out=. --go_opt=module=github.com/jeanluca/w2pp-openwyd \
 	       --go-grpc_out=. --go-grpc_opt=module=github.com/jeanluca/w2pp-openwyd \
-	       api/db/v1/db.proto api/bin/v1/bin.proto api/web/v1/web.proto
+	       api/db/v1/db.proto api/bin/v1/bin.proto api/web/v1/web.proto api/game/v1/game.proto
 
 # Generate dev mTLS certs into ./certs (gitignored). Apply with the mTLS overlay:
 #   make certs && docker compose -f docker-compose.yaml -f docker-compose.mtls.yaml up --build
