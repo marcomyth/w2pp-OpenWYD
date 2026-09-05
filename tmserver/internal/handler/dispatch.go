@@ -254,6 +254,10 @@ type worldEventState struct {
 	// countdown, in 2-second units, by variant then room. 0 = the room is not
 	// running. See waterscroll.go.
 	water [3][10]uint8
+	// waterReveal holds mob ids spawned into a water room that have not been
+	// announced to the clients yet. Revealing a room's whole population in one
+	// frame makes the client drop some of the models — see drainWaterReveal.
+	waterReveal []int
 	// waterPaid records that the current run of a room already handed out its
 	// reward. The clear reward fires when the block's population reaches its last
 	// mob, so ANY later repopulation — a respawn, a second GenerateMob, mobs left
