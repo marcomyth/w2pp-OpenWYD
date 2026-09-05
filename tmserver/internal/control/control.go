@@ -37,10 +37,6 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
-// TokenHeader carries the shared secret. Lower-case because gRPC metadata keys
-// are normalised that way and a capitalised constant would silently never match.
-const TokenHeader = "x-w2pp-control-token"
-
 // loopTimeout bounds how long a call waits for the game loop to answer. The loop
 // drains callbacks first, so it should be immediate; the bound exists so a
 // wedged loop fails the call instead of holding the connection open forever.
@@ -77,7 +73,7 @@ func (s *Server) Interceptor() grpc.UnaryServerInterceptor {
 		if !ok {
 			return nil, status.Error(codes.Unauthenticated, "missing metadata")
 		}
-		vals := md.Get(TokenHeader)
+		vals := md.Get(gamev1.TokenHeader)
 		// Constant time, and only after the length is known to match: comparing
 		// with == would leak the token one byte at a time to a caller who can
 		// measure, and this endpoint can kick every player off the server.

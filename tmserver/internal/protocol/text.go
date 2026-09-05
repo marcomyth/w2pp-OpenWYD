@@ -120,3 +120,26 @@ func FromClientText(b []byte) string {
 	}
 	return sb.String()
 }
+
+// messageBoxHeaderPad is MSG_MessageBoxOk.Useless1 + Useless2 (Basedef.h:1535).
+// The legacy names them Useless and never reads them; they are zeroed by the
+// memset that builds the frame.
+const messageBoxHeaderPad = 8
+
+// EncodeMessageBoxBody builds the MSG_MessageBoxOk body: two unused ints then
+// the text. The client draws it as a modal panel with an OK button, which is why
+// it is what a login greeting uses — the message panel scrolls away with chat,
+// this stays until dismissed.
+//
+// The size matters: the legacy REJECTS a MessageBoxOk whose Size is not
+// sizeof(MSG_MessageBoxOk) (Basedef.cpp:7138), so a short body is not a
+// half-working frame, it is a discarded one.
+func EncodeMessageBoxBody(text string) []byte {
+	body := make([]byte, messageBoxHeaderPad+MessageLength)
+	encoded := ClientText(text)
+	if len(encoded) > MessageLength-1 {
+		encoded = encoded[:MessageLength-1] // keep the terminating NUL
+	}
+	copy(body[messageBoxHeaderPad:], encoded)
+	return body
+}

@@ -77,11 +77,11 @@ func TestOInterceptadorExigeOToken(t *testing.T) {
 		{"sem metadata", context.Background()},
 		{"sem o cabeçalho", metadata.NewIncomingContext(context.Background(), metadata.MD{})},
 		{"token errado", metadata.NewIncomingContext(context.Background(),
-			metadata.Pairs(TokenHeader, "chute"))},
+			metadata.Pairs(gamev1.TokenHeader, "chute"))},
 		{"token quase certo", metadata.NewIncomingContext(context.Background(),
-			metadata.Pairs(TokenHeader, tokenDeTeste+"x"))},
+			metadata.Pairs(gamev1.TokenHeader, tokenDeTeste+"x"))},
 		{"vazio", metadata.NewIncomingContext(context.Background(),
-			metadata.Pairs(TokenHeader, ""))},
+			metadata.Pairs(gamev1.TokenHeader, ""))},
 	}
 	for _, c := range casos {
 		chamou = false
@@ -95,7 +95,7 @@ func TestOInterceptadorExigeOToken(t *testing.T) {
 	}
 
 	// And the right token gets through.
-	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(TokenHeader, tokenDeTeste))
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(gamev1.TokenHeader, tokenDeTeste))
 	chamou = false
 	if _, err := inter(ctx, nil, &grpc.UnaryServerInfo{}, next); err != nil {
 		t.Fatalf("com o token certo: %v", err)

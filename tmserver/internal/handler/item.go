@@ -779,6 +779,9 @@ func (d *Dispatcher) equipItem(w *world.World, s *world.Session, e *world.Entity
 		return
 	}
 	e.Carry[src], e.Equip[dst] = e.Equip[dst], e.Carry[src]
+	// A temporary item starts its life the first time it is worn, not when it was
+	// obtained: a Conjunto left in the bag must still be worth its full thirty days.
+	d.startTimedItem(&e.Equip[dst], time.Now())
 	w.Send(s, protocol.MsgUseItem, payload) // echo result
 	d.refreshEquip(w, s, e)                 // update the rendered gear
 	if dst == mountEquipSlot {

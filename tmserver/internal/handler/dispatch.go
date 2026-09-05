@@ -90,6 +90,12 @@ type Config struct {
 	// use (64-66 Divine, 58 Vigor; content.ItemList.Volatiles). 0/absent = equippable.
 	ItemVolatiles map[int]int
 
+	// ItemDurations maps item index → lifetime in days for temporary items, read
+	// from the "(30dias)" the catalog puts in their name (content.ItemList.Durations).
+	// The clock starts when the item is first equipped, not here — see startTimedItem.
+	// When nil, only an item carrying its own EF_WDAY effects is temporary.
+	ItemDurations map[int]int
+
 	// ItemPos maps item index → nPos (equip-slot class) for the refine (+9) threshold
 	// bonuses. ItemUnique maps index → nUnique (gates EF_DAMAGEADD to jewels).
 	// ItemGrades maps index → Grade (grade-7 pieces grant +2 ExpBonus). ItemExtra maps
@@ -169,6 +175,7 @@ type Dispatcher struct {
 	itemEffects     map[int][]content.BaseEffect // item index → static base effects (equip score)
 	itemReqs        map[int]content.ItemReq      // item index → equip requirement (level/attrs)
 	itemVolatiles   map[int]int                  // item index → EF_VOLATILE (consumable class)
+	itemDurations   map[int]int                  // item index → lifetime in days (timed items)
 	itemPos         map[int]int                  // item index → nPos (refine threshold)
 	itemUnique      map[int]int                  // item index → nUnique (EF_DAMAGEADD gate)
 	itemGrades      map[int]int                  // item index → Grade (ExpBonus)
@@ -320,6 +327,7 @@ func New(cfg Config) *Dispatcher {
 		itemEffects:      cfg.ItemEffects,
 		itemReqs:         cfg.ItemReqs,
 		itemVolatiles:    cfg.ItemVolatiles,
+		itemDurations:    cfg.ItemDurations,
 		itemPos:          cfg.ItemPos,
 		itemUnique:       cfg.ItemUnique,
 		itemGrades:       cfg.ItemGrades,

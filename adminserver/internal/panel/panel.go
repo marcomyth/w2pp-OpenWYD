@@ -25,6 +25,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/entrega"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/jogo"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
@@ -123,6 +124,18 @@ type Deliveries interface {
 	Cancelar(ctx context.Context, contaID, entregaID int64) error
 }
 
+// Live is the link to the RUNNING game server: who is connected, kick, notice.
+//
+// Distinct from GameData, which edits cold config the game re-reads later.
+// Everything here has an immediate effect on people who are playing, and every
+// call crosses into the game's single-owner loop — so the pages that use it are
+// one-shot, never polled.
+type Live interface {
+	Estado(ctx context.Context) (jogo.Estado, error)
+	Derrubar(ctx context.Context, conta string) (int32, error)
+	Avisar(ctx context.Context, msg string) (int32, error)
+}
+
 // TradeLog reads the player-to-player trade records the tmServer writes.
 //
 // It is satisfied by *store.Store rather than a panel-owned package, unlike the
@@ -145,6 +158,7 @@ type Config struct {
 	Platform   Platform
 	Entregas   Deliveries
 	Trocas     TradeLog
+	Jogo       Live
 	GameData   GameData
 	Writer     Writer
 	Audit      AuditLog
@@ -208,6 +222,11 @@ func (h *Handler) Routes() http.Handler {
 	if h.cfg.Trocas != nil {
 		mux.Handle("GET /trocas", h.requireStaff(http.HandlerFunc(h.trocas)))
 	}
+	if h.cfg.Jogo != nil {
+		mux.Handle("GET /servidor", h.requireStaff(http.HandlerFunc(h.servidor)))
+		mux.Handle("POST /servidor/derrubar", h.requireStaff(http.HandlerFunc(h.derrubarConta)))
+		mux.Handle("POST /servidor/aviso", h.requireStaff(http.HandlerFunc(h.avisarTodos)))
+	}
 	if h.cfg.Platform != nil {
 		mux.Handle("POST /servidor/reiniciar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.reiniciar))))
 	}
@@ -251,6 +270,7 @@ type page struct {
 	IsAdmin   bool   // hides nav entries the viewer would only be refused from
 	HasItems  bool   // the item pages exist only when a webServer is configured
 	HasTrocas bool   // the trade log exists only when a database read is configured
+	HasJogo   bool   // the live pages exist only when the game link is configured
 	CSRF      string // every form that changes something carries this back
 }
 
@@ -265,6 +285,7 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		Nav: nav, IsAdmin: role == roleAdmin,
 		HasItems:  h.cfg.GameData != nil,
 		HasTrocas: h.cfg.Trocas != nil,
+		HasJogo:   h.cfg.Jogo != nil,
 		CSRF:      sess.CSRF,
 	}
 }
@@ -839,7 +860,20 @@ func (h *Handler) setBloqueio(w http.ResponseWriter, r *http.Request) {
 	// Say so, rather than letting staff assume the player dropped.
 	msg := "Conta desbloqueada."
 	if bloquear {
+		// With the game link configured the ban actually removes them, which is
+		// what everyone assumes a ban does. Without it the old sentence still
+		// applies, and says so rather than implying an effect there isn't.
 		msg = "Conta bloqueada. Se o jogador estiver online, ele continua até sair."
+		if h.cfg.Jogo != nil {
+			if n, kerr := h.cfg.Jogo.Derrubar(r.Context(), nome); kerr != nil {
+				h.cfg.Logger.Warn("blocked but could not kick", "conta", nome, "err", kerr)
+				msg = "Conta bloqueada, mas não consegui derrubar quem está online: " + explicaJogo(kerr)
+			} else if n > 0 {
+				msg = "Conta bloqueada e derrubada do jogo."
+			} else {
+				msg = "Conta bloqueada. Ela não estava conectada."
+			}
+		}
 		if anterior.Blocked {
 			msg = "Motivo atualizado. A conta já estava bloqueada."
 		}

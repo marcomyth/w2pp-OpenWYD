@@ -1,0 +1,139 @@
+// Package jogo is the panel's link to the RUNNING game server.
+//
+// It is the sibling of package gamedata and the distinction matters: gamedata
+// talks to the webServer about cold config — item prices, NPCs, mob stats —
+// which the game re-reads later. This package talks to the tmServer about the
+// world as it is right now, and every call has an immediate effect on people
+// who are playing.
+//
+// The tmServer cannot check who is asking: it has no database and no way to read
+// account.role. It authenticates this client by shared token and trusts that the
+// panel checked the role and wrote the audit row, which the panel does.
+package jogo
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+
+	gamev1 "github.com/jeanluca/w2pp-openwyd/api/game/v1"
+)
+
+// callTimeout bounds a call. The control API answers from inside the game loop,
+// which drains its queue first, so this is about a server that is gone rather
+// than one that is busy.
+const callTimeout = 8 * time.Second
+
+// Refusals the panel can tell apart and explain.
+var (
+	// ErrRecusado means the tmServer rejected the token — the two sides are
+	// configured with different secrets.
+	ErrRecusado = errors.New("jogo: the game server refused our token")
+	// ErrForaDoAr means the tmServer could not be reached at all.
+	ErrForaDoAr = errors.New("jogo: the game server is not answering")
+	// ErrInvalido means the request itself was rejected.
+	ErrInvalido = errors.New("jogo: the game server rejected the request")
+)
+
+// Player is one session the game server is holding.
+type Player struct {
+	Conta      string
+	Personagem string // empty while still on the character screen
+	Nivel      int32
+	X, Y       int32
+	Jogando    bool
+	IP         string
+}
+
+// Estado is what the server answers about who is connected.
+type Estado struct {
+	Players    []Player
+	Jogando    int32 // sessions with a character in the world
+	Conectados int32 // every session, including the character screen
+}
+
+// Client calls the tmServer control API.
+type Client struct {
+	api   gamev1.GameControlServiceClient
+	token string
+}
+
+// New wraps a connection. The token must match the tmServer's.
+func New(conn grpc.ClientConnInterface, token string) *Client {
+	return &Client{api: gamev1.NewGameControlServiceClient(conn), token: token}
+}
+
+// ctx attaches the token and the deadline.
+func (c *Client) ctx(parent context.Context) (context.Context, context.CancelFunc) {
+	md := metadata.Pairs(gamev1.TokenHeader, c.token)
+	ctx, cancel := context.WithTimeout(metadata.NewOutgoingContext(parent, md), callTimeout)
+	return ctx, cancel
+}
+
+// traduz turns a gRPC status into something the panel can put on a page.
+//
+// The three cases lead to different actions: a refused token is a
+// misconfiguration somebody has to fix, an unreachable server is something to
+// wait out, and an invalid argument is the operator's own input.
+func traduz(err error, oque string) error {
+	switch status.Code(err) {
+	case codes.OK:
+		return nil
+	case codes.Unauthenticated:
+		return fmt.Errorf("%s: %w", oque, ErrRecusado)
+	case codes.InvalidArgument:
+		return fmt.Errorf("%s: %w: %s", oque, ErrInvalido, status.Convert(err).Message())
+	case codes.Unavailable, codes.DeadlineExceeded:
+		return fmt.Errorf("%s: %w", oque, ErrForaDoAr)
+	default:
+		return fmt.Errorf("jogo: %s: %w", oque, err)
+	}
+}
+
+// Estado lists the sessions the server is holding.
+func (c *Client) Estado(parent context.Context) (Estado, error) {
+	ctx, cancel := c.ctx(parent)
+	defer cancel()
+	resp, err := c.api.ListOnline(ctx, &gamev1.ListOnlineRequest{})
+	if err != nil {
+		return Estado{}, traduz(err, "ler quem está online")
+	}
+	out := Estado{Jogando: resp.GetInPlay(), Conectados: resp.GetConnected()}
+	for _, p := range resp.GetPlayers() {
+		out.Players = append(out.Players, Player{
+			Conta: p.GetAccountName(), Personagem: p.GetCharacterName(),
+			Nivel: p.GetLevel(), X: p.GetMapX(), Y: p.GetMapY(),
+			Jogando: p.GetInPlay(), IP: p.GetIp(),
+		})
+	}
+	return out, nil
+}
+
+// Derrubar ends every session of one account and reports how many there were.
+// Zero is an answer, not a failure: the account was simply not connected.
+func (c *Client) Derrubar(parent context.Context, conta string) (int32, error) {
+	ctx, cancel := c.ctx(parent)
+	defer cancel()
+	resp, err := c.api.Kick(ctx, &gamev1.KickRequest{AccountName: conta})
+	if err != nil {
+		return 0, traduz(err, "derrubar a conta")
+	}
+	return resp.GetSessions(), nil
+}
+
+// Avisar sends a notice to everyone in play and reports how many got it.
+func (c *Client) Avisar(parent context.Context, msg string) (int32, error) {
+	ctx, cancel := c.ctx(parent)
+	defer cancel()
+	resp, err := c.api.Broadcast(ctx, &gamev1.BroadcastRequest{Message: msg})
+	if err != nil {
+		return 0, traduz(err, "enviar o aviso")
+	}
+	return resp.GetRecipients(), nil
+}

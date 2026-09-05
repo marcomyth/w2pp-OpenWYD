@@ -62,6 +62,12 @@ func (d *Dispatcher) messageWhisper(w *world.World, s *world.Session, _ protocol
 	if target == nil {
 		// notify carries the _NN_Not_Connected line (Language.txt:91) to the message
 		// panel on its own now, so the text is not repeated here.
+		//
+		// Logged because this fires on names the player never typed: the client
+		// sends some of its own housekeeping as whispers, and any keyword runCommand
+		// does not know lands here and tells the player a stranger is offline. The
+		// name is the only way to find out which keyword it was.
+		d.log.Info("whisper target not found", "conn", s.Conn, "name", name, "textLen", len(body.String))
 		d.notify(w, s, NoticeNotConnected)
 		return
 	}

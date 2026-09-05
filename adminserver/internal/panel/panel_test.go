@@ -19,6 +19,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/entrega"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/jogo"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
@@ -3069,5 +3070,243 @@ func TestTrocasNoMenuQuandoConfigurado(t *testing.T) {
 	get := signedIn(t, newTestPanelTrocas(t, &fakeTrocas{}))
 	if !strings.Contains(get("/").Body.String(), `href="/trocas"`) {
 		t.Error("o menu não oferece a página de trocas")
+	}
+}
+
+// --- servidor ao vivo ---
+
+type fakeJogo struct {
+	mu         sync.Mutex
+	estado     jogo.Estado
+	derrubadas []string
+	avisos     []string
+	sessoes    int32
+	estadoErr  error
+	kickErr    error
+	avisoErr   error
+}
+
+func (f *fakeJogo) Estado(context.Context) (jogo.Estado, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.estado, f.estadoErr
+}
+
+func (f *fakeJogo) Derrubar(_ context.Context, conta string) (int32, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.kickErr != nil {
+		return 0, f.kickErr
+	}
+	f.derrubadas = append(f.derrubadas, conta)
+	return f.sessoes, nil
+}
+
+func (f *fakeJogo) Avisar(_ context.Context, msg string) (int32, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.avisoErr != nil {
+		return 0, f.avisoErr
+	}
+	f.avisos = append(f.avisos, msg)
+	return 3, nil
+}
+
+func newTestPanelJogo(t *testing.T, log AuditLog, j Live) http.Handler {
+	t.Helper()
+	h, err := New(Config{
+		Accounts:   withTarget(roleAdmin),
+		Writer:     newFakeWriter(),
+		Jogo:       j,
+		Audit:      log,
+		Sessions:   session.New(time.Hour),
+		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}
+
+func estadoDeTeste() jogo.Estado {
+	return jogo.Estado{
+		Jogando: 1, Conectados: 2,
+		Players: []jogo.Player{
+			{Conta: "ana", Personagem: "Heroina", Nivel: 200, X: 2100, Y: 2100, Jogando: true},
+			{Conta: "bruno", Jogando: false},
+		},
+	}
+}
+
+func TestServidorSeparaJogandoDeConectado(t *testing.T) {
+	// Two different numbers have both been called "online" in this codebase.
+	// Showing one of them alone is how a moderator concludes a player is not
+	// there when they are sitting on the character screen.
+	get := signedIn(t, newTestPanelJogo(t, newFakeAudit(), &fakeJogo{estado: estadoDeTeste()}))
+	body := get("/servidor").Body.String()
+
+	for _, want := range []string{"Jogando", "Conectados", "Heroina", "escolhendo", "2100, 2100"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a página não traz %q", want)
+		}
+	}
+	if !strings.Contains(body, "inatividade desligado") {
+		t.Error("a página não avisa que uma conexão caída continua contando")
+	}
+}
+
+func TestDerrubarChamaOJogoEAudita(t *testing.T) {
+	j := &fakeJogo{estado: estadoDeTeste(), sessoes: 1}
+	log := newFakeAudit()
+	post, token := signedInPost(t, newTestPanelJogo(t, log, j))
+
+	rec := post("/servidor/derrubar", url.Values{"csrf": {token}, "conta": {"ana"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(j.derrubadas) != 1 || j.derrubadas[0] != "ana" {
+		t.Fatalf("derrubou %v, want [ana]", j.derrubadas)
+	}
+	if len(log.recorded()) != 1 {
+		t.Error("derrubar não foi auditado")
+	}
+}
+
+func TestDerrubarQuemNaoEstavaOnlineNaoEErro(t *testing.T) {
+	// Zero sessions is the answer, not a failure. Reporting it as an error would
+	// make a moderator retry something that already worked.
+	j := &fakeJogo{sessoes: 0}
+	post, token := signedInPost(t, newTestPanelJogo(t, newFakeAudit(), j))
+
+	rec := post("/servidor/derrubar", url.Values{"csrf": {token}, "conta": {"ana"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(loc, "não estava conectada") {
+		t.Errorf("aviso = %q, want dizer que não estava conectada", loc)
+	}
+}
+
+func TestAvisoVaiEFicaNaAuditoriaComOTexto(t *testing.T) {
+	// A notice reaches everyone at once, so "who said that" is the first
+	// question when one lands badly. The text has to be in the log.
+	j := &fakeJogo{}
+	log := newFakeAudit()
+	post, token := signedInPost(t, newTestPanelJogo(t, log, j))
+
+	rec := post("/servidor/aviso", url.Values{"csrf": {token}, "mensagem": {"Manutencao em 10 minutos"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(j.avisos) != 1 || j.avisos[0] != "Manutencao em 10 minutos" {
+		t.Fatalf("avisos = %v, want o texto do formulário", j.avisos)
+	}
+	regs := log.recorded()
+	if len(regs) != 1 {
+		t.Fatalf("registros = %d, want 1", len(regs))
+	}
+	if !strings.Contains(fmt.Sprintf("%+v", regs[0]), "Manutencao em 10 minutos") {
+		t.Error("a auditoria não guardou o texto do aviso")
+	}
+}
+
+func TestAvisoVazioERecusado(t *testing.T) {
+	j := &fakeJogo{}
+	post, token := signedInPost(t, newTestPanelJogo(t, newFakeAudit(), j))
+	if rec := post("/servidor/aviso", url.Values{"csrf": {token}, "mensagem": {"   "}}); rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if len(j.avisos) != 0 {
+		t.Fatal("enviou um aviso vazio")
+	}
+}
+
+func TestTokenTrocadoEExplicado(t *testing.T) {
+	// The three failures lead to different actions: a refused token is somebody's
+	// configuration to fix, an unreachable server is something to wait out.
+	// Collapsing them into "erro" sends the operator looking in the wrong place.
+	j := &fakeJogo{estadoErr: fmt.Errorf("ler: %w", jogo.ErrRecusado)}
+	get := signedIn(t, newTestPanelJogo(t, newFakeAudit(), j))
+	body := get("/servidor").Body.String()
+	if !strings.Contains(body, "segredos diferentes") {
+		t.Errorf("a página não explica o token trocado: %q", body)
+	}
+
+	fora := &fakeJogo{estadoErr: fmt.Errorf("ler: %w", jogo.ErrForaDoAr)}
+	body = signedIn(t, newTestPanelJogo(t, newFakeAudit(), fora))("/servidor").Body.String()
+	if !strings.Contains(body, "reiniciando") {
+		t.Errorf("a página não explica o servidor fora do ar: %q", body)
+	}
+}
+
+func TestServidorSomeSemALigacao(t *testing.T) {
+	get := signedIn(t, newTestPanel(t, withTarget(roleAdmin)))
+	if rec := get("/servidor"); rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 sem a ligação com o jogo", rec.Code)
+	}
+	if strings.Contains(get("/").Body.String(), `href="/servidor"`) {
+		t.Error("o menu oferece um link para uma página que não existe")
+	}
+}
+
+func TestBloquearDerrubaQuandoOJogoEstaLigado(t *testing.T) {
+	// This is what closes the loop: before the game link, a ban stopped the
+	// player logging IN and left them playing.
+	j := &fakeJogo{sessoes: 1}
+	wr := newFakeWriter()
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: wr, Jogo: j,
+		Audit: newFakeAudit(), Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	post, token := signedInPost(t, h.Routes())
+
+	rec := post("/contas/ana/bloqueio", url.Values{
+		"csrf": {token}, "bloquear": {"1"}, "motivo": {"uso de programa"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(j.derrubadas) != 1 || j.derrubadas[0] != "ana" {
+		t.Fatalf("bloqueou sem derrubar: %v", j.derrubadas)
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(loc, "derrubada") {
+		t.Errorf("aviso = %q, want dizer que derrubou", loc)
+	}
+}
+
+func TestBloquearAindaFuncionaQuandoNaoDaParaDerrubar(t *testing.T) {
+	// The ban is the important half. If the kick fails, say so rather than
+	// pretending the ban failed too.
+	j := &fakeJogo{kickErr: fmt.Errorf("x: %w", jogo.ErrForaDoAr)}
+	wr := newFakeWriter()
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: wr, Jogo: j,
+		Audit: newFakeAudit(), Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	post, token := signedInPost(t, h.Routes())
+
+	rec := post("/contas/ana/bloqueio", url.Values{
+		"csrf": {token}, "bloquear": {"1"}, "motivo": {"uso de programa"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if len(wr.blkCall) != 1 || !wr.blkCall[0] {
+		t.Fatal("o bloqueio não foi gravado porque o kick falhou")
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(loc, "não consegui derrubar") {
+		t.Errorf("aviso = %q, want dizer que bloqueou mas não derrubou", loc)
 	}
 }

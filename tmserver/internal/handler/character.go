@@ -375,6 +375,10 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		d.logCNFCharacterLogin("template", s, st, loginX, loginY, body)
 		w.SendTo(s, protocol.Header{Type: protocol.MsgCNFCharacterLogin, ID: protocol.IDScene}, body)
 		d.enterWorldView(w, s)
+		// Before the pet and the buff snapshot: those are gameplay state the client
+		// applies to the scene, and the greeting is a dialog the player dismisses.
+		// Sending it here keeps the world-entry frames contiguous.
+		d.sendWelcome(w, s)
 		if e := w.Entity(s.Conn); e != nil {
 			d.refreshBabyMountSummon(w, s, e)
 		}
@@ -418,6 +422,7 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 	d.logCNFCharacterLogin("fallback", s, st, loginX, loginY, body)
 	w.SendTo(s, protocol.Header{Type: protocol.MsgCNFCharacterLogin, ID: protocol.IDScene}, body)
 	d.enterWorldView(w, s)
+	d.sendWelcome(w, s)
 	if e := w.Entity(s.Conn); e != nil {
 		d.refreshBabyMountSummon(w, s, e)
 	}
