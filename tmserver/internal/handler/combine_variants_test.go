@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"io"
@@ -34,6 +35,49 @@ func TestEhreEffectAndSoulResults(t *testing.T) {
 	}
 	if got := ehreSoul(2441, 2442, 2443); got != 10 {
 		t.Fatalf("soul=%d, want SOUL_ID(10)", got)
+	}
+}
+
+// ehreSoul answers 0 for a stone order no recipe covers, and 0 is also the value
+// meaning "no Soul configured". Assigning the result unconditionally therefore
+// ERASED a configured Soul on any wrong order, while the combine still reported
+// success — the legacy's if/else-if chain has no final else and leaves the field
+// alone (_MSG_CombineItemEhre.cpp:318-350).
+func TestEhreSoulUnmatchedOrderIsNotAValue(t *testing.T) {
+	unmatched := [][3]int16{
+		{2441, 2441, 2442}, // right stones, wrong order
+		{2444, 2444, 2441},
+		{0, 0, 0}, // empty slots
+		{2441, 2442, 2445},
+	}
+	for _, st := range unmatched {
+		if got := ehreSoul(st[0], st[1], st[2]); got != 0 {
+			t.Errorf("ehreSoul%v = %d, want 0 (no recipe)", st, got)
+		}
+	}
+	// The guard the handler must apply: keep what the character had.
+	const configured = uint8(soulCD)
+	soul := configured
+	if v := ehreSoul(2441, 2441, 2442); v != 0 {
+		soul = v
+	}
+	if soul != configured {
+		t.Errorf("soul = %d after an unmatched combine, want it left at %d", soul, configured)
+	}
+}
+
+// Both Soul lines are Go literals carrying accents and an em dash. The panel
+// encodes to Windows-1252 and substitutes '?' for anything outside it; neither
+// string contains a literal '?', so one in the output means a lost character.
+func TestSoulMessagesAreClientSafe(t *testing.T) {
+	for _, msg := range []string{msgSoulNoRecipe, msgSoulNotConfigured} {
+		encoded := protocol.ClientText(msg)
+		if bytes.ContainsRune(encoded, '?') {
+			t.Errorf("%q carries a character outside the client's codepage", msg)
+		}
+		if len(encoded) > 94 { // MSG_MessagePanel.String[128], 94 usable
+			t.Errorf("%q is %d bytes encoded, over the panel's 94", msg, len(encoded))
+		}
 	}
 }
 

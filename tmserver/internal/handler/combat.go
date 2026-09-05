@@ -621,6 +621,19 @@ func (d *Dispatcher) applyCastAffect(w *world.World, e, target *world.Entity, ti
 	if !applied {
 		return
 	}
+	// Affect 29 (Limite da Alma, skill 102) multiplies attributes by the
+	// character's CONFIGURED Soul — every branch of the legacy reads extra.Soul
+	// and none has a default (Basedef.cpp:3050-3110), so with Soul unset the buff
+	// installs, ticks its full duration and changes nothing. On screen that is
+	// indistinguishable from a skill that did not fire, and the client never says
+	// why. The Soul is chosen with the Ehre combine (recipe 8).
+	if sp.AffectType == affectSoul && target.Soul == 0 {
+		if ts := w.Session(tid); ts != nil {
+			sendClientMessage(w, ts, msgSoulNotConfigured)
+		}
+		d.log.Info("soul buff cast with no soul configured",
+			"target", tid, "class_master", target.ClassMaster)
+	}
 	// A landed transform (skills 64/66/68/70/71) also swaps the body mesh, which
 	// everyone in view must render — the legacy follows the SetAffect with
 	// GetCurrentScore + SendScore + SendEquip(conn,0) (_MSG_Attack.cpp:1242-1248).
