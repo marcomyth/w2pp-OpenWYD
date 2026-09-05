@@ -79,6 +79,7 @@ type Character struct {
 	MortalLevel        uint16 // MobExtra.QuestInfo.Arch.MortalLevel
 	CelestialArchLevel uint8  // MobExtra.QuestInfo.Celestial.ArchLevel
 	ArchCristal        uint8  // MobExtra.QuestInfo.Arch.Cristal — stages done (0..4)
+	NightmareTickets   int32  // MobExtra.NT: Pesadelo Arcano entries held (pesadelo-plan.md)
 	Soul               uint8  // MobExtra.Soul
 	Fame               int32  // MobExtra.Fame
 	PKPoint            uint8  // GetFunc.cpp KILL_MARK slot: chaos/karma counter, 75 = neutral (issue #210)

@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/binary"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -541,9 +542,9 @@ func TestCommandNickGuildless(t *testing.T) {
 	defer b.Close()
 
 	whisperFrame(t, a, "nick", "HeroB")
-	p := expect(t, a, protocol.MsgMessageChat)
-	want := "HeroB [Sem guilda] Cidadania: 0 / Fama: 0"
-	if got := cstr(p); got != want {
+	p := panelText(t, a)
+	want := "HeroB Cidadania: 0 / Fama: 0"
+	if got := p; got != want {
 		t.Errorf("/nick text = %q, want %q", got, want)
 	}
 }
@@ -564,9 +565,9 @@ func TestCommandNickUnregisteredGuild(t *testing.T) {
 	defer b.Close()
 
 	whisperFrame(t, a, "nick", "HeroB")
-	p := expect(t, a, protocol.MsgMessageChat)
-	want := "HeroB [Guild #9 (nao registrada)] Cidadania: 2 / Fama: 150"
-	if got := cstr(p); got != want {
+	p := panelText(t, a)
+	want := "HeroB Cidadania: 2 / Fama: 150 [Guild #9]"
+	if got := p; got != want {
 		t.Errorf("/nick text = %q, want %q", got, want)
 	}
 }
@@ -594,9 +595,9 @@ func TestCommandNickRegisteredGuild(t *testing.T) {
 	}
 
 	whisperFrame(t, mod, "nick", "Victim")
-	p := expect(t, mod, protocol.MsgMessageChat)
-	want := "Victim [Dragoes (Fama guilda: 4242)] Cidadania: 3 / Fama: 777"
-	if got := cstr(p); got != want {
+	p := panelText(t, mod)
+	want := "Victim Cidadania: 3 / Fama: 777 [Dragoes]"
+	if got := p; got != want {
 		t.Errorf("/nick text = %q, want %q", got, want)
 	}
 }
@@ -612,6 +613,12 @@ func TestCommandNickOffline(t *testing.T) {
 	whisperFrame(t, a, "nick", "Ghost")
 	if ty, p, ok := readMaybe(t, a); !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeNotConnected {
 		t.Errorf("got %#x/%d, want not-connected notice", ty, noticeCode(t, p))
+	}
+	// The notice on its own renders as nothing — its wire format is still a
+	// placeholder (notice.go) — so the visible chat line is what stops the
+	// command from looking dead.
+	if got := panelText(t, a); got != "O jogador não está conectado." {
+		t.Errorf("offline text = %q, want the not-connected chat line", got)
 	}
 }
 
@@ -642,4 +649,220 @@ func TestApplyBonusScore(t *testing.T) {
 	if dmg := scoreDamage(payload); dmg != want {
 		t.Errorf("UpdateScore Damage = %d, want %d after +1 STR (11→12)", dmg, want)
 	}
+}
+
+// Typing just "/NomeDoJogador" — a whisper with no text — is the legacy's
+// "inspect this player": it answers with their name, citizenship and fame
+// instead of delivering an empty whisper (_MSG_UseItem is not involved;
+// _MSG_MessageWhisper.cpp:1616, `if (m->String[0] == 0)`).
+//
+// This is the bug this test was written for: the empty-message branch did not
+// exist, so the server forwarded a blank whisper and the player saw nothing.
+func TestWhisperEmptyMessageShowsUserInfo(t *testing.T) {
+	db := newDB()
+	db.loads = map[int64]world.CharacterState{
+		7:  {Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000},
+		11: {Slot: 0, Name: "HeroB", X: 5, Y: 5, HP: 1000, MaxHP: 1000, Citizen: 4, Fame: 321},
+	}
+	addr, stop, _ := startServerClock(t, db)
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+	b := enterWorldAs(t, addr, "tradeb") // name "HeroB"
+	defer b.Close()
+
+	whisperFrame(t, a, "HeroB", "")
+
+	want := "HeroB Cidadania: 4 / Fama: 321"
+	if got := panelText(t, a); got != want {
+		t.Errorf("info text = %q, want %q", got, want)
+	}
+	// And the target must NOT receive a blank whisper.
+	if ty, _, ok := readMaybe(t, b); ok {
+		t.Errorf("target got %#x; an inspect must not deliver a whisper", ty)
+	}
+}
+
+// The guild goes in brackets at the end, and only when there is one.
+func TestWhisperEmptyMessageShowsGuild(t *testing.T) {
+	db := newDB()
+	db.loads = map[int64]world.CharacterState{
+		7:  {Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000},
+		11: {Slot: 0, Name: "HeroB", X: 5, Y: 5, HP: 1000, MaxHP: 1000, GuildID: 3, Citizen: 1, Fame: 10},
+	}
+	addr, stop, _ := startServerClock(t, db)
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+	b := enterWorldAs(t, addr, "tradeb")
+	defer b.Close()
+
+	whisperFrame(t, a, "HeroB", "")
+
+	want := "HeroB Cidadania: 1 / Fama: 10 [Guild #3]"
+	if got := panelText(t, a); got != want {
+		t.Errorf("info text = %q, want %q", got, want)
+	}
+}
+
+// A whisper WITH text is still a whisper. The legacy tests the first byte, so
+// even a single space counts as a message — inspect is strictly the empty case.
+func TestWhisperWithTextStillDelivers(t *testing.T) {
+	addr, stop, _ := startServerClock(t, chatDB())
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+	b := enterWorldAs(t, addr, "tradeb")
+	defer b.Close()
+
+	whisperFrame(t, a, "HeroB", "ola")
+
+	if ty, _, ok := readMaybe(t, b); !ok || ty != protocol.MsgMessageWhisper {
+		t.Errorf("target got %#x/%v, want the whisper delivered", ty, ok)
+	}
+	// The sender gets no info line — they sent a message, not an inspect.
+	if ty, _, ok := readMaybe(t, a); ok {
+		t.Errorf("sender got %#x; a delivered whisper answers nothing", ty)
+	}
+}
+
+// Inspecting someone who is offline must say so out loud.
+func TestWhisperEmptyMessageOfflineTarget(t *testing.T) {
+	addr, stop, _ := startServerClock(t, chatDB())
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+
+	whisperFrame(t, a, "Ghost", "")
+
+	if ty, p, ok := readMaybe(t, a); !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeNotConnected {
+		t.Errorf("got %#x/%d, want not-connected notice", ty, noticeCode(t, p))
+	}
+	if got := panelText(t, a); got != "O jogador não está conectado." {
+		t.Errorf("offline text = %q, want the not-connected chat line", got)
+	}
+}
+
+// "/snd <texto>" sets the status line other players see when they inspect this
+// character, and echoes it back (_MSG_MessageWhisper.cpp:591).
+func TestCommandSndSetsAndEchoes(t *testing.T) {
+	addr, stop, _ := startServerClock(t, chatDB())
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+
+	whisperFrame(t, a, "snd", "volto ja")
+	if got := panelText(t, a); got != "Mensagem: volto ja" {
+		t.Errorf("/snd echo = %q, want %q", got, "Mensagem: volto ja")
+	}
+}
+
+// Inspecting a character who set a status line gets it as a SECOND chat line,
+// after the citizenship/fame one (_MSG_MessageWhisper.cpp:1638-1646).
+func TestWhisperEmptyMessageShowsSnd(t *testing.T) {
+	db := newDB()
+	db.loads = map[int64]world.CharacterState{
+		7:  {Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000},
+		11: {Slot: 0, Name: "HeroB", X: 5, Y: 5, HP: 1000, MaxHP: 1000, Citizen: 2, Fame: 50},
+	}
+	addr, stop, _ := startServerClock(t, db)
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+	b := enterWorldAs(t, addr, "tradeb")
+	defer b.Close()
+
+	whisperFrame(t, b, "snd", "afk almoco")
+	drainRaw(t, b)
+
+	whisperFrame(t, a, "HeroB", "")
+	if got := panelText(t, a); got != "HeroB Cidadania: 2 / Fama: 50" {
+		t.Errorf("first line = %q, want the info line", got)
+	}
+	if got := panelText(t, a); got != "Mensagem: afk almoco" {
+		t.Errorf("second line = %q, want the snd line", got)
+	}
+}
+
+// A character with no status line produces exactly one line — the legacy guards
+// the second with `if (pMob[target].Snd[0] != 0)`.
+func TestWhisperEmptyMessageWithoutSndSendsOneLine(t *testing.T) {
+	addr, stop, _ := startServerClock(t, chatDB())
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+	b := enterWorldAs(t, addr, "tradeb")
+	defer b.Close()
+
+	whisperFrame(t, a, "HeroB", "")
+	if got := panelText(t, a); got != "HeroB Cidadania: 0 / Fama: 0" {
+		t.Errorf("info line = %q", got)
+	}
+	if ty, _, ok := readMaybe(t, a); ok {
+		t.Errorf("got a second frame %#x; a character with no /snd sends one line", ty)
+	}
+}
+
+// "/snd" with nothing after it clears the line, the way the legacy's strncpy of
+// an empty string does — so the next inspect is back to one line.
+func TestCommandSndEmptyClears(t *testing.T) {
+	addr, stop, _ := startServerClock(t, chatDB())
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+	b := enterWorldAs(t, addr, "tradeb")
+	defer b.Close()
+
+	whisperFrame(t, b, "snd", "ocupado")
+	whisperFrame(t, b, "snd", "")
+	drainRaw(t, b)
+
+	whisperFrame(t, a, "HeroB", "")
+	panelText(t, a) // the info line
+	if ty, _, ok := readMaybe(t, a); ok {
+		t.Errorf("got %#x; an empty /snd should have cleared the status line", ty)
+	}
+}
+
+// Two different caps apply, and both are the legacy's. Snd itself holds at most
+// 96 bytes (strncpy, _MSG_MessageWhisper.cpp:593); the line that carries it to
+// the client is then cut to the message panel's usable 94 (MESSAGE_LENGTH-2,
+// SendFunc.cpp:27). So an over-long /snd comes back trimmed by the transport,
+// not by setSnd.
+func TestCommandSndTruncates(t *testing.T) {
+	const panelTextMax = 94
+
+	addr, stop, _ := startServerClock(t, chatDB())
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+
+	whisperFrame(t, a, "snd", strings.Repeat("x", sndMaxLen+20))
+
+	got := panelText(t, a)
+	if len(got) != panelTextMax {
+		t.Errorf("/snd echo is %d bytes, want the panel maximum of %d", len(got), panelTextMax)
+	}
+	if !strings.HasPrefix(got, "Mensagem: x") {
+		t.Errorf("/snd echo = %q, want the prefix kept and the text trimmed at the end", got)
+	}
+}
+
+// panelText reads one MSG_MessagePanel frame and decodes its body back to a Go
+// string. The wire form is CP1252 in a fixed 128-byte buffer, so comparing the
+// raw payload against a UTF-8 literal would fail on every accent — which is the
+// whole bug protocol.ClientText exists to fix.
+func panelText(t *testing.T, c net.Conn) string {
+	t.Helper()
+	b := expect(t, c, protocol.MsgMessagePanel)
+	if i := indexByte(b, 0); i >= 0 {
+		b = b[:i]
+	}
+	// CP1252 is Latin-1 for everything this port emits, and Latin-1 bytes are
+	// their own Unicode code points.
+	runes := make([]rune, len(b))
+	for i, ch := range b {
+		runes[i] = rune(ch)
+	}
+	return string(runes)
 }

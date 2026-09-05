@@ -198,6 +198,9 @@ message Character {
   // AC those quests grant is rebuilt from this counter on every login, because
   // BaseScore.Ac itself is derived rather than stored (handler.playerBaseAC).
   int32 arch_cristal = 48;
+  // MobExtra.NT: Pesadelo Arcano entries held. Escritura do Pesadelo grants 13
+  // and each admission to the A tier spends one (pesadelo-plan.md).
+  int32 nightmare_tickets = 49;
 }
 
 message Item {

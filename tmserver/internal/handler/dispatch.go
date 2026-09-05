@@ -35,6 +35,10 @@ type Config struct {
 	Log           *slog.Logger     // default slog.Default()
 	Now           func() time.Time // wall clock for calendar-gated guild ops
 
+	// MaxNightmare is maxNightmare (Server.cpp:687): Pesadelo runs allowed per
+	// window per tier, server-wide. Zero selects the legacy default of 3.
+	MaxNightmare int
+
 	// AffectDuration tunes how long a CAST buff/debuff lasts (issue #229). The
 	// zero value is legacy-faithful; production defaults are set in
 	// cmd/tmserver/main.go. Item/cash/Divine affects never pass through it.
@@ -169,6 +173,7 @@ type Dispatcher struct {
 	spells          *content.SkillData           // skill catalog (g_pSpell)
 	heights         *content.Grid                // baked walkability grid (mob pathfinding)
 	now             func() time.Time             // wall clock for calendar-gated guild ops
+	maxNightmare    int                          // Pesadelo runs per window per tier (Server.cpp:687)
 	tickCount       int                          // loop-only tick counter (affect sweep phase)
 	affectDur       world.AffectDuration         // cast-affect duration tuning (issue #229)
 	serverIndex     int                          // legacy guild id high bits
@@ -250,6 +255,16 @@ type worldEventState struct {
 	tower        worldevents.Tower
 	towerOwner   uint16
 	castle       worldevents.Castle
+	// pesaRuns is PartyPesa[3] (Server.cpp:754): runs started in the current
+	// window, per Pesadelo tier, server-wide. Reset by the per-tier wipe.
+	pesaRuns [pesaTiers]int
+	// pesaLastWipe is the minute each tier was last wiped. The tick fires many
+	// times a minute, so without it the wipe would repeat for a whole minute and
+	// keep evicting anyone who re-entered. Initialised to -1 rather than left
+	// zero: no tier wipes at minute 0 today (they land on 19/39/59, 4/24/44 and
+	// 9/29/49), but relying on that would make the zero value a hidden
+	// precondition of the schedule.
+	pesaLastWipe [pesaTiers]int
 	// water is WaterClear1[3][10] (Server.cpp): the Pergaminho da Água room
 	// countdown, in 2-second units, by variant then room. 0 = the room is not
 	// running. See waterscroll.go.
@@ -275,6 +290,9 @@ func New(cfg Config) *Dispatcher {
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
+	}
+	if cfg.MaxNightmare <= 0 {
+		cfg.MaxNightmare = defaultMaxNightmare
 	}
 	if cfg.EventRNGSeed == 0 {
 		cfg.EventRNGSeed = worldEventRNGSeed
@@ -305,6 +323,7 @@ func New(cfg Config) *Dispatcher {
 		spells:           cfg.Spells,
 		heights:          cfg.Heights,
 		now:              cfg.Now,
+		maxNightmare:     cfg.MaxNightmare,
 		affectDur:        cfg.AffectDuration,
 		serverIndex:      cfg.ServerIndex,
 		guildWars:        make(map[uint16]uint16),
@@ -418,6 +437,10 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgReqRanking] = d.reqRanking
 	d.routes[protocol.MsgCapsuleInfo] = d.capsuleInfo
 	d.routes[protocol.MsgPutoutSeal] = d.putoutSeal
+	// No Pesadelo tier has been wiped yet; -1 can never equal a real minute.
+	for i := range d.events.pesaLastWipe {
+		d.events.pesaLastWipe[i] = -1
+	}
 	return d
 }
 

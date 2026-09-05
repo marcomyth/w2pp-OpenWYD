@@ -518,6 +518,12 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useHuntingScroll(w, s, e, src, body.WarpID)
 	case isWaterScrollVolatile(vol):
 		d.useWaterScroll(w, s, e, src, vol)
+	case isPesadeloVolatile(vol):
+		d.usePesadeloScroll(w, s, e, src, vol)
+	// The ticket book is identified by sIndex as well as EF_VOLATILE, the way the
+	// legacy writes it (`Vol == 212 && item->sIndex == 5137`).
+	case vol == volEscrituraPesadelo && e.Carry[src].Index == itemEscrituraPesadelo:
+		d.useEscrituraPesadelo(w, s, e, src)
 	default:
 		// issue #204: do not silently no-op unknown consumables. The client may
 		// optimistically remove them, then the next slot resync (buy/move/save)
@@ -1401,9 +1407,9 @@ func (d *Dispatcher) useAdamantita(w *world.World, s *world.Session, e *world.En
 		}
 		d.refreshScore(e)
 		d.sendScore(w, s, e)
-		d.notify(w, s, NoticeRefineSuccess)
+		d.notifyText(w, s, NoticeRefineSuccess)
 	} else {
-		d.notify(w, s, NoticeFailToRefine)
+		d.notifyText(w, s, NoticeFailToRefine)
 	}
 	d.sendSlot(w, s, int(body.DestType), int(body.DestPos), *dst)
 	consumeOneItem(&e.Carry[src])
@@ -1601,14 +1607,27 @@ func (d *Dispatcher) useMagicBean(w *world.World, s *world.Session, e *world.Ent
 		effect = efSanc
 	}
 
-	i := magicBeanEffectSlot(*dst, color == magicBeanRemover)
+	removing := color == magicBeanRemover
+
+	i := magicBeanEffectSlot(*dst, removing)
 	if i < 0 {
-		d.magicBeanReject(w, s, e, src, NoticeCantRefineMore)
+		// The legacy answers _NN_Cant_Refine_More here, which is refine wording on
+		// a paint action; and the two ways to get here are different problems —
+		// no room for another colour, versus nothing to strip off.
+		refusal := NoticeCantPaint
+		if removing {
+			refusal = NoticeNotPainted
+		}
+		d.magicBeanReject(w, s, e, src, refusal)
 		return
 	}
 	dst.Effects[i].Effect = effect
 
-	d.notify(w, s, NoticeRefineSuccess)
+	success := NoticePaintSuccess
+	if removing {
+		success = NoticePaintRemoved
+	}
+	d.notifyText(w, s, success)
 	// refreshEquip recomputes e.EquipVisual/EquipAnct (the cached worn-item color
 	// codes) and rebroadcasts them; refreshScore alone leaves them stale, so on a
 	// later teleport createMobFrom would re-send the pre-paint color (#157). It also

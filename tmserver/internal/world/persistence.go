@@ -135,8 +135,10 @@ type CharacterState struct {
 	MortalLevel        uint16
 	CelestialArchLevel uint8
 	ArchCristal        uint8
-	Soul               uint8
-	Fame               int32 // MobExtra.Fame
+	// NightmareTickets is MobExtra.NT: Pesadelo Arcano entries (pesadelo-plan.md).
+	NightmareTickets int32
+	Soul             uint8
+	Fame             int32 // MobExtra.Fame
 	// PK/karma state (GetFunc.cpp KILL_MARK carry slot, issue #210). PKPoint == 0
 	// means "never persisted" (SetPKPoint never legitimately writes 0) — the login
 	// path treats that as neutral (75), the same convention as ClassMaster == 0.
@@ -233,6 +235,7 @@ type CharacterSave struct {
 	MortalLevel        uint16
 	CelestialArchLevel uint8
 	ArchCristal        uint8
+	NightmareTickets   int32
 	// PK/karma state (issue #210) — see CharacterState for field meanings.
 	PKPoint     uint8
 	Guilty      uint8

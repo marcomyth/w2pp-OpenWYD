@@ -24,7 +24,11 @@
 ⏳ /guild: mostra o index (ID) da sua guild — sistema de guild não modelado <br/>
 ✅ /buffs: Remove todos os buffs do personagem <br/>
 ✅ /cp: mostra os pontos de caos atuais do personagem (`PKPoint-75`; 0 = nick branco). Recuperam de duas formas: +1 por hora online (gate do `RegenMob` legado) e **+1 por nível subido**, ambas com teto no neutro 75 — o ganho por nível é um desvio consciente do legado, pedido na issue #279 <br/>
-✅ /nick \<jogador\>: mostra nick, guild (nome/fama, se registrada — `world/guild.go`), cidadania e fama do jogador alvo <br/>
+✅ /nt: mostra quantas entradas de Pesadelo Arcano o personagem tem (`extra.NT`). Persistido em `character.nightmare_tickets`; a Escritura do Pesadelo dá 13 e cada entrada no Arcano gasta 1 ([pesadelo-plan.md](./migration/pesadelo-plan.md)) <br/>
+✅ /nig: mostra o horário de cada tier do Pesadelo — qual está aberto e quanto falta para os outros. Desvio consciente: o legado imprime só o relógio (`!!HHMMSS`) e deixa o cliente calcular <br/>
+✅ **/\<nomedojogador\>** (sem escrever nada depois): mostra o nick, a **cidadania** e a **fama** daquele jogador, mais a guild entre colchetes quando ele tem uma, e a **mensagem** dele (`/snd`) numa segunda linha se ele tiver posto uma. É o `_NN_Check_User_Info` do legado (`Cidadania: %d / Fama: %d`) — um sussurro **sem texto** não é sussurro, é "inspecionar". Escrever `/fulano oi` continua sendo sussurro normal <br/>
+✅ /nick \<jogador\>: o mesmo que acima, em forma de comando — existe porque é descobrível, enquanto "digite o nome e não escreva nada" não é <br/>
+✅ /snd \<texto\>: define a sua mensagem de recado, que aparece para quem te inspecionar. `/snd` sozinho limpa. Vale só enquanto você está logado — o legado também apaga a cada login — e é cortada em 96 caracteres <br/>
 ✅ /gritar \<mensagem\>: grito global — consome 1 Trombeta Mágica (item 3330) e envia `[Nome]> mensagem` a todos os jogadores online, em verde (`_MSG_MagicTrumpet`). Alias legado: `/spk`. Sem trombeta, avisa e não grita; o alcance é o deste canal (o fan-out entre canais do legado passava pelo DBSrv e não foi portado) <br/>
 
 > Bônus já implementados (existem na fonte legada, fora da lista acima): `/selados`,

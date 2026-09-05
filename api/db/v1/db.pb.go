@@ -682,9 +682,12 @@ type Character struct {
 	// (0..4). It must persist, and not only to stop the quest being repeated: the
 	// AC those quests grant is rebuilt from this counter on every login, because
 	// BaseScore.Ac itself is derived rather than stored (handler.playerBaseAC).
-	ArchCristal   int32 `protobuf:"varint,48,opt,name=arch_cristal,json=archCristal,proto3" json:"arch_cristal,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ArchCristal int32 `protobuf:"varint,48,opt,name=arch_cristal,json=archCristal,proto3" json:"arch_cristal,omitempty"`
+	// MobExtra.NT: Pesadelo Arcano entries held. Escritura do Pesadelo grants 13
+	// and each admission to the A tier spends one (pesadelo-plan.md).
+	NightmareTickets int32 `protobuf:"varint,49,opt,name=nightmare_tickets,json=nightmareTickets,proto3" json:"nightmare_tickets,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Character) Reset() {
@@ -1049,6 +1052,13 @@ func (x *Character) GetCelestialArchLevel() int32 {
 func (x *Character) GetArchCristal() int32 {
 	if x != nil {
 		return x.ArchCristal
+	}
+	return 0
+}
+
+func (x *Character) GetNightmareTickets() int32 {
+	if x != nil {
+		return x.NightmareTickets
 	}
 	return 0
 }
@@ -6442,8 +6452,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x14LoadCharacterRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12\x12\n" +
-	"\x04slot\x18\x02 \x01(\x05R\x04slot\"\xd9\n" +
-	"\n" +
+	"\x04slot\x18\x02 \x01(\x05R\x04slot\"\x86\v\n" +
 	"\tCharacter\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -6498,7 +6507,8 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"arch_lv370\x18- \x01(\x05R\tarchLv370\x12!\n" +
 	"\fmortal_level\x18. \x01(\x05R\vmortalLevel\x120\n" +
 	"\x14celestial_arch_level\x18/ \x01(\x05R\x12celestialArchLevel\x12!\n" +
-	"\farch_cristal\x180 \x01(\x05R\varchCristal\"\xcd\x01\n" +
+	"\farch_cristal\x180 \x01(\x05R\varchCristal\x12+\n" +
+	"\x11nightmare_tickets\x181 \x01(\x05R\x10nightmareTickets\"\xcd\x01\n" +
 	"\x04Item\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x14\n" +
 	"\x05index\x18\x02 \x01(\x05R\x05index\x12\x12\n" +

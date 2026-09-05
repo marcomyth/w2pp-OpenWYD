@@ -685,8 +685,8 @@ func TestUseMagicBeanPaintsEquippedSet(t *testing.T) {
 
 	useMagicBeanFrame(t, c, 1)
 
-	if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticeRefineSuccess {
-		t.Fatalf("notice = %d, want RefineSuccess", code)
+	if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticePaintSuccess {
+		t.Fatalf("notice = %d, want PaintSuccess — painting is not refining", code)
 	}
 	expect(t, c, protocol.MsgUpdateScore)
 	item := expect(t, c, protocol.MsgSendItem)
@@ -753,8 +753,8 @@ func TestUseMagicBeanAllowsWeaponForModerators(t *testing.T) {
 
 	useMagicBeanFrame(t, c, weaponSlotR)
 
-	if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticeRefineSuccess {
-		t.Fatalf("notice = %d, want RefineSuccess", code)
+	if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticePaintSuccess {
+		t.Fatalf("notice = %d, want PaintSuccess — painting is not refining", code)
 	}
 	expect(t, c, protocol.MsgUpdateScore)
 	item := expect(t, c, protocol.MsgSendItem)
@@ -1633,8 +1633,8 @@ func TestUsePaintBeanAppliesColorOverWire(t *testing.T) {
 		}
 		switch ty {
 		case protocol.MsgMessageBoxOk:
-			if noticeCode(t, payload) != NoticeRefineSuccess {
-				t.Fatalf("notice = %v, want NoticeRefineSuccess", noticeCode(t, payload))
+			if noticeCode(t, payload) != NoticePaintSuccess {
+				t.Fatalf("notice = %v, want NoticePaintSuccess", noticeCode(t, payload))
 			}
 			sawNotice = true
 		case protocol.MsgUpdateEquip:
@@ -1760,8 +1760,8 @@ func TestUsePaintRemoverRejectsWithoutEmptyOrPaintSlot(t *testing.T) {
 
 	sendPaintUse(t, c, 1)
 
-	if ty, payload, ok := readMaybe(t, c); !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, payload) != NoticeCantRefineMore {
-		t.Fatalf("remover reject notice = %#x/%v ok=%v, want NoticeCantRefineMore", ty, noticeCode(t, payload), ok)
+	if ty, payload, ok := readMaybe(t, c); !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, payload) != NoticeNotPainted {
+		t.Fatalf("remover reject notice = %#x/%v ok=%v, want NoticeNotPainted", ty, noticeCode(t, payload), ok)
 	}
 	item := expect(t, c, protocol.MsgSendItem)
 	if place, slot, idx := le16(item[0:2]), le16(item[2:4]), le16(item[4:6]); place != world.ItemPlaceCarry || slot != 0 || idx != 3417 {

@@ -1,5 +1,10 @@
 # Plano: Sistema de Edição de NPCs (painel de moderação)
 
+> **Atualização:** o front-end deixou de estar fora de escopo — existe um painel de moderação local,
+> descrito em [npc-city-panel.md](./npc-city-panel.md). Ele não é Next.js: é uma página embutida
+> servida por `webserver/cmd/npcpanel`, consumindo o **mesmo `npcadmin.Service`** in-process. O
+> contrato gRPC deste doc continua válido e intacto para o BFF, quando ele existir.
+
 > Status: **IMPLEMENTADO** (backend + estruturas de dados; front-end Next.js fora de escopo). Origem:
 > necessidade de **moderadores de jogo** editarem NPCs pela web — se o NPC **aparece ou não**, **onde**
 > ele fica, e **quais itens vende e por qual preço**. Este doc é a fonte da verdade dessa decisão de

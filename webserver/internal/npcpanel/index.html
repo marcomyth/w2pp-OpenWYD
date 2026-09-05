@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NPCs por Cidade — OpenWYD</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --panel: #fff; --fg: #17181c; --muted: #6b7280;
+    --line: #e3e4e8; --accent: #1f6f5c; --chip: #eef0f4; --hover: #f0f1f4;
+    --warn: #9a6b16; --warn-bg: #fdf3e0; --off: #9a2b23; --ok: #1f6f5c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16171a; --panel: #1d1e22; --fg: #e8e9ec; --muted: #9aa0aa;
+      --line: #2c2e34; --accent: #56ac90; --chip: #2a2c32; --hover: #24262b;
+      --warn: #e0b565; --warn-bg: #2e2717; --off: #e08b83; --ok: #56ac90;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.45 ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    position: sticky; top: 0; z-index: 5; background: var(--panel);
+    border-bottom: 1px solid var(--line); padding: 12px 16px;
+  }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 650; letter-spacing: .2px; }
+  h1 #count { color: var(--muted); font-weight: 400; font-size: 13px; }
+  input[type=search], input[type=number], select {
+    font: inherit; color: inherit; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px;
+  }
+  input[type=search] { min-width: 230px; }
+  input[type=number] { width: 84px; }
+  button {
+    font: inherit; color: inherit; background: var(--bg); cursor: pointer;
+    border: 1px solid var(--line); border-radius: 5px; padding: 5px 10px;
+  }
+  button:hover { background: var(--hover); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { filter: brightness(1.08); }
+  button[disabled] { opacity: .5; cursor: not-allowed; }
+
+  .zones { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .zone {
+    border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px;
+    background: var(--bg); cursor: pointer; font-size: 13px; white-space: nowrap;
+  }
+  .zone:hover { background: var(--hover); }
+  .zone[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .zone b { font-weight: 600; }
+  .zone i { font-style: normal; opacity: .7; margin-left: 5px; }
+  .zone.derived b::after { content: " ?"; opacity: .75; }
+
+  .banner {
+    margin: 10px 16px 0; padding: 8px 12px; border-radius: 6px; font-size: 13px;
+    background: var(--warn-bg); color: var(--warn); border: 1px solid currentColor;
+  }
+  main { padding: 12px 16px 60px; }
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 780px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+  th { position: sticky; top: 0; background: var(--panel); font-weight: 600; font-size: 12.5px; color: var(--muted); }
+  tbody tr.npc { cursor: pointer; }
+  tbody tr.npc:hover { background: var(--hover); }
+  tbody tr.off td:not(.actions) { opacity: .45; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .chip {
+    display: inline-block; background: var(--chip); border-radius: 4px;
+    padding: 1px 7px; font-size: 12px; white-space: nowrap;
+  }
+  .chip.custom { background: var(--accent); color: #fff; }
+  .chip.warn { background: var(--warn-bg); color: var(--warn); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+  .dot.on { background: var(--ok); } .dot.off { background: var(--off); }
+
+  .detail { background: var(--panel); }
+  .detail td { padding: 14px 16px; }
+  .cols { display: flex; gap: 26px; flex-wrap: wrap; }
+  .col { min-width: 240px; flex: 1; }
+  .col h3 { margin: 0 0 8px; font-size: 12.5px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13px; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; }
+  ul.items { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  ul.items li { display: flex; gap: 8px; align-items: center; padding: 2px 0; }
+  ul.items .slot { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 26px; }
+  ul.items img { width: 22px; height: 22px; image-rendering: pixelated; }
+  .empty { color: var(--muted); font-size: 13px; font-style: italic; }
+  .editbox { margin-top: 10px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .err { color: var(--off); font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="row">
+    <h1><span id="heading">NPCs por Cidade </span><span id="count"></span></h1>
+    <input type="search" id="q" placeholder="nome, template ou slug…" autocomplete="off">
+    <select id="origin">
+      <option value="">Origem: todas</option>
+      <option value="content">Base (do conteúdo)</option>
+      <option value="custom">Criados por nós</option>
+    </select>
+    <select id="kind"><option value="">Tipo: todos</option></select>
+    <label class="row" style="gap:5px;font-size:13px"><input type="checkbox" id="onlyShops"> só com loja</label>
+    <label class="row" style="gap:5px;font-size:13px"><input type="checkbox" id="hideField" checked> ocultar campo</label>
+  </div>
+  <div class="zones" id="zones"></div>
+</header>
+
+<div class="banner" id="banner" hidden></div>
+
+<main>
+  <div class="tablewrap">
+    <table>
+      <thead><tr>
+        <th style="width:28px"></th><th>Nome</th><th>Template</th><th>Tipo</th>
+        <th>Cidade</th><th class="num">X</th><th class="num">Y</th>
+        <th class="num">Classe</th><th class="num">Nível</th><th>Origem</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <p class="empty" id="none" hidden>Nenhum NPC com esses filtros.</p>
+</main>
+
+<script>
+var DATA = { zones: [], npcs: [], stats: {}, editable: false };
+var zoneFilter = null, expanded = null;
+
+// mapzones.Field: the catch-all for a position that belongs to no settlement.
+var FIELD_ID = 8;
+
+// The legacy Merchant byte is overloaded: besides shops it flags quests, mounts
+// and event actors (npc-map.md). Only 1 and 19 actually open a buy/sell window
+// — Merchant 2 arrives on the same message but opens the warehouse. Labels here
+// follow npc-map.md; an unlisted code shows as its raw number rather than being
+// guessed at.
+var MERCHANT = {
+  1: "Loja", 2: "Banco (guarda de carga)", 3: "Mestre de classe",
+  6: "Quest", 12: "Quest (Jeffi)", 13: "Quest (xamã)",
+  16: "Montaria", 19: "Loja especial", 23: "Mestre Grifo", 24: "Combine (Odin)",
+  31: "Mestre de skill", 32: "Quest", 36: "Teleporte / treinador",
+  58: "Mestre de montaria", 62: "Quest (dragão)", 64: "Quest",
+  68: "Quest (God Government)", 74: "Combine (Lindy) / Kibita", 76: "Quest (Urnammu)",
+  78: "Quest (oráculo)", 96: "Quest", 100: "Quest", 101: "Montaria (unicórnio)",
+  104: "Quest (tutorial)", 111: "Rei"
+};
+function kindOf(m) { return MERCHANT[m] || ("Merchant " + m); }
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+  });
+}
+function fold(s) {
+  // Strip combining marks so "Não" matches a typed "nao".
+  return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+function fmt(n) { return Number(n).toLocaleString("pt-BR"); }
+
+var qEl = document.getElementById("q");
+var originEl = document.getElementById("origin");
+var kindEl = document.getElementById("kind");
+var onlyShopsEl = document.getElementById("onlyShops");
+var hideFieldEl = document.getElementById("hideField");
+var rowsEl = document.getElementById("rows");
+var zonesEl = document.getElementById("zones");
+
+function matches(n) {
+  if (zoneFilter !== null && n.zoneId !== zoneFilter) return false;
+  // The field bucket is mostly raid and guard spawns, so it is hidden by
+  // default — unless it is the bucket the operator explicitly selected.
+  if (hideFieldEl.checked && zoneFilter === null && n.zoneId === FIELD_ID) return false;
+  if (originEl.value && n.origin !== originEl.value) return false;
+  if (kindEl.value && String(n.merchant) !== kindEl.value) return false;
+  if (onlyShopsEl.checked && !(n.shop && n.shop.length)) return false;
+  var q = fold(qEl.value.trim());
+  if (!q) return true;
+  return fold(n.name).indexOf(q) >= 0 || fold(n.template).indexOf(q) >= 0 || fold(n.slug).indexOf(q) >= 0;
+}
+
+function render() {
+  var list = DATA.npcs.filter(matches);
+  document.getElementById("count").textContent =
+    "— " + fmt(list.length) + " de " + fmt(DATA.npcs.length);
+  document.getElementById("none").hidden = list.length > 0;
+
+  var html = "";
+  for (var i = 0; i < list.length; i++) {
+    var n = list[i];
+    html += '<tr class="npc' + (n.enabled ? "" : " off") + '" data-slug="' + esc(n.slug) + '">' +
+      '<td><span class="dot ' + (n.enabled ? "on" : "off") + '" title="' +
+        (n.enabled ? "ativo" : "desativado") + '"></span></td>' +
+      "<td>" + esc(n.name || n.template) + "</td>" +
+      "<td>" + esc(n.template) + "</td>" +
+      "<td>" + esc(kindOf(n.merchant)) +
+        // A shop with a zero Carry[] sells nothing as shipped. Flagging it on the
+        // row is the point of the list for a moderator.
+        (DATA.stats.shopsOnly && !(n.shop && n.shop.length)
+          ? ' <span class="chip warn">sem estoque</span>' : "") + "</td>" +
+      "<td>" + esc(n.zoneId === FIELD_ID && n.nearZone
+        ? "Campo · perto de " + n.nearZone + " (" + fmt(n.nearDist) + ")"
+        : n.zone) + "</td>" +
+      '<td class="num">' + fmt(n.x) + "</td>" +
+      '<td class="num">' + fmt(n.y) + "</td>" +
+      '<td class="num">' + fmt(n.class) + "</td>" +
+      '<td class="num">' + fmt(n.level) + "</td>" +
+      '<td><span class="chip' + (n.origin === "custom" ? " custom" : "") + '">' +
+        (n.origin === "custom" ? "nosso" : "base") + "</span></td></tr>";
+    if (expanded === n.slug) html += detailRow(n);
+  }
+  rowsEl.innerHTML = html;
+}
+
+function itemList(items, kind) {
+  if (!items || !items.length) {
+    return '<p class="empty">' + (kind === "equip" ? "sem equipamento" : "sem itens") + "</p>";
+  }
+  var h = '<ul class="items">';
+  for (var i = 0; i < items.length; i++) {
+    var it = items[i];
+    h += "<li>" +
+      '<span class="slot">' + it.slot + "</span>" +
+      (it.iconKey ? '<img src="icons/' + esc(it.iconKey) + '.png" alt="">' : "") +
+      "<span>" + esc(it.name || ("item " + it.index)) + "</span>" +
+      (it.grade ? '<span class="chip">G' + it.grade + "</span>" : "") +
+      (kind === "equip" && it.mesh ? '<span class="chip">mesh ' + it.mesh + "</span>" : "") +
+      "</li>";
+  }
+  return h + "</ul>";
+}
+
+function detailRow(n) {
+  var canEdit = DATA.editable && n.dbId;
+  var h = '<tr class="detail"><td colspan="10"><div class="cols">';
+
+  h += '<div class="col"><h3>Identidade e posição</h3><dl class="kv">' +
+    "<dt>slug</dt><dd>" + esc(n.slug) + "</dd>" +
+    "<dt>bloco</dt><dd>#" + n.generatorIndex + "</dd>" +
+    "<dt>merchant</dt><dd>" + n.merchant + " — " + esc(kindOf(n.merchant)) + "</dd>" +
+    "<dt>classe / clã</dt><dd>" + n.class + " / " + n.clan + "</dd>" +
+    "<dt>posição</dt><dd>" + fmt(n.x) + ", " + fmt(n.y) + "</dd>" +
+    "<dt>cidade</dt><dd>" + esc(n.zone) +
+      (n.nearZone ? " (mais perto: " + esc(n.nearZone) + ", " + fmt(n.nearDist) + ")" : "") + "</dd>" +
+    "<dt>rota</dt><dd>tipo " + n.routeType + ", respawn " + n.minuteGenerate + " min, máx " + n.maxNumMob + "</dd>" +
+    (n.follower ? "<dt>seguidor</dt><dd>" + esc(n.follower) + "</dd>" : "") +
+    "</dl>";
+
+  if (canEdit) {
+    h += '<div class="editbox">' +
+      '<button data-act="toggle" data-id="' + n.dbId + '" data-on="' + (n.enabled ? "0" : "1") + '">' +
+        (n.enabled ? "Desativar" : "Ativar") + "</button>" +
+      '<input type="number" data-fld="x" value="' + n.x + '" aria-label="X">' +
+      '<input type="number" data-fld="y" value="' + n.y + '" aria-label="Y">' +
+      '<button class="primary" data-act="move" data-id="' + n.dbId + '">Mover</button>' +
+      "</div>";
+  } else if (DATA.editable) {
+    h += '<p class="empty">Sem linha no banco: rode <code>dbserver import-npcs</code> para poder editar.</p>';
+  }
+  h += "</div>";
+
+  h += '<div class="col"><h3>Aparência (set)</h3>' + itemList(n.equip, "equip") + "</div>";
+
+  h += '<div class="col"><h3>Loja</h3>' + itemList(n.shop, "shop");
+  if (canEdit && n.merchant) {
+    h += '<div class="editbox">' +
+      '<input type="number" data-fld="item" placeholder="índice" aria-label="Índice do item">' +
+      '<input type="number" data-fld="qty" value="1" aria-label="Quantidade">' +
+      '<button data-act="additem" data-id="' + n.dbId + '">Adicionar</button>' +
+      (n.shop && n.shop.length
+        ? '<button data-act="delitem" data-id="' + n.dbId + '">Remover slot…</button>' : "") +
+      "</div>";
+  }
+  h += "</div>";
+
+  h += '<p class="err" data-err hidden></p></div></td></tr>';
+  return h;
+}
+
+rowsEl.addEventListener("click", function (ev) {
+  var btn = ev.target.closest("button[data-act]");
+  if (btn) { ev.stopPropagation(); handleAction(btn); return; }
+  if (ev.target.closest("input")) return;
+  var tr = ev.target.closest("tr.npc");
+  if (!tr) return;
+  expanded = expanded === tr.dataset.slug ? null : tr.dataset.slug;
+  render();
+});
+
+function currentNPC() {
+  for (var i = 0; i < DATA.npcs.length; i++) {
+    if (DATA.npcs[i].slug === expanded) return DATA.npcs[i];
+  }
+  return null;
+}
+
+function showError(msg) {
+  var el = rowsEl.querySelector("[data-err]");
+  if (!el) return;
+  el.textContent = msg || "";
+  el.hidden = !msg;
+}
+
+function post(path, body, done) {
+  fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  }).then(function (r) {
+    return r.json().then(function (j) { return { ok: r.ok, body: j }; });
+  }).then(function (res) {
+    if (!res.ok) { showError(res.body.error || "falha na operação"); return; }
+    done();
+  }).catch(function (e) { showError(String(e)); });
+}
+
+function handleAction(btn) {
+  var id = Number(btn.dataset.id);
+  var n = currentNPC();
+  var box = btn.closest(".col");
+  showError("");
+
+  if (btn.dataset.act === "toggle") {
+    post("api/npc/visibility", { npcId: id, enabled: btn.dataset.on === "1" }, reload);
+  } else if (btn.dataset.act === "move") {
+    var x = Number(box.querySelector('[data-fld="x"]').value);
+    var y = Number(box.querySelector('[data-fld="y"]').value);
+    // -1 asks the server to re-derive the city from the new position.
+    post("api/npc/position", { npcId: id, x: x, y: y, mapId: -1 }, reload);
+  } else if (btn.dataset.act === "additem") {
+    var index = Number(box.querySelector('[data-fld="item"]').value);
+    var qty = Number(box.querySelector('[data-fld="qty"]').value) || 1;
+    if (!index) { showError("informe o índice do item"); return; }
+    var items = shopPayload(n);
+    var slot = nextSlot(items);
+    if (slot < 0) { showError("loja cheia (27 slots)"); return; }
+    items.push({ slot: slot, itemIndex: index, quantity: qty });
+    post("api/npc/shop", { npcId: id, items: items }, reload);
+  } else if (btn.dataset.act === "delitem") {
+    var slotStr = window.prompt("Remover qual slot? " + shopPayload(n).map(function (i) {
+      return i.slot;
+    }).join(", "));
+    if (slotStr === null) return;
+    var target = Number(slotStr);
+    var kept = shopPayload(n).filter(function (i) { return i.slot !== target; });
+    post("api/npc/shop", { npcId: id, items: kept }, reload);
+  }
+}
+
+function shopPayload(n) {
+  return (n && n.shop ? n.shop : []).map(function (i) {
+    // Effect 61 is EF_AMOUNT: the stack size the slot sells.
+    var qty = 1;
+    for (var k = 0; k < (i.effects || []).length; k++) {
+      if (i.effects[k][0] === 61) qty = i.effects[k][1] || 1;
+    }
+    return { slot: i.slot, itemIndex: i.index, quantity: qty };
+  });
+}
+
+function nextSlot(items) {
+  var used = {};
+  items.forEach(function (i) { used[i.slot] = true; });
+  for (var s = 0; s <= 26; s++) if (!used[s]) return s;
+  return -1;
+}
+
+function renderZones() {
+  var h = '<button class="zone" aria-pressed="' + (zoneFilter === null) + '" data-zone="">' +
+    "<b>Todas</b><i>" + fmt(DATA.npcs.length) + "</i></button>";
+  for (var i = 0; i < DATA.zones.length; i++) {
+    var z = DATA.zones[i];
+    if (!z.count) continue;
+    h += '<button class="zone' + (z.verified ? "" : " derived") +
+      '" aria-pressed="' + (zoneFilter === z.id) + '" data-zone="' + z.id + '"' +
+      (z.verified ? "" : ' title="nome derivado do conteúdo, não confirmado na fonte legada"') +
+      "><b>" + esc(z.name) + "</b><i>" + fmt(z.count) + "</i></button>";
+  }
+  zonesEl.innerHTML = h;
+}
+
+zonesEl.addEventListener("click", function (ev) {
+  var b = ev.target.closest(".zone");
+  if (!b) return;
+  zoneFilter = b.dataset.zone === "" ? null : Number(b.dataset.zone);
+  expanded = null;
+  renderZones();
+  render();
+});
+
+[qEl, originEl, kindEl, onlyShopsEl, hideFieldEl].forEach(function (el) {
+  el.addEventListener(el.tagName === "INPUT" && el.type === "search" ? "input" : "change", function () {
+    expanded = null;
+    render();
+  });
+});
+
+function buildKindFilter() {
+  var seen = {};
+  DATA.npcs.forEach(function (n) { seen[n.merchant] = (seen[n.merchant] || 0) + 1; });
+  var codes = Object.keys(seen).map(Number).sort(function (a, b) { return seen[b] - seen[a]; });
+  var h = '<option value="">Tipo: todos</option>';
+  codes.forEach(function (c) {
+    h += '<option value="' + c + '">' + esc(kindOf(c)) + " (" + seen[c] + ")</option>";
+  });
+  kindEl.innerHTML = h;
+}
+
+function banner() {
+  var el = document.getElementById("banner");
+  var s = DATA.stats || {};
+  var parts = [];
+  if (!DATA.editable) {
+    parts.push("Modo leitura: nenhum banco configurado (-dsn), então ativar/desativar, mover e editar loja estão desligados.");
+  }
+  if (s.shopsOnly) {
+    parts.push("Mostrando só NPCs de loja (Merchant 1 e 19, os únicos que abrem compra/venda): " +
+      fmt(DATA.npcs.length) + " de " + fmt(s.blocks || 0) + " blocos do NPCGener. " +
+      "Rode com -all para ver também quest, banco, montaria e atores de evento.");
+    if (s.emptyShops) {
+      parts.push(fmt(s.emptyShops) + " dessas lojas vêm do conteúdo sem nenhum item, marcadas “sem estoque”.");
+    }
+  } else {
+    parts.push(fmt(s.blocks || 0) + " blocos no NPCGener, " + fmt(DATA.npcs.length) +
+      " NPCs (" + fmt(s.shops || 0) + " lojas), " + fmt(s.inSettlement || 0) + " dentro de uma cidade.");
+  }
+  if (s.missingTemplate) parts.push(fmt(s.missingTemplate) + " template(s) ausente(s).");
+  if (s.undecodableMob) parts.push(fmt(s.undecodableMob) + " arquivo(s) não decodificável(is).");
+  el.textContent = parts.join(" ");
+  el.hidden = false;
+}
+
+function reload() {
+  fetch("api/npcs").then(function (r) { return r.json(); }).then(function (d) {
+    DATA = d;
+    DATA.npcs = DATA.npcs || [];
+    DATA.zones = DATA.zones || [];
+    // In shop scope the whole list is under a hundred rows and seven of those
+    // shops genuinely stand outside any town (mercenary shops, Bardes,
+    // Redmiron), so hiding the field bucket would hide real stock. The controls
+    // that only earn their place in the wider -all list are dropped too.
+    if (DATA.stats && DATA.stats.shopsOnly) {
+      hideFieldEl.checked = false;
+      hideFieldEl.closest("label").hidden = true;
+      onlyShopsEl.closest("label").hidden = true;
+      document.getElementById("heading").textContent = "Lojas por Cidade ";
+      document.title = "Lojas por Cidade — OpenWYD";
+    }
+    buildKindFilter();
+    banner();
+    renderZones();
+    render();
+  }).catch(function (e) {
+    document.getElementById("banner").textContent = "Falha ao carregar: " + e;
+    document.getElementById("banner").hidden = false;
+  });
+}
+
+reload();
+</script>
+</body>
+</html>

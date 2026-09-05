@@ -214,7 +214,7 @@ func (d *Dispatcher) refineItem(w *world.World, s *world.Session, e *world.Entit
 // game-rules.md §3.6.1); it's a migration design decision, not a port.
 func (d *Dispatcher) refineTintura(w *world.World, s *world.Session, e *world.Entity, dst *world.Item, body protocol.MsgUseItemBody, src int) {
 	dst.Index = int16(magicBeanBase + (int(dst.Index) - tinturaLo))
-	d.notify(w, s, NoticeRefineSuccess)
+	d.notifyText(w, s, NoticeRefineSuccess)
 	d.sendSlot(w, s, int(body.DestType), int(body.DestPos), *dst)
 	consumeOneItem(&e.Carry[src])
 }
@@ -251,7 +251,7 @@ func (d *Dispatcher) refineSucceed(w *world.World, s *world.Session, e *world.En
 
 	d.refreshScore(e)
 	d.sendScore(w, s, e)
-	d.notify(w, s, NoticeRefineSuccess)
+	d.notifyText(w, s, NoticeRefineSuccess)
 
 	if isEgg(*dst) {
 		d.hatchEgg(w, s, t, level)
@@ -271,7 +271,7 @@ func (d *Dispatcher) refineSucceed(w *world.World, s *world.Session, e *world.En
 // refineFail applies a lost roll (_MSG_UseItem.cpp:929-974). The item survives
 // untouched — only the dust is spent and the pity counter grows.
 func (d *Dispatcher) refineFail(w *world.World, s *world.Session, e *world.Entity, t refineTarget, src, anvil, level, pity int) {
-	d.notify(w, s, NoticeFailToRefine)
+	d.notifyText(w, s, NoticeFailToRefine)
 	consumeOneItem(&e.Carry[src])
 
 	if w.Rand().Intn(pityRollModulo) <= pityRollMax {
@@ -355,7 +355,7 @@ func (d *Dispatcher) hatchEgg(w *world.World, s *world.Session, t refineTarget, 
 // refineReject refuses a refine and re-sends the DUST slot, so the client puts
 // the item it dragged back where it was (_MSG_UseItem.cpp:805).
 func (d *Dispatcher) refineReject(w *world.World, s *world.Session, e *world.Entity, src int, n Notice) {
-	d.notify(w, s, n)
+	d.notifyText(w, s, n)
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 }
 
