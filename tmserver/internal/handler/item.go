@@ -1840,6 +1840,8 @@ const (
 	efWDay     = 106
 	efHour     = 107
 	efMin      = 108
+	efYear     = 109
+	efWMonth   = 110
 	efItemType = 113
 	efNoTrade  = 127
 

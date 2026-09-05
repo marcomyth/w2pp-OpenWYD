@@ -104,13 +104,13 @@ func (d *Dispatcher) buy(w *world.World, s *world.Session, _ protocol.Header, pa
 }
 
 // itemToSel converts a world inventory item to the wire STRUCT_ITEM form. A
-// timed item (ExpiresAt set) reports its remaining life instead of its stored
-// effects — see remainingTimeEffects. Every item that reaches a client goes
-// through here, so this is the one place the conversion has to be right.
+// timed item (ExpiresAt set) reports its expiry instead of its stored effects —
+// see expiryEffects. Every item that reaches a client goes through here, so this
+// is the one place the conversion has to be right.
 func itemToSel(it world.Item) protocol.SelItem {
 	eff := it.Effects
 	if it.ExpiresAt != 0 {
-		eff = remainingTimeEffects(it.ExpiresAt, time.Now())
+		eff = expiryEffects(it.Index, it.ExpiresAt, time.Now())
 	}
 	return protocol.SelItem{
 		Index: uint16(it.Index),
@@ -122,32 +122,63 @@ func itemToSel(it world.Item) protocol.SelItem {
 	}
 }
 
-// remainingTimeEffects renders the time left on a timed item as the
-// EF_WDAY/EF_HOUR/EF_MIN trio the client reads, DERIVED from ExpiresAt on every
-// send rather than stored and decremented. ExpiresAt already survives restarts
-// and is the value dropExpired enforces, so deriving keeps the counter the player
-// sees and the moment the item actually dies from ever disagreeing.
+// Fairy item range (Basedef.cpp BASE_CheckFairyDate bails outside it).
+const (
+	fairyFirstIndex = 3900
+	fairyLastIndex  = 3913
+)
+
+// expiryEffects writes an item's expiry into the three effect slots, DERIVED
+// from ExpiresAt on every send rather than stored and ticked down. ExpiresAt
+// survives restarts and is the value dropExpired enforces, so deriving keeps what
+// the player sees and the moment the item actually dies from ever disagreeing.
 //
-// The three values are the wire's only slots, so they replace whatever the item
-// held: the items that carry an expiry today (Bolsa do Andarilho, the 30-day
-// mounts) are created with no effects of their own. Anything already expired
-// reports zeroes and is dropped on the next load.
+// The legacy has TWO schemes here and they are not interchangeable:
 //
-// Each field is uint8 on the wire. Days are clamped to 255, which no current
-// item can reach — the longest is 30.
-func remainingTimeEffects(expiresAt int64, now time.Time) [3]world.Effect {
-	left := time.Unix(expiresAt, 0).Sub(now)
-	if left < 0 {
-		left = 0
+//   - Fairies (3900-3913) hold a COUNTDOWN — BASE_CheckFairyDate reads
+//     stEffect[0..2] as days/hours/minutes left and decrements them every minute
+//     (Basedef.cpp:7437). The catalog seeds it, e.g.
+//     "3900,Fada_Verde(3dias),…,EF_WDAY,3,EF_HOUR,0,EF_MIN,0".
+//   - Everything else timed — the Bolsa do Andarilho (BASE_SetItemDate on
+//     Carry[60]/[61], _MSG_UseItem.cpp:5834), the premium equips 3980-3989 and the
+//     mount costumes 4150-4188 — holds an ABSOLUTE DATE: BASE_SetItemDate writes
+//     EF_WDAY = day of month, EF_WMONTH = month (1-12), EF_YEAR = year-100, and
+//     BASE_CheckItemDate compares those against today (Basedef.cpp:7408-7434).
+//
+// Sending a countdown where the client expects a date shows the wrong expiry, so
+// the range decides. The three values replace whatever the item held; every item
+// that carries an expiry today is created with no effects of its own. Anything
+// already expired reports zeroes and is dropped on the next load.
+func expiryEffects(index int16, expiresAt int64, now time.Time) [3]world.Effect {
+	if index >= fairyFirstIndex && index <= fairyLastIndex {
+		left := time.Unix(expiresAt, 0).Sub(now)
+		if left < 0 {
+			left = 0
+		}
+		days := int64(left.Hours()) / 24
+		if days > 255 {
+			days = 255
+		}
+		return [3]world.Effect{
+			{Effect: efWDay, Value: uint8(days)},
+			{Effect: efHour, Value: uint8(int64(left.Hours()) % 24)},
+			{Effect: efMin, Value: uint8(int64(left.Minutes()) % 60)},
+		}
 	}
-	days := int64(left.Hours()) / 24
-	if days > 255 {
-		days = 255
+	// Absolute date. Year is stored as year-100 the way the legacy tm_year does
+	// (BASE_SetItemDate: `year - 100`), i.e. years since 2000.
+	exp := time.Unix(expiresAt, 0).In(now.Location())
+	year := exp.Year() - 2000
+	if year < 0 {
+		year = 0
+	}
+	if year > 255 {
+		year = 255
 	}
 	return [3]world.Effect{
-		{Effect: efWDay, Value: uint8(days)},
-		{Effect: efHour, Value: uint8(int64(left.Hours()) % 24)},
-		{Effect: efMin, Value: uint8(int64(left.Minutes()) % 60)},
+		{Effect: efWDay, Value: uint8(exp.Day())},
+		{Effect: efWMonth, Value: uint8(int(exp.Month()))},
+		{Effect: efYear, Value: uint8(year)},
 	}
 }
 

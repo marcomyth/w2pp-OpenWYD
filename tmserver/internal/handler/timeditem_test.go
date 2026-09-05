@@ -7,36 +7,66 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
-// TestTimedItemReportsRemainingLife pins the wire contract for temporary items.
-// The client renders both the validity and the days-left counter from the
-// EF_WDAY/EF_HOUR/EF_MIN trio, which is the only channel available: the wire
-// STRUCT_ITEM holds an index and three effect pairs, so ExpiresAt — a server-side
-// Unix stamp — cannot reach the client any other way. A bag or mount sent with
-// empty effects is what left players with no expiry and no countdown.
-func TestTimedItemReportsRemainingLife(t *testing.T) {
-	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+// TestExpiryEffectsAbsoluteDate covers the scheme BASE_SetItemDate writes and
+// BASE_CheckItemDate reads (Basedef.cpp:7408-7434): day of month, month 1-12, and
+// year-100. It is what the Bolsa do Andarilho, the premium equips and the mount
+// costumes use, and the client renders it as a validity DATE.
+func TestExpiryEffectsAbsoluteDate(t *testing.T) {
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
 		name             string
-		left             time.Duration
-		day, hour, minim uint8
+		index            int16
+		expires          time.Time
+		day, month, year uint8
 	}{
-		{"fresh 30-day bag", 30 * 24 * time.Hour, 30, 0, 0},
-		{"mount most of the way through", 29*24*time.Hour + 5*time.Hour + 42*time.Minute, 29, 5, 42},
-		{"last day", 90 * time.Minute, 0, 1, 30},
-		{"final minutes", 30 * time.Second, 0, 0, 0},
-		{"already expired", -time.Hour, 0, 0, 0},
+		{"bag 30 days out", itemWandererBag, time.Date(2026, 10, 5, 12, 0, 0, 0, time.UTC), 5, 10, 26},
+		{"crossing into a new year", itemWandererBag, time.Date(2027, 1, 3, 8, 0, 0, 0, time.UTC), 3, 1, 27},
+		{"mount costume range", 4160, time.Date(2026, 12, 31, 23, 59, 0, 0, time.UTC), 31, 12, 26},
+		{"premium equip range", 3985, time.Date(2026, 9, 30, 0, 0, 0, 0, time.UTC), 30, 9, 26},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := remainingTimeEffects(now.Add(tc.left).Unix(), now)
+			got := expiryEffects(tc.index, tc.expires.Unix(), now)
+			want := [3]world.Effect{
+				{Effect: efWDay, Value: tc.day},
+				{Effect: efWMonth, Value: tc.month},
+				{Effect: efYear, Value: tc.year},
+			}
+			if got != want {
+				t.Errorf("expiryEffects = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+// TestExpiryEffectsFairyCountdown covers the OTHER scheme: fairies alone hold a
+// countdown, which BASE_CheckFairyDate decrements every minute. Sending a date
+// here — or a countdown to the items above — shows the player the wrong expiry.
+func TestExpiryEffectsFairyCountdown(t *testing.T) {
+	now := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)
+
+	tests := []struct {
+		name             string
+		index            int16
+		left             time.Duration
+		day, hour, minim uint8
+	}{
+		{"fresh 3-day fairy", fairyFirstIndex, 3 * 24 * time.Hour, 3, 0, 0},
+		{"partway through", 3907, 2*24*time.Hour + 5*time.Hour + 42*time.Minute, 2, 5, 42},
+		{"last hours", fairyLastIndex, 90 * time.Minute, 0, 1, 30},
+		{"already expired", 3903, -time.Hour, 0, 0, 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := expiryEffects(tc.index, now.Add(tc.left).Unix(), now)
 			want := [3]world.Effect{
 				{Effect: efWDay, Value: tc.day},
 				{Effect: efHour, Value: tc.hour},
 				{Effect: efMin, Value: tc.minim},
 			}
 			if got != want {
-				t.Errorf("remainingTimeEffects = %v, want %v", got, want)
+				t.Errorf("expiryEffects = %v, want %v", got, want)
 			}
 		})
 	}
@@ -60,19 +90,18 @@ func TestItemToSelKeepsEffectsOnPermanentItems(t *testing.T) {
 	}
 }
 
-// TestItemToSelTimedItemCarriesCountdown is the end-to-end shape a client sees
-// for a freshly used Bolsa do Andarilho.
-func TestItemToSelTimedItemCarriesCountdown(t *testing.T) {
-	it := world.Item{
-		Index:     itemWandererBag,
-		ExpiresAt: time.Now().Add(wandererBagDuration).Unix(),
+// TestItemToSelBagCarriesExpiryDate is the end-to-end shape a client sees for a
+// freshly used Bolsa do Andarilho: the date it dies, not a countdown.
+func TestItemToSelBagCarriesExpiryDate(t *testing.T) {
+	expires := time.Now().Add(wandererBagDuration)
+	sel := itemToSel(world.Item{Index: itemWandererBag, ExpiresAt: expires.Unix()})
+	if sel.Eff[0][0] != efWDay || sel.Eff[1][0] != efWMonth || sel.Eff[2][0] != efYear {
+		t.Fatalf("effect ids = %v, want EF_WDAY/EF_WMONTH/EF_YEAR", sel.Eff)
 	}
-	sel := itemToSel(it)
-	if sel.Eff[0][0] != efWDay || sel.Eff[1][0] != efHour || sel.Eff[2][0] != efMin {
-		t.Fatalf("effect ids = %v, want EF_WDAY/EF_HOUR/EF_MIN", sel.Eff)
+	if got, want := sel.Eff[0][1], uint8(expires.Day()); got != want {
+		t.Errorf("day = %d, want %d", got, want)
 	}
-	// 30 days minus the sliver spent building the item.
-	if sel.Eff[0][1] != 29 && sel.Eff[0][1] != 30 {
-		t.Errorf("days = %d, want 29 or 30", sel.Eff[0][1])
+	if got, want := sel.Eff[1][1], uint8(int(expires.Month())); got != want {
+		t.Errorf("month = %d, want %d", got, want)
 	}
 }
