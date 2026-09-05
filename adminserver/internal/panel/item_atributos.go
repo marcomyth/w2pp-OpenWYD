@@ -40,7 +40,7 @@ func (h *Handler) atributosItem(w http.ResponseWriter, r *http.Request) {
 		Grupos     []grupoCampos
 		Aviso      string
 	}{
-		pageFor(r, "itens", true), stat.Index(), stat.DisplayName(), stat.Overridden(),
+		h.pageFor(r, "itens"), stat.Index(), stat.DisplayName(), stat.Overridden(),
 		grupos, r.URL.Query().Get("aviso"),
 	})
 }

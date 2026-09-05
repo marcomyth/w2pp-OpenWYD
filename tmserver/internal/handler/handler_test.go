@@ -59,6 +59,7 @@ type fakeDB struct {
 	drainSaves   []drainSave           // captured SaveCargoWithDeliveries calls
 	blockedNames map[string]bool       // captured SetAccountBlocked calls (GM ban/unban)
 	duelResults  []duelResult          // captured RecordDuelResult calls (issue #118)
+	trades       []world.TradeRecord   // captured RecordTrade calls (0025_trade_log)
 
 	createdGuilds []world.GuildRecord
 	guildCosts    []int32
@@ -221,6 +222,39 @@ func (f *fakeDB) RecordDuelResult(_ context.Context, winnerName, loserName strin
 	defer f.mu.Unlock()
 	f.duelResults = append(f.duelResults, duelResult{winner: winnerName, loser: loserName})
 	return nil
+}
+
+func (f *fakeDB) RecordTrade(_ context.Context, t world.TradeRecord) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.trades = append(f.trades, t)
+	return nil
+}
+
+// lastTrade returns the most recent RecordTrade capture, waiting briefly for the
+// detached write to land.
+func (f *fakeDB) lastTrade(t *testing.T) (world.TradeRecord, bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		f.mu.Lock()
+		n := len(f.trades)
+		if n > 0 {
+			tr := f.trades[n-1]
+			f.mu.Unlock()
+			return tr, true
+		}
+		f.mu.Unlock()
+		time.Sleep(10 * time.Millisecond)
+	}
+	return world.TradeRecord{}, false
+}
+
+// tradeCount reports how many trades were recorded so far.
+func (f *fakeDB) tradeCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.trades)
 }
 
 // lastDuelResult returns the most recent RecordDuelResult capture, waiting

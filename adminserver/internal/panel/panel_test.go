@@ -2965,3 +2965,109 @@ func TestFalhaAoLerOBloqueioEncerraASessao(t *testing.T) {
 		t.Fatalf("status = %d, want 303 para o login", rec.Code)
 	}
 }
+
+// --- trocas ---
+
+type fakeTrocas struct {
+	mu      sync.Mutex
+	trocas  []domain.TradeRecord
+	pedidos []store.TradeQuery
+	err     error
+}
+
+func (f *fakeTrocas) ListTrades(_ context.Context, q store.TradeQuery) ([]domain.TradeRecord, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return nil, f.err
+	}
+	f.pedidos = append(f.pedidos, q)
+	return f.trocas, nil
+}
+
+func newTestPanelTrocas(t *testing.T, tl TradeLog) http.Handler {
+	t.Helper()
+	h, err := New(Config{
+		Accounts:   withTarget(roleAdmin),
+		Writer:     newFakeWriter(),
+		Trocas:     tl,
+		Audit:      newFakeAudit(),
+		Sessions:   session.New(time.Hour),
+		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}
+
+func umaTroca() domain.TradeRecord {
+	return domain.TradeRecord{
+		ID: 1, At: time.Now(),
+		CharA: "Vendedor", CharB: "Comprador",
+		GoldA: 0, GoldB: 5000,
+		ItemsA: []domain.TradeItem{{Index: 1415, Eff: [3][2]uint8{{7, 42}}}},
+		ItemsB: nil,
+	}
+}
+
+func TestTrocasMostraOsDoisLados(t *testing.T) {
+	tl := &fakeTrocas{trocas: []domain.TradeRecord{umaTroca()}}
+	get := signedIn(t, newTestPanelTrocas(t, tl))
+	body := get("/trocas").Body.String()
+
+	for _, want := range []string{"Vendedor", "Comprador", "item 1415", "7/42", "5000 de ouro"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a página não traz %q", want)
+		}
+	}
+	// The side that gave nothing has to say so, or the reader assumes the page
+	// failed to load half of it.
+	if !strings.Contains(body, "nada") {
+		t.Error("o lado que não entregou nada não foi marcado")
+	}
+}
+
+func TestTrocasAvisaDoItemLargadoNoChao(t *testing.T) {
+	// The screen cannot see a hand-off by dropping: getItem gives a ground item
+	// to anyone within three tiles, with no owner check and no log. A moderator
+	// who does not know that will read an empty result as proof of innocence.
+	tl := &fakeTrocas{}
+	get := signedIn(t, newTestPanelTrocas(t, tl))
+	body := get("/trocas").Body.String()
+	if !strings.Contains(body, "largado no chão") {
+		t.Error("a página não avisa do caminho que ela não enxerga")
+	}
+}
+
+func TestTrocasPassaOPersonagemDaBusca(t *testing.T) {
+	tl := &fakeTrocas{}
+	get := signedIn(t, newTestPanelTrocas(t, tl))
+	if rec := get("/trocas?personagem=Vendedor"); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if len(tl.pedidos) != 1 || tl.pedidos[0].Char != "Vendedor" {
+		t.Errorf("consultou %+v, want o nome do formulário", tl.pedidos)
+	}
+	if tl.pedidos[0].Limit != trocasLimit {
+		t.Errorf("limite = %d, want %d", tl.pedidos[0].Limit, trocasLimit)
+	}
+}
+
+func TestTrocasSomemSemAConfiguracao(t *testing.T) {
+	get := signedIn(t, newTestPanel(t, withTarget(roleAdmin)))
+	if rec := get("/trocas"); rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 sem o log de trocas", rec.Code)
+	}
+	if strings.Contains(get("/").Body.String(), `href="/trocas"`) {
+		t.Error("o menu oferece um link para uma página que não existe")
+	}
+}
+
+func TestTrocasNoMenuQuandoConfigurado(t *testing.T) {
+	get := signedIn(t, newTestPanelTrocas(t, &fakeTrocas{}))
+	if !strings.Contains(get("/").Body.String(), `href="/trocas"`) {
+		t.Error("o menu não oferece a página de trocas")
+	}
+}

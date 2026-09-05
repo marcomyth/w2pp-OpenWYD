@@ -143,6 +143,7 @@ func run(logger *slog.Logger) error {
 		GameData:   game,
 		Writer:     accounts.New(pool),
 		Entregas:   entrega.New(pool),
+		Trocas:     store.New(pool),
 		Audit:      audit.New(pool),
 		Sessions:   session.New(*sessionTTL),
 		Logger:     logger,

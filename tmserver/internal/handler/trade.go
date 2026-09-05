@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/binary"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -100,12 +101,19 @@ func (d *Dispatcher) executeSwap(w *world.World, a, b *world.Session) {
 	ea.Coin += b.Trade.Money - a.Trade.Money
 	eb.Coin += a.Trade.Money - b.Trade.Money
 
+	// Captured before the states are cleared two lines below. Reading Money
+	// after that clear is the obvious mistake here, and it records every trade
+	// as having involved no gold at all.
+	ouroA, ouroB := a.Trade.Money, b.Trade.Money
+
 	a.Trade = world.TradeState{}
 	b.Trade = world.TradeState{}
 	// Result to each side carries the items they received (UNVERIFIED layout;
 	// the real handler re-sends inventory slots via _MSG_SendItem).
 	w.Send(a, protocol.MsgTrade, tradeResultPayload(bItems))
 	w.Send(b, protocol.MsgTrade, tradeResultPayload(aItems))
+
+	d.recordTrade(w, a, b, ea.Name, eb.Name, ouroA, ouroB, aItems, bItems)
 }
 
 // tradeResultPayload encodes the received items as count + WireItems (placeholder
@@ -196,4 +204,50 @@ func putBack(e *world.Entity, slots []int, items []world.Item) {
 			e.Carry[sl] = items[i]
 		}
 	}
+}
+
+// recordTrade writes the trade to the log off the loop (World.GoDetached — not
+// World.Go, which is session-bound), the same way duel results are recorded.
+//
+// A trade that moved nothing is not written: both sides can confirm an empty
+// window, and those rows would be noise in the one screen a moderator opens
+// when somebody reports a scam.
+func (d *Dispatcher) recordTrade(w *world.World, a, b *world.Session,
+	nomeA, nomeB string, ouroA, ouroB int32, itensA, itensB []world.Item,
+) {
+	if ouroA == 0 && ouroB == 0 && len(itensA) == 0 && len(itensB) == 0 {
+		return
+	}
+	rec := world.TradeRecord{
+		CharA: nomeA, CharB: nomeB,
+		AccountA: a.AccountID, AccountB: b.AccountID,
+		GoldA: ouroA, GoldB: ouroB,
+		ItemsA: tradeItemsForLog(itensA),
+		ItemsB: tradeItemsForLog(itensB),
+	}
+	p := w.Persistence()
+	w.GoDetached(func() func(*world.World) {
+		if err := p.RecordTrade(context.Background(), rec); err != nil {
+			return func(*world.World) {
+				d.log.Warn("trade log: persistence failed",
+					"a", rec.CharA, "b", rec.CharB, "err", err)
+			}
+		}
+		return nil
+	})
+}
+
+func tradeItemsForLog(items []world.Item) []world.TradeItem {
+	out := make([]world.TradeItem, 0, len(items))
+	for _, it := range items {
+		if it.Empty() {
+			continue
+		}
+		t := world.TradeItem{Index: int32(it.Index)}
+		for i := 0; i < 3; i++ {
+			t.Eff[i] = [2]uint8{it.Effects[i].Effect, it.Effects[i].Value}
+		}
+		out = append(out, t)
+	}
+	return out
 }

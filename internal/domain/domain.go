@@ -655,3 +655,33 @@ var ItemStatFields = []ItemStatField{
 	{Col: "incubate", EF: "EF_INCUBATE", Ptr: func(s *ItemStat) *int16 { return &s.Incubate }},
 	{Col: "incudelay", EF: "EF_INCUDELAY", Ptr: func(s *ItemStat) *int16 { return &s.IncuDelay }},
 }
+
+// TradeItem is one item as it changed hands: the catalog index and the three
+// effect pairs the instance carried. Enough to say what was handed over without
+// copying the whole STRUCT_ITEM.
+type TradeItem struct {
+	Index int32
+	Eff   [3][2]uint8
+}
+
+// TradeRecord is one completed player-to-player trade (0025_trade_log).
+//
+// Sides A and B are whichever two players were in the window; there is no
+// giver and receiver, because both directions happen at once. GoldA is what A
+// handed to B.
+//
+// It is a record of what the server did, not proof of what the database holds:
+// there is no periodic character save, so the items themselves reach Postgres
+// only when each side logs out.
+type TradeRecord struct {
+	ID       int64
+	At       time.Time
+	CharA    string
+	CharB    string
+	AccountA int64 // 0 when unknown
+	AccountB int64
+	GoldA    int32
+	GoldB    int32
+	ItemsA   []TradeItem
+	ItemsB   []TradeItem
+}

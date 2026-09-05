@@ -839,3 +839,31 @@ func savedItemsToProto(items []world.SavedItem) []*dbv1.Item {
 	}
 	return out
 }
+
+// RecordTrade stores one completed player-to-player trade (0025_trade_log).
+func (c *Client) RecordTrade(ctx context.Context, t world.TradeRecord) error {
+	_, err := c.api.RecordTrade(ctx, &dbv1.RecordTradeRequest{
+		CharA: t.CharA, CharB: t.CharB,
+		AccountA: t.AccountA, AccountB: t.AccountB,
+		GoldA: t.GoldA, GoldB: t.GoldB,
+		ItemsA: tradeItemsToProto(t.ItemsA),
+		ItemsB: tradeItemsToProto(t.ItemsB),
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: record trade: %w", err)
+	}
+	return nil
+}
+
+func tradeItemsToProto(in []world.TradeItem) []*dbv1.TradeItem {
+	out := make([]*dbv1.TradeItem, 0, len(in))
+	for _, it := range in {
+		out = append(out, &dbv1.TradeItem{
+			Index: it.Index,
+			Eff1:  int32(it.Eff[0][0]), Effv1: int32(it.Eff[0][1]),
+			Eff2: int32(it.Eff[1][0]), Effv2: int32(it.Eff[1][1]),
+			Eff3: int32(it.Eff[2][0]), Effv3: int32(it.Eff[2][1]),
+		})
+	}
+	return out
+}

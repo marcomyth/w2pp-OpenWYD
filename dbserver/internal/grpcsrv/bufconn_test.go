@@ -59,3 +59,5 @@ func TestServiceOverWire(t *testing.T) {
 		t.Fatalf("characters not returned: %+v", list.GetCharacters())
 	}
 }
+
+func (f *fakeStore) RecordTrade(context.Context, domain.TradeRecord) error { return nil }

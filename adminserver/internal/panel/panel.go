@@ -123,6 +123,15 @@ type Deliveries interface {
 	Cancelar(ctx context.Context, contaID, entregaID int64) error
 }
 
+// TradeLog reads the player-to-player trade records the tmServer writes.
+//
+// It is satisfied by *store.Store rather than a panel-owned package, unlike the
+// account writes: the row decoding is shared with the write path the dbServer
+// uses, and two copies of it would be free to disagree about the JSON shape.
+type TradeLog interface {
+	ListTrades(ctx context.Context, q store.TradeQuery) ([]domain.TradeRecord, error)
+}
+
 // Platform is the hosting API, used to report the game server's boot time and
 // restart it. Optional: without it the restart card is hidden.
 type Platform interface {
@@ -135,6 +144,7 @@ type Config struct {
 	Accounts   Accounts
 	Platform   Platform
 	Entregas   Deliveries
+	Trocas     TradeLog
 	GameData   GameData
 	Writer     Writer
 	Audit      AuditLog
@@ -195,6 +205,9 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("GET /contas", h.requireStaff(http.HandlerFunc(h.contas)))
 	mux.Handle("GET /contas/{nome}", h.requireStaff(http.HandlerFunc(h.conta)))
 	mux.Handle("GET /auditoria", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.auditoria))))
+	if h.cfg.Trocas != nil {
+		mux.Handle("GET /trocas", h.requireStaff(http.HandlerFunc(h.trocas)))
+	}
 	if h.cfg.Platform != nil {
 		mux.Handle("POST /servidor/reiniciar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.reiniciar))))
 	}
@@ -237,15 +250,22 @@ type page struct {
 	Nav       string
 	IsAdmin   bool   // hides nav entries the viewer would only be refused from
 	HasItems  bool   // the item pages exist only when a webServer is configured
+	HasTrocas bool   // the trade log exists only when a database read is configured
 	CSRF      string // every form that changes something carries this back
 }
 
-func pageFor(r *http.Request, nav string, hasItems bool) page {
+// pageFor is a method rather than a function so it can answer, for every page,
+// which nav entries actually exist. Passing that in per call site meant fifteen
+// places each deciding it again, and a new one would have been fifteen edits.
+func (h *Handler) pageFor(r *http.Request, nav string) page {
 	sess, _ := staffFrom(r.Context())
 	role := roleFrom(r.Context())
 	return page{
 		Account: sess.AccountName, AccountID: sess.AccountID, Role: role,
-		Nav: nav, IsAdmin: role == roleAdmin, HasItems: hasItems, CSRF: sess.CSRF,
+		Nav: nav, IsAdmin: role == roleAdmin,
+		HasItems:  h.cfg.GameData != nil,
+		HasTrocas: h.cfg.Trocas != nil,
+		CSRF:      sess.CSRF,
 	}
 }
 
@@ -266,7 +286,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		Servidor estadoServidor
 		Aviso    string
 	}{
-		pageFor(r, "inicio", h.cfg.GameData != nil),
+		h.pageFor(r, "inicio"),
 		h.statusServidor(r),
 		r.URL.Query().Get("aviso"),
 	})
@@ -298,7 +318,7 @@ func (h *Handler) contas(w http.ResponseWriter, r *http.Request) {
 		Contas   []domain.AccountSummary
 		Truncado bool
 		Limite   int
-	}{pageFor(r, "contas", h.cfg.GameData != nil), q, found, truncado, searchLimit})
+	}{h.pageFor(r, "contas"), q, found, truncado, searchLimit})
 }
 
 // conta shows one account and its characters.
@@ -347,7 +367,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	p := pageFor(r, "contas", h.cfg.GameData != nil)
+	p := h.pageFor(r, "contas")
 	h.render(w, "conta.html", struct {
 		page
 		Conta        contaView
@@ -387,7 +407,7 @@ func (h *Handler) onlyAdmin(next http.Handler) http.Handler {
 			h.cfg.Logger.Warn("admin-only route refused",
 				"account", sess.AccountName, "role", roleFrom(r.Context()), "path", r.URL.Path)
 			w.WriteHeader(http.StatusForbidden)
-			h.render(w, "negado.html", struct{ page }{pageFor(r, "", h.cfg.GameData != nil)})
+			h.render(w, "negado.html", struct{ page }{h.pageFor(r, "")})
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -420,7 +440,7 @@ func (h *Handler) auditoria(w http.ResponseWriter, r *http.Request) {
 		Limite   int
 		Truncado bool
 	}{
-		pageFor(r, "auditoria", h.cfg.GameData != nil), entradas, alvo, h.cfg.Audit.Limit(),
+		h.pageFor(r, "auditoria"), entradas, alvo, h.cfg.Audit.Limit(),
 		len(entradas) == h.cfg.Audit.Limit(),
 	})
 }
@@ -981,7 +1001,7 @@ func (h *Handler) itens(w http.ResponseWriter, r *http.Request) {
 		Versao   string
 		Aviso    string
 	}{
-		pageFor(r, "itens", true), q, achados, truncado, itensLimit,
+		h.pageFor(r, "itens"), q, achados, truncado, itensLimit,
 		h.cfg.GameData.CatalogVersion(), r.URL.Query().Get("aviso"),
 	})
 }
@@ -1163,7 +1183,7 @@ func (h *Handler) npcs(w http.ResponseWriter, r *http.Request) {
 		Query string
 		NPCs  []gamedata.NPC
 		Aviso string
-	}{pageFor(r, "npcs", true), q, achados, r.URL.Query().Get("aviso")})
+	}{h.pageFor(r, "npcs"), q, achados, r.URL.Query().Get("aviso")})
 }
 
 // npc shows one merchant and the 27 stock slots the service accepts.
@@ -1198,7 +1218,7 @@ func (h *Handler) npc(w http.ResponseWriter, r *http.Request) {
 		NPC   gamedata.NPC
 		Slots []gamedata.ShopItem
 		Aviso string
-	}{pageFor(r, "npcs", true), n, slots, r.URL.Query().Get("aviso")})
+	}{h.pageFor(r, "npcs"), n, slots, r.URL.Query().Get("aviso")})
 }
 
 // setLoja replaces a merchant's stock with whatever the form carries.

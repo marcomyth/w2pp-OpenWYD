@@ -44,6 +44,7 @@ const (
 	AccountService_SaveCargoWithDeliveries_FullMethodName = "/db.v1.AccountService/SaveCargoWithDeliveries"
 	AccountService_SetAccountBlocked_FullMethodName       = "/db.v1.AccountService/SetAccountBlocked"
 	AccountService_RecordDuelResult_FullMethodName        = "/db.v1.AccountService/RecordDuelResult"
+	AccountService_RecordTrade_FullMethodName             = "/db.v1.AccountService/RecordTrade"
 	AccountService_CreateGuild_FullMethodName             = "/db.v1.AccountService/CreateGuild"
 	AccountService_SetGuildMember_FullMethodName          = "/db.v1.AccountService/SetGuildMember"
 	AccountService_LeaveGuild_FullMethodName              = "/db.v1.AccountService/LeaveGuild"
@@ -114,6 +115,14 @@ type AccountServiceClient interface {
 	// character_pvp_stats. Both names must resolve to an existing character or
 	// the whole call fails (no lopsided half-result).
 	RecordDuelResult(ctx context.Context, in *RecordDuelResultRequest, opts ...grpc.CallOption) (*RecordDuelResultResponse, error)
+	// RecordTrade stores one completed player-to-player trade (0025_trade_log),
+	// so a moderator answering "he scammed me" has something besides the two
+	// players' word.
+	//
+	// Best-effort on purpose: the trade already happened in the world and cannot
+	// be undone because Postgres was slow, so the tmServer logs a failure rather
+	// than retrying. The row is evidence, not state.
+	RecordTrade(ctx context.Context, in *RecordTradeRequest, opts ...grpc.CallOption) (*RecordTradeResponse, error)
 	// Guild lifecycle and war/city state (issue #114). These RPCs are modern
 	// tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
 	// GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -305,6 +314,16 @@ func (c *accountServiceClient) RecordDuelResult(ctx context.Context, in *RecordD
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RecordDuelResultResponse)
 	err := c.cc.Invoke(ctx, AccountService_RecordDuelResult_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) RecordTrade(ctx context.Context, in *RecordTradeRequest, opts ...grpc.CallOption) (*RecordTradeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordTradeResponse)
+	err := c.cc.Invoke(ctx, AccountService_RecordTrade_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -505,6 +524,14 @@ type AccountServiceServer interface {
 	// character_pvp_stats. Both names must resolve to an existing character or
 	// the whole call fails (no lopsided half-result).
 	RecordDuelResult(context.Context, *RecordDuelResultRequest) (*RecordDuelResultResponse, error)
+	// RecordTrade stores one completed player-to-player trade (0025_trade_log),
+	// so a moderator answering "he scammed me" has something besides the two
+	// players' word.
+	//
+	// Best-effort on purpose: the trade already happened in the world and cannot
+	// be undone because Postgres was slow, so the tmServer logs a failure rather
+	// than retrying. The row is evidence, not state.
+	RecordTrade(context.Context, *RecordTradeRequest) (*RecordTradeResponse, error)
 	// Guild lifecycle and war/city state (issue #114). These RPCs are modern
 	// tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
 	// GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -582,6 +609,9 @@ func (UnimplementedAccountServiceServer) SetAccountBlocked(context.Context, *Set
 }
 func (UnimplementedAccountServiceServer) RecordDuelResult(context.Context, *RecordDuelResultRequest) (*RecordDuelResultResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RecordDuelResult not implemented")
+}
+func (UnimplementedAccountServiceServer) RecordTrade(context.Context, *RecordTradeRequest) (*RecordTradeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordTrade not implemented")
 }
 func (UnimplementedAccountServiceServer) CreateGuild(context.Context, *CreateGuildRequest) (*CreateGuildResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateGuild not implemented")
@@ -952,6 +982,24 @@ func _AccountService_RecordDuelResult_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_RecordTrade_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordTradeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).RecordTrade(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_RecordTrade_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).RecordTrade(ctx, req.(*RecordTradeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_CreateGuild_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateGuildRequest)
 	if err := dec(in); err != nil {
@@ -1278,6 +1326,10 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RecordDuelResult",
 			Handler:    _AccountService_RecordDuelResult_Handler,
+		},
+		{
+			MethodName: "RecordTrade",
+			Handler:    _AccountService_RecordTrade_Handler,
 		},
 		{
 			MethodName: "CreateGuild",

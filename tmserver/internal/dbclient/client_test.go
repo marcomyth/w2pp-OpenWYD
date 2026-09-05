@@ -439,3 +439,7 @@ func TestClientPin(t *testing.T) {
 		}
 	}
 }
+
+func (f *fakeAPI) RecordTrade(context.Context, *dbv1.RecordTradeRequest, ...grpc.CallOption) (*dbv1.RecordTradeResponse, error) {
+	return &dbv1.RecordTradeResponse{Ok: true}, nil
+}

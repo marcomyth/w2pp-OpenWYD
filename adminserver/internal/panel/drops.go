@@ -32,7 +32,7 @@ func (h *Handler) drops(w http.ResponseWriter, r *http.Request) {
 			Truncado  bool
 			Limite    int
 			Pediu     bool
-		}{pageFor(r, "drops", true), "", "", nil, false, dropsLimit, false})
+		}{h.pageFor(r, "drops"), "", "", nil, false, dropsLimit, false})
 		return
 	}
 
@@ -53,5 +53,5 @@ func (h *Handler) drops(w http.ResponseWriter, r *http.Request) {
 		Truncado  bool
 		Limite    int
 		Pediu     bool
-	}{pageFor(r, "drops", true), item, mob, achados, truncado, dropsLimit, true})
+	}{h.pageFor(r, "drops"), item, mob, achados, truncado, dropsLimit, true})
 }

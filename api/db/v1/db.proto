@@ -62,6 +62,15 @@ service AccountService {
   // the whole call fails (no lopsided half-result).
   rpc RecordDuelResult(RecordDuelResultRequest) returns (RecordDuelResultResponse);
 
+  // RecordTrade stores one completed player-to-player trade (0025_trade_log),
+  // so a moderator answering "he scammed me" has something besides the two
+  // players' word.
+  //
+  // Best-effort on purpose: the trade already happened in the world and cannot
+  // be undone because Postgres was slow, so the tmServer logs a failure rather
+  // than retrying. The row is evidence, not state.
+  rpc RecordTrade(RecordTradeRequest) returns (RecordTradeResponse);
+
   // Guild lifecycle and war/city state (issue #114). These RPCs are modern
   // tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
   // GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -349,6 +358,35 @@ message RecordDuelResultRequest {
 }
 // ok is false when either character name didn't resolve (nothing recorded).
 message RecordDuelResultResponse { bool ok = 1; }
+
+// TradeItem is one item as it changed hands: the catalog index and the three
+// effect pairs the instance carried.
+message TradeItem {
+  int32 index = 1;
+  int32 eff1 = 2;
+  int32 effv1 = 3;
+  int32 eff2 = 4;
+  int32 effv2 = 5;
+  int32 eff3 = 6;
+  int32 effv3 = 7;
+}
+
+// RecordTradeRequest describes a finished trade. Sides A and B are whichever two
+// players were in the window; there is no giver and receiver, because both
+// directions happen at once. gold_a is what A handed to B.
+message RecordTradeRequest {
+  string char_a = 1;
+  string char_b = 2;
+  int64 account_a = 3;  // 0 when unknown
+  int64 account_b = 4;
+  int32 gold_a = 5;
+  int32 gold_b = 6;
+  repeated TradeItem items_a = 7;
+  repeated TradeItem items_b = 8;
+}
+// ok is true when the row was written. A failure comes back as an error status,
+// which the tmServer logs; the trade itself already happened either way.
+message RecordTradeResponse { bool ok = 1; }
 
 message Guild {
   uint32 id = 1;      // legacy ushort guild id

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Trocas — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  .troca {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+    padding: 16px 18px; margin-bottom: 14px;
+  }
+  .troca-quando { font-size: 12px; color: var(--ink-3); margin-bottom: 10px; }
+  .lados { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 560px) { .lados { grid-template-columns: 1fr; } }
+  .lado .quem { font-size: 14px; color: var(--ink); margin-bottom: 5px; }
+  .lado .deu { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+  .lado ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 13.5px; }
+  .lado .ouro { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 13.5px; }
+  .lado .nada { color: var(--ink-3); font-size: 13.5px; }
+  .aviso-limite {
+    background: var(--warn-bg); border: 1px solid var(--rule); border-left: 3px solid var(--warn);
+    border-radius: 3px; padding: 11px 15px; margin-bottom: 26px; font-size: 14px; color: var(--ink);
+    max-width: 62ch;
+  }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Trocas</h1>
+  <p class="sub">O que dois jogadores trocaram entre si, do mais recente para o mais antigo.</p>
+
+  <div class="aviso-limite">
+    Isto cobre a janela de troca. <strong>Não cobre item largado no chão</strong>
+    para o outro pegar — o jogo entrega um item do chão a qualquer um a três
+    passos, sem dono e sem registro. Quem quer burlar tem esse caminho.
+  </div>
+
+  <form class="busca" method="get" action="/trocas">
+    <input name="personagem" value="{{.Personagem}}" placeholder="Nome do personagem"
+           autocapitalize="off" spellcheck="false" autofocus>
+    <button type="submit">Buscar</button>
+  </form>
+
+  {{if .Trocas}}
+    {{range .Trocas}}
+      <div class="troca">
+        <div class="troca-quando">{{.At.Local.Format "02/01/2006 15:04:05"}}</div>
+        <div class="lados">
+          <div class="lado">
+            <div class="quem">{{.CharA}}</div>
+            <div class="deu">entregou</div>
+            {{if .ItemsA}}
+              <ul>{{range .ItemsA}}<li>item {{.Index}}{{range .Eff}}{{if index . 0}} · {{index . 0}}/{{index . 1}}{{end}}{{end}}</li>{{end}}</ul>
+            {{end}}
+            {{if .GoldA}}<div class="ouro">{{.GoldA}} de ouro</div>{{end}}
+            {{if and (not .ItemsA) (not .GoldA)}}<div class="nada">nada</div>{{end}}
+          </div>
+          <div class="lado">
+            <div class="quem">{{.CharB}}</div>
+            <div class="deu">entregou</div>
+            {{if .ItemsB}}
+              <ul>{{range .ItemsB}}<li>item {{.Index}}{{range .Eff}}{{if index . 0}} · {{index . 0}}/{{index . 1}}{{end}}{{end}}</li>{{end}}</ul>
+            {{end}}
+            {{if .GoldB}}<div class="ouro">{{.GoldB}} de ouro</div>{{end}}
+            {{if and (not .ItemsB) (not .GoldB)}}<div class="nada">nada</div>{{end}}
+          </div>
+        </div>
+      </div>
+    {{end}}
+    {{if .Cheio}}
+      <p class="sub" style="margin-top:18px">
+        Mostrando as {{.Limite}} mais recentes. Busque por um personagem para
+        estreitar.
+      </p>
+    {{end}}
+  {{else}}
+    <div class="vazio">
+      {{if .Personagem}}Nenhuma troca registrada para “{{.Personagem}}”.
+      {{else}}Nenhuma troca registrada ainda.{{end}}
+    </div>
+  {{end}}
+</main>
+</body>
+</html>

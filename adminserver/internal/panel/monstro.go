@@ -31,7 +31,7 @@ func (h *Handler) monstros(w http.ResponseWriter, r *http.Request) {
 		Truncado  bool
 		Limite    int
 		Aviso     string
-	}{pageFor(r, "monstros", true), q, achados, truncado, itensLimit, r.URL.Query().Get("aviso")})
+	}{h.pageFor(r, "monstros"), q, achados, truncado, itensLimit, r.URL.Query().Get("aviso")})
 }
 
 // monstro shows one template's numbers, grouped.
@@ -64,7 +64,7 @@ func (h *Handler) monstro(w http.ResponseWriter, r *http.Request) {
 		Grupos     []grupoCampos
 		Aviso      string
 	}{
-		pageFor(r, "monstros", true), stat.Name(), stat.DisplayName(), stat.Overridden(),
+		h.pageFor(r, "monstros"), stat.Name(), stat.DisplayName(), stat.Overridden(),
 		grupos, r.URL.Query().Get("aviso"),
 	})
 }

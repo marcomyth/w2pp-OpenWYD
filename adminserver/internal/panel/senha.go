@@ -103,7 +103,7 @@ func (h *Handler) setSenha(w http.ResponseWriter, r *http.Request) {
 		Senha      string
 		Gerada     bool
 		Encerradas int
-	}{pageFor(r, "contas", h.cfg.GameData != nil), conta, nova, gerada, encerradas})
+	}{h.pageFor(r, "contas"), conta, nova, gerada, encerradas})
 }
 
 // explicaSenha turns a rule into something a moderator can act on. The rules

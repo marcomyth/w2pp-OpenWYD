@@ -38,6 +38,7 @@ type Store interface {
 	SaveCargoWithDeliveries(ctx context.Context, accountID int64, coin int32, items []domain.Item, deliveredIDs, lostIDs []int64) error
 	SetBlockedByName(ctx context.Context, name string, blocked bool) error
 	RecordDuelResult(ctx context.Context, winnerName, loserName string) error
+	RecordTrade(ctx context.Context, t domain.TradeRecord) error
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
 	LeaveGuild(ctx context.Context, accountID int64, slot int) error
@@ -545,4 +546,42 @@ func (s *Server) VerifyPin(ctx context.Context, req *dbv1.VerifyPinRequest) (*db
 		return &dbv1.VerifyPinResponse{Result: dbv1.PinResult_PIN_RESULT_BAD_PIN}, nil
 	}
 	return &dbv1.VerifyPinResponse{Result: dbv1.PinResult_PIN_RESULT_OK}, nil
+}
+
+// RecordTrade stores one completed player-to-player trade (0025_trade_log).
+//
+// A failure answers ok=false rather than an error status: the trade already
+// happened in the world, the tmServer cannot undo it, and turning a logging
+// problem into a gRPC error would only add noise to its loop.
+func (s *Server) RecordTrade(ctx context.Context, req *dbv1.RecordTradeRequest) (*dbv1.RecordTradeResponse, error) {
+	t := domain.TradeRecord{
+		CharA: req.GetCharA(), CharB: req.GetCharB(),
+		AccountA: req.GetAccountA(), AccountB: req.GetAccountB(),
+		GoldA: req.GetGoldA(), GoldB: req.GetGoldB(),
+		ItemsA: tradeItemsFromProto(req.GetItemsA()),
+		ItemsB: tradeItemsFromProto(req.GetItemsB()),
+	}
+	if err := s.store.RecordTrade(ctx, t); err != nil {
+		// Returned rather than swallowed as ok=false: this Server has no logger,
+		// and the tmServer already logs whatever comes back from its detached
+		// write. Swallowing it here would make a database outage silent on both
+		// sides.
+		return nil, status.Errorf(codes.Internal, "record trade: %v", err)
+	}
+	return &dbv1.RecordTradeResponse{Ok: true}, nil
+}
+
+func tradeItemsFromProto(in []*dbv1.TradeItem) []domain.TradeItem {
+	out := make([]domain.TradeItem, 0, len(in))
+	for _, it := range in {
+		out = append(out, domain.TradeItem{
+			Index: it.GetIndex(),
+			Eff: [3][2]uint8{
+				{uint8(it.GetEff1()), uint8(it.GetEffv1())},
+				{uint8(it.GetEff2()), uint8(it.GetEffv2())},
+				{uint8(it.GetEff3()), uint8(it.GetEffv3())},
+			},
+		})
+	}
+	return out
 }

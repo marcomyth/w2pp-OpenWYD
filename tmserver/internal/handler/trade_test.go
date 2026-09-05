@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
@@ -170,5 +171,105 @@ func TestTradeDupCancelsOnDrop(t *testing.T) {
 	}
 	if ty, _, ok := readMaybe(t, b); !ok || ty != protocol.MsgQuitTrade {
 		t.Errorf("B got %#x ok=%v, want QuitTrade (dup cancel)", ty, ok)
+	}
+}
+
+// tradeLogDB gives the two sides distinct names, which the shared tradeDB does
+// not — both are "Hero" there, and a log that recorded the same name twice would
+// look correct.
+func tradeLogDB() *fakeDB {
+	db := newDB()
+	mk := func(nome string, idx int16) world.CharacterState {
+		st := world.CharacterState{Slot: 0, Name: nome, X: 5, Y: 5, HP: 1000, MaxHP: 1000, Coin: 1000}
+		st.Carry[0] = world.Item{Index: idx}
+		return st
+	}
+	db.loads = map[int64]world.CharacterState{7: mk("Vendedor", 1100), 11: mk("Comprador", 2200)}
+	return db
+}
+
+// TestTradeIsLoggedWithTheGoldBothSidesPutUp is the reason the trade log needed
+// care rather than a one-line call.
+//
+// executeSwap applies the gold and then zeroes both TradeStates before it sends
+// the results. Reading Money after that clear — the natural place to add a log
+// line — records every trade as having involved no gold at all, and nothing
+// fails: the row is there, the items are right, and the number is silently wrong
+// exactly where a scam report would look.
+func TestTradeIsLoggedWithTheGoldBothSidesPutUp(t *testing.T) {
+	db := tradeLogDB()
+	addr, stop, _ := startServerClock(t, db)
+	defer stop()
+	a := enterWorldAs(t, addr, "tester") // conn 1, item 1100
+	defer a.Close()
+	b := enterWorldAs(t, addr, "tradeb") // conn 2, item 2200
+	defer b.Close()
+
+	tradeConfirm(t, a, 2, world.Item{Index: 1100}, 0, 100)
+	readMaybe(t, a) // A's ack
+	tradeConfirm(t, b, 1, world.Item{Index: 2200}, 0, 50)
+	readMaybe(t, a)
+	readMaybe(t, b)
+
+	tr, ok := db.lastTrade(t)
+	if !ok {
+		t.Fatal("a troca não foi registrada")
+	}
+	// Which side lands in A is decided by who confirmed last, which is an
+	// implementation detail. What must hold is that each side's gold and items
+	// travel with that side's NAME — a log that paired them wrongly would accuse
+	// the wrong player.
+	lado := func(nome string) (int32, []world.TradeItem) {
+		switch nome {
+		case tr.CharA:
+			return tr.GoldA, tr.ItemsA
+		case tr.CharB:
+			return tr.GoldB, tr.ItemsB
+		}
+		t.Fatalf("%q não aparece no registro: %q e %q", nome, tr.CharA, tr.CharB)
+		return 0, nil
+	}
+	if tr.CharA == tr.CharB {
+		t.Fatalf("os dois lados ficaram com o mesmo nome: %q", tr.CharA)
+	}
+
+	ouro, itens := lado("Vendedor")
+	if ouro != 100 {
+		t.Errorf("ouro do Vendedor = %d, want 100 — lido depois da limpeza do estado?", ouro)
+	}
+	if len(itens) != 1 || itens[0].Index != 1100 {
+		t.Errorf("itens do Vendedor = %+v, want o item 1100", itens)
+	}
+
+	ouro, itens = lado("Comprador")
+	if ouro != 50 {
+		t.Errorf("ouro do Comprador = %d, want 50 — lido depois da limpeza do estado?", ouro)
+	}
+	if len(itens) != 1 || itens[0].Index != 2200 {
+		t.Errorf("itens do Comprador = %+v, want o item 2200", itens)
+	}
+}
+
+// TestTradeThatMovedNothingIsNotLogged keeps the one screen a moderator opens
+// during a scam report free of empty windows.
+func TestTradeThatMovedNothingIsNotLogged(t *testing.T) {
+	db := tradeLogDB()
+	addr, stop, _ := startServerClock(t, db)
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+	b := enterWorldAs(t, addr, "tradeb")
+	defer b.Close()
+
+	tradeConfirm(t, a, 2, world.Item{}, 0, 0)
+	readMaybe(t, a)
+	tradeConfirm(t, b, 1, world.Item{}, 0, 0)
+	readMaybe(t, a)
+	readMaybe(t, b)
+
+	// Give the detached write the same window lastTrade would.
+	time.Sleep(200 * time.Millisecond)
+	if n := db.tradeCount(); n != 0 {
+		t.Errorf("registros = %d, want 0 para uma troca vazia", n)
 	}
 }

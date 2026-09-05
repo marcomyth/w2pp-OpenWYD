@@ -346,6 +346,12 @@ type Persistence interface {
 	// loop via World.GoDetached (not bound to either duelist's session).
 	RecordDuelResult(ctx context.Context, winnerName, loserName string) error
 
+	// RecordTrade stores one completed player-to-player trade (0025_trade_log),
+	// so a moderator answering "he scammed me" has something besides the two
+	// players' word. Called off the loop and best-effort: the trade already
+	// happened in the world and cannot be undone because the write failed.
+	RecordTrade(ctx context.Context, t TradeRecord) error
+
 	// Guild lifecycle/state (issue #114). These calls block on dbServer and must
 	// be made through World.Go/GoDetached by loop handlers.
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (GuildRecord, bool, error)
@@ -453,6 +459,9 @@ func (NopPersistence) RecordDuelResult(context.Context, string, string) error {
 	return nil
 }
 
+// RecordTrade does nothing.
+func (NopPersistence) RecordTrade(context.Context, TradeRecord) error { return nil }
+
 // CreateGuild is unsupported without a backend.
 func (NopPersistence) CreateGuild(context.Context, int64, int, string, string, uint8, uint8, int, int32) (GuildRecord, bool, error) {
 	return GuildRecord{}, false, errNoPersistence
@@ -513,4 +522,28 @@ func (NopPersistence) LoadCastleQuestState(context.Context) (CastleQuestState, e
 // SaveCastleQuestState is unsupported without a backend.
 func (NopPersistence) SaveCastleQuestState(context.Context, CastleQuestState) error {
 	return errNoPersistence
+}
+
+// TradeItem is one item as it changed hands: the catalog index and the three
+// effect pairs the instance carried.
+type TradeItem struct {
+	Index int32
+	Eff   [3][2]uint8
+}
+
+// TradeRecord is one completed player-to-player trade, as the loop saw it.
+//
+// Sides A and B are whichever two players were in the window; there is no giver
+// and receiver, because both directions happen at once. GoldA is what A handed
+// to B, captured BEFORE the handler zeroes the trade state — reading it after
+// would record zero on both sides.
+type TradeRecord struct {
+	CharA    string
+	CharB    string
+	AccountA int64
+	AccountB int64
+	GoldA    int32
+	GoldB    int32
+	ItemsA   []TradeItem
+	ItemsB   []TradeItem
 }
