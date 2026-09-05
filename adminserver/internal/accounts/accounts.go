@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -112,19 +113,52 @@ func (s *Store) SetRole(ctx context.Context, actorID, targetID int64, role strin
 	return current, nil
 }
 
+// Bloqueio is what the panel knows about an account's block: the flag, why, by
+// whom and when. Reason is "" for a block that predates the reason column or was
+// issued in game through /gm ban, which records nothing.
+type Bloqueio struct {
+	Blocked bool
+	Reason  string
+	At      *time.Time
+	By      *int64
+}
+
+// MaxMotivoBytes bounds the reason. It is generous — the field is for a sentence
+// a colleague or a player will read, not for a case file.
+const MaxMotivoBytes = 500
+
+// ErrMotivo is returned for a reason that is too long, or missing on a block.
+var ErrMotivo = errors.New("accounts: bad block reason")
+
 // SetBlocked blocks or unblocks an account and returns the previous state.
 //
 // Blocking yourself is refused for the same reason as demoting yourself: the
 // block applies to the game AND to the panel login, so it locks the door with
 // the key inside.
-func (s *Store) SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool) (bool, error) {
+//
+// A reason is required to block and ignored to unblock. The whole point of the
+// column is that a player who writes in can be told why, and a ban with an empty
+// reason is the state this migration exists to remove.
+//
+// It writes whenever ANYTHING changes, not only when the flag flips. Editing the
+// reason of a ban that is already in force is a real edit, and the previous
+// version short-circuited on the flag alone — so correcting a reason wrote
+// nothing, reported "nothing changed", and left no audit trail of the attempt.
+func (s *Store) SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool, motivo string) (Bloqueio, error) {
 	if actorID == targetID {
-		return false, ErrSelf
+		return Bloqueio{}, ErrSelf
+	}
+	motivo = strings.TrimSpace(motivo)
+	if blocked && (motivo == "" || len(motivo) > MaxMotivoBytes) {
+		return Bloqueio{}, ErrMotivo
+	}
+	if !blocked {
+		motivo = "" // an unblocked account carries no reason
 	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return false, fmt.Errorf("accounts: begin: %w", err)
+		return Bloqueio{}, fmt.Errorf("accounts: begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
@@ -132,25 +166,60 @@ func (s *Store) SetBlocked(ctx context.Context, actorID, targetID int64, blocked
 	// the old value: whether such a subquery sees the row before or after the
 	// update depends on the statement snapshot, and an audit entry that records
 	// the wrong "before" is worse than no audit entry.
-	var previous bool
-	err = tx.QueryRow(ctx, `SELECT is_blocked FROM account WHERE id = $1 FOR UPDATE`, targetID).Scan(&previous)
+	var prev Bloqueio
+	err = tx.QueryRow(ctx, `
+		SELECT is_blocked, block_reason, blocked_at, blocked_by
+		  FROM account WHERE id = $1 FOR UPDATE`, targetID).
+		Scan(&prev.Blocked, &prev.Reason, &prev.At, &prev.By)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Bloqueio{}, ErrNotFound
+	}
+	if err != nil {
+		return Bloqueio{}, fmt.Errorf("accounts: read blocked: %w", err)
+	}
+	if prev.Blocked == blocked && prev.Reason == motivo {
+		return prev, nil // genuinely nothing to do
+	}
+
+	// blocked_at and blocked_by are refreshed on every block, including a reason
+	// edit: the row then answers "who is standing behind this ban as it reads
+	// now", which is the question somebody reviewing it actually has.
+	if blocked {
+		_, err = tx.Exec(ctx, `
+			UPDATE account
+			   SET is_blocked = TRUE, block_reason = $2, blocked_at = now(), blocked_by = $3
+			 WHERE id = $1`, targetID, motivo, actorID)
+	} else {
+		_, err = tx.Exec(ctx, `
+			UPDATE account
+			   SET is_blocked = FALSE, block_reason = '', blocked_at = NULL, blocked_by = NULL
+			 WHERE id = $1`, targetID)
+	}
+	if err != nil {
+		return Bloqueio{}, fmt.Errorf("accounts: set blocked: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Bloqueio{}, fmt.Errorf("accounts: commit: %w", err)
+	}
+	return prev, nil
+}
+
+// Blocked reports whether an account is blocked right now.
+//
+// requireStaff calls this on every request, next to the role read, because a
+// blocked staff account kept its panel session until now: the role was
+// re-checked and the block was not, so banning a moderator left them signed in
+// and able to keep working.
+func (s *Store) Blocked(ctx context.Context, id int64) (bool, error) {
+	var blocked bool
+	err := s.pool.QueryRow(ctx, `SELECT is_blocked FROM account WHERE id = $1`, id).Scan(&blocked)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, ErrNotFound
 	}
 	if err != nil {
-		return false, fmt.Errorf("accounts: read blocked: %w", err)
+		return false, fmt.Errorf("accounts: blocked %d: %w", id, err)
 	}
-	if previous == blocked {
-		return previous, nil // already in the requested state
-	}
-
-	if _, err := tx.Exec(ctx, `UPDATE account SET is_blocked = $2 WHERE id = $1`, targetID, blocked); err != nil {
-		return false, fmt.Errorf("accounts: set blocked: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return false, fmt.Errorf("accounts: commit: %w", err)
-	}
-	return previous, nil
+	return blocked, nil
 }
 
 // --- VIP ---
@@ -175,14 +244,17 @@ type Details struct {
 	Email         string
 	DonateBalance int32
 	VipUntil      *time.Time // nil means the account has never been VIP
+	Bloqueio      Bloqueio   // why the account is blocked, when, and by whom
 }
 
 // Get reads the panel-facing fields of one account.
 func (s *Store) Get(ctx context.Context, id int64) (Details, error) {
 	var d Details
-	err := s.pool.QueryRow(ctx,
-		`SELECT email, donate_balance, vip_until FROM account WHERE id = $1`, id).
-		Scan(&d.Email, &d.DonateBalance, &d.VipUntil)
+	err := s.pool.QueryRow(ctx, `
+		SELECT email, donate_balance, vip_until, is_blocked, block_reason, blocked_at, blocked_by
+		  FROM account WHERE id = $1`, id).
+		Scan(&d.Email, &d.DonateBalance, &d.VipUntil,
+			&d.Bloqueio.Blocked, &d.Bloqueio.Reason, &d.Bloqueio.At, &d.Bloqueio.By)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Details{}, ErrNotFound
 	}

@@ -204,6 +204,10 @@ type fakeWriter struct {
 	ultimaEdicao time.Time
 	details      accounts.Details
 	senhaHash    []string
+	motivos      []string
+	prevMotivo   string
+	euBloqueado  bool // what Blocked() answers for the signed-in account
+	blockedErr   error
 	err          error
 }
 
@@ -271,15 +275,29 @@ func (f *fakeWriter) ClearVip(_ context.Context, actorID, targetID int64) (*time
 	return f.prevVip, nil
 }
 
-func (f *fakeWriter) SetBlocked(_ context.Context, actorID, targetID int64, blocked bool) (bool, error) {
+func (f *fakeWriter) SetBlocked(_ context.Context, actorID, targetID int64, blocked bool, motivo string) (accounts.Bloqueio, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.lastActor, f.lastTarget = actorID, targetID
 	if f.err != nil {
-		return false, f.err
+		return accounts.Bloqueio{}, f.err
+	}
+	// The real store refuses a block with no reason; the fake has to as well, or
+	// a handler that stopped sending one would still pass.
+	if blocked && motivo == "" {
+		return accounts.Bloqueio{}, accounts.ErrMotivo
 	}
 	f.blkCall = append(f.blkCall, blocked)
-	return f.prevBlk, nil
+	f.motivos = append(f.motivos, motivo)
+	return accounts.Bloqueio{Blocked: f.prevBlk, Reason: f.prevMotivo}, nil
+}
+
+// Blocked answers the per-request check requireStaff now makes. It defaults to
+// false so every existing test keeps its session.
+func (f *fakeWriter) Blocked(_ context.Context, _ int64) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.euBloqueado, f.blockedErr
 }
 
 func newTestPanelWith(t *testing.T, acc Accounts, log AuditLog) http.Handler {
@@ -850,7 +868,7 @@ func TestSetCargoIsAdminOnly(t *testing.T) {
 	if rec := post("/contas/ana/cargo", url.Values{"csrf": {token}, "cargo": {"admin"}}); rec.Code != http.StatusForbidden {
 		t.Errorf("moderator changing role: status = %d, want 403", rec.Code)
 	}
-	if rec := post("/contas/ana/bloqueio", url.Values{"csrf": {token}, "bloquear": {"1"}}); rec.Code != http.StatusSeeOther {
+	if rec := post("/contas/ana/bloqueio", url.Values{"csrf": {token}, "bloquear": {"1"}, "motivo": {"teste"}}); rec.Code != http.StatusSeeOther {
 		t.Errorf("moderator blocking: status = %d, want 303", rec.Code)
 	}
 }
@@ -921,7 +939,7 @@ func TestOwnAccountShowsNoControls(t *testing.T) {
 func TestBlockSaysItOnlyAppliesAtLogin(t *testing.T) {
 	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), newFakeWriter())
 	post, token := signedInPost(t, h)
-	rec := post("/contas/ana/bloqueio", url.Values{"csrf": {token}, "bloquear": {"1"}})
+	rec := post("/contas/ana/bloqueio", url.Values{"csrf": {token}, "bloquear": {"1"}, "motivo": {"teste"}})
 	decoded, _ := url.QueryUnescape(rec.Header().Get("Location"))
 	if !strings.Contains(decoded, "continua até sair") {
 		t.Errorf("staff are not told a blocked player stays online: %q", decoded)
@@ -2776,5 +2794,174 @@ func TestSetPasswordRecusaHashVazio(t *testing.T) {
 	// write the hash that means "any empty password logs in".
 	if err := (&accounts.Store{}).SetPassword(context.Background(), 1, ""); !errors.Is(err, accounts.ErrSenhaVazia) {
 		t.Fatalf("SetPassword com hash vazio = %v, want ErrSenhaVazia", err)
+	}
+}
+
+// --- bloqueio com motivo ---
+
+func TestBloqueioExigeUmMotivo(t *testing.T) {
+	// A ban with no reason is the state migration 0024 exists to remove: the
+	// player writes in asking why and nobody can answer.
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/bloqueio", url.Values{"csrf": {token}, "bloquear": {"1"}, "motivo": {"   "}})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "motivo") {
+		t.Errorf("a mensagem não pede o motivo: %q", rec.Body.String())
+	}
+	if len(wr.blkCall) != 0 {
+		t.Fatal("bloqueou sem motivo")
+	}
+}
+
+func TestBloqueioGuardaOMotivoEAudita(t *testing.T) {
+	wr := newFakeWriter()
+	log := newFakeAudit()
+	h := newTestPanelFull(t, withTarget(roleAdmin), log, wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/bloqueio", url.Values{
+		"csrf": {token}, "bloquear": {"1"}, "motivo": {"Uso de programa de terceiros"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(wr.motivos) != 1 || wr.motivos[0] != "Uso de programa de terceiros" {
+		t.Fatalf("motivos = %v, want o do formulário", wr.motivos)
+	}
+	regs := log.recorded()
+	if len(regs) != 1 {
+		t.Fatalf("registros = %d, want 1", len(regs))
+	}
+	if !strings.Contains(fmt.Sprintf("%+v", regs[0]), "programa de terceiros") {
+		t.Error("a auditoria não guardou o motivo — é o único lugar que sobra depois de desbloquear")
+	}
+}
+
+func TestEditarOMotivoDeUmBanEmVigorGravaEAudita(t *testing.T) {
+	// The old handler short-circuited on the flag alone, so correcting the reason
+	// of a ban already in force wrote nothing, reported "nothing changed", and
+	// left no trace of the attempt.
+	wr := newFakeWriter()
+	wr.prevBlk = true
+	wr.prevMotivo = "motivo velho"
+	log := newFakeAudit()
+	h := newTestPanelFull(t, withTarget(roleAdmin), log, wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/bloqueio", url.Values{
+		"csrf": {token}, "bloquear": {"1"}, "motivo": {"motivo corrigido"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if strings.Contains(loc, "Nada mudou") {
+		t.Fatal("editar o motivo de um ban em vigor foi tratado como se nada tivesse mudado")
+	}
+	if len(wr.motivos) != 1 || wr.motivos[0] != "motivo corrigido" {
+		t.Errorf("motivos = %v, want o corrigido", wr.motivos)
+	}
+	if len(log.recorded()) != 1 {
+		t.Error("a correção do motivo não foi auditada")
+	}
+}
+
+func TestRebloquearComOMesmoMotivoNaoFazNada(t *testing.T) {
+	wr := newFakeWriter()
+	wr.prevBlk = true
+	wr.prevMotivo = "mesmo motivo"
+	log := newFakeAudit()
+	h := newTestPanelFull(t, withTarget(roleAdmin), log, wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/bloqueio", url.Values{
+		"csrf": {token}, "bloquear": {"1"}, "motivo": {"mesmo motivo"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(loc, "Nada mudou") {
+		t.Errorf("aviso = %q, want dizer que nada mudou", loc)
+	}
+	if len(log.recorded()) != 0 {
+		t.Error("auditou uma requisição que não mudou nada")
+	}
+}
+
+func TestDesbloquearNaoPedeMotivo(t *testing.T) {
+	wr := newFakeWriter()
+	wr.prevBlk = true
+	wr.prevMotivo = "qualquer coisa"
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/bloqueio", url.Values{"csrf": {token}, "bloquear": {"0"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(wr.blkCall) != 1 || wr.blkCall[0] {
+		t.Fatalf("chamadas = %v, want um desbloqueio", wr.blkCall)
+	}
+}
+
+func TestPaginaDaContaMostraOMotivo(t *testing.T) {
+	acc := withTarget(roleAdmin)
+	acc.add("ana", 7, "player", true)
+	wr := newFakeWriter()
+	wr.details = accounts.Details{Bloqueio: accounts.Bloqueio{
+		Blocked: true, Reason: "Anúncio de venda de conta",
+	}}
+	get := signedIn(t, newTestPanelFull(t, acc, newFakeAudit(), wr))
+	body := get("/contas/ana").Body.String()
+
+	if !strings.Contains(body, "Anúncio de venda de conta") {
+		t.Error("a página não mostra o motivo do bloqueio")
+	}
+	if !strings.Contains(body, "não aparece para o jogador") {
+		t.Error("a página não avisa que o motivo não é visível ao jogador")
+	}
+}
+
+func TestBanidoPerdeASessaoDoPainel(t *testing.T) {
+	// Until this check existed, blocking a moderator stopped them logging IN and
+	// left them signed in — still moderating, with the ban in place.
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	get := signedIn(t, h)
+
+	if rec := get("/contas"); rec.Code != http.StatusOK {
+		t.Fatalf("antes do bloqueio: status = %d, want 200", rec.Code)
+	}
+
+	wr.mu.Lock()
+	wr.euBloqueado = true
+	wr.mu.Unlock()
+
+	rec := get("/contas")
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("depois do bloqueio: status = %d, want 303 para o login", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "/login") {
+		t.Errorf("mandou para %q, want o login", loc)
+	}
+}
+
+func TestFalhaAoLerOBloqueioEncerraASessao(t *testing.T) {
+	// Failing open would mean a database blip hands a banned moderator their
+	// panel back. Failing closed costs one re-login.
+	wr := newFakeWriter()
+	wr.blockedErr = errors.New("banco fora do ar")
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	get := signedIn(t, h)
+
+	rec := get("/contas")
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 para o login", rec.Code)
 	}
 }
