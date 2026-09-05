@@ -1200,7 +1200,16 @@ func (h *Handler) reiniciar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.cfg.Logger.Info("game server restart requested", "actor", sess.AccountName, "deployment", dep.ID)
-	http.Redirect(w, r, "/?aviso="+url.QueryEscape(
+
+	// Back where the button was pressed. The card sits on two pages now, and
+	// always landing on the home page makes the Servidor tab feel like it threw
+	// the operator out. Only the two known paths are honoured — the field comes
+	// from the form, and an open redirect is not worth the convenience.
+	destino := "/"
+	if r.PostFormValue("voltar") == "/servidor" {
+		destino = "/servidor"
+	}
+	http.Redirect(w, r, destino+"?aviso="+url.QueryEscape(
 		"Reinício pedido. O servidor salva quem está online antes de sair e volta em cerca de um minuto."),
 		http.StatusSeeOther)
 }

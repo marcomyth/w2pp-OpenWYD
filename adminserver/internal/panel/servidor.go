@@ -24,12 +24,17 @@ func (h *Handler) servidor(w http.ResponseWriter, r *http.Request) {
 		erro = explicaJogo(err)
 	}
 
+	// The restart card lives here as well as on the home page. This tab is where
+	// anyone looks for a server control, and having the only restart button on
+	// Início meant the obvious place had kick and broadcast but no way to
+	// restart — which reads as the feature being missing.
 	h.render(w, "servidor.html", struct {
 		page
-		Estado jogo.Estado
-		Erro   string
-		Aviso  string
-	}{h.pageFor(r, "servidor"), estado, erro, r.URL.Query().Get("aviso")})
+		Estado   jogo.Estado
+		Servidor estadoServidor
+		Erro     string
+		Aviso    string
+	}{h.pageFor(r, "servidor"), estado, h.statusServidor(r), erro, r.URL.Query().Get("aviso")})
 }
 
 // derrubarConta ends every session of one account.
