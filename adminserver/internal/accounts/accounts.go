@@ -12,8 +12,10 @@ package accounts
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -310,4 +312,108 @@ func (s *Store) PendingSince(ctx context.Context, since time.Time) (n int, last 
 		last = *lastNull
 	}
 	return n, last, nil
+}
+
+// --- senha ---
+
+// Password rules, all of them imposed by the game client rather than by taste.
+//
+// The login packet carries AccountPassword as a fixed [12]byte
+// (tmserver/internal/protocol/messages.go:28), so anything longer verifies in
+// the panel and then never works in game — the worst possible failure, because
+// it looks like the reset worked. Spaces are out for the same reason: the
+// decoder trims trailing spaces off fixed-width fields, so a password that ends
+// in one cannot be typed back.
+const (
+	MaxSenhaBytes = 12
+	MinSenhaBytes = 4
+)
+
+// Refusals, as values so a handler can say which rule was broken.
+var (
+	ErrSenhaVazia     = errors.New("accounts: empty password")
+	ErrSenhaLonga     = errors.New("accounts: password longer than the client can carry")
+	ErrSenhaCurta     = errors.New("accounts: password too short")
+	ErrSenhaEspaco    = errors.New("accounts: password contains a space")
+	ErrSenhaCaractere = errors.New("accounts: password has a character the client cannot type")
+)
+
+// ValidarSenha checks a password against what the client can carry and type.
+//
+// Empty is refused loudly rather than silently accepted. secret.HashSecret("")
+// returns an empty hash on purpose — it means "no secret set" — and
+// secret.VerifySecret then matches it against an empty password. That is correct
+// for an unset block PIN and catastrophic for a login password: the account
+// would sign in with no password at all, on the panel, the web and the game. The
+// guard belongs here, before the hash, not after it.
+func ValidarSenha(s string) error {
+	switch {
+	case s == "":
+		return ErrSenhaVazia
+	case len(s) > MaxSenhaBytes:
+		return ErrSenhaLonga
+	case len(s) < MinSenhaBytes:
+		return ErrSenhaCurta
+	}
+	for _, r := range s {
+		if r == ' ' {
+			return ErrSenhaEspaco
+		}
+		// The wire is bytes, and the client is a Windows program from 2003. Stay
+		// inside printable ASCII rather than discover which code page it uses.
+		if r < '!' || r > '~' {
+			return ErrSenhaCaractere
+		}
+	}
+	return nil
+}
+
+// senhaAlfabeto omits the character pairs people mistype when reading a password
+// off a screen and typing it into a game client: 0/O, 1/l/I.
+const senhaAlfabeto = "abcdefghijkmnpqrstuvwxyzACDEFGHJKLMNPQRTUVWXY2345679"
+
+// senhaGerada is shorter than the 12-byte ceiling on purpose: the moderator has
+// to read it out and the player has to type it, and the two extra characters buy
+// less than the transcription errors they cost.
+const senhaGerada = 10
+
+// GerarSenha returns a random password that satisfies ValidarSenha.
+//
+// The panel offers this as the default rather than an empty field, so the empty
+// case is not something a distracted moderator can reach by pressing enter.
+func GerarSenha() (string, error) {
+	out := make([]byte, senhaGerada)
+	limite := big.NewInt(int64(len(senhaAlfabeto)))
+	for i := range out {
+		n, err := rand.Int(rand.Reader, limite)
+		if err != nil {
+			return "", fmt.Errorf("accounts: generate password: %w", err)
+		}
+		out[i] = senhaAlfabeto[n.Int64()]
+	}
+	return string(out), nil
+}
+
+// SetPassword replaces an account's password hash.
+//
+// The hash is computed by the caller so this package never holds the plaintext
+// beyond validation, and so the empty-hash case cannot arrive here by accident:
+// an empty hash is refused outright rather than written, because it would mean
+// "any empty password logs in".
+//
+// There is no self guard. Changing your own password is a normal thing to do and
+// cannot lock anyone else out; the caller decides who may target whom, because
+// that rule is about rank and lives with the rest of the panel's authorization.
+func (s *Store) SetPassword(ctx context.Context, targetID int64, hash string) error {
+	if hash == "" {
+		return ErrSenhaVazia
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE account SET pass_hash = $2 WHERE id = $1`, targetID, hash)
+	if err != nil {
+		return fmt.Errorf("accounts: set password: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

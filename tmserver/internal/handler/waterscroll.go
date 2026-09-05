@@ -310,11 +310,28 @@ func (d *Dispatcher) useWaterScroll(w *world.World, s *world.Session, e *world.E
 		"account", s.AccountName, "variant", variant, "room", room, "countdown", countdown)
 }
 
-// waterRoomMobCap is the population a room is filled to. The shipped generator
-// blocks disagree wildly — MaxNumMob is 8 on the Aqua Golem room, 24 on most and
-// 38 on the Troll Ghoul one — which made a run's difficulty depend on which room
-// you opened. One cap for every room, every chain.
+// waterRoomMobCap is the CEILING on a room's population, not its target. The
+// shipped blocks disagree wildly — MaxNumMob is 8 on the Aqua Golem room, 24 on
+// most, 38 on the Troll Ghoul one — so a run's difficulty used to depend on which
+// room you opened, and 20 evens that out.
+//
+// Filling every room TO this number was a mistake: the boss blocks are the small
+// ones (MaxNumMob 9 on Gargula Sabio, 10 on Hidra Dourada), so topping them up to
+// twenty put double the intended monsters on the boss, and twenty Hidras at 706
+// damage each is 14000 in one exchange against a 5600 HP character. A room now
+// gets the smaller of its own MaxNumMob and this cap.
 const waterRoomMobCap = 20
+
+// waterRoomTarget is how many monsters a block should hold for one run: its own
+// shipped population, never more than waterRoomMobCap. An unknown block falls
+// back to the cap.
+func waterRoomTarget(w *world.World, block int) int {
+	gen := w.GeneratorAt(block)
+	if gen == nil || gen.MaxNumMob <= 0 {
+		return waterRoomMobCap
+	}
+	return min(gen.MaxNumMob, waterRoomMobCap)
+}
 
 // populateWaterRoom gives a room its monsters for one run.
 //
@@ -332,15 +349,16 @@ const waterRoomMobCap = 20
 func (d *Dispatcher) populateWaterRoom(w *world.World, block int) []int {
 	w.ClearGenerator(block)
 
+	target := waterRoomTarget(w, block)
 	var ids []int
-	for len(ids) < waterRoomMobCap {
+	for len(ids) < target {
 		batch := w.GenerateMob(block)
 		if len(batch) == 0 {
 			break // block exhausted (MaxNumMob) or the floor is full
 		}
 		ids = append(ids, batch...)
 	}
-	for len(ids) > waterRoomMobCap {
+	for len(ids) > target {
 		last := len(ids) - 1
 		w.DespawnMob(ids[last], 1)
 		ids = ids[:last]

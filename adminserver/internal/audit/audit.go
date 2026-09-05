@@ -37,6 +37,7 @@ const (
 	ActionClearItemStat  = "CLEAR_ITEM_STAT"
 	ActionDeliverItem    = "DELIVER_ITEM"
 	ActionCancelDelivery = "CANCEL_DELIVERY"
+	ActionSetPassword    = "SET_PASSWORD"
 )
 
 // listLimit caps one page of the log.
