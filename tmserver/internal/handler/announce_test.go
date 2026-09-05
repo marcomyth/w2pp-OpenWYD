@@ -16,7 +16,7 @@ func announceDispatcher() *Dispatcher {
 // A refine below +10 is routine and must NOT reach the whole server; at +10 and
 // above it must. The threshold is the whole point of the feature — announcing
 // every +1 would make the channel unreadable.
-func TestAnnounceRefineThreshold(t *testing.T) {
+func TestAnnounceRefineThreshold(_ *testing.T) {
 	d := announceDispatcher()
 	// A nil world would panic if the guard let the call through, so "does not
 	// panic" is the assertion for the levels that must stay quiet.
@@ -27,7 +27,7 @@ func TestAnnounceRefineThreshold(t *testing.T) {
 
 // An empty name means the entity was already gone (a docked character, a mob):
 // announcing "[EVENTO]  renasceu como Arch" helps nobody.
-func TestAnnounceIgnoresEmptyName(t *testing.T) {
+func TestAnnounceIgnoresEmptyName(_ *testing.T) {
 	d := announceDispatcher()
 	d.announceArch(nil, "")
 	d.announceCelestial(nil, "")

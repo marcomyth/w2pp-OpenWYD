@@ -13,7 +13,7 @@ import (
 func TestExpSegmentsFireOncePerQuarter(t *testing.T) {
 	d, w, e := mobKilledWorld(t)
 	e.Level = 1
-	cur := level.LevelExpTier(1, classMasterMortal)
+	cur := level.ExpTier(1, classMasterMortal)
 	next := level.NextLevelExpTier(1, classMasterMortal)
 	q := (next - cur) / 4
 
@@ -47,7 +47,7 @@ func TestExpSegmentRefillsAndResets(t *testing.T) {
 	d, w, e := mobKilledWorld(t)
 	e.Level = 1
 	e.HP, e.MP = 1, 1
-	cur := level.LevelExpTier(1, classMasterMortal)
+	cur := level.ExpTier(1, classMasterMortal)
 	next := level.NextLevelExpTier(1, classMasterMortal)
 	e.Exp = cur + (next-cur)/4
 

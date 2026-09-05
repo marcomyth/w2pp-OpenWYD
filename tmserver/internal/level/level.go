@@ -191,12 +191,12 @@ func ExpApply(exp int64, attacker, target int32, tier Tier) int64 {
 // branch. It stays idempotent — a function of level, tier and attributes — so it
 // can be recomputed on every level-up without being persisted.
 
-// LevelExpTier is the experience a character's CURRENT level began at:
+// ExpTier is the experience a character's CURRENT level began at:
 // g_pNextLevel[cur] for Mortal/Arch, g_pNextLevel_2[cur] for the celestial tiers
 // (CMob.cpp:1092). NextLevelExpTier gives the other end of the same span, and the
 // two together are what the quarter-of-a-level progress reports are measured
 // against (CheckGetLevel's deltaexp).
-func LevelExpTier(curLevel int32, classMaster uint8) int64 {
+func ExpTier(curLevel int32, classMaster uint8) int64 {
 	cur := max(curLevel, 0)
 	if !isCelestialTier(classMaster) {
 		if int(cur) >= len(nextLevel) {

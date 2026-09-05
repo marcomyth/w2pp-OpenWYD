@@ -9,9 +9,9 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
-// mountExpiryDays is the lifetime granted to a Perzen reward mount ("X(30dias)",
-// BASE_SetItemDate(30)).
-const mountExpiryDays = 30
+// The Perzen reward mount's lifetime is no longer a constant here: the mount is
+// granted un-started and takes its thirty days from the catalog, which spells
+// them in the item's own name ("X(30dias)"). See startTimedItem.
 
 // applyBonus handles _MSG_ApplyBonus (0x0277): spend a free point
 // (protocol-spec.md §3.5, _MSG_ApplyBonus.cpp). BonusType routes: 0 = attribute

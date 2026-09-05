@@ -406,7 +406,7 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			"account", s.AccountName, "conn", s.Conn,
 			"type", fmt.Sprintf("%#04x", uint16(hdr.Type)),
 			"client_tick", h.ClientTick, "echo_tick", hdr.ClientTick,
-			"exp_before", expBefore, "exp_after", e.Exp, "gain", e.Exp-expBefore, "exp_sent", expBefore,
+			"exp_before", expBefore, "exp_after", e.Exp, "gain", e.Exp-expBefore, "exp_sent", e.Exp,
 			"attacker_id", body.AttackerID, "payload_len", len(payload),
 			"exp_bytes", fmt.Sprintf("% x", expField))
 	}

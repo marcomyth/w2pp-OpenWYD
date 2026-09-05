@@ -30,13 +30,13 @@ type CommandBus struct {
 // CommandReference returns the GM command tab's content.
 func CommandReference() CommandBus {
 	return CommandBus{
-		Entry:  "/gm <subcomando> [argumentos]",
+		Entry:  "/gm <subcomando> [parâmetros]",
 		Access: "account.role = 'moderator' ou 'admin'",
 		Notes: []string{
 			"O cliente envia /gm como um sussurro para o alvo \"gm\"; o servidor intercepta antes da entrega normal (handler/chat.go).",
 			"Sem o role necessário o comando é ignorado em silêncio — é o comportamento do legado, não um bug.",
 			"O privilégio é lido só no login: mudar account.role exige relogar.",
-			"Todo comando é registrado no log de auditoria (conta, id, role, subcomando e argumentos) ANTES de executar.",
+			"Todo comando é registrado no log de auditoria (conta, id, role, subcomando e parâmetros) ANTES de executar.",
 			"Hoje 'moderator' e 'admin' executam a mesma lista; o tier só diferencia quem pode ser kickado.",
 		},
 		Commands: []Command{
@@ -131,7 +131,7 @@ func CommandReference() CommandBus {
 			{
 				Name: "guildfame", Args: "<id> <fama>", Target: "guilda",
 				Summary: "Define a pontuação de fama de uma guilda.",
-				Notes:   []string{"Exige exatamente dois argumentos numéricos."},
+				Notes:   []string{"Exige exatamente dois parâmetros numéricos."},
 			},
 			{
 				Name: "weather", Aliases: []string{"clima"}, Args: "<0|1|2|auto>", Target: "mundo",

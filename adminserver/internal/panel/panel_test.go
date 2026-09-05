@@ -1238,7 +1238,7 @@ func (f *fakeGameData) NPC(_ context.Context, _ int64, id int64) (gamedata.NPC, 
 	return gamedata.NPC{}, gamedata.ErrNotFound
 }
 
-func (f *fakeGameData) SetShop(_ context.Context, _ int64, npcID int64, items []gamedata.ShopItem) error {
+func (f *fakeGameData) SetShop(_ context.Context, _ int64, _ int64, items []gamedata.ShopItem) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.shopErr != nil {

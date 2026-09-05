@@ -450,7 +450,7 @@ func (d *Dispatcher) applyExpSegment(w *world.World, s *world.Session, e *world.
 	if e.Level >= levelCap {
 		return
 	}
-	curExp := level.LevelExpTier(e.Level, e.ClassMaster)
+	curExp := level.ExpTier(e.Level, e.ClassMaster)
 	nextExp := level.NextLevelExpTier(e.Level, e.ClassMaster)
 	delta := (nextExp - curExp) / 4
 	if delta <= 0 {
