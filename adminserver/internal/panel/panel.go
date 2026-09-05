@@ -102,6 +102,9 @@ type GameData interface {
 	MobStat(ctx context.Context, moderatorID int64, name string) (gamedata.MobStat, error)
 	SaveMobStat(ctx context.Context, moderatorID int64, m gamedata.MobStat) error
 	ClearMobStat(ctx context.Context, moderatorID int64, name string) error
+	ItemStat(ctx context.Context, moderatorID int64, index int32) (gamedata.ItemStat, error)
+	SaveItemStat(ctx context.Context, moderatorID int64, m gamedata.ItemStat) error
+	ClearItemStat(ctx context.Context, moderatorID int64, index int32) error
 }
 
 // Platform is the hosting API, used to report the game server's boot time and
@@ -194,6 +197,9 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("GET /monstros/{nome}", h.requireStaff(http.HandlerFunc(h.monstro)))
 		mux.Handle("POST /monstros/{nome}", h.requireStaff(http.HandlerFunc(h.setMonstro)))
 		mux.Handle("POST /monstros/{nome}/limpar", h.requireStaff(http.HandlerFunc(h.limparMonstro)))
+		mux.Handle("GET /itens/{indice}/atributos", h.requireStaff(http.HandlerFunc(h.atributosItem)))
+		mux.Handle("POST /itens/{indice}/atributos", h.requireStaff(http.HandlerFunc(h.setAtributosItem)))
+		mux.Handle("POST /itens/{indice}/atributos/limpar", h.requireStaff(http.HandlerFunc(h.limparAtributosItem)))
 	}
 
 	return securityHeaders(mux)

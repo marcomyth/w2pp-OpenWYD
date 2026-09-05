@@ -27,7 +27,8 @@
   <h1>Itens</h1>
   <p class="sub">
     Catálogo do servidor. O preço em branco usa o valor do catálogo; preencher
-    cria uma exceção, apagar volta ao original.
+    cria uma exceção, apagar volta ao original. Preço passa a valer em cerca de
+    15 segundos; atributo, só depois de reiniciar o servidor.
     {{if .Versao}}<br><span class="versao">catálogo {{.Versao}}</span>{{end}}
   </p>
 
@@ -48,6 +49,7 @@
             <th>Onde equipa</th>
             <th class="num">Grau</th>
             <th>Preço</th>
+            <th>Atributos</th>
           </tr>
         </thead>
         <tbody>
@@ -68,6 +70,7 @@
                 {{if .Overridden}}<span class="marca-override">exceção</span>{{end}}
               </form>
             </td>
+            <td><a href="/itens/{{.Index}}/atributos">Editar</a></td>
           </tr>
           {{end}}
         </tbody>

@@ -377,3 +377,81 @@ func TestGetReturnsTheFieldsThePanelShows(t *testing.T) {
 		t.Errorf("Get on a missing account: err = %v, want ErrNotFound", err)
 	}
 }
+
+// TestPendingSinceCountsBothBootBoundTables is the test the home page's restart
+// warning rests on. Two tables are read once at boot and need a restart to take
+// effect — mob template stats and item base stats — and the count has to include
+// both or a moderator rebalances an item, sees no pending badge, and concludes
+// the panel did nothing.
+//
+// It also pins the other half of the rule: the tables that hot-reload must NOT
+// be counted. A warning that fires for an edit which already applied is a
+// warning people learn to ignore.
+func TestPendingSinceCountsBothBootBoundTables(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	s := New(pool)
+
+	if _, err := pool.Exec(ctx, `DELETE FROM item_stat; DELETE FROM mob_template_stat`); err != nil {
+		t.Fatalf("limpar: %v", err)
+	}
+
+	// A moment strictly before any write below, standing in for a boot time.
+	inicio := time.Now().Add(-time.Minute)
+
+	n, ultima, err := s.PendingSince(ctx, inicio)
+	if err != nil {
+		t.Fatalf("PendingSince: %v", err)
+	}
+	if n != 0 || !ultima.IsZero() {
+		t.Fatalf("com nada editado: %d pendentes, última %v; want 0 e zero", n, ultima)
+	}
+
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO mob_template_stat (template_name, level) VALUES ('Kentania', 10)`); err != nil {
+		t.Fatalf("editar monstro: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO item_stat (item_index, damage) VALUES (2000, 250)`); err != nil {
+		t.Fatalf("editar item: %v", err)
+	}
+
+	n, ultima, err = s.PendingSince(ctx, inicio)
+	if err != nil {
+		t.Fatalf("PendingSince: %v", err)
+	}
+	if n != 2 {
+		t.Errorf("pendentes = %d, want 2 (um monstro e um item)", n)
+	}
+	if ultima.Before(inicio) {
+		t.Errorf("última edição = %v, want depois de %v", ultima, inicio)
+	}
+
+	// An edit made before the boot is already applied and must not count.
+	if _, err := pool.Exec(ctx,
+		`UPDATE item_stat SET updated_at = $1 WHERE item_index = 2000`,
+		inicio.Add(-time.Hour)); err != nil {
+		t.Fatalf("envelhecer o item: %v", err)
+	}
+	n, _, err = s.PendingSince(ctx, inicio)
+	if err != nil {
+		t.Fatalf("PendingSince: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("pendentes = %d, want 1 — a edição anterior ao boot já valeu", n)
+	}
+
+	// A price override hot-reloads within ~15s, so it is not pending on anything.
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO item_price (item_index, price) VALUES (2000, 999)
+		 ON CONFLICT (item_index) DO UPDATE SET price = EXCLUDED.price`); err != nil {
+		t.Fatalf("mudar preço: %v", err)
+	}
+	n, _, err = s.PendingSince(ctx, inicio)
+	if err != nil {
+		t.Fatalf("PendingSince: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("pendentes = %d, want 1 — preço não espera reinício e não pode contar", n)
+	}
+}
