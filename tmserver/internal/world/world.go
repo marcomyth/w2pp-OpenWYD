@@ -399,6 +399,48 @@ func (w *World) SaveCharacterAsync(s *Session) {
 	}()
 }
 
+// LeaveCharacter persists a character that is leaving play and, ONLY AFTER that
+// save commits, clears its presence mark.
+//
+// The order is the whole point, and it is what makes presence worth having on
+// top of the control API's ListOnline. Kick returns the moment the session
+// closes, but the character's save leaves after that; a panel that treated "no
+// longer connected" as "safe to edit" would write on top of a save still in
+// flight and lose the edit. Both calls therefore share one goroutine,
+// sequentially, instead of being two async hops that can land in either order.
+//
+// A failed save deliberately KEEPS the mark: a character whose last write did
+// not land is exactly the one nobody should be editing.
+//
+// Safe to call for a session that never entered play: nothing to save, nothing
+// to clear.
+func (w *World) LeaveCharacter(s *Session) {
+	if s == nil || s.Mode != UserPlay || s.AccountID == 0 {
+		return
+	}
+	e := w.entities[s.Conn]
+	if e == nil {
+		return
+	}
+	name := e.Name
+	cs := w.characterSave(s)
+	p := w.persist
+	w.saveWG.Add(1)
+	go func() {
+		defer w.saveWG.Done()
+		if err := p.SaveOnShutdown(context.Background(), cs); err != nil {
+			w.log.Warn("save character failed", "account", cs.AccountID, "slot", cs.Slot, "err", err)
+			return
+		}
+		if name == "" {
+			return
+		}
+		if err := p.SetCharacterPresence(context.Background(), name, false); err != nil {
+			w.log.Warn("clear presence failed", "character", name, "err", err)
+		}
+	}()
+}
+
 // SaveCharacterThen persists the character and runs then (back in the loop) only
 // after the save commits. Use it where the client may immediately re-read the
 // character from the DB (logout to character selection): deferring the

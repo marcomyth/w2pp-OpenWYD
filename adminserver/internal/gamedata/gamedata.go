@@ -127,6 +127,32 @@ func (c *Client) Items(ctx context.Context, moderatorID int64, query string) ([]
 	return out, nil
 }
 
+// ItemLookup returns the catalog keyed by item index, for screens that need to
+// turn a stored index into a name and an icon.
+//
+// It deliberately skips the price overrides that Items merges in: the character
+// editor shows what an item IS, never what it costs, and the override read is a
+// live RPC per request. Serving it from the cached catalog alone keeps a screen
+// with three item grids on it from making a network call to label each one.
+func (c *Client) ItemLookup(ctx context.Context) (map[int32]Item, error) {
+	entries, err := c.entries(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int32]Item, len(entries))
+	for _, e := range entries {
+		out[e.GetItemIndex()] = Item{
+			Index:       e.GetItemIndex(),
+			Name:        e.GetName(),
+			DisplayName: e.GetDisplayName(),
+			Grade:       e.GetGrade(),
+			Slots:       e.GetSlots(),
+			IconURL:     e.GetIconUrl(),
+		}
+	}
+	return out, nil
+}
+
 // SetPrice overrides an item's price, or clears the override when price < 0.
 // The rule lives in the webServer; this only carries the request.
 func (c *Client) SetPrice(ctx context.Context, moderatorID int64, itemIndex int32, price int64) error {

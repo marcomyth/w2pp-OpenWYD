@@ -63,10 +63,10 @@ func enterWorld(t *testing.T, addr string) net.Conn {
 }
 
 // drainLoginScore consumes the frames the server sends on entering the world —
-// the _MSG_UpdateScore from enterWorldView through the welcome box — so gameplay
+// the _MSG_UpdateScore from enterWorldView through the welcome line — so gameplay
 // assertions see only their own responses.
 //
-// The welcome box is the LAST thing sendWelcome puts on the wire for a login, so
+// The welcome line is the LAST thing sendWelcome puts on the wire for a login, so
 // draining up to it leaves the connection at a known point no matter how many
 // affect/create frames the character happened to need. A test that wants to
 // assert on the login sequence itself reads the frames directly instead.
@@ -75,9 +75,9 @@ func drainLoginScore(t *testing.T, c net.Conn) {
 	for {
 		ty, _, ok := readMaybe(t, c)
 		if !ok {
-			t.Fatal("login sequence ended before the welcome box")
+			t.Fatal("login sequence ended before the welcome line")
 		}
-		if ty == protocol.MsgMessageBoxOk {
+		if ty == protocol.MsgMessagePanel {
 			return
 		}
 	}

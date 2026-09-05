@@ -23,9 +23,11 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/donate"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/entrega"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/jogo"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/personagem"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
@@ -106,6 +108,8 @@ type GameData interface {
 	MobTemplates(ctx context.Context, moderatorID int64, query string) ([]gamedata.MobTemplate, error)
 	MobStat(ctx context.Context, moderatorID int64, name string) (gamedata.MobStat, error)
 	SaveMobStat(ctx context.Context, moderatorID int64, m gamedata.MobStat) error
+	ItemLookup(ctx context.Context) (map[int32]gamedata.Item, error)
+	SaveMobEquip(ctx context.Context, moderatorID int64, name string, itens []gamedata.MobEquipItem) error
 	ClearMobStat(ctx context.Context, moderatorID int64, name string) error
 	ItemStat(ctx context.Context, moderatorID int64, index int32) (gamedata.ItemStat, error)
 	SaveItemStat(ctx context.Context, moderatorID int64, m gamedata.ItemStat) error
@@ -119,6 +123,23 @@ type GameData interface {
 // Nothing new was built in the game for this. delivery_queue already exists for
 // the donate shop and the tmServer drains it at login, so a grant made here
 // arrives through a path that has been in production.
+// Personagens is the character editor's data access: the items and attributes of
+// one character. Writes are refused while the tmServer owns the character.
+type Personagens interface {
+	Carregar(ctx context.Context, nome string) (personagem.Ficha, error)
+	GravarSlot(ctx context.Context, characterID int64, dest personagem.Destino, slot int, it personagem.Item) error
+	LimparSlot(ctx context.Context, characterID int64, dest personagem.Destino, slot int) error
+	GravarAtributos(ctx context.Context, characterID int64, a personagem.Atributos) (personagem.Atributos, error)
+}
+
+// Carteira is the donate wallet: the balance, its history and the staff
+// adjustment.
+type Carteira interface {
+	Saldo(ctx context.Context, accountID int64) (int32, error)
+	Historico(ctx context.Context, accountID int64, limite int) ([]donate.Evento, error)
+	Ajustar(ctx context.Context, actorID, accountID int64, delta int32, motivo string) (int32, error)
+}
+
 type Deliveries interface {
 	Enfileirar(ctx context.Context, actorID, contaID int64, it entrega.Item) (int64, error)
 	Pendentes(ctx context.Context, contaID int64) ([]entrega.Pendente, error)
@@ -159,17 +180,19 @@ type Platform interface {
 
 // Config wires the handler.
 type Config struct {
-	Accounts   Accounts
-	Platform   Platform
-	Entregas   Deliveries
-	Trocas     TradeLog
-	Jogo       Live
-	GameData   GameData
-	Writer     Writer
-	Audit      AuditLog
-	Sessions   *session.Store
-	Logger     *slog.Logger
-	SecureOnly bool // Secure flag on the cookie; false only for local HTTP dev
+	Accounts    Accounts
+	Personagens Personagens
+	Carteira    Carteira
+	Platform    Platform
+	Entregas    Deliveries
+	Trocas      TradeLog
+	Jogo        Live
+	GameData    GameData
+	Writer      Writer
+	Audit       AuditLog
+	Sessions    *session.Store
+	Logger      *slog.Logger
+	SecureOnly  bool // Secure flag on the cookie; false only for local HTTP dev
 }
 
 // Handler is the panel's HTTP surface.
@@ -182,7 +205,7 @@ type Handler struct {
 
 // New builds the handler and parses the embedded templates.
 func New(cfg Config) (*Handler, error) {
-	tmpl, err := template.ParseFS(uiFS, "ui/*.html")
+	tmpl, err := template.New("").Funcs(tmplFuncs).ParseFS(uiFS, "ui/*.html")
 	if err != nil {
 		return nil, err
 	}
@@ -248,6 +271,19 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("POST /contas/{nome}/entregar", h.requireStaff(http.HandlerFunc(h.entregarItem)))
 		mux.Handle("POST /contas/{nome}/entregas/{entrega}/cancelar", h.requireStaff(http.HandlerFunc(h.cancelarEntrega)))
 	}
+
+	// The donate wallet: reading is staff, moving somebody's balance is admin.
+	if h.cfg.Carteira != nil {
+		mux.Handle("GET /contas/{nome}/donate", h.requireStaff(http.HandlerFunc(h.carteira)))
+		mux.Handle("POST /contas/{nome}/donate", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.ajustarDonate))))
+	}
+
+	// The character editor. Every write is admin-only: these hand out items.
+	if h.cfg.Personagens != nil {
+		mux.Handle("GET /contas/{nome}/personagens/{char}", h.requireStaff(http.HandlerFunc(h.editor)))
+		mux.Handle("POST /contas/{nome}/personagens/{char}/slot", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setSlot))))
+		mux.Handle("POST /contas/{nome}/personagens/{char}/atributos", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setAtributos))))
+	}
 	if h.cfg.GameData != nil {
 		mux.Handle("GET /itens", h.requireStaff(http.HandlerFunc(h.itens)))
 		mux.Handle("POST /itens/{indice}/preco", h.requireStaff(http.HandlerFunc(h.setPreco)))
@@ -261,6 +297,8 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("GET /monstros/{nome}", h.requireStaff(http.HandlerFunc(h.monstro)))
 		mux.Handle("POST /monstros/{nome}", h.requireStaff(http.HandlerFunc(h.setMonstro)))
 		mux.Handle("POST /monstros/{nome}/limpar", h.requireStaff(http.HandlerFunc(h.limparMonstro)))
+		// A mob's Equip[] has its own RPC, separate from the stat form.
+		mux.Handle("POST /monstros/{nome}/equip", h.requireStaff(http.HandlerFunc(h.setMonstroEquip)))
 		mux.Handle("GET /itens/{indice}/atributos", h.requireStaff(http.HandlerFunc(h.atributosItem)))
 		mux.Handle("POST /itens/{indice}/atributos", h.requireStaff(http.HandlerFunc(h.setAtributosItem)))
 		mux.Handle("POST /itens/{indice}/atributos/limpar", h.requireStaff(http.HandlerFunc(h.limparAtributosItem)))

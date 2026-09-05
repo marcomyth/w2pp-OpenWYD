@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Donate de {{.Conta}} — Painel OpenWYD</title>
+{{template "head" .}}
+</head>
+<body>
+{{template "topbar" .}}
+
+<main class="larga">
+  <h1>Donate</h1>
+  <p class="sub">Conta <a href="/contas/{{.Conta}}">{{.Conta}}</a></p>
+
+  {{template "abas-conta" (dict "Conta" .Conta "Personagem" "" "Aba" "donate")}}
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  <div class="colunas">
+    <div>
+      <div class="cartao">
+        <h2>Histórico</h2>
+        {{if .Eventos}}
+        <div class="linha-tempo">
+          {{range .Eventos}}
+          <div class="evento">
+            <span class="quando">{{.Quando.Local.Format "02/01/06 15:04"}}</span>
+            <span>
+              <span class="t">{{.Titulo}}</span>
+              {{if .Detalhe}}<span class="d">{{.Detalhe}}</span>{{end}}
+              {{if eq .Entregue "pending"}}<span class="d" style="color:var(--warn)">Aguardando login para entregar</span>{{end}}
+              {{if eq .Entregue "lost"}}<span class="d" style="color:var(--warn)">Entrega perdida: baú cheio</span>{{end}}
+            </span>
+            <span class="v{{if gt .Creditos 0}} mais{{end}}{{if lt .Creditos 0}} menos{{end}}">
+              {{if gt .Creditos 0}}+{{end}}{{if ne .Creditos 0}}{{.Creditos}}{{else}}—{{end}}
+            </span>
+          </div>
+          {{end}}
+        </div>
+        {{else}}
+        <div class="vazio">Esta conta nunca movimentou donate.</div>
+        {{end}}
+      </div>
+    </div>
+
+    <div>
+      <div class="cartao">
+        <h2>Saldo</h2>
+        <div style="font-size:30px;letter-spacing:-0.02em;font-variant-numeric:tabular-nums">{{.Saldo}}</div>
+        <p class="sub" style="margin:2px 0 0;font-size:12.5px">créditos disponíveis</p>
+      </div>
+
+      {{if .IsAdmin}}
+      <div class="cartao">
+        <h2>Creditar ou debitar</h2>
+        <form method="post" action="/contas/{{.Conta}}/donate">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <label class="campo-rot" for="valor">Valor</label>
+          <input id="valor" name="valor" inputmode="numeric" required placeholder="500 ou -200">
+          <div style="height:9px"></div>
+          <label class="campo-rot" for="motivo">Motivo</label>
+          <input id="motivo" name="motivo" required placeholder="ex.: compensação de entrega perdida">
+          <div style="height:12px"></div>
+          <button type="submit" class="principal">Aplicar</button>
+        </form>
+        <p class="sub" style="margin:12px 0 0;font-size:12.5px">
+          O motivo é obrigatório e fica no registro junto com o seu nome. Um ajuste sem motivo
+          é indistinguível de um erro quando alguém for conferir depois.
+        </p>
+      </div>
+      {{end}}
+
+      <div class="cartao">
+        <h2>Por que isto é seguro</h2>
+        <p class="sub" style="margin:0;font-size:13px">
+          O saldo é uma coluna própria da conta, alterada isoladamente. Nenhum save do servidor
+          de jogo a reescreve — diferente do inventário, que pertence ao personagem em jogo.
+        </p>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

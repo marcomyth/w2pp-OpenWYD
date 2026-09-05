@@ -160,7 +160,10 @@ func (w *World) removeSession(s *Session) {
 	// (docs/migration/investigacao-freeze-cliente.md).
 	w.logSendStats(s)
 	// Persist the live character (purchases/gold/stats) before tearing down.
-	w.SaveCharacterAsync(s)
+	// LeaveCharacter rather than SaveCharacterAsync: it does the same save and
+	// then releases the presence mark, in that order — see LeaveCharacter for why
+	// the two cannot be independent async calls.
+	w.LeaveCharacter(s)
 	// The account session ends with the connection, so persist and evict the
 	// account-shared cargo too (it outlives individual characters but not the
 	// connection). No-op if no cargo was loaded.

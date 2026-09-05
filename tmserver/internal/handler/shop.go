@@ -139,6 +139,16 @@ func itemToSel(it world.Item) protocol.SelItem {
 	if it.ExpiresAt != 0 {
 		eff = expiryEffects(it.ExpiresAt, time.Now())
 	}
+	// A stackable must never reach the client without an amount: the server reads
+	// a missing EF_AMOUNT as one (itemAmount) and carries on, the client does not
+	// and dies on the frame. This is the single place every item crosses on its
+	// way out — login blob and slot updates both — so it is where the guarantee
+	// belongs, rather than in each path that can mint one.
+	if isSplittable(it.Index) && !hasAmountEffect(world.Item{Effects: eff}) {
+		tmp := world.Item{Effects: eff}
+		setItemAmount(&tmp, 1)
+		eff = tmp.Effects
+	}
 	return protocol.SelItem{
 		Index: uint16(it.Index),
 		Eff: [3][2]uint8{

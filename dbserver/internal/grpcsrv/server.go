@@ -39,6 +39,8 @@ type Store interface {
 	SetBlockedByName(ctx context.Context, name string, blocked bool) error
 	RecordDuelResult(ctx context.Context, winnerName, loserName string) error
 	RecordTrade(ctx context.Context, t domain.TradeRecord) error
+	SetCharacterPresence(ctx context.Context, name string, online bool) (bool, error)
+	ClearAllPresence(ctx context.Context) (int64, error)
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
 	LeaveGuild(ctx context.Context, accountID int64, slot int) error
@@ -569,6 +571,27 @@ func (s *Server) RecordTrade(ctx context.Context, req *dbv1.RecordTradeRequest) 
 		return nil, status.Errorf(codes.Internal, "record trade: %v", err)
 	}
 	return &dbv1.RecordTradeResponse{Ok: true}, nil
+}
+
+// SetCharacterPresence marks a character in-play or out, so the staff panel can
+// tell whether the database is the authority for that character's items. A name
+// that does not resolve is reported as ok=false, not an error.
+func (s *Server) SetCharacterPresence(ctx context.Context, req *dbv1.SetCharacterPresenceRequest) (*dbv1.SetCharacterPresenceResponse, error) {
+	ok, err := s.store.SetCharacterPresence(ctx, req.GetCharacterName(), req.GetOnline())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "set character presence: %v", err)
+	}
+	return &dbv1.SetCharacterPresenceResponse{Ok: ok}, nil
+}
+
+// ClearAllPresence drops every presence mark; the tmServer calls it at boot. A
+// non-zero count means the previous shutdown was unclean.
+func (s *Server) ClearAllPresence(ctx context.Context, _ *dbv1.ClearAllPresenceRequest) (*dbv1.ClearAllPresenceResponse, error) {
+	n, err := s.store.ClearAllPresence(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "clear presence: %v", err)
+	}
+	return &dbv1.ClearAllPresenceResponse{Cleared: n}, nil
 }
 
 func tradeItemsFromProto(in []*dbv1.TradeItem) []domain.TradeItem {

@@ -61,3 +61,22 @@ func TestServiceOverWire(t *testing.T) {
 }
 
 func (f *fakeStore) RecordTrade(context.Context, domain.TradeRecord) error { return nil }
+
+func (f *fakeStore) SetCharacterPresence(_ context.Context, name string, online bool) (bool, error) {
+	if f.presence == nil {
+		f.presence = map[string]bool{}
+	}
+	f.presence[name] = online
+	return true, nil
+}
+
+func (f *fakeStore) ClearAllPresence(context.Context) (int64, error) {
+	var n int64
+	for name, online := range f.presence {
+		if online {
+			f.presence[name] = false
+			n++
+		}
+	}
+	return n, nil
+}

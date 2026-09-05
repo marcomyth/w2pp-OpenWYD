@@ -11,6 +11,8 @@
   <h1>{{.Conta.Name}}</h1>
   <p class="sub"><a href="/contas">Voltar para a busca</a></p>
 
+  {{template "abas-conta" (dict "Conta" .Conta.Name "Personagem" "" "Aba" "conta")}}
+
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
   <div class="campos">
@@ -283,7 +285,7 @@
           {{range .Personagens}}
           <tr>
             <td class="num">{{.Slot}}</td>
-            <td>{{.Name}}</td>
+            <td><a href="/contas/{{$.Conta.Name}}/personagens/{{.Name}}">{{.Name}}</a></td>
             <td class="num">{{.Level}}</td>
             <td class="num">{{.Coin}}</td>
             <td class="num">{{.Hp}} / {{.MaxHp}}</td>
