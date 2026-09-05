@@ -1413,9 +1413,8 @@ const amuletSlot = 15
 
 // useSeloDoGuerreiro consumes Selo do Guerreiro (sIndex 4146, no EF_VOLATILE):
 // grants Fame and, once at a high mortal level without any kingdom amulet
-// already equipped, an entry-tier one (_MSG_UseItem.cpp:3325-3364).
-// SendEmotion(conn,14,3) is cosmetic and not ported, matching the existing
-// precedent in refine.go:233,263 (no emotion opcode exists in this fork yet).
+// already equipped, an entry-tier one (_MSG_UseItem.cpp:3325-3364), closing with
+// the same celebration emotion the refine plays.
 func (d *Dispatcher) useSeloDoGuerreiro(w *world.World, s *world.Session, e *world.Entity, src int) {
 	const maxFame int32 = 2_000_000_000
 	if e.Fame >= maxFame-10 {
@@ -1446,6 +1445,7 @@ func (d *Dispatcher) useSeloDoGuerreiro(w *world.World, s *world.Session, e *wor
 		d.sendScore(w, s, e)
 	}
 
+	sendEmotion(w, s, e, motionLevelUp, motionLevelUpParm)
 	consumeOneItem(&e.Carry[src])
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 }

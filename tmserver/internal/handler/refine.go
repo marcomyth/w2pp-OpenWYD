@@ -258,8 +258,10 @@ func (d *Dispatcher) refineSucceed(w *world.World, s *world.Session, e *world.En
 	}
 
 	d.sendSlot(w, s, t.place, t.slot, *dst)
-	// SendEmotion(conn, 14, 3) — cosmetic, and no emotion packet exists in this
-	// port yet (_MSG_UseItem.cpp:920).
+	// SendEmotion(conn, 14, 3) (_MSG_UseItem.cpp:920) — the celebration the player
+	// reads as "it worked". The comment here used to say no emotion packet existed
+	// in this port; MsgMotion has been in use by the level-up path all along.
+	sendEmotion(w, s, e, motionLevelUp, motionLevelUpParm)
 	consumeOneItem(&e.Carry[src])
 	// The dust slot is deliberately NOT re-sent: the client already removed the
 	// item it dragged, and the legacy only echoes the source back on the refusal
@@ -288,7 +290,31 @@ func (d *Dispatcher) refineFail(w *world.World, s *world.Session, e *world.Entit
 		refine.Set(dst, level, pity)
 	}
 	d.sendSlot(w, s, t.place, t.slot, *dst)
-	// SendEmotion(conn, 15|20, 0) — cosmetic, not ported (:967).
+	// The disappointment animation (_MSG_UseItem.cpp:970-973). Which one depends on
+	// whether the character has a face item: the legacy reads Equip[0].sIndex / 10,
+	// so any index below 10 (an empty slot included) takes the bare variant.
+	motion := uint16(motionRefineFailBare)
+	if e.Equip[0].Index/10 != 0 {
+		motion = motionRefineFailFaced
+	}
+	sendEmotion(w, s, e, motion, 0)
+}
+
+// The refine outcome emotions. Success reuses the same 14/3 the level-up plays,
+// so it borrows motionLevelUp rather than declaring a second name for one value.
+const (
+	motionRefineFailFaced uint16 = 15
+	motionRefineFailBare  uint16 = 20
+)
+
+// sendEmotion is the SendEmotion port (SendFunc.cpp): it plays a character
+// animation. The legacy sends it by grid multicast, so the player sees it AND so
+// does everyone standing around — refining in town is a spectator event, and
+// dropping the broadcast would quietly turn it into a private one.
+func sendEmotion(w *world.World, s *world.Session, e *world.Entity, motion, parm uint16) {
+	body := protocol.EncodeMotion(motion, parm)
+	w.Send(s, protocol.MsgMotion, body)
+	w.BroadcastInView(e.ID, protocol.MsgMotion, body)
 }
 
 // hatchEgg is the mount-egg branch inlined in the refine success
