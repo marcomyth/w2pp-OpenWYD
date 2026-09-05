@@ -437,12 +437,31 @@ func TestUseEntradaTerritorio(t *testing.T) {
 
 // idealStoneDB builds a fakeDB for a character holding a Pedra Ideal (item 1742) in
 // carry slot 0, at the given tier/level (issue #222).
+// idealStoneDB carries item 1742, the Pedra da IMORTALIDADE — the one that is
+// worn for the King's flows.
 func idealStoneDB(classMaster uint8, lvl int) *fakeDB {
+	return stoneDB(classMaster, lvl, idealStoneItem)
+}
+
+// pedraIdealDB carries the actual Pedra Ideal (5338), which is what triggers the
+// Arch→Celestial rebirth. The two items are different, and conflating them is
+// exactly what left the rebirth unreachable.
+func pedraIdealDB(classMaster uint8, lvl int) *fakeDB {
+	return stoneDB(classMaster, lvl, idealStoneResult)
+}
+
+func stoneDB(classMaster uint8, lvl int, item int16) *fakeDB {
 	db := newDB()
 	st := world.CharacterState{Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000, ClassMaster: classMaster, Level: lvl, MortalLevel: 99}
-	st.Carry[0] = world.Item{Index: idealStoneItem}
+	st.Carry[0] = world.Item{Index: item}
 	db.loadResult = st
 	return db
+}
+
+// pedraIdealVols registers the Pedra Ideal's EF_VOLATILE so the test server
+// dispatches it the way production does.
+func pedraIdealVols() map[int]int {
+	return map[int]int{int(idealStoneResult): volPedraIdeal}
 }
 
 // TestUseIdealStoneCreatesCelestial covers the Arch→Celestial transformation
@@ -450,8 +469,8 @@ func idealStoneDB(classMaster uint8, lvl int) *fakeDB {
 // Ideal becomes a Celestial at level 1, with the item consumed and the celestial
 // quest gates reset, and the change persists.
 func TestUseIdealStoneCreatesCelestial(t *testing.T) {
-	db := idealStoneDB(classMasterArch, int(level.MaxLevel))
-	addr, stop, _ := startServerClock(t, db)
+	db := pedraIdealDB(classMasterArch, int(level.MaxLevel))
+	addr, stop := startServerClockVol(t, db, pedraIdealVols())
 	defer stop()
 	c := enterWorld(t, addr)
 	defer c.Close()
@@ -483,7 +502,7 @@ func TestUseIdealStoneCreatesCelestial(t *testing.T) {
 	if char.CelLv40 != 0 || char.CelLv90 != 0 || char.CelCircle != 0 {
 		t.Errorf("saved celestial gates = %d/%d/%d, want all 0 (fresh)", char.CelLv40, char.CelLv90, char.CelCircle)
 	}
-	if hasItem(char.Carry, idealStoneItem) {
+	if hasItem(char.Carry, idealStoneResult) {
 		t.Error("saved carry still has the Pedra Ideal; want consumed")
 	}
 	if char.CelestialArchLevel != 5 {
@@ -501,8 +520,8 @@ func TestUseIdealStoneCreatesCelestial(t *testing.T) {
 // rejected: no tier change, the item stays put, and the client gets a slot resync
 // instead of the unlock signals.
 func TestUseIdealStoneRequiresMaxArchLevel(t *testing.T) {
-	db := idealStoneDB(classMasterArch, 354)
-	addr, stop, _ := startServerClock(t, db)
+	db := pedraIdealDB(classMasterArch, 354)
+	addr, stop := startServerClockVol(t, db, pedraIdealVols())
 	defer stop()
 	c := enterWorld(t, addr)
 	defer c.Close()
@@ -519,7 +538,7 @@ func TestUseIdealStoneRequiresMaxArchLevel(t *testing.T) {
 		if ty == protocol.MsgCombineComplete || ty == protocol.MsgMotion {
 			t.Fatalf("got %#x for a below-level Arch; want no unlock signal", ty)
 		}
-		if ty == protocol.MsgSendItem && int16(le16(payload[4:6])) == idealStoneItem {
+		if ty == protocol.MsgSendItem && int16(le16(payload[4:6])) == idealStoneResult {
 			sawResync = true
 		}
 	}
@@ -589,9 +608,9 @@ func TestCelestialClassBases(t *testing.T) {
 }
 
 func TestUseIdealStonePersistenceFailurePreservesArch(t *testing.T) {
-	db := idealStoneDB(classMasterArch, 399)
+	db := pedraIdealDB(classMasterArch, 399)
 	db.saveErr = errors.New("injected save failure")
-	addr, stop, _ := startServerClock(t, db)
+	addr, stop := startServerClockVol(t, db, pedraIdealVols())
 	defer stop()
 	c := enterWorld(t, addr)
 	defer c.Close()
@@ -606,7 +625,7 @@ func TestUseIdealStonePersistenceFailurePreservesArch(t *testing.T) {
 		if ty == protocol.MsgCNFCharacterLogout {
 			t.Fatal("failed persistence returned player to selection")
 		}
-		if ty == protocol.MsgSendItem && int16(le16(payload[4:6])) == idealStoneItem {
+		if ty == protocol.MsgSendItem && int16(le16(payload[4:6])) == idealStoneResult {
 			seenStone = true
 			break
 		}
@@ -617,7 +636,7 @@ func TestUseIdealStonePersistenceFailurePreservesArch(t *testing.T) {
 	send(t, c, protocol.MsgCharacterLogout, nil)
 	expect(t, c, protocol.MsgCNFCharacterLogout)
 	save, n := db.lastSavedChar()
-	if n == 0 || save.ClassMaster != classMasterArch || !hasItem(save.Carry, idealStoneItem) {
+	if n == 0 || save.ClassMaster != classMasterArch || !hasItem(save.Carry, idealStoneResult) {
 		t.Fatalf("post-failure save = %+v count=%d, want unchanged Arch with stone", save, n)
 	}
 }

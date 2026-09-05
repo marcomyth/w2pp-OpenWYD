@@ -344,6 +344,7 @@ const (
 	volEntradaTerritorio = 188 // Entrada do Território (LAN) ticket (_MSG_UseItem.cpp:4202)
 	volQuestReward       = 191 // quest reward items 4117..4121 (_MSG_UseItem.cpp:2344)
 	volHuntingScroll     = 195 // Pedido de Caça: destination selected by MSG_UseItem.WarpID
+	volPedraIdeal        = 211 // Pedra Ideal (5338): the Arch→Celestial rebirth (_MSG_UseItem.cpp:3002)
 	volExpChest          = 198
 	volBuffKappa20h      = 200
 	volBuffCombat20h     = 201
@@ -443,14 +444,12 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 	if d.useQuest256Ticket(w, s, e, src) {
 		return
 	}
-	// Pedra Ideal (1742) right-clicked by an Arch (issue #222): the Arch→Celestial
-	// transformation. ClassMaster==Mortal falls through unchanged to the vol==0
-	// equip path below — that's the unrelated kingArch flow (equip + visit the
-	// King), which must keep working.
-	if e.Carry[src].Index == idealStoneItem && e.ClassMaster == classMasterArch {
-		d.useIdealStone(w, s, e, src)
-		return
-	}
+	// NOTE: the Arch→Celestial rebirth used to be triggered from item 1742 here.
+	// That is the Pedra da IMORTALIDADE, which carries no EF_VOLATILE and whose
+	// only use is being worn for the King's transformations (the vol==0 equip path
+	// below). The Pedra Ideal is 5338 and carries EF_VOLATILE 211, so it is
+	// dispatched from the switch like every other consumable — see volPedraIdeal.
+	//
 	// Selo do Guerreiro and Pedra Misteriosa have no EF_VOLATILE, so d.itemVolatiles
 	// defaults to 0 for them — check sIndex first so they don't fall into the vol==0
 	// equip path (canEquipSlot would just silently reject them, the same "phantom
@@ -484,6 +483,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useLegacyBuffConsumable(w, s, e, src, vol)
 	case vol == volArchCrystal:
 		d.useArchCrystal(w, s, e, src)
+	case vol == volPedraIdeal:
+		d.useIdealStone(w, s, e, src)
 	case vol == volExpChest:
 		d.useExpChest(w, s, e, src)
 	case vol >= volDivine7 && vol <= volDivine30:
@@ -1460,11 +1461,19 @@ func (d *Dispatcher) useSeloDoGuerreiro(w *world.World, s *world.Session, e *wor
 
 const celestialArchLevelReq = 355
 
-// useIdealStone handles the Arch→Celestial transformation triggered by right-clicking
-// the Pedra Ideal (item 1742, issue #222). This is a distinct self-use path from
-// kingArch's equip-and-visit-the-King Mortal→Arch flow, which reuses the same item —
-// the in-game tooltip instructs "clique na pedra com o botão direito do mouse" and only
-// applies once the character is already Arch (the caller in useItem gates on that).
+// useIdealStone handles the Arch→Celestial rebirth: right-clicking the Pedra
+// Ideal, item 5338, which carries EF_VOLATILE 211 (_MSG_UseItem.cpp:3002).
+//
+// It used to be triggered from item 1742 instead, which is the Pedra da
+// IMORTALIDADE — a different item, worn rather than used, and the input to the
+// King's transformations. Clicking the real Ideal Stone therefore reached
+// nothing and fell through to the unimplemented-consumable path, which hands the
+// item back without a word.
+//
+// Not ported: the legacy's second branch under the same EF_VOLATILE, where a
+// CELESTIAL at level 120+ with a Sephirot equipped becomes CELESTIALCS
+// (:3027-3090). That tier is not modeled yet; a Celestial using the stone falls
+// through to the tier check below and is told it is not an Arch.
 func (d *Dispatcher) useIdealStone(w *world.World, s *world.Session, e *world.Entity, src int) {
 	// Every refusal below used to be silent: notify() sends a numeric code whose
 	// wire format is still a placeholder, so the client showed nothing and the

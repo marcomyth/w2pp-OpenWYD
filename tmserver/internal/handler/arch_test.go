@@ -290,3 +290,17 @@ func TestIdealStoneRefusalsAreExplained(t *testing.T) {
 		}
 	}
 }
+
+// The Arch→Celestial rebirth is dispatched by EF_VOLATILE 211, which belongs to
+// the Pedra Ideal (5338). It used to hang off item 1742 — the Pedra da
+// Imortalidade — so clicking the real stone did nothing at all.
+func TestPedraIdealIsDispatchedByVolatile(t *testing.T) {
+	if volPedraIdeal != 211 {
+		t.Errorf("volPedraIdeal = %d, want 211 (_MSG_UseItem.cpp:3002)", volPedraIdeal)
+	}
+	// 1742 is a different item and must not be the trigger: it carries no
+	// EF_VOLATILE at all, and its role is being worn for the King's flows.
+	if idealStoneItem == 5338 {
+		t.Error("idealStoneItem now points at the Pedra Ideal; the comment explaining the two stones is stale")
+	}
+}
