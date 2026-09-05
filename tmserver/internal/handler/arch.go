@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
@@ -106,28 +108,125 @@ func sendClientMessage(w *world.World, s *world.Session, text string) {
 // yet; the text is copied verbatim from the shipped file.
 const msgProcessingComplete = "Processo de combinação foi concluído."
 
+// msgCapeBonusFailed explains the one way the 370 reward can be lost: the cape
+// has no free effect slot, or none is equipped at all.
+const msgCapeBonusFailed = "Destrave concluído, mas a capa não tinha espaço para o bônus."
+
 // The reward for the level-370 unlock. SERVER RULE, NOT PARITY: the original
 // grants nothing here — QuestInfo.Arch.Level370 is read in exactly three places
 // (CMob.cpp:1110, GetFunc.cpp:1035 and the Lindy handler), all of them gates. A
 // quest that costs a point of Fame and holds the character's progression
 // hostage until it is done deserves to leave something behind, so this server
-// attaches a cape bonus to it.
+// attaches a bonus to the kingdom cape it already granted at 355.
 const (
-	archCape370HP     int32 = 120
-	archCape370Resist int16 = 8
+	archCape370HP     uint8 = 120
+	archCape370Resist uint8 = 8
 )
 
-// archCapeResist is the resistance the level-370 cape carries, added to all four
-// elements. It is DERIVED from the persisted quest flag rather than stored,
-// because Resist has no base term at all — refreshScore builds it purely from
-// equipment (the legacy has no base term either). Deriving keeps that true while
-// still surviving a relog, the same trick playerBaseAC uses for the crystals.
+// applyArchCapeBonus writes the level-370 reward onto the kingdom cape as
+// INSTANCE effects — EF_HP 120 and EF_RESISTALL 8 — the same shape a jewel or a
+// refine already leaves on an item.
 //
-// The HP half needs none of this: it lands on BaseMaxHP at hand-in time and
-// rides the persisted MaxHp.
-func archCapeResist(e *world.Entity) int16 {
-	if e.ClassMaster == classMasterArch && e.ArchLv370 != 0 {
-		return archCape370Resist
+// It goes on the ITEM rather than on the character deliberately. The client
+// reads instance effects straight off the item, so the tooltip shows the bonus
+// without shipping new client content; and the server already folds both in when
+// it scores equipment, with efResistAll spreading across all four elements.
+// Putting it on the character instead would need a base term that Resist simply
+// does not have, and would leave the cape describing itself wrongly.
+//
+// Returns false when there is no room: an item carries three effect slots and a
+// refined cape already spends one on EF_SANC. The caller says so out loud rather
+// than silently swallowing a reward the player paid Fame for.
+func applyArchCapeBonus(cape *world.Item) bool {
+	if cape == nil || cape.Index == 0 {
+		return false
 	}
-	return 0
+	want := [2]world.Effect{
+		{Effect: efHp, Value: archCape370HP},
+		{Effect: efResistAll, Value: archCape370Resist},
+	}
+	for _, ef := range want {
+		if !setInstanceEffect(cape, ef) {
+			return false
+		}
+	}
+	return true
+}
+
+// setInstanceEffect stores ef in the first free slot, or overwrites the slot
+// already holding the same effect id so that re-running never stacks a duplicate.
+func setInstanceEffect(it *world.Item, ef world.Effect) bool {
+	for i := range it.Effects {
+		if it.Effects[i].Effect == ef.Effect {
+			it.Effects[i] = ef
+			return true
+		}
+	}
+	for i := range it.Effects {
+		if it.Effects[i].Effect == 0 && it.Effects[i].Value == 0 {
+			it.Effects[i] = ef
+			return true
+		}
+	}
+	return false
+}
+
+// gmQuestReset clears an Arch quest flag so the quest can be run again. It is a
+// TEST tool, not a game mechanic: the quests are deliberately one-shot, and the
+// only reason to undo one is to exercise it after changing what it grants.
+//
+//	/gm questreset 355      the Lindy unlock at 355
+//	/gm questreset 370      the Lindy unlock at 370
+//	/gm questreset cristal  all four crystal stages
+//	/gm questreset arch     all of the above
+//
+// Clearing 355 or 370 also re-arms the level wall that flag opens, so the
+// character stops earning experience at that level until the quest is redone.
+// That is the point rather than a side effect: it restores the exact state the
+// quest expects to find.
+//
+// What it CANNOT undo is what the quest already granted. The crystals' HP/MP and
+// the 370 cape's HP land on the BaseScore and are indistinguishable from any
+// other points there, so redoing a quest after a reset stacks its HP/MP a second
+// time. AC and resistance are derived from the flags, so those do return to
+// zero. Note the character's stats before testing if exact numbers matter.
+func (d *Dispatcher) gmQuestReset(w *world.World, s *world.Session, rest string) {
+	e := w.Entity(s.Conn)
+	if e == nil {
+		return
+	}
+	cleared, ok := applyQuestReset(e, rest)
+	if !ok {
+		sendClientMessage(w, s, "Uso: /gm questreset 355 | 370 | cristal | arch")
+		return
+	}
+	d.refreshScore(e)
+	d.sendScore(w, s, e)
+	d.sendEtc(w, s, e)
+	d.log.Info("gm questreset", "account", s.AccountName, "cleared", cleared,
+		"arch355", e.ArchLv355, "arch370", e.ArchLv370, "cristal", e.ArchCristal)
+	sendClientMessage(w, s, "Quest resetada: "+cleared)
+	w.SaveCharacterAsync(s)
+}
+
+// applyQuestReset clears the flags named by arg and reports which. Split from
+// gmQuestReset so the selection can be tested without standing up a server: the
+// decision is the part worth pinning, the packets around it are not.
+func applyQuestReset(e *world.Entity, arg string) (cleared string, ok bool) {
+	switch strings.ToLower(firstToken(arg)) {
+	case "355":
+		e.ArchLv355 = 0
+		return "arch355", true
+	case "370":
+		e.ArchLv370 = 0
+		return "arch370", true
+	case "cristal", "cristais":
+		e.ArchCristal = 0
+		return "cristal", true
+	case "arch":
+		e.ArchLv355, e.ArchLv370, e.ArchCristal = 0, 0, 0
+		return "arch355+arch370+cristal", true
+	default:
+		return "", false
+	}
 }

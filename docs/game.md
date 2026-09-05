@@ -87,13 +87,23 @@ O destrave do 355 entrega a capa do reino (Hekalotia, Akelonia ou Aventureiros,
 conforme o clã); o do 370 consome 1 de Fama e exige Fama > 0.
 
 **Bônus da capa no 370 — regra deste servidor, não do legado.** Concluir o
-destrave do 370 dá **+120 de HP base** e **+8 de resistência** nos quatro
-elementos (Sagrado, Trovão, Fogo e Gelo). O servidor original não dá nada nesse
-destrave: a flag `QuestInfo.Arch.Level370` é lida em apenas três lugares, todos
-travas de nível ou de experiência. A divergência é deliberada — a quest custa 1
-de Fama e segura a progressão até ser feita, então deixa algo em troca. O HP
-fica no BaseScore (persiste pelo MaxHp); a resistência é derivada da flag a cada
-login, porque Resist não tem termo base onde pudesse ser guardada.
+destrave do 370 grava dois efeitos **na própria capa do reino**: `EF_HP 120`
+(+120 de HP máximo) e `EF_RESISTALL 8` (+8 de resistência nos quatro elementos).
+O servidor original não dá nada nesse destrave — a flag
+`QuestInfo.Arch.Level370` é lida em apenas três lugares, todos travas de nível ou
+de experiência. A divergência é deliberada: a quest custa 1 de Fama e segura a
+progressão até ser feita, então deixa algo em troca.
+
+Os efeitos vão na **instância do item**, não no personagem. É assim que joia e
+refino já funcionam, e tem duas vantagens: o tooltip da capa mostra o bônus sem
+precisar alterar o conteúdo do cliente, e o servidor já soma os dois efeitos ao
+pontuar equipamento. A capa tem três espaços de efeito e um `+9` ocupa um deles;
+se não houver espaço para os dois, o destrave conclui mesmo assim e o jogador é
+avisado — o bônus não some em silêncio.
+
+**Comando de teste:** `/gm questreset 355 | 370 | cristal | arch` limpa as flags
+para refazer a quest. Ele não desfaz o que já foi concedido — refazer depois de
+um reset empilha HP/MP no personagem — então anote os números antes de testar.
 
 Se o personagem passou do nível sem ter feito o destrave (possível em contas
 antigas, antes do gate de experiência existir), a NPC ainda aceita a receita —

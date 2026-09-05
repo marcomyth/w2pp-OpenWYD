@@ -161,44 +161,108 @@ func TestDownlevelArchNoopAtQuestLevel(t *testing.T) {
 	}
 }
 
-// The level-370 cape bonus is a SERVER RULE, not parity: the original grants
-// nothing for that unlock. The resistance half is derived from the persisted
-// flag, which is what makes it survive a relog — Resist itself has no base term
-// to store it in.
-func TestArchCape370Resist(t *testing.T) {
+// applyQuestReset is the selection half of /gm questreset, split out so the
+// decision can be pinned without standing up a server.
+func TestApplyQuestReset(t *testing.T) {
 	tests := []struct {
-		name        string
-		classMaster uint8
-		lv370       uint8
-		want        int16
+		arg                    string
+		want355, want370, wcri uint8
+		wantOK                 bool
 	}{
-		{"arch with the unlock done", classMasterArch, 1, archCape370Resist},
-		{"arch without it", classMasterArch, 0, 0},
-		{"mortal never gets it", classMasterMortal, 1, 0},
-		{"celestial never gets it", classMasterCelestial, 1, 0},
+		{"355", 0, 1, 4, true},
+		{"370", 1, 0, 4, true},
+		{"cristal", 1, 1, 0, true},
+		{"arch", 0, 0, 0, true},
+		{"", 1, 1, 4, false},
+		{"lixo", 1, 1, 4, false},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			e := &world.Entity{ClassMaster: tt.classMaster, ArchLv370: tt.lv370}
-			if got := archCapeResist(e); got != tt.want {
-				t.Errorf("archCapeResist() = %d, want %d", got, tt.want)
+		name := tt.arg
+		if name == "" {
+			name = "(vazio)"
+		}
+		t.Run(name, func(t *testing.T) {
+			e := &world.Entity{ArchLv355: 1, ArchLv370: 1, ArchCristal: 4}
+			_, ok := applyQuestReset(e, tt.arg)
+			if ok != tt.wantOK {
+				t.Errorf("ok = %v, want %v", ok, tt.wantOK)
+			}
+			if e.ArchLv355 != tt.want355 || e.ArchLv370 != tt.want370 || e.ArchCristal != tt.wcri {
+				t.Errorf("355=%d 370=%d cristal=%d, want %d/%d/%d",
+					e.ArchLv355, e.ArchLv370, e.ArchCristal, tt.want355, tt.want370, tt.wcri)
 			}
 		})
 	}
 }
 
-// The bonus has to be there on a character loaded fresh from the database, with
-// no hand-in happening in this session — that is the relog case.
-func TestArchCape370ResistSurvivesRelog(t *testing.T) {
-	d, w, e := mobKilledWorld(t)
-	e.ClassMaster = classMasterArch
-	e.Level = 369
-	e.ArchLv370 = 1 // as it comes back from the DB
-	d.refreshScore(e)
-	for i, got := range e.Resist {
-		if got != archCape370Resist {
-			t.Errorf("Resist[%d] = %d, want %d — the cape bonus vanished on reload", i, got, archCape370Resist)
+// The level-370 reward goes onto the CAPE as instance effects (EF_HP 120,
+// EF_RESISTALL 8), not onto the character — so the client's tooltip shows it and
+// the server scores it like any other equipment effect.
+func TestApplyArchCapeBonus(t *testing.T) {
+	t.Run("empty cape takes both effects", func(t *testing.T) {
+		cape := &world.Item{Index: 3193}
+		if !applyArchCapeBonus(cape) {
+			t.Fatal("applyArchCapeBonus() = false, want true")
+		}
+		if !hasEffect(cape, efHp, archCape370HP) {
+			t.Errorf("EF_HP %d missing: %+v", archCape370HP, cape.Effects)
+		}
+		if !hasEffect(cape, efResistAll, archCape370Resist) {
+			t.Errorf("EF_RESISTALL %d missing: %+v", archCape370Resist, cape.Effects)
+		}
+	})
+
+	t.Run("a refined cape keeps its sanc", func(t *testing.T) {
+		cape := &world.Item{Index: 3193}
+		cape.Effects[0] = world.Effect{Effect: efSanc, Value: 9}
+		if !applyArchCapeBonus(cape) {
+			t.Fatal("a +9 cape has two free slots, want true")
+		}
+		if !hasEffect(cape, efSanc, 9) {
+			t.Errorf("the refine level was overwritten: %+v", cape.Effects)
+		}
+		if !hasEffect(cape, efHp, archCape370HP) || !hasEffect(cape, efResistAll, archCape370Resist) {
+			t.Errorf("bonus not written alongside the sanc: %+v", cape.Effects)
+		}
+	})
+
+	t.Run("re-running does not duplicate", func(t *testing.T) {
+		cape := &world.Item{Index: 3193}
+		applyArchCapeBonus(cape)
+		applyArchCapeBonus(cape)
+		var hp int
+		for _, ef := range cape.Effects {
+			if ef.Effect == efHp {
+				hp++
+			}
+		}
+		if hp != 1 {
+			t.Errorf("EF_HP appears %d times, want 1: %+v", hp, cape.Effects)
+		}
+	})
+
+	t.Run("no free slot is reported, not swallowed", func(t *testing.T) {
+		cape := &world.Item{Index: 3193}
+		cape.Effects[0] = world.Effect{Effect: efSanc, Value: 9}
+		cape.Effects[1] = world.Effect{Effect: 70, Value: 20}
+		cape.Effects[2] = world.Effect{Effect: 71, Value: 20}
+		if applyArchCapeBonus(cape) {
+			t.Error("applyArchCapeBonus() = true with all three slots taken, want false")
+		}
+	})
+
+	t.Run("no cape equipped", func(t *testing.T) {
+		if applyArchCapeBonus(&world.Item{}) {
+			t.Error("applyArchCapeBonus() = true on an empty slot, want false")
+		}
+	})
+}
+
+func hasEffect(it *world.Item, eff, val uint8) bool {
+	for _, ef := range it.Effects {
+		if ef.Effect == eff && ef.Value == val {
+			return true
 		}
 	}
-	_ = w
+	return false
 }

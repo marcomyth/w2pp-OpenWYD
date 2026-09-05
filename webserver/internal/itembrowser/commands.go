@@ -99,6 +99,16 @@ func CommandReference() CommandBus {
 				Notes:   []string{"Valor negativo é rejeitado."},
 			},
 			{
+				Name: "questreset", Args: "<355|370|cristal|arch>", Target: "você",
+				Summary: "Limpa as flags de quest do Arch para poder refazê-las.",
+				Notes: []string{
+					"Ferramenta de teste: as quests são de uma vez por personagem, e isto existe para exercitá-las depois de mudar o que elas concedem.",
+					"Limpar 355 ou 370 rearma a trava daquele nível — o personagem volta a não ganhar experiência ali até refazer a quest. É proposital: restaura o estado que a quest espera encontrar.",
+					"NÃO desfaz o que já foi concedido. HP e MP dos cristais ficam no personagem e empilham se a quest for refeita; AC e resistência voltam ao normal porque são derivados das flags ou vivem na capa.",
+					"Anote os atributos antes de testar se os números exatos importarem.",
+				},
+			},
+			{
 				Name: "ban", Args: "<personagem|conta>", Target: "conta",
 				Summary: "Bloqueia uma conta e derruba o jogador.",
 				Notes: []string{

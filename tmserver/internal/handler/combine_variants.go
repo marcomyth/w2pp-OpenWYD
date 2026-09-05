@@ -224,12 +224,23 @@ func (d *Dispatcher) combineItemLindy(w *world.World, s *world.Session, _ protoc
 	} else {
 		e.ArchLv370 = 1
 		e.Fame--
-		// The cape reward (server rule — see archCape370HP). The HP lands on the
-		// BaseScore so it persists through MaxHp; the resistance half is derived
-		// from the flag by archCapeResist, so nothing to do for it here.
-		e.BaseMaxHP = addClamp(e.BaseMaxHP, archCape370HP, level.MaxHPCap)
-		d.refreshScore(e)
-		d.sendScore(w, s, e)
+		// The reward is written onto the kingdom cape itself (server rule — see
+		// applyArchCapeBonus), so it shows in the item's tooltip and is scored
+		// like any other equipment effect.
+		cape := &e.Equip[reinoCapeSlot]
+		if applyArchCapeBonus(cape) {
+			d.refreshScore(e)
+			d.sendScore(w, s, e)
+			w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(
+				protocol.ItemPlaceEquip, reinoCapeSlot, itemToSel(*cape)))
+		} else {
+			// No cape equipped, or its three effect slots are full. Say so instead
+			// of dropping a reward the player just paid a point of Fame for.
+			d.log.Warn("arch 370 cape bonus not applied",
+				"conn", s.Conn, "account", s.AccountName,
+				"cape", cape.Index, "effects", cape.Effects)
+			sendClientMessage(w, s, msgCapeBonusFailed)
+		}
 	}
 	if stranded > 0 {
 		d.downlevelArch(e, questLevel)

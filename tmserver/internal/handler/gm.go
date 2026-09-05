@@ -70,6 +70,8 @@ func (d *Dispatcher) runGMCommand(w *world.World, s *world.Session, args []byte)
 		d.gmSetGuildName(w, s, rest)
 	case "guildfame":
 		d.gmSetGuildFame(w, s, rest)
+	case "questreset":
+		d.gmQuestReset(w, s, rest)
 	case "weather", "clima":
 		d.gmWeather(w, s, rest)
 	default:
