@@ -14,6 +14,7 @@ import (
 
 // fakeStore is an in-memory Store for unit tests (no PostgreSQL).
 type fakeStore struct {
+	presence   map[string]bool // captured SetCharacterPresence calls
 	byName     map[string]store.AccountAuth
 	byID       map[int64]store.AccountAuth
 	chars      map[int64][]domain.Character // accountID -> characters

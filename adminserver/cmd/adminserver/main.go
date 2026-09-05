@@ -39,10 +39,12 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/donate"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/entrega"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/jogo"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/panel"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/personagem"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
@@ -162,17 +164,19 @@ func run(logger *slog.Logger) error {
 	}
 
 	handler, err := panel.New(panel.Config{
-		Platform:   plat,
-		Accounts:   store.New(pool),
-		GameData:   game,
-		Writer:     accounts.New(pool),
-		Entregas:   entrega.New(pool),
-		Trocas:     store.New(pool),
-		Jogo:       live,
-		Audit:      audit.New(pool),
-		Sessions:   session.New(*sessionTTL),
-		Logger:     logger,
-		SecureOnly: !*insecureCookies,
+		Platform:    plat,
+		Accounts:    store.New(pool),
+		GameData:    game,
+		Writer:      accounts.New(pool),
+		Entregas:    entrega.New(pool),
+		Personagens: personagem.New(pool),
+		Carteira:    donate.New(pool),
+		Trocas:      store.New(pool),
+		Jogo:        live,
+		Audit:       audit.New(pool),
+		Sessions:    session.New(*sessionTTL),
+		Logger:      logger,
+		SecureOnly:  !*insecureCookies,
 	})
 	if err != nil {
 		return fmt.Errorf("build panel: %w", err)

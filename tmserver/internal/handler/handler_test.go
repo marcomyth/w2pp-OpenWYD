@@ -58,6 +58,7 @@ type fakeDB struct {
 	savedCargos  []world.CargoSave     // captured SaveCargo calls
 	drainSaves   []drainSave           // captured SaveCargoWithDeliveries calls
 	blockedNames map[string]bool       // captured SetAccountBlocked calls (GM ban/unban)
+	presence     map[string]bool       // captured SetCharacterPresence calls
 	duelResults  []duelResult          // captured RecordDuelResult calls (issue #118)
 	trades       []world.TradeRecord   // captured RecordTrade calls (0025_trade_log)
 
@@ -120,6 +121,25 @@ func (f *fakeDB) ListPendingDeliveries(_ context.Context, accountID int64) ([]wo
 
 // SetAccountBlocked records the GM ban/unban write (overrides the NopPersistence
 // error so the ban callback proceeds to the online-kick).
+// SetCharacterPresence captures the in-play marks the staff panel reads.
+func (f *fakeDB) SetCharacterPresence(_ context.Context, name string, online bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.presence == nil {
+		f.presence = make(map[string]bool)
+	}
+	f.presence[name] = online
+	return nil
+}
+
+// presenceOf reports the last mark recorded for a character.
+func (f *fakeDB) presenceOf(name string) (bool, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	v, ok := f.presence[name]
+	return v, ok
+}
+
 func (f *fakeDB) SetAccountBlocked(_ context.Context, name string, blocked bool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

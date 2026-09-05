@@ -343,6 +343,13 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		e.EquipVisual, e.EquipAnct = equipVisual(e)
 	}
 	s.Mode = world.UserPlay
+	// From here the loop owns this character's inventory, and an edit written to
+	// the database underneath it would be lost at the next save. The mark is what
+	// lets the staff panel refuse instead of pretending; it is bookkeeping, so it
+	// goes off the loop and a failure never touches the login.
+	if e := w.Entity(s.Conn); e != nil {
+		d.markPresence(w, e.Name, true)
+	}
 	// The persisted skill block rides the login snapshot (mask/points/bar/Special);
 	// the live Special (base + equip) is on the Entity after refreshScore-on-login
 	// hasn't run yet, so send base+equip via the entity when available.
@@ -656,8 +663,17 @@ func (d *Dispatcher) returnToCharacterSelection(w *world.World, s *world.Session
 	// the cargo, so persisting the character without the cargo would duplicate a
 	// withdrawn item (saved on the character row while the stale account_cargo row
 	// still holds it) on the next load.
+	// Read before the save: by the time the callback runs the entity has been
+	// docked and this session may already hold a different character.
+	var saindo string
+	if e := w.Entity(s.Conn); e != nil {
+		saindo = e.Name
+	}
 	w.SaveCharacterThen(s, func(w *world.World, s *world.Session) {
 		w.SaveCargoThen(s, func(w *world.World, s *world.Session) {
+			// The save above has committed, so the database is authoritative for
+			// this character again and the panel may edit it.
+			d.markPresence(w, saindo, false)
 			if e := w.Entity(s.Conn); e != nil {
 				e.Mode = world.MobUserDock
 				// The save above already captured this character's buffs; drop

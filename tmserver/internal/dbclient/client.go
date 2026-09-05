@@ -855,6 +855,30 @@ func (c *Client) RecordTrade(ctx context.Context, t world.TradeRecord) error {
 	return nil
 }
 
+// SetCharacterPresence marks a character in-play or out for the staff panel.
+func (c *Client) SetCharacterPresence(ctx context.Context, name string, online bool) error {
+	resp, err := c.api.SetCharacterPresence(ctx, &dbv1.SetCharacterPresenceRequest{
+		CharacterName: name,
+		Online:        online,
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: set character presence: %w", err)
+	}
+	if !resp.GetOk() {
+		return fmt.Errorf("dbclient: set character presence: unknown character %q", name)
+	}
+	return nil
+}
+
+// ClearAllPresence drops every presence mark and reports how many were stale.
+func (c *Client) ClearAllPresence(ctx context.Context) (int64, error) {
+	resp, err := c.api.ClearAllPresence(ctx, &dbv1.ClearAllPresenceRequest{})
+	if err != nil {
+		return 0, fmt.Errorf("dbclient: clear presence: %w", err)
+	}
+	return resp.GetCleared(), nil
+}
+
 func tradeItemsToProto(in []world.TradeItem) []*dbv1.TradeItem {
 	out := make([]*dbv1.TradeItem, 0, len(in))
 	for _, it := range in {

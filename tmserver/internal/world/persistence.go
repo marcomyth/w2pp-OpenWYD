@@ -351,6 +351,15 @@ type Persistence interface {
 	// players' word. Called off the loop and best-effort: the trade already
 	// happened in the world and cannot be undone because the write failed.
 	RecordTrade(ctx context.Context, t TradeRecord) error
+	// SetCharacterPresence marks a character in-play (login) or out (logout or
+	// disconnect), so the staff panel can tell whether the database is the
+	// authority for that character's items. Bookkeeping only — nothing in the
+	// game reads it, and a failure must never interfere with the login itself.
+	SetCharacterPresence(ctx context.Context, name string, online bool) error
+	// ClearAllPresence drops every mark, called once at boot: a server that just
+	// started has nobody in-play. It is what keeps a crash from stranding
+	// characters marked online forever.
+	ClearAllPresence(ctx context.Context) (int64, error)
 
 	// Guild lifecycle/state (issue #114). These calls block on dbServer and must
 	// be made through World.Go/GoDetached by loop handlers.
@@ -461,6 +470,13 @@ func (NopPersistence) RecordDuelResult(context.Context, string, string) error {
 
 // RecordTrade does nothing.
 func (NopPersistence) RecordTrade(context.Context, TradeRecord) error { return nil }
+
+// SetCharacterPresence does nothing: presence exists only for the staff panel,
+// which is not there either when there is no database.
+func (NopPersistence) SetCharacterPresence(context.Context, string, bool) error { return nil }
+
+// ClearAllPresence reports nothing to clear.
+func (NopPersistence) ClearAllPresence(context.Context) (int64, error) { return 0, nil }
 
 // CreateGuild is unsupported without a backend.
 func (NopPersistence) CreateGuild(context.Context, int64, int, string, string, uint8, uint8, int, int32) (GuildRecord, bool, error) {

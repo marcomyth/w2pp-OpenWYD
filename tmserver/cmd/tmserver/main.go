@@ -381,6 +381,15 @@ func run(logger *slog.Logger) error {
 	// Party teardown on disconnect: unlink the party bond and reap the summons
 	// before the slot is freed (party.go SessionEnd).
 	w.SetSessionEndHandler(dispatch.SessionEnd)
+	// Nobody is in-play on a server that just started. Clearing the presence
+	// marks here is what keeps an unclean shutdown from stranding characters
+	// marked online — which would leave the staff panel refusing to edit them
+	// forever. A non-zero count means the last shutdown was not clean.
+	if n, err := persist.ClearAllPresence(ctx); err != nil {
+		logger.Warn("could not clear character presence", "err", err)
+	} else if n > 0 {
+		logger.Info("cleared stale character presence", "characters", n)
+	}
 	// The newbie flag has two owners: the dispatcher's ExpEvents (the EXP bonus)
 	// and the world (the sub-120 spawn HP handicap). Set here, BEFORE spawnNPCs
 	// below, so the boot population is handicapped too — the portal config may
