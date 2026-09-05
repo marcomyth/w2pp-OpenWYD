@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/binary"
+	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
@@ -102,15 +103,51 @@ func (d *Dispatcher) buy(w *world.World, s *world.Session, _ protocol.Header, pa
 	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, myPos, itemToSel(item)))
 }
 
-// itemToSel converts a world inventory item to the wire STRUCT_ITEM form.
+// itemToSel converts a world inventory item to the wire STRUCT_ITEM form. A
+// timed item (ExpiresAt set) reports its remaining life instead of its stored
+// effects — see remainingTimeEffects. Every item that reaches a client goes
+// through here, so this is the one place the conversion has to be right.
 func itemToSel(it world.Item) protocol.SelItem {
+	eff := it.Effects
+	if it.ExpiresAt != 0 {
+		eff = remainingTimeEffects(it.ExpiresAt, time.Now())
+	}
 	return protocol.SelItem{
 		Index: uint16(it.Index),
 		Eff: [3][2]uint8{
-			{it.Effects[0].Effect, it.Effects[0].Value},
-			{it.Effects[1].Effect, it.Effects[1].Value},
-			{it.Effects[2].Effect, it.Effects[2].Value},
+			{eff[0].Effect, eff[0].Value},
+			{eff[1].Effect, eff[1].Value},
+			{eff[2].Effect, eff[2].Value},
 		},
+	}
+}
+
+// remainingTimeEffects renders the time left on a timed item as the
+// EF_WDAY/EF_HOUR/EF_MIN trio the client reads, DERIVED from ExpiresAt on every
+// send rather than stored and decremented. ExpiresAt already survives restarts
+// and is the value dropExpired enforces, so deriving keeps the counter the player
+// sees and the moment the item actually dies from ever disagreeing.
+//
+// The three values are the wire's only slots, so they replace whatever the item
+// held: the items that carry an expiry today (Bolsa do Andarilho, the 30-day
+// mounts) are created with no effects of their own. Anything already expired
+// reports zeroes and is dropped on the next load.
+//
+// Each field is uint8 on the wire. Days are clamped to 255, which no current
+// item can reach — the longest is 30.
+func remainingTimeEffects(expiresAt int64, now time.Time) [3]world.Effect {
+	left := time.Unix(expiresAt, 0).Sub(now)
+	if left < 0 {
+		left = 0
+	}
+	days := int64(left.Hours()) / 24
+	if days > 255 {
+		days = 255
+	}
+	return [3]world.Effect{
+		{Effect: efWDay, Value: uint8(days)},
+		{Effect: efHour, Value: uint8(int64(left.Hours()) % 24)},
+		{Effect: efMin, Value: uint8(int64(left.Minutes()) % 60)},
 	}
 }
 

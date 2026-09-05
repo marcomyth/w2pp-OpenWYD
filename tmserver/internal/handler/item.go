@@ -1830,6 +1830,16 @@ const (
 	efGrid     = 33
 	efVolatile = 38
 	efDonate   = 91
+	// efWDay/efHour/efMin are how a timed item carries its REMAINING life to the
+	// client, which renders both the validity and the days-left counter from them.
+	// The shipped catalog seeds the trio on every temporary item — e.g.
+	// "3900,Fada_Verde(3dias),…,EF_WDAY,3,EF_HOUR,0,EF_MIN,0" — and the three
+	// together are the only channel for it: the wire STRUCT_ITEM has room for one
+	// index plus three effect pairs and nothing else, so our own ExpiresAt (a Unix
+	// stamp, server-side and persisted) can never reach the client on its own.
+	efWDay     = 106
+	efHour     = 107
+	efMin      = 108
 	efItemType = 113
 	efNoTrade  = 127
 

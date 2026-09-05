@@ -399,14 +399,10 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		if i >= len(m.Carry) {
 			break
 		}
-		m.Carry[i] = protocol.SelItem{
-			Index: uint16(st.Carry[i].Index),
-			Eff: [3][2]uint8{
-				{st.Carry[i].Effects[0].Effect, st.Carry[i].Effects[0].Value},
-				{st.Carry[i].Effects[1].Effect, st.Carry[i].Effects[1].Value},
-				{st.Carry[i].Effects[2].Effect, st.Carry[i].Effects[2].Value},
-			},
-		}
+		// itemToSel, not a hand-rolled copy: the login inventory is the FIRST view a
+		// player gets of a timed item, and open-coding the conversion here left it
+		// the one path that skipped the remaining-life effects.
+		m.Carry[i] = itemToSel(st.Carry[i])
 	}
 	body := protocol.EncodeCNFCharacterLoginBody(s.Slot, s.Conn, uint16(d.currentWeather()), loginX, loginY, m, shortSkill)
 	d.logCNFCharacterLogin("fallback", s, st, loginX, loginY, body)
