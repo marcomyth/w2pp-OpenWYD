@@ -402,6 +402,11 @@ func TestUsePesadeloScrollRefusedWrongTier(t *testing.T) {
 	if got := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); got != NoticePesadeloClassNotAllowed {
 		t.Errorf("notice = %v, want NoticePesadeloClassNotAllowed", got)
 	}
+	// The notice code alone renders as nothing on the client; the line beside it
+	// is what tells the player which door refused them.
+	if got := decodePanel(expect(t, c, protocol.MsgMessagePanel)); got != "Entrada permitida somente à Mortais" {
+		t.Errorf("panel = %q, want the N tier refusal", got)
+	}
 	if got := le16(expect(t, c, protocol.MsgSendItem)[4:6]); got != itemPesadeloGrupoN {
 		t.Errorf("slot = %d, want the scroll returned uneaten", got)
 	}

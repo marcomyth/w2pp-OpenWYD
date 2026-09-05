@@ -103,23 +103,29 @@ func (d *Dispatcher) gmKick(w *world.World, s *world.Session, rest string) {
 
 // gmNotice broadcasts a server-wide announcement to every in-play player.
 //
-// UNVERIFIED: the dedicated golden announce wire (the big centred notice) is not
-// captured (notice.go §UNVERIFIED). As a first pass this ships as a normal chat
-// line prefixed "[GM]" delivered to all players; the special notice format is
-// pinned once a capture exists.
+// There is no separate "announce" wire: SendNotice (SendFunc.cpp:139) is just
+// SendClientMessage in a loop over every USER_PLAY, so a global notice is the
+// same message panel line an individual notice uses, delivered to everyone. The
+// earlier guess — a chat line carrying the GM's conn — is what made announcements
+// arrive looking like a player had said them.
 func (d *Dispatcher) gmNotice(w *world.World, s *world.Session, text string) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return
 	}
-	msg := "[GM] " + text
-	payload := append([]byte(msg), 0) // NUL-terminated, like a normal chat line
-	// HEADER.ID = the GM's conn: the client renders it as a chat line (the announce
-	// source). No distance filter — ForEachPlaying(-1) reaches every session.
-	w.ForEachPlaying(-1, func(vs *world.Session, _ *world.Entity) {
-		w.SendTo(vs, protocol.Header{Type: protocol.MsgMessageChat, ID: uint16(s.Conn)}, payload)
-	})
+	broadcastNotice(w, "[GM] "+text)
 	d.log.Info("gm notice", "account", s.AccountName, "text", text)
+}
+
+// broadcastNotice is SendNotice: one line of server text to every player in
+// world. No distance filter — ForEachPlaying(-1) reaches every session.
+func broadcastNotice(w *world.World, text string) {
+	if text == "" {
+		return
+	}
+	w.ForEachPlaying(-1, func(vs *world.Session, _ *world.Entity) {
+		sendClientMessage(w, vs, text)
+	})
 }
 
 // gmGoto teleports the caller to a named online player.
@@ -245,7 +251,7 @@ func (d *Dispatcher) gmItem(w *world.World, s *world.Session, rest string) {
 	// is not in this path. Leaving the raw effects would give the player a costume
 	// showing a validity that never arrives; worse, itemToSel re-derives those
 	// three from ExpiresAt on every send, so they would not even survive the trip.
-	if exp, ok := expiryFromEffects(int16(id), effects, time.Now()); ok {
+	if exp, ok := expiryFromEffects(effects, time.Now()); ok {
 		it.Effects = [3]world.Effect{}
 		it.ExpiresAt = exp
 	}

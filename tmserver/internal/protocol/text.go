@@ -82,3 +82,41 @@ func TrimClientText(s string, n int) string {
 	}
 	return b.String()
 }
+
+// cp1252Rune inverts cp1252Punct so decoding cannot drift from encoding: the
+// 0x80-0x9F block is the only part of Windows-1252 that is not Latin-1, and
+// deriving it from the same table means a fix on one side reaches both.
+var cp1252Rune = func() map[byte]rune {
+	m := make(map[byte]rune, len(cp1252Punct))
+	for r, b := range cp1252Punct {
+		m[b] = r
+	}
+	return m
+}()
+
+// FromClientText decodes Windows-1252 bytes into a Go string — the inverse of
+// ClientText. Every shipped content file is in that encoding (Language.txt
+// stores "refinação" with 0xE7), so reading one as if it were UTF-8 yields
+// invalid runes that ClientText would then flatten to '?' on the way back out.
+// Anything a Go literal reaches for survives the round trip.
+//
+// The five bytes Windows-1252 leaves unassigned (0x81, 0x8D, 0x8F, 0x90, 0x9D)
+// have no character to decode to and become '?', matching how ClientText treats
+// a rune it cannot encode.
+func FromClientText(b []byte) string {
+	var sb strings.Builder
+	sb.Grow(len(b))
+	for _, c := range b {
+		switch {
+		case c < 0x80 || c >= 0xA0:
+			sb.WriteRune(rune(c))
+		default:
+			if r, ok := cp1252Rune[c]; ok {
+				sb.WriteRune(r)
+				continue
+			}
+			sb.WriteByte('?')
+		}
+	}
+	return sb.String()
+}

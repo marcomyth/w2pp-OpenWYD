@@ -91,23 +91,32 @@ type pesaTier struct {
 	// spawn is PesaNPosStandard/PesaMPosStandard/PesaAPosStandard: the landing
 	// spot per party slot. N and M repeat one point; A spreads the party out.
 	spawn [world.MaxParty][2]int16
+	// classMsg is what the door says when the wrong tier knocks. The legacy sends
+	// three different literals straight to SendClientMessage rather than going
+	// through the string table (_MSG_UseItem.cpp:2571/2667/2772), so they are
+	// copied verbatim here — including "somente à Mortais", which is the original
+	// wording and not a typo introduced by the port.
+	classMsg string
 }
 
 // pesaTierTable indexes the three tiers. Positions are Server.cpp:381/398/415.
 var pesaTierTable = [pesaTiers]pesaTier{
 	pesaN: {
 		name: "N", vol: volPesadeloN, groupItem: itemPesadeloGrupoN,
-		stageX: 19, stageY: 15, segX: 10, segY: 2, openMinute: 0, // entra por Erion
+		classMsg: "Entrada permitida somente à Mortais",
+		stageX:   19, stageY: 15, segX: 10, segY: 2, openMinute: 0, // entra por Erion
 		spawn: repeatSpawn(1304, 335),
 	},
 	pesaM: {
 		name: "M", vol: volPesadeloM, groupItem: itemPesadeloGrupoM,
-		stageX: 16, stageY: 16, segX: 8, segY: 2, openMinute: 5, // entra por Armia
+		classMsg: "Entrada permitida somente à Archs",
+		stageX:   16, stageY: 16, segX: 8, segY: 2, openMinute: 5, // entra por Armia
 		spawn: repeatSpawn(1083, 308),
 	},
 	pesaA: {
 		name: "A", vol: volPesadeloA, groupItem: itemPesadeloGrupoA,
-		stageX: 19, stageY: 13, segX: 9, segY: 1, openMinute: 10, // entra por Azran
+		classMsg: "Entrada permitida somente à Celestiais",
+		stageX:   19, stageY: 13, segX: 9, segY: 1, openMinute: 10, // entra por Azran
 		// The legacy table has thirteen rows but the loop only ever reads
 		// PesaAPosStandard[0..MAX_PARTY-1], so the last row {1209, 174} is dead
 		// and is not carried over.
@@ -262,8 +271,14 @@ func pesadeloAllowed(tier int, classMaster uint8, level int32) bool {
 // refusePesadelo answers a rejected use: notify, then resend the slot so the
 // client never shows the scroll as consumed (the legacy SendItem on every
 // refusal path).
-func (d *Dispatcher) refusePesadelo(w *world.World, s *world.Session, e *world.Entity, src int, n Notice) {
+func (d *Dispatcher) refusePesadelo(w *world.World, s *world.Session, e *world.Entity, src int, t pesaTier, n Notice) {
 	d.notify(w, s, n)
+	// The class gate is the one refusal whose line depends on the door: the tier
+	// carries its own literal, because "wrong tier" is only useful advice when it
+	// names the tier that said no.
+	if n == NoticePesadeloClassNotAllowed {
+		sendClientMessage(w, s, t.classMsg)
+	}
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 }
 
@@ -289,20 +304,20 @@ func (d *Dispatcher) usePesadeloScroll(w *world.World, s *world.Session, e *worl
 	if !t.staging(e.X, e.Y) {
 		d.log.Info("pesadelo refused: wrong area",
 			"account", s.AccountName, "tier", t.name, "x", e.X, "y", e.Y)
-		d.refusePesadelo(w, s, e, src, NoticeCantUseHere)
+		d.refusePesadelo(w, s, e, src, t, NoticeCantUseHere)
 		return
 	}
 	// Party members cannot open a run; only the leader (Leader == 0) may.
 	if e.Leader != 0 {
 		d.log.Info("pesadelo refused: not the party leader",
 			"account", s.AccountName, "tier", t.name, "leader", e.Leader)
-		d.refusePesadelo(w, s, e, src, NoticePartyLeaderOnly)
+		d.refusePesadelo(w, s, e, src, t, NoticePartyLeaderOnly)
 		return
 	}
 	if !pesadeloTierClass(tier, e.ClassMaster) {
 		d.log.Info("pesadelo refused: wrong tier",
 			"account", s.AccountName, "tier", t.name, "classMaster", e.ClassMaster)
-		d.refusePesadelo(w, s, e, src, NoticePesadeloClassNotAllowed)
+		d.refusePesadelo(w, s, e, src, t, NoticePesadeloClassNotAllowed)
 		return
 	}
 	// The level cap is checked after the class so someone in the wrong dungeon
@@ -312,27 +327,27 @@ func (d *Dispatcher) usePesadeloScroll(w *world.World, s *world.Session, e *worl
 		d.log.Info("pesadelo refused: outgrew this tier",
 			"account", s.AccountName, "tier", t.name,
 			"classMaster", e.ClassMaster, "level", e.Level, "cap", maxLevel)
-		d.refusePesadelo(w, s, e, src, NoticePesadeloLevelTooHigh)
+		d.refusePesadelo(w, s, e, src, t, NoticePesadeloLevelTooHigh)
 		return
 	}
 	// Arcano spends one of the Celestial's entries.
 	if tier == pesaA && e.NightmareTickets <= 0 {
 		d.log.Info("pesadelo refused: no entries left",
 			"account", s.AccountName, "tickets", e.NightmareTickets)
-		d.refusePesadelo(w, s, e, src, NoticePesadeloNoEntries)
+		d.refusePesadelo(w, s, e, src, t, NoticePesadeloNoEntries)
 		return
 	}
 	secondsLeft, open := t.window(d.now())
 	if !open {
 		d.log.Info("pesadelo refused: closed",
 			"account", s.AccountName, "tier", t.name, "next_in", t.nextWindow(d.now()))
-		d.refusePesadelo(w, s, e, src, NoticePesadeloClosed)
+		d.refusePesadelo(w, s, e, src, t, NoticePesadeloClosed)
 		return
 	}
 	if d.events.pesaRuns[tier] >= d.maxNightmare {
 		d.log.Info("pesadelo refused: run cap reached",
 			"account", s.AccountName, "tier", t.name, "runs", d.events.pesaRuns[tier], "cap", d.maxNightmare)
-		d.refusePesadelo(w, s, e, src, NoticePesadeloLimited)
+		d.refusePesadelo(w, s, e, src, t, NoticePesadeloLimited)
 		return
 	}
 

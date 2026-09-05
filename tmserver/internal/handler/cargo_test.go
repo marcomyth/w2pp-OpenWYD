@@ -59,6 +59,21 @@ func expect(t *testing.T, c net.Conn, want protocol.Type) []byte {
 	}
 }
 
+// expectHeader is expect, but it also hands back the frame header — for the
+// cases where WHO the client thinks sent a line is the thing under test.
+func expectHeader(t *testing.T, c net.Conn, want protocol.Type) (protocol.Header, []byte, bool) {
+	t.Helper()
+	for {
+		h, payload, ok := readMaybeHeader(t, c)
+		if !ok {
+			return protocol.Header{}, nil, false
+		}
+		if h.Type == want {
+			return h, payload, true
+		}
+	}
+}
+
 func TestCargoDepositOK(t *testing.T) {
 	addr, stop, _ := startServerClock(t, cargoDB(1000, 0, 0, 0))
 	defer stop()

@@ -1408,9 +1408,9 @@ func (d *Dispatcher) useAdamantita(w *world.World, s *world.Session, e *world.En
 		}
 		d.refreshScore(e)
 		d.sendScore(w, s, e)
-		d.notifyText(w, s, NoticeRefineSuccess)
+		d.notify(w, s, NoticeRefineSuccess)
 	} else {
-		d.notifyText(w, s, NoticeFailToRefine)
+		d.notify(w, s, NoticeFailToRefine)
 	}
 	d.sendSlot(w, s, int(body.DestType), int(body.DestPos), *dst)
 	consumeOneItem(&e.Carry[src])
@@ -1660,7 +1660,7 @@ func (d *Dispatcher) useMagicBean(w *world.World, s *world.Session, e *world.Ent
 	if removing {
 		success = NoticePaintRemoved
 	}
-	d.notifyText(w, s, success)
+	d.notify(w, s, success)
 	// refreshEquip recomputes e.EquipVisual/EquipAnct (the cached worn-item color
 	// codes) and rebroadcasts them; refreshScore alone leaves them stale, so on a
 	// later teleport createMobFrom would re-send the pre-paint color (#157). It also

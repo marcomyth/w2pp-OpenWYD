@@ -60,12 +60,9 @@ func (d *Dispatcher) messageWhisper(w *world.World, s *world.Session, _ protocol
 	}
 	target, te := w.SessionByName(name)
 	if target == nil {
-		// The notice is kept for callers that key off it, but its wire format is a
-		// placeholder (notice.go), so on its own it renders as nothing — which is
-		// indistinguishable from a dead command. The legacy sends _NN_Not_Connected
-		// (Language.txt:91) through SendClientMessage, i.e. the message panel.
+		// notify carries the _NN_Not_Connected line (Language.txt:91) to the message
+		// panel on its own now, so the text is not repeated here.
 		d.notify(w, s, NoticeNotConnected)
-		sendClientMessage(w, s, "O jogador não está conectado.")
 		return
 	}
 	if target.Whisper {
@@ -517,7 +514,6 @@ func (d *Dispatcher) showNick(w *world.World, s *world.Session, rest string) {
 		// Same pair as the whisper path: the notice for callers that key off it,
 		// plus the chat line the player actually sees.
 		d.notify(w, s, NoticeNotConnected)
-		sendClientMessage(w, s, "O jogador não está conectado.")
 		return
 	}
 	d.sendUserInfo(w, s, ts, te)
