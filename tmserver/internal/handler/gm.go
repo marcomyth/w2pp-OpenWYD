@@ -246,12 +246,13 @@ func (d *Dispatcher) gmItem(w *world.World, s *world.Session, rest string) {
 		return
 	}
 	it := world.Item{Index: int16(id), Effects: effects}
-	// A date written into the effects becomes ExpiresAt, because ExpiresAt is what
-	// actually kills the item here (dropExpired) — the legacy's BASE_CheckItemDate
-	// is not in this path. Leaving the raw effects would give the player a costume
-	// showing a validity that never arrives; worse, itemToSel re-derives those
-	// three from ExpiresAt on every send, so they would not even survive the trip.
-	if exp, ok := expiryFromEffects(effects, time.Now()); ok {
+	// A calendar DATE is an explicit deadline, so it starts the clock at once —
+	// ExpiresAt is what actually kills an item here (dropExpired); the legacy's
+	// BASE_CheckItemDate is not in this path, and raw date effects would show a
+	// validity that never arrives. A bare DURATION does not: "106 30" grants a
+	// thirty-day item that has not begun, and equipping it is what starts it
+	// (startTimedItem), which is the whole point of the un-started state.
+	if exp, ok := absoluteDateFromEffects(effects, time.Now()); ok {
 		it.Effects = [3]world.Effect{}
 		it.ExpiresAt = exp
 	}

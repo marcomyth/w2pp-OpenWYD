@@ -104,6 +104,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.tickCastle(w)
 	d.tickWaterRooms(w)
 	d.tickPesadelo(w)
+	d.tickFairies(w)
 	d.respawnMobs(w)
 	d.generateMobs(w)
 	// World events (issue #116). tickWeather sits after generateMobs so this

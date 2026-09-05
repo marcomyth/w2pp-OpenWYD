@@ -1028,14 +1028,13 @@ func (d *Dispatcher) perzenExchange(w *world.World, s *world.Session, npc *world
 		d.log.Info("perzen: player lacks input item", "conn", s.Conn, "want", input)
 		return
 	}
-	// Consume the input and grant the reward mount with a 30-day expiry
-	// (BASE_SetItemDate(30); the reward items are the "X(30dias)" mounts). The expiry
-	// is enforced server-side on load (dropExpired), independent of the legacy
-	// in-item date encoding, which is UNVERIFIED.
-	e.Carry[slot] = world.Item{
-		Index:     reward.Index,
-		ExpiresAt: time.Now().Add(mountExpiryDays * 24 * time.Hour).Unix(),
-	}
+	// Consume the input and grant the reward mount UN-STARTED. The legacy stamped
+	// the expiry here (BASE_SetItemDate(30)), so its thirty days ran down in the
+	// bag; we start them when the mount is first equipped instead, which is what a
+	// player expects of an item they have not used yet. The lifetime comes from the
+	// catalog, which spells it in the name — the rewards are the "X(30dias)" mounts
+	// — and dropExpired enforces it once startTimedItem sets ExpiresAt.
+	e.Carry[slot] = world.Item{Index: reward.Index}
 	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, slot, itemToSel(e.Carry[slot])))
 	d.log.Info("perzen exchange", "conn", s.Conn, "npc", npc.ID, "input", input, "reward", reward.Index)
 }

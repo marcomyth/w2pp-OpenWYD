@@ -154,7 +154,7 @@ func run(logger *slog.Logger) error {
 	var itemPrices map[int]int32
 	var itemEffects map[int][]content.BaseEffect
 	var itemReqs map[int]content.ItemReq
-	var itemVolatiles, itemPos, itemUnique, itemGrades, itemExtra map[int]int
+	var itemVolatiles, itemPos, itemUnique, itemGrades, itemExtra, itemDurations map[int]int
 	var itemRanges map[int]int16
 	var combineFamilies map[protocol.Type]handler.CombineFamily
 	var odinCatalog combine.Catalog
@@ -172,6 +172,9 @@ func run(logger *slog.Logger) error {
 		items := c.items
 		itemPrices, itemEffects, itemReqs = items.Prices(), items.BaseEffects(), items.Requirements()
 		itemVolatiles, itemPos, itemUnique = items.Volatiles(), items.Positions(), items.Uniques()
+		// Lifetime of the temporary items, read from the "(30dias)" in their name.
+		// The clock only starts when one is first equipped (handler.startTimedItem).
+		itemDurations = items.Durations()
 		itemGrades = items.Grades()
 		itemExtra = items.Extras()
 		itemRanges = items.Ranges()
@@ -334,7 +337,7 @@ func run(logger *slog.Logger) error {
 	}
 	dispatch := handler.New(handler.Config{
 		Log: logger, ClientVersion: int32(*clientVersion), BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, ItemPrices: itemPrices, ItemEffects: itemEffects, ItemReqs: itemReqs,
-		ItemVolatiles: itemVolatiles, ItemPos: itemPos, ItemUnique: itemUnique, ItemGrades: itemGrades, ItemExtra: itemExtra, Spells: spells, Heights: heights,
+		ItemVolatiles: itemVolatiles, ItemDurations: itemDurations, ItemPos: itemPos, ItemUnique: itemUnique, ItemGrades: itemGrades, ItemExtra: itemExtra, Spells: spells, Heights: heights,
 		SancRate:        sancRate,
 		ExpEvents:       level.ExpEvents{DoubleMode: *doubleExp, NewbieEvent: *newbieEvent, KefraLive: *kefraLive},
 		CombineFamilies: combineFamilies,

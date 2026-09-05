@@ -193,26 +193,22 @@ func (d *Dispatcher) sell(w *world.World, s *world.Session, _ protocol.Header, p
 	d.sendEtc(w, s, e)
 }
 
-// expiryFromEffects is the inverse of expiryEffects: it reads an expiry out of
-// three effect slots and returns the Unix instant it means. Only ExpiresAt
-// actually expires an item here (dropExpired), so an authoring path — /gm item
-// today, an admin item editor later — has to convert rather than store, or the
-// item would display a validity it never honours.
+// absoluteDateFromEffects reads the legacy's calendar spelling — EF_WDAY as the
+// day of the month, EF_WMONTH as the month, EF_YEAR as the year less 2000
+// (BASE_SetItemDate) — and returns the instant it names. A date is an explicit
+// DEADLINE: an authoring path that sees one starts the item's clock immediately,
+// because ExpiresAt is what actually kills an item here (dropExpired) and raw
+// date effects would show a validity nothing honours.
 //
-// Two spellings are accepted, and the effects present decide which — no item
-// range is involved:
+// The month and the year are what identify the form. Without them the same
+// EF_WDAY is a DURATION — "106 30" is thirty days of life not yet begun — which
+// effectsDuration reads and startTimedItem converts when the item is first worn.
 //
-//   - EF_WDAY/EF_HOUR/EF_MIN is a DURATION from now, the form the display uses
-//     and the natural way to say "30 days": "106 30".
-//   - EF_WDAY + EF_WMONTH + EF_YEAR is the legacy's absolute date
-//     (BASE_SetItemDate, year less 2000), kept so a date copied out of an old
-//     item still means what it says.
-//
-// It reports false when the slots carry no expiry, which is the common case: a
-// refine or a damage bonus is a plain effect and must be left alone.
-func expiryFromEffects(eff [3]world.Effect, now time.Time) (int64, bool) {
-	var day, month, year, hour, minute int
-	var haveDay, haveMonth, haveYear, haveClock bool
+// It reports false for anything else, which is the common case: a refine or a
+// damage bonus is a plain effect and must be left alone.
+func absoluteDateFromEffects(eff [3]world.Effect, now time.Time) (int64, bool) {
+	var day, month, year int
+	var haveDay, haveMonth, haveYear bool
 	for _, e := range eff {
 		switch e.Effect {
 		case efWDay:
@@ -221,30 +217,15 @@ func expiryFromEffects(eff [3]world.Effect, now time.Time) (int64, bool) {
 			month, haveMonth = int(e.Value), true
 		case efYear:
 			year, haveYear = int(e.Value), true
-		case efHour:
-			hour, haveClock = int(e.Value), true
-		case efMin:
-			minute, haveClock = int(e.Value), true
 		}
 	}
-
-	// A month and a year alongside the day mean an absolute date; the day alone,
-	// or with a clock, is a duration.
-	if haveMonth && haveYear {
-		if !haveDay || month < 1 || month > 12 || day < 1 || day > 31 {
-			return 0, false
-		}
-		// End of day: the legacy compares whole dates, so the item lives through
-		// the day it names rather than dying at its midnight.
-		return time.Date(2000+year, time.Month(month), day, 23, 59, 59, 0, now.Location()).Unix(), true
-	}
-
-	if !haveDay && !haveClock {
+	if !haveDay || !haveMonth || !haveYear {
 		return 0, false
 	}
-	left := time.Duration(day)*24*time.Hour + time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute
-	if left <= 0 {
+	if month < 1 || month > 12 || day < 1 || day > 31 {
 		return 0, false
 	}
-	return now.Add(left).Unix(), true
+	// End of day: the legacy compares whole dates, so the item lives through the
+	// day it names rather than dying at its midnight.
+	return time.Date(2000+year, time.Month(month), day, 23, 59, 59, 0, now.Location()).Unix(), true
 }
