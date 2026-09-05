@@ -140,16 +140,31 @@ func (d *Dispatcher) applySpecialBonus(w *world.World, s *world.Session, e *worl
 		return
 	}
 	maxSpecialLevel := 3 * (int(e.Level) + 1)
+	// The celestial tiers get a flat +1200 on the level allowance
+	// (_MSG_ApplyBonus.cpp:97-98). Without it a reborn Celestial is capped by its
+	// own level: at level 0 the allowance is 3, half of it is 1, and the second
+	// mastery point is refused — which is exactly how this surfaced.
+	if isCelestialTier(e.ClassMaster) {
+		maxSpecialLevel += 3 * 400
+	}
 	maxSpecial := int16(200)
 	if (detail == 1 && e.LearnedSkill&(1<<7) != 0) ||
 		(detail == 2 && e.LearnedSkill&(1<<15) != 0) ||
 		(detail == 3 && e.LearnedSkill&(1<<23) != 0) {
 		maxSpecial = 255
 	}
-	// UNVERIFIED: the Celestial tier adds 3*400 to maxSpecialLevel — tiers are
-	// not modeled yet (celestial-system-plan.md).
-	if int(e.BaseSpecial[detail]) >= maxSpecialLevel>>1 || e.BaseSpecial[detail] >= maxSpecial {
+	// The legacy answers these two refusals with DIFFERENT strings (:115,:118):
+	// the level allowance is "no more points for now" (it lifts as you level),
+	// while the flat 200/255 ceiling is its own message. Telling them apart
+	// matters — one is temporary and one is final.
+	if int(e.BaseSpecial[detail]) >= maxSpecialLevel>>1 {
 		d.notify(w, s, NoticeMaxPoint)
+		sendClientMessage(w, s, msgMaxPointNow)
+		return
+	}
+	if e.BaseSpecial[detail] >= maxSpecial {
+		d.notify(w, s, NoticeMaxPoint)
+		sendClientMessage(w, s, msgMaxPoint200)
 		return
 	}
 	e.SpecialBonus--
@@ -196,3 +211,11 @@ func skillTierBonus(classMaster uint8) int {
 		return 0
 	}
 }
+
+// The two mastery refusals, copied verbatim from Language.txt (105, 106). They
+// are different on purpose: the first lifts as the character levels, the second
+// is the hard 200/255 ceiling.
+const (
+	msgMaxPointNow = "Nao pode colocar mais pontos."
+	msgMaxPoint200 = "Nao pode passar do nivel 200."
+)

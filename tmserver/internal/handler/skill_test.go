@@ -588,3 +588,50 @@ func TestSkillTierBonus(t *testing.T) {
 		})
 	}
 }
+
+// The mastery allowance is half of 3*(level+1), which for a reborn Celestial at
+// level 0 is a single point. The legacy lifts that with a flat +1200 for the
+// celestial tiers (_MSG_ApplyBonus.cpp:97-98); without it the second point is
+// refused and the tier is unplayable.
+func TestMasteryAllowanceByTier(t *testing.T) {
+	allowance := func(classMaster uint8, lvl int32) int {
+		allowed := 3 * (int(lvl) + 1)
+		if isCelestialTier(classMaster) {
+			allowed += 3 * 400
+		}
+		return allowed >> 1
+	}
+	tests := []struct {
+		name        string
+		classMaster uint8
+		lvl         int32
+		want        int
+	}{
+		{"mortal level 0", classMasterMortal, 0, 1},
+		{"mortal level 100", classMasterMortal, 100, 151},
+		{"arch gets no celestial lift", classMasterArch, 0, 1},
+		{"celestial level 0", classMasterCelestial, 0, 601},
+		{"celestial CS level 0", classMasterCelestialCS, 0, 601},
+		{"sub-celestial level 0", classMasterSCelestial, 0, 601},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := allowance(tt.classMaster, tt.lvl); got != tt.want {
+				t.Errorf("allowance(%d, lvl %d) = %d, want %d", tt.classMaster, tt.lvl, got, tt.want)
+			}
+		})
+	}
+}
+
+// Both refusal strings must survive the client's Windows-1252 encoding — they
+// are Go literals, so an accent would arrive as mojibake.
+func TestMasteryRefusalsAreClientSafe(t *testing.T) {
+	for _, msg := range []string{msgMaxPointNow, msgMaxPoint200} {
+		if got := protocol.ClientText(msg); len(got) != len(msg) {
+			t.Errorf("%q changes length when encoded: it carries characters outside the client's codepage", msg)
+		}
+	}
+	if msgMaxPointNow == msgMaxPoint200 {
+		t.Error("the two refusals are identical; the legacy distinguishes a temporary cap from the final one")
+	}
+}
