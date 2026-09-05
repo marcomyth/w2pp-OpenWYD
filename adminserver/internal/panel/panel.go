@@ -126,7 +126,7 @@ type GameData interface {
 // Personagens is the character editor's data access: the items and attributes of
 // one character. Writes are refused while the tmServer owns the character.
 type Personagens interface {
-	Carregar(ctx context.Context, nome string) (personagem.Ficha, error)
+	Carregar(ctx context.Context, accountID int64, slot int) (personagem.Ficha, error)
 	GravarSlot(ctx context.Context, characterID int64, dest personagem.Destino, slot int, it personagem.Item) error
 	LimparSlot(ctx context.Context, characterID int64, dest personagem.Destino, slot int) error
 	GravarAtributos(ctx context.Context, characterID int64, a personagem.Atributos) (personagem.Atributos, error)

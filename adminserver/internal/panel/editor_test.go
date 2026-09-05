@@ -1,13 +1,19 @@
 package panel
 
 import (
+	"context"
+	"io"
+	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/personagem"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 )
 
 // grade is what turns stored rows into the screen, and the reachable/locked
@@ -197,4 +203,256 @@ func TestAtributosDoFormCamposEmBranco(t *testing.T) {
 	if a.Level != 400 || a.Str != 0 {
 		t.Errorf("atributos = %+v", a)
 	}
+}
+
+// The panel serves default-src 'none' with no script-src, so inline JavaScript
+// never runs in production. A grid that filled the form from an onclick looked
+// alive locally and was dead in the browser — clicking a slot did nothing, which
+// is exactly how this was found. No template may reintroduce a script.
+func TestTelasNaoDependemDeJavaScript(t *testing.T) {
+	entradas, err := uiFS.ReadDir("ui")
+	if err != nil {
+		t.Fatalf("ler ui: %v", err)
+	}
+	for _, e := range entradas {
+		if e.IsDir() {
+			continue
+		}
+		raw, err := uiFS.ReadFile("ui/" + e.Name())
+		if err != nil {
+			t.Fatalf("ler %s: %v", e.Name(), err)
+		}
+		corpo := strings.ToLower(string(raw))
+		if strings.Contains(corpo, "<script") {
+			t.Errorf("%s tem <script>: a CSP do painel bloqueia, então ele nunca roda", e.Name())
+		}
+		// onclick= and friends are blocked by the same policy.
+		for _, atributo := range []string{"onclick=", "onchange=", "onsubmit=", "onload="} {
+			if strings.Contains(corpo, atributo) {
+				t.Errorf("%s usa %s: bloqueado pela CSP", e.Name(), atributo)
+			}
+		}
+	}
+}
+
+// The same policy has no img-src, so an <img> renders as a broken box. The item
+// grids show names, not icons, for that reason.
+func TestTelasNaoCarregamImagens(t *testing.T) {
+	entradas, _ := uiFS.ReadDir("ui")
+	for _, e := range entradas {
+		raw, err := uiFS.ReadFile("ui/" + e.Name())
+		if err != nil {
+			continue
+		}
+		if strings.Contains(strings.ToLower(string(raw)), "<img") {
+			t.Errorf("%s tem <img>: a CSP não permite img-src", e.Name())
+		}
+	}
+}
+
+// Picking a slot has to survive without scripts: the grid links carry the choice
+// in the query string and the server sends the form back filled.
+func TestSelecaoDeSlotVemDaQueryString(t *testing.T) {
+	ficha := fichaTeste(false)
+	ficha.Carry[3] = personagem.Item{Slot: 3, Index: 700, Eff1: efSanc, EffV1: 9}
+
+	sel := selecaoDe(reqCom("?onde=char_carry&slot=3"), ficha, nil)
+	if !sel.Ativa {
+		t.Fatal("seleção deveria estar ativa")
+	}
+	if sel.Destino != "char_carry" || sel.Slot != 3 {
+		t.Errorf("seleção = %+v", sel)
+	}
+	if sel.Item.Index != 700 || sel.Item.Refino != 9 {
+		t.Errorf("item da seleção = %+v, want índice 700 refino 9", sel.Item)
+	}
+}
+
+// An empty slot is still a valid pick — it is how an item gets put somewhere.
+func TestSelecaoDeSlotVazio(t *testing.T) {
+	sel := selecaoDe(reqCom("?onde=char_equip&slot=5"), fichaTeste(false), nil)
+	if !sel.Ativa || sel.Slot != 5 {
+		t.Fatalf("seleção = %+v", sel)
+	}
+	if !sel.Item.Vazio {
+		t.Errorf("slot 5 deveria estar vazio, veio %+v", sel.Item)
+	}
+}
+
+func TestSelecaoInvalidaEIgnorada(t *testing.T) {
+	for _, q := range []string{"", "?onde=char_carry", "?slot=3", "?onde=inventado&slot=3", "?onde=char_carry&slot=abc"} {
+		if sel := selecaoDe(reqCom(q), fichaTeste(false), nil); sel.Ativa {
+			t.Errorf("query %q não deveria selecionar nada, veio %+v", q, sel)
+		}
+	}
+}
+
+func reqCom(query string) *http.Request {
+	return httptest.NewRequest("GET", "/contas/ana/personagens/Vandalyzz"+query, nil)
+}
+
+// fichaTeste is a character with the three containers allocated, so a slot pick
+// always resolves to something.
+func fichaTeste(emJogo bool) personagem.Ficha {
+	f := personagem.Ficha{
+		ID: 42, AccountID: 7, Nome: "Vandalyzz", Level: 400,
+		Equip: make([]personagem.Item, personagem.MaxEquip),
+		Carry: make([]personagem.Item, personagem.MaxCarry),
+		Cargo: make([]personagem.Item, personagem.MaxCargo),
+	}
+	for i := range f.Equip {
+		f.Equip[i].Slot = i
+	}
+	for i := range f.Carry {
+		f.Carry[i].Slot = i
+	}
+	for i := range f.Cargo {
+		f.Cargo[i].Slot = i
+	}
+	if emJogo {
+		agora := time.Now()
+		f.OnlineDesde = &agora
+	}
+	return f
+}
+
+// Emptying a slot is the most common edit there is. Refusing a blank index with
+// "índice inválido" — as this did — sends the operator hunting for a number to
+// type when what they wanted was nothing at all.
+func TestIndiceVazioEsvaziaOSlot(t *testing.T) {
+	for _, bruto := range []string{"", "   ", "0"} {
+		r := httptest.NewRequest("POST", "/", strings.NewReader(url.Values{"indice": {bruto}}.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		it, err := itemDoForm(r, 4)
+		if err != nil {
+			t.Errorf("índice %q: %v — deveria esvaziar, não recusar", bruto, err)
+			continue
+		}
+		if !it.Vazio() || it.Slot != 4 {
+			t.Errorf("índice %q = %+v, want item vazio no slot 4", bruto, it)
+		}
+	}
+}
+
+// A real typo still has to be refused: "abc" is not an attempt to empty a slot.
+func TestIndiceInvalidoAindaERecusado(t *testing.T) {
+	for _, bruto := range []string{"abc", "-1", "40000"} {
+		r := httptest.NewRequest("POST", "/", strings.NewReader(url.Values{"indice": {bruto}}.Encode()))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if _, err := itemDoForm(r, 0); err == nil {
+			t.Errorf("índice %q deveria ser recusado", bruto)
+		}
+	}
+}
+
+// Picking an item from the search puts THAT item in the form, not whatever the
+// slot still holds — otherwise choosing a replacement would show the old one.
+func TestIndiceNaQueryVenceOItemDoSlot(t *testing.T) {
+	ficha := fichaTeste(false)
+	ficha.Carry[2] = personagem.Item{Slot: 2, Index: 400}
+
+	sel := selecaoDe(reqCom("?onde=char_carry&slot=2&indice=700"), ficha, nil)
+	if sel.Item.Index != 700 {
+		t.Errorf("índice = %d, want 700 (o escolhido na busca)", sel.Item.Index)
+	}
+	// And without it, the slot's own item is what shows.
+	sel = selecaoDe(reqCom("?onde=char_carry&slot=2"), ficha, nil)
+	if sel.Item.Index != 400 {
+		t.Errorf("índice = %d, want 400 (o que está no slot)", sel.Item.Index)
+	}
+}
+
+// Character names are NOT unique: an Arch and a Celestial carry their Mortal's
+// name, and migration 0011_arch_name_tier_unique dropped the unique constraint
+// to allow exactly that. Addressing a character by name in the URL therefore
+// picks whichever tier the database reached first — which is how opening a
+// level-3 Celestial landed on the level-399 Mortal beside it. The slot is the
+// only per-account identifier that is unique by construction.
+func TestEditorEnderecaPorSlotNaoPorNome(t *testing.T) {
+	// Two characters, same name, different tiers — the shape the game produces.
+	pers := &fakePersonagensSlot{fichas: map[int]personagem.Ficha{
+		1: {ID: 10, AccountID: 7, Slot: 1, Nome: "TestPErg", Level: 399, ClassMaster: 2},
+		2: {ID: 11, AccountID: 7, Slot: 2, Nome: "TestPErg", Level: 3, ClassMaster: 1},
+	}}
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		Personagens: pers, Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	// Slot 2 is the Celestial: the page must show level 3, not 399.
+	rec := getSignedIn(t, h.Routes(), "/contas/ana/personagens/2")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if pers.pedido != 2 {
+		t.Errorf("carregou o slot %d, want 2", pers.pedido)
+	}
+	if !strings.Contains(rec.Body.String(), "nível 3") {
+		t.Error("a página deveria mostrar o personagem do slot 2 (nível 3), não o do slot 1")
+	}
+}
+
+func TestEditorRecusaSlotForaDaFaixa(t *testing.T) {
+	pers := &fakePersonagensSlot{fichas: map[int]personagem.Ficha{0: {AccountID: 7, Slot: 0}}}
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		Personagens: pers, Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	// A name in the URL, as the old links produced, must not resolve to a slot.
+	for _, alvo := range []string{"TestPErg", "9", "-1"} {
+		rec := getSignedIn(t, h.Routes(), "/contas/ana/personagens/"+alvo)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%q: status = %d, want 404", alvo, rec.Code)
+		}
+	}
+}
+
+// fakePersonagensSlot answers by slot and records which one was asked for.
+type fakePersonagensSlot struct {
+	fichas map[int]personagem.Ficha
+	pedido int
+}
+
+func (f *fakePersonagensSlot) Carregar(_ context.Context, _ int64, slot int) (personagem.Ficha, error) {
+	f.pedido = slot
+	fi, ok := f.fichas[slot]
+	if !ok {
+		return personagem.Ficha{}, personagem.ErrNaoEncontrado
+	}
+	fi.Equip = make([]personagem.Item, personagem.MaxEquip)
+	fi.Carry = make([]personagem.Item, personagem.MaxCarry)
+	fi.Cargo = make([]personagem.Item, personagem.MaxCargo)
+	return fi, nil
+}
+
+func (f *fakePersonagensSlot) GravarSlot(context.Context, int64, personagem.Destino, int, personagem.Item) error {
+	return nil
+}
+func (f *fakePersonagensSlot) LimparSlot(context.Context, int64, personagem.Destino, int) error {
+	return nil
+}
+func (f *fakePersonagensSlot) GravarAtributos(context.Context, int64, personagem.Atributos) (personagem.Atributos, error) {
+	return personagem.Atributos{}, nil
+}
+
+// getSignedIn fetches a page carrying the session cookie.
+func getSignedIn(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	c := sessionCookie(postLogin(h, "chefe", testPassword))
+	if c == nil {
+		t.Fatal("login did not set a cookie")
+	}
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.AddCookie(c)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
 }

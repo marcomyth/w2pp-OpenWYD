@@ -35,8 +35,9 @@ const (
 // The mob's Carry is its loot table.
 //
 // UNVERIFIED / deferred: party EXP distribution (the unreliable g_EmptyMob/UNK
-// divisors) and the _MSG_CNFMobKill kill confirmation.
+// divisors).
 func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
+	d.announceMobKill(w, killer, mob)
 	d.kingdomKingKilled(w, mob)
 	reward := killer
 	if killer.Summoner != 0 {
@@ -384,4 +385,37 @@ func addClamp(v, inc, limit int32) int32 {
 		return 0
 	}
 	return int32(sum)
+}
+
+// announceMobKill multicasts _MSG_CNFMobKill around a dying monster: the kill
+// confirmation the original sends on EVERY death path, immediately before
+// DeleteMob (MobKilled.cpp:3129, and the branches at 346/1435/3004/3011).
+//
+// We never sent it, and that is why experience was correct and invisible. The
+// number the client floats in green is not carried by any packet — the original
+// memsets this message and never assigns its Exp field (MobKilled.cpp:324-331),
+// and STRUCT_SCORE has no Exp at all, so the only experience on the wire is the
+// CurrentExp inside the attack reply. That reply was verified byte for byte:
+// right message type, the client's own tick, the right AttackerID, the right
+// value at CurrentExp@12. What was missing was the EVENT that tells the client a
+// kill happened, so it never had a moment at which to draw the gain.
+//
+// HEADER.ID = ESCENE_FIELD, as the original sets on the message (MobKilled.cpp:320).
+func (d *Dispatcher) announceMobKill(w *world.World, killer, mob *world.Entity) {
+	if mob == nil || killer == nil {
+		return
+	}
+	body := protocol.EncodeCNFMobKillBody(uint16(mob.ID), uint16(killer.ID))
+	hdr := protocol.Header{Type: protocol.MsgCNFMobKill, ID: protocol.IDScene}
+	// Around the DYING mob, which is where GridMulticast is centred — everyone who
+	// can see the death, the killer included.
+	if ks := w.Session(killer.ID); ks != nil {
+		w.SendTo(ks, hdr, body)
+	}
+	w.ForEachInView(mob.ID, func(vs *world.Session, _ *world.Entity) {
+		if vs.Conn == killer.ID {
+			return // already told above; ForEachInView excludes only the mob itself
+		}
+		w.SendTo(vs, hdr, body)
+	})
 }

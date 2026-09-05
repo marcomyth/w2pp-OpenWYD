@@ -182,4 +182,27 @@ const (
 	MsgCreateMobTrade Type = 0x0363 // 867  S→C spawn a shop-owner in view (MSG_CreateMobTrade)
 	MsgItemSold       Type = 0x039B // 923  S→C an item left a shop (MSG_STANDARDPARM2, Parm1=seller Parm2=pos)
 	MsgExpPanel       Type = 0x5000 // S→C MSG_Exp_Msg_Panel_ (custom EXP notification panel)
+	// MsgCNFMobKill is _MSG_CNFMobKill (56 | the S↔C flags, Basedef.h:1875): the
+	// kill confirmation the original multicasts around a dying monster on EVERY
+	// death path, right before DeleteMob (MobKilled.cpp:3129 and the branches at
+	// 346/1435/3004/3011).
+	MsgCNFMobKill Type = 0x0338 // 824  S→C MSG_CNFMobKill (a monster died, and to whom)
 )
+
+// MsgCNFMobKillBodySize is the packed body of MSG_CNFMobKill: Hold(4) +
+// KilledMob(2) + Killer(2) + Exp(8).
+const MsgCNFMobKillBodySize = 16
+
+// EncodeCNFMobKillBody builds the kill confirmation (Basedef.h:1876-1884).
+//
+// Exp is deliberately zero: the original memsets the message and never assigns
+// that field (MobKilled.cpp:324-331), so the number the client floats cannot be
+// coming from here — it comes from the CurrentExp the attack reply carries. What
+// this message supplies is the EVENT, which is why sending the experience without
+// it left the value correct and invisible.
+func EncodeCNFMobKillBody(killedMob, killer uint16) []byte {
+	body := make([]byte, MsgCNFMobKillBodySize)
+	binary.LittleEndian.PutUint16(body[4:], killedMob)
+	binary.LittleEndian.PutUint16(body[6:], killer)
+	return body
+}

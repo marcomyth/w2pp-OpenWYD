@@ -147,6 +147,124 @@ func grade(itens []personagem.Item, catalogo map[int32]gamedata.Item, limite int
 	return out
 }
 
+// selecao is the slot the operator picked, carried in the query string.
+//
+// The picking is a plain link, not a click handler, because the panel serves a
+// Content-Security-Policy of default-src 'none' with no script-src: inline
+// JavaScript does not run here at all, and a grid that filled the form from an
+// onclick would look alive locally and be dead in production. Every other screen
+// in this panel is scripts-free for the same reason.
+type selecao struct {
+	Ativa   bool
+	Destino string
+	Slot    int
+	Item    itemView
+	// Busca is what the operator typed to look an item up, and Achados the
+	// matches. Searching is a GET on this same page rather than a live dropdown
+	// for the same reason the grid uses links: no script runs here.
+	Busca   string
+	Achados []itemAchado
+	Demais  int // matches beyond the ones listed
+}
+
+// itemAchado is one catalog hit, with the link that puts it in the form.
+type itemAchado struct {
+	Index int32
+	Nome  string
+	Onde  string // where it equips, for telling apart items with similar names
+	Href  string
+}
+
+// maxAchados caps the result list. The catalog has thousands of entries and this
+// renders inside a side panel: past a couple dozen the list stops being a
+// shortcut and becomes something to scroll through.
+const maxAchados = 25
+
+// selecaoDe reads ?onde=&slot= and resolves it against the loaded character, so
+// the form comes back filled with what is actually in that slot.
+func selecaoDe(r *http.Request, f personagem.Ficha, catalogo map[int32]gamedata.Item) selecao {
+	onde := r.URL.Query().Get("onde")
+	bruto := r.URL.Query().Get("slot")
+	if onde == "" || bruto == "" {
+		return selecao{}
+	}
+	slot, err := strconv.Atoi(bruto)
+	if err != nil {
+		return selecao{}
+	}
+	dest := personagem.Destino(onde)
+	if _, conhecido := destinoValido(dest); !conhecido {
+		return selecao{}
+	}
+	it := itemDoSlot(f, dest, slot)
+	if it.Slot != slot {
+		// itemDoSlot returns the zero value for an out-of-range slot; keep the
+		// slot the operator asked for so the form still targets it.
+		it = personagem.Item{Slot: slot}
+	}
+	// An index in the query wins over what is in the slot: it means the operator
+	// just picked an item from the search and expects to see THAT, not what the
+	// slot still holds.
+	if q := r.URL.Query().Get("indice"); q != "" {
+		if n, err := strconv.Atoi(q); err == nil && n >= 0 && n <= 32767 {
+			it = personagem.Item{Slot: slot, Index: int16(n)}
+		}
+	}
+	linhas := grade([]personagem.Item{it}, catalogo, 0, false)
+	return selecao{Ativa: true, Destino: onde, Slot: slot, Item: linhas[0]}
+}
+
+// buscaItens looks the catalog up by name or index and builds the picker links.
+//
+// The index is matched too, because half the time the operator already knows the
+// number and is only confirming which item it is.
+func (h *Handler) buscaItens(r *http.Request, sel selecao) selecao {
+	sel.Busca = strings.TrimSpace(r.URL.Query().Get("q"))
+	if sel.Busca == "" || h.cfg.GameData == nil {
+		return sel
+	}
+	sess, _ := staffFrom(r.Context())
+	itens, err := h.cfg.GameData.Items(r.Context(), sess.AccountID, sel.Busca)
+	if err != nil {
+		h.cfg.Logger.Error("item search failed", "q", sel.Busca, "err", err)
+		return sel
+	}
+	// Items() matches on name only; an all-digits query is almost certainly an
+	// index, so resolve that too rather than answering "nada encontrado" for a
+	// number that exists.
+	if n, err := strconv.Atoi(sel.Busca); err == nil {
+		if catalogo, e := h.cfg.GameData.ItemLookup(r.Context()); e == nil {
+			if it, ok := catalogo[int32(n)]; ok {
+				itens = append([]gamedata.Item{it}, itens...)
+			}
+		}
+	}
+	for i, it := range itens {
+		if i >= maxAchados {
+			sel.Demais = len(itens) - maxAchados
+			break
+		}
+		sel.Achados = append(sel.Achados, itemAchado{
+			Index: it.Index,
+			Nome:  it.DisplayName,
+			Onde:  strings.Join(it.Slots, ", "),
+			Href: fmt.Sprintf("?onde=%s&slot=%d&indice=%d&q=%s",
+				url.QueryEscape(sel.Destino), sel.Slot, it.Index, url.QueryEscape(sel.Busca)),
+		})
+	}
+	return sel
+}
+
+// destinoValido reports whether dest is a container this package writes to.
+func destinoValido(dest personagem.Destino) (personagem.Destino, bool) {
+	switch dest {
+	case personagem.DestinoEquip, personagem.DestinoCarry, personagem.DestinoCargo:
+		return dest, true
+	default:
+		return "", false
+	}
+}
+
 // editor renders one character's items and attributes.
 func (h *Handler) editor(w http.ResponseWriter, r *http.Request) {
 	nome, auth, ok := h.alvo(w, r)
@@ -160,6 +278,7 @@ func (h *Handler) editor(w http.ResponseWriter, r *http.Request) {
 
 	catalogo := h.catalogo(r)
 	limite := ficha.LimiteCarry()
+	sel := h.buscaItens(r, selecaoDe(r, ficha, catalogo))
 
 	h.render(w, "editor.html", struct {
 		page
@@ -169,6 +288,7 @@ func (h *Handler) editor(w http.ResponseWriter, r *http.Request) {
 		Carry  []itemView
 		Cargo  []itemView
 		Limite int
+		Sel    selecao
 		// Editavel is the condition every form hangs off: the character has left
 		// play, which is the moment its last save committed and the database
 		// became the authority again.
@@ -179,7 +299,7 @@ func (h *Handler) editor(w http.ResponseWriter, r *http.Request) {
 		grade(ficha.Equip, catalogo, 0, false),
 		grade(ficha.Carry, catalogo, limite, true),
 		grade(ficha.Cargo, catalogo, 0, false),
-		limite,
+		limite, sel,
 		!ficha.EmJogo(),
 		r.URL.Query().Get("aviso"),
 	})
@@ -188,20 +308,24 @@ func (h *Handler) editor(w http.ResponseWriter, r *http.Request) {
 // ficha loads the character named in the path and confirms it belongs to the
 // account in the path. The ownership check is not decoration: without it the
 // URL is an editor for any character, reachable by guessing a name.
+// The character is addressed by its SLOT, not its name. Names repeat by design:
+// an Arch and a Celestial carry their Mortal's name (0011_arch_name_tier_unique),
+// so a name in the URL is ambiguous — opening a level-3 Celestial would land on
+// the level-399 Mortal beside it. Slot is unique per account.
 func (h *Handler) ficha(w http.ResponseWriter, r *http.Request, accountID int64) (personagem.Ficha, bool) {
-	char := strings.TrimSpace(r.PathValue("char"))
-	ficha, err := h.cfg.Personagens.Carregar(r.Context(), char)
+	slot, err := strconv.Atoi(strings.TrimSpace(r.PathValue("char")))
+	if err != nil || slot < 0 || slot > 3 {
+		http.NotFound(w, r)
+		return personagem.Ficha{}, false
+	}
+	ficha, err := h.cfg.Personagens.Carregar(r.Context(), accountID, slot)
 	if errors.Is(err, personagem.ErrNaoEncontrado) {
 		http.NotFound(w, r)
 		return personagem.Ficha{}, false
 	}
 	if err != nil {
-		h.cfg.Logger.Error("character load failed", "character", char, "err", err)
+		h.cfg.Logger.Error("character load failed", "account", accountID, "slot", slot, "err", err)
 		http.Error(w, "Erro ao carregar o personagem.", http.StatusInternalServerError)
-		return personagem.Ficha{}, false
-	}
-	if ficha.AccountID != accountID {
-		http.NotFound(w, r)
 		return personagem.Ficha{}, false
 	}
 	return ficha, true
@@ -222,9 +346,9 @@ func (h *Handler) catalogo(r *http.Request) map[int32]gamedata.Item {
 }
 
 // redirectEditor bounces back to the editor with a message.
-func (h *Handler) redirectEditor(w http.ResponseWriter, r *http.Request, conta, char, msg string) {
+func (h *Handler) redirectEditor(w http.ResponseWriter, r *http.Request, conta string, slot int, msg string) {
 	http.Redirect(w, r,
-		"/contas/"+url.PathEscape(conta)+"/personagens/"+url.PathEscape(char)+"?aviso="+url.QueryEscape(msg),
+		fmt.Sprintf("/contas/%s/personagens/%d?aviso=%s", url.PathEscape(conta), slot, url.QueryEscape(msg)),
 		http.StatusSeeOther)
 }
 
@@ -269,7 +393,7 @@ func (h *Handler) setSlot(w http.ResponseWriter, r *http.Request) {
 	// produces an item that exists in the database and cannot be reached in
 	// game, which reads to the player exactly like it was taken.
 	if !remover && dest == personagem.DestinoCarry && !slotAlcancavel(ficha, slot) {
-		h.redirectEditor(w, r, nome, ficha.Nome,
+		h.redirectEditor(w, r, nome, ficha.Slot,
 			"Slot fora da área liberada: este personagem não tem a bolsa que abre essa faixa.")
 		return
 	}
@@ -281,7 +405,7 @@ func (h *Handler) setSlot(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = h.cfg.Personagens.GravarSlot(r.Context(), ficha.ID, dest, slot, novo)
 	}
-	if !h.recusaEditor(w, r, nome, ficha.Nome, err) {
+	if !h.recusaEditor(w, r, nome, ficha.Slot, err) {
 		return
 	}
 
@@ -294,7 +418,7 @@ func (h *Handler) setSlot(w http.ResponseWriter, r *http.Request) {
 		h.auditoriaFalhou(w, err)
 		return
 	}
-	h.redirectEditor(w, r, nome, ficha.Nome, "Slot gravado.")
+	h.redirectEditor(w, r, nome, ficha.Slot, "Slot gravado.")
 }
 
 // itemDoSlot reads the current occupant, for the audit "before".
@@ -322,10 +446,22 @@ func slotAlcancavel(f personagem.Ficha, slot int) bool {
 }
 
 // itemDoForm parses the slot form into an item.
+// An empty index means "leave this slot empty", not a typo. Emptying a slot is
+// the most common edit there is, and refusing it with "índice inválido" — as
+// this did — sends the operator hunting for a number to type when what they
+// wanted was nothing at all. Zero is the same thing: it is how an empty slot is
+// stored.
 func itemDoForm(r *http.Request, slot int) (personagem.Item, error) {
-	indice, err := strconv.Atoi(strings.TrimSpace(r.PostFormValue("indice")))
+	bruto := strings.TrimSpace(r.PostFormValue("indice"))
+	if bruto == "" {
+		return personagem.Item{Slot: slot}, nil
+	}
+	indice, err := strconv.Atoi(bruto)
 	if err != nil || indice < 0 || indice > 32767 {
 		return personagem.Item{}, errors.New("índice de item inválido")
+	}
+	if indice == 0 {
+		return personagem.Item{Slot: slot}, nil
 	}
 	it := personagem.Item{Slot: slot, Index: int16(indice)}
 	pares := []struct {
@@ -405,7 +541,7 @@ func (h *Handler) setAtributos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	antes, err := h.cfg.Personagens.GravarAtributos(r.Context(), ficha.ID, a)
-	if !h.recusaEditor(w, r, nome, ficha.Nome, err) {
+	if !h.recusaEditor(w, r, nome, ficha.Slot, err) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
@@ -417,7 +553,7 @@ func (h *Handler) setAtributos(w http.ResponseWriter, r *http.Request) {
 		h.auditoriaFalhou(w, err)
 		return
 	}
-	h.redirectEditor(w, r, nome, ficha.Nome, "Atributos gravados.")
+	h.redirectEditor(w, r, nome, ficha.Slot, "Atributos gravados.")
 }
 
 // atributosDoForm parses the attribute form.
@@ -469,12 +605,12 @@ func registroAtributos(char string, a personagem.Atributos) map[string]any {
 // This is the path that works for a character in play: nothing live is touched,
 // the row waits in delivery_queue, and the tmServer applies it inside its loop
 // at the next login.
-func (h *Handler) recusaEditor(w http.ResponseWriter, r *http.Request, conta, char string, err error) bool {
+func (h *Handler) recusaEditor(w http.ResponseWriter, r *http.Request, conta string, slot int, err error) bool {
 	switch {
 	case err == nil:
 		return true
 	case errors.Is(err, personagem.ErrEmJogo):
-		h.redirectEditor(w, r, conta, char,
+		h.redirectEditor(w, r, conta, slot,
 			"Personagem em jogo: quem manda no inventário agora é o servidor. "+
 				"Use “conceder ao baú”, ou espere ele sair.")
 	case errors.Is(err, personagem.ErrSlotInvalido):
@@ -482,7 +618,7 @@ func (h *Handler) recusaEditor(w http.ResponseWriter, r *http.Request, conta, ch
 	case errors.Is(err, personagem.ErrNaoEncontrado):
 		http.NotFound(w, r)
 	default:
-		h.cfg.Logger.Error("character write failed", "account", conta, "character", char, "err", err)
+		h.cfg.Logger.Error("character write failed", "account", conta, "slot", slot, "err", err)
 		http.Error(w, "Erro ao gravar.", http.StatusInternalServerError)
 	}
 	return false

@@ -69,6 +69,21 @@ func (h *Handler) monstro(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Which gear slot the form is editing, picked by a plain link — the panel
+	// serves default-src 'none' with no script-src, so nothing here may depend on
+	// JavaScript. -1 means none picked yet.
+	sel := -1
+	if bruto := r.URL.Query().Get("slot"); bruto != "" {
+		if n, err := strconv.Atoi(bruto); err == nil && n >= 0 && n < maxMobEquipSlots {
+			sel = n
+		}
+	}
+	linhas := grade(equip, h.catalogo(r), 0, false)
+	var escolhido itemView
+	if sel >= 0 && sel < len(linhas) {
+		escolhido = linhas[sel]
+	}
+
 	h.render(w, "monstro.html", struct {
 		page
 		Nome       string
@@ -76,10 +91,12 @@ func (h *Handler) monstro(w http.ResponseWriter, r *http.Request) {
 		Overridden bool
 		Grupos     []grupoCampos
 		Equip      []itemView
+		Sel        int
+		Escolhido  itemView
 		Aviso      string
 	}{
 		h.pageFor(r, "monstros"), stat.Name(), stat.DisplayName(), stat.Overridden(),
-		grupos, grade(equip, h.catalogo(r), 0, false), r.URL.Query().Get("aviso"),
+		grupos, linhas, sel, escolhido, r.URL.Query().Get("aviso"),
 	})
 }
 

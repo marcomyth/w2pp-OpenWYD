@@ -11,7 +11,7 @@
   <h1>Donate</h1>
   <p class="sub">Conta <a href="/contas/{{.Conta}}">{{.Conta}}</a></p>
 
-  {{template "abas-conta" (dict "Conta" .Conta "Personagem" "" "Aba" "donate")}}
+  {{template "abas-conta" (dict "Conta" .Conta "Personagem" 0 "TemPersonagem" false "Aba" "donate")}}
 
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
