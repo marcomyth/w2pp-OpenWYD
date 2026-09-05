@@ -482,6 +482,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useFairyDust(w, s, e, src)
 	case isLegacyBuffConsumableVol(vol):
 		d.useLegacyBuffConsumable(w, s, e, src, vol)
+	case vol == volArchCrystal:
+		d.useArchCrystal(w, s, e, src)
 	case vol == volExpChest:
 		d.useExpChest(w, s, e, src)
 	case vol >= volDivine7 && vol <= volDivine30:

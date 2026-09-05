@@ -49,9 +49,11 @@ func playerBaseDamage(e *world.Entity) int32 {
 // the old "base = current − equipment" subtraction produced a NEGATIVE base —
 // defense read ~0 while geared and went negative on unequip (issue #232).
 //
-// CAUTION: if the Arch quest crystals (+30/+20 BaseScore.Ac,
-// _MSG_UseItem.cpp:3412-3421, not ported) are ever implemented, this stops being
-// sufficient and BaseScore.Ac has to become a persisted column.
+// The Arch quest crystals also raise BaseScore.Ac permanently (+30 at stage 2,
+// +20 at stage 4, _MSG_UseItem.cpp:3412-3421). Rather than promote BaseScore.Ac
+// to a stored column for them, the grant is rebuilt here from the persisted
+// stage counter — it is a pure function of how far the quest went, so the
+// derivation stays complete.
 func playerBaseAC(e *world.Entity) int32 {
 	base := baseACArch
 	// ClassMaster == 0 means "never persisted" and is treated as MORTAL, the same
@@ -59,7 +61,21 @@ func playerBaseAC(e *world.Entity) int32 {
 	if e.ClassMaster == classMasterMortal || e.ClassMaster == 0 {
 		base = baseACMortal
 	}
-	return base + max(e.Level-1, 0)
+	return base + max(e.Level-1, 0) + archCrystalAC(e.ArchCristal)
+}
+
+// archCrystalAC is the AC the completed crystal stages are worth. Stage 2 grants
+// +30 and stage 4 grants +20; stages 1 and 3 grant HP/MP instead, which ride the
+// persisted MaxHp/MaxMp and need no reconstruction.
+func archCrystalAC(stage uint8) int32 {
+	var ac int32
+	if stage >= archCrystalStageAC30 {
+		ac += 30
+	}
+	if stage >= archCrystalStageAll {
+		ac += 20
+	}
+	return ac
 }
 
 type weaponCoef struct {
