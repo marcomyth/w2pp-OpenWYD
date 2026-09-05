@@ -298,3 +298,12 @@ func TestWaterClassGate(t *testing.T) {
 		})
 	}
 }
+
+// TestWaterRoomMobCapIsUniform guards the one-cap rule. The shipped blocks
+// disagree (MaxNumMob 8, 24 and 38 across the M chain), which is what made a
+// run's difficulty depend on which room you opened.
+func TestWaterRoomMobCapIsUniform(t *testing.T) {
+	if waterRoomMobCap != 20 {
+		t.Errorf("waterRoomMobCap = %d, want 20", waterRoomMobCap)
+	}
+}

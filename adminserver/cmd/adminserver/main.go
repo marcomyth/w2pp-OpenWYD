@@ -39,6 +39,7 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/entrega"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/panel"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
@@ -119,6 +120,10 @@ func run(logger *slog.Logger) error {
 	// platform; only the token and the game service's id have to be set by hand.
 	var plat panel.Platform
 	platCfg := plataforma.Config{
+		// Prefer RAILWAY_PROJECT_TOKEN: it reaches this project only, while an
+		// account token reaches every project its owner has — and this value
+		// lives in the environment of a service published on the internet.
+		ProjectToken:  os.Getenv("RAILWAY_PROJECT_TOKEN"),
 		Token:         os.Getenv("RAILWAY_API_TOKEN"),
 		ProjectID:     os.Getenv("RAILWAY_PROJECT_ID"),
 		EnvironmentID: os.Getenv("RAILWAY_ENVIRONMENT_ID"),
@@ -137,6 +142,7 @@ func run(logger *slog.Logger) error {
 		Accounts:   store.New(pool),
 		GameData:   game,
 		Writer:     accounts.New(pool),
+		Entregas:   entrega.New(pool),
 		Audit:      audit.New(pool),
 		Sessions:   session.New(*sessionTTL),
 		Logger:     logger,

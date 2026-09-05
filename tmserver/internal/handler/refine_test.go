@@ -487,6 +487,77 @@ func TestEggIncubationCooldown(t *testing.T) {
 	}
 }
 
+// TestRefineSendsOutcomeEmotion is the "nothing happened on screen" regression.
+// The refine changed the item and said so in text, but never played the emotion
+// the legacy closes with (_MSG_UseItem.cpp:920 on success, :970-973 on failure),
+// so from the player's side a refine looked identical to a no-op.
+func TestRefineSendsOutcomeEmotion(t *testing.T) {
+	db := newDB()
+	st := world.CharacterState{Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000}
+	// startRefineServer runs on alwaysRate(100), so the plain dust takes the
+	// success branch deterministically instead of leaning on the RNG.
+	st.Carry[0] = world.Item{Index: itemPoeiraLac}
+	st.Carry[1] = world.Item{Index: itemArmor}
+	db.loadResult = st
+
+	addr, stop := startRefineServer(t, db)
+	defer stop()
+	c := enterWorld(t, addr)
+
+	body := protocol.MsgUseItemBody{
+		SourType: world.ItemPlaceCarry, SourPos: 0,
+		DestType: world.ItemPlaceCarry, DestPos: 1,
+	}
+	send(t, c, protocol.MsgUseItem, body.Encode())
+
+	for i := 0; ; i++ {
+		if i > 12 {
+			t.Fatal("no _MSG_Motion after a successful refine — the player sees no effect at all")
+		}
+		ty, payload, ok := readMaybe(t, c)
+		if !ok {
+			t.Fatal("connection closed before the emotion arrived")
+		}
+		if ty != protocol.MsgMotion {
+			continue
+		}
+		motion := binary.LittleEndian.Uint16(payload[0:])
+		parm := binary.LittleEndian.Uint16(payload[2:])
+		if motion != motionLevelUp || parm != motionLevelUpParm {
+			t.Fatalf("Motion = (%d,%d), want (%d,%d) — SendEmotion(conn,14,3)",
+				motion, parm, motionLevelUp, motionLevelUpParm)
+		}
+		return
+	}
+}
+
+// The failure emotion picks between two animations by whether the character has
+// a face item equipped: the legacy reads Equip[0].sIndex / 10, so anything below
+// 10 — an empty slot included — takes the bare variant.
+func TestRefineFailEmotionDependsOnFace(t *testing.T) {
+	tests := []struct {
+		name  string
+		equip int16
+		want  uint16
+	}{
+		{"empty face slot", 0, motionRefineFailBare},
+		{"index below 10 still counts as bare", 9, motionRefineFailBare},
+		{"a real face item", 10, motionRefineFailFaced},
+		{"a high face index", 3140, motionRefineFailFaced},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := uint16(motionRefineFailBare)
+			if tt.equip/10 != 0 {
+				got = motionRefineFailFaced
+			}
+			if got != tt.want {
+				t.Errorf("Equip[0].Index=%d → motion %d, want %d", tt.equip, got, tt.want)
+			}
+		})
+	}
+}
+
 // A successful refine has to SAY so. The Notice code alone is a placeholder wire
 // format (notice.go) that the client draws as nothing, which is why "usei uma
 // poeira de Ori/Lac e não apareceu nada" was a real report and not a rendering

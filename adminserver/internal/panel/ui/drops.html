@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Drops — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  .busca-dupla { display: flex; gap: 10px; margin-bottom: 24px; flex-wrap: wrap; }
+  .busca-dupla input {
+    flex: 1; min-width: 180px; padding: 8px 11px; font: inherit; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 3px;
+  }
+  .busca-dupla input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .item-drop { margin-bottom: 30px; }
+  .item-drop h2 {
+    font-size: 15px; margin: 0 0 4px; letter-spacing: -0.005em; color: var(--ink);
+  }
+  .item-drop .idx {
+    font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; color: var(--ink-3);
+    margin: 0 0 10px;
+  }
+  td.pct { font-variant-numeric: tabular-nums; text-align: right; padding-right: 22px; color: var(--ink); }
+  th.pct { text-align: right; padding-right: 22px; }
+  .sempre {
+    font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--accent); background: var(--chip-bg); padding: 2px 6px; border-radius: 3px;
+    white-space: nowrap;
+  }
+  .nota {
+    background: var(--surface); border: 1px solid var(--rule); border-left: 3px solid var(--accent);
+    border-radius: 3px; padding: 11px 15px; margin-bottom: 26px; font-size: 14px; color: var(--ink);
+  }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Drops</h1>
+  <p class="sub">
+    O que cada monstro derruba, em qual slot, e a chance por morte. Só leitura —
+    a tabela de drop mora no arquivo do monstro, não é configuração do painel.
+  </p>
+
+  <div class="nota">
+    A chance depende do <strong>nível do monstro</strong>, não só do slot: o mesmo
+    slot cai muito mais fácil em monstro fraco. Os quatro slots do meio são
+    exceção fixa, e o <strong>slot 11 sempre cai</strong>. Os números abaixo já
+    consideram tudo isso, para um jogador sem bônus de drop.
+  </div>
+
+  <form class="busca-dupla" method="get" action="/drops">
+    <input name="item" value="{{.Item}}" placeholder="Nome ou índice do item"
+           autocapitalize="off" spellcheck="false" autofocus>
+    <input name="mob" value="{{.Mob}}" placeholder="Nome do monstro"
+           autocapitalize="off" spellcheck="false">
+    <button type="submit">Buscar</button>
+  </form>
+
+  {{if not .Pediu}}
+    <div class="vazio">
+      Busque por um item, por um monstro, ou pelos dois. Sem filtro a lista
+      cruzaria o catálogo inteiro com todos os monstros.
+    </div>
+  {{else if .Itens}}
+    {{range .Itens}}
+      <div class="item-drop">
+        <h2>{{if .ItemName}}{{.ItemName}}{{else}}Item {{.ItemIndex}}{{end}}</h2>
+        <p class="idx">índice {{.ItemIndex}}</p>
+        {{if .Mobs}}
+        <div class="tw">
+          <table>
+            <thead>
+              <tr>
+                <th>Monstro</th>
+                <th class="num">Nível</th>
+                <th class="num">Slot</th>
+                <th class="pct">Chance por morte</th>
+                <th class="pct">Mortes até cair</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{range .Mobs}}
+              <tr>
+                <td>{{if .MobName}}{{.MobName}}{{else}}{{.TemplateName}}{{end}}</td>
+                <td class="num">{{.MobLevel}}</td>
+                <td class="num">{{.Slot}}</td>
+                <td class="pct">
+                  {{if .Garantido}}<span class="sempre">sempre cai</span>{{else}}{{.Porcentagem}}{{end}}
+                </td>
+                <td class="pct">{{if .Garantido}}1{{else}}{{.Mortes}}{{end}}</td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+        {{else}}
+          <div class="vazio">Nenhum monstro derruba este item.</div>
+        {{end}}
+      </div>
+    {{end}}
+    {{if .Truncado}}
+      <p class="sub" style="margin-top:18px">
+        Mostrando os primeiros {{.Limite}} itens. Refine a busca para ver o resto.
+      </p>
+    {{end}}
+  {{else}}
+    <div class="vazio">Nenhum drop bate com essa busca.</div>
+  {{end}}
+</main>
+</body>
+</html>

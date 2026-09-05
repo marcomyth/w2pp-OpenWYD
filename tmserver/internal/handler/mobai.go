@@ -415,10 +415,19 @@ func (d *Dispatcher) revealSpawned(w *world.World, ids []int) int {
 		}
 		body := protocol.EncodeCreateMobBody(createMobFrom(mob, 0))
 		w.ForEachInView(id, func(vs *world.Session, _ *world.Entity) {
-			if w.MarkSeen(vs, id) {
-				w.SendTo(vs, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, body)
-				sent++
+			if !w.MarkSeen(vs, id) {
+				return
 			}
+			// Evict any stale entity under this id first. Mob ids are recycled
+			// slots, and DespawnMob only tells players who were IN VIEW of the
+			// death — a party that had already moved on never hears about it and
+			// keeps drawing the old creature. The server forgets (clearSeenAll)
+			// while the client remembers, so a recycled id came back wearing the
+			// previous occupant's model: Imps with a Troll Ghoul's axe.
+			w.SendTo(vs, protocol.Header{Type: protocol.MsgRemoveMob, ID: uint16(id)},
+				protocol.EncodeRemoveMobBody(0))
+			w.SendTo(vs, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, body)
+			sent++
 		})
 	}
 	return sent

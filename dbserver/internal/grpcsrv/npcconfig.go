@@ -18,6 +18,7 @@ type NpcConfigStore interface {
 	ListNPCDefinitions(ctx context.Context) ([]domain.NPCDefinition, error)
 	ItemPriceOverrides(ctx context.Context) ([]domain.ItemPriceOverride, error)
 	ListMobTemplateStats(ctx context.Context) ([]domain.MobTemplateStat, error)
+	ListItemStats(ctx context.Context) ([]domain.ItemStat, error)
 }
 
 // NpcConfigServer implements dbv1.NpcConfigServiceServer. It is the read-only
@@ -139,6 +140,75 @@ func mobTemplateStatsToProto(stats []domain.MobTemplateStat) []*dbv1.MobTemplate
 			Resist1: int32(st.Resist[0]), Resist2: int32(st.Resist[1]),
 			Resist3: int32(st.Resist[2]), Resist4: int32(st.Resist[3]),
 			Equip: equip,
+		})
+	}
+	return out
+}
+
+// ListItemStats returns every moderator-edited item base stat override
+// (0023_item_stats), the item-side sibling of ListMobTemplateStats. No version
+// field for the same reason: tmServer applies these once at boot, because they
+// feed the equip score model and a live swap would leave two players wearing
+// the same item with different stats.
+func (s *NpcConfigServer) ListItemStats(ctx context.Context, _ *dbv1.ListItemStatsRequest) (*dbv1.ListItemStatsResponse, error) {
+	stats, err := s.store.ListItemStats(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list item stats: %v", err)
+	}
+	return &dbv1.ListItemStatsResponse{Overrides: itemStatsToProto(stats)}, nil
+}
+
+// itemStatsToProto widens each int16 to the wire's int32. proto3 has no 16-bit
+// scalar, so the narrowing lives in the tmServer client instead; nothing here
+// can overflow, since every source value already fits in int16.
+func itemStatsToProto(stats []domain.ItemStat) []*dbv1.ItemStat {
+	out := make([]*dbv1.ItemStat, 0, len(stats))
+	for _, st := range stats {
+		out = append(out, &dbv1.ItemStat{
+			ItemIndex:  st.ItemIndex,
+			ReqLevel:   int32(st.ReqLevel),
+			ReqStr:     int32(st.ReqStr),
+			ReqInt:     int32(st.ReqInt),
+			ReqDex:     int32(st.ReqDex),
+			ReqCon:     int32(st.ReqCon),
+			Damage:     int32(st.Damage),
+			Damageadd:  int32(st.DamageAdd),
+			Ac:         int32(st.AC),
+			Acadd:      int32(st.ACAdd),
+			Magic:      int32(st.Magic),
+			Magicadd:   int32(st.MagicAdd),
+			Critical:   int32(st.Critical),
+			Critical2:  int32(st.Critical2),
+			Runspeed:   int32(st.RunSpeed),
+			Str:        int32(st.Str),
+			Intel:      int32(st.Int),
+			Dex:        int32(st.Dex),
+			Con:        int32(st.Con),
+			Hp:         int32(st.Hp),
+			Hpadd:      int32(st.HpAdd),
+			Hpadd2:     int32(st.HpAdd2),
+			Mp:         int32(st.Mp),
+			Mpadd:      int32(st.MpAdd),
+			Mpadd2:     int32(st.MpAdd2),
+			Resist1:    int32(st.Resist1),
+			Resist2:    int32(st.Resist2),
+			Resist3:    int32(st.Resist3),
+			Resist4:    int32(st.Resist4),
+			Resistall:  int32(st.ResistAll),
+			Special1:   int32(st.Special1),
+			Special2:   int32(st.Special2),
+			Special3:   int32(st.Special3),
+			Special4:   int32(st.Special4),
+			Specialall: int32(st.SpecialAll),
+			Itemlevel:  int32(st.ItemLevel),
+			Itemtype:   int32(st.ItemType),
+			Mobtype:    int32(st.MobType),
+			Wtype:      int32(st.WType),
+			Pos:        int32(st.Pos),
+			Sanc:       int32(st.Sanc),
+			Nosanc:     int32(st.NoSanc),
+			Incubate:   int32(st.Incubate),
+			Incudelay:  int32(st.IncuDelay),
 		})
 	}
 	return out
