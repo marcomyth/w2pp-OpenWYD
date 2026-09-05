@@ -257,9 +257,21 @@ func (d *Dispatcher) kingQuest(w *world.World, s *world.Session, e, npc *world.E
 	// Stone fusion, otherwise the Mortal→Arch rebirth. The stones come first,
 	// exactly as the legacy orders them — an Arch candidate holding all four
 	// wanted the fusion.
-	if confirm != 0 &&
-		e.Equip[idealStoneEquipSlot].Index == idealStoneItem &&
-		e.Equip[sephirotEquipSlot].Index >= archSephirotMin && e.Equip[sephirotEquipSlot].Index <= archSephirotMax {
+	stone := e.Equip[idealStoneEquipSlot].Index
+	sephirot := e.Equip[sephirotEquipSlot].Index
+	eligible := confirm != 0 && stone == idealStoneItem &&
+		sephirot >= archSephirotMin && sephirot <= archSephirotMax
+	// Every refusal here is invisible to the player — the King simply falls
+	// through to the cape service and quotes a sapphire price, which reads as
+	// "nothing happened". Log what the transformation checks actually saw, so a
+	// report of "I clicked and nothing occurred" has an answer.
+	secretSlots, hasSecrets := findSecretStones(e)
+	d.log.Info("king quest",
+		"conn", s.Conn, "account", s.AccountName,
+		"confirm", confirm, "classmaster", e.ClassMaster, "level", e.Level,
+		"equip10", stone, "equip11", sephirot,
+		"eligible", eligible, "secret_stones", hasSecrets, "secret_slots", secretSlots)
+	if eligible {
 		if d.kingIdealStone(w, s, e) {
 			return
 		}
