@@ -482,6 +482,14 @@ func TestKillGrantsExpOverWire(t *testing.T) {
 	defer c.Close()
 
 	skillAttackFrame(t, c, serverTime, world.MaxUser, -1, -2) // plain melee
+	drainRaw(t, c)                                            // the killing blow's echo carries the PRE-kill total
+
+	// The reward rides out on the NEXT swing, not the killing one: the original
+	// reads the attacker's Exp before MobKilled runs (_MSG_Attack.cpp:1743-1750),
+	// so the killing blow's own frame still reports the total from before it. This
+	// test is about the FORMULA — that a freshly loaded character takes the mortal
+	// path — so it reads the value off the following echo.
+	skillAttackFrame(t, c, serverTime+attackCadence, world.MaxUser, -1, -2)
 
 	for i := 0; i < 10; i++ {
 		ty, payload, ok := readMaybe(t, c)
