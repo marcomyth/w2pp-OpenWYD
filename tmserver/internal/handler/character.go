@@ -22,6 +22,44 @@ func dropExpired(items []world.Item, now int64) {
 	}
 }
 
+// countStacksMissingAmount reports how many stackables are stored without an
+// explicit EF_AMOUNT — the shape that crashes the client on arrival.
+//
+// The server reads a missing EF_AMOUNT as "one" (itemAmount), so such an item
+// works perfectly on this side and is invisible to every server-side check. The
+// CLIENT does not agree: a Caixa da Sabedoria in a bag with no amount effect —
+// "3:4117" beside "0:401(61/117)" in the login log — killed the client the
+// moment the login blob arrived, and kept killing it on every retry, leaving the
+// character unplayable.
+//
+// Counting rather than repairing is deliberate. The legacy never mints one
+// (BASE_SetItemAmount runs wherever a stackable is created), so an item in this
+// state means some path here skipped it, and the log is how that path gets
+// found. Repairing in place would hide it — and worse, setItemAmount claims the
+// first free effect slot while the combine recipes match on effect position, so
+// the repair could silently change what an item combines into.
+func countStacksMissingAmount(items []world.Item) int {
+	n := 0
+	for _, it := range items {
+		if it.Index != 0 && isSplittable(it.Index) && !hasAmountEffect(it) {
+			n++
+		}
+	}
+	return n
+}
+
+// hasAmountEffect reports whether the item carries an explicit EF_AMOUNT slot.
+// itemAmount cannot answer this: it returns 1 both for "one of them" and for
+// "nobody ever wrote an amount", and the difference is what breaks the client.
+func hasAmountEffect(it world.Item) bool {
+	for _, ef := range it.Effects {
+		if ef.Effect == efAmount {
+			return true
+		}
+	}
+	return false
+}
+
 // createCharacter handles _MSG_CreateCharacter (0x020F),
 // handlers/_MSG_CreateCharacter.md. Requires USER_SELCHAR and a valid name, then
 // relays creation to the dbServer.
@@ -196,6 +234,16 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 	now := time.Now().Unix()
 	dropExpired(st.Equip[:], now)
 	dropExpired(st.Carry[:], now)
+	// A stackable with no EF_AMOUNT crashes the client, but it is NOT repaired
+	// here: setItemAmount claims the first free effect slot, and the combine
+	// recipes match on effect POSITION, so rewriting stored items to please the
+	// client would quietly change what they combine into. The amount is added at
+	// the serialization boundary instead (itemToSel), where it reaches the client
+	// without touching the item the server reasons about.
+	if n := countStacksMissingAmount(st.Carry[:]) + countStacksMissingAmount(st.Equip[:]); n > 0 {
+		d.log.Warn("stackable items stored with no EF_AMOUNT (sent as 1)",
+			"conn", s.Conn, "account", s.AccountName, "slot", s.Slot, "items", n)
+	}
 	// Seed the starter gear for characters that have none yet (newly created, or
 	// created before seeding existed). This restores the class look (the body item
 	// in equip slot 0 is what gives a TK/FM/BM/HT its appearance), hands out the
