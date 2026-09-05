@@ -1466,13 +1466,37 @@ const celestialArchLevelReq = 355
 // the in-game tooltip instructs "clique na pedra com o botão direito do mouse" and only
 // applies once the character is already Arch (the caller in useItem gates on that).
 func (d *Dispatcher) useIdealStone(w *world.World, s *world.Session, e *world.Entity, src int) {
+	// Every refusal below used to be silent: notify() sends a numeric code whose
+	// wire format is still a placeholder, so the client showed nothing and the
+	// stone simply came back. The player is now told which requirement failed,
+	// and the log records the values the checks read.
 	if e.ClassMaster != classMasterArch || e.Level < celestialArchLevelReq || e.MortalLevel < 99 {
+		d.log.Info("ideal stone refused",
+			"conn", s.Conn, "account", s.AccountName,
+			"classmaster", e.ClassMaster, "level", e.Level, "mortal_level", e.MortalLevel,
+			"equip1", e.Equip[1].Index)
 		d.notify(w, s, NoticeReqNotMet)
+		switch {
+		case e.ClassMaster != classMasterArch:
+			sendClientMessage(w, s, msgIdealStoneArchOnly)
+		case e.Level < celestialArchLevelReq:
+			sendClientMessage(w, s, msgIdealStoneLevel)
+		default:
+			// MortalLevel is QuestInfo.Arch.MortalLevel: the level the character
+			// had as a Mortal when it became an Arch. A character that reached
+			// Arch some other way carries zero here and can never pass.
+			sendClientMessage(w, s, msgIdealStoneMortalLevel)
+		}
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}
+	// Equip[1] is the armor slot. The legacy names this refusal explicitly
+	// (_NN_Cant_with_armor, _MSG_UseItem.cpp:3016-3019) — it is the one a player
+	// hits in practice, and it is fixed by simply taking the armor off.
 	if !e.Equip[1].Empty() {
-		d.notify(w, s, NoticeOnlyToEquips)
+		d.log.Info("ideal stone refused: armor equipped",
+			"conn", s.Conn, "account", s.AccountName, "equip1", e.Equip[1].Index)
+		sendClientMessage(w, s, msgCantWithArmor)
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}

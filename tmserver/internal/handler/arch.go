@@ -230,3 +230,14 @@ func applyQuestReset(e *world.Entity, arg string) (cleared string, ok bool) {
 		return "", false
 	}
 }
+
+// The Pedra Ideal refusals. Only the first is a legacy string
+// (_NN_Cant_with_armor, Language.txt:205); the others explain requirements the
+// original enforces silently, which is what made a declined transformation
+// indistinguishable from a broken one.
+const (
+	msgCantWithArmor         = "No momento voce nao pode equipar arma e armadura."
+	msgIdealStoneArchOnly    = "Somente um Arch pode renascer como Celestial."
+	msgIdealStoneLevel       = "E preciso ser nivel 355 ou mais para renascer como Celestial."
+	msgIdealStoneMortalLevel = "Este personagem nao registrou o nivel de Mortal exigido (99) para renascer."
+)

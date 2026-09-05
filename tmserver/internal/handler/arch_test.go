@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"testing"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
@@ -265,4 +266,27 @@ func hasEffect(it *world.Item, eff, val uint8) bool {
 		}
 	}
 	return false
+}
+
+// Every Pedra Ideal refusal must reach the player as text. They were silent
+// before — notify() carries a numeric code the client does not render yet — so a
+// declined transformation looked exactly like a broken one.
+func TestIdealStoneRefusalsAreExplained(t *testing.T) {
+	for _, msg := range []string{
+		msgCantWithArmor, msgIdealStoneArchOnly,
+		msgIdealStoneLevel, msgIdealStoneMortalLevel,
+	} {
+		if msg == "" {
+			t.Fatal("a refusal message is empty")
+		}
+		// The client reads single-byte Windows-1252; a UTF-8 accent would arrive
+		// as mojibake, so these literals stay accent-free.
+		if got := protocol.ClientText(msg); len(got) != len(msg) {
+			t.Errorf("%q changes length when encoded (%d → %d): it carries characters outside the client's codepage",
+				msg, len(msg), len(got))
+		}
+		if len(msg)+1 > protocol.MessageLength {
+			t.Errorf("%q is %d bytes, over the %d the client reads", msg, len(msg)+1, protocol.MessageLength)
+		}
+	}
 }

@@ -38,6 +38,9 @@ linters:
         # the Pedra Ideal. misspell reads it as a typo for "secrets"; the item
         # names are cited verbatim from the shipped catalog.
         - secretas
+        # Portuguese for "moment", inside a refusal copied verbatim from
+        # Language.txt. misspell reads it as a typo for "memento".
+        - momento
   exclusions:
     generated: lax
     presets:
