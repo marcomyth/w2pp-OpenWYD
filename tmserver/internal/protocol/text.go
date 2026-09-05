@@ -143,3 +143,16 @@ func EncodeMessageBoxBody(text string) []byte {
 	copy(body[messageBoxHeaderPad:], encoded)
 	return body
 }
+
+// EncodeChatBody builds a MSG_MessageChat body: char String[MESSAGE_LENGTH]
+// (Basedef.h:1789). This is what an NPC speaking rides on — SendSay puts the
+// NPC's id in HEADER.ID and the line here.
+func EncodeChatBody(text string) []byte {
+	body := make([]byte, MessageLength)
+	encoded := ClientText(text)
+	if len(encoded) > MessageLength-1 {
+		encoded = encoded[:MessageLength-1] // leave the terminating NUL
+	}
+	copy(body, encoded)
+	return body
+}

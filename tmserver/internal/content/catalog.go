@@ -265,3 +265,16 @@ func (l *ItemList) Durations() map[int]int {
 	}
 	return out
 }
+
+// Names maps item index to its catalog name. The legacy interpolates these into
+// NPC dialogue (_SN_BRINGITEM, "Voce deve trazer o item %s"), which is the only
+// place a player is told WHICH item a quest wants.
+func (l *ItemList) Names() map[int]string {
+	out := make(map[int]string, len(l.items))
+	for idx, e := range l.items {
+		if e.Name != "" {
+			out[idx] = e.Name
+		}
+	}
+	return out
+}

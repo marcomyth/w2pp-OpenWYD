@@ -384,11 +384,20 @@ func TestJardineiroRejectsInvalidRequirements(t *testing.T) {
 			defer c.Close()
 
 			questFrame(t, c, npcID)
-			if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticeReqNotMet {
-				t.Fatalf("notice = %d, want NoticeReqNotMet", code)
+			// The NPC answers out loud (SendSay): MSG_MessageChat carrying the
+			// NPC's id, which is what labels the line with its name.
+			h, p, ok := expectHeader(t, c, protocol.MsgMessageChat)
+			if !ok {
+				t.Fatal("rejected Jardineiro interaction said nothing")
+			}
+			if h.ID != uint16(npcID) {
+				t.Errorf("HEADER.ID = %d, want the NPC id %d", h.ID, npcID)
+			}
+			if got := cstr(p); got == "" {
+				t.Error("NPC refusal carried no text")
 			}
 			if ty, _, ok := readMaybe(t, c); ok {
-				t.Fatalf("rejected Jardineiro interaction produced %#x after notice", ty)
+				t.Fatalf("rejected Jardineiro interaction produced %#x after the refusal", ty)
 			}
 		})
 	}
@@ -462,11 +471,18 @@ func TestCoveiroRejectsInvalidRequirements(t *testing.T) {
 			defer c.Close()
 
 			questFrame(t, c, npcID)
-			if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticeReqNotMet {
-				t.Fatalf("notice = %d, want NoticeReqNotMet", code)
+			h, p, ok := expectHeader(t, c, protocol.MsgMessageChat)
+			if !ok {
+				t.Fatal("rejected Coveiro interaction said nothing")
+			}
+			if h.ID != uint16(npcID) {
+				t.Errorf("HEADER.ID = %d, want the NPC id %d", h.ID, npcID)
+			}
+			if got := cstr(p); got == "" {
+				t.Error("NPC refusal carried no text")
 			}
 			if ty, _, ok := readMaybe(t, c); ok {
-				t.Fatalf("rejected Coveiro interaction produced %#x after notice", ty)
+				t.Fatalf("rejected Coveiro interaction produced %#x after the refusal", ty)
 			}
 		})
 	}
@@ -1342,8 +1358,10 @@ func TestGuardaRejectsInvalidRequirements(t *testing.T) {
 			defer c.Close()
 
 			questFrame(t, c, npcID)
-			if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticeReqNotMet {
-				t.Fatalf("notice = %d, want NoticeReqNotMet", code)
+			// The refusal is the NPC speaking (SendSay): MSG_MessageChat with the
+			// NPC's id, not a silent notice.
+			if h, p, ok := expectHeader(t, c, protocol.MsgMessageChat); !ok || h.ID != uint16(npcID) || cstr(p) == "" {
+				t.Fatalf("NPC refusal: ok=%v id=%d (want %d) text=%q", ok, h.ID, npcID, cstr(p))
 			}
 			if ty, _, ok := readMaybe(t, c); ok {
 				t.Fatalf("rejected Guarda interaction produced %#x after notice", ty)
@@ -1424,8 +1442,10 @@ func TestPatrulhaKaizenRejectsInvalidRequirements(t *testing.T) {
 			defer c.Close()
 
 			questFrame(t, c, npcID)
-			if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticeReqNotMet {
-				t.Fatalf("notice = %d, want NoticeReqNotMet", code)
+			// The refusal is the NPC speaking (SendSay): MSG_MessageChat with the
+			// NPC's id, not a silent notice.
+			if h, p, ok := expectHeader(t, c, protocol.MsgMessageChat); !ok || h.ID != uint16(npcID) || cstr(p) == "" {
+				t.Fatalf("NPC refusal: ok=%v id=%d (want %d) text=%q", ok, h.ID, npcID, cstr(p))
 			}
 			if ty, _, ok := readMaybe(t, c); ok {
 				t.Fatalf("rejected Kaizen interaction produced %#x after notice", ty)
@@ -1503,8 +1523,10 @@ func TestPatrulhaHidraRejectsInvalidRequirements(t *testing.T) {
 			defer c.Close()
 
 			questFrame(t, c, npcID)
-			if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticeReqNotMet {
-				t.Fatalf("notice = %d, want NoticeReqNotMet", code)
+			// The refusal is the NPC speaking (SendSay): MSG_MessageChat with the
+			// NPC's id, not a silent notice.
+			if h, p, ok := expectHeader(t, c, protocol.MsgMessageChat); !ok || h.ID != uint16(npcID) || cstr(p) == "" {
+				t.Fatalf("NPC refusal: ok=%v id=%d (want %d) text=%q", ok, h.ID, npcID, cstr(p))
 			}
 			if ty, _, ok := readMaybe(t, c); ok {
 				t.Fatalf("rejected Hidra interaction produced %#x after notice", ty)

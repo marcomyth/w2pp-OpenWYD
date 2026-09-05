@@ -159,33 +159,33 @@ func (d *Dispatcher) quest(w *world.World, s *world.Session, _ protocol.Header, 
 	// Grade is also 0 for Merchant-100 templates without EF_GRADE0; routing those
 	// here matches BASE_GetItemAbilityNosanc in the legacy server.
 	if npc.Merchant == 100 && npc.Grade == 0 {
-		d.quest256NPC(w, s, e, quest256Steps[0], itemVelaDoCoveiro)
+		d.quest256NPC(w, s, e, npc, quest256Steps[0], itemVelaDoCoveiro)
 		return
 	}
 	// QUEST_JARDINEIRO (Merchant 100, EF_GRADE0 1): second Quest 256 arena.
 	if npc.Merchant == 100 && npc.Grade == 1 {
-		d.quest256NPC(w, s, e, quest256Steps[1], itemColheitaDoJardineiro)
+		d.quest256NPC(w, s, e, npc, quest256Steps[1], itemColheitaDoJardineiro)
 		return
 	}
 	// QUEST_KAIZEN (Merchant 100, EF_GRADE0 2): third Quest 256 arena, the
 	// "Ressureicao do Cavaleiro Negro" quest (_MSG_Quest.cpp:382). The Patrulha of
 	// the Dungeon Negro asks for the Cura do Batedor.
 	if npc.Merchant == 100 && npc.Grade == 2 {
-		d.quest256NPC(w, s, e, quest256Steps[2], itemCuraDoBatedor)
+		d.quest256NPC(w, s, e, npc, quest256Steps[2], itemCuraDoBatedor)
 		return
 	}
 	// QUEST_HIDRA (Merchant 100, EF_GRADE0 3): fourth Quest 256 arena, the
 	// "Hidra Imortal" quest (_MSG_Quest.cpp:426). Same Patrulha NPC name as the
 	// Kaizen step, one tier up: it asks for the Mana do Batedor.
 	if npc.Merchant == 100 && npc.Grade == 3 {
-		d.quest256NPC(w, s, e, quest256Steps[3], itemManaDoBatedor)
+		d.quest256NPC(w, s, e, npc, quest256Steps[3], itemManaDoBatedor)
 		return
 	}
 	// QUEST_ELFOS (Merchant 100, EF_GRADE0 4): fifth and last Quest 256 arena, the
 	// "Inicio da Infelicidade" quest (_MSG_Quest.cpp:470). The Guarda of the
 	// Submundo asks for the Emblema do Guarda.
 	if npc.Merchant == 100 && npc.Grade == 4 {
-		d.quest256NPC(w, s, e, quest256Steps[4], itemEmblemaDoGuarda)
+		d.quest256NPC(w, s, e, npc, quest256Steps[4], itemEmblemaDoGuarda)
 		return
 	}
 	// QUEST_CAPAREAL (Merchant 100, EF_GRADE0 13): Royal Cape quest entry.
@@ -885,16 +885,17 @@ const (
 // quest256NPC handles the item hand-in performed by the five legacy Quest 256
 // NPC cases (_MSG_Quest.cpp:293/338/382/426/470). Keeping the step and ticket
 // explicit avoids accidentally enabling unfinished quest NPC routes.
-func (d *Dispatcher) quest256NPC(w *world.World, s *world.Session, e *world.Entity, step quest256Step, ticket int16) {
-	// Legacy answers each rejection with SendSay on the NPC; this fork uses the
-	// same NoticeReqNotMet message box as the other quest NPCs (perzenExchange,
-	// capaverdeTeleport, molarGargula, useQuest256Ticket).
+func (d *Dispatcher) quest256NPC(w *world.World, s *world.Session, e *world.Entity, npc *world.Entity, step quest256Step, ticket int16) {
+	// Every refusal is the NPC talking (SendSay, _MSG_Quest.cpp:296/305/325). It
+	// used to be a NoticeReqNotMet instead — a notice with no text on a path where
+	// the legacy is silent too, so clicking a quest NPC you did not qualify for
+	// was indistinguishable from clicking scenery.
 	if e.ClassMaster != classMasterMortal && e.ClassMaster != classMasterArch {
-		d.notify(w, s, NoticeReqNotMet) // _NN_Level_Limit2
+		d.say(w, npc, "_NN_Level_Limit2", "Seu nível não permite o uso disto.") // 340
 		return
 	}
 	if e.Level < step.minLevel || e.Level >= step.maxLevel {
-		d.notify(w, s, NoticeReqNotMet) // _NN_Level_limit
+		d.say(w, npc, "_NN_Level_limit", "Nível Insuficiente. Isto não pode ser utilizado.") // 298
 		return
 	}
 
@@ -906,7 +907,10 @@ func (d *Dispatcher) quest256NPC(w *world.World, s *world.Session, e *world.Enti
 		}
 	}
 	if slot < 0 {
-		d.notify(w, s, NoticeReqNotMet) // _SN_BRINGITEM
+		// _SN_BRINGITEM (519) names the item, so it is built here rather than in
+		// say(): the shipped line is "Você deve trazer o item %s." and the whole
+		// point is WHICH item.
+		sendSay(w, npc, fmt.Sprintf("Você deve trazer o item %s.", d.itemName(ticket)))
 		return
 	}
 

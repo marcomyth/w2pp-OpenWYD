@@ -155,6 +155,7 @@ func run(logger *slog.Logger) error {
 	// (PROGRESS Fase 5), so this validates and exposes the data; it does not
 	// rewire gameplay on unverified mappings.
 	var itemPrices map[int]int32
+	var itemNames map[int]string
 	var itemEffects map[int][]content.BaseEffect
 	var itemReqs map[int]content.ItemReq
 	var itemVolatiles, itemPos, itemUnique, itemGrades, itemExtra, itemDurations map[int]int
@@ -174,6 +175,7 @@ func run(logger *slog.Logger) error {
 		}
 		items := c.items
 		itemPrices, itemEffects, itemReqs = items.Prices(), items.BaseEffects(), items.Requirements()
+		itemNames = items.Names()
 		itemVolatiles, itemPos, itemUnique = items.Volatiles(), items.Positions(), items.Uniques()
 		// Lifetime of the temporary items, read from the "(30dias)" in their name.
 		// The clock only starts when one is first equipped (handler.startTimedItem).
@@ -339,7 +341,7 @@ func run(logger *slog.Logger) error {
 		eventSeed = 1
 	}
 	dispatch := handler.New(handler.Config{
-		Log: logger, ClientVersion: int32(*clientVersion), BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, ItemPrices: itemPrices, ItemEffects: itemEffects, ItemReqs: itemReqs,
+		Log: logger, ClientVersion: int32(*clientVersion), BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemReqs: itemReqs,
 		ItemVolatiles: itemVolatiles, ItemDurations: itemDurations, ItemPos: itemPos, ItemUnique: itemUnique, ItemGrades: itemGrades, ItemExtra: itemExtra, Spells: spells, Heights: heights,
 		SancRate:        sancRate,
 		ExpEvents:       level.ExpEvents{DoubleMode: *doubleExp, NewbieEvent: *newbieEvent, KefraLive: *kefraLive},

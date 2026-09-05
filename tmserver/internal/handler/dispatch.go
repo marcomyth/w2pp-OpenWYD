@@ -77,6 +77,10 @@ type Config struct {
 	// ItemPrices maps item index → base Price (g_pItemList[].Price) for NPC buy/sell.
 	ItemPrices map[int]int32
 
+	// ItemNames is item index → catalog name, for the NPC dialogue that names the
+	// item it wants (_SN_BRINGITEM). When nil, those lines fall back to the index.
+	ItemNames map[int]string
+
 	// ItemEffects maps item index → its static base effects (STRUCT_ITEMLIST.stEffect:
 	// weapon damage, armor AC, attribute bonuses). Used to fold equipment into the
 	// CurrentScore (content.ItemList.BaseEffects). When nil, gear contributes nothing.
@@ -172,6 +176,7 @@ type Dispatcher struct {
 	summonMobs      [][]byte                     // BM evocation templates (summon id → STRUCT_MOB)
 	vineMob         []byte                       // Sephira Muro de Espinhos template
 	itemPrices      map[int]int32                // item index → base price (NPC shop)
+	itemNames       map[int]string               // item index → catalog name (NPC dialogue)
 	itemEffects     map[int][]content.BaseEffect // item index → static base effects (equip score)
 	itemReqs        map[int]content.ItemReq      // item index → equip requirement (level/attrs)
 	itemVolatiles   map[int]int                  // item index → EF_VOLATILE (consumable class)
@@ -324,6 +329,7 @@ func New(cfg Config) *Dispatcher {
 		summonMobs:       cfg.SummonMobs,
 		vineMob:          cfg.VineMob,
 		itemPrices:       cfg.ItemPrices,
+		itemNames:        cfg.ItemNames,
 		itemEffects:      cfg.ItemEffects,
 		itemReqs:         cfg.ItemReqs,
 		itemVolatiles:    cfg.ItemVolatiles,
