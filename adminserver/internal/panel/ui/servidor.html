@@ -20,6 +20,13 @@
   }
   .reinicio-cartao .linha-estado { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--ink-2); }
   .reinicio-cartao .calmo { color: var(--ink-3); font-size: 13px; }
+  .reinicio-cartao label { display: block; font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-3); }
+  .reinicio-cartao input[type="text"] {
+    padding: 7px 9px; font: inherit; font-size: 13.5px; color: var(--ink);
+    background: var(--ground); border: 1px solid var(--rule); border-radius: 3px;
+  }
+  .reinicio-cartao input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .reinicio-cartao .dica { font-size: 12.5px; color: var(--ink-3); margin: 10px 0 0; max-width: 52ch; }
   .selecao { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
 </style>
@@ -65,18 +72,41 @@
       {{end}}
     </div>
     {{if .IsAdmin}}
-      <form method="post" action="/servidor/reiniciar" style="margin-top:12px">
+      {{if .HasSeguro}}
+      <form method="post" action="/servidor/reiniciar-seguro" style="margin-top:14px">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label for="aviso-reinicio">Aviso antes de reiniciar</label>
+        <input id="aviso-reinicio" name="aviso" type="text" maxlength="95"
+               placeholder="deixe vazio para o aviso padrão" style="width:100%;margin:6px 0 10px">
+        <button type="submit">Reinício seguro</button>
+        <p class="dica">
+          Avisa todo mundo, salva e desconecta cada um <strong>sem relógio
+          correndo</strong>, confirma que as gravações terminaram, e só então
+          reinicia. Se alguma gravação não confirmar, ele <strong>não</strong>
+          reinicia e te diz.
+        </p>
+      </form>
+      {{end}}
+
+      <form method="post" action="/servidor/reiniciar" style="margin-top:14px">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <input type="hidden" name="voltar" value="/servidor">
-        <button type="submit">Reiniciar o servidor de jogo</button>
+        <button type="submit">Reiniciar direto</button>
+        <p class="dica">
+          Manda parar e o servidor salva todo mundo na saída — mas dentro da
+          janela que a hospedagem dá antes de matar o processo. Servidor cheio e
+          banco lento, alguma gravação pode ficar pelo caminho.
+          {{if .HasSeguro}}Prefira o de cima.{{end}}
+        </p>
       </form>
     {{else}}
       <p class="dica" style="margin-top:10px">Só um admin pode reiniciar.</p>
     {{end}}
     <p class="dica">
-      Quem está jogando é salvo e desconectado; o servidor volta em cerca de um
-      minuto. Não existe ligar e desligar separados — reiniciar é a única parada
-      que sabe voltar sozinha.
+      Não existe ligar e desligar separados — reiniciar é a única parada que sabe
+      voltar sozinha. Se precisar deixar o servidor fora do ar, faça o reinício
+      seguro primeiro e desligue pela Railway: depois dele ninguém tem nada a
+      perder.
     </p>
   </div>
   {{else if .Servidor.Erro}}

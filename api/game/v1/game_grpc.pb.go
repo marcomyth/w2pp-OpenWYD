@@ -22,6 +22,7 @@ const (
 	GameControlService_ListOnline_FullMethodName = "/game.v1.GameControlService/ListOnline"
 	GameControlService_Kick_FullMethodName       = "/game.v1.GameControlService/Kick"
 	GameControlService_Broadcast_FullMethodName  = "/game.v1.GameControlService/Broadcast"
+	GameControlService_Drain_FullMethodName      = "/game.v1.GameControlService/Drain"
 )
 
 // GameControlServiceClient is the client API for GameControlService service.
@@ -49,6 +50,15 @@ type GameControlServiceClient interface {
 	Kick(ctx context.Context, in *KickRequest, opts ...grpc.CallOption) (*KickResponse, error)
 	// Broadcast sends a notice to everyone in play.
 	Broadcast(ctx context.Context, in *BroadcastRequest, opts ...grpc.CallOption) (*BroadcastResponse, error)
+	// Drain empties the server and waits for every save to land.
+	//
+	// It exists because a restart is only safe if the saves finish, and on
+	// shutdown they compete with the platform's SIGTERM-to-SIGKILL window: the
+	// server announces, then saves every player one at a time, and whatever has
+	// not finished when the kill lands is lost — items, experience, gold since
+	// login. Ending the sessions first does the same saving with no deadline
+	// attached, and the shutdown that follows finds an empty world.
+	Drain(ctx context.Context, in *DrainRequest, opts ...grpc.CallOption) (*DrainResponse, error)
 }
 
 type gameControlServiceClient struct {
@@ -89,6 +99,16 @@ func (c *gameControlServiceClient) Broadcast(ctx context.Context, in *BroadcastR
 	return out, nil
 }
 
+func (c *gameControlServiceClient) Drain(ctx context.Context, in *DrainRequest, opts ...grpc.CallOption) (*DrainResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DrainResponse)
+	err := c.cc.Invoke(ctx, GameControlService_Drain_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GameControlServiceServer is the server API for GameControlService service.
 // All implementations must embed UnimplementedGameControlServiceServer
 // for forward compatibility.
@@ -114,6 +134,15 @@ type GameControlServiceServer interface {
 	Kick(context.Context, *KickRequest) (*KickResponse, error)
 	// Broadcast sends a notice to everyone in play.
 	Broadcast(context.Context, *BroadcastRequest) (*BroadcastResponse, error)
+	// Drain empties the server and waits for every save to land.
+	//
+	// It exists because a restart is only safe if the saves finish, and on
+	// shutdown they compete with the platform's SIGTERM-to-SIGKILL window: the
+	// server announces, then saves every player one at a time, and whatever has
+	// not finished when the kill lands is lost — items, experience, gold since
+	// login. Ending the sessions first does the same saving with no deadline
+	// attached, and the shutdown that follows finds an empty world.
+	Drain(context.Context, *DrainRequest) (*DrainResponse, error)
 	mustEmbedUnimplementedGameControlServiceServer()
 }
 
@@ -132,6 +161,9 @@ func (UnimplementedGameControlServiceServer) Kick(context.Context, *KickRequest)
 }
 func (UnimplementedGameControlServiceServer) Broadcast(context.Context, *BroadcastRequest) (*BroadcastResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Broadcast not implemented")
+}
+func (UnimplementedGameControlServiceServer) Drain(context.Context, *DrainRequest) (*DrainResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Drain not implemented")
 }
 func (UnimplementedGameControlServiceServer) mustEmbedUnimplementedGameControlServiceServer() {}
 func (UnimplementedGameControlServiceServer) testEmbeddedByValue()                            {}
@@ -208,6 +240,24 @@ func _GameControlService_Broadcast_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GameControlService_Drain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DrainRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GameControlServiceServer).Drain(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GameControlService_Drain_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GameControlServiceServer).Drain(ctx, req.(*DrainRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GameControlService_ServiceDesc is the grpc.ServiceDesc for GameControlService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -226,6 +276,10 @@ var GameControlService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Broadcast",
 			Handler:    _GameControlService_Broadcast_Handler,
+		},
+		{
+			MethodName: "Drain",
+			Handler:    _GameControlService_Drain_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

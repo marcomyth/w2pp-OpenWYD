@@ -137,3 +137,31 @@ func (c *Client) Avisar(parent context.Context, msg string) (int32, error) {
 	}
 	return resp.GetRecipients(), nil
 }
+
+// drainTimeout is separate from callTimeout and much longer: emptying the server
+// waits for every character save to land, which is the whole point of it, and
+// eight seconds would abandon exactly the work being waited on.
+const drainTimeout = 3 * time.Minute
+
+// Drenagem is what emptying the server accomplished.
+type Drenagem struct {
+	Avisados   int32
+	Derrubados int32
+}
+
+// Drenar empties the server and waits for every save to finish.
+//
+// An error here means the saves did NOT finish. The caller must not restart on
+// it: the sessions are already gone, so a restart would drop whatever had not
+// been written — which is the exact loss this call exists to avoid.
+func (c *Client) Drenar(parent context.Context, aviso string) (Drenagem, error) {
+	md := metadata.Pairs(gamev1.TokenHeader, c.token)
+	ctx, cancel := context.WithTimeout(metadata.NewOutgoingContext(parent, md), drainTimeout)
+	defer cancel()
+
+	resp, err := c.api.Drain(ctx, &gamev1.DrainRequest{Message: aviso})
+	if err != nil {
+		return Drenagem{}, traduz(err, "esvaziar o servidor")
+	}
+	return Drenagem{Avisados: resp.GetNotified(), Derrubados: resp.GetKicked()}, nil
+}

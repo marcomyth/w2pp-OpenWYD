@@ -200,3 +200,70 @@ func (s *Server) Broadcast(ctx context.Context, req *gamev1.BroadcastRequest) (*
 	s.log.Info("control: broadcast sent", "recipients", n)
 	return &gamev1.BroadcastResponse{Recipients: n}, nil
 }
+
+// drainTimeout bounds the whole emptying. It is generous because the point is to
+// finish the saves, not to be quick: a full server writing one row per player is
+// still far inside this, and a database slow enough to exceed it is a database
+// that would have lost the data on shutdown anyway.
+const drainTimeout = 2 * time.Minute
+
+// Drain empties the server and waits for every save to land.
+//
+// The order matters. The notice goes first, while there is still somebody to
+// read it. The sessions end next, and each teardown queues that character's save
+// and releases their cargo. Only then does this wait — off the loop, because the
+// saves run off the loop and the loop must keep serving whatever is left.
+//
+// After this returns, a restart has nothing to lose: the shutdown path saves
+// whoever is in play, and nobody is.
+func (s *Server) Drain(ctx context.Context, req *gamev1.DrainRequest) (*gamev1.DrainResponse, error) {
+	out := &gamev1.DrainResponse{}
+
+	if msg := strings.TrimSpace(req.GetMessage()); msg != "" {
+		if len(msg) > maxBroadcast {
+			return nil, status.Errorf(codes.InvalidArgument,
+				"message is %d bytes; the client carries %d", len(msg), maxBroadcast)
+		}
+		aviso, err := s.Broadcast(ctx, &gamev1.BroadcastRequest{Message: msg})
+		if err != nil {
+			return nil, err
+		}
+		out.Notified = aviso.GetRecipients()
+	}
+
+	n, err := noLoop(ctx, s.world, func(w *world.World) int32 {
+		var alvos []*world.Session
+		w.ForEachSession(func(sess *world.Session, _ *world.Entity) {
+			alvos = append(alvos, sess)
+		})
+		// Collected first, closed after: Close mutates the table being walked.
+		// Each Close saves the character and releases the account cargo.
+		for _, sess := range alvos {
+			w.Close(sess)
+		}
+		return int32(len(alvos))
+	})
+	if err != nil {
+		return nil, err
+	}
+	out.Kicked = n
+
+	// The saves are already running; this is where the caller's patience is
+	// spent instead of the platform's kill timer.
+	pronto := make(chan struct{})
+	go func() { defer close(pronto); s.world.WaitSaves() }()
+
+	espera, cancel := context.WithTimeout(ctx, drainTimeout)
+	defer cancel()
+	select {
+	case <-pronto:
+		s.log.Info("control: drained", "notified", out.Notified, "kicked", out.Kicked)
+		return out, nil
+	case <-espera.Done():
+		// Saying so beats reporting success: the operator is about to restart,
+		// and that decision changes if the writes have not landed.
+		s.log.Error("control: drain timed out waiting for saves", "kicked", out.Kicked)
+		return nil, status.Error(codes.DeadlineExceeded,
+			"the sessions were ended but the saves have not finished; do not restart yet")
+	}
+}

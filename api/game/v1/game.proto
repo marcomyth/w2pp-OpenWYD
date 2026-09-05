@@ -25,6 +25,15 @@ service GameControlService {
   rpc Kick(KickRequest) returns (KickResponse);
   // Broadcast sends a notice to everyone in play.
   rpc Broadcast(BroadcastRequest) returns (BroadcastResponse);
+  // Drain empties the server and waits for every save to land.
+  //
+  // It exists because a restart is only safe if the saves finish, and on
+  // shutdown they compete with the platform's SIGTERM-to-SIGKILL window: the
+  // server announces, then saves every player one at a time, and whatever has
+  // not finished when the kill lands is lost — items, experience, gold since
+  // login. Ending the sessions first does the same saving with no deadline
+  // attached, and the shutdown that follows finds an empty world.
+  rpc Drain(DrainRequest) returns (DrainResponse);
 }
 
 message ListOnlineRequest {}
@@ -67,4 +76,14 @@ message BroadcastRequest {
 message BroadcastResponse {
   // recipients is how many players in play received it.
   int32 recipients = 1;
+}
+
+message DrainRequest {
+  // message is announced to everyone before the sessions end. Empty sends
+  // nothing, which is right for an emergency and wrong for a planned restart.
+  string message = 1;
+}
+message DrainResponse {
+  int32 notified = 1;  // players who received the notice
+  int32 kicked = 2;    // sessions ended
 }

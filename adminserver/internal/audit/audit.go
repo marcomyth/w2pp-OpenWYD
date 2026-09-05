@@ -40,6 +40,7 @@ const (
 	ActionSetPassword    = "SET_PASSWORD"
 	ActionKick           = "KICK"
 	ActionBroadcast      = "BROADCAST"
+	ActionSafeRestart    = "SAFE_RESTART"
 )
 
 // listLimit caps one page of the log.

@@ -2,6 +2,7 @@ package panel
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -138,4 +139,84 @@ func explicaJogo(err error) string {
 	default:
 		return "Erro ao falar com o servidor do jogo."
 	}
+}
+
+// avisoPadraoReinicio is what players are told when the operator writes nothing.
+const avisoPadraoReinicio = "O servidor vai reiniciar agora. Voce volta em cerca de um minuto."
+
+// reinicioSeguro empties the server, waits for every save, and only then
+// restarts.
+//
+// The plain restart is not unsafe by accident — it saves everyone on the way
+// out. But it does that inside the window the platform allows between asking the
+// process to stop and killing it, and the saves are one gRPC call per player. A
+// full server and a slow database can run past it, and what has not been written
+// is lost: items, experience, gold since login.
+//
+// Emptying first does the same work with no clock attached. The shutdown that
+// follows then finds nobody in play.
+//
+// If the drain fails, this does NOT restart. The sessions are already gone by
+// then, so restarting would drop exactly what the drain was waiting to save.
+func (h *Handler) reinicioSeguro(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	sess, _ := staffFrom(r.Context())
+
+	aviso := strings.TrimSpace(r.PostFormValue("aviso"))
+	if aviso == "" {
+		aviso = avisoPadraoReinicio
+	}
+
+	dep, err := h.cfg.Platform.Latest(r.Context())
+	if err != nil {
+		h.cfg.Logger.Error("safe restart: platform unavailable", "err", err)
+		http.Error(w, "Não consegui falar com a hospedagem, então não mexi no servidor.",
+			http.StatusBadGateway)
+		return
+	}
+
+	dren, err := h.cfg.Jogo.Drenar(r.Context(), aviso)
+	if err != nil {
+		h.cfg.Logger.Error("safe restart: drain failed; NOT restarting", "err", err)
+		http.Error(w,
+			"Esvaziei o servidor mas as gravações não confirmaram, então NÃO reiniciei. "+
+				"Espere um minuto e veja a aba Servidor antes de tentar de novo. Detalhe: "+explicaJogo(err),
+			http.StatusBadGateway)
+		return
+	}
+
+	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: audit.ActionSafeRestart,
+		New: map[string]any{
+			"deployment": dep.ID, "avisados": dren.Avisados, "derrubados": dren.Derrubados,
+		},
+	}); err != nil {
+		// The players are already out and saved. Refusing to restart now leaves
+		// an empty server up, which is recoverable; restarting unaudited is not.
+		h.cfg.Logger.Error("safe restart drained but NOT audited; refusing to restart", "err", err)
+		http.Error(w,
+			"Os jogadores foram salvos e desconectados, mas a auditoria falhou, então não reiniciei. "+
+				"O servidor está de pé e vazio.", http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.cfg.Platform.Restart(r.Context(), dep.ID); err != nil {
+		h.cfg.Logger.Error("safe restart: platform refused", "deployment", dep.ID, "err", err)
+		http.Error(w,
+			"Os jogadores foram salvos e desconectados, mas a hospedagem recusou o reinício. "+
+				"Ninguém perdeu nada; o servidor está vazio.", http.StatusBadGateway)
+		return
+	}
+
+	h.cfg.Logger.Info("safe restart", "actor", sess.AccountName,
+		"deployment", dep.ID, "avisados", dren.Avisados, "derrubados", dren.Derrubados)
+	h.redirectServidor(w, r, fmt.Sprintf(
+		"Reinício seguro: %d sessão(ões) salva(s) e encerrada(s) antes de o servidor sair. Volta em cerca de um minuto.",
+		dren.Derrubados))
 }

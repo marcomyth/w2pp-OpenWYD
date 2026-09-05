@@ -134,6 +134,7 @@ type Live interface {
 	Estado(ctx context.Context) (jogo.Estado, error)
 	Derrubar(ctx context.Context, conta string) (int32, error)
 	Avisar(ctx context.Context, msg string) (int32, error)
+	Drenar(ctx context.Context, aviso string) (jogo.Drenagem, error)
 }
 
 // TradeLog reads the player-to-player trade records the tmServer writes.
@@ -226,6 +227,9 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("GET /servidor", h.requireStaff(http.HandlerFunc(h.servidor)))
 		mux.Handle("POST /servidor/derrubar", h.requireStaff(http.HandlerFunc(h.derrubarConta)))
 		mux.Handle("POST /servidor/aviso", h.requireStaff(http.HandlerFunc(h.avisarTodos)))
+		if h.cfg.Platform != nil {
+			mux.Handle("POST /servidor/reiniciar-seguro", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.reinicioSeguro))))
+		}
 	}
 	if h.cfg.Platform != nil {
 		mux.Handle("POST /servidor/reiniciar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.reiniciar))))
@@ -271,6 +275,7 @@ type page struct {
 	HasItems  bool   // the item pages exist only when a webServer is configured
 	HasTrocas bool   // the trade log exists only when a database read is configured
 	HasJogo   bool   // the live pages exist only when the game link is configured
+	HasSeguro bool   // the safe restart needs BOTH the game link and the hosting API
 	CSRF      string // every form that changes something carries this back
 }
 
@@ -286,6 +291,7 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		HasItems:  h.cfg.GameData != nil,
 		HasTrocas: h.cfg.Trocas != nil,
 		HasJogo:   h.cfg.Jogo != nil,
+		HasSeguro: h.cfg.Jogo != nil && h.cfg.Platform != nil,
 		CSRF:      sess.CSRF,
 	}
 }

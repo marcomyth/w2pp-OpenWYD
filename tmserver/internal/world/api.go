@@ -477,6 +477,17 @@ func (w *World) ForEachSession(fn func(*Session, *Entity)) {
 	}
 }
 
+// WaitSaves blocks until every character and cargo save queued by a session
+// teardown has finished. NOT loop-only — it must be called from another
+// goroutine, and it is safe there because those saves run off the loop and never
+// re-enter it.
+//
+// It exists so a restart can be made safe rather than fast. The shutdown path
+// saves everyone too, but inside the SIGTERM to SIGKILL window the platform
+// allows; emptying the server first moves that work outside any deadline, and
+// the shutdown then finds nothing left to do.
+func (w *World) WaitSaves() { w.saveWG.Wait() }
+
 // Close tears down a session (e.g. after a fatal validation failure).
 func (w *World) Close(s *Session) { w.removeSession(s) }
 

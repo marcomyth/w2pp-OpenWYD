@@ -1408,6 +1408,13 @@ func (f *fakePlatform) Latest(context.Context) (plataforma.Deployment, error) {
 	return f.dep, f.latestErr
 }
 
+// restartCount is read by fakeJogo to prove the drain ran BEFORE the restart.
+func (f *fakePlatform) restartCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.restarts)
+}
+
 func (f *fakePlatform) Restart(_ context.Context, id string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -3078,14 +3085,20 @@ func TestTrocasNoMenuQuandoConfigurado(t *testing.T) {
 // --- servidor ao vivo ---
 
 type fakeJogo struct {
-	mu         sync.Mutex
-	estado     jogo.Estado
-	derrubadas []string
-	avisos     []string
-	sessoes    int32
-	estadoErr  error
-	kickErr    error
-	avisoErr   error
+	mu                   sync.Mutex
+	estado               jogo.Estado
+	derrubadas           []string
+	avisos               []string
+	sessoes              int32
+	estadoErr            error
+	kickErr              error
+	avisoErr             error
+	drenagens            []string
+	drenarErr            error
+	avisados             int32
+	derrubados           int32
+	drenouAntesDoRestart bool
+	plat                 *fakePlatform // set to observe the ORDER of drain and restart
 }
 
 func (f *fakeJogo) Estado(context.Context) (jogo.Estado, error) {
@@ -3112,6 +3125,21 @@ func (f *fakeJogo) Avisar(_ context.Context, msg string) (int32, error) {
 	}
 	f.avisos = append(f.avisos, msg)
 	return 3, nil
+}
+
+func (f *fakeJogo) Drenar(_ context.Context, aviso string) (jogo.Drenagem, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.drenarErr != nil {
+		return jogo.Drenagem{}, f.drenarErr
+	}
+	// Recorded so a test can prove the drain came FIRST. Restarting before
+	// emptying would still pass every count assertion and lose the data.
+	if f.plat == nil || f.plat.restartCount() == 0 {
+		f.drenouAntesDoRestart = true
+	}
+	f.drenagens = append(f.drenagens, aviso)
+	return jogo.Drenagem{Avisados: f.avisados, Derrubados: f.derrubados}, nil
 }
 
 func newTestPanelJogo(t *testing.T, log AuditLog, j Live) http.Handler {
@@ -3441,6 +3469,13 @@ func TestVigenteSegueAMesmaRegraDoLogin(t *testing.T) {
 // API, which is what the Servidor tab needs to show everything it offers.
 func newTestPanelJogoPlat(t *testing.T, j Live, p Platform) http.Handler {
 	t.Helper()
+	// Wire the two fakes together so the drain can see whether a restart has
+	// already happened — the order is what makes this safe.
+	if fj, ok := j.(*fakeJogo); ok {
+		if fp, ok := p.(*fakePlatform); ok {
+			fj.plat = fp
+		}
+	}
 	h, err := New(Config{
 		Accounts:   withTarget(roleAdmin),
 		Writer:     newFakeWriter(),
@@ -3509,5 +3544,151 @@ func TestVoltarSoAceitaOsCaminhosConhecidos(t *testing.T) {
 		if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/?") {
 			t.Errorf("voltar=%q levou para %q, want a página inicial", destino, loc)
 		}
+	}
+}
+
+// --- reinicio seguro ---
+
+func TestReinicioSeguroEsvaziaAntesDeReiniciar(t *testing.T) {
+	// The order is the feature. Restarting first and saving during shutdown puts
+	// the saves inside the platform's kill window; emptying first takes the clock
+	// out of it entirely.
+	j := &fakeJogo{derrubados: 3, avisados: 3}
+	plat := newFakePlatform()
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, j, plat))
+
+	rec := post("/servidor/reiniciar-seguro", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(j.drenagens) != 1 {
+		t.Fatalf("drenagens = %d, want 1", len(j.drenagens))
+	}
+	if len(plat.restarts) != 1 {
+		t.Fatalf("reinícios = %d, want 1", len(plat.restarts))
+	}
+	if !j.drenouAntesDoRestart {
+		t.Error("reiniciou antes de esvaziar — a ordem é o que torna isto seguro")
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(loc, "3 sessão") {
+		t.Errorf("aviso = %q, want dizer quantas sessões foram salvas", loc)
+	}
+}
+
+func TestReinicioSeguroNaoReiniciaSeAsGravacoesNaoConfirmam(t *testing.T) {
+	// This is the case the whole feature exists for. The sessions are already
+	// gone when the drain reports failure, so restarting would drop exactly what
+	// it was waiting to write.
+	j := &fakeJogo{drenarErr: fmt.Errorf("x: %w", jogo.ErrForaDoAr)}
+	plat := newFakePlatform()
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, j, plat))
+
+	rec := post("/servidor/reiniciar-seguro", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", rec.Code)
+	}
+	if len(plat.restarts) != 0 {
+		t.Fatal("reiniciou mesmo sem as gravações confirmarem")
+	}
+	if !strings.Contains(rec.Body.String(), "NÃO reiniciei") {
+		t.Errorf("a mensagem não deixa claro que não reiniciou: %q", rec.Body.String())
+	}
+}
+
+func TestReinicioSeguroMandaOAvisoAntes(t *testing.T) {
+	j := &fakeJogo{}
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, j, newFakePlatform()))
+
+	rec := post("/servidor/reiniciar-seguro", url.Values{
+		"csrf": {token}, "aviso": {"Manutencao rapida, ja voltamos"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(j.drenagens) != 1 || j.drenagens[0] != "Manutencao rapida, ja voltamos" {
+		t.Errorf("aviso enviado = %v, want o do formulário", j.drenagens)
+	}
+}
+
+func TestReinicioSeguroUsaUmAvisoPadraoQuandoNaoEscrevem(t *testing.T) {
+	// An empty field must not mean an empty notice: players would be dropped
+	// with no explanation, which is the thing a planned restart is for.
+	j := &fakeJogo{}
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, j, newFakePlatform()))
+
+	if rec := post("/servidor/reiniciar-seguro", url.Values{"csrf": {token}, "aviso": {"  "}}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if len(j.drenagens) != 1 || j.drenagens[0] == "" {
+		t.Errorf("aviso = %v, want o padrão em vez de vazio", j.drenagens)
+	}
+}
+
+func TestReinicioSeguroNaoReiniciaSemAuditoria(t *testing.T) {
+	// The players are already out and saved. An empty server that is still up is
+	// recoverable; an unaudited restart is not.
+	j := &fakeJogo{}
+	plat := newFakePlatform()
+	log := newFakeAudit()
+	log.failWrite = errors.New("banco fora do ar")
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Jogo: j, Platform: plat,
+		Audit: log, Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	post, token := signedInPost(t, h.Routes())
+
+	rec := post("/servidor/reiniciar-seguro", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if len(plat.restarts) != 0 {
+		t.Fatal("reiniciou sem registrar na auditoria")
+	}
+	if !strings.Contains(rec.Body.String(), "de pé e vazio") {
+		t.Errorf("a mensagem não diz em que estado ficou: %q", rec.Body.String())
+	}
+}
+
+func TestReinicioSeguroEAdminOnly(t *testing.T) {
+	j := &fakeJogo{}
+	plat := newFakePlatform()
+	h, err := New(Config{
+		Accounts: withTarget(roleModerator), Writer: newFakeWriter(), Jogo: j, Platform: plat,
+		Audit: newFakeAudit(), Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	post, token := signedInPost(t, h.Routes())
+
+	if rec := post("/servidor/reiniciar-seguro", url.Values{"csrf": {token}}); rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	if len(j.drenagens) != 0 || len(plat.restarts) != 0 {
+		t.Fatal("um moderador esvaziou ou reiniciou o servidor")
+	}
+}
+
+func TestAbaServidorOferecaOsDoisReinicios(t *testing.T) {
+	get := signedIn(t, newTestPanelJogoPlat(t, &fakeJogo{estado: estadoDeTeste()}, newFakePlatform()))
+	body := get("/servidor").Body.String()
+
+	if !strings.Contains(body, `action="/servidor/reiniciar-seguro"`) {
+		t.Error("a aba não oferece o reinício seguro")
+	}
+	if !strings.Contains(body, `action="/servidor/reiniciar"`) {
+		t.Error("a aba perdeu o reinício direto")
+	}
+	if !strings.Contains(body, "sem relógio") {
+		t.Error("a página não explica por que um é mais seguro que o outro")
+	}
+	if !strings.Contains(body, "desligue pela Railway") {
+		t.Error("a página não diz como desligar de vez sem perder nada")
 	}
 }

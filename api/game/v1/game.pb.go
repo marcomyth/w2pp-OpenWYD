@@ -395,6 +395,104 @@ func (x *BroadcastResponse) GetRecipients() int32 {
 	return 0
 }
 
+type DrainRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// message is announced to everyone before the sessions end. Empty sends
+	// nothing, which is right for an emergency and wrong for a planned restart.
+	Message       string `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DrainRequest) Reset() {
+	*x = DrainRequest{}
+	mi := &file_api_game_v1_game_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DrainRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DrainRequest) ProtoMessage() {}
+
+func (x *DrainRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_game_v1_game_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DrainRequest.ProtoReflect.Descriptor instead.
+func (*DrainRequest) Descriptor() ([]byte, []int) {
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *DrainRequest) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type DrainResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Notified      int32                  `protobuf:"varint,1,opt,name=notified,proto3" json:"notified,omitempty"` // players who received the notice
+	Kicked        int32                  `protobuf:"varint,2,opt,name=kicked,proto3" json:"kicked,omitempty"`     // sessions ended
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DrainResponse) Reset() {
+	*x = DrainResponse{}
+	mi := &file_api_game_v1_game_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DrainResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DrainResponse) ProtoMessage() {}
+
+func (x *DrainResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_game_v1_game_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DrainResponse.ProtoReflect.Descriptor instead.
+func (*DrainResponse) Descriptor() ([]byte, []int) {
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *DrainResponse) GetNotified() int32 {
+	if x != nil {
+		return x.Notified
+	}
+	return 0
+}
+
+func (x *DrainResponse) GetKicked() int32 {
+	if x != nil {
+		return x.Kicked
+	}
+	return 0
+}
+
 var File_api_game_v1_game_proto protoreflect.FileDescriptor
 
 const file_api_game_v1_game_proto_rawDesc = "" +
@@ -422,12 +520,18 @@ const file_api_game_v1_game_proto_rawDesc = "" +
 	"\x11BroadcastResponse\x12\x1e\n" +
 	"\n" +
 	"recipients\x18\x01 \x01(\x05R\n" +
-	"recipients2\xd4\x01\n" +
+	"recipients\"(\n" +
+	"\fDrainRequest\x12\x18\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"C\n" +
+	"\rDrainResponse\x12\x1a\n" +
+	"\bnotified\x18\x01 \x01(\x05R\bnotified\x12\x16\n" +
+	"\x06kicked\x18\x02 \x01(\x05R\x06kicked2\x8c\x02\n" +
 	"\x12GameControlService\x12E\n" +
 	"\n" +
 	"ListOnline\x12\x1a.game.v1.ListOnlineRequest\x1a\x1b.game.v1.ListOnlineResponse\x123\n" +
 	"\x04Kick\x12\x14.game.v1.KickRequest\x1a\x15.game.v1.KickResponse\x12B\n" +
-	"\tBroadcast\x12\x19.game.v1.BroadcastRequest\x1a\x1a.game.v1.BroadcastResponseB5Z3github.com/jeanluca/w2pp-openwyd/api/game/v1;gamev1b\x06proto3"
+	"\tBroadcast\x12\x19.game.v1.BroadcastRequest\x1a\x1a.game.v1.BroadcastResponse\x126\n" +
+	"\x05Drain\x12\x15.game.v1.DrainRequest\x1a\x16.game.v1.DrainResponseB5Z3github.com/jeanluca/w2pp-openwyd/api/game/v1;gamev1b\x06proto3"
 
 var (
 	file_api_game_v1_game_proto_rawDescOnce sync.Once
@@ -441,7 +545,7 @@ func file_api_game_v1_game_proto_rawDescGZIP() []byte {
 	return file_api_game_v1_game_proto_rawDescData
 }
 
-var file_api_game_v1_game_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_api_game_v1_game_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_api_game_v1_game_proto_goTypes = []any{
 	(*ListOnlineRequest)(nil),  // 0: game.v1.ListOnlineRequest
 	(*ListOnlineResponse)(nil), // 1: game.v1.ListOnlineResponse
@@ -450,17 +554,21 @@ var file_api_game_v1_game_proto_goTypes = []any{
 	(*KickResponse)(nil),       // 4: game.v1.KickResponse
 	(*BroadcastRequest)(nil),   // 5: game.v1.BroadcastRequest
 	(*BroadcastResponse)(nil),  // 6: game.v1.BroadcastResponse
+	(*DrainRequest)(nil),       // 7: game.v1.DrainRequest
+	(*DrainResponse)(nil),      // 8: game.v1.DrainResponse
 }
 var file_api_game_v1_game_proto_depIdxs = []int32{
 	2, // 0: game.v1.ListOnlineResponse.players:type_name -> game.v1.OnlinePlayer
 	0, // 1: game.v1.GameControlService.ListOnline:input_type -> game.v1.ListOnlineRequest
 	3, // 2: game.v1.GameControlService.Kick:input_type -> game.v1.KickRequest
 	5, // 3: game.v1.GameControlService.Broadcast:input_type -> game.v1.BroadcastRequest
-	1, // 4: game.v1.GameControlService.ListOnline:output_type -> game.v1.ListOnlineResponse
-	4, // 5: game.v1.GameControlService.Kick:output_type -> game.v1.KickResponse
-	6, // 6: game.v1.GameControlService.Broadcast:output_type -> game.v1.BroadcastResponse
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
+	7, // 4: game.v1.GameControlService.Drain:input_type -> game.v1.DrainRequest
+	1, // 5: game.v1.GameControlService.ListOnline:output_type -> game.v1.ListOnlineResponse
+	4, // 6: game.v1.GameControlService.Kick:output_type -> game.v1.KickResponse
+	6, // 7: game.v1.GameControlService.Broadcast:output_type -> game.v1.BroadcastResponse
+	8, // 8: game.v1.GameControlService.Drain:output_type -> game.v1.DrainResponse
+	5, // [5:9] is the sub-list for method output_type
+	1, // [1:5] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -477,7 +585,7 @@ func file_api_game_v1_game_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_game_v1_game_proto_rawDesc), len(file_api_game_v1_game_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
