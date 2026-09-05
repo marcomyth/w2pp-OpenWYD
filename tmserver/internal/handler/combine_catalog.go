@@ -23,7 +23,7 @@ func NewCombineCatalog(items *content.ItemList, comp *content.CompRate) combine.
 // AnctCombineFamily wires the base _MSG_CombineItem (Anct) recipe from content.
 func AnctCombineFamily(cat combine.Catalog) CombineFamily {
 	return CombineFamily{
-		Name: "Anct",
+		Name: anctFamilyName,
 		Rate: func(items []world.Item) int {
 			return combine.MatchAnct(cat, items)
 		},

@@ -140,6 +140,11 @@ func (d *Dispatcher) combineItem(w *world.World, s *world.Session, h protocol.He
 	e.Carry[ipos] = fam.Apply(items)
 	sendCombineComplete(w, s, combineSuccess)
 	sendCarrySlot(w, s, e, ipos)
+	// The Anct family is the Ancient combine, the one result worth telling the
+	// server about; the other families are routine crafting.
+	if fam.Name == anctFamilyName {
+		d.announceAncient(w, e.Name, e.Carry[ipos].Index)
+	}
 }
 
 // combineExtracao handles _MSG_CombineItemExtracao (0x02D4): Huntress extraction
