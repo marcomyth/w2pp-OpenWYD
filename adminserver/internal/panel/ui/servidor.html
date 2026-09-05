@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Servidor — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  .contagem { display: flex; gap: 34px; margin-bottom: 26px; }
+  .contagem .n { font-size: 30px; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .contagem .rot { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-top: 3px; }
+  .erro {
+    background: var(--warn-bg); border: 1px solid var(--rule); border-left: 3px solid var(--warn);
+    border-radius: 3px; padding: 11px 15px; margin-bottom: 26px; font-size: 14px; color: var(--ink);
+    max-width: 62ch;
+  }
+  td.acao form { margin: 0; }
+  td.acao button { padding: 4px 9px; font-size: 12px; }
+  .selecao { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Servidor</h1>
+  <p class="sub">Quem o servidor está segurando agora.</p>
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+  {{if .Erro}}<div class="erro">{{.Erro}}</div>{{end}}
+
+  {{if not .Erro}}
+  <div class="contagem">
+    <div>
+      <div class="n">{{.Estado.Jogando}}</div>
+      <div class="rot">Jogando</div>
+    </div>
+    <div>
+      <div class="n">{{.Estado.Conectados}}</div>
+      <div class="rot">Conectados</div>
+    </div>
+  </div>
+
+  <div class="erro">
+    Estes dois números são diferentes de propósito: <strong>conectados</strong>
+    inclui quem ainda está na tela de escolher personagem. E o servidor está com
+    o corte por inatividade desligado, então uma conexão que caiu sem avisar
+    continua contando até alguém derrubar.
+  </div>
+  {{end}}
+
+  <div class="acoes">
+    <form method="post" action="/servidor/aviso" class="acao-bloco">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label for="mensagem">Aviso para todos</label>
+      <textarea id="mensagem" name="mensagem" rows="2" maxlength="95" required
+                placeholder="Chega em quem está jogando agora"></textarea>
+      <div class="linha" style="margin-top:8px">
+        <button type="submit">Enviar</button>
+      </div>
+      <p class="dica">
+        Máximo 95 caracteres — é o que o pacote do cliente carrega. Fica na
+        auditoria com o seu nome.
+      </p>
+    </form>
+  </div>
+
+  <h2>Sessões</h2>
+  {{if .Estado.Players}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Conta</th>
+            <th>Personagem</th>
+            <th class="num">Nível</th>
+            <th class="num">Onde</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Estado.Players}}
+          <tr>
+            <td><a href="/contas/{{.Conta}}">{{.Conta}}</a></td>
+            <td>
+              {{if .Personagem}}{{.Personagem}}
+              {{else}}<span class="selecao">escolhendo</span>{{end}}
+            </td>
+            <td class="num">{{if .Jogando}}{{.Nivel}}{{else}}&mdash;{{end}}</td>
+            <td class="num">{{if .Jogando}}{{.X}}, {{.Y}}{{else}}&mdash;{{end}}</td>
+            <td class="acao">
+              <form method="post" action="/servidor/derrubar">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <input type="hidden" name="conta" value="{{.Conta}}">
+                <button type="submit">Derrubar</button>
+              </form>
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  {{else if not .Erro}}
+    <div class="vazio">Ninguém conectado.</div>
+  {{end}}
+</main>
+</body>
+</html>

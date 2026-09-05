@@ -41,6 +41,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/entrega"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/jogo"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/panel"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
@@ -82,6 +83,7 @@ func run(logger *slog.Logger) error {
 	// Optional. Without it the item pages are hidden rather than broken, so the
 	// panel still runs against nothing but the database.
 	webAddr := flag.String("webserver", os.Getenv("W2PP_WEBSERVER"), "webServer gRPC address for the item pages (empty = hide them)")
+	jogoAddr := flag.String("tmserver", os.Getenv("W2PP_TMSERVER_CONTROL"), "tmServer control address for the live pages: who is online, kick, notice (empty = hide them). Needs W2PP_CONTROL_TOKEN to match the tmServer's")
 	flag.Parse()
 
 	if *dsn == "" {
@@ -115,6 +117,28 @@ func run(logger *slog.Logger) error {
 			"configuration", "W2PP_WEBSERVER")
 	}
 
+	// The link to the running game. Off unless an address is given, and refused
+	// without a token rather than dialled and failing on every call: the panel
+	// would show a Servidor tab that only ever reports a rejection.
+	var live panel.Live
+	if *jogoAddr != "" {
+		token := os.Getenv("W2PP_CONTROL_TOKEN")
+		if token == "" {
+			return fmt.Errorf("-tmserver is set but W2PP_CONTROL_TOKEN is empty; " +
+				"the game server refuses every call without it")
+		}
+		conn, cerr := grpc.NewClient(*jogoAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if cerr != nil {
+			return fmt.Errorf("tmserver dial: %w", cerr)
+		}
+		defer func() { _ = conn.Close() }()
+		live = jogo.New(conn, token)
+		logger.Info("live game link enabled", "addr", *jogoAddr)
+	} else {
+		logger.Info("live game pages disabled",
+			"configuration", "W2PP_TMSERVER_CONTROL + W2PP_CONTROL_TOKEN")
+	}
+
 	// Hosting API, for the game-server status card and its restart button. The
 	// project and environment ids are injected into every service by the
 	// platform; only the token and the game service's id have to be set by hand.
@@ -144,6 +168,7 @@ func run(logger *slog.Logger) error {
 		Writer:     accounts.New(pool),
 		Entregas:   entrega.New(pool),
 		Trocas:     store.New(pool),
+		Jogo:       live,
 		Audit:      audit.New(pool),
 		Sessions:   session.New(*sessionTTL),
 		Logger:     logger,
