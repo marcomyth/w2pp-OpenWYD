@@ -588,3 +588,68 @@ type ItemStat struct {
 	Incubate  int16
 	IncuDelay int16
 }
+
+// ItemStatField binds one item_stat column to its place in ItemStat and, for
+// the columns that are effects, to the EF_* token ItemList.csv uses for the
+// same number.
+//
+// One table, three readers: internal/store builds its SQL from it, the
+// webServer seeds a new override from the catalog through it, and the tmServer
+// client checks its own dbv1 accessors against it. Three separate copies is
+// what this replaces, and a copy that drifted would not fail — it would file a
+// number under the wrong effect, which is close to unfindable in game.
+//
+// EF is empty for the five requirement columns: what an item demands to equip
+// is not something it grants, and it lives in its own CSV column.
+type ItemStatField struct {
+	Col string
+	EF  string
+	Ptr func(*ItemStat) *int16
+}
+
+// ItemStatFields is that table, in the order the editor shows them.
+var ItemStatFields = []ItemStatField{
+	{Col: "req_level", EF: "", Ptr: func(s *ItemStat) *int16 { return &s.ReqLevel }},
+	{Col: "req_str", EF: "", Ptr: func(s *ItemStat) *int16 { return &s.ReqStr }},
+	{Col: "req_int", EF: "", Ptr: func(s *ItemStat) *int16 { return &s.ReqInt }},
+	{Col: "req_dex", EF: "", Ptr: func(s *ItemStat) *int16 { return &s.ReqDex }},
+	{Col: "req_con", EF: "", Ptr: func(s *ItemStat) *int16 { return &s.ReqCon }},
+	{Col: "damage", EF: "EF_DAMAGE", Ptr: func(s *ItemStat) *int16 { return &s.Damage }},
+	{Col: "damageadd", EF: "EF_DAMAGEADD", Ptr: func(s *ItemStat) *int16 { return &s.DamageAdd }},
+	{Col: "ac", EF: "EF_AC", Ptr: func(s *ItemStat) *int16 { return &s.AC }},
+	{Col: "acadd", EF: "EF_ACADD", Ptr: func(s *ItemStat) *int16 { return &s.ACAdd }},
+	{Col: "magic", EF: "EF_MAGIC", Ptr: func(s *ItemStat) *int16 { return &s.Magic }},
+	{Col: "magicadd", EF: "EF_MAGICADD", Ptr: func(s *ItemStat) *int16 { return &s.MagicAdd }},
+	{Col: "critical", EF: "EF_CRITICAL", Ptr: func(s *ItemStat) *int16 { return &s.Critical }},
+	{Col: "critical2", EF: "EF_CRITICAL2", Ptr: func(s *ItemStat) *int16 { return &s.Critical2 }},
+	{Col: "runspeed", EF: "EF_RUNSPEED", Ptr: func(s *ItemStat) *int16 { return &s.RunSpeed }},
+	{Col: "str", EF: "EF_STR", Ptr: func(s *ItemStat) *int16 { return &s.Str }},
+	{Col: "intel", EF: "EF_INT", Ptr: func(s *ItemStat) *int16 { return &s.Int }},
+	{Col: "dex", EF: "EF_DEX", Ptr: func(s *ItemStat) *int16 { return &s.Dex }},
+	{Col: "con", EF: "EF_CON", Ptr: func(s *ItemStat) *int16 { return &s.Con }},
+	{Col: "hp", EF: "EF_HP", Ptr: func(s *ItemStat) *int16 { return &s.Hp }},
+	{Col: "hpadd", EF: "EF_HPADD", Ptr: func(s *ItemStat) *int16 { return &s.HpAdd }},
+	{Col: "hpadd2", EF: "EF_HPADD2", Ptr: func(s *ItemStat) *int16 { return &s.HpAdd2 }},
+	{Col: "mp", EF: "EF_MP", Ptr: func(s *ItemStat) *int16 { return &s.Mp }},
+	{Col: "mpadd", EF: "EF_MPADD", Ptr: func(s *ItemStat) *int16 { return &s.MpAdd }},
+	{Col: "mpadd2", EF: "EF_MPADD2", Ptr: func(s *ItemStat) *int16 { return &s.MpAdd2 }},
+	{Col: "resist1", EF: "EF_RESIST1", Ptr: func(s *ItemStat) *int16 { return &s.Resist1 }},
+	{Col: "resist2", EF: "EF_RESIST2", Ptr: func(s *ItemStat) *int16 { return &s.Resist2 }},
+	{Col: "resist3", EF: "EF_RESIST3", Ptr: func(s *ItemStat) *int16 { return &s.Resist3 }},
+	{Col: "resist4", EF: "EF_RESIST4", Ptr: func(s *ItemStat) *int16 { return &s.Resist4 }},
+	{Col: "resistall", EF: "EF_RESISTALL", Ptr: func(s *ItemStat) *int16 { return &s.ResistAll }},
+	{Col: "special1", EF: "EF_SPECIAL1", Ptr: func(s *ItemStat) *int16 { return &s.Special1 }},
+	{Col: "special2", EF: "EF_SPECIAL2", Ptr: func(s *ItemStat) *int16 { return &s.Special2 }},
+	{Col: "special3", EF: "EF_SPECIAL3", Ptr: func(s *ItemStat) *int16 { return &s.Special3 }},
+	{Col: "special4", EF: "EF_SPECIAL4", Ptr: func(s *ItemStat) *int16 { return &s.Special4 }},
+	{Col: "specialall", EF: "EF_SPECIALALL", Ptr: func(s *ItemStat) *int16 { return &s.SpecialAll }},
+	{Col: "itemlevel", EF: "EF_ITEMLEVEL", Ptr: func(s *ItemStat) *int16 { return &s.ItemLevel }},
+	{Col: "itemtype", EF: "EF_ITEMTYPE", Ptr: func(s *ItemStat) *int16 { return &s.ItemType }},
+	{Col: "mobtype", EF: "EF_MOBTYPE", Ptr: func(s *ItemStat) *int16 { return &s.MobType }},
+	{Col: "wtype", EF: "EF_WTYPE", Ptr: func(s *ItemStat) *int16 { return &s.WType }},
+	{Col: "pos", EF: "EF_POS", Ptr: func(s *ItemStat) *int16 { return &s.Pos }},
+	{Col: "sanc", EF: "EF_SANC", Ptr: func(s *ItemStat) *int16 { return &s.Sanc }},
+	{Col: "nosanc", EF: "EF_NOSANC", Ptr: func(s *ItemStat) *int16 { return &s.NoSanc }},
+	{Col: "incubate", EF: "EF_INCUBATE", Ptr: func(s *ItemStat) *int16 { return &s.Incubate }},
+	{Col: "incudelay", EF: "EF_INCUDELAY", Ptr: func(s *ItemStat) *int16 { return &s.IncuDelay }},
+}

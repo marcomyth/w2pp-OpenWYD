@@ -1263,3 +1263,98 @@ message SearchAccountsResponse {
   AdminResult result = 1;
   repeated AccountSummary accounts = 2;
 }
+
+// ItemStatAdminService is the moderator-facing item base stat editor
+// (0023_item_stats), the item-side sibling of MobTemplateAdminService. It edits
+// cold config in Postgres — what a catalog item requires to equip and the
+// effects it grants — never live game state.
+//
+// The tmServer applies an edit only at its next boot, because these numbers feed
+// the equip score model, which is recomputed per character: swapping them under
+// a running server would leave two players wearing the same item with different
+// stats. Item PRICE, edited through NpcAdminService.SetItemPrice, is the
+// contrast — it hot-reloads within ~15s, because a price is only read at the
+// moment of a shop transaction.
+service ItemStatAdminService {
+  // GetItemStat returns an item's override, or a read-through of the catalog's
+  // own numbers when it has none, so an editor never opens on zeros. Saving a
+  // zeroed form would strip the item, since an override replaces the whole
+  // effect list rather than merging into it.
+  rpc GetItemStat(GetItemStatRequest) returns (GetItemStatResponse);
+  // UpsertItemStat writes the override whole.
+  rpc UpsertItemStat(UpsertItemStatRequest) returns (AdminAck);
+  // DeleteItemStat drops the override so ItemList.csv applies again.
+  rpc DeleteItemStat(DeleteItemStatRequest) returns (AdminAck);
+}
+
+message AdminItemStat {
+  int32 item_index = 1;
+  // overridden is false when this is a read-through of the catalog's current
+  // values (no saved override yet) — GetItemStat only.
+  bool overridden = 2;
+  // display_name is the catalog name, for the UI. Read-only: an item's name
+  // lives in ItemList.csv and is not part of the override.
+  string display_name = 3;
+  int32 req_level = 4;  // requirement to equip: ItemList.csv "Lvl.Str.Int.Dex.Con"
+  int32 req_str = 5;
+  int32 req_int = 6;
+  int32 req_dex = 7;
+  int32 req_con = 8;
+  int32 damage = 9;  // combat
+  int32 damageadd = 10;
+  int32 ac = 11;
+  int32 acadd = 12;
+  int32 magic = 13;
+  int32 magicadd = 14;
+  int32 critical = 15;
+  int32 critical2 = 16;
+  int32 runspeed = 17;
+  int32 str = 18;  // attributes
+  int32 intel = 19;  // "int" is reserved in several targets
+  int32 dex = 20;
+  int32 con = 21;
+  int32 hp = 22;  // life
+  int32 hpadd = 23;
+  int32 hpadd2 = 24;
+  int32 mp = 25;
+  int32 mpadd = 26;
+  int32 mpadd2 = 27;
+  int32 resist1 = 28;  // resistances
+  int32 resist2 = 29;
+  int32 resist3 = 30;
+  int32 resist4 = 31;
+  int32 resistall = 32;
+  int32 special1 = 33;  // masteries
+  int32 special2 = 34;
+  int32 special3 = 35;
+  int32 special4 = 36;
+  int32 specialall = 37;
+  int32 itemlevel = 38;  // identity and mechanics — carried so a save cannot strip them
+  int32 itemtype = 39;
+  int32 mobtype = 40;
+  int32 wtype = 41;
+  int32 pos = 42;
+  int32 sanc = 43;
+  int32 nosanc = 44;
+  int32 incubate = 45;
+  int32 incudelay = 46;
+}
+
+message GetItemStatRequest {
+  int64 moderator_id = 1;
+  int32 item_index = 2;
+}
+message GetItemStatResponse {
+  AdminResult result = 1;
+  AdminItemStat stat = 2;
+}
+
+message UpsertItemStatRequest {
+  int64 moderator_id = 1;
+  AdminItemStat stat = 2;
+}
+
+message DeleteItemStatRequest {
+  int64 moderator_id = 1;
+  int32 item_index = 2;
+}

@@ -7,6 +7,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/jeanluca/w2pp-openwyd/internal/itemeffect"
 )
 
 // ItemEntry is one row of ItemList.csv (data-formats.md §3.1).
@@ -47,70 +49,24 @@ func (l *ItemList) Prices() map[int]int32 {
 	return out
 }
 
-// BaseEffect is one static item effect (STRUCT_ITEMLIST.stEffect): an EF_* effect
-// id and its value — the item's inherent stats (weapon damage, armor AC, attribute
-// bonuses). These come from the catalog by item index, distinct from the per-item
-// instance refines stored on STRUCT_ITEM.
-type BaseEffect struct {
-	Eff uint8
-	Val int16
-}
+// BaseEffect and ItemReq moved to internal/itemeffect so the webServer can read
+// the same table: it shows a moderator what an item grants today, and Go's
+// internal rule keeps it out of tmserver/internal. These are aliases, not new
+// types, so every caller that already speaks in content.BaseEffect is unchanged.
+type (
+	// BaseEffect is one static item effect (STRUCT_ITEMLIST.stEffect): an EF_*
+	// effect id and its value — the item's inherent stats (weapon damage, armor
+	// AC, attribute bonuses). These come from the catalog by item index,
+	// distinct from the per-item instance refines stored on STRUCT_ITEM.
+	BaseEffect = itemeffect.BaseEffect
 
-// efName maps the ItemList.csv EF_<name> tokens to their STRUCT_EFFECT.cEffect ids
-// (the same ids the instance refines use). Only effects the score model can represent
-// are mapped. EF_WTYPE is included because some Huntress affects key off the
-// equipped weapon type, but it still does not fold into CurrentScore. The purely
-// visual/requirement ones (EF_CLASS/EF_GRID/EF_RANGE/EF_REGEN*/…) are ignored. The ids
-// match ItemEffect.h. EF_SANC carries an item's refine level (the joias), consumed as a
-// multiplier by the handler rather than a flat stat.
-//
-// EF_CRITICAL/EF_CRITICAL2 ARE score stats (Basedef.cpp:3209 derives MOB.Critical from
-// them) — they were misfiled as visual here, which is why crit gear granted nothing
-// (issue #102). Most crit lives in the catalog: the class body items and the armor sets
-// carry EF_CRITICAL directly.
-//
-// EF_RESIST1..4/EF_RESISTALL (ItemEffect.h:106-111) are the same bug class (issue #211):
-// they ARE score stats too (CMob.cpp:640-643 derives MOB.Resist[0..3] from them via
-// BASE_GetMobAbility), so leaving them off this whitelist silently dropped every
-// immunity/resist item's effect at parse time — the items looked correct in the catalog
-// but granted nothing on the character.
-//
-// EF_MAGIC/EF_MAGICADD (ItemEffect.h:117,124-125) are the same bug class again (issue #223):
-// Basedef.cpp:3194-3195 derives the caster's Magic score from BASE_GetMobAbility(EF_MAGIC)+
-// BASE_GetMobAbility(EF_MAGICADD), so an "Ataque Mágico" item's bonus was silently dropped at
-// parse time — the item looked correct in the catalog but granted no extra magic damage.
-var efName = map[string]uint8{
-	"EF_DAMAGE": 2, "EF_AC": 3, "EF_HP": 4, "EF_MP": 5,
-	"EF_STR": 7, "EF_INT": 8, "EF_DEX": 9, "EF_CON": 10,
-	"EF_SPECIAL1": 11, "EF_SPECIAL2": 12, "EF_SPECIAL3": 13, "EF_SPECIAL4": 14,
-	"EF_SPECIALALL": 74,
-	"EF_POS":        17, "EF_WTYPE": 21, "EF_CRITICAL": 42, "EF_SANC": 43,
-	"EF_HPADD": 45, "EF_MPADD": 46,
-	"EF_RESIST1": 49, "EF_RESIST2": 50, "EF_RESIST3": 51, "EF_RESIST4": 52, "EF_ACADD": 53, "EF_RESISTALL": 54,
-	"EF_MAGIC":     60,
-	"EF_DAMAGEADD": 67, "EF_MAGICADD": 68, "EF_HPADD2": 69, "EF_MPADD2": 70, "EF_CRITICAL2": 71,
-	"EF_ITEMLEVEL": 87, "EF_MOBTYPE": 112, "EF_RUNSPEED": 29,
-	// EF_ITEMTYPE is not a score stat either: it is read only by the combine
-	// matchers (GetFunc.cpp:487 Agatha) as a recipe gate, exactly like EF_NOSANC
-	// gates the refine path. Without it in this whitelist those gates read 0 for
-	// every item and silently pass/fail the wrong way.
-	"EF_ITEMTYPE": 113,
-	// Refine gates (_MSG_UseItem.cpp dust path): EF_NOSANC marks an item that can
-	// never be refined; the two incubation effects drive the mount-egg branch.
-	"EF_NOSANC": 126, "EF_INCUBATE": 78, "EF_INCUDELAY": 84,
-}
+	// ItemReq is what a character must have to equip an item.
+	ItemReq = itemeffect.Req
+)
 
 // EffectID returns the STRUCT_EFFECT id for an EF_<name> token, and whether the
 // score model understands it.
-//
-// Exported so the moderator override path (tmserver/internal/itemstat) can name
-// effects the way ItemList.csv does, resolved against this table rather than a
-// second copy of the ids. A copy that drifted would not fail: it would quietly
-// grant the wrong stat, which is close to unfindable in game.
-func EffectID(name string) (uint8, bool) {
-	id, ok := efName[name]
-	return id, ok
-}
+func EffectID(name string) (uint8, bool) { return itemeffect.ID(name) }
 
 // BaseEffects returns item index → its score-relevant static effects, parsed from
 // the trailing "EF_<name>,value" pairs of each ItemList row (the row's stEffect
@@ -119,19 +75,7 @@ func EffectID(name string) (uint8, bool) {
 func (l *ItemList) BaseEffects() map[int][]BaseEffect {
 	out := make(map[int][]BaseEffect, len(l.items))
 	for idx, e := range l.items {
-		var effs []BaseEffect
-		for i := 0; i+1 < len(e.Fields); i++ {
-			id, ok := efName[strings.TrimSpace(e.Fields[i])]
-			if !ok {
-				continue
-			}
-			v, err := strconv.Atoi(strings.TrimSpace(e.Fields[i+1]))
-			if err != nil {
-				continue
-			}
-			effs = append(effs, BaseEffect{Eff: id, Val: int16(v)})
-		}
-		if len(effs) > 0 {
+		if effs := itemeffect.ParsePairs(e.Fields); len(effs) > 0 {
 			out[idx] = effs
 		}
 	}
@@ -241,9 +185,6 @@ func (l *ItemList) Extras() map[int]int {
 
 // ItemReq is an item's equip requirement (STRUCT_ITEMLIST ReqLvl/Str/Int/Dex/Con).
 // A zero value means no requirement.
-type ItemReq struct {
-	Lvl, Str, Int, Dex, Con int16
-}
 
 // Requirements returns item index → its equip requirement, parsed from the
 // dot-separated 4th CSV column "ReqLvl.ReqStr.ReqInt.ReqDex.ReqCon" (the column
@@ -256,22 +197,7 @@ func (l *ItemList) Requirements() map[int]ItemReq {
 		if len(e.Fields) < 4 {
 			continue
 		}
-		parts := strings.Split(strings.TrimSpace(e.Fields[3]), ".")
-		if len(parts) != 5 {
-			continue
-		}
-		var v [5]int16
-		ok := true
-		for i, p := range parts {
-			n, err := strconv.Atoi(strings.TrimSpace(p))
-			if err != nil {
-				ok = false
-				break
-			}
-			v[i] = int16(n)
-		}
-		req := ItemReq{Lvl: v[0], Str: v[1], Int: v[2], Dex: v[3], Con: v[4]}
-		if ok && req != (ItemReq{}) {
+		if req, ok := itemeffect.ParseReq(e.Fields[3]); ok {
 			out[idx] = req
 		}
 	}
