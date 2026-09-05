@@ -48,7 +48,7 @@
               {{if .ActorName}}{{.ActorName}}{{else}}conta {{.ActorID}}{{end}}
               <span class="cargo">{{.ActorRole}}</span>
             </td>
-            <td><span class="acao">{{.Action}}</span></td>
+            <td><span class="acao" title="{{.Action}}">{{.Rotulo}}</span></td>
             <td>
               {{if .TargetName}}<a href="/contas/{{.TargetName}}">{{.TargetName}}</a>
               {{else if .TargetID}}conta {{.TargetID}}

@@ -711,7 +711,7 @@ func TestAuditoriaListsEntries(t *testing.T) {
 	})
 	body := signedIn(t, newTestPanelWith(t, newFakeAccounts(roleAdmin), log))("/auditoria").Body.String()
 
-	for _, want := range []string{"chefe", "SET_ROLE", "ana", "player", "moderator", "04/09 17:30"} {
+	for _, want := range []string{"chefe", "Mudou o cargo", "SET_ROLE", "ana", "player", "moderator", "04/09 17:30"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("audit page missing %q", want)
 		}

@@ -184,3 +184,49 @@ func compact(raw []byte) string {
 	}
 	return string(b)
 }
+
+// rotulos turns an action constant into the phrase a person reads.
+//
+// The stored value stays the constant: it is the machine-readable key, it is
+// what a query filters on, and translating it at write time would have made
+// every past row unmatchable the first time somebody reworded a label.
+//
+// This map is why the screen is worth reading at all. Six actions were tolerable
+// as SET_ROLE and SET_VIP; there are twenty now, and a page of upper-case
+// English constants in a Portuguese panel is a page nobody reads — which defeats
+// the log, whose whole purpose is being read after something went wrong.
+var rotulos = map[string]string{
+	ActionSetRole:        "Mudou o cargo",
+	ActionSetBlocked:     "Bloqueou ou desbloqueou",
+	ActionSetVip:         "Mexeu no VIP",
+	ActionSetPassword:    "Trocou a senha",
+	ActionSetItemPrice:   "Mudou o preço de um item",
+	ActionSetNpcShop:     "Mudou a loja de um NPC",
+	ActionSetNpc:         "Editou um NPC",
+	ActionDeleteNpc:      "Apagou um NPC",
+	ActionSetMobStat:     "Editou os atributos de um monstro",
+	ActionClearMobStat:   "Restaurou um monstro",
+	ActionSetItemStat:    "Editou os atributos de um item",
+	ActionClearItemStat:  "Restaurou um item",
+	ActionDeliverItem:    "Entregou um item",
+	ActionCancelDelivery: "Cancelou uma entrega",
+	ActionKick:           "Derrubou uma conta",
+	ActionBroadcast:      "Mandou um aviso para todos",
+	ActionRestartGame:    "Reiniciou o servidor",
+	ActionSafeRestart:    "Reiniciou com segurança",
+	ActionStopGame:       "Desligou o servidor",
+	ActionStartGame:      "Ligou o servidor",
+}
+
+// Rotulo is the readable name of this entry's action.
+//
+// An unknown action falls back to the raw constant rather than to "—" or to
+// nothing: a row written by a version of the panel this one does not know about
+// is exactly the row somebody is looking for, and hiding what it says would be
+// worse than showing it untranslated.
+func (e Entry) Rotulo() string {
+	if r, ok := rotulos[e.Action]; ok {
+		return r
+	}
+	return e.Action
+}
