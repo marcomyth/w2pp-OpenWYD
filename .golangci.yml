@@ -28,6 +28,12 @@ linters:
         # panel's routes. misspell reads it as a typo for "monstrous"; this is a
         # Portuguese-language server and the word is correct as written.
         - monstros
+        # Portuguese for "gave" (past tense of "dar"), in a test failure message.
+        # misspell reads it as a typo for "dram". Same class as the entries above:
+        # the panel and its tests are written in Portuguese for the people who
+        # operate this server, and misspell has no Portuguese dictionary to check
+        # against — so ordinary words keep colliding with English ones.
+        - deram
   exclusions:
     generated: lax
     presets:
