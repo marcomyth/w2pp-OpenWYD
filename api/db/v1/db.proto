@@ -193,6 +193,11 @@ message Character {
   int32 arch_lv370 = 45; // QuestInfo.Arch.Level370
   int32 mortal_level = 46; // QuestInfo.Arch.MortalLevel
   int32 celestial_arch_level = 47; // QuestInfo.Celestial.ArchLevel band (1..5)
+  // QuestInfo.Arch.Cristal: how many of the four Arch crystal quests are done
+  // (0..4). It must persist, and not only to stop the quest being repeated: the
+  // AC those quests grant is rebuilt from this counter on every login, because
+  // BaseScore.Ac itself is derived rather than stored (handler.playerBaseAC).
+  int32 arch_cristal = 48;
 }
 
 message Item {

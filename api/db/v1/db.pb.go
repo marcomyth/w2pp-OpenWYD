@@ -678,8 +678,13 @@ type Character struct {
 	ArchLv370          int32  `protobuf:"varint,45,opt,name=arch_lv370,json=archLv370,proto3" json:"arch_lv370,omitempty"`                              // QuestInfo.Arch.Level370
 	MortalLevel        int32  `protobuf:"varint,46,opt,name=mortal_level,json=mortalLevel,proto3" json:"mortal_level,omitempty"`                        // QuestInfo.Arch.MortalLevel
 	CelestialArchLevel int32  `protobuf:"varint,47,opt,name=celestial_arch_level,json=celestialArchLevel,proto3" json:"celestial_arch_level,omitempty"` // QuestInfo.Celestial.ArchLevel band (1..5)
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// QuestInfo.Arch.Cristal: how many of the four Arch crystal quests are done
+	// (0..4). It must persist, and not only to stop the quest being repeated: the
+	// AC those quests grant is rebuilt from this counter on every login, because
+	// BaseScore.Ac itself is derived rather than stored (handler.playerBaseAC).
+	ArchCristal   int32 `protobuf:"varint,48,opt,name=arch_cristal,json=archCristal,proto3" json:"arch_cristal,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Character) Reset() {
@@ -1037,6 +1042,13 @@ func (x *Character) GetMortalLevel() int32 {
 func (x *Character) GetCelestialArchLevel() int32 {
 	if x != nil {
 		return x.CelestialArchLevel
+	}
+	return 0
+}
+
+func (x *Character) GetArchCristal() int32 {
+	if x != nil {
+		return x.ArchCristal
 	}
 	return 0
 }
@@ -6430,7 +6442,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x14LoadCharacterRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12\x12\n" +
-	"\x04slot\x18\x02 \x01(\x05R\x04slot\"\xb6\n" +
+	"\x04slot\x18\x02 \x01(\x05R\x04slot\"\xd9\n" +
 	"\n" +
 	"\tCharacter\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x12\n" +
@@ -6485,7 +6497,8 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\n" +
 	"arch_lv370\x18- \x01(\x05R\tarchLv370\x12!\n" +
 	"\fmortal_level\x18. \x01(\x05R\vmortalLevel\x120\n" +
-	"\x14celestial_arch_level\x18/ \x01(\x05R\x12celestialArchLevel\"\xcd\x01\n" +
+	"\x14celestial_arch_level\x18/ \x01(\x05R\x12celestialArchLevel\x12!\n" +
+	"\farch_cristal\x180 \x01(\x05R\varchCristal\"\xcd\x01\n" +
 	"\x04Item\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x14\n" +
 	"\x05index\x18\x02 \x01(\x05R\x05index\x12\x12\n" +

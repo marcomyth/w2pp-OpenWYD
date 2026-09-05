@@ -281,7 +281,7 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		// Celestial quest gates (set by /destravar40/90 and /arcana; CheckGetLevel
 		// reads Lv40/Lv90 to unlock the 40/90 caps).
 		e.CelLv40, e.CelLv90, e.CelCircle = st.CelLv40, st.CelLv90, st.CelCircle
-		e.ArchLv355, e.ArchLv370 = st.ArchLv355, st.ArchLv370
+		e.ArchLv355, e.ArchLv370, e.ArchCristal = st.ArchLv355, st.ArchLv370, st.ArchCristal
 		e.MortalLevel, e.CelestialArchLevel = st.MortalLevel, st.CelestialArchLevel
 		e.TerraMistica = st.TerraMistica
 		e.Str, e.Int, e.Dex, e.Con, e.ScoreBonus = st.Str, st.Int, st.Dex, st.Con, st.ScoreBonus

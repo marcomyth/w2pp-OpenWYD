@@ -428,7 +428,7 @@ func (w *World) CharacterSaveFor(s *Session, e *Entity) CharacterSave {
 	cs.ClassMaster = e.ClassMaster
 	cs.CelLv40, cs.CelLv90, cs.CelCircle = e.CelLv40, e.CelLv90, e.CelCircle
 	cs.ArchLv355, cs.ArchLv370 = e.ArchLv355, e.ArchLv370
-	cs.MortalLevel, cs.CelestialArchLevel = e.MortalLevel, e.CelestialArchLevel
+	cs.MortalLevel, cs.CelestialArchLevel, cs.ArchCristal = e.MortalLevel, e.CelestialArchLevel, e.ArchCristal
 	cs.TerraMistica = e.TerraMistica
 	cs.LastCity = e.LastCity
 	cs.SaveX, cs.SaveY = e.SaveX, e.SaveY
