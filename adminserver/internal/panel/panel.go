@@ -82,7 +82,8 @@ type Writer interface {
 	PendingSince(ctx context.Context, since time.Time) (int, time.Time, error)
 	SetPassword(ctx context.Context, targetID int64, hash string) error
 	SetRole(ctx context.Context, actorID, targetID int64, role string) (string, error)
-	SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool) (bool, error)
+	SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool, motivo string) (accounts.Bloqueio, error)
+	Blocked(ctx context.Context, id int64) (bool, error)
 	AddVipDays(ctx context.Context, actorID, targetID int64, days int) (prev, next *time.Time, err error)
 	ClearVip(ctx context.Context, actorID, targetID int64) (*time.Time, error)
 }
@@ -361,6 +362,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 			ID: auth.ID, Name: nome, Role: auth.Role, IsBlocked: auth.IsBlocked,
 			Email: det.Email, DonateBalance: det.DonateBalance,
 			VipUntil: det.VipUntil, VipActive: accounts.VipActive(det.VipUntil),
+			Bloqueio: det.Bloqueio,
 		},
 		chars,
 		pendentes,
@@ -434,6 +436,7 @@ type contaView struct {
 	DonateBalance int32
 	VipUntil      *time.Time
 	VipActive     bool // expiry compared against now, which is the whole mechanism
+	Bloqueio      accounts.Bloqueio
 }
 
 // --- login / logout ---
@@ -554,6 +557,27 @@ func (h *Handler) requireStaff(next http.Handler) http.Handler {
 			h.cfg.Sessions.Delete(token)
 			h.clearCookie(w)
 			http.Redirect(w, r, "/login?erro=Seu+acesso+foi+revogado.", http.StatusSeeOther)
+			return
+		}
+		// The block is re-read here for the same reason the role is: it can change
+		// under a live session. Until this check existed, blocking a moderator
+		// stopped them logging IN and left them signed in — still moderating,
+		// with the ban in place and no sign of it.
+		blocked, err := h.cfg.Writer.Blocked(r.Context(), sess.AccountID)
+		if err != nil {
+			h.cfg.Logger.Warn("session block lookup failed; ending session",
+				"account", sess.AccountName, "id", sess.AccountID, "err", err)
+			h.cfg.Sessions.Delete(token)
+			h.clearCookie(w)
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		if blocked {
+			h.cfg.Logger.Info("session ended: account blocked",
+				"account", sess.AccountName, "id", sess.AccountID)
+			h.cfg.Sessions.Delete(token)
+			h.clearCookie(w)
+			http.Redirect(w, r, "/login?erro=Sua+conta+foi+bloqueada.", http.StatusSeeOther)
 			return
 		}
 		ctx := context.WithValue(r.Context(), ctxSession, sess)
@@ -753,14 +777,27 @@ func (h *Handler) setBloqueio(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	bloquear := r.PostFormValue("bloquear") == "1"
+	motivo := strings.TrimSpace(r.PostFormValue("motivo"))
 	sess, _ := staffFrom(r.Context())
 
-	anterior, err := h.cfg.Writer.SetBlocked(r.Context(), sess.AccountID, auth.ID, bloquear)
+	anterior, err := h.cfg.Writer.SetBlocked(r.Context(), sess.AccountID, auth.ID, bloquear, motivo)
+	if errors.Is(err, accounts.ErrMotivo) {
+		if motivo == "" {
+			http.Error(w, "Escreva o motivo do bloqueio. Ele é o que responde o jogador que perguntar por quê.",
+				http.StatusBadRequest)
+			return
+		}
+		http.Error(w, "O motivo passou de "+strconv.Itoa(accounts.MaxMotivoBytes)+" caracteres.",
+			http.StatusBadRequest)
+		return
+	}
 	if err != nil {
 		h.recusa(w, r, nome, err)
 		return
 	}
-	if anterior == bloquear {
+	// Nothing changed only when the flag AND the reason are already what was
+	// asked for. Editing the reason of a ban in force is a real edit.
+	if anterior.Blocked == bloquear && (!bloquear || anterior.Reason == motivo) {
 		h.redirectConta(w, r, nome, "Nada mudou: a conta já estava assim.")
 		return
 	}
@@ -768,7 +805,8 @@ func (h *Handler) setBloqueio(w http.ResponseWriter, r *http.Request) {
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
 		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetBlocked, TargetID: auth.ID,
-		Old: map[string]any{"blocked": anterior}, New: map[string]any{"blocked": bloquear},
+		Old: map[string]any{"blocked": anterior.Blocked, "motivo": anterior.Reason},
+		New: map[string]any{"blocked": bloquear, "motivo": motivo},
 	}); err != nil {
 		h.cfg.Logger.Error("block changed but NOT audited", "actor", sess.AccountName,
 			"target", nome, "blocked", bloquear, "err", err)
@@ -782,6 +820,9 @@ func (h *Handler) setBloqueio(w http.ResponseWriter, r *http.Request) {
 	msg := "Conta desbloqueada."
 	if bloquear {
 		msg = "Conta bloqueada. Se o jogador estiver online, ele continua até sair."
+		if anterior.Blocked {
+			msg = "Motivo atualizado. A conta já estava bloqueada."
+		}
 	}
 	h.cfg.Logger.Info("block changed", "actor", sess.AccountName, "target", nome, "blocked", bloquear)
 	h.redirectConta(w, r, nome, msg)

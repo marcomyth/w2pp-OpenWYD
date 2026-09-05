@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -110,7 +111,7 @@ func TestCannotChangeYourOwnAccess(t *testing.T) {
 	if _, err := s.SetRole(ctx, me, me, RolePlayer); !errors.Is(err, ErrSelf) {
 		t.Errorf("SetRole on self: err = %v, want ErrSelf", err)
 	}
-	if _, err := s.SetBlocked(ctx, me, me, true); !errors.Is(err, ErrSelf) {
+	if _, err := s.SetBlocked(ctx, me, me, true, "motivo"); !errors.Is(err, ErrSelf) {
 		t.Errorf("SetBlocked on self: err = %v, want ErrSelf", err)
 	}
 	if got := roleOf(t, pool, me); got != RoleAdmin {
@@ -174,20 +175,129 @@ func TestSetBlockedRoundTrip(t *testing.T) {
 	actor := seed(t, pool, "acc_actor4", RoleAdmin)
 	alvo := seed(t, pool, "acc_bloqueio", RolePlayer)
 
-	previous, err := s.SetBlocked(ctx, actor, alvo, true)
+	previous, err := s.SetBlocked(ctx, actor, alvo, true, "usou programa de terceiros")
 	if err != nil {
 		t.Fatalf("SetBlocked: %v", err)
 	}
-	if previous {
-		t.Error("previous = true, want false — the audit entry depends on this")
+	if previous.Blocked {
+		t.Error("previous.Blocked = true, want false — the audit entry depends on this")
 	}
 
-	previous, err = s.SetBlocked(ctx, actor, alvo, false)
+	// The row has to carry the whole story: why, when and by whom. Only the
+	// panel writes these, so nothing else will fill them in later.
+	var motivo string
+	var quando *time.Time
+	var quem *int64
+	if err := pool.QueryRow(ctx,
+		`SELECT block_reason, blocked_at, blocked_by FROM account WHERE id = $1`, alvo).
+		Scan(&motivo, &quando, &quem); err != nil {
+		t.Fatalf("read block row: %v", err)
+	}
+	if motivo != "usou programa de terceiros" {
+		t.Errorf("motivo = %q, want o que foi enviado", motivo)
+	}
+	if quando == nil {
+		t.Error("blocked_at ficou nulo num bloqueio")
+	}
+	if quem == nil || *quem != actor {
+		t.Errorf("blocked_by = %v, want %d", quem, actor)
+	}
+
+	previous, err = s.SetBlocked(ctx, actor, alvo, false, "")
 	if err != nil {
 		t.Fatalf("SetBlocked: %v", err)
 	}
-	if !previous {
-		t.Error("previous = false, want true after having been blocked")
+	if !previous.Blocked {
+		t.Error("previous.Blocked = false, want true after having been blocked")
+	}
+	if previous.Reason != "usou programa de terceiros" {
+		t.Errorf("previous.Reason = %q — o audit precisa do motivo que estava valendo", previous.Reason)
+	}
+
+	// Unblocking clears the reason: a reason hanging off an active account would
+	// read as a ban to anyone glancing at the row.
+	if err := pool.QueryRow(ctx,
+		`SELECT block_reason, blocked_at, blocked_by FROM account WHERE id = $1`, alvo).
+		Scan(&motivo, &quando, &quem); err != nil {
+		t.Fatalf("read block row: %v", err)
+	}
+	if motivo != "" || quando != nil || quem != nil {
+		t.Errorf("desbloquear deixou resto: motivo=%q quando=%v quem=%v", motivo, quando, quem)
+	}
+}
+
+func TestBloquearSemMotivoERecusado(t *testing.T) {
+	// The whole point of the column is that a player who writes in can be told
+	// why. A ban with an empty reason is the state this migration removes.
+	pool := testPool(t)
+	s := New(pool)
+	ctx := context.Background()
+	actor := seed(t, pool, "acc_actor_motivo", RoleAdmin)
+	alvo := seed(t, pool, "acc_sem_motivo", RolePlayer)
+
+	if _, err := s.SetBlocked(ctx, actor, alvo, true, "   "); !errors.Is(err, ErrMotivo) {
+		t.Fatalf("bloquear sem motivo = %v, want ErrMotivo", err)
+	}
+	if _, err := s.SetBlocked(ctx, actor, alvo, true, strings.Repeat("x", MaxMotivoBytes+1)); !errors.Is(err, ErrMotivo) {
+		t.Fatalf("motivo gigante = %v, want ErrMotivo", err)
+	}
+	var bloqueado bool
+	if err := pool.QueryRow(ctx, `SELECT is_blocked FROM account WHERE id = $1`, alvo).Scan(&bloqueado); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if bloqueado {
+		t.Error("um bloqueio recusado ainda assim entrou")
+	}
+}
+
+func TestEditarOMotivoDeUmBanEmVigorGrava(t *testing.T) {
+	// The old code returned before the UPDATE when the flag already matched, so
+	// correcting a reason wrote nothing and reported "nothing changed".
+	pool := testPool(t)
+	s := New(pool)
+	ctx := context.Background()
+	actor := seed(t, pool, "acc_actor_edit", RoleAdmin)
+	alvo := seed(t, pool, "acc_edit_motivo", RolePlayer)
+
+	if _, err := s.SetBlocked(ctx, actor, alvo, true, "motivo velho"); err != nil {
+		t.Fatalf("primeiro bloqueio: %v", err)
+	}
+	prev, err := s.SetBlocked(ctx, actor, alvo, true, "motivo corrigido")
+	if err != nil {
+		t.Fatalf("editar motivo: %v", err)
+	}
+	if prev.Reason != "motivo velho" {
+		t.Errorf("prev.Reason = %q, want o anterior", prev.Reason)
+	}
+	var motivo string
+	if err := pool.QueryRow(ctx, `SELECT block_reason FROM account WHERE id = $1`, alvo).Scan(&motivo); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if motivo != "motivo corrigido" {
+		t.Errorf("motivo gravado = %q, want o corrigido", motivo)
+	}
+}
+
+func TestBlockedLeOEstadoAtual(t *testing.T) {
+	// requireStaff calls this on every request; if it lagged, a banned moderator
+	// would keep working until their session expired.
+	pool := testPool(t)
+	s := New(pool)
+	ctx := context.Background()
+	actor := seed(t, pool, "acc_actor_bl", RoleAdmin)
+	alvo := seed(t, pool, "acc_bl_estado", RolePlayer)
+
+	if b, err := s.Blocked(ctx, alvo); err != nil || b {
+		t.Fatalf("Blocked antes = %v, %v; want false", b, err)
+	}
+	if _, err := s.SetBlocked(ctx, actor, alvo, true, "qualquer"); err != nil {
+		t.Fatalf("SetBlocked: %v", err)
+	}
+	if b, err := s.Blocked(ctx, alvo); err != nil || !b {
+		t.Fatalf("Blocked depois = %v, %v; want true", b, err)
+	}
+	if _, err := s.Blocked(ctx, 999999999); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Blocked de conta inexistente = %v, want ErrNotFound", err)
 	}
 }
 
@@ -200,7 +310,7 @@ func TestMissingAccount(t *testing.T) {
 	if _, err := s.SetRole(ctx, actor, 999999999, RolePlayer); !errors.Is(err, ErrNotFound) {
 		t.Errorf("SetRole: err = %v, want ErrNotFound", err)
 	}
-	if _, err := s.SetBlocked(ctx, actor, 999999999, true); !errors.Is(err, ErrNotFound) {
+	if _, err := s.SetBlocked(ctx, actor, 999999999, true, "motivo"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("SetBlocked: err = %v, want ErrNotFound", err)
 	}
 }
