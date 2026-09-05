@@ -25,8 +25,10 @@ import (
 	"time"
 )
 
-// endpoint is the platform's GraphQL API.
-const endpoint = "https://backboard.railway.com/graphql/v2"
+// defaultEndpoint is the platform's GraphQL API. A client carries its own copy
+// so a test can point one at a local server and assert on what was sent — the
+// choice of auth header below is exactly the kind of thing that breaks silently.
+const defaultEndpoint = "https://backboard.railway.com/graphql/v2"
 
 // requestTimeout bounds a call. The panel renders a page around this, so a slow
 // platform must degrade to "unknown" quickly rather than hang the request.
@@ -35,8 +37,16 @@ const requestTimeout = 10 * time.Second
 // Config is what the caller must supply. Project and environment ids are
 // injected into every service by the platform, so in practice only the token and
 // the target service id have to be set by hand.
+// The platform issues two kinds of credential and they travel in different
+// headers, so which one is set decides how the request is signed.
+//
+// Prefer ProjectToken. It reaches this project only, while an account token
+// reaches every project the owner has — and this one lives in the environment of
+// a service that is published on the internet. The narrower credential costs
+// nothing here: the panel only ever reads and restarts this project.
 type Config struct {
-	Token         string
+	Token         string // account or workspace token: Authorization: Bearer
+	ProjectToken  string // project token: Project-Access-Token
 	ProjectID     string
 	EnvironmentID string
 	ServiceID     string // the service to report on and restart (the game server)
@@ -44,7 +54,8 @@ type Config struct {
 
 // Ready reports whether enough is configured to call the API.
 func (c Config) Ready() bool {
-	return c.Token != "" && c.ProjectID != "" && c.EnvironmentID != "" && c.ServiceID != ""
+	return (c.Token != "" || c.ProjectToken != "") &&
+		c.ProjectID != "" && c.EnvironmentID != "" && c.ServiceID != ""
 }
 
 // Deployment is the running deployment of the watched service.
@@ -56,13 +67,14 @@ type Deployment struct {
 
 // Client calls the platform API.
 type Client struct {
-	cfg  Config
-	http *http.Client
+	cfg      Config
+	endpoint string
+	http     *http.Client
 }
 
 // New builds a client. Callers should check cfg.Ready() first.
 func New(cfg Config) *Client {
-	return &Client{cfg: cfg, http: &http.Client{Timeout: requestTimeout}}
+	return &Client{cfg: cfg, endpoint: defaultEndpoint, http: &http.Client{Timeout: requestTimeout}}
 }
 
 // Latest returns the service's current successful deployment.
@@ -119,11 +131,17 @@ func (c *Client) do(ctx context.Context, query string, vars map[string]any, out 
 	if err != nil {
 		return fmt.Errorf("plataforma: encode request: %w", err)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("plataforma: build request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
+	// A project token wins when both are set: it is the narrower of the two, and
+	// sending both headers would leave which one the platform honours up to it.
+	if c.cfg.ProjectToken != "" {
+		req.Header.Set("Project-Access-Token", c.cfg.ProjectToken)
+	} else {
+		req.Header.Set("Authorization", "Bearer "+c.cfg.Token)
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.http.Do(req)

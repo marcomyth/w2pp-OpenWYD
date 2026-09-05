@@ -36,6 +36,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/grpcsrv"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemcatalog"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemicons"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemstatadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplateadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplates"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/npcadmin"
@@ -90,6 +91,7 @@ func run(logger *slog.Logger) error {
 	npcAdmin := npcadmin.New(st)
 	npcAdmin.SetLogger(logger)
 	mobTemplateAdmin := mobtemplateadmin.New(st)
+	itemStatAdmin := itemstatadmin.New(st)
 	donate := donateshop.New(st)
 	dailyRwd := dailyreward.New(st)
 	topup := donatetopup.New(st)
@@ -133,6 +135,19 @@ func run(logger *slog.Logger) error {
 				"items_with_icon_url", withIconURL)
 			npcAdmin.SetItemCatalog(catalog)
 			itemCatalog = catalog
+
+			// Index by item index so the stat editor can seed a new override
+			// from the catalog in one lookup. Built here rather than inside the
+			// service because the catalog is immutable after boot: the content
+			// tree is mounted read-only.
+			porIndice := make(map[int32]itemcatalog.Entry, len(catalog.Items))
+			for _, e := range catalog.Items {
+				porIndice[e.Index] = e
+			}
+			itemStatAdmin.SetCatalog(func(idx int32) (itemcatalog.Entry, bool) {
+				e, ok := porIndice[idx]
+				return e, ok
+			})
 		}
 
 		mobTemplates, mobStats, err := mobtemplates.Scan(*contentDir, logger)
@@ -165,6 +180,7 @@ func run(logger *slog.Logger) error {
 	webv1.RegisterItemCatalogServiceServer(srv, grpcsrv.NewItemCatalog(itemCatalog))
 	webv1.RegisterNpcAdminServiceServer(srv, grpcsrv.NewNpcAdmin(npcAdmin))
 	webv1.RegisterMobTemplateAdminServiceServer(srv, grpcsrv.NewMobTemplateAdmin(mobTemplateAdmin))
+	webv1.RegisterItemStatAdminServiceServer(srv, grpcsrv.NewItemStatAdmin(itemStatAdmin))
 	webv1.RegisterAttributeMapAdminServiceServer(srv, grpcsrv.NewAttributeMapAdmin(attrMap))
 	webv1.RegisterDonateAdminServiceServer(srv, grpcsrv.NewDonateAdmin(donate))
 	webv1.RegisterDonateShopServiceServer(srv, grpcsrv.NewDonateShop(donate))

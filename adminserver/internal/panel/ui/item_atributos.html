@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>{{if .Exibido}}{{.Exibido}}{{else}}Item {{.Indice}}{{end}} — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  .grupo { margin-bottom: 30px; }
+  .grupo h2 {
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+    font-weight: 600; margin: 0 0 12px; padding-bottom: 7px; border-bottom: 1px solid var(--rule);
+  }
+  .numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px 24px; }
+  .numero label { display: block; font-size: 12.5px; color: var(--ink-2); margin-bottom: 4px; }
+  .numero input {
+    width: 100%; padding: 6px 9px; font: inherit; font-size: 13.5px; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  .numero input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .barra-salvar {
+    position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--rule);
+    padding: 14px 0; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .barra-salvar .dica { margin: 0; font-size: 12.5px; color: var(--ink-3); }
+  .reinicio {
+    background: var(--warn-bg); border: 1px solid var(--rule); border-left: 3px solid var(--warn);
+    border-radius: 3px; padding: 11px 15px; margin-bottom: 26px; font-size: 14px; color: var(--ink);
+  }
+  .limpar { margin-top: 26px; }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>{{if .Exibido}}{{.Exibido}}{{else}}Item {{.Indice}}{{end}}</h1>
+  <p class="sub"><a href="/itens">Voltar para a lista de itens</a></p>
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  <div class="campos">
+    <div class="campo">
+      <div class="rot">Índice no catálogo</div>
+      <div class="val">{{.Indice}}</div>
+    </div>
+    <div class="campo">
+      <div class="rot">Origem dos números</div>
+      <div class="val">
+        {{if .Overridden}}<span class="cargo">exceção salva</span>{{else}}catálogo do jogo{{end}}
+      </div>
+    </div>
+  </div>
+
+  <div class="reinicio">
+    O que você gravar aqui <strong>só vale depois de reiniciar o servidor</strong>.
+    Diferente do preço, que muda sozinho em cerca de 15 segundos: o preço só é
+    lido na hora da compra, e estes números fazem parte da ficha do personagem.
+  </div>
+
+  <form method="post" action="/itens/{{.Indice}}/atributos">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+
+    {{range .Grupos}}
+      {{if .Campos}}
+      <div class="grupo">
+        <h2>{{.Nome}}</h2>
+        <div class="numeros">
+          {{range .Campos}}
+          <div class="numero">
+            <label for="c-{{.Nome}}">{{.Rotulo}}</label>
+            <input id="c-{{.Nome}}" name="{{.Nome}}" type="number" step="1"
+                   min="-32768" max="32767" inputmode="numeric" value="{{.Valor}}">
+          </div>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+    {{end}}
+
+    <div class="barra-salvar">
+      <button type="submit">Gravar alterações</button>
+      <p class="dica">
+        Grava tudo de uma vez. O que estiver na tela vira a lista completa de
+        efeitos do item — inclusive os campos de Avançado.
+      </p>
+    </div>
+  </form>
+
+  {{if .Overridden}}
+  <div class="limpar">
+    <form method="post" action="/itens/{{.Indice}}/atributos/limpar" class="acao-bloco">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>Descartar a exceção</label>
+      <div class="linha"><button type="submit">Voltar aos valores do catálogo</button></div>
+      <p class="dica">
+        Apaga tudo que foi editado aqui e devolve os números do arquivo do jogo.
+        Também só vale depois de reiniciar.
+      </p>
+    </form>
+  </div>
+  {{end}}
+</main>
+</body>
+</html>

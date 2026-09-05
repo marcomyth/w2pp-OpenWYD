@@ -9175,6 +9175,622 @@ func (x *SearchAccountsResponse) GetAccounts() []*AccountSummary {
 	return nil
 }
 
+type AdminItemStat struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ItemIndex int32                  `protobuf:"varint,1,opt,name=item_index,json=itemIndex,proto3" json:"item_index,omitempty"`
+	// overridden is false when this is a read-through of the catalog's current
+	// values (no saved override yet) — GetItemStat only.
+	Overridden bool `protobuf:"varint,2,opt,name=overridden,proto3" json:"overridden,omitempty"`
+	// display_name is the catalog name, for the UI. Read-only: an item's name
+	// lives in ItemList.csv and is not part of the override.
+	DisplayName   string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	ReqLevel      int32  `protobuf:"varint,4,opt,name=req_level,json=reqLevel,proto3" json:"req_level,omitempty"` // requirement to equip: ItemList.csv "Lvl.Str.Int.Dex.Con"
+	ReqStr        int32  `protobuf:"varint,5,opt,name=req_str,json=reqStr,proto3" json:"req_str,omitempty"`
+	ReqInt        int32  `protobuf:"varint,6,opt,name=req_int,json=reqInt,proto3" json:"req_int,omitempty"`
+	ReqDex        int32  `protobuf:"varint,7,opt,name=req_dex,json=reqDex,proto3" json:"req_dex,omitempty"`
+	ReqCon        int32  `protobuf:"varint,8,opt,name=req_con,json=reqCon,proto3" json:"req_con,omitempty"`
+	Damage        int32  `protobuf:"varint,9,opt,name=damage,proto3" json:"damage,omitempty"` // combat
+	Damageadd     int32  `protobuf:"varint,10,opt,name=damageadd,proto3" json:"damageadd,omitempty"`
+	Ac            int32  `protobuf:"varint,11,opt,name=ac,proto3" json:"ac,omitempty"`
+	Acadd         int32  `protobuf:"varint,12,opt,name=acadd,proto3" json:"acadd,omitempty"`
+	Magic         int32  `protobuf:"varint,13,opt,name=magic,proto3" json:"magic,omitempty"`
+	Magicadd      int32  `protobuf:"varint,14,opt,name=magicadd,proto3" json:"magicadd,omitempty"`
+	Critical      int32  `protobuf:"varint,15,opt,name=critical,proto3" json:"critical,omitempty"`
+	Critical2     int32  `protobuf:"varint,16,opt,name=critical2,proto3" json:"critical2,omitempty"`
+	Runspeed      int32  `protobuf:"varint,17,opt,name=runspeed,proto3" json:"runspeed,omitempty"`
+	Str           int32  `protobuf:"varint,18,opt,name=str,proto3" json:"str,omitempty"`     // attributes
+	Intel         int32  `protobuf:"varint,19,opt,name=intel,proto3" json:"intel,omitempty"` // "int" is reserved in several targets
+	Dex           int32  `protobuf:"varint,20,opt,name=dex,proto3" json:"dex,omitempty"`
+	Con           int32  `protobuf:"varint,21,opt,name=con,proto3" json:"con,omitempty"`
+	Hp            int32  `protobuf:"varint,22,opt,name=hp,proto3" json:"hp,omitempty"` // life
+	Hpadd         int32  `protobuf:"varint,23,opt,name=hpadd,proto3" json:"hpadd,omitempty"`
+	Hpadd2        int32  `protobuf:"varint,24,opt,name=hpadd2,proto3" json:"hpadd2,omitempty"`
+	Mp            int32  `protobuf:"varint,25,opt,name=mp,proto3" json:"mp,omitempty"`
+	Mpadd         int32  `protobuf:"varint,26,opt,name=mpadd,proto3" json:"mpadd,omitempty"`
+	Mpadd2        int32  `protobuf:"varint,27,opt,name=mpadd2,proto3" json:"mpadd2,omitempty"`
+	Resist1       int32  `protobuf:"varint,28,opt,name=resist1,proto3" json:"resist1,omitempty"` // resistances
+	Resist2       int32  `protobuf:"varint,29,opt,name=resist2,proto3" json:"resist2,omitempty"`
+	Resist3       int32  `protobuf:"varint,30,opt,name=resist3,proto3" json:"resist3,omitempty"`
+	Resist4       int32  `protobuf:"varint,31,opt,name=resist4,proto3" json:"resist4,omitempty"`
+	Resistall     int32  `protobuf:"varint,32,opt,name=resistall,proto3" json:"resistall,omitempty"`
+	Special1      int32  `protobuf:"varint,33,opt,name=special1,proto3" json:"special1,omitempty"` // masteries
+	Special2      int32  `protobuf:"varint,34,opt,name=special2,proto3" json:"special2,omitempty"`
+	Special3      int32  `protobuf:"varint,35,opt,name=special3,proto3" json:"special3,omitempty"`
+	Special4      int32  `protobuf:"varint,36,opt,name=special4,proto3" json:"special4,omitempty"`
+	Specialall    int32  `protobuf:"varint,37,opt,name=specialall,proto3" json:"specialall,omitempty"`
+	Itemlevel     int32  `protobuf:"varint,38,opt,name=itemlevel,proto3" json:"itemlevel,omitempty"` // identity and mechanics — carried so a save cannot strip them
+	Itemtype      int32  `protobuf:"varint,39,opt,name=itemtype,proto3" json:"itemtype,omitempty"`
+	Mobtype       int32  `protobuf:"varint,40,opt,name=mobtype,proto3" json:"mobtype,omitempty"`
+	Wtype         int32  `protobuf:"varint,41,opt,name=wtype,proto3" json:"wtype,omitempty"`
+	Pos           int32  `protobuf:"varint,42,opt,name=pos,proto3" json:"pos,omitempty"`
+	Sanc          int32  `protobuf:"varint,43,opt,name=sanc,proto3" json:"sanc,omitempty"`
+	Nosanc        int32  `protobuf:"varint,44,opt,name=nosanc,proto3" json:"nosanc,omitempty"`
+	Incubate      int32  `protobuf:"varint,45,opt,name=incubate,proto3" json:"incubate,omitempty"`
+	Incudelay     int32  `protobuf:"varint,46,opt,name=incudelay,proto3" json:"incudelay,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AdminItemStat) Reset() {
+	*x = AdminItemStat{}
+	mi := &file_api_web_v1_web_proto_msgTypes[128]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AdminItemStat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AdminItemStat) ProtoMessage() {}
+
+func (x *AdminItemStat) ProtoReflect() protoreflect.Message {
+	mi := &file_api_web_v1_web_proto_msgTypes[128]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AdminItemStat.ProtoReflect.Descriptor instead.
+func (*AdminItemStat) Descriptor() ([]byte, []int) {
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{128}
+}
+
+func (x *AdminItemStat) GetItemIndex() int32 {
+	if x != nil {
+		return x.ItemIndex
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetOverridden() bool {
+	if x != nil {
+		return x.Overridden
+	}
+	return false
+}
+
+func (x *AdminItemStat) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *AdminItemStat) GetReqLevel() int32 {
+	if x != nil {
+		return x.ReqLevel
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetReqStr() int32 {
+	if x != nil {
+		return x.ReqStr
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetReqInt() int32 {
+	if x != nil {
+		return x.ReqInt
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetReqDex() int32 {
+	if x != nil {
+		return x.ReqDex
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetReqCon() int32 {
+	if x != nil {
+		return x.ReqCon
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetDamage() int32 {
+	if x != nil {
+		return x.Damage
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetDamageadd() int32 {
+	if x != nil {
+		return x.Damageadd
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetAc() int32 {
+	if x != nil {
+		return x.Ac
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetAcadd() int32 {
+	if x != nil {
+		return x.Acadd
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetMagic() int32 {
+	if x != nil {
+		return x.Magic
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetMagicadd() int32 {
+	if x != nil {
+		return x.Magicadd
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetCritical() int32 {
+	if x != nil {
+		return x.Critical
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetCritical2() int32 {
+	if x != nil {
+		return x.Critical2
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetRunspeed() int32 {
+	if x != nil {
+		return x.Runspeed
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetStr() int32 {
+	if x != nil {
+		return x.Str
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetIntel() int32 {
+	if x != nil {
+		return x.Intel
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetDex() int32 {
+	if x != nil {
+		return x.Dex
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetCon() int32 {
+	if x != nil {
+		return x.Con
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetHp() int32 {
+	if x != nil {
+		return x.Hp
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetHpadd() int32 {
+	if x != nil {
+		return x.Hpadd
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetHpadd2() int32 {
+	if x != nil {
+		return x.Hpadd2
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetMp() int32 {
+	if x != nil {
+		return x.Mp
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetMpadd() int32 {
+	if x != nil {
+		return x.Mpadd
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetMpadd2() int32 {
+	if x != nil {
+		return x.Mpadd2
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetResist1() int32 {
+	if x != nil {
+		return x.Resist1
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetResist2() int32 {
+	if x != nil {
+		return x.Resist2
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetResist3() int32 {
+	if x != nil {
+		return x.Resist3
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetResist4() int32 {
+	if x != nil {
+		return x.Resist4
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetResistall() int32 {
+	if x != nil {
+		return x.Resistall
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetSpecial1() int32 {
+	if x != nil {
+		return x.Special1
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetSpecial2() int32 {
+	if x != nil {
+		return x.Special2
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetSpecial3() int32 {
+	if x != nil {
+		return x.Special3
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetSpecial4() int32 {
+	if x != nil {
+		return x.Special4
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetSpecialall() int32 {
+	if x != nil {
+		return x.Specialall
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetItemlevel() int32 {
+	if x != nil {
+		return x.Itemlevel
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetItemtype() int32 {
+	if x != nil {
+		return x.Itemtype
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetMobtype() int32 {
+	if x != nil {
+		return x.Mobtype
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetWtype() int32 {
+	if x != nil {
+		return x.Wtype
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetPos() int32 {
+	if x != nil {
+		return x.Pos
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetSanc() int32 {
+	if x != nil {
+		return x.Sanc
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetNosanc() int32 {
+	if x != nil {
+		return x.Nosanc
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetIncubate() int32 {
+	if x != nil {
+		return x.Incubate
+	}
+	return 0
+}
+
+func (x *AdminItemStat) GetIncudelay() int32 {
+	if x != nil {
+		return x.Incudelay
+	}
+	return 0
+}
+
+type GetItemStatRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ModeratorId   int64                  `protobuf:"varint,1,opt,name=moderator_id,json=moderatorId,proto3" json:"moderator_id,omitempty"`
+	ItemIndex     int32                  `protobuf:"varint,2,opt,name=item_index,json=itemIndex,proto3" json:"item_index,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetItemStatRequest) Reset() {
+	*x = GetItemStatRequest{}
+	mi := &file_api_web_v1_web_proto_msgTypes[129]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetItemStatRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetItemStatRequest) ProtoMessage() {}
+
+func (x *GetItemStatRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_web_v1_web_proto_msgTypes[129]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetItemStatRequest.ProtoReflect.Descriptor instead.
+func (*GetItemStatRequest) Descriptor() ([]byte, []int) {
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{129}
+}
+
+func (x *GetItemStatRequest) GetModeratorId() int64 {
+	if x != nil {
+		return x.ModeratorId
+	}
+	return 0
+}
+
+func (x *GetItemStatRequest) GetItemIndex() int32 {
+	if x != nil {
+		return x.ItemIndex
+	}
+	return 0
+}
+
+type GetItemStatResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Result        AdminResult            `protobuf:"varint,1,opt,name=result,proto3,enum=web.v1.AdminResult" json:"result,omitempty"`
+	Stat          *AdminItemStat         `protobuf:"bytes,2,opt,name=stat,proto3" json:"stat,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetItemStatResponse) Reset() {
+	*x = GetItemStatResponse{}
+	mi := &file_api_web_v1_web_proto_msgTypes[130]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetItemStatResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetItemStatResponse) ProtoMessage() {}
+
+func (x *GetItemStatResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_web_v1_web_proto_msgTypes[130]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetItemStatResponse.ProtoReflect.Descriptor instead.
+func (*GetItemStatResponse) Descriptor() ([]byte, []int) {
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{130}
+}
+
+func (x *GetItemStatResponse) GetResult() AdminResult {
+	if x != nil {
+		return x.Result
+	}
+	return AdminResult_ADMIN_RESULT_UNSPECIFIED
+}
+
+func (x *GetItemStatResponse) GetStat() *AdminItemStat {
+	if x != nil {
+		return x.Stat
+	}
+	return nil
+}
+
+type UpsertItemStatRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ModeratorId   int64                  `protobuf:"varint,1,opt,name=moderator_id,json=moderatorId,proto3" json:"moderator_id,omitempty"`
+	Stat          *AdminItemStat         `protobuf:"bytes,2,opt,name=stat,proto3" json:"stat,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertItemStatRequest) Reset() {
+	*x = UpsertItemStatRequest{}
+	mi := &file_api_web_v1_web_proto_msgTypes[131]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertItemStatRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertItemStatRequest) ProtoMessage() {}
+
+func (x *UpsertItemStatRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_web_v1_web_proto_msgTypes[131]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertItemStatRequest.ProtoReflect.Descriptor instead.
+func (*UpsertItemStatRequest) Descriptor() ([]byte, []int) {
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{131}
+}
+
+func (x *UpsertItemStatRequest) GetModeratorId() int64 {
+	if x != nil {
+		return x.ModeratorId
+	}
+	return 0
+}
+
+func (x *UpsertItemStatRequest) GetStat() *AdminItemStat {
+	if x != nil {
+		return x.Stat
+	}
+	return nil
+}
+
+type DeleteItemStatRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ModeratorId   int64                  `protobuf:"varint,1,opt,name=moderator_id,json=moderatorId,proto3" json:"moderator_id,omitempty"`
+	ItemIndex     int32                  `protobuf:"varint,2,opt,name=item_index,json=itemIndex,proto3" json:"item_index,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteItemStatRequest) Reset() {
+	*x = DeleteItemStatRequest{}
+	mi := &file_api_web_v1_web_proto_msgTypes[132]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteItemStatRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteItemStatRequest) ProtoMessage() {}
+
+func (x *DeleteItemStatRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_web_v1_web_proto_msgTypes[132]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteItemStatRequest.ProtoReflect.Descriptor instead.
+func (*DeleteItemStatRequest) Descriptor() ([]byte, []int) {
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{132}
+}
+
+func (x *DeleteItemStatRequest) GetModeratorId() int64 {
+	if x != nil {
+		return x.ModeratorId
+	}
+	return 0
+}
+
+func (x *DeleteItemStatRequest) GetItemIndex() int32 {
+	if x != nil {
+		return x.ItemIndex
+	}
+	return 0
+}
+
 var File_api_web_v1_web_proto protoreflect.FileDescriptor
 
 const file_api_web_v1_web_proto_rawDesc = "" +
@@ -9877,7 +10493,74 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\x05limit\x18\x03 \x01(\x05R\x05limit\"y\n" +
 	"\x16SearchAccountsResponse\x12+\n" +
 	"\x06result\x18\x01 \x01(\x0e2\x13.web.v1.AdminResultR\x06result\x122\n" +
-	"\baccounts\x18\x02 \x03(\v2\x16.web.v1.AccountSummaryR\baccounts*|\n" +
+	"\baccounts\x18\x02 \x03(\v2\x16.web.v1.AccountSummaryR\baccounts\"\x96\t\n" +
+	"\rAdminItemStat\x12\x1d\n" +
+	"\n" +
+	"item_index\x18\x01 \x01(\x05R\titemIndex\x12\x1e\n" +
+	"\n" +
+	"overridden\x18\x02 \x01(\bR\n" +
+	"overridden\x12!\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12\x1b\n" +
+	"\treq_level\x18\x04 \x01(\x05R\breqLevel\x12\x17\n" +
+	"\areq_str\x18\x05 \x01(\x05R\x06reqStr\x12\x17\n" +
+	"\areq_int\x18\x06 \x01(\x05R\x06reqInt\x12\x17\n" +
+	"\areq_dex\x18\a \x01(\x05R\x06reqDex\x12\x17\n" +
+	"\areq_con\x18\b \x01(\x05R\x06reqCon\x12\x16\n" +
+	"\x06damage\x18\t \x01(\x05R\x06damage\x12\x1c\n" +
+	"\tdamageadd\x18\n" +
+	" \x01(\x05R\tdamageadd\x12\x0e\n" +
+	"\x02ac\x18\v \x01(\x05R\x02ac\x12\x14\n" +
+	"\x05acadd\x18\f \x01(\x05R\x05acadd\x12\x14\n" +
+	"\x05magic\x18\r \x01(\x05R\x05magic\x12\x1a\n" +
+	"\bmagicadd\x18\x0e \x01(\x05R\bmagicadd\x12\x1a\n" +
+	"\bcritical\x18\x0f \x01(\x05R\bcritical\x12\x1c\n" +
+	"\tcritical2\x18\x10 \x01(\x05R\tcritical2\x12\x1a\n" +
+	"\brunspeed\x18\x11 \x01(\x05R\brunspeed\x12\x10\n" +
+	"\x03str\x18\x12 \x01(\x05R\x03str\x12\x14\n" +
+	"\x05intel\x18\x13 \x01(\x05R\x05intel\x12\x10\n" +
+	"\x03dex\x18\x14 \x01(\x05R\x03dex\x12\x10\n" +
+	"\x03con\x18\x15 \x01(\x05R\x03con\x12\x0e\n" +
+	"\x02hp\x18\x16 \x01(\x05R\x02hp\x12\x14\n" +
+	"\x05hpadd\x18\x17 \x01(\x05R\x05hpadd\x12\x16\n" +
+	"\x06hpadd2\x18\x18 \x01(\x05R\x06hpadd2\x12\x0e\n" +
+	"\x02mp\x18\x19 \x01(\x05R\x02mp\x12\x14\n" +
+	"\x05mpadd\x18\x1a \x01(\x05R\x05mpadd\x12\x16\n" +
+	"\x06mpadd2\x18\x1b \x01(\x05R\x06mpadd2\x12\x18\n" +
+	"\aresist1\x18\x1c \x01(\x05R\aresist1\x12\x18\n" +
+	"\aresist2\x18\x1d \x01(\x05R\aresist2\x12\x18\n" +
+	"\aresist3\x18\x1e \x01(\x05R\aresist3\x12\x18\n" +
+	"\aresist4\x18\x1f \x01(\x05R\aresist4\x12\x1c\n" +
+	"\tresistall\x18  \x01(\x05R\tresistall\x12\x1a\n" +
+	"\bspecial1\x18! \x01(\x05R\bspecial1\x12\x1a\n" +
+	"\bspecial2\x18\" \x01(\x05R\bspecial2\x12\x1a\n" +
+	"\bspecial3\x18# \x01(\x05R\bspecial3\x12\x1a\n" +
+	"\bspecial4\x18$ \x01(\x05R\bspecial4\x12\x1e\n" +
+	"\n" +
+	"specialall\x18% \x01(\x05R\n" +
+	"specialall\x12\x1c\n" +
+	"\titemlevel\x18& \x01(\x05R\titemlevel\x12\x1a\n" +
+	"\bitemtype\x18' \x01(\x05R\bitemtype\x12\x18\n" +
+	"\amobtype\x18( \x01(\x05R\amobtype\x12\x14\n" +
+	"\x05wtype\x18) \x01(\x05R\x05wtype\x12\x10\n" +
+	"\x03pos\x18* \x01(\x05R\x03pos\x12\x12\n" +
+	"\x04sanc\x18+ \x01(\x05R\x04sanc\x12\x16\n" +
+	"\x06nosanc\x18, \x01(\x05R\x06nosanc\x12\x1a\n" +
+	"\bincubate\x18- \x01(\x05R\bincubate\x12\x1c\n" +
+	"\tincudelay\x18. \x01(\x05R\tincudelay\"V\n" +
+	"\x12GetItemStatRequest\x12!\n" +
+	"\fmoderator_id\x18\x01 \x01(\x03R\vmoderatorId\x12\x1d\n" +
+	"\n" +
+	"item_index\x18\x02 \x01(\x05R\titemIndex\"m\n" +
+	"\x13GetItemStatResponse\x12+\n" +
+	"\x06result\x18\x01 \x01(\x0e2\x13.web.v1.AdminResultR\x06result\x12)\n" +
+	"\x04stat\x18\x02 \x01(\v2\x15.web.v1.AdminItemStatR\x04stat\"e\n" +
+	"\x15UpsertItemStatRequest\x12!\n" +
+	"\fmoderator_id\x18\x01 \x01(\x03R\vmoderatorId\x12)\n" +
+	"\x04stat\x18\x02 \x01(\v2\x15.web.v1.AdminItemStatR\x04stat\"Y\n" +
+	"\x15DeleteItemStatRequest\x12!\n" +
+	"\fmoderator_id\x18\x01 \x01(\x03R\vmoderatorId\x12\x1d\n" +
+	"\n" +
+	"item_index\x18\x02 \x01(\x05R\titemIndex*|\n" +
 	"\fCreateResult\x12\x1d\n" +
 	"\x19CREATE_RESULT_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10CREATE_RESULT_OK\x10\x01\x12\x1c\n" +
@@ -9999,7 +10682,11 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\x0fListTopupOrders\x12\x1e.web.v1.ListTopupOrdersRequest\x1a\x1f.web.v1.ListTopupOrdersResponse\x12L\n" +
 	"\rListTopBuyers\x12\x1c.web.v1.ListTopBuyersRequest\x1a\x1d.web.v1.ListTopBuyersResponse\x12R\n" +
 	"\x0fListDonateSpend\x12\x1e.web.v1.ListDonateSpendRequest\x1a\x1f.web.v1.ListDonateSpendResponse\x12O\n" +
-	"\x0eSearchAccounts\x12\x1d.web.v1.SearchAccountsRequest\x1a\x1e.web.v1.SearchAccountsResponseB3Z1github.com/jeanluca/w2pp-openwyd/api/web/v1;webv1b\x06proto3"
+	"\x0eSearchAccounts\x12\x1d.web.v1.SearchAccountsRequest\x1a\x1e.web.v1.SearchAccountsResponse2\xe4\x01\n" +
+	"\x14ItemStatAdminService\x12F\n" +
+	"\vGetItemStat\x12\x1a.web.v1.GetItemStatRequest\x1a\x1b.web.v1.GetItemStatResponse\x12A\n" +
+	"\x0eUpsertItemStat\x12\x1d.web.v1.UpsertItemStatRequest\x1a\x10.web.v1.AdminAck\x12A\n" +
+	"\x0eDeleteItemStat\x12\x1d.web.v1.DeleteItemStatRequest\x1a\x10.web.v1.AdminAckB3Z1github.com/jeanluca/w2pp-openwyd/api/web/v1;webv1b\x06proto3"
 
 var (
 	file_api_web_v1_web_proto_rawDescOnce sync.Once
@@ -10014,7 +10701,7 @@ func file_api_web_v1_web_proto_rawDescGZIP() []byte {
 }
 
 var file_api_web_v1_web_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_api_web_v1_web_proto_msgTypes = make([]protoimpl.MessageInfo, 128)
+var file_api_web_v1_web_proto_msgTypes = make([]protoimpl.MessageInfo, 133)
 var file_api_web_v1_web_proto_goTypes = []any{
 	(CreateResult)(0),                     // 0: web.v1.CreateResult
 	(AdminResult)(0),                      // 1: web.v1.AdminResult
@@ -10154,6 +10841,11 @@ var file_api_web_v1_web_proto_goTypes = []any{
 	(*AccountSummary)(nil),                // 135: web.v1.AccountSummary
 	(*SearchAccountsRequest)(nil),         // 136: web.v1.SearchAccountsRequest
 	(*SearchAccountsResponse)(nil),        // 137: web.v1.SearchAccountsResponse
+	(*AdminItemStat)(nil),                 // 138: web.v1.AdminItemStat
+	(*GetItemStatRequest)(nil),            // 139: web.v1.GetItemStatRequest
+	(*GetItemStatResponse)(nil),           // 140: web.v1.GetItemStatResponse
+	(*UpsertItemStatRequest)(nil),         // 141: web.v1.UpsertItemStatRequest
+	(*DeleteItemStatRequest)(nil),         // 142: web.v1.DeleteItemStatRequest
 }
 var file_api_web_v1_web_proto_depIdxs = []int32{
 	0,   // 0: web.v1.CreateAccountResponse.result:type_name -> web.v1.CreateResult
@@ -10246,117 +10938,126 @@ var file_api_web_v1_web_proto_depIdxs = []int32{
 	132, // 87: web.v1.ListDonateSpendResponse.entries:type_name -> web.v1.DonateLedgerRow
 	1,   // 88: web.v1.SearchAccountsResponse.result:type_name -> web.v1.AdminResult
 	135, // 89: web.v1.SearchAccountsResponse.accounts:type_name -> web.v1.AccountSummary
-	10,  // 90: web.v1.AccountWebService.CreateAccount:input_type -> web.v1.CreateAccountRequest
-	12,  // 91: web.v1.AccountWebService.VerifyCredentials:input_type -> web.v1.VerifyCredentialsRequest
-	14,  // 92: web.v1.RankingWebService.ListExpRanking:input_type -> web.v1.ListExpRankingRequest
-	17,  // 93: web.v1.RankingWebService.ListDuelRanking:input_type -> web.v1.ListDuelRankingRequest
-	20,  // 94: web.v1.CharacterWebService.ListMyCharacters:input_type -> web.v1.ListMyCharactersRequest
-	23,  // 95: web.v1.ItemCatalogService.ListItems:input_type -> web.v1.ListItemsRequest
-	28,  // 96: web.v1.NpcAdminService.ListNpcs:input_type -> web.v1.ListNpcsRequest
-	30,  // 97: web.v1.NpcAdminService.GetNpc:input_type -> web.v1.GetNpcRequest
-	32,  // 98: web.v1.NpcAdminService.UpsertNpc:input_type -> web.v1.UpsertNpcRequest
-	34,  // 99: web.v1.NpcAdminService.SetNpcVisibility:input_type -> web.v1.SetNpcVisibilityRequest
-	35,  // 100: web.v1.NpcAdminService.SetNpcShop:input_type -> web.v1.SetNpcShopRequest
-	36,  // 101: web.v1.NpcAdminService.SetItemPrice:input_type -> web.v1.SetItemPriceRequest
-	37,  // 102: web.v1.NpcAdminService.DeleteNpc:input_type -> web.v1.DeleteNpcRequest
-	39,  // 103: web.v1.NpcAdminService.ListMerchantTemplates:input_type -> web.v1.ListMerchantTemplatesRequest
-	42,  // 104: web.v1.NpcAdminService.ListItemCatalog:input_type -> web.v1.ListItemCatalogRequest
-	46,  // 105: web.v1.NpcAdminService.ListDropItems:input_type -> web.v1.ListDropItemsRequest
-	50,  // 106: web.v1.NpcAdminService.ListMobDrops:input_type -> web.v1.ListMobDropsRequest
-	53,  // 107: web.v1.NpcAdminService.ListItemPrices:input_type -> web.v1.ListItemPricesRequest
-	56,  // 108: web.v1.NpcAdminService.ListMapZones:input_type -> web.v1.ListMapZonesRequest
-	59,  // 109: web.v1.MobTemplateAdminService.ListMobTemplates:input_type -> web.v1.ListMobTemplatesRequest
-	63,  // 110: web.v1.MobTemplateAdminService.GetMobTemplateStat:input_type -> web.v1.GetMobTemplateStatRequest
-	65,  // 111: web.v1.MobTemplateAdminService.UpsertMobTemplateStat:input_type -> web.v1.UpsertMobTemplateStatRequest
-	67,  // 112: web.v1.MobTemplateAdminService.SetMobTemplateEquip:input_type -> web.v1.SetMobTemplateEquipRequest
-	68,  // 113: web.v1.MobTemplateAdminService.DeleteMobTemplateStat:input_type -> web.v1.DeleteMobTemplateStatRequest
-	69,  // 114: web.v1.AttributeMapAdminService.GetAttributeMapInfo:input_type -> web.v1.GetAttributeMapInfoRequest
-	76,  // 115: web.v1.AttributeMapAdminService.TransformAttributeMap:input_type -> web.v1.TransformAttributeMapRequest
-	79,  // 116: web.v1.DonateAdminService.ListShopItems:input_type -> web.v1.ListShopItemsRequest
-	81,  // 117: web.v1.DonateAdminService.UpsertShopItem:input_type -> web.v1.UpsertShopItemRequest
-	83,  // 118: web.v1.DonateAdminService.SetShopItemEnabled:input_type -> web.v1.SetShopItemEnabledRequest
-	84,  // 119: web.v1.DonateAdminService.DeleteShopItem:input_type -> web.v1.DeleteShopItemRequest
-	85,  // 120: web.v1.DonateAdminService.CreditDonateBalance:input_type -> web.v1.CreditDonateBalanceRequest
-	87,  // 121: web.v1.DonateShopService.ListShopItems:input_type -> web.v1.ListStoreItemsRequest
-	89,  // 122: web.v1.DonateShopService.GetBalance:input_type -> web.v1.GetBalanceRequest
-	91,  // 123: web.v1.DonateShopService.Buy:input_type -> web.v1.BuyRequest
-	94,  // 124: web.v1.DailyRewardAdminService.ListRewardItems:input_type -> web.v1.ListRewardItemsRequest
-	96,  // 125: web.v1.DailyRewardAdminService.UpsertRewardItem:input_type -> web.v1.UpsertRewardItemRequest
-	98,  // 126: web.v1.DailyRewardAdminService.SetRewardItemEnabled:input_type -> web.v1.SetRewardItemEnabledRequest
-	99,  // 127: web.v1.DailyRewardAdminService.DeleteRewardItem:input_type -> web.v1.DeleteRewardItemRequest
-	101, // 128: web.v1.WorldEventAdminService.GetWorldEventConfig:input_type -> web.v1.GetWorldEventConfigRequest
-	103, // 129: web.v1.WorldEventAdminService.SetWorldEventConfig:input_type -> web.v1.SetWorldEventConfigRequest
-	104, // 130: web.v1.DailyRewardService.ListRewards:input_type -> web.v1.ListRewardsRequest
-	106, // 131: web.v1.DailyRewardService.GetClaimStatus:input_type -> web.v1.GetClaimStatusRequest
-	108, // 132: web.v1.DailyRewardService.Claim:input_type -> web.v1.ClaimRequest
-	110, // 133: web.v1.DonateTopupService.GetPayerProfile:input_type -> web.v1.GetPayerProfileRequest
-	112, // 134: web.v1.DonateTopupService.SavePayerProfile:input_type -> web.v1.SavePayerProfileRequest
-	114, // 135: web.v1.DonateTopupService.CreateTopupOrder:input_type -> web.v1.CreateTopupOrderRequest
-	116, // 136: web.v1.DonateTopupService.ConfirmTopupOrder:input_type -> web.v1.ConfirmTopupOrderRequest
-	118, // 137: web.v1.DonateTopupService.GetTopupOrder:input_type -> web.v1.GetTopupOrderRequest
-	124, // 138: web.v1.DonateRevenueAdminService.GetRevenueSummary:input_type -> web.v1.GetRevenueSummaryRequest
-	127, // 139: web.v1.DonateRevenueAdminService.ListTopupOrders:input_type -> web.v1.ListTopupOrdersRequest
-	130, // 140: web.v1.DonateRevenueAdminService.ListTopBuyers:input_type -> web.v1.ListTopBuyersRequest
-	133, // 141: web.v1.DonateRevenueAdminService.ListDonateSpend:input_type -> web.v1.ListDonateSpendRequest
-	136, // 142: web.v1.DonateRevenueAdminService.SearchAccounts:input_type -> web.v1.SearchAccountsRequest
-	11,  // 143: web.v1.AccountWebService.CreateAccount:output_type -> web.v1.CreateAccountResponse
-	13,  // 144: web.v1.AccountWebService.VerifyCredentials:output_type -> web.v1.VerifyCredentialsResponse
-	16,  // 145: web.v1.RankingWebService.ListExpRanking:output_type -> web.v1.ListExpRankingResponse
-	19,  // 146: web.v1.RankingWebService.ListDuelRanking:output_type -> web.v1.ListDuelRankingResponse
-	22,  // 147: web.v1.CharacterWebService.ListMyCharacters:output_type -> web.v1.ListMyCharactersResponse
-	24,  // 148: web.v1.ItemCatalogService.ListItems:output_type -> web.v1.ListItemsResponse
-	29,  // 149: web.v1.NpcAdminService.ListNpcs:output_type -> web.v1.ListNpcsResponse
-	31,  // 150: web.v1.NpcAdminService.GetNpc:output_type -> web.v1.GetNpcResponse
-	33,  // 151: web.v1.NpcAdminService.UpsertNpc:output_type -> web.v1.UpsertNpcResponse
-	25,  // 152: web.v1.NpcAdminService.SetNpcVisibility:output_type -> web.v1.AdminAck
-	25,  // 153: web.v1.NpcAdminService.SetNpcShop:output_type -> web.v1.AdminAck
-	25,  // 154: web.v1.NpcAdminService.SetItemPrice:output_type -> web.v1.AdminAck
-	25,  // 155: web.v1.NpcAdminService.DeleteNpc:output_type -> web.v1.AdminAck
-	40,  // 156: web.v1.NpcAdminService.ListMerchantTemplates:output_type -> web.v1.ListMerchantTemplatesResponse
-	43,  // 157: web.v1.NpcAdminService.ListItemCatalog:output_type -> web.v1.ListItemCatalogResponse
-	47,  // 158: web.v1.NpcAdminService.ListDropItems:output_type -> web.v1.ListDropItemsResponse
-	51,  // 159: web.v1.NpcAdminService.ListMobDrops:output_type -> web.v1.ListMobDropsResponse
-	54,  // 160: web.v1.NpcAdminService.ListItemPrices:output_type -> web.v1.ListItemPricesResponse
-	57,  // 161: web.v1.NpcAdminService.ListMapZones:output_type -> web.v1.ListMapZonesResponse
-	60,  // 162: web.v1.MobTemplateAdminService.ListMobTemplates:output_type -> web.v1.ListMobTemplatesResponse
-	64,  // 163: web.v1.MobTemplateAdminService.GetMobTemplateStat:output_type -> web.v1.GetMobTemplateStatResponse
-	66,  // 164: web.v1.MobTemplateAdminService.UpsertMobTemplateStat:output_type -> web.v1.UpsertMobTemplateStatResponse
-	25,  // 165: web.v1.MobTemplateAdminService.SetMobTemplateEquip:output_type -> web.v1.AdminAck
-	25,  // 166: web.v1.MobTemplateAdminService.DeleteMobTemplateStat:output_type -> web.v1.AdminAck
-	70,  // 167: web.v1.AttributeMapAdminService.GetAttributeMapInfo:output_type -> web.v1.GetAttributeMapInfoResponse
-	77,  // 168: web.v1.AttributeMapAdminService.TransformAttributeMap:output_type -> web.v1.TransformAttributeMapResponse
-	80,  // 169: web.v1.DonateAdminService.ListShopItems:output_type -> web.v1.ListShopItemsResponse
-	82,  // 170: web.v1.DonateAdminService.UpsertShopItem:output_type -> web.v1.UpsertShopItemResponse
-	25,  // 171: web.v1.DonateAdminService.SetShopItemEnabled:output_type -> web.v1.AdminAck
-	25,  // 172: web.v1.DonateAdminService.DeleteShopItem:output_type -> web.v1.AdminAck
-	86,  // 173: web.v1.DonateAdminService.CreditDonateBalance:output_type -> web.v1.CreditDonateBalanceResponse
-	88,  // 174: web.v1.DonateShopService.ListShopItems:output_type -> web.v1.ListStoreItemsResponse
-	90,  // 175: web.v1.DonateShopService.GetBalance:output_type -> web.v1.GetBalanceResponse
-	92,  // 176: web.v1.DonateShopService.Buy:output_type -> web.v1.BuyResponse
-	95,  // 177: web.v1.DailyRewardAdminService.ListRewardItems:output_type -> web.v1.ListRewardItemsResponse
-	97,  // 178: web.v1.DailyRewardAdminService.UpsertRewardItem:output_type -> web.v1.UpsertRewardItemResponse
-	25,  // 179: web.v1.DailyRewardAdminService.SetRewardItemEnabled:output_type -> web.v1.AdminAck
-	25,  // 180: web.v1.DailyRewardAdminService.DeleteRewardItem:output_type -> web.v1.AdminAck
-	102, // 181: web.v1.WorldEventAdminService.GetWorldEventConfig:output_type -> web.v1.GetWorldEventConfigResponse
-	25,  // 182: web.v1.WorldEventAdminService.SetWorldEventConfig:output_type -> web.v1.AdminAck
-	105, // 183: web.v1.DailyRewardService.ListRewards:output_type -> web.v1.ListRewardsResponse
-	107, // 184: web.v1.DailyRewardService.GetClaimStatus:output_type -> web.v1.GetClaimStatusResponse
-	109, // 185: web.v1.DailyRewardService.Claim:output_type -> web.v1.ClaimResponse
-	111, // 186: web.v1.DonateTopupService.GetPayerProfile:output_type -> web.v1.GetPayerProfileResponse
-	113, // 187: web.v1.DonateTopupService.SavePayerProfile:output_type -> web.v1.SavePayerProfileResponse
-	115, // 188: web.v1.DonateTopupService.CreateTopupOrder:output_type -> web.v1.CreateTopupOrderResponse
-	117, // 189: web.v1.DonateTopupService.ConfirmTopupOrder:output_type -> web.v1.ConfirmTopupOrderResponse
-	119, // 190: web.v1.DonateTopupService.GetTopupOrder:output_type -> web.v1.GetTopupOrderResponse
-	125, // 191: web.v1.DonateRevenueAdminService.GetRevenueSummary:output_type -> web.v1.GetRevenueSummaryResponse
-	128, // 192: web.v1.DonateRevenueAdminService.ListTopupOrders:output_type -> web.v1.ListTopupOrdersResponse
-	131, // 193: web.v1.DonateRevenueAdminService.ListTopBuyers:output_type -> web.v1.ListTopBuyersResponse
-	134, // 194: web.v1.DonateRevenueAdminService.ListDonateSpend:output_type -> web.v1.ListDonateSpendResponse
-	137, // 195: web.v1.DonateRevenueAdminService.SearchAccounts:output_type -> web.v1.SearchAccountsResponse
-	143, // [143:196] is the sub-list for method output_type
-	90,  // [90:143] is the sub-list for method input_type
-	90,  // [90:90] is the sub-list for extension type_name
-	90,  // [90:90] is the sub-list for extension extendee
-	0,   // [0:90] is the sub-list for field type_name
+	1,   // 90: web.v1.GetItemStatResponse.result:type_name -> web.v1.AdminResult
+	138, // 91: web.v1.GetItemStatResponse.stat:type_name -> web.v1.AdminItemStat
+	138, // 92: web.v1.UpsertItemStatRequest.stat:type_name -> web.v1.AdminItemStat
+	10,  // 93: web.v1.AccountWebService.CreateAccount:input_type -> web.v1.CreateAccountRequest
+	12,  // 94: web.v1.AccountWebService.VerifyCredentials:input_type -> web.v1.VerifyCredentialsRequest
+	14,  // 95: web.v1.RankingWebService.ListExpRanking:input_type -> web.v1.ListExpRankingRequest
+	17,  // 96: web.v1.RankingWebService.ListDuelRanking:input_type -> web.v1.ListDuelRankingRequest
+	20,  // 97: web.v1.CharacterWebService.ListMyCharacters:input_type -> web.v1.ListMyCharactersRequest
+	23,  // 98: web.v1.ItemCatalogService.ListItems:input_type -> web.v1.ListItemsRequest
+	28,  // 99: web.v1.NpcAdminService.ListNpcs:input_type -> web.v1.ListNpcsRequest
+	30,  // 100: web.v1.NpcAdminService.GetNpc:input_type -> web.v1.GetNpcRequest
+	32,  // 101: web.v1.NpcAdminService.UpsertNpc:input_type -> web.v1.UpsertNpcRequest
+	34,  // 102: web.v1.NpcAdminService.SetNpcVisibility:input_type -> web.v1.SetNpcVisibilityRequest
+	35,  // 103: web.v1.NpcAdminService.SetNpcShop:input_type -> web.v1.SetNpcShopRequest
+	36,  // 104: web.v1.NpcAdminService.SetItemPrice:input_type -> web.v1.SetItemPriceRequest
+	37,  // 105: web.v1.NpcAdminService.DeleteNpc:input_type -> web.v1.DeleteNpcRequest
+	39,  // 106: web.v1.NpcAdminService.ListMerchantTemplates:input_type -> web.v1.ListMerchantTemplatesRequest
+	42,  // 107: web.v1.NpcAdminService.ListItemCatalog:input_type -> web.v1.ListItemCatalogRequest
+	46,  // 108: web.v1.NpcAdminService.ListDropItems:input_type -> web.v1.ListDropItemsRequest
+	50,  // 109: web.v1.NpcAdminService.ListMobDrops:input_type -> web.v1.ListMobDropsRequest
+	53,  // 110: web.v1.NpcAdminService.ListItemPrices:input_type -> web.v1.ListItemPricesRequest
+	56,  // 111: web.v1.NpcAdminService.ListMapZones:input_type -> web.v1.ListMapZonesRequest
+	59,  // 112: web.v1.MobTemplateAdminService.ListMobTemplates:input_type -> web.v1.ListMobTemplatesRequest
+	63,  // 113: web.v1.MobTemplateAdminService.GetMobTemplateStat:input_type -> web.v1.GetMobTemplateStatRequest
+	65,  // 114: web.v1.MobTemplateAdminService.UpsertMobTemplateStat:input_type -> web.v1.UpsertMobTemplateStatRequest
+	67,  // 115: web.v1.MobTemplateAdminService.SetMobTemplateEquip:input_type -> web.v1.SetMobTemplateEquipRequest
+	68,  // 116: web.v1.MobTemplateAdminService.DeleteMobTemplateStat:input_type -> web.v1.DeleteMobTemplateStatRequest
+	69,  // 117: web.v1.AttributeMapAdminService.GetAttributeMapInfo:input_type -> web.v1.GetAttributeMapInfoRequest
+	76,  // 118: web.v1.AttributeMapAdminService.TransformAttributeMap:input_type -> web.v1.TransformAttributeMapRequest
+	79,  // 119: web.v1.DonateAdminService.ListShopItems:input_type -> web.v1.ListShopItemsRequest
+	81,  // 120: web.v1.DonateAdminService.UpsertShopItem:input_type -> web.v1.UpsertShopItemRequest
+	83,  // 121: web.v1.DonateAdminService.SetShopItemEnabled:input_type -> web.v1.SetShopItemEnabledRequest
+	84,  // 122: web.v1.DonateAdminService.DeleteShopItem:input_type -> web.v1.DeleteShopItemRequest
+	85,  // 123: web.v1.DonateAdminService.CreditDonateBalance:input_type -> web.v1.CreditDonateBalanceRequest
+	87,  // 124: web.v1.DonateShopService.ListShopItems:input_type -> web.v1.ListStoreItemsRequest
+	89,  // 125: web.v1.DonateShopService.GetBalance:input_type -> web.v1.GetBalanceRequest
+	91,  // 126: web.v1.DonateShopService.Buy:input_type -> web.v1.BuyRequest
+	94,  // 127: web.v1.DailyRewardAdminService.ListRewardItems:input_type -> web.v1.ListRewardItemsRequest
+	96,  // 128: web.v1.DailyRewardAdminService.UpsertRewardItem:input_type -> web.v1.UpsertRewardItemRequest
+	98,  // 129: web.v1.DailyRewardAdminService.SetRewardItemEnabled:input_type -> web.v1.SetRewardItemEnabledRequest
+	99,  // 130: web.v1.DailyRewardAdminService.DeleteRewardItem:input_type -> web.v1.DeleteRewardItemRequest
+	101, // 131: web.v1.WorldEventAdminService.GetWorldEventConfig:input_type -> web.v1.GetWorldEventConfigRequest
+	103, // 132: web.v1.WorldEventAdminService.SetWorldEventConfig:input_type -> web.v1.SetWorldEventConfigRequest
+	104, // 133: web.v1.DailyRewardService.ListRewards:input_type -> web.v1.ListRewardsRequest
+	106, // 134: web.v1.DailyRewardService.GetClaimStatus:input_type -> web.v1.GetClaimStatusRequest
+	108, // 135: web.v1.DailyRewardService.Claim:input_type -> web.v1.ClaimRequest
+	110, // 136: web.v1.DonateTopupService.GetPayerProfile:input_type -> web.v1.GetPayerProfileRequest
+	112, // 137: web.v1.DonateTopupService.SavePayerProfile:input_type -> web.v1.SavePayerProfileRequest
+	114, // 138: web.v1.DonateTopupService.CreateTopupOrder:input_type -> web.v1.CreateTopupOrderRequest
+	116, // 139: web.v1.DonateTopupService.ConfirmTopupOrder:input_type -> web.v1.ConfirmTopupOrderRequest
+	118, // 140: web.v1.DonateTopupService.GetTopupOrder:input_type -> web.v1.GetTopupOrderRequest
+	124, // 141: web.v1.DonateRevenueAdminService.GetRevenueSummary:input_type -> web.v1.GetRevenueSummaryRequest
+	127, // 142: web.v1.DonateRevenueAdminService.ListTopupOrders:input_type -> web.v1.ListTopupOrdersRequest
+	130, // 143: web.v1.DonateRevenueAdminService.ListTopBuyers:input_type -> web.v1.ListTopBuyersRequest
+	133, // 144: web.v1.DonateRevenueAdminService.ListDonateSpend:input_type -> web.v1.ListDonateSpendRequest
+	136, // 145: web.v1.DonateRevenueAdminService.SearchAccounts:input_type -> web.v1.SearchAccountsRequest
+	139, // 146: web.v1.ItemStatAdminService.GetItemStat:input_type -> web.v1.GetItemStatRequest
+	141, // 147: web.v1.ItemStatAdminService.UpsertItemStat:input_type -> web.v1.UpsertItemStatRequest
+	142, // 148: web.v1.ItemStatAdminService.DeleteItemStat:input_type -> web.v1.DeleteItemStatRequest
+	11,  // 149: web.v1.AccountWebService.CreateAccount:output_type -> web.v1.CreateAccountResponse
+	13,  // 150: web.v1.AccountWebService.VerifyCredentials:output_type -> web.v1.VerifyCredentialsResponse
+	16,  // 151: web.v1.RankingWebService.ListExpRanking:output_type -> web.v1.ListExpRankingResponse
+	19,  // 152: web.v1.RankingWebService.ListDuelRanking:output_type -> web.v1.ListDuelRankingResponse
+	22,  // 153: web.v1.CharacterWebService.ListMyCharacters:output_type -> web.v1.ListMyCharactersResponse
+	24,  // 154: web.v1.ItemCatalogService.ListItems:output_type -> web.v1.ListItemsResponse
+	29,  // 155: web.v1.NpcAdminService.ListNpcs:output_type -> web.v1.ListNpcsResponse
+	31,  // 156: web.v1.NpcAdminService.GetNpc:output_type -> web.v1.GetNpcResponse
+	33,  // 157: web.v1.NpcAdminService.UpsertNpc:output_type -> web.v1.UpsertNpcResponse
+	25,  // 158: web.v1.NpcAdminService.SetNpcVisibility:output_type -> web.v1.AdminAck
+	25,  // 159: web.v1.NpcAdminService.SetNpcShop:output_type -> web.v1.AdminAck
+	25,  // 160: web.v1.NpcAdminService.SetItemPrice:output_type -> web.v1.AdminAck
+	25,  // 161: web.v1.NpcAdminService.DeleteNpc:output_type -> web.v1.AdminAck
+	40,  // 162: web.v1.NpcAdminService.ListMerchantTemplates:output_type -> web.v1.ListMerchantTemplatesResponse
+	43,  // 163: web.v1.NpcAdminService.ListItemCatalog:output_type -> web.v1.ListItemCatalogResponse
+	47,  // 164: web.v1.NpcAdminService.ListDropItems:output_type -> web.v1.ListDropItemsResponse
+	51,  // 165: web.v1.NpcAdminService.ListMobDrops:output_type -> web.v1.ListMobDropsResponse
+	54,  // 166: web.v1.NpcAdminService.ListItemPrices:output_type -> web.v1.ListItemPricesResponse
+	57,  // 167: web.v1.NpcAdminService.ListMapZones:output_type -> web.v1.ListMapZonesResponse
+	60,  // 168: web.v1.MobTemplateAdminService.ListMobTemplates:output_type -> web.v1.ListMobTemplatesResponse
+	64,  // 169: web.v1.MobTemplateAdminService.GetMobTemplateStat:output_type -> web.v1.GetMobTemplateStatResponse
+	66,  // 170: web.v1.MobTemplateAdminService.UpsertMobTemplateStat:output_type -> web.v1.UpsertMobTemplateStatResponse
+	25,  // 171: web.v1.MobTemplateAdminService.SetMobTemplateEquip:output_type -> web.v1.AdminAck
+	25,  // 172: web.v1.MobTemplateAdminService.DeleteMobTemplateStat:output_type -> web.v1.AdminAck
+	70,  // 173: web.v1.AttributeMapAdminService.GetAttributeMapInfo:output_type -> web.v1.GetAttributeMapInfoResponse
+	77,  // 174: web.v1.AttributeMapAdminService.TransformAttributeMap:output_type -> web.v1.TransformAttributeMapResponse
+	80,  // 175: web.v1.DonateAdminService.ListShopItems:output_type -> web.v1.ListShopItemsResponse
+	82,  // 176: web.v1.DonateAdminService.UpsertShopItem:output_type -> web.v1.UpsertShopItemResponse
+	25,  // 177: web.v1.DonateAdminService.SetShopItemEnabled:output_type -> web.v1.AdminAck
+	25,  // 178: web.v1.DonateAdminService.DeleteShopItem:output_type -> web.v1.AdminAck
+	86,  // 179: web.v1.DonateAdminService.CreditDonateBalance:output_type -> web.v1.CreditDonateBalanceResponse
+	88,  // 180: web.v1.DonateShopService.ListShopItems:output_type -> web.v1.ListStoreItemsResponse
+	90,  // 181: web.v1.DonateShopService.GetBalance:output_type -> web.v1.GetBalanceResponse
+	92,  // 182: web.v1.DonateShopService.Buy:output_type -> web.v1.BuyResponse
+	95,  // 183: web.v1.DailyRewardAdminService.ListRewardItems:output_type -> web.v1.ListRewardItemsResponse
+	97,  // 184: web.v1.DailyRewardAdminService.UpsertRewardItem:output_type -> web.v1.UpsertRewardItemResponse
+	25,  // 185: web.v1.DailyRewardAdminService.SetRewardItemEnabled:output_type -> web.v1.AdminAck
+	25,  // 186: web.v1.DailyRewardAdminService.DeleteRewardItem:output_type -> web.v1.AdminAck
+	102, // 187: web.v1.WorldEventAdminService.GetWorldEventConfig:output_type -> web.v1.GetWorldEventConfigResponse
+	25,  // 188: web.v1.WorldEventAdminService.SetWorldEventConfig:output_type -> web.v1.AdminAck
+	105, // 189: web.v1.DailyRewardService.ListRewards:output_type -> web.v1.ListRewardsResponse
+	107, // 190: web.v1.DailyRewardService.GetClaimStatus:output_type -> web.v1.GetClaimStatusResponse
+	109, // 191: web.v1.DailyRewardService.Claim:output_type -> web.v1.ClaimResponse
+	111, // 192: web.v1.DonateTopupService.GetPayerProfile:output_type -> web.v1.GetPayerProfileResponse
+	113, // 193: web.v1.DonateTopupService.SavePayerProfile:output_type -> web.v1.SavePayerProfileResponse
+	115, // 194: web.v1.DonateTopupService.CreateTopupOrder:output_type -> web.v1.CreateTopupOrderResponse
+	117, // 195: web.v1.DonateTopupService.ConfirmTopupOrder:output_type -> web.v1.ConfirmTopupOrderResponse
+	119, // 196: web.v1.DonateTopupService.GetTopupOrder:output_type -> web.v1.GetTopupOrderResponse
+	125, // 197: web.v1.DonateRevenueAdminService.GetRevenueSummary:output_type -> web.v1.GetRevenueSummaryResponse
+	128, // 198: web.v1.DonateRevenueAdminService.ListTopupOrders:output_type -> web.v1.ListTopupOrdersResponse
+	131, // 199: web.v1.DonateRevenueAdminService.ListTopBuyers:output_type -> web.v1.ListTopBuyersResponse
+	134, // 200: web.v1.DonateRevenueAdminService.ListDonateSpend:output_type -> web.v1.ListDonateSpendResponse
+	137, // 201: web.v1.DonateRevenueAdminService.SearchAccounts:output_type -> web.v1.SearchAccountsResponse
+	140, // 202: web.v1.ItemStatAdminService.GetItemStat:output_type -> web.v1.GetItemStatResponse
+	25,  // 203: web.v1.ItemStatAdminService.UpsertItemStat:output_type -> web.v1.AdminAck
+	25,  // 204: web.v1.ItemStatAdminService.DeleteItemStat:output_type -> web.v1.AdminAck
+	149, // [149:205] is the sub-list for method output_type
+	93,  // [93:149] is the sub-list for method input_type
+	93,  // [93:93] is the sub-list for extension type_name
+	93,  // [93:93] is the sub-list for extension extendee
+	0,   // [0:93] is the sub-list for field type_name
 }
 
 func init() { file_api_web_v1_web_proto_init() }
@@ -10370,9 +11071,9 @@ func file_api_web_v1_web_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_web_v1_web_proto_rawDesc), len(file_api_web_v1_web_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   128,
+			NumMessages:   133,
 			NumExtensions: 0,
-			NumServices:   14,
+			NumServices:   15,
 		},
 		GoTypes:           file_api_web_v1_web_proto_goTypes,
 		DependencyIndexes: file_api_web_v1_web_proto_depIdxs,

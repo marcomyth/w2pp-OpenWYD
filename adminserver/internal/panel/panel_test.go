@@ -1037,27 +1037,32 @@ func TestAccountPageShowsVipEmailAndBalance(t *testing.T) {
 
 // fakeGameData stands in for the webServer link.
 type fakeGameData struct {
-	mu          sync.Mutex
-	itens       []gamedata.Item
-	setCalls    [][2]int64 // index, price
-	listErr     error
-	setErr      error
-	versao      string
-	npcs        []gamedata.NPC
-	npcsErr     error
-	shopErr     error
-	shopSaves   [][]gamedata.ShopItem
-	saved       []gamedata.NPC
-	visible     []bool
-	visibleFor  []int64
-	deleted     []int64
-	npcWriteErr error
-	mobs        []gamedata.MobTemplate
-	mobRows     map[string]mobRow
-	mobSaved    []gamedata.MobStat
-	mobCleared  []string
-	mobErr      error
-	mobWriteErr error
+	mu           sync.Mutex
+	itens        []gamedata.Item
+	setCalls     [][2]int64 // index, price
+	listErr      error
+	setErr       error
+	versao       string
+	npcs         []gamedata.NPC
+	npcsErr      error
+	shopErr      error
+	shopSaves    [][]gamedata.ShopItem
+	saved        []gamedata.NPC
+	visible      []bool
+	visibleFor   []int64
+	deleted      []int64
+	npcWriteErr  error
+	mobs         []gamedata.MobTemplate
+	mobRows      map[string]mobRow
+	mobSaved     []gamedata.MobStat
+	mobCleared   []string
+	mobErr       error
+	mobWriteErr  error
+	itemRows     map[int32]itemRow
+	itemSaved    []gamedata.ItemStat
+	itemCleared  []int32
+	itemStatErr  error
+	itemWriteErr error
 }
 
 func newFakeGameData() *fakeGameData {
@@ -1087,6 +1092,16 @@ func newFakeGameData() *fakeGameData {
 				valores: map[string]int64{"level": 10, "exp": 5000, "resist1": 7},
 			},
 			"Mercador": {valores: map[string]int64{"level": 1}},
+		},
+		itemRows: map[int32]itemRow{
+			// A weapon carrying one of each kind of number: a stat the editor is
+			// for, a requirement, and an identity effect nobody edits but a save
+			// would strip if the form did not carry it.
+			2000: {
+				exibido: "Espada Longa", overridden: true,
+				valores: map[string]int64{"damage": 120, "wtype": 3, "req_level": 30, "resist1": 4},
+			},
+			1415: {valores: map[string]int64{"ac": 12}},
 		},
 	}
 }
@@ -2015,5 +2030,227 @@ func TestMonstrosSomeSemWebServer(t *testing.T) {
 	}
 	if strings.Contains(get("/").Body.String(), `href="/monstros"`) {
 		t.Error("o menu oferece um link para uma página que não existe")
+	}
+}
+
+// --- atributos de item ---
+
+// itemRow is what the fake knows about one item, as plain numbers. Built fresh
+// on every read for the same reason mobRow is: a shared value would let a
+// handler edit reach the fake state even when the save never happened.
+type itemRow struct {
+	exibido    string
+	overridden bool
+	valores    map[string]int64
+}
+
+func (f *fakeGameData) ItemStat(_ context.Context, _ int64, index int32) (gamedata.ItemStat, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.itemStatErr != nil {
+		return gamedata.ItemStat{}, f.itemStatErr
+	}
+	row, ok := f.itemRows[index]
+	if !ok {
+		return gamedata.ItemStat{}, gamedata.ErrNotFound
+	}
+	s := gamedata.NewItemStat(index, row.overridden)
+	for nome, v := range row.valores {
+		if !s.Set(nome, v) {
+			return gamedata.ItemStat{}, fmt.Errorf("fake: campo %q nao aceito", nome)
+		}
+	}
+	return s, nil
+}
+
+func (f *fakeGameData) SaveItemStat(_ context.Context, _ int64, m gamedata.ItemStat) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.itemWriteErr != nil {
+		return f.itemWriteErr
+	}
+	f.itemSaved = append(f.itemSaved, m)
+	return nil
+}
+
+func (f *fakeGameData) ClearItemStat(_ context.Context, _ int64, index int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.itemWriteErr != nil {
+		return f.itemWriteErr
+	}
+	f.itemCleared = append(f.itemCleared, index)
+	return nil
+}
+
+// campoItemDe reads one field back out of a saved item stat, by its form name.
+func campoItemDe(t *testing.T, m gamedata.ItemStat, nome string) int64 {
+	t.Helper()
+	for _, c := range m.Fields() {
+		if c.Nome == nome {
+			return c.Valor
+		}
+	}
+	t.Fatalf("campo %q não existe no formulário", nome)
+	return 0
+}
+
+func TestAtributosItemMostraOsNumerosEOAvisoDeReinicio(t *testing.T) {
+	// The warning has to distinguish this screen from the price field one row
+	// above it in the same list: price lands in ~15s, this waits for a boot.
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	body := get("/itens/2000/atributos").Body.String()
+
+	for _, want := range []string{
+		"Dano",
+		`name="damage" type="number"`,
+		`value="120"`,
+		"Resistência ao fogo",
+		"só vale depois de reiniciar o servidor",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a página de atributos não traz %q", want)
+		}
+	}
+	// The advanced group has to be on the page: a save writes the whole effect
+	// list, so a field the form left out would be zeroed.
+	if !strings.Contains(body, `name="wtype"`) {
+		t.Error("o campo de tipo de arma não está no formulário — gravar zeraria ele")
+	}
+}
+
+func TestAtributosItemComIndiceInvalidoE404(t *testing.T) {
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	for _, p := range []string{"/itens/abc/atributos", "/itens/-1/atributos", "/itens/9999/atributos"} {
+		if rec := get(p); rec.Code != http.StatusNotFound {
+			t.Errorf("%s: status = %d, want 404", p, rec.Code)
+		}
+	}
+}
+
+func TestSetAtributosItemPreservaOsCamposQueOFormularioNaoCarrega(t *testing.T) {
+	// The webServer replaces the whole override on save. If the handler built a
+	// fresh message from the request, everything the form left out would be
+	// zeroed — a weapon would stop being a weapon.
+	game := newFakeGameData()
+	log := newFakeAudit()
+	post, token := signedInPost(t, newTestPanelGame(t, log, game))
+
+	rec := post("/itens/2000/atributos", url.Values{"csrf": {token}, "damage": {"250"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(game.itemSaved) != 1 {
+		t.Fatalf("saves = %d, want 1", len(game.itemSaved))
+	}
+	got := game.itemSaved[0]
+	if v := campoItemDe(t, got, "damage"); v != 250 {
+		t.Errorf("dano = %d, want 250", v)
+	}
+	if v := campoItemDe(t, got, "wtype"); v != 3 {
+		t.Errorf("tipo de arma = %d, want 3 — o formulário não mandou, tinha que ficar", v)
+	}
+	if v := campoItemDe(t, got, "req_level"); v != 30 {
+		t.Errorf("nível exigido = %d, want 30 — o formulário não mandou, tinha que ficar", v)
+	}
+	if got.Index() != 2000 {
+		t.Errorf("índice = %d, want 2000 — o serviço grava por ele", got.Index())
+	}
+	if len(log.recorded()) != 1 {
+		t.Error("a edição do item não foi auditada")
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(loc, "reiniciar") {
+		t.Errorf("o aviso não diz que falta reiniciar: %q", loc)
+	}
+}
+
+func TestSetAtributosItemRecusaValorForaDoQueCabe(t *testing.T) {
+	// The column is 16 bits and the loader narrows to int16 anyway. Storing
+	// 40000 would read back as a negative number, which is worse than refusing.
+	game := newFakeGameData()
+	post, token := signedInPost(t, newTestPanelGame(t, newFakeAudit(), game))
+
+	rec := post("/itens/2000/atributos", url.Values{"csrf": {token}, "damage": {"40000"}})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "32767") {
+		t.Errorf("a mensagem não diz qual é o limite: %q", rec.Body.String())
+	}
+	if len(game.itemSaved) != 0 {
+		t.Fatal("um valor fora do limite ainda assim gravou")
+	}
+}
+
+func TestSetAtributosItemRecusaValorIlegivel(t *testing.T) {
+	game := newFakeGameData()
+	post, token := signedInPost(t, newTestPanelGame(t, newFakeAudit(), game))
+	if rec := post("/itens/2000/atributos", url.Values{"csrf": {token}, "damage": {"abc"}}); rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if len(game.itemSaved) != 0 {
+		t.Fatal("um valor ilegível ainda assim gravou")
+	}
+}
+
+func TestSetAtributosItemPrecisaDoCSRF(t *testing.T) {
+	game := newFakeGameData()
+	post, _ := signedInPost(t, newTestPanelGame(t, newFakeAudit(), game))
+	if rec := post("/itens/2000/atributos", url.Values{"damage": {"250"}}); rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	if len(game.itemSaved) != 0 {
+		t.Fatal("uma requisição sem o token gravou o item")
+	}
+}
+
+func TestLimparAtributosItemChamaOServicoEAudita(t *testing.T) {
+	game := newFakeGameData()
+	log := newFakeAudit()
+	post, token := signedInPost(t, newTestPanelGame(t, log, game))
+
+	rec := post("/itens/2000/atributos/limpar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(game.itemCleared) != 1 || game.itemCleared[0] != 2000 {
+		t.Fatalf("limpou %v, want o item do caminho (2000)", game.itemCleared)
+	}
+	if len(log.recorded()) != 1 {
+		t.Error("a limpeza não foi auditada")
+	}
+}
+
+func TestItemAlteradoMasNaoAuditadoFalha(t *testing.T) {
+	game := newFakeGameData()
+	log := newFakeAudit()
+	log.failWrite = errors.New("banco fora do ar")
+	post, token := signedInPost(t, newTestPanelGame(t, log, game))
+
+	rec := post("/itens/2000/atributos", url.Values{"csrf": {token}, "damage": {"250"}})
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if len(game.itemSaved) != 1 {
+		t.Fatal("a gravação não aconteceu — a mensagem de erro estaria mentindo")
+	}
+	if !strings.Contains(rec.Body.String(), "foi alterado") {
+		t.Errorf("a resposta não avisa que a mudança já valeu: %q", rec.Body.String())
+	}
+}
+
+func TestListaDeItensLevaParaOsAtributos(t *testing.T) {
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	body := get("/itens").Body.String()
+	if !strings.Contains(body, `href="/itens/2000/atributos"`) {
+		t.Error("a lista de itens não oferece o caminho para os atributos")
+	}
+}
+
+func TestAtributosDeItemSomemSemWebServer(t *testing.T) {
+	get := signedIn(t, newTestPanel(t, withTarget(roleAdmin)))
+	if rec := get("/itens/2000/atributos"); rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 sem webServer", rec.Code)
 	}
 }

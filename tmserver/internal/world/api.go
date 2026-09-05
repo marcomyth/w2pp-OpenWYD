@@ -221,7 +221,14 @@ func (w *World) DespawnMob(id int, removeType int32) {
 	// Generator population accounting on death (DeleteMob decrements
 	// CurrentNumMob, Server.cpp:7825-7831, clamped at 0).
 	gen := w.GeneratorAt(int(e.GenIndex))
-	if removeType == 1 && e.Merchant == 0 && !e.NonCombatNPC && gen != nil {
+	// Water-dungeon rooms always count, whatever the template's Merchant byte
+	// says. Imp_ ships Merchant=64, so the plain rule below never decremented
+	// room 4: its population stayed pinned at the spawn count, the remaining
+	// tally froze and the clear reward — which fires when the last mob drops —
+	// could never trigger. Same field that made the Imp invulnerable; the combat
+	// gate was fixed without this accounting half.
+	countsForGenerator := (e.Merchant == 0 && !e.NonCombatNPC) || IsWaterDungeonGenerator(int(e.GenIndex))
+	if removeType == 1 && countsForGenerator && gen != nil {
 		if gen.CurrentNumMob--; gen.CurrentNumMob < 0 {
 			gen.CurrentNumMob = 0
 		}
