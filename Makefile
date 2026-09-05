@@ -1,4 +1,4 @@
-.PHONY: build binaries test lint fmt vet run run-local vuln tidy proto certs certs-clean exp-data item-icons item-icons-publish item-browser
+.PHONY: build binaries test lint fmt vet run run-local vuln tidy proto certs certs-clean exp-data item-icons item-icons-publish item-browser npc-panel
 
 build:
 	go build ./...
@@ -33,6 +33,14 @@ item-icons-publish:
 # real client icons instead of placeholders.
 item-browser:
 	go run ./webserver/cmd/itembrowser -content Release -addr "$${ADDR:-127.0.0.1:8088}" -icons "$(ICONS)"
+
+# Shop NPCs mapped by city, with the set they wear, their position and their
+# stock (dev/GM tool, loopback only, no auth). Lists only Merchant 1 and 19 (the
+# codes that open a buy/sell window); pass ALL=-all for every NPC. Read-only
+# without a database; pass DSN and MODERATOR (an account whose role is moderator
+# or admin) to enable/disable, move and edit shops.
+npc-panel:
+	go run ./webserver/cmd/npcpanel -content Release -addr "$${ADDR:-127.0.0.1:8089}" -icons "$(ICONS)" -dsn "$(DSN)" -moderator "$${MODERATOR:-0}" $(ALL)
 
 test:
 	go test -race -cover ./...

@@ -1,14 +1,12 @@
-// Package npcgener parses NPCGener.txt, the spawn-block file the original
-// server reads to populate the world.
+// Package npcgener parses Release/TMsrv/run/NPCGener.txt, the legacy spawn-block
+// list that decides which mob/NPC template appears where.
 //
-// It lives at the repo root so tmServer, dbServer's importer and the webServer
-// moderation panel share one parser instead of keeping copies that drift. The
-// content package keeps aliases under its long-standing names for callers
-// inside tmServer.
-//
-// Reconstructed from tmserver/internal/content/npc.go as it stood before
-// e3a0daa0, which moved the parser here and committed only the caller — leaving
-// the tree unbuildable. The parsing itself is unchanged from that revision.
+// It lives at the repo root rather than under tmserver/ because three services
+// need the same recipe and Go's internal rule kept them from sharing it: the
+// tmServer spawns from it at boot, dbServer's `import-npcs` seeds npc_definition
+// from it, and the moderator NPC panel in webServer reads it to show the NPCs a
+// database may not have been seeded with yet. dbServer previously carried a
+// 97-line copy of this parser for exactly that reason.
 package npcgener
 
 import (
@@ -19,14 +17,14 @@ import (
 	"strings"
 )
 
-// Generator is one spawn block of NPCGener.txt (CNPCGene.cpp ParseString):
-// it spawns MinGroup..MaxGroup mobs of Leader (plus Followers) patrolling the
+// Generator is one spawn block of NPCGener.txt (CNPCGene.cpp ParseString): it
+// spawns MinGroup..MaxGroup mobs of Leader (plus Followers) patrolling the
 // SegX/SegY waypoints per RouteType, regenerating every MinuteGenerate minutes.
 //
 // Waypoint index mapping is the original's: Start*→[0], Segment1..3*→[1..3],
 // Dest*→[4]. Unused waypoints stay 0 and the segment walker skips them
 // (SetSegment, CMob.cpp:608) — so the common Start/Dest-only block patrols
-// 0→4→0. StartX/StartY accessors keep the spawn-point name used elsewhere.
+// 0→4→0.
 type Generator struct {
 	Leader         string
 	Follower       string
@@ -43,12 +41,13 @@ type Generator struct {
 	DieAction      [4]string
 }
 
-// Load parses NPCGener.txt. Blocks start with '#'; lines are
-// "Key:\tvalue"; '//' lines are comments.
+// Load parses NPCGener.txt. Blocks start with '#'; lines are "Key:\tvalue";
+// '//' lines are comments. The returned slice is in file order, so a block's
+// index is the stable generator_index used by npc_definition.
 func Load(path string) ([]Generator, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("content: open NPCGener: %w", err)
+		return nil, fmt.Errorf("npcgener: open NPCGener: %w", err)
 	}
 	defer f.Close()
 
@@ -146,7 +145,7 @@ func Load(path string) ([]Generator, error) {
 	}
 	flush()
 	if err := sc.Err(); err != nil {
-		return nil, fmt.Errorf("content: scan NPCGener: %w", err)
+		return nil, fmt.Errorf("npcgener: scan NPCGener: %w", err)
 	}
 	return out, nil
 }
