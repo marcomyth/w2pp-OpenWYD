@@ -23,6 +23,7 @@
         <thead>
           <tr>
             <th>Conta</th>
+            <th>Achou por</th>
             <th>Cargo</th>
             <th>Situação</th>
             <th>E-mail</th>
@@ -33,6 +34,7 @@
           {{range .Contas}}
           <tr>
             <td><a href="/contas/{{.Name}}">{{.Name}}</a></td>
+            <td>{{if .PorPersonagem}}<span class="cargo">{{.PorPersonagem}}</span>{{else}}nome da conta{{end}}</td>
             <td>{{if ne .Role "player"}}<span class="cargo">{{.Role}}</span>{{else}}{{.Role}}{{end}}</td>
             <td>{{if .IsBlocked}}<span class="bloq">bloqueada</span>{{else}}ativa{{end}}</td>
             <td>{{if .Email}}{{.Email}}{{else}}—{{end}}</td>

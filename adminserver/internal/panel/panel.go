@@ -82,6 +82,7 @@ type Writer interface {
 	Get(ctx context.Context, id int64) (accounts.Details, error)
 	PendingSince(ctx context.Context, since time.Time) (int, time.Time, error)
 	SetPassword(ctx context.Context, targetID int64, hash string) error
+	Buscar(ctx context.Context, prefixo string, limite int) ([]accounts.Achado, error)
 	SetRole(ctx context.Context, actorID, targetID int64, role string) (string, error)
 	SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool, motivo string, dias int) (accounts.Bloqueio, error)
 	Blocked(ctx context.Context, id int64) (bool, error)
@@ -333,7 +334,11 @@ func (h *Handler) contas(w http.ResponseWriter, r *http.Request) {
 	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
 
 	// One over the cap, so "there is more" is known rather than guessed at.
-	found, err := h.cfg.Accounts.SearchAccountsByNamePrefix(r.Context(), q, searchLimit+1)
+	//
+	// The panel's own search, not the store's: this one also matches CHARACTER
+	// names, and moderation starts from a report that names a character rather
+	// than an account.
+	found, err := h.cfg.Writer.Buscar(r.Context(), q, searchLimit+1)
 	if err != nil {
 		h.cfg.Logger.Error("account search failed", "query", q, "err", err)
 		http.Error(w, "Erro ao buscar contas.", http.StatusInternalServerError)
@@ -347,7 +352,7 @@ func (h *Handler) contas(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "contas.html", struct {
 		page
 		Query    string
-		Contas   []domain.AccountSummary
+		Contas   []accounts.Achado
 		Truncado bool
 		Limite   int
 	}{h.pageFor(r, "contas"), q, found, truncado, searchLimit})
@@ -834,8 +839,16 @@ func (h *Handler) setBloqueio(w http.ResponseWriter, r *http.Request) {
 
 	// Blank means permanent, which is what an empty field on a ban form should
 	// mean: nobody types "forever" as a number.
+	// The preset buttons submit their own value under a separate name, so the
+	// free field can stay for anything they do not cover. No JavaScript is
+	// involved: the panel serves none, and its CSP forbids it — a button that
+	// needed script to work would silently do nothing.
 	dias := 0
-	if bruto := strings.TrimSpace(r.PostFormValue("dias")); bruto != "" {
+	bruto := strings.TrimSpace(r.PostFormValue("preset"))
+	if bruto == "" {
+		bruto = strings.TrimSpace(r.PostFormValue("dias"))
+	}
+	if bruto != "" {
 		v, cerr := strconv.Atoi(bruto)
 		if cerr != nil || v < 0 {
 			http.Error(w, "Prazo inválido. Deixe vazio para banimento sem prazo.", http.StatusBadRequest)

@@ -150,10 +150,16 @@
         <label for="motivo">{{if .Conta.IsBlocked}}Motivo do bloqueio{{else}}Bloquear conta{{end}}</label>
         <textarea id="motivo" name="motivo" rows="3" maxlength="500" required
                   placeholder="Por que esta conta está sendo bloqueada">{{.Conta.Bloqueio.Reason}}</textarea>
+        <div class="prazos">
+          <button type="submit" name="preset" value="1">1 dia</button>
+          <button type="submit" name="preset" value="3">3 dias</button>
+          <button type="submit" name="preset" value="7">7 dias</button>
+          <button type="submit" name="preset" value="30">30 dias</button>
+        </div>
         <div class="linha" style="margin-top:8px">
-          <input name="dias" type="number" min="0" max="3650" placeholder="dias (vazio = sem prazo)"
+          <input name="dias" type="number" min="0" max="3650" placeholder="outro prazo, em dias"
                  aria-label="Dias de banimento">
-          <button type="submit">{{if .Conta.IsBlocked}}Atualizar{{else}}Bloquear{{end}}</button>
+          <button type="submit" class="perigo">{{if .Conta.IsBlocked}}Atualizar{{else}}Bloquear sem prazo{{end}}</button>
         </div>
         <p class="dica">
           O motivo é o que responde o jogador que perguntar por quê. Ele fica no

@@ -703,3 +703,132 @@ func TestPrazoForaDaFaixaERecusadoNoBan(t *testing.T) {
 		t.Error("um prazo recusado ainda assim bloqueou")
 	}
 }
+
+// --- busca por conta ou personagem ---
+
+func personagem(t *testing.T, pool *pgxpool.Pool, contaID int64, nome string, slot int) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO character (account_id, slot, name) VALUES ($1, $2, $3)`, contaID, slot, nome)
+	if err != nil {
+		t.Fatalf("seed character %q: %v", nome, err)
+	}
+}
+
+func TestBuscarAchaPeloNomeDoPersonagem(t *testing.T) {
+	// The half that justifies the whole query. A report names a character; the
+	// panel has to turn that into an account without the moderator guessing.
+	ctx := context.Background()
+	pool := testPool(t)
+	s := New(pool)
+	conta := seed(t, pool, "lokitoo_busca", RolePlayer)
+	personagem(t, pool, conta, "Vandalyzz", 0)
+
+	achados, err := s.Buscar(ctx, "vandal", 20)
+	if err != nil {
+		t.Fatalf("Buscar: %v", err)
+	}
+	if len(achados) != 1 {
+		t.Fatalf("achados = %d, want 1", len(achados))
+	}
+	if achados[0].Name != "lokitoo_busca" {
+		t.Errorf("conta = %q, want lokitoo_busca", achados[0].Name)
+	}
+	if achados[0].PorPersonagem != "Vandalyzz" {
+		t.Errorf("achou por %q, want Vandalyzz — sem isso o moderador vê um nome que não reconhece",
+			achados[0].PorPersonagem)
+	}
+}
+
+func TestBuscarPeloNomeDaContaNaoAtribuiPersonagem(t *testing.T) {
+	// The column answers "why is this row here". When the account name matched,
+	// naming one of its characters would be an answer to a different question.
+	ctx := context.Background()
+	pool := testPool(t)
+	s := New(pool)
+	conta := seed(t, pool, "lokitoo_conta", RolePlayer)
+	personagem(t, pool, conta, "lokitoo_heroi", 0)
+
+	achados, err := s.Buscar(ctx, "lokitoo_conta", 20)
+	if err != nil {
+		t.Fatalf("Buscar: %v", err)
+	}
+	if len(achados) != 1 {
+		t.Fatalf("achados = %d, want 1", len(achados))
+	}
+	if achados[0].PorPersonagem != "" {
+		t.Errorf("achou por %q, want vazio quando o nome da conta bateu", achados[0].PorPersonagem)
+	}
+}
+
+func TestBuscarNaoRepeteAContaComVariosPersonagens(t *testing.T) {
+	// Four characters whose names all start with the term must not produce four
+	// rows for one account: the list is of accounts.
+	ctx := context.Background()
+	pool := testPool(t)
+	s := New(pool)
+	conta := seed(t, pool, "muitos_chars", RolePlayer)
+	for i, nome := range []string{"Zephyrus", "Zephyra", "Zephyrion", "Zeph"} {
+		personagem(t, pool, conta, nome, i)
+	}
+
+	achados, err := s.Buscar(ctx, "Zeph", 20)
+	if err != nil {
+		t.Fatalf("Buscar: %v", err)
+	}
+	if len(achados) != 1 {
+		t.Fatalf("achados = %d, want 1 — a conta apareceu uma vez por personagem", len(achados))
+	}
+	if achados[0].PorPersonagem == "" {
+		t.Error("a linha não diz por qual personagem apareceu")
+	}
+}
+
+func TestBuscarRespeitaOPrazoDoBan(t *testing.T) {
+	// The listing reads the same rule as the login. An expired ban showing as
+	// blocked would send a moderator chasing a punishment that already ended.
+	ctx := context.Background()
+	pool := testPool(t)
+	s := New(pool)
+	ator := seed(t, pool, "ator_busca_ban", RoleAdmin)
+	alvo := seed(t, pool, "banido_busca", RolePlayer)
+
+	if _, err := s.SetBlocked(ctx, ator, alvo, true, "teste", 7); err != nil {
+		t.Fatalf("SetBlocked: %v", err)
+	}
+	achados, err := s.Buscar(ctx, "banido_busca", 20)
+	if err != nil || len(achados) != 1 {
+		t.Fatalf("Buscar = %d achados, %v", len(achados), err)
+	}
+	if !achados[0].IsBlocked {
+		t.Error("um ban em vigor apareceu como conta ativa")
+	}
+
+	if _, err := pool.Exec(ctx,
+		`UPDATE account SET blocked_until = now() - interval '1 minute' WHERE id = $1`, alvo); err != nil {
+		t.Fatalf("envelhecer: %v", err)
+	}
+	achados, err = s.Buscar(ctx, "banido_busca", 20)
+	if err != nil || len(achados) != 1 {
+		t.Fatalf("Buscar = %d achados, %v", len(achados), err)
+	}
+	if achados[0].IsBlocked {
+		t.Error("um ban vencido ainda aparece como bloqueio na lista")
+	}
+}
+
+func TestBuscarVaziaListaTudoAteOLimite(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	s := New(pool)
+	seed(t, pool, "lista_a", RolePlayer)
+	seed(t, pool, "lista_b", RolePlayer)
+
+	achados, err := s.Buscar(ctx, "", 2)
+	if err != nil {
+		t.Fatalf("Buscar: %v", err)
+	}
+	if len(achados) != 2 {
+		t.Fatalf("achados = %d, want 2 (o limite)", len(achados))
+	}
+}

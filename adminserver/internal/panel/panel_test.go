@@ -207,10 +207,31 @@ type fakeWriter struct {
 	senhaHash    []string
 	motivos      []string
 	diasBan      []int
+	buscas       []string
+	achados      []accounts.Achado
+	buscaErr     error
 	prevMotivo   string
 	euBloqueado  bool // what Blocked() answers for the signed-in account
 	blockedErr   error
 	err          error
+}
+
+func (f *fakeWriter) Buscar(_ context.Context, prefixo string, _ int) ([]accounts.Achado, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.buscas = append(f.buscas, prefixo)
+	if f.buscaErr != nil {
+		return nil, f.buscaErr
+	}
+	out := []accounts.Achado{}
+	for _, a := range f.achados {
+		// Like the real one: the term hits the account name OR a character on it.
+		if prefixo == "" || strings.HasPrefix(a.Name, prefixo) ||
+			strings.HasPrefix(strings.ToLower(a.PorPersonagem), prefixo) {
+			out = append(out, a)
+		}
+	}
+	return out, nil
 }
 
 func (f *fakeWriter) SetPassword(_ context.Context, _ int64, hash string) error {
@@ -310,6 +331,23 @@ func newTestPanelWith(t *testing.T, acc Accounts, log AuditLog) http.Handler {
 
 func newTestPanelFull(t *testing.T, acc Accounts, log AuditLog, wr Writer) http.Handler {
 	t.Helper()
+	// The search moved from the store to the panel's own writer, so the two
+	// fakes have to describe the same world: without this, a test that seeded
+	// accounts would search an empty one.
+	if fa, ok := acc.(*fakeAccounts); ok {
+		if fw, ok := wr.(*fakeWriter); ok {
+			fa.mu.Lock()
+			for nome, row := range fa.rows {
+				fw.achados = append(fw.achados, accounts.Achado{
+					AccountSummary: domain.AccountSummary{
+						ID: row.ID, Name: nome, Role: row.Role, IsBlocked: row.IsBlocked,
+					},
+				})
+			}
+			fa.mu.Unlock()
+			sort.Slice(fw.achados, func(i, j int) bool { return fw.achados[i].Name < fw.achados[j].Name })
+		}
+	}
 	h, err := New(Config{
 		Accounts:   acc,
 		Writer:     wr,
@@ -3872,5 +3910,114 @@ func TestLigarNaoLigaSemAuditoria(t *testing.T) {
 	}
 	if len(plat.redeploys) != 0 {
 		t.Fatal("ligou sem registrar na auditoria")
+	}
+}
+
+// --- busca por personagem e prazos prontos ---
+
+func TestBuscaPorNomeDePersonagemMostraPorQueAchou(t *testing.T) {
+	// Moderation starts from a report, and a report names a CHARACTER. Returning
+	// the account without saying which character matched gives the moderator a
+	// name they do not recognise — account names rarely resemble the characters
+	// on them.
+	acc := withTarget(roleAdmin)
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, acc, newFakeAudit(), wr)
+	// Seeded after the panel is built, so it replaces what the helper derived.
+	wr.mu.Lock()
+	wr.achados = []accounts.Achado{{
+		AccountSummary: domain.AccountSummary{ID: 7, Name: "lokitoo", Role: "player"},
+		PorPersonagem:  "Vandalyzz",
+	}}
+	wr.mu.Unlock()
+
+	body := signedIn(t, h)("/contas?q=vandal").Body.String()
+	if !strings.Contains(body, "lokitoo") {
+		t.Error("a busca não trouxe a conta do personagem")
+	}
+	if !strings.Contains(body, "Vandalyzz") {
+		t.Error("a página não diz por qual personagem a conta apareceu")
+	}
+}
+
+func TestBuscaPorNomeDeContaNaoInventaPersonagem(t *testing.T) {
+	acc := withTarget(roleAdmin)
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, acc, newFakeAudit(), wr)
+
+	body := signedIn(t, h)("/contas?q=ana").Body.String()
+	if !strings.Contains(body, "nome da conta") {
+		t.Error("uma conta achada pelo próprio nome não foi marcada como tal")
+	}
+}
+
+func TestPrazoProntoBloqueiaPeloBotao(t *testing.T) {
+	// The preset buttons carry their own value. No JavaScript: the panel serves
+	// none and its CSP forbids it, so a control that needed script would look
+	// like a button and do nothing.
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/bloqueio", url.Values{
+		"csrf": {token}, "bloquear": {"1"}, "motivo": {"briga"}, "preset": {"7"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(wr.diasBan) != 1 || wr.diasBan[0] != 7 {
+		t.Fatalf("dias = %v, want [7] vindo do botão", wr.diasBan)
+	}
+}
+
+func TestPrazoProntoGanhaDoCampoLivre(t *testing.T) {
+	// Both are in the same form, so both are submitted. The button is the one
+	// the moderator just pressed; the field is what was left lying there.
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/bloqueio", url.Values{
+		"csrf": {token}, "bloquear": {"1"}, "motivo": {"briga"},
+		"preset": {"3"}, "dias": {"365"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if len(wr.diasBan) != 1 || wr.diasBan[0] != 3 {
+		t.Fatalf("dias = %v, want [3] — o botão apertado ganha do campo", wr.diasBan)
+	}
+}
+
+func TestSemPrazoNenhumContinuaSendoPermanente(t *testing.T) {
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/bloqueio", url.Values{
+		"csrf": {token}, "bloquear": {"1"}, "motivo": {"briga"}, "preset": {""}, "dias": {""},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if len(wr.diasBan) != 1 || wr.diasBan[0] != 0 {
+		t.Fatalf("dias = %v, want [0]", wr.diasBan)
+	}
+}
+
+func TestOsPrazosProntosEstaoNaTela(t *testing.T) {
+	acc := withTarget(roleAdmin)
+	get := signedIn(t, newTestPanelFull(t, acc, newFakeAudit(), newFakeWriter()))
+	body := get("/contas/ana").Body.String()
+
+	for _, dias := range []string{"1", "3", "7", "30"} {
+		if !strings.Contains(body, `name="preset" value="`+dias+`"`) {
+			t.Errorf("falta o prazo pronto de %s dia(s)", dias)
+		}
+	}
+	// And the page still carries no script: every control here has to work
+	// without it.
+	if strings.Contains(strings.ToLower(body), "<script") {
+		t.Error("a página passou a depender de JavaScript, que a política de segurança bloqueia")
 	}
 }

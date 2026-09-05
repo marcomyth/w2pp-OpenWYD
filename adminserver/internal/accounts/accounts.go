@@ -16,12 +16,14 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
 
@@ -536,4 +538,87 @@ func (s *Store) SetPassword(ctx context.Context, targetID int64, hash string) er
 		return ErrNotFound
 	}
 	return nil
+}
+
+// --- busca por conta ou por personagem ---
+
+// Achado is one account the search matched, and how it matched.
+//
+// PorPersonagem carries the character name when that is what the term hit, and
+// is empty when the account name did. Without it the result is a list of account
+// names a moderator does not recognise: they searched for a character, and
+// account names in this game rarely resemble the characters on them.
+type Achado struct {
+	domain.AccountSummary
+	PorPersonagem string
+}
+
+// Buscar finds accounts by their own name OR by the name of a character on them.
+//
+// The second half is the whole point. Moderation starts from a report, and a
+// report names a CHARACTER — nobody is told "conta lokitoo está duplicando",
+// they are told "Vandalyzz está duplicando". Searching only account names meant
+// the first step of every investigation was guessing.
+//
+// It lives here rather than in internal/store beside the account-name search for
+// the reason the account writes do: every service embeds internal/, so adding
+// there redeploys the game to ship a panel change.
+func (s *Store) Buscar(ctx context.Context, prefixo string, limite int) ([]Achado, error) {
+	if limite <= 0 || limite > 200 {
+		limite = 50
+	}
+	padrao := prefixo + "%"
+
+	// One statement, not two merged in Go: the accounts a term matches both ways
+	// must appear once, and DISTINCT ON does that in the place that can see both
+	// halves. The character name is kept for the row that matched through one.
+	//
+	// The two halves match differently on purpose. Account names are stored
+	// canonical lowercase and the caller lowercases the term, so LIKE is exact
+	// and uses the unique index. CHARACTER names keep their real case —
+	// "Vandalyzz" — and a moderator types "vandal", so that half has to be
+	// case-insensitive.
+	//
+	// ILIKE cannot use character(name, class_master), so this half is a scan.
+	// That is the right trade here: the page is opened a few times an hour by a
+	// person, not by a loop. If the character table ever makes it slow, the fix
+	// is an index on lower(name) — and it will be obvious, because this is the
+	// only query that would have got slower.
+	rows, err := s.pool.Query(ctx, `
+		SELECT DISTINCT ON (a.id)
+		       a.id, a.name, a.email, a.donate_balance, a.role,
+		       (a.is_blocked AND (a.blocked_until IS NULL OR a.blocked_until > now())),
+		       coalesce(c.name, '')
+		  FROM account a
+		  LEFT JOIN character c ON c.account_id = a.id AND c.name ILIKE $1
+		 WHERE a.name LIKE $1 OR c.id IS NOT NULL
+		 ORDER BY a.id, c.name
+		 LIMIT $2`, padrao, limite)
+	if err != nil {
+		return nil, fmt.Errorf("accounts: search %q: %w", prefixo, err)
+	}
+	defer rows.Close()
+
+	var out []Achado
+	for rows.Next() {
+		var a Achado
+		if err := rows.Scan(&a.ID, &a.Name, &a.Email, &a.DonateBalance,
+			&a.Role, &a.IsBlocked, &a.PorPersonagem); err != nil {
+			return nil, fmt.Errorf("accounts: scan search row: %w", err)
+		}
+		// An account matched by its own name reports no character, even when it
+		// happens to have one whose name also starts with the term: the column
+		// answers "why is this row here", and the answer is the account name.
+		if strings.HasPrefix(a.Name, prefixo) {
+			a.PorPersonagem = ""
+		}
+		out = append(out, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("accounts: iterate search: %w", err)
+	}
+	// DISTINCT ON orders by a.id, which is not the order to read in. Sorting
+	// here rather than in a subquery keeps the statement legible.
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
 }

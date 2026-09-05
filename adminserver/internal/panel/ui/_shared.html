@@ -209,6 +209,11 @@
   }
   .acao-bloco textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 
+  /* Preset durations. They are submit buttons carrying their own value, not
+     script-driven choices: the panel serves no JavaScript and its CSP forbids
+     it, so a control that needed script would silently do nothing. */
+  .prazos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
   .motivo { font-size: 13.5px; color: var(--ink-2); margin-top: 6px; max-width: 46ch; }
   .motivo-quando { font-size: 12px; color: var(--ink-3); margin-top: 3px; }
 </style>
