@@ -16,15 +16,22 @@ const eighthSkillCoin = 50_000_000
 // minus the SkillPoint cost of every learned class skill (bits 0-23; the
 // Sephira bits 24-31 are book-taught and cost nothing).
 //
-// UNVERIFIED: the ARCH (+112) / Celestial (+1500) tier adders and the
-// PilulaOrc quest (+9) are not modeled yet (tiers wait on the celestial plan).
+// The tier adders are part of the formula, not a refinement of it: an Arch gets
+// +112 and every celestial tier +1500 (Basedef.cpp:854-860). Leaving them out is
+// why a freshly reborn Celestial had no skill points at all — its level is 0, so
+// level*3 grants nothing and the whole allowance is the flat 1500.
+//
+// Still not modeled: the PilulaOrc quest (+9), which belongs to the Mortal quest
+// line this port has not reached. That under-grants a character who did it by 9
+// points rather than inventing them.
+//
 // A negative rest clamps to 0 (the legacy would wrap an unsigned field).
 func (d *Dispatcher) deriveSkillBonus(e *world.Entity) {
 	if d.spells == nil {
 		e.SkillBonus = 0
 		return
 	}
-	per := int(e.Level) * 3
+	per := int(e.Level)*3 + skillTierBonus(e.ClassMaster)
 	if mod := int(e.Level) - 199; mod > 0 {
 		per += mod
 	}
@@ -166,4 +173,26 @@ func (d *Dispatcher) setShortSkill(w *world.World, s *world.Session, _ protocol.
 	}
 	copy(e.SkillBar[:], payload[0:4])
 	copy(s.ShortSkill[:], payload[4:20])
+}
+
+// The flat skill-point allowance each tier carries (Basedef.cpp:854-860). The
+// legacy writes the celestial one as "not ARCH and not MORTAL", which catches
+// CELESTIAL, CELESTIALCS and SCELESTIAL alike — spelled out here so adding a
+// tier later cannot silently inherit it.
+const (
+	skillBonusArch      = 112
+	skillBonusCelestial = 1500
+)
+
+func skillTierBonus(classMaster uint8) int {
+	switch classMaster {
+	case classMasterArch:
+		return skillBonusArch
+	case classMasterCelestial, classMasterCelestialCS, classMasterSCelestial:
+		return skillBonusCelestial
+	default:
+		// Mortal, and the unset ClassMaster 0 that completeCharacterLogin treats
+		// as Mortal: no adder.
+		return 0
+	}
 }

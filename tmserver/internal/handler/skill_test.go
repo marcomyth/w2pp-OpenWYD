@@ -562,3 +562,29 @@ func TestSetShortSkill(t *testing.T) {
 		t.Fatalf("SetShortSkill must not reply, got %#x", ty)
 	}
 }
+
+// The flat tier allowance is part of BASE_GetBonusSkillPoint, not a refinement:
+// a reborn Celestial is level 0, so level*3 grants nothing and the whole
+// allowance is the 1500 its tier carries. Leaving it out is why one arrived with
+// no skill points at all.
+func TestSkillTierBonus(t *testing.T) {
+	tests := []struct {
+		name        string
+		classMaster uint8
+		want        int
+	}{
+		{"mortal gets no adder", classMasterMortal, 0},
+		{"unset tier behaves as mortal", 0, 0},
+		{"arch", classMasterArch, skillBonusArch},
+		{"celestial", classMasterCelestial, skillBonusCelestial},
+		{"celestial CS", classMasterCelestialCS, skillBonusCelestial},
+		{"sub-celestial", classMasterSCelestial, skillBonusCelestial},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := skillTierBonus(tt.classMaster); got != tt.want {
+				t.Errorf("skillTierBonus(%d) = %d, want %d", tt.classMaster, got, tt.want)
+			}
+		})
+	}
+}
