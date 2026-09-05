@@ -17,11 +17,6 @@
     font-family: ui-monospace, Consolas, monospace; font-size: 26px; letter-spacing: .06em;
     color: var(--ink); user-select: all; word-break: break-all;
   }
-  .uma-vez {
-    background: var(--warn-bg); border: 1px solid var(--rule); border-left: 3px solid var(--warn);
-    border-radius: 3px; padding: 11px 15px; margin-bottom: 26px; font-size: 14px; color: var(--ink);
-    max-width: 62ch;
-  }
 </style>
 </head>
 <body>
@@ -31,7 +26,7 @@
   <h1>Senha trocada</h1>
   <p class="sub">Conta <a href="/contas/{{.Conta}}">{{.Conta}}</a></p>
 
-  <div class="uma-vez">
+  <div class="nota">
     <strong>Esta tela não volta.</strong> A senha não fica gravada em lugar nenhum
     que dê para ler depois — nem na auditoria, nem no log. Copie agora e mande
     para o jogador pelo atendimento do site ou pelo ticket do Discord.

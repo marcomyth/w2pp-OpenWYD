@@ -4,14 +4,6 @@
 <title>Servidor — Painel OpenWYD</title>
 {{template "head" .}}
 <style>
-  .contagem { display: flex; gap: 34px; margin-bottom: 26px; }
-  .contagem .n { font-size: 30px; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.1; }
-  .contagem .rot { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-top: 3px; }
-  .erro {
-    background: var(--warn-bg); border: 1px solid var(--rule); border-left: 3px solid var(--warn);
-    border-radius: 3px; padding: 11px 15px; margin-bottom: 26px; font-size: 14px; color: var(--ink);
-    max-width: 62ch;
-  }
   td.acao form { margin: 0; }
   td.acao button { padding: 4px 9px; font-size: 12px; }
   .reinicio-cartao {
@@ -39,21 +31,21 @@
   <p class="sub">Quem o servidor está segurando agora.</p>
 
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
-  {{if .Erro}}<div class="erro">{{.Erro}}</div>{{end}}
+  {{if .Erro}}<div class="nota perigo">{{.Erro}}</div>{{end}}
 
   {{if not .Erro}}
-  <div class="contagem">
-    <div>
-      <div class="n">{{.Estado.Jogando}}</div>
+  <div class="numeros">
+    <div class="num-tile">
       <div class="rot">Jogando</div>
+      <div class="val">{{.Estado.Jogando}}</div>
     </div>
-    <div>
-      <div class="n">{{.Estado.Conectados}}</div>
+    <div class="num-tile">
       <div class="rot">Conectados</div>
+      <div class="val">{{.Estado.Conectados}}</div>
     </div>
   </div>
 
-  <div class="erro">
+  <div class="nota">
     Estes dois números são diferentes de propósito: <strong>conectados</strong>
     inclui quem ainda está na tela de escolher personagem. E o servidor está com
     o corte por inatividade desligado, então uma conexão que caiu sem avisar
@@ -63,24 +55,24 @@
 
   {{if .Servidor.Conhecido}}
   <div class="reinicio-cartao">
-    <div class="linha-estado">
+    <div class="estado {{if .Servidor.Rodando}}ativa{{else}}parada{{end}}">
+      <span class="farol"></span>
       {{if .Servidor.Rodando}}
-      <span>no ar há <strong>{{.Servidor.NoAr}}</strong></span>
+      <span class="nome-estado">No ar</span>
+      <span class="detalhe">há {{.Servidor.NoAr}}</span>
       {{else}}
-      <span class="bloq">servidor desligado</span>
-      <span class="calmo">estado na hospedagem: {{.Servidor.Estado}}</span>
+      <span class="nome-estado">Desligado</span>
+      <span class="detalhe">estado na hospedagem: {{.Servidor.Estado}}</span>
       {{end}}
       {{if .Servidor.Pendentes}}
         <span class="bloq">{{.Servidor.Pendentes}} edição(ões) aguardando reinício</span>
-      {{else}}
-        <span class="calmo">nenhuma edição pendente</span>
       {{end}}
     </div>
     {{if .IsAdmin}}
       {{if not .Servidor.Rodando}}
       <form method="post" action="/servidor/ligar" style="margin-top:14px">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <button type="submit">Ligar o servidor</button>
+        <button type="submit" class="principal">Ligar o servidor</button>
         <p class="dica">
           Reusa a imagem já construída — volta em cerca de um minuto, sem
           reconstruir e sem pegar commit novo. Pode apertar mesmo se ele já
@@ -95,7 +87,7 @@
         <label for="aviso-reinicio">Aviso antes de reiniciar</label>
         <input id="aviso-reinicio" name="aviso" type="text" maxlength="95"
                placeholder="deixe vazio para o aviso padrão" style="width:100%;margin:6px 0 10px">
-        <button type="submit">Reinício seguro</button>
+        <button type="submit" class="principal">Reinício seguro</button>
         <p class="dica">
           Avisa todo mundo, salva e desconecta cada um <strong>sem relógio
           correndo</strong>, confirma que as gravações terminaram, e só então
@@ -111,7 +103,7 @@
         <label for="aviso-desligar">Aviso antes de desligar</label>
         <input id="aviso-desligar" name="aviso" type="text" maxlength="95"
                placeholder="deixe vazio para o aviso padrão" style="width:100%;margin:6px 0 10px">
-        <button type="submit">Desligar o servidor</button>
+        <button type="submit" class="perigo">Desligar o servidor</button>
         <p class="dica">
           Salva e desconecta todo mundo, confirma as gravações, e só então tira o
           servidor do ar. As variáveis e o volume ficam — isto não é apagar. O
@@ -143,7 +135,7 @@
     </p>
   </div>
   {{else if .Servidor.Erro}}
-  <div class="erro">{{.Servidor.Erro}}</div>
+  <div class="nota perigo">{{.Servidor.Erro}}</div>
   {{end}}
 
   <div class="acoes">

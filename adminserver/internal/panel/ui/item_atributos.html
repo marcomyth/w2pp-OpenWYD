@@ -22,10 +22,6 @@
     padding: 14px 0; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
   }
   .barra-salvar .dica { margin: 0; font-size: 12.5px; color: var(--ink-3); }
-  .reinicio {
-    background: var(--warn-bg); border: 1px solid var(--rule); border-left: 3px solid var(--warn);
-    border-radius: 3px; padding: 11px 15px; margin-bottom: 26px; font-size: 14px; color: var(--ink);
-  }
   .limpar { margin-top: 26px; }
 </style>
 </head>
@@ -51,7 +47,7 @@
     </div>
   </div>
 
-  <div class="reinicio">
+  <div class="nota">
     O que você gravar aqui <strong>só vale depois de reiniciar o servidor</strong>.
     Diferente do preço, que muda sozinho em cerca de 15 segundos: o preço só é
     lido na hora da compra, e estes números fazem parte da ficha do personagem.
@@ -78,7 +74,7 @@
     {{end}}
 
     <div class="barra-salvar">
-      <button type="submit">Gravar alterações</button>
+      <button type="submit" class="principal">Gravar alterações</button>
       <p class="dica">
         Grava tudo de uma vez. O que estiver na tela vira a lista completa de
         efeitos do item — inclusive os campos de Avançado.

@@ -5,10 +5,6 @@
 {{template "head" .}}
 <style>
   td.modelo { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--ink-3); }
-  .reinicio {
-    background: var(--warn-bg); border: 1px solid var(--rule); border-left: 3px solid var(--warn);
-    border-radius: 3px; padding: 11px 15px; margin-bottom: 26px; font-size: 14px; color: var(--ink);
-  }
 </style>
 </head>
 <body>
@@ -23,7 +19,7 @@
 
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
-  <div class="reinicio">
+  <div class="nota">
     Diferente de item e NPC, o que você mudar aqui <strong>só vale depois de
     reiniciar o servidor</strong>. Os números do monstro são lidos uma única vez,
     na hora que o jogo sobe. A página inicial mostra quantas edições estão

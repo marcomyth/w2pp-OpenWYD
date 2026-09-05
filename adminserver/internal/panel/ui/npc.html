@@ -69,7 +69,7 @@
     <form method="post" action="/npcs/{{.NPC.ID}}/apagar" class="acao-bloco">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <label>Apagar</label>
-      <div class="linha"><button type="submit">Apagar definitivamente</button></div>
+      <div class="linha"><button type="submit" class="perigo">Apagar definitivamente</button></div>
       <p class="dica">
         Não tem volta. NPC que vem do conteúdo do jogo não pode ser apagado — só ocultado.
       </p>
@@ -119,7 +119,7 @@
     </div>
 
     <div class="barra-salvar">
-      <button type="submit">Gravar loja</button>
+      <button type="submit" class="principal">Gravar loja</button>
       <p class="dica">Entra em jogo em até 15 segundos, sem reiniciar.</p>
     </div>
   </form>

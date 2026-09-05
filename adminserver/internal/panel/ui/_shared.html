@@ -2,53 +2,94 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
+  /* The palette is defined light-first on bare :root, then redefined for dark.
+     The media block is guarded so an explicit light choice beats a dark OS, and
+     the [data-theme] block repeats it so a toggle wins in the other direction.
+     There is no toggle yet; the shape is here so adding one is a nav link and
+     not a rewrite of every colour. */
   :root {
     color-scheme: light dark;
     --ground: #f4f5f2; --surface: #fff; --ink: #15181a; --ink-2: #555f63;
     --ink-3: #7c868a; --rule: #d8dcd6; --accent: #1f6f5c; --chip-bg: #e4efea;
     --warn: #8c5310; --warn-bg: #f6eada;
+    /* Gold marks something granted or spent — VIP, donate, a refine level.
+       Danger marks what cannot be undone. Neither is the accent: a page where
+       every emphasis looks the same makes the irreversible button look like
+       the harmless one. */
+    --gold: #7d5f16; --gold-bg: #f3ecd8;
+    --danger: #8e2f2a; --danger-bg: #f7e4e2;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
       --ground: #131719; --surface: #1a1f21; --ink: #e7eae5; --ink-2: #a0aaad;
       --ink-3: #7b8588; --rule: #2b3235; --accent: #56ac90; --chip-bg: #1b302b;
       --warn: #d69a54; --warn-bg: #2e2418;
+      --gold: #c9a24a; --gold-bg: #2a2417;
+      --danger: #d98078; --danger-bg: #2e1c1a;
     }
   }
+  :root[data-theme="dark"] {
+    --ground: #131719; --surface: #1a1f21; --ink: #e7eae5; --ink-2: #a0aaad;
+    --ink-3: #7b8588; --rule: #2b3235; --accent: #56ac90; --chip-bg: #1b302b;
+    --warn: #d69a54; --warn-bg: #2e2418;
+    --gold: #c9a24a; --gold-bg: #2a2417;
+    --danger: #d98078; --danger-bg: #2e1c1a;
+  }
+
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--ground); color: var(--ink);
     font: 15px/1.6 ui-sans-serif, system-ui, "Segoe UI", Roboto, Arial, sans-serif;
   }
+  .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+
   header {
     display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
     justify-content: space-between; padding: 13px 22px;
     background: var(--surface); border-bottom: 1px solid var(--rule);
   }
-  header nav { display: flex; align-items: baseline; gap: 18px; }
+  /* The nav carries nine entries now. Without wrapping it pushes the account
+     block off a narrow screen. */
+  header nav { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; }
   header a { color: var(--ink-2); text-decoration: none; font-size: 14px; }
   header a:hover, header a.on { color: var(--ink); }
   header .marca { font-weight: 600; font-size: 15px; color: var(--ink); letter-spacing: -0.01em; }
   .quem { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink-2); }
-  .cargo {
+
+  .cargo, .bloq, .chip-gold, .chip-danger {
     font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
-    color: var(--accent); background: var(--chip-bg); padding: 2px 7px; border-radius: 3px;
+    padding: 2px 7px; border-radius: 3px; white-space: nowrap;
   }
-  .bloq {
-    font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
-    color: var(--warn); background: var(--warn-bg); padding: 2px 7px; border-radius: 3px;
-  }
+  .cargo { color: var(--accent); background: var(--chip-bg); }
+  .bloq { color: var(--warn); background: var(--warn-bg); }
+  .chip-gold { color: var(--gold); background: var(--gold-bg); }
+  .chip-danger { color: var(--danger); background: var(--danger-bg); }
+
   button, .botao {
     font: inherit; font-size: 13px; cursor: pointer; color: var(--ink-2);
     background: none; border: 1px solid var(--rule); border-radius: 3px; padding: 5px 11px;
     text-decoration: none; display: inline-block;
   }
   button:hover, .botao:hover { color: var(--ink); border-color: var(--ink-2); }
-  main { max-width: 900px; margin: 0 auto; padding: 32px 22px 64px; }
+  /* The one action a form exists for. Every other button on the page stays
+     quiet so this one does not have to shout. */
+  button.principal { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+  button.principal:hover { filter: brightness(1.08); color: var(--surface); }
+  /* Deleting, banning, taking the server down. It is not red for drama: these
+     used to look exactly like Save, and the only thing separating them was the
+     word on the button. */
+  button.perigo { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--rule)); }
+  button.perigo:hover { color: var(--danger); border-color: var(--danger); background: var(--danger-bg); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 32px 22px 64px; }
   h1 { font-size: 1.3rem; margin: 0 0 6px; letter-spacing: -0.015em; }
   .sub { color: var(--ink-2); font-size: 14px; margin: 0 0 26px; }
   p { color: var(--ink-2); max-width: 62ch; }
   a { color: var(--accent); }
+  h2 { font-size: 1rem; margin: 0 0 12px; letter-spacing: -0.005em; }
+
   .tw { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 14px; }
   th {
@@ -64,6 +105,7 @@
   td.num { font-variant-numeric: tabular-nums; text-align: right; padding-right: 22px; }
   th.num { text-align: right; padding-right: 22px; }
   tbody tr:hover td { background: var(--surface); }
+
   .vazio {
     border: 1px dashed var(--rule); border-radius: 4px; padding: 28px 22px;
     color: var(--ink-2); text-align: center; font-size: 14px;
@@ -74,15 +116,69 @@
     background: var(--surface); border: 1px solid var(--rule); border-radius: 3px;
   }
   .busca input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+
   .campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 18px 28px; margin-bottom: 34px; }
   .campo .rot { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 3px; }
   .campo .val { font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
-  h2 { font-size: 1rem; margin: 0 0 12px; letter-spacing: -0.005em; }
+
+  /* A plain surface to group something. Pages had been rolling their own with
+     the same three properties each time. */
+  .caixa {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+    padding: 16px 18px 18px; margin-bottom: 18px;
+  }
+
+  /* Numbers that answer a question at a glance. One hairline grid rather than
+     separate cards, so a row of them reads as one object. */
+  .numeros {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 1px;
+    background: var(--rule); border: 1px solid var(--rule); border-radius: 4px;
+    overflow: hidden; margin: 0 0 26px;
+  }
+  .num-tile { background: var(--surface); padding: 11px 14px; }
+  .num-tile .rot { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  .num-tile .val { font-size: 17px; color: var(--ink); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .num-tile .val small { font-size: 12.5px; color: var(--ink-3); }
+
+  /* One note treatment. Seven pages had each defined their own box for the
+     same job — a caveat the reader must not miss — with slightly different
+     padding and colour each time. */
+  .nota {
+    font-size: 13px; line-height: 1.55; color: var(--ink-2); background: var(--warn-bg);
+    border-left: 2px solid var(--warn); padding: 11px 14px; border-radius: 0 3px 3px 0;
+    margin: 0 0 20px; max-width: 68ch;
+  }
+  .nota.perigo { background: var(--danger-bg); border-left-color: var(--danger); }
+  .nota.calma { background: var(--surface); border-left-color: var(--accent); }
+  .nota strong { color: var(--ink); }
+
+  /* What just happened, in response to something the operator did. Distinct
+     from .nota, which is a standing caveat about the page. */
   .aviso {
     background: var(--surface); border: 1px solid var(--rule);
     border-left: 3px solid var(--accent); border-radius: 3px;
     padding: 11px 15px; margin-bottom: 26px; font-size: 14px; color: var(--ink);
   }
+
+  /* Two columns where the right one is a sidebar of context. Collapses early:
+     the sidebar is never the point. */
+  .painel { display: grid; grid-template-columns: minmax(0, 1fr) 316px; gap: 22px; align-items: start; }
+  @media (max-width: 1000px) { .painel { grid-template-columns: minmax(0, 1fr); } }
+
+  /* A state that a person needs to read in one look — the server being up, an
+     account being banned. The colour carries the meaning and the word repeats
+     it, because colour alone is not readable by everyone. */
+  .estado { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 4px 0 2px; }
+  .estado .farol {
+    width: 11px; height: 11px; border-radius: 50%; flex: none; background: currentColor;
+    box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent);
+  }
+  .estado.ativa  { color: var(--accent); }
+  .estado.alerta { color: var(--warn); }
+  .estado.parada { color: var(--danger); }
+  .estado .nome-estado { font-size: 20px; letter-spacing: -0.015em; color: currentColor; }
+  .estado .detalhe { font-size: 13.5px; color: var(--ink-2); }
+
   .acoes {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 22px 30px; padding: 20px 22px; margin-bottom: 34px;
@@ -105,13 +201,14 @@
   }
   .acao-bloco select:focus,
   .acao-bloco input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .acao-bloco .dica { font-size: 12.5px; color: var(--ink-3); margin: 9px 0 0; max-width: 40ch; }
+  .acao-bloco .dica { font-size: 12.5px; color: var(--ink-3); margin: 9px 0 0; max-width: 44ch; }
   .acao-bloco textarea {
     width: 100%; padding: 7px 9px; font: inherit; font-size: 13.5px; color: var(--ink);
     background: var(--ground); border: 1px solid var(--rule); border-radius: 3px;
     resize: vertical;
   }
   .acao-bloco textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
   .motivo { font-size: 13.5px; color: var(--ink-2); margin-top: 6px; max-width: 46ch; }
   .motivo-quando { font-size: 12px; color: var(--ink-3); margin-top: 3px; }
 </style>

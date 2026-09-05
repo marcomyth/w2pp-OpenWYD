@@ -3536,8 +3536,8 @@ func TestAbaServidorTrazOBotaoDeReiniciar(t *testing.T) {
 	if !strings.Contains(body, `action="/servidor/reiniciar"`) {
 		t.Error("a aba Servidor não oferece o reinício")
 	}
-	if !strings.Contains(body, "no ar há") {
-		t.Error("a aba Servidor não mostra há quanto tempo o servidor está de pé")
+	if !strings.Contains(body, "No ar") {
+		t.Error("a aba Servidor não mostra que o servidor está de pé")
 	}
 	if !strings.Contains(body, "não é apagar") {
 		t.Error("a aba não distingue desligar de apagar, que é a confusão que a Railway cria")
@@ -3798,8 +3798,11 @@ func TestPaginaMostraDesligadoEOfereceLigar(t *testing.T) {
 	get := signedIn(t, newTestPanelJogoPlat(t, &fakeJogo{}, plat))
 	body := get("/servidor").Body.String()
 
-	if !strings.Contains(body, "servidor desligado") {
+	if !strings.Contains(body, "Desligado") {
 		t.Error("a página não diz que o servidor está desligado")
+	}
+	if !strings.Contains(body, "estado parada") {
+		t.Error("o farol não marca o servidor como parado — a cor é metade do recado")
 	}
 	if !strings.Contains(body, `action="/servidor/ligar"`) {
 		t.Error("a página não oferece ligar")
