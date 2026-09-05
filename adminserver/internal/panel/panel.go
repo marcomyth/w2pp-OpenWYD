@@ -80,6 +80,7 @@ type AuditLog interface {
 type Writer interface {
 	Get(ctx context.Context, id int64) (accounts.Details, error)
 	PendingSince(ctx context.Context, since time.Time) (int, time.Time, error)
+	SetPassword(ctx context.Context, targetID int64, hash string) error
 	SetRole(ctx context.Context, actorID, targetID int64, role string) (string, error)
 	SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool) (bool, error)
 	AddVipDays(ctx context.Context, actorID, targetID int64, days int) (prev, next *time.Time, err error)
@@ -199,6 +200,7 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("POST /contas/{nome}/cargo", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setCargo))))
 	mux.Handle("POST /contas/{nome}/bloqueio", h.requireStaff(http.HandlerFunc(h.setBloqueio)))
 	mux.Handle("POST /contas/{nome}/vip", h.requireStaff(http.HandlerFunc(h.setVip)))
+	mux.Handle("POST /contas/{nome}/senha", h.requireStaff(http.HandlerFunc(h.setSenha)))
 	if h.cfg.Entregas != nil {
 		mux.Handle("POST /contas/{nome}/entregar", h.requireStaff(http.HandlerFunc(h.entregarItem)))
 		mux.Handle("POST /contas/{nome}/entregas/{entrega}/cancelar", h.requireStaff(http.HandlerFunc(h.cancelarEntrega)))

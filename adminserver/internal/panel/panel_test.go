@@ -203,7 +203,18 @@ type fakeWriter struct {
 	pendentes    int
 	ultimaEdicao time.Time
 	details      accounts.Details
+	senhaHash    []string
 	err          error
+}
+
+func (f *fakeWriter) SetPassword(_ context.Context, _ int64, hash string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return f.err
+	}
+	f.senhaHash = append(f.senhaHash, hash)
+	return nil
 }
 
 func newFakeWriter() *fakeWriter { return &fakeWriter{prevRole: "player"} }
@@ -2577,5 +2588,193 @@ func TestEntregaSomeSemAFilaConfigurada(t *testing.T) {
 	post, token := signedInPost(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
 	if rec := post("/contas/ana/entregar", url.Values{"csrf": {token}, "item": {"1415"}}); rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404 sem a fila", rec.Code)
+	}
+}
+
+// --- troca de senha ---
+
+func TestSenhaVaziaGeraEmVezDeApagar(t *testing.T) {
+	// This is the trap the whole feature is shaped around. secret.HashSecret("")
+	// returns an EMPTY hash meaning "no secret set", and VerifySecret then matches
+	// it against an empty password — so a blank form must never reach the hash.
+	// A blank field generates instead, which makes the state unreachable rather
+	// than merely guarded.
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/senha", url.Values{"csrf": {token}, "senha": {""}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(wr.senhaHash) != 1 {
+		t.Fatalf("escritas = %d, want 1", len(wr.senhaHash))
+	}
+	if wr.senhaHash[0] == "" {
+		t.Fatal("gravou hash vazio — a conta entraria com senha em branco")
+	}
+	if !strings.Contains(wr.senhaHash[0], "$argon2id$") {
+		t.Errorf("hash = %q, want um argon2id", wr.senhaHash[0])
+	}
+}
+
+func TestSenhaNovaApareceUmaVezENaoNoRedirect(t *testing.T) {
+	// The password must not travel in a query string: that lands in browser
+	// history and in any proxy log. Every other write here redirects; this one
+	// renders.
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/senha", url.Values{"csrf": {token}, "senha": {"Trocada9"}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 — não pode redirecionar com a senha na URL", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "" {
+		t.Errorf("respondeu com Location %q — a senha iria para o histórico", loc)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Trocada9") {
+		t.Error("a tela não mostra a senha nova, e não há outro lugar de onde tirá-la")
+	}
+	if !strings.Contains(body, "não volta") {
+		t.Error("a tela não avisa que não dá para ver de novo")
+	}
+	if !strings.Contains(body, "reiniciar") {
+		t.Error("a tela não avisa do bloqueio de login que só some com reinício")
+	}
+}
+
+func TestSenhaRecusaOQueOJogoNaoCarrega(t *testing.T) {
+	// Every rule here comes from the client, not from taste: the login packet
+	// carries a fixed [12]byte and trims trailing spaces.
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	for _, c := range []struct{ senha, esperado string }{
+		{"esta_senha_e_longa_demais", "12 caracteres"},
+		{"ab", "4 caracteres"},
+		{"com espaco", "espaço"},
+		{"senhã123", "acento"},
+	} {
+		rec := post("/contas/ana/senha", url.Values{"csrf": {token}, "senha": {c.senha}})
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%q: status = %d, want 400", c.senha, rec.Code)
+			continue
+		}
+		if !strings.Contains(rec.Body.String(), c.esperado) {
+			t.Errorf("%q: mensagem = %q, want algo com %q", c.senha, rec.Body.String(), c.esperado)
+		}
+	}
+	if len(wr.senhaHash) != 0 {
+		t.Fatal("uma senha recusada ainda assim foi gravada")
+	}
+}
+
+func TestModeradorNaoTrocaSenhaDeOutroDaEquipe(t *testing.T) {
+	// Without this a moderator resets the admin's password and signs in as them —
+	// "moderator" becomes "admin" in one click, and the panel has no other rank
+	// check to fall back on.
+	// withTarget also seeds "ana", which is where signedInPost reads the CSRF
+	// token from — without her the token comes back empty and this test would
+	// pass on a CSRF refusal instead of the rank guard, which is also a 403.
+	acc := withTarget(roleModerator)
+	acc.add("diretor", 9, roleAdmin, false)
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, acc, newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/diretor/senha", url.Values{"csrf": {token}, "senha": {"Tentando1"}})
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "admin") {
+		t.Errorf("recusou por outro motivo que não a hierarquia: %q", rec.Body.String())
+	}
+	if len(wr.senhaHash) != 0 {
+		t.Fatal("um moderador trocou a senha de um admin")
+	}
+}
+
+func TestAdminTrocaSenhaDaEquipe(t *testing.T) {
+	acc := withTarget(roleAdmin)
+	acc.add("colega", 9, roleModerator, false)
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, acc, newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/colega/senha", url.Values{"csrf": {token}, "senha": {"Nova12345678"}})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(wr.senhaHash) != 1 {
+		t.Fatal("um admin não conseguiu trocar a senha de um moderador")
+	}
+}
+
+func TestSenhaPrecisaDoCSRF(t *testing.T) {
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	post, _ := signedInPost(t, h)
+	if rec := post("/contas/ana/senha", url.Values{"senha": {"Trocada9"}}); rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
+	}
+	if len(wr.senhaHash) != 0 {
+		t.Fatal("uma requisição sem o token trocou a senha")
+	}
+}
+
+func TestAuditoriaDeSenhaNaoGuardaASenhaNemOHash(t *testing.T) {
+	// The audit log is readable by every admin. A hash in it is a hash to attack
+	// offline, and the plaintext would be worse.
+	log := newFakeAudit()
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), log, wr)
+	post, token := signedInPost(t, h)
+
+	if rec := post("/contas/ana/senha", url.Values{"csrf": {token}, "senha": {"Segredo99"}}); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	regs := log.recorded()
+	if len(regs) != 1 {
+		t.Fatalf("registros = %d, want 1", len(regs))
+	}
+	texto := fmt.Sprintf("%+v", regs[0])
+	if strings.Contains(texto, "Segredo99") {
+		t.Error("a auditoria guardou a senha em texto")
+	}
+	if strings.Contains(texto, "argon2id") {
+		t.Error("a auditoria guardou o hash")
+	}
+	if regs[0].Action != audit.ActionSetPassword {
+		t.Errorf("ação = %q, want %q", regs[0].Action, audit.ActionSetPassword)
+	}
+}
+
+func TestGerarSenhaSempreObedeceAsRegras(t *testing.T) {
+	// The generator is the default path, so a single bad draw would be a password
+	// that verifies in the panel and never works in game.
+	vistas := map[string]bool{}
+	for i := 0; i < 200; i++ {
+		s, err := accounts.GerarSenha()
+		if err != nil {
+			t.Fatalf("GerarSenha: %v", err)
+		}
+		if err := accounts.ValidarSenha(s); err != nil {
+			t.Fatalf("gerou %q, que a própria regra recusa: %v", s, err)
+		}
+		vistas[s] = true
+	}
+	if len(vistas) < 190 {
+		t.Errorf("200 senhas geradas deram só %d valores distintos", len(vistas))
+	}
+}
+
+func TestSetPasswordRecusaHashVazio(t *testing.T) {
+	// Belt to the handler's suspenders: even called directly, the store must not
+	// write the hash that means "any empty password logs in".
+	if err := (&accounts.Store{}).SetPassword(context.Background(), 1, ""); !errors.Is(err, accounts.ErrSenhaVazia) {
+		t.Fatalf("SetPassword com hash vazio = %v, want ErrSenhaVazia", err)
 	}
 }

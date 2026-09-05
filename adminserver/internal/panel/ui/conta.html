@@ -105,6 +105,22 @@
       </form>
       {{end}}
 
+      <form method="post" action="/contas/{{.Conta.Name}}/senha" class="acao-bloco">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label for="senha">Trocar a senha</label>
+        <div class="linha">
+          <input id="senha" name="senha" type="text" maxlength="12"
+                 placeholder="deixe vazio para gerar" autocomplete="off"
+                 autocapitalize="off" spellcheck="false">
+          <button type="submit">Trocar</button>
+        </div>
+        <p class="dica">
+          A senha nova aparece uma vez na tela seguinte e não fica guardada em
+          lugar nenhum. Máximo 12 caracteres, sem espaço e sem acento — é o que o
+          cliente do jogo carrega.
+        </p>
+      </form>
+
       <form method="post" action="/contas/{{.Conta.Name}}/bloqueio" class="acao-bloco">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <input type="hidden" name="bloquear" value="{{if .Conta.IsBlocked}}0{{else}}1{{end}}">

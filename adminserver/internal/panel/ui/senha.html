@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Senha de {{.Conta}} — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  .senha-caixa {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent); border-radius: 4px;
+    padding: 22px 24px; margin-bottom: 26px; max-width: 520px;
+  }
+  .senha-caixa .rot {
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 10px;
+  }
+  .senha-valor {
+    font-family: ui-monospace, Consolas, monospace; font-size: 26px; letter-spacing: .06em;
+    color: var(--ink); user-select: all; word-break: break-all;
+  }
+  .uma-vez {
+    background: var(--warn-bg); border: 1px solid var(--rule); border-left: 3px solid var(--warn);
+    border-radius: 3px; padding: 11px 15px; margin-bottom: 26px; font-size: 14px; color: var(--ink);
+    max-width: 62ch;
+  }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Senha trocada</h1>
+  <p class="sub">Conta <a href="/contas/{{.Conta}}">{{.Conta}}</a></p>
+
+  <div class="uma-vez">
+    <strong>Esta tela não volta.</strong> A senha não fica gravada em lugar nenhum
+    que dê para ler depois — nem na auditoria, nem no log. Copie agora e mande
+    para o jogador pelo atendimento do site ou pelo ticket do Discord.
+  </div>
+
+  <div class="senha-caixa">
+    <div class="rot">{{if .Gerada}}Senha gerada{{else}}Senha definida{{end}}</div>
+    <div class="senha-valor">{{.Senha}}</div>
+  </div>
+
+  {{if .Encerradas}}
+  <p class="sub">
+    {{.Encerradas}} sessão(ões) desta conta no painel foram encerradas.
+  </p>
+  {{end}}
+
+  <h2>Se o jogador não conseguir entrar</h2>
+  <p>
+    O jogo bloqueia a conta por três tentativas erradas, e esse bloqueio
+    <strong>não some sozinho</strong> — ele dura até o servidor reiniciar. Se a
+    pessoa tentou várias vezes antes de pedir ajuda, a senha nova está certa mas
+    o login vai continuar recusando até o próximo reinício.
+  </p>
+  <p class="sub"><a href="/contas/{{.Conta}}">Voltar para a conta</a></p>
+</main>
+</body>
+</html>
