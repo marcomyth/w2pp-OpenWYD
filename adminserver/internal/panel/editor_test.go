@@ -1,6 +1,9 @@
 package panel
 
 import (
+	"context"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,6 +13,7 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/personagem"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 )
 
 // grade is what turns stored rows into the screen, and the reachable/locked
@@ -356,4 +360,99 @@ func TestIndiceNaQueryVenceOItemDoSlot(t *testing.T) {
 	if sel.Item.Index != 400 {
 		t.Errorf("índice = %d, want 400 (o que está no slot)", sel.Item.Index)
 	}
+}
+
+// Character names are NOT unique: an Arch and a Celestial carry their Mortal's
+// name, and migration 0011_arch_name_tier_unique dropped the unique constraint
+// to allow exactly that. Addressing a character by name in the URL therefore
+// picks whichever tier the database reached first — which is how opening a
+// level-3 Celestial landed on the level-399 Mortal beside it. The slot is the
+// only per-account identifier that is unique by construction.
+func TestEditorEnderecaPorSlotNaoPorNome(t *testing.T) {
+	// Two characters, same name, different tiers — the shape the game produces.
+	pers := &fakePersonagensSlot{fichas: map[int]personagem.Ficha{
+		1: {ID: 10, AccountID: 7, Slot: 1, Nome: "TestPErg", Level: 399, ClassMaster: 2},
+		2: {ID: 11, AccountID: 7, Slot: 2, Nome: "TestPErg", Level: 3, ClassMaster: 1},
+	}}
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		Personagens: pers, Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	// Slot 2 is the Celestial: the page must show level 3, not 399.
+	rec := getSignedIn(t, h.Routes(), "/contas/ana/personagens/2")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if pers.pedido != 2 {
+		t.Errorf("carregou o slot %d, want 2", pers.pedido)
+	}
+	if !strings.Contains(rec.Body.String(), "nível 3") {
+		t.Error("a página deveria mostrar o personagem do slot 2 (nível 3), não o do slot 1")
+	}
+}
+
+func TestEditorRecusaSlotForaDaFaixa(t *testing.T) {
+	pers := &fakePersonagensSlot{fichas: map[int]personagem.Ficha{0: {AccountID: 7, Slot: 0}}}
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		Personagens: pers, Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	// A name in the URL, as the old links produced, must not resolve to a slot.
+	for _, alvo := range []string{"TestPErg", "9", "-1"} {
+		rec := getSignedIn(t, h.Routes(), "/contas/ana/personagens/"+alvo)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%q: status = %d, want 404", alvo, rec.Code)
+		}
+	}
+}
+
+// fakePersonagensSlot answers by slot and records which one was asked for.
+type fakePersonagensSlot struct {
+	fichas map[int]personagem.Ficha
+	pedido int
+}
+
+func (f *fakePersonagensSlot) Carregar(_ context.Context, _ int64, slot int) (personagem.Ficha, error) {
+	f.pedido = slot
+	fi, ok := f.fichas[slot]
+	if !ok {
+		return personagem.Ficha{}, personagem.ErrNaoEncontrado
+	}
+	fi.Equip = make([]personagem.Item, personagem.MaxEquip)
+	fi.Carry = make([]personagem.Item, personagem.MaxCarry)
+	fi.Cargo = make([]personagem.Item, personagem.MaxCargo)
+	return fi, nil
+}
+
+func (f *fakePersonagensSlot) GravarSlot(context.Context, int64, personagem.Destino, int, personagem.Item) error {
+	return nil
+}
+func (f *fakePersonagensSlot) LimparSlot(context.Context, int64, personagem.Destino, int) error {
+	return nil
+}
+func (f *fakePersonagensSlot) GravarAtributos(context.Context, int64, personagem.Atributos) (personagem.Atributos, error) {
+	return personagem.Atributos{}, nil
+}
+
+// getSignedIn fetches a page carrying the session cookie.
+func getSignedIn(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	c := sessionCookie(postLogin(h, "chefe", testPassword))
+	if c == nil {
+		t.Fatal("login did not set a cookie")
+	}
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	req.AddCookie(c)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
 }

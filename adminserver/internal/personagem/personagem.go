@@ -138,12 +138,21 @@ const fichaCols = `c.id, c.account_id, a.name, c.slot, c.name, c.class, c.class_
 	c.guild_id, c.level, c.exp, c.coin, c.str, c.int, c.dex, c.con,
 	c.hp, c.max_hp, c.mp, c.max_mp, c.online_since`
 
-// Carregar loads one character by name, with all three item containers.
-func (s *Store) Carregar(ctx context.Context, nome string) (Ficha, error) {
+// Carregar loads one character by account and slot, with all three item
+// containers.
+//
+// By slot, not by name, because names are NOT unique: an Arch (and a Celestial)
+// inherits its Mortal's name, and migration 0011_arch_name_tier_unique dropped
+// the unique constraint on name to allow exactly that — uniqueness is over
+// (name, class_master). Looking a character up by name returns whichever tier
+// the planner happened to reach first, which is how opening a level-3 Celestial
+// landed on the level-399 Mortal beside it. The slot is unique per account by
+// construction: UNIQUE (account_id, slot).
+func (s *Store) Carregar(ctx context.Context, accountID int64, slot int) (Ficha, error) {
 	var f Ficha
 	err := s.pool.QueryRow(ctx, `SELECT `+fichaCols+`
 		  FROM character c JOIN account a ON a.id = c.account_id
-		 WHERE c.name = $1`, nome).
+		 WHERE c.account_id = $1 AND c.slot = $2`, accountID, slot).
 		Scan(&f.ID, &f.AccountID, &f.AccountName, &f.Slot, &f.Nome, &f.Classe, &f.ClassMaster,
 			&f.GuildID, &f.Level, &f.Exp, &f.Coin, &f.Str, &f.Int, &f.Dex, &f.Con,
 			&f.Hp, &f.MaxHp, &f.Mp, &f.MaxMp, &f.OnlineDesde)
@@ -151,7 +160,7 @@ func (s *Store) Carregar(ctx context.Context, nome string) (Ficha, error) {
 		return Ficha{}, ErrNaoEncontrado
 	}
 	if err != nil {
-		return Ficha{}, fmt.Errorf("personagem: carregar %q: %w", nome, err)
+		return Ficha{}, fmt.Errorf("personagem: carregar conta %d slot %d: %w", accountID, slot, err)
 	}
 
 	if f.Equip, err = s.itens(ctx, `owner_kind = 'char_equip' AND character_id = $1`, MaxEquip, f.ID); err != nil {

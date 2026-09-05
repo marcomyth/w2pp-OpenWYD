@@ -308,20 +308,24 @@ func (h *Handler) editor(w http.ResponseWriter, r *http.Request) {
 // ficha loads the character named in the path and confirms it belongs to the
 // account in the path. The ownership check is not decoration: without it the
 // URL is an editor for any character, reachable by guessing a name.
+// The character is addressed by its SLOT, not its name. Names repeat by design:
+// an Arch and a Celestial carry their Mortal's name (0011_arch_name_tier_unique),
+// so a name in the URL is ambiguous — opening a level-3 Celestial would land on
+// the level-399 Mortal beside it. Slot is unique per account.
 func (h *Handler) ficha(w http.ResponseWriter, r *http.Request, accountID int64) (personagem.Ficha, bool) {
-	char := strings.TrimSpace(r.PathValue("char"))
-	ficha, err := h.cfg.Personagens.Carregar(r.Context(), char)
+	slot, err := strconv.Atoi(strings.TrimSpace(r.PathValue("char")))
+	if err != nil || slot < 0 || slot > 3 {
+		http.NotFound(w, r)
+		return personagem.Ficha{}, false
+	}
+	ficha, err := h.cfg.Personagens.Carregar(r.Context(), accountID, slot)
 	if errors.Is(err, personagem.ErrNaoEncontrado) {
 		http.NotFound(w, r)
 		return personagem.Ficha{}, false
 	}
 	if err != nil {
-		h.cfg.Logger.Error("character load failed", "character", char, "err", err)
+		h.cfg.Logger.Error("character load failed", "account", accountID, "slot", slot, "err", err)
 		http.Error(w, "Erro ao carregar o personagem.", http.StatusInternalServerError)
-		return personagem.Ficha{}, false
-	}
-	if ficha.AccountID != accountID {
-		http.NotFound(w, r)
 		return personagem.Ficha{}, false
 	}
 	return ficha, true
@@ -342,9 +346,9 @@ func (h *Handler) catalogo(r *http.Request) map[int32]gamedata.Item {
 }
 
 // redirectEditor bounces back to the editor with a message.
-func (h *Handler) redirectEditor(w http.ResponseWriter, r *http.Request, conta, char, msg string) {
+func (h *Handler) redirectEditor(w http.ResponseWriter, r *http.Request, conta string, slot int, msg string) {
 	http.Redirect(w, r,
-		"/contas/"+url.PathEscape(conta)+"/personagens/"+url.PathEscape(char)+"?aviso="+url.QueryEscape(msg),
+		fmt.Sprintf("/contas/%s/personagens/%d?aviso=%s", url.PathEscape(conta), slot, url.QueryEscape(msg)),
 		http.StatusSeeOther)
 }
 
@@ -389,7 +393,7 @@ func (h *Handler) setSlot(w http.ResponseWriter, r *http.Request) {
 	// produces an item that exists in the database and cannot be reached in
 	// game, which reads to the player exactly like it was taken.
 	if !remover && dest == personagem.DestinoCarry && !slotAlcancavel(ficha, slot) {
-		h.redirectEditor(w, r, nome, ficha.Nome,
+		h.redirectEditor(w, r, nome, ficha.Slot,
 			"Slot fora da área liberada: este personagem não tem a bolsa que abre essa faixa.")
 		return
 	}
@@ -401,7 +405,7 @@ func (h *Handler) setSlot(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = h.cfg.Personagens.GravarSlot(r.Context(), ficha.ID, dest, slot, novo)
 	}
-	if !h.recusaEditor(w, r, nome, ficha.Nome, err) {
+	if !h.recusaEditor(w, r, nome, ficha.Slot, err) {
 		return
 	}
 
@@ -414,7 +418,7 @@ func (h *Handler) setSlot(w http.ResponseWriter, r *http.Request) {
 		h.auditoriaFalhou(w, err)
 		return
 	}
-	h.redirectEditor(w, r, nome, ficha.Nome, "Slot gravado.")
+	h.redirectEditor(w, r, nome, ficha.Slot, "Slot gravado.")
 }
 
 // itemDoSlot reads the current occupant, for the audit "before".
@@ -537,7 +541,7 @@ func (h *Handler) setAtributos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	antes, err := h.cfg.Personagens.GravarAtributos(r.Context(), ficha.ID, a)
-	if !h.recusaEditor(w, r, nome, ficha.Nome, err) {
+	if !h.recusaEditor(w, r, nome, ficha.Slot, err) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
@@ -549,7 +553,7 @@ func (h *Handler) setAtributos(w http.ResponseWriter, r *http.Request) {
 		h.auditoriaFalhou(w, err)
 		return
 	}
-	h.redirectEditor(w, r, nome, ficha.Nome, "Atributos gravados.")
+	h.redirectEditor(w, r, nome, ficha.Slot, "Atributos gravados.")
 }
 
 // atributosDoForm parses the attribute form.
@@ -601,12 +605,12 @@ func registroAtributos(char string, a personagem.Atributos) map[string]any {
 // This is the path that works for a character in play: nothing live is touched,
 // the row waits in delivery_queue, and the tmServer applies it inside its loop
 // at the next login.
-func (h *Handler) recusaEditor(w http.ResponseWriter, r *http.Request, conta, char string, err error) bool {
+func (h *Handler) recusaEditor(w http.ResponseWriter, r *http.Request, conta string, slot int, err error) bool {
 	switch {
 	case err == nil:
 		return true
 	case errors.Is(err, personagem.ErrEmJogo):
-		h.redirectEditor(w, r, conta, char,
+		h.redirectEditor(w, r, conta, slot,
 			"Personagem em jogo: quem manda no inventário agora é o servidor. "+
 				"Use “conceder ao baú”, ou espere ele sair.")
 	case errors.Is(err, personagem.ErrSlotInvalido):
@@ -614,7 +618,7 @@ func (h *Handler) recusaEditor(w http.ResponseWriter, r *http.Request, conta, ch
 	case errors.Is(err, personagem.ErrNaoEncontrado):
 		http.NotFound(w, r)
 	default:
-		h.cfg.Logger.Error("character write failed", "account", conta, "character", char, "err", err)
+		h.cfg.Logger.Error("character write failed", "account", conta, "slot", slot, "err", err)
 		http.Error(w, "Erro ao gravar.", http.StatusInternalServerError)
 	}
 	return false

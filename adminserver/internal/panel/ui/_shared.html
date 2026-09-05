@@ -357,7 +357,7 @@
 {{define "abas-conta"}}
 <div class="abas-conta">
   <a href="/contas/{{.Conta}}" {{if eq .Aba "conta"}}class="on"{{end}}>Conta</a>
-  {{if .Personagem}}<a href="/contas/{{.Conta}}/personagens/{{.Personagem}}" {{if eq .Aba "editor"}}class="on"{{end}}>Editor</a>{{end}}
+  {{if .TemPersonagem}}<a href="/contas/{{.Conta}}/personagens/{{.Personagem}}" {{if eq .Aba "editor"}}class="on"{{end}}>Editor</a>{{end}}
   <a href="/contas/{{.Conta}}/donate" {{if eq .Aba "donate"}}class="on"{{end}}>Donate</a>
 </div>
 {{end}}

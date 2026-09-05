@@ -14,7 +14,7 @@
     · nível {{.Ficha.Level}} · {{if .Ficha.EmJogo}}<span class="bloq">em jogo</span>{{else}}fora do jogo{{end}}
   </p>
 
-  {{template "abas-conta" (dict "Conta" .Conta "Personagem" .Ficha.Nome "Aba" "editor")}}
+  {{template "abas-conta" (dict "Conta" .Conta "Personagem" .Ficha.Slot "TemPersonagem" true "Aba" "editor")}}
 
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
@@ -122,7 +122,7 @@
 
       <div class="cartao">
         <h2>Gravar slot</h2>
-        <form method="post" action="/contas/{{.Conta}}/personagens/{{.Ficha.Nome}}/slot">
+        <form method="post" action="/contas/{{.Conta}}/personagens/{{.Ficha.Slot}}/slot">
           <input type="hidden" name="csrf" value="{{.CSRF}}">
           <label class="campo-rot" for="destino">Onde</label>
           <select id="destino" name="destino">
@@ -173,7 +173,7 @@
 
       <div class="cartao">
         <h2>Atributos</h2>
-        <form method="post" action="/contas/{{.Conta}}/personagens/{{.Ficha.Nome}}/atributos">
+        <form method="post" action="/contas/{{.Conta}}/personagens/{{.Ficha.Slot}}/atributos">
           <input type="hidden" name="csrf" value="{{.CSRF}}">
           <div class="par-campo">
             <div><label class="campo-rot" for="a-level">Nível</label><input id="a-level" name="level" inputmode="numeric" value="{{.Ficha.Level}}"></div>
