@@ -119,6 +119,10 @@ func run(logger *slog.Logger) error {
 	// platform; only the token and the game service's id have to be set by hand.
 	var plat panel.Platform
 	platCfg := plataforma.Config{
+		// Prefer RAILWAY_PROJECT_TOKEN: it reaches this project only, while an
+		// account token reaches every project its owner has — and this value
+		// lives in the environment of a service published on the internet.
+		ProjectToken:  os.Getenv("RAILWAY_PROJECT_TOKEN"),
 		Token:         os.Getenv("RAILWAY_API_TOKEN"),
 		ProjectID:     os.Getenv("RAILWAY_PROJECT_ID"),
 		EnvironmentID: os.Getenv("RAILWAY_ENVIRONMENT_ID"),
