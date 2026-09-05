@@ -114,3 +114,40 @@ func TestSeenTracksAnnouncement(t *testing.T) {
 		t.Fatal("Seen(nil) = true, want false")
 	}
 }
+
+// TestMobSlotsRotateInsteadOfReusing verifies a freed mob id is not handed
+// straight back to the next spawn. The client keys its entity table on the id
+// and holds the entry past our RemoveMob, so an immediately reused id comes back
+// wearing the previous occupant's model — the water rooms drew each other's
+// monsters because lowest-free reuse made that a certainty, not a race.
+func TestMobSlotsRotateInsteadOfReusing(t *testing.T) {
+	w := New(Config{GridDim: 16}, slogDiscard(), nil, nil)
+
+	first := w.SpawnMob(make([]byte, structMobTemplateSize), 5, 6)
+	if first < MaxUser {
+		t.Fatalf("first id = %d, want >= MaxUser (%d)", first, MaxUser)
+	}
+	w.DespawnMob(first, 0)
+
+	second := w.SpawnMob(make([]byte, structMobTemplateSize), 5, 6)
+	if second == first {
+		t.Fatalf("freed id %d was reused immediately, want a cold slot", first)
+	}
+
+	// A whole room's worth turning over must not land back on the same ids.
+	var room []int
+	for i := 0; i < 20; i++ {
+		room = append(room, w.SpawnMob(make([]byte, structMobTemplateSize), 5, 6))
+	}
+	prev := make(map[int]struct{}, len(room))
+	for _, id := range room {
+		prev[id] = struct{}{}
+		w.DespawnMob(id, 0)
+	}
+	for i := 0; i < 20; i++ {
+		id := w.SpawnMob(make([]byte, structMobTemplateSize), 5, 6)
+		if _, clash := prev[id]; clash {
+			t.Fatalf("next room reused id %d from the room just cleared", id)
+		}
+	}
+}
