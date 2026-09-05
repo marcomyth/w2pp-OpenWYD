@@ -343,8 +343,10 @@ func (d *Dispatcher) applyLevelUps(w *world.World, s *world.Session, e *world.En
 			e.SpecialBonus += 2
 		}
 		gained++
+		e.Segment = 0 // a new level starts its quarters over (CMob.cpp:1157)
 	}
 	if gained == 0 {
+		d.applyExpSegment(w, s, e)
 		return false
 	}
 	// BASE_GetBonusScorePoint reads the equipment-free BaseScore attributes: it
@@ -418,4 +420,71 @@ func (d *Dispatcher) announceMobKill(w *world.World, killer, mob *world.Entity) 
 		}
 		w.SendTo(vs, hdr, body)
 	})
+}
+
+// applyExpSegment reports crossing a QUARTER of the current level, which is the
+// other half of CMob::CheckGetLevel (CMob.cpp:1095-1185) and the half we had
+// never ported.
+//
+// The original splits each level into four — deltaexp = (nextexp - curexp) / 4 —
+// and returns 1, 2 or 3 the first time experience passes each boundary. The
+// attack handler then answers exactly as it does for a level-up: a client message
+// ("1/4 BONUS", Language.txt:54-56), the level-up emotion, and SendScore
+// (_MSG_Attack.cpp:1766-1783). Below a full level we sent none of it, so between
+// level-ups nothing on the client ever moved — which is what players describe as
+// the experience bar standing still while the level number climbs.
+//
+// Crossing a quarter also refills HP and MP (CMob.cpp:1176-1181). That is not a
+// side effect worth trimming: it is the "bonus" the message names.
+//
+// e.Segment remembers the last quarter credited so each fires once, and resets
+// with every level.
+func (d *Dispatcher) applyExpSegment(w *world.World, s *world.Session, e *world.Entity) {
+	levelCap := level.MaxLevelForTier(e.ClassMaster)
+	if e.Level >= levelCap {
+		return
+	}
+	curExp := level.LevelExpTier(e.Level, e.ClassMaster)
+	nextExp := level.NextLevelExpTier(e.Level, e.ClassMaster)
+	delta := (nextExp - curExp) / 4
+	if delta <= 0 {
+		return
+	}
+
+	seg := int32(0)
+	switch {
+	case e.Exp >= curExp+delta*3:
+		seg = 3
+	case e.Exp >= curExp+delta*2:
+		seg = 2
+	case e.Exp >= curExp+delta:
+		seg = 1
+	}
+	if seg == 0 || seg <= e.Segment {
+		return // not a new quarter
+	}
+	e.Segment = seg
+
+	e.HP, e.MP = e.MaxHP, e.MaxMP
+	d.refreshScore(e)
+	if s != nil {
+		d.notify(w, s, quarterNotice(seg))
+		d.sendScore(w, s, e)
+	}
+	motion := protocol.EncodeMotion(motionLevelUp, motionLevelUpParm)
+	if s != nil {
+		w.Send(s, protocol.MsgMotion, motion)
+	}
+	w.BroadcastInView(e.ID, protocol.MsgMotion, motion)
+}
+
+func quarterNotice(seg int32) Notice {
+	switch seg {
+	case 3:
+		return Notice3QuartersBonus
+	case 2:
+		return Notice2QuartersBonus
+	default:
+		return Notice1QuarterBonus
+	}
 }

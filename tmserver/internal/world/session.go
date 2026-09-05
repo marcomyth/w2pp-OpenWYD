@@ -288,6 +288,13 @@ type Entity struct {
 	Special    [4]int16 // CurrentScore.Special[4] = BaseSpecial + equipment/affects
 	ScoreBonus uint16   // free attribute points
 
+	// Segment is CMob::Segment (CMob.h:61): the last QUARTER of the current level
+	// this character has been credited for. CheckGetLevel splits a level into four
+	// and reports each crossing once, which is how the client is told to redraw its
+	// experience bar between level-ups. Runtime state — it resets on every level
+	// and is not persisted, exactly as the original keeps it on the live mob.
+	Segment int32
+
 	// Skill state (skills front). SkillBonus is derived (level*3 − Σ learned
 	// costs, BASE_GetBonusSkillPoint) at login and level-up; SpecialBonus is
 	// incremental (+2/level) and persisted. Magic scales caster skill damage;

@@ -113,6 +113,14 @@ const (
 	// the server rule documented on waterClassAllowed.
 	NoticeWaterClassNotAllowed
 
+	// Quarter-of-a-level progress (_NN_1/2/3_Quarters_Bonus, Language.txt:54-56
+	// "1/4 BONUS" … "3/4 BONUS"). CheckGetLevel splits every level into four and
+	// the attack handler announces each crossing (_MSG_Attack.cpp:1772-1781),
+	// which is the feedback a player gets between one level and the next.
+	Notice1QuarterBonus
+	Notice2QuartersBonus
+	Notice3QuartersBonus
+
 	// Feijão Mágico / Removedor de tintura (item.go useMagicBean).
 	//
 	// DELIBERATE DIVERGENCE: these have NO legacy counterpart. The original
@@ -175,6 +183,9 @@ var noticeKey = map[Notice]string{
 	NoticeNoAccount:       "_NN_No_Account_With_That_Name", // 131
 	NoticeBlocked:         "_NN_ISNOTALLOWEDACCOUNT",       // 472
 	NoticeSelectCharacter: "_NN_SelectCharacter",           // 34
+	Notice1QuarterBonus:   "_NN_1_Quarters_Bonus",          // 56 "1/4 BONUS"
+	Notice2QuartersBonus:  "_NN_2_Quarters_Bonus",          // 55 "2/4 BONUS"
+	Notice3QuartersBonus:  "_NN_3_Quarters_Bonus",          // 54 "3/4 BONUS"
 	NoticeDeletingWait:    "_NN_WAITFORDELCHAR",            // 469
 
 	// Items / inventory.
