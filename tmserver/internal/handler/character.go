@@ -3,6 +3,8 @@ package handler
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
@@ -451,7 +453,39 @@ func (d *Dispatcher) logCNFCharacterLogin(path string, s *world.Session, st worl
 		"cnf_pos_y", int16(msgY),
 		"mob_spx", int16(mobSPX),
 		"mob_spy", int16(mobSPY),
-		"body", len(body))
+		"body", len(body),
+		"carry", carrySummary(st.Carry[:]),
+		"equip", carrySummary(st.Equip[:]))
+}
+
+// carrySummary renders the occupied slots as "slot:index(eff/val,…)" for the
+// login log.
+//
+// The login blob is the first and largest thing the client parses, and a client
+// that dies right after receiving it leaves no other evidence of WHAT it choked
+// on: the server only sees an EOF. An item carrying an effect that does not
+// belong to it — a stackable whose amount slot was overwritten, a quest reward
+// that picked up an expiry — is invisible without this.
+func carrySummary(items []world.Item) string {
+	var b strings.Builder
+	for i, it := range items {
+		if it.Index == 0 {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		fmt.Fprintf(&b, "%d:%d", i, it.Index)
+		for _, ef := range it.Effects {
+			if ef.Effect != 0 {
+				fmt.Fprintf(&b, "(%d/%d)", ef.Effect, ef.Value)
+			}
+		}
+		if it.ExpiresAt != 0 {
+			fmt.Fprintf(&b, "[exp:%d]", it.ExpiresAt)
+		}
+	}
+	return b.String()
 }
 
 // sendLoginAffects pushes the rehydrated buff snapshot right after the world
