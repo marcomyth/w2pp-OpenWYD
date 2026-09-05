@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/binary"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -32,8 +34,24 @@ func (d *Dispatcher) reqShopList(w *world.World, s *world.Session, _ protocol.He
 		shopType = 3
 	}
 	var list [27]protocol.SelItem
+	var contents strings.Builder
+	dropped := 0
 	for i := 0; i < 27; i++ {
 		c := npc.Carry[protocol.ShopSlot(i)]
+		if c.Index == 0 {
+			continue
+		}
+		// An index the client has no entry for is a crash, not a blank slot: the
+		// client indexes its own catalog with this number to draw the row. Shop
+		// stock is moderator-editable, so a typo in the panel reaches the wire —
+		// drop the row and say which one, rather than hand the client a number it
+		// will dereference.
+		if c.Index < 0 || int(c.Index) > maxCatalogItemIndex {
+			d.log.Warn("shop item out of catalog range — dropped",
+				"conn", s.Conn, "npc", target, "slot", protocol.ShopSlot(i), "index", c.Index)
+			dropped++
+			continue
+		}
 		list[i] = protocol.SelItem{
 			Index: uint16(c.Index),
 			Eff: [3][2]uint8{
@@ -42,10 +60,19 @@ func (d *Dispatcher) reqShopList(w *world.World, s *world.Session, _ protocol.He
 				{c.Effects[2].Effect, c.Effects[2].Value},
 			},
 		}
+		fmt.Fprintf(&contents, " [%d]=%d(%d:%d,%d:%d,%d:%d)", i, c.Index,
+			c.Effects[0].Effect, c.Effects[0].Value,
+			c.Effects[1].Effect, c.Effects[1].Value,
+			c.Effects[2].Effect, c.Effects[2].Value)
 	}
 	body := protocol.EncodeShopListBody(shopType, list, 0) // Tax 0 (city-tax table UNVERIFIED)
 	w.SendTo(s, protocol.Header{Type: protocol.MsgShopList, ID: protocol.IDScene}, body)
-	d.log.Info("shop opened", "conn", s.Conn, "npc", target, "merchant", npc.Merchant)
+	// The contents are logged because this frame is a known client-crash surface:
+	// the shop list is moderator-editable and the client renders every row from
+	// these raw numbers. When a player reports the client dying on an NPC, this
+	// line is the only record of what it was handed.
+	d.log.Info("shop opened", "conn", s.Conn, "npc", target, "merchant", npc.Merchant,
+		"dropped", dropped, "items", contents.String())
 }
 
 // buy handles _MSG_Buy (0x0379): purchase a shop item from an NPC. Price =
@@ -248,3 +275,9 @@ func expiryFromEffects(eff [3]world.Effect, now time.Time) (int64, bool) {
 	}
 	return now.Add(left).Unix(), true
 }
+
+// maxCatalogItemIndex is the highest index the shipped ItemList.csv defines
+// (Pedra_Ideal territory: the file tops out at 5750). The client sizes its own
+// item table from the same catalog, so a shop row past this points at nothing
+// and takes the client down with it.
+const maxCatalogItemIndex = 5750

@@ -191,3 +191,28 @@ func TestBuyRejectsMissingPrice(t *testing.T) {
 		t.Errorf("missing-price buy produced %#x; should be rejected", ty)
 	}
 }
+
+// A shop row whose index the client cannot resolve is a crash, not a blank slot:
+// the client uses the number to index its own catalog when drawing the row. Shop
+// stock is moderator-editable, so a bad value can reach the wire.
+func TestShopListIndexBounds(t *testing.T) {
+	tests := []struct {
+		name string
+		idx  int16
+		keep bool
+	}{
+		{"a normal item", 413, true},
+		{"the highest catalog index", maxCatalogItemIndex, true},
+		{"one past the catalog", maxCatalogItemIndex + 1, false},
+		{"far past the catalog", 30000, false},
+		{"negative", -5, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inRange := tt.idx >= 0 && int(tt.idx) <= maxCatalogItemIndex
+			if inRange != tt.keep {
+				t.Errorf("index %d kept=%v, want %v", tt.idx, inRange, tt.keep)
+			}
+		})
+	}
+}
