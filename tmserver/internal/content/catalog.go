@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -234,4 +235,33 @@ func parseItemList(r io.Reader) (*ItemList, error) {
 		l.items[idx] = ItemEntry{Index: idx, Name: strings.TrimSpace(fields[1]), Fields: fields}
 	}
 	return l, sc.Err()
+}
+
+// durationInName matches the "(30dias)" suffix the catalog puts on every
+// temporary item — "Conjunto_Yin-Yang(30dias)", "Fada_Verde(5dias)",
+// "Panqueca_(7dias)". The count is the item's lifetime in days.
+var durationInName = regexp.MustCompile(`\((\d+)\s*dias?\)`)
+
+// Durations returns item index → lifetime in days for every item whose NAME
+// declares one. The catalog has no field for it: the fairies spell their life
+// out in EF_WDAY, but the costumes and mounts carry it only in the name, so the
+// name is the one source that covers all of them — and it keeps covering them
+// when 7- and 14-day variants are added, with no table to maintain.
+//
+// A timed item's clock is not started here; it starts when the item is first
+// equipped (see startTimedItem). This map only says how long it will then run.
+func (l *ItemList) Durations() map[int]int {
+	out := make(map[int]int)
+	for idx, e := range l.items {
+		m := durationInName.FindStringSubmatch(e.Name)
+		if m == nil {
+			continue
+		}
+		days, err := strconv.Atoi(m[1])
+		if err != nil || days <= 0 {
+			continue
+		}
+		out[idx] = days
+	}
+	return out
 }
