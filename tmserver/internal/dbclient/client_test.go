@@ -14,17 +14,19 @@ import (
 // fakeAPI implements dbv1.AccountServiceClient, capturing requests and returning
 // canned responses, so the adapter's mapping is tested without a gRPC server.
 type fakeAPI struct {
-	loginResp  *dbv1.AccountLoginResponse
-	listResp   *dbv1.ListCharactersResponse
-	loadResp   *dbv1.LoadCharacterResponse
-	createOK   bool
-	archReq    *dbv1.CreateArchCharacterRequest
-	archOK     bool
-	archSlot   int32
-	deleteOK   bool
-	saved      *dbv1.SaveCharacterRequest
-	cargoResp  *dbv1.LoadCargoResponse
-	savedCargo *dbv1.SaveCargoRequest
+	presenceReq     *dbv1.SetCharacterPresenceRequest
+	presenceCleared int64
+	loginResp       *dbv1.AccountLoginResponse
+	listResp        *dbv1.ListCharactersResponse
+	loadResp        *dbv1.LoadCharacterResponse
+	createOK        bool
+	archReq         *dbv1.CreateArchCharacterRequest
+	archOK          bool
+	archSlot        int32
+	deleteOK        bool
+	saved           *dbv1.SaveCharacterRequest
+	cargoResp       *dbv1.LoadCargoResponse
+	savedCargo      *dbv1.SaveCargoRequest
 
 	deliveriesResp       *dbv1.ListPendingDeliveriesResponse
 	savedCargoDeliveries *dbv1.SaveCargoWithDeliveriesRequest
@@ -438,6 +440,14 @@ func TestClientPin(t *testing.T) {
 			t.Errorf("VerifyPin(%v) = %v, want %v", tc.in, got, tc.want)
 		}
 	}
+}
+func (f *fakeAPI) SetCharacterPresence(_ context.Context, req *dbv1.SetCharacterPresenceRequest, _ ...grpc.CallOption) (*dbv1.SetCharacterPresenceResponse, error) {
+	f.presenceReq = req
+	return &dbv1.SetCharacterPresenceResponse{Ok: true}, nil
+}
+
+func (f *fakeAPI) ClearAllPresence(context.Context, *dbv1.ClearAllPresenceRequest, ...grpc.CallOption) (*dbv1.ClearAllPresenceResponse, error) {
+	return &dbv1.ClearAllPresenceResponse{Cleared: f.presenceCleared}, nil
 }
 
 func (f *fakeAPI) RecordTrade(context.Context, *dbv1.RecordTradeRequest, ...grpc.CallOption) (*dbv1.RecordTradeResponse, error) {

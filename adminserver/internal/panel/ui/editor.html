@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>{{.Ficha.Nome}} — Painel OpenWYD</title>
+{{template "head" .}}
+</head>
+<body>
+{{template "topbar" .}}
+
+<main class="larga">
+  <h1>{{.Ficha.Nome}}</h1>
+  <p class="sub">
+    Slot {{.Ficha.Slot}} da conta <a href="/contas/{{.Conta}}">{{.Conta}}</a>
+    · nível {{.Ficha.Level}} · {{if .Ficha.EmJogo}}<span class="bloq">em jogo</span>{{else}}fora do jogo{{end}}
+  </p>
+
+  {{template "abas-conta" (dict "Conta" .Conta "Personagem" .Ficha.Nome "Aba" "editor")}}
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  {{if .Ficha.EmJogo}}
+  <p class="perigo">
+    <strong>Este personagem está em jogo.</strong> Quem manda no inventário dele agora é o
+    servidor, e qualquer gravação feita aqui seria desfeita no próximo save — por isso os
+    campos estão travados.
+    <br>
+    Para entregar um item sem interromper ninguém, use <strong>Entregar item</strong> na
+    <a href="/contas/{{.Conta}}">página da conta</a>: a entrega entra na fila e chega no
+    próximo login. Para editar de verdade, derrube a conta em
+    <a href="/servidor">Servidor</a> e recarregue esta página — a edição abre sozinha assim
+    que o último save dele cair.
+  </p>
+  {{end}}
+
+  <div class="campos">
+    <div class="campo"><div class="rot">Nível</div><div class="val">{{.Ficha.Level}}</div></div>
+    <div class="campo"><div class="rot">Experiência</div><div class="val">{{.Ficha.Exp}}</div></div>
+    <div class="campo"><div class="rot">Ouro</div><div class="val">{{.Ficha.Coin}}</div></div>
+    <div class="campo"><div class="rot">HP</div><div class="val">{{.Ficha.Hp}} / {{.Ficha.MaxHp}}</div></div>
+    <div class="campo"><div class="rot">MP</div><div class="val">{{.Ficha.Mp}} / {{.Ficha.MaxMp}}</div></div>
+    <div class="campo"><div class="rot">Força</div><div class="val">{{.Ficha.Str}}</div></div>
+    <div class="campo"><div class="rot">Inteligência</div><div class="val">{{.Ficha.Int}}</div></div>
+    <div class="campo"><div class="rot">Destreza</div><div class="val">{{.Ficha.Dex}}</div></div>
+    <div class="campo"><div class="rot">Constituição</div><div class="val">{{.Ficha.Con}}</div></div>
+  </div>
+
+  <div class="colunas">
+    <div>
+      <div class="cartao">
+        <h2>Equipamento</h2>
+        <div class="grade g-equip">
+          {{range .Equip}}{{template "slot" (dict "It" . "Destino" "char_equip")}}{{end}}
+        </div>
+      </div>
+
+      <div class="cartao">
+        <h2>Inventário</h2>
+        <div class="faixa-cab">
+          <span class="t">Slots liberados</span>
+          <span class="d">{{.Limite}} de 60 · a Bolsa do Andarilho abre 15 por vez</span>
+        </div>
+        <div class="grade g-carry">
+          {{range .Carry}}{{template "slot" (dict "It" . "Destino" "char_carry")}}{{end}}
+        </div>
+        <p class="sub" style="margin:10px 0 0;font-size:12.5px">
+          Slots hachurados estão fora da faixa liberada: um item colocado ali existe no banco e
+          o jogador não alcança. Os slots 60 e 61 guardam a própria bolsa.
+        </p>
+      </div>
+
+      <div class="cartao">
+        <h2>Baú da conta</h2>
+        <div class="faixa-cab">
+          <span class="t">Compartilhado pelos personagens da conta</span>
+          <span class="d">128 slots</span>
+        </div>
+        <div class="rolagem">
+          <div class="grade g-cargo">
+            {{range .Cargo}}{{template "slot" (dict "It" . "Destino" "account_cargo")}}{{end}}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      {{if .IsAdmin}}
+      <div class="cartao">
+        <h2>Gravar slot</h2>
+        <form method="post" action="/contas/{{.Conta}}/personagens/{{.Ficha.Nome}}/slot">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <label class="campo-rot" for="destino">Onde</label>
+          <select id="destino" name="destino">
+            <option value="char_carry">Inventário</option>
+            <option value="char_equip">Equipamento</option>
+            <option value="account_cargo">Baú da conta</option>
+          </select>
+          <div style="height:9px"></div>
+          <div class="par-campo">
+            <div>
+              <label class="campo-rot" for="indice">Índice do item</label>
+              <input id="indice" name="indice" inputmode="numeric" placeholder="ex.: 700">
+            </div>
+            <div>
+              <label class="campo-rot" for="slot">Slot</label>
+              <input id="slot" name="slot" inputmode="numeric" value="0" required>
+            </div>
+          </div>
+          <div class="par-campo">
+            <div><label class="campo-rot" for="eff1">Efeito 1</label><input id="eff1" name="eff1" inputmode="numeric" placeholder="0"></div>
+            <div><label class="campo-rot" for="effv1">Valor</label><input id="effv1" name="effv1" inputmode="numeric" placeholder="0"></div>
+          </div>
+          <div class="par-campo">
+            <div><label class="campo-rot" for="eff2">Efeito 2</label><input id="eff2" name="eff2" inputmode="numeric" placeholder="0"></div>
+            <div><label class="campo-rot" for="effv2">Valor</label><input id="effv2" name="effv2" inputmode="numeric" placeholder="0"></div>
+          </div>
+          <div class="par-campo">
+            <div><label class="campo-rot" for="eff3">Efeito 3</label><input id="eff3" name="eff3" inputmode="numeric" placeholder="0"></div>
+            <div><label class="campo-rot" for="effv3">Valor</label><input id="effv3" name="effv3" inputmode="numeric" placeholder="0"></div>
+          </div>
+          <p class="sub" style="font-size:12px;margin:2px 0 12px">
+            Refino é o efeito 43. Clique num slot da grade para preencher este formulário.
+          </p>
+          <div style="display:flex;gap:8px">
+            <button type="submit" name="remover" value="1" {{if not .Editavel}}disabled{{end}}>Limpar slot</button>
+            <button type="submit" class="principal" {{if not .Editavel}}disabled{{end}}>Gravar</button>
+          </div>
+        </form>
+      </div>
+
+
+      <div class="cartao">
+        <h2>Atributos</h2>
+        <form method="post" action="/contas/{{.Conta}}/personagens/{{.Ficha.Nome}}/atributos">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <div class="par-campo">
+            <div><label class="campo-rot" for="a-level">Nível</label><input id="a-level" name="level" inputmode="numeric" value="{{.Ficha.Level}}"></div>
+            <div><label class="campo-rot" for="a-str">Força</label><input id="a-str" name="str" inputmode="numeric" value="{{.Ficha.Str}}"></div>
+          </div>
+          <div class="par-campo">
+            <div><label class="campo-rot" for="a-int">Inteligência</label><input id="a-int" name="int" inputmode="numeric" value="{{.Ficha.Int}}"></div>
+            <div><label class="campo-rot" for="a-dex">Destreza</label><input id="a-dex" name="dex" inputmode="numeric" value="{{.Ficha.Dex}}"></div>
+          </div>
+          <div class="par-campo">
+            <div><label class="campo-rot" for="a-con">Constituição</label><input id="a-con" name="con" inputmode="numeric" value="{{.Ficha.Con}}"></div>
+            <div><label class="campo-rot" for="a-coin">Ouro</label><input id="a-coin" name="coin" inputmode="numeric" value="{{.Ficha.Coin}}"></div>
+          </div>
+          <label class="campo-rot" for="a-exp">Experiência</label>
+          <input id="a-exp" name="exp" inputmode="numeric" value="{{.Ficha.Exp}}">
+          <div style="height:12px"></div>
+          <button type="submit" class="principal" {{if not .Editavel}}disabled{{end}}>Gravar atributos</button>
+        </form>
+      </div>
+      {{else}}
+      <div class="cartao">
+        <h2>Somente leitura</h2>
+        <p class="sub" style="margin:0;font-size:13px">
+          Alterar itens e atributos é ação de admin. Você pode consultar tudo nesta página.
+        </p>
+      </div>
+      {{end}}
+    </div>
+  </div>
+</main>
+
+<script>
+  // Clicking a slot fills the form: the grid is where a moderator looks, and
+  // retyping the slot number from it is where mistakes come from.
+  document.querySelectorAll(".slot").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var destino = document.getElementById("destino");
+      var campos = { indice: b.dataset.indice, slot: b.dataset.slot,
+                     eff1: b.dataset.eff1, effv1: b.dataset.effv1,
+                     eff2: b.dataset.eff2, effv2: b.dataset.effv2,
+                     eff3: b.dataset.eff3, effv3: b.dataset.effv3 };
+      if (!destino) { return; } // read-only view for moderators
+      destino.value = b.dataset.destino;
+      Object.keys(campos).forEach(function (k) {
+        var el = document.getElementById(k);
+        if (el) { el.value = campos[k] || ""; }
+      });
+      document.querySelectorAll(".slot").forEach(function (o) { o.style.outline = ""; });
+      b.style.outline = "2px solid var(--accent)";
+    });
+  });
+</script>
+</body>
+</html>
+
+{{/* One inventory cell. Carries its item in data- attributes so the form can be
+     filled without a round trip. */}}
+{{define "slot"}}
+<button type="button" class="slot{{if not .It.Vazio}} cheio{{end}}{{if not .It.Alcancavel}} travado{{end}}{{if .It.Marcador}} marcador{{end}}"
+        data-destino="{{.Destino}}" data-slot="{{.It.Slot}}" data-indice="{{if .It.Vazio}}{{else}}{{.It.Index}}{{end}}"
+        data-eff1="{{(index .It.Efeitos 0).Tipo}}" data-effv1="{{(index .It.Efeitos 0).Valor}}"
+        data-eff2="{{(index .It.Efeitos 1).Tipo}}" data-effv2="{{(index .It.Efeitos 1).Valor}}"
+        data-eff3="{{(index .It.Efeitos 2).Tipo}}" data-effv3="{{(index .It.Efeitos 2).Valor}}"
+        title="Slot {{.It.Slot}}{{if not .It.Vazio}} — {{.It.Nome}}{{end}}{{if not .It.Alcancavel}} (fora da faixa liberada){{end}}">
+  <span class="idx">{{.It.Slot}}</span>
+  {{if gt .It.Refino 0}}<span class="sanc">+{{.It.Refino}}</span>{{end}}
+  {{if .It.IconURL}}<img src="{{.It.IconURL}}" alt="">{{end}}
+  <span class="nome">{{.It.Nome}}</span>
+</button>
+{{end}}

@@ -91,6 +91,65 @@
     </div>
   </form>
 
+  <div class="cartao" style="margin-top:26px">
+    <h2>Equipamento</h2>
+    <p class="sub" style="margin:0 0 14px;font-size:13px">
+      Os dezesseis slots do <code>Equip[]</code> deste template. É o que o monstro veste — e,
+      em vários casos, o que ele derruba. Clique num slot para carregar o formulário.
+    </p>
+    <div class="grade g-equip">
+      {{range .Equip}}{{template "slot" (dict "It" . "Destino" "mob_equip")}}{{end}}
+    </div>
+
+    <form method="post" action="/monstros/{{.Nome}}/equip" style="margin-top:16px;max-width:420px">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <div class="par-campo">
+        <div>
+          <label class="campo-rot" for="indice">Índice do item</label>
+          <input id="indice" name="indice" inputmode="numeric" placeholder="ex.: 144">
+        </div>
+        <div>
+          <label class="campo-rot" for="slot">Slot</label>
+          <input id="slot" name="slot" inputmode="numeric" value="0" required>
+        </div>
+      </div>
+      <div class="par-campo">
+        <div><label class="campo-rot" for="eff1">Efeito 1</label><input id="eff1" name="eff1" inputmode="numeric" placeholder="0"></div>
+        <div><label class="campo-rot" for="effv1">Valor</label><input id="effv1" name="effv1" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <div class="par-campo">
+        <div><label class="campo-rot" for="eff2">Efeito 2</label><input id="eff2" name="eff2" inputmode="numeric" placeholder="0"></div>
+        <div><label class="campo-rot" for="effv2">Valor</label><input id="effv2" name="effv2" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <div class="par-campo">
+        <div><label class="campo-rot" for="eff3">Efeito 3</label><input id="eff3" name="eff3" inputmode="numeric" placeholder="0"></div>
+        <div><label class="campo-rot" for="effv3">Valor</label><input id="effv3" name="effv3" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button type="submit" name="remover" value="1">Limpar slot</button>
+        <button type="submit" class="principal">Gravar slot</button>
+      </div>
+      <p class="dica">Refino é o efeito 43. Como os números acima, só vale depois de reiniciar.</p>
+    </form>
+  </div>
+
+  <script>
+    document.querySelectorAll(".slot").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var campos = { indice: b.dataset.indice, slot: b.dataset.slot,
+                       eff1: b.dataset.eff1, effv1: b.dataset.effv1,
+                       eff2: b.dataset.eff2, effv2: b.dataset.effv2,
+                       eff3: b.dataset.eff3, effv3: b.dataset.effv3 };
+        Object.keys(campos).forEach(function (k) {
+          var el = document.getElementById(k);
+          if (el) { el.value = campos[k] || ""; }
+        });
+        document.querySelectorAll(".slot").forEach(function (o) { o.style.outline = ""; });
+        b.style.outline = "2px solid var(--accent)";
+      });
+    });
+  </script>
+
   {{if .Overridden}}
   <div class="limpar">
     <form method="post" action="/monstros/{{.Nome}}/limpar" class="acao-bloco">

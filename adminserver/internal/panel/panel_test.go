@@ -1129,6 +1129,7 @@ type fakeGameData struct {
 	mobCleared   []string
 	mobErr       error
 	mobWriteErr  error
+	mobEquip     map[string][]gamedata.MobEquipItem // captured SaveMobEquip calls
 	itemRows     map[int32]itemRow
 	itemSaved    []gamedata.ItemStat
 	itemCleared  []int32
@@ -1940,6 +1941,32 @@ func (f *fakeGameData) MobStat(_ context.Context, _ int64, name string) (gamedat
 		}
 	}
 	return s, nil
+}
+
+func (f *fakeGameData) ItemLookup(_ context.Context) (map[int32]gamedata.Item, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.listErr != nil {
+		return nil, f.listErr
+	}
+	out := make(map[int32]gamedata.Item, len(f.itens))
+	for _, it := range f.itens {
+		out[it.Index] = it
+	}
+	return out, nil
+}
+
+func (f *fakeGameData) SaveMobEquip(_ context.Context, _ int64, name string, itens []gamedata.MobEquipItem) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.mobWriteErr != nil {
+		return f.mobWriteErr
+	}
+	if f.mobEquip == nil {
+		f.mobEquip = map[string][]gamedata.MobEquipItem{}
+	}
+	f.mobEquip[name] = itens
+	return nil
 }
 
 func (f *fakeGameData) SaveMobStat(_ context.Context, _ int64, m gamedata.MobStat) error {

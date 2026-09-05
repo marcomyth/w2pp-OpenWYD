@@ -217,6 +217,79 @@ func (c *Client) SaveMobStat(ctx context.Context, moderatorID int64, m MobStat) 
 	return resultErr(resp.GetResult())
 }
 
+// MobEquipItem is one Equip[] slot of a mob template.
+type MobEquipItem struct {
+	Slot      int
+	ItemIndex int32
+	Eff1      uint8
+	EffV1     uint8
+	Eff2      uint8
+	EffV2     uint8
+	Eff3      uint8
+	EffV3     uint8
+}
+
+// Vazio reports whether the slot holds nothing.
+func (m MobEquipItem) Vazio() bool { return m.ItemIndex == 0 }
+
+// Equip returns the template's sixteen equipment slots, positionally, so the
+// editor can draw the same grid it draws for a character.
+//
+// The values ride along on the stat read, which is why there is no separate RPC
+// here: GetMobTemplateStat already carries them, and asking twice would let the
+// stats and the gear come from two different reads of the same row.
+func (m MobStat) Equip() []MobEquipItem {
+	out := make([]MobEquipItem, maxMobEquip)
+	for i := range out {
+		out[i].Slot = i
+	}
+	if m.raw == nil {
+		return out
+	}
+	for _, e := range m.raw.GetEquip() {
+		slot := int(e.GetSlot())
+		if slot < 0 || slot >= maxMobEquip {
+			continue // corrupt row: skip it rather than lose the whole grid
+		}
+		out[slot] = MobEquipItem{
+			Slot: slot, ItemIndex: e.GetItemIndex(),
+			Eff1: uint8(e.GetEff1()), EffV1: uint8(e.GetEffv1()),
+			Eff2: uint8(e.GetEff2()), EffV2: uint8(e.GetEffv2()),
+			Eff3: uint8(e.GetEff3()), EffV3: uint8(e.GetEffv3()),
+		}
+	}
+	return out
+}
+
+// maxMobEquip is MAX_EQUIP (STRUCT_MOB.Equip[16]).
+const maxMobEquip = 16
+
+// SaveMobEquip replaces the template's Equip[] overrides.
+//
+// The webServer requires a stat override to exist first, so a template nobody
+// has edited yet has to be saved once before it can be given gear — the caller
+// does that rather than this package guessing, because an implicit stat write
+// would silently freeze the file's current values as an override.
+func (c *Client) SaveMobEquip(ctx context.Context, moderatorID int64, name string, itens []MobEquipItem) error {
+	req := &webv1.SetMobTemplateEquipRequest{ModeratorId: moderatorID, TemplateName: name}
+	for _, it := range itens {
+		if it.Vazio() {
+			continue // empty slots are an absence, not a row
+		}
+		req.Items = append(req.Items, &webv1.AdminMobTemplateEquipItem{
+			Slot: int32(it.Slot), ItemIndex: it.ItemIndex,
+			Eff1: int32(it.Eff1), Effv1: int32(it.EffV1),
+			Eff2: int32(it.Eff2), Effv2: int32(it.EffV2),
+			Eff3: int32(it.Eff3), Effv3: int32(it.EffV3),
+		})
+	}
+	resp, err := c.mob.SetMobTemplateEquip(ctx, req)
+	if err != nil {
+		return fmt.Errorf("gamedata: save mob equip %q: %w", name, err)
+	}
+	return resultErr(resp.GetResult())
+}
+
 // ClearMobStat drops the override so the template file's values apply again.
 func (c *Client) ClearMobStat(ctx context.Context, moderatorID int64, name string) error {
 	resp, err := c.mob.DeleteMobTemplateStat(ctx, &webv1.DeleteMobTemplateStatRequest{

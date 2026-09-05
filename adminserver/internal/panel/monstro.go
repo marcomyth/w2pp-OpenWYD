@@ -7,6 +7,7 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/personagem"
 )
 
 // monstros lists the template files a moderator can rebalance.
@@ -56,17 +57,103 @@ func (h *Handler) monstro(w http.ResponseWriter, r *http.Request) {
 		grupos = append(grupos, grupoCampos{Nome: g, Campos: porGrupo[g]})
 	}
 
+	// The gear grid reuses the character editor's cells, so a moderator reads a
+	// mob's equipment the same way they read a player's.
+	equip := make([]personagem.Item, 0, maxMobEquipSlots)
+	for _, e := range stat.Equip() {
+		equip = append(equip, personagem.Item{
+			Slot: e.Slot, Index: int16(e.ItemIndex),
+			Eff1: e.Eff1, EffV1: e.EffV1,
+			Eff2: e.Eff2, EffV2: e.EffV2,
+			Eff3: e.Eff3, EffV3: e.EffV3,
+		})
+	}
+
 	h.render(w, "monstro.html", struct {
 		page
 		Nome       string
 		Exibido    string
 		Overridden bool
 		Grupos     []grupoCampos
+		Equip      []itemView
 		Aviso      string
 	}{
 		h.pageFor(r, "monstros"), stat.Name(), stat.DisplayName(), stat.Overridden(),
-		grupos, r.URL.Query().Get("aviso"),
+		grupos, grade(equip, h.catalogo(r), 0, false), r.URL.Query().Get("aviso"),
 	})
+}
+
+// maxMobEquipSlots is MAX_EQUIP (STRUCT_MOB.Equip[16]).
+const maxMobEquipSlots = 16
+
+// setMonstroEquip replaces one Equip[] slot of a mob template.
+//
+// Unlike a character's inventory there is no presence to check: this is a
+// template, read once at boot and never owned by the loop. The cost is the
+// opposite — the change reaches the world only on the next restart, which is
+// also how the legacy EDITAPPMOB behaved.
+func (h *Handler) setMonstroEquip(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	sess, _ := staffFrom(r.Context())
+	nome := r.PathValue("nome")
+
+	stat, err := h.cfg.GameData.MobStat(r.Context(), sess.AccountID, nome)
+	if err != nil {
+		h.recusaGameData(w, r, "carregar o monstro", err)
+		return
+	}
+
+	slot, err := strconv.Atoi(r.PostFormValue("slot"))
+	if err != nil || slot < 0 || slot >= 16 {
+		http.Error(w, "Slot inválido.", http.StatusBadRequest)
+		return
+	}
+	novo, err := itemDoForm(r, slot)
+	if err != nil {
+		erroDeForma(w, err)
+		return
+	}
+	if r.PostFormValue("remover") == "1" {
+		novo = personagem.Item{Slot: slot}
+	}
+
+	atual := stat.Equip()
+	antes := atual[slot]
+	atual[slot] = gamedata.MobEquipItem{
+		Slot: slot, ItemIndex: int32(novo.Index),
+		Eff1: novo.Eff1, EffV1: novo.EffV1,
+		Eff2: novo.Eff2, EffV2: novo.EffV2,
+		Eff3: novo.Eff3, EffV3: novo.EffV3,
+	}
+
+	// The webServer refuses equipment for a template with no stat override yet,
+	// so save the stats first. They are the file's own values at this point, so
+	// this freezes the current defaults rather than changing anything.
+	if !stat.Overridden() {
+		if err := h.cfg.GameData.SaveMobStat(r.Context(), sess.AccountID, stat); err != nil {
+			h.recusaGameData(w, r, "gravar o monstro", err)
+			return
+		}
+	}
+	if err := h.cfg.GameData.SaveMobEquip(r.Context(), sess.AccountID, nome, atual); err != nil {
+		h.recusaGameData(w, r, "gravar o equipamento", err)
+		return
+	}
+	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: acaoMobEquip,
+		Old:    map[string]any{"template": nome, "slot": slot, "item": antes.ItemIndex},
+		New:    map[string]any{"template": nome, "slot": slot, "item": novo.Index},
+	}); err != nil {
+		h.auditoriaFalhou(w, err)
+		return
+	}
+	h.redirectMonstro(w, r, nome, "Equipamento gravado. Vale no próximo reinício do servidor.")
 }
 
 // grupoCampos is one titled section of the stat form.

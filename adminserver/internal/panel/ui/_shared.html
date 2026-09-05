@@ -216,6 +216,105 @@
 
   .motivo { font-size: 13.5px; color: var(--ink-2); margin-top: 6px; max-width: 46ch; }
   .motivo-quando { font-size: 12px; color: var(--ink-3); margin-top: 3px; }
+  /* --- editor de personagem, carteira e situação --- */
+  .larga { max-width: 1180px; }
+  .abas-conta {
+    display: flex; gap: 2px; margin: 0 0 24px; border-bottom: 1px solid var(--rule); flex-wrap: wrap;
+  }
+  .abas-conta a {
+    padding: 8px 15px; margin-bottom: -1px; font-size: 14px; text-decoration: none;
+    color: var(--ink-2); border-bottom: 2px solid transparent;
+  }
+  .abas-conta a:hover { color: var(--ink); }
+  .abas-conta a.on { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+
+  .grade { display: grid; gap: 6px; margin-bottom: 6px; }
+  .g-equip { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  .g-carry { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+  .g-cargo { grid-template-columns: repeat(16, minmax(0, 1fr)); }
+  @media (max-width: 780px) {
+    .g-equip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .g-carry { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .g-cargo { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+  }
+  .slot {
+    position: relative; aspect-ratio: 1; min-height: 46px; padding: 3px;
+    background: var(--ground); border: 1px solid var(--rule); border-radius: 3px;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    text-align: left; cursor: pointer; overflow: hidden; font: inherit; color: inherit;
+  }
+  .slot:hover { border-color: var(--ink-3); }
+  .slot.cheio { background: var(--surface); }
+  .slot .idx {
+    position: absolute; top: 2px; left: 4px; font-size: 9px; color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .slot .sanc {
+    position: absolute; top: 2px; right: 3px; font-size: 9.5px; font-weight: 700;
+    color: var(--warn); font-variant-numeric: tabular-nums;
+  }
+  .slot .nome {
+    font-size: 9.5px; line-height: 1.2; color: var(--ink-2);
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .slot.cheio .nome { color: var(--ink); }
+  .slot img { width: 100%; height: auto; image-rendering: pixelated; }
+  .slot.travado {
+    cursor: not-allowed; opacity: .5;
+    background-image: repeating-linear-gradient(135deg, transparent 0 5px, var(--rule) 5px 6px);
+  }
+  .slot.marcador { border-style: dashed; border-color: var(--warn); }
+  .faixa-cab {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+    margin: 16px 0 7px; padding-bottom: 5px; border-bottom: 1px solid var(--rule);
+  }
+  .faixa-cab .t { font-size: 11.5px; font-weight: 600; color: var(--ink-2); }
+  .faixa-cab .d { font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .rolagem { max-height: 260px; overflow: auto; }
+  .colunas { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
+  @media (max-width: 1000px) { .colunas { grid-template-columns: minmax(0, 1fr); } }
+  .cartao {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+    padding: 16px 18px; margin-bottom: 18px;
+  }
+  .cartao h2 {
+    font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 13px;
+  }
+  .par-campo { display: grid; grid-template-columns: 1fr 84px; gap: 7px; margin-bottom: 9px; }
+  .campo-rot {
+    display: block; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 4px;
+  }
+  .cartao input, .cartao select {
+    width: 100%; padding: 6px 9px; font: inherit; font-size: 14px; color: var(--ink);
+    background: var(--ground); border: 1px solid var(--rule); border-radius: 3px;
+  }
+  .cartao input:focus, .cartao select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .perigo {
+    background: var(--warn-bg); border-left: 3px solid var(--warn); border-radius: 0 3px 3px 0;
+    padding: 11px 14px; font-size: 13px; color: var(--ink-2); margin: 0 0 14px; max-width: none;
+  }
+  .perigo strong { color: var(--ink); }
+  button.principal { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+  button.principal:hover { color: var(--surface); filter: brightness(1.08); }
+  .estado { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+  .estado .farol { width: 11px; height: 11px; border-radius: 50%; background: currentColor; flex: none; }
+  .estado .nome-estado { font-size: 21px; letter-spacing: -0.015em; }
+  .estado.ativa { color: var(--accent); }
+  .estado.suspensa { color: var(--warn); }
+  .estado.banida { color: #a33; }
+  .linha-tempo .evento {
+    display: grid; grid-template-columns: 104px 1fr auto; gap: 12px;
+    padding: 11px 0; border-bottom: 1px solid var(--rule); align-items: start;
+  }
+  .linha-tempo .evento:last-child { border-bottom: 0; }
+  .linha-tempo .quando { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .linha-tempo .t { font-size: 14px; color: var(--ink); }
+  .linha-tempo .d { font-size: 12.5px; color: var(--ink-3); }
+  .linha-tempo .v { font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .linha-tempo .v.mais { color: var(--accent); }
+  .linha-tempo .v.menos { color: var(--warn); }
 </style>
 {{end}}
 
@@ -239,4 +338,14 @@
     <form method="post" action="/logout"><button type="submit">Sair</button></form>
   </div>
 </header>
+{{end}}
+
+{{/* Sub-navigation inside one account. Personagem is empty on pages that are
+     about the account rather than one of its characters. */}}
+{{define "abas-conta"}}
+<div class="abas-conta">
+  <a href="/contas/{{.Conta}}" {{if eq .Aba "conta"}}class="on"{{end}}>Conta</a>
+  {{if .Personagem}}<a href="/contas/{{.Conta}}/personagens/{{.Personagem}}" {{if eq .Aba "editor"}}class="on"{{end}}>Editor</a>{{end}}
+  <a href="/contas/{{.Conta}}/donate" {{if eq .Aba "donate"}}class="on"{{end}}>Donate</a>
+</div>
 {{end}}

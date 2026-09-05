@@ -45,6 +45,8 @@ const (
 	AccountService_SetAccountBlocked_FullMethodName       = "/db.v1.AccountService/SetAccountBlocked"
 	AccountService_RecordDuelResult_FullMethodName        = "/db.v1.AccountService/RecordDuelResult"
 	AccountService_RecordTrade_FullMethodName             = "/db.v1.AccountService/RecordTrade"
+	AccountService_SetCharacterPresence_FullMethodName    = "/db.v1.AccountService/SetCharacterPresence"
+	AccountService_ClearAllPresence_FullMethodName        = "/db.v1.AccountService/ClearAllPresence"
 	AccountService_CreateGuild_FullMethodName             = "/db.v1.AccountService/CreateGuild"
 	AccountService_SetGuildMember_FullMethodName          = "/db.v1.AccountService/SetGuildMember"
 	AccountService_LeaveGuild_FullMethodName              = "/db.v1.AccountService/LeaveGuild"
@@ -123,6 +125,19 @@ type AccountServiceClient interface {
 	// be undone because Postgres was slow, so the tmServer logs a failure rather
 	// than retrying. The row is evidence, not state.
 	RecordTrade(ctx context.Context, in *RecordTradeRequest, opts ...grpc.CallOption) (*RecordTradeResponse, error)
+	// SetCharacterPresence marks a character as in-play (login) or out (logout or
+	// disconnect), so the staff panel can tell whether the database is the
+	// authority for that character's items.
+	//
+	// It answers a question ListOnline cannot. Kick returns as soon as the session
+	// closes, but the character's save leaves after that; this mark is cleared
+	// only once that save has committed, so its absence means "the last write
+	// landed", not merely "the socket is gone".
+	SetCharacterPresence(ctx context.Context, in *SetCharacterPresenceRequest, opts ...grpc.CallOption) (*SetCharacterPresenceResponse, error)
+	// ClearAllPresence drops every mark. Called once at boot: a server that just
+	// started has nobody in-play, and this is what keeps a crash from stranding
+	// characters marked online forever.
+	ClearAllPresence(ctx context.Context, in *ClearAllPresenceRequest, opts ...grpc.CallOption) (*ClearAllPresenceResponse, error)
 	// Guild lifecycle and war/city state (issue #114). These RPCs are modern
 	// tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
 	// GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -324,6 +339,26 @@ func (c *accountServiceClient) RecordTrade(ctx context.Context, in *RecordTradeR
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RecordTradeResponse)
 	err := c.cc.Invoke(ctx, AccountService_RecordTrade_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) SetCharacterPresence(ctx context.Context, in *SetCharacterPresenceRequest, opts ...grpc.CallOption) (*SetCharacterPresenceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetCharacterPresenceResponse)
+	err := c.cc.Invoke(ctx, AccountService_SetCharacterPresence_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) ClearAllPresence(ctx context.Context, in *ClearAllPresenceRequest, opts ...grpc.CallOption) (*ClearAllPresenceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearAllPresenceResponse)
+	err := c.cc.Invoke(ctx, AccountService_ClearAllPresence_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -532,6 +567,19 @@ type AccountServiceServer interface {
 	// be undone because Postgres was slow, so the tmServer logs a failure rather
 	// than retrying. The row is evidence, not state.
 	RecordTrade(context.Context, *RecordTradeRequest) (*RecordTradeResponse, error)
+	// SetCharacterPresence marks a character as in-play (login) or out (logout or
+	// disconnect), so the staff panel can tell whether the database is the
+	// authority for that character's items.
+	//
+	// It answers a question ListOnline cannot. Kick returns as soon as the session
+	// closes, but the character's save leaves after that; this mark is cleared
+	// only once that save has committed, so its absence means "the last write
+	// landed", not merely "the socket is gone".
+	SetCharacterPresence(context.Context, *SetCharacterPresenceRequest) (*SetCharacterPresenceResponse, error)
+	// ClearAllPresence drops every mark. Called once at boot: a server that just
+	// started has nobody in-play, and this is what keeps a crash from stranding
+	// characters marked online forever.
+	ClearAllPresence(context.Context, *ClearAllPresenceRequest) (*ClearAllPresenceResponse, error)
 	// Guild lifecycle and war/city state (issue #114). These RPCs are modern
 	// tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
 	// GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -612,6 +660,12 @@ func (UnimplementedAccountServiceServer) RecordDuelResult(context.Context, *Reco
 }
 func (UnimplementedAccountServiceServer) RecordTrade(context.Context, *RecordTradeRequest) (*RecordTradeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RecordTrade not implemented")
+}
+func (UnimplementedAccountServiceServer) SetCharacterPresence(context.Context, *SetCharacterPresenceRequest) (*SetCharacterPresenceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetCharacterPresence not implemented")
+}
+func (UnimplementedAccountServiceServer) ClearAllPresence(context.Context, *ClearAllPresenceRequest) (*ClearAllPresenceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearAllPresence not implemented")
 }
 func (UnimplementedAccountServiceServer) CreateGuild(context.Context, *CreateGuildRequest) (*CreateGuildResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateGuild not implemented")
@@ -1000,6 +1054,42 @@ func _AccountService_RecordTrade_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_SetCharacterPresence_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetCharacterPresenceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).SetCharacterPresence(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_SetCharacterPresence_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).SetCharacterPresence(ctx, req.(*SetCharacterPresenceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_ClearAllPresence_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearAllPresenceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ClearAllPresence(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ClearAllPresence_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ClearAllPresence(ctx, req.(*ClearAllPresenceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_CreateGuild_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateGuildRequest)
 	if err := dec(in); err != nil {
@@ -1330,6 +1420,14 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RecordTrade",
 			Handler:    _AccountService_RecordTrade_Handler,
+		},
+		{
+			MethodName: "SetCharacterPresence",
+			Handler:    _AccountService_SetCharacterPresence_Handler,
+		},
+		{
+			MethodName: "ClearAllPresence",
+			Handler:    _AccountService_ClearAllPresence_Handler,
 		},
 		{
 			MethodName: "CreateGuild",
