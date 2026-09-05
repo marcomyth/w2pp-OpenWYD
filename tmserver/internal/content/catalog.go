@@ -100,6 +100,18 @@ var efName = map[string]uint8{
 	"EF_NOSANC": 126, "EF_INCUBATE": 78, "EF_INCUDELAY": 84,
 }
 
+// EffectID returns the STRUCT_EFFECT id for an EF_<name> token, and whether the
+// score model understands it.
+//
+// Exported so the moderator override path (tmserver/internal/itemstat) can name
+// effects the way ItemList.csv does, resolved against this table rather than a
+// second copy of the ids. A copy that drifted would not fail: it would quietly
+// grant the wrong stat, which is close to unfindable in game.
+func EffectID(name string) (uint8, bool) {
+	id, ok := efName[name]
+	return id, ok
+}
+
 // BaseEffects returns item index → its score-relevant static effects, parsed from
 // the trailing "EF_<name>,value" pairs of each ItemList row (the row's stEffect
 // array). It scans for EF_ tokens anywhere in the row (robust to the exact column
