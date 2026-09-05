@@ -229,16 +229,25 @@ func (d *Dispatcher) combineItemLindy(w *world.World, s *world.Session, _ protoc
 		d.downlevelArch(e, questLevel)
 		d.sendScore(w, s, e)
 		d.sendEtc(w, s, e)
-		// The client is told in plain text: a silent level drop reads as data
-		// loss. The panel is the only free-text channel this port has.
-		w.Send(s, protocol.MsgExpPanel, protocol.EncodeExpPanelBody(
-			fmt.Sprintf("Desbloqueio concluído — nível ajustado para %d", questLevel+1),
-			expPanelDefaultColor))
 	}
 	d.log.Info("lindy unlock granted",
 		"conn", s.Conn, "account", s.AccountName,
 		"quest_level", questLevel, "levels_taken_back", stranded, "level", e.Level)
 	sendCombineComplete(w, s, combineSuccess)
+	// The legacy closes a successful combine with a celebration motion and the
+	// "processo concluído" line (_MSG_CombineItemLindy.cpp:120-121). Both were
+	// missing here, which is why the unlock landed in total silence.
+	motion := protocol.EncodeMotion(motionLevelUp, motionLevelUpParm)
+	w.Send(s, protocol.MsgMotion, motion)
+	w.BroadcastInView(e.ID, protocol.MsgMotion, motion)
+	sendClientMessage(w, s, msgProcessingComplete)
+	if stranded > 0 {
+		// A level drop the player did not ask for reads as data loss unless it is
+		// named. Said after the legacy line so the parity text stays first.
+		sendClientMessage(w, s, fmt.Sprintf(
+			"Desbloqueio concluído. Seu nível voltou para %d, que é onde a quest deveria ter sido feita.",
+			questLevel+1))
+	}
 	w.SaveCharacterAsync(s)
 }
 

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -86,3 +87,21 @@ func subBonus(pool uint16, n int32) uint16 {
 	}
 	return pool - uint16(n)
 }
+
+// sendClientMessage is SendClientMessage (SendFunc.cpp:27): one line of server
+// text in the client's message panel. It is the channel the legacy uses for
+// every "here is what just happened" line — including the Lindy unlock's
+// _NN_Processing_Complete — and this port had the opcode but never a payload
+// encoder, so nothing the server said ever reached the player.
+func sendClientMessage(w *world.World, s *world.Session, text string) {
+	if s == nil || text == "" {
+		return
+	}
+	w.Send(s, protocol.MsgMessagePanel, protocol.EncodeMessagePanelBody(text))
+}
+
+// msgProcessingComplete is _NN_Processing_Complete (Language.txt:158), the line
+// the legacy shows when a combine succeeds. Kept as a literal rather than read
+// from the string table because nothing else in this port loads Language.txt
+// yet; the text is copied verbatim from the shipped file.
+const msgProcessingComplete = "Processo de combinação foi concluído."
