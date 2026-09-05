@@ -176,10 +176,22 @@ func (d *Dispatcher) gmSpawn(w *world.World, s *world.Session, rest string) {
 	d.log.Info("gm spawn", "account", s.AccountName, "template", id, "mobConn", newID)
 }
 
-// gmItem grants a test item into the caller's inventory: "/gm item <index> [qty]".
+// gmItem grants a test item into the caller's inventory:
+//
+//	/gm item <index> [qty] [<effect> <value>]...
+//
 // The optional quantity writes EF_AMOUNT (clamped to [1, maxStackAmount]) so stack
 // paths — split, merge, catalyst consumption — are reachable without configuring an
 // NPC shop pack in the web portal.
+//
+// Everything after the index used to be ignored except that quantity, silently:
+// "/gm item 2861 2 45", meant as a weapon with +45 damage, granted TWO plain ones
+// and dropped the 45, and "/gm item 4150 106 5 110 10 109 26" granted 106 permanent
+// costumes. Effect pairs are now parsed, so a GM can build the item they described.
+//
+// qty stays optional without an ambiguity: effects come in pairs, so after the
+// index an EVEN number of fields is all effects, and an ODD one starts with the
+// quantity.
 func (d *Dispatcher) gmItem(w *world.World, s *world.Session, rest string) {
 	fields := strings.Fields(rest)
 	if len(fields) == 0 {
@@ -189,18 +201,34 @@ func (d *Dispatcher) gmItem(w *world.World, s *world.Session, rest string) {
 	if err != nil || id <= 0 || id >= world.MaxItem {
 		return
 	}
+	args := fields[1:]
 	qty := 1
-	if len(fields) > 1 {
-		qty, err = strconv.Atoi(fields[1])
+	if len(args)%2 == 1 {
+		qty, err = strconv.Atoi(args[0])
 		if err != nil {
 			return
 		}
+		args = args[1:]
 		if qty < 1 {
 			qty = 1
 		}
 		if qty > maxStackAmount {
 			qty = maxStackAmount
 		}
+	}
+	var effects [3]world.Effect
+	n := 0
+	for i := 0; i+1 < len(args); i += 2 {
+		ef, errEf := strconv.Atoi(args[i])
+		val, errVal := strconv.Atoi(args[i+1])
+		if errEf != nil || errVal != nil || ef < 0 || ef > 255 || val < 0 || val > 255 {
+			return
+		}
+		if n >= len(effects) {
+			return // the wire STRUCT_ITEM holds three; a fourth would be dropped silently
+		}
+		effects[n] = world.Effect{Effect: uint8(ef), Value: uint8(val)}
+		n++
 	}
 	e := w.Entity(s.Conn)
 	if e == nil {
@@ -211,7 +239,16 @@ func (d *Dispatcher) gmItem(w *world.World, s *world.Session, rest string) {
 		d.notify(w, s, NoticeNoEmptySlot)
 		return
 	}
-	it := world.Item{Index: int16(id)}
+	it := world.Item{Index: int16(id), Effects: effects}
+	// A date written into the effects becomes ExpiresAt, because ExpiresAt is what
+	// actually kills the item here (dropExpired) — the legacy's BASE_CheckItemDate
+	// is not in this path. Leaving the raw effects would give the player a costume
+	// showing a validity that never arrives; worse, itemToSel re-derives those
+	// three from ExpiresAt on every send, so they would not even survive the trip.
+	if exp, ok := expiryFromEffects(int16(id), effects, time.Now()); ok {
+		it.Effects = [3]world.Effect{}
+		it.ExpiresAt = exp
+	}
 	if qty > 1 {
 		setItemAmount(&it, qty)
 	}

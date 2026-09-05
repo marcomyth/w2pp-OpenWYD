@@ -215,3 +215,55 @@ func (d *Dispatcher) sell(w *world.World, s *world.Session, _ protocol.Header, p
 	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, myPos, protocol.SelItem{}))
 	d.sendEtc(w, s, e)
 }
+
+// expiryFromEffects is the inverse of expiryEffects: it reads a date or a
+// countdown out of three effect slots and returns the Unix instant it means.
+// Only ExpiresAt actually expires an item here (dropExpired), so an authoring
+// path — /gm item today, an admin item editor later — has to convert rather than
+// store, or the item would display a validity it never honours.
+//
+// It reports false when the slots carry no expiry, which is the common case: a
+// refine or a damage bonus is a plain effect and must be left alone.
+func expiryFromEffects(index int16, eff [3]world.Effect, now time.Time) (int64, bool) {
+	var day, month, year, hour, minute int
+	var haveDay, haveMonth, haveYear, haveClock bool
+	for _, e := range eff {
+		switch e.Effect {
+		case efWDay:
+			day, haveDay = int(e.Value), true
+		case efWMonth:
+			month, haveMonth = int(e.Value), true
+		case efYear:
+			year, haveYear = int(e.Value), true
+		case efHour:
+			hour, haveClock = int(e.Value), true
+		case efMin:
+			minute, haveClock = int(e.Value), true
+		}
+	}
+
+	// Fairies count down: EF_WDAY/EF_HOUR/EF_MIN are time REMAINING.
+	if index >= fairyFirstIndex && index <= fairyLastIndex {
+		if !haveDay && !haveClock {
+			return 0, false
+		}
+		left := time.Duration(day)*24*time.Hour + time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute
+		if left <= 0 {
+			return 0, false
+		}
+		return now.Add(left).Unix(), true
+	}
+
+	// Everything else carries an absolute date: EF_WDAY is the day of the month,
+	// EF_WMONTH the month, EF_YEAR the year less 2000 (the legacy's tm_year-100).
+	if !haveDay || !haveMonth || !haveYear {
+		return 0, false
+	}
+	if month < 1 || month > 12 || day < 1 || day > 31 {
+		return 0, false
+	}
+	// End of day: the legacy compares whole dates, so the item lives through the
+	// day it names rather than dying at its midnight.
+	exp := time.Date(2000+year, time.Month(month), day, 23, 59, 59, 0, now.Location())
+	return exp.Unix(), true
+}
