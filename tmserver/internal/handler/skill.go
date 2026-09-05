@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
@@ -56,19 +58,31 @@ func (d *Dispatcher) deriveSkillBonus(e *world.Entity) {
 // Runs in the loop goroutine.
 func (d *Dispatcher) learnSkill(w *world.World, s *world.Session, e *world.Entity, detail int, targetID int) {
 	if d.spells == nil || detail < 5000 || detail > 5095 {
+		d.log.Info("learn skill refused: detail out of range",
+			"conn", s.Conn, "account", s.AccountName, "detail", detail,
+			"catalog", d.spells != nil)
 		return
 	}
 	if targetID < world.MaxUser || targetID >= world.MaxMob {
+		d.log.Info("learn skill refused: target is not an NPC",
+			"conn", s.Conn, "account", s.AccountName, "detail", detail, "target", targetID)
 		return // learn requests must come through an NPC
 	}
 	skillclass := (detail - 5000) / content.MaxSkill
 	skillpos := (detail - 5000) % content.MaxSkill
 	if int(e.Class) != skillclass {
+		d.log.Info("learn skill refused: another class's skill",
+			"conn", s.Conn, "account", s.AccountName, "detail", detail,
+			"class", e.Class, "skill_class", skillclass)
 		d.notify(w, s, NoticeOtherClassSkill)
+		sendClientMessage(w, s, msgOtherClassSkill)
 		return
 	}
 	sp, ok := d.spells.Get(skillpos + content.MaxSkill*skillclass)
 	if !ok {
+		d.log.Info("learn skill refused: no such row in SkillData",
+			"conn", s.Conn, "account", s.AccountName, "detail", detail,
+			"spell", skillpos+content.MaxSkill*skillclass)
 		return
 	}
 	// What the affordability check measures is NOT the character's points for a
@@ -96,6 +110,7 @@ func (d *Dispatcher) learnSkill(w *world.World, s *world.Session, e *world.Entit
 			d.log.Info("learn skill refused: an 8th is already learned",
 				"conn", s.Conn, "account", s.AccountName, "skill", skillpos)
 			d.notify(w, s, NoticeOnlyOneEighthSkill)
+			sendClientMessage(w, s, msgOnlyOneEighthSkill)
 			return
 		}
 		learned := 0
@@ -109,6 +124,7 @@ func (d *Dispatcher) learnSkill(w *world.World, s *world.Session, e *world.Entit
 				"conn", s.Conn, "account", s.AccountName, "skill", skillpos,
 				"learned_before_it", learned, "mask", e.LearnedSkill)
 			d.notify(w, s, NoticeLearnPrereq)
+			sendClientMessage(w, s, msgBeforeEighthSkill)
 			return
 		}
 		if e.Coin < eighthSkillCoin {
@@ -123,11 +139,17 @@ func (d *Dispatcher) learnSkill(w *world.World, s *world.Session, e *world.Entit
 		d.log.Info("learn skill refused: already learned",
 			"conn", s.Conn, "account", s.AccountName, "skill", skillpos)
 		d.notify(w, s, NoticeAlreadyLearned)
+		sendClientMessage(w, s, msgAlreadyLearned)
 		return
 	}
-	// Learn requirements live in g_pItemList[5000+idx] (all zero in this fork's
-	// ItemList.csv, but the gate is kept): level, and per-tree mastery vs the
-	// live Special[1..3].
+	// Learn requirements live in g_pItemList[5000+idx], the dotted 4th column
+	// "ReqLvl.ReqStr.ReqInt.ReqDex.ReqCon": a level, and a per-tree mastery
+	// compared against the live Special[1..3]. They are NOT all zero in this
+	// fork's ItemList.csv (an earlier comment here claimed they were): only the
+	// first three skills of a tree are free, and from Samaritano (5003, 87 in the
+	// Special[1] tree) on, every row carries one. That is the wall a level-1
+	// celestial hits — it has 855 mastery points to spend and none spent yet, so
+	// the gate holds until it distributes them.
 	if req, ok := d.itemReqs[detail]; ok {
 		// The LEVEL requirement applies to Mortal and Arch only; every celestial
 		// tier reads it as zero (_MSG_ApplyBonus.cpp:190). A reborn Celestial is
@@ -143,6 +165,7 @@ func (d *Dispatcher) learnSkill(w *world.World, s *world.Session, e *world.Entit
 				"conn", s.Conn, "account", s.AccountName, "skill", skillpos,
 				"level", e.Level, "required", reqLvl)
 			d.notify(w, s, NoticeReqNotMet)
+			sendClientMessage(w, s, msgNeedLevelToLearn)
 			return
 		}
 		if e.Special[1] < req.Int || e.Special[2] < req.Dex || e.Special[3] < req.Con {
@@ -150,6 +173,13 @@ func (d *Dispatcher) learnSkill(w *world.World, s *world.Session, e *world.Entit
 				"conn", s.Conn, "account", s.AccountName, "skill", skillpos,
 				"special", e.Special, "req_int", req.Int, "req_dex", req.Dex, "req_con", req.Con)
 			d.notify(w, s, NoticeReqNotMet)
+			// The legacy line alone ("no mastery for this skill") does not say how
+			// much is missing, and the player has no other way to find out — the
+			// requirement is not on the client's tooltip. The numbers are appended
+			// for that reason, in the Special[1..3] order the check reads them.
+			sendClientMessage(w, s, fmt.Sprintf("%s (precisa %d/%d/%d, você tem %d/%d/%d)",
+				msgNeedMasteryToLearn, req.Int, req.Dex, req.Con,
+				e.Special[1], e.Special[2], e.Special[3]))
 			return
 		}
 	}
@@ -253,7 +283,26 @@ func skillTierBonus(classMaster uint8) int {
 // The two mastery refusals, copied verbatim from Language.txt (105, 106). They
 // are different on purpose: the first lifts as the character levels, the second
 // is the hard 200/255 ceiling.
+// The panel encodes to CP1252 (protocol.ClientText), so these carry their real
+// accents — writing them flat would be wrong on screen, not safer.
 const (
-	msgMaxPointNow = "Nao pode colocar mais pontos."
-	msgMaxPoint200 = "Nao pode passar do nivel 200."
+	msgMaxPointNow = "Não pode colocar mais pontos."
+	msgMaxPoint200 = "Não pode passar do nível 200."
+)
+
+// The class-master refusals, from Language.txt (109, 110, 111, 402, 403). Every
+// one of them used to be a bare d.notify — a numeric code the client does not
+// render — which is why learning a skill failed as silence rather than as an
+// answer. The mastery one (111) is the wall a level-1 celestial actually hits.
+//
+// 403 is quoted with its typo repaired ("aprendar" → "aprender"); the rest are
+// verbatim. msgOtherClassSkill has no legacy string at all — the original answers
+// that case with nothing — so it is written here.
+const (
+	msgAlreadyLearned     = "Você já aprendeu essa habilidade."
+	msgNeedLevelToLearn   = "Não possui nível para aprender essa habilidade."
+	msgNeedMasteryToLearn = "Não possui aprendizado para obter essa habilidade."
+	msgOnlyOneEighthSkill = "8ª Skill pode ser somente da 1ª Classe."
+	msgBeforeEighthSkill  = "É necessário aprender todas as skills antes da 8ª Skill."
+	msgOtherClassSkill    = "Essa habilidade não é da sua classe."
 )

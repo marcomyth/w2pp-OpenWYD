@@ -1,13 +1,16 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"io"
 	"log/slog"
 	"net"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -464,20 +467,34 @@ func TestLearnSkill(t *testing.T) {
 
 	// Learning it again refuses (already learned).
 	send(t, c, protocol.MsgApplyBonus, learnBody(5000))
-	if ty, p, ok := readMaybe(t, c); !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeAlreadyLearned {
-		t.Errorf("got %#x/%d, want already-learned notice", ty, noticeCode(t, p))
-	}
+	expectRefusal(t, c, NoticeAlreadyLearned, msgAlreadyLearned)
 
 	// Another class's skill (Foema index 24 → detail 5024) refuses.
 	send(t, c, protocol.MsgApplyBonus, learnBody(5024))
-	if ty, p, ok := readMaybe(t, c); !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeOtherClassSkill {
-		t.Errorf("got %#x/%d, want other-class notice", ty, noticeCode(t, p))
-	}
+	expectRefusal(t, c, NoticeOtherClassSkill, msgOtherClassSkill)
 
 	// The 8th skill (detail 5007) needs the 7 previous ones first.
 	send(t, c, protocol.MsgApplyBonus, learnBody(5007))
-	if ty, p, ok := readMaybe(t, c); !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeLearnPrereq {
-		t.Errorf("got %#x/%d, want prereq notice", ty, noticeCode(t, p))
+	expectRefusal(t, c, NoticeLearnPrereq, msgBeforeEighthSkill)
+}
+
+// expectRefusal reads the two frames a learn refusal now sends: the numeric
+// notice the client turns into a box, then the words on the panel. Asserting
+// only the first is what let "clicked and nothing happened" ship — and it would
+// also leave the panel frame queued, desynchronising every later read.
+func expectRefusal(t *testing.T, c net.Conn, want Notice, text string) {
+	t.Helper()
+	ty, p, ok := readMaybe(t, c)
+	if !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != want {
+		t.Fatalf("got %#x/%d, want notice %d", ty, noticeCode(t, p), want)
+	}
+	ty, p, ok = readMaybe(t, c)
+	if !ok || ty != protocol.MsgMessagePanel {
+		t.Fatalf("got %#x ok=%v, want the panel line for notice %d", ty, ok, want)
+	}
+	got := string(bytes.TrimRight(p, "\x00"))
+	if want := string(protocol.ClientText(text)); got != want {
+		t.Errorf("panel says %q, want %q", got, want)
 	}
 }
 
@@ -623,12 +640,29 @@ func TestMasteryAllowanceByTier(t *testing.T) {
 	}
 }
 
-// Both refusal strings must survive the client's Windows-1252 encoding — they
-// are Go literals, so an accent would arrive as mojibake.
+// Every refusal string must survive the client's Windows-1252 encoding. This
+// used to compare byte lengths, which is only a valid test for pure ASCII: an
+// accent is two UTF-8 bytes and one CP1252 byte, so a correctly encodable "Não"
+// legitimately shrinks and the old assertion called it a failure. What actually
+// signals an unrepresentable character is ClientText substituting '?'.
 func TestMasteryRefusalsAreClientSafe(t *testing.T) {
-	for _, msg := range []string{msgMaxPointNow, msgMaxPoint200} {
-		if got := protocol.ClientText(msg); len(got) != len(msg) {
-			t.Errorf("%q changes length when encoded: it carries characters outside the client's codepage", msg)
+	msgs := []string{
+		msgMaxPointNow, msgMaxPoint200, msgAlreadyLearned, msgNeedLevelToLearn,
+		msgNeedMasteryToLearn, msgOnlyOneEighthSkill, msgBeforeEighthSkill,
+		msgOtherClassSkill,
+	}
+	for _, msg := range msgs {
+		encoded := protocol.ClientText(msg)
+		if len(encoded) != utf8.RuneCountInString(msg) {
+			t.Errorf("%q does not encode to one byte per rune", msg)
+		}
+		if bytes.ContainsRune(encoded, '?') && !strings.ContainsRune(msg, '?') {
+			t.Errorf("%q carries a character outside the client's codepage", msg)
+		}
+		// MSG_MessagePanel.String[128] leaves 94 usable bytes; a longer line is
+		// silently truncated on screen.
+		if len(encoded) > 94 {
+			t.Errorf("%q is %d bytes encoded, over the panel's 94", msg, len(encoded))
 		}
 	}
 	if msgMaxPointNow == msgMaxPoint200 {
