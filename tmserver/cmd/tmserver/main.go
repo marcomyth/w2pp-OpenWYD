@@ -27,6 +27,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/buildinfo"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/binclient"
@@ -132,6 +133,10 @@ func run(logger *slog.Logger) error {
 	// dbServer/binServer addresses are the knobs most often misconfigured in a
 	// container deploy (version-mismatch drops, or "produced zero addresses" when
 	// an internal hostname is wrong), so surface them before anything connects.
+	// Which build is serving. Reading a bug report against the wrong binary has
+	// cost several full test rounds: a fix that looks ineffective is often just
+	// an older container still running. This line makes that checkable.
+	logger.Info("tmserver build", "revision", buildinfo.Revision(), "built", buildinfo.Built())
 	logger.Info("tmserver config",
 		"client_version", *clientVersion,
 		"dbserver", addrOrNone(*dbAddr),
