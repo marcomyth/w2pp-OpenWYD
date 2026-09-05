@@ -352,7 +352,7 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 	// recipient (and the attacker's own client) sees the real HP/MP and the post-kill
 	// experience. CurrentExp is how the client refreshes its exp bar — there is no
 	// separate exp packet (MSG_UpdateScore carries no exp).
-	writeAttackerStatus(payload, e.HP, e.MP, e.Exp, body.ReqMp)
+	writeAttackerStatus(payload, h.Type, e.HP, e.MP, e.Exp, body.ReqMp)
 
 	// Broadcast the server-authoritative result with HEADER.ID = ESCENE_FIELD, exactly
 	// as the original (_MSG_Attack.cpp:25 `m->ID = ESCENE_FIELD`). This matters for the
@@ -362,7 +362,15 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 	// field/scene event. With HEADER.ID = the attacker conn the exp bar never moved.
 	// The original GridMulticast (around the target) includes the attacker, so we both
 	// echo to the attacker and send to the in-view players.
-	hdr := protocol.Header{Type: protocol.MsgAttack, ID: protocol.IDScene}
+	//
+	// The TYPE is the frame's own. The original edits the client's message in place
+	// and multicasts that same buffer — `GridMulticast(TargetX, TargetY,
+	// (MSG_STANDARD*)m, 0)` (_MSG_Attack.cpp:1750) — so an attack sent as
+	// MSG_AttackOne comes back as MSG_AttackOne. Forcing MSG_Attack on every reply
+	// meant this client, which attacks with 0x039D, was answered with a message it
+	// had not asked for: no floating exp gain, no bar movement, only the level
+	// changing (that arrives separately, in UpdateScore).
+	hdr := protocol.Header{Type: h.Type, ID: protocol.IDScene}
 	w.SendTo(s, hdr, payload)
 	w.ForEachInView(s.Conn, func(vs *world.Session, _ *world.Entity) {
 		w.SendTo(vs, hdr, payload)
@@ -1234,17 +1242,31 @@ func writeDoubleCritical(payload []byte, doubleCritical uint8) {
 	}
 }
 
-// writeAttackerStatus overwrites the attacker's CurrentHp@4, CurrentExp@12,
-// CurrentMp@40 and ReqMp@46 in the MSG_Attack body with the server's
-// authoritative values (MsgAttackBody layout, messages.go). These fixed fields
-// sit below the Dam[] region (offset 48), so they never collide with per-target
-// damage.
-func writeAttackerStatus(payload []byte, hp, mp int32, exp int64, reqMp int16) {
+// writeAttackerStatus overwrites the attacker's own status in the attack body
+// with the server's authoritative values. CurrentExp@12 and ReqMp@46 sit at the
+// same place in all three attack messages, but HP and MP DO NOT:
+//
+//	MSG_Attack    (0x0367): CurrentHp@4,  CurrentMp@40   (Basedef.h:2400-2426)
+//	MSG_AttackOne (0x039D): CurrentMp@4,  CurrentHp@40   (Basedef.h:2452-2478)
+//	MSG_AttackTwo (0x039E): CurrentMp@4,  CurrentHp@40   (Basedef.h:2488-2514)
+//
+// The two are swapped, so the frame's own type decides where each goes. Writing
+// them in one fixed layout only worked while the echo was relabelled to
+// MSG_Attack; now that the type is preserved (see the multicast below), guessing
+// would hand the client its MP as HP.
+//
+// These fixed fields sit below the Dam[] region (offset 48), so they never
+// collide with per-target damage.
+func writeAttackerStatus(payload []byte, msgType protocol.Type, hp, mp int32, exp int64, reqMp int16) {
 	if len(payload) < protocol.MsgAttackDamOffset {
 		return
 	}
-	binary.LittleEndian.PutUint32(payload[4:8], uint32(hp))
+	first, second := hp, mp // MSG_Attack order
+	if msgType == protocol.MsgAttackOne || msgType == protocol.MsgAttackTwo {
+		first, second = mp, hp
+	}
+	binary.LittleEndian.PutUint32(payload[4:8], uint32(first))
 	binary.LittleEndian.PutUint64(payload[12:20], uint64(exp))
-	binary.LittleEndian.PutUint32(payload[40:44], uint32(mp))
+	binary.LittleEndian.PutUint32(payload[40:44], uint32(second))
 	binary.LittleEndian.PutUint16(payload[46:48], uint16(reqMp))
 }
