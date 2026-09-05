@@ -77,7 +77,7 @@ func (d *Dispatcher) downlevelArch(e *world.Entity, questLevel int32) {
 	// lower level rebuilds it. Note it goes UP: BASE_GetBonusScorePoint subtracts
 	// 8 points per level above 354 (Basedef.cpp:924), which is the legacy's own
 	// way of saying those levels were never meant to be reached unpaid.
-	e.ScoreBonus = uint16(level.ScoreBonus(e.Class, e.Level, e.BaseStr, e.BaseInt, e.BaseDex, e.BaseCon))
+	e.ScoreBonus = uint16(level.ScoreBonus(scoreBonusInput(e)))
 	d.refreshScore(e)
 	e.HP, e.MP = min(e.HP, e.MaxHP), min(e.MP, e.MaxMP)
 }

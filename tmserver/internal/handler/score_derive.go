@@ -341,3 +341,25 @@ func skillDerivedACBonus(e *world.Entity, flatAC int32) int32 {
 	}
 	return bonus
 }
+
+// scoreBonusInput gathers what BASE_GetBonusScorePoint reads off the character.
+// It is one place on purpose: the formula needs the tier and four quest counters
+// besides the attributes, and every caller getting the same set is what keeps the
+// grant consistent between a level-up, a crystal hand-in and a login.
+func scoreBonusInput(e *world.Entity) level.ScoreBonusInput {
+	return level.ScoreBonusInput{
+		Class:              e.Class,
+		ClassMaster:        e.ClassMaster,
+		Level:              e.Level,
+		Str:                e.BaseStr,
+		Int:                e.BaseInt,
+		Dex:                e.BaseDex,
+		Con:                e.BaseCon,
+		MortalLevel:        e.MortalLevel,
+		ArchCristal:        e.ArchCristal,
+		CelestialArchLevel: e.CelestialArchLevel,
+		// CelestialReset and SubCelestialLevel are not modeled yet (the
+		// Sub-Celestial flow); they stay zero, which under-grants a reset
+		// character rather than inventing points.
+	}
+}

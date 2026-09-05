@@ -90,7 +90,7 @@ func (d *Dispatcher) useArchCrystal(w *world.World, s *world.Session, e *world.E
 	// The grants land on BaseScore, so the live score has to be rebuilt before it
 	// is sent — otherwise the player sees the old numbers until something else
 	// happens to refresh them.
-	e.ScoreBonus = uint16(level.ScoreBonus(e.Class, e.Level, e.BaseStr, e.BaseInt, e.BaseDex, e.BaseCon))
+	e.ScoreBonus = uint16(level.ScoreBonus(scoreBonusInput(e)))
 	d.refreshScore(e)
 	d.sendScore(w, s, e)
 	d.sendEtc(w, s, e)

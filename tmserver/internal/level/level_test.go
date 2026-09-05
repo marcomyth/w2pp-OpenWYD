@@ -60,12 +60,15 @@ func TestExpApply(t *testing.T) {
 }
 
 func TestScoreBonus(t *testing.T) {
+	mortal := func(lvl int32, str, intel, dex, con int16) ScoreBonusInput {
+		return ScoreBonusInput{Class: 0, ClassMaster: classMortal, Level: lvl, Str: str, Int: intel, Dex: dex, Con: con}
+	}
 	// A TK at the class base stats (8,4,7,6) spends 0 points → level*5 free points.
-	if got := ScoreBonus(0, 10, 8, 4, 7, 6); got != 50 {
+	if got := ScoreBonus(mortal(10, 8, 4, 7, 6)); got != 50 {
 		t.Errorf("ScoreBonus(TK, lvl10, base stats) = %d, want 50", got)
 	}
 	// Spending 5 Str (8→13) reduces the free pool by 5.
-	if got := ScoreBonus(0, 10, 13, 4, 7, 6); got != 45 {
+	if got := ScoreBonus(mortal(10, 13, 4, 7, 6)); got != 45 {
 		t.Errorf("ScoreBonus(TK, lvl10, +5 str) = %d, want 45", got)
 	}
 }

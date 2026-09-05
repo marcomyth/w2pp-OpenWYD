@@ -186,30 +186,7 @@ func ExpApply(exp int64, attacker, target int32, tier Tier) int64 {
 	return (exp*mult + 1) / 100
 }
 
-// ScoreBonus is BASE_GetBonusScorePoint for MORTAL (Basedef.cpp:898): the free
-// attribute points the character should have = points granted by level minus
-// points already spent above the class base. It is idempotent (a function of the
-// current level and attributes), so it can be recomputed on each level-up without
-// being persisted.
-func ScoreBonus(cls uint8, level int32, str, intel, dex, con int16) int32 {
-	c := validClass(cls)
-	used := (int32(str) - baseSIDCHM[c][0]) +
-		(int32(intel) - baseSIDCHM[c][1]) +
-		(int32(dex) - baseSIDCHM[c][2]) +
-		(int32(con) - baseSIDCHM[c][3])
-
-	leveluse := level * 5
-	if level >= 254 {
-		leveluse += (level - 254) * 5
-	}
-	if level >= 299 {
-		leveluse += (level - 299) * 10
-	}
-	if level >= 354 {
-		leveluse += (level - 354) * -8
-	}
-	if bonus := leveluse - used; bonus > 0 {
-		return bonus
-	}
-	return 0
-}
+// ScoreBonus lives in scorebonus.go: BASE_GetBonusScorePoint is a different
+// formula per tier, and the Mortal one that used to be here is only its default
+// branch. It stays idempotent — a function of level, tier and attributes — so it
+// can be recomputed on every level-up without being persisted.
