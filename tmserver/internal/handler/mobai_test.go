@@ -242,7 +242,10 @@ func TestMobKillSendsDieActionChat(t *testing.T) {
 		t.Fatal("SpawnMobAt guard failed")
 	}
 
-	w.SetTickHandler(10*time.Millisecond, d.Tick)
+	// Advance the clock with the tick: a mob staggers its FIRST swing across the
+	// attack cadence (mobAttack), so a frozen clock would leave every mob whose
+	// offset is non-zero waiting forever.
+	w.SetTickHandler(10*time.Millisecond, func(w *world.World) { clock.Add(100); d.Tick(w) })
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { _ = w.Serve(ctx, ln); close(done) }()
@@ -1165,7 +1168,10 @@ func TestGroupFocusesAttacker(t *testing.T) {
 	// rings), so the dragged ones can hit without pathing around the victim (the
 	// blind fallback step has no avoidance and would stall behind it).
 	victim := w.Entity(ids[0])
-	w.SetTickHandler(10*time.Millisecond, d.Tick)
+	// Advance the clock with the tick: a mob staggers its FIRST swing across the
+	// attack cadence (mobAttack), so a frozen clock would leave every mob whose
+	// offset is non-zero waiting forever.
+	w.SetTickHandler(10*time.Millisecond, func(w *world.World) { clock.Add(100); d.Tick(w) })
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { _ = w.Serve(ctx, ln); close(done) }()

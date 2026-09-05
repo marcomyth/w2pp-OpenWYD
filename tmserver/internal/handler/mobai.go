@@ -668,13 +668,42 @@ func (d *Dispatcher) mobAttack(w *world.World, id int, e, target *world.Entity) 
 	if now < e.AtkTick+mobAttackCadence {
 		return
 	}
+	// Stagger the FIRST swing of a group across the cadence window. A room's
+	// monsters are spawned in one call, so they all start at AtkTick 0, all clear
+	// this guard on the same tick, all stamp the same `now` — and stay in lockstep
+	// for the rest of the fight. That turns a room into a single burst: twenty
+	// Hidras landing 706 each in one frame is 14000 damage with no gap to drink a
+	// potion in, which is what players read as a one-hit kill. Spreading the first
+	// swing leaves the damage PER SECOND untouched and only breaks the convoy.
+	//
+	// The offset comes from the mob id, not the RNG: the drop/refine stream is
+	// parity-critical (see rng), and an extra roll here would shift every draw
+	// after it.
+	if e.AtkTick == 0 {
+		// now >= cadence guards the unsigned subtraction; inside the first second
+		// of server life there is no group to break up anyway.
+		if off := uint32(id % mobAttackCadence); off > 0 && now >= mobAttackCadence {
+			e.AtkTick = now - mobAttackCadence + off
+			return // this one's first swing lands `off` ms from now
+		}
+	}
 	e.AtkTick = now
 
 	dmg := combat.ResolveHit(w.Rand(), combat.HitInput{
 		AttackerDamage: int(e.Damage) + int(d.weaponDamage(e)),
-		TargetAC:       int(target.AC),
+		// effectiveAC, not the bare AC: the legacy reads the victim's
+		// CurrentScore.Ac (GetFunc.cpp:1632), which its Buff Loop has already
+		// folded the affects into. We keep equipment AC in e.AC and the affect
+		// share in e.AffAC, so reading e.AC alone threw away every defensive buff
+		// the moment a monster swung — the player path has always summed both.
+		TargetAC:       int(effectiveAC(target)),
 		TargetIsPlayer: world.IsPlayer(target.ID),
-		Master:         e.Master,
+		// Mastery is the attacker's weapon skill and belongs to players; the
+		// legacy passes a literal 0 here (GetFunc.cpp:1632). Nothing seeds Master
+		// on a mob today, so this is the same value — spelled out so that seeding
+		// it later cannot silently hand monsters a damage bonus and shift the RNG
+		// stream (the mastery term picks the damage factor's range).
+		Master: 0,
 	})
 	if dmg > 0 {
 		target.HP -= int32(dmg)
