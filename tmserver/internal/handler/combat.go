@@ -65,6 +65,11 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 		return
 	}
 
+	// expBefore feeds the diagnostic at the end of this handler: it is how we tell
+	// a swing that killed something from one that merely hurt it, without threading
+	// a return value back out of the kill path.
+	expBefore := e.Exp
+
 	var body protocol.MsgAttackBody
 	if err := body.Decode(payload); err != nil {
 		return
@@ -376,6 +381,27 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 	// from a bystander's — and it only takes CurrentExp out of its own. Every other
 	// message is stamped with the server clock, so this needs SendEcho.
 	hdr := protocol.Header{Type: h.Type, ID: protocol.IDScene, ClientTick: h.ClientTick}
+	// Diagnostic for the frozen exp bar. Players report that killing a mob raises
+	// the level and the stored total but floats no gain and moves no bar, while the
+	// damage from this very frame renders — so the client parses the reply and
+	// rejects only the attacker's own experience out of it. Two attempts at that
+	// (the message type, then the client tick) changed nothing, so this prints what
+	// actually leaves the server for a swing that killed something: the frame it is
+	// carried in, the tick it is stamped with, the exp written, and the eight bytes
+	// as they sit at CurrentExp@12. Only on a kill, so it cannot flood.
+	if e.Exp != expBefore {
+		var expField []byte
+		if len(payload) >= 20 {
+			expField = payload[12:20]
+		}
+		d.log.Info("exp echo",
+			"account", s.AccountName, "conn", s.Conn,
+			"type", fmt.Sprintf("%#04x", uint16(hdr.Type)),
+			"client_tick", h.ClientTick, "echo_tick", hdr.ClientTick,
+			"exp_before", expBefore, "exp_after", e.Exp, "gain", e.Exp-expBefore,
+			"attacker_id", body.AttackerID, "payload_len", len(payload),
+			"exp_bytes", fmt.Sprintf("% x", expField))
+	}
 	w.SendEcho(s, hdr, payload)
 	w.ForEachInView(s.Conn, func(vs *world.Session, _ *world.Entity) {
 		w.SendEcho(vs, hdr, payload)
