@@ -121,6 +121,85 @@
     </div>
   {{end}}
 
+  {{if .PodeEntregar}}
+  <h2>Entregar item</h2>
+  <p class="sub" style="margin-bottom:14px">
+    O item entra numa fila e chega no <strong>próximo login</strong>, no depósito
+    da conta. Quem já está jogando precisa sair e entrar para receber.
+  </p>
+  <div class="acoes">
+    <form method="post" action="/contas/{{.Conta.Name}}/entregar" class="acao-bloco">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label for="item">Item e prazo</label>
+      <div class="linha">
+        <input id="item" name="item" type="number" min="1" placeholder="índice" required
+               aria-label="Índice do item">
+        <input name="dias" type="number" min="0" max="3650" value="0" aria-label="Dias" title="Dias">
+        <button type="submit">Entregar</button>
+      </div>
+      <div class="linha" style="margin-top:8px">
+        <input name="eff0" type="number" min="0" max="255" placeholder="efeito 1" aria-label="Efeito 1">
+        <input name="effv0" type="number" min="0" max="255" placeholder="valor 1" aria-label="Valor 1">
+      </div>
+      <div class="linha" style="margin-top:6px">
+        <input name="eff1" type="number" min="0" max="255" placeholder="efeito 2" aria-label="Efeito 2">
+        <input name="effv1" type="number" min="0" max="255" placeholder="valor 2" aria-label="Valor 2">
+      </div>
+      <div class="linha" style="margin-top:6px">
+        <input name="eff2" type="number" min="0" max="255" placeholder="efeito 3" aria-label="Efeito 3">
+        <input name="effv2" type="number" min="0" max="255" placeholder="valor 3" aria-label="Valor 3">
+      </div>
+      <p class="dica">
+        O índice vem da tela de Itens. Prazo 0 é permanente. Os efeitos são
+        opcionais — deixe em branco para o item sair como o catálogo define.
+      </p>
+    </form>
+  </div>
+
+  {{if .Pendentes}}
+  <h2>Na fila</h2>
+  <div class="tw">
+    <table>
+      <thead>
+        <tr>
+          <th class="num">Item</th>
+          <th>Efeitos</th>
+          <th>Validade</th>
+          <th>Enfileirado</th>
+          <th>Origem</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Pendentes}}
+        <tr>
+          <td class="num">{{.ItemIndex}}</td>
+          <td>
+            {{$tem := false}}
+            {{range .Eff}}{{if index . 0}}{{$tem = true}}{{index . 0}}/{{index . 1}} {{end}}{{end}}
+            {{if not $tem}}&mdash;{{end}}
+          </td>
+          <td>{{if .Expira}}até {{.Quando.Local.Format "02/01/2006"}}{{else}}permanente{{end}}</td>
+          <td>{{.CriadoEm.Local.Format "02/01 15:04"}}</td>
+          <td>{{if .Origem}}{{.Origem}}{{else}}&mdash;{{end}}</td>
+          <td>
+            <form method="post" action="/contas/{{$.Conta.Name}}/entregas/{{.ID}}/cancelar">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <button type="submit">Cancelar</button>
+            </form>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  <p class="sub" style="margin-top:12px">
+    Dá para cancelar enquanto o jogador não entrou. Depois que ele recebe, o
+    item é dele — cancelar aqui não traz de volta.
+  </p>
+  {{end}}
+  {{end}}
+
   <h2>Personagens</h2>
   {{if .Personagens}}
     <div class="tw">

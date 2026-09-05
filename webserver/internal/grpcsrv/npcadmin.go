@@ -190,11 +190,12 @@ func dropItemEntryToProto(item droptool.ItemDropEntry) *webv1.DropItemEntry {
 	mobs := make([]*webv1.DropItemMob, 0, len(item.Mobs))
 	for _, mob := range item.Mobs {
 		mobs = append(mobs, &webv1.DropItemMob{
-			TemplateName: mob.TemplateName,
-			MobName:      mob.MobName,
-			MobLevel:     mob.MobLevel,
-			Slot:         mob.Slot,
-			RateDivisor:  mob.RateDivisor,
+			TemplateName:     mob.TemplateName,
+			MobName:          mob.MobName,
+			MobLevel:         mob.MobLevel,
+			Slot:             mob.Slot,
+			RateDivisor:      mob.RateDivisor,
+			EffectiveDivisor: mob.EffectiveDivisor,
 		})
 	}
 	return &webv1.DropItemEntry{ItemIndex: item.ItemIndex, ItemName: item.ItemName, Mobs: mobs}
@@ -221,10 +222,11 @@ func mobDropEntryToProto(mob droptool.MobDropEntry) *webv1.MobDropEntry {
 	items := make([]*webv1.MobDropItem, 0, len(mob.Items))
 	for _, item := range mob.Items {
 		items = append(items, &webv1.MobDropItem{
-			Slot:        item.Slot,
-			ItemIndex:   item.ItemIndex,
-			ItemName:    item.ItemName,
-			RateDivisor: item.RateDivisor,
+			Slot:             item.Slot,
+			ItemIndex:        item.ItemIndex,
+			ItemName:         item.ItemName,
+			RateDivisor:      item.RateDivisor,
+			EffectiveDivisor: item.EffectiveDivisor,
 		})
 	}
 	return &webv1.MobDropEntry{

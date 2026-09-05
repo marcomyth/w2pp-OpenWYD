@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/droprate"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/savefmt"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemcatalog"
@@ -41,6 +42,11 @@ type DropEntry struct {
 	ItemIndex    int32
 	ItemName     string
 	RateDivisor  int32
+	// EffectiveDivisor is the number the game actually rolls against for this
+	// mob and slot: one kill in EffectiveDivisor drops the item. RateDivisor is
+	// the raw table value and is NOT the chance — the mob level scales it, and
+	// four slots are hard overrides. Slot 11 is guaranteed.
+	EffectiveDivisor int32
 }
 
 // ItemDropEntry is the item-centric projection served to the portal.
@@ -57,6 +63,11 @@ type ItemDropMob struct {
 	MobLevel     int32
 	Slot         int32
 	RateDivisor  int32
+	// EffectiveDivisor is the number the game actually rolls against for this
+	// mob and slot: one kill in EffectiveDivisor drops the item. RateDivisor is
+	// the raw table value and is NOT the chance — the mob level scales it, and
+	// four slots are hard overrides. Slot 11 is guaranteed.
+	EffectiveDivisor int32
 }
 
 // MobDropEntry is the mob-centric projection served to the portal.
@@ -73,6 +84,11 @@ type MobDropItem struct {
 	ItemIndex   int32
 	ItemName    string
 	RateDivisor int32
+	// EffectiveDivisor is the number the game actually rolls against for this
+	// mob and slot: one kill in EffectiveDivisor drops the item. RateDivisor is
+	// the raw table value and is NOT the chance — the mob level scales it, and
+	// four slots are hard overrides. Slot 11 is guaranteed.
+	EffectiveDivisor int32
 }
 
 // ExclusionRange mirrors the optional ItensExceptions.txt "from,to" ranges the
@@ -148,29 +164,6 @@ func LoadExclusions(path string) ([]ExclusionRange, error) {
 	return out, nil
 }
 
-// SlotDropRate is g_pDropRate[64], duplicated from the runtime package because
-// webserver cannot import tmserver/internal/loot. The values are from
-// Basedef.cpp and docs/migration/game-rules.md §2.2; larger divisors are rarer.
-var SlotDropRate [savefmt.MaxCarry]int
-
-func init() {
-	fill := func(from, to, v int) {
-		for i := from; i <= to; i++ {
-			SlotDropRate[i] = v
-		}
-	}
-	fill(0, 7, 900)
-	fill(8, 11, 4)
-	fill(12, 15, 900)
-	fill(16, 23, 20000)
-	fill(24, 47, 2000)
-	fill(48, 55, 3000)
-	SlotDropRate[56] = 1
-	for i, v := range []int{35, 500, 2500, 5000, 5000, 10000, 20000} {
-		SlotDropRate[57+i] = v
-	}
-}
-
 // Scan reads <contentDir>/Common/ItemList.csv and <contentDir>/TMsrv/run/npc/,
 // accepting every STRUCT_MOB layout savefmt knows (816 canonical plus the
 // legacy 756/920 forms — data-formats.md §1.4.1). Files that are not templates
@@ -217,7 +210,11 @@ func Scan(contentDir string, logger *slog.Logger, opts Options) (Catalog, npctem
 				Slot:         int32(slot),
 				ItemIndex:    itemIndex,
 				ItemName:     itemName,
-				RateDivisor:  int32(SlotDropRate[slot]),
+				RateDivisor:  int32(droprate.DropRate[slot]),
+				// killerBonus is 0: the panel shows the odds for a player with
+				// no drop bonus, which is the floor everyone shares. Showing a
+				// bonus nobody has would understate how rare a drop is.
+				EffectiveDivisor: int32(droprate.EffectiveDropRate(slot, 0, int(mob.CurrentScore.Level))),
 			})
 			if !knownItems[itemIndex] {
 				knownItems[itemIndex] = true
@@ -273,11 +270,12 @@ func (c Catalog) ListDropItems(filter Filter) []ItemDropEntry {
 		entry := ItemDropEntry{ItemIndex: item.Index, ItemName: item.Name}
 		for _, drop := range drops {
 			entry.Mobs = append(entry.Mobs, ItemDropMob{
-				TemplateName: drop.TemplateName,
-				MobName:      drop.MobName,
-				MobLevel:     drop.MobLevel,
-				Slot:         drop.Slot,
-				RateDivisor:  drop.RateDivisor,
+				TemplateName:     drop.TemplateName,
+				MobName:          drop.MobName,
+				MobLevel:         drop.MobLevel,
+				Slot:             drop.Slot,
+				RateDivisor:      drop.RateDivisor,
+				EffectiveDivisor: drop.EffectiveDivisor,
 			})
 		}
 		out = append(out, entry)
@@ -315,10 +313,11 @@ func (c Catalog) ListMobDrops(filter Filter) []MobDropEntry {
 		}
 		for _, drop := range drops {
 			entry.Items = append(entry.Items, MobDropItem{
-				Slot:        drop.Slot,
-				ItemIndex:   drop.ItemIndex,
-				ItemName:    drop.ItemName,
-				RateDivisor: drop.RateDivisor,
+				Slot:             drop.Slot,
+				ItemIndex:        drop.ItemIndex,
+				ItemName:         drop.ItemName,
+				RateDivisor:      drop.RateDivisor,
+				EffectiveDivisor: drop.EffectiveDivisor,
 			})
 		}
 		out = append(out, entry)

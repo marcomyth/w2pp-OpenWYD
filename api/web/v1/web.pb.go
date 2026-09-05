@@ -2844,14 +2844,25 @@ func (x *ListItemCatalogResponse) GetIconPackVersion() string {
 }
 
 type DropItemMob struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TemplateName  string                 `protobuf:"bytes,1,opt,name=template_name,json=templateName,proto3" json:"template_name,omitempty"` // Release/TMsrv/run/npc file name
-	MobName       string                 `protobuf:"bytes,2,opt,name=mob_name,json=mobName,proto3" json:"mob_name,omitempty"`                // STRUCT_MOB.Name decoded as Latin-1
-	MobLevel      int32                  `protobuf:"varint,3,opt,name=mob_level,json=mobLevel,proto3" json:"mob_level,omitempty"`            // STRUCT_MOB.CurrentScore.Level
-	Slot          int32                  `protobuf:"varint,4,opt,name=slot,proto3" json:"slot,omitempty"`                                    // Carry[] slot; controls the base drop divisor
-	RateDivisor   int32                  `protobuf:"varint,5,opt,name=rate_divisor,json=rateDivisor,proto3" json:"rate_divisor,omitempty"`   // g_pDropRate[slot]; larger means rarer
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	TemplateName string                 `protobuf:"bytes,1,opt,name=template_name,json=templateName,proto3" json:"template_name,omitempty"` // Release/TMsrv/run/npc file name
+	MobName      string                 `protobuf:"bytes,2,opt,name=mob_name,json=mobName,proto3" json:"mob_name,omitempty"`                // STRUCT_MOB.Name decoded as Latin-1
+	MobLevel     int32                  `protobuf:"varint,3,opt,name=mob_level,json=mobLevel,proto3" json:"mob_level,omitempty"`            // STRUCT_MOB.CurrentScore.Level
+	Slot         int32                  `protobuf:"varint,4,opt,name=slot,proto3" json:"slot,omitempty"`                                    // Carry[] slot; controls the base drop divisor
+	RateDivisor  int32                  `protobuf:"varint,5,opt,name=rate_divisor,json=rateDivisor,proto3" json:"rate_divisor,omitempty"`   // g_pDropRate[slot]; larger means rarer
+	// effective_divisor is the number the game actually rolls against for this
+	// mob and slot: one kill in effective_divisor drops the item, so the chance is
+	// 100/effective_divisor per cent.
+	//
+	// rate_divisor is the raw table value and is NOT the chance. The mob level
+	// scales it, and four Carry slots are hard overrides — slot 11 is guaranteed,
+	// where the table alone would suggest one kill in four. A UI must show this
+	// field, not that one.
+	//
+	// Computed with a killer drop bonus of 0: the floor every player shares.
+	EffectiveDivisor int32 `protobuf:"varint,6,opt,name=effective_divisor,json=effectiveDivisor,proto3" json:"effective_divisor,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *DropItemMob) Reset() {
@@ -2915,6 +2926,13 @@ func (x *DropItemMob) GetSlot() int32 {
 func (x *DropItemMob) GetRateDivisor() int32 {
 	if x != nil {
 		return x.RateDivisor
+	}
+	return 0
+}
+
+func (x *DropItemMob) GetEffectiveDivisor() int32 {
+	if x != nil {
+		return x.EffectiveDivisor
 	}
 	return 0
 }
@@ -3108,13 +3126,24 @@ func (x *ListDropItemsResponse) GetItems() []*DropItemEntry {
 }
 
 type MobDropItem struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Slot          int32                  `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"` // Carry[] slot; controls the base drop divisor
-	ItemIndex     int32                  `protobuf:"varint,2,opt,name=item_index,json=itemIndex,proto3" json:"item_index,omitempty"`
-	ItemName      string                 `protobuf:"bytes,3,opt,name=item_name,json=itemName,proto3" json:"item_name,omitempty"`
-	RateDivisor   int32                  `protobuf:"varint,4,opt,name=rate_divisor,json=rateDivisor,proto3" json:"rate_divisor,omitempty"` // g_pDropRate[slot]; larger means rarer
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Slot        int32                  `protobuf:"varint,1,opt,name=slot,proto3" json:"slot,omitempty"` // Carry[] slot; controls the base drop divisor
+	ItemIndex   int32                  `protobuf:"varint,2,opt,name=item_index,json=itemIndex,proto3" json:"item_index,omitempty"`
+	ItemName    string                 `protobuf:"bytes,3,opt,name=item_name,json=itemName,proto3" json:"item_name,omitempty"`
+	RateDivisor int32                  `protobuf:"varint,4,opt,name=rate_divisor,json=rateDivisor,proto3" json:"rate_divisor,omitempty"` // g_pDropRate[slot]; larger means rarer
+	// effective_divisor is the number the game actually rolls against for this
+	// mob and slot: one kill in effective_divisor drops the item, so the chance is
+	// 100/effective_divisor per cent.
+	//
+	// rate_divisor is the raw table value and is NOT the chance. The mob level
+	// scales it, and four Carry slots are hard overrides — slot 11 is guaranteed,
+	// where the table alone would suggest one kill in four. A UI must show this
+	// field, not that one.
+	//
+	// Computed with a killer drop bonus of 0: the floor every player shares.
+	EffectiveDivisor int32 `protobuf:"varint,5,opt,name=effective_divisor,json=effectiveDivisor,proto3" json:"effective_divisor,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *MobDropItem) Reset() {
@@ -3171,6 +3200,13 @@ func (x *MobDropItem) GetItemName() string {
 func (x *MobDropItem) GetRateDivisor() int32 {
 	if x != nil {
 		return x.RateDivisor
+	}
+	return 0
+}
+
+func (x *MobDropItem) GetEffectiveDivisor() int32 {
+	if x != nil {
+		return x.EffectiveDivisor
 	}
 	return 0
 }
@@ -9972,13 +10008,14 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\x06result\x18\x01 \x01(\x0e2\x13.web.v1.AdminResultR\x06result\x12.\n" +
 	"\x05items\x18\x02 \x03(\v2\x18.web.v1.ItemCatalogEntryR\x05items\x12'\n" +
 	"\x0fcatalog_version\x18\x03 \x01(\tR\x0ecatalogVersion\x12*\n" +
-	"\x11icon_pack_version\x18\x04 \x01(\tR\x0ficonPackVersion\"\xa1\x01\n" +
+	"\x11icon_pack_version\x18\x04 \x01(\tR\x0ficonPackVersion\"\xce\x01\n" +
 	"\vDropItemMob\x12#\n" +
 	"\rtemplate_name\x18\x01 \x01(\tR\ftemplateName\x12\x19\n" +
 	"\bmob_name\x18\x02 \x01(\tR\amobName\x12\x1b\n" +
 	"\tmob_level\x18\x03 \x01(\x05R\bmobLevel\x12\x12\n" +
 	"\x04slot\x18\x04 \x01(\x05R\x04slot\x12!\n" +
-	"\frate_divisor\x18\x05 \x01(\x05R\vrateDivisor\"t\n" +
+	"\frate_divisor\x18\x05 \x01(\x05R\vrateDivisor\x12+\n" +
+	"\x11effective_divisor\x18\x06 \x01(\x05R\x10effectiveDivisor\"t\n" +
 	"\rDropItemEntry\x12\x1d\n" +
 	"\n" +
 	"item_index\x18\x01 \x01(\x05R\titemIndex\x12\x1b\n" +
@@ -9994,13 +10031,14 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\x17include_zero_drop_items\x18\x05 \x01(\bR\x14includeZeroDropItems\"q\n" +
 	"\x15ListDropItemsResponse\x12+\n" +
 	"\x06result\x18\x01 \x01(\x0e2\x13.web.v1.AdminResultR\x06result\x12+\n" +
-	"\x05items\x18\x02 \x03(\v2\x15.web.v1.DropItemEntryR\x05items\"\x80\x01\n" +
+	"\x05items\x18\x02 \x03(\v2\x15.web.v1.DropItemEntryR\x05items\"\xad\x01\n" +
 	"\vMobDropItem\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x1d\n" +
 	"\n" +
 	"item_index\x18\x02 \x01(\x05R\titemIndex\x12\x1b\n" +
 	"\titem_name\x18\x03 \x01(\tR\bitemName\x12!\n" +
-	"\frate_divisor\x18\x04 \x01(\x05R\vrateDivisor\"\x96\x01\n" +
+	"\frate_divisor\x18\x04 \x01(\x05R\vrateDivisor\x12+\n" +
+	"\x11effective_divisor\x18\x05 \x01(\x05R\x10effectiveDivisor\"\x96\x01\n" +
 	"\fMobDropEntry\x12#\n" +
 	"\rtemplate_name\x18\x01 \x01(\tR\ftemplateName\x12\x19\n" +
 	"\bmob_name\x18\x02 \x01(\tR\amobName\x12\x1b\n" +
