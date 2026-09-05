@@ -289,21 +289,34 @@ func (s *Store) DeleteNPCDefinition(ctx context.Context, npcID int64, moderatorI
 	})
 }
 
-// SeedNPCDefinitions bulk-imports definitions (with shop items) in one
-// transaction, skipping any slug that already exists (idempotent — safe to
-// re-run). It bumps the config version once at the end and writes no per-row
-// audit (this is a system import, not moderator activity). Returns the number of
-// definitions actually inserted.
-func (s *Store) SeedNPCDefinitions(ctx context.Context, defs []domain.NPCDefinition) (int, error) {
+// SeedNPCDefinitions reconciles the content-owned catalog against defs in one
+// transaction: it prunes the content rows the importer no longer produces, then
+// upserts every definition (with shop items). It is idempotent — safe to re-run,
+// and the dbServer does run it on every boot. It bumps the config version once at
+// the end and writes no per-row audit (this is a system import, not moderator
+// activity). Returns how many definitions were inserted and how many orphans
+// were pruned.
+func (s *Store) SeedNPCDefinitions(ctx context.Context, defs []domain.NPCDefinition) (int, int64, error) {
 	indices := make(map[int32]string, len(defs))
 	for _, d := range defs {
 		if previous, exists := indices[d.GeneratorIndex]; exists {
-			return 0, fmt.Errorf("store: duplicate content generator index %d for %q and %q", d.GeneratorIndex, previous, d.Slug)
+			return 0, 0, fmt.Errorf("store: duplicate content generator index %d for %q and %q", d.GeneratorIndex, previous, d.Slug)
 		}
 		indices[d.GeneratorIndex] = d.Slug
 	}
-	inserted := 0
+	inserted, pruned := 0, int64(0)
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		// Drop content rows the importer no longer produces, BEFORE the upsert.
+		// Order matters twice over: generator_index carries a unique index
+		// (0018_npc_generator_catalog.up.sql:12), so a stale row still holding an
+		// index would collide with the definition that now owns it; and leaving
+		// stale rows behind is what duplicated the city NPCs in the first place
+		// (see pruneOrphanedContentNPCs).
+		removed, err := pruneOrphanedContentNPCs(ctx, tx, defs)
+		if err != nil {
+			return err
+		}
+		pruned = removed
 		ids, created, err := seedNPCRows(ctx, tx, defs)
 		if err != nil {
 			return err
@@ -324,9 +337,57 @@ func (s *Store) SeedNPCDefinitions(ctx context.Context, defs []domain.NPCDefinit
 		return nil
 	})
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return inserted, nil
+	return inserted, pruned, nil
+}
+
+// pruneOrphanedContentNPCs deletes content-owned definitions whose slug the
+// importer no longer produces. npc_shop_item cascades, so their stock goes with
+// them (0005_npc_editing.up.sql:37).
+//
+// Why this exists: a definition's slug is "<Leader>-<block index in
+// NPCGener.txt>" (dbserver buildNPCDefinitions), so it is anchored to the
+// block's POSITION in the file. Removing a block shifts every block after it and
+// renames their slugs. The seed upserts ON CONFLICT (slug), which then matches
+// nothing — it inserts the shifted definitions as new rows and, without this
+// prune, leaves the old ones behind forever. Both get materialized by the
+// tmServer overlay, so every affected NPC appears twice in game.
+//
+// That is not hypothetical: commit dc41a14f removed four Premium_Neil blocks
+// from the middle of the file and shifted the 44 blocks after them — the Armia
+// and Azran shops (Trajes, Sets, Runas_Joias, Montarias, Ferreiro_Azran, …),
+// which is exactly the set that showed up duplicated.
+//
+// Two guards keep this from deleting more than it should:
+//
+//   - An empty catalog NEVER prunes. Reaching here with zero definitions means
+//     the content tree failed to read, not that the server has no NPCs, and
+//     wiping the roster on a bad mount is far worse than the duplication.
+//   - Only rows with a generator_index are eligible. That column is written by
+//     this seed and nothing else, so it marks a row the catalog once owned — the
+//     shape a shifted orphan has. The curated rows from 0006_default_npc_seed
+//     that the catalog never matched still carry NULL and are left alone, so a
+//     template that merely fails to load cannot delete a live NPC.
+//
+// Returns how many rows were removed; the caller logs it, because a prune that
+// silently removes 44 NPCs during a deploy is exactly the thing an operator
+// needs to see in the boot log.
+func pruneOrphanedContentNPCs(ctx context.Context, tx pgx.Tx, defs []domain.NPCDefinition) (int64, error) {
+	if len(defs) == 0 {
+		return 0, nil
+	}
+	slugs := make([]string, len(defs))
+	for i, d := range defs {
+		slugs[i] = d.Slug
+	}
+	tag, err := tx.Exec(ctx, `
+		DELETE FROM npc_definition
+		WHERE origin = 'content' AND generator_index IS NOT NULL AND slug <> ALL($1)`, slugs)
+	if err != nil {
+		return 0, fmt.Errorf("store: prune orphaned content npc definitions: %w", err)
+	}
+	return tag.RowsAffected(), nil
 }
 
 // seedBatchChunk bounds how many statements are pipelined per round trip. The

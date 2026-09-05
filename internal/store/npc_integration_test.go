@@ -122,14 +122,14 @@ func TestSeedNPCDefinitionsIdempotent(t *testing.T) {
 			Shop: []domain.NPCShopItem{{Slot: 0, ItemIndex: 10, Quantity: 2}}},
 		{Slug: "seed-int-2", TemplateName: "B", Enabled: true, Merchant: 1, GeneratorIndex: 2},
 	}
-	n, err := s.SeedNPCDefinitions(ctx, defs)
+	n, _, err := s.SeedNPCDefinitions(ctx, defs)
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	if n != 2 {
 		t.Fatalf("first seed inserted %d, want 2", n)
 	}
-	n, err = s.SeedNPCDefinitions(ctx, defs)
+	n, _, err = s.SeedNPCDefinitions(ctx, defs)
 	if err != nil {
 		t.Fatalf("seed (2nd): %v", err)
 	}
@@ -178,7 +178,7 @@ func TestDeleteNPCDefinitionContentOwned(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM account WHERE id = $1`, modID) })
 
-	if _, err := s.SeedNPCDefinitions(ctx, []domain.NPCDefinition{
+	if _, _, err := s.SeedNPCDefinitions(ctx, []domain.NPCDefinition{
 		{Slug: "content-int-1", TemplateName: "Set_BM_2", Enabled: true, GeneratorIndex: contentGenIndex},
 	}); err != nil {
 		t.Fatalf("seed: %v", err)
@@ -259,7 +259,7 @@ func TestSeedNPCDefinitionsSpansBatchChunks(t *testing.T) {
 		}
 	}
 
-	n, err := s.SeedNPCDefinitions(ctx, defs)
+	n, _, err := s.SeedNPCDefinitions(ctx, defs)
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -277,5 +277,125 @@ func TestSeedNPCDefinitionsSpansBatchChunks(t *testing.T) {
 	}
 	if mismatched != 0 {
 		t.Errorf("%d shop items landed on the wrong definition across the chunk split", mismatched)
+	}
+}
+
+// pruneGenIndex keeps this test's generator indices clear of the other tests'
+// (generator_index is globally unique).
+const pruneGenIndex = 300000
+
+// TestSeedNPCDefinitionsPrunesOrphans is the duplicated-city-NPCs regression.
+//
+// A slug is "<Leader>-<block index>", so removing a block from NPCGener.txt
+// shifts every later block and renames its slug. The upsert then matches
+// nothing and inserts the shifted definition as a NEW row; without the prune the
+// old row survives and the tmServer overlay materializes both, putting two of
+// every affected shop in town. Reproduced here by seeding a catalog and then
+// re-seeding it with a slug renamed, which is exactly what a shift looks like.
+func TestSeedNPCDefinitionsPrunesOrphans(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	if err := Migrate(ctx, pool); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	_, _ = pool.Exec(ctx, `DELETE FROM npc_definition WHERE slug LIKE 'prune-int-%'`)
+
+	s := New(pool)
+	before := []domain.NPCDefinition{
+		{Slug: "prune-int-Trajes-6100", TemplateName: "Trajes", Enabled: true, Merchant: 1, GeneratorIndex: pruneGenIndex},
+		{Slug: "prune-int-Gold-6101", TemplateName: "Gold", Enabled: true, Merchant: 1, GeneratorIndex: pruneGenIndex + 1},
+	}
+	if _, _, err := s.SeedNPCDefinitions(ctx, before); err != nil {
+		t.Fatalf("first seed: %v", err)
+	}
+
+	// The block shifted by four: same NPCs, new slugs AND the generator index the
+	// stale row still holds. Reusing the index is the second reason the prune has
+	// to run before the upsert — it is uniquely indexed.
+	after := []domain.NPCDefinition{
+		{Slug: "prune-int-Trajes-6096", TemplateName: "Trajes", Enabled: true, Merchant: 1, GeneratorIndex: pruneGenIndex},
+		{Slug: "prune-int-Gold-6097", TemplateName: "Gold", Enabled: true, Merchant: 1, GeneratorIndex: pruneGenIndex + 1},
+	}
+	inserted, pruned, err := s.SeedNPCDefinitions(ctx, after)
+	if err != nil {
+		t.Fatalf("second seed: %v", err)
+	}
+	if inserted != 2 {
+		t.Errorf("inserted = %d, want 2 (the shifted slugs are new rows)", inserted)
+	}
+	if pruned != 2 {
+		t.Errorf("pruned = %d, want 2 (the stale slugs)", pruned)
+	}
+	var total int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM npc_definition WHERE slug LIKE 'prune-int-%'`).Scan(&total); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if total != 2 {
+		t.Errorf("rows for this catalog = %d, want 2 — the duplicates are back", total)
+	}
+}
+
+// An empty catalog must never prune: it means the content tree failed to read,
+// and wiping the roster would be far worse than the duplication.
+func TestSeedNPCDefinitionsEmptyCatalogPrunesNothing(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	if err := Migrate(ctx, pool); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	_, _ = pool.Exec(ctx, `DELETE FROM npc_definition WHERE slug LIKE 'prune-empty-%'`)
+
+	s := New(pool)
+	seed := []domain.NPCDefinition{
+		{Slug: "prune-empty-1", TemplateName: "A", Enabled: true, Merchant: 1, GeneratorIndex: pruneGenIndex + 10},
+	}
+	if _, _, err := s.SeedNPCDefinitions(ctx, seed); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if _, pruned, err := s.SeedNPCDefinitions(ctx, nil); err != nil {
+		t.Fatalf("empty seed: %v", err)
+	} else if pruned != 0 {
+		t.Fatalf("empty catalog pruned %d rows, want 0", pruned)
+	}
+	var n int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM npc_definition WHERE slug LIKE 'prune-empty-%'`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("rows after empty seed = %d, want 1 (nothing deleted)", n)
+	}
+}
+
+// Moderator-created NPCs (origin 'custom') are outside the catalog and must
+// survive a reconcile that does not mention them.
+func TestSeedNPCDefinitionsKeepsCustomNPCs(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	if err := Migrate(ctx, pool); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	_, _ = pool.Exec(ctx, `DELETE FROM npc_definition WHERE slug LIKE 'prune-custom-%'`)
+
+	s := New(pool)
+	if _, err := s.UpsertNPCDefinition(ctx, domain.NPCDefinition{
+		Slug: "prune-custom-1", TemplateName: "A", Enabled: true, Merchant: 1,
+		MapID: 0, PosX: 100, PosY: 100,
+	}, 0); err != nil {
+		t.Fatalf("upsert custom: %v", err)
+	}
+	if _, _, err := s.SeedNPCDefinitions(ctx, []domain.NPCDefinition{
+		{Slug: "prune-custom-seeded", TemplateName: "B", Enabled: true, Merchant: 1, GeneratorIndex: pruneGenIndex + 20},
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	var n int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM npc_definition WHERE slug = 'prune-custom-1'`).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("custom NPC rows = %d, want 1 — the prune ate a moderator-created NPC", n)
 	}
 }
