@@ -17,7 +17,7 @@ import (
 
 // TestItemStatCRUD exercises the whole moderator write path. It matters more
 // than a usual CRUD test because the three SQL statements are built at init from
-// itemStatFields rather than written out: a column that fell out of one of them
+// domain.ItemStatFields rather than written out: a column that fell out of one of them
 // would compile, and would only show up as a number that silently stops being
 // saved.
 func TestItemStatCRUD(t *testing.T) {
@@ -121,7 +121,7 @@ func TestItemStatCRUD(t *testing.T) {
 
 // TestItemStatColumnsMatchTheTable catches the failure the generated SQL is
 // meant to prevent, from the other side: a field added to domain.ItemStat but
-// forgotten in itemStatFields would round-trip as zero and every other test
+// forgotten in domain.ItemStatFields would round-trip as zero and every other test
 // would still pass.
 func TestItemStatColumnsMatchTheTable(t *testing.T) {
 	ctx := context.Background()
@@ -137,8 +137,8 @@ func TestItemStatColumnsMatchTheTable(t *testing.T) {
 		   AND column_name NOT IN ('item_index', 'updated_by', 'updated_at')`).Scan(&colunas); err != nil {
 		t.Fatalf("count columns: %v", err)
 	}
-	if colunas != len(itemStatFields) {
-		t.Errorf("item_stat has %d editable columns but itemStatFields lists %d", colunas, len(itemStatFields))
+	if colunas != len(domain.ItemStatFields) {
+		t.Errorf("item_stat has %d editable columns but domain.ItemStatFields lists %d", colunas, len(domain.ItemStatFields))
 	}
 
 	// And the struct: every int16 field must be bound to a column.
@@ -149,7 +149,7 @@ func TestItemStatColumnsMatchTheTable(t *testing.T) {
 			campos++
 		}
 	}
-	if campos != len(itemStatFields) {
-		t.Errorf("domain.ItemStat has %d int16 fields but itemStatFields lists %d", campos, len(itemStatFields))
+	if campos != len(domain.ItemStatFields) {
+		t.Errorf("domain.ItemStat has %d int16 fields but domain.ItemStatFields lists %d", campos, len(domain.ItemStatFields))
 	}
 }

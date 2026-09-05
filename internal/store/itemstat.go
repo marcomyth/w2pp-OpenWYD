@@ -24,78 +24,13 @@ import (
 // is a harmless no-op for the unrelated npc_definition poll, and keeping one
 // moderation trail beats a parallel one nobody would think to read.
 
-// itemStatField binds one override column to its place in domain.ItemStat.
-//
-// A table rather than three hand-written 43-column SQL statements. Every column
-// here appears in a SELECT list, an INSERT placeholder list and an ON CONFLICT
-// SET clause; writing those out separately means three places to forget the same
-// column, and a forgotten column is a number that silently stops being saved.
-// Building all three from one ordered list makes that impossible, and the
-// pointer accessor is compiler-checked, so a renamed field fails the build.
-type itemStatField struct {
-	col string
-	ptr func(*domain.ItemStat) *int16
-}
-
-var itemStatFields = []itemStatField{
-	{"req_level", func(s *domain.ItemStat) *int16 { return &s.ReqLevel }},
-	{"req_str", func(s *domain.ItemStat) *int16 { return &s.ReqStr }},
-	{"req_int", func(s *domain.ItemStat) *int16 { return &s.ReqInt }},
-	{"req_dex", func(s *domain.ItemStat) *int16 { return &s.ReqDex }},
-	{"req_con", func(s *domain.ItemStat) *int16 { return &s.ReqCon }},
-
-	{"damage", func(s *domain.ItemStat) *int16 { return &s.Damage }},
-	{"damageadd", func(s *domain.ItemStat) *int16 { return &s.DamageAdd }},
-	{"ac", func(s *domain.ItemStat) *int16 { return &s.AC }},
-	{"acadd", func(s *domain.ItemStat) *int16 { return &s.ACAdd }},
-	{"magic", func(s *domain.ItemStat) *int16 { return &s.Magic }},
-	{"magicadd", func(s *domain.ItemStat) *int16 { return &s.MagicAdd }},
-	{"critical", func(s *domain.ItemStat) *int16 { return &s.Critical }},
-	{"critical2", func(s *domain.ItemStat) *int16 { return &s.Critical2 }},
-	{"runspeed", func(s *domain.ItemStat) *int16 { return &s.RunSpeed }},
-
-	{"str", func(s *domain.ItemStat) *int16 { return &s.Str }},
-	{"intel", func(s *domain.ItemStat) *int16 { return &s.Int }},
-	{"dex", func(s *domain.ItemStat) *int16 { return &s.Dex }},
-	{"con", func(s *domain.ItemStat) *int16 { return &s.Con }},
-
-	{"hp", func(s *domain.ItemStat) *int16 { return &s.Hp }},
-	{"hpadd", func(s *domain.ItemStat) *int16 { return &s.HpAdd }},
-	{"hpadd2", func(s *domain.ItemStat) *int16 { return &s.HpAdd2 }},
-	{"mp", func(s *domain.ItemStat) *int16 { return &s.Mp }},
-	{"mpadd", func(s *domain.ItemStat) *int16 { return &s.MpAdd }},
-	{"mpadd2", func(s *domain.ItemStat) *int16 { return &s.MpAdd2 }},
-
-	{"resist1", func(s *domain.ItemStat) *int16 { return &s.Resist1 }},
-	{"resist2", func(s *domain.ItemStat) *int16 { return &s.Resist2 }},
-	{"resist3", func(s *domain.ItemStat) *int16 { return &s.Resist3 }},
-	{"resist4", func(s *domain.ItemStat) *int16 { return &s.Resist4 }},
-	{"resistall", func(s *domain.ItemStat) *int16 { return &s.ResistAll }},
-
-	{"special1", func(s *domain.ItemStat) *int16 { return &s.Special1 }},
-	{"special2", func(s *domain.ItemStat) *int16 { return &s.Special2 }},
-	{"special3", func(s *domain.ItemStat) *int16 { return &s.Special3 }},
-	{"special4", func(s *domain.ItemStat) *int16 { return &s.Special4 }},
-	{"specialall", func(s *domain.ItemStat) *int16 { return &s.SpecialAll }},
-
-	{"itemlevel", func(s *domain.ItemStat) *int16 { return &s.ItemLevel }},
-	{"itemtype", func(s *domain.ItemStat) *int16 { return &s.ItemType }},
-	{"mobtype", func(s *domain.ItemStat) *int16 { return &s.MobType }},
-	{"wtype", func(s *domain.ItemStat) *int16 { return &s.WType }},
-	{"pos", func(s *domain.ItemStat) *int16 { return &s.Pos }},
-	{"sanc", func(s *domain.ItemStat) *int16 { return &s.Sanc }},
-	{"nosanc", func(s *domain.ItemStat) *int16 { return &s.NoSanc }},
-	{"incubate", func(s *domain.ItemStat) *int16 { return &s.Incubate }},
-	{"incudelay", func(s *domain.ItemStat) *int16 { return &s.IncuDelay }},
-}
-
 // The three SQL fragments, built once from the table above.
 var (
 	itemStatSelect = func() string {
-		cols := make([]string, 0, len(itemStatFields)+1)
+		cols := make([]string, 0, len(domain.ItemStatFields)+1)
 		cols = append(cols, "item_index")
-		for _, f := range itemStatFields {
-			cols = append(cols, f.col)
+		for _, f := range domain.ItemStatFields {
+			cols = append(cols, f.Col)
 		}
 		return strings.Join(cols, ", ")
 	}()
@@ -103,14 +38,14 @@ var (
 	// $1 is item_index; the override columns follow, and updated_by takes the
 	// last placeholder so updated_at can be now() rather than a client clock.
 	itemStatInsert = func() string {
-		n := len(itemStatFields) + 2 // item_index + columns + updated_by
+		n := len(domain.ItemStatFields) + 2 // item_index + columns + updated_by
 		ph := make([]string, 0, n)
 		for i := 1; i <= n; i++ {
 			ph = append(ph, "$"+strconv.Itoa(i))
 		}
-		set := make([]string, 0, len(itemStatFields)+2)
-		for _, f := range itemStatFields {
-			set = append(set, f.col+" = EXCLUDED."+f.col)
+		set := make([]string, 0, len(domain.ItemStatFields)+2)
+		for _, f := range domain.ItemStatFields {
+			set = append(set, f.Col+" = EXCLUDED."+f.Col)
 		}
 		set = append(set, "updated_by = EXCLUDED.updated_by", "updated_at = now()")
 		return `INSERT INTO item_stat (` + itemStatSelect + `, updated_by, updated_at)
@@ -119,22 +54,22 @@ var (
 	}()
 )
 
-// scanTargets returns pointers in itemStatFields order, for Scan.
+// scanTargets returns pointers in domain.ItemStatFields order, for Scan.
 func scanTargets(st *domain.ItemStat) []any {
-	out := make([]any, 0, len(itemStatFields)+1)
+	out := make([]any, 0, len(domain.ItemStatFields)+1)
 	out = append(out, &st.ItemIndex)
-	for _, f := range itemStatFields {
-		out = append(out, f.ptr(st))
+	for _, f := range domain.ItemStatFields {
+		out = append(out, f.Ptr(st))
 	}
 	return out
 }
 
 // insertArgs returns values in the same order, for Exec.
 func insertArgs(st domain.ItemStat, moderatorID int64) []any {
-	out := make([]any, 0, len(itemStatFields)+2)
+	out := make([]any, 0, len(domain.ItemStatFields)+2)
 	out = append(out, st.ItemIndex)
-	for _, f := range itemStatFields {
-		out = append(out, *f.ptr(&st))
+	for _, f := range domain.ItemStatFields {
+		out = append(out, *f.Ptr(&st))
 	}
 	return append(out, moderatorID)
 }
