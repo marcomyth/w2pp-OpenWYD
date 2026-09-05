@@ -598,6 +598,12 @@ func (d *Dispatcher) completeKingArch(w *world.World, s *world.Session, archSlot
 	if listErr != nil {
 		d.log.Warn("king arch: list after create failed", "conn", s.Conn, "account", s.AccountID, "err", listErr)
 	}
+	// Read before the session is sent back to character selection: by the time the
+	// announcement goes out the entity is docked and its name is gone.
+	mortalName := ""
+	if e := w.Entity(s.Conn); e != nil {
+		mortalName = e.Name
+	}
 
 	s.Mode = world.UserPlay
 	e := w.Entity(s.Conn)
@@ -628,6 +634,10 @@ func (d *Dispatcher) completeKingArch(w *world.World, s *world.Session, archSlot
 			}
 			w.SendTo(s, protocol.Header{Type: protocol.MsgSendArchEffect, ID: protocol.IDScene},
 				protocol.EncodeStandardParm(int32(archSlot)))
+			// Announced with the MORTAL's name: the Arch is a new character the
+			// player has not named yet, and the name everyone recognises is the one
+			// that just spent 299 levels getting here.
+			d.announceArch(w, mortalName)
 		})
 	})
 }

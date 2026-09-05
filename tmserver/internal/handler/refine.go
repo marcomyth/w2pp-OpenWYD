@@ -252,6 +252,7 @@ func (d *Dispatcher) refineSucceed(w *world.World, s *world.Session, e *world.En
 	d.refreshScore(e)
 	d.sendScore(w, s, e)
 	d.notify(w, s, NoticeRefineSuccess)
+	d.announceRefine(w, e.Name, dst.Index, level)
 
 	if isEgg(*dst) {
 		d.hatchEgg(w, s, t, level)

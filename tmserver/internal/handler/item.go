@@ -1537,6 +1537,7 @@ func (d *Dispatcher) useIdealStone(w *world.World, s *world.Session, e *world.En
 				w.SendTo(s, protocol.Header{Type: protocol.MsgSendArchEffect, ID: protocol.IDScene}, protocol.EncodeStandardParm(int32(s.Slot)))
 			})
 			d.log.Info("celestial created", "conn", s.Conn, "name", e.Name)
+			d.announceCelestial(w, e.Name)
 		}
 	})
 }
