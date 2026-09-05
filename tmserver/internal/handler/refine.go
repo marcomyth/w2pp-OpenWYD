@@ -293,7 +293,7 @@ func (d *Dispatcher) refineFail(w *world.World, s *world.Session, e *world.Entit
 	// The disappointment animation (_MSG_UseItem.cpp:970-973). Which one depends on
 	// whether the character has a face item: the legacy reads Equip[0].sIndex / 10,
 	// so any index below 10 (an empty slot included) takes the bare variant.
-	motion := uint16(motionRefineFailBare)
+	motion := motionRefineFailBare
 	if e.Equip[0].Index/10 != 0 {
 		motion = motionRefineFailFaced
 	}
