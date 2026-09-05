@@ -111,6 +111,43 @@ const (
 	// any class open any room — so there is no _NN_ id to match; it exists for
 	// the server rule documented on waterClassAllowed.
 	NoticeWaterClassNotAllowed
+
+	// Feijão Mágico / Removedor de tintura (item.go useMagicBean).
+	//
+	// DELIBERATE DIVERGENCE: these have NO legacy counterpart. The original
+	// reuses the REFINE strings on the paint path — _NN_Refine_Success when a
+	// colour lands and _NN_Cant_Refine_More when it cannot
+	// (_MSG_UseItem.cpp:3767-3861) — so a player who painted a helmet was told
+	// "Obteve sucesso na refinação". That is the legacy being sloppy, not a port
+	// bug; these four say what actually happened, and painting and REMOVING are
+	// kept apart because telling someone their item was "pintado" while they
+	// stripped the colour off it is the same mistake with a new coat.
+	NoticePaintSuccess
+	NoticePaintRemoved
+	NoticeCantPaint
+	NoticeNotPainted
+
+	// Pesadelo entry refusals (_MSG_UseItem.cpp:2548/2644/2748, pesadelo.go).
+	//
+	// NoticePesadeloLimited is the one with a real id: _NN_Night_Limited, the
+	// maxNightmare run cap. The other three are literal strings the legacy passes
+	// straight to SendClientMessage instead of going through the string table
+	// ("Entrada permitida somente a Mortais/Archs/Celestiais", "Horário não
+	// permitido.", "Entrada não permitida. Cheque sua quantidade de entradas com
+	// o comando /nt"), so they have no _NN_ id to match. They are split into
+	// three codes rather than folded into one because a player refused at the
+	// door needs to know WHICH gate said no — wrong tier, wrong time, or out of
+	// entries are three different fixes.
+	NoticePesadeloClassNotAllowed
+	// NoticePesadeloLevelTooHigh: the class may enter this tier, but the
+	// character has outgrown it (a Celestial past 40 in Místico, past 150 in
+	// Arcano). Separate from ClassNotAllowed because the fix is different — the
+	// player moves up the ladder rather than being in the wrong dungeon. No
+	// legacy id: the level caps are a server rule (pesadelo.go).
+	NoticePesadeloLevelTooHigh
+	NoticePesadeloClosed
+	NoticePesadeloNoEntries
+	NoticePesadeloLimited
 )
 
 // notify sends a client notification.
@@ -120,6 +157,43 @@ const (
 // code; the real format (notification id / Language.txt string) is pinned once a
 // capture exists (parity-tests.md §5). Handler tests assert the Type + code, not
 // the final byte layout.
+// noticeText is the Language.txt line a notice stands for, for the notices that
+// have been migrated to the message panel.
+//
+// The Notice codes above are a placeholder wire format (see notify), so a notice
+// sent on its own renders as NOTHING on the client — that is why a successful
+// refine looked like the server had said nothing at all. The legacy sends these
+// through SendClientMessage, i.e. MSG_MessagePanel, which is what notifyText
+// does. Text is the shipped Language.txt string, with its real accents:
+// protocol.ClientText re-encodes to CP1252 on the way out
+// (Release/TMsrv/run/Language.txt, ids in the comments).
+//
+// This table is deliberately partial. Migrating all 126 notify() call sites at
+// once would churn every test that asserts on the box frame; entries are added
+// as each area is ported, and a notice with no entry keeps the old behaviour.
+var noticeText = map[Notice]string{
+	NoticeOnlyToEquips:   "Possível somente com armas e armaduras equipadas.", // 74
+	NoticeCantRefineMore: "Este item não pode ser mais refinado.",             // 75
+	NoticeFailToRefine:   "Refinação falhou.",                                 // 76
+	NoticeRefineSuccess:  "Obteve sucesso na refinação.",                      // 176
+
+	// Paint. No Language.txt id: see the DELIBERATE DIVERGENCE note above.
+	NoticePaintSuccess: "Item pintado com sucesso.",
+	NoticePaintRemoved: "Pintura removida com sucesso.",
+	NoticeCantPaint:    "Este item não pode receber mais pintura.",
+	NoticeNotPainted:   "Este item não está pintado.",
+}
+
+// notifyText sends a notice AND the legacy line it stands for. The box frame is
+// kept so callers and tests that key off the Notice code still see it; the panel
+// line is what the player actually reads.
+func (d *Dispatcher) notifyText(w *world.World, s *world.Session, n Notice) {
+	d.notify(w, s, n)
+	if text, ok := noticeText[n]; ok {
+		sendClientMessage(w, s, text)
+	}
+}
+
 func (d *Dispatcher) notify(w *world.World, s *world.Session, n Notice) {
 	var b [4]byte
 	binary.LittleEndian.PutUint32(b[:], uint32(n))

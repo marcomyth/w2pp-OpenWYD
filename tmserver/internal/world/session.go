@@ -55,15 +55,20 @@ func (a AccessLevel) String() string {
 // domain-model.md §2.1). It is owned by the loop goroutine; the conn/out/closeCh
 // plumbing is shared with this session's reader and writer goroutines only.
 type Session struct {
-	Conn              int // index into pUser/pMob; also HEADER.ID on the wire
-	AccountName       string
-	AccountID         int64
-	AccessLevel       AccessLevel // account.role tier; gates in-game GM commands (issue #122)
-	Slot              int
-	Mode              Mode
-	IP                string
-	CrackError        int             // anti-cheat violation count (CUser.NumError)
-	Whisper           bool            // true blocks incoming whispers
+	Conn        int // index into pUser/pMob; also HEADER.ID on the wire
+	AccountName string
+	AccountID   int64
+	AccessLevel AccessLevel // account.role tier; gates in-game GM commands (issue #122)
+	Slot        int
+	Mode        Mode
+	IP          string
+	CrackError  int  // anti-cheat violation count (CUser.NumError)
+	Whisper     bool // true blocks incoming whispers
+	// Snd is the status line "/snd" sets, shown to anyone who inspects this
+	// character (_MSG_MessageWhisper.cpp:591 sets it, :1640 shows it). Session
+	// scope is deliberate and matches the legacy, which clears Snd on every login
+	// (ProcessDBMessage.cpp:798) — it is never persisted.
+	Snd               string
 	GuildDisable      bool            // hide guild tag (guildon/guildoff)
 	TradeMode         int             // non-zero while in auto-trade (blocks attacks)
 	Trade             TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
@@ -234,10 +239,19 @@ type Entity struct {
 	TerraMistica         uint8
 	ArchLv355, ArchLv370 uint8
 	MortalLevel          uint16
-	CelestialArchLevel   uint8
-	Soul                 uint8 // MobExtra.Soul; 0 means no modeled soul
-	Fame                 int32 // MobExtra.Fame; loaded from DB, updated by Selo do Guerreiro, and shown by /nick
-	QuestFlag            uint8 // volatile quest-area pass (CMob.QuestFlag; e.g. Quest 256)
+	// NightmareTickets is MobExtra.NT: the Arcano-tier Pesadelo entries a
+	// Celestial holds. Escritura do Pesadelo grants 13; each admission spends
+	// one (handler/pesadelo.go).
+	//
+	// Persisted on the character row rather than in the raw 552-byte MobExtra
+	// blob, like the rest of the progression this port moved into Postgres
+	// (migration 0023). Both the grant and the spend flush immediately, because
+	// an entry is bought with gold.
+	NightmareTickets   int32
+	CelestialArchLevel uint8
+	Soul               uint8 // MobExtra.Soul; 0 means no modeled soul
+	Fame               int32 // MobExtra.Fame; loaded from DB, updated by Selo do Guerreiro, and shown by /nick
+	QuestFlag          uint8 // volatile quest-area pass (CMob.QuestFlag; e.g. Quest 256)
 	// PKMode is the player-toggled Player-Killer consent flag (K key, _MSG_PKMode;
 	// legacy pUser[conn].PKMode). It gates whether the player can land PvP combat
 	// hits, but it does NOT by itself blink the nickname. Session-only, not persisted.

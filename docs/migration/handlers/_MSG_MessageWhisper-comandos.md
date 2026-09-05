@@ -5,6 +5,13 @@
 > `#pragma region`. **Despacho:** o handler compara `m->MobName` (o "destinatário" do sussurro) com
 > palavras-chave; se casar, executa o comando e **retorna**; senão, trata como sussurro normal
 > (PM) para o personagem de nome `MobName`.
+>
+> **Sussurro vazio = inspecionar.** Se `m->String[0] == 0` o legado não entrega PM nenhum: responde
+> com `_NN_Check_User_Info` (`Cidadania: %d / Fama: %d`) prefixado pelo nome do alvo e, havendo
+> guild, seguido dela entre colchetes (`:1616-1646`). É o que faz `/NomeDoJogador` mostrar a ficha.
+> ✅ portado (`handler/chat.go`, `userInfoLine`), inclusive a segunda linha `_NN_SND_MESSAGE`
+> ("Mensagem: ...") quando o alvo definiu um recado com `/snd`. Sai por `sendClientMessage`
+> (`MSG_MessagePanel`, CP1252) — que é o que `SendClientMessage` é no legado, não o chat.
 
 ## Modelo de autorização (importante)
 - **Não há campo de "Authority".** Os comandos de GM são gated por **`pMob[conn].MOB.CurrentScore.Level >= 1000`**
@@ -26,8 +33,9 @@
 | `index` | 96 | (info de índice — relay; ver fonte). |
 | `spk` / `gritar` | 114 | chat global **cross-server** ("falar para todos os servers"). |
 | `qst` | 164 | mostra info de quest (`QuestInfo`). |
-| `nt` | 512 | mostra contador `extra.NT` (`_DN_CHANGE_COUNT`). |
-| `nig` | 521 | hora atual formatada `!!HHMMSS` (timer "Pesadelo"). |
+| `nt` | 512 | mostra contador `extra.NT` (`_DN_CHANGE_COUNT`). ✅ portado e persistido em `character.nightmare_tickets` ([pesadelo-plan.md](../pesadelo-plan.md) §6.1). |
+| `nig` | 521 | hora atual formatada `!!HHMMSS` (timer "Pesadelo"). ✅ portado, mostrando as janelas em vez do relógio ([pesadelo-plan.md](../pesadelo-plan.md) §4). |
+| `snd` | 591 | define o recado do personagem (`pMob.Snd`), mostrado a quem o inspeciona; ecoa `_NN_SND_MESSAGE`. ✅ portado — escopo de sessão, como no legado, que limpa no login (`ProcessDBMessage.cpp:798`). |
 | `day` | 602 | envia `"!#11  2"` (sinal de skill/dia ao cliente). |
 | `online` | 610 | conta jogadores em `USER_PLAY` e responde "Somos N jogador(es) online." |
 | `time` | 1056 | data/hora do servidor (`dd-mm-YYYY HH:MM:SS`). |

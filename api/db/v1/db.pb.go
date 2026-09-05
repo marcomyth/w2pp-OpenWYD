@@ -678,8 +678,11 @@ type Character struct {
 	ArchLv370          int32  `protobuf:"varint,45,opt,name=arch_lv370,json=archLv370,proto3" json:"arch_lv370,omitempty"`                              // QuestInfo.Arch.Level370
 	MortalLevel        int32  `protobuf:"varint,46,opt,name=mortal_level,json=mortalLevel,proto3" json:"mortal_level,omitempty"`                        // QuestInfo.Arch.MortalLevel
 	CelestialArchLevel int32  `protobuf:"varint,47,opt,name=celestial_arch_level,json=celestialArchLevel,proto3" json:"celestial_arch_level,omitempty"` // QuestInfo.Celestial.ArchLevel band (1..5)
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// MobExtra.NT: Pesadelo Arcano entries held. Escritura do Pesadelo grants 13
+	// and each admission to the A tier spends one (pesadelo-plan.md).
+	NightmareTickets int32 `protobuf:"varint,48,opt,name=nightmare_tickets,json=nightmareTickets,proto3" json:"nightmare_tickets,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Character) Reset() {
@@ -1037,6 +1040,13 @@ func (x *Character) GetMortalLevel() int32 {
 func (x *Character) GetCelestialArchLevel() int32 {
 	if x != nil {
 		return x.CelestialArchLevel
+	}
+	return 0
+}
+
+func (x *Character) GetNightmareTickets() int32 {
+	if x != nil {
+		return x.NightmareTickets
 	}
 	return 0
 }
@@ -5954,7 +5964,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x14LoadCharacterRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12\x12\n" +
-	"\x04slot\x18\x02 \x01(\x05R\x04slot\"\xb6\n" +
+	"\x04slot\x18\x02 \x01(\x05R\x04slot\"\xe3\n" +
 	"\n" +
 	"\tCharacter\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x12\n" +
@@ -6009,7 +6019,8 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\n" +
 	"arch_lv370\x18- \x01(\x05R\tarchLv370\x12!\n" +
 	"\fmortal_level\x18. \x01(\x05R\vmortalLevel\x120\n" +
-	"\x14celestial_arch_level\x18/ \x01(\x05R\x12celestialArchLevel\"\xcd\x01\n" +
+	"\x14celestial_arch_level\x18/ \x01(\x05R\x12celestialArchLevel\x12+\n" +
+	"\x11nightmare_tickets\x180 \x01(\x05R\x10nightmareTickets\"\xcd\x01\n" +
 	"\x04Item\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x14\n" +
 	"\x05index\x18\x02 \x01(\x05R\x05index\x12\x12\n" +

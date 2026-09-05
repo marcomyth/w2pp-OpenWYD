@@ -59,7 +59,7 @@ Parseado posicionalmente por seção. Campos confirmados (valores do exemplo):
 | | `RVRHour` | 23 | hora do RvR |
 | | `DropItem` | 0 | drop habilitado (`isDropItem`) |
 | | `BRHour` | 19 | hora do Battle Royal |
-| | `maxNightmare` | 3 | limite de pesadelo |
+| | `maxNightmare` | 3 | limite de pesadelo — ✅ portado como `-max-nightmare` / `W2PP_MAX_NIGHTMARE` ([pesadelo-plan.md](./pesadelo-plan.md)) |
 | | `PotionDelay` | 100 | cooldown de poção (ms) |
 
 ### 2.2. Rede / IPs

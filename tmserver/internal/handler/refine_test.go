@@ -486,3 +486,110 @@ func TestEggIncubationCooldown(t *testing.T) {
 		t.Errorf("equipped cooldown = %d, want %d", got, delay-1)
 	}
 }
+
+// A successful refine has to SAY so. The Notice code alone is a placeholder wire
+// format (notice.go) that the client draws as nothing, which is why "usei uma
+// poeira de Ori/Lac e não apareceu nada" was a real report and not a rendering
+// quirk: the server did answer, on a channel nobody listens to.
+//
+// The legacy sends _NN_Refine_Success (Language.txt:176) through
+// SendClientMessage, i.e. MSG_MessagePanel — so that is what this asserts, text
+// and all, including the CP1252 round-trip its accents need.
+func TestRefineSuccessSendsPanelLine(t *testing.T) {
+	db := newDB()
+	st := world.CharacterState{Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000}
+	st.Carry[0] = world.Item{Index: itemPoeiraLac}
+	st.Carry[1] = world.Item{Index: itemArmor}
+	db.loadResult = st
+
+	addr, stop := startRefineServer(t, db)
+	defer stop()
+	c := enterWorld(t, addr)
+
+	body := protocol.MsgUseItemBody{
+		SourType: world.ItemPlaceCarry, SourPos: 0,
+		DestType: world.ItemPlaceCarry, DestPos: 1,
+	}
+	send(t, c, protocol.MsgUseItem, body.Encode())
+
+	const want = "Obteve sucesso na refinação."
+	for i := 0; ; i++ {
+		if i > 10 {
+			t.Fatalf("no MSG_MessagePanel carrying %q after a successful refine", want)
+		}
+		ty, payload, ok := readMaybe(t, c)
+		if !ok {
+			t.Fatal("connection closed before the refine message arrived")
+		}
+		if ty != protocol.MsgMessagePanel {
+			continue
+		}
+		if got := decodePanel(payload); got != want {
+			t.Fatalf("panel text = %q, want %q", got, want)
+		}
+		return
+	}
+}
+
+// decodePanel turns a MSG_MessagePanel body back into a Go string. The wire form
+// is CP1252 in a fixed buffer, so a raw compare against a UTF-8 literal would
+// fail on every accent — exactly the bug protocol.ClientText exists to prevent.
+func decodePanel(b []byte) string {
+	if i := indexByte(b, 0); i >= 0 {
+		b = b[:i]
+	}
+	runes := make([]rune, len(b))
+	for i, ch := range b {
+		runes[i] = rune(ch) // CP1252 is Latin-1 here, and Latin-1 byte == code point
+	}
+	return string(runes)
+}
+
+// The four refine notices must carry the shipped Language.txt wording, accents
+// included — the strings the player has read on this server for twenty years.
+func TestRefineNoticeTexts(t *testing.T) {
+	want := map[Notice]string{
+		NoticeOnlyToEquips:   "Possível somente com armas e armaduras equipadas.", // 74
+		NoticeCantRefineMore: "Este item não pode ser mais refinado.",             // 75
+		NoticeFailToRefine:   "Refinação falhou.",                                 // 76
+		NoticeRefineSuccess:  "Obteve sucesso na refinação.",                      // 176
+	}
+	for n, text := range want {
+		got, ok := noticeText[n]
+		if !ok {
+			t.Errorf("notice %v has no panel text; it would render as nothing", n)
+			continue
+		}
+		if got != text {
+			t.Errorf("notice %v text = %q, want %q", n, got, text)
+		}
+	}
+}
+
+// Painting is not refining. The legacy reuses the refine strings on the paint
+// path (_MSG_UseItem.cpp:3767-3861), so a player who painted a helmet was told
+// "Obteve sucesso na refinação"; these say what actually happened, and keep
+// painting apart from stripping the colour back off.
+func TestPaintNoticeTexts(t *testing.T) {
+	want := map[Notice]string{
+		NoticePaintSuccess: "Item pintado com sucesso.",
+		NoticePaintRemoved: "Pintura removida com sucesso.",
+		NoticeCantPaint:    "Este item não pode receber mais pintura.",
+		NoticeNotPainted:   "Este item não está pintado.",
+	}
+	for n, text := range want {
+		got, ok := noticeText[n]
+		if !ok {
+			t.Errorf("notice %v has no panel text; it would render as nothing", n)
+			continue
+		}
+		if got != text {
+			t.Errorf("notice %v text = %q, want %q", n, got, text)
+		}
+	}
+	// And the paint notices must be distinct from the refine ones, which is the
+	// whole point of adding them.
+	if noticeText[NoticePaintSuccess] == noticeText[NoticeRefineSuccess] {
+		t.Error("paint success still reads as a refine")
+	}
+}

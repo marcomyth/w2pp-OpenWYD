@@ -115,6 +115,7 @@ func run(logger *slog.Logger) error {
 	doubleExp := flag.Bool("double-exp", envBool("W2PP_DOUBLE_EXP", false), "DOUBLEMODE: double PvE experience (gameconfig double)")
 	newbieEvent := flag.Bool("newbie-event", envBool("W2PP_NEWBIE_EVENT", false), "NewbieEventServer: +15% exp and newbie under-100 bonus (gameconfig)")
 	kefraLive := flag.Bool("kefra-live", envBool("W2PP_KEFRA_LIVE", false), "KefraLive: when false, PvE exp is halved (default legacy KefraLive=0)")
+	maxNightmare := flag.Int("max-nightmare", envInt("W2PP_MAX_NIGHTMARE", 0), "maxNightmare: Pesadelo runs allowed per 4-minute window per tier, server-wide (0 = the legacy default of 3)")
 	logSends := flag.Bool("log-sends", envBool("W2PP_LOG_SENDS", false), "log every S→C frame (conn/type/id/len) — client-freeze diagnostics (investigacao-freeze-cliente.md); high volume, enable only while reproducing an incident")
 	pprofAddr := flag.String("pprof-addr", os.Getenv("W2PP_PPROF_ADDR"), "expose net/http/pprof on this address (empty disables). Bind to loopback or a private network only — these endpoints dump memory and let any caller start a CPU profile. Without it nothing on the box can answer whether the process is leaking goroutines")
 	// Cast-buff duration tuning (issue #229). The legacy formula is
@@ -308,6 +309,7 @@ func run(logger *slog.Logger) error {
 		WorldEvents:     worldEvents,
 		CastleQuests:    castleQuests,
 		EventRNGSeed:    eventSeed,
+		MaxNightmare:    *maxNightmare,
 		AffectDuration: world.AffectDuration{
 			ScalePct: *affectScalePct,
 			MinTicks: handler.AffectTicksFromSeconds(*affectMinSeconds),

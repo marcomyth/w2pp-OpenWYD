@@ -58,13 +58,31 @@ func (d *Dispatcher) messageWhisper(w *world.World, s *world.Session, _ protocol
 		d.log.Info("chat command", "conn", s.Conn, "cmd", strings.TrimPrefix(name, "/"))
 		return // a slash command (the client sends "/x" as a whisper to "x")
 	}
-	target, _ := w.SessionByName(name)
+	target, te := w.SessionByName(name)
 	if target == nil {
+		// The notice is kept for callers that key off it, but its wire format is a
+		// placeholder (notice.go), so on its own it renders as nothing — which is
+		// indistinguishable from a dead command. The legacy sends _NN_Not_Connected
+		// (Language.txt:91) through SendClientMessage, i.e. the message panel.
 		d.notify(w, s, NoticeNotConnected)
+		sendClientMessage(w, s, "O jogador não está conectado.")
 		return
 	}
 	if target.Whisper {
 		d.notify(w, s, NoticeDenyWhisper)
+		return
+	}
+	// A whisper with NO text is not a whisper: it is "inspect this player", and
+	// the reply is their citizenship, fame and guild (_MSG_MessageWhisper.cpp:1616,
+	// `if (m->String[0] == 0)`). This is what typing just "/NomeDoJogador" does.
+	// The legacy tests the first byte, not a trimmed string — a message of one
+	// space is still a whisper.
+	if len(body.String) == 0 || body.String[0] == 0 {
+		if te == nil {
+			return
+		}
+		d.sendUserInfo(w, s, target, te)
+		d.log.Info("user info", "conn", s.Conn, "target", te.Name)
 		return
 	}
 	w.SendTo(target, protocol.Header{Type: protocol.MsgMessageWhisper, ID: uint16(s.Conn)}, payload)
@@ -162,6 +180,14 @@ func (d *Dispatcher) runCommand(w *world.World, s *world.Session, name string, a
 		d.arcana(w, s)
 		return true
 	}
+	if cmd == "nt" {
+		d.showNightmareTickets(w, s)
+		return true
+	}
+	if cmd == "nig" {
+		d.showNightmareTime(w, s)
+		return true
+	}
 	if cmd == "cp" {
 		d.showChaosPoints(w, s)
 		return true
@@ -178,6 +204,10 @@ func (d *Dispatcher) runCommand(w *world.World, s *world.Session, name string, a
 	}
 	if cmd == "nick" {
 		d.showNick(w, s, cstr(args))
+		return true
+	}
+	if cmd == "snd" {
+		d.setSnd(w, s, cstr(args))
 		return true
 	}
 	return false
@@ -424,27 +454,73 @@ func notifyPKPointDelta(newPKPoint uint8, delta int) string {
 // "Cidadania: %d / Fama: %d"), extended with guild fame per issue #131, and
 // sent back as a self-addressed chat line (like gmNotice's free-text path)
 // since there's no dedicated system-message wire format captured yet.
+// sndMaxLen caps the "/snd" status line, matching the legacy's
+// strncpy(..., 96) (_MSG_MessageWhisper.cpp:593).
+const sndMaxLen = 96
+
+// setSnd backs "/snd <texto>": it records the status line other players see when
+// they inspect this character, and echoes it back (_MSG_MessageWhisper.cpp:591).
+//
+// "/snd" with nothing after it clears the line, which is what the legacy's
+// strncpy of an empty string does. The value is session-only — the legacy wipes
+// it on every login (ProcessDBMessage.cpp:798) — so there is nothing to persist.
+func (d *Dispatcher) setSnd(w *world.World, s *world.Session, text string) {
+	if len(text) > sndMaxLen {
+		text = text[:sndMaxLen]
+	}
+	s.Snd = text
+	sendClientMessage(w, s, sndLine(text))
+}
+
+// sndLine is _NN_SND_MESSAGE (Language.txt:385, "Mensagem:") plus the text.
+func sndLine(text string) string { return "Mensagem: " + text }
+
+// userInfoLine renders _NN_Check_User_Info (Language.txt:435, "Cidadania: %d /
+// Fama: %d") the way the legacy composes it: the character's name, then the
+// citizenship/fame pair, then the guild in brackets — and the brackets are
+// omitted entirely for a guildless character, rather than printing "no guild"
+// (_MSG_MessageWhisper.cpp:1618-1636).
+func userInfoLine(w *world.World, e *world.Entity) string {
+	line := fmt.Sprintf("%s Cidadania: %d / Fama: %d", e.Name, e.Citizen, e.Fame)
+	if e.Guild == 0 {
+		return line
+	}
+	// BASE_GetGuildName in the legacy. Guild names live only in memory here (there
+	// is no guild-creation flow yet), so an unregistered id falls back to showing
+	// the number instead of an empty bracket.
+	guild := fmt.Sprintf("Guild #%d", e.Guild)
+	if gi, ok := w.GuildInfo(e.Guild); ok && gi.Name != "" {
+		guild = gi.Name
+	}
+	return fmt.Sprintf("%s [%s]", line, guild)
+}
+
+// sendUserInfo answers an inspect: the citizenship/fame line, then the target's
+// "/snd" status line when they set one (_MSG_MessageWhisper.cpp:1638-1646).
+func (d *Dispatcher) sendUserInfo(w *world.World, s *world.Session, target *world.Session, te *world.Entity) {
+	sendClientMessage(w, s, userInfoLine(w, te))
+	if target != nil && target.Snd != "" {
+		sendClientMessage(w, s, sndLine(target.Snd))
+	}
+}
+
+// showNick backs "/nick <jogador>". It reports the same lines an empty whisper
+// does; the command exists because it is discoverable, while "type the name with
+// nothing after it" is not.
 func (d *Dispatcher) showNick(w *world.World, s *world.Session, rest string) {
 	name := firstToken(strings.TrimSpace(rest))
 	if name == "" {
 		return
 	}
-	_, te := w.SessionByName(name)
+	ts, te := w.SessionByName(name)
 	if te == nil {
+		// Same pair as the whisper path: the notice for callers that key off it,
+		// plus the chat line the player actually sees.
 		d.notify(w, s, NoticeNotConnected)
+		sendClientMessage(w, s, "O jogador não está conectado.")
 		return
 	}
-	guildPart := "Sem guilda"
-	if te.Guild != 0 {
-		if gi, ok := w.GuildInfo(te.Guild); ok {
-			guildPart = fmt.Sprintf("%s (Fama guilda: %d)", gi.Name, gi.Fame)
-		} else {
-			guildPart = fmt.Sprintf("Guild #%d (nao registrada)", te.Guild)
-		}
-	}
-	msg := fmt.Sprintf("%s [%s] Cidadania: %d / Fama: %d", te.Name, guildPart, te.Citizen, te.Fame)
-	payload := append([]byte(msg), 0) // NUL-terminated, like gmNotice
-	w.Send(s, protocol.MsgMessageChat, payload)
+	d.sendUserInfo(w, s, ts, te)
 }
 
 // firstToken returns the first whitespace-separated token of s.

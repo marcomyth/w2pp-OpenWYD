@@ -16,8 +16,14 @@ linters:
         # handlers/comments mirror that name for parity.
         - challange
         # The legacy GM tool file is genuinely named "Comandos GM.txt" (Portuguese
-        # for "commands"), cited verbatim as an evidence source.
+        # for "commands"), cited verbatim as an evidence source. The singular
+        # appears the same way, in player-facing text and in comments quoting it
+        # ("Cheque sua quantidade de entradas com o comando /nt").
         - comandos
+        - comando
+        # Portuguese for "decorative", describing the town actors the NPC panel
+        # classifies. misspell reads it as a typo for "decoration".
+        - decorativo
         # Portuguese for "monsters", in player-facing game text and in the admin
         # panel's routes. misspell reads it as a typo for "monstrous"; this is a
         # Portuguese-language server and the word is correct as written.
