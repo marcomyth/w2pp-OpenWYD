@@ -111,7 +111,7 @@ func TestCannotChangeYourOwnAccess(t *testing.T) {
 	if _, err := s.SetRole(ctx, me, me, RolePlayer); !errors.Is(err, ErrSelf) {
 		t.Errorf("SetRole on self: err = %v, want ErrSelf", err)
 	}
-	if _, err := s.SetBlocked(ctx, me, me, true, "motivo"); !errors.Is(err, ErrSelf) {
+	if _, err := s.SetBlocked(ctx, me, me, true, "motivo", 0); !errors.Is(err, ErrSelf) {
 		t.Errorf("SetBlocked on self: err = %v, want ErrSelf", err)
 	}
 	if got := roleOf(t, pool, me); got != RoleAdmin {
@@ -175,7 +175,7 @@ func TestSetBlockedRoundTrip(t *testing.T) {
 	actor := seed(t, pool, "acc_actor4", RoleAdmin)
 	alvo := seed(t, pool, "acc_bloqueio", RolePlayer)
 
-	previous, err := s.SetBlocked(ctx, actor, alvo, true, "usou programa de terceiros")
+	previous, err := s.SetBlocked(ctx, actor, alvo, true, "usou programa de terceiros", 0)
 	if err != nil {
 		t.Fatalf("SetBlocked: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestSetBlockedRoundTrip(t *testing.T) {
 		t.Errorf("blocked_by = %v, want %d", quem, actor)
 	}
 
-	previous, err = s.SetBlocked(ctx, actor, alvo, false, "")
+	previous, err = s.SetBlocked(ctx, actor, alvo, false, "", 0)
 	if err != nil {
 		t.Fatalf("SetBlocked: %v", err)
 	}
@@ -235,10 +235,10 @@ func TestBloquearSemMotivoERecusado(t *testing.T) {
 	actor := seed(t, pool, "acc_actor_motivo", RoleAdmin)
 	alvo := seed(t, pool, "acc_sem_motivo", RolePlayer)
 
-	if _, err := s.SetBlocked(ctx, actor, alvo, true, "   "); !errors.Is(err, ErrMotivo) {
+	if _, err := s.SetBlocked(ctx, actor, alvo, true, "   ", 0); !errors.Is(err, ErrMotivo) {
 		t.Fatalf("bloquear sem motivo = %v, want ErrMotivo", err)
 	}
-	if _, err := s.SetBlocked(ctx, actor, alvo, true, strings.Repeat("x", MaxMotivoBytes+1)); !errors.Is(err, ErrMotivo) {
+	if _, err := s.SetBlocked(ctx, actor, alvo, true, strings.Repeat("x", MaxMotivoBytes+1), 0); !errors.Is(err, ErrMotivo) {
 		t.Fatalf("motivo gigante = %v, want ErrMotivo", err)
 	}
 	var bloqueado bool
@@ -259,10 +259,10 @@ func TestEditarOMotivoDeUmBanEmVigorGrava(t *testing.T) {
 	actor := seed(t, pool, "acc_actor_edit", RoleAdmin)
 	alvo := seed(t, pool, "acc_edit_motivo", RolePlayer)
 
-	if _, err := s.SetBlocked(ctx, actor, alvo, true, "motivo velho"); err != nil {
+	if _, err := s.SetBlocked(ctx, actor, alvo, true, "motivo velho", 0); err != nil {
 		t.Fatalf("primeiro bloqueio: %v", err)
 	}
-	prev, err := s.SetBlocked(ctx, actor, alvo, true, "motivo corrigido")
+	prev, err := s.SetBlocked(ctx, actor, alvo, true, "motivo corrigido", 0)
 	if err != nil {
 		t.Fatalf("editar motivo: %v", err)
 	}
@@ -290,7 +290,7 @@ func TestBlockedLeOEstadoAtual(t *testing.T) {
 	if b, err := s.Blocked(ctx, alvo); err != nil || b {
 		t.Fatalf("Blocked antes = %v, %v; want false", b, err)
 	}
-	if _, err := s.SetBlocked(ctx, actor, alvo, true, "qualquer"); err != nil {
+	if _, err := s.SetBlocked(ctx, actor, alvo, true, "qualquer", 0); err != nil {
 		t.Fatalf("SetBlocked: %v", err)
 	}
 	if b, err := s.Blocked(ctx, alvo); err != nil || !b {
@@ -310,7 +310,7 @@ func TestMissingAccount(t *testing.T) {
 	if _, err := s.SetRole(ctx, actor, 999999999, RolePlayer); !errors.Is(err, ErrNotFound) {
 		t.Errorf("SetRole: err = %v, want ErrNotFound", err)
 	}
-	if _, err := s.SetBlocked(ctx, actor, 999999999, true, "motivo"); !errors.Is(err, ErrNotFound) {
+	if _, err := s.SetBlocked(ctx, actor, 999999999, true, "motivo", 0); !errors.Is(err, ErrNotFound) {
 		t.Errorf("SetBlocked: err = %v, want ErrNotFound", err)
 	}
 }
@@ -563,5 +563,143 @@ func TestPendingSinceCountsBothBootBoundTables(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("pendentes = %d, want 1 — preço não espera reinício e não pode contar", n)
+	}
+}
+
+// TestBanVencidoDeixaOLoginPassar is the test the whole expiry rests on.
+//
+// Enforcement is by read: nothing sweeps expired bans, so the ban has to stop
+// counting the moment it passes, in every query that asks. If the login reader
+// missed it, a "24 hour" ban would be permanent and nobody would notice until a
+// player complained days later.
+func TestBanVencidoDeixaOLoginPassar(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	s := New(pool)
+	loja := store.New(pool)
+	actor := seed(t, pool, "acc_ator_prazo", RoleAdmin)
+	alvo := seed(t, pool, "acc_prazo", RolePlayer)
+
+	if _, err := s.SetBlocked(ctx, actor, alvo, true, "briga no chat", 7); err != nil {
+		t.Fatalf("SetBlocked: %v", err)
+	}
+
+	// While it is in force, every reader agrees the account is blocked.
+	auth, err := loja.AccountByName(ctx, "acc_prazo")
+	if err != nil {
+		t.Fatalf("AccountByName: %v", err)
+	}
+	if !auth.IsBlocked {
+		t.Fatal("o login deixou passar uma conta com ban em vigor")
+	}
+	if b, err := s.Blocked(ctx, alvo); err != nil || !b {
+		t.Fatalf("Blocked = %v, %v; want true", b, err)
+	}
+
+	// Push the deadline into the past — what the clock does on its own.
+	if _, err := pool.Exec(ctx,
+		`UPDATE account SET blocked_until = now() - interval '1 minute' WHERE id = $1`, alvo); err != nil {
+		t.Fatalf("envelhecer o ban: %v", err)
+	}
+
+	auth, err = loja.AccountByName(ctx, "acc_prazo")
+	if err != nil {
+		t.Fatalf("AccountByName: %v", err)
+	}
+	if auth.IsBlocked {
+		t.Error("o login ainda recusa uma conta cujo ban já venceu")
+	}
+	if b, err := s.Blocked(ctx, alvo); err != nil || b {
+		t.Errorf("Blocked = %v, %v; want false depois de vencer", b, err)
+	}
+
+	// The row still says is_blocked — what changed is that nobody honours it.
+	// The panel shows this state so a moderator can understand it.
+	det, err := s.Get(ctx, alvo)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if !det.Bloqueio.Blocked {
+		t.Error("a linha perdeu o registro do ban; o painel não teria o que mostrar")
+	}
+	if det.Bloqueio.Vigente() {
+		t.Error("Vigente disse que um ban vencido ainda vale")
+	}
+	if det.Bloqueio.Until == nil {
+		t.Error("o prazo sumiu da linha")
+	}
+}
+
+func TestBanPermanenteNaoVenceNunca(t *testing.T) {
+	// NULL has to mean permanent. A sentinel past date would make every
+	// permanent ban read as already lifted — the failure that lets everyone in.
+	ctx := context.Background()
+	pool := testPool(t)
+	s := New(pool)
+	loja := store.New(pool)
+	actor := seed(t, pool, "acc_ator_perm", RoleAdmin)
+	alvo := seed(t, pool, "acc_perm", RolePlayer)
+
+	if _, err := s.SetBlocked(ctx, actor, alvo, true, "uso de programa", 0); err != nil {
+		t.Fatalf("SetBlocked: %v", err)
+	}
+	var ate *time.Time
+	if err := pool.QueryRow(ctx, `SELECT blocked_until FROM account WHERE id = $1`, alvo).Scan(&ate); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if ate != nil {
+		t.Fatalf("blocked_until = %v, want NULL para ban sem prazo", ate)
+	}
+	auth, err := loja.AccountByName(ctx, "acc_perm")
+	if err != nil || !auth.IsBlocked {
+		t.Fatalf("login = %v, %v; want bloqueado", auth.IsBlocked, err)
+	}
+}
+
+func TestNovoBanApagaUmPrazoVelho(t *testing.T) {
+	// The in-game /gm ban writes only the flag. Without clearing the column, a
+	// stale expiry from a previous timed ban would void the new permanent one
+	// the moment it passed.
+	ctx := context.Background()
+	pool := testPool(t)
+	s := New(pool)
+	loja := store.New(pool)
+	actor := seed(t, pool, "acc_ator_velho", RoleAdmin)
+	alvo := seed(t, pool, "acc_prazo_velho", RolePlayer)
+
+	if _, err := s.SetBlocked(ctx, actor, alvo, true, "primeiro", 1); err != nil {
+		t.Fatalf("primeiro ban: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE account SET blocked_until = now() - interval '1 day' WHERE id = $1`, alvo); err != nil {
+		t.Fatalf("envelhecer: %v", err)
+	}
+	// Now a permanent ban through the in-game path.
+	if err := loja.SetBlockedByName(ctx, "acc_prazo_velho", true); err != nil {
+		t.Fatalf("SetBlockedByName: %v", err)
+	}
+	auth, err := loja.AccountByName(ctx, "acc_prazo_velho")
+	if err != nil {
+		t.Fatalf("AccountByName: %v", err)
+	}
+	if !auth.IsBlocked {
+		t.Error("o ban novo nasceu vencido por causa do prazo antigo")
+	}
+}
+
+func TestPrazoForaDaFaixaERecusadoNoBan(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	s := New(pool)
+	actor := seed(t, pool, "acc_ator_faixa", RoleAdmin)
+	alvo := seed(t, pool, "acc_faixa", RolePlayer)
+
+	for _, dias := range []int{-1, MaxDiasBan + 1} {
+		if _, err := s.SetBlocked(ctx, actor, alvo, true, "x", dias); !errors.Is(err, ErrPrazo) {
+			t.Errorf("dias %d = %v, want ErrPrazo", dias, err)
+		}
+	}
+	if b, _ := s.Blocked(ctx, alvo); b {
+		t.Error("um prazo recusado ainda assim bloqueou")
 	}
 }

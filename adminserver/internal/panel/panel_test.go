@@ -206,6 +206,7 @@ type fakeWriter struct {
 	details      accounts.Details
 	senhaHash    []string
 	motivos      []string
+	diasBan      []int
 	prevMotivo   string
 	euBloqueado  bool // what Blocked() answers for the signed-in account
 	blockedErr   error
@@ -276,7 +277,7 @@ func (f *fakeWriter) ClearVip(_ context.Context, actorID, targetID int64) (*time
 	return f.prevVip, nil
 }
 
-func (f *fakeWriter) SetBlocked(_ context.Context, actorID, targetID int64, blocked bool, motivo string) (accounts.Bloqueio, error) {
+func (f *fakeWriter) SetBlocked(_ context.Context, actorID, targetID int64, blocked bool, motivo string, dias int) (accounts.Bloqueio, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.lastActor, f.lastTarget = actorID, targetID
@@ -290,6 +291,7 @@ func (f *fakeWriter) SetBlocked(_ context.Context, actorID, targetID int64, bloc
 	}
 	f.blkCall = append(f.blkCall, blocked)
 	f.motivos = append(f.motivos, motivo)
+	f.diasBan = append(f.diasBan, dias)
 	return accounts.Bloqueio{Blocked: f.prevBlk, Reason: f.prevMotivo}, nil
 }
 
@@ -3308,5 +3310,127 @@ func TestBloquearAindaFuncionaQuandoNaoDaParaDerrubar(t *testing.T) {
 	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
 	if !strings.Contains(loc, "não consegui derrubar") {
 		t.Errorf("aviso = %q, want dizer que bloqueou mas não derrubou", loc)
+	}
+}
+
+// --- prazo do banimento ---
+
+func TestBanTemporarioGuardaOPrazo(t *testing.T) {
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/bloqueio", url.Values{
+		"csrf": {token}, "bloquear": {"1"}, "motivo": {"briga no chat"}, "dias": {"7"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(wr.diasBan) != 1 || wr.diasBan[0] != 7 {
+		t.Fatalf("dias = %v, want [7]", wr.diasBan)
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(loc, "7 dia") {
+		t.Errorf("aviso = %q, want dizer o prazo", loc)
+	}
+}
+
+func TestPrazoVazioEBanimentoSemFim(t *testing.T) {
+	// Nobody types "forever" as a number, so an empty field has to mean
+	// permanent rather than "zero days" or a validation error.
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	rec := post("/contas/ana/bloqueio", url.Values{
+		"csrf": {token}, "bloquear": {"1"}, "motivo": {"uso de programa"}, "dias": {""},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(wr.diasBan) != 1 || wr.diasBan[0] != 0 {
+		t.Fatalf("dias = %v, want [0] (sem prazo)", wr.diasBan)
+	}
+	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if strings.Contains(loc, "expira") {
+		t.Errorf("aviso = %q, não devia falar em expirar", loc)
+	}
+}
+
+func TestPrazoInvalidoERecusado(t *testing.T) {
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	post, token := signedInPost(t, h)
+
+	for _, dias := range []string{"-1", "abc", "3.5"} {
+		rec := post("/contas/ana/bloqueio", url.Values{
+			"csrf": {token}, "bloquear": {"1"}, "motivo": {"x"}, "dias": {dias},
+		})
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("dias=%q: status = %d, want 400", dias, rec.Code)
+		}
+	}
+	if len(wr.diasBan) != 0 {
+		t.Fatal("um prazo inválido ainda assim bloqueou")
+	}
+}
+
+func TestPaginaMostraAteQuandoOBanVale(t *testing.T) {
+	ate := time.Now().Add(48 * time.Hour)
+	acc := withTarget(roleAdmin)
+	acc.add("ana", 7, "player", true)
+	wr := newFakeWriter()
+	wr.details = accounts.Details{Bloqueio: accounts.Bloqueio{
+		Blocked: true, Reason: "briga no chat", Until: &ate,
+	}}
+	get := signedIn(t, newTestPanelFull(t, acc, newFakeAudit(), wr))
+	body := get("/contas/ana").Body.String()
+
+	if !strings.Contains(body, "até "+ate.Local().Format("02/01/2006")) {
+		t.Error("a página não mostra até quando o banimento vale")
+	}
+}
+
+func TestPaginaDizQuandoOPrazoJaVenceu(t *testing.T) {
+	// An expired ban still has is_blocked set in the row; what changed is that
+	// every reader now ignores it. The page has to say that, or a moderator
+	// looking at a "banned" account cannot understand why the player is in.
+	venceu := time.Now().Add(-time.Hour)
+	acc := withTarget(roleAdmin)
+	acc.add("ana", 7, "player", true)
+	wr := newFakeWriter()
+	wr.details = accounts.Details{Bloqueio: accounts.Bloqueio{
+		Blocked: true, Reason: "briga no chat", Until: &venceu,
+	}}
+	get := signedIn(t, newTestPanelFull(t, acc, newFakeAudit(), wr))
+	body := get("/contas/ana").Body.String()
+
+	if !strings.Contains(body, "prazo venceu") {
+		t.Error("a página não avisa que o prazo já passou")
+	}
+	if !strings.Contains(body, "já entra") {
+		t.Error("a página não diz que a conta voltou a funcionar")
+	}
+}
+
+func TestVigenteSegueAMesmaRegraDoLogin(t *testing.T) {
+	// The panel must not disagree with store.BlockedNowSQL about who is banned.
+	// nil is permanent — explicitly, because a past sentinel would read as lifted.
+	futuro := time.Now().Add(time.Hour)
+	passado := time.Now().Add(-time.Hour)
+	for _, c := range []struct {
+		nome string
+		b    accounts.Bloqueio
+		quer bool
+	}{
+		{"sem bloqueio", accounts.Bloqueio{}, false},
+		{"permanente", accounts.Bloqueio{Blocked: true}, true},
+		{"prazo no futuro", accounts.Bloqueio{Blocked: true, Until: &futuro}, true},
+		{"prazo vencido", accounts.Bloqueio{Blocked: true, Until: &passado}, false},
+		{"prazo sem bloqueio", accounts.Bloqueio{Until: &futuro}, false},
+	} {
+		if got := c.b.Vigente(); got != c.quer {
+			t.Errorf("%s: Vigente = %v, want %v", c.nome, got, c.quer)
+		}
 	}
 }

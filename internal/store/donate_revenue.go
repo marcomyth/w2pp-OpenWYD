@@ -522,7 +522,7 @@ func (s *Store) DonateLedgerTotals(ctx context.Context, w RevenueWindow, account
 // and length-checks the prefix; this escapes the LIKE metacharacters.
 func (s *Store) SearchAccountsByNamePrefix(ctx context.Context, prefix string, limit int) ([]domain.AccountSummary, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, name, email, donate_balance, role, is_blocked
+		SELECT id, name, email, donate_balance, role, `+BlockedNowSQL+`
 		FROM account
 		WHERE name LIKE $1
 		ORDER BY name

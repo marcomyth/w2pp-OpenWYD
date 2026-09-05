@@ -36,10 +36,21 @@ type AccountAuth struct {
 
 // AccountByName fetches the auth row for a canonical (lowercase) account name.
 // Returns ErrNotFound when no such account exists.
+// BlockedNowSQL is the one expression for "is this account blocked right now".
+//
+// Three separate queries read account.is_blocked — the login, the pre-delete
+// check, and the panel's account search — and a timed ban only works if all
+// three agree. They agreed while the answer was a bare column; the moment an
+// expiry existed, each was free to forget it, and the failure is a player who
+// can log in but whom the panel still shows as banned, or worse the reverse.
+//
+// NULL is permanent, explicitly. A sentinel past date would read as lifted.
+const BlockedNowSQL = `(is_blocked AND (blocked_until IS NULL OR blocked_until > now()))`
+
 func (s *Store) AccountByName(ctx context.Context, name string) (AccountAuth, error) {
 	var a AccountAuth
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, pass_hash, is_blocked, role FROM account WHERE name = $1`, name).
+		`SELECT id, pass_hash, `+BlockedNowSQL+`, role FROM account WHERE name = $1`, name).
 		Scan(&a.ID, &a.PassHash, &a.IsBlocked, &a.Role)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AccountAuth{}, ErrNotFound
@@ -55,7 +66,7 @@ func (s *Store) AccountByName(ctx context.Context, name string) (AccountAuth, er
 func (s *Store) AccountAuthByID(ctx context.Context, id int64) (AccountAuth, error) {
 	a := AccountAuth{ID: id}
 	err := s.pool.QueryRow(ctx,
-		`SELECT pass_hash, is_blocked FROM account WHERE id = $1`, id).
+		`SELECT pass_hash, `+BlockedNowSQL+` FROM account WHERE id = $1`, id).
 		Scan(&a.PassHash, &a.IsBlocked)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AccountAuth{}, ErrNotFound
@@ -100,7 +111,7 @@ func (s *Store) SetPinHash(ctx context.Context, id int64, hash string) error {
 // re-login immediately. Returns ErrNotFound when no account matched the name.
 func (s *Store) SetBlockedByName(ctx context.Context, name string, blocked bool) error {
 	tag, err := s.pool.Exec(ctx,
-		`UPDATE account SET is_blocked = $2 WHERE name = $1`, name, blocked)
+		`UPDATE account SET is_blocked = $2, blocked_until = NULL WHERE name = $1`, name, blocked)
 	if err != nil {
 		return fmt.Errorf("store: set blocked %q: %w", name, err)
 	}

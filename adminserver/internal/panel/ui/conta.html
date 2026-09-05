@@ -40,6 +40,17 @@
         {{if .Conta.Bloqueio.At}}
           <div class="motivo-quando">em {{.Conta.Bloqueio.At.Local.Format "02/01/2006 15:04"}}</div>
         {{end}}
+        {{if .Conta.Bloqueio.Until}}
+          <div class="motivo-quando">
+            {{if .Conta.Bloqueio.Vigente}}
+              até {{.Conta.Bloqueio.Until.Local.Format "02/01/2006 15:04"}}
+            {{else}}
+              o prazo venceu em {{.Conta.Bloqueio.Until.Local.Format "02/01/2006 15:04"}} — a conta já entra
+            {{end}}
+          </div>
+        {{else}}
+          <div class="motivo-quando">sem prazo</div>
+        {{end}}
       {{end}}
     </div>
     <div class="campo">
@@ -140,12 +151,16 @@
         <textarea id="motivo" name="motivo" rows="3" maxlength="500" required
                   placeholder="Por que esta conta está sendo bloqueada">{{.Conta.Bloqueio.Reason}}</textarea>
         <div class="linha" style="margin-top:8px">
-          <button type="submit">{{if .Conta.IsBlocked}}Atualizar motivo{{else}}Bloquear{{end}}</button>
+          <input name="dias" type="number" min="0" max="3650" placeholder="dias (vazio = sem prazo)"
+                 aria-label="Dias de banimento">
+          <button type="submit">{{if .Conta.IsBlocked}}Atualizar{{else}}Bloquear{{end}}</button>
         </div>
         <p class="dica">
           O motivo é o que responde o jogador que perguntar por quê. Ele fica no
           painel e na auditoria — <strong>não aparece para o jogador</strong>, porque
           o servidor confere o bloqueio antes da senha e qualquer um leria.
+          Prazo vazio bane sem data de fim; com prazo, a conta volta sozinha
+          quando ele vence, sem ninguém precisar desbloquear.
         </p>
       </form>
 

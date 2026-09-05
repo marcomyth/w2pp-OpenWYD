@@ -83,7 +83,7 @@ type Writer interface {
 	PendingSince(ctx context.Context, since time.Time) (int, time.Time, error)
 	SetPassword(ctx context.Context, targetID int64, hash string) error
 	SetRole(ctx context.Context, actorID, targetID int64, role string) (string, error)
-	SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool, motivo string) (accounts.Bloqueio, error)
+	SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool, motivo string, dias int) (accounts.Bloqueio, error)
 	Blocked(ctx context.Context, id int64) (bool, error)
 	AddVipDays(ctx context.Context, actorID, targetID int64, days int) (prev, next *time.Time, err error)
 	ClearVip(ctx context.Context, actorID, targetID int64) (*time.Time, error)
@@ -821,7 +821,24 @@ func (h *Handler) setBloqueio(w http.ResponseWriter, r *http.Request) {
 	motivo := strings.TrimSpace(r.PostFormValue("motivo"))
 	sess, _ := staffFrom(r.Context())
 
-	anterior, err := h.cfg.Writer.SetBlocked(r.Context(), sess.AccountID, auth.ID, bloquear, motivo)
+	// Blank means permanent, which is what an empty field on a ban form should
+	// mean: nobody types "forever" as a number.
+	dias := 0
+	if bruto := strings.TrimSpace(r.PostFormValue("dias")); bruto != "" {
+		v, cerr := strconv.Atoi(bruto)
+		if cerr != nil || v < 0 {
+			http.Error(w, "Prazo inválido. Deixe vazio para banimento sem prazo.", http.StatusBadRequest)
+			return
+		}
+		dias = v
+	}
+
+	anterior, err := h.cfg.Writer.SetBlocked(r.Context(), sess.AccountID, auth.ID, bloquear, motivo, dias)
+	if errors.Is(err, accounts.ErrPrazo) {
+		http.Error(w, "O prazo tem que ficar entre 0 e "+strconv.Itoa(accounts.MaxDiasBan)+" dias.",
+			http.StatusBadRequest)
+		return
+	}
 	if errors.Is(err, accounts.ErrMotivo) {
 		if motivo == "" {
 			http.Error(w, "Escreva o motivo do bloqueio. Ele é o que responde o jogador que perguntar por quê.",
@@ -847,7 +864,7 @@ func (h *Handler) setBloqueio(w http.ResponseWriter, r *http.Request) {
 		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetBlocked, TargetID: auth.ID,
 		Old: map[string]any{"blocked": anterior.Blocked, "motivo": anterior.Reason},
-		New: map[string]any{"blocked": bloquear, "motivo": motivo},
+		New: map[string]any{"blocked": bloquear, "motivo": motivo, "dias": dias},
 	}); err != nil {
 		h.cfg.Logger.Error("block changed but NOT audited", "actor", sess.AccountName,
 			"target", nome, "blocked", bloquear, "err", err)
@@ -876,6 +893,9 @@ func (h *Handler) setBloqueio(w http.ResponseWriter, r *http.Request) {
 		}
 		if anterior.Blocked {
 			msg = "Motivo atualizado. A conta já estava bloqueada."
+		}
+		if dias > 0 {
+			msg += " O banimento expira em " + strconv.Itoa(dias) + " dia(s)."
 		}
 	}
 	h.cfg.Logger.Info("block changed", "actor", sess.AccountName, "target", nome, "blocked", bloquear)

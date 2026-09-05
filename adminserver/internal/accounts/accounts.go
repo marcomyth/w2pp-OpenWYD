@@ -21,6 +21,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
 
 // Roles the panel is allowed to set. A value outside this set is refused rather
@@ -121,7 +123,26 @@ type Bloqueio struct {
 	Reason  string
 	At      *time.Time
 	By      *int64
+	// Until is when the ban lifts. nil means it does not — explicitly, not as a
+	// date in the past: everything that asks "blocked right now" treats nil as
+	// permanent, and a sentinel would read as already lifted.
+	Until *time.Time
 }
+
+// Vigente reports whether the ban is in force at this moment. It mirrors
+// store.BlockedNowSQL, which is what the login, the pre-delete check and the
+// account search all evaluate — the panel must not disagree with them about who
+// is banned.
+func (b Bloqueio) Vigente() bool {
+	return b.Blocked && (b.Until == nil || b.Until.After(time.Now()))
+}
+
+// MaxDiasBan bounds a timed ban. Longer than this is a permanent ban somebody
+// typed as a number, and it should be said out loud instead.
+const MaxDiasBan = 3650
+
+// ErrPrazo is returned for a ban length outside the bounds.
+var ErrPrazo = errors.New("accounts: ban length out of range")
 
 // MaxMotivoBytes bounds the reason. It is generous — the field is for a sentence
 // a colleague or a player will read, not for a case file.
@@ -144,9 +165,12 @@ var ErrMotivo = errors.New("accounts: bad block reason")
 // reason of a ban that is already in force is a real edit, and the previous
 // version short-circuited on the flag alone — so correcting a reason wrote
 // nothing, reported "nothing changed", and left no audit trail of the attempt.
-func (s *Store) SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool, motivo string) (Bloqueio, error) {
+func (s *Store) SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool, motivo string, dias int) (Bloqueio, error) {
 	if actorID == targetID {
 		return Bloqueio{}, ErrSelf
+	}
+	if dias < 0 || dias > MaxDiasBan {
+		return Bloqueio{}, ErrPrazo
 	}
 	motivo = strings.TrimSpace(motivo)
 	if blocked && (motivo == "" || len(motivo) > MaxMotivoBytes) {
@@ -168,16 +192,22 @@ func (s *Store) SetBlocked(ctx context.Context, actorID, targetID int64, blocked
 	// the wrong "before" is worse than no audit entry.
 	var prev Bloqueio
 	err = tx.QueryRow(ctx, `
-		SELECT is_blocked, block_reason, blocked_at, blocked_by
+		SELECT is_blocked, block_reason, blocked_at, blocked_by, blocked_until
 		  FROM account WHERE id = $1 FOR UPDATE`, targetID).
-		Scan(&prev.Blocked, &prev.Reason, &prev.At, &prev.By)
+		Scan(&prev.Blocked, &prev.Reason, &prev.At, &prev.By, &prev.Until)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Bloqueio{}, ErrNotFound
 	}
 	if err != nil {
 		return Bloqueio{}, fmt.Errorf("accounts: read blocked: %w", err)
 	}
-	if prev.Blocked == blocked && prev.Reason == motivo {
+	// 0 days means permanent; anything else is a deadline from now.
+	var ate *time.Time
+	if blocked && dias > 0 {
+		t := time.Now().Add(time.Duration(dias) * 24 * time.Hour)
+		ate = &t
+	}
+	if prev.Blocked == blocked && prev.Reason == motivo && mesmoPrazo(prev.Until, ate, dias) {
 		return prev, nil // genuinely nothing to do
 	}
 
@@ -187,12 +217,14 @@ func (s *Store) SetBlocked(ctx context.Context, actorID, targetID int64, blocked
 	if blocked {
 		_, err = tx.Exec(ctx, `
 			UPDATE account
-			   SET is_blocked = TRUE, block_reason = $2, blocked_at = now(), blocked_by = $3
-			 WHERE id = $1`, targetID, motivo, actorID)
+			   SET is_blocked = TRUE, block_reason = $2, blocked_at = now(),
+			       blocked_by = $3, blocked_until = $4
+			 WHERE id = $1`, targetID, motivo, actorID, ate)
 	} else {
 		_, err = tx.Exec(ctx, `
 			UPDATE account
-			   SET is_blocked = FALSE, block_reason = '', blocked_at = NULL, blocked_by = NULL
+			   SET is_blocked = FALSE, block_reason = '', blocked_at = NULL,
+			       blocked_by = NULL, blocked_until = NULL
 			 WHERE id = $1`, targetID)
 	}
 	if err != nil {
@@ -204,6 +236,18 @@ func (s *Store) SetBlocked(ctx context.Context, actorID, targetID int64, blocked
 	return prev, nil
 }
 
+// mesmoPrazo reports whether a re-block asks for the deadline the row already
+// has. Two dates computed a second apart are never equal, so re-submitting the
+// same form would otherwise always look like a change; asking for a permanent
+// ban on a permanently banned account is the only case that can be compared
+// exactly.
+func mesmoPrazo(atual, novo *time.Time, dias int) bool {
+	if dias == 0 {
+		return atual == nil && novo == nil
+	}
+	return false
+}
+
 // Blocked reports whether an account is blocked right now.
 //
 // requireStaff calls this on every request, next to the role read, because a
@@ -211,8 +255,11 @@ func (s *Store) SetBlocked(ctx context.Context, actorID, targetID int64, blocked
 // re-checked and the block was not, so banning a moderator left them signed in
 // and able to keep working.
 func (s *Store) Blocked(ctx context.Context, id int64) (bool, error) {
+	// store.BlockedNowSQL, not a bare column: an expired ban must not end a panel
+	// session the login would already let through.
 	var blocked bool
-	err := s.pool.QueryRow(ctx, `SELECT is_blocked FROM account WHERE id = $1`, id).Scan(&blocked)
+	err := s.pool.QueryRow(ctx,
+		`SELECT `+store.BlockedNowSQL+` FROM account WHERE id = $1`, id).Scan(&blocked)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, ErrNotFound
 	}
@@ -251,10 +298,11 @@ type Details struct {
 func (s *Store) Get(ctx context.Context, id int64) (Details, error) {
 	var d Details
 	err := s.pool.QueryRow(ctx, `
-		SELECT email, donate_balance, vip_until, is_blocked, block_reason, blocked_at, blocked_by
+		SELECT email, donate_balance, vip_until,
+		       is_blocked, block_reason, blocked_at, blocked_by, blocked_until
 		  FROM account WHERE id = $1`, id).
 		Scan(&d.Email, &d.DonateBalance, &d.VipUntil,
-			&d.Bloqueio.Blocked, &d.Bloqueio.Reason, &d.Bloqueio.At, &d.Bloqueio.By)
+			&d.Bloqueio.Blocked, &d.Bloqueio.Reason, &d.Bloqueio.At, &d.Bloqueio.By, &d.Bloqueio.Until)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Details{}, ErrNotFound
 	}
