@@ -290,6 +290,9 @@ func (h *Handler) Routes() http.Handler {
 	mux.HandleFunc("POST /login", h.login)
 	mux.HandleFunc("POST /logout", h.logout)
 	mux.Handle("GET /{$}", h.requireStaff(http.HandlerFunc(h.home)))
+	// One search box for the whole panel. It routes rather than renders: the
+	// pages that already list these things are better at it.
+	mux.Handle("GET /ir", h.requireStaff(http.HandlerFunc(h.ir)))
 	mux.Handle("GET /contas", h.requireStaff(http.HandlerFunc(h.contas)))
 	mux.Handle("GET /contas/{nome}", h.requireStaff(http.HandlerFunc(h.conta)))
 	mux.Handle("GET /auditoria", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.auditoria))))
@@ -447,14 +450,62 @@ func (h *Handler) loginPage(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "login.html", map[string]any{"Error": r.URL.Query().Get("erro")})
 }
 
+// ultimasAcoes is how many staff actions the home page shows.
+//
+// Five, not twenty: the question it answers is "what has already been touched
+// today", and a longer list stops being read. Auditoria is one click away for
+// the times the answer is not in the first five.
+const ultimasAcoes = 5
+
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
+	var naoLeu falhas
+
+	// The report queue. Read from the database, not from the game: the home page
+	// is the most-opened screen in the panel, and every call into the game
+	// crosses the single-owner loop ahead of player input. What is worth showing
+	// here is what costs a query.
+	var denuncias store.ReportCounts
+	if h.cfg.Denuncias != nil {
+		c, err := h.cfg.Denuncias.CountReports(r.Context())
+		if err != nil {
+			h.cfg.Logger.Error("report count failed", "err", err)
+			naoLeu.nao("denuncias")
+		} else {
+			denuncias = c
+		}
+	}
+
+	// What the team already did. It is the answer to "did somebody else get to
+	// this before me", which is the question that turns two moderators into one
+	// duplicated ban.
+	var recentes []audit.Entry
+	if h.cfg.Audit != nil {
+		es, err := h.cfg.Audit.List(r.Context(), 0)
+		if err != nil {
+			h.cfg.Logger.Error("audit list failed", "err", err)
+			naoLeu.nao("auditoria")
+		} else if len(es) > ultimasAcoes {
+			recentes = es[:ultimasAcoes]
+		} else {
+			recentes = es
+		}
+	}
+
 	h.render(w, "index.html", struct {
 		page
-		Servidor estadoServidor
-		Aviso    string
+		Servidor  estadoServidor
+		Denuncias store.ReportCounts
+		Espera    string
+		Recentes  []audit.Entry
+		NaoLeu    falhas
+		Aviso     string
 	}{
 		h.pageFor(r, "inicio"),
 		h.statusServidor(r),
+		denuncias,
+		esperaHa(denuncias.MaisAntigo, time.Now()),
+		recentes,
+		naoLeu,
 		r.URL.Query().Get("aviso"),
 	})
 }
@@ -1790,4 +1841,55 @@ func (h *Handler) overlay(r *http.Request, variavel string, campo func(jogo.Over
 	}
 	av.Perguntou, av.Lendo = true, campo(o)
 	return av
+}
+
+// ir is the single search box in the header: one field that decides where you
+// meant to go.
+//
+// Before it, every task started the same way — click Contas, then search, then
+// click the account — and a task that begins with an item or a monster started
+// by picking the right list first. The panel knew what you typed and made you
+// tell it where to look anyway.
+//
+// It routes rather than renders. There is no "search results" page of its own:
+// the pages that already list these things are better at it, so this only picks
+// which one and hands over the term. That keeps one list per kind of thing
+// instead of two that drift.
+//
+// The order of the guesses is the order of how often each is right, and every
+// one of them falls through to the account search — which is where a term that
+// means nothing else is most likely to belong.
+func (h *Handler) ir(w http.ResponseWriter, r *http.Request) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	if q == "" {
+		http.Redirect(w, r, "/contas", http.StatusSeeOther)
+		return
+	}
+
+	// A number is an item index. Checked against the catalog rather than assumed:
+	// "12345" that is not an item is far more likely to be part of an account
+	// name than a typo of one, so an unknown number falls through instead of
+	// landing on an empty item page.
+	if n, err := strconv.Atoi(q); err == nil && n > 0 && h.cfg.GameData != nil {
+		sess, _ := staffFrom(r.Context())
+		if _, achou := h.nomeDoItem(r, sess.AccountID, int32(n)); achou {
+			http.Redirect(w, r, "/itens/"+q+"/atributos", http.StatusSeeOther)
+			return
+		}
+	}
+
+	// An account or a character. The panel's own search covers both, and when it
+	// lands on exactly one account the extra click to open it is a click nobody
+	// asked for.
+	if h.cfg.Writer != nil {
+		achados, err := h.cfg.Writer.Buscar(r.Context(), strings.ToLower(q), 2)
+		if err != nil {
+			h.cfg.Logger.Warn("global search failed, falling back to the account list", "err", err)
+		} else if len(achados) == 1 {
+			http.Redirect(w, r, "/contas/"+achados[0].Name, http.StatusSeeOther)
+			return
+		}
+	}
+
+	http.Redirect(w, r, "/contas?q="+urlQuery(q), http.StatusSeeOther)
 }

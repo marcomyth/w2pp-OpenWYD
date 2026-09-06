@@ -61,6 +61,18 @@
   header .marca { font-weight: 600; font-size: 15px; color: var(--ink); letter-spacing: -0.01em; }
   .quem { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink-2); }
 
+  /* A busca do painel inteiro. Fica no cabeçalho e não numa página porque toda
+     tarefa começa procurando alguém, e obrigar a passar por Contas antes era um
+     clique cobrado de todo mundo o dia inteiro. */
+  header .ir { display: flex; gap: 7px; margin: 0; flex: 1 1 260px; max-width: 340px; }
+  header .ir input {
+    flex: 1; min-width: 0; padding: 6px 10px; font: inherit; font-size: 13.5px;
+    color: var(--ink); background: var(--ground);
+    border: 1px solid var(--rule); border-radius: 3px;
+  }
+  header .ir input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  header .ir button { padding: 5px 12px; }
+
   .cargo, .bloq, .chip-gold, .chip-danger {
     font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
     padding: 2px 7px; border-radius: 3px; white-space: nowrap;
@@ -379,6 +391,14 @@
     </span>
     {{end}}
   </nav>
+  {{/* Uma caixa só, em toda página. Sem JavaScript: é um formulário GET que vai
+       para uma rota que decide o destino. */}}
+  <form class="ir" method="get" action="/ir" role="search">
+    <input type="search" name="q" placeholder="conta, personagem ou item"
+           aria-label="Procurar conta, personagem ou item" autocomplete="off">
+    <button type="submit">Ir</button>
+  </form>
+
   <div class="quem">
     <span>{{.Account}}</span>
     <span class="cargo">{{.Role}}</span>

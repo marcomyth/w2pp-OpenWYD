@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/jogo"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
@@ -620,4 +621,124 @@ func painelDeEditores(t *testing.T, j Live) http.Handler {
 		t.Fatalf("New: %v", err)
 	}
 	return h.Routes()
+}
+
+// --- fase 2: a busca e a fila ---
+
+// Every task in this panel started the same way: click Contas, then search,
+// then click the account. The panel knew what you typed and made you tell it
+// where to look anyway.
+func TestBuscaGlobalVaiDiretoQuandoAchaUmaSo(t *testing.T) {
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	wr.mu.Lock()
+	wr.achados = []accounts.Achado{{
+		AccountSummary: domain.AccountSummary{ID: 7, Name: "lokitoo", Role: "player"},
+	}}
+	wr.mu.Unlock()
+
+	rec := getSignedIn(t, h, "/ir?q=lokitoo")
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if destino := rec.Header().Get("Location"); destino != "/contas/lokitoo" {
+		t.Errorf("foi para %q, want a conta direto", destino)
+	}
+}
+
+func TestBuscaGlobalComVariosCaiNaLista(t *testing.T) {
+	// Two matches is a choice, and the list is where a choice is made.
+	wr := newFakeWriter()
+	h := newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), wr)
+	wr.mu.Lock()
+	wr.achados = []accounts.Achado{
+		{AccountSummary: domain.AccountSummary{ID: 7, Name: "loki1"}},
+		{AccountSummary: domain.AccountSummary{ID: 8, Name: "loki2"}},
+	}
+	wr.mu.Unlock()
+
+	rec := getSignedIn(t, h, "/ir?q=loki")
+	destino, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(destino, "/contas?q=loki") {
+		t.Errorf("foi para %q, want a lista de contas com o termo", destino)
+	}
+}
+
+func TestBuscaGlobalDeNumeroVaiParaOItem(t *testing.T) {
+	h := painelDeEditores(t, &fakeJogo{estado: estadoDeTeste()})
+	rec := getSignedIn(t, h, "/ir?q=1415")
+	if destino := rec.Header().Get("Location"); destino != "/itens/1415/atributos" {
+		t.Errorf("foi para %q, want a página do item", destino)
+	}
+}
+
+func TestNumeroQueNaoEItemCaiNaBuscaDeConta(t *testing.T) {
+	// "12345" that is not an item is far more likely to be part of an account
+	// name than a typo of one, so it must not land on an empty item page.
+	h := painelDeEditores(t, &fakeJogo{estado: estadoDeTeste()})
+	rec := getSignedIn(t, h, "/ir?q=999999")
+	destino, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if strings.Contains(destino, "/itens/") {
+		t.Errorf("foi para %q — item que não existe", destino)
+	}
+	if !strings.Contains(destino, "/contas") {
+		t.Errorf("foi para %q, want a busca de conta", destino)
+	}
+}
+
+func TestACaixaDeBuscaApareceEmTodaPagina(t *testing.T) {
+	get := signedIn(t, newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), newFakeWriter()))
+	for _, pagina := range []string{"/", "/contas", "/auditoria"} {
+		if !strings.Contains(get(pagina).Body.String(), `action="/ir"`) {
+			t.Errorf("%s: sem a caixa de busca", pagina)
+		}
+	}
+}
+
+func TestAInicialMostraAFilaDeDenuncias(t *testing.T) {
+	// The home page showed the server state and nothing else, so the answer to
+	// "what needs me now" lived in three pages you had to know to open.
+	d := &fakeDenuncias{fila: []domain.PlayerReport{denunciaAberta()}}
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		Denuncias: d, Platform: newFakePlatform(), Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	body := getSignedIn(t, h.Routes(), "/").Body.String()
+
+	if !strings.Contains(body, "denúncia aberta") {
+		t.Error("a inicial não mostra a fila de denúncias")
+	}
+	// The age is the number that says whether the queue is being worked.
+	if !strings.Contains(body, "espera há") {
+		t.Error("a inicial não diz há quanto tempo a mais antiga espera")
+	}
+	if !strings.Contains(body, `href="/denuncias"`) {
+		t.Error("a fila não leva para a página que resolve")
+	}
+}
+
+func TestAInicialNaoChamaOJogo(t *testing.T) {
+	// The most-opened screen in the panel must not cross the single-owner game
+	// loop: those calls are drained ahead of player input. What is worth showing
+	// here is what costs a query.
+	j := &fakeJogo{estado: estadoDeTeste()}
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		Jogo: j, Platform: newFakePlatform(), Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	getSignedIn(t, h.Routes(), "/")
+
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if len(j.entregasAgora) != 0 || len(j.derrubadas) != 0 || len(j.desatolados) != 0 {
+		t.Error("a inicial mexeu no jogo")
+	}
 }

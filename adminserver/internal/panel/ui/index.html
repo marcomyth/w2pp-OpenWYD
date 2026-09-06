@@ -4,6 +4,43 @@
 <title>Painel OpenWYD</title>
 {{template "head" .}}
 <style>
+  /* Uma tarefa da fila. Link inteiro clicável: o próximo passo é sempre abrir a
+     página que resolve, então a linha inteira leva para lá. */
+  .tarefa {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 18px; margin-bottom: 10px; text-decoration: none;
+    background: var(--surface); border: 1px solid var(--rule);
+    border-left: 3px solid var(--rule); border-radius: 4px; color: var(--ink);
+  }
+  a.tarefa:hover { border-color: var(--ink-3); border-left-color: var(--danger); }
+  .tarefa .quanto {
+    font-size: 26px; line-height: 1; min-width: 44px; text-align: center;
+    font-variant-numeric: tabular-nums; color: var(--ink-3); flex: none;
+  }
+  .tarefa .oque { display: flex; flex-direction: column; gap: 2px; }
+  .tarefa .oque strong { font-weight: 600; font-size: 14.5px; }
+  .tarefa .detalhe { font-size: 12.5px; color: var(--ink-3); }
+  .tarefa.urgente { border-left-color: var(--danger); }
+  .tarefa.urgente .quanto { color: var(--danger); }
+  .tarefa.atencao { border-left-color: var(--warn); }
+  .tarefa.atencao .quanto { color: var(--warn); }
+  .tarefa.calma .quanto { color: var(--accent); }
+
+  .ultimas { border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+  .acao-linha {
+    display: grid; grid-template-columns: 96px 130px 1fr 130px; gap: 12px;
+    padding: 9px 16px; background: var(--surface); font-size: 13.5px;
+    border-bottom: 1px solid var(--rule); align-items: baseline;
+  }
+  .acao-linha:last-child { border-bottom: 0; }
+  .acao-linha .quando { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .acao-linha .quem-fez { color: var(--ink); }
+  .acao-linha .o-que { color: var(--ink-2); }
+  .acao-linha .em-quem { color: var(--ink-3); text-align: right; }
+  @media (max-width: 720px) {
+    .acao-linha { grid-template-columns: 1fr; gap: 2px; }
+    .acao-linha .em-quem { text-align: left; }
+  }
   .cartao {
     background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
     padding: 20px 22px; margin-bottom: 28px;
@@ -55,16 +92,71 @@
   </div>
   {{end}}
 
-  <h1>Você está autenticado</h1>
-  <p class="sub">
-    O cargo foi lido do banco nesta requisição, não no momento em que você entrou.
-    Se alguém tirar seu acesso, ele cai na próxima página que você abrir.
-  </p>
+  {{/* A fila. A tela inicial mostrava o estado do servidor e nada mais, então a
+       resposta para "o que precisa de mim agora" estava espalhada em três
+       páginas que a pessoa tinha que saber abrir. */}}
+  <h1>O que precisa de você</h1>
 
-  <p style="margin-bottom:26px">
-    <a class="botao" href="/contas">Ver contas</a>
-    {{if .HasItems}}<a class="botao" href="/itens">Ver itens</a>{{end}}
-  </p>
+  {{if .NaoLeu.denuncias}}
+    {{template "falha-de-leitura" "a fila de denúncias"}}
+  {{else if .HasDenun}}
+    {{if .Denuncias.Abertos}}
+    <a class="tarefa urgente" href="/denuncias">
+      <span class="quanto">{{.Denuncias.Abertos}}</span>
+      <span class="oque">
+        <strong>{{if eq .Denuncias.Abertos 1}}denúncia aberta{{else}}denúncias abertas{{end}}</strong>
+        {{if .Espera}}<span class="detalhe">a mais antiga espera há {{.Espera}}</span>{{end}}
+      </span>
+    </a>
+    {{else}}
+    <div class="tarefa calma">
+      <span class="quanto">0</span>
+      <span class="oque"><strong>nenhuma denúncia aberta</strong></span>
+    </div>
+    {{end}}
+  {{end}}
+
+  {{if .Servidor.Conhecido}}
+    {{if not .Servidor.Rodando}}
+    <a class="tarefa urgente" href="/servidor">
+      <span class="quanto">!</span>
+      <span class="oque">
+        <strong>O servidor de jogo está desligado</strong>
+        <span class="detalhe">estado na hospedagem: {{.Servidor.Estado}}</span>
+      </span>
+    </a>
+    {{else if .Servidor.Pendentes}}
+    <a class="tarefa atencao" href="/servidor">
+      <span class="quanto">{{.Servidor.Pendentes}}</span>
+      <span class="oque">
+        <strong>edição(ões) esperando um reinício</strong>
+        <span class="detalhe">atributos de monstro e de item só entram quando o servidor sobe</span>
+      </span>
+    </a>
+    {{end}}
+  {{end}}
+
+  <h2 style="margin-top:34px">Últimas ações da equipe</h2>
+  {{if .NaoLeu.auditoria}}
+    {{template "falha-de-leitura" "as últimas ações"}}
+  {{else if .Recentes}}
+    <div class="ultimas">
+      {{range .Recentes}}
+      <div class="acao-linha">
+        <span class="quando">{{.CreatedAt.Local.Format "02/01 15:04"}}</span>
+        <span class="quem-fez">{{.ActorName}}</span>
+        <span class="o-que">{{.Rotulo}}</span>
+        <span class="em-quem">{{if .TargetName}}{{.TargetName}}{{end}}</span>
+      </div>
+      {{end}}
+    </div>
+    <p class="sub" style="margin-top:10px">
+      <a href="/auditoria">Ver tudo</a> — serve para saber se alguém já pegou
+      isso antes de você.
+    </p>
+  {{else}}
+    <div class="vazio">Ninguém da equipe mexeu em nada ainda.</div>
+  {{end}}
 </main>
 </body>
 </html>
