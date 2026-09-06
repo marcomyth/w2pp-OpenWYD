@@ -520,3 +520,67 @@ func (s *Store) SaveCastleQuestState(ctx context.Context, st domain.CastleQuestS
 	}
 	return nil
 }
+
+// ListGuildMembers returns one guild's roster, leader first.
+//
+// The account name is joined in because it is the only thing on the row a
+// moderator can act on: guild_member names a CHARACTER, and every panel action —
+// ban, kick, deliver — works in accounts.
+func (s *Store) ListGuildMembers(ctx context.Context, guildID uint16) ([]domain.GuildMember, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT m.guild_id, m.character_id, m.account_id, coalesce(a.name, ''),
+		       m.slot, m.name, m.guild_level
+		  FROM guild_member m
+		  LEFT JOIN account a ON a.id = m.account_id
+		 WHERE m.guild_id = $1
+		 ORDER BY m.guild_level DESC, m.name`, int32(guildID))
+	if err != nil {
+		return nil, fmt.Errorf("store: list guild members of %d: %w", guildID, err)
+	}
+	defer rows.Close()
+
+	var out []domain.GuildMember
+	for rows.Next() {
+		var m domain.GuildMember
+		var gid int32
+		if err := rows.Scan(&gid, &m.CharacterID, &m.AccountID, &m.AccountName,
+			&m.Slot, &m.Name, &m.Level); err != nil {
+			return nil, fmt.Errorf("store: scan guild member: %w", err)
+		}
+		m.GuildID = uint16(gid)
+		out = append(out, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate guild members: %w", err)
+	}
+	return out, nil
+}
+
+// CountGuildMembers returns how many characters each guild holds, keyed by guild
+// id.
+//
+// One query for every guild rather than one per guild: the list page shows the
+// count on every row, and a roster read per row is how a list of forty guilds
+// becomes forty round trips.
+func (s *Store) CountGuildMembers(ctx context.Context) (map[uint16]int, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT guild_id, count(*) FROM guild_member GROUP BY guild_id`)
+	if err != nil {
+		return nil, fmt.Errorf("store: count guild members: %w", err)
+	}
+	defer rows.Close()
+
+	out := map[uint16]int{}
+	for rows.Next() {
+		var gid int32
+		var n int
+		if err := rows.Scan(&gid, &n); err != nil {
+			return nil, fmt.Errorf("store: scan guild member count: %w", err)
+		}
+		out[uint16(gid)] = n
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate guild member counts: %w", err)
+	}
+	return out, nil
+}

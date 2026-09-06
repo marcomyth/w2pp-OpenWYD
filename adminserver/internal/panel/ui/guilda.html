@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>{{.Guilda.Name}} — Painel OpenWYD</title>
+{{template "head" .}}
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>{{.Guilda.Name}}</h1>
+  <p class="sub">
+    Guilda {{.Guilda.ID}} · <a href="/guildas">voltar para a lista</a>
+  </p>
+
+  <div class="numeros">
+    <div class="num-tile"><div class="rot">Membros</div><div class="val">{{.Guilda.Membros}}</div></div>
+    <div class="num-tile"><div class="rot">Fama</div><div class="val">{{.Guilda.Fame}}</div></div>
+    <div class="num-tile">
+      <div class="rot">Aliada de</div>
+      <div class="val">{{if .Guilda.Aliada}}{{.Guilda.Aliada}}{{else}}&mdash;{{end}}</div>
+    </div>
+    <div class="num-tile">
+      <div class="rot">Em guerra com</div>
+      <div class="val">{{if .Guilda.EmGuerra}}{{.Guilda.EmGuerra}}{{else}}&mdash;{{end}}</div>
+    </div>
+  </div>
+
+  <h2>Membros</h2>
+  {{if .Membros}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Personagem</th>
+            <th>Conta</th>
+            <th class="num">Cargo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Membros}}
+          <tr>
+            <td>{{.Name}}{{if .Lider}} <span class="cargo">líder</span>{{end}}</td>
+            <td>
+              {{if .AccountName}}<a href="/contas/{{.AccountName}}">{{.AccountName}}</a>
+              {{else}}&mdash;{{end}}
+            </td>
+            <td class="num">{{.Level}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    <p class="sub" style="margin-top:12px">
+      A conta é o que dá para agir: a linha da guilda nomeia um personagem, e
+      banir, derrubar ou entregar item trabalham em conta.
+    </p>
+  {{else}}
+    <div class="vazio">Esta guilda não tem membros registrados.</div>
+  {{end}}
+</main>
+</body>
+</html>

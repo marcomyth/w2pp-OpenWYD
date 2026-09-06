@@ -156,6 +156,22 @@ type Denuncias interface {
 	MarkReportHandled(ctx context.Context, reportID, staffID int64) error
 }
 
+// Guildas is the guild and city state, READ ONLY.
+//
+// There are no writes here on purpose. The game keeps this state in its loop and
+// persists its own copy whenever it changes — a tax change, a siege, somebody
+// joining. A panel write would land in the database and be silently overwritten
+// by the next in-game change, which is worse than not offering it: the moderator
+// would watch the edit vanish with no way to tell why. The writes that matter
+// already have a path the game respects, /gm guildname and /gm guildfame.
+type Guildas interface {
+	ListGuilds(ctx context.Context) ([]domain.Guild, error)
+	ListGuildMembers(ctx context.Context, guildID uint16) ([]domain.GuildMember, error)
+	CountGuildMembers(ctx context.Context) (map[uint16]int, error)
+	ListGuildRelations(ctx context.Context) ([]domain.GuildRelation, error)
+	LoadGuildZones(ctx context.Context) ([]domain.GuildZone, error)
+}
+
 // Carteira is the donate wallet: the balance, its history and the staff
 // adjustment.
 type Carteira interface {
@@ -210,6 +226,7 @@ type Config struct {
 	Personagens Personagens
 	Eventos     Eventos
 	Denuncias   Denuncias
+	Guildas     Guildas
 	Carteira    Carteira
 	Platform    Platform
 	Entregas    Deliveries
@@ -316,6 +333,11 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("POST /contas/{nome}/personagens/{char}/slot", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setSlot))))
 		mux.Handle("POST /contas/{nome}/personagens/{char}/atributos", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setAtributos))))
 	}
+	// Guilds and cities, read only — see the Guildas interface for why.
+	if h.cfg.Guildas != nil {
+		mux.Handle("GET /guildas", h.requireStaff(http.HandlerFunc(h.guildas)))
+		mux.Handle("GET /guildas/{guilda}", h.requireStaff(http.HandlerFunc(h.guilda)))
+	}
 	// The report queue. Reading and closing are both staff: answering reports is
 	// the job, and a queue only the admin can clear is a queue nobody clears.
 	if h.cfg.Denuncias != nil {
@@ -367,6 +389,7 @@ type page struct {
 	HasSeguro bool   // the safe restart needs BOTH the game link and the hosting API
 	HasEvento bool   // the event switches need the database read
 	HasDenun  bool   // the report queue needs the database read
+	HasGuilda bool   // the guild pages need the database read
 	CSRF      string // every form that changes something carries this back
 }
 
@@ -385,6 +408,7 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		HasSeguro: h.cfg.Jogo != nil && h.cfg.Platform != nil,
 		HasEvento: h.cfg.Eventos != nil,
 		HasDenun:  h.cfg.Denuncias != nil,
+		HasGuilda: h.cfg.Guildas != nil,
 		CSRF:      sess.CSRF,
 	}
 }

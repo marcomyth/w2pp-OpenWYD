@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Guildas — Painel OpenWYD</title>
+{{template "head" .}}
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Guildas</h1>
+  <p class="sub">Quem existe, quem é aliado de quem, e quem manda em cada cidade.</p>
+
+  <p class="nota">
+    Esta tela <strong>só mostra</strong>. Guilda e cidade são estado que o jogo
+    mantém na memória e regrava sozinho a cada mudança — alguém entrando, um
+    imposto trocado, um cerco resolvido. Uma alteração feita aqui seria
+    sobrescrita na mudança seguinte sem avisar, que é pior do que não existir.
+    Para mudar nome e fama, o caminho que o jogo respeita é
+    <span class="mono">/gm guildname</span> e <span class="mono">/gm guildfame</span>.
+  </p>
+
+  <h2>Cidades</h2>
+  {{if .Cidades}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Cidade</th>
+            <th>Dona</th>
+            <th>Desafiante</th>
+            <th class="num">Imposto</th>
+            <th class="num">Cofre</th>
+            <th class="num">Lance do desafio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Cidades}}
+          <tr>
+            <td>{{.Nome}}</td>
+            <td>{{if .Dono}}{{.Dono}}{{else}}&mdash;{{end}}</td>
+            <td>{{if .Desafiante}}{{.Desafiante}}{{else}}&mdash;{{end}}</td>
+            <td class="num">{{.CityTax}}%</td>
+            <td class="num">{{.TaxVault}}</td>
+            <td class="num">{{if .ChallengeMoney}}{{.ChallengeMoney}}{{else}}&mdash;{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  {{else}}
+    <div class="vazio">Nenhuma cidade registrada ainda.</div>
+  {{end}}
+
+  <h2>Guildas</h2>
+  {{if .Guildas}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th class="num">Id</th>
+            <th>Nome</th>
+            <th class="num">Membros</th>
+            <th class="num">Fama</th>
+            <th>Aliada de</th>
+            <th>Em guerra com</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Guildas}}
+          <tr>
+            <td class="num">{{.ID}}</td>
+            <td><a href="/guildas/{{.ID}}">{{.Name}}</a></td>
+            <td class="num">{{.Membros}}</td>
+            <td class="num">{{.Fame}}</td>
+            <td>{{if .Aliada}}{{.Aliada}}{{else}}&mdash;{{end}}</td>
+            <td>{{if .EmGuerra}}<span class="chip-danger">{{.EmGuerra}}</span>{{else}}&mdash;{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  {{else}}
+    <div class="vazio">Nenhuma guilda criada ainda.</div>
+  {{end}}
+</main>
+</body>
+</html>

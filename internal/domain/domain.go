@@ -761,3 +761,21 @@ const MaxReportNearby = 20
 // a ban appeal to come back around and short enough that the panel is not an
 // archive of who stood next to whom.
 const ReportRetentionDays = 90
+
+// GuildMember is one character in a guild, as the panel lists them.
+type GuildMember struct {
+	GuildID     uint16
+	CharacterID int64
+	AccountID   int64
+	AccountName string
+	Slot        int
+	Name        string
+	// Level is the guild rank (0..9), not the character level: 9 is the leader.
+	Level uint8
+}
+
+// Lider reports whether this member is the guild leader.
+func (m GuildMember) Lider() bool { return m.Level == guildLeaderLevel }
+
+// guildLeaderLevel is the rank the leader carries (guild_member.guild_level).
+const guildLeaderLevel = 9
