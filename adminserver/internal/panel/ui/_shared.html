@@ -48,7 +48,7 @@
     justify-content: space-between; padding: 13px 22px;
     background: var(--surface); border-bottom: 1px solid var(--rule);
   }
-  /* The nav carries ten entries now. Without wrapping it pushes the account
+  /* The nav carries eleven entries now. Without wrapping it pushes the account
      block off a narrow screen. */
   header nav { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; }
   header a { color: var(--ink-2); text-decoration: none; font-size: 14px; }
@@ -343,6 +343,7 @@
     {{if .HasTrocas}}<a href="/trocas" {{if eq .Nav "trocas"}}class="on"{{end}}>Trocas</a>{{end}}
     {{if .HasJogo}}<a href="/servidor" {{if eq .Nav "servidor"}}class="on"{{end}}>Servidor</a>{{end}}
     {{if .HasJogo}}<a href="/mapa" {{if eq .Nav "mapa"}}class="on"{{end}}>Mapa</a>{{end}}
+    {{if .HasEvento}}<a href="/eventos" {{if eq .Nav "eventos"}}class="on"{{end}}>Eventos</a>{{end}}
     {{if .IsAdmin}}<a href="/auditoria" {{if eq .Nav "auditoria"}}class="on"{{end}}>Auditoria</a>{{end}}
   </nav>
   <div class="quem">

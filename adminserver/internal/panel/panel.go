@@ -133,6 +133,18 @@ type Personagens interface {
 	EmJogoPorSlot(ctx context.Context, accountID int64) (map[int]bool, error)
 }
 
+// Eventos is the global world-event config: double experience, the newbie
+// event and the item rain.
+//
+// Satisfied by *store.Store, which already owns these two calls for the portal.
+// Unlike the account writes there is nothing panel-specific to add: the shape is
+// the same row the game polls, and a second way to write it could only disagree
+// with the first.
+type Eventos interface {
+	WorldEventConfig(ctx context.Context) (domain.WorldEventConfig, error)
+	UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEventConfig, moderatorID int64) error
+}
+
 // Carteira is the donate wallet: the balance, its history and the staff
 // adjustment.
 type Carteira interface {
@@ -184,6 +196,7 @@ type Platform interface {
 type Config struct {
 	Accounts    Accounts
 	Personagens Personagens
+	Eventos     Eventos
 	Carteira    Carteira
 	Platform    Platform
 	Entregas    Deliveries
@@ -290,6 +303,13 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("POST /contas/{nome}/personagens/{char}/slot", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setSlot))))
 		mux.Handle("POST /contas/{nome}/personagens/{char}/atributos", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setAtributos))))
 	}
+	// The global event switches. Reading is staff; flipping them is admin —
+	// double experience and an item rain change what every player on the server
+	// earns, and an event item is real value handed out.
+	if h.cfg.Eventos != nil {
+		mux.Handle("GET /eventos", h.requireStaff(http.HandlerFunc(h.eventos)))
+		mux.Handle("POST /eventos", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setEventos))))
+	}
 	if h.cfg.GameData != nil {
 		mux.Handle("GET /itens", h.requireStaff(http.HandlerFunc(h.itens)))
 		mux.Handle("POST /itens/{indice}/preco", h.requireStaff(http.HandlerFunc(h.setPreco)))
@@ -326,6 +346,7 @@ type page struct {
 	HasTrocas bool   // the trade log exists only when a database read is configured
 	HasJogo   bool   // the live pages exist only when the game link is configured
 	HasSeguro bool   // the safe restart needs BOTH the game link and the hosting API
+	HasEvento bool   // the event switches need the database read
 	CSRF      string // every form that changes something carries this back
 }
 
@@ -342,6 +363,7 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		HasTrocas: h.cfg.Trocas != nil,
 		HasJogo:   h.cfg.Jogo != nil,
 		HasSeguro: h.cfg.Jogo != nil && h.cfg.Platform != nil,
+		HasEvento: h.cfg.Eventos != nil,
 		CSRF:      sess.CSRF,
 	}
 }

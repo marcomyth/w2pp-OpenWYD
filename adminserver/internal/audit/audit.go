@@ -40,6 +40,7 @@ const (
 	ActionSetPassword    = "SET_PASSWORD"
 	ActionKick           = "KICK"
 	ActionUnstuck        = "UNSTUCK"
+	ActionSetWorldEvent  = "SET_WORLD_EVENT"
 	ActionBroadcast      = "BROADCAST"
 	ActionSafeRestart    = "SAFE_RESTART"
 	ActionStopGame       = "STOP_GAME"
@@ -213,6 +214,7 @@ var rotulos = map[string]string{
 	ActionCancelDelivery: "Cancelou uma entrega",
 	ActionKick:           "Derrubou uma conta",
 	ActionUnstuck:        "Desatolou um personagem",
+	ActionSetWorldEvent:  "Mexeu nos eventos do servidor",
 	ActionBroadcast:      "Mandou um aviso para todos",
 	ActionRestartGame:    "Reiniciou o servidor",
 	ActionSafeRestart:    "Reiniciou com segurança",
