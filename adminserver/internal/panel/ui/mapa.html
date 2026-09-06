@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Mapa do mundo — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  /* O desenho é SVG servido junto com a página: o painel não serve JavaScript
+     e a política de segurança bloqueia script, então nada aqui pode depender
+     de biblioteca de mapa. O viewBox é a grade do mundo em unidades de jogo,
+     e tudo dentro dele é medido nessas unidades — por isso os tamanhos de
+     fonte e de raio parecem grandes. */
+  .mundo {
+    width: 100%; max-width: 760px; aspect-ratio: 1; display: block;
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+  }
+  .mundo .chao { fill: var(--surface); }
+  .mundo .malha { stroke: var(--rule); stroke-width: 3; }
+  .mundo .cidade { fill: none; stroke: var(--ink-3); stroke-width: 5; }
+  .mundo .cidade-nome { fill: var(--ink-3); font-size: 62px; letter-spacing: 2px; }
+  .mundo .jogador { fill: var(--accent); }
+  .mundo .jogador.junto { fill: var(--danger); }
+  .mundo .grupo { fill: none; stroke: var(--danger); stroke-width: 7; }
+
+  .legenda {
+    display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
+    margin: 12px 0 26px; font-size: 12.5px; color: var(--ink-3);
+  }
+  .legenda span { display: inline-flex; align-items: center; gap: 7px; }
+  .legenda i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .legenda i.so { background: var(--accent); }
+  .legenda i.junto { background: var(--danger); }
+  .legenda i.cid { border: 2px solid var(--ink-3); background: none; }
+
+  .contas-grupo { color: var(--ink-2); font-size: 13px; }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main class="larga">
+  <h1>Mapa do mundo</h1>
+  <p class="sub">
+    Onde está cada personagem em jogo agora. A leitura é uma só, feita quando
+    você abriu a página — recarregue para ver de novo.
+  </p>
+
+  {{if .Erro}}
+    <div class="nota perigo">{{.Erro}}</div>
+  {{end}}
+
+  <div class="numeros">
+    <div class="num-tile"><div class="rot">Em jogo</div><div class="val">{{len .Pontos}}</div></div>
+    <div class="num-tile"><div class="rot">Conectados</div><div class="val">{{.Conexoes}}</div></div>
+    <div class="num-tile"><div class="rot">Aglomerações</div><div class="val">{{len .Grupos}}</div></div>
+    <div class="num-tile"><div class="rot">Regiões com gente</div><div class="val">{{len .Regioes}}</div></div>
+  </div>
+
+  <svg class="mundo" viewBox="0 0 {{.Grade}} {{.Grade}}" role="img"
+       aria-label="Mapa do mundo com a posição de cada personagem em jogo">
+    <rect class="chao" x="0" y="0" width="{{.Grade}}" height="{{.Grade}}"></rect>
+    <path class="malha" d="M1024 0V4096M2048 0V4096M3072 0V4096M0 1024H4096M0 2048H4096M0 3072H4096"></path>
+
+    {{range .Cidades}}
+    <circle class="cidade" cx="{{.CX}}" cy="{{.CY}}" r="{{.Radius}}"></circle>
+    {{if .Rotular}}
+    <text class="cidade-nome" x="{{.CX}}" y="{{.CY}}" dy="-{{.Radius}}" text-anchor="middle">{{.Nome}}</text>
+    {{end}}
+    {{end}}
+
+    {{range .Grupos}}
+    <circle class="grupo" cx="{{.X}}" cy="{{.Y}}" r="{{.RaioDesenho}}"></circle>
+    {{end}}
+
+    {{range .Pontos}}
+    <circle class="jogador{{if .Junto}} junto{{end}}" cx="{{.X}}" cy="{{.Y}}" r="16">
+      <title>{{.Personagem}} ({{.Conta}}) — nível {{.Nivel}} — {{.X}}, {{.Y}} — {{.Regiao}}</title>
+    </circle>
+    {{end}}
+  </svg>
+
+  <div class="legenda">
+    <span><i class="so"></i> jogador</span>
+    <span><i class="junto"></i> em aglomeração</span>
+    <span><i class="cid"></i> cidade</span>
+    <span>grade de 1024 em 1024 · mundo de {{.Grade}} × {{.Grade}}</span>
+  </div>
+
+  <h2>Aglomerações fora de cidade</h2>
+  {{if .Grupos}}
+    <p class="nota">
+      Três ou mais personagens a menos de 24 passos uns dos outros, fora do
+      perímetro de qualquer cidade. Dentro de cidade todo mundo se junta — loja,
+      banco e ressurreição ficam lá — então cidade não conta. Isto é um indício,
+      não um veredito: caçada em grupo faz a mesma figura que fazenda de bot.
+    </p>
+    {{range .Grupos}}
+    <div class="caixa">
+      <div class="ficha-cab" style="display:flex;justify-content:space-between;gap:14px;margin-bottom:10px">
+        <strong>{{len .Contas}} personagens juntos</strong>
+        <span class="mono" style="color:var(--ink-3);font-size:12.5px">{{.X}}, {{.Y}} · raio {{.Raio}}</span>
+      </div>
+      <div class="sub" style="margin:0 0 8px">{{.Regiao}}</div>
+      <div class="contas-grupo">
+        {{range $i, $c := .Contas}}{{if $i}} · {{end}}<a href="/contas/{{$c}}">{{$c}}</a>{{end}}
+      </div>
+    </div>
+    {{end}}
+  {{else if .Pontos}}
+    <div class="vazio">Ninguém amontoado fora de cidade.</div>
+  {{end}}
+
+  <h2>Por região</h2>
+  {{if .Regioes}}
+    <div class="tw">
+      <table>
+        <thead><tr><th>Região</th><th class="num">Em jogo</th></tr></thead>
+        <tbody>
+          {{range .Regioes}}
+          <tr><td>{{.Nome}}</td><td class="num">{{.Total}}</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  {{else if not .Erro}}
+    <div class="vazio">Ninguém em jogo.</div>
+  {{end}}
+</main>
+</body>
+</html>

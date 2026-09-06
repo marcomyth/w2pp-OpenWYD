@@ -1,5 +1,11 @@
 // Package mapzones labels and derives the settlement a world position belongs
-// to, for the moderator UI's map_id picker and the NPC-by-city inventory.
+// to, for the moderator UI's map_id picker, the NPC-by-city inventory and the
+// admin panel's player map.
+//
+// It sits in the repo-root internal/ rather than under webserver/ because the
+// admin panel needs it too and Go's internal rule forbids reaching across:
+// coordinates arrive from the game control API as bare numbers, and a page that
+// prints "2091, 2101" instead of "Armia" makes a moderator go look it up.
 //
 // NPCDefinition.MapID is stored but not consumed by the world (npc-editing-plan.md
 // §9.2: the world runs a single grid, so spawn position comes from pos_x/pos_y
@@ -9,7 +15,7 @@
 // the derived id back only when a moderator confirms or overrides it.
 package mapzones
 
-// Zone is one labeled map_id value: a settlement centre plus the radius within
+// Zone is one labeled map_id value: a settlement center plus the radius within
 // which a position is considered part of it.
 //
 // Radius (not a rectangle) is deliberate. The legacy CityLimit rectangles in
@@ -17,12 +23,12 @@ package mapzones
 // tight enough to exclude NPCs that plainly belong to the town: Armia's
 // rectangle ends at y=2052, leaving Mestre_Archi (2102,2038), Foema_Ancian
 // (2097,2038), ForeLearner (2090,2047) and Cap.Cavaleiros (2095,2047) outside a
-// city they clearly stand in. Classifying by distance to the centre fixes that
+// city they clearly stand in. Classifying by distance to the center fixes that
 // without redefining the gameplay rectangles, which stay untouched.
 type Zone struct {
 	ID   int32
 	Name string
-	// CX, CY is the settlement centre on the single global grid.
+	// CX, CY is the settlement center on the single global grid.
 	CX, CY int32
 	// Radius bounds membership; 0 marks the catch-all Field entry, which is
 	// never matched by distance.
@@ -34,7 +40,7 @@ type Zone struct {
 	// actor or a monster, while Radius decides which town an NPC belongs to.
 	// Zero for derived zones, which have no legacy rectangle.
 	LimitX1, LimitY1, LimitX2, LimitY2 int32
-	// Verified reports whether the centre comes from the legacy source
+	// Verified reports whether the center comes from the legacy source
 	// (Basedef.cpp:54, mirrored in tmserver/internal/world/city.go) or was
 	// derived from the content tree. Derived zones are real settlements found
 	// in NPCGener.txt but with no name anywhere in the legacy source or this
@@ -94,7 +100,7 @@ var All = []Zone{
 }
 
 // Classify returns the id of the settlement containing (x, y), or Field when
-// the position is in open world. When radii overlap the nearest centre wins.
+// the position is in open world. When radii overlap the nearest center wins.
 func Classify(x, y int32) int32 {
 	best := Field
 	var bestDist int64 = -1
@@ -115,7 +121,7 @@ func Classify(x, y int32) int32 {
 }
 
 // Nearest returns the closest settlement to (x, y) and the distance to its
-// centre, ignoring radii. The panel uses it to say where a Field NPC actually
+// center, ignoring radii. The panel uses it to say where a Field NPC actually
 // stands ("Campo — mais próximo: Erion, 130"), which is more useful to a
 // moderator than an unqualified "outside every city".
 func Nearest(x, y int32) (Zone, int32) {

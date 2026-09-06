@@ -20,11 +20,11 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/mapzones"
 	"github.com/jeanluca/w2pp-openwyd/internal/npcgener"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/savefmt"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemcatalog"
-	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mapzones"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/npctemplates"
 )
 

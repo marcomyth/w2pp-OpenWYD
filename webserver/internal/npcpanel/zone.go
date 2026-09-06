@@ -1,6 +1,6 @@
 package npcpanel
 
-import "github.com/jeanluca/w2pp-openwyd/webserver/internal/mapzones"
+import "github.com/jeanluca/w2pp-openwyd/internal/mapzones"
 
 // applyZone recomputes the settlement labels for an NPC from its coordinates.
 // Position is the source of truth for which city an NPC is in — move it and the

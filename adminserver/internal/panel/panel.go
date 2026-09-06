@@ -253,6 +253,9 @@ func (h *Handler) Routes() http.Handler {
 	}
 	if h.cfg.Jogo != nil {
 		mux.Handle("GET /servidor", h.requireStaff(http.HandlerFunc(h.servidor)))
+		// Read-only, same single read as /servidor. Staff, not admin: seeing
+		// where people are is what a moderator does before deciding anything.
+		mux.Handle("GET /mapa", h.requireStaff(http.HandlerFunc(h.mapa)))
 		mux.Handle("POST /servidor/derrubar", h.requireStaff(http.HandlerFunc(h.derrubarConta)))
 		mux.Handle("POST /servidor/aviso", h.requireStaff(http.HandlerFunc(h.avisarTodos)))
 		if h.cfg.Platform != nil {
