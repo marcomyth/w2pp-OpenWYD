@@ -307,6 +307,12 @@ type worldEventState struct {
 	// over from an expired run — would otherwise pay again and turn the dungeon
 	// into an infinite scroll farm. Armed on entry, cleared on payout.
 	waterPaid [3][10]bool
+	// cartaTime and cartaSala are CartaTime/CartaSala (Server.cpp:531-532): the
+	// Sala Secreta run, in seconds and rooms. One pair server-wide, as in the
+	// original — the room rectangles and generator blocks are shared, so two
+	// concurrent runs would evict each other. 0/0 = no run. See carta.go.
+	cartaTime uint8
+	cartaSala uint8
 }
 
 // New builds a Dispatcher with the batch-1 routes registered.

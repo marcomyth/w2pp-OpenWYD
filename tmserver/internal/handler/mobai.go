@@ -103,6 +103,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.tickTowerWar(w)
 	d.tickCastle(w)
 	d.tickWaterRooms(w)
+	d.tickCarta(w)
 	d.tickPesadelo(w)
 	d.tickFairies(w)
 	d.respawnMobs(w)

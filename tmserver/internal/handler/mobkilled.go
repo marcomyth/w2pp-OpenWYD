@@ -57,6 +57,7 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 	// Runs BEFORE the DespawnMob below, so the generator still counts this mob —
 	// which is how the legacy detects the last one down (CurrentNumMob == 1).
 	d.waterRoomCleared(w, reward, mob)
+	d.cartaRoomCleared(w, mob)
 	// The reward target is a player, so its entity id equals its connection slot;
 	// the session is needed for gold/level-up packets (nil if it disconnected).
 	ks := w.Session(reward.ID)

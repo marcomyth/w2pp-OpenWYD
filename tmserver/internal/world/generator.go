@@ -131,9 +131,30 @@ var eventOwnedGenerators = map[int]bool{
 	4239: true,
 }
 
+// SecretRoomGenFirst/Last bound the Sala Secreta blocks (Basedef.h:374-420): the
+// three card sets N, M and A, ten blocks each — eight sala blocks, then two boss
+// templates. handler/carta.go spawns the whole range when a Carta de Duelo is
+// used and the run's own sweep clears it.
+//
+// They must be event-owned for two separate reasons. Populated at boot the
+// dungeon stands permanently full, so a party walks into a room already cleared
+// by nobody; and on the 15s respawn queue a sala refills behind the party and can
+// never reach the "last mob down" that advances the run.
+const (
+	SecretRoomGenFirst = 2395
+	SecretRoomGenLast  = 2424
+)
+
+// IsSecretRoomGenerator reports whether a block belongs to the Sala Secreta.
+func IsSecretRoomGenerator(idx int) bool {
+	return idx >= SecretRoomGenFirst && idx <= SecretRoomGenLast
+}
+
 // IsEventOwnedGenerator reports whether a block belongs to a scripted event
 // rather than to the world population.
-func IsEventOwnedGenerator(idx int) bool { return eventOwnedGenerators[idx] }
+func IsEventOwnedGenerator(idx int) bool {
+	return eventOwnedGenerators[idx] || IsSecretRoomGenerator(idx)
+}
 
 // ClearGenerator removes every live entity and queued respawn owned by one
 // generator slot before a DB snapshot replaces its recipe. Loop-only.

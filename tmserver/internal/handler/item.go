@@ -497,6 +497,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useIdealStone(w, s, e, src)
 	case vol == volExpChest:
 		d.useExpChest(w, s, e, src)
+	case vol == volCartaDuelo:
+		d.useCartaDuelo(w, s, e, src)
 	case vol == volPerdaoScroll:
 		d.usePerdaoScroll(w, s, e, src)
 	case vol >= volDivine7 && vol <= volDivine30:
