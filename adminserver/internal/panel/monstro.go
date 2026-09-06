@@ -111,11 +111,12 @@ func (h *Handler) monstro(w http.ResponseWriter, r *http.Request) {
 		Escolhido  itemView
 		Abas       abasMob
 		Resumo     []resumoCampo
+		Origens    []gamedata.MobOrigem
 		Overlay    avisoOverlay
 		Aviso      string
 	}{
 		h.pageFor(r, "monstros"), stat.Name(), stat.DisplayName(), stat.Overridden(),
-		visiveis, linhas, sel, escolhido, abas, resumoDe(campos),
+		visiveis, linhas, sel, escolhido, abas, resumoDe(campos), stat.Origens(),
 		h.overlayMonstros(r), r.URL.Query().Get("aviso"),
 	})
 }
@@ -303,13 +304,26 @@ func (h *Handler) setMonstro(w http.ResponseWriter, r *http.Request) {
 
 	mudados := map[string]any{}
 	for _, c := range stat.Fields() {
+		// Absent and present-but-empty are different things, and telling them
+		// apart is what makes this form honest. A field on another tab is absent
+		// and must be left alone. A field ON this tab arriving empty means the
+		// operator emptied the box — or typed something the browser refused to
+		// keep — and answering that with "Gravado" while the old number survives
+		// is indistinguishable from the save being broken.
+		if !r.PostForm.Has(c.Nome) {
+			continue
+		}
 		bruto := strings.TrimSpace(r.PostFormValue(c.Nome))
 		if bruto == "" {
-			continue // field absent from the form: leave it as it was
+			http.Error(w, "O campo "+c.Rotulo+" ficou vazio. Escreva 0 para zerar.",
+				http.StatusBadRequest)
+			return
 		}
 		v, err := strconv.ParseInt(bruto, 10, 64)
 		if err != nil {
-			http.Error(w, "Valor inválido em "+c.Rotulo+".", http.StatusBadRequest)
+			http.Error(w, "Valor inválido em "+c.Rotulo+": \""+bruto+
+				"\". Use só dígitos, sem ponto nem vírgula (12000, não 12.000).",
+				http.StatusBadRequest)
 			return
 		}
 		if v != c.Valor {

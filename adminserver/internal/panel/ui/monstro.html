@@ -31,6 +31,27 @@
   .barra-salvar .dica { margin: 0; font-size: 12.5px; color: var(--ink-3); }
   .limpar { margin-top: 26px; }
 
+  /* Where the monster spawns. Quiet by default — it is context, not a number
+     to act on — and marked when nothing spawns it, which is the case worth
+     interrupting somebody for. */
+  .origem-mob {
+    border: 1px solid var(--rule); border-left: 3px solid var(--rule);
+    border-radius: 4px; padding: 11px 14px; margin-bottom: 18px;
+  }
+  .origem-mob .r {
+    font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .origem-mob ul { list-style: none; margin: 7px 0 0; padding: 0; }
+  .origem-mob li + li { margin-top: 6px; }
+  .origem-mob li strong { font-size: 14px; }
+  .origem-mob .det {
+    display: block; font-size: 12px; color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .origem-mob p { margin: 7px 0 0; font-size: 13px; color: var(--ink-2); }
+  .origem-mob.orfao { border-left-color: var(--gold); }
+  .origem-mob.orfao strong { color: var(--gold); }
+
   /* Summary strip: the figures you balance against, kept out of the tabs. */
   .resumo-mob {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); gap: 1px;
@@ -78,6 +99,39 @@
     Modelo <code>{{.Nome}}</code> ·
     {{if .Overridden}}<span class="cargo">exceção salva</span>{{else}}valores do arquivo de conteúdo{{end}}
   </p>
+
+  {{/* Where the monster comes from, straight from NPCGener + Regions. This is
+       identity, not a statistic, so it sits above the numbers: two thirds of the
+       template files spawn nowhere, and @@Gargula sits in the picker one line
+       from Gargula_, which is the Água Místico monster somebody rebalancing
+       "the gargoyle" actually meant. */}}
+  <div class="origem-mob{{if not .Origens}} orfao{{end}}">
+    {{if .Origens}}
+      <div class="r">Onde nasce</div>
+      <ul>
+        {{range .Origens}}
+        <li>
+          <strong>{{.Local}}</strong>
+          <span class="det">
+            {{if gt .Quantidade 0}}até {{.Quantidade}} por vez{{else}}acompanha outro monstro{{end}}
+            · {{.Pontos}} ponto{{if gt .Pontos 1}}s{{end}}
+            · {{if .Renasce}}renasce a cada {{.RespawnMin}} min{{else}}não renasce sozinho{{end}}
+            · em {{.X}}, {{.Y}}
+          </span>
+        </li>
+        {{end}}
+      </ul>
+    {{else}}
+      <div class="r">Onde nasce</div>
+      <p>
+        <strong>Nenhum gerador cria este modelo.</strong>
+        Ele não aparece no <code>NPCGener.txt</code>, então nada que você mudar aqui
+        chega ao mapa por spawn normal — confira se o modelo certo não é outro de
+        nome parecido. Modelos assim ainda podem ser usados por masmorras, quests,
+        invocações e eventos, que criam o monstro pelo nome direto no código.
+      </p>
+    {{end}}
+  </div>
 
   {{/* The summary stays put across tabs: these are the figures you balance
        against, and they would vanish exactly when you navigate to edit one. */}}
@@ -182,7 +236,12 @@
           {{range .Campos}}
           <div class="numero{{if .Alterado}} alterado{{end}}">
             <label for="c-{{.Nome}}">{{.Rotulo}}</label>
-            <input id="c-{{.Nome}}" name="{{.Nome}}" type="number" step="1"
+            {{/* Deliberately NOT type="number": that input posts an empty string
+                 whenever the browser considers what was typed invalid, so "12.000"
+                 (with the thousands separator everybody writes) reaches the server
+                 as nothing at all and the save silently keeps the old value. As
+                 text the typo arrives intact and gets a real error message. */}}
+            <input id="c-{{.Nome}}" name="{{.Nome}}" type="text"
                    inputmode="numeric" value="{{.Valor}}">
             {{if .Alterado}}<div class="origem">arquivo: {{.Arquivo}}</div>{{end}}
           </div>
