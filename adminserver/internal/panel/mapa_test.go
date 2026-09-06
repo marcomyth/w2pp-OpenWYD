@@ -404,104 +404,49 @@ func TestGrupoSemEnderecoNaoEMesmaConexao(t *testing.T) {
 	}
 }
 
-// --- o recorte do mapa ---
+// --- a medida do desenho ---
 
-// The map framed the whole 4096 x 4096 grid, and the grid is mostly empty: the
-// five cities span 64% of its width and 35% of its height. The usual view — an
-// empty server — was five circles in a band with a quarter of the width blank on
-// the left and a quarter of the height blank at the bottom. It read as circles
-// floating in a box rather than as a map.
-func TestORecorteEnquadraOQueExiste(t *testing.T) {
-	v := vistaDe(cidades(nil), nil)
-	if v.Lado >= gradeMundo {
-		t.Fatalf("lado = %d, want menor que o mundo inteiro", v.Lado)
-	}
-
-	var x1, y1, x2, y2 int32 = gradeMundo, gradeMundo, 0, 0
-	for _, c := range cidades(nil) {
-		if c.CX-c.Radius < x1 {
-			x1 = c.CX - c.Radius
-		}
-		if c.CX+c.Radius > x2 {
-			x2 = c.CX + c.Radius
-		}
-		if c.CY-c.Radius < y1 {
-			y1 = c.CY - c.Radius
-		}
-		if c.CY+c.Radius > y2 {
-			y2 = c.CY + c.Radius
-		}
-	}
-	// Everything drawn has to be inside the frame, margin included.
-	if x1 < v.X || x2 > v.X+v.Lado || y1 < v.Y || y2 > v.Y+v.Lado {
-		t.Errorf("uma cidade ficou fora do recorte: cidades %d..%d/%d..%d, recorte %d..%d",
-			x1, x2, y1, y2, v.X, v.X+v.Lado)
-	}
-	// And it has to actually fill it: the whole point is to stop framing air.
-	if ocupa := float64(x2-x1) / float64(v.Lado); ocupa < 0.8 {
-		t.Errorf("as cidades ocupam só %.0f%% da largura, want ao menos 80%%", ocupa*100)
+// The map frames the whole world, and it can only do that because the world is
+// drawn: the terrain silhouette (ui/_mundo.html, generated from the game's own
+// AttributeMap.dat) is what stopped this being a square with five circles in a
+// void. Without it the frame was air, which is what an earlier crop was trying
+// to hide.
+func TestOMapaEnquadraOMundoInteiro(t *testing.T) {
+	v := vistaCompleta()
+	if v.X != 0 || v.Y != 0 || v.Lado != gradeMundo {
+		t.Errorf("vista = %d,%d+%d, want o mundo inteiro", v.X, v.Y, v.Lado)
 	}
 }
 
-// Square on purpose. Letting the frame follow the content would fill the box
-// better and lie: this map exists to show who is standing near whom, and a
-// picture whose east-west scale differs from its north-south one makes the same
-// distance look like two distances depending on direction.
-func TestORecorteEQuadrado(t *testing.T) {
-	casos := [][]PontoMapa{
-		nil,
-		{{X: 2800, Y: 2600}},
-		{{X: 100, Y: 100}, {X: 4000, Y: 4000}},
-		{{X: 2000, Y: 10}},
+// Labels and dots are given in world units, so they need a size relative to the
+// frame rather than a constant that happens to look right at one page width.
+func TestAsMedidasSaemDaVista(t *testing.T) {
+	v := vistaCompleta()
+	if v.Fonte <= 0 || v.Ponto <= 0 || v.FonteVazio <= v.Fonte {
+		t.Errorf("medidas = %+v", v)
 	}
-	for _, ps := range casos {
-		v := vistaDe(cidades(ps), ps)
-		if v.Lado <= 0 {
-			t.Errorf("%v: lado = %d", ps, v.Lado)
-		}
-		if v.X < 0 || v.Y < 0 || v.X+v.Lado > gradeMundo || v.Y+v.Lado > gradeMundo {
-			t.Errorf("%v: recorte %d,%d+%d saiu do mundo", ps, v.X, v.Y, v.Lado)
-		}
+	if v.Meio != gradeMundo/2 {
+		t.Errorf("meio = %d, want o centro", v.Meio)
+	}
+	if v.Base <= v.Meio || v.Base >= gradeMundo {
+		t.Errorf("base = %d, want perto do rodapé do desenho", v.Base)
 	}
 }
 
-func TestNinguemFicaDeForaDoRecorte(t *testing.T) {
-	// The frame grows to include every player. Cropping somebody out would hide
-	// exactly the person a moderator opened the map to find.
-	longe := []PontoMapa{{Conta: "perdido", X: 4050, Y: 60}}
-	v := vistaDe(cidades(longe), longe)
-	if longe[0].X < v.X || longe[0].X > v.X+v.Lado {
-		t.Errorf("o jogador em %d ficou fora de %d..%d", longe[0].X, v.X, v.X+v.Lado)
+func TestOTerrenoEDesenhado(t *testing.T) {
+	// The silhouette is the whole reason the map reads as a map. If the template
+	// ever stops being included, the page goes back to a square with five
+	// circles in it and nobody would notice from the tests.
+	j := &fakeJogo{estado: jogo.Estado{}}
+	body := getSignedIn(t, newTestPanelJogo(t, newFakeAudit(), j), "/mapa").Body.String()
+	if !strings.Contains(body, `class="terreno"`) {
+		t.Fatal("o mapa foi desenhado sem o terreno")
 	}
-	if longe[0].Y < v.Y || longe[0].Y > v.Y+v.Lado {
-		t.Errorf("o jogador em %d ficou fora de %d..%d", longe[0].Y, v.Y, v.Y+v.Lado)
-	}
-}
-
-func TestAsCidadesSempreAncoramORecorte(t *testing.T) {
-	// Seeded with the cities rather than starting from the players: a frame that
-	// tightened around two people standing together would be a picture of
-	// nowhere, with no landmark to read it by.
-	dois := []PontoMapa{{X: 2800, Y: 2600}, {X: 2805, Y: 2604}}
-	v := vistaDe(cidades(dois), dois)
-	if v.Lado < 2000 {
-		t.Errorf("lado = %d — o recorte fechou em cima dos dois e perdeu as cidades", v.Lado)
-	}
-}
-
-func TestAsLetrasEOsPontosAcompanhamORecorte(t *testing.T) {
-	// Sizes were tuned for the full world at this page width; a tighter crop
-	// magnifies everything inside it, so a fixed size would grow into the
-	// drawing.
-	inteiro := vistaCompleta()
-	apertado := vistaDe([]CidadeMapa{{Nome: "X", CX: 2000, CY: 2000, Radius: 60}}, nil)
-	if apertado.Lado >= inteiro.Lado {
-		t.Fatalf("o recorte apertado não ficou menor: %d vs %d", apertado.Lado, inteiro.Lado)
-	}
-	if apertado.Fonte >= inteiro.Fonte {
-		t.Errorf("a letra não encolheu junto: %d vs %d", apertado.Fonte, inteiro.Fonte)
-	}
-	if apertado.Ponto >= inteiro.Ponto {
-		t.Errorf("o ponto não encolheu junto: %d vs %d", apertado.Ponto, inteiro.Ponto)
+	// It has to be substantial: an empty path would pass a Contains check and
+	// draw nothing.
+	i := strings.Index(body, `class="terreno" d="`)
+	fim := strings.Index(body[i:], `"></path>`)
+	if fim < 2000 {
+		t.Errorf("o caminho do terreno tem %d bytes, want a silhueta inteira", fim)
 	}
 }

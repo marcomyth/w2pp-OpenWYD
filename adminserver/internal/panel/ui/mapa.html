@@ -14,6 +14,10 @@
     background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
   }
   .mundo .chao { fill: var(--surface); }
+  /* O mundo construído, tirado do mapa de atributos do próprio jogo. Fica
+     apagado de propósito: é o chão que dá forma à página, não o assunto —
+     quem está sendo procurado são as bolinhas em cima dele. */
+  .mundo .terreno { fill: var(--rule); }
   .mundo .malha { stroke: var(--rule); stroke-width: 3; }
   .mundo .cidade { fill: none; stroke: var(--ink-3); stroke-width: 5; }
   /* Sem font-size aqui: ele vem do atributo, calculado a partir do recorte,
@@ -63,6 +67,7 @@
   <svg class="mundo" viewBox="{{$v.X}} {{$v.Y}} {{$v.Lado}} {{$v.Lado}}" role="img"
        aria-label="Mapa do mundo com a posição de cada personagem em jogo">
     <rect class="chao" x="{{$v.X}}" y="{{$v.Y}}" width="{{$v.Lado}}" height="{{$v.Lado}}"></rect>
+    {{template "silhueta-do-mundo"}}
 
     {{range .Cidades}}
     <circle class="cidade" cx="{{.CX}}" cy="{{.CY}}" r="{{.Radius}}"></circle>
@@ -92,7 +97,7 @@
     <span><i class="so"></i> jogador</span>
     <span><i class="junto"></i> em aglomeração</span>
     <span><i class="cid"></i> cidade</span>
-    <span>recorte de {{$v.Lado}} passos · o mundo tem {{.Grade}} × {{.Grade}}</span>
+    <span>o mundo inteiro, {{.Grade}} × {{.Grade}} passos</span>
   </div>
 
   {{if not .Pontos}}
