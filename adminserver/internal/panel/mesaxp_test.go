@@ -67,9 +67,16 @@ func (f *fakeMesa) DeleteXPRule(_ context.Context, zona, evo int32) (domain.XPRu
 }
 
 func newTestPanelMesa(t *testing.T, cargo string, mesa MesaXP, log AuditLog) http.Handler {
+	return newTestPanelMesaComJogo(t, cargo, mesa, log, nil)
+}
+
+// newTestPanelMesaComJogo is the same panel with the monster editor attached,
+// which is where the simulator reads a mob's reward and level from.
+func newTestPanelMesaComJogo(t *testing.T, cargo string, mesa MesaXP, log AuditLog, jogo GameData) http.Handler {
 	t.Helper()
 	h, err := New(Config{
 		Accounts: withTarget(cargo), Writer: newFakeWriter(), Audit: log, MesaXP: mesa,
+		GameData: jogo,
 		Sessions: session.New(time.Hour),
 		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
 	})
@@ -319,5 +326,67 @@ func TestNomesDeMonstroToleraFalha(t *testing.T) {
 	req := httptest.NewRequest("GET", "/mesaxp", nil)
 	if got := h.nomesDeMonstro(req); got != nil {
 		t.Errorf("sem GameData a lista deve vir vazia, veio %v", got)
+	}
+}
+
+// TestSimuladorPuxaOsNumerosDoMonstro is the complaint that made this change:
+// picking a monster left "XP que ele dá" and "Nível do monstro" sitting at
+// zero, which reads as "this mob is worth nothing" rather than "not loaded
+// yet". The chosen monster owns those two numbers, so the page shows them as
+// facts and carries them in hidden fields.
+func TestSimuladorPuxaOsNumerosDoMonstro(t *testing.T) {
+	jogo := newFakeGameData()
+	h := newTestPanelMesaComJogo(t, roleAdmin, newFakeMesa(), newFakeAudit(), jogo)
+
+	corpo := abrirMesa(t, h, "?simular=1&zona=0&evolucao=2&mob=Kentania&nivel=10").Body.String()
+
+	// The seeded Kentania is level 10 worth 5000.
+	if !strings.Contains(corpo, `name="mob_exp" value="5000"`) {
+		t.Error("a XP do monstro não foi carregada para o formulário")
+	}
+	if !strings.Contains(corpo, `name="mob_nivel" value="10"`) {
+		t.Error("o nível do monstro não foi carregado para o formulário")
+	}
+	// And they must stop being boxes the moderator has to fill.
+	if strings.Contains(corpo, `type="number" name="mob_exp"`) {
+		t.Error("a XP continua como caixa editável ao lado de um monstro escolhido")
+	}
+	if !strings.Contains(corpo, "/monstros/Kentania") {
+		t.Error("faltou o caminho para mudar a XP do monstro")
+	}
+	// The simulation itself has to have used them.
+	if strings.Contains(corpo, "Escolha um monstro ou digite quanta XP ele dá") {
+		t.Error("simulou como se não houvesse monstro")
+	}
+}
+
+// TestSemMonstroAindaDaParaDigitar keeps the hypothetical case working: with no
+// monster chosen the two numbers go back to being fields, which is how you
+// simulate a mob that does not exist yet.
+func TestSemMonstroAindaDaParaDigitar(t *testing.T) {
+	jogo := newFakeGameData()
+	h := newTestPanelMesaComJogo(t, roleAdmin, newFakeMesa(), newFakeAudit(), jogo)
+
+	corpo := abrirMesa(t, h, "?simular=1&zona=0&evolucao=2&mob_exp=20000&mob_nivel=371&nivel=371").Body.String()
+	if !strings.Contains(corpo, `type="number" name="mob_exp"`) {
+		t.Error("sem monstro escolhido a XP deveria continuar editável")
+	}
+	if !strings.Contains(corpo, "2726") {
+		t.Error("a simulação à mão parou de funcionar")
+	}
+}
+
+// TestMonstroInexistenteAvisaEmVezDeZerar: a name that resolves to nothing has
+// to say so, not silently simulate a mob worth zero.
+func TestMonstroInexistenteAvisaEmVezDeZerar(t *testing.T) {
+	jogo := newFakeGameData()
+	h := newTestPanelMesaComJogo(t, roleAdmin, newFakeMesa(), newFakeAudit(), jogo)
+
+	corpo := abrirMesa(t, h, "?simular=1&zona=0&evolucao=2&mob=NaoExiste&nivel=10").Body.String()
+	if !strings.Contains(corpo, "Não achei o monstro") {
+		t.Error("um monstro inexistente passou calado")
+	}
+	if strings.Contains(corpo, `type="hidden" name="mob_exp"`) {
+		t.Error("escondeu a XP de um monstro que não foi encontrado")
 	}
 }

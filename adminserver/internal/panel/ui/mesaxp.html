@@ -25,6 +25,15 @@
     color: var(--ink); background: var(--ground); border: 1px solid var(--rule);
     border-radius: 3px; font-variant-numeric: tabular-nums;
   }
+  /* Um número que vem do arquivo do monstro, não do formulário: mesma altura
+     das caixas ao lado, para a linha não desalinhar. */
+  .doarquivo { display: block; font-size: 12.5px; color: var(--ink-3); }
+  .doarquivo .rot { display: block; }
+  .doarquivo .val {
+    display: block; margin-top: 4px; padding: 7px 0; font-size: 15px;
+    color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 600;
+  }
+  .doarquivo a { font-size: 12px; }
   .grade-campos input:focus, .grade-campos select:focus {
     outline: 2px solid var(--accent); outline-offset: 1px;
   }
@@ -179,6 +188,9 @@
     <p class="sub">
       Roda a mesma função que o jogo roda numa morte, com as tabelas acima já
       valendo. Serve para ver o efeito de uma quebra antes de gravá-la.
+      A XP e o nível saem do arquivo do monstro escolhido — clique em
+      <strong>Simular</strong> para carregá-los. Deixe o nome em branco se quiser
+      simular um monstro que ainda não existe.
     </p>
 
     <form method="get" action="/rates/xp">
@@ -199,6 +211,25 @@
             {{range .Monstros}}<option value="{{.}}"></option>{{end}}
           </datalist>
         </label>
+        {{if .DoMonstro}}
+        {{/* O monstro escolhido é dono destes dois números, então eles deixam de
+             ser caixas para preencher e viram fato para ler — os valores vão
+             junto em campos escondidos. Duas caixas zeradas ao lado de um
+             monstro escolhido liam como "este bicho não vale nada", que nunca
+             foi o que se quis dizer. Para simular um monstro hipotético, é só
+             esvaziar o nome. */}}
+        <input type="hidden" name="mob_exp" value="{{.Form.MobExp}}">
+        <input type="hidden" name="mob_nivel" value="{{.Form.MobNivel}}">
+        <div class="doarquivo">
+          <span class="rot">XP que ele dá</span>
+          <span class="val">{{.Form.MobExp}}</span>
+          <a href="/monstros/{{.Form.Mob}}">mudar</a>
+        </div>
+        <div class="doarquivo">
+          <span class="rot">Nível do monstro</span>
+          <span class="val">{{.Form.MobNivel}}</span>
+        </div>
+        {{else}}
         <label>
           XP que ele dá
           <input type="number" name="mob_exp" min="0" value="{{.Form.MobExp}}">
@@ -207,6 +238,7 @@
           Nível do monstro
           <input type="number" name="mob_nivel" min="0" max="400" value="{{.Form.MobNivel}}">
         </label>
+        {{end}}
         <label>
           Nível do personagem
           <input type="number" name="nivel" min="0" max="399" value="{{.Form.Nivel}}">

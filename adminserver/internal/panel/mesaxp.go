@@ -110,6 +110,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 	// the simulation is about a monster that exists rather than two numbers
 	// somebody guessed.
 	var mobAviso string
+	var doMonstro bool
 	if form.Mob != "" {
 		exp, nivel, err := h.mobExpNivel(r, form.Mob)
 		switch {
@@ -118,7 +119,12 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		case err != nil:
 			mobAviso = fmt.Sprintf("Não achei o monstro %q. Confira o nome em /monstros.", form.Mob)
 		default:
+			// The chosen monster owns these two numbers, so they stop being
+			// boxes to fill and become facts to read. Two zeroed inputs beside
+			// a picked monster read as "this mob is worth nothing", which is
+			// never what they meant — they meant "não carreguei ainda".
 			form.MobExp, form.MobNivel = exp, nivel
+			doMonstro = true
 		}
 	}
 
@@ -151,6 +157,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		Historico []audit.Entry
 		Fadas     []fadaOpcao
 		Monstros  []string
+		DoMonstro bool
 		Aviso     string
 		VoltarURL string
 	}{
@@ -170,6 +177,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		Historico: historico,
 		Fadas:     fadas,
 		Monstros:  h.nomesDeMonstro(r),
+		DoMonstro: doMonstro,
 		Aviso:     r.URL.Query().Get("aviso"),
 		VoltarURL: form.query(),
 	})
