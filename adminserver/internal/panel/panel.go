@@ -393,6 +393,28 @@ type page struct {
 	CSRF      string // every form that changes something carries this back
 }
 
+// falhas records the secondary reads that did not answer.
+//
+// Every page here degrades rather than blanking: a list that fails to load is
+// logged and the page renders without it, because losing one section should not
+// cost the whole screen. That half was right. The other half was not — the empty
+// list then drew the same "there is nothing here" message as a genuinely empty
+// one, so a failed read looked like an answer. An account with four characters
+// read as an account with none.
+//
+// This is the third state. A page marks what it could not read, and the shared
+// falha-de-leitura block says so where the list would have been.
+type falhas map[string]bool
+
+// nao marks one read as failed. A nil map is usable for reading in templates but
+// not for writing, so the map is made on first use rather than at every page.
+func (f *falhas) nao(oque string) {
+	if *f == nil {
+		*f = falhas{}
+	}
+	(*f)[oque] = true
+}
+
 // pageFor is a method rather than a function so it can answer, for every page,
 // which nav entries actually exist. Passing that in per call site meant fifteen
 // places each deciding it again, and a new one would have been fifteen edits.
@@ -484,12 +506,15 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var naoLeu falhas
 	chars, err := h.cfg.Accounts.ListCharacters(r.Context(), auth.ID)
 	if err != nil {
 		// The account is worth showing even if the character list fails; losing
-		// the roster should not blank out the role and block status too.
+		// the roster should not blank out the role and block status too. What it
+		// must not do is come out looking like an account with no characters.
 		h.cfg.Logger.Error("character list failed", "account", nome, "id", auth.ID, "err", err)
-		chars = nil
+		chars, naoLeu = nil, nil
+		naoLeu.nao("personagens")
 	}
 
 	// Details is a panel-owned read, so it carries what the store's auth row does
@@ -527,6 +552,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			h.cfg.Logger.Error("pending deliveries failed", "account", nome, "id", auth.ID, "err", err)
 			pendentes = nil
+			naoLeu.nao("entregas")
 		}
 	}
 
@@ -536,6 +562,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		Conta        contaView
 		Personagens  []domain.Character
 		EmJogo       map[int]bool
+		NaoLeu       falhas
 		Pendentes    []entrega.Pendente
 		PodeEntregar bool
 		Aviso        string
@@ -550,6 +577,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		},
 		chars,
 		emJogo,
+		naoLeu,
 		pendentes,
 		h.cfg.Entregas != nil,
 		r.URL.Query().Get("aviso"),

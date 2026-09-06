@@ -1,6 +1,7 @@
 package panel
 
 import (
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/jogo"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
+	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 )
 
 // --- desatolar pelo painel ---
@@ -288,5 +290,150 @@ func TestGrupoSemPaginaNaoDeixaRiscoSolto(t *testing.T) {
 		if strings.Contains(body, ausente) {
 			t.Errorf("o menu oferece %s sem a página existir", ausente)
 		}
+	}
+}
+
+// TestInicialNaoDizNoArComOServidorDesligado is the bug this shared block
+// exists to close.
+//
+// The home page checked only whether it could reach the hosting API, never
+// whether the server was up, and then wrote "no ar há" in front of the age of
+// the last deployment. The Servidor page did it correctly, so the two screens
+// disagreed about the same fact — and the wrong one was the first thing anybody
+// saw on opening the panel.
+func TestInicialNaoDizNoArComOServidorDesligado(t *testing.T) {
+	plat := newFakePlatform()
+	plat.dep.Status = "REMOVED" // parado na hospedagem
+	body := signedIn(t, newTestPanelPlat(t, newFakeAudit(), newFakeWriter(), plat))("/").Body.String()
+
+	if strings.Contains(body, "No ar") {
+		t.Error("a inicial diz que o servidor está no ar com ele desligado")
+	}
+	if !strings.Contains(body, "Desligado") {
+		t.Error("a inicial não diz que o servidor está desligado")
+	}
+	if !strings.Contains(body, "REMOVED") {
+		t.Error("a inicial não mostra o estado real da hospedagem")
+	}
+}
+
+// The two screens draw the same block, so they cannot drift apart again.
+func TestAsDuasTelasContamAMesmaCoisaSobreOServidor(t *testing.T) {
+	plat := newFakePlatform()
+	plat.dep.Status = "REMOVED"
+	h := newTestPanelPlatJogo(t, plat)
+	get := signedIn(t, h)
+
+	inicial := get("/").Body.String()
+	servidor := get("/servidor").Body.String()
+	for _, tela := range []struct{ nome, body string }{{"inicial", inicial}, {"servidor", servidor}} {
+		if !strings.Contains(tela.body, "Desligado") {
+			t.Errorf("%s: não diz Desligado", tela.nome)
+		}
+		if strings.Contains(tela.body, "No ar") {
+			t.Errorf("%s: diz No ar com o servidor parado", tela.nome)
+		}
+	}
+}
+
+// newTestPanelPlatJogo wires both the hosting API and the game link, which is
+// what /servidor needs to render at all.
+func newTestPanelPlatJogo(t *testing.T, plat Platform) http.Handler {
+	t.Helper()
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		Platform: plat, Jogo: &fakeJogo{estado: estadoDeTeste()},
+		Sessions: session.New(time.Hour),
+		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}
+
+// --- falha de leitura não é lista vazia ---
+
+// The panel degrades rather than blanking: a secondary read that fails is logged
+// and the page renders without it. That half was always right. The other half
+// was not — the empty list then drew the same "there is nothing here" message as
+// a genuinely empty one, so an account with four characters read as an account
+// with none, and a moderator would go looking for a bug in the game.
+func TestPersonagemQueNaoCarregouNaoViraContaSemPersonagem(t *testing.T) {
+	acc := withTarget(roleAdmin)
+	acc.addChar(7, domain.Character{Slot: 0, Name: "Guerreira", Level: 12})
+	acc.listCharsErr = errors.New("banco fora do ar")
+
+	body := getSignedIn(t, newTestPanelFull(t, acc, newFakeAudit(), newFakeWriter()), "/contas/ana").Body.String()
+	if strings.Contains(body, "ainda não criou personagem") {
+		t.Error("uma leitura que falhou virou afirmação de que a conta não tem personagem")
+	}
+	if !strings.Contains(body, "Não consegui ler") {
+		t.Error("a página não diz que a leitura falhou")
+	}
+	// And the rest of the account is still there: the point of degrading is that
+	// the role and the block status survive.
+	if !strings.Contains(body, "ana") {
+		t.Error("a página inteira caiu por causa de uma leitura secundária")
+	}
+}
+
+func TestListaVaziaContinuaDizendoQueEstaVazia(t *testing.T) {
+	// The other side of the same rule. Marking failures is only useful if an
+	// honest emptiness still reads as emptiness.
+	acc := withTarget(roleAdmin)
+	body := getSignedIn(t, newTestPanelFull(t, acc, newFakeAudit(), newFakeWriter()), "/contas/ana").Body.String()
+	if !strings.Contains(body, "ainda não criou personagem") {
+		t.Error("uma conta realmente sem personagem parou de dizer isso")
+	}
+	if strings.Contains(body, "Não consegui ler") {
+		t.Error("uma leitura que deu certo apareceu como falha")
+	}
+}
+
+func TestFilaDeDenunciaNaoMostraZeroQuandoAContagemFalha(t *testing.T) {
+	// "0 abertas" above a list of five open reports is a contradiction the
+	// reader has to resolve, and the wrong half is the one in big type.
+	d := &fakeDenuncias{fila: []domain.PlayerReport{denunciaAberta()}}
+	d.contagemErr = errors.New("banco fora do ar")
+
+	body := getSignedIn(t, newTestPanelDenuncias(t, roleAdmin, d, newFakeAudit()), "/denuncias").Body.String()
+	if !strings.Contains(body, "Não consegui ler") {
+		t.Error("a contagem falhou e a página não disse")
+	}
+	if strings.Contains(body, `<div class="rot">Abertas</div>`) {
+		t.Error("a página mostrou o placar zerado em vez de dizer que não leu")
+	}
+	// The list itself is untouched: it is the page.
+	if !strings.Contains(body, "Vandalyzz") {
+		t.Error("a lista sumiu junto com o resumo")
+	}
+}
+
+func TestCidadeQueNaoCarregouNaoViraNenhumaCidade(t *testing.T) {
+	g := mundoDeGuildas()
+	g.zonaErr = errors.New("banco fora do ar")
+
+	body := getSignedIn(t, newTestPanelGuildas(t, g), "/guildas").Body.String()
+	if strings.Contains(body, "Nenhuma cidade registrada") {
+		t.Error("a leitura falhou e a página afirmou que não há cidade nenhuma")
+	}
+	if !strings.Contains(body, "Não consegui ler") {
+		t.Error("a página não diz que a leitura das cidades falhou")
+	}
+}
+
+func TestContagemDeMembrosQuebradaEExplicadaJuntoDaColuna(t *testing.T) {
+	// Zeros in the members column look like empty guilds. The warning has to say
+	// which column it is talking about, or the reader trusts the number.
+	g := mundoDeGuildas()
+	g.contaErr = errors.New("banco fora do ar")
+
+	body := getSignedIn(t, newTestPanelGuildas(t, g), "/guildas").Body.String()
+	if !strings.Contains(body, "contagem de membros") {
+		t.Error("a página não explica por que a coluna de membros está zerada")
+	}
+	if !strings.Contains(body, "Grande") {
+		t.Error("a lista de guildas sumiu junto")
 	}
 }

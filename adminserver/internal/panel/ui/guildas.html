@@ -21,7 +21,9 @@
   </p>
 
   <h2>Cidades</h2>
-  {{if .Cidades}}
+  {{if .NaoLeu.cidades}}
+    {{template "falha-de-leitura" "o estado das cidades"}}
+  {{else if .Cidades}}
     <div class="tw">
       <table>
         <thead>
@@ -53,6 +55,12 @@
   {{end}}
 
   <h2>Guildas</h2>
+  {{if .NaoLeu.membros}}
+    {{template "falha-de-leitura" "a contagem de membros — a coluna abaixo está zerada por isso, não por estarem vazias"}}
+  {{end}}
+  {{if .NaoLeu.relacoes}}
+    {{template "falha-de-leitura" "as alianças e guerras"}}
+  {{end}}
   {{if .Guildas}}
     <div class="tw">
       <table>

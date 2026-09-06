@@ -159,6 +159,15 @@
 
   /* What just happened, in response to something the operator did. Distinct
      from .nota, which is a standing caveat about the page. */
+  /* Uma leitura que não respondeu. Deliberadamente diferente de .vazio, que
+     afirma ausência, e de .nota, que é uma ressalva sobre a página. */
+  .falha {
+    background: var(--danger-bg); border: 1px solid var(--danger);
+    border-radius: 3px; padding: 12px 15px; margin: 0 0 18px;
+    font-size: 13.5px; color: var(--ink-2); max-width: 68ch;
+  }
+  .falha strong { color: var(--ink); }
+
   .aviso {
     background: var(--surface); border: 1px solid var(--rule);
     border-left: 3px solid var(--accent); border-radius: 3px;
@@ -380,6 +389,39 @@
 
 {{/* Sub-navigation inside one account. Personagem is empty on pages that are
      about the account rather than one of its characters. */}}
+{{/* O estado do servidor de jogo, para as telas que o mostram.
+     Era escrito duas vezes, e uma delas envelheceu: a inicial dizia "no ar há"
+     sem nunca checar se o servidor estava de pé, então um servidor desligado
+     aparecia como no ar por três horas. Uma informação, um desenho. */}}
+{{define "estado-servidor"}}
+<div class="estado {{if .Rodando}}ativa{{else}}parada{{end}}">
+  <span class="farol"></span>
+  {{if .Rodando}}
+  <span class="nome-estado">No ar</span>
+  <span class="detalhe">há {{.NoAr}}</span>
+  {{else}}
+  <span class="nome-estado">Desligado</span>
+  <span class="detalhe">estado na hospedagem: {{.Estado}}</span>
+  {{end}}
+  {{if .Pendentes}}
+    <span class="bloq">{{.Pendentes}} edição(ões) aguardando reinício</span>
+  {{else if .Rodando}}
+    <span class="detalhe">nenhuma edição pendente</span>
+  {{end}}
+</div>
+{{end}}
+
+{{/* Uma leitura secundária que não respondeu. O contrário de uma lista vazia:
+     "não tem nada" e "não consegui ler" desenhavam igual, então uma conta com
+     quatro personagens aparecia como conta sem personagem. */}}
+{{define "falha-de-leitura"}}
+<div class="falha">
+  <strong>Não consegui ler {{.}} agora.</strong> Isso não quer dizer que não
+  exista — quer dizer que a leitura falhou. O resto da página continua valendo;
+  recarregue para tentar de novo.
+</div>
+{{end}}
+
 {{define "abas-conta"}}
 <div class="abas-conta">
   <a href="/contas/{{.Conta}}" {{if eq .Aba "conta"}}class="on"{{end}}>Conta</a>

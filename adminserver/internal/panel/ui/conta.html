@@ -247,6 +247,11 @@
     </form>
   </div>
 
+  {{if .NaoLeu.entregas}}
+  <h2>Na fila</h2>
+  {{template "falha-de-leitura" "a fila de entrega"}}
+  {{end}}
+
   {{if .Pendentes}}
   <h2>Na fila</h2>
   <div class="tw">
@@ -292,7 +297,9 @@
   {{end}}
 
   <h2>Personagens</h2>
-  {{if .Personagens}}
+  {{if .NaoLeu.personagens}}
+    {{template "falha-de-leitura" "os personagens desta conta"}}
+  {{else if .Personagens}}
     <div class="fichas">
       {{range .Personagens}}
       <article class="ficha">

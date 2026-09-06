@@ -13,6 +13,10 @@
     Guilda {{.Guilda.ID}} · <a href="/guildas">voltar para a lista</a>
   </p>
 
+  {{if .NaoLeu.relacoes}}
+    {{template "falha-de-leitura" "as alianças e guerras desta guilda"}}
+  {{end}}
+
   <div class="numeros">
     <div class="num-tile"><div class="rot">Membros</div><div class="val">{{.Guilda.Membros}}</div></div>
     <div class="num-tile"><div class="rot">Fama</div><div class="val">{{.Guilda.Fame}}</div></div>

@@ -57,19 +57,7 @@
 
   {{if .Servidor.Conhecido}}
   <div class="reinicio-cartao">
-    <div class="estado {{if .Servidor.Rodando}}ativa{{else}}parada{{end}}">
-      <span class="farol"></span>
-      {{if .Servidor.Rodando}}
-      <span class="nome-estado">No ar</span>
-      <span class="detalhe">há {{.Servidor.NoAr}}</span>
-      {{else}}
-      <span class="nome-estado">Desligado</span>
-      <span class="detalhe">estado na hospedagem: {{.Servidor.Estado}}</span>
-      {{end}}
-      {{if .Servidor.Pendentes}}
-        <span class="bloq">{{.Servidor.Pendentes}} edição(ões) aguardando reinício</span>
-      {{end}}
-    </div>
+    {{template "estado-servidor" .Servidor}}
     {{if .IsAdmin}}
       {{if not .Servidor.Rodando}}
       <form method="post" action="/servidor/ligar" style="margin-top:14px">

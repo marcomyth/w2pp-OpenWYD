@@ -18,13 +18,14 @@ import (
 )
 
 type fakeDenuncias struct {
-	mu       sync.Mutex
-	fila     []domain.PlayerReport
-	consulta []store.ReportQuery
-	tratadas []int64
-	porQuem  []int64
-	listErr  error
-	marcaErr error
+	mu          sync.Mutex
+	fila        []domain.PlayerReport
+	consulta    []store.ReportQuery
+	tratadas    []int64
+	porQuem     []int64
+	listErr     error
+	contagemErr error
+	marcaErr    error
 }
 
 func (f *fakeDenuncias) ListReports(_ context.Context, q store.ReportQuery) ([]domain.PlayerReport, error) {
@@ -47,6 +48,9 @@ func (f *fakeDenuncias) ListReports(_ context.Context, q store.ReportQuery) ([]d
 func (f *fakeDenuncias) CountReports(context.Context) (store.ReportCounts, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.contagemErr != nil {
+		return store.ReportCounts{}, f.contagemErr
+	}
 	c := store.ReportCounts{Total: len(f.fila)}
 	for _, r := range f.fila {
 		if r.Aberto() {

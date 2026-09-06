@@ -27,14 +27,7 @@
   {{if .Servidor.Conhecido}}
   <div class="cartao{{if .Servidor.Pendentes}} pendente{{end}}">
     <h2>Servidor de jogo</h2>
-    <div class="linha-estado">
-      <span>no ar há <span class="grande">{{.Servidor.NoAr}}</span></span>
-      {{if .Servidor.Pendentes}}
-        <span class="bloq">{{.Servidor.Pendentes}} edição(ões) aguardando reinício</span>
-      {{else}}
-        <span>nenhuma edição pendente</span>
-      {{end}}
-    </div>
+    {{template "estado-servidor" .Servidor}}
 
     {{if .IsAdmin}}
       <form method="post" action="/servidor/reiniciar">

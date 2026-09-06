@@ -56,11 +56,15 @@ func (h *Handler) denuncias(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Erro ao ler as denúncias.", http.StatusInternalServerError)
 		return
 	}
+	var naoLeu falhas
 	contagem, err := h.cfg.Denuncias.CountReports(r.Context())
 	if err != nil {
-		// The list is the page; losing the summary must not blank it.
+		// The list is the page; losing the summary must not blank it. But zeros
+		// above a list of five open reports is a contradiction the reader has to
+		// resolve, so the page says the count failed instead of printing one.
 		h.cfg.Logger.Error("report count failed", "err", err)
 		contagem = store.ReportCounts{}
+		naoLeu.nao("contagem")
 	}
 
 	agora := time.Now()
@@ -77,12 +81,13 @@ func (h *Handler) denuncias(w http.ResponseWriter, r *http.Request) {
 		page
 		Denuncias []denunciaView
 		Contagem  store.ReportCounts
+		NaoLeu    falhas
 		EsperaMax string
 		Todas     bool
 		Prazo     int
 		Aviso     string
 	}{
-		h.pageFor(r, "denuncias"), vistas, contagem,
+		h.pageFor(r, "denuncias"), vistas, contagem, naoLeu,
 		esperaHa(contagem.MaisAntigo, agora), todas,
 		domain.ReportRetentionDays, r.URL.Query().Get("aviso"),
 	})

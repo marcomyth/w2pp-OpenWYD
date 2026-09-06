@@ -41,6 +41,9 @@
 
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
+  {{if .NaoLeu.contagem}}
+  {{template "falha-de-leitura" "o resumo da fila"}}
+  {{else}}
   <div class="numeros">
     <div class="num-tile"><div class="rot">Abertas</div><div class="val">{{.Contagem.Abertos}}</div></div>
     <div class="num-tile"><div class="rot">Total guardado</div><div class="val">{{.Contagem.Total}}</div></div>
@@ -49,6 +52,7 @@
       <div class="val">{{if .EsperaMax}}{{.EsperaMax}}{{else}}&mdash;{{end}}</div>
     </div>
   </div>
+  {{end}}
 
   <div class="filtros">
     <a href="/denuncias" {{if not .Todas}}class="on"{{end}}>Abertas</a>

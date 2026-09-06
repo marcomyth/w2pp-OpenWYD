@@ -69,20 +69,27 @@ func (h *Handler) guildas(w http.ResponseWriter, r *http.Request) {
 	// A failure in any of the three extras leaves the list standing: the roster
 	// of guilds is the page, and the counts and relations are what it says about
 	// each one.
+	// Each failure is marked rather than swallowed: a zero member count and a
+	// guild with no members look identical, and "Nenhuma cidade registrada" is
+	// a claim the page cannot make when the read is what failed.
+	var naoLeu falhas
 	contagem, err := h.cfg.Guildas.CountGuildMembers(ctx)
 	if err != nil {
 		h.cfg.Logger.Error("guild member count failed", "err", err)
 		contagem = map[uint16]int{}
+		naoLeu.nao("membros")
 	}
 	relacoes, err := h.cfg.Guildas.ListGuildRelations(ctx)
 	if err != nil {
 		h.cfg.Logger.Error("guild relations failed", "err", err)
 		relacoes = nil
+		naoLeu.nao("relacoes")
 	}
 	zonas, err := h.cfg.Guildas.LoadGuildZones(ctx)
 	if err != nil {
 		h.cfg.Logger.Error("guild zones failed", "err", err)
 		zonas = nil
+		naoLeu.nao("cidades")
 	}
 
 	aliada := map[uint16]uint16{}
@@ -123,7 +130,8 @@ func (h *Handler) guildas(w http.ResponseWriter, r *http.Request) {
 		page
 		Guildas []guildaView
 		Cidades []cidadeView
-	}{h.pageFor(r, "guildas"), vistas, cidades})
+		NaoLeu  falhas
+	}{h.pageFor(r, "guildas"), vistas, cidades, naoLeu})
 }
 
 // guilda shows one guild and its roster.
@@ -161,10 +169,12 @@ func (h *Handler) guilda(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Erro ao ler os membros.", http.StatusInternalServerError)
 		return
 	}
+	var naoLeu falhas
 	relacoes, err := h.cfg.Guildas.ListGuildRelations(ctx)
 	if err != nil {
-		h.cfg.Logger.Error("guild relations failed", "err", err)
+		h.cfg.Logger.Error("guild relations failed", "guilda", id, "err", err)
 		relacoes = nil
+		naoLeu.nao("relacoes")
 	}
 
 	v := guildaView{Guild: alvo, Membros: len(membros)}
@@ -183,5 +193,6 @@ func (h *Handler) guilda(w http.ResponseWriter, r *http.Request) {
 		page
 		Guilda  guildaView
 		Membros []domain.GuildMember
-	}{h.pageFor(r, "guildas"), v, membros})
+		NaoLeu  falhas
+	}{h.pageFor(r, "guildas"), v, membros, naoLeu})
 }

@@ -41,9 +41,10 @@ var hashOnce = sync.OnceValue(func() string {
 
 // fakeAccounts is an in-memory stand-in for the store, keyed by canonical name.
 type fakeAccounts struct {
-	mu    sync.Mutex
-	rows  map[string]store.AccountAuth
-	chars map[int64][]domain.Character
+	mu           sync.Mutex
+	rows         map[string]store.AccountAuth
+	chars        map[int64][]domain.Character
+	listCharsErr error
 }
 
 func newFakeAccounts(role string) *fakeAccounts {
@@ -67,6 +68,9 @@ func (f *fakeAccounts) addChar(accountID int64, c domain.Character) {
 	defer f.mu.Unlock()
 	f.chars[accountID] = append(f.chars[accountID], c)
 }
+
+// listCharsErr forces the roster read to fail, which is the only way to test the
+// difference between "no characters" and "could not read the characters".
 
 func (f *fakeAccounts) SearchAccountsByNamePrefix(_ context.Context, prefix string, limit int) ([]domain.AccountSummary, error) {
 	f.mu.Lock()
@@ -94,6 +98,9 @@ func (f *fakeAccounts) SearchAccountsByNamePrefix(_ context.Context, prefix stri
 func (f *fakeAccounts) ListCharacters(_ context.Context, accountID int64) ([]domain.Character, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.listCharsErr != nil {
+		return nil, f.listCharsErr
+	}
 	return f.chars[accountID], nil
 }
 
@@ -1513,7 +1520,9 @@ func newTestPanelPlat(t *testing.T, log AuditLog, wr Writer, plat Platform) http
 
 func TestHomeShowsUptimeAndNoPending(t *testing.T) {
 	body := signedIn(t, newTestPanelPlat(t, newFakeAudit(), newFakeWriter(), newFakePlatform()))("/").Body.String()
-	if !strings.Contains(body, "no ar há") {
+	// Both screens draw this from one shared block now, so the wording is
+	// "No ar" plus the age rather than one sentence.
+	if !strings.Contains(body, "No ar") {
 		t.Error("uptime not shown")
 	}
 	if !strings.Contains(body, "nenhuma edição pendente") {
