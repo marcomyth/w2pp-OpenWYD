@@ -238,3 +238,55 @@ func TestSemLigacaoComOJogoAEntregaSegueComoAntes(t *testing.T) {
 		t.Errorf("aviso = %q", destino)
 	}
 }
+
+// --- o menu em grupos ---
+
+// The nav reached eleven entries in one undifferentiated row, where "Drops" sat
+// between "Monstros" and "Trocas" — three unrelated jobs side by side. The
+// grouping is the only structure it has: the panel serves no JavaScript, so
+// there are no menus to open.
+func TestOMenuVemEmGrupos(t *testing.T) {
+	h := newTestPanelJogo(t, newFakeAudit(), &fakeJogo{estado: estadoDeTeste()})
+	body := getSignedIn(t, h, "/servidor").Body.String()
+
+	if n := strings.Count(body, `class="grupo"`); n < 2 {
+		t.Fatalf("grupos no menu = %d, want pelo menos 2", n)
+	}
+	// Order inside the row is the grouping: people, then the world, then what is
+	// happening right now. Auditoria next to Contas rather than at the far end.
+	iContas := strings.Index(body, ">Contas<")
+	iAuditoria := strings.Index(body, ">Auditoria<")
+	iServidor := strings.Index(body, ">Servidor<")
+	if iContas < 0 || iAuditoria < 0 || iServidor < 0 {
+		t.Fatalf("faltou entrada no menu: contas=%d auditoria=%d servidor=%d",
+			iContas, iAuditoria, iServidor)
+	}
+	if !(iContas < iAuditoria && iAuditoria < iServidor) {
+		t.Errorf("ordem = contas %d, auditoria %d, servidor %d — a auditoria saiu do grupo de gente",
+			iContas, iAuditoria, iServidor)
+	}
+}
+
+// A group whose pages are all switched off must not leave its divider hanging.
+func TestGrupoSemPaginaNaoDeixaRiscoSolto(t *testing.T) {
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		Sessions: session.New(time.Hour),
+		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	body := getSignedIn(t, h.Routes(), "/contas").Body.String()
+
+	// Only the people group survives with no webServer, no game link and no
+	// database read.
+	if n := strings.Count(body, `class="grupo"`); n != 1 {
+		t.Errorf("grupos = %d, want 1 — sobrou grupo vazio", n)
+	}
+	for _, ausente := range []string{">Itens<", ">NPCs<", ">Mapa<", ">Eventos<"} {
+		if strings.Contains(body, ausente) {
+			t.Errorf("o menu oferece %s sem a página existir", ausente)
+		}
+	}
+}

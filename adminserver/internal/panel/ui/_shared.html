@@ -48,9 +48,14 @@
     justify-content: space-between; padding: 13px 22px;
     background: var(--surface); border-bottom: 1px solid var(--rule);
   }
-  /* The nav carries eleven entries now. Without wrapping it pushes the account
-     block off a narrow screen. */
-  header nav { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; }
+  /* The nav carries eleven entries now, in three groups. Read as one row they
+     were an undifferentiated list where "Drops" sat between "Monstros" and
+     "Trocas" — three unrelated jobs in a row. The groups are what the pages are
+     ABOUT: people, the world, and the server right now. The hairline is the
+     whole device; no headings, no menus (the panel serves no JavaScript). */
+  header nav { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; }
+  header nav .grupo { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; }
+  header nav .grupo + .grupo { padding-left: 20px; border-left: 1px solid var(--rule); }
   header a { color: var(--ink-2); text-decoration: none; font-size: 14px; }
   header a:hover, header a.on { color: var(--ink); }
   header .marca { font-weight: 600; font-size: 15px; color: var(--ink); letter-spacing: -0.01em; }
@@ -335,16 +340,33 @@
   <nav>
     <span class="marca">Painel OpenWYD</span>
     <a href="/" {{if eq .Nav "inicio"}}class="on"{{end}}>Início</a>
-    <a href="/contas" {{if eq .Nav "contas"}}class="on"{{end}}>Contas</a>
-    {{if .HasItems}}<a href="/itens" {{if eq .Nav "itens"}}class="on"{{end}}>Itens</a>{{end}}
-    {{if .HasItems}}<a href="/npcs" {{if eq .Nav "npcs"}}class="on"{{end}}>NPCs</a>{{end}}
-    {{if .HasItems}}<a href="/monstros" {{if eq .Nav "monstros"}}class="on"{{end}}>Monstros</a>{{end}}
-    {{if .HasItems}}<a href="/drops" {{if eq .Nav "drops"}}class="on"{{end}}>Drops</a>{{end}}
-    {{if .HasTrocas}}<a href="/trocas" {{if eq .Nav "trocas"}}class="on"{{end}}>Trocas</a>{{end}}
-    {{if .HasJogo}}<a href="/servidor" {{if eq .Nav "servidor"}}class="on"{{end}}>Servidor</a>{{end}}
-    {{if .HasJogo}}<a href="/mapa" {{if eq .Nav "mapa"}}class="on"{{end}}>Mapa</a>{{end}}
-    {{if .HasEvento}}<a href="/eventos" {{if eq .Nav "eventos"}}class="on"{{end}}>Eventos</a>{{end}}
-    {{if .IsAdmin}}<a href="/auditoria" {{if eq .Nav "auditoria"}}class="on"{{end}}>Auditoria</a>{{end}}
+
+    {{/* Gente: contas, o que trocaram entre si, e o que a equipe fez. */}}
+    <span class="grupo">
+      <a href="/contas" {{if eq .Nav "contas"}}class="on"{{end}}>Contas</a>
+      {{if .HasTrocas}}<a href="/trocas" {{if eq .Nav "trocas"}}class="on"{{end}}>Trocas</a>{{end}}
+      {{if .IsAdmin}}<a href="/auditoria" {{if eq .Nav "auditoria"}}class="on"{{end}}>Auditoria</a>{{end}}
+    </span>
+
+    {{/* O mundo: o conteúdo que o jogo carrega. Uma condição só para os quatro,
+         porque todos vêm do mesmo webServer. */}}
+    {{if .HasItems}}
+    <span class="grupo">
+      <a href="/itens" {{if eq .Nav "itens"}}class="on"{{end}}>Itens</a>
+      <a href="/npcs" {{if eq .Nav "npcs"}}class="on"{{end}}>NPCs</a>
+      <a href="/monstros" {{if eq .Nav "monstros"}}class="on"{{end}}>Monstros</a>
+      <a href="/drops" {{if eq .Nav "drops"}}class="on"{{end}}>Drops</a>
+    </span>
+    {{end}}
+
+    {{/* Agora: o servidor rodando neste instante. */}}
+    {{if or .HasJogo .HasEvento}}
+    <span class="grupo">
+      {{if .HasJogo}}<a href="/servidor" {{if eq .Nav "servidor"}}class="on"{{end}}>Servidor</a>{{end}}
+      {{if .HasJogo}}<a href="/mapa" {{if eq .Nav "mapa"}}class="on"{{end}}>Mapa</a>{{end}}
+      {{if .HasEvento}}<a href="/eventos" {{if eq .Nav "eventos"}}class="on"{{end}}>Eventos</a>{{end}}
+    </span>
+    {{end}}
   </nav>
   <div class="quem">
     <span>{{.Account}}</span>
