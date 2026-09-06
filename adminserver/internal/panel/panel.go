@@ -1553,13 +1553,36 @@ func (h *Handler) reiniciar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Drained first whenever the game can be reached, exactly like the safe
+	// restart does — this route no longer has an unsafe version.
+	//
+	// Two buttons existed and one of them skipped this. Killing the process
+	// without emptying it first is the shortest way to duplicate an item on this
+	// server: nothing is written to Postgres until a player leaves, so a trade
+	// that already happened in memory is only half on disk, and the half that
+	// saved keeps the item while the half that did not comes back still holding
+	// it. Offering that as a button beside the safe one was offering the mistake.
+	//
+	// A drain that does not confirm refuses the restart, same as the safe path:
+	// restarting with saves unaccounted for is the thing being avoided.
+	if h.cfg.Jogo != nil {
+		if _, derr := h.cfg.Jogo.Drenar(r.Context(), avisoPadraoReinicio); derr != nil {
+			h.cfg.Logger.Error("restart: drain failed; NOT restarting", "err", derr)
+			http.Error(w,
+				"Esvaziei o servidor mas as gravações não confirmaram, então NÃO reiniciei. "+
+					"Reiniciar agora poderia duplicar ou perder item. Tente de novo em um minuto.",
+				http.StatusBadGateway)
+			return
+		}
+	}
+
 	// Audited BEFORE the restart, not after: the restart is what makes the panel
 	// stop being able to tell anyone anything for a while, and an action nobody
 	// can explain is exactly what this log exists to prevent.
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
 		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionRestartGame,
-		New:    map[string]any{"deployment": dep.ID},
+		New:    map[string]any{"deployment": dep.ID, "drenado": h.cfg.Jogo != nil},
 	}); err != nil {
 		h.cfg.Logger.Error("restart NOT audited; refusing", "err", err)
 		http.Error(w, "Não consegui registrar a ação na auditoria, então não reiniciei.",

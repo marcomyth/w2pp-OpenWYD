@@ -236,6 +236,20 @@ func (d *Dispatcher) reqBuy(w *world.World, s *world.Session, _ protocol.Header,
 	w.BroadcastInView(targetID, protocol.MsgItemSold, protocol.EncodeStandardParm2(int32(targetID), int32(pos)))
 	d.notify(w, seller, NoticeItemSold)
 	d.log.Info("autotrade buy", "buyer", s.Conn, "seller", targetID, "item", cargoItem.Index, "price", m.Price, "tax", imposto)
+
+	// Both sides persisted NOW, for the reason spelled out in trade.go: the two
+	// halves of this sale live on DIFFERENT connections, and each one only
+	// reached Postgres when its own connection ended. Buyer logs out and is saved
+	// holding the item, the process dies before the seller logs out, and the
+	// seller's stale cargo row still has it. One item, two owners, nobody
+	// cheating.
+	//
+	// The buyer's half is a character save (the item landed in Carry); the
+	// seller's is a cargo save, because a personal shop sells straight out of the
+	// account warehouse. SaveCargoThen with an empty continuation: the seller is
+	// still playing, so the cargo is saved and kept loaded rather than released.
+	w.SaveCharacterAsync(s)
+	w.SaveCargoThen(seller, func(*world.World, *world.Session) {})
 }
 
 // sendShopList sends the shop owned by sellerConn to s (SendFunc.cpp:SendAutoTrade).

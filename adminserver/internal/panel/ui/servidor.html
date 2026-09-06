@@ -106,12 +106,11 @@
       <form method="post" action="/servidor/reiniciar" style="margin-top:14px">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <input type="hidden" name="voltar" value="/servidor">
-        <button type="submit">Reiniciar direto</button>
+        <button type="submit">Reiniciar sem aviso</button>
         <p class="dica">
-          Manda parar e o servidor salva todo mundo na saída — mas dentro da
-          janela que a hospedagem dá antes de matar o processo. Servidor cheio e
-          banco lento, alguma gravação pode ficar pelo caminho.
-          {{if .HasSeguro}}Prefira o de cima.{{end}}
+          Esvazia o servidor e espera as gravações do mesmo jeito que o de cima
+          — a diferença é só o recado: este manda o aviso padrão em vez do que
+          você escrever. Se as gravações não confirmarem, ele não reinicia.
         </p>
       </form>
       {{end}}

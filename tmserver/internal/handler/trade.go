@@ -114,6 +114,24 @@ func (d *Dispatcher) executeSwap(w *world.World, a, b *world.Session) {
 	w.Send(b, protocol.MsgTrade, tradeResultPayload(aItems))
 
 	d.recordTrade(w, a, b, ea.Name, eb.Name, ouroA, ouroB, aItems, bItems)
+
+	// Both sides persisted NOW, not at logout.
+	//
+	// Nothing else here saves, and until this line neither did the trade: items
+	// reached Postgres only when a character left play, and there is no periodic
+	// save. That opened the shortest path to a duplicate this server has, and it
+	// needed no exploit at all — A hands B a sword, B logs out and is saved with
+	// it, the process dies before A logs out, and A comes back with the rows it
+	// had before the trade. Two swords, one creation, neither player trying.
+	//
+	// The same window destroys items when the order is reversed: A saves, the
+	// server dies, B never saves, the sword is gone and somebody opens a ticket.
+	//
+	// This shrinks that window from hours to the length of one write. The pattern
+	// is the one arch, combine and guild already use; the trade is simply the one
+	// that moves the most value and had it missing.
+	w.SaveCharacterAsync(a)
+	w.SaveCharacterAsync(b)
 }
 
 // tradeResultPayload encodes the received items as count + WireItems (placeholder

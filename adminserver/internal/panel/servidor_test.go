@@ -820,3 +820,72 @@ func TestAbaDesconhecidaCaiNaPadrao(t *testing.T) {
 		}
 	}
 }
+
+// --- nada reinicia sem esvaziar antes ---
+
+// Two restart buttons existed and one of them skipped the drain. Killing the
+// process without emptying it first is the shortest way to duplicate an item
+// here: nothing reaches Postgres until a player leaves, so a trade that already
+// happened in memory is only half on disk — the half that saved keeps the item,
+// and the half that did not comes back still holding it.
+func TestOReinicioComumEsvaziaAntes(t *testing.T) {
+	plat := newFakePlatform()
+	j := &fakeJogo{estado: estadoDeTeste(), plat: plat}
+	h := newTestPanelJogoPlat(t, j, plat)
+	post, token := signedInPost(t, h)
+
+	rec := post("/servidor/reiniciar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	j.mu.Lock()
+	drenagens, antes := len(j.drenagens), j.drenouAntesDoRestart
+	j.mu.Unlock()
+	if drenagens != 1 {
+		t.Fatalf("drenagens = %d, want 1", drenagens)
+	}
+	if !antes {
+		t.Error("reiniciou ANTES de esvaziar — é assim que item duplica")
+	}
+}
+
+// A drain that does not confirm refuses the restart, same as the safe path:
+// restarting with saves unaccounted for is the thing being avoided.
+func TestDrenagemQueFalhaNaoReinicia(t *testing.T) {
+	plat := newFakePlatform()
+	j := &fakeJogo{estado: estadoDeTeste(), plat: plat, drenarErr: jogo.ErrForaDoAr}
+	h := newTestPanelJogoPlat(t, j, plat)
+	post, token := signedInPost(t, h)
+
+	rec := post("/servidor/reiniciar", url.Values{"csrf": {token}})
+	if rec.Code == http.StatusSeeOther {
+		t.Fatal("reiniciou mesmo sem confirmar as gravações")
+	}
+	if plat.restartCount() != 0 {
+		t.Error("mandou reiniciar com as gravações em aberto")
+	}
+	if !strings.Contains(rec.Body.String(), "duplicar") {
+		t.Errorf("a mensagem não diz o que estava em risco: %q", rec.Body.String())
+	}
+}
+
+// Without a game link there is nothing to drain, and the restart is still the
+// only tool there is. Refusing it would leave nobody able to restart at all.
+func TestSemLigacaoComOJogoOReinicioAindaFunciona(t *testing.T) {
+	plat := newFakePlatform()
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		Platform: plat, Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	post, token := signedInPost(t, h.Routes())
+	if rec := post("/servidor/reiniciar", url.Values{"csrf": {token}}); rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if plat.restartCount() != 1 {
+		t.Error("não reiniciou")
+	}
+}

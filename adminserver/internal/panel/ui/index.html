@@ -70,6 +70,12 @@
       <form method="post" action="/servidor/reiniciar">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <button type="submit">Reiniciar o servidor de jogo</button>
+        <p class="dica" style="margin-top:8px">
+          Avisa quem está jogando, espera todo mundo sair e as gravações
+          confirmarem, e só então reinicia. Se alguma gravação não confirmar,
+          ele não reinicia — reiniciar com item pela metade no disco é como
+          item duplica.
+        </p>
       </form>
     {{end}}
 
