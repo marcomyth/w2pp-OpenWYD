@@ -261,7 +261,7 @@ func TestOMenuVemEmGrupos(t *testing.T) {
 		t.Fatalf("faltou entrada no menu: contas=%d auditoria=%d servidor=%d",
 			iContas, iAuditoria, iServidor)
 	}
-	if !(iContas < iAuditoria && iAuditoria < iServidor) {
+	if iContas >= iAuditoria || iAuditoria >= iServidor {
 		t.Errorf("ordem = contas %d, auditoria %d, servidor %d — a auditoria saiu do grupo de gente",
 			iContas, iAuditoria, iServidor)
 	}
