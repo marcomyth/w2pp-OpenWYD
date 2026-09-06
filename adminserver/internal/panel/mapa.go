@@ -88,12 +88,7 @@ type Aglomeracao struct {
 type CidadeMapa struct {
 	Nome           string
 	CX, CY, Radius int32
-	// Rotular decides whether the name is drawn. Nine circles with nine labels
-	// is unreadable: the three Pesadelo instances sit within 200 units of each
-	// other and their names overlap into a smear. The five canonical cities are
-	// always named because they are how a person orients on this map at all; the
-	// rest are named only while somebody is standing in them, which is exactly
-	// when the name is worth the ink.
+	// Rotular decides whether the name is drawn.
 	Rotular bool
 }
 
@@ -303,9 +298,18 @@ func distancia(x1, y1, x2, y2 int32) int32 {
 
 // cidades prepares the settlements for drawing.
 //
-// The label is the name without its parenthetical: "Pesadelo Místico (masmorra)"
-// is the right thing to write in a table and far too long to sit on a circle
-// 60 units wide.
+// Only the five canonical cities are always on the picture — they are how a
+// person finds themselves on it. The other four zones (the three Pesadelo
+// interiors and the unidentified east city) are drawn ONLY while somebody is
+// standing in one.
+//
+// That is not tidying. Drawn always, the three Pesadelo circles sit within 200
+// units of each other in an otherwise empty corner: unlabelled they read as a
+// glitch, and labelled their names overlap into a smear. A circle that appears
+// exactly when it holds a player is a circle that means something.
+//
+// The label drops the parenthetical: "Pesadelo Místico (masmorra)" is right in a
+// table and far too long to sit on a circle 60 units wide.
 func cidades(ps []PontoMapa) []CidadeMapa {
 	comGente := map[string]bool{}
 	for _, p := range ps {
@@ -318,9 +322,12 @@ func cidades(ps []PontoMapa) []CidadeMapa {
 		}
 		// LimitX2 != 0 marks the five cities that carry a legacy CityLimit
 		// rectangle — Armia, Azran, Erion, Nippleheim, Noatum.
+		cidade := z.LimitX2 != 0
+		if !cidade && !comGente[z.Name] {
+			continue
+		}
 		out = append(out, CidadeMapa{
-			Nome: curto(z.Name), CX: z.CX, CY: z.CY, Radius: z.Radius,
-			Rotular: z.LimitX2 != 0 || comGente[z.Name],
+			Nome: curto(z.Name), CX: z.CX, CY: z.CY, Radius: z.Radius, Rotular: true,
 		})
 	}
 	return out

@@ -222,24 +222,27 @@ func TestCidadesSempreNomeiaAsCincoConhecidas(t *testing.T) {
 			t.Errorf("%s não foi nomeada — sem as cidades conhecidas ninguém se localiza", nome)
 		}
 	}
-	// And the three dungeon instances stay unnamed while empty: they sit within
-	// 200 units of each other and three names there overlap into a smear.
-	if rotuladas["Pesadelo Místico"] {
-		t.Error("masmorra vazia foi rotulada; os três nomes se atropelam no canto")
+	// And the three dungeon instances are not drawn at all while empty: three
+	// unlabelled circles in an otherwise empty corner read as a glitch, and
+	// labelled their names overlap into a smear.
+	for _, c := range cs {
+		if strings.HasPrefix(c.Nome, "Pesadelo") {
+			t.Error("masmorra vazia foi desenhada; vira três círculos misteriosos no canto")
+		}
 	}
 }
 
-func TestCidadeGanhaNomeQuandoTemGente(t *testing.T) {
+func TestCidadeApareceQuandoTemGente(t *testing.T) {
 	cs := cidades([]PontoMapa{{Regiao: "Pesadelo Místico (masmorra)"}})
 	for _, c := range cs {
 		if c.Nome == "Pesadelo Místico" {
 			if !c.Rotular {
-				t.Error("a masmorra com gente dentro continuou sem nome")
+				t.Error("a masmorra com gente dentro apareceu sem nome")
 			}
 			return
 		}
 	}
-	t.Fatal("a masmorra sumiu do desenho")
+	t.Fatal("a masmorra com gente dentro não foi desenhada")
 }
 
 func TestNomeDoDesenhoPerdeOParentese(t *testing.T) {

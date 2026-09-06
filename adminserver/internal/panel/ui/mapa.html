@@ -17,6 +17,7 @@
   .mundo .malha { stroke: var(--rule); stroke-width: 3; }
   .mundo .cidade { fill: none; stroke: var(--ink-3); stroke-width: 5; }
   .mundo .cidade-nome { fill: var(--ink-3); font-size: 62px; letter-spacing: 2px; }
+  .mundo .mapa-vazio { fill: var(--ink-3); font-size: 96px; letter-spacing: 6px; }
   .mundo .jogador { fill: var(--accent); }
   .mundo .jogador.junto { fill: var(--danger); }
   .mundo .grupo { fill: none; stroke: var(--danger); stroke-width: 7; }
@@ -72,6 +73,10 @@
     <circle class="grupo" cx="{{.X}}" cy="{{.Y}}" r="{{.RaioDesenho}}"></circle>
     {{end}}
 
+    {{if not .Pontos}}
+    <text class="mapa-vazio" x="2048" y="3700" text-anchor="middle">ninguém em jogo</text>
+    {{end}}
+
     {{range .Pontos}}
     <circle class="jogador{{if .Junto}} junto{{end}}" cx="{{.X}}" cy="{{.Y}}" r="16">
       <title>{{.Personagem}} ({{.Conta}}) — nível {{.Nivel}} — {{.X}}, {{.Y}} — {{.Regiao}}</title>
@@ -85,6 +90,13 @@
     <span><i class="cid"></i> cidade</span>
     <span>grade de 1024 em 1024 · mundo de {{.Grade}} × {{.Grade}}</span>
   </div>
+
+  {{if not .Pontos}}
+  <div class="vazio">
+    Ninguém em jogo agora. Quando alguém entrar, aparece aqui quem está onde,
+    quem está amontoado fora de cidade e quais contas dividem a mesma conexão.
+  </div>
+  {{else}}
 
   <h2>Aglomerações fora de cidade</h2>
   {{if .Grupos}}
@@ -109,7 +121,7 @@
       </div>
     </div>
     {{end}}
-  {{else if .Pontos}}
+  {{else}}
     <div class="vazio">Ninguém amontoado fora de cidade.</div>
   {{end}}
 
@@ -136,7 +148,7 @@
       </div>
     </div>
     {{end}}
-  {{else if .Pontos}}
+  {{else}}
     <div class="vazio">Cada conta conectada está numa conexão diferente.</div>
   {{end}}
 
@@ -152,8 +164,8 @@
         </tbody>
       </table>
     </div>
-  {{else if not .Erro}}
-    <div class="vazio">Ninguém em jogo.</div>
+  {{end}}
+
   {{end}}
 </main>
 </body>
