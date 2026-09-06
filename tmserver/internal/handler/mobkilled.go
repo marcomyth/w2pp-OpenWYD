@@ -313,21 +313,14 @@ func isCelestialTier(classMaster uint8) bool {
 func (d *Dispatcher) applyLevelUps(w *world.World, s *world.Session, e *world.Entity) bool {
 	gained := int32(0) // levels actually crossed — the Chaos Point grant below is per level
 	celestial := isCelestialTier(e.ClassMaster)
-	arch := e.ClassMaster == classMasterArch
 	levelCap := level.MaxLevelForTier(e.ClassMaster)
 	for e.Level < levelCap && e.Exp >= level.NextLevelExpTier(e.Level, e.ClassMaster) {
-		// Celestial quest gates: the 40/90 caps stay locked until /destravar40 and
-		// /destravar90 set the flags. At the gate CheckGetLevel returns 0 without
-		// leveling (CMob.cpp:1107), so stop the loop here.
-		if celestial && ((e.Level == 39 && e.CelLv40 == 0) || (e.Level == 89 && e.CelLv90 == 0)) {
-			break
-		}
-		// The same wall for the Arch tier at 355/370 (CMob.cpp:1110). This one is
-		// load-bearing beyond pacing: combineItemLindy demands the *exact* level
-		// 354 or 369, so an Arch that slips past a wall can never run its unlock
-		// quest again. Missing this gate is what stranded characters above 355.
-		if arch && ((e.Level == level.ArchGateLv355 && e.ArchLv355 == 0) ||
-			(e.Level == level.ArchGateLv370 && e.ArchLv370 == 0)) {
+		// Celestial quest gates at 40/90 and Arch walls at 355/370: at either,
+		// CheckGetLevel returns 0 without leveling (CMob.cpp:1107,1110), so stop.
+		// The Arch one is load-bearing beyond pacing — combineItemLindy demands the
+		// *exact* level 354 or 369, so an Arch that slips past a wall can never run
+		// its unlock quest again, which is what stranded characters above 355.
+		if tierGateBlocks(e) {
 			break
 		}
 		e.Level++
@@ -451,6 +444,9 @@ func (d *Dispatcher) announceMobKill(w *world.World, killer, mob *world.Entity, 
 // e.Segment remembers the last quarter credited so each fires once, and resets
 // with every level.
 func (d *Dispatcher) applyExpSegment(w *world.World, s *world.Session, e *world.Entity) {
+	if tierGateBlocks(e) {
+		return // the wall suppresses the quarter too (CMob.cpp:1107,1110)
+	}
 	levelCap := level.MaxLevelForTier(e.ClassMaster)
 	if e.Level >= levelCap {
 		return
@@ -498,4 +494,21 @@ func quarterNotice(seg int32) Notice {
 	default:
 		return Notice1QuarterBonus
 	}
+}
+
+// tierGateBlocks reports whether the character sits at a progression wall its
+// unlock quest has not opened yet: Celestial 40/90 (/destravar40, /destravar90)
+// or Arch 355/370. CheckGetLevel returns 0 at either (CMob.cpp:1107,1110),
+// BEFORE it would report a quarter — so a character held at a wall gets neither
+// the level nor the quarter bonus, and keeps accumulating experience quietly
+// until the quest is run.
+func tierGateBlocks(e *world.Entity) bool {
+	if isCelestialTier(e.ClassMaster) {
+		return (e.Level == 39 && e.CelLv40 == 0) || (e.Level == 89 && e.CelLv90 == 0)
+	}
+	if e.ClassMaster == classMasterArch {
+		return (e.Level == level.ArchGateLv355 && e.ArchLv355 == 0) ||
+			(e.Level == level.ArchGateLv370 && e.ArchLv370 == 0)
+	}
+	return false
 }
