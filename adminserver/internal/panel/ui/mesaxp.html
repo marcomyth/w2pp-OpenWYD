@@ -186,8 +186,16 @@
 
       <div class="grade-campos">
         <label>
-          Monstro (nome do template)
-          <input type="text" name="mob" value="{{.Form.Mob}}" placeholder="ex.: Gremlin">
+          Monstro
+          {{/* A datalist, not a select: the roster is in the hundreds, so typing
+               three letters and picking beats scrolling one. It also degrades to
+               the plain text field it replaces, which is what makes it usable
+               here at all — this panel serves no JavaScript. */}}
+          <input type="text" name="mob" value="{{.Form.Mob}}" list="monstros"
+                 placeholder="digite para procurar" autocomplete="off">
+          <datalist id="monstros">
+            {{range .Monstros}}<option value="{{.}}"></option>{{end}}
+          </datalist>
         </label>
         <label>
           XP que ele dá

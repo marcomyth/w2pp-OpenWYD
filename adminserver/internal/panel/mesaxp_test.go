@@ -310,3 +310,14 @@ func TestZonaInvalidaERecusada(t *testing.T) {
 		t.Errorf("a página caiu com uma query inválida: %d", rec.Code)
 	}
 }
+
+// The picker is a convenience, never a gate: the simulator has to keep working
+// when the list cannot be fetched, because the field it replaces was plain text
+// and typing a name is still a valid way to use the screen.
+func TestNomesDeMonstroToleraFalha(t *testing.T) {
+	h := &Handler{cfg: Config{}} // no GameData at all
+	req := httptest.NewRequest("GET", "/mesaxp", nil)
+	if got := h.nomesDeMonstro(req); got != nil {
+		t.Errorf("sem GameData a lista deve vir vazia, veio %v", got)
+	}
+}

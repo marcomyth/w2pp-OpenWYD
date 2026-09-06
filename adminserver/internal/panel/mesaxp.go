@@ -149,6 +149,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		Sim       mesaSimulacao
 		Historico []audit.Entry
 		Fadas     []fadaOpcao
+		Monstros  []string
 		Aviso     string
 		VoltarURL string
 	}{
@@ -166,6 +167,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		Sim:       sim,
 		Historico: historico,
 		Fadas:     fadas,
+		Monstros:  h.nomesDeMonstro(r),
 		Aviso:     r.URL.Query().Get("aviso"),
 		VoltarURL: form.query(),
 	})
@@ -614,4 +616,36 @@ func regraParaAudit(r domain.XPRule) map[string]any {
 	}
 	out["cortes"] = strings.Join(partes, ", ")
 	return out
+}
+
+// nomesDeMonstro lists the mob template names for the simulator's picker.
+//
+// The field used to be free text, and a typo answered "não achei o monstro" —
+// which is a fine error and a bad experience, since the names live one screen
+// away in /monstros and the operator has no reason to memorise them.
+//
+// A datalist rather than a select, for two reasons: the roster is in the
+// hundreds, so typing three letters and picking beats scrolling; and it degrades
+// to exactly the free-text field it replaces, which matters because this panel
+// serves no JavaScript and a widget that needed it would simply not work.
+//
+// A failure here returns nothing rather than an error: the simulator still works
+// by typing, and refusing to draw the whole page because the suggestion list is
+// unavailable would be the worse trade.
+func (h *Handler) nomesDeMonstro(r *http.Request) []string {
+	if h.cfg.GameData == nil {
+		return nil
+	}
+	sess, _ := staffFrom(r.Context())
+	achados, err := h.cfg.GameData.MobTemplates(r.Context(), sess.AccountID, "")
+	if err != nil {
+		return nil
+	}
+	nomes := make([]string, 0, len(achados))
+	for _, m := range achados {
+		if m.Name != "" {
+			nomes = append(nomes, m.Name)
+		}
+	}
+	return nomes
 }
