@@ -19,6 +19,7 @@ type NpcConfigStore interface {
 	ItemPriceOverrides(ctx context.Context) ([]domain.ItemPriceOverride, error)
 	ListMobTemplateStats(ctx context.Context) ([]domain.MobTemplateStat, error)
 	ListItemStats(ctx context.Context) ([]domain.ItemStat, error)
+	ListMountGrowthRates(ctx context.Context) ([]domain.MountGrowthRate, error)
 }
 
 // NpcConfigServer implements dbv1.NpcConfigServiceServer. It is the read-only
@@ -214,4 +215,24 @@ func itemStatsToProto(stats []domain.ItemStat) []*dbv1.ItemStat {
 		})
 	}
 	return out
+}
+
+// ListMountGrowthRates returns the configured mount growth curves
+// (0030_mount_growth_rate). A lineage with no rows simply does not appear, and
+// the tmServer keeps its compiled default for that mount — absence means "not
+// configured", never "zero chance".
+func (s *NpcConfigServer) ListMountGrowthRates(ctx context.Context, _ *dbv1.ListMountGrowthRatesRequest) (*dbv1.ListMountGrowthRatesResponse, error) {
+	rates, err := s.store.ListMountGrowthRates(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list mount growth rates: %v", err)
+	}
+	out := make([]*dbv1.MountGrowthRate, 0, len(rates))
+	for _, r := range rates {
+		out = append(out, &dbv1.MountGrowthRate{
+			MountIndex: int32(r.MountIndex),
+			Band:       int32(r.Band),
+			Rate:       int32(r.Rate),
+		})
+	}
+	return &dbv1.ListMountGrowthRatesResponse{Rates: out}, nil
 }

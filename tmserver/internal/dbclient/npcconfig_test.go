@@ -32,6 +32,10 @@ func (f *fakeNpcConfigAPI) ListItemStats(context.Context, *dbv1.ListItemStatsReq
 	return &dbv1.ListItemStatsResponse{}, nil
 }
 
+func (f *fakeNpcConfigAPI) ListMountGrowthRates(context.Context, *dbv1.ListMountGrowthRatesRequest, ...grpc.CallOption) (*dbv1.ListMountGrowthRatesResponse, error) {
+	return &dbv1.ListMountGrowthRatesResponse{}, nil
+}
+
 func TestNpcConfigSnapshotMapsDisplayName(t *testing.T) {
 	template := merchantTemplateBytes("Default")
 	src := &NpcConfig{

@@ -1547,6 +1547,7 @@ const (
 	NpcConfigService_ListNpcDefinitions_FullMethodName   = "/db.v1.NpcConfigService/ListNpcDefinitions"
 	NpcConfigService_ListMobTemplateStats_FullMethodName = "/db.v1.NpcConfigService/ListMobTemplateStats"
 	NpcConfigService_ListItemStats_FullMethodName        = "/db.v1.NpcConfigService/ListItemStats"
+	NpcConfigService_ListMountGrowthRates_FullMethodName = "/db.v1.NpcConfigService/ListMountGrowthRates"
 )
 
 // NpcConfigServiceClient is the client API for NpcConfigService service.
@@ -1580,6 +1581,16 @@ type NpcConfigServiceClient interface {
 	// overrides in ListNpcDefinitions, which are read at the moment of a shop
 	// transaction and hot-reload safely.
 	ListItemStats(ctx context.Context, in *ListItemStatsRequest, opts ...grpc.CallOption) (*ListItemStatsResponse, error)
+	// ListMountGrowthRates returns the configured mount growth curves
+	// (0030_mount_growth_rate): the chance an amago raises an ADULT mount one
+	// level, per lineage and per band of twenty levels. Read once at boot like
+	// the other content overlays — swapping a curve under a running server would
+	// leave two players feeding the same mount at different odds on the same
+	// afternoon, and that reads as luck rather than as a change.
+	//
+	// There is no legacy curve to match: BASE_GetGrowthRate is absent from the
+	// sources, so the shape is this server's balance decision.
+	ListMountGrowthRates(ctx context.Context, in *ListMountGrowthRatesRequest, opts ...grpc.CallOption) (*ListMountGrowthRatesResponse, error)
 }
 
 type npcConfigServiceClient struct {
@@ -1630,6 +1641,16 @@ func (c *npcConfigServiceClient) ListItemStats(ctx context.Context, in *ListItem
 	return out, nil
 }
 
+func (c *npcConfigServiceClient) ListMountGrowthRates(ctx context.Context, in *ListMountGrowthRatesRequest, opts ...grpc.CallOption) (*ListMountGrowthRatesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMountGrowthRatesResponse)
+	err := c.cc.Invoke(ctx, NpcConfigService_ListMountGrowthRates_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // NpcConfigServiceServer is the server API for NpcConfigService service.
 // All implementations must embed UnimplementedNpcConfigServiceServer
 // for forward compatibility.
@@ -1661,6 +1682,16 @@ type NpcConfigServiceServer interface {
 	// overrides in ListNpcDefinitions, which are read at the moment of a shop
 	// transaction and hot-reload safely.
 	ListItemStats(context.Context, *ListItemStatsRequest) (*ListItemStatsResponse, error)
+	// ListMountGrowthRates returns the configured mount growth curves
+	// (0030_mount_growth_rate): the chance an amago raises an ADULT mount one
+	// level, per lineage and per band of twenty levels. Read once at boot like
+	// the other content overlays — swapping a curve under a running server would
+	// leave two players feeding the same mount at different odds on the same
+	// afternoon, and that reads as luck rather than as a change.
+	//
+	// There is no legacy curve to match: BASE_GetGrowthRate is absent from the
+	// sources, so the shape is this server's balance decision.
+	ListMountGrowthRates(context.Context, *ListMountGrowthRatesRequest) (*ListMountGrowthRatesResponse, error)
 	mustEmbedUnimplementedNpcConfigServiceServer()
 }
 
@@ -1682,6 +1713,9 @@ func (UnimplementedNpcConfigServiceServer) ListMobTemplateStats(context.Context,
 }
 func (UnimplementedNpcConfigServiceServer) ListItemStats(context.Context, *ListItemStatsRequest) (*ListItemStatsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListItemStats not implemented")
+}
+func (UnimplementedNpcConfigServiceServer) ListMountGrowthRates(context.Context, *ListMountGrowthRatesRequest) (*ListMountGrowthRatesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMountGrowthRates not implemented")
 }
 func (UnimplementedNpcConfigServiceServer) mustEmbedUnimplementedNpcConfigServiceServer() {}
 func (UnimplementedNpcConfigServiceServer) testEmbeddedByValue()                          {}
@@ -1776,6 +1810,24 @@ func _NpcConfigService_ListItemStats_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _NpcConfigService_ListMountGrowthRates_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMountGrowthRatesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NpcConfigServiceServer).ListMountGrowthRates(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NpcConfigService_ListMountGrowthRates_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NpcConfigServiceServer).ListMountGrowthRates(ctx, req.(*ListMountGrowthRatesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // NpcConfigService_ServiceDesc is the grpc.ServiceDesc for NpcConfigService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1798,6 +1850,10 @@ var NpcConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListItemStats",
 			Handler:    _NpcConfigService_ListItemStats_Handler,
+		},
+		{
+			MethodName: "ListMountGrowthRates",
+			Handler:    _NpcConfigService_ListMountGrowthRates_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

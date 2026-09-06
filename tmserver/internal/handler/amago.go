@@ -126,7 +126,7 @@ func (d *Dispatcher) useAmago(w *world.World, s *world.Session, e *world.Entity,
 
 		// Only an adult can fail. A cria grows on every feed, which is what makes
 		// the early mount levels deterministic.
-		if adult && w.Rand().Intn(101) > amagoGrowthRate(*dst) {
+		if adult && w.Rand().Intn(101) > d.amagoGrowthRate(*dst) {
 			failed++
 			// One feed in five costs the adult a level (:1633).
 			if w.Rand().Intn(5) == 0 && dst.Effects[1].Effect > 0 {
@@ -190,9 +190,25 @@ func amagoHunger(it world.Item) int {
 	return int(it.Effects[0].Effect) | int(it.Effects[0].Value)<<8
 }
 
-// amagoGrowthRate is BASE_GetGrowthRate: an adult's chance to gain a level.
+// defaultMountGrowthRate is what an unconfigured lineage uses.
 //
-// UNVERIFIED: the function is not in this repo's sources, so the curve it reads
-// is unknown. A flat rate keeps adults progressing rather than stuck, and is the
-// one number to replace once a capture or the missing source turns up.
-func amagoGrowthRate(world.Item) int { return 50 }
+// BASE_GetGrowthRate is absent from this repo's sources, so there is no original
+// curve to match — the shape is a balance decision, and it lives in the panel
+// (0030_mount_growth_rate). This flat rate is what a server that has never
+// opened that screen keeps doing, which is exactly the behaviour before the
+// curves existed.
+const defaultMountGrowthRate = 50
+
+// amagoGrowthRate is an adult's chance to gain a level from one âmago: the
+// configured curve for that lineage at that level, or the default when nobody
+// has configured it.
+//
+// The level decides the band, so the same mount gets harder as it climbs — a
+// single number per lineage could not express "easy to start, hard to finish",
+// which is the shape a top mount needs.
+func (d *Dispatcher) amagoGrowthRate(it world.Item) int {
+	if rate, ok := d.mountRates.Rate(it.Index, int(it.Effects[1].Effect)); ok {
+		return rate
+	}
+	return defaultMountGrowthRate
+}

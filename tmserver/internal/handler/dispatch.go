@@ -18,6 +18,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/mountrate"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/npccfg"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/refine"
@@ -128,6 +129,11 @@ type Config struct {
 	// compiled noticeText table and the rest stay silent (notice.go).
 	Language *content.Language
 
+	// MountRates are the mount growth curves (0030_mount_growth_rate): the chance
+	// an âmago raises an adult mount one level, per lineage and per band of twenty
+	// levels. Nil (or a lineage absent from it) keeps defaultMountGrowthRate.
+	MountRates mountrate.Table
+
 	// Heights is the walkability grid the mob AI paths over: HeightMap.dat with
 	// AttributeMap.dat already baked in (route.Bake, the boot-time
 	// BASE_ApplyAttribute). Read-only after boot, so sharing it with the loop is
@@ -190,6 +196,7 @@ type Dispatcher struct {
 	expEvents       level.ExpEvents              // global EXP event flags
 	spells          *content.SkillData           // skill catalog (g_pSpell)
 	lang            *content.Language            // client string table (notification text)
+	mountRates      mountrate.Table              // mount growth curves (0030_mount_growth_rate)
 	heights         *content.Grid                // baked walkability grid (mob pathfinding)
 	now             func() time.Time             // wall clock for calendar-gated guild ops
 	maxNightmare    int                          // Pesadelo runs per window per tier (Server.cpp:687)
@@ -343,6 +350,7 @@ func New(cfg Config) *Dispatcher {
 		expEvents:        cfg.ExpEvents,
 		spells:           cfg.Spells,
 		lang:             cfg.Language,
+		mountRates:       cfg.MountRates,
 		heights:          cfg.Heights,
 		now:              cfg.Now,
 		maxNightmare:     cfg.MaxNightmare,

@@ -40,6 +40,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/itemstat"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/mobstat"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/mountrate"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/npccfg"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/route"
@@ -312,6 +313,25 @@ func run(logger *slog.Logger) error {
 		logger.Info("item base stat overlay enabled (moderator editing)", "overrides", len(overrides))
 	}
 
+	// Mount growth curves (0030_mount_growth_rate). No flag of its own: unlike the
+	// stat overlays, an empty table changes nothing — every lineage simply keeps
+	// the compiled default — so there is no unseeded-database hazard to guard
+	// against, and a switch would only be one more thing to forget to turn on.
+	var mountRates mountrate.Table
+	if dbConn != nil {
+		fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		rates, ferr := dbclient.NewMountRateSource(dbConn).Fetch(fetchCtx)
+		cancel()
+		if ferr != nil {
+			// Warn rather than fail: a missing curve costs balance, not correctness,
+			// and refusing to boot the game server over it would be the worse trade.
+			logger.Warn("mount growth curves not loaded; every lineage uses the default", "err", ferr)
+		} else {
+			mountRates = rates
+			logger.Info("mount growth curves loaded", "lineages", len(rates))
+		}
+	}
+
 	// Moderator NPC-editing overlay (npc-editing-plan.md): the single switch is
 	// -npc-editing (W2PP_NPC_EDITING), off by default so an unseeded DB never makes
 	// the NPCGener.txt merchants vanish. When on, it MUST have a dbServer (the config
@@ -342,7 +362,7 @@ func run(logger *slog.Logger) error {
 	}
 	dispatch := handler.New(handler.Config{
 		Log: logger, ClientVersion: int32(*clientVersion), BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemReqs: itemReqs,
-		ItemVolatiles: itemVolatiles, ItemDurations: itemDurations, ItemPos: itemPos, ItemUnique: itemUnique, ItemGrades: itemGrades, ItemExtra: itemExtra, Spells: spells, Heights: heights,
+		ItemVolatiles: itemVolatiles, ItemDurations: itemDurations, MountRates: mountRates, ItemPos: itemPos, ItemUnique: itemUnique, ItemGrades: itemGrades, ItemExtra: itemExtra, Spells: spells, Heights: heights,
 		SancRate:        sancRate,
 		ExpEvents:       level.ExpEvents{DoubleMode: *doubleExp, NewbieEvent: *newbieEvent, KefraLive: *kefraLive},
 		CombineFamilies: combineFamilies,

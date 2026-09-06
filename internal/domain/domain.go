@@ -779,3 +779,46 @@ func (m GuildMember) Lider() bool { return m.Level == guildLeaderLevel }
 
 // guildLeaderLevel is the rank the leader carries (guild_member.guild_level).
 const guildLeaderLevel = 9
+
+// MountGrowthRate is one editable point of a mount's growth curve: the chance an
+// âmago raises the ADULT mount (2360..2389) one level, for a band of twenty
+// levels (0 = 1..20 … 5 = 101..120).
+//
+// It exists because the legacy's BASE_GetGrowthRate is not in the sources we
+// have, so there is no original curve to port — the shape is this server's
+// balance decision, and belongs in the database rather than a constant.
+type MountGrowthRate struct {
+	MountIndex int16
+	Band       int16
+	Rate       int16 // 0..100
+	UpdatedBy  string
+}
+
+// MountGrowthBands is how many bands cover the 1..120 climb.
+const MountGrowthBands = 6
+
+// MountGrowthBandSize is how many levels each band spans.
+const MountGrowthBandSize = 20
+
+// MountAdultLo/MountAdultHi bound the adult mounts a curve can be set for. The
+// cria is excluded on purpose: it grows on every feed with no roll at all.
+const (
+	MountAdultLo = 2360
+	MountAdultHi = 2389
+)
+
+// MountGrowthBandFor maps a mount level to its band, clamped so a level past the
+// cap still reads the last band rather than falling off the table.
+func MountGrowthBandFor(level int) int16 {
+	b := level / MountGrowthBandSize
+	if level > 0 && level%MountGrowthBandSize == 0 {
+		b-- // 20 belongs to the 1..20 band, not to 21..40
+	}
+	if b < 0 {
+		b = 0
+	}
+	if b >= MountGrowthBands {
+		b = MountGrowthBands - 1
+	}
+	return int16(b)
+}

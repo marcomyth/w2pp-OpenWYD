@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"io"
+	"log/slog"
 	"net"
 	"testing"
 
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/mountrate"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -210,5 +213,41 @@ func TestAmagoTally(t *testing.T) {
 	}
 	if got := amagoTally(6, 4, 21); got != "Âmago: 6 aprimoramento(s), 4 falha(s). Montaria no nível 21." {
 		t.Errorf("tally = %q", got)
+	}
+}
+
+// The curve, not the flat default, decides an adult's odds — and it is read at
+// the mount's CURRENT level, so the same mount gets harder as it climbs.
+func TestAmagoUsesTheConfiguredCurve(t *testing.T) {
+	curve := mountrate.UnsetCurve()
+	curve[0] = 100 // 1..20: never fails
+	curve[5] = 0   // 101..120: never succeeds
+	rates := mountrate.Table{itemCriaAndaluzN + mountRowSize: curve}
+
+	d := New(Config{Log: slog.New(slog.NewTextHandler(io.Discard, nil)), MountRates: rates})
+	adult := world.Item{Index: itemCriaAndaluzN + mountRowSize}
+
+	adult.Effects[1].Effect = 5
+	if got := d.amagoGrowthRate(adult); got != 100 {
+		t.Errorf("rate at level 5 = %d, want 100", got)
+	}
+	adult.Effects[1].Effect = 110
+	if got := d.amagoGrowthRate(adult); got != 0 {
+		t.Errorf("rate at level 110 = %d, want 0", got)
+	}
+	// A band left unset falls back rather than reading as zero.
+	adult.Effects[1].Effect = 50
+	if got := d.amagoGrowthRate(adult); got != defaultMountGrowthRate {
+		t.Errorf("rate at an unset band = %d, want the default %d", got, defaultMountGrowthRate)
+	}
+}
+
+// A server with no curves configured behaves exactly as it did before they
+// existed — that is what makes the migration safe to ship unseeded.
+func TestAmagoDefaultsWithoutCurves(t *testing.T) {
+	d := New(Config{Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	adult := world.Item{Index: itemCriaAndaluzN + mountRowSize}
+	if got := d.amagoGrowthRate(adult); got != defaultMountGrowthRate {
+		t.Errorf("rate = %d, want the default %d", got, defaultMountGrowthRate)
 	}
 }
