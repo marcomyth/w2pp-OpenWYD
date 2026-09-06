@@ -4,40 +4,6 @@
 <title>Mapa do mundo — Painel OpenWYD</title>
 {{template "head" .}}
 <style>
-  /* O desenho é SVG servido junto com a página: o painel não serve JavaScript
-     e a política de segurança bloqueia script, então nada aqui pode depender
-     de biblioteca de mapa. O viewBox é a grade do mundo em unidades de jogo,
-     e tudo dentro dele é medido nessas unidades — por isso os tamanhos de
-     fonte e de raio parecem grandes. */
-  .mundo {
-    width: 100%; max-width: 760px; aspect-ratio: 1; display: block;
-    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
-  }
-  .mundo .chao { fill: var(--surface); }
-  /* O mundo construído, tirado do mapa de atributos do próprio jogo. Fica
-     apagado de propósito: é o chão que dá forma à página, não o assunto —
-     quem está sendo procurado são as bolinhas em cima dele. */
-  .mundo .terreno { fill: var(--rule); }
-  .mundo .malha { stroke: var(--rule); stroke-width: 3; }
-  .mundo .cidade { fill: none; stroke: var(--ink-3); stroke-width: 5; }
-  /* Sem font-size aqui: ele vem do atributo, calculado a partir do recorte,
-     senão um recorte mais fechado aumenta a letra junto com o resto. */
-  .mundo .cidade-nome { fill: var(--ink-3); letter-spacing: 2px; }
-  .mundo .mapa-vazio { fill: var(--ink-3); letter-spacing: 6px; }
-  .mundo .jogador { fill: var(--accent); }
-  .mundo .jogador.junto { fill: var(--danger); }
-  .mundo .grupo { fill: none; stroke: var(--danger); stroke-width: 7; }
-
-  .legenda {
-    display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
-    margin: 12px 0 26px; font-size: 12.5px; color: var(--ink-3);
-  }
-  .legenda span { display: inline-flex; align-items: center; gap: 7px; }
-  .legenda i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-  .legenda i.so { background: var(--accent); }
-  .legenda i.junto { background: var(--danger); }
-  .legenda i.cid { border: 2px solid var(--ink-3); background: none; }
-
   .contas-grupo { color: var(--ink-2); font-size: 13px; }
 </style>
 </head>
@@ -45,10 +11,11 @@
 {{template "topbar" .}}
 
 <main class="larga">
-  <h1>Mapa do mundo</h1>
+  <h1>Quem está onde</h1>
   <p class="sub">
-    Onde está cada personagem em jogo agora. A leitura é uma só, feita quando
-    você abriu a página — recarregue para ver de novo.
+    Onde cada personagem em jogo está agora, e quais contas dividem conexão. A
+    leitura é uma só, feita quando você abriu a página — recarregue para ver de
+    novo.
   </p>
 
   {{if .Erro}}
@@ -58,52 +25,15 @@
   <div class="numeros">
     <div class="num-tile"><div class="rot">Em jogo</div><div class="val">{{len .Pontos}}</div></div>
     <div class="num-tile"><div class="rot">Conectados</div><div class="val">{{.Conectados}}</div></div>
-    <div class="num-tile"><div class="rot">Aglomerações</div><div class="val">{{len .Grupos}}</div></div>
+    <div class="num-tile"><div class="rot">Gente junta</div><div class="val">{{len .Grupos}}</div></div>
     <div class="num-tile"><div class="rot">Conexões repetidas</div><div class="val">{{len .Conexoes}}</div></div>
     <div class="num-tile"><div class="rot">Regiões com gente</div><div class="val">{{len .Regioes}}</div></div>
-  </div>
-
-  {{$v := .Vista}}
-  <svg class="mundo" viewBox="{{$v.X}} {{$v.Y}} {{$v.Lado}} {{$v.Lado}}" role="img"
-       aria-label="Mapa do mundo com a posição de cada personagem em jogo">
-    <rect class="chao" x="{{$v.X}}" y="{{$v.Y}}" width="{{$v.Lado}}" height="{{$v.Lado}}"></rect>
-    {{template "silhueta-do-mundo"}}
-
-    {{range .Cidades}}
-    <circle class="cidade" cx="{{.CX}}" cy="{{.CY}}" r="{{.Radius}}"></circle>
-    {{if .Rotular}}
-    <text class="cidade-nome" x="{{.CX}}" y="{{.CY}}" dy="-{{.Radius}}" text-anchor="middle"
-          font-size="{{$v.Fonte}}">{{.Nome}}</text>
-    {{end}}
-    {{end}}
-
-    {{range .Grupos}}
-    <circle class="grupo" cx="{{.X}}" cy="{{.Y}}" r="{{.RaioDesenho}}"></circle>
-    {{end}}
-
-    {{if not .Pontos}}
-    <text class="mapa-vazio" x="{{$v.Meio}}" y="{{$v.Base}}"
-          text-anchor="middle" font-size="{{$v.FonteVazio}}">ninguém em jogo</text>
-    {{end}}
-
-    {{range .Pontos}}
-    <circle class="jogador{{if .Junto}} junto{{end}}" cx="{{.X}}" cy="{{.Y}}" r="{{$v.Ponto}}">
-      <title>{{.Personagem}} ({{.Conta}}) — nível {{.Nivel}} — {{.X}}, {{.Y}} — {{.Regiao}}</title>
-    </circle>
-    {{end}}
-  </svg>
-
-  <div class="legenda">
-    <span><i class="so"></i> jogador</span>
-    <span><i class="junto"></i> em aglomeração</span>
-    <span><i class="cid"></i> cidade</span>
-    <span>o mundo inteiro, {{.Grade}} × {{.Grade}} passos</span>
   </div>
 
   {{if not .Pontos}}
   <div class="vazio">
     Ninguém em jogo agora. Quando alguém entrar, aparece aqui quem está onde,
-    quem está amontoado fora de cidade e quais contas dividem a mesma conexão.
+    quem está junto fora de cidade e quais contas dividem a mesma conexão.
   </div>
   {{else}}
 
@@ -112,8 +42,13 @@
     <p class="nota">
       Três ou mais personagens a menos de 24 passos uns dos outros, fora do
       perímetro de qualquer cidade. Dentro de cidade todo mundo se junta — loja,
-      banco e ressurreição ficam lá — então cidade não conta. Isto é um indício,
-      não um veredito: caçada em grupo faz a mesma figura que fazenda de bot.
+      banco e ressurreição ficam lá — então cidade não conta.
+      <br><strong>Isto NÃO serve para achar bot.</strong> Bot no WYD anda
+      sozinho, e quem farma com vários personagens espalha de propósito —
+      empilhar no mesmo spawn faz todos renderem menos. O que esta lista
+      mostra é gente junta: caçada em grupo, disputa de spawn, evento
+      acontecendo. Para bot o caminho é a denúncia de outro jogador e o
+      <span class="mono">/gm summon</span>: bot não responde.
     </p>
     {{range .Grupos}}
     <div class="caixa">

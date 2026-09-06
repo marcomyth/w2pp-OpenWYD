@@ -162,20 +162,18 @@ func TestMapaDesenhaOsJogadoresEDizOndeEstao(t *testing.T) {
 	}}
 	body := getSignedIn(t, newTestPanelJogo(t, newFakeAudit(), j), "/mapa").Body.String()
 
-	if !strings.Contains(body, "<svg") {
-		t.Fatal("a página não desenhou o mapa")
+	// The drawing is gone: it was sold as a way to spot bot farms and it is not
+	// one — a bot in this game plays alone, and somebody farming with several
+	// characters spreads them on purpose. What answers a real question is what
+	// is left: who is together, who shares a connection, and how many are where.
+	if strings.Contains(body, "<svg") {
+		t.Error("o desenho voltou")
 	}
-	// The picture is served as part of the page: the panel serves no JavaScript
-	// and its CSP forbids script, so a map that needed a library would render
-	// as an empty box.
 	if strings.Contains(strings.ToLower(body), "<script") {
-		t.Error("o mapa passou a depender de JavaScript, que a política de segurança bloqueia")
-	}
-	if !strings.Contains(body, "Heroina") {
-		t.Error("o mapa não nomeia quem está no ponto")
+		t.Error("a página passou a depender de JavaScript, que a política de segurança bloqueia")
 	}
 	if strings.Contains(body, "dora") {
-		t.Error("uma sessão ainda na tela de personagem foi desenhada no mundo")
+		t.Error("uma sessão ainda na tela de personagem entrou nas contas")
 	}
 	if !strings.Contains(body, "personagens juntos") {
 		t.Error("três no mesmo lugar fora de cidade não viraram uma aglomeração na tela")
@@ -203,56 +201,6 @@ func TestMapaComServidorForaDoArAindaAbre(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "nota perigo") {
 		t.Error("a falha de leitura não apareceu na página")
-	}
-}
-
-func TestCidadesSempreNomeiaAsCincoConhecidas(t *testing.T) {
-	// The five canonical cities carry the legacy CityLimit rectangle and are how
-	// a person finds themselves on this picture. They are named even on an empty
-	// server.
-	cs := cidades(nil)
-	rotuladas := map[string]bool{}
-	for _, c := range cs {
-		if c.Rotular {
-			rotuladas[c.Nome] = true
-		}
-	}
-	for _, nome := range []string{"Armia", "Azran", "Erion", "Nippleheim", "Noatum"} {
-		if !rotuladas[nome] {
-			t.Errorf("%s não foi nomeada — sem as cidades conhecidas ninguém se localiza", nome)
-		}
-	}
-	// And the three dungeon instances are not drawn at all while empty: three
-	// unlabelled circles in an otherwise empty corner read as a glitch, and
-	// labelled their names overlap into a smear.
-	for _, c := range cs {
-		if strings.HasPrefix(c.Nome, "Pesadelo") {
-			t.Error("masmorra vazia foi desenhada; vira três círculos misteriosos no canto")
-		}
-	}
-}
-
-func TestCidadeApareceQuandoTemGente(t *testing.T) {
-	cs := cidades([]PontoMapa{{Regiao: "Pesadelo Místico (masmorra)"}})
-	for _, c := range cs {
-		if c.Nome == "Pesadelo Místico" {
-			if !c.Rotular {
-				t.Error("a masmorra com gente dentro apareceu sem nome")
-			}
-			return
-		}
-	}
-	t.Fatal("a masmorra com gente dentro não foi desenhada")
-}
-
-func TestNomeDoDesenhoPerdeOParentese(t *testing.T) {
-	// "Pesadelo Místico (masmorra)" is right in a table and far too long to sit
-	// on a circle 60 units wide.
-	if got := curto("Pesadelo Místico (masmorra)"); got != "Pesadelo Místico" {
-		t.Errorf("curto = %q", got)
-	}
-	if got := curto("Armia"); got != "Armia" {
-		t.Errorf("curto = %q, want Armia intacto", got)
 	}
 }
 
@@ -401,52 +349,5 @@ func TestGrupoSemEnderecoNaoEMesmaConexao(t *testing.T) {
 	}
 	if g[0].MesmaConexao {
 		t.Error("endereço faltando virou coincidência de endereço")
-	}
-}
-
-// --- a medida do desenho ---
-
-// The map frames the whole world, and it can only do that because the world is
-// drawn: the terrain silhouette (ui/_mundo.html, generated from the game's own
-// AttributeMap.dat) is what stopped this being a square with five circles in a
-// void. Without it the frame was air, which is what an earlier crop was trying
-// to hide.
-func TestOMapaEnquadraOMundoInteiro(t *testing.T) {
-	v := vistaCompleta()
-	if v.X != 0 || v.Y != 0 || v.Lado != gradeMundo {
-		t.Errorf("vista = %d,%d+%d, want o mundo inteiro", v.X, v.Y, v.Lado)
-	}
-}
-
-// Labels and dots are given in world units, so they need a size relative to the
-// frame rather than a constant that happens to look right at one page width.
-func TestAsMedidasSaemDaVista(t *testing.T) {
-	v := vistaCompleta()
-	if v.Fonte <= 0 || v.Ponto <= 0 || v.FonteVazio <= v.Fonte {
-		t.Errorf("medidas = %+v", v)
-	}
-	if v.Meio != gradeMundo/2 {
-		t.Errorf("meio = %d, want o centro", v.Meio)
-	}
-	if v.Base <= v.Meio || v.Base >= gradeMundo {
-		t.Errorf("base = %d, want perto do rodapé do desenho", v.Base)
-	}
-}
-
-func TestOTerrenoEDesenhado(t *testing.T) {
-	// The silhouette is the whole reason the map reads as a map. If the template
-	// ever stops being included, the page goes back to a square with five
-	// circles in it and nobody would notice from the tests.
-	j := &fakeJogo{estado: jogo.Estado{}}
-	body := getSignedIn(t, newTestPanelJogo(t, newFakeAudit(), j), "/mapa").Body.String()
-	if !strings.Contains(body, `class="terreno"`) {
-		t.Fatal("o mapa foi desenhado sem o terreno")
-	}
-	// It has to be substantial: an empty path would pass a Contains check and
-	// draw nothing.
-	i := strings.Index(body, `class="terreno" d="`)
-	fim := strings.Index(body[i:], `"></path>`)
-	if fim < 2000 {
-		t.Errorf("o caminho do terreno tem %d bytes, want a silhueta inteira", fim)
 	}
 }

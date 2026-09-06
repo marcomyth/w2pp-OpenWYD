@@ -3,7 +3,6 @@ package panel
 import (
 	"net/http"
 	"sort"
-	"strings"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/jogo"
 	"github.com/jeanluca/w2pp-openwyd/internal/mapzones"
@@ -82,14 +81,6 @@ type Aglomeracao struct {
 	// from one address. Position alone is circumstantial and connection alone is
 	// explainable; together they are as close to proof as this panel gets.
 	MesmaConexao bool
-}
-
-// CidadeMapa is one settlement drawn on the picture.
-type CidadeMapa struct {
-	Nome           string
-	CX, CY, Radius int32
-	// Rotular decides whether the name is drawn.
-	Rotular bool
 }
 
 // RegiaoContagem is how many players are in one named region.
@@ -296,50 +287,6 @@ func distancia(x1, y1, x2, y2 int32) int32 {
 	return int32(x)
 }
 
-// cidades prepares the settlements for drawing.
-//
-// Only the five canonical cities are always on the picture — they are how a
-// person finds themselves on it. The other four zones (the three Pesadelo
-// interiors and the unidentified east city) are drawn ONLY while somebody is
-// standing in one.
-//
-// That is not tidying. Drawn always, the three Pesadelo circles sit within 200
-// units of each other in an otherwise empty corner: unlabelled they read as a
-// glitch, and labelled their names overlap into a smear. A circle that appears
-// exactly when it holds a player is a circle that means something.
-//
-// The label drops the parenthetical: "Pesadelo Místico (masmorra)" is right in a
-// table and far too long to sit on a circle 60 units wide.
-func cidades(ps []PontoMapa) []CidadeMapa {
-	comGente := map[string]bool{}
-	for _, p := range ps {
-		comGente[p.Regiao] = true
-	}
-	var out []CidadeMapa
-	for _, z := range mapzones.All {
-		if z.Radius == 0 {
-			continue // the Field catch-all has no place on the grid
-		}
-		// LimitX2 != 0 marks the five cities that carry a legacy CityLimit
-		// rectangle — Armia, Azran, Erion, Nippleheim, Noatum.
-		cidade := z.LimitX2 != 0
-		if !cidade && !comGente[z.Name] {
-			continue
-		}
-		out = append(out, CidadeMapa{
-			Nome: curto(z.Name), CX: z.CX, CY: z.CY, Radius: z.Radius, Rotular: true,
-		})
-	}
-	return out
-}
-
-func curto(nome string) string {
-	if i := strings.Index(nome, " ("); i > 0 {
-		return nome[:i]
-	}
-	return nome
-}
-
 // porRegiao counts the players in each named region, busiest first.
 func porRegiao(ps []PontoMapa) []RegiaoContagem {
 	n := map[string]int{}
@@ -375,60 +322,17 @@ func (h *Handler) mapa(w http.ResponseWriter, r *http.Request) {
 	ps := pontos(estado.Players)
 	grupos := aglomerar(ps) // marks Junto on ps
 
-	cids := cidades(ps)
 	h.render(w, "mapa.html", struct {
 		page
 		Pontos     []PontoMapa
 		Grupos     []Aglomeracao
 		Conexoes   []Conexao
 		Regioes    []RegiaoContagem
-		Cidades    []CidadeMapa
-		Vista      Vista
 		Grade      int32
 		Conectados int32
 		Erro       string
 	}{
 		h.pageFor(r, "mapa"), ps, grupos, conexoes(estado.Players), porRegiao(ps),
-		cids, vistaCompleta(), gradeMundo, estado.Conectados, erro,
+		gradeMundo, estado.Conectados, erro,
 	})
-}
-
-// Vista is how the picture is measured.
-//
-// It frames the WHOLE world, and that is a reversal: for about an hour this
-// cropped to the cities, because the map was five circles in a void and the
-// crop at least stopped it framing air. The real problem was that there was
-// nothing drawn — no ground, no shape, nothing saying where the world begins.
-// With the terrain silhouette behind them (ui/_mundo.html, generated from the
-// game's own AttributeMap.dat) the emptiness is gone, and the crop became
-// actively wrong: the world HAS content out to the corners, so cropping to the
-// cities cut real terrain out of the picture.
-//
-// What survives from that attempt is the sizing. Labels and dots are given in
-// world units, so they need a size relative to the frame rather than a constant
-// that happens to look right at one width.
-type Vista struct {
-	X, Y, Lado int32
-	Fonte      int32
-	Ponto      int32
-	// Meio, Base and FonteVazio place the empty-state line. Computed here rather
-	// than in the template: arithmetic helpers in a template are how logic ends
-	// up somewhere nobody tests it.
-	Meio       int32
-	Base       int32
-	FonteVazio int32
-}
-
-// vistaCompleta is the whole world, which is the only frame there is now.
-func vistaCompleta() Vista {
-	v := Vista{X: 0, Y: 0, Lado: gradeMundo}
-	v.Fonte = v.Lado / 66
-	v.Ponto = v.Lado / 256
-	if v.Ponto < 4 {
-		v.Ponto = 4
-	}
-	v.Meio = v.X + v.Lado/2
-	v.Base = v.Y + v.Lado - v.Lado/22
-	v.FonteVazio = v.Fonte * 3 / 2
-	return v
 }

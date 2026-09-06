@@ -420,7 +420,7 @@
     {{if or .HasJogo .HasEvento}}
     <span class="grupo">
       {{if .HasJogo}}<a href="/servidor" {{if eq .Nav "servidor"}}class="on"{{end}}>Servidor</a>{{end}}
-      {{if .HasJogo}}<a href="/mapa" {{if eq .Nav "mapa"}}class="on"{{end}}>Mapa</a>{{end}}
+      {{if .HasJogo}}<a href="/mapa" {{if eq .Nav "mapa"}}class="on"{{end}}>Quem está onde</a>{{end}}
       {{if .HasEvento}}<a href="/eventos" {{if eq .Nav "eventos"}}class="on"{{end}}>Eventos</a>{{end}}
     </span>
     {{end}}
