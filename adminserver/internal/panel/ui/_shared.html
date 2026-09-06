@@ -398,17 +398,21 @@
       {{if .HasGuilda}}<a href="/guildas" {{if eq .Nav "guildas"}}class="on"{{end}}>Guildas</a>{{end}}
       {{if .HasTrocas}}<a href="/trocas" {{if eq .Nav "trocas"}}class="on"{{end}}>Trocas</a>{{end}}
       {{if .IsAdmin}}<a href="/auditoria" {{if eq .Nav "auditoria"}}class="on"{{end}}>Auditoria</a>{{end}}
-      {{if and .IsAdmin .HasMesaXP}}<a href="/auditoria/xp" {{if eq .Nav "mesaxp"}}class="on"{{end}}>Mesa de XP</a>{{end}}
     </span>
 
-    {{/* O mundo: o conteúdo que o jogo carrega. Uma condição só para os quatro,
-         porque todos vêm do mesmo webServer. */}}
-    {{if .HasItems}}
+    {{/* O mundo: o conteúdo que o jogo carrega. Os quatro primeiros vêm do mesmo
+         webServer e por isso partilham uma condição; Rates tem a sua porque a
+         mesa de XP vem do banco e a de montarias vem do webServer, e a seção
+         existe se pelo menos uma das duas existir. */}}
+    {{if or .HasItems .HasRates}}
     <span class="grupo">
+      {{if .HasItems}}
       <a href="/itens" {{if eq .Nav "itens"}}class="on"{{end}}>Itens</a>
       <a href="/npcs" {{if eq .Nav "npcs"}}class="on"{{end}}>NPCs</a>
       <a href="/monstros" {{if eq .Nav "monstros"}}class="on"{{end}}>Monstros</a>
       <a href="/drops" {{if eq .Nav "drops"}}class="on"{{end}}>Drops</a>
+      {{end}}
+      {{if and .IsAdmin .HasRates}}<a href="/rates" {{if eq .Nav "rates"}}class="on"{{end}}>Rates</a>{{end}}
     </span>
     {{end}}
 
@@ -521,5 +525,14 @@
   <a href="/contas/{{.Conta}}?aba=itens" {{if eq .Aba "itens"}}class="on"{{end}}>Itens</a>
   {{if .TemPersonagem}}<a href="/contas/{{.Conta}}/personagens/{{.Personagem}}" {{if eq .Aba "editor"}}class="on"{{end}}>Editor</a>{{end}}
   <a href="/contas/{{.Conta}}/donate" {{if eq .Aba "donate"}}class="on"{{end}}>Donate</a>
+</div>
+{{end}}
+
+{{define "abas-rates"}}
+{{/* Reuses .abas-conta: the device is the same — one section, several screens —
+     and giving it a second class name would be two ways to draw one thing. */}}
+<div class="abas-conta">
+  {{if .HasMesaXP}}<a href="/rates/xp" {{if eq .Aba "xp"}}class="on"{{end}}>Experiência</a>{{end}}
+  {{if .HasMont}}<a href="/rates/montarias" {{if eq .Aba "montarias"}}class="on"{{end}}>Montarias</a>{{end}}
 </div>
 {{end}}

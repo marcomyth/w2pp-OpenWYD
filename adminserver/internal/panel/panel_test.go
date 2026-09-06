@@ -1187,6 +1187,11 @@ type fakeGameData struct {
 	drops        []gamedata.Drop
 	dropsPedidos [][2]string
 	dropsErr     error
+	curvas       []gamedata.MountGrowthCurve
+	curvaSalva   map[int32][]int32
+	curvaLimpa   []int32
+	curvaErr     error
+	curvaGravaEr error
 }
 
 func newFakeGameData() *fakeGameData {
@@ -2453,6 +2458,40 @@ func TestAtributosDeItemSomemSemWebServer(t *testing.T) {
 	if rec := get("/itens/2000/atributos"); rec.Code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404 sem webServer", rec.Code)
 	}
+}
+
+// --- curvas de montaria ---
+
+func (f *fakeGameData) MountGrowthCurves(_ context.Context) ([]gamedata.MountGrowthCurve, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.curvaErr != nil {
+		return nil, f.curvaErr
+	}
+	return f.curvas, nil
+}
+
+func (f *fakeGameData) SetMountGrowthCurve(_ context.Context, _ int64, _ string, mountIndex int32, rates []int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.curvaGravaEr != nil {
+		return f.curvaGravaEr
+	}
+	if f.curvaSalva == nil {
+		f.curvaSalva = map[int32][]int32{}
+	}
+	f.curvaSalva[mountIndex] = append([]int32(nil), rates...)
+	return nil
+}
+
+func (f *fakeGameData) ClearMountGrowthCurve(_ context.Context, _ int64, mountIndex int32) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.curvaGravaEr != nil {
+		return f.curvaGravaEr
+	}
+	f.curvaLimpa = append(f.curvaLimpa, mountIndex)
+	return nil
 }
 
 // --- drops ---

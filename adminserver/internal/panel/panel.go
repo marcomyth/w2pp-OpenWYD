@@ -118,6 +118,9 @@ type GameData interface {
 	SaveItemStat(ctx context.Context, moderatorID int64, m gamedata.ItemStat) error
 	ClearItemStat(ctx context.Context, moderatorID int64, index int32) error
 	Drops(ctx context.Context, moderatorID int64, item, mob string) ([]gamedata.Drop, error)
+	MountGrowthCurves(ctx context.Context) ([]gamedata.MountGrowthCurve, error)
+	SetMountGrowthCurve(ctx context.Context, moderatorID int64, moderator string, mountIndex int32, rates []int32) error
+	ClearMountGrowthCurve(ctx context.Context, moderatorID int64, mountIndex int32) error
 }
 
 // Deliveries is the item mailbox. Kept as an interface for the same reason the
@@ -279,6 +282,20 @@ func newDecoyHash() string {
 	return h
 }
 
+// primeiraAbaDeRates é para onde /rates manda quem chega pela raiz da seção: a
+// aba de experiência quando ela existe, senão a de montarias, senão lugar nenhum
+// — e aí a seção inteira não é registrada nem aparece no menu.
+func primeiraAbaDeRates(cfg Config) string {
+	switch {
+	case cfg.MesaXP != nil:
+		return "/rates/xp"
+	case cfg.GameData != nil:
+		return "/rates/montarias"
+	default:
+		return ""
+	}
+}
+
 // Routes builds the mux.
 func (h *Handler) Routes() http.Handler {
 	mux := http.NewServeMux()
@@ -301,12 +318,31 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("GET /contas/{nome}", h.requireStaff(http.HandlerFunc(h.conta)))
 	mux.Handle("GET /auditoria", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.auditoria))))
 	if h.cfg.MesaXP != nil {
-		// The Mesa lives under Auditoria because it is the same kind of screen:
-		// what the server pays, who changed it and when. Admin-only, like its
-		// parent — these tables govern everyone's progress at once.
+		// A Mesa de XP é a primeira aba de Rates, a seção que junta as mesas de
+		// balanceamento. Só para administrador, como era antes: estas tabelas
+		// governam o progresso de todo mundo de uma vez.
+		//
+		// /auditoria/xp, o endereço antigo, continua atendendo. Links para ele
+		// existem em anotações e nas próprias linhas da auditoria, e um 404 num
+		// link que já foi certo é a pior forma de mudar um endereço.
+		mux.Handle("GET /rates/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.mesaXP))))
+		mux.Handle("POST /rates/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setMesaXP))))
+		mux.Handle("POST /rates/xp/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparMesaXP))))
 		mux.Handle("GET /auditoria/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.mesaXP))))
 		mux.Handle("POST /auditoria/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setMesaXP))))
 		mux.Handle("POST /auditoria/xp/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparMesaXP))))
+	}
+	// As montarias vêm do webServer, não do banco, então dependem de outra
+	// coisa que a Mesa de XP — um painel sem webServer mostra Rates só com a
+	// aba de experiência, em vez de oferecer uma tela que responderia 404.
+	if h.cfg.GameData != nil {
+		mux.Handle("GET /rates/montarias", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.montarias))))
+		mux.Handle("POST /rates/montarias/{indice}", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setMontaria))))
+		mux.Handle("POST /rates/montarias/{indice}/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparMontaria))))
+	}
+	// /rates entra na primeira aba que existe.
+	if destino := primeiraAbaDeRates(h.cfg); destino != "" {
+		mux.Handle("GET /rates", h.requireStaff(http.RedirectHandler(destino, http.StatusFound)))
 	}
 	if h.cfg.Trocas != nil {
 		mux.Handle("GET /trocas", h.requireStaff(http.HandlerFunc(h.trocas)))
@@ -410,6 +446,8 @@ type page struct {
 	HasDenun  bool   // the report queue needs the database read
 	HasGuilda bool   // the guild pages need the database read
 	HasMesaXP bool   // the Mesa de XP needs the database read
+	HasRates  bool   // Rates existe se pelo menos uma das suas abas existir
+	HasMont   bool   // a aba de montarias vem do webServer, a de XP vem do banco
 	CSRF      string // every form that changes something carries this back
 }
 
@@ -452,6 +490,8 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		HasDenun:  h.cfg.Denuncias != nil,
 		HasGuilda: h.cfg.Guildas != nil,
 		HasMesaXP: h.cfg.MesaXP != nil,
+		HasRates:  primeiraAbaDeRates(h.cfg) != "",
+		HasMont:   h.cfg.GameData != nil,
 		CSRF:      sess.CSRF,
 	}
 }

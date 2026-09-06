@@ -55,6 +55,8 @@
 {{template "topbar" .}}
 
 <main>
+  {{template "abas-rates" .}}
+
   <h1>Mesa de XP</h1>
   <p class="sub">
     Quanta experiência uma morte paga, e por quê. O jogo escolhe a tabela pelo
@@ -102,7 +104,7 @@
       {{end}}
     </p>
 
-    <form method="post" action="/auditoria/xp">
+    <form method="post" action="/rates/xp">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <input type="hidden" name="voltar" value="{{.VoltarURL}}">
       <input type="hidden" name="zona" value="{{.Form.Zona}}">
@@ -153,7 +155,7 @@
     </form>
 
     {{if .Editada}}
-    <form method="post" action="/auditoria/xp/limpar" style="margin-top:10px">
+    <form method="post" action="/rates/xp/limpar" style="margin-top:10px">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <input type="hidden" name="voltar" value="{{.VoltarURL}}">
       <input type="hidden" name="zona" value="{{.Form.Zona}}">
@@ -179,7 +181,7 @@
       valendo. Serve para ver o efeito de uma quebra antes de gravá-la.
     </p>
 
-    <form method="get" action="/auditoria/xp">
+    <form method="get" action="/rates/xp">
       <input type="hidden" name="simular" value="1">
       <input type="hidden" name="zona" value="{{.Form.Zona}}">
       <input type="hidden" name="evolucao" value="{{.Form.Evolucao}}">

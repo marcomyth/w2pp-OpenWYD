@@ -136,6 +136,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "mesaxp.html", struct {
 		page
+		Aba       string
 		Versao    int64
 		Abas      []mesaAba
 		Zonas     []mesaAba
@@ -153,7 +154,8 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		Aviso     string
 		VoltarURL string
 	}{
-		page:      h.pageFor(r, "mesaxp"),
+		page:      h.pageFor(r, "rates"),
+		Aba:       "xp",
 		Versao:    cfg.Version,
 		Abas:      abasEvolucao(form, cfg),
 		Zonas:     abasZona(form, cfg),
@@ -249,7 +251,7 @@ func (h *Handler) limparMesaXP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) voltarParaMesa(w http.ResponseWriter, r *http.Request, aviso string) {
-	destino := "/auditoria/xp"
+	destino := "/rates/xp"
 	if q := r.PostFormValue("voltar"); strings.HasPrefix(q, "?") && !strings.ContainsAny(q, "/\\") {
 		destino += q + "&aviso=" + url.QueryEscape(aviso)
 	} else {
@@ -567,7 +569,7 @@ func abasEvolucao(f mesaForm, cfg level.Config) []mesaAba {
 	for _, t := range level.Tiers() {
 		q := url.Values{"zona": {strconv.Itoa(f.Zona)}, "evolucao": {strconv.Itoa(int(t))}}
 		out = append(out, mesaAba{
-			Rotulo: level.TierName(t), URL: "/auditoria/xp?" + q.Encode(),
+			Rotulo: level.TierName(t), URL: "/rates/xp?" + q.Encode(),
 			Ativa:  int(t) == f.Evolucao,
 			Tocada: temRegra(cfg, level.Zone(f.Zona), t),
 		})
@@ -581,7 +583,7 @@ func abasZona(f mesaForm, cfg level.Config) []mesaAba {
 	for _, z := range zonas {
 		q := url.Values{"zona": {strconv.Itoa(int(z))}, "evolucao": {strconv.Itoa(f.Evolucao)}}
 		out = append(out, mesaAba{
-			Rotulo: z.Name(), URL: "/auditoria/xp?" + q.Encode(),
+			Rotulo: z.Name(), URL: "/rates/xp?" + q.Encode(),
 			Ativa:  int(z) == f.Zona,
 			Tocada: temRegra(cfg, z, uint8(f.Evolucao)),
 		})

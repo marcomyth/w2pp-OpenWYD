@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Montarias — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  /* A tabela é larga de propósito: as seis faixas lado a lado SÃO a curva, e
+     lê-las juntas é a única forma de ver que ela sobe ou desce. Esconder faixas
+     atrás de um clique devolveria seis números soltos. */
+  table.curvas { min-width: 940px; }
+  table.curvas th.faixa, table.curvas td.faixa {
+    text-align: right; padding-right: 12px; font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  table.curvas td.faixa { color: var(--ink); }
+  /* Uma faixa que ninguém configurou mostra o padrão, e mostra que é o padrão.
+     Sem essa distinção, "50" numa linha nova e "50" escolhido à mão ficariam
+     idênticos — e restaurar a linhagem passaria a parecer inofensivo. */
+  table.curvas td.faixa.padrao { color: var(--ink-3); }
+  table.curvas td.nome { color: var(--ink); white-space: nowrap; }
+  table.curvas td.nome .idx { color: var(--ink-3); font-size: 12px; margin-left: 6px; }
+  table.curvas td.amago { color: var(--ink-2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.curvas td.custo { text-align: right; padding-right: 18px; font-variant-numeric: tabular-nums; color: var(--ink); }
+  table.curvas tr.editando td { background: var(--surface); }
+
+  .ritmo {
+    font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 3px; white-space: nowrap;
+  }
+  .ritmo.rapida       { color: var(--accent); background: var(--chip-bg); }
+  .ritmo.media        { color: var(--ink-2); background: var(--chip-bg); }
+  .ritmo.longa        { color: var(--gold);  background: var(--gold-bg); }
+  .ritmo.muito-longa  { color: var(--warn);  background: var(--warn-bg); }
+  .ritmo.inalcancavel { color: var(--danger); background: var(--danger-bg); }
+
+  /* O editor abre na própria linha. Uma página separada por linhagem tiraria da
+     tela as outras vinte e nove — e o número de uma montaria só quer dizer
+     alguma coisa ao lado dos números das outras. */
+  td.editor { padding: 4px 0 20px; background: var(--surface); }
+  .faixas-form {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+    gap: 12px 14px; margin: 6px 0 14px; max-width: 760px;
+  }
+  .faixas-form label { display: block; font-size: 11px; letter-spacing: .07em;
+                       text-transform: uppercase; color: var(--ink-3); }
+  .faixas-form input {
+    width: 100%; margin-top: 4px; padding: 7px 9px; font: inherit; font-size: 14px;
+    color: var(--ink); background: var(--ground); border: 1px solid var(--rule);
+    border-radius: 3px; font-variant-numeric: tabular-nums;
+  }
+  .faixas-form input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .linha-botoes { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .dica-curva { font-size: 12.5px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main class="larga">
+  {{template "abas-rates" .}}
+
+  <h1>Montarias</h1>
+  <p class="sub">
+    Quanto um âmago rende. Cada linhagem tem a sua curva, e dentro da curva cada
+    faixa de vinte níveis tem a sua chance — é assim que uma montaria forte pode
+    subir fácil no começo e travar perto do topo.
+  </p>
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  <div class="nota calma">
+    <strong>Como a conta funciona.</strong> Ao alimentar uma montaria adulta, o
+    servidor sorteia contra a taxa da faixa em que ela está. Acertou, sobe um
+    nível. Errou, ela perde um nível uma vez em cada cinco — por isso o ganho
+    esperado por âmago é <em>taxa &minus; 0,2 × (1 &minus; taxa)</em>, e não a
+    taxa crua. Abaixo de mais ou menos <strong>17%</strong> esse ganho fica
+    negativo: a montaria recua tanto quanto avança e não chega ao topo nunca,
+    por mais âmagos que o jogador jogue.
+    <br><br>
+    A coluna <strong>Âmagos</strong> é essa conta somada nas seis faixas: quantos
+    âmagos, em média, do nível 1 ao 120. É o número que faz 45% e 70% quererem
+    dizer alguma coisa.
+    <br><br>
+    <strong>O jogo lê estas curvas quando liga</strong>, então uma mudança só
+    entra no próximo reinício.
+  </div>
+
+  <div class="numeros">
+    <div class="num-tile">
+      <div class="rot">Linhagens</div>
+      <div class="val">{{len .Linhas}}</div>
+    </div>
+    <div class="num-tile">
+      <div class="rot">Configuradas</div>
+      <div class="val">{{.Configuradas}} <small>de {{len .Linhas}}</small></div>
+    </div>
+    <div class="num-tile">
+      <div class="rot">Taxa padrão</div>
+      <div class="val">{{.Padrao}}<small>%</small></div>
+    </div>
+    <div class="num-tile">
+      <div class="rot">Inalcançáveis</div>
+      <div class="val">{{.Inalcancaveis}}</div>
+    </div>
+  </div>
+
+  <div class="tw">
+    <table class="curvas">
+      <thead>
+        <tr>
+          <th>Montaria</th>
+          <th>Âmago</th>
+          <th class="faixa">1–20</th>
+          <th class="faixa">21–40</th>
+          <th class="faixa">41–60</th>
+          <th class="faixa">61–80</th>
+          <th class="faixa">81–100</th>
+          <th class="faixa">101–120</th>
+          <th class="num">Âmagos</th>
+          <th>Ritmo</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {{range .Linhas}}
+        <tr {{if .Aberta}}class="editando"{{end}}>
+          <td class="nome">{{.Nome}}<span class="idx mono">{{.Indice}}</span></td>
+          <td class="amago mono">{{.Amago}}</td>
+          {{range .Faixas}}<td class="faixa {{if .Padrao}}padrao{{end}}">{{.Taxa}}%</td>{{end}}
+          <td class="custo">{{if .Alcancavel}}{{.Amagos}}{{else}}&mdash;{{end}}</td>
+          <td><span class="ritmo {{.Ritmo}}">{{.RitmoNome}}</span></td>
+          <td>
+            {{if .Aberta}}
+              <a class="botao" href="/rates/montarias">Fechar</a>
+            {{else}}
+              <a class="botao" href="/rates/montarias?editar={{.Indice}}#m{{.Indice}}">Editar</a>
+            {{end}}
+          </td>
+        </tr>
+        {{if .Aberta}}
+        <tr class="editando" id="m{{.Indice}}">
+          <td class="editor" colspan="11">
+            {{/* Os dois botões ficam lado a lado sem um form dentro do outro:
+                 cada botão aponta para o seu form pelo atributo form=. Aninhar
+                 formulários é inválido, e o painel não tem script para contornar
+                 isso depois. */}}
+            <form id="curva{{.Indice}}" method="post" action="/rates/montarias/{{.Indice}}">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+              <div class="faixas-form">
+                {{range $i, $f := .Faixas}}
+                <label>
+                  {{$f.Rotulo}}
+                  <input type="number" name="faixa{{$i}}" min="0" max="100" value="{{$f.Taxa}}">
+                </label>
+                {{end}}
+              </div>
+            </form>
+            {{if .Configurada}}
+            <form id="padrao{{.Indice}}" method="post" action="/rates/montarias/{{.Indice}}/limpar">
+              <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            </form>
+            {{end}}
+            <div class="linha-botoes">
+              <button class="principal" type="submit" form="curva{{.Indice}}">Gravar a curva</button>
+              {{if .Configurada}}
+              <button class="perigo" type="submit" form="padrao{{.Indice}}">Voltar ao padrão</button>
+              <span class="dica-curva">Restaurar apaga a curva; a linhagem volta a acompanhar o padrão.</span>
+              {{else}}
+              <span class="dica-curva">Esta linhagem está no padrão de {{$.Padrao}}% em todas as faixas.</span>
+              {{end}}
+            </div>
+          </td>
+        </tr>
+        {{end}}
+      {{else}}
+        <tr><td colspan="11"><div class="vazio">Nenhuma linhagem de montaria veio do servidor.</div></td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+</main>
+</body>
+</html>
