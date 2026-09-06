@@ -93,10 +93,11 @@ func (h *Handler) monstro(w http.ResponseWriter, r *http.Request) {
 		Equip      []itemView
 		Sel        int
 		Escolhido  itemView
+		Overlay    avisoOverlay
 		Aviso      string
 	}{
 		h.pageFor(r, "monstros"), stat.Name(), stat.DisplayName(), stat.Overridden(),
-		grupos, linhas, sel, escolhido, r.URL.Query().Get("aviso"),
+		grupos, linhas, sel, escolhido, h.overlayMonstros(r), r.URL.Query().Get("aviso"),
 	})
 }
 

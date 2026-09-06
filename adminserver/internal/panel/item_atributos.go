@@ -39,10 +39,11 @@ func (h *Handler) atributosItem(w http.ResponseWriter, r *http.Request) {
 		Overridden   bool
 		Grupos       []grupoCampos
 		ClassesDeUso []gamedata.ClasseDeUso
+		Overlay      avisoOverlay
 		Aviso        string
 	}{
 		h.pageFor(r, "itens"), stat.Index(), stat.DisplayName(), stat.Overridden(),
-		grupos, gamedata.ClassesDeUso, r.URL.Query().Get("aviso"),
+		grupos, gamedata.ClassesDeUso, h.overlayItens(r), r.URL.Query().Get("aviso"),
 	})
 }
 

@@ -197,6 +197,7 @@ type Live interface {
 	Derrubar(ctx context.Context, conta string) (int32, error)
 	Desatolar(ctx context.Context, conta string) (jogo.Desatolo, error)
 	EntregarAgora(ctx context.Context, conta string) (jogo.Entrega, error)
+	Ajustes(ctx context.Context) (jogo.Overlays, error)
 	Avisar(ctx context.Context, msg string) (int32, error)
 	Drenar(ctx context.Context, aviso string) (jogo.Drenagem, error)
 }
@@ -1492,10 +1493,11 @@ func (h *Handler) npc(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "npc.html", struct {
 		page
-		NPC   gamedata.NPC
-		Slots []gamedata.ShopItem
-		Aviso string
-	}{h.pageFor(r, "npcs"), n, slots, r.URL.Query().Get("aviso")})
+		NPC     gamedata.NPC
+		Slots   []gamedata.ShopItem
+		Overlay avisoOverlay
+		Aviso   string
+	}{h.pageFor(r, "npcs"), n, slots, h.overlayNPCs(r), r.URL.Query().Get("aviso")})
 }
 
 // setLoja replaces a merchant's stock with whatever the form carries.
@@ -1735,3 +1737,57 @@ func (h *Handler) redirectNPC(w http.ResponseWriter, r *http.Request, id int64, 
 // with a space or a dot stops round-tripping.
 func urlPath(v string) string  { return url.PathEscape(v) }
 func urlQuery(v string) string { return url.QueryEscape(v) }
+
+// leOverlay is the panel asking the game whether it will read a given editor's
+// writes, for the banner those pages show.
+//
+// The three editors it covers write to the database and the game reads them ONCE
+// at boot, and only when the matching flag was set on the game server. The panel
+// cannot see that flag: the database looks identical either way. So without
+// asking, the panel accepts an edit, says "gravado", and the edit is inert
+// forever with nothing on any screen to say so — the failure mode where a
+// moderator concludes the feature is broken, or worse, that they did it wrong.
+//
+// Three answers, not two. "Está lendo", "não está lendo" and "não consegui
+// perguntar" are different things, and the third must not be drawn as either of
+// the others: claiming the overlay is off when the game is merely unreachable
+// would send somebody to change a setting that was already right.
+type avisoOverlay struct {
+	// Perguntou is false when the game could not be reached, or when there is no
+	// game link configured at all.
+	Perguntou bool
+	// Lendo is only meaningful when Perguntou is true.
+	Lendo bool
+	// Variavel is the environment variable to set on the game server, named so
+	// the page can say exactly what to do instead of "ligue o overlay".
+	Variavel string
+}
+
+// overlayItens, overlayMonstros and overlayNPCs answer for one editor each.
+func (h *Handler) overlayItens(r *http.Request) avisoOverlay {
+	return h.overlay(r, "W2PP_ITEM_STAT_EDITING", func(o jogo.Overlays) bool { return o.AtributosDeItem })
+}
+
+func (h *Handler) overlayMonstros(r *http.Request) avisoOverlay {
+	return h.overlay(r, "W2PP_MOB_STAT_EDITING", func(o jogo.Overlays) bool { return o.AtributosDeMonstro })
+}
+
+func (h *Handler) overlayNPCs(r *http.Request) avisoOverlay {
+	return h.overlay(r, "W2PP_NPC_EDITING", func(o jogo.Overlays) bool { return o.NPCs })
+}
+
+func (h *Handler) overlay(r *http.Request, variavel string, campo func(jogo.Overlays) bool) avisoOverlay {
+	av := avisoOverlay{Variavel: variavel}
+	if h.cfg.Jogo == nil {
+		return av
+	}
+	o, err := h.cfg.Jogo.Ajustes(r.Context())
+	if err != nil {
+		// Warn, not error: the page still works and the edit still saves. What
+		// is lost is the ability to promise it will be read.
+		h.cfg.Logger.Warn("could not ask the game which overlays are on", "err", err)
+		return av
+	}
+	av.Perguntou, av.Lendo = true, campo(o)
+	return av
+}

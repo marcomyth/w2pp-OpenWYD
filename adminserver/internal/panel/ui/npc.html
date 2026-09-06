@@ -29,6 +29,8 @@
 
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
+  {{template "aviso-overlay" .Overlay}}
+
   <div class="campos">
     <div class="campo"><div class="rot">Identificador</div><div class="val">{{.NPC.ID}}</div></div>
     <div class="campo"><div class="rot">Modelo</div><div class="val">{{.NPC.TemplateName}}</div></div>

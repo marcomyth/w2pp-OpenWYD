@@ -3207,6 +3207,8 @@ type fakeJogo struct {
 	entregarErr          error
 	entregues            int32
 	perdidos             int32
+	overlays             jogo.Overlays
+	overlaysErr          error
 	avisados             int32
 	derrubados           int32
 	drenouAntesDoRestart bool
@@ -3266,6 +3268,12 @@ func (f *fakeJogo) EntregarAgora(_ context.Context, conta string) (jogo.Entrega,
 		}
 	}
 	return jogo.Entrega{}, nil
+}
+
+func (f *fakeJogo) Ajustes(context.Context) (jogo.Overlays, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.overlays, f.overlaysErr
 }
 
 func (f *fakeJogo) Avisar(_ context.Context, msg string) (int32, error) {

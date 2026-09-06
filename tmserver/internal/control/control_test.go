@@ -48,7 +48,7 @@ func teleporteNulo(*world.World, *world.Session, int16, int16) {}
 func servidor(t *testing.T) *Server {
 	t.Helper()
 	s, err := NewServer(mundoRodando(t), tokenDeTeste,
-		slog.New(slog.NewTextHandler(io.Discard, nil)), teleporteNulo)
+		slog.New(slog.NewTextHandler(io.Discard, nil)), teleporteNulo, Overlays{})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestRecusaSubirSemToken(t *testing.T) {
 	// the only failure mode that cannot be missed.
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	for _, token := range []string{"", "   "} {
-		if _, err := NewServer(nil, token, log, teleporteNulo); !errors.Is(err, ErrNoToken) {
+		if _, err := NewServer(nil, token, log, teleporteNulo, Overlays{}); !errors.Is(err, ErrNoToken) {
 			t.Errorf("NewServer(%q) = %v, want ErrNoToken", token, err)
 		}
 	}
@@ -186,7 +186,7 @@ func TestChamadaDesisteQuandoOLacoNaoResponde(t *testing.T) {
 	// world here is never Served, so nothing drains the callback queue.
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	parado := world.New(world.Config{GridDim: 16}, log, world.NopPersistence{}, nil)
-	s, err := NewServer(parado, tokenDeTeste, log, teleporteNulo)
+	s, err := NewServer(parado, tokenDeTeste, log, teleporteNulo, Overlays{})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestRecusaSubirSemTeleporte(t *testing.T) {
 	// looks healthy and is not. Here it would accept unstuck calls and answer
 	// that it moved nobody, which reads as "the player is not stuck".
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	if _, err := NewServer(nil, tokenDeTeste, log, nil); !errors.Is(err, ErrNoTeleporter) {
+	if _, err := NewServer(nil, tokenDeTeste, log, nil, Overlays{}); !errors.Is(err, ErrNoTeleporter) {
 		t.Errorf("NewServer(sem teleporte) = %v, want ErrNoTeleporter", err)
 	}
 }
@@ -235,7 +235,7 @@ func TestUnstuckNaoTeleportaNinguemQuandoNaoAcha(t *testing.T) {
 	chamou := false
 	s, err := NewServer(mundoRodando(t), tokenDeTeste,
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		func(*world.World, *world.Session, int16, int16) { chamou = true })
+		func(*world.World, *world.Session, int16, int16) { chamou = true }, Overlays{})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -252,7 +252,7 @@ func TestUnstuckDesisteQuandoOLacoNaoResponde(t *testing.T) {
 	// like every other RPC here.
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	parado := world.New(world.Config{GridDim: 16}, log, world.NopPersistence{}, nil)
-	s, err := NewServer(parado, tokenDeTeste, log, teleporteNulo)
+	s, err := NewServer(parado, tokenDeTeste, log, teleporteNulo, Overlays{})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}

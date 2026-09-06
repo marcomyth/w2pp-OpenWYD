@@ -447,7 +447,14 @@ func run(logger *slog.Logger) error {
 	// TLS is unconfigured, so "wire it like the other services" would have
 	// shipped an unauthenticated way to kick every player off the server.
 	if *controlAddr != "" {
-		ctl, cerr := control.NewServer(w, os.Getenv("W2PP_CONTROL_TOKEN"), logger, dispatch.Teleport)
+		ctl, cerr := control.NewServer(w, os.Getenv("W2PP_CONTROL_TOKEN"), logger, dispatch.Teleport,
+			// What the panel cannot see from the database: whether this server
+			// was booted to read the moderator overlays at all.
+			control.Overlays{
+				ItemStats: *itemStatEditing,
+				MobStats:  *mobStatEditing,
+				NPCs:      *npcEditing,
+			})
 		if cerr != nil {
 			return fmt.Errorf("-control-addr is set but the API cannot start: %w", cerr)
 		}

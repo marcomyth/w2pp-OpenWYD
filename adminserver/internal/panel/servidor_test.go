@@ -540,3 +540,84 @@ func TestOAdminPassaPeloPortao(t *testing.T) {
 		}
 	}
 }
+
+// --- o painel avisa quando o jogo não está lendo ---
+
+// The most expensive failure the panel could have: a moderator edits an item's
+// stats, the page says "gravado", and the game was never booted to read that
+// table. The edit sits in the database forever with nothing anywhere to say so,
+// and the moderator concludes the feature is broken or that they did it wrong.
+//
+// The panel cannot work this out alone — the database looks identical either
+// way — so it asks the game.
+func TestAvisaQuandoOJogoNaoEstaLendoOsAtributosDeItem(t *testing.T) {
+	j := &fakeJogo{estado: estadoDeTeste()} // overlays todos desligados
+	body := getSignedIn(t, painelDeEditores(t, j), "/itens/1415/atributos").Body.String()
+
+	if !strings.Contains(body, "não está lendo estas edições") {
+		t.Error("a página não avisa que a edição não vai virar nada")
+	}
+	// And it names the switch, so the answer is "ligue isto" and not "ligue o
+	// overlay", which não diz nada a ninguém.
+	if !strings.Contains(body, "W2PP_ITEM_STAT_EDITING") {
+		t.Error("a página não diz qual variável ligar")
+	}
+}
+
+func TestNaoAvisaQuandoOJogoEstaLendo(t *testing.T) {
+	j := &fakeJogo{estado: estadoDeTeste()}
+	j.overlays = jogo.Overlays{AtributosDeItem: true, AtributosDeMonstro: true, NPCs: true}
+
+	body := getSignedIn(t, painelDeEditores(t, j), "/itens/1415/atributos").Body.String()
+	if strings.Contains(body, "não está lendo estas edições") {
+		t.Error("avisou com o overlay ligado — o aviso vira ruído e ninguém lê mais")
+	}
+}
+
+// Three answers, not two. Claiming the overlay is off when the game is merely
+// unreachable sends somebody to change a setting that was already right.
+func TestJogoForaDoArNaoViraOverlayDesligado(t *testing.T) {
+	j := &fakeJogo{estado: estadoDeTeste(), overlaysErr: jogo.ErrForaDoAr}
+
+	body := getSignedIn(t, painelDeEditores(t, j), "/itens/1415/atributos").Body.String()
+	if strings.Contains(body, "não está lendo estas edições") {
+		t.Error("jogo fora do ar virou afirmação de que o overlay está desligado")
+	}
+	if !strings.Contains(body, "Não consegui perguntar") {
+		t.Error("a página não diz que não conseguiu perguntar")
+	}
+	// The editor still works: the write is not what failed.
+	if !strings.Contains(body, "Gravar") {
+		t.Error("o editor sumiu por causa de uma pergunta que falhou")
+	}
+}
+
+func TestCadaEditorPerguntaPeloSeuProprioInterruptor(t *testing.T) {
+	// Only the item overlay is on. The monster editor must still warn — one
+	// answer for three editors would be worse than none.
+	j := &fakeJogo{estado: estadoDeTeste()}
+	j.overlays = jogo.Overlays{AtributosDeItem: true}
+	get := getSignedIn
+
+	itens := get(t, painelDeEditores(t, j), "/itens/1415/atributos").Body.String()
+	if strings.Contains(itens, "não está lendo") {
+		t.Error("itens avisou com o overlay de itens ligado")
+	}
+	monstros := get(t, painelDeEditores(t, j), "/monstros/Kentania").Body.String()
+	if !strings.Contains(monstros, "W2PP_MOB_STAT_EDITING") {
+		t.Error("monstros não avisou, com o overlay de monstros desligado")
+	}
+}
+
+func painelDeEditores(t *testing.T, j Live) http.Handler {
+	t.Helper()
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		GameData: newFakeGameData(), Jogo: j, Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}

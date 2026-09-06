@@ -182,6 +182,31 @@ func (c *Client) EntregarAgora(parent context.Context, conta string) (Entrega, e
 	}, nil
 }
 
+// Overlays is which moderator-editing overlays the game booted with.
+//
+// The panel writes to the same database whether they are on or not, so without
+// asking it would accept an edit, say it saved, and leave it inert forever.
+type Overlays struct {
+	AtributosDeItem    bool
+	AtributosDeMonstro bool
+	NPCs               bool
+}
+
+// Ajustes asks which overlays are active.
+func (c *Client) Ajustes(parent context.Context) (Overlays, error) {
+	ctx, cancel := c.ctx(parent)
+	defer cancel()
+	resp, err := c.api.Overlays(ctx, &gamev1.OverlaysRequest{})
+	if err != nil {
+		return Overlays{}, traduz(err, "perguntar o que o servidor está lendo")
+	}
+	return Overlays{
+		AtributosDeItem:    resp.GetItemStats(),
+		AtributosDeMonstro: resp.GetMobStats(),
+		NPCs:               resp.GetNpcs(),
+	}, nil
+}
+
 // Avisar sends a notice to everyone in play and reports how many got it.
 func (c *Client) Avisar(parent context.Context, msg string) (int32, error) {
 	ctx, cancel := c.ctx(parent)

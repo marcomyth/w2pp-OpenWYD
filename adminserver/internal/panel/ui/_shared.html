@@ -422,6 +422,31 @@
 </div>
 {{end}}
 
+{{/* O jogo está lendo o que esta tela grava?
+     Três respostas, não duas: lendo, não lendo, e não consegui perguntar. A
+     terceira não pode ser desenhada como uma das outras — dizer que o overlay
+     está desligado quando o jogo só está fora do ar manda alguém mexer numa
+     configuração que já estava certa. */}}
+{{define "aviso-overlay"}}
+{{if .Perguntou}}
+  {{if not .Lendo}}
+  <div class="nota perigo">
+    <strong>O servidor de jogo não está lendo estas edições.</strong> Você pode
+    gravar, e a gravação fica guardada — mas não vira nada no jogo enquanto a
+    variável <span class="mono">{{.Variavel}}</span> não estiver ligada no
+    serviço do jogo. Ligue lá e reinicie o servidor; o que você gravou até
+    agora passa a valer.
+  </div>
+  {{end}}
+{{else}}
+  <div class="nota">
+    Não consegui perguntar ao servidor de jogo se ele está lendo estas edições.
+    A gravação funciona de qualquer jeito — só não dá para prometer que o jogo
+    vai ler.
+  </div>
+{{end}}
+{{end}}
+
 {{define "abas-conta"}}
 <div class="abas-conta">
   <a href="/contas/{{.Conta}}" {{if eq .Aba "conta"}}class="on"{{end}}>Conta</a>

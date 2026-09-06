@@ -24,6 +24,7 @@ const (
 	GameControlService_Broadcast_FullMethodName  = "/game.v1.GameControlService/Broadcast"
 	GameControlService_Unstuck_FullMethodName    = "/game.v1.GameControlService/Unstuck"
 	GameControlService_DeliverNow_FullMethodName = "/game.v1.GameControlService/DeliverNow"
+	GameControlService_Overlays_FullMethodName   = "/game.v1.GameControlService/Overlays"
 	GameControlService_Drain_FullMethodName      = "/game.v1.GameControlService/Drain"
 )
 
@@ -71,6 +72,17 @@ type GameControlServiceClient interface {
 	// Nothing new is granted here. It is the same mailbox and the same placement
 	// the login path runs — only sooner.
 	DeliverNow(ctx context.Context, in *DeliverNowRequest, opts ...grpc.CallOption) (*DeliverNowResponse, error)
+	// Overlays reports which moderator-editing overlays this server booted with.
+	//
+	// Each is a boot flag that defaults to OFF. While one is off, the panel's
+	// matching editor still writes to the database and the game never reads it —
+	// the edit sits there inert forever with nothing on any screen to say so, and
+	// the moderator concludes the feature is broken or that they did it wrong.
+	//
+	// The panel cannot work this out on its own: the flags live in the game
+	// server's environment, and the database looks identical either way. So the
+	// game says.
+	Overlays(ctx context.Context, in *OverlaysRequest, opts ...grpc.CallOption) (*OverlaysResponse, error)
 	// Drain empties the server and waits for every save to land.
 	//
 	// It exists because a restart is only safe if the saves finish, and on
@@ -140,6 +152,16 @@ func (c *gameControlServiceClient) DeliverNow(ctx context.Context, in *DeliverNo
 	return out, nil
 }
 
+func (c *gameControlServiceClient) Overlays(ctx context.Context, in *OverlaysRequest, opts ...grpc.CallOption) (*OverlaysResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OverlaysResponse)
+	err := c.cc.Invoke(ctx, GameControlService_Overlays_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *gameControlServiceClient) Drain(ctx context.Context, in *DrainRequest, opts ...grpc.CallOption) (*DrainResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DrainResponse)
@@ -194,6 +216,17 @@ type GameControlServiceServer interface {
 	// Nothing new is granted here. It is the same mailbox and the same placement
 	// the login path runs — only sooner.
 	DeliverNow(context.Context, *DeliverNowRequest) (*DeliverNowResponse, error)
+	// Overlays reports which moderator-editing overlays this server booted with.
+	//
+	// Each is a boot flag that defaults to OFF. While one is off, the panel's
+	// matching editor still writes to the database and the game never reads it —
+	// the edit sits there inert forever with nothing on any screen to say so, and
+	// the moderator concludes the feature is broken or that they did it wrong.
+	//
+	// The panel cannot work this out on its own: the flags live in the game
+	// server's environment, and the database looks identical either way. So the
+	// game says.
+	Overlays(context.Context, *OverlaysRequest) (*OverlaysResponse, error)
 	// Drain empties the server and waits for every save to land.
 	//
 	// It exists because a restart is only safe if the saves finish, and on
@@ -227,6 +260,9 @@ func (UnimplementedGameControlServiceServer) Unstuck(context.Context, *UnstuckRe
 }
 func (UnimplementedGameControlServiceServer) DeliverNow(context.Context, *DeliverNowRequest) (*DeliverNowResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeliverNow not implemented")
+}
+func (UnimplementedGameControlServiceServer) Overlays(context.Context, *OverlaysRequest) (*OverlaysResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Overlays not implemented")
 }
 func (UnimplementedGameControlServiceServer) Drain(context.Context, *DrainRequest) (*DrainResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Drain not implemented")
@@ -342,6 +378,24 @@ func _GameControlService_DeliverNow_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GameControlService_Overlays_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OverlaysRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GameControlServiceServer).Overlays(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GameControlService_Overlays_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GameControlServiceServer).Overlays(ctx, req.(*OverlaysRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _GameControlService_Drain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DrainRequest)
 	if err := dec(in); err != nil {
@@ -386,6 +440,10 @@ var GameControlService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeliverNow",
 			Handler:    _GameControlService_DeliverNow_Handler,
+		},
+		{
+			MethodName: "Overlays",
+			Handler:    _GameControlService_Overlays_Handler,
 		},
 		{
 			MethodName: "Drain",

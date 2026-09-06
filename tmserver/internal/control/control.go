@@ -63,12 +63,25 @@ var ErrNoTeleporter = errors.New("control: refusing to serve without a teleporte
 // Called INSIDE the game loop.
 type Teleporter func(w *world.World, s *world.Session, x, y int16)
 
+// Overlays is which moderator-editing overlays the server booted with.
+//
+// They are boot flags that default to off, and the panel writes to the same
+// database whether they are on or not — so without this the panel accepts an
+// edit, says it saved, and the game never reads it. Reported rather than
+// inferred: the flags live here, in this process environment.
+type Overlays struct {
+	ItemStats bool
+	MobStats  bool
+	NPCs      bool
+}
+
 type Server struct {
 	gamev1.UnimplementedGameControlServiceServer
 	world     *world.World
 	token     string
 	log       *slog.Logger
 	teleporta Teleporter
+	overlays  Overlays
 }
 
 // NewServer builds the control service. It fails when the token is empty or the
@@ -78,14 +91,28 @@ type Server struct {
 // starts without them looks healthy and is not. A missing token would serve an
 // open endpoint that can kick every player off; a missing teleporter would
 // accept unstuck calls and answer that it moved nobody.
-func NewServer(w *world.World, token string, log *slog.Logger, tp Teleporter) (*Server, error) {
+func NewServer(w *world.World, token string, log *slog.Logger, tp Teleporter, ov Overlays) (*Server, error) {
 	if strings.TrimSpace(token) == "" {
 		return nil, ErrNoToken
 	}
 	if tp == nil {
 		return nil, ErrNoTeleporter
 	}
-	return &Server{world: w, token: token, log: log, teleporta: tp}, nil
+	return &Server{world: w, token: token, log: log, teleporta: tp, overlays: ov}, nil
+}
+
+// Overlays answers which moderator-editing overlays are active.
+//
+// It does NOT cross the game loop, unlike every other call here: these are boot
+// flags, fixed for the life of the process and never touched by gameplay. Making
+// the panel wait behind player input to read a constant would be a cost with
+// nothing bought.
+func (s *Server) Overlays(_ context.Context, _ *gamev1.OverlaysRequest) (*gamev1.OverlaysResponse, error) {
+	return &gamev1.OverlaysResponse{
+		ItemStats: s.overlays.ItemStats,
+		MobStats:  s.overlays.MobStats,
+		Npcs:      s.overlays.NPCs,
+	}, nil
 }
 
 // Interceptor authenticates every call against the shared token.

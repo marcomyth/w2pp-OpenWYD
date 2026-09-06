@@ -44,6 +44,18 @@ service GameControlService {
   // Nothing new is granted here. It is the same mailbox and the same placement
   // the login path runs — only sooner.
   rpc DeliverNow(DeliverNowRequest) returns (DeliverNowResponse);
+  // Overlays reports which moderator-editing overlays this server booted with.
+  //
+  // Each is a boot flag that defaults to OFF. While one is off, the panel's
+  // matching editor still writes to the database and the game never reads it —
+  // the edit sits there inert forever with nothing on any screen to say so, and
+  // the moderator concludes the feature is broken or that they did it wrong.
+  //
+  // The panel cannot work this out on its own: the flags live in the game
+  // server's environment, and the database looks identical either way. So the
+  // game says.
+  rpc Overlays(OverlaysRequest) returns (OverlaysResponse);
+
   // Drain empties the server and waits for every save to land.
   //
   // It exists because a restart is only safe if the saves finish, and on
@@ -120,6 +132,15 @@ message DeliverNowResponse {
   int32 delivered = 2;
   int32 lost = 3;
   string character_name = 4;
+}
+
+message OverlaysRequest {}
+message OverlaysResponse {
+  // Each field is one boot flag. The names match the editors they feed rather
+  // than the environment variables, because the panel speaks in screens.
+  bool item_stats = 1;  // W2PP_ITEM_STAT_EDITING — atributos de item
+  bool mob_stats = 2;   // W2PP_MOB_STAT_EDITING  — atributos de monstro
+  bool npcs = 3;        // W2PP_NPC_EDITING       — NPCs e suas lojas
 }
 
 message BroadcastRequest {
