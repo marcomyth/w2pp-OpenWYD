@@ -38,6 +38,27 @@ type PontoMapa struct {
 	// Junto marks a player inside an Aglomeracao, so the dot can be drawn
 	// differently from someone hunting alone.
 	Junto bool
+	// ip is unexported ON PURPOSE. The page needs to say that accounts share a
+	// connection; it must never print the address itself, and an unexported
+	// field is unreachable from a template — so the rule is enforced by the
+	// language rather than by remembering.
+	ip string
+}
+
+// Conexao is a set of DIFFERENT accounts reaching the server from one address.
+//
+// It is the strongest bot-farm signal the panel has, and also the one most
+// easily read as an accusation, so two things are deliberate. The address is
+// never carried out of this package: the moderator needs the fact, not the
+// number. And the count is of accounts, not sessions — one person reconnecting
+// twice is not two people.
+type Conexao struct {
+	Contas []string
+	// EmJogo is how many of them are actually in the world; the rest are sitting
+	// on the character screen. A farm logging in shows here before it shows on
+	// the map, which is the reason this list reads every session and not just
+	// the placed ones.
+	EmJogo int
 }
 
 // raioMinimoDesenho keeps a group's ring outside the dots it encloses.
@@ -57,6 +78,10 @@ type Aglomeracao struct {
 	RaioDesenho int32
 	Regiao      string
 	Contas      []string
+	// MesmaConexao reports that every account in the group reaches the server
+	// from one address. Position alone is circumstantial and connection alone is
+	// explainable; together they are as close to proof as this panel gets.
+	MesmaConexao bool
 }
 
 // CidadeMapa is one settlement drawn on the picture.
@@ -91,7 +116,7 @@ func pontos(ps []jogo.Player) []PontoMapa {
 		}
 		out = append(out, PontoMapa{
 			Conta: p.Conta, Personagem: p.Personagem, Nivel: p.Nivel,
-			X: p.X, Y: p.Y, Regiao: regiao(p.X, p.Y),
+			X: p.X, Y: p.Y, Regiao: regiao(p.X, p.Y), ip: p.IP,
 		})
 	}
 	return out
@@ -176,6 +201,7 @@ func aglomerar(ps []PontoMapa) []Aglomeracao {
 				a.Raio = d
 			}
 		}
+		a.MesmaConexao = umaConexaoSo(ps, grupo)
 		a.RaioDesenho = a.Raio + raioMinimoDesenho
 		sort.Strings(a.Contas)
 		out = append(out, a)
@@ -184,6 +210,75 @@ func aglomerar(ps []PontoMapa) []Aglomeracao {
 	// Biggest first: the page is read from the top and the largest group is the
 	// one worth walking over to.
 	sort.SliceStable(out, func(i, j int) bool { return len(out[i].Contas) > len(out[j].Contas) })
+	return out
+}
+
+// umaConexaoSo reports whether every member of the group came from the same
+// address. An unknown address answers no: the game does not always have one, and
+// several blanks are not a match.
+func umaConexaoSo(ps []PontoMapa, grupo []int) bool {
+	primeiro := ps[grupo[0]].ip
+	if primeiro == "" {
+		return false
+	}
+	for _, i := range grupo[1:] {
+		if ps[i].ip != primeiro {
+			return false
+		}
+	}
+	return true
+}
+
+// conexoes groups the sessions by address and keeps the ones holding more than
+// one account.
+//
+// It reads EVERY session, not just the placed ones: a farm signing in is visible
+// here while it is still on the character screen and has no position yet.
+//
+// Two accounts on one address is not misconduct on its own — a household, a
+// LAN house and a phone behind carrier NAT all look exactly like this. The page
+// says so; this function only counts.
+func conexoes(ps []jogo.Player) []Conexao {
+	type grupo struct {
+		contas map[string]bool
+		emJogo map[string]bool
+	}
+	porEndereco := map[string]*grupo{}
+	for _, p := range ps {
+		if p.IP == "" || p.Conta == "" {
+			continue
+		}
+		g := porEndereco[p.IP]
+		if g == nil {
+			g = &grupo{contas: map[string]bool{}, emJogo: map[string]bool{}}
+			porEndereco[p.IP] = g
+		}
+		g.contas[p.Conta] = true
+		if p.Jogando {
+			g.emJogo[p.Conta] = true
+		}
+	}
+
+	var out []Conexao
+	for _, g := range porEndereco {
+		if len(g.contas) < 2 {
+			continue
+		}
+		c := Conexao{EmJogo: len(g.emJogo)}
+		for nome := range g.contas {
+			c.Contas = append(c.Contas, nome)
+		}
+		sort.Strings(c.Contas)
+		out = append(out, c)
+	}
+	// Biggest first, then by name so two groups of the same size keep their
+	// order between reloads. The map iteration above has none.
+	sort.SliceStable(out, func(i, j int) bool {
+		if len(out[i].Contas) != len(out[j].Contas) {
+			return len(out[i].Contas) > len(out[j].Contas)
+		}
+		return out[i].Contas[0] < out[j].Contas[0]
+	})
 	return out
 }
 
@@ -275,15 +370,16 @@ func (h *Handler) mapa(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "mapa.html", struct {
 		page
-		Pontos   []PontoMapa
-		Grupos   []Aglomeracao
-		Regioes  []RegiaoContagem
-		Cidades  []CidadeMapa
-		Grade    int32
-		Conexoes int32
-		Erro     string
+		Pontos     []PontoMapa
+		Grupos     []Aglomeracao
+		Conexoes   []Conexao
+		Regioes    []RegiaoContagem
+		Cidades    []CidadeMapa
+		Grade      int32
+		Conectados int32
+		Erro       string
 	}{
-		h.pageFor(r, "mapa"), ps, grupos, porRegiao(ps),
+		h.pageFor(r, "mapa"), ps, grupos, conexoes(estado.Players), porRegiao(ps),
 		cidades(ps), gradeMundo, estado.Conectados, erro,
 	})
 }

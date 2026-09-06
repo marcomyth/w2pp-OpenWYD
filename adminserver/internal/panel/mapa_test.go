@@ -297,3 +297,106 @@ func TestOAnelDoGrupoEnvolveOsPontos(t *testing.T) {
 		t.Errorf("raio real = %d, want a distância de verdade", g[0].Raio)
 	}
 }
+
+// --- contas na mesma conexão ---
+
+func TestConexaoJuntaContasDiferentesDoMesmoEndereco(t *testing.T) {
+	c := conexoes([]jogo.Player{
+		{Conta: "bot1", IP: "10.0.0.9", Jogando: true},
+		{Conta: "bot2", IP: "10.0.0.9", Jogando: true},
+		{Conta: "bot3", IP: "10.0.0.9", Jogando: false},
+		{Conta: "outra", IP: "10.0.0.8", Jogando: true},
+	})
+	if len(c) != 1 {
+		t.Fatalf("conexões = %d, want 1", len(c))
+	}
+	if strings.Join(c[0].Contas, ",") != "bot1,bot2,bot3" {
+		t.Errorf("contas = %v", c[0].Contas)
+	}
+	// Two of the three are in the world; the third is still choosing. A farm
+	// signing in is visible here before it has any position at all.
+	if c[0].EmJogo != 2 {
+		t.Errorf("em jogo = %d, want 2", c[0].EmJogo)
+	}
+}
+
+func TestUmaContaComDuasSessoesNaoEDuasContas(t *testing.T) {
+	// One person reconnecting is not two people, and listing them would send a
+	// moderator after somebody whose internet dropped.
+	if c := conexoes([]jogo.Player{
+		{Conta: "ana", IP: "10.0.0.9", Jogando: true},
+		{Conta: "ana", IP: "10.0.0.9", Jogando: false},
+	}); len(c) != 0 {
+		t.Errorf("conexões = %d, want 0 — a mesma conta duas vezes não é duas contas", len(c))
+	}
+}
+
+func TestConexaoSemEnderecoNaoAgrupa(t *testing.T) {
+	// The game does not always have an address, and several blanks are not a
+	// match — grouping them would invent a farm out of missing data.
+	if c := conexoes([]jogo.Player{
+		{Conta: "a", IP: "", Jogando: true},
+		{Conta: "b", IP: "", Jogando: true},
+	}); len(c) != 0 {
+		t.Errorf("conexões = %d, want 0", len(c))
+	}
+}
+
+// The address is the whole reason this is delicate: the panel needs the FACT
+// that accounts share a connection and must never put the number on a page.
+// PontoMapa keeps it in an unexported field, which a template cannot reach, so
+// the rule is enforced by the language rather than by remembering it.
+func TestOEnderecoNuncaChegaNaTela(t *testing.T) {
+	const endereco = "203.0.113.77"
+	j := &fakeJogo{estado: jogo.Estado{
+		Jogando: 3, Conectados: 3,
+		Players: []jogo.Player{
+			{Conta: "bot1", Personagem: "Aaa", X: campoX, Y: campoY, Jogando: true, IP: endereco},
+			{Conta: "bot2", Personagem: "Bbb", X: campoX + 4, Y: campoY, Jogando: true, IP: endereco},
+			{Conta: "bot3", Personagem: "Ccc", X: campoX, Y: campoY + 4, Jogando: true, IP: endereco},
+		},
+	}}
+	body := getSignedIn(t, newTestPanelJogo(t, newFakeAudit(), j), "/mapa").Body.String()
+
+	if strings.Contains(body, endereco) {
+		t.Error("o endereço foi parar na página")
+	}
+	if !strings.Contains(body, "3 contas") {
+		t.Error("a página não avisou que três contas dividem a conexão")
+	}
+	// Position and connection together: circumstantial plus explainable is the
+	// closest this panel gets to proof, so the group carries the mark.
+	if !strings.Contains(body, "mesma conexão") {
+		t.Error("o grupo amontoado e na mesma conexão não foi marcado")
+	}
+}
+
+func TestAglomeracaoDeConexoesDiferentesNaoGanhaAMarca(t *testing.T) {
+	ps := []PontoMapa{
+		{Conta: "a", X: campoX, Y: campoY, ip: "10.0.0.1"},
+		{Conta: "b", X: campoX + 3, Y: campoY, ip: "10.0.0.2"},
+		{Conta: "c", X: campoX, Y: campoY + 3, ip: "10.0.0.3"},
+	}
+	g := aglomerar(ps)
+	if len(g) != 1 {
+		t.Fatalf("grupos = %d, want 1", len(g))
+	}
+	if g[0].MesmaConexao {
+		t.Error("três pessoas de conexões diferentes foram marcadas como uma só")
+	}
+}
+
+func TestGrupoSemEnderecoNaoEMesmaConexao(t *testing.T) {
+	ps := []PontoMapa{
+		{Conta: "a", X: campoX, Y: campoY},
+		{Conta: "b", X: campoX + 3, Y: campoY},
+		{Conta: "c", X: campoX, Y: campoY + 3},
+	}
+	g := aglomerar(ps)
+	if len(g) != 1 {
+		t.Fatalf("grupos = %d, want 1", len(g))
+	}
+	if g[0].MesmaConexao {
+		t.Error("endereço faltando virou coincidência de endereço")
+	}
+}

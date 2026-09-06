@@ -50,8 +50,9 @@
 
   <div class="numeros">
     <div class="num-tile"><div class="rot">Em jogo</div><div class="val">{{len .Pontos}}</div></div>
-    <div class="num-tile"><div class="rot">Conectados</div><div class="val">{{.Conexoes}}</div></div>
+    <div class="num-tile"><div class="rot">Conectados</div><div class="val">{{.Conectados}}</div></div>
     <div class="num-tile"><div class="rot">Aglomerações</div><div class="val">{{len .Grupos}}</div></div>
+    <div class="num-tile"><div class="rot">Conexões repetidas</div><div class="val">{{len .Conexoes}}</div></div>
     <div class="num-tile"><div class="rot">Regiões com gente</div><div class="val">{{len .Regioes}}</div></div>
   </div>
 
@@ -96,7 +97,10 @@
     {{range .Grupos}}
     <div class="caixa">
       <div class="ficha-cab" style="display:flex;justify-content:space-between;gap:14px;margin-bottom:10px">
-        <strong>{{len .Contas}} personagens juntos</strong>
+        <strong>
+          {{len .Contas}} personagens juntos
+          {{if .MesmaConexao}}<span class="chip-danger">mesma conexão</span>{{end}}
+        </strong>
         <span class="mono" style="color:var(--ink-3);font-size:12.5px">{{.X}}, {{.Y}} · raio {{.Raio}}</span>
       </div>
       <div class="sub" style="margin:0 0 8px">{{.Regiao}}</div>
@@ -107,6 +111,33 @@
     {{end}}
   {{else if .Pontos}}
     <div class="vazio">Ninguém amontoado fora de cidade.</div>
+  {{end}}
+
+  <h2>Contas na mesma conexão</h2>
+  {{if .Conexoes}}
+    <p class="nota">
+      Contas diferentes chegando ao servidor pelo mesmo endereço. O endereço em
+      si não é mostrado nem guardado aqui — o que decide alguma coisa é o fato,
+      não o número. Conta que reconectou não aparece duas vezes.
+      <br>
+      <strong>Isto sozinho não é irregularidade.</strong> Irmãos na mesma casa,
+      lan house e celular atrás do provedor fazem exatamente esta figura. O que
+      pesa é quando o mesmo grupo também aparece amontoado no mapa, e aí a
+      aglomeração vem marcada como <span class="chip-danger">mesma conexão</span>.
+    </p>
+    {{range .Conexoes}}
+    <div class="caixa">
+      <div style="display:flex;justify-content:space-between;gap:14px;margin-bottom:8px">
+        <strong>{{len .Contas}} contas</strong>
+        <span style="color:var(--ink-3);font-size:12.5px">{{.EmJogo}} em jogo</span>
+      </div>
+      <div class="contas-grupo">
+        {{range $i, $c := .Contas}}{{if $i}} · {{end}}<a href="/contas/{{$c}}">{{$c}}</a>{{end}}
+      </div>
+    </div>
+    {{end}}
+  {{else if .Pontos}}
+    <div class="vazio">Cada conta conectada está numa conexão diferente.</div>
   {{end}}
 
   <h2>Por região</h2>
