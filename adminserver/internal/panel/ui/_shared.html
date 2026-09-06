@@ -344,6 +344,7 @@
     {{/* Gente: contas, o que trocaram entre si, e o que a equipe fez. */}}
     <span class="grupo">
       <a href="/contas" {{if eq .Nav "contas"}}class="on"{{end}}>Contas</a>
+      {{if .HasDenun}}<a href="/denuncias" {{if eq .Nav "denuncias"}}class="on"{{end}}>Denúncias</a>{{end}}
       {{if .HasTrocas}}<a href="/trocas" {{if eq .Nav "trocas"}}class="on"{{end}}>Trocas</a>{{end}}
       {{if .IsAdmin}}<a href="/auditoria" {{if eq .Nav "auditoria"}}class="on"{{end}}>Auditoria</a>{{end}}
     </span>

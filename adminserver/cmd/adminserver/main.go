@@ -171,6 +171,7 @@ func run(logger *slog.Logger) error {
 		Entregas:    entrega.New(pool),
 		Personagens: personagem.New(pool),
 		Eventos:     store.New(pool),
+		Denuncias:   store.New(pool),
 		Carteira:    donate.New(pool),
 		Trocas:      store.New(pool),
 		Jogo:        live,

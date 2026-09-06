@@ -41,6 +41,7 @@ const (
 	ActionKick           = "KICK"
 	ActionUnstuck        = "UNSTUCK"
 	ActionSetWorldEvent  = "SET_WORLD_EVENT"
+	ActionHandleReport   = "HANDLE_REPORT"
 	ActionBroadcast      = "BROADCAST"
 	ActionSafeRestart    = "SAFE_RESTART"
 	ActionStopGame       = "STOP_GAME"
@@ -215,6 +216,7 @@ var rotulos = map[string]string{
 	ActionKick:           "Derrubou uma conta",
 	ActionUnstuck:        "Desatolou um personagem",
 	ActionSetWorldEvent:  "Mexeu nos eventos do servidor",
+	ActionHandleReport:   "Tratou uma denúncia",
 	ActionBroadcast:      "Mandou um aviso para todos",
 	ActionRestartGame:    "Reiniciou o servidor",
 	ActionSafeRestart:    "Reiniciou com segurança",

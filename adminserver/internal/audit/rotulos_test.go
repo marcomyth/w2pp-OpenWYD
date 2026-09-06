@@ -19,7 +19,7 @@ func TestTodaAcaoTemRotulo(t *testing.T) {
 		ActionSetRole, ActionSetBlocked, ActionSetVip, ActionSetPassword,
 		ActionSetItemPrice, ActionSetNpcShop, ActionSetNpc, ActionDeleteNpc,
 		ActionSetMobStat, ActionClearMobStat, ActionSetItemStat, ActionClearItemStat,
-		ActionDeliverItem, ActionCancelDelivery, ActionKick, ActionBroadcast, ActionUnstuck, ActionSetWorldEvent,
+		ActionDeliverItem, ActionCancelDelivery, ActionKick, ActionBroadcast, ActionUnstuck, ActionSetWorldEvent, ActionHandleReport,
 		ActionRestartGame, ActionSafeRestart, ActionStopGame, ActionStartGame,
 	}
 	for _, a := range acoes {

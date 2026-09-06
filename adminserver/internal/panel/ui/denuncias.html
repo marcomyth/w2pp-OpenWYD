@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Denúncias — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  .denuncia { border-left: 3px solid var(--rule); padding-left: 15px; margin-bottom: 22px; }
+  .denuncia.aberta { border-left-color: var(--warn); }
+  .denuncia-cab {
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    justify-content: space-between; gap: 6px 16px; margin-bottom: 8px;
+  }
+  .denuncia-quem { font-size: 15px; color: var(--ink); }
+  .denuncia-quem a { text-decoration: none; }
+  .denuncia-quem a:hover { text-decoration: underline; }
+  .denuncia-quando { font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .relato {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+    padding: 12px 15px; margin: 0 0 10px; color: var(--ink);
+    font-size: 14.5px; line-height: 1.55; max-width: 70ch;
+    white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .contexto {
+    display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: baseline;
+    font-size: 12.5px; color: var(--ink-3); margin-bottom: 10px;
+  }
+  .contexto .rot { text-transform: uppercase; letter-spacing: .07em; font-size: 10.5px; }
+  .perto { color: var(--ink-2); }
+  .filtros { display: flex; gap: 16px; align-items: baseline; margin-bottom: 22px; font-size: 13.5px; }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Denúncias</h1>
+  <p class="sub">
+    O que os jogadores mandaram com <span class="mono">/reportar</span>, e o que
+    o servidor estava vendo na hora.
+  </p>
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  <div class="numeros">
+    <div class="num-tile"><div class="rot">Abertas</div><div class="val">{{.Contagem.Abertos}}</div></div>
+    <div class="num-tile"><div class="rot">Total guardado</div><div class="val">{{.Contagem.Total}}</div></div>
+    <div class="num-tile">
+      <div class="rot">Espera mais longa</div>
+      <div class="val">{{if .EsperaMax}}{{.EsperaMax}}{{else}}&mdash;{{end}}</div>
+    </div>
+  </div>
+
+  <div class="filtros">
+    <a href="/denuncias" {{if not .Todas}}class="on"{{end}}>Abertas</a>
+    <a href="/denuncias?todas=1" {{if .Todas}}class="on"{{end}}>Todas</a>
+  </div>
+
+  <p class="nota">
+    Cada denúncia guarda o texto que a pessoa escreveu, onde ela estava e os
+    nomes de quem estava à vista naquele instante. Some sozinha depois de
+    <strong>{{.Prazo}} dias</strong> — é texto de uma pessoa e nome de gente que
+    não pediu para estar em lista nenhuma.
+    <br>
+    Quem estava por perto é indício, não acusação: passar do lado de alguém não
+    quer dizer nada.
+  </p>
+
+  {{if .Denuncias}}
+    {{range .Denuncias}}
+    <div class="denuncia{{if .Aberto}} aberta{{end}}">
+      <div class="denuncia-cab">
+        <div class="denuncia-quem">
+          <strong>{{.Character}}</strong>
+          {{if .Account}}<span style="color:var(--ink-3)">·</span>
+          <a href="/contas/{{.Account}}">{{.Account}}</a>{{end}}
+          {{if .Aberto}}<span class="bloq">aberta</span>{{end}}
+        </div>
+        <div class="denuncia-quando">
+          {{if .Espera}}há {{.Espera}}{{end}}
+          {{if not .Aberto}} · tratada{{end}}
+        </div>
+      </div>
+
+      <p class="relato">{{.Text}}</p>
+
+      <div class="contexto">
+        <span><span class="rot">Onde</span> {{.Regiao}} <span class="mono">({{.X}}, {{.Y}})</span></span>
+        <span><span class="rot">Nível</span> {{.Level}}</span>
+        {{if .Nearby}}
+        <span class="perto">
+          <span class="rot">Por perto</span>
+          {{range $i, $n := .Nearby}}{{if $i}} · {{end}}{{$n}}{{end}}
+        </span>
+        {{else}}
+        <span><span class="rot">Por perto</span> ninguém</span>
+        {{end}}
+      </div>
+
+      {{if .Aberto}}
+      <form method="post" action="/denuncias/{{.ID}}/tratar">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        {{if $.Todas}}<input type="hidden" name="todas" value="1">{{end}}
+        <button type="submit">Marcar como tratada</button>
+      </form>
+      {{end}}
+    </div>
+    {{end}}
+  {{else if .Todas}}
+    <div class="vazio">Nenhuma denúncia guardada.</div>
+  {{else}}
+    <div class="vazio">Nenhuma denúncia aberta.</div>
+  {{end}}
+</main>
+</body>
+</html>

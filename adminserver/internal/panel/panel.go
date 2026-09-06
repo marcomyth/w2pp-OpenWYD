@@ -145,6 +145,17 @@ type Eventos interface {
 	UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEventConfig, moderatorID int64) error
 }
 
+// Denuncias is the /reportar queue.
+//
+// Satisfied by *store.Store, like Eventos and Trocas: the rows are written by
+// the game through the dbServer and read here, and a panel-owned second decoder
+// could only disagree with the one the writer uses.
+type Denuncias interface {
+	ListReports(ctx context.Context, q store.ReportQuery) ([]domain.PlayerReport, error)
+	CountReports(ctx context.Context) (store.ReportCounts, error)
+	MarkReportHandled(ctx context.Context, reportID, staffID int64) error
+}
+
 // Carteira is the donate wallet: the balance, its history and the staff
 // adjustment.
 type Carteira interface {
@@ -198,6 +209,7 @@ type Config struct {
 	Accounts    Accounts
 	Personagens Personagens
 	Eventos     Eventos
+	Denuncias   Denuncias
 	Carteira    Carteira
 	Platform    Platform
 	Entregas    Deliveries
@@ -304,6 +316,12 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("POST /contas/{nome}/personagens/{char}/slot", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setSlot))))
 		mux.Handle("POST /contas/{nome}/personagens/{char}/atributos", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setAtributos))))
 	}
+	// The report queue. Reading and closing are both staff: answering reports is
+	// the job, and a queue only the admin can clear is a queue nobody clears.
+	if h.cfg.Denuncias != nil {
+		mux.Handle("GET /denuncias", h.requireStaff(http.HandlerFunc(h.denuncias)))
+		mux.Handle("POST /denuncias/{denuncia}/tratar", h.requireStaff(http.HandlerFunc(h.tratarDenuncia)))
+	}
 	// The global event switches. Reading is staff; flipping them is admin —
 	// double experience and an item rain change what every player on the server
 	// earns, and an event item is real value handed out.
@@ -348,6 +366,7 @@ type page struct {
 	HasJogo   bool   // the live pages exist only when the game link is configured
 	HasSeguro bool   // the safe restart needs BOTH the game link and the hosting API
 	HasEvento bool   // the event switches need the database read
+	HasDenun  bool   // the report queue needs the database read
 	CSRF      string // every form that changes something carries this back
 }
 
@@ -365,6 +384,7 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		HasJogo:   h.cfg.Jogo != nil,
 		HasSeguro: h.cfg.Jogo != nil && h.cfg.Platform != nil,
 		HasEvento: h.cfg.Eventos != nil,
+		HasDenun:  h.cfg.Denuncias != nil,
 		CSRF:      sess.CSRF,
 	}
 }
