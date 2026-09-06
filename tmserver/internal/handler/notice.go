@@ -169,6 +169,12 @@ const (
 	// branches are editing this block, so inserting anywhere else would silently
 	// renumber their notices.
 	NoticeLevelLimit
+
+	// Mount growth, the Âmago path (_MSG_UseItem.cpp:1591/1602/1664). Appended at
+	// the end for the same reason NoticeLevelLimit is.
+	NoticeMountNotMatch
+	NoticeCantUpgradeMore
+	NoticeMountGrowth
 )
 
 // noticeKey maps a Notice to its key in the shipped client string table
@@ -255,6 +261,10 @@ var noticeKey = map[Notice]string{
 	NoticePesadeloLimited: "_NN_Night_Limited",      // 349
 
 	NoticeLevelLimit: "_NN_Level_limit", // 298
+
+	NoticeMountNotMatch:   "_NN_Mount_Not_Match",   // 256
+	NoticeCantUpgradeMore: "_NN_Cant_Upgrade_More", // 254
+	NoticeMountGrowth:     "_NN_Mount_Growth",      // 255
 }
 
 // noticeText is the compiled fallback for notices with no Language.txt line: the

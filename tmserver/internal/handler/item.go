@@ -344,6 +344,9 @@ const (
 	volEntradaTerritorio = 188 // Entrada do Território (LAN) ticket (_MSG_UseItem.cpp:4202)
 	volQuestReward       = 191 // quest reward items 4117..4121 (_MSG_UseItem.cpp:2344)
 	volHuntingScroll     = 195 // Pedido de Caça: destination selected by MSG_UseItem.WarpID
+	// volAmago is the mount-growth item (2390..2419), fed to the mount worn in
+	// Equip[14] (_MSG_UseItem.cpp:1564, amago.go).
+	volAmago = 16
 	// volBirthAccelerator is the Acelerador de Nascimento (3438). It has NO legacy
 	// counterpart — _MSG_UseItem.cpp has no branch for EF_VOLATILE 196 — so the
 	// behaviour comes from the tooltip the shipped client draws for it: "Aumenta o
@@ -525,6 +528,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useHuntingScroll(w, s, e, src, body.WarpID)
 	case vol == volBirthAccelerator:
 		d.useBirthAccelerator(w, s, e, body, src)
+	case vol == volAmago:
+		d.useAmago(w, s, e, body, src)
 	case isWaterScrollVolatile(vol):
 		d.useWaterScroll(w, s, e, src, vol)
 	case isPesadeloVolatile(vol):
