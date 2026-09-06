@@ -148,6 +148,7 @@ type fakeAudit struct {
 	entries   []audit.Entry
 	written   []audit.Record
 	failWrite error
+	failList  error
 	limit     int
 	// espelha makes Write feed ListActions, the way the real store does. Off by
 	// default so tests that seed entries with add() keep seeing only those.
@@ -165,6 +166,9 @@ func (f *fakeAudit) Limit() int { return f.limit }
 func (f *fakeAudit) List(_ context.Context, targetID int64) ([]audit.Entry, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.failList != nil {
+		return nil, f.failList
+	}
 	out := make([]audit.Entry, 0, len(f.entries))
 	for _, e := range f.entries {
 		if targetID == 0 || e.TargetID == targetID {
@@ -1626,8 +1630,14 @@ func TestHomeShowsUptimeAndNoPending(t *testing.T) {
 		t.Error("the no-pending state is not stated")
 	}
 	// The reassurance that matters: staff must not think every edit needs this.
-	if !strings.Contains(body, "15 segundos") {
-		t.Error("the page does not say NPC and price edits apply on their own")
+	// The home card no longer repeats the per-screen timing sentence — that
+	// answer belongs to the screen doing the saving, and there were eight
+	// wordings of it before — so what it says here is that nothing is waiting.
+	if !strings.Contains(body, "Nada esperando reinício") {
+		t.Error("the page does not say that nothing is waiting for a restart")
+	}
+	if !strings.Contains(body, "relê sozinho") {
+		t.Error("the page does not say the rest of the content reloads by itself")
 	}
 }
 
@@ -2143,7 +2153,9 @@ func TestMonstroMostraOsNumerosEOAvisoDeReinicio(t *testing.T) {
 		`name="level" type="text"`,
 		`value="10"`,
 		"Kentania Velha",
-		"só vale depois de reiniciar o servidor",
+		// A frase é a do bloco compartilhado, não uma redação própria desta
+		// página: eram oito jeitos de dizer três coisas.
+		"Só vale depois de reiniciar o servidor.",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("a página do monstro não traz %q", want)
@@ -2366,7 +2378,7 @@ func TestAtributosItemMostraOsNumerosEOAvisoDeReinicio(t *testing.T) {
 		`name="damage" type="number"`,
 		`value="120"`,
 		"Resistência ao fogo",
-		"só vale depois de reiniciar o servidor",
+		"Só vale depois de reiniciar o servidor.",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("a página de atributos não traz %q", want)

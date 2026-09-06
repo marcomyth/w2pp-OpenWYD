@@ -235,7 +235,12 @@ func TestAPaginaAvisaQueNaoPrecisaReiniciar(t *testing.T) {
 	// The alternative is somebody restarting the server for nothing.
 	ev := &fakeEventos{cfg: chuvaViva()}
 	body := getSignedIn(t, newTestPanelEventos(t, roleAdmin, ev, newFakeAudit()), "/eventos").Body.String()
-	if !strings.Contains(body, "sem reiniciar") {
-		t.Error("a página não diz que a mudança entra sozinha")
+	// A frase é a do bloco compartilhado. Antes desta fase a página dizia "em
+	// menos de um minuto", mais vago do que a verdade: o jogo relê a cada 15
+	// ticks de um segundo.
+	for _, quer := range []string{"Vale em até 15 segundos.", "O jogo relê sozinho"} {
+		if !strings.Contains(body, quer) {
+			t.Errorf("a página não traz %q", quer)
+		}
 	}
 }

@@ -69,7 +69,7 @@
     {{if .IsAdmin}}
       <form method="post" action="/servidor/reiniciar">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <button type="submit">Reiniciar o servidor de jogo</button>
+        <button type="submit" class="perigo">Reiniciar o servidor de jogo</button>
         <p class="dica" style="margin-top:8px">
           Avisa quem está jogando, espera todo mundo sair e as gravações
           confirmarem, e só então reinicia. Se alguma gravação não confirmar,
@@ -82,11 +82,12 @@
     <p class="dica">
       {{if .Servidor.Pendentes}}
         Atributos de monstro são lidos uma única vez, quando o servidor sobe —
-        não existe recarga ao vivo para eles. Última edição
-        {{.Servidor.UltimaEdicao.Local.Format "02/01 15:04"}}.
+        não existe recarga ao vivo para eles. A última edição foi
+        {{if .Servidor.EdicaoIdade}}há {{.Servidor.EdicaoIdade}}{{else}}em data
+        desconhecida{{end}}.
       {{else}}
-        NPCs, lojas e preços de item entram sozinhos em até 15 segundos. Só
-        atributos de monstro precisam de reinício.
+        Nada esperando reinício. O resto do conteúdo o jogo relê sozinho, e cada
+        tela que grava diz qual é o caso dela.
       {{end}}
       Ao reiniciar, quem está jogando é salvo e desconectado; volta em cerca de um minuto.
     </p>

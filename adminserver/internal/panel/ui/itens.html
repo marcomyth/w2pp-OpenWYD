@@ -27,12 +27,15 @@
   <h1>Itens</h1>
   <p class="sub">
     Catálogo do servidor. O preço em branco usa o valor do catálogo; preencher
-    cria uma exceção, apagar volta ao original. Preço passa a valer em cerca de
-    15 segundos; atributo, só depois de reiniciar o servidor.
+    cria uma exceção, apagar volta ao original.
     {{if .Versao}}<br><span class="versao">catálogo {{.Versao}}</span>{{end}}
   </p>
 
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  {{/* O preço é o que se grava NESTA tela. Os atributos são outra página, e ela
+       traz o próprio aviso — que é o oposto deste. */}}
+  {{template "quando-vale" "segundos"}}
 
   <form class="busca" method="get" action="/itens">
     <input name="q" value="{{.Query}}" placeholder="Nome do item" autocapitalize="off" spellcheck="false" autofocus>

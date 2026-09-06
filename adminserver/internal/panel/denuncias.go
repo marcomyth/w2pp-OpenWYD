@@ -13,28 +13,6 @@ import (
 // limiteDenuncias bounds one page of the queue.
 const limiteDenuncias = 100
 
-// esperaHa turns a timestamp into how long somebody has been waiting.
-//
-// A queue page that prints timestamps makes the reader do the subtraction, and
-// the number they actually want is the age: "há 3 horas" is the thing that says
-// whether the queue is being worked.
-func esperaHa(quando time.Time, agora time.Time) string {
-	if quando.IsZero() {
-		return ""
-	}
-	d := agora.Sub(quando)
-	switch {
-	case d < time.Minute:
-		return "agora há pouco"
-	case d < time.Hour:
-		return strconv.Itoa(int(d.Minutes())) + " min"
-	case d < 24*time.Hour:
-		return strconv.Itoa(int(d.Hours())) + " h"
-	default:
-		return strconv.Itoa(int(d.Hours()/24)) + " d"
-	}
-}
-
 // denunciaView is one report as the page shows it.
 type denunciaView struct {
 	domain.PlayerReport
@@ -72,7 +50,7 @@ func (h *Handler) denuncias(w http.ResponseWriter, r *http.Request) {
 	for _, d := range rs {
 		vistas = append(vistas, denunciaView{
 			PlayerReport: d,
-			Espera:       esperaHa(d.At, agora),
+			Espera:       idade(d.At, agora),
 			Regiao:       regiao(d.X, d.Y),
 		})
 	}
@@ -88,7 +66,7 @@ func (h *Handler) denuncias(w http.ResponseWriter, r *http.Request) {
 		Aviso     string
 	}{
 		h.pageFor(r, "denuncias"), vistas, contagem, naoLeu,
-		esperaHa(contagem.MaisAntigo, agora), todas,
+		idade(contagem.MaisAntigo, agora), todas,
 		domain.ReportRetentionDays, r.URL.Query().Get("aviso"),
 	})
 }

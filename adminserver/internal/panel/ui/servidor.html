@@ -106,7 +106,7 @@
       <form method="post" action="/servidor/reiniciar" style="margin-top:14px">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <input type="hidden" name="voltar" value="/servidor">
-        <button type="submit">Reiniciar sem aviso</button>
+        <button type="submit" class="perigo">Reiniciar sem aviso</button>
         <p class="dica">
           Esvazia o servidor e espera as gravações do mesmo jeito que o de cima
           — a diferença é só o recado: este manda o aviso padrão em vez do que
@@ -178,7 +178,7 @@
               <form method="post" action="/servidor/derrubar">
                 <input type="hidden" name="csrf" value="{{$.CSRF}}">
                 <input type="hidden" name="conta" value="{{.Conta}}">
-                <button type="submit">Derrubar</button>
+                <button type="submit" class="perigo">Derrubar</button>
               </form>
               </div>
             </td>

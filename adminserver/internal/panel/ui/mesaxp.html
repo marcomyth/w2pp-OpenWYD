@@ -111,11 +111,12 @@
     Por último os bônus de quem matou: baú, fada, peças e eventos.
     <br><br>
     Mexer aqui vale para todo mundo naquela zona e naquela evolução.
-    <strong>O jogo lê estas tabelas quando liga</strong>, então uma mudança só
-    entra no próximo reinício — de propósito: trocar a tabela com gente jogando
-    pagaria valores diferentes para a mesma morte conforme a hora.
+    E o reinício é de propósito: trocar a tabela com gente jogando pagaria
+    valores diferentes para a mesma morte conforme a hora.
     {{if .Versao}}<br><br>Versão gravada: <strong>{{.Versao}}</strong>.{{end}}
   </div>
+
+  {{template "quando-vale" "reiniciar"}}
 
   {{/* What the RUNNING game is paying, asked of the process itself. Saved-and-
        live and saved-waiting-for-a-restart look identical on this screen and

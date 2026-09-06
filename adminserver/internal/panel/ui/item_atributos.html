@@ -49,11 +49,11 @@
     </div>
   </div>
 
-  <div class="nota">
-    O que você gravar aqui <strong>só vale depois de reiniciar o servidor</strong>.
-    Diferente do preço, que muda sozinho em cerca de 15 segundos: o preço só é
-    lido na hora da compra, e estes números fazem parte da ficha do personagem.
-  </div>
+  {{template "quando-vale" "reiniciar"}}
+  <p class="dica" style="margin-bottom:18px">
+    Diferente do preço, que entra sozinho: o preço é lido na hora da compra, e
+    estes números fazem parte da ficha do personagem, montada quando ela carrega.
+  </p>
 
   <form method="post" action="/itens/{{.Indice}}/atributos">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
@@ -102,7 +102,6 @@
       <div class="linha"><button type="submit">Voltar aos valores do catálogo</button></div>
       <p class="dica">
         Apaga tudo que foi editado aqui e devolve os números do arquivo do jogo.
-        Também só vale depois de reiniciar.
       </p>
     </form>
   </div>

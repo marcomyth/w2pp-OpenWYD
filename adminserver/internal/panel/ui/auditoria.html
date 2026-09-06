@@ -5,6 +5,7 @@
 {{template "head" .}}
 <style>
   td.quando { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.quando .idade { display: block; color: var(--ink-3); font-size: 12px; }
   td.mudanca { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
   td.mudanca .de { color: var(--ink-3); }
   .acao {
@@ -28,6 +29,8 @@
     {{end}}
   </p>
 
+  {{if .Falha.auditoria}}{{template "falha-de-leitura" "a auditoria"}}{{end}}
+
   {{if .Entradas}}
     <div class="tw">
       <table>
@@ -43,7 +46,10 @@
         <tbody>
           {{range .Entradas}}
           <tr>
-            <td class="quando">{{.CreatedAt.Format "02/01 15:04"}}</td>
+            <td class="quando">
+              {{.CreatedAt.Format "02/01 15:04"}}
+              {{if .Idade}}<span class="idade">há {{.Idade}}</span>{{end}}
+            </td>
             <td>
               {{if .ActorName}}{{.ActorName}}{{else}}conta {{.ActorID}}{{end}}
               <span class="cargo">{{.ActorRole}}</span>

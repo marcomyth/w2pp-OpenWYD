@@ -592,7 +592,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		h.pageFor(r, "inicio"),
 		h.statusServidor(r),
 		denuncias,
-		esperaHa(denuncias.MaisAntigo, time.Now()),
+		idade(denuncias.MaisAntigo, time.Now()),
 		recentes,
 		naoLeu,
 		r.URL.Query().Get("aviso"),
@@ -802,6 +802,17 @@ func (h *Handler) onlyAdmin(next http.Handler) http.Handler {
 }
 
 // auditoria shows the action log, optionally narrowed to one account.
+// auditoriaLinha is one audit entry with its age worded.
+//
+// The audit log answers "what has the team been doing", and that question is
+// about freshness — so the age is what the eye needs. The exact timestamp stays
+// beside it, because the other reason to open this page is to line an action up
+// against something else that happened.
+type auditoriaLinha struct {
+	audit.Entry
+	Idade string
+}
+
 func (h *Handler) auditoria(w http.ResponseWriter, r *http.Request) {
 	var alvo int64
 	if v := r.URL.Query().Get("conta"); v != "" {
@@ -813,22 +824,33 @@ func (h *Handler) auditoria(w http.ResponseWriter, r *http.Request) {
 		alvo = id
 	}
 
+	// A failed read renders the page with the shared "não consegui ler" block
+	// instead of a 500. The rest of the panel already worked this way; this page
+	// was the last one answering a broken read with a blank error screen, which
+	// reads as "the panel is down" when only one query failed.
+	var falha falhas
 	entradas, err := h.cfg.Audit.List(r.Context(), alvo)
 	if err != nil {
 		h.cfg.Logger.Error("audit list failed", "target", alvo, "err", err)
-		http.Error(w, "Erro ao carregar a auditoria.", http.StatusInternalServerError)
-		return
+		falha.nao("auditoria")
+	}
+
+	agora := time.Now()
+	linhas := make([]auditoriaLinha, 0, len(entradas))
+	for _, e := range entradas {
+		linhas = append(linhas, auditoriaLinha{Entry: e, Idade: idade(e.CreatedAt, agora)})
 	}
 
 	h.render(w, "auditoria.html", struct {
 		page
-		Entradas []audit.Entry
+		Entradas []auditoriaLinha
 		Alvo     int64
 		Limite   int
 		Truncado bool
+		Falha    falhas
 	}{
-		h.pageFor(r, "auditoria"), entradas, alvo, h.cfg.Audit.Limit(),
-		len(entradas) == h.cfg.Audit.Limit(),
+		h.pageFor(r, "auditoria"), linhas, alvo, h.cfg.Audit.Limit(),
+		len(entradas) == h.cfg.Audit.Limit(), falha,
 	})
 }
 
@@ -1521,7 +1543,11 @@ type estadoServidor struct {
 	NoAr         string // how long since boot, already worded
 	Pendentes    int    // template-stat edits made after that boot
 	UltimaEdicao time.Time
-	DeployID     string
+	// EdicaoIdade is UltimaEdicao worded, because the question the card answers
+	// is "is this stale enough to restart for", and a date makes the reader do
+	// the subtraction.
+	EdicaoIdade string
+	DeployID    string
 	// Rodando is false when the deployment exists but is not up — stopped by the
 	// Desligar button, crashed, or still building. The page offers Ligar then,
 	// which is safe to press when it is already running.
@@ -1548,7 +1574,7 @@ func (h *Handler) statusServidor(r *http.Request) estadoServidor {
 	}
 
 	est := estadoServidor{
-		Conhecido: true, DeployID: dep.ID, NoAr: desde(dep.CreatedAt),
+		Conhecido: true, DeployID: dep.ID, NoAr: idade(dep.CreatedAt, time.Now()),
 		Rodando: plataforma.NoAr(dep.Status), Estado: dep.Status,
 	}
 	if !est.Rodando {
@@ -1562,6 +1588,7 @@ func (h *Handler) statusServidor(r *http.Request) estadoServidor {
 		return est
 	}
 	est.Pendentes, est.UltimaEdicao = n, last
+	est.EdicaoIdade = idade(last, time.Now())
 	return est
 }
 
@@ -1643,18 +1670,50 @@ func (h *Handler) reiniciar(w http.ResponseWriter, r *http.Request) {
 		http.StatusSeeOther)
 }
 
-// desde words an elapsed time the way someone reads it out loud.
-func desde(t time.Time) string {
-	d := time.Since(t)
+// idade words an elapsed time the way someone reads it out loud.
+//
+// ONE formatter for the whole panel, and it earned its place by replacing two
+// that disagreed: the report queue said "3 h" and "2 d" while the server card
+// said "3h05" and "2 dias", for the same kind of number on adjacent screens.
+// Nothing about the panel was wrong because of it, and everything about it felt
+// improvised — which is what made the thing tiring to use.
+//
+// It returns a DURATION, never a phrase, so the caller can put it after "há" or
+// after "No ar há" and read correctly either way. Zero time gives an empty
+// string: no date is not the same as a date of zero.
+//
+// One unit, always. "2 dias e 4 horas" is more precise and worse: the reader is
+// scanning for whether something is fresh or stale, and the second unit is
+// noise in that reading.
+func idade(quando, agora time.Time) string {
+	if quando.IsZero() {
+		return ""
+	}
+	d := agora.Sub(quando)
+	if d < 0 {
+		// A timestamp in the future is a clock that disagrees, not an age.
+		// Saying "menos de um minuto" would hide it.
+		return "data no futuro"
+	}
 	switch {
 	case d < time.Minute:
 		return "menos de um minuto"
 	case d < time.Hour:
 		return fmt.Sprintf("%d min", int(d.Minutes()))
-	case d < 48*time.Hour:
-		return fmt.Sprintf("%dh%02d", int(d.Hours()), int(d.Minutes())%60)
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%d h", int(d.Hours()))
+	case d < 60*24*time.Hour:
+		dias := int(d.Hours() / 24)
+		if dias == 1 {
+			return "1 dia"
+		}
+		return fmt.Sprintf("%d dias", dias)
 	default:
-		return fmt.Sprintf("%d dias", int(d.Hours()/24))
+		meses := int(d.Hours() / 24 / 30)
+		if meses == 1 {
+			return "1 mês"
+		}
+		return fmt.Sprintf("%d meses", meses)
 	}
 }
 

@@ -164,7 +164,7 @@
             {{end}}
           </p>
           <div style="display:flex;gap:8px">
-            <button type="submit" name="remover" value="1" {{if not .Editavel}}disabled{{end}}>Limpar slot</button>
+            <button type="submit" name="remover" value="1" class="perigo" {{if not .Editavel}}disabled{{end}}>Limpar slot</button>
             <button type="submit" class="principal" {{if not .Editavel}}disabled{{end}}>Gravar</button>
           </div>
         </form>

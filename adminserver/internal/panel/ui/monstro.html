@@ -147,10 +147,11 @@
   </div>
   {{end}}
 
-  <div class="nota">
-    O que você gravar aqui <strong>só vale depois de reiniciar o servidor</strong>.
-    Os monstros que já estão no mapa continuam com os números antigos até lá.
-  </div>
+  {{template "quando-vale" "reiniciar"}}
+  <p class="dica" style="margin-bottom:18px">
+    Os números do monstro são lidos uma vez só, quando o jogo sobe. Os que já
+    estão no mapa seguem com os valores antigos até o reinício.
+  </p>
 
   {{/* Tabs are links, not a click handler: the panel serves default-src 'none'
        with no script-src, and this way the chosen tab survives the save. */}}
@@ -199,10 +200,10 @@
         <div><label class="campo-rot" for="effv3">Valor</label><input id="effv3" name="effv3" inputmode="numeric" placeholder="0" value="{{if ge .Sel 0}}{{(index .Escolhido.Efeitos 2).Valor}}{{end}}"></div>
       </div>
       <div style="display:flex;gap:8px;margin-top:10px">
-        <button type="submit" name="remover" value="1">Limpar slot</button>
+        <button type="submit" name="remover" value="1" class="perigo">Limpar slot</button>
         <button type="submit" class="principal">Gravar slot</button>
       </div>
-      <p class="dica">{{if ge .Sel 0}}Editando o slot <strong>{{.Sel}}</strong>{{if not .Escolhido.Vazio}} — {{.Escolhido.Nome}}{{end}}. {{else}}Clique num slot para carregar o que há nele. {{end}}Refino é o efeito 43. Como os números acima, só vale depois de reiniciar.</p>
+      <p class="dica">{{if ge .Sel 0}}Editando o slot <strong>{{.Sel}}</strong>{{if not .Escolhido.Vazio}} — {{.Escolhido.Nome}}{{end}}. {{else}}Clique num slot para carregar o que há nele. {{end}}Refino é o efeito 43.</p>
     </form>
   </div>
 
@@ -279,7 +280,7 @@
       <div class="linha"><button type="submit">Voltar aos valores do arquivo</button></div>
       <p class="dica">
         Apaga tudo que foi editado aqui e devolve os números do arquivo de
-        conteúdo. Também só vale depois de reiniciar.
+        conteúdo.
       </p>
     </form>
   </div>

@@ -19,12 +19,12 @@
 
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
-  <div class="nota">
-    Diferente de item e NPC, o que você mudar aqui <strong>só vale depois de
-    reiniciar o servidor</strong>. Os números do monstro são lidos uma única vez,
-    na hora que o jogo sobe. A página inicial mostra quantas edições estão
-    esperando reinício.
-  </div>
+  {{template "quando-vale" "reiniciar"}}
+  <p class="dica" style="margin-bottom:18px">
+    Diferente de item e NPC: os números do monstro são lidos uma vez só, quando
+    o jogo sobe. A página inicial mostra quantas edições estão esperando
+    reinício.
+  </p>
 
   <form class="busca" method="get" action="/monstros">
     <input name="q" value="{{.Query}}" placeholder="Nome do monstro" autocapitalize="off" spellcheck="false" autofocus>

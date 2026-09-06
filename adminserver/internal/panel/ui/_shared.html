@@ -138,6 +138,21 @@
   th.num { text-align: right; padding-right: 22px; }
   tbody tr:hover td { background: var(--surface); }
 
+  /* Quando a mudança vale. Três respostas no painel inteiro; antes disto cada
+     tela inventava a sua, e eram oito frases para três situações. */
+  .quando-vale {
+    display: flex; align-items: flex-start; gap: 9px;
+    font-size: 13px; line-height: 1.5; color: var(--ink-2);
+    border-left: 2px solid var(--rule); padding: 2px 0 2px 11px;
+    margin: 0 0 14px;
+  }
+  .quando-vale svg { flex: none; width: 15px; height: 15px; margin-top: 2px; }
+  .quando-vale strong { color: var(--ink); font-weight: 600; }
+  .quando-vale.agora { border-left-color: var(--ink-3); }
+  .quando-vale.segundos { border-left-color: var(--ink-3); }
+  .quando-vale.reiniciar { border-left-color: var(--danger); }
+  .quando-vale.reiniciar strong { color: var(--danger); }
+
   .vazio {
     border: 1px dashed var(--rule); border-radius: 4px; padding: 28px 22px;
     color: var(--ink-2); text-align: center; font-size: 14px;
@@ -469,6 +484,39 @@
 {{/* Uma leitura secundária que não respondeu. O contrário de uma lista vazia:
      "não tem nada" e "não consegui ler" desenhavam igual, então uma conta com
      quatro personagens aparecia como conta sem personagem. */}}
+{{/* Quando a mudança vale.
+     Toda tela que grava responde a mesma pergunta, com a mesma frase e no mesmo
+     lugar: logo acima do botão. Antes disto havia oito redações para três
+     situações, e descobrir em qual delas você estava era parte do trabalho.
+     Ícone é SVG de traço, nunca caractere: um glifo cai para uma fonte
+     diferente em cada máquina. */}}
+{{define "quando-vale"}}
+<p class="quando-vale {{.}}">
+  {{if eq . "agora"}}
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="8" cy="8" r="6.2"/><path d="M5.4 8.2l1.8 1.8 3.4-3.8"/>
+    </svg>
+    <span><strong>Vale na hora.</strong> Assim que você salvar, o jogo já está
+    usando o valor novo.</span>
+  {{else if eq . "segundos"}}
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="8" cy="8" r="6.2"/><path d="M8 4.4V8l2.6 1.6"/>
+    </svg>
+    <span><strong>Vale em até 15 segundos.</strong> O jogo relê sozinho; não
+    precisa reiniciar nem avisar ninguém.</span>
+  {{else}}
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M13.2 8a5.2 5.2 0 1 1-1.6-3.7"/><path d="M13.4 2.6v2.9h-2.9"/>
+    </svg>
+    <span><strong>Só vale depois de reiniciar o servidor.</strong> Salvar aqui
+    grava no banco, mas o jogo segue com o que carregou quando ligou.</span>
+  {{end}}
+</p>
+{{end}}
+
 {{define "falha-de-leitura"}}
 <div class="falha">
   <strong>Não consegui ler {{.}} agora.</strong> Isso não quer dizer que não

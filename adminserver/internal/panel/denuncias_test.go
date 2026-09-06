@@ -212,29 +212,52 @@ func TestFilaVaziaDizQueEstaVazia(t *testing.T) {
 	}
 }
 
-func TestEsperaHa(t *testing.T) {
-	// The page prints an age, not a timestamp: "há 3 h" is what says whether the
-	// queue is being worked; a date makes the reader do the subtraction.
+func TestIdade(t *testing.T) {
+	// The panel prints an age, not a timestamp: "há 3 h" is what says whether a
+	// queue is being worked; a date makes the reader do the subtraction. And it
+	// is ONE formatter — there used to be two, disagreeing on adjacent screens.
 	agora := time.Date(2026, 9, 6, 12, 0, 0, 0, time.UTC)
 	casos := []struct {
 		nome  string
 		desde time.Duration
 		want  string
 	}{
-		{"segundos", 30 * time.Second, "agora há pouco"},
+		{"segundos", 30 * time.Second, "menos de um minuto"},
 		{"minutos", 42 * time.Minute, "42 min"},
 		{"horas", 5 * time.Hour, "5 h"},
-		{"dias", 50 * time.Hour, "2 d"},
+		{"quase um dia", 23*time.Hour + 59*time.Minute, "23 h"},
+		{"um dia", 25 * time.Hour, "1 dia"},
+		{"dias", 50 * time.Hour, "2 dias"},
+		{"um mês", 61 * 24 * time.Hour, "2 meses"},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
-			if got := esperaHa(agora.Add(-c.desde), agora); got != c.want {
-				t.Errorf("esperaHa = %q, want %q", got, c.want)
+			if got := idade(agora.Add(-c.desde), agora); got != c.want {
+				t.Errorf("idade = %q, want %q", got, c.want)
 			}
 		})
 	}
-	if got := esperaHa(time.Time{}, agora); got != "" {
+	// Sem data não é data zero: a diferença entre "não sei quando" e "há
+	// cinquenta e seis anos".
+	if got := idade(time.Time{}, agora); got != "" {
 		t.Errorf("sem data = %q, want vazio", got)
+	}
+	// Relógio adiantado é relógio errado, não idade negativa. Dizer "menos de um
+	// minuto" esconderia o problema.
+	if got := idade(agora.Add(time.Hour), agora); got != "data no futuro" {
+		t.Errorf("data futura = %q", got)
+	}
+}
+
+// A frase tem de encaixar depois de "há" e depois de "No ar há", que são os dois
+// lugares onde ela aparece. Uma que já começasse com "há" leria "há há".
+func TestIdadeEncaixaDepoisDeHa(t *testing.T) {
+	agora := time.Now()
+	for _, d := range []time.Duration{30 * time.Second, 5 * time.Minute, 5 * time.Hour, 50 * time.Hour} {
+		got := idade(agora.Add(-d), agora)
+		if strings.HasPrefix(got, "há") || strings.HasSuffix(got, "atrás") {
+			t.Errorf("idade(%v) = %q; a frase não pode trazer o \"há\" dentro", d, got)
+		}
 	}
 }
 

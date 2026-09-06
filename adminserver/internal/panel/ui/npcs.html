@@ -13,7 +13,9 @@
 
 <main>
   <h1>NPCs</h1>
-  <p class="sub">Vendedores gerenciados pelo banco. Alterações entram no jogo em até 15 segundos.</p>
+  <p class="sub">Vendedores gerenciados pelo banco.</p>
+
+  {{template "quando-vale" "segundos"}}
 
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 

@@ -31,6 +31,8 @@
 
   {{template "aviso-overlay" .Overlay}}
 
+  {{template "quando-vale" "segundos"}}
+
   <div class="campos">
     <div class="campo"><div class="rot">Identificador</div><div class="val">{{.NPC.ID}}</div></div>
     <div class="campo"><div class="rot">Modelo</div><div class="val">{{.NPC.TemplateName}}</div></div>
@@ -54,7 +56,7 @@
         <input name="y" type="number" min="0" value="{{.NPC.Y}}" aria-label="Coordenada Y" title="Y">
         <button type="submit">Gravar</button>
       </div>
-      <p class="dica">Mapa, X e Y. O NPC anda para o lugar novo em até 15 segundos.</p>
+      <p class="dica">Mapa, X e Y. O NPC anda sozinho para o lugar novo.</p>
     </form>
 
     <form method="post" action="/npcs/{{.NPC.ID}}/visibilidade" class="acao-bloco">
@@ -122,7 +124,7 @@
 
     <div class="barra-salvar">
       <button type="submit" class="principal">Gravar loja</button>
-      <p class="dica">Entra em jogo em até 15 segundos, sem reiniciar.</p>
+      <p class="dica">A loja passa a vender exatamente esta lista.</p>
     </div>
   </form>
 </main>
