@@ -40,6 +40,10 @@ func testPool(t *testing.T) *pgxpool.Pool {
 func resetTestSchema(ctx context.Context, pool *pgxpool.Pool) {
 	_, _ = pool.Exec(ctx, `
 		DROP TABLE IF EXISTS
+			player_report,
+			trade_log,
+			item_stat,
+			admin_audit_log,
 			sapphire_balance,
 			world_event_audit,
 			world_event_meta,

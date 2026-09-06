@@ -685,3 +685,56 @@ type TradeRecord struct {
 	ItemsA   []TradeItem
 	ItemsB   []TradeItem
 }
+
+// PlayerReport is one /reportar: what a player wrote to staff, and what the
+// server could see around them at that moment (0028_player_report).
+//
+// The snapshot is the point. Before this a report was a screenshot and a story,
+// and the first thing staff had to do was ask the player to reproduce it. Here
+// the position, the level and who was in view are the server's own answer,
+// taken at the instant the player pressed enter.
+//
+// It expires. The row carries text a person wrote and the names of people who
+// were merely standing nearby, so it is not kept forever — see ExpiresAt.
+type PlayerReport struct {
+	ID        int64
+	At        time.Time
+	ExpiresAt time.Time
+
+	AccountID int64 // 0 when unknown
+	Account   string
+	Character string
+	Level     int32
+	Text      string
+	X, Y      int32
+	// Nearby is the character names in view when the report was written. It is
+	// what turns "somebody here is botting" into something checkable.
+	Nearby []string
+
+	// HandledAt is nil while nobody has picked the report up. HandledBy is the
+	// staff account that did.
+	HandledAt *time.Time
+	HandledBy int64
+}
+
+// Aberto reports whether nobody has handled this yet.
+func (r PlayerReport) Aberto() bool { return r.HandledAt == nil }
+
+// MaxReportText bounds what one report can store.
+//
+// The client's chat line is far shorter than this, so it is not a limit players
+// will meet — it is the ceiling that keeps a crafted packet from writing a
+// megabyte of text per report into the database.
+const MaxReportText = 500
+
+// MaxReportNearby bounds the bystander list. A crowded town would otherwise
+// write a hundred names into a row about one person's complaint.
+const MaxReportNearby = 20
+
+// ReportRetentionDays is how long a report is kept.
+//
+// It holds a person's words and the names of people who were only standing
+// nearby, which is why it does not live forever. Ninety days is long enough for
+// a ban appeal to come back around and short enough that the panel is not an
+// archive of who stood next to whom.
+const ReportRetentionDays = 90
