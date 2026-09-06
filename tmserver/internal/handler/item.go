@@ -344,6 +344,12 @@ const (
 	volEntradaTerritorio = 188 // Entrada do Território (LAN) ticket (_MSG_UseItem.cpp:4202)
 	volQuestReward       = 191 // quest reward items 4117..4121 (_MSG_UseItem.cpp:2344)
 	volHuntingScroll     = 195 // Pedido de Caça: destination selected by MSG_UseItem.WarpID
+	// volBirthAccelerator is the Acelerador de Nascimento (3438). It has NO legacy
+	// counterpart — _MSG_UseItem.cpp has no branch for EF_VOLATILE 196 — so the
+	// behaviour comes from the tooltip the shipped client draws for it: "Aumenta o
+	// valor da refinação em +1 independente da previsão do nascimento da montaria.
+	// Aplicável a todos ovos de montaria."
+	volBirthAccelerator = 196
 	volPedraIdeal        = 211 // Pedra Ideal (5338): the Arch→Celestial rebirth (_MSG_UseItem.cpp:3002)
 	volExpChest          = 198
 	volBuffKappa20h      = 200
@@ -517,6 +523,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useQuestReward(w, s, e, src)
 	case vol == volHuntingScroll:
 		d.useHuntingScroll(w, s, e, src, body.WarpID)
+	case vol == volBirthAccelerator:
+		d.useBirthAccelerator(w, s, e, body, src)
 	case isWaterScrollVolatile(vol):
 		d.useWaterScroll(w, s, e, src, vol)
 	case isPesadeloVolatile(vol):
