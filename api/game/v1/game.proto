@@ -25,6 +25,14 @@ service GameControlService {
   rpc Kick(KickRequest) returns (KickResponse);
   // Broadcast sends a notice to everyone in play.
   rpc Broadcast(BroadcastRequest) returns (BroadcastResponse);
+  // Unstuck moves a character out of somewhere it cannot walk out of.
+  //
+  // The world has spots that let a player in and not back out — a gap in the
+  // collision map, a warp that lands inside scenery. Reconnecting does not help:
+  // the position is saved, so the player comes back exactly where they were
+  // stuck. Until now the only remedy was editing the database by hand, which
+  // needs the character offline and somebody willing to do it.
+  rpc Unstuck(UnstuckRequest) returns (UnstuckResponse);
   // Drain empties the server and waits for every save to land.
   //
   // It exists because a restart is only safe if the saves finish, and on
@@ -68,6 +76,24 @@ message KickResponse {
   // sessions is how many were ended. Zero means the account was not connected,
   // which is not an error — it is the answer.
   int32 sessions = 1;
+}
+
+message UnstuckRequest {
+  // account_name, not character, for the reason KickRequest gives: the panel
+  // works in accounts.
+  string account_name = 1;
+}
+message UnstuckResponse {
+  // found is false when the account is not in the world. That is an answer, not
+  // an error: the player may have logged off between the report and the click.
+  bool found = 1;
+  string character_name = 2;
+  int32 from_x = 3;
+  int32 from_y = 4;
+  int32 to_x = 5;
+  int32 to_y = 6;
+  // city is the name of where they landed, so the moderator can tell them.
+  string city = 7;
 }
 
 message BroadcastRequest {

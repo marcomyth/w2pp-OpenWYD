@@ -242,6 +242,19 @@ func (d *Dispatcher) reqTeleport(w *world.World, s *world.Session, _ protocol.He
 // doTeleport moves the player to (x,y) and reconciles visibility (DoTeleport,
 // Server.cpp): RemoveMob from the old view, an MSG_Action with Effect=1 to jump
 // the player's own avatar, then CreateMob for the new surroundings.
+// Teleport is doTeleport for callers outside this package.
+//
+// It exists for the admin control API's unstuck, which runs inside the game loop
+// through World.GoDetached but lives in a package that must not import this one.
+// Everything a teleport owes the client is here — the jump frame, the
+// neighbourhood re-sync, the last-city mark — and reimplementing that over there
+// would be a second, quietly different teleport.
+//
+// LOOP ONLY, like everything else in this file.
+func (d *Dispatcher) Teleport(w *world.World, s *world.Session, x, y int16) {
+	d.doTeleport(w, s, x, y)
+}
+
 func (d *Dispatcher) doTeleport(w *world.World, s *world.Session, x, y int16) {
 	e := w.Entity(s.Conn)
 	if e == nil {

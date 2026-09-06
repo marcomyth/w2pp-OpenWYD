@@ -334,3 +334,60 @@ func (h *Handler) ligarServidor(w http.ResponseWriter, r *http.Request) {
 	h.redirectServidor(w, r,
 		"Ligando. O servidor reusa a imagem já construída, então volta em cerca de um minuto sem reconstruir.")
 }
+
+// desatolar moves a stuck character to the nearest city.
+//
+// Staff, not admin-only: it changes nothing a player owns — not an item, not a
+// level, not gold — and being stuck is reported to whoever is on duty. Locking
+// it to the admin tier would mean a moderator watching someone stay stuck.
+func (h *Handler) desatolar(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	sess, _ := staffFrom(r.Context())
+	conta := strings.TrimSpace(r.PostFormValue("conta"))
+	if conta == "" {
+		http.Error(w, "Informe a conta.", http.StatusBadRequest)
+		return
+	}
+
+	d, err := h.cfg.Jogo.Desatolar(r.Context(), conta)
+	if err != nil {
+		h.cfg.Logger.Error("unstuck failed", "conta", conta, "err", err)
+		http.Error(w, explicaJogo(err), http.StatusBadGateway)
+		return
+	}
+
+	// Nothing moved, nothing to record: an account that was not in the world is
+	// an answer to the question, not an action taken on anybody.
+	if !d.Achou {
+		http.Redirect(w, r, "/servidor?aviso="+urlQuery(conta+" não está com personagem no mundo."),
+			http.StatusSeeOther)
+		return
+	}
+
+	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: audit.ActionUnstuck,
+		New: map[string]any{
+			"conta": conta, "personagem": d.Personagem,
+			"de": []int32{d.DeX, d.DeY}, "para": []int32{d.ParaX, d.ParaY},
+			"cidade": d.Cidade,
+		},
+	}); err != nil {
+		// The move already happened in the game; saying it did not would be the
+		// bigger lie. The operator is told to escalate instead.
+		h.cfg.Logger.Error("unstuck done but NOT audited", "conta", conta, "err", err)
+		http.Error(w, "O personagem foi movido, mas a auditoria falhou. Avise quem cuida do servidor.",
+			http.StatusInternalServerError)
+		return
+	}
+
+	h.cfg.Logger.Info("player unstuck", "actor", sess.AccountName, "conta", conta,
+		"personagem", d.Personagem, "cidade", d.Cidade)
+	msg := fmt.Sprintf("%s foi para %s. Estava em %d, %d.", d.Personagem, d.Cidade, d.DeX, d.DeY)
+	http.Redirect(w, r, "/servidor?aviso="+urlQuery(msg), http.StatusSeeOther)
+}

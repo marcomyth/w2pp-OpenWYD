@@ -42,9 +42,13 @@ func mundoRodando(t *testing.T) *world.World {
 	return w
 }
 
+// teleporteNulo stands in where a test does not care about the move itself.
+func teleporteNulo(*world.World, *world.Session, int16, int16) {}
+
 func servidor(t *testing.T) *Server {
 	t.Helper()
-	s, err := NewServer(mundoRodando(t), tokenDeTeste, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s, err := NewServer(mundoRodando(t), tokenDeTeste,
+		slog.New(slog.NewTextHandler(io.Discard, nil)), teleporteNulo)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -58,7 +62,7 @@ func TestRecusaSubirSemToken(t *testing.T) {
 	// the only failure mode that cannot be missed.
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	for _, token := range []string{"", "   "} {
-		if _, err := NewServer(nil, token, log); !errors.Is(err, ErrNoToken) {
+		if _, err := NewServer(nil, token, log, teleporteNulo); !errors.Is(err, ErrNoToken) {
 			t.Errorf("NewServer(%q) = %v, want ErrNoToken", token, err)
 		}
 	}
@@ -182,7 +186,7 @@ func TestChamadaDesisteQuandoOLacoNaoResponde(t *testing.T) {
 	// world here is never Served, so nothing drains the callback queue.
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	parado := world.New(world.Config{GridDim: 16}, log, world.NopPersistence{}, nil)
-	s, err := NewServer(parado, tokenDeTeste, log)
+	s, err := NewServer(parado, tokenDeTeste, log, teleporteNulo)
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -191,5 +195,70 @@ func TestChamadaDesisteQuandoOLacoNaoResponde(t *testing.T) {
 	defer cancel()
 	if _, err := s.ListOnline(ctx, &gamev1.ListOnlineRequest{}); status.Code(err) != codes.DeadlineExceeded {
 		t.Fatalf("laço parado = %v, want DeadlineExceeded", status.Code(err))
+	}
+}
+
+// --- desatolar ---
+
+func TestRecusaSubirSemTeleporte(t *testing.T) {
+	// Same reasoning as the token: a service that starts without its dependency
+	// looks healthy and is not. Here it would accept unstuck calls and answer
+	// that it moved nobody, which reads as "the player is not stuck".
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if _, err := NewServer(nil, tokenDeTeste, log, nil); !errors.Is(err, ErrNoTeleporter) {
+		t.Errorf("NewServer(sem teleporte) = %v, want ErrNoTeleporter", err)
+	}
+}
+
+func TestUnstuckExigeUmaConta(t *testing.T) {
+	s := servidor(t)
+	if _, err := s.Unstuck(context.Background(), &gamev1.UnstuckRequest{AccountName: "  "}); status.Code(err) != codes.InvalidArgument {
+		t.Errorf("erro = %v, want InvalidArgument", err)
+	}
+}
+
+func TestUnstuckDeContaAusenteNaoEErro(t *testing.T) {
+	// The player may have logged off between the report and the click. That is
+	// an answer, not a failure — and turning it into one would put a red error
+	// on the panel for something nobody did wrong.
+	s := servidor(t)
+	resp, err := s.Unstuck(context.Background(), &gamev1.UnstuckRequest{AccountName: "ninguem"})
+	if err != nil {
+		t.Fatalf("Unstuck: %v", err)
+	}
+	if resp.GetFound() {
+		t.Error("achou alguém num mundo vazio")
+	}
+}
+
+func TestUnstuckNaoTeleportaNinguemQuandoNaoAcha(t *testing.T) {
+	chamou := false
+	s, err := NewServer(mundoRodando(t), tokenDeTeste,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		func(*world.World, *world.Session, int16, int16) { chamou = true })
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	if _, err := s.Unstuck(context.Background(), &gamev1.UnstuckRequest{AccountName: "ninguem"}); err != nil {
+		t.Fatalf("Unstuck: %v", err)
+	}
+	if chamou {
+		t.Error("moveu alguém que não estava no mundo")
+	}
+}
+
+func TestUnstuckDesisteQuandoOLacoNaoResponde(t *testing.T) {
+	// A wedged loop must fail the call instead of holding the connection open,
+	// like every other RPC here.
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	parado := world.New(world.Config{GridDim: 16}, log, world.NopPersistence{}, nil)
+	s, err := NewServer(parado, tokenDeTeste, log, teleporteNulo)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	if _, err := s.Unstuck(ctx, &gamev1.UnstuckRequest{AccountName: "ana"}); status.Code(err) != codes.DeadlineExceeded {
+		t.Errorf("erro = %v, want DeadlineExceeded", err)
 	}
 }

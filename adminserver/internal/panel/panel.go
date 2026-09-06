@@ -156,6 +156,7 @@ type Deliveries interface {
 type Live interface {
 	Estado(ctx context.Context) (jogo.Estado, error)
 	Derrubar(ctx context.Context, conta string) (int32, error)
+	Desatolar(ctx context.Context, conta string) (jogo.Desatolo, error)
 	Avisar(ctx context.Context, msg string) (int32, error)
 	Drenar(ctx context.Context, aviso string) (jogo.Drenagem, error)
 }
@@ -256,6 +257,7 @@ func (h *Handler) Routes() http.Handler {
 		// Read-only, same single read as /servidor. Staff, not admin: seeing
 		// where people are is what a moderator does before deciding anything.
 		mux.Handle("GET /mapa", h.requireStaff(http.HandlerFunc(h.mapa)))
+		mux.Handle("POST /servidor/desatolar", h.requireStaff(http.HandlerFunc(h.desatolar)))
 		mux.Handle("POST /servidor/derrubar", h.requireStaff(http.HandlerFunc(h.derrubarConta)))
 		mux.Handle("POST /servidor/aviso", h.requireStaff(http.HandlerFunc(h.avisarTodos)))
 		if h.cfg.Platform != nil {

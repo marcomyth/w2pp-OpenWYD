@@ -57,6 +57,44 @@ func CitySpawn(city int) (int16, int16) {
 	return c.spawnX + int16(rand.Intn(15)), c.spawnY + int16(rand.Intn(15))
 }
 
+// CityName is the label for a city index (0..4), or "" when out of range.
+var cityNames = [5]string{"Armia", "Azran", "Erion", "Nippleheim", "Noatum"}
+
+func CityName(city int) string {
+	if city < 0 || city >= len(cityNames) {
+		return ""
+	}
+	return cityNames[city]
+}
+
+// NearestCitySpawn returns the spawn point of the city closest to (x, y), its
+// index and its name.
+//
+// It is what an unstuck should use, and it is deliberately NOT CitySpawn: that
+// one clamps to 0..3 because the saved "last city" only holds two bits, so
+// Noatum falls back to Armia. Reproducing that quirk here would send a player
+// stuck by Noatum across the entire map for no reason — the quirk belongs to
+// the save format, not to picking somewhere safe to stand.
+//
+// The five cities are the whole candidate set on purpose: the wider zone table
+// in internal/mapzones also holds the three Pesadelo interiors, and dropping a
+// stuck player inside a dungeon is not a rescue.
+func NearestCitySpawn(x, y int16) (int16, int16, int, string) {
+	melhor, melhorDist := 0, int64(-1)
+	for i := range cities {
+		dx := int64(x) - int64(cities[i].spawnX)
+		dy := int64(y) - int64(cities[i].spawnY)
+		if d := dx*dx + dy*dy; melhorDist < 0 || d < melhorDist {
+			melhor, melhorDist = i, d
+		}
+	}
+	c := cities[melhor]
+	// The same rand%15 spread CitySpawn uses: several people rescued at once
+	// must not land stacked on one tile.
+	return c.spawnX + int16(rand.Intn(15)), c.spawnY + int16(rand.Intn(15)),
+		melhor, cityNames[melhor]
+}
+
 // nonCombatNPC classifies service/town NPCs independently of the client-visible
 // Merchant byte. Some real city templates ship Merchant==0 (for example combine
 // statues and decorative town actors), so relying on Merchant alone makes them

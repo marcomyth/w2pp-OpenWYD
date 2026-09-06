@@ -127,6 +127,34 @@ func (c *Client) Derrubar(parent context.Context, conta string) (int32, error) {
 	return resp.GetSessions(), nil
 }
 
+// Desatolo is what an unstuck did, for the confirmation the panel shows and the
+// audit line it writes.
+type Desatolo struct {
+	// Achou is false when the account was not in the world. Not an error: the
+	// player may have logged off between the report and the click.
+	Achou      bool
+	Personagem string
+	DeX, DeY   int32
+	ParaX      int32
+	ParaY      int32
+	Cidade     string
+}
+
+// Desatolar moves a stuck character to the nearest city.
+func (c *Client) Desatolar(parent context.Context, conta string) (Desatolo, error) {
+	ctx, cancel := c.ctx(parent)
+	defer cancel()
+	resp, err := c.api.Unstuck(ctx, &gamev1.UnstuckRequest{AccountName: conta})
+	if err != nil {
+		return Desatolo{}, traduz(err, "desatolar o personagem")
+	}
+	return Desatolo{
+		Achou: resp.GetFound(), Personagem: resp.GetCharacterName(),
+		DeX: resp.GetFromX(), DeY: resp.GetFromY(),
+		ParaX: resp.GetToX(), ParaY: resp.GetToY(), Cidade: resp.GetCity(),
+	}, nil
+}
+
 // Avisar sends a notice to everyone in play and reports how many got it.
 func (c *Client) Avisar(parent context.Context, msg string) (int32, error) {
 	ctx, cancel := c.ctx(parent)

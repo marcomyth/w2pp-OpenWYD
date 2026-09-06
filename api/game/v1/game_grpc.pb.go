@@ -22,6 +22,7 @@ const (
 	GameControlService_ListOnline_FullMethodName = "/game.v1.GameControlService/ListOnline"
 	GameControlService_Kick_FullMethodName       = "/game.v1.GameControlService/Kick"
 	GameControlService_Broadcast_FullMethodName  = "/game.v1.GameControlService/Broadcast"
+	GameControlService_Unstuck_FullMethodName    = "/game.v1.GameControlService/Unstuck"
 	GameControlService_Drain_FullMethodName      = "/game.v1.GameControlService/Drain"
 )
 
@@ -50,6 +51,14 @@ type GameControlServiceClient interface {
 	Kick(ctx context.Context, in *KickRequest, opts ...grpc.CallOption) (*KickResponse, error)
 	// Broadcast sends a notice to everyone in play.
 	Broadcast(ctx context.Context, in *BroadcastRequest, opts ...grpc.CallOption) (*BroadcastResponse, error)
+	// Unstuck moves a character out of somewhere it cannot walk out of.
+	//
+	// The world has spots that let a player in and not back out — a gap in the
+	// collision map, a warp that lands inside scenery. Reconnecting does not help:
+	// the position is saved, so the player comes back exactly where they were
+	// stuck. Until now the only remedy was editing the database by hand, which
+	// needs the character offline and somebody willing to do it.
+	Unstuck(ctx context.Context, in *UnstuckRequest, opts ...grpc.CallOption) (*UnstuckResponse, error)
 	// Drain empties the server and waits for every save to land.
 	//
 	// It exists because a restart is only safe if the saves finish, and on
@@ -99,6 +108,16 @@ func (c *gameControlServiceClient) Broadcast(ctx context.Context, in *BroadcastR
 	return out, nil
 }
 
+func (c *gameControlServiceClient) Unstuck(ctx context.Context, in *UnstuckRequest, opts ...grpc.CallOption) (*UnstuckResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnstuckResponse)
+	err := c.cc.Invoke(ctx, GameControlService_Unstuck_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *gameControlServiceClient) Drain(ctx context.Context, in *DrainRequest, opts ...grpc.CallOption) (*DrainResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DrainResponse)
@@ -134,6 +153,14 @@ type GameControlServiceServer interface {
 	Kick(context.Context, *KickRequest) (*KickResponse, error)
 	// Broadcast sends a notice to everyone in play.
 	Broadcast(context.Context, *BroadcastRequest) (*BroadcastResponse, error)
+	// Unstuck moves a character out of somewhere it cannot walk out of.
+	//
+	// The world has spots that let a player in and not back out — a gap in the
+	// collision map, a warp that lands inside scenery. Reconnecting does not help:
+	// the position is saved, so the player comes back exactly where they were
+	// stuck. Until now the only remedy was editing the database by hand, which
+	// needs the character offline and somebody willing to do it.
+	Unstuck(context.Context, *UnstuckRequest) (*UnstuckResponse, error)
 	// Drain empties the server and waits for every save to land.
 	//
 	// It exists because a restart is only safe if the saves finish, and on
@@ -161,6 +188,9 @@ func (UnimplementedGameControlServiceServer) Kick(context.Context, *KickRequest)
 }
 func (UnimplementedGameControlServiceServer) Broadcast(context.Context, *BroadcastRequest) (*BroadcastResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Broadcast not implemented")
+}
+func (UnimplementedGameControlServiceServer) Unstuck(context.Context, *UnstuckRequest) (*UnstuckResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method Unstuck not implemented")
 }
 func (UnimplementedGameControlServiceServer) Drain(context.Context, *DrainRequest) (*DrainResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Drain not implemented")
@@ -240,6 +270,24 @@ func _GameControlService_Broadcast_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GameControlService_Unstuck_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnstuckRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GameControlServiceServer).Unstuck(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GameControlService_Unstuck_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GameControlServiceServer).Unstuck(ctx, req.(*UnstuckRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _GameControlService_Drain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DrainRequest)
 	if err := dec(in); err != nil {
@@ -276,6 +324,10 @@ var GameControlService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Broadcast",
 			Handler:    _GameControlService_Broadcast_Handler,
+		},
+		{
+			MethodName: "Unstuck",
+			Handler:    _GameControlService_Unstuck_Handler,
 		},
 		{
 			MethodName: "Drain",

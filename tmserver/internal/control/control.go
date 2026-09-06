@@ -48,20 +48,44 @@ const loopTimeout = 5 * time.Second
 // services" would otherwise ship an unauthenticated kick endpoint.
 var ErrNoToken = errors.New("control: refusing to serve without a token")
 
+// ErrNoTeleporter refuses to serve without the move unstuck depends on.
+var ErrNoTeleporter = errors.New("control: refusing to serve without a teleporter")
+
 // Server implements gamev1.GameControlServiceServer over a running world.
+// Teleporter moves one session's character to a position, doing everything the
+// game does when a player teleports: the jump frame for their own client, the
+// re-sync of what is around them, the last-city mark.
+//
+// It is injected rather than imported because the move belongs to the gameplay
+// layer and this package is a thin door onto the world. Writing the move here
+// instead would leave the server with two teleports that drift apart.
+//
+// Called INSIDE the game loop.
+type Teleporter func(w *world.World, s *world.Session, x, y int16)
+
 type Server struct {
 	gamev1.UnimplementedGameControlServiceServer
-	world *world.World
-	token string
-	log   *slog.Logger
+	world     *world.World
+	token     string
+	log       *slog.Logger
+	teleporta Teleporter
 }
 
-// NewServer builds the control service. It fails when the token is empty.
-func NewServer(w *world.World, token string, log *slog.Logger) (*Server, error) {
+// NewServer builds the control service. It fails when the token is empty or the
+// teleporter is missing.
+//
+// Both are required rather than optional for the same reason: a service that
+// starts without them looks healthy and is not. A missing token would serve an
+// open endpoint that can kick every player off; a missing teleporter would
+// accept unstuck calls and answer that it moved nobody.
+func NewServer(w *world.World, token string, log *slog.Logger, tp Teleporter) (*Server, error) {
 	if strings.TrimSpace(token) == "" {
 		return nil, ErrNoToken
 	}
-	return &Server{world: w, token: token, log: log}, nil
+	if tp == nil {
+		return nil, ErrNoTeleporter
+	}
+	return &Server{world: w, token: token, log: log, teleporta: tp}, nil
 }
 
 // Interceptor authenticates every call against the shared token.
@@ -165,6 +189,56 @@ func (s *Server) Kick(ctx context.Context, req *gamev1.KickRequest) (*gamev1.Kic
 		s.log.Info("control: account kicked", "account", nome, "sessions", n)
 	}
 	return &gamev1.KickResponse{Sessions: n}, nil
+}
+
+// Unstuck moves a character to the nearest city.
+//
+// The world has spots a player can enter and not leave: a gap in the collision
+// map, a warp that lands inside scenery. Reconnecting does not help — the
+// position is saved, so they come back exactly where they were stuck — and the
+// only remedy before this was editing the database by hand, with the character
+// offline.
+//
+// The nearest city rather than a fixed one: being rescued should not also cost
+// the player the walk back. And it refuses a session that is not in the world,
+// because a character still on the selection screen has no position to fix and
+// moving "them" would mean writing to a character nobody has loaded.
+func (s *Server) Unstuck(ctx context.Context, req *gamev1.UnstuckRequest) (*gamev1.UnstuckResponse, error) {
+	nome := strings.TrimSpace(req.GetAccountName())
+	if nome == "" {
+		return nil, status.Error(codes.InvalidArgument, "account name is required")
+	}
+	out, err := noLoop(ctx, s.world, func(w *world.World) *gamev1.UnstuckResponse {
+		resp := &gamev1.UnstuckResponse{}
+		var alvo *world.Session
+		var ent *world.Entity
+		w.ForEachSession(func(sess *world.Session, e *world.Entity) {
+			// e == nil is the character screen: no position, nothing to unstick.
+			if e != nil && alvo == nil && strings.EqualFold(sess.AccountName, nome) {
+				alvo, ent = sess, e
+			}
+		})
+		if alvo == nil {
+			return resp
+		}
+		destX, destY, _, cidade := world.NearestCitySpawn(ent.X, ent.Y)
+		resp.Found = true
+		resp.CharacterName = ent.Name
+		resp.FromX, resp.FromY = int32(ent.X), int32(ent.Y)
+		resp.ToX, resp.ToY = int32(destX), int32(destY)
+		resp.City = cidade
+		s.teleporta(w, alvo, destX, destY)
+		return resp
+	})
+	if err != nil {
+		return nil, err
+	}
+	if out.GetFound() {
+		s.log.Info("control: player unstuck", "account", nome, "character", out.GetCharacterName(),
+			"from_x", out.GetFromX(), "from_y", out.GetFromY(),
+			"to_x", out.GetToX(), "to_y", out.GetToY(), "city", out.GetCity())
+	}
+	return out, nil
 }
 
 // maxBroadcast bounds the notice. The wire body is a fixed 96 bytes and the

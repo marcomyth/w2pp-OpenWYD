@@ -4,6 +4,8 @@
 <title>Servidor — Painel OpenWYD</title>
 {{template "head" .}}
 <style>
+  td.acao { white-space: nowrap; }
+  td.acao .acoes { display: flex; gap: 7px; justify-content: flex-end; }
   td.acao form { margin: 0; }
   td.acao button { padding: 4px 9px; font-size: 12px; }
   .reinicio-cartao {
@@ -178,11 +180,20 @@
             <td class="num">{{if .Jogando}}{{.Nivel}}{{else}}&mdash;{{end}}</td>
             <td class="num">{{if .Jogando}}{{.X}}, {{.Y}}{{else}}&mdash;{{end}}</td>
             <td class="acao">
+              <div class="acoes">
+              {{if .Jogando}}
+              <form method="post" action="/servidor/desatolar">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <input type="hidden" name="conta" value="{{.Conta}}">
+                <button type="submit" title="Leva o personagem para a cidade mais perto">Desatolar</button>
+              </form>
+              {{end}}
               <form method="post" action="/servidor/derrubar">
                 <input type="hidden" name="csrf" value="{{$.CSRF}}">
                 <input type="hidden" name="conta" value="{{.Conta}}">
                 <button type="submit">Derrubar</button>
               </form>
+              </div>
             </td>
           </tr>
           {{end}}

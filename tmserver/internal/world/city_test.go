@@ -71,3 +71,63 @@ func TestSpawnMobClassifiesTownNPCsAsNonCombat(t *testing.T) {
 		t.Fatalf("merchant NonCombatNPC = %v, want true", e)
 	}
 }
+
+func TestNearestCitySpawnEscolheACidadeMaisPerto(t *testing.T) {
+	casos := []struct {
+		nome string
+		x, y int16
+		want string
+	}{
+		{"do lado de Armia", 2100, 2100, "Armia"},
+		{"do lado de Azran", 2500, 1710, "Azran"},
+		{"do lado de Erion", 2455, 2005, "Erion"},
+		{"do lado de Nippleheim", 3650, 3120, "Nippleheim"},
+		{"do lado de Noatum", 1055, 1710, "Noatum"},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			_, _, _, nome := NearestCitySpawn(c.x, c.y)
+			if nome != c.want {
+				t.Errorf("NearestCitySpawn(%d,%d) = %q, want %q", c.x, c.y, nome, c.want)
+			}
+		})
+	}
+}
+
+// CitySpawn clamps to 0..3 because the saved "last city" only holds two bits, so
+// Noatum falls back to Armia. That quirk belongs to the save format: reproducing
+// it here would send a player stuck outside Noatum across the whole map.
+func TestNoatumEAlcancavelAoContrarioDeCitySpawn(t *testing.T) {
+	_, _, idx, nome := NearestCitySpawn(1050, 1706)
+	if idx != 4 || nome != "Noatum" {
+		t.Fatalf("cidade = %d (%q), want 4 (Noatum)", idx, nome)
+	}
+	// And the clamped one really does behave differently, so this test is
+	// guarding a live difference rather than a hypothetical.
+	x, y := CitySpawn(4)
+	if Village(x, y) == 4 {
+		t.Error("premissa mudou: CitySpawn(4) parou de cair em Armia")
+	}
+}
+
+func TestNearestCitySpawnCaiDentroDaCidade(t *testing.T) {
+	// Several people rescued at once must not land stacked on one tile, so the
+	// point is spread — but the spread has to stay inside the city.
+	for i := 0; i < 200; i++ {
+		x, y, idx, _ := NearestCitySpawn(2800, 2600)
+		if got := Village(x, y); got != idx {
+			t.Fatalf("desatolo caiu em %d, fora da cidade %d (%d,%d)", got, idx, x, y)
+		}
+	}
+}
+
+func TestCityName(t *testing.T) {
+	if got := CityName(0); got != "Armia" {
+		t.Errorf("CityName(0) = %q", got)
+	}
+	for _, i := range []int{-1, 5, 99} {
+		if got := CityName(i); got != "" {
+			t.Errorf("CityName(%d) = %q, want vazio", i, got)
+		}
+	}
+}

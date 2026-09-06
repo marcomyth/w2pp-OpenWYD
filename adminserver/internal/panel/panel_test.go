@@ -3190,6 +3190,8 @@ type fakeJogo struct {
 	avisoErr             error
 	drenagens            []string
 	drenarErr            error
+	desatolados          []string
+	desatolarErr         error
 	avisados             int32
 	derrubados           int32
 	drenouAntesDoRestart bool
@@ -3211,6 +3213,26 @@ func (f *fakeJogo) Derrubar(_ context.Context, conta string) (int32, error) {
 	}
 	f.derrubadas = append(f.derrubadas, conta)
 	return f.sessoes, nil
+}
+
+func (f *fakeJogo) Desatolar(_ context.Context, conta string) (jogo.Desatolo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.desatolarErr != nil {
+		return jogo.Desatolo{}, f.desatolarErr
+	}
+	f.desatolados = append(f.desatolados, conta)
+	// Answers from whoever the fake world says is in play, so a test cannot
+	// assert an unstuck on somebody who was never there.
+	for _, p := range f.estado.Players {
+		if p.Conta == conta && p.Jogando {
+			return jogo.Desatolo{
+				Achou: true, Personagem: p.Personagem,
+				DeX: p.X, DeY: p.Y, ParaX: 2090, ParaY: 2097, Cidade: "Armia",
+			}, nil
+		}
+	}
+	return jogo.Desatolo{}, nil
 }
 
 func (f *fakeJogo) Avisar(_ context.Context, msg string) (int32, error) {
