@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -38,6 +40,10 @@ const (
 	criaGrowth2330 = 25
 	criaGrowth2331 = 50
 	criaGrowthRest = 100
+
+	// amagoBatch is how many of the stack one click spends (this fork; the legacy
+	// feeds one). Ten is what a player can absorb as a single result line.
+	amagoBatch = 10
 
 	// Sleipnir and Svadilfari share their Âmago with another row (:1583-1587).
 	mountSlotSleipnir   = 28
@@ -93,54 +99,89 @@ func (d *Dispatcher) useAmago(w *world.World, s *world.Session, e *world.Entity,
 		return
 	}
 
-	// The feed lands before any growth roll: even a failed refine leaves the mount
-	// fed (:1596-1598).
-	putShort(&dst.Effects[0], mountFedValue)
-	dst.Effects[2].Effect = mountFedEffect
-
-	level := int(dst.Effects[1].Effect)
-	adult := dst.Index >= criaHi && dst.Index < mountHi
-	if adult && level >= adultMaxLevel {
-		d.notify(w, s, NoticeCantUpgradeMore)
-		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
-		d.sendSlot(w, s, world.ItemPlaceEquip, mountEquipSlot, *dst)
-		return
+	// DELIBERATE DIVERGENCE: the legacy feeds ONE âmago per click. Growing a mount
+	// takes a hundred levels, so one-at-a-time is a hundred drags, and the useful
+	// information — how many took — is drowned in a hundred identical lines. A
+	// click spends up to amagoBatch of the stack and reports the tally once.
+	batch := itemAmount(e.Carry[src])
+	if batch > amagoBatch {
+		batch = amagoBatch
 	}
 
-	// Only an adult can fail. A cria grows on every feed, which is what makes the
-	// early mount levels deterministic.
-	if adult && w.Rand().Intn(101) > amagoGrowthRate(*dst) {
-		d.notify(w, s, NoticeFailToRefine)
-		// One feed in five costs the adult a level (:1633).
-		if w.Rand().Intn(5) == 0 && dst.Effects[1].Effect > 0 {
-			dst.Effects[1].Effect--
+	var fed, failed int
+	var grew, capped bool
+	for i := 0; i < batch; i++ {
+		level := int(dst.Effects[1].Effect)
+		adult := dst.Index >= criaHi && dst.Index < mountHi
+		if adult && level >= adultMaxLevel {
+			capped = true
+			break
 		}
+
+		// The feed lands before any growth roll: even a failed one leaves the mount
+		// fed (:1596-1598).
+		putShort(&dst.Effects[0], mountFedValue)
+		dst.Effects[2].Effect = mountFedEffect
 		consumeOneItem(&e.Carry[src])
-		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
-		d.sendSlot(w, s, world.ItemPlaceEquip, mountEquipSlot, *dst)
-		d.refreshBabyMountSummon(w, s, e)
-		return
+
+		// Only an adult can fail. A cria grows on every feed, which is what makes
+		// the early mount levels deterministic.
+		if adult && w.Rand().Intn(101) > amagoGrowthRate(*dst) {
+			failed++
+			// One feed in five costs the adult a level (:1633).
+			if w.Rand().Intn(5) == 0 && dst.Effects[1].Effect > 0 {
+				dst.Effects[1].Effect--
+			}
+			continue
+		}
+
+		fed++
+		level += mountLevelUp
+		dst.Effects[1].Effect = uint8(level)
+		dst.Effects[2].Value = 1
+
+		if at := criaGrowsAt(dst.Index); at > 0 && level >= at {
+			dst.Index += mountRowSize
+			dst.Effects[1].Value = uint8(w.Rand().Intn(20) + int(dst.Effects[1].Effect))
+			dst.Effects[1].Effect = 0
+			dst.Effects[2].Value = 0
+			grew = true
+			// Stop here rather than spending the rest of the stack: growing into
+			// the adult changes the rules (feeds start rolling and can now cost a
+			// level), and that is not a thing to walk into on the same click.
+			break
+		}
 	}
 
-	level += mountLevelUp
-	dst.Effects[1].Effect = uint8(level)
-	dst.Effects[2].Value = 1
-
-	if at := criaGrowsAt(dst.Index); at > 0 && level >= at {
-		dst.Index += mountRowSize
-		dst.Effects[1].Value = uint8(w.Rand().Intn(20) + int(dst.Effects[1].Effect))
-		dst.Effects[1].Effect = 0
-		dst.Effects[2].Value = 0
+	// The legacy's own lines still carry the events worth naming; the tally is the
+	// only text this fork adds.
+	if grew {
 		d.notify(w, s, NoticeMountGrowth)
 	}
+	if capped {
+		d.notify(w, s, NoticeCantUpgradeMore)
+	}
+	if fed+failed > 0 {
+		sendClientMessage(w, s, amagoTally(fed, failed, int(dst.Effects[1].Effect)))
+	}
 
-	consumeOneItem(&e.Carry[src])
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 	d.sendSlot(w, s, world.ItemPlaceEquip, mountEquipSlot, *dst)
 	d.refreshBabyMountSummon(w, s, e)
 	d.log.Info("amago fed",
-		"conn", s.Conn, "account", s.AccountName,
-		"mount", dst.Index, "level", dst.Effects[1].Effect)
+		"conn", s.Conn, "account", s.AccountName, "mount", dst.Index,
+		"fed", fed, "failed", failed, "grew", grew, "capped", capped,
+		"level", dst.Effects[1].Effect)
+}
+
+// amagoTally is the one line a batch reports. The mount's level rides along
+// because it is what the player is actually watching, and after ten feeds they
+// would otherwise have to open the mount to find out where it landed.
+func amagoTally(fed, failed, level int) string {
+	if failed == 0 {
+		return fmt.Sprintf("Âmago: %d aprimoramento(s). Montaria no nível %d.", fed, level)
+	}
+	return fmt.Sprintf("Âmago: %d aprimoramento(s), %d falha(s). Montaria no nível %d.", fed, failed, level)
 }
 
 // amagoHunger reads stEffect[0] as the 16-bit hunger meter the legacy keeps

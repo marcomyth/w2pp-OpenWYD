@@ -131,3 +131,84 @@ func TestCriaGrowsAt(t *testing.T) {
 		}
 	}
 }
+
+// amagoDBStack is amagoDB with a stack of âmagos instead of a single one.
+func amagoDBStack(mount int16, level uint8, amago int16, amount int) *fakeDB {
+	db := amagoDB(mount, level, amago)
+	st := db.loadResult
+	it := st.Carry[0]
+	setItemAmount(&it, amount)
+	st.Carry[0] = it
+	db.loadResult = st
+	return db
+}
+
+// One click spends ten of the stack: a cria never fails, so ten feeds are ten
+// levels. This is the whole reason the batch exists — growing a mount is a
+// hundred levels, and one drag per level is unusable.
+func TestAmagoBatchFeedsTen(t *testing.T) {
+	vols := map[int]int{itemAmagoAndaluzN: volAmago}
+	addr, stop := startServerClockVol(t, amagoDBStack(itemCriaAndaluzN, 5, itemAmagoAndaluzN, 30), vols)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	amagoFrame(t, c)
+	// The carry slot is sent before the equip slot, so it is read first.
+	bag := decodeItem(slotItem(t, c, 0))
+	got := equipItem(t, c)
+	if got.Effects[1].Effect != 15 {
+		t.Errorf("mount level = %d, want 15 (5 + a batch of 10)", got.Effects[1].Effect)
+	}
+	// Exactly ten leave the stack, not the whole thing.
+	if got := itemAmount(bag); got != 20 {
+		t.Errorf("stack = %d, want 20 (30 - 10)", got)
+	}
+}
+
+// A stack smaller than the batch spends what it has, and no more.
+func TestAmagoBatchStopsAtStackSize(t *testing.T) {
+	vols := map[int]int{itemAmagoAndaluzN: volAmago}
+	addr, stop := startServerClockVol(t, amagoDBStack(itemCriaAndaluzN, 5, itemAmagoAndaluzN, 3), vols)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	amagoFrame(t, c)
+	got := equipItem(t, c)
+	if got.Effects[1].Effect != 8 {
+		t.Errorf("mount level = %d, want 8 (5 + 3)", got.Effects[1].Effect)
+	}
+}
+
+// Growing into the adult ends the batch: from there feeds start rolling and can
+// cost a level, which is not something to walk into on the same click.
+func TestAmagoBatchStopsOnGrowth(t *testing.T) {
+	vols := map[int]int{itemAmagoAndaluzN: volAmago}
+	// 98 + 2 reaches the 100 threshold with 8 âmagos left in the batch.
+	addr, stop := startServerClockVol(t, amagoDBStack(itemCriaAndaluzN, 98, itemAmagoAndaluzN, 30), vols)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	amagoFrame(t, c)
+	// The carry slot is sent before the equip slot, so it is read first.
+	bag := decodeItem(slotItem(t, c, 0))
+	got := equipItem(t, c)
+	if got.Index != itemCriaAndaluzN+mountRowSize {
+		t.Fatalf("mount index = %d, want the adult %d", got.Index, itemCriaAndaluzN+mountRowSize)
+	}
+	if n := itemAmount(bag); n != 28 {
+		t.Errorf("stack = %d, want 28 (only the 2 feeds up to growth)", n)
+	}
+}
+
+func TestAmagoTally(t *testing.T) {
+	// No failures reads cleaner without a "0 falha(s)" nobody needs.
+	if got := amagoTally(10, 0, 15); got != "Âmago: 10 aprimoramento(s). Montaria no nível 15." {
+		t.Errorf("tally = %q", got)
+	}
+	if got := amagoTally(6, 4, 21); got != "Âmago: 6 aprimoramento(s), 4 falha(s). Montaria no nível 21." {
+		t.Errorf("tally = %q", got)
+	}
+}
