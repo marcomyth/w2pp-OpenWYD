@@ -28,6 +28,8 @@ type MobStat struct {
 	// whenever an override exists. nil means there is nothing to compare against:
 	// either raw already IS the file, or the file could not be read.
 	arquivo *webv1.AdminMobTemplateStat
+	// origens is where NPCGener spawns this template, sent with the same read.
+	origens []*webv1.AdminMobOrigin
 }
 
 // Name is the template this override belongs to.
@@ -50,6 +52,20 @@ func (m MobStat) Overridden() bool { return m.raw.GetOverridden() }
 // makes the handlers that edit it impossible to test against a stand-in.
 func NewMobStat(name string, overridden bool) MobStat {
 	return MobStat{raw: &webv1.AdminMobTemplateStat{TemplateName: name, Overridden: overridden}}
+}
+
+// SetOrigens installs spawn origins on a stat built by NewMobStat. Test-only,
+// for the same reason NewMobStat exists: origens is unexported, so a handler
+// that renders it cannot otherwise be exercised against a stand-in. Production
+// origins always arrive from the webServer on the stat read.
+func (m *MobStat) SetOrigens(origens []MobOrigem) {
+	m.origens = nil
+	for _, o := range origens {
+		m.origens = append(m.origens, &webv1.AdminMobOrigin{
+			Place: o.Local, Points: o.Pontos, Amount: o.Quantidade,
+			RespawnMinutes: o.RespawnMin, X: o.X, Y: o.Y,
+		})
+	}
 }
 
 // MobField is one editable number, ready for a form.
@@ -258,7 +274,38 @@ func (c *Client) MobStat(ctx context.Context, moderatorID int64, name string) (M
 	if stat == nil {
 		return MobStat{}, ErrNotFound
 	}
-	return MobStat{raw: stat, arquivo: resp.GetFileStat()}, nil
+	return MobStat{raw: stat, arquivo: resp.GetFileStat(), origens: resp.GetOrigins()}, nil
+}
+
+// MobOrigem is one place a template spawns.
+type MobOrigem struct {
+	Local      string
+	Pontos     int32
+	Quantidade int32
+	RespawnMin int32
+	X, Y       int32
+}
+
+// Renasce reports whether the generator regenerates the population. The
+// instanced dungeons ship with MinuteGenerate<=0 and are repopulated by the
+// instance itself, so "no" here means "not by this generator", not "never".
+func (o MobOrigem) Renasce() bool { return o.RespawnMin > 0 }
+
+// Origens is where NPCGener spawns this template, busiest first.
+//
+// An empty result is the interesting case and the reason the feature exists:
+// two thirds of the ~1991 template files are named by no generator at all, and
+// @@Gargula — which spawns nowhere — sits in the picker one line from Gargula_,
+// the Água Místico monster somebody rebalancing "the gargoyle" actually meant.
+func (m MobStat) Origens() []MobOrigem {
+	out := make([]MobOrigem, 0, len(m.origens))
+	for _, o := range m.origens {
+		out = append(out, MobOrigem{
+			Local: o.GetPlace(), Pontos: o.GetPoints(), Quantidade: o.GetAmount(),
+			RespawnMin: o.GetRespawnMinutes(), X: o.GetX(), Y: o.GetY(),
+		})
+	}
+	return out
 }
 
 // SaveMobStat writes the override back whole.

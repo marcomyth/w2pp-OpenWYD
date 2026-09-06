@@ -37,6 +37,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemcatalog"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemicons"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemstatadmin"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobspawns"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplateadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplates"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mountgrowth"
@@ -167,6 +168,17 @@ func run(logger *slog.Logger) error {
 		mobTemplateAdmin.SetTemplateReader(func(name string) ([]byte, error) {
 			return os.ReadFile(filepath.Join(*contentDir, "TMsrv", "run", "npc", name))
 		})
+
+		// Where each template spawns. Only 620 of the ~1991 template files are
+		// named by a generator, and the editor cannot otherwise tell the Água
+		// gargoyle from the one that spawns nowhere.
+		if origins, err := mobspawns.Build(*contentDir, logger); err != nil {
+			logger.Warn("mob spawn index failed; the editor will not say where a mob comes from",
+				"content", *contentDir, "err", err)
+		} else {
+			logger.Info("indexed mob spawn origins", "templates", len(origins))
+			mobTemplateAdmin.SetOrigins(origins)
+		}
 
 		exclusions, err := droptool.LoadContentExclusions(*contentDir)
 		if err != nil {

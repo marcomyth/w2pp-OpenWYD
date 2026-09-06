@@ -9,6 +9,7 @@ import (
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobspawns"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplateadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplates"
 )
@@ -21,6 +22,9 @@ type MobTemplateAdmin interface {
 	Get(ctx context.Context, moderatorID int64, templateName string) (mobtemplateadmin.Result, domain.MobTemplateStat, bool, error)
 	// FileStat is the template file's own values, for showing what an override changed.
 	FileStat(ctx context.Context, moderatorID int64, templateName string) (domain.MobTemplateStat, bool, error)
+	// Origins is where NPCGener spawns the template. known=false means no
+	// content tree was configured, which is not the same as "spawns nowhere".
+	Origins(ctx context.Context, moderatorID int64, templateName string) ([]mobspawns.Origin, bool, error)
 	Upsert(ctx context.Context, moderatorID int64, st domain.MobTemplateStat) (mobtemplateadmin.Result, error)
 	SetEquip(ctx context.Context, moderatorID int64, templateName string, items []domain.MobTemplateEquipItem) (mobtemplateadmin.Result, error)
 	Delete(ctx context.Context, moderatorID int64, templateName string) (mobtemplateadmin.Result, error)
@@ -70,8 +74,32 @@ func (s *MobTemplateAdminServer) GetMobTemplateStat(ctx context.Context, req *we
 				resp.FileStat = adminMobTemplateStatToProto(fileSt, false)
 			}
 		}
+		// Spawn origins ride along with the stats: the editor needs them on the
+		// same screen as the numbers, and a second round trip per template would
+		// buy nothing. A failure here costs the origins, not the stats.
+		if origins, known, oerr := s.admin.Origins(ctx, req.GetModeratorId(), req.GetTemplateName()); oerr == nil && known {
+			resp.Origins = adminMobOriginsToProto(origins)
+		}
 	}
 	return resp, nil
+}
+
+// adminMobOriginsToProto converts the spawn index rows. An empty (but known)
+// list stays empty on the wire — "no generator spawns this" is exactly what the
+// panel has to be able to say.
+func adminMobOriginsToProto(origins []mobspawns.Origin) []*webv1.AdminMobOrigin {
+	out := make([]*webv1.AdminMobOrigin, 0, len(origins))
+	for _, o := range origins {
+		out = append(out, &webv1.AdminMobOrigin{
+			Place:          o.Place,
+			Points:         o.Points,
+			Amount:         o.Amount,
+			RespawnMinutes: o.RespawnMin,
+			X:              o.X,
+			Y:              o.Y,
+		})
+	}
+	return out
 }
 
 // UpsertMobTemplateStat creates or replaces the full stat override for a template.

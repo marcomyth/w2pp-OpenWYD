@@ -8,6 +8,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/savefmt"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobspawns"
 )
 
 // fakeStore is an in-memory Store for exercising the service's authorization
@@ -274,5 +275,49 @@ func TestGetEmptyTemplateNameInvalid(t *testing.T) {
 	}
 	if res != Invalid {
 		t.Errorf("Get(\"\") = %v, want Invalid", res)
+	}
+}
+
+// "No index" and "no generator spawns it" must not collapse into the same
+// answer. Without a content tree the honest reply is "I don't know"; with one,
+// an empty list is a fact worth putting on screen.
+func TestOriginsDistingueDesconhecidoDeVazio(t *testing.T) {
+	semIndice := New(newFake())
+	if _, known, err := semIndice.Origins(context.Background(), 1, "Gargula_"); err != nil || known {
+		t.Errorf("sem índice: known = %v, err = %v — want false e nil", known, err)
+	}
+
+	comIndice := New(newFake())
+	comIndice.SetOrigins(mobspawns.Index{
+		"Gargula_": {{Place: "Água Místico", Points: 2, Amount: 24, RespawnMin: 3, X: 1250, Y: 3608}},
+	})
+
+	got, known, err := comIndice.Origins(context.Background(), 1, "Gargula_")
+	if err != nil || !known {
+		t.Fatalf("known = %v, err = %v", known, err)
+	}
+	if len(got) != 1 || got[0].Place != "Água Místico" || got[0].Amount != 24 {
+		t.Errorf("origens = %+v", got)
+	}
+
+	// Present index, template absent from it: known, and empty.
+	got, known, err = comIndice.Origins(context.Background(), 1, "@@Gargula")
+	if err != nil || !known {
+		t.Fatalf("known = %v, err = %v", known, err)
+	}
+	if len(got) != 0 {
+		t.Errorf("@@Gargula devia sair sem origem, veio %+v", got)
+	}
+}
+
+// Spawn origins are staff data like everything else on this service.
+func TestOriginsExigeModerador(t *testing.T) {
+	s := New(newFake())
+	s.SetOrigins(mobspawns.Index{"Gargula_": {{Place: "Água Místico"}}})
+
+	for _, id := range []int64{0, 3, 999} {
+		if _, known, err := s.Origins(context.Background(), id, "Gargula_"); err != nil || known {
+			t.Errorf("conta %d: known = %v, err = %v — um não-moderador não pode ler", id, known, err)
+		}
 	}
 }

@@ -586,6 +586,36 @@ message GetMobTemplateStatResponse {
   // of the thirty-odd numbers somebody edited, and undoing one field means
   // discarding the whole override.
   AdminMobTemplateStat file_stat = 3;
+  // origins is where NPCGener.txt spawns this template, one entry per named
+  // place, busiest first. Empty means no generator block names it — which is
+  // true of two thirds of the 1991 template files, including @@Gargula, sitting
+  // in the picker right beside the Gargula_ somebody rebalancing "the gargoyle"
+  // actually meant. It is NOT proof nothing spawns the template: instances,
+  // quests and summons create mobs by name from code.
+  repeated AdminMobOrigin origins = 4;
+}
+
+// AdminMobOrigin is one place a template spawns, aggregated over every generator
+// block that names it there — the busier templates hold dozens of blocks a few
+// tiles apart, which is one place to a person and forty rows on a screen.
+message AdminMobOrigin {
+  // place is the name to show, already translated ("Água Místico", "Dungeon 2º
+  // Andar", "Campo — perto de Erion").
+  string place = 1;
+  // points is how many generator blocks spawn the template here, counting the
+  // blocks where it is the follower as well as the leader.
+  int32 points = 2;
+  // amount sums MaxNumMob over the blocks where this template LEADS. A
+  // follower's count belongs to its leader's block, so counting it here would
+  // report twice the population that actually stands there.
+  int32 amount = 3;
+  // respawn_minutes is the shortest respawn period among those blocks. Zero
+  // means none of them regenerate — the legacy reads MinuteGenerate<=0 as
+  // spawn-once, which is how the instanced dungeons are written.
+  int32 respawn_minutes = 4;
+  // x, y is one representative spawn point, for a moderator who wants to go look.
+  int32 x = 5;
+  int32 y = 6;
 }
 
 message UpsertMobTemplateStatRequest {

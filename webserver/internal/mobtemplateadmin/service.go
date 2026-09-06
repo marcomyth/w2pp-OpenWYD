@@ -16,6 +16,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/savefmt"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobspawns"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplates"
 )
 
@@ -61,6 +62,7 @@ type Service struct {
 	store        Store
 	templates    []mobtemplates.File
 	readTemplate TemplateReader
+	origins      mobspawns.Index
 }
 
 // New builds the service over the given store.
@@ -76,6 +78,29 @@ func (s *Service) SetTemplates(templates []mobtemplates.File) { s.templates = te
 // no override exists yet. Left unset (nil) when -content/W2PP_CONTENT wasn't
 // configured, in which case Get returns NotFound for un-overridden templates.
 func (s *Service) SetTemplateReader(r TemplateReader) { s.readTemplate = r }
+
+// SetOrigins installs the NPCGener spawn index Origins serves. Called once at
+// boot (mobspawns.Build); left unset when -content/W2PP_CONTENT wasn't
+// configured, in which case Origins answers "unknown" rather than "nowhere".
+func (s *Service) SetOrigins(idx mobspawns.Index) { s.origins = idx }
+
+// Origins reports where NPCGener.txt spawns a template.
+//
+// known is false when there is no index at all (no content tree configured) —
+// which is a different statement from an empty list, and the caller must not
+// render the two the same way. An empty list with known=true means no generator
+// block names the template, true of two thirds of the template files; it is
+// still not proof that nothing spawns it, since instances, quests and summons
+// create mobs by name from code.
+func (s *Service) Origins(ctx context.Context, moderatorID int64, templateName string) (list []mobspawns.Origin, known bool, err error) {
+	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+		return nil, false, err
+	}
+	if s.origins == nil {
+		return nil, false, nil
+	}
+	return s.origins[templateName], true, nil
+}
 
 // ListTemplates returns every mob template file scanned from the content tree
 // at boot (mobtemplates.Scan), after authorizing the caller. Unlike
