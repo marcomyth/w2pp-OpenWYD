@@ -3,6 +3,31 @@
 <head>
 <title>{{.Conta.Name}} — Painel OpenWYD</title>
 {{template "head" .}}
+<style>
+  /* Os personagens na mesma organização da página do editor: nome, estado e os
+     números em rótulo/valor. A tabela que estava aqui não dizia o que decide a
+     ação — se o personagem está em jogo, nada pode ser gravado nele. */
+  .fichas { display: grid; gap: 14px; }
+  .ficha {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+    padding: 15px 18px 2px;
+  }
+  .ficha-cab {
+    display: flex; flex-wrap: wrap; align-items: baseline;
+    justify-content: space-between; gap: 6px 16px; margin-bottom: 14px;
+  }
+  .ficha-nome { font-size: 15.5px; font-weight: 600; letter-spacing: -0.01em; }
+  .ficha-nome a { text-decoration: none; }
+  .ficha-nome a:hover { text-decoration: underline; }
+  .ficha-estado {
+    display: flex; align-items: center; gap: 9px;
+    font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums;
+  }
+  .ficha .campos {
+    grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+    gap: 14px 22px; margin-bottom: 16px;
+  }
+</style>
 </head>
 <body>
 {{template "topbar" .}}
@@ -268,33 +293,46 @@
 
   <h2>Personagens</h2>
   {{if .Personagens}}
-    <div class="tw">
-      <table>
-        <thead>
-          <tr>
-            <th class="num">Slot</th>
-            <th>Nome</th>
-            <th class="num">Nível</th>
-            <th class="num">Ouro</th>
-            <th class="num">HP</th>
-            <th class="num">MP</th>
-            <th class="num">Guilda</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{range .Personagens}}
-          <tr>
-            <td class="num">{{.Slot}}</td>
-            <td><a href="/contas/{{$.Conta.Name}}/personagens/{{.Slot}}">{{.Name}}</a></td>
-            <td class="num">{{.Level}}</td>
-            <td class="num">{{.Coin}}</td>
-            <td class="num">{{.Hp}} / {{.MaxHp}}</td>
-            <td class="num">{{.Mp}} / {{.MaxMp}}</td>
-            <td class="num">{{if .GuildID}}{{.GuildID}}{{else}}—{{end}}</td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
+    <div class="fichas">
+      {{range .Personagens}}
+      <article class="ficha">
+        <div class="ficha-cab">
+          <div class="ficha-nome">
+            <a href="/contas/{{$.Conta.Name}}/personagens/{{.Slot}}">{{.Name}}</a>
+          </div>
+          <div class="ficha-estado">
+            <span>Slot {{.Slot}}</span>
+            <span>·</span>
+            <span>nível {{.Level}}</span>
+            {{if $.EmJogo}}
+            <span>·</span>
+            {{if index $.EmJogo .Slot}}<span class="bloq">em jogo</span>{{else}}<span>fora do jogo</span>{{end}}
+            {{end}}
+          </div>
+        </div>
+
+        {{if index $.EmJogo .Slot}}
+        <p class="nota perigo">
+          <strong>O servidor manda no inventário dele agora.</strong> Qualquer coisa gravada
+          no editor seria desfeita no próximo save, e por isso os campos de lá estão travados.
+          Para entregar um item sem interromper, use <strong>Entregar item</strong> nesta
+          página; para editar de verdade, derrube a conta em <a href="/servidor">Servidor</a>.
+        </p>
+        {{end}}
+
+        <div class="campos">
+          <div class="campo"><div class="rot">Experiência</div><div class="val">{{.Exp}}</div></div>
+          <div class="campo"><div class="rot">Ouro</div><div class="val">{{.Coin}}</div></div>
+          <div class="campo"><div class="rot">HP</div><div class="val">{{.Hp}} / {{.MaxHp}}</div></div>
+          <div class="campo"><div class="rot">MP</div><div class="val">{{.Mp}} / {{.MaxMp}}</div></div>
+          <div class="campo"><div class="rot">Força</div><div class="val">{{.Str}}</div></div>
+          <div class="campo"><div class="rot">Inteligência</div><div class="val">{{.Int}}</div></div>
+          <div class="campo"><div class="rot">Destreza</div><div class="val">{{.Dex}}</div></div>
+          <div class="campo"><div class="rot">Constituição</div><div class="val">{{.Con}}</div></div>
+          <div class="campo"><div class="rot">Guilda</div><div class="val">{{if .GuildID}}{{.GuildID}}{{else}}—{{end}}</div></div>
+        </div>
+      </article>
+      {{end}}
     </div>
   {{else}}
     <div class="vazio">Esta conta ainda não criou personagem.</div>

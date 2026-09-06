@@ -14,6 +14,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/personagem"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
+	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 )
 
 // grade is what turns stored rows into the screen, and the reachable/locked
@@ -443,6 +444,14 @@ func (f *fakePersonagensSlot) GravarAtributos(context.Context, int64, personagem
 	return personagem.Atributos{}, nil
 }
 
+func (f *fakePersonagensSlot) EmJogoPorSlot(context.Context, int64) (map[int]bool, error) {
+	out := map[int]bool{}
+	for slot, fi := range f.fichas {
+		out[slot] = fi.EmJogo()
+	}
+	return out, nil
+}
+
 // getSignedIn fetches a page carrying the session cookie.
 func getSignedIn(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
 	t.Helper()
@@ -455,4 +464,74 @@ func getSignedIn(t *testing.T, h http.Handler, path string) *httptest.ResponseRe
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	return rec
+}
+
+// --- a lista de personagens da página da conta ---
+
+// The list links every character to the editor, and the editor is where the
+// operator used to discover that nothing can be written: the game owns a
+// character in play and undoes any edit at its next save. The state belongs on
+// the list, where it still changes what the operator does next.
+func newPainelComPersonagens(t *testing.T, acc *fakeAccounts, pers Personagens) http.Handler {
+	t.Helper()
+	h, err := New(Config{
+		Accounts: acc, Writer: newFakeWriter(), Audit: newFakeAudit(),
+		Personagens: pers, Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}
+
+func TestListaDaContaMarcaOPersonagemEmJogo(t *testing.T) {
+	acc := withTarget(roleAdmin)
+	acc.addChar(7, domain.Character{Slot: 1, Name: "Vandalyzz", Level: 220})
+	agora := time.Now()
+	pers := &fakePersonagensSlot{fichas: map[int]personagem.Ficha{
+		1: {ID: 10, AccountID: 7, Slot: 1, Nome: "Vandalyzz", OnlineDesde: &agora},
+	}}
+
+	body := getSignedIn(t, newPainelComPersonagens(t, acc, pers), "/contas/ana").Body.String()
+	if !strings.Contains(body, "em jogo") {
+		t.Error("a lista não diz que o personagem está em jogo — é isso que decide se dá pra editar")
+	}
+	// And it says what to do instead, rather than leaving the operator to find
+	// the locked fields in the editor.
+	if !strings.Contains(body, "seria desfeita no próximo save") {
+		t.Error("a lista marca o personagem como em jogo mas não diz por que editar não adianta")
+	}
+}
+
+func TestListaDaContaMarcaOPersonagemForaDoJogo(t *testing.T) {
+	acc := withTarget(roleAdmin)
+	acc.addChar(7, domain.Character{Slot: 0, Name: "Guerreira", Level: 12})
+	pers := &fakePersonagensSlot{fichas: map[int]personagem.Ficha{
+		0: {ID: 9, AccountID: 7, Slot: 0, Nome: "Guerreira"},
+	}}
+
+	body := getSignedIn(t, newPainelComPersonagens(t, acc, pers), "/contas/ana").Body.String()
+	if !strings.Contains(body, "fora do jogo") {
+		t.Error("a lista não diz que o personagem está fora do jogo")
+	}
+	if strings.Contains(body, ">em jogo<") {
+		t.Error("um personagem fora do jogo apareceu marcado como em jogo")
+	}
+}
+
+// Without the editor wired there is no presence read, and the page must not
+// answer a question it cannot answer: "fora do jogo" for everybody would be a
+// lie exactly when it matters — the character IS in play and the edit is lost.
+func TestSemEditorAListaNaoAfirmaEstado(t *testing.T) {
+	acc := withTarget(roleAdmin)
+	acc.addChar(7, domain.Character{Slot: 0, Name: "Guerreira", Level: 12})
+
+	body := getSignedIn(t, newTestPanelFull(t, acc, newFakeAudit(), newFakeWriter()), "/contas/ana").Body.String()
+	if !strings.Contains(body, "Guerreira") {
+		t.Fatal("a lista de personagens sumiu")
+	}
+	if strings.Contains(body, "fora do jogo") || strings.Contains(body, ">em jogo<") {
+		t.Error("sem leitura de presença a página afirmou um estado que não tem como saber")
+	}
 }

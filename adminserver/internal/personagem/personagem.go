@@ -387,3 +387,38 @@ func (s *Store) GravarAtributos(ctx context.Context, characterID int64, a Atribu
 	}
 	return antes, nil
 }
+
+// EmJogoPorSlot reports which of an account's characters the tmServer currently
+// owns, keyed by slot.
+//
+// The account page lists the characters and links each one to the editor, and
+// the editor is where the operator finds out that nothing can be written: the
+// game owns a character in play and undoes any edit at its next save. Reading
+// the mark on the list instead turns a wasted click into a decision — deliver
+// the item through the mailbox, or drop the account first.
+//
+// One query for the whole account rather than one per character: an account
+// holds four at most, and four round trips to answer one question is how a page
+// gets slow for no reason.
+func (s *Store) EmJogoPorSlot(ctx context.Context, accountID int64) (map[int]bool, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT slot, online_since IS NOT NULL FROM character WHERE account_id = $1`, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("personagem: em jogo da conta %d: %w", accountID, err)
+	}
+	defer rows.Close()
+
+	out := map[int]bool{}
+	for rows.Next() {
+		var slot int
+		var emJogo bool
+		if err := rows.Scan(&slot, &emJogo); err != nil {
+			return nil, fmt.Errorf("personagem: ler em jogo: %w", err)
+		}
+		out[slot] = emJogo
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("personagem: percorrer em jogo: %w", err)
+	}
+	return out, nil
+}

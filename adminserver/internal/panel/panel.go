@@ -130,6 +130,7 @@ type Personagens interface {
 	GravarSlot(ctx context.Context, characterID int64, dest personagem.Destino, slot int, it personagem.Item) error
 	LimparSlot(ctx context.Context, characterID int64, dest personagem.Destino, slot int) error
 	GravarAtributos(ctx context.Context, characterID int64, a personagem.Atributos) (personagem.Atributos, error)
+	EmJogoPorSlot(ctx context.Context, accountID int64) (map[int]bool, error)
 }
 
 // Carteira is the donate wallet: the balance, its history and the staff
@@ -430,6 +431,21 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		det = accounts.Details{}
 	}
 
+	// Which of the characters the game currently owns. The list shows it because
+	// it decides what the operator can do next: an item for a character in play
+	// goes through the mailbox, not the editor.
+	//
+	// Same reasoning as the roster and the mailbox below — a failure here must
+	// not blank the page, so the list simply renders without the marks.
+	emJogo := map[int]bool{}
+	if h.cfg.Personagens != nil {
+		if m, jerr := h.cfg.Personagens.EmJogoPorSlot(r.Context(), auth.ID); jerr != nil {
+			h.cfg.Logger.Error("in-play lookup failed", "account", nome, "id", auth.ID, "err", jerr)
+		} else {
+			emJogo = m
+		}
+	}
+
 	// The mailbox is listed even when it fails to load, for the same reason the
 	// roster is: losing it should not blank out the role and block status, which
 	// is what most visits to this page are about.
@@ -447,6 +463,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		page
 		Conta        contaView
 		Personagens  []domain.Character
+		EmJogo       map[int]bool
 		Pendentes    []entrega.Pendente
 		PodeEntregar bool
 		Aviso        string
@@ -460,6 +477,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 			Bloqueio: det.Bloqueio,
 		},
 		chars,
+		emJogo,
 		pendentes,
 		h.cfg.Entregas != nil,
 		r.URL.Query().Get("aviso"),
