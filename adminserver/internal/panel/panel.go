@@ -76,6 +76,7 @@ type Accounts interface {
 type AuditLog interface {
 	Write(ctx context.Context, r audit.Record) error
 	List(ctx context.Context, targetID int64) ([]audit.Entry, error)
+	ListActions(ctx context.Context, actions []string) ([]audit.Entry, error)
 	Limit() int
 }
 
@@ -238,6 +239,7 @@ type Config struct {
 	GameData    GameData
 	Writer      Writer
 	Audit       AuditLog
+	MesaXP      MesaXP
 	Sessions    *session.Store
 	Logger      *slog.Logger
 	SecureOnly  bool // Secure flag on the cookie; false only for local HTTP dev
@@ -298,6 +300,14 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("GET /contas", h.requireStaff(http.HandlerFunc(h.contas)))
 	mux.Handle("GET /contas/{nome}", h.requireStaff(http.HandlerFunc(h.conta)))
 	mux.Handle("GET /auditoria", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.auditoria))))
+	if h.cfg.MesaXP != nil {
+		// The Mesa lives under Auditoria because it is the same kind of screen:
+		// what the server pays, who changed it and when. Admin-only, like its
+		// parent — these tables govern everyone's progress at once.
+		mux.Handle("GET /auditoria/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.mesaXP))))
+		mux.Handle("POST /auditoria/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setMesaXP))))
+		mux.Handle("POST /auditoria/xp/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparMesaXP))))
+	}
 	if h.cfg.Trocas != nil {
 		mux.Handle("GET /trocas", h.requireStaff(http.HandlerFunc(h.trocas)))
 	}
@@ -399,6 +409,7 @@ type page struct {
 	HasEvento bool   // the event switches need the database read
 	HasDenun  bool   // the report queue needs the database read
 	HasGuilda bool   // the guild pages need the database read
+	HasMesaXP bool   // the Mesa de XP needs the database read
 	CSRF      string // every form that changes something carries this back
 }
 
@@ -440,6 +451,7 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		HasEvento: h.cfg.Eventos != nil,
 		HasDenun:  h.cfg.Denuncias != nil,
 		HasGuilda: h.cfg.Guildas != nil,
+		HasMesaXP: h.cfg.MesaXP != nil,
 		CSRF:      sess.CSRF,
 	}
 }

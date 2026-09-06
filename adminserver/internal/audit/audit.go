@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -47,6 +48,8 @@ const (
 	ActionSafeRestart    = "SAFE_RESTART"
 	ActionStopGame       = "STOP_GAME"
 	ActionStartGame      = "START_GAME"
+	ActionSetXPRule      = "SET_XP_RULE"
+	ActionClearXPRule    = "CLEAR_XP_RULE"
 )
 
 // listLimit caps one page of the log.
@@ -130,7 +133,13 @@ func (s *Store) List(ctx context.Context, targetID int64) ([]Entry, error) {
 		return nil, fmt.Errorf("audit: list: %w", err)
 	}
 	defer rows.Close()
+	return scanEntries(rows)
+}
 
+// scanEntries drains a result set shaped like the SELECT above. Both listings
+// read the same ten columns in the same order, and one decoder is what keeps
+// them from drifting apart.
+func scanEntries(rows pgx.Rows) ([]Entry, error) {
 	out := make([]Entry, 0, listLimit)
 	for rows.Next() {
 		var e Entry
@@ -224,6 +233,8 @@ var rotulos = map[string]string{
 	ActionSafeRestart:    "Reiniciou com segurança",
 	ActionStopGame:       "Desligou o servidor",
 	ActionStartGame:      "Ligou o servidor",
+	ActionSetXPRule:      "Mexeu na Mesa de XP",
+	ActionClearXPRule:    "Voltou uma tabela de XP ao legado",
 }
 
 // Rotulo is the readable name of this entry's action.
@@ -237,4 +248,29 @@ func (e Entry) Rotulo() string {
 		return r
 	}
 	return e.Action
+}
+
+// ListActions returns the most recent entries for a set of action names,
+// newest first. It is the history behind a single screen — the Mesa de XP asks
+// for its own SET_XP_RULE / CLEAR_XP_RULE entries — so the page can show what
+// was changed there without making the reader filter the whole log by eye.
+func (s *Store) ListActions(ctx context.Context, actions []string) ([]Entry, error) {
+	if len(actions) == 0 {
+		return nil, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT l.id, l.actor_account_id, COALESCE(a.name, ''), l.actor_role, l.action,
+		       COALESCE(l.target_account_id, 0), COALESCE(t.name, ''),
+		       l.old_value, l.new_value, l.created_at
+		  FROM admin_audit_log l
+		  LEFT JOIN account a ON a.id = l.actor_account_id
+		  LEFT JOIN account t ON t.id = l.target_account_id
+		 WHERE l.action = ANY($1)
+		 ORDER BY l.created_at DESC, l.id DESC
+		 LIMIT $2`, actions, listLimit)
+	if err != nil {
+		return nil, fmt.Errorf("audit: list actions: %w", err)
+	}
+	defer rows.Close()
+	return scanEntries(rows)
 }

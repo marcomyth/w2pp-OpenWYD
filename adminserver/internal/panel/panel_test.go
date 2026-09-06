@@ -166,6 +166,22 @@ func (f *fakeAudit) List(_ context.Context, targetID int64) ([]audit.Entry, erro
 	return out, nil
 }
 
+func (f *fakeAudit) ListActions(_ context.Context, actions []string) ([]audit.Entry, error) {
+	quer := make(map[string]bool, len(actions))
+	for _, a := range actions {
+		quer[a] = true
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]audit.Entry, 0, len(f.entries))
+	for _, e := range f.entries {
+		if quer[e.Action] {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+
 // Write records what a handler asked to log, and can be made to fail so the
 // "changed but not audited" path is exercised rather than assumed.
 func (f *fakeAudit) Write(_ context.Context, r audit.Record) error {

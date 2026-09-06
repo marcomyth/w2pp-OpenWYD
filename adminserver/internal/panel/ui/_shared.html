@@ -398,6 +398,7 @@
       {{if .HasGuilda}}<a href="/guildas" {{if eq .Nav "guildas"}}class="on"{{end}}>Guildas</a>{{end}}
       {{if .HasTrocas}}<a href="/trocas" {{if eq .Nav "trocas"}}class="on"{{end}}>Trocas</a>{{end}}
       {{if .IsAdmin}}<a href="/auditoria" {{if eq .Nav "auditoria"}}class="on"{{end}}>Auditoria</a>{{end}}
+      {{if and .IsAdmin .HasMesaXP}}<a href="/auditoria/xp" {{if eq .Nav "mesaxp"}}class="on"{{end}}>Mesa de XP</a>{{end}}
     </span>
 
     {{/* O mundo: o conteúdo que o jogo carrega. Uma condição só para os quatro,

@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Mesa de XP — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  .abas { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 4px; }
+  .abas a {
+    padding: 6px 12px; border: 1px solid var(--rule); border-radius: 3px;
+    font-size: 13.5px; color: var(--ink-2); text-decoration: none; background: var(--ground);
+  }
+  .abas a.on { color: var(--ink); border-color: var(--accent); font-weight: 600; }
+  .abas a .marca { color: var(--accent); font-weight: 700; }
+  .abas + .abas { margin-top: 8px; }
+  .rot-aba { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase;
+             color: var(--ink-3); margin: 16px 0 6px; }
+
+  .grade-campos {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px 18px; margin: 4px 0 6px;
+  }
+  .grade-campos label { display: block; font-size: 12.5px; color: var(--ink-3); }
+  .grade-campos input, .grade-campos select {
+    width: 100%; margin-top: 4px; padding: 7px 9px; font: inherit; font-size: 14px;
+    color: var(--ink); background: var(--ground); border: 1px solid var(--rule);
+    border-radius: 3px; font-variant-numeric: tabular-nums;
+  }
+  .grade-campos input:focus, .grade-campos select:focus {
+    outline: 2px solid var(--accent); outline-offset: 1px;
+  }
+  .caixas { display: flex; flex-wrap: wrap; gap: 16px; margin: 10px 0 2px; }
+  .caixas label { font-size: 13.5px; display: flex; gap: 6px; align-items: center; }
+
+  table.cortes td { padding: 5px 8px; }
+  table.cortes input {
+    width: 100%; padding: 6px 8px; font: inherit; font-size: 14px; color: var(--ink);
+    background: var(--ground); border: 1px solid var(--rule); border-radius: 3px;
+    font-variant-numeric: tabular-nums;
+  }
+  table.cortes th:first-child, table.cortes td:first-child { width: 40%; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .legado { font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .legado code { background: var(--chip-bg); padding: 1px 5px; border-radius: 3px; }
+  .acao {
+    font-size: 11px; letter-spacing: .06em; font-family: ui-monospace, Consolas, monospace;
+    color: var(--ink); background: var(--chip-bg); padding: 2px 6px; border-radius: 3px;
+    white-space: nowrap;
+  }
+  td.quando { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.mudanca { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
+  td.mudanca .de { color: var(--ink-3); }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Mesa de XP</h1>
+  <p class="sub">
+    Quanta experiência uma morte paga, e por quê. O jogo escolhe a tabela pelo
+    <strong>bloco do mapa</strong> onde a morte acontece — o campo aberto tem a
+    sua, e cada masmorra instanciada tem a dela. Dentro da tabela, o que decide
+    é o <strong>nível do personagem</strong>: as quebras.
+  </p>
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  <div class="nota calma">
+    <strong>O que é isto.</strong> A conta de uma morte tem quatro andares.
+    Primeiro a XP do próprio monstro, que se edita
+    <a href="/monstros">monstro por monstro</a>. Depois a proporção de níveis
+    entre quem matou e o que morreu — um Gremlin rende para um nível 5 e quase
+    nada para um nível 300, e isso o servidor já faz sozinho. Depois a tabela
+    desta tela: a zona diz qual, e a quebra por nível diz quanto dividir.
+    Por último os bônus de quem matou: baú, fada, peças e eventos.
+    <br><br>
+    Mexer aqui vale para todo mundo naquela zona e naquela evolução.
+    <strong>O jogo lê estas tabelas quando liga</strong>, então uma mudança só
+    entra no próximo reinício — de propósito: trocar a tabela com gente jogando
+    pagaria valores diferentes para a mesma morte conforme a hora.
+    {{if .Versao}}<br><br>Versão gravada: <strong>{{.Versao}}</strong>.{{end}}
+  </div>
+
+  <div class="rot-aba">Zona do mapa</div>
+  <div class="abas">
+    {{range .Zonas}}<a href="{{.URL}}" {{if .Ativa}}class="on"{{end}}>{{.Rotulo}}{{if .Tocada}} <span class="marca">•</span>{{end}}</a>{{end}}
+  </div>
+
+  <div class="rot-aba">Evolução</div>
+  <div class="abas">
+    {{range .Abas}}<a href="{{.URL}}" {{if .Ativa}}class="on"{{end}}>{{.Rotulo}}{{if .Tocada}} <span class="marca">•</span>{{end}}</a>{{end}}
+  </div>
+
+  <div class="caixa">
+    <h2>{{.Zona}} &middot; {{.Evolucao}}</h2>
+    <p class="sub">
+      {{if .Editada}}
+        Esta tabela foi editada. O ponto ao lado da aba marca as outras que também foram.
+      {{else}}
+        Esta tabela é a do legado, exatamente como o servidor antigo a escreve.
+        Gravar qualquer coisa aqui passa a valer a sua.
+      {{end}}
+    </p>
+
+    <form method="post" action="/auditoria/xp">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="voltar" value="{{.VoltarURL}}">
+      <input type="hidden" name="zona" value="{{.Form.Zona}}">
+      <input type="hidden" name="evolucao" value="{{.Form.Evolucao}}">
+
+      <div class="grade-campos" style="max-width:320px">
+        <label>
+          Taxa desta zona (%)
+          <input type="number" name="taxa" min="0" max="100000" value="{{.Taxa}}">
+        </label>
+      </div>
+      <p class="sub" style="margin-top:0">
+        Multiplica o valor final, depois de toda a conta antiga. 100 é o normal;
+        200 é o dobro exato do que o jogo pagaria.
+      </p>
+
+      <div class="tw">
+        <table class="cortes">
+          <thead>
+            <tr>
+              <th>Até o nível</th>
+              <th>Divide por</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .Cortes}}
+            <tr>
+              <td><input type="text" name="corte_nivel" value="{{.Ate}}" inputmode="numeric"
+                         placeholder="nível ou &quot;acima&quot;"></td>
+              <td><input type="text" name="corte_divisor" value="{{.Divisor}}" inputmode="decimal"
+                         placeholder="ex.: 1,25"></td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      <p class="sub">
+        As linhas valem de cima para baixo: a primeira cujo teto o personagem
+        alcança é a que divide. Apagar o nível de uma linha tira aquela quebra;
+        preencher uma linha vazia adiciona uma. Escreva <code>acima</code> no
+        teto para a última quebra, a que pega todo mundo acima da anterior.
+        Divisor 1 não muda nada — é como o legado escreve um degrau neutro.
+      </p>
+
+      <div class="acoes">
+        <button type="submit">Gravar esta tabela</button>
+      </div>
+    </form>
+
+    {{if .Editada}}
+    <form method="post" action="/auditoria/xp/limpar" style="margin-top:10px">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="voltar" value="{{.VoltarURL}}">
+      <input type="hidden" name="zona" value="{{.Form.Zona}}">
+      <input type="hidden" name="evolucao" value="{{.Form.Evolucao}}">
+      <button type="submit" class="perigo">Voltar esta tabela ao legado</button>
+    </form>
+    {{end}}
+
+    <p class="legado" style="margin-top:16px">
+      <strong>Como o legado escreve esta tabela:</strong>
+      {{if .Legado}}
+        {{range .Legado}}<code>{{.Ate}} ÷ {{.Divisor}}</code> {{end}}
+      {{else}}
+        esta evolução não tem tabela nenhuma nesta zona — o legado não divide aqui.
+      {{end}}
+    </p>
+  </div>
+
+  <div class="caixa">
+    <h2>Simulador</h2>
+    <p class="sub">
+      Roda a mesma função que o jogo roda numa morte, com as tabelas acima já
+      valendo. Serve para ver o efeito de uma quebra antes de gravá-la.
+    </p>
+
+    <form method="get" action="/auditoria/xp">
+      <input type="hidden" name="simular" value="1">
+      <input type="hidden" name="zona" value="{{.Form.Zona}}">
+      <input type="hidden" name="evolucao" value="{{.Form.Evolucao}}">
+
+      <div class="grade-campos">
+        <label>
+          Monstro (nome do template)
+          <input type="text" name="mob" value="{{.Form.Mob}}" placeholder="ex.: Gremlin">
+        </label>
+        <label>
+          XP que ele dá
+          <input type="number" name="mob_exp" min="0" value="{{.Form.MobExp}}">
+        </label>
+        <label>
+          Nível do monstro
+          <input type="number" name="mob_nivel" min="0" max="400" value="{{.Form.MobNivel}}">
+        </label>
+        <label>
+          Nível do personagem
+          <input type="number" name="nivel" min="0" max="399" value="{{.Form.Nivel}}">
+        </label>
+      </div>
+
+      <div class="grade-campos">
+        <label>
+          Baú de experiência
+          <select name="bau">
+            <option value="0" {{if eq .Form.Bau 0}}selected{{end}}>sem baú</option>
+            <option value="50" {{if eq .Form.Bau 50}}selected{{end}}>+50%</option>
+            <option value="100" {{if eq .Form.Bau 100}}selected{{end}}>+100% (o baú base)</option>
+            <option value="150" {{if eq .Form.Bau 150}}selected{{end}}>+150%</option>
+          </select>
+        </label>
+        <label>
+          Fada
+          <select name="fada">
+            {{$f := .Form.Fada}}
+            {{range .Fadas}}
+            <option value="{{.Index}}" {{if eq $f .Index}}selected{{end}}>{{.Nome}} — +{{.Bonus}}%</option>
+            {{end}}
+          </select>
+        </label>
+        <label>
+          Peças grau 7 (+2% cada)
+          <input type="number" name="grau7" min="0" max="16" value="{{.Form.Grau7}}">
+        </label>
+        <label>
+          Peças com gema 2 (+2% cada)
+          <input type="number" name="gemas" min="0" max="16" value="{{.Form.Gemas}}">
+        </label>
+        <label>
+          Segundos por morte
+          <input type="number" name="segundos" min="1" max="3600" value="{{.Form.Segundos}}">
+        </label>
+      </div>
+
+      <div class="caixas">
+        <label><input type="checkbox" name="xp_dobro" value="1" {{if .Form.XPDobro}}checked{{end}}> XP em dobro</label>
+        <label><input type="checkbox" name="novato" value="1" {{if .Form.Novato}}checked{{end}}> Evento de novato</label>
+        <label><input type="checkbox" name="kefra" value="1" {{if .Form.KefraViva}}checked{{end}}> Kefra viva (sem ela o jogo corta a XP pela metade)</label>
+        <label><input type="checkbox" name="quests" value="1" {{if .Form.Quests}}checked{{end}}> Quests de evolução feitas</label>
+      </div>
+
+      <div class="acoes">
+        <button type="submit">Simular</button>
+      </div>
+    </form>
+
+    {{if .Sim.Aviso}}<div class="nota perigo" style="margin-top:14px">{{.Sim.Aviso}}</div>{{end}}
+
+    {{if .Sim.Feita}}
+    <div class="numeros" style="margin-top:16px">
+      <div class="num-tile">
+        <div class="rot">XP por morte</div>
+        <div class="val">{{.Sim.ExpPorMorte}}</div>
+      </div>
+      <div class="num-tile">
+        <div class="rot">O nível {{.Form.Nivel}} pede</div>
+        <div class="val">{{.Sim.ExpDoNivel}}</div>
+      </div>
+      <div class="num-tile">
+        <div class="rot">Mortes para subir</div>
+        <div class="val">{{if .Sim.MortesNivel}}{{.Sim.MortesNivel}}{{else}}—{{end}}</div>
+      </div>
+      <div class="num-tile">
+        <div class="rot">Até o nível {{.Sim.AteNivel}}</div>
+        <div class="val">{{.Sim.Tempo}}</div>
+      </div>
+    </div>
+
+    {{if .Sim.Muro}}
+    <div class="nota perigo">
+      <strong>A conta para no nível {{.Sim.Muro}}.</strong> Deste nível em diante
+      este monstro não paga nada para esta evolução — ou é um portão de quest
+      ainda fechado, ou o monstro ficou baixo demais para o personagem. Não dá
+      para chegar ao topo só com ele.
+    </div>
+    {{end}}
+
+    {{if .Sim.Bandas}}
+    <h3>Do nível {{.Form.Nivel}} até o topo, matando só este monstro</h3>
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Níveis</th>
+            <th class="n">XP por morte</th>
+            <th class="n">Mortes</th>
+            <th class="n">Tempo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Sim.Bandas}}
+          <tr>
+            <td>{{.De}}–{{.Ate}}</td>
+            <td class="n">{{.ExpPorMorte}}</td>
+            <td class="n">{{.Mortes}}</td>
+            <td class="n">{{.Tempo}}</td>
+          </tr>
+          {{end}}
+          <tr>
+            <td><strong>Total</strong></td>
+            <td class="n">—</td>
+            <td class="n"><strong>{{.Sim.TotalMortes}}</strong></td>
+            <td class="n"><strong>{{.Sim.Tempo}}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="sub">
+      A XP por morte muda dentro de cada faixa; a coluna mostra a do primeiro
+      nível dela. O tempo é só mortes × segundos por morte — não conta caminhada,
+      respawn nem morte do personagem, então é um piso, não uma previsão.
+    </p>
+    {{end}}
+    {{end}}
+  </div>
+
+  <div class="caixa">
+    <h2>Histórico</h2>
+    <p class="sub">
+      Toda mudança de tabela, mais recente primeiro. Vem da auditoria do painel,
+      que o banco não deixa alterar nem apagar.
+    </p>
+    {{if .Historico}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Quando</th>
+            <th>Quem</th>
+            <th>Ação</th>
+            <th>Mudança</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Historico}}
+          <tr>
+            <td class="quando">{{.CreatedAt.Format "02/01 15:04"}}</td>
+            <td>
+              {{if .ActorName}}{{.ActorName}}{{else}}conta {{.ActorID}}{{end}}
+              <span class="cargo">{{.ActorRole}}</span>
+            </td>
+            <td><span class="acao" title="{{.Action}}">{{.Rotulo}}</span></td>
+            <td class="mudanca">
+              {{if .Old}}<span class="de">{{.Old}}</span> &rarr; {{end}}
+              {{if .New}}{{.New}}{{else if not .Old}}—{{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="vazio">Nenhuma tabela foi mexida ainda.</div>
+    {{end}}
+  </div>
+</main>
+</body>
+</html>
