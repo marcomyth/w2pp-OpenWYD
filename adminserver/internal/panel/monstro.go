@@ -57,6 +57,22 @@ func (h *Handler) monstro(w http.ResponseWriter, r *http.Request) {
 		grupos = append(grupos, grupoCampos{Nome: g, Campos: porGrupo[g]})
 	}
 
+	// The tab is a query parameter, not a click handler: the panel serves
+	// default-src 'none' with no script-src, and this way the chosen tab also
+	// survives the redirect after a save.
+	abaAtual := r.URL.Query().Get("aba")
+	abas := montaAbas(campos, abaAtual)
+	// Only sections belonging to the chosen tab are rendered. The others are not
+	// in the DOM at all, so nothing hidden gets submitted — every field the form
+	// omits keeps its stored value (setMonstro treats an absent field as "leave
+	// it"), which is what makes per-tab editing safe.
+	visiveis := make([]grupoCampos, 0, len(grupos))
+	for _, g := range grupos {
+		if len(g.Campos) > 0 && g.Campos[0].Aba() == abas.Atual {
+			visiveis = append(visiveis, g)
+		}
+	}
+
 	// The gear grid reuses the character editor's cells, so a moderator reads a
 	// mob's equipment the same way they read a player's.
 	equip := make([]personagem.Item, 0, maxMobEquipSlots)
@@ -93,12 +109,95 @@ func (h *Handler) monstro(w http.ResponseWriter, r *http.Request) {
 		Equip      []itemView
 		Sel        int
 		Escolhido  itemView
+		Abas       abasMob
+		Resumo     []resumoCampo
 		Overlay    avisoOverlay
 		Aviso      string
 	}{
 		h.pageFor(r, "monstros"), stat.Name(), stat.DisplayName(), stat.Overridden(),
-		grupos, linhas, sel, escolhido, h.overlayMonstros(r), r.URL.Query().Get("aviso"),
+		visiveis, linhas, sel, escolhido, abas, resumoDe(campos),
+		h.overlayMonstros(r), r.URL.Query().Get("aviso"),
 	})
+}
+
+// abasMob is the tab strip: which one is showing, and how many edited fields sit
+// behind each of the others.
+type abasMob struct {
+	Atual string
+	Itens []abaMob
+	// Alterados is the total across every tab, for the save bar. A count that
+	// only covered the visible tab would say "nothing changed" while three
+	// fields wait on another one.
+	Alterados int
+}
+
+type abaMob struct {
+	ID, Rotulo string
+	Atual      bool
+	Alterados  int
+}
+
+// montaAbas builds the strip and counts the edited fields per tab. An unknown or
+// absent tab falls back to the first one rather than rendering an empty page.
+func montaAbas(campos []gamedata.MobField, escolhida string) abasMob {
+	porAba := map[string]int{}
+	total := 0
+	for _, c := range campos {
+		if c.Alterado() {
+			porAba[c.Aba()]++
+			total++
+		}
+	}
+	out := abasMob{Alterados: total}
+	for _, a := range gamedata.AbasMob() {
+		if a.ID == escolhida {
+			out.Atual = a.ID
+		}
+	}
+	if out.Atual == "" {
+		out.Atual = gamedata.AbaCombate
+	}
+	for _, a := range gamedata.AbasMob() {
+		out.Itens = append(out.Itens, abaMob{
+			ID: a.ID, Rotulo: a.Rotulo, Atual: a.ID == out.Atual, Alterados: porAba[a.ID],
+		})
+	}
+	return out
+}
+
+// resumoCampo is one figure in the header strip.
+type resumoCampo struct {
+	Rotulo   string
+	Valor    int64
+	Arquivo  int64
+	Alterado bool
+}
+
+// resumoDe picks the handful of numbers that define a monster at a glance.
+//
+// It stays put while the tabs change, because tabs otherwise make the screen
+// worse: the figures you are balancing against disappear exactly when you
+// navigate away to edit one of them.
+func resumoDe(campos []gamedata.MobField) []resumoCampo {
+	quero := []struct{ nome, rotulo string }{
+		{"level", "Nível"}, {"max_hp", "HP"}, {"damage", "Dano"},
+		{"ac", "Defesa"}, {"exp", "EXP"}, {"coin", "Ouro"},
+	}
+	porNome := make(map[string]gamedata.MobField, len(campos))
+	for _, c := range campos {
+		porNome[c.Nome] = c
+	}
+	out := make([]resumoCampo, 0, len(quero))
+	for _, q := range quero {
+		c, ok := porNome[q.nome]
+		if !ok {
+			continue
+		}
+		out = append(out, resumoCampo{
+			Rotulo: q.rotulo, Valor: c.Valor, Arquivo: c.Arquivo, Alterado: c.Alterado(),
+		})
+	}
+	return out
 }
 
 // maxMobEquipSlots is MAX_EQUIP (STRUCT_MOB.Equip[16]).
@@ -278,6 +377,27 @@ func (h *Handler) limparMonstro(w http.ResponseWriter, r *http.Request) {
 		"Valores do arquivo restaurados. Só entra em jogo depois de reiniciar o servidor.")
 }
 
+// The tab rides along, so saving lands back where the work was. Without it every
+// save bounces to Combate and the operator has to navigate back to carry on.
 func (h *Handler) redirectMonstro(w http.ResponseWriter, r *http.Request, nome, msg string) {
-	http.Redirect(w, r, "/monstros/"+urlPath(nome)+"?aviso="+urlQuery(msg), http.StatusSeeOther)
+	destino := "/monstros/" + urlPath(nome) + "?aviso=" + urlQuery(msg)
+	if aba := abaDoPedido(r); aba != "" {
+		destino += "&aba=" + urlQuery(aba)
+	}
+	http.Redirect(w, r, destino, http.StatusSeeOther)
+}
+
+// abaDoPedido reads the tab from the form (a POST carries it in a hidden field)
+// or the query string (a GET), returning "" when it is neither known nor set.
+func abaDoPedido(r *http.Request) string {
+	bruto := r.PostFormValue("aba")
+	if bruto == "" {
+		bruto = r.URL.Query().Get("aba")
+	}
+	for _, a := range gamedata.AbasMob() {
+		if a.ID == bruto {
+			return bruto
+		}
+	}
+	return ""
 }

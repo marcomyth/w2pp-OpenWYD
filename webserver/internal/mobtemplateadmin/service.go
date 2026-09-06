@@ -119,6 +119,35 @@ func (s *Service) Get(ctx context.Context, moderatorID int64, templateName strin
 	return OK, st, false, nil
 }
 
+// FileStat returns the template FILE's own values, ignoring any override.
+//
+// It exists so an editor can show what was changed and what is still the shipped
+// default. Get alone cannot answer that: it returns the override OR the file,
+// and once an override exists the original is out of reach — which is why the
+// screen could say "exceção salva" and nothing about WHICH of the thirty-odd
+// numbers somebody edited.
+//
+// ok is false when the file cannot be read (no reader wired, or the template
+// only exists as an override). That is not an error: the caller shows the values
+// without a comparison rather than failing the page.
+func (s *Service) FileStat(ctx context.Context, moderatorID int64, templateName string) (domain.MobTemplateStat, bool, error) {
+	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+		return domain.MobTemplateStat{}, false, err
+	}
+	if templateName == "" || s.readTemplate == nil {
+		return domain.MobTemplateStat{}, false, nil
+	}
+	raw, err := s.readTemplate(templateName)
+	if err != nil {
+		return domain.MobTemplateStat{}, false, nil
+	}
+	st, err := statFromRawTemplate(templateName, raw)
+	if err != nil {
+		return domain.MobTemplateStat{}, false, nil
+	}
+	return st, true, nil
+}
+
 // Upsert creates or replaces the full stat override for a template_name,
 // including st.Equip (the store now persists it in the same write — see
 // store.UpsertMobTemplateStat), so it needs the same slot validation SetEquip

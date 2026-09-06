@@ -577,6 +577,15 @@ message GetMobTemplateStatRequest {
 message GetMobTemplateStatResponse {
   AdminResult result = 1;
   AdminMobTemplateStat stat = 2;
+  // file_stat is the template FILE's own values, sent alongside stat whenever an
+  // override exists — so an editor can show what was changed and what is still
+  // the shipped default. Absent when there is no override (stat already IS the
+  // file) or when the file cannot be read.
+  //
+  // Without it "exceção salva" is all anyone knows: the screen cannot say which
+  // of the thirty-odd numbers somebody edited, and undoing one field means
+  // discarding the whole override.
+  AdminMobTemplateStat file_stat = 3;
 }
 
 message UpsertMobTemplateStatRequest {

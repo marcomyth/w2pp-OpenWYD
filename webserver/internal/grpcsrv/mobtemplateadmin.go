@@ -19,6 +19,8 @@ import (
 type MobTemplateAdmin interface {
 	ListTemplates(ctx context.Context, moderatorID int64) (mobtemplateadmin.Result, []mobtemplates.File, error)
 	Get(ctx context.Context, moderatorID int64, templateName string) (mobtemplateadmin.Result, domain.MobTemplateStat, bool, error)
+	// FileStat is the template file's own values, for showing what an override changed.
+	FileStat(ctx context.Context, moderatorID int64, templateName string) (domain.MobTemplateStat, bool, error)
 	Upsert(ctx context.Context, moderatorID int64, st domain.MobTemplateStat) (mobtemplateadmin.Result, error)
 	SetEquip(ctx context.Context, moderatorID int64, templateName string, items []domain.MobTemplateEquipItem) (mobtemplateadmin.Result, error)
 	Delete(ctx context.Context, moderatorID int64, templateName string) (mobtemplateadmin.Result, error)
@@ -61,6 +63,13 @@ func (s *MobTemplateAdminServer) GetMobTemplateStat(ctx context.Context, req *we
 	resp := &webv1.GetMobTemplateStatResponse{Result: mobStatResultToProto(res)}
 	if res == mobtemplateadmin.OK {
 		resp.Stat = adminMobTemplateStatToProto(st, overridden)
+		// Only worth sending when an override exists: without one, stat already
+		// IS the file and the two copies would be identical.
+		if overridden {
+			if fileSt, ok, ferr := s.admin.FileStat(ctx, req.GetModeratorId(), req.GetTemplateName()); ferr == nil && ok {
+				resp.FileStat = adminMobTemplateStatToProto(fileSt, false)
+			}
+		}
 	}
 	return resp, nil
 }

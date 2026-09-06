@@ -24,6 +24,10 @@ type MobTemplate struct {
 // own RPC and no representation in this form.
 type MobStat struct {
 	raw *webv1.AdminMobTemplateStat
+	// arquivo is the template FILE's values, sent by the webServer alongside raw
+	// whenever an override exists. nil means there is nothing to compare against:
+	// either raw already IS the file, or the file could not be read.
+	arquivo *webv1.AdminMobTemplateStat
 }
 
 // Name is the template this override belongs to.
@@ -54,6 +58,53 @@ type MobField struct {
 	Rotulo string
 	Grupo  string
 	Valor  int64
+	// Arquivo is the template file's own value and Comparavel says whether it is
+	// known. Together they let the form show what an override actually changed —
+	// without them the screen can only say "exceção salva" about the whole row,
+	// and undoing one field means discarding every edit.
+	Arquivo    int64
+	Comparavel bool
+}
+
+// Alterado reports whether this field differs from the shipped file. False when
+// there is nothing to compare against, so an unknown never renders as a change.
+func (f MobField) Alterado() bool { return f.Comparavel && f.Valor != f.Arquivo }
+
+// Aba is the tab this field belongs to. Grouping follows the job rather than the
+// struct: whoever raises a monster's damage adjusts its defence and resistances
+// in the same sitting, so those share a tab; identity and skills change what the
+// monster IS rather than how hard it hits, and sit apart under Avançado.
+func (f MobField) Aba() string {
+	switch f.Grupo {
+	case "Combate", "Atributos", "Resistências":
+		return AbaCombate
+	case "Vida":
+		return AbaVida
+	case "Recompensa":
+		return AbaRecompensa
+	default:
+		return AbaAvancado
+	}
+}
+
+// The tabs, in the order they are shown.
+const (
+	AbaCombate     = "combate"
+	AbaVida        = "vida"
+	AbaRecompensa  = "recompensa"
+	AbaEquipamento = "equipamento"
+	AbaAvancado    = "avancado"
+)
+
+// AbasMob lists the tabs with their labels, in display order.
+func AbasMob() []struct{ ID, Rotulo string } {
+	return []struct{ ID, Rotulo string }{
+		{AbaCombate, "Combate"},
+		{AbaVida, "Vida"},
+		{AbaRecompensa, "Recompensa"},
+		{AbaEquipamento, "Equipamento"},
+		{AbaAvancado, "Avançado"},
+	}
 }
 
 // mobField binds a form field to its place in the proto message.
@@ -134,7 +185,11 @@ var camposMob = func() []mobField {
 func (m MobStat) Fields() []MobField {
 	out := make([]MobField, 0, len(camposMob))
 	for _, c := range camposMob {
-		out = append(out, MobField{Nome: c.Nome, Rotulo: c.Rotulo, Grupo: c.Grupo, Valor: c.Get(m.raw)})
+		f := MobField{Nome: c.Nome, Rotulo: c.Rotulo, Grupo: c.Grupo, Valor: c.Get(m.raw)}
+		if m.arquivo != nil {
+			f.Arquivo, f.Comparavel = c.Get(m.arquivo), true
+		}
+		out = append(out, f)
 	}
 	return out
 }
@@ -203,7 +258,7 @@ func (c *Client) MobStat(ctx context.Context, moderatorID int64, name string) (M
 	if stat == nil {
 		return MobStat{}, ErrNotFound
 	}
-	return MobStat{raw: stat}, nil
+	return MobStat{raw: stat, arquivo: resp.GetFileStat()}, nil
 }
 
 // SaveMobStat writes the override back whole.
