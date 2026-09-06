@@ -190,6 +190,13 @@ type Overlays struct {
 	AtributosDeItem    bool
 	AtributosDeMonstro bool
 	NPCs               bool
+
+	// VersaoMesaXP is the Mesa de XP version the game process loaded at boot.
+	// Unlike the three flags above there is nothing to switch on: an unedited
+	// table already is the legacy behaviour, so the only way to know whether a
+	// saved table is live is to ask which version the process read. Zero means
+	// it booted without a Mesa and is running the legacy tables.
+	VersaoMesaXP int64
 }
 
 // Ajustes asks which overlays are active.
@@ -204,6 +211,7 @@ func (c *Client) Ajustes(parent context.Context) (Overlays, error) {
 		AtributosDeItem:    resp.GetItemStats(),
 		AtributosDeMonstro: resp.GetMobStats(),
 		NPCs:               resp.GetNpcs(),
+		VersaoMesaXP:       resp.GetXpConfigVersion(),
 	}, nil
 }
 

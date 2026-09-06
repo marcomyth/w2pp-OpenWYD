@@ -141,6 +141,19 @@ message OverlaysResponse {
   bool item_stats = 1;  // W2PP_ITEM_STAT_EDITING — atributos de item
   bool mob_stats = 2;   // W2PP_MOB_STAT_EDITING  — atributos de monstro
   bool npcs = 3;        // W2PP_NPC_EDITING       — NPCs e suas lojas
+
+  // xp_config_version is the Mesa de XP version this process actually loaded,
+  // read once at boot. The Mesa needs no flag — an unedited table IS the legacy
+  // behaviour — so the three booleans above cannot answer the only question
+  // that matters about it: is what the panel shows what the game is paying?
+  //
+  // Compared against the version in the database, it separates "saved and live"
+  // from "saved, waiting for a restart" — which look identical on the screen
+  // and differ by a week of wrong levelling.
+  //
+  // Zero means the server booted with no Mesa at all: either it has no dbServer
+  // or the read failed, and it is running the legacy tables.
+  int64 xp_config_version = 4;
 }
 
 message BroadcastRequest {

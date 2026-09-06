@@ -604,11 +604,23 @@ type OverlaysResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Each field is one boot flag. The names match the editors they feed rather
 	// than the environment variables, because the panel speaks in screens.
-	ItemStats     bool `protobuf:"varint,1,opt,name=item_stats,json=itemStats,proto3" json:"item_stats,omitempty"` // W2PP_ITEM_STAT_EDITING — atributos de item
-	MobStats      bool `protobuf:"varint,2,opt,name=mob_stats,json=mobStats,proto3" json:"mob_stats,omitempty"`    // W2PP_MOB_STAT_EDITING  — atributos de monstro
-	Npcs          bool `protobuf:"varint,3,opt,name=npcs,proto3" json:"npcs,omitempty"`                            // W2PP_NPC_EDITING       — NPCs e suas lojas
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ItemStats bool `protobuf:"varint,1,opt,name=item_stats,json=itemStats,proto3" json:"item_stats,omitempty"` // W2PP_ITEM_STAT_EDITING — atributos de item
+	MobStats  bool `protobuf:"varint,2,opt,name=mob_stats,json=mobStats,proto3" json:"mob_stats,omitempty"`    // W2PP_MOB_STAT_EDITING  — atributos de monstro
+	Npcs      bool `protobuf:"varint,3,opt,name=npcs,proto3" json:"npcs,omitempty"`                            // W2PP_NPC_EDITING       — NPCs e suas lojas
+	// xp_config_version is the Mesa de XP version this process actually loaded,
+	// read once at boot. The Mesa needs no flag — an unedited table IS the legacy
+	// behaviour — so the three booleans above cannot answer the only question
+	// that matters about it: is what the panel shows what the game is paying?
+	//
+	// Compared against the version in the database, it separates "saved and live"
+	// from "saved, waiting for a restart" — which look identical on the screen
+	// and differ by a week of wrong levelling.
+	//
+	// Zero means the server booted with no Mesa at all: either it has no dbServer
+	// or the read failed, and it is running the legacy tables.
+	XpConfigVersion int64 `protobuf:"varint,4,opt,name=xp_config_version,json=xpConfigVersion,proto3" json:"xp_config_version,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *OverlaysResponse) Reset() {
@@ -660,6 +672,13 @@ func (x *OverlaysResponse) GetNpcs() bool {
 		return x.Npcs
 	}
 	return false
+}
+
+func (x *OverlaysResponse) GetXpConfigVersion() int64 {
+	if x != nil {
+		return x.XpConfigVersion
+	}
+	return 0
 }
 
 type BroadcastRequest struct {
@@ -888,12 +907,13 @@ const file_api_game_v1_game_proto_rawDesc = "" +
 	"\tdelivered\x18\x02 \x01(\x05R\tdelivered\x12\x12\n" +
 	"\x04lost\x18\x03 \x01(\x05R\x04lost\x12%\n" +
 	"\x0echaracter_name\x18\x04 \x01(\tR\rcharacterName\"\x11\n" +
-	"\x0fOverlaysRequest\"b\n" +
+	"\x0fOverlaysRequest\"\x8e\x01\n" +
 	"\x10OverlaysResponse\x12\x1d\n" +
 	"\n" +
 	"item_stats\x18\x01 \x01(\bR\titemStats\x12\x1b\n" +
 	"\tmob_stats\x18\x02 \x01(\bR\bmobStats\x12\x12\n" +
-	"\x04npcs\x18\x03 \x01(\bR\x04npcs\",\n" +
+	"\x04npcs\x18\x03 \x01(\bR\x04npcs\x12*\n" +
+	"\x11xp_config_version\x18\x04 \x01(\x03R\x0fxpConfigVersion\",\n" +
 	"\x10BroadcastRequest\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"3\n" +
 	"\x11BroadcastResponse\x12\x1e\n" +

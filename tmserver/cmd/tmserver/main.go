@@ -502,6 +502,10 @@ func run(logger *slog.Logger) error {
 				ItemStats: *itemStatEditing,
 				MobStats:  *mobStatEditing,
 				NPCs:      *npcEditing,
+				// The version this process actually booted with, not whatever
+				// the database holds now. That gap is the whole point: it is
+				// what tells the panel a save is still waiting for a restart.
+				XPConfigVersion: xpConfig.Version,
 			})
 		if cerr != nil {
 			return fmt.Errorf("-control-addr is set but the API cannot start: %w", cerr)

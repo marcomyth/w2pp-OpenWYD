@@ -73,6 +73,16 @@ type Overlays struct {
 	ItemStats bool
 	MobStats  bool
 	NPCs      bool
+
+	// XPConfigVersion is the Mesa de XP version this process loaded at boot.
+	//
+	// It is not a flag like the three above, and that is exactly why it belongs
+	// here: the Mesa has no flag to report, because an unedited table already IS
+	// the legacy behaviour. So the only honest way for the panel to tell "saved
+	// and live" from "saved, waiting for a restart" is to ask the running
+	// process which version it read. Zero means it booted without a Mesa —
+	// no dbServer, or the read failed — and is running the legacy tables.
+	XPConfigVersion int64
 }
 
 type Server struct {
@@ -109,9 +119,10 @@ func NewServer(w *world.World, token string, log *slog.Logger, tp Teleporter, ov
 // nothing bought.
 func (s *Server) Overlays(_ context.Context, _ *gamev1.OverlaysRequest) (*gamev1.OverlaysResponse, error) {
 	return &gamev1.OverlaysResponse{
-		ItemStats: s.overlays.ItemStats,
-		MobStats:  s.overlays.MobStats,
-		Npcs:      s.overlays.NPCs,
+		ItemStats:       s.overlays.ItemStats,
+		MobStats:        s.overlays.MobStats,
+		Npcs:            s.overlays.NPCs,
+		XpConfigVersion: s.overlays.XPConfigVersion,
 	}, nil
 }
 
