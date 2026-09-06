@@ -44,6 +44,14 @@ linters:
         # Portuguese for "moment", inside a refusal copied verbatim from
         # Language.txt. misspell reads it as a typo for "memento".
         - momento
+        # Portuguese for "regardless", inside the Acelerador de Nascimento
+        # tooltip quoted verbatim from the shipped client ("Aumenta o valor da
+        # refinação em +1 independente da previsão do nascimento da montaria").
+        # misspell reads it as a typo for "independence". It is here rather than
+        # left alone because only-new-issues already let it through once: the
+        # words stay, unreported, until somebody edits those lines and the
+        # failure lands on them instead of on whoever wrote it.
+        - independente
   exclusions:
     generated: lax
     presets:
