@@ -505,6 +505,7 @@ func runServe(args []string, logger *slog.Logger) error {
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve(ln) }()
+	go rodarCenso(ctx, st, logger)
 
 	select {
 	case <-ctx.Done():
@@ -516,6 +517,45 @@ func runServe(args []string, logger *slog.Logger) error {
 			return fmt.Errorf("serve: %w", err)
 		}
 		return nil
+	}
+}
+
+// censoIntervalo is how often the census job wakes up, not how often it counts.
+//
+// It counts once a day; RecordCensus is a no-op for the rest of the day. Six
+// hours is short enough that a server restarted at any hour still photographs
+// that day, and long enough that the full scan of the item table is nothing.
+const censoIntervalo = 6 * time.Hour
+
+// rodarCenso takes the daily item snapshot (0032_item_census).
+//
+// It lives here because the dbServer is the process that owns the pool, and it
+// is a goroutine rather than a cron entry so that the count travels with the
+// binary — an external schedule is one more thing that can be quietly missing
+// on a new deploy and leave a gap nobody notices until the gap is the answer.
+//
+// Failures are logged and retried on the next tick. A missing day is a hole in
+// a trend line, not a broken server, and stopping the process over it would
+// trade a hole for an outage.
+func rodarCenso(ctx context.Context, st *store.Store, logger *slog.Logger) {
+	tick := time.NewTicker(censoIntervalo)
+	defer tick.Stop()
+	for {
+		// At boot too: a server that restarts every morning would otherwise take
+		// its first photo six hours into the day.
+		run, contou, err := st.RecordCensus(ctx)
+		switch {
+		case err != nil:
+			logger.Warn("item census failed", "err", err)
+		case contou:
+			logger.Info("item census taken",
+				"day", run.Day.Format(time.DateOnly), "units", run.Units, "kinds", run.Kinds)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
 	}
 }
 

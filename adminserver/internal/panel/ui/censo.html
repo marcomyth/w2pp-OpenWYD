@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Censo de itens — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  .filtros { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; font-size: 13px; align-items: center; }
+  .filtros .rot {
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3); margin-right: 2px;
+  }
+  .filtros a {
+    border: 1px solid var(--rule); border-radius: 3px; padding: 5px 11px;
+    color: var(--ink-2); text-decoration: none;
+  }
+  .filtros a.on { border-color: var(--ink-3); color: var(--ink); background: var(--surface); }
+  .filtros + .filtros { margin-bottom: 22px; }
+
+  td.subiu { color: var(--danger); font-variant-numeric: tabular-nums; }
+  td.caiu  { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .refino { font-variant-numeric: tabular-nums; }
+  .refino.zero { color: var(--ink-3); }
+  .semnome { color: var(--ink-3); }
+  .quando { font-size: 12.5px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main class="larga">
+  <h1>Censo de itens</h1>
+  <p class="sub">
+    Quantas unidades de cada item existem no banco, contadas uma vez por dia, e
+    o que mudou de um dia para o outro.
+  </p>
+
+  <div class="nota">
+    Item no WYD não tem identidade: um item é um índice mais três pares de
+    efeito, e duas unidades iguais são indistinguíveis. Não dá para perguntar
+    <em>este aqui é cópia de qual</em>. Dá para perguntar quantos existiam antes
+    e quantos existem agora.
+    <br><br>
+    A contagem separa por <strong>refino</strong>, e é isso que a torna útil:
+    ninguém dupa espada +0. Trinta unidades a mais no refino 0 é gente farmando;
+    catorze a mais no refino 11 é outra conversa.
+  </div>
+
+  {{if .Falha.censo}}{{template "falha-de-leitura" "o censo"}}{{end}}
+  {{if .Falha.nomes}}{{template "falha-de-leitura" "os nomes dos itens no catálogo"}}{{end}}
+
+  {{if .Ate.Zero}}
+    <div class="vazio">
+      Nenhuma foto ainda. O servidor de banco tira a primeira ao subir, e uma
+      por dia daí em diante. A comparação começa a valer na segunda.
+    </div>
+  {{else}}
+
+    <div class="numeros">
+      <div class="num-tile">
+        <div class="rot">Unidades hoje</div>
+        <div class="val">{{.Ate.Units}}</div>
+      </div>
+      <div class="num-tile">
+        <div class="rot">Tipos diferentes</div>
+        <div class="val">{{.Ate.Kinds}}</div>
+      </div>
+      <div class="num-tile">
+        <div class="rot">Unidades antes</div>
+        <div class="val">{{.De.Units}}</div>
+      </div>
+    </div>
+
+    <p class="quando">
+      Foto de {{.Ate.Day.Format "02/01/2006"}}, contada às
+      {{.Ate.CountedAt.Local.Format "15:04"}}{{if not .UmDiaSo}}, comparada com a de
+      {{.De.Day.Format "02/01/2006"}} das {{.De.CountedAt.Local.Format "15:04"}}{{end}}.
+      A hora importa: item só chega no banco quando o jogador sai do jogo, então
+      esta é a foto do mundo naquele instante, não de agora.
+    </p>
+
+    {{if .UmDiaSo}}
+      <div class="nota">
+        Só existe uma foto até agora. Não dá para comparar nada ainda — volte
+        amanhã, quando houver duas.
+      </div>
+    {{else if .Encurtado}}
+      <div class="nota">
+        Não existe foto de {{.Dias}} dias atrás. A comparação está sendo feita
+        com a mais antiga que existe, de {{.De.Day.Format "02/01/2006"}}, então a
+        variação abaixo cobre menos tempo do que o pedido.
+      </div>
+    {{end}}
+
+    <div class="filtros">
+      <span class="rot">Comparar com</span>
+      {{$d := .Dias}}{{$o := .Subiu}}{{$r := .Refinado}}
+      {{range .Janelas}}
+      <a href="/censo?dias={{.}}{{if not $o}}&amp;ordem=sumiu{{end}}{{if $r}}&amp;refino=1{{end}}"
+         {{if eq . $d}}class="on"{{end}}>{{.}} dia{{if ne . 1}}s{{end}} atrás</a>
+      {{end}}
+    </div>
+
+    <div class="filtros">
+      <span class="rot">Mostrar</span>
+      <a href="/censo?dias={{$d}}{{if $r}}&amp;refino=1{{end}}"
+         {{if $o}}class="on"{{end}}>O que mais cresceu</a>
+      <a href="/censo?dias={{$d}}&amp;ordem=sumiu{{if $r}}&amp;refino=1{{end}}"
+         {{if not $o}}class="on"{{end}}>O que mais sumiu</a>
+      <span style="width:14px"></span>
+      <a href="/censo?dias={{$d}}{{if not $o}}&amp;ordem=sumiu{{end}}"
+         {{if not $r}}class="on"{{end}}>Todo item</a>
+      <a href="/censo?dias={{$d}}{{if not $o}}&amp;ordem=sumiu{{end}}&amp;refino=1"
+         {{if $r}}class="on"{{end}}>Só refinado</a>
+    </div>
+
+    {{if .Linhas}}
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th class="num">Refino</th>
+              <th class="num">Variação</th>
+              <th class="num">Agora</th>
+              <th class="num">Antes</th>
+              <th class="num">Equipado</th>
+              <th class="num">Mochila</th>
+              <th class="num">Baú</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .Linhas}}
+            <tr>
+              <td>
+                {{if .Nome}}{{.Nome}}{{else}}<span class="semnome">sem nome no catálogo</span>{{end}}
+                <span class="mono" style="color:var(--ink-3);font-size:12.5px"> · {{.Index}}</span>
+              </td>
+              <td class="num refino {{if not .Sanc}}zero{{end}}">{{if .Sanc}}+{{.Sanc}}{{else}}0{{end}}</td>
+              <td class="num {{if .Cresceu}}subiu{{else}}caiu{{end}}">
+                {{if .Cresceu}}+{{end}}{{.Delta}}
+              </td>
+              <td class="num">{{.Units}}</td>
+              <td class="num">{{.Was}}</td>
+              <td class="num">{{.Equipped}}</td>
+              <td class="num">{{.Carried}}</td>
+              <td class="num">{{.Stored}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{if .Cheio}}
+        <p class="sub" style="margin-top:14px">
+          Mostrando {{.Limite}} linhas. Estreite com “só refinado”, que é onde o
+          sinal costuma estar.
+        </p>
+      {{end}}
+    {{else}}
+      <div class="vazio">
+        Nada mudou de quantidade entre as duas fotos{{if .Refinado}} entre os
+        itens refinados{{end}}.
+      </div>
+    {{end}}
+
+    <h2 style="margin-top:40px">O que este número não diz</h2>
+    <p class="sub">
+      Três limites, ditos aqui para não serem descobertos no meio de uma
+      investigação.
+    </p>
+    <ul class="sub" style="max-width:70ch">
+      <li>
+        <strong>Só enxerga o que foi salvo.</strong> Não existe save periódico:
+        item chega no banco no logout. Quem está online há três dias tem o
+        inventário de três dias atrás aqui dentro. Um item pode “aparecer” hoje
+        só porque o dono finalmente saiu do jogo.
+      </li>
+      <li>
+        <strong>Drop de monstro não é registrado.</strong> Crescimento de item
+        comum não tem explicação nenhuma nesta tela, e é por isso que existe o
+        filtro de refinado.
+      </li>
+      <li>
+        <strong>A leitura útil é a tendência.</strong> O pulo de um dia pode ser
+        uma guilda inteira saindo junto do jogo. O mesmo índice subindo todo dia
+        por uma semana é outra coisa.
+      </li>
+    </ul>
+  {{end}}
+</main>
+</body>
+</html>

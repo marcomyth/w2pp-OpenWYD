@@ -888,6 +888,64 @@ type GroundEvent struct {
 	GroundID int32
 }
 
+// EffSanc is EF_SANC, the item-effect type that carries the refine level
+// ("anc"/joias). The census groups by it, and that is what makes the census
+// worth reading: nobody duplicates a plain sword.
+const EffSanc = 43
+
+// CensusRun is one day's snapshot of the item table (0032_item_census).
+//
+// CountedAt is not decoration. There is no periodic character save — items
+// reach Postgres at logout — so the count is the world as of everyone's last
+// save, and whoever reads it has to know what hour the photo was taken.
+type CensusRun struct {
+	Day       time.Time
+	CountedAt time.Time
+	Units     int // unidades ao todo
+	Kinds     int // linhas (índice+refino) diferentes
+}
+
+// Zero reports whether the run is missing, which is what an empty database and
+// a failed lookup both look like.
+func (c CensusRun) Zero() bool { return c.Day.IsZero() }
+
+// ItemCensus is one item index at one refine level, and how its count moved
+// between two snapshots.
+type ItemCensus struct {
+	Index int32
+	Sanc  int16
+
+	Units int // no dia mais recente
+	Was   int // no dia de comparação
+	Delta int // Units - Was
+
+	Equipped int
+	Carried  int
+	Stored   int
+}
+
+// CensusPoint is one item's count on one day, for reading a trend.
+type CensusPoint struct {
+	Day   time.Time
+	Units int
+
+	Equipped int
+	Carried  int
+	Stored   int
+}
+
+// CensusCompare is two snapshots and what changed between them.
+//
+// De and Ate travel with the rows on purpose: with less history than the window
+// asked for, the comparison silently falls back to the oldest snapshot there
+// is, and a page that does not say which days it compared would report a
+// month's growth as a day's.
+type CensusCompare struct {
+	De    CensusRun
+	Ate   CensusRun
+	Linha []ItemCensus
+}
+
 // GroundRetentionDays is how long a ground event is kept.
 //
 // By VOLUME, not by privacy: dropping things is constant, and without a sweep

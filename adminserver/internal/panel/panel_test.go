@@ -4278,3 +4278,157 @@ func TestOsPrazosProntosEstaoNaTela(t *testing.T) {
 		t.Error("a página passou a depender de JavaScript, que a política de segurança bloqueia")
 	}
 }
+
+// --- censo de itens ---
+
+type fakeCenso struct {
+	mu      sync.Mutex
+	cmp     domain.CensusCompare
+	pedidos []store.CensusQuery
+	err     error
+}
+
+func (f *fakeCenso) CensusGrowth(_ context.Context, q store.CensusQuery) (domain.CensusCompare, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return domain.CensusCompare{}, f.err
+	}
+	f.pedidos = append(f.pedidos, q)
+	return f.cmp, nil
+}
+
+func newTestPanelCenso(t *testing.T, c Censo) http.Handler {
+	t.Helper()
+	h, err := New(Config{
+		Accounts:   withTarget(roleAdmin),
+		Writer:     newFakeWriter(),
+		Censo:      c,
+		Audit:      newFakeAudit(),
+		Sessions:   session.New(time.Hour),
+		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}
+
+// duasFotos is a week apart, with one refined item up by two and one plain item
+// down by five.
+func duasFotos() domain.CensusCompare {
+	hoje := time.Now().Truncate(24 * time.Hour)
+	return domain.CensusCompare{
+		De:  domain.CensusRun{Day: hoje.AddDate(0, 0, -7), CountedAt: hoje.AddDate(0, 0, -7), Units: 903, Kinds: 40},
+		Ate: domain.CensusRun{Day: hoje, CountedAt: hoje, Units: 900, Kinds: 41},
+		Linha: []domain.ItemCensus{
+			{Index: 1415, Sanc: 11, Units: 6, Was: 4, Delta: 2, Equipped: 4, Carried: 1, Stored: 1},
+			{Index: 30, Sanc: 0, Units: 95, Was: 100, Delta: -5, Carried: 95},
+		},
+	}
+}
+
+func TestCensoMostraOQueMudou(t *testing.T) {
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{cmp: duasFotos()}))
+	body := get("/censo").Body.String()
+
+	for _, want := range []string{"Censo de itens", "1415", "+11", "+2", "-5", "900"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a página não traz %q", want)
+		}
+	}
+	// The hour of the photo is not decoration: items only reach the database at
+	// logout, so the count is the world as of that moment, not of now.
+	if !strings.Contains(body, "não chega no banco") && !strings.Contains(body, "sai do jogo") {
+		t.Error("a página não diz que a contagem é do momento da foto")
+	}
+}
+
+func TestCensoPassaAJanelaEOsFiltros(t *testing.T) {
+	fc := &fakeCenso{cmp: duasFotos()}
+	get := signedIn(t, newTestPanelCenso(t, fc))
+	if rec := get("/censo?dias=30&ordem=sumiu&refino=1"); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	q := fc.pedidos[0]
+	if q.Dias != 30 || q.Subiu || !q.SoRefinado {
+		t.Errorf("consulta = %+v, want 30 dias, ordem por queda, só refinado", q)
+	}
+}
+
+// A window nobody offered is a window nobody tested. Anything else falls back to
+// the default rather than reaching the database as a free-form number.
+func TestCensoRecusaJanelaInventada(t *testing.T) {
+	fc := &fakeCenso{cmp: duasFotos()}
+	get := signedIn(t, newTestPanelCenso(t, fc))
+	get("/censo?dias=999")
+	if fc.pedidos[0].Dias != 7 {
+		t.Errorf("dias = %d, want 7 (o padrão)", fc.pedidos[0].Dias)
+	}
+}
+
+func TestCensoAvisaQuandoSoTemUmaFoto(t *testing.T) {
+	hoje := time.Now().Truncate(24 * time.Hour)
+	so := domain.CensusRun{Day: hoje, CountedAt: hoje, Units: 10, Kinds: 2}
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{
+		cmp: domain.CensusCompare{De: so, Ate: so},
+	}))
+	body := get("/censo").Body.String()
+	if !strings.Contains(body, "Só existe uma foto") {
+		t.Error("a página compara uma foto com ela mesma sem avisar")
+	}
+}
+
+// Com menos história do que a janela pedida, a comparação cai para a foto mais
+// antiga. Sem dizer isso, a tela reporta o crescimento de dois dias como se
+// fosse o de trinta.
+func TestCensoAvisaQuandoAJanelaFoiEncurtada(t *testing.T) {
+	hoje := time.Now().Truncate(24 * time.Hour)
+	cmp := duasFotos()
+	cmp.De.Day = hoje.AddDate(0, 0, -2)
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{cmp: cmp}))
+	body := get("/censo?dias=30").Body.String()
+	if !strings.Contains(body, "Não existe foto de 30 dias atrás") {
+		t.Error("a página não avisa que a janela real é menor do que a pedida")
+	}
+}
+
+func TestCensoSemFotoNaoPareceErro(t *testing.T) {
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{}))
+	rec := get("/censo")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Nenhuma foto ainda") {
+		t.Error("banco sem foto não explica o que vai acontecer")
+	}
+}
+
+func TestCensoFalhaDeLeituraNaoDerrubaAPagina(t *testing.T) {
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{err: errors.New("sem banco")}))
+	rec := get("/censo")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "o censo") {
+		t.Error("a página não avisa que a leitura falhou")
+	}
+}
+
+func TestCensoSomeSemAConfiguracao(t *testing.T) {
+	get := signedIn(t, newTestPanel(t, withTarget(roleAdmin)))
+	if rec := get("/censo"); rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 sem o censo", rec.Code)
+	}
+	if strings.Contains(get("/").Body.String(), `href="/censo"`) {
+		t.Error("o menu oferece um link para uma página que não existe")
+	}
+}
+
+func TestCensoNoMenuQuandoConfigurado(t *testing.T) {
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{}))
+	if !strings.Contains(get("/").Body.String(), `href="/censo"`) {
+		t.Error("o menu não oferece a página do censo")
+	}
+}

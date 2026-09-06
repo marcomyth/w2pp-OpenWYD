@@ -176,6 +176,7 @@ func run(logger *slog.Logger) error {
 		Guildas:     store.New(pool),
 		Carteira:    donate.New(pool),
 		Trocas:      store.New(pool),
+		Censo:       store.New(pool),
 		Jogo:        live,
 		Audit:       audit.New(pool),
 		Sessions:    session.New(*sessionTTL),

@@ -225,6 +225,16 @@ type TradeLog interface {
 	ListGround(ctx context.Context, q store.GroundQuery) ([]domain.GroundEvent, error)
 }
 
+// Censo reads the daily item count (0032_item_census).
+//
+// Separate from TradeLog even though the same *store.Store satisfies both: the
+// trade and ground logs answer "who moved this", the census answers "how many
+// exist". A screen that can read one and not the other should say so, and one
+// interface would make that impossible to express.
+type Censo interface {
+	CensusGrowth(ctx context.Context, q store.CensusQuery) (domain.CensusCompare, error)
+}
+
 // Platform is the hosting API, used to report the game server's boot time and
 // restart it. Optional: without it the restart card is hidden.
 type Platform interface {
@@ -246,6 +256,7 @@ type Config struct {
 	Platform    Platform
 	Entregas    Deliveries
 	Trocas      TradeLog
+	Censo       Censo
 	Jogo        Live
 	GameData    GameData
 	Writer      Writer
@@ -355,6 +366,9 @@ func (h *Handler) Routes() http.Handler {
 	if h.cfg.Trocas != nil {
 		mux.Handle("GET /trocas", h.requireStaff(http.HandlerFunc(h.trocas)))
 	}
+	if h.cfg.Censo != nil {
+		mux.Handle("GET /censo", h.requireStaff(http.HandlerFunc(h.censo)))
+	}
 	if h.cfg.Jogo != nil {
 		mux.Handle("GET /servidor", h.requireStaff(http.HandlerFunc(h.servidor)))
 		// Read-only, same single read as /servidor. Staff, not admin: seeing
@@ -448,6 +462,7 @@ type page struct {
 	IsAdmin   bool   // hides nav entries the viewer would only be refused from
 	HasItems  bool   // the item pages exist only when a webServer is configured
 	HasTrocas bool   // the trade log exists only when a database read is configured
+	HasCenso  bool   // o censo de itens precisa da leitura do banco
 	HasJogo   bool   // the live pages exist only when the game link is configured
 	HasSeguro bool   // the safe restart needs BOTH the game link and the hosting API
 	HasEvento bool   // the event switches need the database read
@@ -492,6 +507,7 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		Nav: nav, IsAdmin: role == roleAdmin,
 		HasItems:  h.cfg.GameData != nil,
 		HasTrocas: h.cfg.Trocas != nil,
+		HasCenso:  h.cfg.Censo != nil,
 		HasJogo:   h.cfg.Jogo != nil,
 		HasSeguro: h.cfg.Jogo != nil && h.cfg.Platform != nil,
 		HasEvento: h.cfg.Eventos != nil,
