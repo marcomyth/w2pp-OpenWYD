@@ -493,7 +493,7 @@ func TestListaDaContaMarcaOPersonagemEmJogo(t *testing.T) {
 		1: {ID: 10, AccountID: 7, Slot: 1, Nome: "Vandalyzz", OnlineDesde: &agora},
 	}}
 
-	body := getSignedIn(t, newPainelComPersonagens(t, acc, pers), "/contas/ana").Body.String()
+	body := getSignedIn(t, newPainelComPersonagens(t, acc, pers), "/contas/ana?aba=personagens").Body.String()
 	if !strings.Contains(body, "em jogo") {
 		t.Error("a lista não diz que o personagem está em jogo — é isso que decide se dá pra editar")
 	}
@@ -511,7 +511,7 @@ func TestListaDaContaMarcaOPersonagemForaDoJogo(t *testing.T) {
 		0: {ID: 9, AccountID: 7, Slot: 0, Nome: "Guerreira"},
 	}}
 
-	body := getSignedIn(t, newPainelComPersonagens(t, acc, pers), "/contas/ana").Body.String()
+	body := getSignedIn(t, newPainelComPersonagens(t, acc, pers), "/contas/ana?aba=personagens").Body.String()
 	if !strings.Contains(body, "fora do jogo") {
 		t.Error("a lista não diz que o personagem está fora do jogo")
 	}
@@ -527,7 +527,7 @@ func TestSemEditorAListaNaoAfirmaEstado(t *testing.T) {
 	acc := withTarget(roleAdmin)
 	acc.addChar(7, domain.Character{Slot: 0, Name: "Guerreira", Level: 12})
 
-	body := getSignedIn(t, newTestPanelFull(t, acc, newFakeAudit(), newFakeWriter()), "/contas/ana").Body.String()
+	body := getSignedIn(t, newTestPanelFull(t, acc, newFakeAudit(), newFakeWriter()), "/contas/ana?aba=personagens").Body.String()
 	if !strings.Contains(body, "Guerreira") {
 		t.Fatal("a lista de personagens sumiu")
 	}

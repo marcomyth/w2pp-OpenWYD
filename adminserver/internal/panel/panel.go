@@ -608,6 +608,20 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Which tab. The account page carried seven subjects in one scroll — role,
+	// VIP, password, block, item delivery, the delivery queue and the roster —
+	// and finding one meant scrolling past the other six. The header stays on
+	// every tab because it is the page's identity, not one of the subjects.
+	//
+	// It rides the query string rather than the path so every existing link to
+	// /contas/{nome} still lands somewhere sensible: the default.
+	aba := r.URL.Query().Get("aba")
+	switch aba {
+	case "personagens", "itens":
+	default:
+		aba = "conta"
+	}
+
 	p := h.pageFor(r, "contas")
 	h.render(w, "conta.html", struct {
 		page
@@ -615,6 +629,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		Personagens  []domain.Character
 		EmJogo       map[int]bool
 		NaoLeu       falhas
+		Aba          string
 		Pendentes    []entrega.Pendente
 		PodeEntregar bool
 		Aviso        string
@@ -630,6 +645,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		chars,
 		emJogo,
 		naoLeu,
+		aba,
 		pendentes,
 		h.cfg.Entregas != nil,
 		r.URL.Query().Get("aviso"),

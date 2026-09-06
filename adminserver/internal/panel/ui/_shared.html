@@ -467,9 +467,18 @@
 {{end}}
 {{end}}
 
+{{/* As abas de uma conta.
+     A aba Conta era sete blocos de assunto diferente empilhados numa rolagem
+     só: cargo, VIP, senha, bloqueio, entrega de item, fila de entrega e
+     personagens. Quem procurava um deles rolava passando pelos outros seis.
+     Agora cada assunto é uma aba, e o cabeçalho da conta — nome, cargo,
+     situação — fica em todas, porque é a identidade da página e não um
+     assunto. */}}
 {{define "abas-conta"}}
 <div class="abas-conta">
   <a href="/contas/{{.Conta}}" {{if eq .Aba "conta"}}class="on"{{end}}>Conta</a>
+  <a href="/contas/{{.Conta}}?aba=personagens" {{if eq .Aba "personagens"}}class="on"{{end}}>Personagens</a>
+  <a href="/contas/{{.Conta}}?aba=itens" {{if eq .Aba "itens"}}class="on"{{end}}>Itens</a>
   {{if .TemPersonagem}}<a href="/contas/{{.Conta}}/personagens/{{.Personagem}}" {{if eq .Aba "editor"}}class="on"{{end}}>Editor</a>{{end}}
   <a href="/contas/{{.Conta}}/donate" {{if eq .Aba "donate"}}class="on"{{end}}>Donate</a>
 </div>

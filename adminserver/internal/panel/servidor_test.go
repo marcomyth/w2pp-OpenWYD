@@ -365,7 +365,7 @@ func TestPersonagemQueNaoCarregouNaoViraContaSemPersonagem(t *testing.T) {
 	acc.addChar(7, domain.Character{Slot: 0, Name: "Guerreira", Level: 12})
 	acc.listCharsErr = errors.New("banco fora do ar")
 
-	body := getSignedIn(t, newTestPanelFull(t, acc, newFakeAudit(), newFakeWriter()), "/contas/ana").Body.String()
+	body := getSignedIn(t, newTestPanelFull(t, acc, newFakeAudit(), newFakeWriter()), "/contas/ana?aba=personagens").Body.String()
 	if strings.Contains(body, "ainda não criou personagem") {
 		t.Error("uma leitura que falhou virou afirmação de que a conta não tem personagem")
 	}
@@ -383,7 +383,7 @@ func TestListaVaziaContinuaDizendoQueEstaVazia(t *testing.T) {
 	// The other side of the same rule. Marking failures is only useful if an
 	// honest emptiness still reads as emptiness.
 	acc := withTarget(roleAdmin)
-	body := getSignedIn(t, newTestPanelFull(t, acc, newFakeAudit(), newFakeWriter()), "/contas/ana").Body.String()
+	body := getSignedIn(t, newTestPanelFull(t, acc, newFakeAudit(), newFakeWriter()), "/contas/ana?aba=personagens").Body.String()
 	if !strings.Contains(body, "ainda não criou personagem") {
 		t.Error("uma conta realmente sem personagem parou de dizer isso")
 	}
@@ -740,5 +740,83 @@ func TestAInicialNaoChamaOJogo(t *testing.T) {
 	defer j.mu.Unlock()
 	if len(j.entregasAgora) != 0 || len(j.derrubadas) != 0 || len(j.desatolados) != 0 {
 		t.Error("a inicial mexeu no jogo")
+	}
+}
+
+// --- as abas da conta ---
+
+// The account page carried seven subjects in one scroll — role, VIP, password,
+// block, item delivery, the delivery queue and the roster — and finding one
+// meant scrolling past the other six.
+func TestCadaAssuntoNaSuaAba(t *testing.T) {
+	acc := withTarget(roleAdmin)
+	acc.addChar(7, domain.Character{Slot: 0, Name: "Guerreira", Level: 12})
+	h, err := New(Config{
+		Accounts: acc, Writer: newFakeWriter(), Audit: newFakeAudit(),
+		GameData: newFakeGameData(), Entregas: &fakeEntregas{},
+		Sessions: session.New(time.Hour),
+		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	get := signedIn(t, h.Routes())
+
+	conta := get("/contas/ana").Body.String()
+	personagens := get("/contas/ana?aba=personagens").Body.String()
+	itens := get("/contas/ana?aba=itens").Body.String()
+
+	// Cada aba tem o seu, e só o seu.
+	if !strings.Contains(conta, "Bloquear") {
+		t.Error("a aba Conta perdeu o bloqueio")
+	}
+	if strings.Contains(conta, "Entregar item") || strings.Contains(conta, "<h2>Personagens</h2>") {
+		t.Error("a aba Conta ainda carrega assunto de outra aba")
+	}
+	if !strings.Contains(itens, "Entregar item") {
+		t.Error("a aba Itens não tem a entrega")
+	}
+	if strings.Contains(itens, "Bloquear") {
+		t.Error("a aba Itens carrega o bloqueio")
+	}
+	if !strings.Contains(personagens, "Guerreira") {
+		t.Error("a aba Personagens não tem o elenco")
+	}
+	if strings.Contains(personagens, "Entregar item") {
+		t.Error("a aba Personagens carrega a entrega")
+	}
+}
+
+// The header is the page's identity, not one of the subjects, so it survives
+// every tab: without it a moderator two clicks in has no idea whose account
+// they are looking at.
+func TestOCabecalhoDaContaFicaEmTodasAsAbas(t *testing.T) {
+	get := signedIn(t, newTestPanelEntrega(t, newFakeAudit(), newFakeGameData(), &fakeEntregas{}))
+	for _, aba := range []string{"", "?aba=personagens", "?aba=itens"} {
+		body := get("/contas/ana" + aba).Body.String()
+		if !strings.Contains(body, "<h1>ana</h1>") {
+			t.Errorf("%q: sem o nome da conta", aba)
+		}
+		if !strings.Contains(body, "Cargo") {
+			t.Errorf("%q: sem o cargo", aba)
+		}
+		if !strings.Contains(body, `class="abas-conta"`) {
+			t.Errorf("%q: sem as abas", aba)
+		}
+	}
+}
+
+// Every link written before the tabs existed points at /contas/{nome}, and an
+// unknown value in the query string is a typo, not a reason to 404.
+func TestAbaDesconhecidaCaiNaPadrao(t *testing.T) {
+	get := signedIn(t, newTestPanelFull(t, withTarget(roleAdmin), newFakeAudit(), newFakeWriter()))
+	for _, aba := range []string{"", "?aba=", "?aba=abacaxi"} {
+		rec := get("/contas/ana" + aba)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%q: status = %d, want 200", aba, rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "Bloquear") {
+			t.Errorf("%q: não caiu na aba Conta", aba)
+		}
 	}
 }

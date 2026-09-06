@@ -676,9 +676,15 @@ func TestContasCapsTheListingAndSaysSo(t *testing.T) {
 func TestContaShowsAccountAndCharacters(t *testing.T) {
 	acc := newFakeAccounts(roleAdmin)
 	acc.addChar(42, domain.Character{Slot: 0, Name: "Hanteste", Level: 7, Coin: 900000, Hp: 105, MaxHp: 105})
-	body := signedIn(t, newTestPanel(t, acc))("/contas/chefe").Body.String()
+	// A conta e a lista de personagens vivem em abas diferentes agora, então a
+	// identidade da conta é conferida na aba padrão e o elenco na dele.
+	get := signedIn(t, newTestPanel(t, acc))
+	if !strings.Contains(get("/contas/chefe").Body.String(), "chefe") {
+		t.Error("detail page missing the account name")
+	}
+	body := get("/contas/chefe?aba=personagens").Body.String()
 
-	for _, want := range []string{"chefe", "Hanteste", "900000", "105"} {
+	for _, want := range []string{"Hanteste", "900000", "105"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("detail page missing %q", want)
 		}
@@ -713,7 +719,7 @@ func TestContaNeverRendersThePasswordHash(t *testing.T) {
 }
 
 func TestContaWithNoCharacters(t *testing.T) {
-	body := signedIn(t, newTestPanel(t, newFakeAccounts(roleAdmin)))("/contas/chefe").Body.String()
+	body := signedIn(t, newTestPanel(t, newFakeAccounts(roleAdmin)))("/contas/chefe?aba=personagens").Body.String()
 	if !strings.Contains(body, "ainda não criou personagem") {
 		t.Error("empty roster does not say so")
 	}
@@ -2669,7 +2675,7 @@ func TestFilaApareceNaPaginaDaConta(t *testing.T) {
 		{ID: 3, ItemIndex: 1415, Eff: [3][2]uint8{{7, 42}}, CriadoEm: time.Now(), Origem: "painel:1"},
 	}}
 	get := signedIn(t, newTestPanelEntrega(t, newFakeAudit(), newFakeGameData(), ent))
-	body := get("/contas/ana").Body.String()
+	body := get("/contas/ana?aba=itens").Body.String()
 
 	for _, want := range []string{"Entregar item", "Na fila", "1415", "7/42", "permanente"} {
 		if !strings.Contains(body, want) {

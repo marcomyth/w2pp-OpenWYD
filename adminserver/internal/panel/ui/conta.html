@@ -36,7 +36,7 @@
   <h1>{{.Conta.Name}}</h1>
   <p class="sub"><a href="/contas">Voltar para a busca</a></p>
 
-  {{template "abas-conta" (dict "Conta" .Conta.Name "Personagem" 0 "TemPersonagem" false "Aba" "conta")}}
+  {{template "abas-conta" (dict "Conta" .Conta.Name "Personagem" 0 "TemPersonagem" false "Aba" .Aba)}}
 
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
@@ -106,6 +106,7 @@
     </div>
   </div>
 
+  {{if eq .Aba "conta"}}
   {{if .EhVoce}}
     <p class="sub" style="margin-bottom:34px">
       Esta é a sua própria conta. Alterar o próprio cargo ou bloqueio não é
@@ -212,6 +213,9 @@
     </div>
   {{end}}
 
+  {{end}}{{/* fim da aba Conta */}}
+
+  {{if eq .Aba "itens"}}
   {{if .PodeEntregar}}
   <h2>Entregar item</h2>
   <p class="sub" style="margin-bottom:14px">
@@ -296,6 +300,9 @@
   {{end}}
   {{end}}
 
+  {{end}}{{/* fim da aba Itens */}}
+
+  {{if eq .Aba "personagens"}}
   <h2>Personagens</h2>
   {{if .NaoLeu.personagens}}
     {{template "falha-de-leitura" "os personagens desta conta"}}
@@ -344,6 +351,7 @@
   {{else}}
     <div class="vazio">Esta conta ainda não criou personagem.</div>
   {{end}}
+  {{end}}{{/* fim da aba Personagens */}}
 </main>
 </body>
 </html>
