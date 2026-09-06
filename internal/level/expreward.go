@@ -1,5 +1,7 @@
 package level
 
+import "math"
+
 const (
 	classArch        uint8 = 1
 	classMortal      uint8 = 2
@@ -156,6 +158,51 @@ func ExpReward(in ExpRewardInput) int64 {
 		return 0
 	}
 	return exp
+}
+
+// ExpOverflow reports whether this kill trips the legacy's 32-bit overflow, and
+// the largest MobExp that would still pay if it does.
+//
+// Only the three Pesadelo branches can: they scale with
+// `(30+myLevel) * isExp / (30+myLevel)`, algebraically the identity but computed
+// on a 32-bit int, so the product wraps and the (0,10M] gate then throws the
+// result away. A celestial tier carries the +MaxLevel+1 level offset, which
+// roughly doubles the multiplier and drags the ceiling down into the range real
+// boss templates already occupy.
+//
+// It exists so a screen can tell "this mob pays nothing because the killer is
+// the wrong level" apart from "this mob pays nothing because its Exp is above
+// what this dungeon can represent". Those look identical in game and have
+// opposite fixes: the second one is undone by LOWERING the reward.
+//
+// limit is the highest MobExp that still fits, valid only when overflows is
+// true. It is derived from the same expression ExpReward uses rather than
+// restated, so the two cannot drift apart.
+func ExpOverflow(in ExpRewardInput) (overflows bool, limit int64) {
+	r := in.Zone.rule()
+	if !r.identityBase {
+		return false, 0
+	}
+	isExp := ExpApply(in.MobExp, in.KillerLevel, in.MobLevel, in.Tier)
+	if isExp <= 0 {
+		return false, 0
+	}
+	myLevel := int64(in.KillerLevel)
+	if cm := in.Tier.ClassMaster; cm != classMortal && cm != classArch {
+		myLevel += int64(MaxLevel) + 1
+	}
+	d := int64(int32(30 + myLevel))
+	if d <= 0 {
+		return false, 0
+	}
+	maxIsExp := int64(math.MaxInt32) / d
+	if isExp <= maxIsExp {
+		return false, 0
+	}
+	// ExpApply scales MobExp linearly for a fixed (killer, mob) pair, so the
+	// largest MobExp that still fits is found by scaling back by the same ratio.
+	// Rounding down keeps the answer on the paying side of the edge.
+	return true, in.MobExp * maxIsExp / isExp
 }
 
 func isCelestialTier(classMaster uint8) bool {
