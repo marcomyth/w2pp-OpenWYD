@@ -17,6 +17,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -529,6 +530,23 @@ func (h *Handler) contas(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Erro ao buscar contas.", http.StatusInternalServerError)
 		return
 	}
+	// Ordered before the cut: sorting only what survived the cap would answer a
+	// different question — "the biggest of the first fifty" instead of "the
+	// biggest".
+	o := ordemDe(r, "conta", "cargo", "situacao", "doacao")
+	switch o.Por {
+	case "conta":
+		sort.SliceStable(found, o.Menor(func(i, j int) bool { return found[i].Name < found[j].Name }))
+	case "cargo":
+		sort.SliceStable(found, o.Menor(func(i, j int) bool { return found[i].Role < found[j].Role }))
+	case "situacao":
+		// Blocked first when ascending: a list sorted by situation is being read
+		// to find the blocked ones.
+		sort.SliceStable(found, o.Menor(func(i, j int) bool { return found[i].IsBlocked && !found[j].IsBlocked }))
+	case "doacao":
+		sort.SliceStable(found, o.Menor(func(i, j int) bool { return found[i].DonateBalance < found[j].DonateBalance }))
+	}
+
 	truncado := len(found) > searchLimit
 	if truncado {
 		found = found[:searchLimit]
@@ -536,11 +554,13 @@ func (h *Handler) contas(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "contas.html", struct {
 		page
+		Ordem    ordem
+		Extras   url.Values
 		Query    string
 		Contas   []accounts.Achado
 		Truncado bool
 		Limite   int
-	}{h.pageFor(r, "contas"), q, found, truncado, searchLimit})
+	}{h.pageFor(r, "contas"), o, r.URL.Query(), q, found, truncado, searchLimit})
 }
 
 // conta shows one account and its characters.
@@ -1307,6 +1327,20 @@ func (h *Handler) itens(w http.ResponseWriter, r *http.Request) {
 			http.StatusBadGateway)
 		return
 	}
+	// Ordered before the cut, so "the twenty cheapest" is the twenty cheapest of
+	// the catalog and not of whichever twenty came back first.
+	o := ordemDe(r, "indice", "nome", "grau", "preco")
+	switch o.Por {
+	case "indice":
+		sort.SliceStable(achados, o.Menor(func(i, j int) bool { return achados[i].Index < achados[j].Index }))
+	case "nome":
+		sort.SliceStable(achados, o.Menor(func(i, j int) bool { return achados[i].DisplayName < achados[j].DisplayName }))
+	case "grau":
+		sort.SliceStable(achados, o.Menor(func(i, j int) bool { return achados[i].Grade < achados[j].Grade }))
+	case "preco":
+		sort.SliceStable(achados, o.Menor(func(i, j int) bool { return achados[i].Price < achados[j].Price }))
+	}
+
 	truncado := len(achados) > itensLimit
 	if truncado {
 		achados = achados[:itensLimit]
@@ -1314,6 +1348,8 @@ func (h *Handler) itens(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "itens.html", struct {
 		page
+		Ordem    ordem
+		Extras   url.Values
 		Query    string
 		Itens    []gamedata.Item
 		Truncado bool
@@ -1321,7 +1357,7 @@ func (h *Handler) itens(w http.ResponseWriter, r *http.Request) {
 		Versao   string
 		Aviso    string
 	}{
-		h.pageFor(r, "itens"), q, achados, truncado, itensLimit,
+		h.pageFor(r, "itens"), o, r.URL.Query(), q, achados, truncado, itensLimit,
 		h.cfg.GameData.CatalogVersion(), r.URL.Query().Get("aviso"),
 	})
 }

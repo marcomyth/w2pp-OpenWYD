@@ -107,6 +107,21 @@
   a { color: var(--accent); }
   h2 { font-size: 1rem; margin: 0 0 12px; letter-spacing: -0.005em; }
 
+  /* Cabeçalho que ordena. A seta é borda, não caractere: um triângulo de texto
+     vira emoji colorido em parte dos sistemas, e isto é uma tabela. */
+  th a.ord {
+    color: inherit; text-decoration: none; display: inline-flex;
+    align-items: center; gap: 6px; white-space: nowrap;
+  }
+  th a.ord:hover { color: var(--ink); }
+  th a.ord::after {
+    content: ""; width: 0; height: 0; opacity: 0;
+    border-left: 3.5px solid transparent; border-right: 3.5px solid transparent;
+  }
+  th a.ord.asc::after { border-bottom: 4px solid currentColor; opacity: 1; }
+  th a.ord.desc::after { border-top: 4px solid currentColor; opacity: 1; }
+  th a.ord.asc, th a.ord.desc { color: var(--ink); }
+
   .tw { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: 14px; }
   th {
@@ -474,6 +489,16 @@
      Agora cada assunto é uma aba, e o cabeçalho da conta — nome, cargo,
      situação — fica em todas, porque é a identidade da página e não um
      assunto. */}}
+{{/* Um cabeçalho de coluna que ordena.
+     Sem JavaScript: é um link de volta para a mesma página com a ordem na
+     query. A seta é desenhada em CSS, não é caractere — assim ela nunca vira
+     emoji no sistema de ninguém. */}}
+{{define "coluna"}}
+<th class="{{.Classe}}">
+  <a class="ord {{.Marca}}" href="{{.Href}}">{{.Rotulo}}</a>
+</th>
+{{end}}
+
 {{define "abas-conta"}}
 <div class="abas-conta">
   <a href="/contas/{{.Conta}}" {{if eq .Aba "conta"}}class="on"{{end}}>Conta</a>

@@ -44,11 +44,12 @@
       <table>
         <thead>
           <tr>
-            <th class="num">Índice</th>
-            <th>Item</th>
+            {{$o := .Ordem}}{{$e := .Extras}}
+            {{template "coluna" (dict "Rotulo" "Índice" "Classe" "num" "Marca" ($o.Marca "indice") "Href" ($o.Link "/itens" "indice" $e))}}
+            {{template "coluna" (dict "Rotulo" "Item" "Classe" "" "Marca" ($o.Marca "nome") "Href" ($o.Link "/itens" "nome" $e))}}
             <th>Onde equipa</th>
-            <th class="num">Grau</th>
-            <th>Preço</th>
+            {{template "coluna" (dict "Rotulo" "Grau" "Classe" "num" "Marca" ($o.Marca "grau") "Href" ($o.Link "/itens" "grau" $e))}}
+            {{template "coluna" (dict "Rotulo" "Preço" "Classe" "" "Marca" ($o.Marca "preco") "Href" ($o.Link "/itens" "preco" $e))}}
             <th>Atributos</th>
           </tr>
         </thead>
