@@ -30,6 +30,7 @@ type fakeAPI struct {
 
 	deliveriesResp       *dbv1.ListPendingDeliveriesResponse
 	reports              []*dbv1.RecordReportRequest
+	chao                 []*dbv1.RecordGroundRequest
 	savedCargoDeliveries *dbv1.SaveCargoWithDeliveriesRequest
 
 	pinSetOK   bool
@@ -453,6 +454,11 @@ func (f *fakeAPI) ClearAllPresence(context.Context, *dbv1.ClearAllPresenceReques
 
 func (f *fakeAPI) RecordTrade(context.Context, *dbv1.RecordTradeRequest, ...grpc.CallOption) (*dbv1.RecordTradeResponse, error) {
 	return &dbv1.RecordTradeResponse{Ok: true}, nil
+}
+
+func (f *fakeAPI) RecordGround(_ context.Context, req *dbv1.RecordGroundRequest, _ ...grpc.CallOption) (*dbv1.RecordGroundResponse, error) {
+	f.chao = append(f.chao, req)
+	return &dbv1.RecordGroundResponse{Ok: true}, nil
 }
 
 func (f *fakeAPI) RecordReport(_ context.Context, req *dbv1.RecordReportRequest, _ ...grpc.CallOption) (*dbv1.RecordReportResponse, error) {

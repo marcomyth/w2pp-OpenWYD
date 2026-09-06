@@ -355,6 +355,9 @@ type Persistence interface {
 	// loop and best-effort: the player has already been told the report went
 	// in, so a failed write is logged and nothing is retried.
 	RecordReport(ctx context.Context, r PlayerReport) error
+	// RecordGround stores one drop or pickup (0031_ground_log). Called off the
+	// loop and best-effort: the item already moved in the world.
+	RecordGround(ctx context.Context, g GroundEvent) error
 	// SetCharacterPresence marks a character in-play (login) or out (logout or
 	// disconnect), so the staff panel can tell whether the database is the
 	// authority for that character's items. Bookkeeping only — nothing in the
@@ -478,6 +481,9 @@ func (NopPersistence) RecordTrade(context.Context, TradeRecord) error { return n
 // RecordReport does nothing: without a backend there is nowhere to file it.
 func (NopPersistence) RecordReport(context.Context, PlayerReport) error { return nil }
 
+// RecordGround does nothing.
+func (NopPersistence) RecordGround(context.Context, GroundEvent) error { return nil }
+
 // SetCharacterPresence does nothing: presence exists only for the staff panel,
 // which is not there either when there is no database.
 func (NopPersistence) SetCharacterPresence(context.Context, string, bool) error { return nil }
@@ -552,6 +558,31 @@ func (NopPersistence) SaveCastleQuestState(context.Context, CastleQuestState) er
 type TradeItem struct {
 	Index int32
 	Eff   [3][2]uint8
+}
+
+// The two halves of a ground transfer. Strings rather than a bool because a bool
+// named Dropped reads as its opposite half the time, and these travel to the
+// database as text anyway.
+const (
+	GroundLargou = "largou"
+	GroundPegou  = "pegou"
+)
+
+// GroundEvent is one item dropped on or taken from the floor, as the loop saw it.
+//
+// The floor was the only route an item could take between two players with no
+// record at all — getItem hands a floor item to anyone within three tiles with
+// no owner check. That is exactly why a determined scammer uses it.
+type GroundEvent struct {
+	// Acao is "largou" or "pegou". Kept as a string rather than a bool because a
+	// bool named Dropped reads as its opposite half the time.
+	Acao      string
+	AccountID int64
+	Character string
+	Item      Item
+	X, Y      int16
+	// GroundID pairs a drop with the pickup that followed.
+	GroundID int32
 }
 
 // PlayerReport is one /reportar as the loop saw it: what the player wrote, and

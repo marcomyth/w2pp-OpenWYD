@@ -80,6 +80,16 @@ service AccountService {
   // into an error on their screen, so the tmServer logs the failure and moves on.
   rpc RecordReport(RecordReportRequest) returns (RecordReportResponse);
 
+  // RecordGround stores one drop or pickup (0031_ground_log).
+  //
+  // The floor was the one route an item could take between two players leaving
+  // no record at all: getItem hands a floor item to anyone within three tiles
+  // with no owner check, which is exactly why a determined scammer uses it.
+  //
+  // Best-effort like the others: the item already moved in the world, and
+  // failing to write about it must not undo that.
+  rpc RecordGround(RecordGroundRequest) returns (RecordGroundResponse);
+
   // SetCharacterPresence marks a character as in-play (login) or out (logout or
   // disconnect), so the staff panel can tell whether the database is the
   // authority for that character's items.
@@ -412,6 +422,27 @@ message RecordTradeRequest {
 message RecordTradeResponse { bool ok = 1; }
 
 // RecordReportRequest is one player report and the snapshot around it.
+message RecordGroundRequest {
+  // "largou" or "pegou". An item changing hands through the floor writes both.
+  string acao = 1;
+  int64 account_id = 2;  // 0 when unknown
+  string character = 3;
+  int32 item_index = 4;
+  int32 eff1 = 5;
+  int32 effv1 = 6;
+  int32 eff2 = 7;
+  int32 effv2 = 8;
+  int32 eff3 = 9;
+  int32 effv3 = 10;
+  int32 pos_x = 11;
+  int32 pos_y = 12;
+  // ground_id is the item's slot in the server's floor array. Reused over time,
+  // so it identifies nothing forever — but it pairs a drop with the pickup that
+  // followed, which is the question anybody reading this asks.
+  int32 ground_id = 13;
+}
+message RecordGroundResponse { bool ok = 1; }
+
 message RecordReportRequest {
   int64 account_id = 1;  // 0 when unknown
   string account = 2;

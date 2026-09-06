@@ -62,6 +62,11 @@ func TestServiceOverWire(t *testing.T) {
 
 func (f *fakeStore) RecordTrade(context.Context, domain.TradeRecord) error { return nil }
 
+func (f *fakeStore) RecordGround(_ context.Context, g domain.GroundEvent) error {
+	f.chao = append(f.chao, g)
+	return nil
+}
+
 func (f *fakeStore) RecordReport(_ context.Context, r domain.PlayerReport) error {
 	f.reports = append(f.reports, r)
 	return nil

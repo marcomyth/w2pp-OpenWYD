@@ -16,6 +16,19 @@
   .lado ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 13.5px; }
   .lado .ouro { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 13.5px; }
   .lado .nada { color: var(--ink-3); font-size: 13.5px; }
+
+  .secao { margin-top: 40px; }
+  .filtros { display: flex; gap: 8px; margin: 0 0 16px; font-size: 13px; }
+  .filtros a {
+    border: 1px solid var(--rule); border-radius: 3px; padding: 5px 11px;
+    color: var(--ink-2); text-decoration: none;
+  }
+  .filtros a.on { border-color: var(--ink-3); color: var(--ink); background: var(--surface); }
+  .acao {
+    font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  td.par { color: var(--ink-3); font-size: 13px; }
 </style>
 </head>
 <body>
@@ -26,9 +39,10 @@
   <p class="sub">O que dois jogadores trocaram entre si, do mais recente para o mais antigo.</p>
 
   <div class="nota">
-    Isto cobre a janela de troca. <strong>Não cobre item largado no chão</strong>
-    para o outro pegar — o jogo entrega um item do chão a qualquer um a três
-    passos, sem dono e sem registro. Quem quer burlar tem esse caminho.
+    Duas listas, porque item muda de dono por dois caminhos. Em cima, a janela
+    de troca. Embaixo, o chão — o jogo entrega um item largado a qualquer um a
+    três passos, sem checar dono, e era por ali que dava para passar coisa sem
+    deixar rastro. Agora deixa.
   </div>
 
   <form class="busca" method="get" action="/trocas">
@@ -37,6 +51,9 @@
     <button type="submit">Buscar</button>
   </form>
 
+  {{if .Falha.trocas}}{{template "falha-de-leitura" "as trocas"}}{{end}}
+
+  <h2>Na janela de troca</h2>
   {{if .Trocas}}
     {{range .Trocas}}
       <div class="troca">
@@ -75,6 +92,79 @@
       {{else}}Nenhuma troca registrada ainda.{{end}}
     </div>
   {{end}}
+
+  <div class="secao">
+    <h2>Pelo chão</h2>
+    <p class="sub">
+      Cada item largado e cada item pego. Quando um “pegou” cai na mesma casa
+      de chão de um “largou” recente, os dois viram um par — e um par com dois
+      nomes diferentes é item que passou de mão.
+    </p>
+
+    {{if .Falha.chao}}{{template "falha-de-leitura" "o registro do chão"}}{{end}}
+
+    <div class="filtros">
+      <a href="/trocas{{if .Personagem}}?personagem={{.Personagem}}{{end}}"
+         {{if not .SoMaos}}class="on"{{end}}>Tudo</a>
+      <a href="/trocas?maos=1{{if .Personagem}}&amp;personagem={{.Personagem}}{{end}}"
+         {{if .SoMaos}}class="on"{{end}}>Só o que passou de mão</a>
+    </div>
+
+    {{if .Chao}}
+      <div class="tw">
+        <table>
+          <thead>
+            <tr>
+              <th>Quando</th>
+              <th>Ação</th>
+              <th>Personagem</th>
+              <th>Item</th>
+              <th class="num">Onde</th>
+              <th>Par</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .Chao}}
+            <tr>
+              <td class="mono">{{.At.Local.Format "02/01 15:04:05"}}</td>
+              <td class="acao">{{if .Largou}}largou{{else}}pegou{{end}}</td>
+              <td>{{.Character}}</td>
+              <td>item {{.Item.Index}}{{range .Item.Eff}}{{if index . 0}} · {{index . 0}}/{{index . 1}}{{end}}{{end}}</td>
+              <td class="num mono">{{.X}}, {{.Y}}</td>
+              <td class="par">
+                {{if .TrocouMao}}
+                  <span class="chip-danger">passou de mão</span>
+                  de {{.De}}, {{.Espera}}
+                {{else if .De}}
+                  ele mesmo, {{.Espera}}
+                {{end}}
+              </td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{if .ChaoCheio}}
+        <p class="sub" style="margin-top:14px">
+          Mostrando as {{.ChaoLimite}} linhas mais recentes. Um “pegou” cujo
+          “largou” ficou fora dessas linhas aparece sem par, mesmo tendo um.
+          Busque por um personagem para estreitar.
+        </p>
+      {{end}}
+    {{else}}
+      <div class="vazio">
+        {{if .SoMaos}}
+          Nada passou de mão pelo chão nas últimas {{.ChaoTotal}} linhas
+          registradas{{if .Personagem}} de “{{.Personagem}}”{{end}}.
+        {{else if .Personagem}}
+          Nada registrado no chão para “{{.Personagem}}”.
+        {{else}}
+          Nada registrado no chão ainda. Cada item largado ou pego passa a
+          aparecer aqui, e some depois de 30 dias.
+        {{end}}
+      </div>
+    {{end}}
+  </div>
 </main>
 </body>
 </html>

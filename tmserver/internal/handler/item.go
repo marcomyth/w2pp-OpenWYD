@@ -73,6 +73,7 @@ func (d *Dispatcher) dropItem(w *world.World, s *world.Session, _ protocol.Heade
 	}
 	e.Carry[slot] = world.Item{} // clear source
 	w.Send(s, protocol.MsgCNFDropItem, slotPayload(slot))
+	d.registraChao(w, s, world.GroundLargou, item, int16(body.GridX), int16(body.GridY), int32(id))
 	// UNVERIFIED: _MSG_CreateItem broadcast (ground spawn in view) — deferred.
 }
 
@@ -121,9 +122,52 @@ func (d *Dispatcher) getItem(w *world.World, s *world.Session, _ protocol.Header
 	if !carrySlotAccessible(e, slot) || !e.Carry[slot].Empty() {
 		return // inventory full/locked/occupied → leave on floor
 	}
-	e.Carry[slot] = gi.Item
+	pego := gi.Item
+	e.Carry[slot] = pego
+	gx, gy := gi.X, gi.Y
 	w.RemoveGroundItem(id) // atomic claim point
 	w.Send(s, protocol.MsgCNFGetItem, slotPayload(slot))
+	// Captured before RemoveGroundItem: after it, gi is a slot the world may
+	// hand to the next drop, and reading position off it would record wherever
+	// that one happened to land.
+	d.registraChao(w, s, world.GroundPegou, pego, gx, gy, int32(id))
+}
+
+// registraChao files one drop or pickup.
+//
+// The floor was the only route an item could take between two players with no
+// record at all: getItem hands a floor item to anyone within three tiles with no
+// owner check, which is why the trade log's own comment named it as the hole a
+// determined scammer uses. Two rows — a "largou" and the "pegou" that followed,
+// sharing the floor slot — are what turn that into a question somebody can
+// answer.
+//
+// Detached rather than bound to the session: the record belongs to the server,
+// not to whether this player is still connected when the write lands. And
+// best-effort, like the trade log — the item already moved in the world, and a
+// slow database must not undo that.
+func (d *Dispatcher) registraChao(w *world.World, s *world.Session, acao string,
+	it world.Item, x, y int16, chaoID int32,
+) {
+	e := w.Entity(s.Conn)
+	nome := ""
+	if e != nil {
+		nome = e.Name
+	}
+	g := world.GroundEvent{
+		Acao: acao, AccountID: s.AccountID, Character: nome,
+		Item: it, X: x, Y: y, GroundID: chaoID,
+	}
+	p := w.Persistence()
+	w.GoDetached(func() func(*world.World) {
+		if err := p.RecordGround(context.Background(), g); err != nil {
+			return func(*world.World) {
+				d.log.Warn("ground log: persistence failed",
+					"acao", g.Acao, "character", g.Character, "err", err)
+			}
+		}
+		return nil
+	})
 }
 
 // deleteItem handles _MSG_DeleteItem (0x02E4, Basedef.h:2371): destroy a carry

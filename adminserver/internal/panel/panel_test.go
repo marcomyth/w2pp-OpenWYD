@@ -3166,10 +3166,23 @@ func TestFalhaAoLerOBloqueioEncerraASessao(t *testing.T) {
 // --- trocas ---
 
 type fakeTrocas struct {
-	mu      sync.Mutex
-	trocas  []domain.TradeRecord
-	pedidos []store.TradeQuery
-	err     error
+	mu          sync.Mutex
+	trocas      []domain.TradeRecord
+	pedidos     []store.TradeQuery
+	err         error
+	chao        []domain.GroundEvent
+	pedidosChao []store.GroundQuery
+	errChao     error
+}
+
+func (f *fakeTrocas) ListGround(_ context.Context, q store.GroundQuery) ([]domain.GroundEvent, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.errChao != nil {
+		return nil, f.errChao
+	}
+	f.pedidosChao = append(f.pedidosChao, q)
+	return f.chao, nil
 }
 
 func (f *fakeTrocas) ListTrades(_ context.Context, q store.TradeQuery) ([]domain.TradeRecord, error) {
@@ -3226,15 +3239,88 @@ func TestTrocasMostraOsDoisLados(t *testing.T) {
 	}
 }
 
-func TestTrocasAvisaDoItemLargadoNoChao(t *testing.T) {
-	// The screen cannot see a hand-off by dropping: getItem gives a ground item
-	// to anyone within three tiles, with no owner check and no log. A moderator
-	// who does not know that will read an empty result as proof of innocence.
-	tl := &fakeTrocas{}
+// umaPassagemDeMao is the case the ground log exists for: A drops, B takes it
+// from the same floor slot moments later.
+func umaPassagemDeMao(base time.Time) []domain.GroundEvent {
+	item := domain.TradeItem{Index: 1415, Eff: [3][2]uint8{{7, 42}}}
+	return []domain.GroundEvent{ // newest first, the order the store returns
+		{ID: 2, At: base.Add(14 * time.Second), Acao: domain.GroundPegou,
+			Character: "Pegador", Item: item, X: 2100, Y: 2100, GroundID: 9},
+		{ID: 1, At: base, Acao: domain.GroundLargou,
+			Character: "Doador", Item: item, X: 2100, Y: 2100, GroundID: 9},
+	}
+}
+
+func TestTrocasMostraOChaoEmparelhado(t *testing.T) {
+	// The floor used to be the route with no record: getItem gives a ground item
+	// to anyone within three tiles, with no owner check. The page has to show
+	// both halves and say plainly that the item changed owner.
+	tl := &fakeTrocas{chao: umaPassagemDeMao(time.Now().Add(-time.Minute))}
 	get := signedIn(t, newTestPanelTrocas(t, tl))
 	body := get("/trocas").Body.String()
-	if !strings.Contains(body, "largado no chão") {
-		t.Error("a página não avisa do caminho que ela não enxerga")
+
+	for _, want := range []string{"Pelo chão", "Doador", "Pegador", "passou de mão", "14s depois", "2100, 2100"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a página não traz %q", want)
+		}
+	}
+	if tl.pedidosChao[0].Limit != chaoLimit {
+		t.Errorf("limite do chão = %d, want %d", tl.pedidosChao[0].Limit, chaoLimit)
+	}
+}
+
+func TestTrocasFiltraSoAsPassagensDeMao(t *testing.T) {
+	base := time.Now().Add(-time.Minute)
+	rows := umaPassagemDeMao(base)
+	// Somebody dropping and taking their own item back is noise, not a hand-off.
+	rows = append(rows, domain.GroundEvent{
+		ID: 4, At: base.Add(-time.Minute), Acao: domain.GroundPegou,
+		Character: "Sozinho", Item: domain.TradeItem{Index: 30}, GroundID: 3,
+	}, domain.GroundEvent{
+		ID: 3, At: base.Add(-2 * time.Minute), Acao: domain.GroundLargou,
+		Character: "Sozinho", Item: domain.TradeItem{Index: 30}, GroundID: 3,
+	})
+	get := signedIn(t, newTestPanelTrocas(t, &fakeTrocas{chao: rows}))
+	body := get("/trocas?maos=1").Body.String()
+
+	if !strings.Contains(body, "Pegador") {
+		t.Error("o filtro escondeu a passagem de mão")
+	}
+	if strings.Contains(body, "Sozinho") {
+		t.Error("o filtro deixou passar quem pegou o próprio item de volta")
+	}
+}
+
+// A failed read of one list must not take the other down with it: the moderator
+// still gets the trade window, and is told the floor is missing rather than
+// reading an empty floor as proof that nothing happened.
+func TestTrocasFalhaDoChaoNaoDerrubaAPagina(t *testing.T) {
+	tl := &fakeTrocas{trocas: []domain.TradeRecord{umaTroca()}, errChao: errors.New("sem banco")}
+	get := signedIn(t, newTestPanelTrocas(t, tl))
+	rec := get("/trocas")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Vendedor") {
+		t.Error("a lista que funcionou sumiu junto com a que falhou")
+	}
+	if !strings.Contains(body, "o registro do chão") {
+		t.Error("a página não avisa que não conseguiu ler o chão")
+	}
+}
+
+// The floor slot is reused, so pairing on the slot alone would invent a link
+// between two items that never touched each other.
+func TestEmparelhaChaoIgnoraCasaReusada(t *testing.T) {
+	base := time.Now()
+	rows := []domain.GroundEvent{
+		{At: base, Acao: domain.GroundPegou, Character: "Depois", GroundID: 9},
+		{At: base.Add(-2 * chaoParMax), Acao: domain.GroundLargou, Character: "Antes", GroundID: 9},
+	}
+	got := emparelhaChao(rows)
+	if got[0].De != "" || got[0].TrocouMao {
+		t.Errorf("emparelhou através de %v: %+v", 2*chaoParMax, got[0])
 	}
 }
 

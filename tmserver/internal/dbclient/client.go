@@ -867,6 +867,22 @@ func (c *Client) RecordReport(ctx context.Context, r world.PlayerReport) error {
 	return nil
 }
 
+// RecordGround stores one drop or pickup (0031_ground_log).
+func (c *Client) RecordGround(ctx context.Context, g world.GroundEvent) error {
+	_, err := c.api.RecordGround(ctx, &dbv1.RecordGroundRequest{
+		Acao: g.Acao, AccountId: g.AccountID, Character: g.Character,
+		ItemIndex: int32(g.Item.Index),
+		Eff1:      int32(g.Item.Effects[0].Effect), Effv1: int32(g.Item.Effects[0].Value),
+		Eff2: int32(g.Item.Effects[1].Effect), Effv2: int32(g.Item.Effects[1].Value),
+		Eff3: int32(g.Item.Effects[2].Effect), Effv3: int32(g.Item.Effects[2].Value),
+		PosX: int32(g.X), PosY: int32(g.Y), GroundId: g.GroundID,
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: record ground: %w", err)
+	}
+	return nil
+}
+
 // SetCharacterPresence marks a character in-play or out for the staff panel.
 func (c *Client) SetCharacterPresence(ctx context.Context, name string, online bool) error {
 	resp, err := c.api.SetCharacterPresence(ctx, &dbv1.SetCharacterPresenceRequest{

@@ -208,13 +208,21 @@ type Live interface {
 	Drenar(ctx context.Context, aviso string) (jogo.Drenagem, error)
 }
 
-// TradeLog reads the player-to-player trade records the tmServer writes.
+// TradeLog reads the records of items changing hands: the trade window
+// (0025_trade_log) and the floor (0031_ground_log).
+//
+// Both on one interface because both answer the same question, and for a while
+// only the first half existed — the trade log's own comment named the floor as
+// the hole a determined scammer uses, since the game hands a floor item to
+// anyone three steps away with no owner check. Reading one without the other
+// gives a confident answer that is wrong.
 //
 // It is satisfied by *store.Store rather than a panel-owned package, unlike the
 // account writes: the row decoding is shared with the write path the dbServer
 // uses, and two copies of it would be free to disagree about the JSON shape.
 type TradeLog interface {
 	ListTrades(ctx context.Context, q store.TradeQuery) ([]domain.TradeRecord, error)
+	ListGround(ctx context.Context, q store.GroundQuery) ([]domain.GroundEvent, error)
 }
 
 // Platform is the hosting API, used to report the game server's boot time and

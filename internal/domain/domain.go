@@ -852,3 +852,45 @@ type XPConfig struct {
 	Version int64
 	Rules   []XPRule
 }
+
+// GroundAcao is which half of a ground transfer a row records.
+type GroundAcao string
+
+// The two halves. An item that changes hands through the floor writes both.
+const (
+	GroundLargou GroundAcao = "largou"
+	GroundPegou  GroundAcao = "pegou"
+)
+
+// GroundEvent is one item dropped on or taken from the floor (0031_ground_log).
+//
+// The floor was the one path an item could take between two players with no
+// record at all — the trade log's own comment named it as the hole a determined
+// scammer uses. This closes it, and it is also what lets an item census tell a
+// duplicate from something that simply fell on the ground.
+type GroundEvent struct {
+	ID   int64
+	At   time.Time
+	Acao GroundAcao
+
+	AccountID int64 // 0 when unknown
+	Character string
+
+	// Item carries the instance effects, which is what separates the refined
+	// sword from the plain one when both share an index.
+	Item TradeItem
+
+	X, Y int32
+	// GroundID is the item's slot in the server's floor array. It is reused over
+	// time, so it does not identify an item forever — but it pairs a "largou"
+	// with the "pegou" that followed, which is the question somebody asks when
+	// reading this.
+	GroundID int32
+}
+
+// GroundRetentionDays is how long a ground event is kept.
+//
+// By VOLUME, not by privacy: dropping things is constant, and without a sweep
+// the table would grow forever holding discarded potions from two years ago.
+// Thirty days covers the gap between a scam and the ticket it produces.
+const GroundRetentionDays = 30

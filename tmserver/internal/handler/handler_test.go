@@ -61,6 +61,7 @@ type fakeDB struct {
 	presence     map[string]bool       // captured SetCharacterPresence calls
 	duelResults  []duelResult          // captured RecordDuelResult calls (issue #118)
 	trades       []world.TradeRecord   // captured RecordTrade calls (0025_trade_log)
+	grounds      []world.GroundEvent   // captured RecordGround calls (0031_ground_log)
 
 	createdGuilds []world.GuildRecord
 	guildCosts    []int32
@@ -242,6 +243,32 @@ func (f *fakeDB) RecordDuelResult(_ context.Context, winnerName, loserName strin
 	defer f.mu.Unlock()
 	f.duelResults = append(f.duelResults, duelResult{winner: winnerName, loser: loserName})
 	return nil
+}
+
+func (f *fakeDB) RecordGround(_ context.Context, g world.GroundEvent) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.grounds = append(f.grounds, g)
+	return nil
+}
+
+// groundEvents waits for at least n ground rows and returns them. The write is
+// detached from the game loop, so the count is what the test can wait on.
+func (f *fakeDB) groundEvents(t *testing.T, n int) []world.GroundEvent {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		f.mu.Lock()
+		got := append([]world.GroundEvent(nil), f.grounds...)
+		f.mu.Unlock()
+		if len(got) >= n {
+			return got
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("ground log: got %d rows, want %d", len(got), n)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func (f *fakeDB) RecordTrade(_ context.Context, t world.TradeRecord) error {

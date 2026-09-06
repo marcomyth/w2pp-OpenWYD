@@ -9,6 +9,7 @@ package store
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,48 +35,12 @@ func testPool(t *testing.T) *pgxpool.Pool {
 }
 
 // resetTestSchema drops every table any migration creates, so a re-run starts
-// from an empty database. It must list them ALL: `DROP TABLE account CASCADE`
-// drops dependent *constraints*, not dependent *tables*, so a table omitted here
-// survives and the next Migrate fails with 42P07 (relation already exists).
+// from an empty database. The list lives in schemareset_test.go, beside the
+// test that keeps it in step with the migrations — it fell behind three times
+// while it sat here with nothing checking it.
 func resetTestSchema(ctx context.Context, pool *pgxpool.Pool) {
-	_, _ = pool.Exec(ctx, `
-		DROP TABLE IF EXISTS
-			player_report,
-			trade_log,
-			item_stat,
-			admin_audit_log,
-			sapphire_balance,
-			world_event_audit,
-			world_event_meta,
-			world_event_config,
-			npc_audit,
-			npc_shop_item,
-			npc_definition,
-			item_price,
-			npc_config_meta,
-			mob_template_equip,
-			mob_template_stat,
-			affect,
-			item,
-			character_pvp_stats,
-			character,
-			castle_quest_state,
-			guild_tower_state,
-			guild_zone,
-			guild_relation,
-			guild_member,
-			guild,
-			donate_topup_order,
-			donate_payer_profile,
-			account,
-			donate_shop_audit,
-			donate_shop_item,
-			daily_reward_audit,
-			daily_reward_claim,
-			daily_reward_item,
-			delivery_queue,
-			schema_migrations
-		CASCADE`)
+	_, _ = pool.Exec(ctx, `DROP TABLE IF EXISTS `+
+		strings.Join(tabelasDeTeste, ", ")+` CASCADE`)
 	_, _ = pool.Exec(ctx, `DROP TYPE IF EXISTS item_owner_kind`)
 }
 

@@ -3142,3 +3142,76 @@ func TestUsePortalScrollBlockedFromPesadeloSavePoint(t *testing.T) {
 		t.Errorf("carry slot 0 item = %d, want %d preserved (not consumed)", got, portal)
 	}
 }
+
+// TestChaoRegistraLargarEPegar is the point of the ground log: the floor was the
+// one route an item could take between two players leaving no record at all.
+// Drop then pick up, and the two rows have to pair — same floor slot, same item.
+func TestChaoRegistraLargarEPegar(t *testing.T) {
+	db := itemDB(1100)
+	addr, stop, _ := startServerClock(t, db)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	dropFrame(t, c, 0, 5, 5)
+	if ty, _, ok := readMaybe(t, c); !ok || ty != protocol.MsgCNFDropItem {
+		t.Fatalf("drop got %#x ok=%v, want CNFDropItem", ty, ok)
+	}
+	getFrame(t, c, world.GroundItemIDOffset+1, 0)
+	if ty, _, ok := readMaybe(t, c); !ok || ty != protocol.MsgCNFGetItem {
+		t.Fatalf("get got %#x ok=%v, want CNFGetItem", ty, ok)
+	}
+
+	rows := db.groundEvents(t, 2)
+	if len(rows) != 2 {
+		t.Fatalf("ground rows = %d, want exactly 2", len(rows))
+	}
+	if rows[0].Acao != world.GroundLargou || rows[1].Acao != world.GroundPegou {
+		t.Errorf("actions = %q,%q, want largou,pegou", rows[0].Acao, rows[1].Acao)
+	}
+	// Same floor slot is what pairs the two halves when somebody reads the log.
+	if rows[0].GroundID != rows[1].GroundID || rows[0].GroundID != 1 {
+		t.Errorf("ground ids = %d,%d, want both 1", rows[0].GroundID, rows[1].GroundID)
+	}
+	for i, g := range rows {
+		if g.Character != "Hero" {
+			t.Errorf("row %d character = %q, want Hero", i, g.Character)
+		}
+		if g.Item.Index != 1100 {
+			t.Errorf("row %d item index = %d, want 1100", i, g.Item.Index)
+		}
+		// The pickup reads the position before RemoveGroundItem clears the slot;
+		// getting zeroes here means that capture moved back after the removal.
+		if g.X != 5 || g.Y != 5 {
+			t.Errorf("row %d position = (%d,%d), want (5,5)", i, g.X, g.Y)
+		}
+	}
+}
+
+// TestChaoNaoRegistraDropRecusado: a drop the server refuses never happened, so
+// it must not show up in the log — a log that records non-events is worse than
+// none, because it sends whoever reads it after an item that never moved.
+func TestChaoNaoRegistraDropRecusado(t *testing.T) {
+	db := itemDB(508) // 508 is non-droppable
+	addr, stop, _ := startServerClock(t, db)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	dropFrame(t, c, 0, 5, 5)
+	if ty, _, ok := readMaybe(t, c); ok {
+		t.Fatalf("blacklisted drop produced %#x; should be blocked", ty)
+	}
+	// Nothing on the floor either, so the pickup is refused too.
+	getFrame(t, c, world.GroundItemIDOffset+1, 0)
+	if ty, _, ok := readMaybe(t, c); !ok || ty != protocol.MsgDecayItem {
+		t.Fatalf("get got %#x ok=%v, want DecayItem", ty, ok)
+	}
+
+	db.mu.Lock()
+	n := len(db.grounds)
+	db.mu.Unlock()
+	if n != 0 {
+		t.Errorf("ground rows = %d, want 0", n)
+	}
+}

@@ -40,6 +40,7 @@ type Store interface {
 	RecordDuelResult(ctx context.Context, winnerName, loserName string) error
 	RecordTrade(ctx context.Context, t domain.TradeRecord) error
 	RecordReport(ctx context.Context, r domain.PlayerReport) error
+	RecordGround(ctx context.Context, g domain.GroundEvent) error
 	SetCharacterPresence(ctx context.Context, name string, online bool) (bool, error)
 	ClearAllPresence(ctx context.Context) (int64, error)
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
@@ -590,6 +591,29 @@ func (s *Server) RecordReport(ctx context.Context, req *dbv1.RecordReportRequest
 		return nil, status.Errorf(codes.Internal, "record report: %v", err)
 	}
 	return &dbv1.RecordReportResponse{Ok: true}, nil
+}
+
+// RecordGround stores one drop or pickup. Best-effort like the trade log: the
+// item already moved in the world, and failing to write about it must not undo
+// that. The error comes back so the tmServer logs it; nothing is retried.
+func (s *Server) RecordGround(ctx context.Context, req *dbv1.RecordGroundRequest) (*dbv1.RecordGroundResponse, error) {
+	g := domain.GroundEvent{
+		Acao: domain.GroundAcao(req.GetAcao()), AccountID: req.GetAccountId(),
+		Character: req.GetCharacter(),
+		Item: domain.TradeItem{
+			Index: req.GetItemIndex(),
+			Eff: [3][2]uint8{
+				{uint8(req.GetEff1()), uint8(req.GetEffv1())},
+				{uint8(req.GetEff2()), uint8(req.GetEffv2())},
+				{uint8(req.GetEff3()), uint8(req.GetEffv3())},
+			},
+		},
+		X: req.GetPosX(), Y: req.GetPosY(), GroundID: req.GetGroundId(),
+	}
+	if err := s.store.RecordGround(ctx, g); err != nil {
+		return nil, status.Errorf(codes.Internal, "record ground: %v", err)
+	}
+	return &dbv1.RecordGroundResponse{Ok: true}, nil
 }
 
 // SetCharacterPresence marks a character in-play or out, so the staff panel can
