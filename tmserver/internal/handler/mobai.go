@@ -3,8 +3,8 @@ package handler
 import (
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combat"
-	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/rng"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/route"

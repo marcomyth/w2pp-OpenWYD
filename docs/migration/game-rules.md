@@ -19,10 +19,40 @@ MAX_USER`) morre por um jogador (`conn < MAX_USER`).
 > **Correção (issue #43):** a primeira versão desta seção transcreveu o branch dos mapas de
 > Pesadelo (`MobKilled.cpp:443-590`). O branch que governa mapas normais (incl. campo de treino)
 > é o **branch geral** em `MobKilled.cpp:1272-1425`, que difere no fator `450/(30+myLevel)`, nas
-> tabelas de divisores e no cap `eMob`. As §1.3–1.5 abaixo documentam o branch geral (o que o Go
-> implementa em `tmserver/internal/level/expreward.go`); os branches por mapa (Pesadelo
-> `:443-590/:592-735/:737-849`, Pergaminho da Água `:851+`) ficam para quando esses mapas forem
-> modelados.
+> tabelas de divisores e no cap `eMob`. As §1.3–1.5 abaixo documentam o branch geral.
+
+> **Atualização — os sete ramos.** Os seis branches por mapa foram portados
+> (`internal/level/expzone.go`) e agora são escolhidos pelo **bloco de 128 tiles** onde a morte
+> acontece, como o legado faz: `(tx/128, ty/128)` do corpo e de quem matou têm de coincidir, e
+> qualquer outro lugar cai no campo geral. Antes disso toda masmorra pagava a tabela do campo.
+> Os blocos: Pesadelo Arcano `(9,1)` `:443`, Pesadelo Místico `(8,2)` `:592`, Pesadelo Normal
+> `(10,2)` `:737`, Água Arcano `(10,27)` `:851`, Água Místico `(9,28)` `:1001`, Água Normal
+> `(8,27)` `:1150`, campo geral `:1272`.
+>
+> Quatro diferenças entre os ramos, além dos divisores:
+>
+> - **Escala base.** Os três Pesadelos escrevem `(UNK_1 + myLevel) * isExp / (UNK_1 + myLevel)`,
+>   que é a identidade; os outros quatro escrevem `450 * isExp / (30 + myLevel)`. Como
+>   `450/(30+nível) > 1` abaixo do nível 420, o campo *multiplica* onde o Pesadelo não mexe.
+> - **Cap `eMob`.** Só Água e campo. No Pesadelo Arcano ele está comentado (`:531`) e nos outros
+>   dois nem existe.
+> - **`g_pFairyContent[0]`.** A linha de bônus é `ExpBonus + g_pFairyContent[0]` na Água e no
+>   campo e só `ExpBonus` no Pesadelo — então a Fada Suprema (3913) vale 46% em campo e 16%
+>   dentro do Pesadelo.
+> - **Tabelas ausentes.** Pesadelo Normal não tem tabela de Mortal nem de Arch (`:747-790`), e
+>   Água Normal não tem a de Arch (`:1188`): nesses casos o legado simplesmente não divide. E o
+>   Pesadelo Normal repete o bloco celestial duas vezes (`:752` e `:773`), dividindo a EXP
+>   celestial em dobro — portado como está.
+>
+> `expzone_test.go` relê cada divisor do próprio `MobKilled.cpp` e compara com a tabela portada,
+> então uma edição à mão que se afaste do legado quebra o teste em vez de passar calada.
+
+> **Mesa de XP.** Sobre os sete ramos existe uma camada de configuração
+> (`internal/level/xpconfig.go`, tabela `xp_rule` da migração 0030, tela `/auditoria/xp`):
+> por (zona, evolução) dá para substituir a tabela de quebras inteira e aplicar uma taxa
+> percentual, que multiplica o valor final **depois** de toda a conta do legado. Sem linha
+> gravada o comportamento é exatamente o legado. O tmServer lê no boot e não repolla — trocar
+> as tabelas com gente jogando pagaria valores diferentes para a mesma morte conforme a hora.
 
 **Gate de clã:** toda a distribuição está dentro de `if (pMob[target].MOB.Clan != 4)`
 (`MobKilled.cpp:402`) — mob de clã 4 **nunca** dá EXP (gold/drop ficam fora do gate).

@@ -29,6 +29,7 @@ import (
 
 	gamev1 "github.com/jeanluca/w2pp-openwyd/api/game/v1"
 	"github.com/jeanluca/w2pp-openwyd/internal/buildinfo"
+	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/binclient"
@@ -38,7 +39,6 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/dbclient"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/handler"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/itemstat"
-	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/mobstat"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/mountrate"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/npccfg"
@@ -353,6 +353,33 @@ func run(logger *slog.Logger) error {
 		logger.Info("npc config overlay enabled (moderator editing)")
 	}
 
+	// Mesa de XP: the panel-managed reward tables (0030_xp_table). Read ONCE
+	// here, for the same reason the mob and item overlays are: the tables shape a
+	// grind, and swapping them under a running server would pay two players
+	// different experience for the same mob depending on when their kill landed.
+	//
+	// No flag guards it, because an unedited table IS the legacy behaviour — a
+	// server whose panel nobody touched runs exactly as before. A failed read is
+	// logged loudly and does not stop the boot: an older database that has not
+	// run the migration yet must still be able to start the game, and the legacy
+	// tables are the honest fallback.
+	var xpConfig level.Config
+	if dbConn != nil {
+		fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		cfg, ferr := dbclient.NewXPConfigSource(dbConn).Fetch(fetchCtx)
+		cancel()
+		switch {
+		case ferr != nil:
+			logger.Error("mesa de XP unreadable; running the legacy tables", "err", ferr)
+		case len(cfg.Overrides) > 0:
+			xpConfig = cfg
+			logger.Info("mesa de XP loaded", "version", cfg.Version, "branches", len(cfg.Overrides))
+		default:
+			xpConfig = cfg
+			logger.Info("mesa de XP empty; running the legacy tables", "version", cfg.Version)
+		}
+	}
+
 	// Seed the world-event RNG from the wall clock so the weather sequence differs
 	// between boots (handler.worldEventRNGSeed explains why the fixed seed is only
 	// for tests). Zero means "use the fixed seed", so keep it out of range.
@@ -365,6 +392,7 @@ func run(logger *slog.Logger) error {
 		ItemVolatiles: itemVolatiles, ItemDurations: itemDurations, MountRates: mountRates, ItemPos: itemPos, ItemUnique: itemUnique, ItemGrades: itemGrades, ItemExtra: itemExtra, Spells: spells, Heights: heights,
 		SancRate:        sancRate,
 		ExpEvents:       level.ExpEvents{DoubleMode: *doubleExp, NewbieEvent: *newbieEvent, KefraLive: *kefraLive},
+		XPConfig:        xpConfig,
 		CombineFamilies: combineFamilies,
 		OdinCatalog:     odinCatalog,
 		CombineCatalog:  odinCatalog,

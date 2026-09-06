@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS xp_rule_meta;
+DROP TABLE IF EXISTS xp_rule;

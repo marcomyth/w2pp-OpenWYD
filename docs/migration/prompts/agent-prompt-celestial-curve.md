@@ -17,7 +17,7 @@ O único bloqueio para valores **corretos** é a curva de XP Celestial. `CheckGe
 (`CMob.cpp:1092-1093`) seleciona `g_pNextLevel_2[cur]` quando `max_level == MAX_CLEVEL`, mas o
 array literal mora em `Basedef.cpp` (**ausente** na nossa cópia — mesma situação da curva Mortal
 `g_pNextLevel`, que veio da captura em `captura-wyd-levelup.md`). Hoje o Go roda contra um
-**placeholder sintético** (`tmserver/internal/level/nextlevel.go`, `celestialPlaceholderCurve`).
+**placeholder sintético** (`internal/level/nextlevel.go`, `celestialPlaceholderCurve`).
 
 ## O que preciso (valores byte-exatos)
 

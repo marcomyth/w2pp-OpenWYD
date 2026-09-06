@@ -3,7 +3,7 @@ package handler
 import (
 	"fmt"
 
-	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
+	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/loot"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
@@ -242,7 +242,21 @@ func sendDieAction(w *world.World, mob *world.Entity) {
 // UNVERIFIED / deferred: party distribution and the per-level reward items
 // (DoItemLevel).
 func (d *Dispatcher) grantExp(w *world.World, ks *world.Session, killer, mob *world.Entity) {
-	gain := level.SoloExpReward(mob.Exp, killer.Level, mob.Level, tierOf(killer), d.expBonus(killer), d.expEvents)
+	// The reward branch is chosen by the 128-tile block of the kill, not by a
+	// per-map setting: each instanced dungeon has its own divisor table in
+	// MobKilled.cpp, and until this was wired every dungeon paid open-field
+	// rates (level.ZoneForKill).
+	gain := level.ExpReward(level.ExpRewardInput{
+		Zone:         level.ZoneForKill(int32(mob.X), int32(mob.Y), int32(killer.X), int32(killer.Y)),
+		MobExp:       mob.Exp,
+		KillerLevel:  killer.Level,
+		MobLevel:     mob.Level,
+		Tier:         tierOf(killer),
+		ExpBonus:     d.expBonus(killer),
+		FairyContent: fairyContentBonus(killer),
+		Events:       d.expEvents,
+		Config:       d.xpConfig,
+	})
 	if gain <= 0 {
 		return
 	}

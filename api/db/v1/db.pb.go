@@ -7152,6 +7152,311 @@ func (x *MountGrowthRate) GetRate() int32 {
 	return 0
 }
 
+type XPConfigVersionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *XPConfigVersionRequest) Reset() {
+	*x = XPConfigVersionRequest{}
+	mi := &file_api_db_v1_db_proto_msgTypes[102]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *XPConfigVersionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*XPConfigVersionRequest) ProtoMessage() {}
+
+func (x *XPConfigVersionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[102]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use XPConfigVersionRequest.ProtoReflect.Descriptor instead.
+func (*XPConfigVersionRequest) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{102}
+}
+
+type XPConfigVersionResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       int64                  `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *XPConfigVersionResponse) Reset() {
+	*x = XPConfigVersionResponse{}
+	mi := &file_api_db_v1_db_proto_msgTypes[103]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *XPConfigVersionResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*XPConfigVersionResponse) ProtoMessage() {}
+
+func (x *XPConfigVersionResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[103]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use XPConfigVersionResponse.ProtoReflect.Descriptor instead.
+func (*XPConfigVersionResponse) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{103}
+}
+
+func (x *XPConfigVersionResponse) GetVersion() int64 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+type GetXPConfigRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetXPConfigRequest) Reset() {
+	*x = GetXPConfigRequest{}
+	mi := &file_api_db_v1_db_proto_msgTypes[104]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetXPConfigRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetXPConfigRequest) ProtoMessage() {}
+
+func (x *GetXPConfigRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[104]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetXPConfigRequest.ProtoReflect.Descriptor instead.
+func (*GetXPConfigRequest) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{104}
+}
+
+type GetXPConfigResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Version       int64                  `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
+	Rules         []*XPRule              `protobuf:"bytes,2,rep,name=rules,proto3" json:"rules,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetXPConfigResponse) Reset() {
+	*x = GetXPConfigResponse{}
+	mi := &file_api_db_v1_db_proto_msgTypes[105]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetXPConfigResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetXPConfigResponse) ProtoMessage() {}
+
+func (x *GetXPConfigResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[105]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetXPConfigResponse.ProtoReflect.Descriptor instead.
+func (*GetXPConfigResponse) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{105}
+}
+
+func (x *GetXPConfigResponse) GetVersion() int64 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *GetXPConfigResponse) GetRules() []*XPRule {
+	if x != nil {
+		return x.Rules
+	}
+	return nil
+}
+
+// XPCut is one rung of a table: up to this level, divide by this much. The last
+// rung of a table has no ceiling and carries the maximum int32 as up_to.
+type XPCut struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UpTo          int32                  `protobuf:"varint,1,opt,name=up_to,json=upTo,proto3" json:"up_to,omitempty"`
+	Divisor       float64                `protobuf:"fixed64,2,opt,name=divisor,proto3" json:"divisor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *XPCut) Reset() {
+	*x = XPCut{}
+	mi := &file_api_db_v1_db_proto_msgTypes[106]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *XPCut) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*XPCut) ProtoMessage() {}
+
+func (x *XPCut) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[106]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use XPCut.ProtoReflect.Descriptor instead.
+func (*XPCut) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{106}
+}
+
+func (x *XPCut) GetUpTo() int32 {
+	if x != nil {
+		return x.UpTo
+	}
+	return 0
+}
+
+func (x *XPCut) GetDivisor() float64 {
+	if x != nil {
+		return x.Divisor
+	}
+	return 0
+}
+
+// XPRule is one reward branch's configuration.
+//
+// has_cuts is what keeps "not edited" apart from "edited to have no cuts": proto3
+// cannot tell an absent repeated field from an empty one, and the two mean
+// opposite things here. false ⇒ keep the legacy table; true with an empty cuts
+// list ⇒ this branch divides by nothing, which is how Pesadelo Normal already
+// treats Mortal and Arch.
+type XPRule struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Zone          int32                  `protobuf:"varint,1,opt,name=zone,proto3" json:"zone,omitempty"`                                  // internal/level.Zone
+	Tier          int32                  `protobuf:"varint,2,opt,name=tier,proto3" json:"tier,omitempty"`                                  // ClassMaster: 1 Arch, 2 Mortal, 3 Celestial
+	RatePercent   int32                  `protobuf:"varint,3,opt,name=rate_percent,json=ratePercent,proto3" json:"rate_percent,omitempty"` // applied last, after every legacy step; 100 is neutral
+	HasCuts       bool                   `protobuf:"varint,4,opt,name=has_cuts,json=hasCuts,proto3" json:"has_cuts,omitempty"`
+	Cuts          []*XPCut               `protobuf:"bytes,5,rep,name=cuts,proto3" json:"cuts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *XPRule) Reset() {
+	*x = XPRule{}
+	mi := &file_api_db_v1_db_proto_msgTypes[107]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *XPRule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*XPRule) ProtoMessage() {}
+
+func (x *XPRule) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[107]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use XPRule.ProtoReflect.Descriptor instead.
+func (*XPRule) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{107}
+}
+
+func (x *XPRule) GetZone() int32 {
+	if x != nil {
+		return x.Zone
+	}
+	return 0
+}
+
+func (x *XPRule) GetTier() int32 {
+	if x != nil {
+		return x.Tier
+	}
+	return 0
+}
+
+func (x *XPRule) GetRatePercent() int32 {
+	if x != nil {
+		return x.RatePercent
+	}
+	return 0
+}
+
+func (x *XPRule) GetHasCuts() bool {
+	if x != nil {
+		return x.HasCuts
+	}
+	return false
+}
+
+func (x *XPRule) GetCuts() []*XPCut {
+	if x != nil {
+		return x.Cuts
+	}
+	return nil
+}
+
 var File_api_db_v1_db_proto protoreflect.FileDescriptor
 
 const file_api_db_v1_db_proto_rawDesc = "" +
@@ -7726,7 +8031,23 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\vmount_index\x18\x01 \x01(\x05R\n" +
 	"mountIndex\x12\x12\n" +
 	"\x04band\x18\x02 \x01(\x05R\x04band\x12\x12\n" +
-	"\x04rate\x18\x03 \x01(\x05R\x04rate*\xb8\x01\n" +
+	"\x04rate\x18\x03 \x01(\x05R\x04rate\"\x18\n" +
+	"\x16XPConfigVersionRequest\"3\n" +
+	"\x17XPConfigVersionResponse\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\x03R\aversion\"\x14\n" +
+	"\x12GetXPConfigRequest\"T\n" +
+	"\x13GetXPConfigResponse\x12\x18\n" +
+	"\aversion\x18\x01 \x01(\x03R\aversion\x12#\n" +
+	"\x05rules\x18\x02 \x03(\v2\r.db.v1.XPRuleR\x05rules\"6\n" +
+	"\x05XPCut\x12\x13\n" +
+	"\x05up_to\x18\x01 \x01(\x05R\x04upTo\x12\x18\n" +
+	"\adivisor\x18\x02 \x01(\x01R\adivisor\"\x90\x01\n" +
+	"\x06XPRule\x12\x12\n" +
+	"\x04zone\x18\x01 \x01(\x05R\x04zone\x12\x12\n" +
+	"\x04tier\x18\x02 \x01(\x05R\x04tier\x12!\n" +
+	"\frate_percent\x18\x03 \x01(\x05R\vratePercent\x12\x19\n" +
+	"\bhas_cuts\x18\x04 \x01(\bR\ahasCuts\x12 \n" +
+	"\x04cuts\x18\x05 \x03(\v2\f.db.v1.XPCutR\x04cuts*\xb8\x01\n" +
 	"\vLoginResult\x12\x1c\n" +
 	"\x18LOGIN_RESULT_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLOGIN_RESULT_OK\x10\x01\x12\x1b\n" +
@@ -7791,7 +8112,10 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x17WorldEventConfigService\x12h\n" +
 	"\x17WorldEventConfigVersion\x12%.db.v1.WorldEventConfigVersionRequest\x1a&.db.v1.WorldEventConfigVersionResponse\x12\\\n" +
 	"\x13GetWorldEventConfig\x12!.db.v1.GetWorldEventConfigRequest\x1a\".db.v1.GetWorldEventConfigResponse\x12k\n" +
-	"\x18UpdateWorldEventProgress\x12&.db.v1.UpdateWorldEventProgressRequest\x1a'.db.v1.UpdateWorldEventProgressResponseB1Z/github.com/jeanluca/w2pp-openwyd/api/db/v1;dbv1b\x06proto3"
+	"\x18UpdateWorldEventProgress\x12&.db.v1.UpdateWorldEventProgressRequest\x1a'.db.v1.UpdateWorldEventProgressResponse2\xa9\x01\n" +
+	"\x0fXPConfigService\x12P\n" +
+	"\x0fXPConfigVersion\x12\x1d.db.v1.XPConfigVersionRequest\x1a\x1e.db.v1.XPConfigVersionResponse\x12D\n" +
+	"\vGetXPConfig\x12\x19.db.v1.GetXPConfigRequest\x1a\x1a.db.v1.GetXPConfigResponseB1Z/github.com/jeanluca/w2pp-openwyd/api/db/v1;dbv1b\x06proto3"
 
 var (
 	file_api_db_v1_db_proto_rawDescOnce sync.Once
@@ -7806,7 +8130,7 @@ func file_api_db_v1_db_proto_rawDescGZIP() []byte {
 }
 
 var file_api_db_v1_db_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_api_db_v1_db_proto_msgTypes = make([]protoimpl.MessageInfo, 102)
+var file_api_db_v1_db_proto_msgTypes = make([]protoimpl.MessageInfo, 108)
 var file_api_db_v1_db_proto_goTypes = []any{
 	(LoginResult)(0),                         // 0: db.v1.LoginResult
 	(PinResult)(0),                           // 1: db.v1.PinResult
@@ -7913,6 +8237,12 @@ var file_api_db_v1_db_proto_goTypes = []any{
 	(*ListMountGrowthRatesRequest)(nil),      // 102: db.v1.ListMountGrowthRatesRequest
 	(*ListMountGrowthRatesResponse)(nil),     // 103: db.v1.ListMountGrowthRatesResponse
 	(*MountGrowthRate)(nil),                  // 104: db.v1.MountGrowthRate
+	(*XPConfigVersionRequest)(nil),           // 105: db.v1.XPConfigVersionRequest
+	(*XPConfigVersionResponse)(nil),          // 106: db.v1.XPConfigVersionResponse
+	(*GetXPConfigRequest)(nil),               // 107: db.v1.GetXPConfigRequest
+	(*GetXPConfigResponse)(nil),              // 108: db.v1.GetXPConfigResponse
+	(*XPCut)(nil),                            // 109: db.v1.XPCut
+	(*XPRule)(nil),                           // 110: db.v1.XPRule
 }
 var file_api_db_v1_db_proto_depIdxs = []int32{
 	0,   // 0: db.v1.AccountLoginResponse.result:type_name -> db.v1.LoginResult
@@ -7952,97 +8282,103 @@ var file_api_db_v1_db_proto_depIdxs = []int32{
 	97,  // 34: db.v1.MobTemplateStat.equip:type_name -> db.v1.MobTemplateEquipItem
 	101, // 35: db.v1.ListItemStatsResponse.overrides:type_name -> db.v1.ItemStat
 	104, // 36: db.v1.ListMountGrowthRatesResponse.rates:type_name -> db.v1.MountGrowthRate
-	3,   // 37: db.v1.AccountService.AccountLogin:input_type -> db.v1.AccountLoginRequest
-	5,   // 38: db.v1.AccountService.ListCharacters:input_type -> db.v1.ListCharactersRequest
-	8,   // 39: db.v1.AccountService.LoadCharacter:input_type -> db.v1.LoadCharacterRequest
-	13,  // 40: db.v1.AccountService.SaveCharacter:input_type -> db.v1.SaveCharacterRequest
-	15,  // 41: db.v1.AccountService.QuoteKingdomCape:input_type -> db.v1.QuoteKingdomCapeRequest
-	17,  // 42: db.v1.AccountService.PurchaseKingdomCape:input_type -> db.v1.PurchaseKingdomCapeRequest
-	19,  // 43: db.v1.AccountService.CreateCharacter:input_type -> db.v1.CreateCharacterRequest
-	21,  // 44: db.v1.AccountService.CreateArchCharacter:input_type -> db.v1.CreateArchCharacterRequest
-	23,  // 45: db.v1.AccountService.DeleteCharacter:input_type -> db.v1.DeleteCharacterRequest
-	25,  // 46: db.v1.AccountService.SetPin:input_type -> db.v1.SetPinRequest
-	27,  // 47: db.v1.AccountService.VerifyPin:input_type -> db.v1.VerifyPinRequest
-	29,  // 48: db.v1.AccountService.LoadCargo:input_type -> db.v1.LoadCargoRequest
-	31,  // 49: db.v1.AccountService.SaveCargo:input_type -> db.v1.SaveCargoRequest
-	34,  // 50: db.v1.AccountService.ListPendingDeliveries:input_type -> db.v1.ListPendingDeliveriesRequest
-	36,  // 51: db.v1.AccountService.SaveCargoWithDeliveries:input_type -> db.v1.SaveCargoWithDeliveriesRequest
-	37,  // 52: db.v1.AccountService.SetAccountBlocked:input_type -> db.v1.SetAccountBlockedRequest
-	39,  // 53: db.v1.AccountService.RecordDuelResult:input_type -> db.v1.RecordDuelResultRequest
-	42,  // 54: db.v1.AccountService.RecordTrade:input_type -> db.v1.RecordTradeRequest
-	44,  // 55: db.v1.AccountService.RecordReport:input_type -> db.v1.RecordReportRequest
-	46,  // 56: db.v1.AccountService.SetCharacterPresence:input_type -> db.v1.SetCharacterPresenceRequest
-	48,  // 57: db.v1.AccountService.ClearAllPresence:input_type -> db.v1.ClearAllPresenceRequest
-	52,  // 58: db.v1.AccountService.CreateGuild:input_type -> db.v1.CreateGuildRequest
-	54,  // 59: db.v1.AccountService.SetGuildMember:input_type -> db.v1.SetGuildMemberRequest
-	56,  // 60: db.v1.AccountService.LeaveGuild:input_type -> db.v1.LeaveGuildRequest
-	57,  // 61: db.v1.AccountService.PromoteGuildMember:input_type -> db.v1.PromoteGuildMemberRequest
-	59,  // 62: db.v1.AccountService.TransferGuildLeader:input_type -> db.v1.TransferGuildLeaderRequest
-	60,  // 63: db.v1.AccountService.SetGuildRelation:input_type -> db.v1.SetGuildRelationRequest
-	62,  // 64: db.v1.AccountService.ListGuilds:input_type -> db.v1.ListGuildsRequest
-	64,  // 65: db.v1.AccountService.ListGuildRelations:input_type -> db.v1.ListGuildRelationsRequest
-	67,  // 66: db.v1.AccountService.LoadGuildZones:input_type -> db.v1.LoadGuildZonesRequest
-	69,  // 67: db.v1.AccountService.SaveGuildZone:input_type -> db.v1.SaveGuildZoneRequest
-	72,  // 68: db.v1.AccountService.LoadGuildTowerState:input_type -> db.v1.LoadGuildTowerStateRequest
-	74,  // 69: db.v1.AccountService.SaveGuildTowerState:input_type -> db.v1.SaveGuildTowerStateRequest
-	77,  // 70: db.v1.AccountService.LoadCastleQuestState:input_type -> db.v1.LoadCastleQuestStateRequest
-	79,  // 71: db.v1.AccountService.SaveCastleQuestState:input_type -> db.v1.SaveCastleQuestStateRequest
-	81,  // 72: db.v1.NpcConfigService.NpcConfigVersion:input_type -> db.v1.NpcConfigVersionRequest
-	83,  // 73: db.v1.NpcConfigService.ListNpcDefinitions:input_type -> db.v1.ListNpcDefinitionsRequest
-	95,  // 74: db.v1.NpcConfigService.ListMobTemplateStats:input_type -> db.v1.ListMobTemplateStatsRequest
-	99,  // 75: db.v1.NpcConfigService.ListItemStats:input_type -> db.v1.ListItemStatsRequest
-	102, // 76: db.v1.NpcConfigService.ListMountGrowthRates:input_type -> db.v1.ListMountGrowthRatesRequest
-	88,  // 77: db.v1.WorldEventConfigService.WorldEventConfigVersion:input_type -> db.v1.WorldEventConfigVersionRequest
-	90,  // 78: db.v1.WorldEventConfigService.GetWorldEventConfig:input_type -> db.v1.GetWorldEventConfigRequest
-	92,  // 79: db.v1.WorldEventConfigService.UpdateWorldEventProgress:input_type -> db.v1.UpdateWorldEventProgressRequest
-	4,   // 80: db.v1.AccountService.AccountLogin:output_type -> db.v1.AccountLoginResponse
-	7,   // 81: db.v1.AccountService.ListCharacters:output_type -> db.v1.ListCharactersResponse
-	12,  // 82: db.v1.AccountService.LoadCharacter:output_type -> db.v1.LoadCharacterResponse
-	14,  // 83: db.v1.AccountService.SaveCharacter:output_type -> db.v1.SaveCharacterResponse
-	16,  // 84: db.v1.AccountService.QuoteKingdomCape:output_type -> db.v1.QuoteKingdomCapeResponse
-	18,  // 85: db.v1.AccountService.PurchaseKingdomCape:output_type -> db.v1.PurchaseKingdomCapeResponse
-	20,  // 86: db.v1.AccountService.CreateCharacter:output_type -> db.v1.CreateCharacterResponse
-	22,  // 87: db.v1.AccountService.CreateArchCharacter:output_type -> db.v1.CreateArchCharacterResponse
-	24,  // 88: db.v1.AccountService.DeleteCharacter:output_type -> db.v1.DeleteCharacterResponse
-	26,  // 89: db.v1.AccountService.SetPin:output_type -> db.v1.SetPinResponse
-	28,  // 90: db.v1.AccountService.VerifyPin:output_type -> db.v1.VerifyPinResponse
-	30,  // 91: db.v1.AccountService.LoadCargo:output_type -> db.v1.LoadCargoResponse
-	32,  // 92: db.v1.AccountService.SaveCargo:output_type -> db.v1.SaveCargoResponse
-	35,  // 93: db.v1.AccountService.ListPendingDeliveries:output_type -> db.v1.ListPendingDeliveriesResponse
-	32,  // 94: db.v1.AccountService.SaveCargoWithDeliveries:output_type -> db.v1.SaveCargoResponse
-	38,  // 95: db.v1.AccountService.SetAccountBlocked:output_type -> db.v1.SetAccountBlockedResponse
-	40,  // 96: db.v1.AccountService.RecordDuelResult:output_type -> db.v1.RecordDuelResultResponse
-	43,  // 97: db.v1.AccountService.RecordTrade:output_type -> db.v1.RecordTradeResponse
-	45,  // 98: db.v1.AccountService.RecordReport:output_type -> db.v1.RecordReportResponse
-	47,  // 99: db.v1.AccountService.SetCharacterPresence:output_type -> db.v1.SetCharacterPresenceResponse
-	49,  // 100: db.v1.AccountService.ClearAllPresence:output_type -> db.v1.ClearAllPresenceResponse
-	53,  // 101: db.v1.AccountService.CreateGuild:output_type -> db.v1.CreateGuildResponse
-	55,  // 102: db.v1.AccountService.SetGuildMember:output_type -> db.v1.SetGuildMemberResponse
-	55,  // 103: db.v1.AccountService.LeaveGuild:output_type -> db.v1.SetGuildMemberResponse
-	58,  // 104: db.v1.AccountService.PromoteGuildMember:output_type -> db.v1.PromoteGuildMemberResponse
-	55,  // 105: db.v1.AccountService.TransferGuildLeader:output_type -> db.v1.SetGuildMemberResponse
-	61,  // 106: db.v1.AccountService.SetGuildRelation:output_type -> db.v1.SetGuildRelationResponse
-	63,  // 107: db.v1.AccountService.ListGuilds:output_type -> db.v1.ListGuildsResponse
-	65,  // 108: db.v1.AccountService.ListGuildRelations:output_type -> db.v1.ListGuildRelationsResponse
-	68,  // 109: db.v1.AccountService.LoadGuildZones:output_type -> db.v1.LoadGuildZonesResponse
-	70,  // 110: db.v1.AccountService.SaveGuildZone:output_type -> db.v1.SaveGuildZoneResponse
-	73,  // 111: db.v1.AccountService.LoadGuildTowerState:output_type -> db.v1.LoadGuildTowerStateResponse
-	75,  // 112: db.v1.AccountService.SaveGuildTowerState:output_type -> db.v1.SaveGuildTowerStateResponse
-	78,  // 113: db.v1.AccountService.LoadCastleQuestState:output_type -> db.v1.LoadCastleQuestStateResponse
-	80,  // 114: db.v1.AccountService.SaveCastleQuestState:output_type -> db.v1.SaveCastleQuestStateResponse
-	82,  // 115: db.v1.NpcConfigService.NpcConfigVersion:output_type -> db.v1.NpcConfigVersionResponse
-	84,  // 116: db.v1.NpcConfigService.ListNpcDefinitions:output_type -> db.v1.ListNpcDefinitionsResponse
-	96,  // 117: db.v1.NpcConfigService.ListMobTemplateStats:output_type -> db.v1.ListMobTemplateStatsResponse
-	100, // 118: db.v1.NpcConfigService.ListItemStats:output_type -> db.v1.ListItemStatsResponse
-	103, // 119: db.v1.NpcConfigService.ListMountGrowthRates:output_type -> db.v1.ListMountGrowthRatesResponse
-	89,  // 120: db.v1.WorldEventConfigService.WorldEventConfigVersion:output_type -> db.v1.WorldEventConfigVersionResponse
-	91,  // 121: db.v1.WorldEventConfigService.GetWorldEventConfig:output_type -> db.v1.GetWorldEventConfigResponse
-	93,  // 122: db.v1.WorldEventConfigService.UpdateWorldEventProgress:output_type -> db.v1.UpdateWorldEventProgressResponse
-	80,  // [80:123] is the sub-list for method output_type
-	37,  // [37:80] is the sub-list for method input_type
-	37,  // [37:37] is the sub-list for extension type_name
-	37,  // [37:37] is the sub-list for extension extendee
-	0,   // [0:37] is the sub-list for field type_name
+	110, // 37: db.v1.GetXPConfigResponse.rules:type_name -> db.v1.XPRule
+	109, // 38: db.v1.XPRule.cuts:type_name -> db.v1.XPCut
+	3,   // 39: db.v1.AccountService.AccountLogin:input_type -> db.v1.AccountLoginRequest
+	5,   // 40: db.v1.AccountService.ListCharacters:input_type -> db.v1.ListCharactersRequest
+	8,   // 41: db.v1.AccountService.LoadCharacter:input_type -> db.v1.LoadCharacterRequest
+	13,  // 42: db.v1.AccountService.SaveCharacter:input_type -> db.v1.SaveCharacterRequest
+	15,  // 43: db.v1.AccountService.QuoteKingdomCape:input_type -> db.v1.QuoteKingdomCapeRequest
+	17,  // 44: db.v1.AccountService.PurchaseKingdomCape:input_type -> db.v1.PurchaseKingdomCapeRequest
+	19,  // 45: db.v1.AccountService.CreateCharacter:input_type -> db.v1.CreateCharacterRequest
+	21,  // 46: db.v1.AccountService.CreateArchCharacter:input_type -> db.v1.CreateArchCharacterRequest
+	23,  // 47: db.v1.AccountService.DeleteCharacter:input_type -> db.v1.DeleteCharacterRequest
+	25,  // 48: db.v1.AccountService.SetPin:input_type -> db.v1.SetPinRequest
+	27,  // 49: db.v1.AccountService.VerifyPin:input_type -> db.v1.VerifyPinRequest
+	29,  // 50: db.v1.AccountService.LoadCargo:input_type -> db.v1.LoadCargoRequest
+	31,  // 51: db.v1.AccountService.SaveCargo:input_type -> db.v1.SaveCargoRequest
+	34,  // 52: db.v1.AccountService.ListPendingDeliveries:input_type -> db.v1.ListPendingDeliveriesRequest
+	36,  // 53: db.v1.AccountService.SaveCargoWithDeliveries:input_type -> db.v1.SaveCargoWithDeliveriesRequest
+	37,  // 54: db.v1.AccountService.SetAccountBlocked:input_type -> db.v1.SetAccountBlockedRequest
+	39,  // 55: db.v1.AccountService.RecordDuelResult:input_type -> db.v1.RecordDuelResultRequest
+	42,  // 56: db.v1.AccountService.RecordTrade:input_type -> db.v1.RecordTradeRequest
+	44,  // 57: db.v1.AccountService.RecordReport:input_type -> db.v1.RecordReportRequest
+	46,  // 58: db.v1.AccountService.SetCharacterPresence:input_type -> db.v1.SetCharacterPresenceRequest
+	48,  // 59: db.v1.AccountService.ClearAllPresence:input_type -> db.v1.ClearAllPresenceRequest
+	52,  // 60: db.v1.AccountService.CreateGuild:input_type -> db.v1.CreateGuildRequest
+	54,  // 61: db.v1.AccountService.SetGuildMember:input_type -> db.v1.SetGuildMemberRequest
+	56,  // 62: db.v1.AccountService.LeaveGuild:input_type -> db.v1.LeaveGuildRequest
+	57,  // 63: db.v1.AccountService.PromoteGuildMember:input_type -> db.v1.PromoteGuildMemberRequest
+	59,  // 64: db.v1.AccountService.TransferGuildLeader:input_type -> db.v1.TransferGuildLeaderRequest
+	60,  // 65: db.v1.AccountService.SetGuildRelation:input_type -> db.v1.SetGuildRelationRequest
+	62,  // 66: db.v1.AccountService.ListGuilds:input_type -> db.v1.ListGuildsRequest
+	64,  // 67: db.v1.AccountService.ListGuildRelations:input_type -> db.v1.ListGuildRelationsRequest
+	67,  // 68: db.v1.AccountService.LoadGuildZones:input_type -> db.v1.LoadGuildZonesRequest
+	69,  // 69: db.v1.AccountService.SaveGuildZone:input_type -> db.v1.SaveGuildZoneRequest
+	72,  // 70: db.v1.AccountService.LoadGuildTowerState:input_type -> db.v1.LoadGuildTowerStateRequest
+	74,  // 71: db.v1.AccountService.SaveGuildTowerState:input_type -> db.v1.SaveGuildTowerStateRequest
+	77,  // 72: db.v1.AccountService.LoadCastleQuestState:input_type -> db.v1.LoadCastleQuestStateRequest
+	79,  // 73: db.v1.AccountService.SaveCastleQuestState:input_type -> db.v1.SaveCastleQuestStateRequest
+	81,  // 74: db.v1.NpcConfigService.NpcConfigVersion:input_type -> db.v1.NpcConfigVersionRequest
+	83,  // 75: db.v1.NpcConfigService.ListNpcDefinitions:input_type -> db.v1.ListNpcDefinitionsRequest
+	95,  // 76: db.v1.NpcConfigService.ListMobTemplateStats:input_type -> db.v1.ListMobTemplateStatsRequest
+	99,  // 77: db.v1.NpcConfigService.ListItemStats:input_type -> db.v1.ListItemStatsRequest
+	102, // 78: db.v1.NpcConfigService.ListMountGrowthRates:input_type -> db.v1.ListMountGrowthRatesRequest
+	88,  // 79: db.v1.WorldEventConfigService.WorldEventConfigVersion:input_type -> db.v1.WorldEventConfigVersionRequest
+	90,  // 80: db.v1.WorldEventConfigService.GetWorldEventConfig:input_type -> db.v1.GetWorldEventConfigRequest
+	92,  // 81: db.v1.WorldEventConfigService.UpdateWorldEventProgress:input_type -> db.v1.UpdateWorldEventProgressRequest
+	105, // 82: db.v1.XPConfigService.XPConfigVersion:input_type -> db.v1.XPConfigVersionRequest
+	107, // 83: db.v1.XPConfigService.GetXPConfig:input_type -> db.v1.GetXPConfigRequest
+	4,   // 84: db.v1.AccountService.AccountLogin:output_type -> db.v1.AccountLoginResponse
+	7,   // 85: db.v1.AccountService.ListCharacters:output_type -> db.v1.ListCharactersResponse
+	12,  // 86: db.v1.AccountService.LoadCharacter:output_type -> db.v1.LoadCharacterResponse
+	14,  // 87: db.v1.AccountService.SaveCharacter:output_type -> db.v1.SaveCharacterResponse
+	16,  // 88: db.v1.AccountService.QuoteKingdomCape:output_type -> db.v1.QuoteKingdomCapeResponse
+	18,  // 89: db.v1.AccountService.PurchaseKingdomCape:output_type -> db.v1.PurchaseKingdomCapeResponse
+	20,  // 90: db.v1.AccountService.CreateCharacter:output_type -> db.v1.CreateCharacterResponse
+	22,  // 91: db.v1.AccountService.CreateArchCharacter:output_type -> db.v1.CreateArchCharacterResponse
+	24,  // 92: db.v1.AccountService.DeleteCharacter:output_type -> db.v1.DeleteCharacterResponse
+	26,  // 93: db.v1.AccountService.SetPin:output_type -> db.v1.SetPinResponse
+	28,  // 94: db.v1.AccountService.VerifyPin:output_type -> db.v1.VerifyPinResponse
+	30,  // 95: db.v1.AccountService.LoadCargo:output_type -> db.v1.LoadCargoResponse
+	32,  // 96: db.v1.AccountService.SaveCargo:output_type -> db.v1.SaveCargoResponse
+	35,  // 97: db.v1.AccountService.ListPendingDeliveries:output_type -> db.v1.ListPendingDeliveriesResponse
+	32,  // 98: db.v1.AccountService.SaveCargoWithDeliveries:output_type -> db.v1.SaveCargoResponse
+	38,  // 99: db.v1.AccountService.SetAccountBlocked:output_type -> db.v1.SetAccountBlockedResponse
+	40,  // 100: db.v1.AccountService.RecordDuelResult:output_type -> db.v1.RecordDuelResultResponse
+	43,  // 101: db.v1.AccountService.RecordTrade:output_type -> db.v1.RecordTradeResponse
+	45,  // 102: db.v1.AccountService.RecordReport:output_type -> db.v1.RecordReportResponse
+	47,  // 103: db.v1.AccountService.SetCharacterPresence:output_type -> db.v1.SetCharacterPresenceResponse
+	49,  // 104: db.v1.AccountService.ClearAllPresence:output_type -> db.v1.ClearAllPresenceResponse
+	53,  // 105: db.v1.AccountService.CreateGuild:output_type -> db.v1.CreateGuildResponse
+	55,  // 106: db.v1.AccountService.SetGuildMember:output_type -> db.v1.SetGuildMemberResponse
+	55,  // 107: db.v1.AccountService.LeaveGuild:output_type -> db.v1.SetGuildMemberResponse
+	58,  // 108: db.v1.AccountService.PromoteGuildMember:output_type -> db.v1.PromoteGuildMemberResponse
+	55,  // 109: db.v1.AccountService.TransferGuildLeader:output_type -> db.v1.SetGuildMemberResponse
+	61,  // 110: db.v1.AccountService.SetGuildRelation:output_type -> db.v1.SetGuildRelationResponse
+	63,  // 111: db.v1.AccountService.ListGuilds:output_type -> db.v1.ListGuildsResponse
+	65,  // 112: db.v1.AccountService.ListGuildRelations:output_type -> db.v1.ListGuildRelationsResponse
+	68,  // 113: db.v1.AccountService.LoadGuildZones:output_type -> db.v1.LoadGuildZonesResponse
+	70,  // 114: db.v1.AccountService.SaveGuildZone:output_type -> db.v1.SaveGuildZoneResponse
+	73,  // 115: db.v1.AccountService.LoadGuildTowerState:output_type -> db.v1.LoadGuildTowerStateResponse
+	75,  // 116: db.v1.AccountService.SaveGuildTowerState:output_type -> db.v1.SaveGuildTowerStateResponse
+	78,  // 117: db.v1.AccountService.LoadCastleQuestState:output_type -> db.v1.LoadCastleQuestStateResponse
+	80,  // 118: db.v1.AccountService.SaveCastleQuestState:output_type -> db.v1.SaveCastleQuestStateResponse
+	82,  // 119: db.v1.NpcConfigService.NpcConfigVersion:output_type -> db.v1.NpcConfigVersionResponse
+	84,  // 120: db.v1.NpcConfigService.ListNpcDefinitions:output_type -> db.v1.ListNpcDefinitionsResponse
+	96,  // 121: db.v1.NpcConfigService.ListMobTemplateStats:output_type -> db.v1.ListMobTemplateStatsResponse
+	100, // 122: db.v1.NpcConfigService.ListItemStats:output_type -> db.v1.ListItemStatsResponse
+	103, // 123: db.v1.NpcConfigService.ListMountGrowthRates:output_type -> db.v1.ListMountGrowthRatesResponse
+	89,  // 124: db.v1.WorldEventConfigService.WorldEventConfigVersion:output_type -> db.v1.WorldEventConfigVersionResponse
+	91,  // 125: db.v1.WorldEventConfigService.GetWorldEventConfig:output_type -> db.v1.GetWorldEventConfigResponse
+	93,  // 126: db.v1.WorldEventConfigService.UpdateWorldEventProgress:output_type -> db.v1.UpdateWorldEventProgressResponse
+	106, // 127: db.v1.XPConfigService.XPConfigVersion:output_type -> db.v1.XPConfigVersionResponse
+	108, // 128: db.v1.XPConfigService.GetXPConfig:output_type -> db.v1.GetXPConfigResponse
+	84,  // [84:129] is the sub-list for method output_type
+	39,  // [39:84] is the sub-list for method input_type
+	39,  // [39:39] is the sub-list for extension type_name
+	39,  // [39:39] is the sub-list for extension extendee
+	0,   // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_api_db_v1_db_proto_init() }
@@ -8056,9 +8392,9 @@ func file_api_db_v1_db_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_db_v1_db_proto_rawDesc), len(file_api_db_v1_db_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   102,
+			NumMessages:   108,
 			NumExtensions: 0,
-			NumServices:   3,
+			NumServices:   4,
 		},
 		GoTypes:           file_api_db_v1_db_proto_goTypes,
 		DependencyIndexes: file_api_db_v1_db_proto_depIdxs,

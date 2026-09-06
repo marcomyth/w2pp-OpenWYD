@@ -4,7 +4,7 @@
 > `_layout_probe`). Função de level-up = `CMob::CheckGetLevel()` (`CMob.cpp:1069`),
 > chamada após ganho de exp (`_MSG_Attack.cpp:1764`).
 >
-> **Implementado** (MORTAL solo) em `tmserver/internal/level` + `handler/mobkilled.go`
+> **Implementado** (MORTAL solo) em `internal/level` + `handler/mobkilled.go`
 > (`grantExp`). Este doc é a evidência + o que ficou **deferido**.
 >
 > **Correção (issue #43):** a fórmula de ganho solo foi reportada primeiro pelo branch dos
@@ -28,7 +28,7 @@ Classes: 0=TK 1=FM 2=BM 3=HT. MORTAL/ARCH → `g_pNextLevel`, max=MAX_LEVEL; CEL
 ## 2. Curva de XP
 - `g_pNextLevel[]` (Basedef.cpp:625) — **hardcoded**, índice=nível, `[0]=0`, `[1]=500`, `[2]=1124`.
   Sobe de nível quando `MOB.Exp >= g_pNextLevel[Level+1]`. Teto `[400]=4100000000`.
-  → **Transcrita e validada** (anchors + monotonia) em `tmserver/internal/level/nextlevel.go`.
+  → **Transcrita e validada** (anchors + monotonia) em `internal/level/nextlevel.go`.
 - `g_pNextLevel_2[]` (Celestial) = `n*20000000`; `[199]=3980000000`, `[200]=4000000000`,
   `[201]=8200000000`. **DEFERIDO** (não modelamos tiers celestiais).
 

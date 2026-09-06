@@ -3,7 +3,7 @@ package handler
 import (
 	"testing"
 
-	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
+	"github.com/jeanluca/w2pp-openwyd/internal/level"
 )
 
 // TestCelestialLevelGate drives applyLevelUps for a Celestial with more than enough

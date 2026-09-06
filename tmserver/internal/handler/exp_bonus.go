@@ -46,3 +46,16 @@ func fairyExpBonus(idx int16) int32 {
 
 // itemGem is BASE_GetItemGem: the gem index of a +10..+15 item, -1 below +10.
 func itemGem(it world.Item) int { return refine.Gem(it) }
+
+// fairyContentBonus is g_pFairyContent[0] (CMob::DetectFairyBuffer,
+// CMob.cpp:1264-1269): DetectFairyBuffer fills the fairy-content table only for
+// the Fada Suprema (3913), and slot [0] is a flat +30% EXP added on top of
+// ExpBonus. It is kept apart from fairyExpBonus (which gives 3913 its +16) for
+// the reason the legacy keeps it apart: only the Água and general-field reward
+// branches add it, so inside Pesadelo the Fada Suprema is worth 16%, not 46%.
+func fairyContentBonus(e *world.Entity) int32 {
+	if e.Equip[fairyEquipSlot].Index == 3913 {
+		return 30
+	}
+	return 0
+}

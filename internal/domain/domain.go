@@ -822,3 +822,33 @@ func MountGrowthBandFor(level int) int16 {
 	}
 	return int16(b)
 }
+
+// XPCut is one rung of a Mesa de XP table: "up to this level, divide by this
+// much". The last rung of a table has no ceiling and is stored as the maximum
+// int32, which is how internal/level spells an open-ended cut.
+type XPCut struct {
+	UpTo    int32   `json:"ate"`
+	Divisor float64 `json:"divisor"`
+}
+
+// XPRule is the moderator's configuration for one reward branch: a zone (the
+// 128-tile block the kill happened on) and an evolution.
+//
+// Cuts nil and Cuts empty are different answers, and the difference is the
+// whole point of the table: nil means "this table was not edited, use the
+// legacy's"; a non-nil empty slice means "this table has no cuts at all", which
+// is a legitimate configuration — Pesadelo Normal ships that way for Mortal and
+// Arch.
+type XPRule struct {
+	Zone        int32
+	Tier        int32
+	RatePercent int32
+	Cuts        []XPCut
+}
+
+// XPConfig is the whole Mesa de XP as tmServer reads it, plus the monotonic
+// version that says which generation the game is running.
+type XPConfig struct {
+	Version int64
+	Rules   []XPRule
+}

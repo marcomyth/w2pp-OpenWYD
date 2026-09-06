@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/internal/savefmt"
-	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
 )
 
 // Entry reports one restamped template.

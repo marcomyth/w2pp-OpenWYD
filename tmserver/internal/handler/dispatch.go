@@ -15,9 +15,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
-	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/mountrate"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/npccfg"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -120,6 +120,11 @@ type Config struct {
 	// ExpEvents toggles global EXP modifiers (MobKilled.cpp:537-549, Server.cpp defaults).
 	ExpEvents level.ExpEvents
 
+	// XPConfig is the Mesa de XP: the panel-managed reward tables, fetched once
+	// at boot. Its zero value is the pure legacy behaviour, which is what runs
+	// without -dbserver.
+	XPConfig level.Config
+
 	// Spells is the SkillData.csv catalog (g_pSpell). When nil, skill casting is
 	// rejected and skill learning is refused (no costs are knowable without it).
 	Spells *content.SkillData
@@ -194,6 +199,7 @@ type Dispatcher struct {
 	itemExtra       map[int]int                  // item index → Extra (Anct/Adamantita combine result)
 	sancRate        refine.RateTable             // dust-refine success table (g_pSancRate)
 	expEvents       level.ExpEvents              // global EXP event flags
+	xpConfig        level.Config                 // panel-managed reward tables (Mesa de XP)
 	spells          *content.SkillData           // skill catalog (g_pSpell)
 	lang            *content.Language            // client string table (notification text)
 	mountRates      mountrate.Table              // mount growth curves (0030_mount_growth_rate)
@@ -348,6 +354,7 @@ func New(cfg Config) *Dispatcher {
 		itemExtra:        cfg.ItemExtra,
 		sancRate:         cfg.SancRate,
 		expEvents:        cfg.ExpEvents,
+		xpConfig:         cfg.XPConfig,
 		spells:           cfg.Spells,
 		lang:             cfg.Language,
 		mountRates:       cfg.MountRates,

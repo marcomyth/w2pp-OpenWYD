@@ -2054,3 +2054,159 @@ var WorldEventConfigService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "api/db/v1/db.proto",
 }
+
+const (
+	XPConfigService_XPConfigVersion_FullMethodName = "/db.v1.XPConfigService/XPConfigVersion"
+	XPConfigService_GetXPConfig_FullMethodName     = "/db.v1.XPConfigService/GetXPConfig"
+)
+
+// XPConfigServiceClient is the client API for XPConfigService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// XPConfigService serves the Mesa de XP — the panel-managed experience tables —
+// to tmServer. The legacy picks a reward branch by the 128-tile block a kill
+// happens on, one branch per instanced dungeon plus the general field, and this
+// carries the moderator's edits to those branches. tmServer only reads.
+type XPConfigServiceClient interface {
+	// XPConfigVersion returns the monotonic moderator config version.
+	XPConfigVersion(ctx context.Context, in *XPConfigVersionRequest, opts ...grpc.CallOption) (*XPConfigVersionResponse, error)
+	// GetXPConfig returns every edited branch. Branches absent from the reply run
+	// on the legacy tables, which is the default state of a fresh server.
+	GetXPConfig(ctx context.Context, in *GetXPConfigRequest, opts ...grpc.CallOption) (*GetXPConfigResponse, error)
+}
+
+type xPConfigServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewXPConfigServiceClient(cc grpc.ClientConnInterface) XPConfigServiceClient {
+	return &xPConfigServiceClient{cc}
+}
+
+func (c *xPConfigServiceClient) XPConfigVersion(ctx context.Context, in *XPConfigVersionRequest, opts ...grpc.CallOption) (*XPConfigVersionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(XPConfigVersionResponse)
+	err := c.cc.Invoke(ctx, XPConfigService_XPConfigVersion_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *xPConfigServiceClient) GetXPConfig(ctx context.Context, in *GetXPConfigRequest, opts ...grpc.CallOption) (*GetXPConfigResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetXPConfigResponse)
+	err := c.cc.Invoke(ctx, XPConfigService_GetXPConfig_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// XPConfigServiceServer is the server API for XPConfigService service.
+// All implementations must embed UnimplementedXPConfigServiceServer
+// for forward compatibility.
+//
+// XPConfigService serves the Mesa de XP — the panel-managed experience tables —
+// to tmServer. The legacy picks a reward branch by the 128-tile block a kill
+// happens on, one branch per instanced dungeon plus the general field, and this
+// carries the moderator's edits to those branches. tmServer only reads.
+type XPConfigServiceServer interface {
+	// XPConfigVersion returns the monotonic moderator config version.
+	XPConfigVersion(context.Context, *XPConfigVersionRequest) (*XPConfigVersionResponse, error)
+	// GetXPConfig returns every edited branch. Branches absent from the reply run
+	// on the legacy tables, which is the default state of a fresh server.
+	GetXPConfig(context.Context, *GetXPConfigRequest) (*GetXPConfigResponse, error)
+	mustEmbedUnimplementedXPConfigServiceServer()
+}
+
+// UnimplementedXPConfigServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedXPConfigServiceServer struct{}
+
+func (UnimplementedXPConfigServiceServer) XPConfigVersion(context.Context, *XPConfigVersionRequest) (*XPConfigVersionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method XPConfigVersion not implemented")
+}
+func (UnimplementedXPConfigServiceServer) GetXPConfig(context.Context, *GetXPConfigRequest) (*GetXPConfigResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetXPConfig not implemented")
+}
+func (UnimplementedXPConfigServiceServer) mustEmbedUnimplementedXPConfigServiceServer() {}
+func (UnimplementedXPConfigServiceServer) testEmbeddedByValue()                         {}
+
+// UnsafeXPConfigServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to XPConfigServiceServer will
+// result in compilation errors.
+type UnsafeXPConfigServiceServer interface {
+	mustEmbedUnimplementedXPConfigServiceServer()
+}
+
+func RegisterXPConfigServiceServer(s grpc.ServiceRegistrar, srv XPConfigServiceServer) {
+	// If the following call panics, it indicates UnimplementedXPConfigServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&XPConfigService_ServiceDesc, srv)
+}
+
+func _XPConfigService_XPConfigVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(XPConfigVersionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(XPConfigServiceServer).XPConfigVersion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: XPConfigService_XPConfigVersion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(XPConfigServiceServer).XPConfigVersion(ctx, req.(*XPConfigVersionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _XPConfigService_GetXPConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetXPConfigRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(XPConfigServiceServer).GetXPConfig(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: XPConfigService_GetXPConfig_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(XPConfigServiceServer).GetXPConfig(ctx, req.(*GetXPConfigRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// XPConfigService_ServiceDesc is the grpc.ServiceDesc for XPConfigService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var XPConfigService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "db.v1.XPConfigService",
+	HandlerType: (*XPConfigServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "XPConfigVersion",
+			Handler:    _XPConfigService_XPConfigVersion_Handler,
+		},
+		{
+			MethodName: "GetXPConfig",
+			Handler:    _XPConfigService_GetXPConfig_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/db/v1/db.proto",
+}

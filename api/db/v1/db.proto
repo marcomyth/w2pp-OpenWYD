@@ -851,3 +851,46 @@ message MountGrowthRate {
   int32 band = 2;         // 0..5
   int32 rate = 3;         // 0..100
 }
+
+// XPConfigService serves the Mesa de XP — the panel-managed experience tables —
+// to tmServer. The legacy picks a reward branch by the 128-tile block a kill
+// happens on, one branch per instanced dungeon plus the general field, and this
+// carries the moderator's edits to those branches. tmServer only reads.
+service XPConfigService {
+  // XPConfigVersion returns the monotonic moderator config version.
+  rpc XPConfigVersion(XPConfigVersionRequest) returns (XPConfigVersionResponse);
+  // GetXPConfig returns every edited branch. Branches absent from the reply run
+  // on the legacy tables, which is the default state of a fresh server.
+  rpc GetXPConfig(GetXPConfigRequest) returns (GetXPConfigResponse);
+}
+
+message XPConfigVersionRequest {}
+message XPConfigVersionResponse { int64 version = 1; }
+
+message GetXPConfigRequest {}
+message GetXPConfigResponse {
+  int64 version = 1;
+  repeated XPRule rules = 2;
+}
+
+// XPCut is one rung of a table: up to this level, divide by this much. The last
+// rung of a table has no ceiling and carries the maximum int32 as up_to.
+message XPCut {
+  int32 up_to = 1;
+  double divisor = 2;
+}
+
+// XPRule is one reward branch's configuration.
+//
+// has_cuts is what keeps "not edited" apart from "edited to have no cuts": proto3
+// cannot tell an absent repeated field from an empty one, and the two mean
+// opposite things here. false ⇒ keep the legacy table; true with an empty cuts
+// list ⇒ this branch divides by nothing, which is how Pesadelo Normal already
+// treats Mortal and Arch.
+message XPRule {
+  int32 zone = 1;          // internal/level.Zone
+  int32 tier = 2;          // ClassMaster: 1 Arch, 2 Mortal, 3 Celestial
+  int32 rate_percent = 3;  // applied last, after every legacy step; 100 is neutral
+  bool has_cuts = 4;
+  repeated XPCut cuts = 5;
+}
