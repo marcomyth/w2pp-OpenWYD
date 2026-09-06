@@ -155,6 +155,33 @@ func (c *Client) Desatolar(parent context.Context, conta string) (Desatolo, erro
 	}, nil
 }
 
+// Entrega is what a deliver-now did.
+type Entrega struct {
+	// Conectado is false when the account is not on the server. Not a failure:
+	// the mailbox keeps the items and the next login drains them.
+	Conectado bool
+	Entregues int32
+	// Perdidos counts items the warehouse had no room for. The login drain loses
+	// them the same way — the panel has to be able to say so instead of
+	// reporting a delivery that did not happen.
+	Perdidos   int32
+	Personagem string
+}
+
+// EntregarAgora drains an account mailbox without waiting for its next login.
+func (c *Client) EntregarAgora(parent context.Context, conta string) (Entrega, error) {
+	ctx, cancel := c.ctx(parent)
+	defer cancel()
+	resp, err := c.api.DeliverNow(ctx, &gamev1.DeliverNowRequest{AccountName: conta})
+	if err != nil {
+		return Entrega{}, traduz(err, "entregar agora")
+	}
+	return Entrega{
+		Conectado: resp.GetFound(), Entregues: resp.GetDelivered(),
+		Perdidos: resp.GetLost(), Personagem: resp.GetCharacterName(),
+	}, nil
+}
+
 // Avisar sends a notice to everyone in play and reports how many got it.
 func (c *Client) Avisar(parent context.Context, msg string) (int32, error) {
 	ctx, cancel := c.ctx(parent)

@@ -23,6 +23,7 @@ const (
 	GameControlService_Kick_FullMethodName       = "/game.v1.GameControlService/Kick"
 	GameControlService_Broadcast_FullMethodName  = "/game.v1.GameControlService/Broadcast"
 	GameControlService_Unstuck_FullMethodName    = "/game.v1.GameControlService/Unstuck"
+	GameControlService_DeliverNow_FullMethodName = "/game.v1.GameControlService/DeliverNow"
 	GameControlService_Drain_FullMethodName      = "/game.v1.GameControlService/Drain"
 )
 
@@ -59,6 +60,17 @@ type GameControlServiceClient interface {
 	// stuck. Until now the only remedy was editing the database by hand, which
 	// needs the character offline and somebody willing to do it.
 	Unstuck(ctx context.Context, in *UnstuckRequest, opts ...grpc.CallOption) (*UnstuckResponse, error)
+	// DeliverNow empties an account mailbox without waiting for its next login.
+	//
+	// delivery_queue is drained once, at account login, straight into the
+	// warehouse. That is right for the donate shop and wrong for support: a
+	// player who reports a problem and gets an item handed to them is told to log
+	// out and back in, which is the moment they find out the panel cannot
+	// actually give them anything while they are standing there.
+	//
+	// Nothing new is granted here. It is the same mailbox and the same placement
+	// the login path runs — only sooner.
+	DeliverNow(ctx context.Context, in *DeliverNowRequest, opts ...grpc.CallOption) (*DeliverNowResponse, error)
 	// Drain empties the server and waits for every save to land.
 	//
 	// It exists because a restart is only safe if the saves finish, and on
@@ -118,6 +130,16 @@ func (c *gameControlServiceClient) Unstuck(ctx context.Context, in *UnstuckReque
 	return out, nil
 }
 
+func (c *gameControlServiceClient) DeliverNow(ctx context.Context, in *DeliverNowRequest, opts ...grpc.CallOption) (*DeliverNowResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeliverNowResponse)
+	err := c.cc.Invoke(ctx, GameControlService_DeliverNow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *gameControlServiceClient) Drain(ctx context.Context, in *DrainRequest, opts ...grpc.CallOption) (*DrainResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DrainResponse)
@@ -161,6 +183,17 @@ type GameControlServiceServer interface {
 	// stuck. Until now the only remedy was editing the database by hand, which
 	// needs the character offline and somebody willing to do it.
 	Unstuck(context.Context, *UnstuckRequest) (*UnstuckResponse, error)
+	// DeliverNow empties an account mailbox without waiting for its next login.
+	//
+	// delivery_queue is drained once, at account login, straight into the
+	// warehouse. That is right for the donate shop and wrong for support: a
+	// player who reports a problem and gets an item handed to them is told to log
+	// out and back in, which is the moment they find out the panel cannot
+	// actually give them anything while they are standing there.
+	//
+	// Nothing new is granted here. It is the same mailbox and the same placement
+	// the login path runs — only sooner.
+	DeliverNow(context.Context, *DeliverNowRequest) (*DeliverNowResponse, error)
 	// Drain empties the server and waits for every save to land.
 	//
 	// It exists because a restart is only safe if the saves finish, and on
@@ -191,6 +224,9 @@ func (UnimplementedGameControlServiceServer) Broadcast(context.Context, *Broadca
 }
 func (UnimplementedGameControlServiceServer) Unstuck(context.Context, *UnstuckRequest) (*UnstuckResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Unstuck not implemented")
+}
+func (UnimplementedGameControlServiceServer) DeliverNow(context.Context, *DeliverNowRequest) (*DeliverNowResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeliverNow not implemented")
 }
 func (UnimplementedGameControlServiceServer) Drain(context.Context, *DrainRequest) (*DrainResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Drain not implemented")
@@ -288,6 +324,24 @@ func _GameControlService_Unstuck_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GameControlService_DeliverNow_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeliverNowRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GameControlServiceServer).DeliverNow(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GameControlService_DeliverNow_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GameControlServiceServer).DeliverNow(ctx, req.(*DeliverNowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _GameControlService_Drain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DrainRequest)
 	if err := dec(in); err != nil {
@@ -328,6 +382,10 @@ var GameControlService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Unstuck",
 			Handler:    _GameControlService_Unstuck_Handler,
+		},
+		{
+			MethodName: "DeliverNow",
+			Handler:    _GameControlService_DeliverNow_Handler,
 		},
 		{
 			MethodName: "Drain",

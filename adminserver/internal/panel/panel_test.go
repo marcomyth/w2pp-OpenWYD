@@ -2569,10 +2569,12 @@ func newTestPanelEntrega(t *testing.T, log AuditLog, game GameData, ent Deliveri
 	return h.Routes()
 }
 
-func TestEntregaEnfileiraEAvisaQuePrecisaRelogar(t *testing.T) {
-	// The queue drains at login. A moderator who does not read that will grant an
-	// item, watch nothing happen for the player standing in front of them, and
-	// report the panel as broken.
+func TestEntregaSemJogoLigadoAvisaQueChegaNoLogin(t *testing.T) {
+	// Without the game link the mailbox is the only path, and it drains at login.
+	// A moderator who does not read that grants an item, watches nothing happen
+	// for the player standing in front of them, and reports the panel as broken.
+	// With the link configured the item arrives at once — see the deliver-now
+	// tests in servidor_test.go.
 	ent := &fakeEntregas{}
 	log := newFakeAudit()
 	post, token := signedInPost(t, newTestPanelEntrega(t, log, newFakeGameData(), ent))
@@ -3192,6 +3194,10 @@ type fakeJogo struct {
 	drenarErr            error
 	desatolados          []string
 	desatolarErr         error
+	entregasAgora        []string
+	entregarErr          error
+	entregues            int32
+	perdidos             int32
 	avisados             int32
 	derrubados           int32
 	drenouAntesDoRestart bool
@@ -3233,6 +3239,24 @@ func (f *fakeJogo) Desatolar(_ context.Context, conta string) (jogo.Desatolo, er
 		}
 	}
 	return jogo.Desatolo{}, nil
+}
+
+func (f *fakeJogo) EntregarAgora(_ context.Context, conta string) (jogo.Entrega, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.entregarErr != nil {
+		return jogo.Entrega{}, f.entregarErr
+	}
+	f.entregasAgora = append(f.entregasAgora, conta)
+	for _, p := range f.estado.Players {
+		if p.Conta == conta {
+			return jogo.Entrega{
+				Conectado: true, Entregues: f.entregues, Perdidos: f.perdidos,
+				Personagem: p.Personagem,
+			}, nil
+		}
+	}
+	return jogo.Entrega{}, nil
 }
 
 func (f *fakeJogo) Avisar(_ context.Context, msg string) (int32, error) {

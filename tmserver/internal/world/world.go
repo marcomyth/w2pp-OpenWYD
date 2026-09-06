@@ -553,14 +553,20 @@ func (w *World) SetCargo(accountID int64, st *CargoState) {
 // right after the cargo is installed at login: places each item in the next free
 // cargo slot (lost when the cargo is full) and persists the cargo + acks the
 // queue rows in one backend transaction, off the loop. Loop-only.
-func (w *World) ApplyDeliveries(s *Session, pending []Delivery) {
+//
+// It returns how the mailbox split — delivered into the warehouse, and lost for
+// want of a free slot. The login path ignores both (nobody is watching), but the
+// admin panel's deliver-now cannot: reporting a delivery that the warehouse
+// dropped is how a moderator tells a player to go look for something that is not
+// there.
+func (w *World) ApplyDeliveries(s *Session, pending []Delivery) (delivered, lost int) {
 	if s == nil || s.AccountID == 0 || len(pending) == 0 {
-		return
+		return 0, 0
 	}
 	accountID := s.AccountID
 	cargo := w.cargo[accountID]
 	if cargo == nil {
-		return
+		return 0, 0
 	}
 	var deliveredIDs, lostIDs []int64
 	for _, d := range pending {
@@ -585,6 +591,7 @@ func (w *World) ApplyDeliveries(s *Session, pending []Delivery) {
 			}
 		}
 	})
+	return len(deliveredIDs), len(lostIDs)
 }
 
 // cargoSave snapshots an account's warehouse into a CargoSave. Loop-only.

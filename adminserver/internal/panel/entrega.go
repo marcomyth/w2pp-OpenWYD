@@ -89,8 +89,48 @@ func (h *Handler) entregarItem(w http.ResponseWriter, r *http.Request) {
 
 	h.cfg.Logger.Info("item delivery queued",
 		"actor", sess.AccountName, "account", conta, "item", indice, "id", id)
-	h.redirectConta(w, r, conta,
-		nomeItem+" entrou na fila. Chega no próximo login — quem já está jogando precisa sair e entrar.")
+	// Audited BEFORE this: the record is of the grant, which happened, and the
+	// immediate drain is only about when it lands.
+	h.redirectConta(w, r, conta, h.avisoDaEntrega(r, conta, nomeItem))
+}
+
+// avisoDaEntrega turns a queued grant into the sentence the operator reads, and
+// drains the mailbox on the spot when the player is connected.
+//
+// The drain is attempted rather than required, and its failure is never the
+// enqueue's failure: the item is already in the mailbox by the time this runs,
+// so a game server that is down or slow costs the delivery nothing — it arrives
+// at the next login, which is exactly what happened before this existed.
+//
+// The message is the whole point of doing it here instead of behind a second
+// button. Before, every delivery ended with "chega no próximo login — quem já
+// está jogando precisa sair e entrar", which was true and also the moment the
+// player found out the panel could not hand them anything while they stood
+// there.
+func (h *Handler) avisoDaEntrega(r *http.Request, conta, nomeItem string) string {
+	naFila := nomeItem + " entrou na fila. Chega no próximo login."
+	if h.cfg.Jogo == nil {
+		return naFila
+	}
+	ent, err := h.cfg.Jogo.EntregarAgora(r.Context(), conta)
+	if err != nil {
+		// Warn, not error: nothing was lost and nobody has to act on it.
+		h.cfg.Logger.Warn("immediate delivery failed, mailbox keeps it", "account", conta, "err", err)
+		return naFila
+	}
+	switch {
+	case !ent.Conectado:
+		return naFila
+	case ent.Perdidos > 0 && ent.Entregues == 0:
+		// The warehouse had no free slot. The login drain loses these the same
+		// way, so saying "delivered" would send the player looking for something
+		// that is not there.
+		return nomeItem + " NÃO coube: o baú da conta está cheio. Peça para abrir espaço e entregue de novo."
+	case ent.Perdidos > 0:
+		return nomeItem + " chegou em parte — o baú encheu no meio. Peça para abrir espaço e confira o que faltou."
+	default:
+		return nomeItem + " chegou agora no baú da conta, sem precisar relogar."
+	}
 }
 
 // cancelarEntrega removes a queued item the player has not collected.

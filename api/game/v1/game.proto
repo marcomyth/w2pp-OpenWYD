@@ -33,6 +33,17 @@ service GameControlService {
   // stuck. Until now the only remedy was editing the database by hand, which
   // needs the character offline and somebody willing to do it.
   rpc Unstuck(UnstuckRequest) returns (UnstuckResponse);
+  // DeliverNow empties an account mailbox without waiting for its next login.
+  //
+  // delivery_queue is drained once, at account login, straight into the
+  // warehouse. That is right for the donate shop and wrong for support: a
+  // player who reports a problem and gets an item handed to them is told to log
+  // out and back in, which is the moment they find out the panel cannot
+  // actually give them anything while they are standing there.
+  //
+  // Nothing new is granted here. It is the same mailbox and the same placement
+  // the login path runs — only sooner.
+  rpc DeliverNow(DeliverNowRequest) returns (DeliverNowResponse);
   // Drain empties the server and waits for every save to land.
   //
   // It exists because a restart is only safe if the saves finish, and on
@@ -94,6 +105,21 @@ message UnstuckResponse {
   int32 to_y = 6;
   // city is the name of where they landed, so the moderator can tell them.
   string city = 7;
+}
+
+message DeliverNowRequest {
+  string account_name = 1;
+}
+message DeliverNowResponse {
+  // found is false when the account is not connected. Its mailbox keeps the
+  // items and the next login drains them, so this is not a failure.
+  bool found = 1;
+  // delivered and lost split what the mailbox held. A warehouse with no free
+  // slot loses the item exactly as the login drain does — the panel has to be
+  // able to say so instead of reporting a delivery that did not happen.
+  int32 delivered = 2;
+  int32 lost = 3;
+  string character_name = 4;
 }
 
 message BroadcastRequest {

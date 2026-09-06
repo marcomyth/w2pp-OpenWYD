@@ -169,6 +169,7 @@ type Live interface {
 	Estado(ctx context.Context) (jogo.Estado, error)
 	Derrubar(ctx context.Context, conta string) (int32, error)
 	Desatolar(ctx context.Context, conta string) (jogo.Desatolo, error)
+	EntregarAgora(ctx context.Context, conta string) (jogo.Entrega, error)
 	Avisar(ctx context.Context, msg string) (int32, error)
 	Drenar(ctx context.Context, aviso string) (jogo.Drenagem, error)
 }

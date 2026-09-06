@@ -241,6 +241,90 @@ func (s *Server) Unstuck(ctx context.Context, req *gamev1.UnstuckRequest) (*game
 	return out, nil
 }
 
+// DeliverNow empties an account's item mailbox without waiting for its login.
+//
+// delivery_queue is drained once, at account login, straight into the warehouse
+// (World.ApplyDeliveries). That is right for the donate shop and wrong for
+// support: the player is standing there, and the panel could only tell them to
+// log out and back in.
+//
+// Nothing new is granted here — same mailbox, same placement the login path
+// runs, only sooner. It is three steps because the middle one talks to the
+// database and must not run inside the loop:
+//
+//  1. in the loop, find the session and take its account id;
+//  2. off the loop, read the mailbox;
+//  3. in the loop, place the items.
+//
+// The session is looked up AGAIN in step 3 rather than carried across. Between
+// the read and the placement the player can disconnect, and a session pointer
+// held across that gap would be written to after the world dropped it. Losing
+// the race simply reports nothing delivered: the mailbox rows are untouched, so
+// the next login drains them.
+func (s *Server) DeliverNow(ctx context.Context, req *gamev1.DeliverNowRequest) (*gamev1.DeliverNowResponse, error) {
+	nome := strings.TrimSpace(req.GetAccountName())
+	if nome == "" {
+		return nil, status.Error(codes.InvalidArgument, "account name is required")
+	}
+
+	type alvo struct {
+		accountID  int64
+		personagem string
+		persist    world.Persistence
+	}
+	quem, err := noLoop(ctx, s.world, func(w *world.World) alvo {
+		var a alvo
+		w.ForEachSession(func(sess *world.Session, e *world.Entity) {
+			if a.accountID != 0 || !strings.EqualFold(sess.AccountName, nome) {
+				return
+			}
+			a.accountID = sess.AccountID
+			if e != nil {
+				a.personagem = e.Name
+			}
+		})
+		// Read in the loop and carried out, rather than reached for off it: the
+		// field is set once at construction, and taking it here keeps the rule
+		// "world state is read in the loop" without an exception to remember.
+		a.persist = w.Persistence()
+		return a
+	})
+	if err != nil {
+		return nil, err
+	}
+	if quem.accountID == 0 {
+		return &gamev1.DeliverNowResponse{}, nil
+	}
+
+	pendentes, err := quem.persist.ListPendingDeliveries(ctx, quem.accountID)
+	if err != nil {
+		s.log.Warn("control: mailbox read failed", "account", nome, "err", err)
+		return nil, status.Error(codes.Unavailable, "could not read the mailbox")
+	}
+	if len(pendentes) == 0 {
+		return &gamev1.DeliverNowResponse{Found: true, CharacterName: quem.personagem}, nil
+	}
+
+	out, err := noLoop(ctx, s.world, func(w *world.World) *gamev1.DeliverNowResponse {
+		resp := &gamev1.DeliverNowResponse{CharacterName: quem.personagem}
+		w.ForEachSession(func(sess *world.Session, _ *world.Entity) {
+			if resp.Found || sess.AccountID != quem.accountID {
+				return
+			}
+			resp.Found = true
+			entregues, perdidos := w.ApplyDeliveries(sess, pendentes)
+			resp.Delivered, resp.Lost = int32(entregues), int32(perdidos)
+		})
+		return resp
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("control: mailbox drained on request", "account", nome,
+		"delivered", out.GetDelivered(), "lost", out.GetLost())
+	return out, nil
+}
+
 // maxBroadcast bounds the notice. The wire body is a fixed 96 bytes and the
 // encoder truncates silently, so a longer message would arrive cut with no sign
 // that it had been.
