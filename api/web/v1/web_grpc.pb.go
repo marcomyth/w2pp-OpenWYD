@@ -3569,3 +3569,212 @@ var ItemStatAdminService_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "api/web/v1/web.proto",
 }
+
+const (
+	MountGrowthAdminService_ListMountGrowthCurves_FullMethodName = "/web.v1.MountGrowthAdminService/ListMountGrowthCurves"
+	MountGrowthAdminService_SetMountGrowthCurve_FullMethodName   = "/web.v1.MountGrowthAdminService/SetMountGrowthCurve"
+	MountGrowthAdminService_ClearMountGrowthCurve_FullMethodName = "/web.v1.MountGrowthAdminService/ClearMountGrowthCurve"
+)
+
+// MountGrowthAdminServiceClient is the client API for MountGrowthAdminService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// MountGrowthAdminService edits the mount growth curves (0030_mount_growth_rate)
+// from the staff panel: the chance an âmago raises an ADULT mount one level, per
+// lineage and per band of twenty levels.
+//
+// Whole-curve writes rather than per-band: the bands are read together and only
+// make sense together, and the shape is the thing being edited. A save that
+// landed band 3 and lost band 4 would leave a mount with a curve nobody chose.
+type MountGrowthAdminServiceClient interface {
+	// ListMountGrowthCurves returns every adult lineage, configured or not, so the
+	// list screen can show the whole roster rather than only what someone has
+	// already touched.
+	ListMountGrowthCurves(ctx context.Context, in *ListMountGrowthCurvesRequest, opts ...grpc.CallOption) (*ListMountGrowthCurvesResponse, error)
+	// SetMountGrowthCurve writes one lineage's six bands.
+	SetMountGrowthCurve(ctx context.Context, in *SetMountGrowthCurveRequest, opts ...grpc.CallOption) (*AdminAck, error)
+	// ClearMountGrowthCurve drops the lineage's rows so the compiled default
+	// applies again. Restoring is a delete, not a write of the default values:
+	// absence is what "not configured" means everywhere in this overlay.
+	ClearMountGrowthCurve(ctx context.Context, in *ClearMountGrowthCurveRequest, opts ...grpc.CallOption) (*AdminAck, error)
+}
+
+type mountGrowthAdminServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMountGrowthAdminServiceClient(cc grpc.ClientConnInterface) MountGrowthAdminServiceClient {
+	return &mountGrowthAdminServiceClient{cc}
+}
+
+func (c *mountGrowthAdminServiceClient) ListMountGrowthCurves(ctx context.Context, in *ListMountGrowthCurvesRequest, opts ...grpc.CallOption) (*ListMountGrowthCurvesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMountGrowthCurvesResponse)
+	err := c.cc.Invoke(ctx, MountGrowthAdminService_ListMountGrowthCurves_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mountGrowthAdminServiceClient) SetMountGrowthCurve(ctx context.Context, in *SetMountGrowthCurveRequest, opts ...grpc.CallOption) (*AdminAck, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdminAck)
+	err := c.cc.Invoke(ctx, MountGrowthAdminService_SetMountGrowthCurve_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mountGrowthAdminServiceClient) ClearMountGrowthCurve(ctx context.Context, in *ClearMountGrowthCurveRequest, opts ...grpc.CallOption) (*AdminAck, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdminAck)
+	err := c.cc.Invoke(ctx, MountGrowthAdminService_ClearMountGrowthCurve_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MountGrowthAdminServiceServer is the server API for MountGrowthAdminService service.
+// All implementations must embed UnimplementedMountGrowthAdminServiceServer
+// for forward compatibility.
+//
+// MountGrowthAdminService edits the mount growth curves (0030_mount_growth_rate)
+// from the staff panel: the chance an âmago raises an ADULT mount one level, per
+// lineage and per band of twenty levels.
+//
+// Whole-curve writes rather than per-band: the bands are read together and only
+// make sense together, and the shape is the thing being edited. A save that
+// landed band 3 and lost band 4 would leave a mount with a curve nobody chose.
+type MountGrowthAdminServiceServer interface {
+	// ListMountGrowthCurves returns every adult lineage, configured or not, so the
+	// list screen can show the whole roster rather than only what someone has
+	// already touched.
+	ListMountGrowthCurves(context.Context, *ListMountGrowthCurvesRequest) (*ListMountGrowthCurvesResponse, error)
+	// SetMountGrowthCurve writes one lineage's six bands.
+	SetMountGrowthCurve(context.Context, *SetMountGrowthCurveRequest) (*AdminAck, error)
+	// ClearMountGrowthCurve drops the lineage's rows so the compiled default
+	// applies again. Restoring is a delete, not a write of the default values:
+	// absence is what "not configured" means everywhere in this overlay.
+	ClearMountGrowthCurve(context.Context, *ClearMountGrowthCurveRequest) (*AdminAck, error)
+	mustEmbedUnimplementedMountGrowthAdminServiceServer()
+}
+
+// UnimplementedMountGrowthAdminServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedMountGrowthAdminServiceServer struct{}
+
+func (UnimplementedMountGrowthAdminServiceServer) ListMountGrowthCurves(context.Context, *ListMountGrowthCurvesRequest) (*ListMountGrowthCurvesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMountGrowthCurves not implemented")
+}
+func (UnimplementedMountGrowthAdminServiceServer) SetMountGrowthCurve(context.Context, *SetMountGrowthCurveRequest) (*AdminAck, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetMountGrowthCurve not implemented")
+}
+func (UnimplementedMountGrowthAdminServiceServer) ClearMountGrowthCurve(context.Context, *ClearMountGrowthCurveRequest) (*AdminAck, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearMountGrowthCurve not implemented")
+}
+func (UnimplementedMountGrowthAdminServiceServer) mustEmbedUnimplementedMountGrowthAdminServiceServer() {
+}
+func (UnimplementedMountGrowthAdminServiceServer) testEmbeddedByValue() {}
+
+// UnsafeMountGrowthAdminServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MountGrowthAdminServiceServer will
+// result in compilation errors.
+type UnsafeMountGrowthAdminServiceServer interface {
+	mustEmbedUnimplementedMountGrowthAdminServiceServer()
+}
+
+func RegisterMountGrowthAdminServiceServer(s grpc.ServiceRegistrar, srv MountGrowthAdminServiceServer) {
+	// If the following call panics, it indicates UnimplementedMountGrowthAdminServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&MountGrowthAdminService_ServiceDesc, srv)
+}
+
+func _MountGrowthAdminService_ListMountGrowthCurves_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMountGrowthCurvesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MountGrowthAdminServiceServer).ListMountGrowthCurves(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MountGrowthAdminService_ListMountGrowthCurves_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MountGrowthAdminServiceServer).ListMountGrowthCurves(ctx, req.(*ListMountGrowthCurvesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MountGrowthAdminService_SetMountGrowthCurve_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetMountGrowthCurveRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MountGrowthAdminServiceServer).SetMountGrowthCurve(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MountGrowthAdminService_SetMountGrowthCurve_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MountGrowthAdminServiceServer).SetMountGrowthCurve(ctx, req.(*SetMountGrowthCurveRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MountGrowthAdminService_ClearMountGrowthCurve_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearMountGrowthCurveRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MountGrowthAdminServiceServer).ClearMountGrowthCurve(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MountGrowthAdminService_ClearMountGrowthCurve_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MountGrowthAdminServiceServer).ClearMountGrowthCurve(ctx, req.(*ClearMountGrowthCurveRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// MountGrowthAdminService_ServiceDesc is the grpc.ServiceDesc for MountGrowthAdminService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var MountGrowthAdminService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "web.v1.MountGrowthAdminService",
+	HandlerType: (*MountGrowthAdminServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListMountGrowthCurves",
+			Handler:    _MountGrowthAdminService_ListMountGrowthCurves_Handler,
+		},
+		{
+			MethodName: "SetMountGrowthCurve",
+			Handler:    _MountGrowthAdminService_SetMountGrowthCurve_Handler,
+		},
+		{
+			MethodName: "ClearMountGrowthCurve",
+			Handler:    _MountGrowthAdminService_ClearMountGrowthCurve_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/web/v1/web.proto",
+}

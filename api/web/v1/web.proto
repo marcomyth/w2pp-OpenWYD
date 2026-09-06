@@ -1384,3 +1384,54 @@ message DeleteItemStatRequest {
   int64 moderator_id = 1;
   int32 item_index = 2;
 }
+
+// MountGrowthAdminService edits the mount growth curves (0030_mount_growth_rate)
+// from the staff panel: the chance an âmago raises an ADULT mount one level, per
+// lineage and per band of twenty levels.
+//
+// Whole-curve writes rather than per-band: the bands are read together and only
+// make sense together, and the shape is the thing being edited. A save that
+// landed band 3 and lost band 4 would leave a mount with a curve nobody chose.
+service MountGrowthAdminService {
+  // ListMountGrowthCurves returns every adult lineage, configured or not, so the
+  // list screen can show the whole roster rather than only what someone has
+  // already touched.
+  rpc ListMountGrowthCurves(ListMountGrowthCurvesRequest) returns (ListMountGrowthCurvesResponse);
+  // SetMountGrowthCurve writes one lineage's six bands.
+  rpc SetMountGrowthCurve(SetMountGrowthCurveRequest) returns (AdminAck);
+  // ClearMountGrowthCurve drops the lineage's rows so the compiled default
+  // applies again. Restoring is a delete, not a write of the default values:
+  // absence is what "not configured" means everywhere in this overlay.
+  rpc ClearMountGrowthCurve(ClearMountGrowthCurveRequest) returns (AdminAck);
+}
+
+message AdminMountGrowthCurve {
+  int32 mount_index = 1;   // the ADULT mount, 2360..2389
+  string display_name = 2; // catalog name, read-only
+  int32 cria_index = 3;    // the cria this mount grows from
+  int32 amago_index = 4;   // the âmago that feeds it — not always this row's own
+  // configured is false when no band has been set and the compiled default
+  // applies to the whole lineage.
+  bool configured = 5;
+  // rates has one entry per band (0 = levels 1..20). A band nobody configured
+  // carries -1, which is NOT the same as 0: zero is a legitimate setting, an
+  // operator deliberately making that band impossible.
+  repeated int32 rates = 6;
+}
+
+message ListMountGrowthCurvesRequest {}
+message ListMountGrowthCurvesResponse {
+  repeated AdminMountGrowthCurve curves = 1;
+}
+
+message SetMountGrowthCurveRequest {
+  int64 moderator_id = 1;
+  string moderator = 2;
+  int32 mount_index = 3;
+  repeated int32 rates = 4; // one per band, 0..100
+}
+
+message ClearMountGrowthCurveRequest {
+  int64 moderator_id = 1;
+  int32 mount_index = 2;
+}

@@ -39,6 +39,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemstatadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplateadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplates"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mountgrowth"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/npcadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/npctemplates"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ranking"
@@ -92,6 +93,7 @@ func run(logger *slog.Logger) error {
 	npcAdmin.SetLogger(logger)
 	mobTemplateAdmin := mobtemplateadmin.New(st)
 	itemStatAdmin := itemstatadmin.New(st)
+	mountGrowthAdmin := mountgrowth.New(st)
 	donate := donateshop.New(st)
 	dailyRwd := dailyreward.New(st)
 	topup := donatetopup.New(st)
@@ -148,6 +150,11 @@ func run(logger *slog.Logger) error {
 				e, ok := porIndice[idx]
 				return e, ok
 			})
+			// The mount screen names its lineages from the same catalog.
+			mountGrowthAdmin.SetCatalog(func(idx int32) (itemcatalog.Entry, bool) {
+				e, ok := porIndice[idx]
+				return e, ok
+			})
 		}
 
 		mobTemplates, mobStats, err := mobtemplates.Scan(*contentDir, logger)
@@ -181,6 +188,7 @@ func run(logger *slog.Logger) error {
 	webv1.RegisterNpcAdminServiceServer(srv, grpcsrv.NewNpcAdmin(npcAdmin))
 	webv1.RegisterMobTemplateAdminServiceServer(srv, grpcsrv.NewMobTemplateAdmin(mobTemplateAdmin))
 	webv1.RegisterItemStatAdminServiceServer(srv, grpcsrv.NewItemStatAdmin(itemStatAdmin))
+	webv1.RegisterMountGrowthAdminServiceServer(srv, grpcsrv.NewMountGrowthAdmin(mountGrowthAdmin))
 	webv1.RegisterAttributeMapAdminServiceServer(srv, grpcsrv.NewAttributeMapAdmin(attrMap))
 	webv1.RegisterDonateAdminServiceServer(srv, grpcsrv.NewDonateAdmin(donate))
 	webv1.RegisterDonateShopServiceServer(srv, grpcsrv.NewDonateShop(donate))
