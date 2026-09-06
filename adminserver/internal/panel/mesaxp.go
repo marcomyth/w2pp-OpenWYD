@@ -2,6 +2,7 @@ package panel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -70,6 +71,35 @@ type mesaSimulacao struct {
 	AteNivel    int32
 	Bandas      []mesaBanda
 	Aviso       string
+
+	// PorZona is the same kill priced in every zone. It answers the question the
+	// map puts in people's heads and the single-zone view cannot: "this mob is
+	// in Água Místico AND Água Arcano — does it pay differently?"
+	PorZona []mesaZonaComparada
+	// MesmaEmTodaParte is true when the field and the three Água pay the same,
+	// which is what happens for a celestial tier: celestialBands is shared by
+	// all seven branches. It deliberately says nothing about the three Pesadelo,
+	// which scale with identityBase and really do differ — Pesadelo Normal even
+	// divides the celestial block twice. Claiming "the zone changes nothing"
+	// while a Pesadelo column shows another figure would discredit the table.
+	MesmaEmTodaParte bool
+	// Estoura and TetoExp explain a zero that is NOT about the killer's level:
+	// the Pesadelo branches overflow a 32-bit product, and the fix is to LOWER
+	// the mob's Exp, which is the opposite of what anybody would try.
+	Estoura bool
+	TetoExp int64
+}
+
+// mesaZonaComparada is one zone's price for the same kill.
+type mesaZonaComparada struct {
+	Zona    string
+	Exp     int64
+	Atual   bool
+	Estoura bool
+	// Relativo is this zone against the currently selected one, as a percentage
+	// (100 = identical). It is what makes "Arcano pays 22% more" readable
+	// without the reader dividing two six-digit numbers in their head.
+	Relativo int
 }
 
 type mesaForm struct {
@@ -88,6 +118,52 @@ type mesaForm struct {
 	Novato    bool
 	KefraViva bool
 	Quests    bool
+}
+
+// estadoMesa is what the RUNNING game is paying, as opposed to what this screen
+// is editing.
+//
+// The Mesa has no boot flag to report — an unedited table is the legacy
+// behaviour, so there is nothing to switch on — which means the overlay warning
+// the other editors use does not apply here. What can be checked is stronger:
+// the version the process loaded, against the version in the database. Equal
+// means the screen is showing what players are getting; different means a save
+// is sitting there waiting for a restart, and those two states are otherwise
+// indistinguishable.
+type estadoMesa struct {
+	// Perguntou is false when there is no control channel configured, or the
+	// game did not answer. The page then promises nothing.
+	Perguntou bool
+	NoJogo    int64
+	NoBanco   int64
+	// Valendo is true when the game is running exactly what is on this screen.
+	Valendo bool
+	// SemMesa means the game booted with no Mesa at all — no dbServer, or the
+	// read failed — so it is on the legacy tables and NOTHING saved here is
+	// being applied, restart or no restart.
+	SemMesa bool
+}
+
+// estadoDaMesa asks the running game which Mesa version it booted with.
+func (h *Handler) estadoDaMesa(r *http.Request, versaoNoBanco int64) estadoMesa {
+	e := estadoMesa{NoBanco: versaoNoBanco}
+	if h.cfg.Jogo == nil {
+		return e
+	}
+	o, err := h.cfg.Jogo.Ajustes(r.Context())
+	if err != nil {
+		// Warn, not error: the edit still saves. What is lost is the ability to
+		// say whether it is live.
+		h.cfg.Logger.Warn("could not ask the game which XP table it loaded", "err", err)
+		return e
+	}
+	e.Perguntou = true
+	e.NoJogo = o.VersaoMesaXP
+	// Version 0 in the database is a Mesa nobody has ever saved, which the game
+	// reports as 0 too. That is agreement, not absence.
+	e.SemMesa = o.VersaoMesaXP == 0 && versaoNoBanco > 0
+	e.Valendo = !e.SemMesa && o.VersaoMesaXP == versaoNoBanco
+	return e
 }
 
 // --- the page -------------------------------------------------------------
@@ -142,44 +218,50 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "mesaxp.html", struct {
 		page
-		Aba       string
-		Versao    int64
-		Abas      []mesaAba
-		Zonas     []mesaAba
-		Zona      string
-		Evolucao  string
-		Taxa      int32
-		Cortes    []mesaCorte
-		Editada   bool
-		Legado    []mesaCorte
-		Form      mesaForm
-		Sim       mesaSimulacao
-		Historico []audit.Entry
-		Fadas     []fadaOpcao
-		Monstros  []string
-		DoMonstro bool
-		Aviso     string
-		VoltarURL string
+		Aba         string
+		Versao      int64
+		Abas        []mesaAba
+		Zonas       []mesaAba
+		Zona        string
+		Evolucao    string
+		Taxa        int32
+		Cortes      []mesaCorte
+		Editada     bool
+		Legado      []mesaCorte
+		Form        mesaForm
+		Sim         mesaSimulacao
+		Historico   []audit.Entry
+		Fadas       []fadaOpcao
+		Monstros    []string
+		DoMonstro   bool
+		Aviso       string
+		VoltarURL   string
+		Estado      estadoMesa
+		Grupos      []opcaoGrupo
+		OutrasZonas []opcaoZona
 	}{
-		page:      h.pageFor(r, "rates"),
-		Aba:       "xp",
-		Versao:    cfg.Version,
-		Abas:      abasEvolucao(form, cfg),
-		Zonas:     abasZona(form, cfg),
-		Zona:      zona.Name(),
-		Evolucao:  level.TierName(evo),
-		Taxa:      cfg.RatePercent(zona, evo),
-		Cortes:    cortesParaTela(cfg.Cuts(zona, evo), true),
-		Editada:   temRegra(cfg, zona, evo),
-		Legado:    cortesParaTela(level.LegacyCuts(zona, evo), false),
-		Form:      form,
-		Sim:       sim,
-		Historico: historico,
-		Fadas:     fadas,
-		Monstros:  h.nomesDeMonstro(r),
-		DoMonstro: doMonstro,
-		Aviso:     r.URL.Query().Get("aviso"),
-		VoltarURL: form.query(),
+		page:        h.pageFor(r, "rates"),
+		Aba:         "xp",
+		Versao:      cfg.Version,
+		Abas:        abasEvolucao(form, cfg),
+		Zonas:       abasZona(form, cfg),
+		Zona:        zona.Name(),
+		Evolucao:    level.TierName(evo),
+		Taxa:        cfg.RatePercent(zona, evo),
+		Cortes:      cortesParaTela(cfg.Cuts(zona, evo), true),
+		Editada:     temRegra(cfg, zona, evo),
+		Legado:      cortesParaTela(level.LegacyCuts(zona, evo), false),
+		Form:        form,
+		Sim:         sim,
+		Historico:   historico,
+		Fadas:       fadas,
+		Monstros:    h.nomesDeMonstro(r),
+		DoMonstro:   doMonstro,
+		Aviso:       r.URL.Query().Get("aviso"),
+		VoltarURL:   form.query(),
+		Estado:      h.estadoDaMesa(r, cfg.Version),
+		Grupos:      gruposParaTela(),
+		OutrasZonas: outrasZonas(form.Zona),
 	})
 }
 
@@ -210,22 +292,166 @@ func (h *Handler) setMesaXP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	regra := domain.XPRule{Zone: zona, Tier: evo, RatePercent: int32(taxa), Cuts: cortes}
-	antes, err := h.cfg.MesaXP.UpsertXPRule(r.Context(), regra, sess.AccountID)
+	// One write and one audit entry PER zone, rather than a single "applied to
+	// six zones" record. Each zone's row is independently editable and
+	// revertible, so its history has to be independently readable too —
+	// a grouped entry would make "put Água Místico back the way it was" a
+	// question the log cannot answer.
+	alvos := zonasDoForm(r, zona)
+	for _, z := range alvos {
+		regra := domain.XPRule{Zone: z, Tier: evo, RatePercent: int32(taxa), Cuts: cortes}
+		antes, err := h.cfg.MesaXP.UpsertXPRule(r.Context(), regra, sess.AccountID)
+		if err != nil {
+			h.cfg.Logger.Error("mesa de XP save failed", "zona", z, "evolucao", evo, "err", err)
+			// Partial application is reported, not hidden: some zones may already
+			// be written, and saying "erro" flat would send somebody redoing work
+			// that landed.
+			http.Error(w, fmt.Sprintf(
+				"Erro ao gravar a zona %s. As zonas anteriores da lista já foram gravadas.",
+				level.Zone(z).Name()), http.StatusInternalServerError)
+			return
+		}
+		if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+			ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+			Action: audit.ActionSetXPRule,
+			Old:    regraParaAudit(antes), New: regraParaAudit(regra),
+		}); err != nil {
+			h.auditoriaFalhou(w, err)
+			return
+		}
+	}
+
+	aviso := "Gravado. O jogo só passa a usar isto no próximo reinício."
+	if len(alvos) > 1 {
+		nomes := make([]string, 0, len(alvos))
+		for _, z := range alvos {
+			nomes = append(nomes, level.Zone(z).Name())
+		}
+		// Naming them back is the confirmation that matters: a group shortcut
+		// that quietly hit one zone more than intended is invisible otherwise.
+		aviso = fmt.Sprintf("Gravado em %d zonas (%s). O jogo só passa a usar isto no próximo reinício.",
+			len(alvos), strings.Join(nomes, ", "))
+	}
+	h.voltarParaMesa(w, r, aviso)
+}
+
+// estadoGravado is the machine-readable half of an audit entry, used to put a
+// branch back the way it was.
+type estadoGravado struct {
+	Zona     int32   `json:"zona_id"`
+	Evolucao int32   `json:"evolucao_id"`
+	Taxa     int32   `json:"taxa_num"`
+	Legado   bool    `json:"legado"`
+	Cortes   []corte `json:"cortes_dados"`
+}
+
+type corte struct {
+	Ate int32   `json:"ate"`
+	Div float64 `json:"div"`
+}
+
+// restaurarMesaXP puts one branch back to the state an audit entry recorded.
+//
+// It reads the "before" side of a log entry rather than trusting anything the
+// browser sends: the request carries only the entry id, so the worst a tampered
+// form can do is restore some other real state that a moderator really did save.
+// Restoring is itself a change, so it is audited like any other.
+func (h *Handler) restaurarMesaXP(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	sess, _ := staffFrom(r.Context())
+
+	id, err := strconv.ParseInt(strings.TrimSpace(r.PostFormValue("id")), 10, 64)
 	if err != nil {
-		h.cfg.Logger.Error("mesa de XP save failed", "zona", zona, "evolucao", evo, "err", err)
-		http.Error(w, "Erro ao gravar a Mesa de XP.", http.StatusInternalServerError)
+		http.Error(w, "Registro inválido.", http.StatusBadRequest)
+		return
+	}
+
+	entradas, err := h.mesaHistorico(r.Context())
+	if err != nil {
+		h.cfg.Logger.Error("mesa de XP history failed", "err", err)
+		http.Error(w, "Erro ao ler o histórico.", http.StatusInternalServerError)
+		return
+	}
+	var alvo *audit.Entry
+	for i := range entradas {
+		if entradas[i].ID == id {
+			alvo = &entradas[i]
+			break
+		}
+	}
+	if alvo == nil || alvo.Old == "" {
+		// Not found, or an entry with no "before" — the first time a branch was
+		// ever edited has nothing to go back to.
+		http.Error(w, "Esse registro não tem um estado anterior para restaurar.", http.StatusBadRequest)
+		return
+	}
+
+	var antes estadoGravado
+	if err := json.Unmarshal([]byte(alvo.Old), &antes); err != nil {
+		// Entries written before the machine-readable fields existed cannot be
+		// restored. Saying so beats guessing at the prose.
+		http.Error(w, "Esse registro é antigo demais para ser restaurado automaticamente. "+
+			"Ele mostra os valores de antes; dá para digitá-los na tabela.", http.StatusBadRequest)
+		return
+	}
+	if antes.Zona < 0 || int(antes.Zona) >= len(level.Zones()) || !evolucaoValida(uint8(antes.Evolucao)) {
+		http.Error(w, "Esse registro aponta para uma zona ou evolução que não existe mais.",
+			http.StatusBadRequest)
+		return
+	}
+
+	nome := level.Zone(antes.Zona).Name() + " / " + level.TierName(uint8(antes.Evolucao))
+
+	// A branch that had no override before goes back to having none: restoring
+	// "the legacy table" by writing a copy of it would leave the branch marked
+	// as edited forever, and the screen would keep saying somebody changed it.
+	if antes.Legado {
+		anterior, err := h.cfg.MesaXP.DeleteXPRule(r.Context(), antes.Zona, antes.Evolucao)
+		if err != nil {
+			h.cfg.Logger.Error("mesa de XP restore-to-legacy failed", "zona", antes.Zona, "err", err)
+			http.Error(w, "Erro ao restaurar.", http.StatusInternalServerError)
+			return
+		}
+		if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+			ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+			Action: audit.ActionClearXPRule, Old: regraParaAudit(anterior),
+		}); err != nil {
+			h.auditoriaFalhou(w, err)
+			return
+		}
+		h.voltarParaMesa(w, r, "Restaurado: "+nome+" voltou ao legado, como estava. "+
+			"Vale no próximo reinício do jogo.")
+		return
+	}
+
+	cortes := make([]domain.XPCut, 0, len(antes.Cortes))
+	for _, c := range antes.Cortes {
+		cortes = append(cortes, domain.XPCut{UpTo: c.Ate, Divisor: c.Div})
+	}
+	regra := domain.XPRule{
+		Zone: antes.Zona, Tier: antes.Evolucao, RatePercent: antes.Taxa, Cuts: cortes,
+	}
+	anterior, err := h.cfg.MesaXP.UpsertXPRule(r.Context(), regra, sess.AccountID)
+	if err != nil {
+		h.cfg.Logger.Error("mesa de XP restore failed", "zona", antes.Zona, "err", err)
+		http.Error(w, "Erro ao restaurar.", http.StatusInternalServerError)
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
 		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetXPRule,
-		Old:    regraParaAudit(antes), New: regraParaAudit(regra),
+		Old:    regraParaAudit(anterior), New: regraParaAudit(regra),
 	}); err != nil {
 		h.auditoriaFalhou(w, err)
 		return
 	}
-	h.voltarParaMesa(w, r, "Gravado. O jogo só passa a usar isto no próximo reinício.")
+	h.voltarParaMesa(w, r, "Restaurado: "+nome+" voltou ao estado daquele registro. "+
+		"Vale no próximo reinício do jogo.")
 }
 
 // limparMesaXP returns one branch to the legacy tables.
@@ -269,6 +495,84 @@ func (h *Handler) voltarParaMesa(w http.ResponseWriter, r *http.Request, aviso s
 }
 
 // --- reading the forms ----------------------------------------------------
+
+// opcaoGrupo and opcaoZona are the "apply also to" checkboxes.
+type opcaoGrupo struct{ ID, Rotulo string }
+type opcaoZona struct {
+	ID     int
+	Rotulo string
+}
+
+func gruposParaTela() []opcaoGrupo {
+	out := make([]opcaoGrupo, 0, len(gruposDeZona))
+	for _, g := range gruposDeZona {
+		out = append(out, opcaoGrupo{ID: g.ID, Rotulo: g.Rotulo})
+	}
+	return out
+}
+
+// outrasZonas is every zone except the one being edited — that one is already
+// saved by definition, so offering it as a box to tick would only invite the
+// question of what unticking it does.
+func outrasZonas(atual int) []opcaoZona {
+	out := make([]opcaoZona, 0, len(level.Zones()))
+	for _, z := range level.Zones() {
+		if int(z) == atual {
+			continue
+		}
+		out = append(out, opcaoZona{ID: int(z), Rotulo: z.Name()})
+	}
+	return out
+}
+
+// gruposDeZona are the "apply to the whole set" shortcuts.
+//
+// They exist because the three Pesadelo and the three Água are almost always
+// tuned together — they are the same dungeon at three difficulties — and doing
+// that one screen at a time means six visits and six chances to mistype one
+// divisor out of eight. Plain checkboxes resolved on the server, since the panel
+// serves default-src 'none' and a "select all" button would need JavaScript.
+var gruposDeZona = []struct {
+	ID, Rotulo string
+	Zonas      []level.Zone
+}{
+	{"pesadelo", "Todos os Pesadelos", []level.Zone{
+		level.ZonePesadeloArcano, level.ZonePesadeloMistico, level.ZonePesadeloNormal}},
+	{"agua", "Todas as Águas", []level.Zone{
+		level.ZoneAguaArcano, level.ZoneAguaMistico, level.ZoneAguaNormal}},
+}
+
+// zonasDoForm is every zone this save must be written to: the one being edited,
+// plus whatever "também aplicar em" boxes were ticked, plus the group
+// shortcuts — deduplicated and in table order so the audit trail reads the same
+// way every time.
+//
+// The edited zone is always included. Letting it be dropped would turn "apply
+// this to the Águas too" into "apply it to the Águas instead", which is not what
+// the screen says and is destructive.
+func zonasDoForm(r *http.Request, atual int32) []int32 {
+	marcadas := map[int32]bool{atual: true}
+	for _, bruto := range r.PostForm["tambem"] {
+		if n, err := strconv.Atoi(bruto); err == nil && n >= 0 && n < len(level.Zones()) {
+			marcadas[int32(n)] = true
+		}
+	}
+	for _, g := range gruposDeZona {
+		if r.PostFormValue("grupo_"+g.ID) == "" {
+			continue
+		}
+		for _, z := range g.Zonas {
+			marcadas[int32(z)] = true
+		}
+	}
+	out := make([]int32, 0, len(marcadas))
+	for _, z := range level.Zones() {
+		if marcadas[int32(z)] {
+			out = append(out, int32(z))
+		}
+	}
+	return out
+}
 
 func zonaEvolucaoDoForm(w http.ResponseWriter, r *http.Request) (zona, evo int32, ok bool) {
 	z, errZ := strconv.Atoi(r.PostFormValue("zona"))
@@ -471,10 +775,113 @@ func simularMesa(f mesaForm, cfg level.Config) mesaSimulacao {
 			Tempo: duracao(b.Kills, f.Segundos),
 		})
 	}
+	sim.PorZona, sim.MesmaEmTodaParte = compararZonas(f, cfg)
+	sim.Estoura, sim.TetoExp = level.ExpOverflow(in)
+
 	if sim.ExpPorMorte == 0 {
-		sim.Aviso = "Este monstro não paga nada para um personagem deste nível."
+		// Two different failures look identical in game, and they have opposite
+		// fixes. Guessing wrong sends somebody raising a reward that is already
+		// too big to be represented.
+		if sim.Estoura {
+			sim.Aviso = fmt.Sprintf(
+				"Zero por estouro de conta, não por nível. As três versões do Pesadelo "+
+					"multiplicam a XP num inteiro de 32 bits e o resultado estoura: acima de "+
+					"%s de XP no monstro, esta evolução não recebe nada aqui. Para voltar a "+
+					"pagar, BAIXE a XP do monstro — subir piora.", milharLongo(sim.TetoExp))
+		} else {
+			sim.Aviso = "Este monstro não paga nada para um personagem deste nível."
+		}
 	}
 	return sim
+}
+
+// compararZonas prices the same kill in every zone.
+//
+// Whether the zones differ at all depends on the tier, and not in the way the
+// map suggests: the celestial cut table is shared by all seven branches, so a
+// celestial is paid the same everywhere while a mortal or arch is not. Água
+// Arcano is gated to celestial tiers alone, which means the one zone whose
+// tables are the most generous in the game is entered only by the tier that
+// cannot feel them.
+func compararZonas(f mesaForm, cfg level.Config) (linhas []mesaZonaComparada, iguais bool) {
+	zonas := level.Zones()
+	linhas = make([]mesaZonaComparada, 0, len(zonas))
+
+	atual := f
+	atualExp := level.ExpReward(atual.entrada(cfg))
+
+	for _, z := range zonas {
+		alt := f
+		alt.Zona = int(z)
+		in := alt.entrada(cfg)
+		exp := level.ExpReward(in)
+		estoura, _ := level.ExpOverflow(in)
+
+		rel := 0
+		if atualExp > 0 {
+			rel = int(exp * 100 / atualExp)
+		}
+		linhas = append(linhas, mesaZonaComparada{
+			Zona: z.Name(), Exp: exp, Atual: int(z) == f.Zona,
+			Estoura: estoura, Relativo: rel,
+		})
+	}
+
+	// "Same everywhere" is claimed only for the four branches that share both the
+	// celestial cut table AND the ×450/(30+level) base scaling: the field and the
+	// three Água. The Pesadelo three are genuinely different and must not be
+	// swept into the claim — they scale with the identity instead, so they pay
+	// MORE, and Pesadelo Normal then divides the celestial block twice
+	// (celestialTwice) and pays almost nothing. Saying "the zone changes
+	// nothing" while a Pesadelo column shows a different figure would discredit
+	// the whole table.
+	iguais = true
+	var ref int64 = -1
+	for i, z := range zonas {
+		if ehPesadelo(z) {
+			continue
+		}
+		if ref < 0 {
+			ref = linhas[i].Exp
+			continue
+		}
+		if linhas[i].Exp != ref {
+			iguais = false
+			break
+		}
+	}
+	return linhas, iguais
+}
+
+// ehPesadelo reports whether a zone is one of the three Pesadelo branches, which
+// are the ones that scale with identityBase rather than ×450/(30+level).
+func ehPesadelo(z level.Zone) bool {
+	switch z {
+	case level.ZonePesadeloArcano, level.ZonePesadeloMistico, level.ZonePesadeloNormal:
+		return true
+	default:
+		return false
+	}
+}
+
+// milharLongo groups digits with the Portuguese thousands separator.
+//
+// Separate from combate.go's milhar, which takes an int: rewards and Exp
+// ceilings are int64 all the way down this file, and widening the other one
+// would mean editing a file this change does not own.
+func milharLongo(n int64) string {
+	if n < 0 {
+		return "-" + milharLongo(-n)
+	}
+	s := strconv.FormatInt(n, 10)
+	var b strings.Builder
+	for i, d := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			b.WriteByte('.')
+		}
+		b.WriteRune(d)
+	}
+	return b.String()
 }
 
 // duracao turns a kill count into something a person can judge. Hours are the
@@ -607,6 +1014,21 @@ func regraParaAudit(r domain.XPRule) map[string]any {
 		"zona":     level.Zone(r.Zone).Name(),
 		"evolucao": level.TierName(uint8(r.Tier)),
 		"taxa":     fmt.Sprintf("%d%%", r.RatePercent),
+		// The same values again, machine-readable, so "restaurar" can put a
+		// branch back without parsing the prose above. They ride alongside
+		// rather than replacing it: the log's first job is still to be read by
+		// a person a year from now.
+		"zona_id":     r.Zone,
+		"evolucao_id": r.Tier,
+		"taxa_num":    r.RatePercent,
+		"legado":      r.Cuts == nil,
+	}
+	if r.Cuts != nil {
+		dados := make([]map[string]any, 0, len(r.Cuts))
+		for _, c := range r.Cuts {
+			dados = append(dados, map[string]any{"ate": c.UpTo, "div": c.Divisor})
+		}
+		out["cortes_dados"] = dados
 	}
 	if r.Cuts == nil {
 		out["cortes"] = "tabela do legado"

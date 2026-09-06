@@ -48,6 +48,31 @@
   }
   table.cortes th:first-child, table.cortes td:first-child { width: 40%; }
   td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  /* The zone the simulation is actually about, so the eye finds it in a table
+     whose other rows are there only for comparison. */
+  tr.atual > td { background: var(--chip-bg); font-weight: 600; }
+
+  /* "Apply also to": grouped away from the table so it reads as a scope choice
+     for the save, not as more numbers to fill in. */
+  fieldset.tambem {
+    border: 1px solid var(--rule); border-radius: 4px; padding: 10px 14px 12px;
+    margin: 18px 0 4px;
+  }
+  fieldset.tambem legend {
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3); padding: 0 6px;
+  }
+  fieldset.tambem .sub { margin: 0 0 8px; }
+  fieldset.tambem .caixas { margin: 6px 0 0; }
+
+  /* Undo sits inside the history cell and must not shout: it is available on
+     every row, and the rows are a log, not a list of actions. */
+  form.restaurar { margin: 6px 0 0; }
+  form.restaurar button {
+    font-size: 11.5px; padding: 3px 8px; background: none;
+    color: var(--ink-3); border: 1px solid var(--rule); border-radius: 3px; cursor: pointer;
+  }
+  form.restaurar button:hover { color: var(--ink); border-color: var(--ink-3); }
   .legado { font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
   .legado code { background: var(--chip-bg); padding: 1px 5px; border-radius: 3px; }
   .acao {
@@ -91,6 +116,34 @@
     pagaria valores diferentes para a mesma morte conforme a hora.
     {{if .Versao}}<br><br>Versão gravada: <strong>{{.Versao}}</strong>.{{end}}
   </div>
+
+  {{/* What the RUNNING game is paying, asked of the process itself. Saved-and-
+       live and saved-waiting-for-a-restart look identical on this screen and
+       differ by a week of wrong levelling, so the page states which one it is
+       instead of leaving it to be assumed. */}}
+  {{if .Estado.Perguntou}}
+    {{if .Estado.SemMesa}}
+    <div class="nota perigo">
+      <strong>O jogo não está usando esta Mesa.</strong> O servidor ligou sem
+      carregar tabela nenhuma e está rodando o legado — provavelmente subiu sem
+      o dbServer, ou a leitura falhou no boot. Enquanto isso não for resolvido,
+      nada que você gravar aqui vale em jogo, nem depois de reiniciar. Procure
+      <code>mesa de XP unreadable</code> no log do servidor.
+    </div>
+    {{else if .Estado.Valendo}}
+    <div class="nota">
+      <strong>O que está nesta tela é o que o jogo está pagando.</strong>
+      O servidor ligou com a versão {{.Estado.NoJogo}}, a mesma que está gravada.
+    </div>
+    {{else}}
+    <div class="nota perigo">
+      <strong>Tem alteração esperando reinício.</strong> O jogo está pagando pela
+      versão <strong>{{.Estado.NoJogo}}</strong>, mas o gravado já é a
+      <strong>{{.Estado.NoBanco}}</strong>. O que você vê abaixo ainda não chegou
+      em jogo — vale no próximo reinício do servidor.
+    </div>
+    {{end}}
+  {{end}}
 
   <div class="rot-aba">Zona do mapa</div>
   <div class="abas">
@@ -157,6 +210,30 @@
         teto para a última quebra, a que pega todo mundo acima da anterior.
         Divisor 1 não muda nada — é como o legado escreve um degrau neutro.
       </p>
+
+      {{/* Apply the same table to other zones in one save. The three Pesadelo
+           and the three Água are the same dungeon at three difficulties and get
+           tuned together; doing that one screen at a time is six visits and six
+           chances to mistype one divisor out of eight. Plain checkboxes, since
+           default-src 'none' rules out a "select all" button. */}}
+      <fieldset class="tambem">
+        <legend>Aplicar também em</legend>
+        <p class="sub">
+          A mesma taxa e as mesmas quebras vão para as zonas marcadas, nesta
+          mesma evolução ({{.Evolucao}}). O que já estiver lá é substituído, e
+          cada zona entra no histórico separada, para poder ser desfeita sozinha.
+        </p>
+        <div class="caixas">
+          {{range .Grupos}}
+          <label><input type="checkbox" name="grupo_{{.ID}}" value="1"> <strong>{{.Rotulo}}</strong></label>
+          {{end}}
+        </div>
+        <div class="caixas">
+          {{range .OutrasZonas}}
+          <label><input type="checkbox" name="tambem" value="{{.ID}}"> {{.Rotulo}}</label>
+          {{end}}
+        </div>
+      </fieldset>
 
       <div class="acoes">
         <button type="submit">Gravar esta tabela</button>
@@ -321,6 +398,54 @@
     </div>
     {{end}}
 
+    {{/* The same kill priced in every zone. A monster usually spawns in more
+         than one, and the single-zone view cannot answer "does the Arcano
+         version pay more" — which is the first thing anybody asks. */}}
+    {{if .Sim.PorZona}}
+    <h3>A mesma morte, em cada zona</h3>
+    {{if .Sim.MesmaEmTodaParte}}
+    <div class="nota">
+      <strong>Para {{.Evolucao}}, o campo e as três Águas pagam igual.</strong>
+      A tabela de cortes celestial é a mesma nas sete zonas, e o deslocamento de
+      nível das evoluções celestiais joga o cálculo para o último degrau em todas
+      elas. Então comparar Água Arcano com Água Místico não muda nada: mexer no
+      monstro mexe nas duas de uma vez, e quem separa as duas é só uma exceção
+      salva aqui embaixo.
+      <br><br>
+      Os três Pesadelos <strong>fogem</strong> disso — escalam por outra conta e
+      aparecem com números próprios na tabela acima. O Pesadelo Normal aplica o
+      bloco celestial duas vezes, como o servidor original fazia, e por isso paga
+      quase nada para esta evolução.
+    </div>
+    {{end}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Zona</th>
+            <th class="n">XP por morte</th>
+            <th class="n">Contra a atual</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Sim.PorZona}}
+          <tr{{if .Atual}} class="atual"{{end}}>
+            <td>{{.Zona}}{{if .Atual}} <span class="sub">(escolhida)</span>{{end}}</td>
+            <td class="n">{{if .Estoura}}0 <span class="sub">estouro</span>{{else}}{{.Exp}}{{end}}</td>
+            <td class="n">{{if .Atual}}—{{else}}{{.Relativo}}%{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    <p class="sub">
+      Nem toda zona aceita toda evolução: a Água Normal é só Mortal, a Místico é
+      Arch (e Celestial até o nível 40) e a Arcano só as evoluções celestiais. As
+      linhas que a sua evolução não pode entrar estão aqui para comparação, não
+      como algo que acontece em jogo.
+    </p>
+    {{end}}
+
     {{if .Sim.Bandas}}
     <h3>Do nível {{.Form.Nivel}} até o topo, matando só este monstro</h3>
     <div class="tw">
@@ -389,6 +514,17 @@
             <td class="mudanca">
               {{if .Old}}<span class="de">{{.Old}}</span> &rarr; {{end}}
               {{if .New}}{{.New}}{{else if not .Old}}—{{end}}
+              {{/* Undo, straight from the log. Reads the "before" side of this
+                   very entry, so an experiment that turned out too strong goes
+                   back without anybody retyping eight divisors from memory. */}}
+              {{if .Old}}
+              <form method="post" action="/rates/xp/restaurar" class="restaurar">
+                <input type="hidden" name="csrf" value="{{$.CSRF}}">
+                <input type="hidden" name="voltar" value="{{$.VoltarURL}}">
+                <input type="hidden" name="id" value="{{.ID}}">
+                <button type="submit">Voltar a como era antes desta mudança</button>
+              </form>
+              {{end}}
             </td>
           </tr>
           {{end}}

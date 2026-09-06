@@ -2,6 +2,7 @@ package panel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -148,9 +149,16 @@ type fakeAudit struct {
 	written   []audit.Record
 	failWrite error
 	limit     int
+	// espelha makes Write feed ListActions, the way the real store does. Off by
+	// default so tests that seed entries with add() keep seeing only those.
+	espelha bool
 }
 
 func newFakeAudit() *fakeAudit { return &fakeAudit{limit: 100} }
+
+// newFakeAuditEspelhado is the audit log a handler can read its own writes back
+// from — needed by anything that restores a previous state from the trail.
+func newFakeAuditEspelhado() *fakeAudit { return &fakeAudit{limit: 100, espelha: true} }
 
 func (f *fakeAudit) Limit() int { return f.limit }
 
@@ -191,6 +199,32 @@ func (f *fakeAudit) Write(_ context.Context, r audit.Record) error {
 		return f.failWrite
 	}
 	f.written = append(f.written, r)
+	// Opt-in, because most tests assert on entries they placed with add() and
+	// would start seeing their own writes echoed back. The handlers that read
+	// their own trail — restoring a Mesa de XP branch from the log — need the
+	// round trip to be real, including the JSON encoding the store does.
+	if f.espelha {
+		e := audit.Entry{
+			ID: int64(len(f.entries) + 1), ActorID: r.ActorID, ActorRole: r.ActorRole,
+			Action: r.Action, TargetID: r.TargetID,
+			CreatedAt: time.Now(),
+		}
+		if r.Old != nil {
+			b, err := json.MarshalIndent(r.Old, "", "  ")
+			if err != nil {
+				return err
+			}
+			e.Old = string(b)
+		}
+		if r.New != nil {
+			b, err := json.MarshalIndent(r.New, "", "  ")
+			if err != nil {
+				return err
+			}
+			e.New = string(b)
+		}
+		f.entries = append(f.entries, e)
+	}
 	return nil
 }
 
@@ -198,6 +232,14 @@ func (f *fakeAudit) recorded() []audit.Record {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]audit.Record(nil), f.written...)
+}
+
+// listadas is what a reader of the log would see, ids included — only populated
+// on an espelha fake.
+func (f *fakeAudit) listadas() []audit.Entry {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]audit.Entry(nil), f.entries...)
 }
 
 func (f *fakeAudit) add(e audit.Entry) {
@@ -1219,7 +1261,15 @@ func newFakeGameData() *fakeGameData {
 			"Kentania": {
 				exibido: "Kentania Velha", overridden: true,
 				valores: map[string]int64{"level": 10, "exp": 5000, "resist1": 7},
+				origens: []gamedata.MobOrigem{
+					{Local: "Água Místico", Pontos: 2, Quantidade: 24, RespawnMin: 3, X: 1250, Y: 3608},
+					// A follower: it marks the place but its monsters are counted
+					// on its leader's block.
+					{Local: "Água Arcano", Pontos: 1, Quantidade: 0, X: 1342, Y: 3517},
+				},
 			},
+			// No origins on purpose: the template that spawns nowhere is the case
+			// this whole feature exists to make visible.
 			"Mercador": {valores: map[string]int64{"level": 1}},
 		},
 		drops: []gamedata.Drop{
@@ -1960,6 +2010,7 @@ type mobRow struct {
 	exibido    string
 	overridden bool
 	valores    map[string]int64
+	origens    []gamedata.MobOrigem
 }
 
 func (f *fakeGameData) MobTemplates(_ context.Context, _ int64, query string) ([]gamedata.MobTemplate, error) {
@@ -1991,6 +2042,7 @@ func (f *fakeGameData) MobStat(_ context.Context, _ int64, name string) (gamedat
 	}
 	s := gamedata.NewMobStat(name, row.overridden)
 	s.SetDisplayName(row.exibido)
+	s.SetOrigens(row.origens)
 	for nome, v := range row.valores {
 		if !s.Set(nome, v) {
 			return gamedata.MobStat{}, fmt.Errorf("fake: campo %q nao existe no formulario", nome)
@@ -2085,7 +2137,10 @@ func TestMonstroMostraOsNumerosEOAvisoDeReinicio(t *testing.T) {
 
 	for _, want := range []string{
 		"Nível",
-		`name="level" type="number" step="1"`,
+		// Not type="number" on purpose: that input hands the server an empty
+		// string for anything the browser dislikes, which turned a typo into a
+		// save that confirmed and changed nothing.
+		`name="level" type="text"`,
 		`value="10"`,
 		"Kentania Velha",
 		"só vale depois de reiniciar o servidor",

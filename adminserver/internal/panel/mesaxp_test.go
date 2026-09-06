@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/jogo"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
@@ -50,7 +52,15 @@ func (f *fakeMesa) UpsertXPRule(_ context.Context, r domain.XPRule, ator int64) 
 	if f.gravErr != nil {
 		return domain.XPRule{}, f.gravErr
 	}
-	antes := f.regras[[2]int32{r.Zone, r.Tier}]
+	antes, existia := f.regras[[2]int32{r.Zone, r.Tier}]
+	if !existia {
+		// What store.fetchXPRule returns for a branch with no override: the
+		// branch identified, the default rate, and nil Cuts meaning "the legacy
+		// table". A zero value here would say zone 0 / tier 0, which is a real
+		// branch this one is not, and anything reading the "before" side of the
+		// audit trail would restore the wrong one.
+		antes = domain.XPRule{Zone: r.Zone, Tier: r.Tier, RatePercent: 100}
+	}
 	f.regras[[2]int32{r.Zone, r.Tier}] = r
 	f.versao++
 	f.ator = append(f.ator, ator)
@@ -158,7 +168,7 @@ func TestAdminGravaUmaTabela(t *testing.T) {
 	h := newTestPanelMesa(t, roleAdmin, mesa, log)
 	post, token := signedInPost(t, h)
 
-	rec := post("/auditoria/xp", url.Values{
+	rec := post("/rates/xp", url.Values{
 		"csrf": {token}, "zona": {"1"}, "evolucao": {"2"}, "taxa": {"150"},
 		"corte_nivel":   {"200", "", "acima"},
 		"corte_divisor": {"1,5", "", "4"},
@@ -199,7 +209,7 @@ func TestTabelaVaziaNaoViraTabelaDoLegado(t *testing.T) {
 	h := newTestPanelMesa(t, roleAdmin, mesa, newFakeAudit())
 	post, token := signedInPost(t, h)
 
-	if rec := post("/auditoria/xp", url.Values{
+	if rec := post("/rates/xp", url.Values{
 		"csrf": {token}, "zona": {"0"}, "evolucao": {"2"}, "taxa": {"100"},
 		"corte_nivel": {"", "", ""}, "corte_divisor": {"", "", ""},
 	}); rec.Code != http.StatusSeeOther {
@@ -226,7 +236,7 @@ func TestDivisorInvalidoERecusado(t *testing.T) {
 		{"nível não numérico", "abacaxi", "2"},
 	} {
 		t.Run(caso.nome, func(t *testing.T) {
-			rec := post("/auditoria/xp", url.Values{
+			rec := post("/rates/xp", url.Values{
 				"csrf": {token}, "zona": {"0"}, "evolucao": {"2"}, "taxa": {"100"},
 				"corte_nivel": {caso.nivel}, "corte_divisor": {caso.divisor},
 			})
@@ -268,7 +278,7 @@ func TestModeradorNaoMexeNaMesa(t *testing.T) {
 	h := newTestPanelMesa(t, roleModerator, mesa, newFakeAudit())
 	post, token := signedInPost(t, h)
 
-	if rec := post("/auditoria/xp", url.Values{
+	if rec := post("/rates/xp", url.Values{
 		"csrf": {token}, "zona": {"0"}, "evolucao": {"2"}, "taxa": {"999"},
 	}); rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, quero 403", rec.Code)
@@ -307,7 +317,7 @@ func TestZonaInvalidaERecusada(t *testing.T) {
 		{"csrf": {token}, "zona": {"-1"}, "evolucao": {"2"}, "taxa": {"100"}},
 		{"csrf": {token}, "zona": {"0"}, "evolucao": {"9"}, "taxa": {"100"}},
 	} {
-		if rec := post("/auditoria/xp", caso); rec.Code != http.StatusBadRequest {
+		if rec := post("/rates/xp", caso); rec.Code != http.StatusBadRequest {
 			t.Errorf("zona=%s evolucao=%s: status = %d, quero 400",
 				caso.Get("zona"), caso.Get("evolucao"), rec.Code)
 		}
@@ -326,6 +336,415 @@ func TestNomesDeMonstroToleraFalha(t *testing.T) {
 	req := httptest.NewRequest("GET", "/mesaxp", nil)
 	if got := h.nomesDeMonstro(req); got != nil {
 		t.Errorf("sem GameData a lista deve vir vazia, veio %v", got)
+	}
+}
+
+// A monster usually spawns in more than one zone, and the single-zone view
+// cannot answer the first question anybody asks: does the Arcano version pay
+// more? For a mortal it does.
+func TestMesaComparaAsZonas(t *testing.T) {
+	h := newTestPanelMesa(t, roleAdmin, newFakeMesa(), newFakeAudit())
+	corpo := abrirMesa(t, h,
+		"?simular=1&zona=0&evolucao=2&mob_exp=2990849&mob_nivel=399&nivel=395&segundos=6").Body.String()
+
+	if !strings.Contains(corpo, "A mesma morte, em cada zona") {
+		t.Fatal("o comparativo por zona não apareceu")
+	}
+	for _, z := range []string{"Água Arcano", "Água Místico", "Pesadelo Normal", "Campo"} {
+		if !strings.Contains(corpo, z) {
+			t.Errorf("o comparativo não cita %q", z)
+		}
+	}
+	// Mortal really does see a difference between the two Água branches, so the
+	// table must not be claiming they are all the same.
+	if strings.Contains(corpo, "pagam igual") {
+		t.Error("disse que as zonas pagam igual para um mortal, e não pagam")
+	}
+}
+
+// For a celestial every zone pays the same: celestialBands is shared by all
+// seven branches. Seven equal numbers with no explanation read as a broken
+// page, so the page has to say it out loud.
+func TestMesaDizQueCelestialNaoVeAZona(t *testing.T) {
+	h := newTestPanelMesa(t, roleAdmin, newFakeMesa(), newFakeAudit())
+	corpo := abrirMesa(t, h,
+		"?simular=1&zona=4&evolucao=3&quests=1&mob_exp=500000&mob_nivel=399&nivel=200&segundos=6").Body.String()
+
+	if !strings.Contains(corpo, "o campo e as três Águas pagam igual") {
+		t.Error("para celestial o campo e as três Águas pagam igual; a página não disse isso")
+	}
+	if !strings.Contains(corpo, "salva aqui embaixo") {
+		t.Error("faltou dizer onde SE muda: a exceção salva nesta tela")
+	}
+}
+
+// A zero from the 32-bit overflow must not be reported as "wrong level". The
+// fixes are opposite: this one is undone by LOWERING the mob's Exp.
+func TestMesaExplicaOZeroDoPesadelo(t *testing.T) {
+	h := newTestPanelMesa(t, roleAdmin, newFakeMesa(), newFakeAudit())
+	corpo := abrirMesa(t, h,
+		"?simular=1&zona=1&evolucao=3&quests=1&mob_exp=2990849&mob_nivel=399&nivel=395&segundos=6").Body.String()
+
+	if !strings.Contains(corpo, "estouro de conta") {
+		t.Error("o zero do Pesadelo foi mostrado sem explicar que é estouro de 32 bits")
+	}
+	if !strings.Contains(corpo, "BAIXE a XP do monstro") {
+		t.Error("faltou dizer que a correção é baixar a XP, que é o contrário do que se tentaria")
+	}
+	if strings.Contains(corpo, "não paga nada para um personagem deste nível") {
+		t.Error("culpou o nível do personagem por um zero que é de estouro")
+	}
+}
+
+// The claim on the page is narrow on purpose: the field and the three Água pay
+// the same for a celestial, the three Pesadelo do NOT. If compararZonas ever
+// starts sweeping Pesadelo into the "same everywhere" verdict, the page states
+// something the table right above it contradicts.
+func TestComparativoNaoDizQuePesadeloEIgual(t *testing.T) {
+	f := mesaForm{
+		Zona: int(level.ZoneAguaMistico), Evolucao: int(level.TierCelestial),
+		MobExp: 500_000, MobNivel: 399, Nivel: 200, Quests: true, KefraViva: true,
+	}
+	linhas, iguais := compararZonas(f, level.Config{})
+	if !iguais {
+		t.Fatal("campo e as três Águas pagam igual para celestial; compararZonas disse que não")
+	}
+
+	porZona := map[string]int64{}
+	for _, l := range linhas {
+		porZona[l.Zona] = l.Exp
+	}
+	campo := porZona[level.ZoneField.Name()]
+	if campo <= 0 {
+		t.Fatalf("campo pagou %d — o caso não testa nada", campo)
+	}
+	for _, z := range []level.Zone{level.ZoneAguaArcano, level.ZoneAguaMistico, level.ZoneAguaNormal} {
+		if got := porZona[z.Name()]; got != campo {
+			t.Errorf("%s pagou %d, campo pagou %d — deviam empatar", z.Name(), got, campo)
+		}
+	}
+	// Pesadelo A/M scale with the identity instead, so they pay MORE.
+	for _, z := range []level.Zone{level.ZonePesadeloArcano, level.ZonePesadeloMistico} {
+		if got := porZona[z.Name()]; got <= campo {
+			t.Errorf("%s pagou %d, não mais que o campo (%d) — o identityBase sumiu?", z.Name(), got, campo)
+		}
+	}
+	// Pesadelo Normal divides the celestial block twice, so it pays far less.
+	if got := porZona[level.ZonePesadeloNormal.Name()]; got >= campo {
+		t.Errorf("Pesadelo Normal pagou %d, não menos que o campo (%d) — o celestialTwice sumiu?", got, campo)
+	}
+}
+
+// A mortal does see the zone, so the "they pay the same" verdict must stay off.
+func TestComparativoNaoAfirmaIgualdadeParaMortal(t *testing.T) {
+	f := mesaForm{
+		Zona: int(level.ZoneAguaMistico), Evolucao: int(level.TierMortal),
+		MobExp: 2_990_849, MobNivel: 399, Nivel: 395, Quests: true, KefraViva: true,
+	}
+	if _, iguais := compararZonas(f, level.Config{}); iguais {
+		t.Error("mortal vê diferença entre campo, Água A, M e N; o comparativo disse que não")
+	}
+}
+
+// newTestPanelMesaJogo is newTestPanelMesa with a game link, so the page can ask
+// the running server which table it booted with.
+func newTestPanelMesaComLive(t *testing.T, mesa MesaXP, j Live) http.Handler {
+	t.Helper()
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		MesaXP: mesa, Jogo: j, Sessions: session.New(time.Hour),
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}
+
+// The state this whole check exists for: something was saved and the game has
+// not restarted. It is invisible on the screen otherwise — the table shows the
+// saved numbers either way — and the gap is a week of wrong levelling.
+func TestMesaAvisaQueOJogoAindaNaoLeu(t *testing.T) {
+	mesa := newFakeMesa()
+	mesa.versao = 9
+	j := &fakeJogo{overlays: jogo.Overlays{VersaoMesaXP: 7}}
+
+	corpo := abrirMesa(t, newTestPanelMesaComLive(t, mesa, j), "").Body.String()
+	if !strings.Contains(corpo, "esperando reinício") {
+		t.Error("o jogo está na versão 7 e o banco na 9; a página não avisou")
+	}
+	if !strings.Contains(corpo, "ainda não chegou") {
+		t.Error("faltou dizer que o que está na tela não é o que os jogadores recebem")
+	}
+}
+
+// The opposite, and worth saying out loud: without it nobody can tell a live
+// table from a pending one, so every visit ends in "will this be applied?".
+func TestMesaConfirmaQuandoOJogoJaLeu(t *testing.T) {
+	mesa := newFakeMesa()
+	mesa.versao = 9
+	j := &fakeJogo{overlays: jogo.Overlays{VersaoMesaXP: 9}}
+
+	corpo := abrirMesa(t, newTestPanelMesaComLive(t, mesa, j), "").Body.String()
+	if !strings.Contains(corpo, "é o que o jogo está pagando") {
+		t.Error("as versões batem; a página devia confirmar que está valendo")
+	}
+	if strings.Contains(corpo, "esperando reinício") {
+		t.Error("avisou de reinício pendente com as versões iguais")
+	}
+}
+
+// A server that booted with no Mesa at all is the worst case, because a restart
+// does NOT fix it: it has no dbServer, or the read failed. Reporting it as
+// "waiting for a restart" would send somebody restarting forever.
+func TestMesaAvisaQuandoOJogoNaoCarregouNada(t *testing.T) {
+	mesa := newFakeMesa()
+	mesa.versao = 9
+	j := &fakeJogo{overlays: jogo.Overlays{VersaoMesaXP: 0}}
+
+	corpo := abrirMesa(t, newTestPanelMesaComLive(t, mesa, j), "").Body.String()
+	if !strings.Contains(corpo, "não está usando esta Mesa") {
+		t.Error("o jogo subiu sem Mesa nenhuma; a página não avisou")
+	}
+	if strings.Contains(corpo, "esperando reinício") {
+		t.Error("chamou de reinício pendente um caso que reiniciar não resolve")
+	}
+}
+
+// With no game link the page must promise nothing rather than guess.
+func TestMesaSemLigacaoComOJogoNaoAfirmaNada(t *testing.T) {
+	mesa := newFakeMesa()
+	mesa.versao = 9
+	corpo := abrirMesa(t, newTestPanelMesa(t, roleAdmin, mesa, newFakeAudit()), "").Body.String()
+
+	for _, proibido := range []string{"é o que o jogo está pagando", "esperando reinício", "não está usando esta Mesa"} {
+		if strings.Contains(corpo, proibido) {
+			t.Errorf("sem canal com o jogo a página afirmou %q", proibido)
+		}
+	}
+}
+
+// A brand-new Mesa nobody ever saved is version 0 on both sides. That is
+// agreement, not a server running without one.
+func TestMesaZeroDosDoisLadosNaoEAlarme(t *testing.T) {
+	j := &fakeJogo{overlays: jogo.Overlays{VersaoMesaXP: 0}}
+	corpo := abrirMesa(t, newTestPanelMesaComLive(t, newFakeMesa(), j), "").Body.String()
+
+	if strings.Contains(corpo, "não está usando esta Mesa") {
+		t.Error("versão 0 nos dois lados é uma Mesa nunca salva, não um servidor sem Mesa")
+	}
+}
+
+// Tuning the three Água together is the case the shortcut exists for: six
+// visits and six chances to mistype one divisor out of eight, collapsed into
+// one save.
+func TestGravarEmGrupoAtingeAsTresAguas(t *testing.T) {
+	mesa := newFakeMesa()
+	log := newFakeAudit()
+	post, token := signedInPost(t, newTestPanelMesa(t, roleAdmin, mesa, log))
+
+	rec := post("/rates/xp", url.Values{
+		"csrf": {token}, "zona": {strconv.Itoa(int(level.ZoneAguaArcano))}, "evolucao": {"2"},
+		"taxa": {"150"}, "grupo_agua": {"1"},
+		"corte_nivel": {"acima"}, "corte_divisor": {"4"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
+	}
+	for _, z := range []level.Zone{level.ZoneAguaArcano, level.ZoneAguaMistico, level.ZoneAguaNormal} {
+		if got := mesa.regras[[2]int32{int32(z), 2}].RatePercent; got != 150 {
+			t.Errorf("%s ficou com taxa %d, quero 150", z.Name(), got)
+		}
+	}
+	// And nothing else was touched. A shortcut that quietly hits one zone more
+	// than intended is invisible until players notice.
+	for _, z := range []level.Zone{level.ZoneField, level.ZonePesadeloArcano,
+		level.ZonePesadeloMistico, level.ZonePesadeloNormal} {
+		if _, existe := mesa.regras[[2]int32{int32(z), 2}]; existe {
+			t.Errorf("%s foi gravada sem ter sido pedida", z.Name())
+		}
+	}
+	// One audit entry per zone, so each can be read — and undone — on its own.
+	if n := len(log.recorded()); n != 3 {
+		t.Errorf("%d registros de auditoria, quero 3 (um por zona)", n)
+	}
+}
+
+// Only the other tier is off limits: the group applies across zones, never
+// across evolutions. Mortal and Celestial have nothing to do with each other.
+func TestGrupoNaoAtravessaEvolucao(t *testing.T) {
+	mesa := newFakeMesa()
+	post, token := signedInPost(t, newTestPanelMesa(t, roleAdmin, mesa, newFakeAudit()))
+
+	post("/rates/xp", url.Values{
+		"csrf": {token}, "zona": {strconv.Itoa(int(level.ZoneAguaArcano))}, "evolucao": {"2"},
+		"taxa": {"150"}, "grupo_agua": {"1"},
+		"corte_nivel": {"acima"}, "corte_divisor": {"4"},
+	})
+	for _, evo := range []int32{1, 3} {
+		if _, existe := mesa.regras[[2]int32{int32(level.ZoneAguaMistico), evo}]; existe {
+			t.Errorf("a evolução %d foi gravada junto; o grupo é só de zonas", evo)
+		}
+	}
+}
+
+// The edited zone is always written, even when only other boxes are ticked.
+// Dropping it would turn "apply this to the Águas too" into "apply it to the
+// Águas instead", which is destructive and not what the screen says.
+func TestZonaAtualSempreEntra(t *testing.T) {
+	mesa := newFakeMesa()
+	post, token := signedInPost(t, newTestPanelMesa(t, roleAdmin, mesa, newFakeAudit()))
+
+	post("/rates/xp", url.Values{
+		"csrf": {token}, "zona": {strconv.Itoa(int(level.ZoneField))}, "evolucao": {"2"},
+		"taxa": {"150"}, "tambem": {strconv.Itoa(int(level.ZoneAguaNormal))},
+		"corte_nivel": {"acima"}, "corte_divisor": {"4"},
+	})
+	if _, existe := mesa.regras[[2]int32{int32(level.ZoneField), 2}]; !existe {
+		t.Error("a zona que estava sendo editada não foi gravada")
+	}
+	if _, existe := mesa.regras[[2]int32{int32(level.ZoneAguaNormal), 2}]; !existe {
+		t.Error("a zona marcada em 'também' não foi gravada")
+	}
+}
+
+// A junk value in the checkbox list must not become a zone index.
+func TestZonaInventadaNoGrupoEIgnorada(t *testing.T) {
+	mesa := newFakeMesa()
+	post, token := signedInPost(t, newTestPanelMesa(t, roleAdmin, mesa, newFakeAudit()))
+
+	rec := post("/rates/xp", url.Values{
+		"csrf": {token}, "zona": {"0"}, "evolucao": {"2"}, "taxa": {"150"},
+		"tambem":      {"99", "-1", "abc", strconv.Itoa(int(level.ZoneAguaNormal))},
+		"corte_nivel": {"acima"}, "corte_divisor": {"4"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
+	}
+	if n := len(mesa.regras); n != 2 {
+		t.Errorf("gravou %d regras, quero 2 (campo + Água Normal); o lixo devia ser ignorado", n)
+	}
+}
+
+// Saving several zones names them back. A group shortcut that hit one zone more
+// than intended is otherwise invisible until players notice.
+func TestAvisoNomeiaAsZonasGravadas(t *testing.T) {
+	mesa := newFakeMesa()
+	post, token := signedInPost(t, newTestPanelMesa(t, roleAdmin, mesa, newFakeAudit()))
+
+	rec := post("/rates/xp", url.Values{
+		"csrf": {token}, "zona": {strconv.Itoa(int(level.ZoneAguaArcano))}, "evolucao": {"2"},
+		"taxa": {"150"}, "grupo_agua": {"1"},
+		"corte_nivel": {"acima"}, "corte_divisor": {"4"},
+	})
+	loc := rec.Header().Get("Location")
+	dec, err := url.QueryUnescape(loc)
+	if err != nil {
+		t.Fatalf("Location ilegível: %v", err)
+	}
+	if !strings.Contains(dec, "3 zonas") {
+		t.Errorf("o aviso não diz quantas zonas foram gravadas: %q", dec)
+	}
+	for _, n := range []string{"Água Arcano", "Água Místico", "Água Normal"} {
+		if !strings.Contains(dec, n) {
+			t.Errorf("o aviso não nomeia %q: %q", n, dec)
+		}
+	}
+}
+
+// Undo, straight from the log: an experiment that turned out too strong goes
+// back without anybody retyping eight divisors from memory.
+func TestRestaurarVoltaAoEstadoAnterior(t *testing.T) {
+	mesa := newFakeMesa()
+	log := newFakeAuditEspelhado()
+	h := newTestPanelMesa(t, roleAdmin, mesa, log)
+	post, token := signedInPost(t, h)
+
+	valores := url.Values{
+		"csrf": {token}, "zona": {"0"}, "evolucao": {"2"},
+		"corte_nivel": {"acima"}, "corte_divisor": {"4"},
+	}
+	valores.Set("taxa", "150")
+	post("/rates/xp", valores)
+	valores.Set("taxa", "900") // the experiment that went too far
+	post("/rates/xp", valores)
+
+	if got := mesa.regras[[2]int32{0, 2}].RatePercent; got != 900 {
+		t.Fatalf("taxa = %d, o cenário precisa da segunda gravação", got)
+	}
+
+	// The second entry's "before" is the 150% state.
+	recs := log.listadas()
+	if len(recs) != 2 {
+		t.Fatalf("%d registros, quero 2", len(recs))
+	}
+	rec := post("/rates/xp/restaurar", url.Values{
+		"csrf": {token}, "id": {strconv.FormatInt(recs[len(recs)-1].ID, 10)},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
+	}
+	if got := mesa.regras[[2]int32{0, 2}].RatePercent; got != 150 {
+		t.Errorf("taxa depois de restaurar = %d, quero 150", got)
+	}
+	// Restoring is a change like any other and has to leave its own trail.
+	if n := len(log.recorded()); n != 3 {
+		t.Errorf("%d registros, quero 3 — restaurar também se audita", n)
+	}
+}
+
+// A branch that had no override before must go back to having NONE. Writing a
+// copy of the legacy table instead would leave it marked as edited forever.
+func TestRestaurarParaOLegadoApagaARegra(t *testing.T) {
+	mesa := newFakeMesa()
+	log := newFakeAuditEspelhado()
+	post, token := signedInPost(t, newTestPanelMesa(t, roleAdmin, mesa, log))
+
+	post("/rates/xp", url.Values{
+		"csrf": {token}, "zona": {"0"}, "evolucao": {"2"}, "taxa": {"900"},
+		"corte_nivel": {"acima"}, "corte_divisor": {"4"},
+	})
+	if _, existe := mesa.regras[[2]int32{0, 2}]; !existe {
+		t.Fatal("a gravação inicial não aconteceu")
+	}
+
+	recs := log.listadas()
+	rec := post("/rates/xp/restaurar", url.Values{
+		"csrf": {token}, "id": {strconv.FormatInt(recs[0].ID, 10)},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
+	}
+	if _, existe := mesa.regras[[2]int32{0, 2}]; existe {
+		t.Error("a regra continuou salva; antes dessa mudança a zona não tinha exceção nenhuma")
+	}
+}
+
+// The request carries only an entry id, so a tampered form cannot invent a
+// state — the worst it reaches is another real one somebody really saved.
+func TestRestaurarRegistroInexistenteERecusado(t *testing.T) {
+	mesa := newFakeMesa()
+	post, token := signedInPost(t, newTestPanelMesa(t, roleAdmin, mesa, newFakeAudit()))
+
+	for _, id := range []string{"999999", "abc", ""} {
+		rec := post("/rates/xp/restaurar", url.Values{"csrf": {token}, "id": {id}})
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("id %q: status = %d, quero 400", id, rec.Code)
+		}
+	}
+	if len(mesa.regras) != 0 {
+		t.Error("uma restauração recusada mexeu na Mesa")
+	}
+}
+
+// Moderators read the Mesa; only admins change it. Restoring is a change.
+func TestModeradorNaoRestaura(t *testing.T) {
+	mesa := newFakeMesa()
+	post, token := signedInPost(t, newTestPanelMesa(t, roleModerator, mesa, newFakeAudit()))
+
+	rec := post("/rates/xp/restaurar", url.Values{"csrf": {token}, "id": {"1"}})
+	if rec.Code == http.StatusSeeOther {
+		t.Error("um moderador conseguiu restaurar a Mesa")
 	}
 }
 

@@ -175,3 +175,125 @@ func TestAbaInvalidaNaoEntraNoRedirect(t *testing.T) {
 		t.Errorf("redirect = %q, uma aba inventada não deveria entrar na URL", loc)
 	}
 }
+
+// Emptying a box and pressing save must not answer "Gravado" while the old
+// number survives. That is the shape of every "salvei e não salvou" report: the
+// screen confirms, the value comes back unchanged, and nothing says why.
+func TestCampoVazioNaoPassaCalado(t *testing.T) {
+	game := newFakeGameData()
+	post, token := signedInPost(t, newTestPanelGame(t, newFakeAudit(), game))
+
+	rec := post("/monstros/Kentania", url.Values{
+		"csrf": {token}, "aba": {gamedata.AbaCombate}, "level": {""},
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400 — um campo vazio não pode virar um save silencioso", rec.Code)
+	}
+	if len(game.mobSaved) != 0 {
+		t.Errorf("gravou %d vez(es) um formulário que o operador deixou incompleto", len(game.mobSaved))
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "Nível") {
+		t.Errorf("a mensagem não diz qual campo ficou vazio: %q", body)
+	}
+}
+
+// A typo has to come back as a typo. The field is type="text" precisely so the
+// browser hands "12.000" to the server instead of swallowing it into an empty
+// string, and the server owes the operator the reason.
+func TestValorComSeparadorDizOQueEstaErrado(t *testing.T) {
+	game := newFakeGameData()
+	post, token := signedInPost(t, newTestPanelGame(t, newFakeAudit(), game))
+
+	rec := post("/monstros/Kentania", url.Values{
+		"csrf": {token}, "aba": {gamedata.AbaCombate}, "level": {"12.000"},
+	})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if len(game.mobSaved) != 0 {
+		t.Error("gravou apesar do valor inválido")
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "12.000") {
+		t.Errorf("a mensagem não mostra o que foi digitado: %q", body)
+	}
+}
+
+// The counterpart: a field the form never carried is still left alone. Rejecting
+// empties must not turn every partial post into an error, or per-tab saving dies.
+func TestCampoAusenteContinuaIntocado(t *testing.T) {
+	game := newFakeGameData()
+	post, token := signedInPost(t, newTestPanelGame(t, newFakeAudit(), game))
+
+	rec := post("/monstros/Kentania", url.Values{
+		"csrf": {token}, "aba": {gamedata.AbaVida}, "max_hp": {"14000"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if v := campoDe(t, game.mobSaved[0], "level"); v != 10 {
+		t.Errorf("level = %d, want 10 — o campo nem estava no formulário", v)
+	}
+}
+
+// Zero has to be reachable. Refusing an empty box is only fair if there is a way
+// to say "zero" on purpose.
+func TestZeroExplicitoGrava(t *testing.T) {
+	game := newFakeGameData()
+	post, token := signedInPost(t, newTestPanelGame(t, newFakeAudit(), game))
+
+	rec := post("/monstros/Kentania", url.Values{
+		"csrf": {token}, "aba": {gamedata.AbaCombate}, "level": {"0"},
+	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if v := campoDe(t, game.mobSaved[0], "level"); v != 0 {
+		t.Errorf("level = %d, want 0", v)
+	}
+}
+
+// Where the monster comes from has to reach the page. "Água Místico" is what
+// turns a wall of numbers into a monster somebody recognizes.
+func TestFichaMostraOndeOMonstroNasce(t *testing.T) {
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	body := get("/monstros/Kentania").Body.String()
+
+	for _, want := range []string{
+		"Onde nasce",
+		"Água Místico",
+		"até 24 por vez",
+		"2 pontos",
+		"renasce a cada 3 min",
+		"1250, 3608",
+		// The follower entry: no count of its own, and the page must not print
+		// "até 0 por vez".
+		"Água Arcano",
+		"acompanha outro monstro",
+		"não renasce sozinho",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a ficha não traz %q", want)
+		}
+	}
+}
+
+// The case the feature exists for: a template no generator names. Saying
+// nothing here is the same failure as before — somebody rebalances @@Gargula
+// for an hour and no player ever meets it.
+func TestFichaAvisaQuandoOModeloNaoNasce(t *testing.T) {
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	body := get("/monstros/Mercador").Body.String()
+
+	if !strings.Contains(body, "Nenhum gerador cria este modelo") {
+		t.Error("um modelo sem origem devia ser sinalizado na ficha")
+	}
+	if !strings.Contains(body, "orfao") {
+		t.Error("faltou a marca visual no bloco de origem")
+	}
+	// It must not be stated as "nothing spawns it": instances, quests and
+	// summons create mobs by name from code, and claiming otherwise would send
+	// somebody looking for a bug that is not there.
+	if !strings.Contains(body, "masmorras, quests") {
+		t.Error("a ressalva sobre masmorras/quests/invocações sumiu — o aviso vira uma afirmação falsa sem ela")
+	}
+}
