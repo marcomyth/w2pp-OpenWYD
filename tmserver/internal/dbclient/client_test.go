@@ -29,6 +29,7 @@ type fakeAPI struct {
 	savedCargo      *dbv1.SaveCargoRequest
 
 	deliveriesResp       *dbv1.ListPendingDeliveriesResponse
+	reports              []*dbv1.RecordReportRequest
 	savedCargoDeliveries *dbv1.SaveCargoWithDeliveriesRequest
 
 	pinSetOK   bool
@@ -452,4 +453,9 @@ func (f *fakeAPI) ClearAllPresence(context.Context, *dbv1.ClearAllPresenceReques
 
 func (f *fakeAPI) RecordTrade(context.Context, *dbv1.RecordTradeRequest, ...grpc.CallOption) (*dbv1.RecordTradeResponse, error) {
 	return &dbv1.RecordTradeResponse{Ok: true}, nil
+}
+
+func (f *fakeAPI) RecordReport(_ context.Context, req *dbv1.RecordReportRequest, _ ...grpc.CallOption) (*dbv1.RecordReportResponse, error) {
+	f.reports = append(f.reports, req)
+	return &dbv1.RecordReportResponse{Ok: true}, nil
 }

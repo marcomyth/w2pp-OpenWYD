@@ -39,6 +39,7 @@ type Store interface {
 	SetBlockedByName(ctx context.Context, name string, blocked bool) error
 	RecordDuelResult(ctx context.Context, winnerName, loserName string) error
 	RecordTrade(ctx context.Context, t domain.TradeRecord) error
+	RecordReport(ctx context.Context, r domain.PlayerReport) error
 	SetCharacterPresence(ctx context.Context, name string, online bool) (bool, error)
 	ClearAllPresence(ctx context.Context) (int64, error)
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
@@ -571,6 +572,24 @@ func (s *Server) RecordTrade(ctx context.Context, req *dbv1.RecordTradeRequest) 
 		return nil, status.Errorf(codes.Internal, "record trade: %v", err)
 	}
 	return &dbv1.RecordTradeResponse{Ok: true}, nil
+}
+
+// RecordReport stores one /reportar.
+//
+// Best-effort like RecordTrade, and for a sharper reason: the player has already
+// been told their report went in. The error comes back so the tmServer logs it,
+// but nothing is retried and nothing is undone.
+func (s *Server) RecordReport(ctx context.Context, req *dbv1.RecordReportRequest) (*dbv1.RecordReportResponse, error) {
+	r := domain.PlayerReport{
+		AccountID: req.GetAccountId(), Account: req.GetAccount(),
+		Character: req.GetCharacter(), Level: req.GetLevel(),
+		Text: req.GetText(), X: req.GetPosX(), Y: req.GetPosY(),
+		Nearby: req.GetNearby(),
+	}
+	if err := s.store.RecordReport(ctx, r); err != nil {
+		return nil, status.Errorf(codes.Internal, "record report: %v", err)
+	}
+	return &dbv1.RecordReportResponse{Ok: true}, nil
 }
 
 // SetCharacterPresence marks a character in-play or out, so the staff panel can

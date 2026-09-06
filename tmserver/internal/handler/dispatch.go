@@ -166,7 +166,8 @@ type Dispatcher struct {
 	cfg             Config
 	log             *slog.Logger
 	routes          map[protocol.Type]handlerFunc
-	fails           map[string]int // wrong-password count per account (CheckFailAccount)
+	fails           map[string]int      // wrong-password count per account (CheckFailAccount)
+	reportadoEm     map[int64]time.Time // account id -> last /reportar (flood gate)
 	combineFamilies map[protocol.Type]CombineFamily
 	odinCatalog     combine.Catalog
 	combineCatalog  combine.Catalog

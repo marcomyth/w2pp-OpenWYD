@@ -855,6 +855,18 @@ func (c *Client) RecordTrade(ctx context.Context, t world.TradeRecord) error {
 	return nil
 }
 
+// RecordReport stores one /reportar (0028_player_report).
+func (c *Client) RecordReport(ctx context.Context, r world.PlayerReport) error {
+	_, err := c.api.RecordReport(ctx, &dbv1.RecordReportRequest{
+		AccountId: r.AccountID, Account: r.Account, Character: r.Character,
+		Level: r.Level, Text: r.Text, PosX: int32(r.X), PosY: int32(r.Y), Nearby: r.Nearby,
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: record report: %w", err)
+	}
+	return nil
+}
+
 // SetCharacterPresence marks a character in-play or out for the staff panel.
 func (c *Client) SetCharacterPresence(ctx context.Context, name string, online bool) error {
 	resp, err := c.api.SetCharacterPresence(ctx, &dbv1.SetCharacterPresenceRequest{

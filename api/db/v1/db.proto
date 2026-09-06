@@ -71,6 +71,15 @@ service AccountService {
   // than retrying. The row is evidence, not state.
   rpc RecordTrade(RecordTradeRequest) returns (RecordTradeResponse);
 
+  // RecordReport stores one /reportar (0028_player_report): what the player
+  // wrote, plus the position, the level and the character names in view at that
+  // instant.
+  //
+  // Best-effort like RecordTrade, and for a sharper reason: the player has
+  // already been told their report went in. A slow Postgres must not turn that
+  // into an error on their screen, so the tmServer logs the failure and moves on.
+  rpc RecordReport(RecordReportRequest) returns (RecordReportResponse);
+
   // SetCharacterPresence marks a character as in-play (login) or out (logout or
   // disconnect), so the staff panel can tell whether the database is the
   // authority for that character's items.
@@ -401,6 +410,25 @@ message RecordTradeRequest {
 // ok is true when the row was written. A failure comes back as an error status,
 // which the tmServer logs; the trade itself already happened either way.
 message RecordTradeResponse { bool ok = 1; }
+
+// RecordReportRequest is one player report and the snapshot around it.
+message RecordReportRequest {
+  int64 account_id = 1;  // 0 when unknown
+  string account = 2;
+  string character = 3;
+  int32 level = 4;
+  // text is what the player typed. The store clamps it; a crafted packet must
+  // not write a megabyte per report.
+  string text = 5;
+  int32 pos_x = 6;
+  int32 pos_y = 7;
+  // nearby is the character names in view at that instant, and nothing else —
+  // no positions, no accounts. It is what makes "somebody here is botting"
+  // checkable, and it is also names of people who did not ask to be in anyone
+  // record, which is why the row expires.
+  repeated string nearby = 8;
+}
+message RecordReportResponse { bool ok = 1; }
 
 message SetCharacterPresenceRequest {
   string character_name = 1;

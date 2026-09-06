@@ -62,6 +62,11 @@ func TestServiceOverWire(t *testing.T) {
 
 func (f *fakeStore) RecordTrade(context.Context, domain.TradeRecord) error { return nil }
 
+func (f *fakeStore) RecordReport(_ context.Context, r domain.PlayerReport) error {
+	f.reports = append(f.reports, r)
+	return nil
+}
+
 func (f *fakeStore) SetCharacterPresence(_ context.Context, name string, online bool) (bool, error) {
 	if f.presence == nil {
 		f.presence = map[string]bool{}

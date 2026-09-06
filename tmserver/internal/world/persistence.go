@@ -351,6 +351,10 @@ type Persistence interface {
 	// players' word. Called off the loop and best-effort: the trade already
 	// happened in the world and cannot be undone because the write failed.
 	RecordTrade(ctx context.Context, t TradeRecord) error
+	// RecordReport stores one /reportar (0028_player_report). Called off the
+	// loop and best-effort: the player has already been told the report went
+	// in, so a failed write is logged and nothing is retried.
+	RecordReport(ctx context.Context, r PlayerReport) error
 	// SetCharacterPresence marks a character in-play (login) or out (logout or
 	// disconnect), so the staff panel can tell whether the database is the
 	// authority for that character's items. Bookkeeping only — nothing in the
@@ -471,6 +475,9 @@ func (NopPersistence) RecordDuelResult(context.Context, string, string) error {
 // RecordTrade does nothing.
 func (NopPersistence) RecordTrade(context.Context, TradeRecord) error { return nil }
 
+// RecordReport does nothing: without a backend there is nowhere to file it.
+func (NopPersistence) RecordReport(context.Context, PlayerReport) error { return nil }
+
 // SetCharacterPresence does nothing: presence exists only for the staff panel,
 // which is not there either when there is no database.
 func (NopPersistence) SetCharacterPresence(context.Context, string, bool) error { return nil }
@@ -545,6 +552,22 @@ func (NopPersistence) SaveCastleQuestState(context.Context, CastleQuestState) er
 type TradeItem struct {
 	Index int32
 	Eff   [3][2]uint8
+}
+
+// PlayerReport is one /reportar as the loop saw it: what the player wrote, and
+// the snapshot the server could take at that instant.
+//
+// It carries no timestamp and no expiry — those belong to the row, and the store
+// stamps them. What the loop knows is who, where, and who was in view.
+type PlayerReport struct {
+	AccountID int64
+	Account   string
+	Character string
+	Level     int32
+	Text      string
+	X, Y      int16
+	// Nearby is the character names in view, and nothing else.
+	Nearby []string
 }
 
 // TradeRecord is one completed player-to-player trade, as the loop saw it.

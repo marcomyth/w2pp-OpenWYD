@@ -45,6 +45,7 @@ const (
 	AccountService_SetAccountBlocked_FullMethodName       = "/db.v1.AccountService/SetAccountBlocked"
 	AccountService_RecordDuelResult_FullMethodName        = "/db.v1.AccountService/RecordDuelResult"
 	AccountService_RecordTrade_FullMethodName             = "/db.v1.AccountService/RecordTrade"
+	AccountService_RecordReport_FullMethodName            = "/db.v1.AccountService/RecordReport"
 	AccountService_SetCharacterPresence_FullMethodName    = "/db.v1.AccountService/SetCharacterPresence"
 	AccountService_ClearAllPresence_FullMethodName        = "/db.v1.AccountService/ClearAllPresence"
 	AccountService_CreateGuild_FullMethodName             = "/db.v1.AccountService/CreateGuild"
@@ -125,6 +126,14 @@ type AccountServiceClient interface {
 	// be undone because Postgres was slow, so the tmServer logs a failure rather
 	// than retrying. The row is evidence, not state.
 	RecordTrade(ctx context.Context, in *RecordTradeRequest, opts ...grpc.CallOption) (*RecordTradeResponse, error)
+	// RecordReport stores one /reportar (0028_player_report): what the player
+	// wrote, plus the position, the level and the character names in view at that
+	// instant.
+	//
+	// Best-effort like RecordTrade, and for a sharper reason: the player has
+	// already been told their report went in. A slow Postgres must not turn that
+	// into an error on their screen, so the tmServer logs the failure and moves on.
+	RecordReport(ctx context.Context, in *RecordReportRequest, opts ...grpc.CallOption) (*RecordReportResponse, error)
 	// SetCharacterPresence marks a character as in-play (login) or out (logout or
 	// disconnect), so the staff panel can tell whether the database is the
 	// authority for that character's items.
@@ -339,6 +348,16 @@ func (c *accountServiceClient) RecordTrade(ctx context.Context, in *RecordTradeR
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RecordTradeResponse)
 	err := c.cc.Invoke(ctx, AccountService_RecordTrade_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) RecordReport(ctx context.Context, in *RecordReportRequest, opts ...grpc.CallOption) (*RecordReportResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordReportResponse)
+	err := c.cc.Invoke(ctx, AccountService_RecordReport_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -567,6 +586,14 @@ type AccountServiceServer interface {
 	// be undone because Postgres was slow, so the tmServer logs a failure rather
 	// than retrying. The row is evidence, not state.
 	RecordTrade(context.Context, *RecordTradeRequest) (*RecordTradeResponse, error)
+	// RecordReport stores one /reportar (0028_player_report): what the player
+	// wrote, plus the position, the level and the character names in view at that
+	// instant.
+	//
+	// Best-effort like RecordTrade, and for a sharper reason: the player has
+	// already been told their report went in. A slow Postgres must not turn that
+	// into an error on their screen, so the tmServer logs the failure and moves on.
+	RecordReport(context.Context, *RecordReportRequest) (*RecordReportResponse, error)
 	// SetCharacterPresence marks a character as in-play (login) or out (logout or
 	// disconnect), so the staff panel can tell whether the database is the
 	// authority for that character's items.
@@ -660,6 +687,9 @@ func (UnimplementedAccountServiceServer) RecordDuelResult(context.Context, *Reco
 }
 func (UnimplementedAccountServiceServer) RecordTrade(context.Context, *RecordTradeRequest) (*RecordTradeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RecordTrade not implemented")
+}
+func (UnimplementedAccountServiceServer) RecordReport(context.Context, *RecordReportRequest) (*RecordReportResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordReport not implemented")
 }
 func (UnimplementedAccountServiceServer) SetCharacterPresence(context.Context, *SetCharacterPresenceRequest) (*SetCharacterPresenceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetCharacterPresence not implemented")
@@ -1054,6 +1084,24 @@ func _AccountService_RecordTrade_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_RecordReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordReportRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).RecordReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_RecordReport_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).RecordReport(ctx, req.(*RecordReportRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_SetCharacterPresence_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetCharacterPresenceRequest)
 	if err := dec(in); err != nil {
@@ -1420,6 +1468,10 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RecordTrade",
 			Handler:    _AccountService_RecordTrade_Handler,
+		},
+		{
+			MethodName: "RecordReport",
+			Handler:    _AccountService_RecordReport_Handler,
 		},
 		{
 			MethodName: "SetCharacterPresence",

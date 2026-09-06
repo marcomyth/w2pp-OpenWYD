@@ -217,6 +217,10 @@ func (d *Dispatcher) runCommand(w *world.World, s *world.Session, name string, a
 		d.runGMCommand(w, s, args)
 		return true
 	}
+	if cmd == "reportar" || cmd == "report" {
+		d.reportar(w, s, args)
+		return true
+	}
 	if cmd == "nick" {
 		d.showNick(w, s, cstr(args))
 		return true
