@@ -350,11 +350,11 @@ const (
 	// valor da refinação em +1 independente da previsão do nascimento da montaria.
 	// Aplicável a todos ovos de montaria."
 	volBirthAccelerator = 196
-	volPedraIdeal        = 211 // Pedra Ideal (5338): the Arch→Celestial rebirth (_MSG_UseItem.cpp:3002)
-	volExpChest          = 198
-	volBuffKappa20h      = 200
-	volBuffCombat20h     = 201
-	volBuffMental20h     = 202
+	volPedraIdeal       = 211 // Pedra Ideal (5338): the Arch→Celestial rebirth (_MSG_UseItem.cpp:3002)
+	volExpChest         = 198
+	volBuffKappa20h     = 200
+	volBuffCombat20h    = 201
+	volBuffMental20h    = 202
 	// affect tick units (Basedef.h): one tick = 8s of real time.
 	affect1H          = 450
 	affect1D          = 10800
