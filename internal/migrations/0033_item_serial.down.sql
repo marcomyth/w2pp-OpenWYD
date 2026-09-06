@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS item_serial_seq;
+DROP INDEX IF EXISTS item_serial_idx;
+ALTER TABLE item DROP COLUMN IF EXISTS serial;

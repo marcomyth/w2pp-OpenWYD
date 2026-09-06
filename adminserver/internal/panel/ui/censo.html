@@ -22,6 +22,16 @@
   .refino.zero { color: var(--ink-3); }
   .semnome { color: var(--ink-3); }
   .quando { font-size: 12.5px; color: var(--ink-3); }
+
+  .copia {
+    border: 1px solid var(--danger); border-radius: 4px;
+    padding: 14px 16px; margin-bottom: 12px; background: var(--surface);
+  }
+  .copia-cab { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; margin-bottom: 8px; }
+  .copia-cab strong { color: var(--ink); }
+  .copia-serial { font-variant-numeric: tabular-nums; color: var(--ink-3); font-size: 12.5px; }
+  .copia ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 13.5px; }
+  .secao { margin-top: 40px; }
 </style>
 </head>
 <body>
@@ -47,6 +57,53 @@
 
   {{if .Falha.censo}}{{template "falha-de-leitura" "o censo"}}{{end}}
   {{if .Falha.nomes}}{{template "falha-de-leitura" "os nomes dos itens no catálogo"}}{{end}}
+  {{if .Falha.copias}}{{template "falha-de-leitura" "as cópias"}}{{end}}
+
+  {{/* As cópias vêm antes do censo de propósito: o censo levanta suspeita, isto
+       é prova. Duas linhas com o mesmo número de série são o mesmo item. */}}
+  <h2>Cópias encontradas</h2>
+  {{if .Copias}}
+    <p class="sub">
+      Cada bloco é um número de série que apareceu em mais de um item. Isso não
+      é indício: é o mesmo item em dois lugares.
+    </p>
+    {{range .Copias}}
+    <div class="copia">
+      <div class="copia-cab">
+        <strong>{{if .Nome}}{{.Nome}}{{else}}item {{.Index}}{{end}}</strong>
+        <span class="chip-danger">{{len .Copias}} cópias</span>
+        <span class="copia-serial">série {{.Serial}} · índice {{.Index}}</span>
+      </div>
+      <ul>
+        {{range .Copias}}
+        <li>
+          {{if .Personagem}}{{.Personagem}}{{else}}(baú da conta){{end}}
+          — conta {{.Conta}}, {{.Onde}}
+        </li>
+        {{end}}
+      </ul>
+    </div>
+    {{end}}
+  {{else if .Marcados}}
+    <div class="vazio">
+      Nenhuma cópia. {{.Marcados}} itens estão marcados e nenhum número de série
+      se repete.
+    </div>
+  {{else}}
+    <div class="vazio">
+      Nada marcado ainda. Item ganha número de série quando o dono salva — ou
+      seja, quando sai do jogo —, e só o que vale a pena: refino 3 para cima,
+      bônus grande, item de guilda.
+      {{if .SemMarca}}São {{.SemMarca}} itens sem marca esperando o primeiro
+      logout dos donos.{{end}}
+      <br><br>
+      Uma cópia feita ANTES desta marcação não aparece aqui: as duas metades
+      foram marcadas em separado e ganharam números diferentes. A conta começa
+      agora.
+    </div>
+  {{end}}
+
+  <div class="secao"></div>
 
   {{if .Ate.Zero}}
     <div class="vazio">

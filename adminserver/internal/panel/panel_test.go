@@ -4341,6 +4341,28 @@ type fakeCenso struct {
 	cmp     domain.CensusCompare
 	pedidos []store.CensusQuery
 	err     error
+
+	dups       []domain.ItemDup
+	dupLimites []int
+	dupErr     error
+	marcados   int64
+	semMarca   int64
+}
+
+func (f *fakeCenso) ListDupes(_ context.Context, limite int) ([]domain.ItemDup, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.dupErr != nil {
+		return nil, f.dupErr
+	}
+	f.dupLimites = append(f.dupLimites, limite)
+	return f.dups, nil
+}
+
+func (f *fakeCenso) CountMarked(context.Context) (int64, int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.marcados, f.semMarca, nil
 }
 
 func (f *fakeCenso) CensusGrowth(_ context.Context, q store.CensusQuery) (domain.CensusCompare, error) {
@@ -4485,5 +4507,119 @@ func TestCensoNoMenuQuandoConfigurado(t *testing.T) {
 	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{}))
 	if !strings.Contains(get("/").Body.String(), `href="/censo"`) {
 		t.Error("o menu não oferece a página do censo")
+	}
+}
+
+// umaCopia is one serial found on two characters — the whole point of the
+// serial: proof, not suspicion.
+func umaCopia() []domain.ItemDup {
+	it := domain.ItemDup{Serial: 4242, Index: 1415, Onde: "char_carry",
+		Character: "Doador", Account: "conta_a"}
+	outra := it
+	outra.Onde, outra.Character, outra.Account = "char_equip", "Pegador", "conta_b"
+	return []domain.ItemDup{it, outra}
+}
+
+func TestCensoMostraACopiaComOsDoisDonos(t *testing.T) {
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{
+		cmp: duasFotos(), dups: umaCopia(), marcados: 900,
+	}))
+	body := get("/censo").Body.String()
+
+	for _, want := range []string{"Cópias encontradas", "4242", "Doador", "Pegador",
+		"conta_a", "conta_b", "2 cópias", "mochila", "equipado"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a página não traz %q", want)
+		}
+	}
+}
+
+// "Nenhuma cópia" e "nada marcado ainda" parecem a mesma tela vazia e querem
+// dizer o oposto. Logo depois da migração tudo é zero, e ler isso como
+// inocência é o erro que a contagem existe para impedir.
+func TestCensoSeparaSemCopiaDeSemMarca(t *testing.T) {
+	semMarca := signedIn(t, newTestPanelCenso(t, &fakeCenso{
+		cmp: duasFotos(), marcados: 0, semMarca: 5000,
+	}))("/censo").Body.String()
+	if !strings.Contains(semMarca, "Nada marcado ainda") {
+		t.Error("banco sem marca nenhuma não avisa que a conta ainda não começou")
+	}
+	if strings.Contains(semMarca, "Nenhuma cópia") {
+		t.Error("banco sem marca disse que não há cópias, o que não sabe")
+	}
+	if !strings.Contains(semMarca, "5000") {
+		t.Error("não diz quantos itens ainda esperam marca")
+	}
+
+	semCopia := signedIn(t, newTestPanelCenso(t, &fakeCenso{
+		cmp: duasFotos(), marcados: 900,
+	}))("/censo").Body.String()
+	if !strings.Contains(semCopia, "Nenhuma cópia") {
+		t.Error("com itens marcados e sem repetição, a página não diz que está limpo")
+	}
+}
+
+// Uma cópia feita antes da marcação não aparece, e a tela tem de dizer isso: um
+// moderador que leia a lista vazia como "nunca houve dupe" tira a conclusão
+// errada no primeiro dia.
+func TestCensoAvisaQueACopiaAntigaNaoAparece(t *testing.T) {
+	body := signedIn(t, newTestPanelCenso(t, &fakeCenso{cmp: duasFotos()}))("/censo").Body.String()
+	if !strings.Contains(body, "ANTES desta marcação") {
+		t.Error("a página não avisa que cópia anterior à marcação é invisível")
+	}
+}
+
+func TestCensoAgrupaTresCopiasDoMesmoNumero(t *testing.T) {
+	rows := umaCopia()
+	terceira := rows[0]
+	terceira.Onde, terceira.Character, terceira.Account = "account_cargo", "", "conta_c"
+	rows = append(rows, terceira)
+
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{cmp: duasFotos(), dups: rows, marcados: 9}))
+	body := get("/censo").Body.String()
+	if !strings.Contains(body, "3 cópias") {
+		t.Error("três linhas do mesmo serial não viraram um bloco só")
+	}
+	// Item de baú é da conta e não tem personagem; ainda assim precisa de dono.
+	if !strings.Contains(body, "(baú da conta)") || !strings.Contains(body, "conta_c") {
+		t.Error("a cópia guardada no baú apareceu sem dono")
+	}
+}
+
+func TestCensoFalhaDasCopiasNaoDerrubaOCenso(t *testing.T) {
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{
+		cmp: duasFotos(), dupErr: errors.New("sem banco"),
+	}))
+	rec := get("/censo")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "as cópias") {
+		t.Error("a página não avisa que não conseguiu ler as cópias")
+	}
+	if !strings.Contains(body, "1415") {
+		t.Error("o censo sumiu junto com a lista que falhou")
+	}
+}
+
+func TestAgrupaCopiasJuntaPorSerial(t *testing.T) {
+	rows := []domain.ItemDup{
+		{Serial: 9, Index: 1, Onde: "char_carry", Character: "A"},
+		{Serial: 9, Index: 1, Onde: "char_equip", Character: "B"},
+		{Serial: 8, Index: 2, Onde: "account_cargo"},
+	}
+	got := agrupaCopias(rows, map[int32]string{1: "Espada"})
+	if len(got) != 2 {
+		t.Fatalf("grupos = %d, want 2", len(got))
+	}
+	if got[0].Serial != 9 || len(got[0].Copias) != 2 || got[0].Nome != "Espada" {
+		t.Errorf("primeiro grupo = %+v", got[0])
+	}
+	if got[1].Serial != 8 || len(got[1].Copias) != 1 {
+		t.Errorf("segundo grupo = %+v", got[1])
+	}
+	if got[1].Copias[0].Onde != "baú" {
+		t.Errorf("owner_kind não foi traduzido: %q", got[1].Copias[0].Onde)
 	}
 }

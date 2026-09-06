@@ -37,12 +37,17 @@ func storeCenso(t *testing.T) *Store {
 }
 
 // personagem seeds a character and returns its id.
+//
+// The slot is the next free one on the account rather than a fixed zero, so a
+// test that needs two characters gets them instead of a unique-constraint
+// violation.
 func personagem(t *testing.T, s *Store, contaID int64, nome string) int64 {
 	t.Helper()
 	var id int64
-	err := s.pool.QueryRow(context.Background(),
-		`INSERT INTO character (account_id, slot, name) VALUES ($1, 0, $2) RETURNING id`,
-		contaID, nome).Scan(&id)
+	err := s.pool.QueryRow(context.Background(), `
+		INSERT INTO character (account_id, slot, name)
+		SELECT $1, COALESCE(max(slot) + 1, 0), $2 FROM character WHERE account_id = $1
+		RETURNING id`, contaID, nome).Scan(&id)
 	if err != nil {
 		t.Fatalf("seed personagem %q: %v", nome, err)
 	}

@@ -193,6 +193,14 @@ type Item struct {
 	EffV3 uint8
 	// ExpiresAt is the Unix-seconds expiry for timed items (0 = permanent).
 	ExpiresAt int64
+	// Serial is the item's identity (0033_item_serial), ZERO meaning unmarked.
+	//
+	// It rides alongside ExpiresAt for the same reason and by the same route:
+	// the wire STRUCT_ITEM is eight bytes — an index and three effect pairs —
+	// with no room for anything else, so a field the client never sees is the
+	// only place an identity can live without costing an effect slot. That is
+	// the whole point: a marked +11 sword is still +11.
+	Serial int64
 }
 
 // Affect is a persisted buff/debuff (affect[char][32]).
@@ -886,6 +894,30 @@ type GroundEvent struct {
 	// with the "pegou" that followed, which is the question somebody asks when
 	// reading this.
 	GroundID int32
+}
+
+// Item-effect ids the serial rule reads, from Source/Code/ItemEffect.h.
+//
+// EffGuildHi/EffGuildLo are the two halves of the guild number stamped on a
+// guild item (BASE_GetGuild, Basedef.cpp:4863): its presence is what marks the
+// item as belonging to a guild rather than a person.
+const (
+	EffDamage  = 2  // EF_DAMAGE
+	EffGuildHi = 56 // EF_HWORDGUILD
+	EffGuildLo = 57 // EF_LWORDGUILD
+	EffMagic   = 60 // EF_MAGIC
+)
+
+// ItemDup is one copy of an item that shares its serial with another
+// (0033_item_serial). Two rows with the same serial are proof, not suspicion.
+type ItemDup struct {
+	Serial int64
+	Index  int16
+	// Onde is the owner_kind: char_equip, char_carry or account_cargo.
+	Onde      string
+	Character string // vazio quando está no baú, que é da conta e não do personagem
+	Account   string
+	Eff       [3][2]uint8
 }
 
 // EffSanc is EF_SANC, the item-effect type that carries the refine level

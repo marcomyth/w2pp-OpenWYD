@@ -16,6 +16,54 @@ const censoLimite = 120
 // jump; thirty catches a leak too slow to see day by day.
 var censoJanelas = []int{1, 7, 30}
 
+// copiaGrupo is one serial and every item row carrying it. Two rows is a copy;
+// three is a copy that was copied.
+type copiaGrupo struct {
+	Serial int64
+	Index  int16
+	Nome   string
+	Copias []censoCopia
+}
+
+// censoCopia is where one copy sits, in the words the panel uses.
+type censoCopia struct {
+	Conta      string
+	Personagem string
+	Onde       string
+}
+
+// ondeItem translates owner_kind. The database words are the ones the game uses
+// internally; a moderator reads "baú".
+func ondeItem(kind string) string {
+	switch kind {
+	case "char_equip":
+		return "equipado"
+	case "char_carry":
+		return "mochila"
+	case "account_cargo":
+		return "baú"
+	}
+	return kind
+}
+
+// agrupaCopias turns the flat rows into one entry per serial. They arrive
+// ordered by serial, so a single pass is enough.
+func agrupaCopias(rows []domain.ItemDup, nomes map[int32]string) []copiaGrupo {
+	var out []copiaGrupo
+	for _, r := range rows {
+		c := censoCopia{Conta: r.Account, Personagem: r.Character, Onde: ondeItem(r.Onde)}
+		if n := len(out); n > 0 && out[n-1].Serial == r.Serial {
+			out[n-1].Copias = append(out[n-1].Copias, c)
+			continue
+		}
+		out = append(out, copiaGrupo{
+			Serial: r.Serial, Index: r.Index, Nome: nomes[int32(r.Index)],
+			Copias: []censoCopia{c},
+		})
+	}
+	return out
+}
+
 // censoLinha is one row as the page shows it, with the catalog name resolved.
 type censoLinha struct {
 	domain.ItemCensus
@@ -24,6 +72,10 @@ type censoLinha struct {
 
 // Cresceu reports whether this row went up, which is what colours it.
 func (c censoLinha) Cresceu() bool { return c.Delta > 0 }
+
+// copiasLimite caps the duplicate list. If there are more than this many, the
+// problem is not one scammer and the list is not the tool for it.
+const copiasLimite = 100
 
 // censo shows how many units of each item exist, and what moved.
 //
@@ -71,6 +123,20 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// The duplicates come after the names because they are rendered with them.
+	var copias []copiaGrupo
+	var marcados, semMarca int64
+	if brutas, e := h.cfg.Censo.ListDupes(r.Context(), copiasLimite); e != nil {
+		h.cfg.Logger.Error("dupe list failed", "err", e)
+		falha.nao("copias")
+	} else {
+		copias = agrupaCopias(brutas, nomes)
+		if marcados, semMarca, e = h.cfg.Censo.CountMarked(r.Context()); e != nil {
+			h.cfg.Logger.Error("marked count failed", "err", e)
+			falha.nao("copias")
+		}
+	}
+
 	linhas := make([]censoLinha, 0, len(cmp.Linha))
 	for _, c := range cmp.Linha {
 		linhas = append(linhas, censoLinha{ItemCensus: c, Nome: nomes[c.Index]})
@@ -84,6 +150,9 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "censo.html", struct {
 		page
+		Copias    []copiaGrupo
+		Marcados  int64
+		SemMarca  int64
 		Dias      int
 		Janelas   []int
 		Subiu     bool
@@ -97,7 +166,8 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 		Cheio     bool
 		Falha     falhas
 	}{
-		h.pageFor(r, "censo"), dias, censoJanelas, subiu, refinado,
+		h.pageFor(r, "censo"), copias, marcados, semMarca,
+		dias, censoJanelas, subiu, refinado,
 		cmp.De, cmp.Ate, linhas, encurtado,
 		!cmp.Ate.Zero() && cmp.De.Day.Equal(cmp.Ate.Day),
 		censoLimite, len(linhas) >= censoLimite, falha,

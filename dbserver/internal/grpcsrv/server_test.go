@@ -45,6 +45,9 @@ type fakeStore struct {
 
 	duelResults []duelResult // RecordDuelResult calls, for assertions
 	duelErr     error        // forces RecordDuelResult to return this
+
+	serialProximo int64 // último serial entregue (0033_item_serial)
+	serialErr     error
 }
 
 type duelResult struct{ winner, loser string }

@@ -16,6 +16,14 @@ type Item struct {
 	// ExpiresAt is the Unix-seconds expiry for timed items (0 = permanent). It is
 	// carried through persistence; the world drops the item once it passes.
 	ExpiresAt int64
+	// Serial is the item's identity (0033_item_serial), 0 meaning unmarked.
+	//
+	// It rides beside ExpiresAt for the same reason: the wire STRUCT_ITEM is an
+	// index and three effect pairs and nothing else, so a field the client never
+	// sees is the only place an identity fits without costing an effect. It is
+	// stamped at save time (serial.go) and travels with the item after that,
+	// because every move — trade, floor, warehouse — copies the whole struct.
+	Serial int64
 }
 
 // Empty reports whether the slot holds no item.

@@ -423,6 +423,9 @@ func run(logger *slog.Logger) error {
 		StatusFile:    statusFile,
 		ItemRanges:    itemRanges,
 		LogSends:      *logSends,
+		// Which items are worth an identity (0033_item_serial). The rule reads
+		// the item catalog, which the dispatcher has and the world does not.
+		Marcavel: dispatch.Marcavel,
 	}, logger, persist, dispatch.Handle)
 	// Mob-AI pulse: monsters acquire/chase/melee nearby players each tick (mobai.go).
 	w.SetTickHandler(world.DefaultMobTick, dispatch.Tick)
@@ -433,6 +436,15 @@ func run(logger *slog.Logger) error {
 	// marks here is what keeps an unclean shutdown from stranding characters
 	// marked online — which would leave the staff panel refusing to edit them
 	// forever. A non-zero count means the last shutdown was not clean.
+	// The first block of item serials, taken before the world serves anybody.
+	// Nothing is running yet, so this can block; without it the first saves of a
+	// fresh boot would go out unmarked, which is a hole at exactly the moment
+	// the server is writing every item it has for the first time. Not fatal: a
+	// server with no database still runs, its items simply carry no identity.
+	if err := w.PrimeSerials(ctx); err != nil {
+		logger.Warn("could not reserve the first item serials; items stay unmarked until a later block lands", "err", err)
+	}
+
 	if n, err := persist.ClearAllPresence(ctx); err != nil {
 		logger.Warn("could not clear character presence", "err", err)
 	} else if n > 0 {

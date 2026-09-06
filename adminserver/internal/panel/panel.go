@@ -233,6 +233,12 @@ type TradeLog interface {
 // interface would make that impossible to express.
 type Censo interface {
 	CensusGrowth(ctx context.Context, q store.CensusQuery) (domain.CensusCompare, error)
+	// ListDupes finds items sharing a serial (0033_item_serial) — the only
+	// reading in the whole plan that is proof rather than suspicion.
+	ListDupes(ctx context.Context, limite int) ([]domain.ItemDup, error)
+	// CountMarked separates "no copies" from "nothing is marked yet", which look
+	// identical on screen and mean opposite things.
+	CountMarked(ctx context.Context) (marcados, semMarca int64, err error)
 }
 
 // Platform is the hosting API, used to report the game server's boot time and

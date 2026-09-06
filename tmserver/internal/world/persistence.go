@@ -184,6 +184,7 @@ type SavedItem struct {
 	Eff3      uint8
 	EffV3     uint8
 	ExpiresAt int64 // Unix-seconds expiry for timed items (0 = permanent)
+	Serial    int64 // item identity (0033_item_serial), 0 = unmarked
 }
 
 // CharacterSave is the snapshot the world hands to the persistence backend on
@@ -358,6 +359,12 @@ type Persistence interface {
 	// RecordGround stores one drop or pickup (0031_ground_log). Called off the
 	// loop and best-effort: the item already moved in the world.
 	RecordGround(ctx context.Context, g GroundEvent) error
+	// ReserveSerials hands out a block of item serials (0033_item_serial) and
+	// returns the first. Called off the loop, and NOT best-effort: on failure
+	// the world keeps stamping zero (unmarked) rather than guess a number,
+	// because an item with no identity is a gap while an item carrying
+	// somebody else's identity is a false accusation.
+	ReserveSerials(ctx context.Context, quantos int64) (int64, error)
 	// SetCharacterPresence marks a character in-play (login) or out (logout or
 	// disconnect), so the staff panel can tell whether the database is the
 	// authority for that character's items. Bookkeeping only — nothing in the
@@ -483,6 +490,13 @@ func (NopPersistence) RecordReport(context.Context, PlayerReport) error { return
 
 // RecordGround does nothing.
 func (NopPersistence) RecordGround(context.Context, GroundEvent) error { return nil }
+
+// ReserveSerials refuses rather than pretending: with no database there is no
+// counter, and a made-up block would hand two items the same identity. The
+// world reads the error and leaves items unmarked.
+func (NopPersistence) ReserveSerials(context.Context, int64) (int64, error) {
+	return 0, errors.New("world: no persistence configured; item serials unavailable")
+}
 
 // SetCharacterPresence does nothing: presence exists only for the staff panel,
 // which is not there either when there is no database.

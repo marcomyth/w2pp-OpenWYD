@@ -41,6 +41,7 @@ type Store interface {
 	RecordTrade(ctx context.Context, t domain.TradeRecord) error
 	RecordReport(ctx context.Context, r domain.PlayerReport) error
 	RecordGround(ctx context.Context, g domain.GroundEvent) error
+	ReserveSerials(ctx context.Context, quantos int64) (int64, error)
 	SetCharacterPresence(ctx context.Context, name string, online bool) (bool, error)
 	ClearAllPresence(ctx context.Context) (int64, error)
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
@@ -614,6 +615,21 @@ func (s *Server) RecordGround(ctx context.Context, req *dbv1.RecordGroundRequest
 		return nil, status.Errorf(codes.Internal, "record ground: %v", err)
 	}
 	return &dbv1.RecordGroundResponse{Ok: true}, nil
+}
+
+// ReserveSerials hands out a block of item serials.
+//
+// Unlike the log writes above this one is NOT best-effort: a caller that treats
+// a failure as "carry on" would either stamp nothing or, worse, reuse numbers.
+// The error goes back and the tmServer keeps handing out zero (unmarked) until
+// a later block lands — an item with no identity is a gap, an item with someone
+// else's identity is a false accusation.
+func (s *Server) ReserveSerials(ctx context.Context, req *dbv1.ReserveSerialsRequest) (*dbv1.ReserveSerialsResponse, error) {
+	primeiro, err := s.store.ReserveSerials(ctx, req.GetCount())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "reserve serials: %v", err)
+	}
+	return &dbv1.ReserveSerialsResponse{First: primeiro}, nil
 }
 
 // SetCharacterPresence marks a character in-play or out, so the staff panel can

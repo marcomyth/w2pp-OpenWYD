@@ -62,6 +62,17 @@ func TestServiceOverWire(t *testing.T) {
 
 func (f *fakeStore) RecordTrade(context.Context, domain.TradeRecord) error { return nil }
 
+// ReserveSerials hands out consecutive blocks, so a test can assert that two
+// reservations never overlap.
+func (f *fakeStore) ReserveSerials(_ context.Context, quantos int64) (int64, error) {
+	if f.serialErr != nil {
+		return 0, f.serialErr
+	}
+	primeiro := f.serialProximo + 1
+	f.serialProximo += quantos
+	return primeiro, nil
+}
+
 func (f *fakeStore) RecordGround(_ context.Context, g domain.GroundEvent) error {
 	f.chao = append(f.chao, g)
 	return nil

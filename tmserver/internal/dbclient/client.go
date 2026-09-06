@@ -737,6 +737,7 @@ func itemFromProto(it *dbv1.Item) world.Item {
 			{Effect: uint8(it.GetEff3()), Value: uint8(it.GetEffv3())},
 		},
 		ExpiresAt: it.GetExpiresAt(),
+		Serial:    it.GetSerial(),
 	}
 }
 
@@ -835,9 +836,24 @@ func savedItemsToProto(items []world.SavedItem) []*dbv1.Item {
 			Eff3:      int32(it.Eff3),
 			Effv3:     int32(it.EffV3),
 			ExpiresAt: it.ExpiresAt,
+			Serial:    it.Serial,
 		})
 	}
 	return out
+}
+
+// ReserveSerials asks for a block of item serials (0033_item_serial).
+//
+// Not best-effort, unlike the log writes: the caller must keep stamping zero
+// (unmarked) on failure rather than guess a number, because an item with no
+// identity is a gap while an item carrying somebody else's identity is a false
+// accusation.
+func (c *Client) ReserveSerials(ctx context.Context, quantos int64) (int64, error) {
+	resp, err := c.api.ReserveSerials(ctx, &dbv1.ReserveSerialsRequest{Count: quantos})
+	if err != nil {
+		return 0, fmt.Errorf("dbclient: reserve serials: %w", err)
+	}
+	return resp.GetFirst(), nil
 }
 
 // RecordTrade stores one completed player-to-player trade (0025_trade_log).

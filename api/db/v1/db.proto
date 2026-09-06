@@ -90,6 +90,15 @@ service AccountService {
   // failing to write about it must not undo that.
   rpc RecordGround(RecordGroundRequest) returns (RecordGroundResponse);
 
+  // ReserveSerials hands the tmServer a block of item serials
+  // (0033_item_serial).
+  //
+  // A block rather than one number at a time because the caller is the game
+  // loop: it owns all world state alone and never blocks, so it cannot ask for
+  // a number while stamping an item. It takes a few thousand at boot and asks
+  // for more before running out.
+  rpc ReserveSerials(ReserveSerialsRequest) returns (ReserveSerialsResponse);
+
   // SetCharacterPresence marks a character as in-play (login) or out (logout or
   // disconnect), so the staff panel can tell whether the database is the
   // authority for that character's items.
@@ -257,6 +266,11 @@ message Item {
   // Unix-seconds expiry for timed items (0 = permanent). Set on grant (e.g. the
   // 30-day Perzen mount); the world drops the item once it passes.
   int64 expires_at = 9;
+  // The item's identity (0033_item_serial), 0 = unmarked. Like expires_at it
+  // exists only on this side of the wire: the game's own STRUCT_ITEM has room
+  // for an index and three effect pairs and nothing more, so this is the only
+  // place an identity can live without costing the item an effect.
+  int64 serial = 10;
 }
 
 message Affect {
@@ -420,6 +434,13 @@ message RecordTradeRequest {
 // ok is true when the row was written. A failure comes back as an error status,
 // which the tmServer logs; the trade itself already happened either way.
 message RecordTradeResponse { bool ok = 1; }
+
+// ReserveSerialsRequest asks for `count` consecutive item serials.
+message ReserveSerialsRequest { int64 count = 1; }
+
+// ReserveSerialsResponse is the first serial of the reserved block; the caller
+// owns [first, first+count).
+message ReserveSerialsResponse { int64 first = 1; }
 
 // RecordReportRequest is one player report and the snapshot around it.
 message RecordGroundRequest {

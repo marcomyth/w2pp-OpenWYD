@@ -47,6 +47,7 @@ const (
 	AccountService_RecordTrade_FullMethodName             = "/db.v1.AccountService/RecordTrade"
 	AccountService_RecordReport_FullMethodName            = "/db.v1.AccountService/RecordReport"
 	AccountService_RecordGround_FullMethodName            = "/db.v1.AccountService/RecordGround"
+	AccountService_ReserveSerials_FullMethodName          = "/db.v1.AccountService/ReserveSerials"
 	AccountService_SetCharacterPresence_FullMethodName    = "/db.v1.AccountService/SetCharacterPresence"
 	AccountService_ClearAllPresence_FullMethodName        = "/db.v1.AccountService/ClearAllPresence"
 	AccountService_CreateGuild_FullMethodName             = "/db.v1.AccountService/CreateGuild"
@@ -144,6 +145,14 @@ type AccountServiceClient interface {
 	// Best-effort like the others: the item already moved in the world, and
 	// failing to write about it must not undo that.
 	RecordGround(ctx context.Context, in *RecordGroundRequest, opts ...grpc.CallOption) (*RecordGroundResponse, error)
+	// ReserveSerials hands the tmServer a block of item serials
+	// (0033_item_serial).
+	//
+	// A block rather than one number at a time because the caller is the game
+	// loop: it owns all world state alone and never blocks, so it cannot ask for
+	// a number while stamping an item. It takes a few thousand at boot and asks
+	// for more before running out.
+	ReserveSerials(ctx context.Context, in *ReserveSerialsRequest, opts ...grpc.CallOption) (*ReserveSerialsResponse, error)
 	// SetCharacterPresence marks a character as in-play (login) or out (logout or
 	// disconnect), so the staff panel can tell whether the database is the
 	// authority for that character's items.
@@ -378,6 +387,16 @@ func (c *accountServiceClient) RecordGround(ctx context.Context, in *RecordGroun
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(RecordGroundResponse)
 	err := c.cc.Invoke(ctx, AccountService_RecordGround_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) ReserveSerials(ctx context.Context, in *ReserveSerialsRequest, opts ...grpc.CallOption) (*ReserveSerialsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReserveSerialsResponse)
+	err := c.cc.Invoke(ctx, AccountService_ReserveSerials_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -623,6 +642,14 @@ type AccountServiceServer interface {
 	// Best-effort like the others: the item already moved in the world, and
 	// failing to write about it must not undo that.
 	RecordGround(context.Context, *RecordGroundRequest) (*RecordGroundResponse, error)
+	// ReserveSerials hands the tmServer a block of item serials
+	// (0033_item_serial).
+	//
+	// A block rather than one number at a time because the caller is the game
+	// loop: it owns all world state alone and never blocks, so it cannot ask for
+	// a number while stamping an item. It takes a few thousand at boot and asks
+	// for more before running out.
+	ReserveSerials(context.Context, *ReserveSerialsRequest) (*ReserveSerialsResponse, error)
 	// SetCharacterPresence marks a character as in-play (login) or out (logout or
 	// disconnect), so the staff panel can tell whether the database is the
 	// authority for that character's items.
@@ -722,6 +749,9 @@ func (UnimplementedAccountServiceServer) RecordReport(context.Context, *RecordRe
 }
 func (UnimplementedAccountServiceServer) RecordGround(context.Context, *RecordGroundRequest) (*RecordGroundResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method RecordGround not implemented")
+}
+func (UnimplementedAccountServiceServer) ReserveSerials(context.Context, *ReserveSerialsRequest) (*ReserveSerialsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReserveSerials not implemented")
 }
 func (UnimplementedAccountServiceServer) SetCharacterPresence(context.Context, *SetCharacterPresenceRequest) (*SetCharacterPresenceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetCharacterPresence not implemented")
@@ -1152,6 +1182,24 @@ func _AccountService_RecordGround_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_ReserveSerials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReserveSerialsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ReserveSerials(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ReserveSerials_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ReserveSerials(ctx, req.(*ReserveSerialsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_SetCharacterPresence_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetCharacterPresenceRequest)
 	if err := dec(in); err != nil {
@@ -1526,6 +1574,10 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "RecordGround",
 			Handler:    _AccountService_RecordGround_Handler,
+		},
+		{
+			MethodName: "ReserveSerials",
+			Handler:    _AccountService_ReserveSerials_Handler,
 		},
 		{
 			MethodName: "SetCharacterPresence",

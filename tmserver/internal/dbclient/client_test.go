@@ -31,6 +31,8 @@ type fakeAPI struct {
 	deliveriesResp       *dbv1.ListPendingDeliveriesResponse
 	reports              []*dbv1.RecordReportRequest
 	chao                 []*dbv1.RecordGroundRequest
+	serialPedidos        []int64
+	serialProximo        int64
 	savedCargoDeliveries *dbv1.SaveCargoWithDeliveriesRequest
 
 	pinSetOK   bool
@@ -454,6 +456,12 @@ func (f *fakeAPI) ClearAllPresence(context.Context, *dbv1.ClearAllPresenceReques
 
 func (f *fakeAPI) RecordTrade(context.Context, *dbv1.RecordTradeRequest, ...grpc.CallOption) (*dbv1.RecordTradeResponse, error) {
 	return &dbv1.RecordTradeResponse{Ok: true}, nil
+}
+
+func (f *fakeAPI) ReserveSerials(_ context.Context, req *dbv1.ReserveSerialsRequest, _ ...grpc.CallOption) (*dbv1.ReserveSerialsResponse, error) {
+	f.serialPedidos = append(f.serialPedidos, req.GetCount())
+	f.serialProximo += req.GetCount()
+	return &dbv1.ReserveSerialsResponse{First: f.serialProximo - req.GetCount() + 1}, nil
 }
 
 func (f *fakeAPI) RecordGround(_ context.Context, req *dbv1.RecordGroundRequest, _ ...grpc.CallOption) (*dbv1.RecordGroundResponse, error) {

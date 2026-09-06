@@ -87,6 +87,12 @@ type Config struct {
 	OutBuffer  int           // per-session outbound queue depth
 	EventQueue int           // inbound event queue depth
 	Now        func() uint32 // server clock (ClientTick); injectable for tests
+	// Marcavel decides which items are worth an identity (0033_item_serial).
+	// Injected because the rule reads the item catalog — the equip-slot class,
+	// and the indexes the original game singled out in BASE_NeedLog — which is
+	// content the world neither has nor should have. Nil means nothing is
+	// stamped, which is what tests and a catalog-less boot want.
+	Marcavel func(Item) bool
 	// ShutdownGrace is how long the loop waits after warning players that the
 	// server is stopping, so their sockets flush the frame before shutdown closes
 	// them. ZERO means announce and move on, which is what tests want: they spin
@@ -172,6 +178,18 @@ type World struct {
 	// successful event drops.
 	worldEvent EventConfig
 
+	// Item-serial block (serial.go). Loop-owned: the numbers are handed out
+	// while stamping items on save, which happens inside the loop, and refilled
+	// off it. serialProximo == serialFim means the block is spent and items go
+	// out unmarked until the next one lands.
+	serialProximo int64
+	serialFim     int64
+	serialPedindo bool
+	// marcavel decides which items are worth a serial. Injected because the rule
+	// reads the item catalog (nPos, and the indexes the original game singled
+	// out), which is content the world does not and should not know about.
+	marcavel func(Item) bool
+
 	// newbieEvent mirrors the legacy NewbieEventServer flag (Server.cpp:617).
 	// The world itself only needs it for the spawn-time HP handicap; the EXP
 	// side lives in the dispatcher's ExpEvents. Loop-owned.
@@ -227,6 +245,7 @@ func New(cfg Config, log *slog.Logger, persist Persistence, handler Handler) *Wo
 	return &World{
 		cfg:       cfg,
 		log:       log,
+		marcavel:  cfg.Marcavel,
 		persist:   persist,
 		billing:   AllowAllBilling{},
 		handler:   handler,
@@ -503,18 +522,34 @@ func (w *World) CharacterSaveFor(s *Session, e *Entity) CharacterSave {
 		}
 		cs.Affects = append(cs.Affects, a)
 	}
-	cs.Carry = savedItems(e.Carry[:])
-	cs.Equip = savedItems(e.Equip[:])
+	cs.Carry = w.savedItems(e.Carry[:])
+	cs.Equip = w.savedItems(e.Equip[:])
 	return cs
 }
 
-// savedItems flattens a positional item array into the non-empty SavedItem slots.
-func savedItems(items []Item) []SavedItem {
+// savedItems flattens a positional item array into the non-empty SavedItem
+// slots, stamping a serial on anything that deserves one and lacks it.
+//
+// SAVE IS THE CHOKEPOINT, and that is why the stamping lives here rather than
+// at the twenty-odd places an item can be created. Every one of those paths
+// ends at a save eventually, so one place catches them all — including the
+// items that already existed before any of this, which get an identity the
+// first time their owner logs out.
+//
+// It writes the serial back into the live array (items is a slice over the
+// entity's own storage, not a copy) so the number stays with the item for the
+// rest of the session. Without that the next save would mint a second number
+// for the same item, and the original and its copy would never match.
+//
+// Loop-only.
+func (w *World) savedItems(items []Item) []SavedItem {
 	var out []SavedItem
-	for i, it := range items {
-		if it.Empty() {
+	for i := range items {
+		if items[i].Empty() {
 			continue
 		}
+		items[i] = w.marcar(items[i])
+		it := items[i]
 		out = append(out, SavedItem{
 			Slot:  i,
 			Index: it.Index,
@@ -522,6 +557,7 @@ func savedItems(items []Item) []SavedItem {
 			Eff2: it.Effects[1].Effect, EffV2: it.Effects[1].Value,
 			Eff3: it.Effects[2].Effect, EffV3: it.Effects[2].Value,
 			ExpiresAt: it.ExpiresAt,
+			Serial:    it.Serial,
 		})
 	}
 	return out
@@ -599,7 +635,7 @@ func (w *World) cargoSave(accountID int64) CargoSave {
 	cs := CargoSave{AccountID: accountID}
 	if c := w.cargo[accountID]; c != nil {
 		cs.Coin = c.Coin
-		cs.Items = savedItems(c.Items[:])
+		cs.Items = w.savedItems(c.Items[:])
 	}
 	return cs
 }

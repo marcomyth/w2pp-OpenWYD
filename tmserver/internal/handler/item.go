@@ -1907,6 +1907,11 @@ const (
 	efResist4    = 52
 	efAcAdd      = 53 // EF_ACADD: extra AC — FLAT (summed with EF_AC), captura §E
 	efResistAll  = 54 // EF_RESISTALL: folds into all four EF_RESISTi — see itemResist
+	// efHWordGuild/efLWordGuild are the two halves of the guild number stamped on
+	// a guild item (BASE_GetGuild, Basedef.cpp:4863). Their presence is what says
+	// the item belongs to a guild rather than to a person.
+	efHWordGuild = 56 // EF_HWORDGUILD
+	efLWordGuild = 57 // EF_LWORDGUILD
 	efMagic      = 60 // EF_MAGIC: flat magic-attack — excluded on the off-hand weapon slot only (Basedef.cpp:2447)
 	efDamageAdd  = 67 // EF_DAMAGEADD: extra flat damage — only counts for jewels (nUnique 41-50)
 	efMagicAdd   = 68 // EF_MAGICADD: extra flat magic-attack — jewel-gated like EF_DAMAGEADD (Basedef.cpp:1699-1703)
