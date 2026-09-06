@@ -157,6 +157,18 @@ const (
 	NoticePesadeloClosed
 	NoticePesadeloNoEntries
 	NoticePesadeloLimited
+
+	// NoticeLevelLimit is _NN_Level_limit (Language.txt:298), what the legacy
+	// answers when a level-banded item is used outside its band — the Quest 256
+	// trophies above all (_MSG_UseItem.cpp Vol 191). It is NOT NoticeReqNotMet:
+	// that one stays silent on purpose, because the equip path it was named for is
+	// silent in the legacy too, and reusing it here made a level-gated item look
+	// like a dead click.
+	//
+	// APPENDED AT THE END on purpose: the codes above are iota-ordered and other
+	// branches are editing this block, so inserting anywhere else would silently
+	// renumber their notices.
+	NoticeLevelLimit
 )
 
 // noticeKey maps a Notice to its key in the shipped client string table
@@ -241,6 +253,8 @@ var noticeKey = map[Notice]string{
 	// literals the legacy passes straight to SendClientMessage (noticeText).
 	NoticePesadeloClosed:  "_NN_CANT_USE_NIGHTMARE", // 418
 	NoticePesadeloLimited: "_NN_Night_Limited",      // 349
+
+	NoticeLevelLimit: "_NN_Level_limit", // 298
 }
 
 // noticeText is the compiled fallback for notices with no Language.txt line: the
@@ -272,6 +286,8 @@ var noticeText = map[Notice]string{
 	// on two messages that used to work regardless of the content mount.
 	NoticeNotConnected: "O jogador não está conectado.", // 91
 	NoticeAlreadyDone:  "Você já completou esta Quest.", // 71
+
+	NoticeLevelLimit: "Nível Insuficiente. Isto não pode ser utilizado.", // 298
 }
 
 // formatVerb matches a printf conversion, so a shipped line that interpolates

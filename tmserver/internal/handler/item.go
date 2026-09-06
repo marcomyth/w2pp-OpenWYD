@@ -955,7 +955,11 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 		minLevel, maxLevel = rate.MortalMin, rate.MortalMax
 	}
 	if e.Level < minLevel || e.Level >= maxLevel {
-		d.notify(w, s, NoticeReqNotMet)
+		// _NN_Level_limit, the line the legacy sends here (_MSG_UseItem.cpp Vol
+		// 191). It used to be NoticeReqNotMet, which carries no text: a character
+		// past the band clicked its trophy and nothing happened at all, with no way
+		// to tell "outgrew this quest" from "the item is broken".
+		d.notify(w, s, NoticeLevelLimit)
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}

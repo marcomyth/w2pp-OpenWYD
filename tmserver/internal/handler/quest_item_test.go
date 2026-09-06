@@ -81,8 +81,13 @@ func TestQuestItemRewardLevelBoundariesRejectWithoutConsumption(t *testing.T) {
 		addr, stop := startServerClockVol(t, questRewardDB(4117, lvl, 3), map[int]int{4117: volQuestReward})
 		c := enterWorld(t, addr)
 		useQuestItem(t, c)
-		if notice := expect(t, c, protocol.MsgMessageBoxOk); noticeCode(t, notice) != NoticeReqNotMet {
-			t.Errorf("level %d notice = %d", lvl, noticeCode(t, notice))
+		if notice := expect(t, c, protocol.MsgMessageBoxOk); noticeCode(t, notice) != NoticeLevelLimit {
+			t.Errorf("level %d notice = %d, want NoticeLevelLimit", lvl, noticeCode(t, notice))
+		}
+		// The code alone renders as nothing: what the player outside the band must
+		// actually see is _NN_Level_limit, or the click looks dead.
+		if got := decodePanel(expect(t, c, protocol.MsgMessagePanel)); got != "Nível Insuficiente. Isto não pode ser utilizado." {
+			t.Errorf("level %d panel = %q", lvl, got)
 		}
 		item := expect(t, c, protocol.MsgSendItem)
 		if le16(item[4:6]) != 4117 || item[7] != 3 {
