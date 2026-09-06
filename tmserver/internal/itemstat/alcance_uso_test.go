@@ -67,7 +67,13 @@ func TestItemSemOverrideNaoETocado(t *testing.T) {
 func TestMapasNulosNaoQuebram(t *testing.T) {
 	// A server booted without a content tree has no catalog to override. Apply is
 	// only reached with one, but a nil map assignment panics and the guard is
-	// cheaper than the assumption.
+	// cheaper than the assumption. The assertion is that this returns at all:
+	// without the guard it panics and takes the test binary with it.
+	defer func() {
+		if p := recover(); p != nil {
+			t.Fatalf("Apply com mapa nulo entrou em pânico: %v", p)
+		}
+	}()
 	Apply(map[int][]content.BaseEffect{}, map[int]content.ItemReq{}, nil, nil,
 		map[int]Override{1415: {Range: 3, Volatile: 66}})
 }
