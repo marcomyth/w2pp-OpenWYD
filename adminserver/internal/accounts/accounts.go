@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
@@ -621,4 +622,89 @@ func (s *Store) Buscar(ctx context.Context, prefixo string, limite int) ([]Achad
 	// here rather than in a subquery keeps the statement legible.
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
+}
+
+// --- criação de conta ---
+
+// Account-name bounds, matching what the game login carries and what
+// webserver/internal/account already enforces for web sign-up (4–12 ASCII
+// alphanumeric). The panel and the site must not disagree about what a valid
+// login is: a name one accepts and the other refuses is an account that exists
+// and cannot be used.
+const (
+	MinNomeConta = 4
+	MaxNomeConta = 12
+)
+
+var (
+	ErrNomeVazio     = errors.New("accounts: empty account name")
+	ErrNomeCurto     = errors.New("accounts: account name too short")
+	ErrNomeLongo     = errors.New("accounts: account name too long")
+	ErrNomeCaractere = errors.New("accounts: account name must be letters and digits only")
+	ErrNomeEmUso     = errors.New("accounts: account name already taken")
+)
+
+// ValidarNome checks an account name against the login rule, on the canonical
+// (lowercased) form.
+//
+// Letters and digits only, ASCII: the name travels in a fixed byte field to a
+// client from 2003, and anything outside that is a login the player can create
+// and then fail to type.
+func ValidarNome(nome string) error {
+	switch {
+	case nome == "":
+		return ErrNomeVazio
+	case len(nome) < MinNomeConta:
+		return ErrNomeCurto
+	case len(nome) > MaxNomeConta:
+		return ErrNomeLongo
+	}
+	for i := 0; i < len(nome); i++ {
+		c := nome[i]
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') {
+			return ErrNomeCaractere
+		}
+	}
+	return nil
+}
+
+// CanonicalNome is the stored form of a login: lowercase, trimmed. The game
+// looks accounts up by this, so it is what uniqueness is about.
+func CanonicalNome(nome string) string {
+	return strings.ToLower(strings.TrimSpace(nome))
+}
+
+// Criar inserts a new account with an already-hashed password and returns its id.
+//
+// The hash is taken rather than the password: hashing lives in the caller
+// (internal/secret) exactly as it does for SetPassword, and this way no
+// plaintext ever reaches this package.
+//
+// A name collision comes back as ErrNomeEmUso rather than a raw driver error —
+// two staff members creating the same name at once is an ordinary race, not a
+// failure, and the unique index is what decides it.
+func (s *Store) Criar(ctx context.Context, nome, hash, email string) (int64, error) {
+	if err := ValidarNome(nome); err != nil {
+		return 0, err
+	}
+	var id int64
+	err := s.pool.QueryRow(ctx, `
+		INSERT INTO account (name, pass_hash, email)
+		VALUES ($1, $2, $3)
+		RETURNING id`, nome, hash, strings.TrimSpace(email)).Scan(&id)
+	if isUniqueViolation(err) {
+		return 0, ErrNomeEmUso
+	}
+	if err != nil {
+		return 0, fmt.Errorf("accounts: criar %q: %w", nome, err)
+	}
+	return id, nil
+}
+
+// isUniqueViolation reports whether err is a Postgres unique-constraint
+// violation (SQLSTATE 23505), which is how a lost race on the account name comes
+// back from the driver.
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }

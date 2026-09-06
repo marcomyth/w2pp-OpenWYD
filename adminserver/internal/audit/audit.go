@@ -38,6 +38,7 @@ const (
 	ActionDeliverItem    = "DELIVER_ITEM"
 	ActionCancelDelivery = "CANCEL_DELIVERY"
 	ActionSetPassword    = "SET_PASSWORD"
+	ActionCreateAccount  = "CREATE_ACCOUNT"
 	ActionKick           = "KICK"
 	ActionUnstuck        = "UNSTUCK"
 	ActionSetWorldEvent  = "SET_WORLD_EVENT"
@@ -203,6 +204,7 @@ var rotulos = map[string]string{
 	ActionSetBlocked:     "Bloqueou ou desbloqueou",
 	ActionSetVip:         "Mexeu no VIP",
 	ActionSetPassword:    "Trocou a senha",
+	ActionCreateAccount:  "Criou uma conta",
 	ActionSetItemPrice:   "Mudou o preço de um item",
 	ActionSetNpcShop:     "Mudou a loja de um NPC",
 	ActionSetNpc:         "Editou um NPC",

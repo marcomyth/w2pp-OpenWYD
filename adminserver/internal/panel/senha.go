@@ -97,13 +97,16 @@ func (h *Handler) setSenha(w http.ResponseWriter, r *http.Request) {
 	h.cfg.Logger.Info("password reset",
 		"actor", sess.AccountName, "account", conta, "gerada", gerada, "sessoes", encerradas)
 
+	// Criada is false here and true from criarConta: the two share this screen
+	// because both hand over a credential exactly once.
 	h.render(w, "senha.html", struct {
 		page
 		Conta      string
 		Senha      string
 		Gerada     bool
 		Encerradas int
-	}{h.pageFor(r, "contas"), conta, nova, gerada, encerradas})
+		Criada     bool
+	}{h.pageFor(r, "contas"), conta, nova, gerada, encerradas, false})
 }
 
 // explicaSenha turns a rule into something a moderator can act on. The rules

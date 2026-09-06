@@ -212,6 +212,8 @@ type fakeWriter struct {
 	ultimaEdicao time.Time
 	details      accounts.Details
 	senhaHash    []string
+	criadas      []contaCriada // Criar calls
+	criarErr     error         // forces Criar to return this
 	motivos      []string
 	diasBan      []int
 	buscas       []string
@@ -249,6 +251,24 @@ func (f *fakeWriter) SetPassword(_ context.Context, _ int64, hash string) error 
 	}
 	f.senhaHash = append(f.senhaHash, hash)
 	return nil
+}
+
+// criada records one Criar call, so a test can assert on the name and the email
+// without reaching for the hash.
+type contaCriada struct {
+	Nome  string
+	Hash  string
+	Email string
+}
+
+func (f *fakeWriter) Criar(_ context.Context, nome, hash, email string) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.criarErr != nil {
+		return 0, f.criarErr
+	}
+	f.criadas = append(f.criadas, contaCriada{Nome: nome, Hash: hash, Email: email})
+	return int64(100 + len(f.criadas)), nil
 }
 
 func newFakeWriter() *fakeWriter { return &fakeWriter{prevRole: "player"} }

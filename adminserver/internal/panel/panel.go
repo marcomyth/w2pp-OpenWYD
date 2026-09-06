@@ -85,6 +85,7 @@ type Writer interface {
 	Get(ctx context.Context, id int64) (accounts.Details, error)
 	PendingSince(ctx context.Context, since time.Time) (int, time.Time, error)
 	SetPassword(ctx context.Context, targetID int64, hash string) error
+	Criar(ctx context.Context, nome, hash, email string) (int64, error)
 	Buscar(ctx context.Context, prefixo string, limite int) ([]accounts.Achado, error)
 	SetRole(ctx context.Context, actorID, targetID int64, role string) (string, error)
 	SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool, motivo string, dias int) (accounts.Bloqueio, error)
@@ -321,6 +322,9 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("POST /contas/{nome}/bloqueio", h.requireStaff(http.HandlerFunc(h.setBloqueio)))
 	mux.Handle("POST /contas/{nome}/vip", h.requireStaff(http.HandlerFunc(h.setVip)))
 	mux.Handle("POST /contas/{nome}/senha", h.requireStaff(http.HandlerFunc(h.setSenha)))
+	// Creating an account hands out a login; admin-only, like the other writes
+	// that create access rather than adjust it.
+	mux.Handle("POST /contas/criar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.criarConta))))
 	if h.cfg.Entregas != nil {
 		mux.Handle("POST /contas/{nome}/entregar", h.requireStaff(http.HandlerFunc(h.entregarItem)))
 		mux.Handle("POST /contas/{nome}/entregas/{entrega}/cancelar", h.requireStaff(http.HandlerFunc(h.cancelarEntrega)))

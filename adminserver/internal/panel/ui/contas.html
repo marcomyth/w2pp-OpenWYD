@@ -17,6 +17,40 @@
     <button type="submit">Buscar</button>
   </form>
 
+  {{if .IsAdmin}}
+  <details class="criar-conta">
+    <summary>Criar conta</summary>
+    <form method="post" action="/contas/criar">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <div class="criar-campos">
+        <div>
+          <label class="campo-rot" for="nova-conta">Nome da conta</label>
+          <input id="nova-conta" name="nome" required maxlength="12"
+                 placeholder="4 a 12, letras e números"
+                 autocapitalize="off" spellcheck="false" autocomplete="off">
+        </div>
+        <div>
+          <label class="campo-rot" for="nova-senha">Senha</label>
+          <input id="nova-senha" name="senha" maxlength="12"
+                 placeholder="deixe vazio para gerar"
+                 autocapitalize="off" spellcheck="false" autocomplete="off">
+        </div>
+        <div>
+          <label class="campo-rot" for="novo-email">E-mail (opcional)</label>
+          <input id="novo-email" name="email" type="email" autocomplete="off">
+        </div>
+      </div>
+      <button type="submit" class="principal">Criar</button>
+      <p class="dica">
+        A conta nasce como <strong>jogador</strong> e sem personagem — o jogador cria os dele
+        no cliente. A senha aparece uma vez na tela seguinte e não fica guardada em lugar
+        nenhum que dê para ler depois. Para promover a moderador ou admin, use a página da
+        conta depois de criada.
+      </p>
+    </form>
+  </details>
+  {{end}}
+
   {{if .Contas}}
     <div class="tw">
       <table>

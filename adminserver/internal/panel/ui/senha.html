@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<title>Senha de {{.Conta}} — Painel OpenWYD</title>
+<title>{{if .Criada}}Conta criada{{else}}Senha{{end}} — {{.Conta}} — Painel OpenWYD</title>
 {{template "head" .}}
 <style>
   .senha-caixa {
@@ -23,7 +23,7 @@
 {{template "topbar" .}}
 
 <main>
-  <h1>Senha trocada</h1>
+  <h1>{{if .Criada}}Conta criada{{else}}Senha trocada{{end}}</h1>
   <p class="sub">Conta <a href="/contas/{{.Conta}}">{{.Conta}}</a></p>
 
   <div class="nota">
@@ -33,13 +33,19 @@
   </div>
 
   <div class="senha-caixa">
-    <div class="rot">{{if .Gerada}}Senha gerada{{else}}Senha definida{{end}}</div>
+    <div class="rot">{{if .Gerada}}Senha gerada{{else}}Senha definida{{end}} para <strong>{{.Conta}}</strong></div>
     <div class="senha-valor">{{.Senha}}</div>
   </div>
 
   {{if .Encerradas}}
   <p class="sub">
     {{.Encerradas}} sessão(ões) desta conta no painel foram encerradas.
+  </p>
+  {{end}}
+
+  {{if .Criada}}
+  <p class="sub">
+    A conta nasce sem personagem: quem cria os personagens é o jogador, no cliente.
   </p>
   {{end}}
 
