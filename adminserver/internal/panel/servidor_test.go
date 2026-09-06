@@ -437,3 +437,106 @@ func TestContagemDeMembrosQuebradaEExplicadaJuntoDaColuna(t *testing.T) {
 		t.Error("a lista de guildas sumiu junto")
 	}
 }
+
+// --- a regra de quem pode o quê ---
+
+// A regra, numa frase: moderador age sobre uma PESSOA, admin age sobre o
+// SERVIDOR.
+//
+// Antes ela não existia escrita em lugar nenhum, e o resultado era um recorte
+// que ninguém conseguia prever: ligar XP em dobro era de admin, e um moderador
+// podia mudar o atributo de um item para todos os jogadores de uma vez. A
+// alavanca maior no degrau mais baixo, sem princípio que explicasse nenhum dos
+// dois.
+//
+// Este teste é a regra. Se alguém mudar um nível de acesso, ele quebra e diz
+// qual foi — que é melhor do que descobrir pelo estrago.
+func TestQuemPodeOQue(t *testing.T) {
+	daEquipe := []struct{ nome, rota string }{
+		{"banir", "/contas/ana/bloqueio"},
+		{"trocar a senha", "/contas/ana/senha"},
+		{"entregar item", "/contas/ana/entregar"},
+		{"derrubar", "/servidor/derrubar"},
+		{"desatolar", "/servidor/desatolar"},
+		{"avisar todos", "/servidor/aviso"},
+		{"tratar denúncia", "/denuncias/1/tratar"},
+	}
+	soDoAdmin := []struct{ nome, rota string }{
+		{"trocar cargo", "/contas/ana/cargo"},
+		{"mexer nos eventos", "/eventos"},
+		{"preço de item", "/itens/1415/preco"},
+		{"atributo de item", "/itens/1415/atributos"},
+		{"limpar atributo de item", "/itens/1415/atributos/limpar"},
+		{"atributo de monstro", "/monstros/Ghoul"},
+		{"limpar atributo de monstro", "/monstros/Ghoul/limpar"},
+		{"equipamento de monstro", "/monstros/Ghoul/equip"},
+		{"loja de NPC", "/npcs/1/loja"},
+		{"lugar do NPC", "/npcs/1/lugar"},
+		{"visibilidade do NPC", "/npcs/1/visibilidade"},
+		{"apagar NPC", "/npcs/1/apagar"},
+	}
+
+	h := painelCompletoParaRegra(t, roleModerator)
+	post, token := signedInPost(t, h)
+
+	for _, c := range soDoAdmin {
+		t.Run("moderador não "+c.nome, func(t *testing.T) {
+			rec := post(c.rota, url.Values{"csrf": {token}})
+			if rec.Code != http.StatusForbidden {
+				t.Errorf("%s: status = %d, want 403 — mexe no servidor inteiro", c.rota, rec.Code)
+			}
+		})
+	}
+	for _, c := range daEquipe {
+		t.Run("moderador pode "+c.nome, func(t *testing.T) {
+			rec := post(c.rota, url.Values{"csrf": {token}})
+			// Anything but 403: the point is that the rank gate does not stop
+			// them. A 400 for a missing field is a pass — it means the request
+			// reached the handler.
+			if rec.Code == http.StatusForbidden {
+				t.Errorf("%s: 403 — é ação sobre uma pessoa, é do moderador", c.rota)
+			}
+		})
+	}
+}
+
+// painelCompletoParaRegra wires every dependency, so a route missing from the
+// mux fails as 404 and is visible instead of passing as "not forbidden".
+func painelCompletoParaRegra(t *testing.T, cargo string) http.Handler {
+	t.Helper()
+	acc := withTarget(cargo)
+	h, err := New(Config{
+		Accounts: acc, Writer: newFakeWriter(), Audit: newFakeAudit(),
+		GameData: newFakeGameData(), Entregas: &fakeEntregas{},
+		Jogo: &fakeJogo{estado: estadoDeTeste()}, Platform: newFakePlatform(),
+		Eventos: &fakeEventos{}, Denuncias: &fakeDenuncias{}, Guildas: mundoDeGuildas(),
+		Sessions: session.New(time.Hour),
+		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}
+
+// O outro lado: o admin passa pelo portão.
+//
+// Não dá para checar 404 aqui — os handlers respondem 404 para um NPC ou
+// monstro que o fake não tem, e isso é o handler funcionando, não a rota
+// faltando. Quem garante que a rota existe é a metade do moderador acima: se
+// alguma sumisse do mux, ele receberia 404 em vez de 403 e aquele teste
+// quebraria.
+func TestOAdminPassaPeloPortao(t *testing.T) {
+	h := painelCompletoParaRegra(t, roleAdmin)
+	post, token := signedInPost(t, h)
+	for _, rota := range []string{
+		"/contas/ana/cargo", "/eventos", "/itens/1415/preco", "/itens/1415/atributos",
+		"/itens/1415/atributos/limpar", "/monstros/Ghoul", "/monstros/Ghoul/limpar",
+		"/monstros/Ghoul/equip", "/npcs/1/loja", "/npcs/1/lugar",
+		"/npcs/1/visibilidade", "/npcs/1/apagar",
+	} {
+		if rec := post(rota, url.Values{"csrf": {token}}); rec.Code == http.StatusForbidden {
+			t.Errorf("%s: 403 para o admin — o portão está recusando quem devia deixar passar", rota)
+		}
+	}
+}

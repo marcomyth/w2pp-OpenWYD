@@ -353,22 +353,22 @@ func (h *Handler) Routes() http.Handler {
 	}
 	if h.cfg.GameData != nil {
 		mux.Handle("GET /itens", h.requireStaff(http.HandlerFunc(h.itens)))
-		mux.Handle("POST /itens/{indice}/preco", h.requireStaff(http.HandlerFunc(h.setPreco)))
+		mux.Handle("POST /itens/{indice}/preco", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setPreco))))
 		mux.Handle("GET /npcs", h.requireStaff(http.HandlerFunc(h.npcs)))
 		mux.Handle("GET /npcs/{id}", h.requireStaff(http.HandlerFunc(h.npc)))
-		mux.Handle("POST /npcs/{id}/loja", h.requireStaff(http.HandlerFunc(h.setLoja)))
-		mux.Handle("POST /npcs/{id}/lugar", h.requireStaff(http.HandlerFunc(h.setLugar)))
-		mux.Handle("POST /npcs/{id}/visibilidade", h.requireStaff(http.HandlerFunc(h.setVisivel)))
+		mux.Handle("POST /npcs/{id}/loja", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setLoja))))
+		mux.Handle("POST /npcs/{id}/lugar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setLugar))))
+		mux.Handle("POST /npcs/{id}/visibilidade", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setVisivel))))
 		mux.Handle("POST /npcs/{id}/apagar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.apagarNPC))))
 		mux.Handle("GET /monstros", h.requireStaff(http.HandlerFunc(h.monstros)))
 		mux.Handle("GET /monstros/{nome}", h.requireStaff(http.HandlerFunc(h.monstro)))
-		mux.Handle("POST /monstros/{nome}", h.requireStaff(http.HandlerFunc(h.setMonstro)))
-		mux.Handle("POST /monstros/{nome}/limpar", h.requireStaff(http.HandlerFunc(h.limparMonstro)))
+		mux.Handle("POST /monstros/{nome}", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setMonstro))))
+		mux.Handle("POST /monstros/{nome}/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparMonstro))))
 		// A mob's Equip[] has its own RPC, separate from the stat form.
-		mux.Handle("POST /monstros/{nome}/equip", h.requireStaff(http.HandlerFunc(h.setMonstroEquip)))
+		mux.Handle("POST /monstros/{nome}/equip", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setMonstroEquip))))
 		mux.Handle("GET /itens/{indice}/atributos", h.requireStaff(http.HandlerFunc(h.atributosItem)))
-		mux.Handle("POST /itens/{indice}/atributos", h.requireStaff(http.HandlerFunc(h.setAtributosItem)))
-		mux.Handle("POST /itens/{indice}/atributos/limpar", h.requireStaff(http.HandlerFunc(h.limparAtributosItem)))
+		mux.Handle("POST /itens/{indice}/atributos", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setAtributosItem))))
+		mux.Handle("POST /itens/{indice}/atributos/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparAtributosItem))))
 		mux.Handle("GET /drops", h.requireStaff(http.HandlerFunc(h.drops)))
 	}
 
@@ -587,6 +587,24 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		p.AccountID == auth.ID,
 	})
 }
+
+// The rule, in one sentence: a MODERATOR acts on one person; an ADMIN acts on
+// the server.
+//
+// It is written here because it was not written anywhere before, and the result
+// was a split nobody could predict. Turning on double experience was admin-only
+// while a moderator could change an item's stats for every player at once — the
+// bigger lever sitting at the lower tier, with no principle to explain either.
+//
+// By this rule: ban, kick, unstuck, deliver an item, reset a password, adjust
+// donate and close a report stay with the moderator, because each lands on one
+// account and each is the job. Item stats, item price, monster stats, NPC shops
+// and placement, the world events and the server controls are admin, because
+// each one changes the game for everybody.
+//
+// The password reset is the exception that proves it: it is moderator-level, but
+// the handler refuses when the target is staff, because resetting an admin's
+// password is acting on the server dressed as acting on a person.
 
 // onlyAdmin narrows a staff route to the admin tier. It runs INSIDE requireStaff,
 // so the role it reads is the one fetched from the database for this request.
