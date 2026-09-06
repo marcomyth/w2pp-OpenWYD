@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net"
 	"strings"
 	"testing"
@@ -162,5 +163,70 @@ func readChaosPointsText(t *testing.T, c net.Conn) (string, bool) {
 		if ty == protocol.MsgMessageChat {
 			return string(payload), true
 		}
+	}
+}
+
+// itemPerdaoScroll is the Pergaminho do Perdão (ItemList.csv 3343,
+// "EF_VOLATILE,203").
+const itemPerdaoScroll = 3343
+
+func perdaoFixture(t *testing.T) (*Dispatcher, *world.World, *world.Session, *world.Entity) {
+	t.Helper()
+	log := slog.New(slog.DiscardHandler)
+	d := New(Config{
+		Log:           log,
+		ItemVolatiles: map[int]int{itemPerdaoScroll: volPerdaoScroll},
+	})
+	w := world.New(world.Config{GridDim: 16}, log, nil, d.Handle)
+	e := &world.Entity{
+		ID: 0, Mode: world.MobUser, Name: "Heroi",
+		Level: 100, MaxHP: 1000, MaxMP: 1000, HP: 1000, MP: 1000,
+	}
+	return d, w, &world.Session{Conn: 0, Mode: world.UserPlay}, e
+}
+
+// The scroll wipes the chaos counter to the 150 the legacy's SetPKPoint clamps
+// to, and burns one unit. Before this it had no EF_VOLATILE case at all and the
+// dispatch answered "cannot use here".
+func TestPerdaoScrollClearsChaos(t *testing.T) {
+	d, w, s, e := perdaoFixture(t)
+	e.PKPoint = 25 // /cp reads this as −50, the tooltip's own example
+	e.Carry[0] = world.Item{Index: itemPerdaoScroll}
+
+	d.usePerdaoScroll(w, s, e, 0)
+
+	if e.PKPoint != pkPointPardon {
+		t.Errorf("PKPoint = %d, want %d", e.PKPoint, pkPointPardon)
+	}
+	if e.Carry[0].Index != 0 {
+		t.Errorf("carry slot = %d, want the scroll consumed", e.Carry[0].Index)
+	}
+	// pkPoint() is what colours the nick; with Guilty at 0 it must now read white.
+	if got := pkPoint(e); got < pkPointNeutral {
+		t.Errorf("pkPoint = %d, want at least the neutral %d", got, pkPointNeutral)
+	}
+}
+
+// Guilty is a separate counter and the scroll must not launder it: a player who
+// just landed a chaotic hit keeps the red nick until sweepGuilty decays it.
+func TestPerdaoScrollLeavesGuiltyAlone(t *testing.T) {
+	d, w, s, e := perdaoFixture(t)
+	e.PKPoint = 10
+	e.Guilty = pkResetGuilty
+	e.Carry[0] = world.Item{Index: itemPerdaoScroll}
+
+	d.usePerdaoScroll(w, s, e, 0)
+
+	if e.Guilty != pkResetGuilty {
+		t.Errorf("Guilty = %d, want it untouched at %d", e.Guilty, pkResetGuilty)
+	}
+	if got := pkPoint(e); got != pkPointChaos {
+		t.Errorf("pkPoint = %d, want %d while Guilty runs", got, pkPointChaos)
+	}
+	// The counter underneath is still pardoned, so the nick turns white the moment
+	// Guilty reaches 0 — no second scroll needed.
+	e.Guilty = 0
+	if got := pkPoint(e); got != pkPointPardon {
+		t.Errorf("pkPoint after Guilty cleared = %d, want %d", got, pkPointPardon)
 	}
 }

@@ -134,6 +134,48 @@ func (d *Dispatcher) grantLevelUpPKPoint(w *world.World, s *world.Session, e *wo
 	}
 }
 
+// pkPointPardon is what the Pergaminho do Perdão restores. The legacy calls
+// SetPKPoint(conn, 150) and SetPKPoint clamps to its own 1..150 range
+// (GetFunc.cpp:2271-2285), so 150 is the value, not an overflow: it is the top of
+// the 76..150 band grantLevelUpPKPoint already documents as belonging to the
+// quest/item paths. That band is a buffer above the neutral 75 — the nick is
+// white and stays white through the next chaotic acts until the counter falls
+// back under 75.
+const pkPointPardon uint8 = 150
+
+// usePerdaoScroll consumes the Pergaminho do Perdão (item 3343, EF_VOLATILE 203):
+// it wipes the chaos counter and re-broadcasts the entity so the nick recolors
+// without a relog (_MSG_UseItem.cpp:3865-3887).
+//
+// Until now EF_VOLATILE 203 had no case at all, so the scroll fell through to
+// rejectUnimplementedConsumable and answered _NN_Cant_Use_That_Here — "not
+// available in this area", which reads as a place problem and sent players
+// hunting for the right spot.
+//
+// Guilty is deliberately NOT cleared, matching the original: the red-blinking
+// nick comes from the Guilty counter, which pkPoint() pins to 0 while it runs and
+// sweepGuilty decays on its own within about a minute. Clearing it here would
+// hand a fresh killer an instant laundering of the PvP flag, which is a different
+// item's job.
+func (d *Dispatcher) usePerdaoScroll(w *world.World, s *world.Session, e *world.Entity, src int) {
+	before := e.PKPoint
+	e.PKPoint = pkPointPardon
+	consumeOneItem(&e.Carry[src])
+	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+	// While Guilty > 0 the visible byte is pinned at 0, so the CreateMob would
+	// carry what it already carried — same skip grantLevelUpPKPoint makes.
+	if !pkGuilty(e) {
+		d.broadcastPKState(w, s, e)
+	}
+	sendClientMessage(w, s, msgPerdaoDone)
+	d.log.Info("perdao scroll used", "conn", s.Conn, "account", s.AccountName,
+		"pkpoint_before", before, "pkpoint_after", e.PKPoint, "guilty", e.Guilty)
+}
+
+// msgPerdaoDone confirms the pardon. The scroll otherwise finishes in silence
+// whenever Guilty is still running, since the nick cannot recolor yet.
+const msgPerdaoDone = "Seus pontos de caos foram perdoados."
+
 // pkMode handles _MSG_PKMode (0x0399): the client's K-key Player-Killer consent
 // toggle (Exec_MSG_PKMode, _MSG_PKMode.cpp). Toggling only flips the consent gate
 // checked by attack() — it cancels any active trade (same anti-dup guard as

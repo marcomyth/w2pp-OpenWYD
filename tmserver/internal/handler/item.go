@@ -358,6 +358,7 @@ const (
 	volBuffKappa20h     = 200
 	volBuffCombat20h    = 201
 	volBuffMental20h    = 202
+	volPerdaoScroll     = 203 // Pergaminho do Perdão (3343): wipes the chaos counter
 	// affect tick units (Basedef.h): one tick = 8s of real time.
 	affect1H          = 450
 	affect1D          = 10800
@@ -496,6 +497,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useIdealStone(w, s, e, src)
 	case vol == volExpChest:
 		d.useExpChest(w, s, e, src)
+	case vol == volPerdaoScroll:
+		d.usePerdaoScroll(w, s, e, src)
 	case vol >= volDivine7 && vol <= volDivine30:
 		d.useDivine(w, s, e, src, vol)
 	case vol == volVigor:
