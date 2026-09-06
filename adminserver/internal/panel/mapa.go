@@ -375,6 +375,7 @@ func (h *Handler) mapa(w http.ResponseWriter, r *http.Request) {
 	ps := pontos(estado.Players)
 	grupos := aglomerar(ps) // marks Junto on ps
 
+	cids := cidades(ps)
 	h.render(w, "mapa.html", struct {
 		page
 		Pontos     []PontoMapa
@@ -382,11 +383,129 @@ func (h *Handler) mapa(w http.ResponseWriter, r *http.Request) {
 		Conexoes   []Conexao
 		Regioes    []RegiaoContagem
 		Cidades    []CidadeMapa
+		Vista      Vista
 		Grade      int32
 		Conectados int32
 		Erro       string
 	}{
 		h.pageFor(r, "mapa"), ps, grupos, conexoes(estado.Players), porRegiao(ps),
-		cidades(ps), gradeMundo, estado.Conectados, erro,
+		cids, vistaDe(cids, ps), gradeMundo, estado.Conectados, erro,
 	})
+}
+
+// Vista is the piece of the world the picture actually draws.
+//
+// The map used to frame the whole 4096 x 4096 grid, and the grid is mostly
+// empty: the five cities span 64% of its width and 35% of its height, so the
+// usual view — an empty server — was five circles in a band with a quarter of
+// the width blank on the left and a quarter of the height blank at the bottom.
+// It read as circles floating in a box rather than as a map.
+//
+// So the frame is computed from what is drawn. It always contains the five
+// cities, so it never jumps somewhere unfamiliar between loads, and it grows
+// to include every player, so nobody is ever cropped out.
+//
+// It is kept SQUARE on purpose. Letting the frame follow the content would fill
+// the box better and lie: this map exists to show who is standing near whom, and
+// a picture whose east-west scale differs from its north-south one makes the
+// same distance look like two different distances depending on the direction.
+type Vista struct {
+	X, Y, Lado int32
+	// Fonte and Ponto scale with the frame. They were tuned for a 4096-unit box
+	// at 760 pixels; a tighter crop magnifies everything inside it, so a fixed
+	// size would grow into the drawing.
+	Fonte int32
+	Ponto int32
+	// Meio, Base and FonteVazio place the empty-state line. Computed here rather
+	// than in the template: arithmetic helpers in a template are how logic ends
+	// up somewhere nobody tests it.
+	Meio       int32
+	Base       int32
+	FonteVazio int32
+}
+
+// margemVista is how much air to leave around the content, as a fraction of the
+// frame. Without it a city on the edge has half its circle and all of its label
+// outside the picture.
+const margemVista = 12
+
+// vistaDe computes the frame from the cities and the players on it.
+func vistaDe(cidades []CidadeMapa, pontos []PontoMapa) Vista {
+	// Seeded with the cities rather than starting empty: they are the anchors a
+	// person reads the map by, and a frame that tightened around two players
+	// would be a picture of nowhere.
+	x1, y1 := int32(gradeMundo), int32(gradeMundo)
+	x2, y2 := int32(0), int32(0)
+	inclui := func(x, y, raio int32) {
+		if x-raio < x1 {
+			x1 = x - raio
+		}
+		if y-raio < y1 {
+			y1 = y - raio
+		}
+		if x+raio > x2 {
+			x2 = x + raio
+		}
+		if y+raio > y2 {
+			y2 = y + raio
+		}
+	}
+	for _, c := range cidades {
+		inclui(c.CX, c.CY, c.Radius)
+	}
+	for _, p := range pontos {
+		inclui(p.X, p.Y, 0)
+	}
+	if x2 <= x1 || y2 <= y1 {
+		// Nothing to frame at all: fall back to the whole world rather than to a
+		// zero-sized box, which would render as an invisible map.
+		return vistaCompleta()
+	}
+
+	// Square, around the middle of the content.
+	lado := x2 - x1
+	if a := y2 - y1; a > lado {
+		lado = a
+	}
+	lado += lado / margemVista
+	cx, cy := (x1+x2)/2, (y1+y2)/2
+	v := Vista{X: cx - lado/2, Y: cy - lado/2, Lado: lado}
+
+	// Clamped to the world. A frame that started at -300 would draw a band of
+	// nothing that does not exist, which is a different lie from the one this
+	// replaced.
+	if v.X < 0 {
+		v.X = 0
+	}
+	if v.Y < 0 {
+		v.Y = 0
+	}
+	if v.X+v.Lado > gradeMundo {
+		v.Lado = gradeMundo - v.X
+	}
+	if v.Y+v.Lado > gradeMundo {
+		v.Lado = gradeMundo - v.Y
+	}
+	return v.comEscala()
+}
+
+func vistaCompleta() Vista {
+	return Vista{X: 0, Y: 0, Lado: gradeMundo}.comEscala()
+}
+
+// comEscala fills in the sizes that depend on the frame.
+//
+// The divisors come from the sizes that looked right on the full world at the
+// width this page renders — a label at 62 units and a dot at 16 in a 4096 box —
+// so a tighter crop keeps the same apparent size on screen.
+func (v Vista) comEscala() Vista {
+	v.Fonte = v.Lado / 66
+	v.Ponto = v.Lado / 256
+	if v.Ponto < 4 {
+		v.Ponto = 4
+	}
+	v.Meio = v.X + v.Lado/2
+	v.Base = v.Y + v.Lado - v.Lado/12
+	v.FonteVazio = v.Fonte * 3 / 2
+	return v
 }
