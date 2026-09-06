@@ -73,6 +73,16 @@
       {{end}}
     {{end}}
 
+    <div class="nota perigo">
+      <strong>"O que faz ao usar" não é uma estatística.</strong> Os outros campos
+      deixam o item mais forte ou mais fraco; esse decide o que o item É quando
+      alguém usa — e vale para toda cópia que já existe no inventário de todo
+      mundo. Número que o servidor não trata faz o item simplesmente não fazer
+      nada. Os que ele trata:
+      <br>
+      {{range $i, $c := .ClassesDeUso}}{{if $i}} · {{end}}<span class="mono">{{$c.Valor}}</span> {{$c.Nome}}{{end}}
+    </div>
+
     <div class="barra-salvar">
       <button type="submit" class="principal">Gravar alterações</button>
       <p class="dica">

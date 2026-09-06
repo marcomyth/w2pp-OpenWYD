@@ -85,6 +85,14 @@ var camposItem = func() []itemField {
 		f("nosanc", "Não pode refinar", "Avançado", func(s *webv1.AdminItemStat) int32 { return s.Nosanc }, func(s *webv1.AdminItemStat, v int32) { s.Nosanc = v }),
 		f("incubate", "Incubação", "Avançado", func(s *webv1.AdminItemStat) int32 { return s.Incubate }, func(s *webv1.AdminItemStat, v int32) { s.Incubate = v }),
 		f("incudelay", "Espera de incubação", "Avançado", func(s *webv1.AdminItemStat) int32 { return s.Incudelay }, func(s *webv1.AdminItemStat, v int32) { s.Incudelay = v }),
+		// The two the equip score deliberately does not carry. Alcance reaches
+		// MONSTERS — the map it feeds is read when a mob spawns, as the largest
+		// EF_RANGE over its template equips — and it is the only way to change a
+		// monster's reach, because the number lives on the item. O que faz ao usar
+		// is EF_VOLATILE: not a statistic but the item's class, listed in
+		// ClassesDeUso so a number on this page says what it does.
+		f("ef_range", "Alcance (dos monstros que usam)", "Avançado", func(s *webv1.AdminItemStat) int32 { return s.EfRange }, func(s *webv1.AdminItemStat, v int32) { s.EfRange = v }),
+		f("ef_volatile", "O que faz ao usar", "Avançado", func(s *webv1.AdminItemStat) int32 { return s.EfVolatile }, func(s *webv1.AdminItemStat, v int32) { s.EfVolatile = v }),
 	}
 }()
 
@@ -178,4 +186,45 @@ func (c *Client) ClearItemStat(ctx context.Context, moderatorID int64, index int
 		return fmt.Errorf("gamedata: clear item stat %d: %w", index, err)
 	}
 	return resultErr(resp.GetResult())
+}
+
+// ClasseDeUso is one implemented EF_VOLATILE value: the number and what the
+// server actually does with it.
+type ClasseDeUso struct {
+	Valor int32
+	Nome  string
+}
+
+// ClassesDeUso lists the EF_VOLATILE values tmserver/internal/handler really
+// implements, so the page can say what a number does instead of leaving the
+// moderator to guess.
+//
+// This is the one field on the page that is not a statistic. The others make an
+// item stronger or weaker; this one decides what the item IS when used, for every
+// copy already in every inventory — and a value the server does not implement
+// makes the item silently do nothing. Printing the list beside the field is what
+// turns a typo into something visible.
+//
+// Kept short on purpose: the classes a moderator would plausibly set. The full
+// set lives in tmserver/internal/handler/item.go, and a value not listed here is
+// still accepted — this is a guide, not a gate. Gating would mean this table
+// deciding what the game supports, which is backwards.
+var ClassesDeUso = []ClasseDeUso{
+	{0, "equipável (não faz nada ao usar)"},
+	{1, "poção de HP/MP"},
+	{7, "pó de fada"},
+	{11, "pergaminho do retorno"},
+	{12, "gema estelar (grava o ponto)"},
+	{13, "pergaminho de portal"},
+	{16, "âmago (sobe a montaria)"},
+	{52, "buff de combate"},
+	{53, "buff mental"},
+	{58, "vigor"},
+	{64, "divina 7 dias"},
+	{66, "divina 30 dias"},
+	{191, "prêmio de quest"},
+	{195, "pedido de caça"},
+	{196, "acelerador de nascimento"},
+	{198, "baú de experiência"},
+	{211, "pedra ideal (renascimento)"},
 }

@@ -1360,6 +1360,10 @@ message AdminItemStat {
   int32 nosanc = 44;
   int32 incubate = 45;
   int32 incudelay = 46;
+  // Reach (read at mob spawn) and the use-item class. Neither folds into the
+  // equip score, which is why they are not among the effect columns above.
+  int32 ef_range = 47;
+  int32 ef_volatile = 48;
 }
 
 message GetItemStatRequest {

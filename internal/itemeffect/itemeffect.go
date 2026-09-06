@@ -128,6 +128,42 @@ func ParsePairs(fields []string) []BaseEffect {
 	return out
 }
 
+// Named tokens the game reads but the score model must NOT: EF_RANGE is attack
+// reach and EF_VOLATILE is the use-item class. They are absent from efName on
+// purpose — folding either into CurrentScore is a bug — so they are named here
+// for the callers that read them through their own maps.
+const (
+	// EFRange is attack reach. Read at mob spawn as the largest EF_RANGE over a
+	// template's equips (tmserver/internal/world/api.go).
+	EFRange = "EF_RANGE"
+	// EFVolatile is what an item does when used: potion, divine, scroll, stone.
+	EFVolatile = "EF_VOLATILE"
+)
+
+// PairValue reads the value of one EF_<name> pair from a catalog row.
+//
+// The pairs are found by NAME anywhere in the row rather than at a fixed column,
+// which is why the item catalog does not depend on the column mapping being
+// pinned down. Three places were scanning for a token with the same loop; this
+// is that loop, once.
+//
+// The second result separates "the row does not carry it" from "it carries
+// zero", which the maps built from this cannot express — a missing key and a
+// zero value read identically.
+func PairValue(fields []string, name string) (int16, bool) {
+	for i := 0; i+1 < len(fields); i++ {
+		if strings.TrimSpace(fields[i]) != name {
+			continue
+		}
+		v, err := strconv.Atoi(strings.TrimSpace(fields[i+1]))
+		if err != nil {
+			return 0, false
+		}
+		return int16(v), true
+	}
+	return 0, false
+}
+
 // ParseReq reads the "Lvl.Str.Int.Dex.Con" requirement column. The second
 // result is false for a malformed column or an all-zero requirement — the
 // caller stores nothing in that case, so "no requirement" stays a single state

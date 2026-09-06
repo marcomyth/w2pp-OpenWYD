@@ -813,4 +813,13 @@ message ItemStat {
   int32 nosanc = 42;
   int32 incubate = 43;
   int32 incudelay = 44;
+  // The two effects the score model deliberately does not carry, applied to
+  // their own maps at boot instead of to the item's effect list.
+  //
+  // ef_range is attack reach, and it reaches MONSTERS: the map it feeds is read
+  // when a mob spawns, as the largest EF_RANGE over its template's equips.
+  // ef_volatile is what the item does when used — potion, divine, scroll — so it
+  // is the item's class rather than a stat.
+  int32 ef_range = 45;
+  int32 ef_volatile = 46;
 }

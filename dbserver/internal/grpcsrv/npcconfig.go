@@ -209,6 +209,8 @@ func itemStatsToProto(stats []domain.ItemStat) []*dbv1.ItemStat {
 			Nosanc:     int32(st.NoSanc),
 			Incubate:   int32(st.Incubate),
 			Incudelay:  int32(st.IncuDelay),
+			EfRange:    int32(st.Range),
+			EfVolatile: int32(st.Volatile),
 		})
 	}
 	return out

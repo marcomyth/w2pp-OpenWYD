@@ -214,6 +214,14 @@ var adminItemStatFields = map[string]struct {
 		get: func(p *webv1.AdminItemStat) int32 { return p.GetIncudelay() },
 		set: func(p *webv1.AdminItemStat, v int32) { p.Incudelay = v },
 	},
+	"ef_range": {
+		get: func(p *webv1.AdminItemStat) int32 { return p.GetEfRange() },
+		set: func(p *webv1.AdminItemStat, v int32) { p.EfRange = v },
+	},
+	"ef_volatile": {
+		get: func(p *webv1.AdminItemStat) int32 { return p.GetEfVolatile() },
+		set: func(p *webv1.AdminItemStat, v int32) { p.EfVolatile = v },
+	},
 }
 
 func itemStatToProto(it itemstatadmin.Item) *webv1.AdminItemStat {

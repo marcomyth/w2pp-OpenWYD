@@ -24,6 +24,16 @@ import "github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 type Override struct {
 	Req     content.ItemReq
 	Effects []content.BaseEffect
+	// Range and Volatile are the two effects the score model deliberately does
+	// not carry, so they travel beside the effect list instead of inside it.
+	// Putting them in Effects would need them on the itemeffect whitelist, and
+	// that whitelist is what keeps them out of CurrentScore.
+	//
+	// Zero means the item has neither, which is also what the catalog produces
+	// for a row with no such pair — the maps below are read with a plain index,
+	// and a missing key reads 0 the same way.
+	Range    int16
+	Volatile int16
 }
 
 // Apply overlays overrides onto the catalog maps, in place.
@@ -31,7 +41,13 @@ type Override struct {
 // Both maps come straight from the ItemList.csv loader and are owned by the
 // caller at boot, before anything else can read them, so mutating them is safe
 // here and nowhere later.
-func Apply(effects map[int][]content.BaseEffect, reqs map[int]content.ItemReq, overrides map[int]Override) {
+func Apply(
+	effects map[int][]content.BaseEffect,
+	reqs map[int]content.ItemReq,
+	ranges map[int]int16,
+	volatiles map[int]int,
+	overrides map[int]Override,
+) {
 	for idx, ov := range overrides {
 		// An empty list is meaningful: it is how a moderator strips an item of
 		// everything it granted. Assigning nil says exactly that, and matches
@@ -50,6 +66,29 @@ func Apply(effects map[int][]content.BaseEffect, reqs map[int]content.ItemReq, o
 			delete(reqs, idx)
 		} else {
 			reqs[idx] = ov.Req
+		}
+
+		// Deleted at zero rather than written as zero, for the same reason the
+		// requirements are: a missing key and a zero value read identically to
+		// every consumer, and keeping only one of the two shapes means a map
+		// dump says what the item actually has.
+		//
+		// The maps are optional. A server booted without a content tree has no
+		// catalog to override, and Apply is only reached with one — but a nil map
+		// assignment panics, so the guard is cheaper than the assumption.
+		if ranges != nil {
+			if ov.Range == 0 {
+				delete(ranges, idx)
+			} else {
+				ranges[idx] = ov.Range
+			}
+		}
+		if volatiles != nil {
+			if ov.Volatile == 0 {
+				delete(volatiles, idx)
+			} else {
+				volatiles[idx] = int(ov.Volatile)
+			}
 		}
 	}
 }

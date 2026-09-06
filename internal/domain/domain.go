@@ -533,6 +533,21 @@ type AccountSummary struct {
 type ItemStat struct {
 	ItemIndex int32
 
+	// Range is EF_RANGE and Volatile is EF_VOLATILE — the two effects the score
+	// model deliberately does not carry, applied through their own maps at boot.
+	//
+	// Range is attack reach, and it reaches MONSTERS: the map it feeds is read
+	// when a mob is spawned, as the largest EF_RANGE over its template's equips
+	// (tmserver/internal/world/api.go). Player reach does not come from it here.
+	// It is the only way to change a monster's reach at all — the mob editor has
+	// no such field because the number lives on the item.
+	//
+	// Volatile is what the item DOES when used: potion, divine, scroll, stone. It
+	// is not a stat, it is the item's class, and changing it changes every copy
+	// already in every inventory.
+	Range    int16
+	Volatile int16
+
 	// Requirement to equip: ItemList.csv column 3, "Lvl.Str.Int.Dex.Con".
 	ReqLevel int16
 	ReqStr   int16
@@ -611,6 +626,14 @@ type ItemStatField struct {
 
 // ItemStatFields is that table, in the order the editor shows them.
 var ItemStatFields = []ItemStatField{
+	// The two the score model does not carry. EF is empty for the same reason the
+	// requirement columns leave it empty — they are not emitted as BaseEffects —
+	// but the reason differs: these ARE real effects the game reads, just through
+	// their own maps (item reach at mob spawn, and the use-item classifier). The
+	// itemeffect whitelist keeps them out of CurrentScore on purpose, so binding
+	// them to an EF token here would undo that.
+	{Col: "ef_range", EF: "", Ptr: func(s *ItemStat) *int16 { return &s.Range }},
+	{Col: "ef_volatile", EF: "", Ptr: func(s *ItemStat) *int16 { return &s.Volatile }},
 	{Col: "req_level", EF: "", Ptr: func(s *ItemStat) *int16 { return &s.ReqLevel }},
 	{Col: "req_str", EF: "", Ptr: func(s *ItemStat) *int16 { return &s.ReqStr }},
 	{Col: "req_int", EF: "", Ptr: func(s *ItemStat) *int16 { return &s.ReqInt }},

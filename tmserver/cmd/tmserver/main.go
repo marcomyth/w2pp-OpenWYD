@@ -308,7 +308,7 @@ func run(logger *slog.Logger) error {
 		if ferr != nil {
 			return fmt.Errorf("fetch item stat overrides: %w", ferr)
 		}
-		itemstat.Apply(itemEffects, itemReqs, overrides)
+		itemstat.Apply(itemEffects, itemReqs, itemRanges, itemVolatiles, overrides)
 		logger.Info("item base stat overlay enabled (moderator editing)", "overrides", len(overrides))
 	}
 

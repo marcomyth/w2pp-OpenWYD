@@ -6596,51 +6596,60 @@ func (x *ListItemStatsResponse) GetOverrides() []*ItemStat {
 // int16, and the loader narrows regardless. proto3 has no 16-bit scalar, so the
 // narrowing lives in the client rather than the contract.
 type ItemStat struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ItemIndex     int32                  `protobuf:"varint,1,opt,name=item_index,json=itemIndex,proto3" json:"item_index,omitempty"`
-	ReqLevel      int32                  `protobuf:"varint,2,opt,name=req_level,json=reqLevel,proto3" json:"req_level,omitempty"` // requirement to equip: ItemList.csv "Lvl.Str.Int.Dex.Con"
-	ReqStr        int32                  `protobuf:"varint,3,opt,name=req_str,json=reqStr,proto3" json:"req_str,omitempty"`
-	ReqInt        int32                  `protobuf:"varint,4,opt,name=req_int,json=reqInt,proto3" json:"req_int,omitempty"`
-	ReqDex        int32                  `protobuf:"varint,5,opt,name=req_dex,json=reqDex,proto3" json:"req_dex,omitempty"`
-	ReqCon        int32                  `protobuf:"varint,6,opt,name=req_con,json=reqCon,proto3" json:"req_con,omitempty"`
-	Damage        int32                  `protobuf:"varint,7,opt,name=damage,proto3" json:"damage,omitempty"` // combat
-	Damageadd     int32                  `protobuf:"varint,8,opt,name=damageadd,proto3" json:"damageadd,omitempty"`
-	Ac            int32                  `protobuf:"varint,9,opt,name=ac,proto3" json:"ac,omitempty"`
-	Acadd         int32                  `protobuf:"varint,10,opt,name=acadd,proto3" json:"acadd,omitempty"`
-	Magic         int32                  `protobuf:"varint,11,opt,name=magic,proto3" json:"magic,omitempty"`
-	Magicadd      int32                  `protobuf:"varint,12,opt,name=magicadd,proto3" json:"magicadd,omitempty"`
-	Critical      int32                  `protobuf:"varint,13,opt,name=critical,proto3" json:"critical,omitempty"`
-	Critical2     int32                  `protobuf:"varint,14,opt,name=critical2,proto3" json:"critical2,omitempty"`
-	Runspeed      int32                  `protobuf:"varint,15,opt,name=runspeed,proto3" json:"runspeed,omitempty"`
-	Str           int32                  `protobuf:"varint,16,opt,name=str,proto3" json:"str,omitempty"`     // attributes
-	Intel         int32                  `protobuf:"varint,17,opt,name=intel,proto3" json:"intel,omitempty"` // "int" is reserved in several targets
-	Dex           int32                  `protobuf:"varint,18,opt,name=dex,proto3" json:"dex,omitempty"`
-	Con           int32                  `protobuf:"varint,19,opt,name=con,proto3" json:"con,omitempty"`
-	Hp            int32                  `protobuf:"varint,20,opt,name=hp,proto3" json:"hp,omitempty"` // life
-	Hpadd         int32                  `protobuf:"varint,21,opt,name=hpadd,proto3" json:"hpadd,omitempty"`
-	Hpadd2        int32                  `protobuf:"varint,22,opt,name=hpadd2,proto3" json:"hpadd2,omitempty"`
-	Mp            int32                  `protobuf:"varint,23,opt,name=mp,proto3" json:"mp,omitempty"`
-	Mpadd         int32                  `protobuf:"varint,24,opt,name=mpadd,proto3" json:"mpadd,omitempty"`
-	Mpadd2        int32                  `protobuf:"varint,25,opt,name=mpadd2,proto3" json:"mpadd2,omitempty"`
-	Resist1       int32                  `protobuf:"varint,26,opt,name=resist1,proto3" json:"resist1,omitempty"` // resistances
-	Resist2       int32                  `protobuf:"varint,27,opt,name=resist2,proto3" json:"resist2,omitempty"`
-	Resist3       int32                  `protobuf:"varint,28,opt,name=resist3,proto3" json:"resist3,omitempty"`
-	Resist4       int32                  `protobuf:"varint,29,opt,name=resist4,proto3" json:"resist4,omitempty"`
-	Resistall     int32                  `protobuf:"varint,30,opt,name=resistall,proto3" json:"resistall,omitempty"`
-	Special1      int32                  `protobuf:"varint,31,opt,name=special1,proto3" json:"special1,omitempty"` // masteries
-	Special2      int32                  `protobuf:"varint,32,opt,name=special2,proto3" json:"special2,omitempty"`
-	Special3      int32                  `protobuf:"varint,33,opt,name=special3,proto3" json:"special3,omitempty"`
-	Special4      int32                  `protobuf:"varint,34,opt,name=special4,proto3" json:"special4,omitempty"`
-	Specialall    int32                  `protobuf:"varint,35,opt,name=specialall,proto3" json:"specialall,omitempty"`
-	Itemlevel     int32                  `protobuf:"varint,36,opt,name=itemlevel,proto3" json:"itemlevel,omitempty"` // identity and mechanics — carried, not balanced
-	Itemtype      int32                  `protobuf:"varint,37,opt,name=itemtype,proto3" json:"itemtype,omitempty"`
-	Mobtype       int32                  `protobuf:"varint,38,opt,name=mobtype,proto3" json:"mobtype,omitempty"`
-	Wtype         int32                  `protobuf:"varint,39,opt,name=wtype,proto3" json:"wtype,omitempty"`
-	Pos           int32                  `protobuf:"varint,40,opt,name=pos,proto3" json:"pos,omitempty"`
-	Sanc          int32                  `protobuf:"varint,41,opt,name=sanc,proto3" json:"sanc,omitempty"`
-	Nosanc        int32                  `protobuf:"varint,42,opt,name=nosanc,proto3" json:"nosanc,omitempty"`
-	Incubate      int32                  `protobuf:"varint,43,opt,name=incubate,proto3" json:"incubate,omitempty"`
-	Incudelay     int32                  `protobuf:"varint,44,opt,name=incudelay,proto3" json:"incudelay,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	ItemIndex  int32                  `protobuf:"varint,1,opt,name=item_index,json=itemIndex,proto3" json:"item_index,omitempty"`
+	ReqLevel   int32                  `protobuf:"varint,2,opt,name=req_level,json=reqLevel,proto3" json:"req_level,omitempty"` // requirement to equip: ItemList.csv "Lvl.Str.Int.Dex.Con"
+	ReqStr     int32                  `protobuf:"varint,3,opt,name=req_str,json=reqStr,proto3" json:"req_str,omitempty"`
+	ReqInt     int32                  `protobuf:"varint,4,opt,name=req_int,json=reqInt,proto3" json:"req_int,omitempty"`
+	ReqDex     int32                  `protobuf:"varint,5,opt,name=req_dex,json=reqDex,proto3" json:"req_dex,omitempty"`
+	ReqCon     int32                  `protobuf:"varint,6,opt,name=req_con,json=reqCon,proto3" json:"req_con,omitempty"`
+	Damage     int32                  `protobuf:"varint,7,opt,name=damage,proto3" json:"damage,omitempty"` // combat
+	Damageadd  int32                  `protobuf:"varint,8,opt,name=damageadd,proto3" json:"damageadd,omitempty"`
+	Ac         int32                  `protobuf:"varint,9,opt,name=ac,proto3" json:"ac,omitempty"`
+	Acadd      int32                  `protobuf:"varint,10,opt,name=acadd,proto3" json:"acadd,omitempty"`
+	Magic      int32                  `protobuf:"varint,11,opt,name=magic,proto3" json:"magic,omitempty"`
+	Magicadd   int32                  `protobuf:"varint,12,opt,name=magicadd,proto3" json:"magicadd,omitempty"`
+	Critical   int32                  `protobuf:"varint,13,opt,name=critical,proto3" json:"critical,omitempty"`
+	Critical2  int32                  `protobuf:"varint,14,opt,name=critical2,proto3" json:"critical2,omitempty"`
+	Runspeed   int32                  `protobuf:"varint,15,opt,name=runspeed,proto3" json:"runspeed,omitempty"`
+	Str        int32                  `protobuf:"varint,16,opt,name=str,proto3" json:"str,omitempty"`     // attributes
+	Intel      int32                  `protobuf:"varint,17,opt,name=intel,proto3" json:"intel,omitempty"` // "int" is reserved in several targets
+	Dex        int32                  `protobuf:"varint,18,opt,name=dex,proto3" json:"dex,omitempty"`
+	Con        int32                  `protobuf:"varint,19,opt,name=con,proto3" json:"con,omitempty"`
+	Hp         int32                  `protobuf:"varint,20,opt,name=hp,proto3" json:"hp,omitempty"` // life
+	Hpadd      int32                  `protobuf:"varint,21,opt,name=hpadd,proto3" json:"hpadd,omitempty"`
+	Hpadd2     int32                  `protobuf:"varint,22,opt,name=hpadd2,proto3" json:"hpadd2,omitempty"`
+	Mp         int32                  `protobuf:"varint,23,opt,name=mp,proto3" json:"mp,omitempty"`
+	Mpadd      int32                  `protobuf:"varint,24,opt,name=mpadd,proto3" json:"mpadd,omitempty"`
+	Mpadd2     int32                  `protobuf:"varint,25,opt,name=mpadd2,proto3" json:"mpadd2,omitempty"`
+	Resist1    int32                  `protobuf:"varint,26,opt,name=resist1,proto3" json:"resist1,omitempty"` // resistances
+	Resist2    int32                  `protobuf:"varint,27,opt,name=resist2,proto3" json:"resist2,omitempty"`
+	Resist3    int32                  `protobuf:"varint,28,opt,name=resist3,proto3" json:"resist3,omitempty"`
+	Resist4    int32                  `protobuf:"varint,29,opt,name=resist4,proto3" json:"resist4,omitempty"`
+	Resistall  int32                  `protobuf:"varint,30,opt,name=resistall,proto3" json:"resistall,omitempty"`
+	Special1   int32                  `protobuf:"varint,31,opt,name=special1,proto3" json:"special1,omitempty"` // masteries
+	Special2   int32                  `protobuf:"varint,32,opt,name=special2,proto3" json:"special2,omitempty"`
+	Special3   int32                  `protobuf:"varint,33,opt,name=special3,proto3" json:"special3,omitempty"`
+	Special4   int32                  `protobuf:"varint,34,opt,name=special4,proto3" json:"special4,omitempty"`
+	Specialall int32                  `protobuf:"varint,35,opt,name=specialall,proto3" json:"specialall,omitempty"`
+	Itemlevel  int32                  `protobuf:"varint,36,opt,name=itemlevel,proto3" json:"itemlevel,omitempty"` // identity and mechanics — carried, not balanced
+	Itemtype   int32                  `protobuf:"varint,37,opt,name=itemtype,proto3" json:"itemtype,omitempty"`
+	Mobtype    int32                  `protobuf:"varint,38,opt,name=mobtype,proto3" json:"mobtype,omitempty"`
+	Wtype      int32                  `protobuf:"varint,39,opt,name=wtype,proto3" json:"wtype,omitempty"`
+	Pos        int32                  `protobuf:"varint,40,opt,name=pos,proto3" json:"pos,omitempty"`
+	Sanc       int32                  `protobuf:"varint,41,opt,name=sanc,proto3" json:"sanc,omitempty"`
+	Nosanc     int32                  `protobuf:"varint,42,opt,name=nosanc,proto3" json:"nosanc,omitempty"`
+	Incubate   int32                  `protobuf:"varint,43,opt,name=incubate,proto3" json:"incubate,omitempty"`
+	Incudelay  int32                  `protobuf:"varint,44,opt,name=incudelay,proto3" json:"incudelay,omitempty"`
+	// The two effects the score model deliberately does not carry, applied to
+	// their own maps at boot instead of to the item's effect list.
+	//
+	// ef_range is attack reach, and it reaches MONSTERS: the map it feeds is read
+	// when a mob spawns, as the largest EF_RANGE over its template's equips.
+	// ef_volatile is what the item does when used — potion, divine, scroll — so it
+	// is the item's class rather than a stat.
+	EfRange       int32 `protobuf:"varint,45,opt,name=ef_range,json=efRange,proto3" json:"ef_range,omitempty"`
+	EfVolatile    int32 `protobuf:"varint,46,opt,name=ef_volatile,json=efVolatile,proto3" json:"ef_volatile,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6979,6 +6988,20 @@ func (x *ItemStat) GetIncubate() int32 {
 func (x *ItemStat) GetIncudelay() int32 {
 	if x != nil {
 		return x.Incudelay
+	}
+	return 0
+}
+
+func (x *ItemStat) GetEfRange() int32 {
+	if x != nil {
+		return x.EfRange
+	}
+	return 0
+}
+
+func (x *ItemStat) GetEfVolatile() int32 {
+	if x != nil {
+		return x.EfVolatile
 	}
 	return 0
 }
@@ -7497,7 +7520,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x05equip\x18( \x03(\v2\x1b.db.v1.MobTemplateEquipItemR\x05equip\"\x16\n" +
 	"\x14ListItemStatsRequest\"F\n" +
 	"\x15ListItemStatsResponse\x12-\n" +
-	"\toverrides\x18\x01 \x03(\v2\x0f.db.v1.ItemStatR\toverrides\"\xce\b\n" +
+	"\toverrides\x18\x01 \x03(\v2\x0f.db.v1.ItemStatR\toverrides\"\x8a\t\n" +
 	"\bItemStat\x12\x1d\n" +
 	"\n" +
 	"item_index\x18\x01 \x01(\x05R\titemIndex\x12\x1b\n" +
@@ -7546,7 +7569,10 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x04sanc\x18) \x01(\x05R\x04sanc\x12\x16\n" +
 	"\x06nosanc\x18* \x01(\x05R\x06nosanc\x12\x1a\n" +
 	"\bincubate\x18+ \x01(\x05R\bincubate\x12\x1c\n" +
-	"\tincudelay\x18, \x01(\x05R\tincudelay*\xb8\x01\n" +
+	"\tincudelay\x18, \x01(\x05R\tincudelay\x12\x19\n" +
+	"\bef_range\x18- \x01(\x05R\aefRange\x12\x1f\n" +
+	"\vef_volatile\x18. \x01(\x05R\n" +
+	"efVolatile*\xb8\x01\n" +
 	"\vLoginResult\x12\x1c\n" +
 	"\x18LOGIN_RESULT_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLOGIN_RESULT_OK\x10\x01\x12\x1b\n" +

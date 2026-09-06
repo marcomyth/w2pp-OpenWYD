@@ -118,7 +118,7 @@ func TestItemStatApplyReplacesRatherThanMerges(t *testing.T) {
 		2000: {Lvl: 10},
 	}
 
-	itemstat.Apply(effects, reqs, map[int]itemstat.Override{
+	itemstat.Apply(effects, reqs, nil, nil, map[int]itemstat.Override{
 		1415: {Effects: []content.BaseEffect{{Eff: hp, Val: 300}}, Req: content.ItemReq{Lvl: 5}},
 	})
 
@@ -142,7 +142,7 @@ func TestItemStatApplyClearsRatherThanZeroes(t *testing.T) {
 	effects := map[int][]content.BaseEffect{1415: {{Eff: dano, Val: 100}}}
 	reqs := map[int]content.ItemReq{1415: {Lvl: 90}}
 
-	itemstat.Apply(effects, reqs, map[int]itemstat.Override{1415: {}})
+	itemstat.Apply(effects, reqs, nil, nil, map[int]itemstat.Override{1415: {}})
 
 	if _, ok := effects[1415]; ok {
 		t.Error("an emptied item kept an effects entry")

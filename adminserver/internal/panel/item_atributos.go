@@ -34,14 +34,15 @@ func (h *Handler) atributosItem(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "item_atributos.html", struct {
 		page
-		Indice     int32
-		Exibido    string
-		Overridden bool
-		Grupos     []grupoCampos
-		Aviso      string
+		Indice       int32
+		Exibido      string
+		Overridden   bool
+		Grupos       []grupoCampos
+		ClassesDeUso []gamedata.ClasseDeUso
+		Aviso        string
 	}{
 		h.pageFor(r, "itens"), stat.Index(), stat.DisplayName(), stat.Overridden(),
-		grupos, r.URL.Query().Get("aviso"),
+		grupos, gamedata.ClassesDeUso, r.URL.Query().Get("aviso"),
 	})
 }
 

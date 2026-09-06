@@ -14,10 +14,20 @@ import (
 
 // ItemEntry is one row of ItemList.csv (data-formats.md §3.1).
 //
-// UNVERIFIED: only Index and Name are reliably mapped; the full column→
-// STRUCT_ITEMLIST mapping (Price/Grade/Extra/nPos and the EF_* effect pairs) is
-// not confirmed from the CSV and is kept raw for later (the .bin is the compiled
-// form). Fields holds the raw comma-separated columns.
+// Fields holds the raw comma-separated columns, because the column→
+// STRUCT_ITEMLIST mapping was never decoded whole. What has been decoded since,
+// each with its evidence at the accessor below:
+//
+//	4  nUnique   sscanf field `unique`, BASE_ReadItemListFile
+//	5  Price     confirmed on a real row (Garra → 530)
+//	6  nPos      confirmed by Garra (weapon) 64 and potions 0
+//	7  Extra     the Anct combine result index
+//	8  Grade     from the same sscanf, still UNVERIFIED row by row
+//
+// The EF_* pairs need no column at all: they are found by NAME anywhere in the
+// row (internal/itemeffect.ParsePairs), which is why the item editor can change
+// what an item grants without the mapping being pinned down. The remaining
+// columns are unread, not unreliable — nothing here depends on them.
 type ItemEntry struct {
 	Index  int
 	Name   string

@@ -95,6 +95,12 @@ func (c *ItemStatSource) Fetch(ctx context.Context) (map[int]itemstat.Override, 
 				Lvl: int16(st.GetReqLevel()), Str: int16(st.GetReqStr()),
 				Int: int16(st.GetReqInt()), Dex: int16(st.GetReqDex()), Con: int16(st.GetReqCon()),
 			},
+			// Carried beside the effects, not through itemEffectColumns: those
+			// resolve through content.EffectID, and EF_RANGE/EF_VOLATILE are
+			// absent from that whitelist on purpose — resolving them there would
+			// fold them into the equip score.
+			Range:    int16(st.GetEfRange()),
+			Volatile: int16(st.GetEfVolatile()),
 		}
 		for _, col := range itemEffectColumns {
 			v := col.get(st)

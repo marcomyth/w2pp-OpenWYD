@@ -179,6 +179,9 @@ func statFromCatalog(e itemcatalog.Entry) domain.ItemStat {
 		ItemIndex: e.Index,
 		ReqLevel:  e.Req.Lvl, ReqStr: e.Req.Str,
 		ReqInt: e.Req.Int, ReqDex: e.Req.Dex, ReqCon: e.Req.Con,
+		// Outside the effect loop below because they are outside the whitelist it
+		// resolves through — see domain.ItemStat.
+		Range: int16(e.Range), Volatile: int16(e.Volatile),
 	}
 	porID := make(map[uint8]int16, len(e.Effects))
 	for _, ef := range e.Effects {

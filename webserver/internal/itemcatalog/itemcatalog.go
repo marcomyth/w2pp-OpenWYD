@@ -65,6 +65,19 @@ type Entry struct {
 	// that opened on zeros would strip the item the first time it was saved.
 	Effects []itemeffect.BaseEffect
 	Req     itemeffect.Req
+	// Range and Volatile are the two effects the score model does not carry, so
+	// they are not in Effects. The editor still has to show them, and for the
+	// same reason it shows the others: an override replaces, so a form that
+	// opened on zero would strip the item on the first save.
+	Range    int32
+	Volatile int32
+}
+
+// pairOrZero is PairValue with the "carries it" answer dropped: the editor works
+// in numbers, and absent and zero are the same number to it.
+func pairOrZero(fields []string, name string) int16 {
+	v, _ := itemeffect.PairValue(fields, name)
+	return v
 }
 
 // Catalog is the scanned item list plus a fingerprint of the file it came from.
@@ -187,6 +200,8 @@ func Scan(contentDir string) (Catalog, error) {
 			Grade:       number(column(fields, 8)),
 			Effects:     itemeffect.ParsePairs(fields),
 			Req:         req,
+			Range:       int32(pairOrZero(fields, itemeffect.EFRange)),
+			Volatile:    int32(pairOrZero(fields, itemeffect.EFVolatile)),
 		}
 	}
 	if err := sc.Err(); err != nil {
