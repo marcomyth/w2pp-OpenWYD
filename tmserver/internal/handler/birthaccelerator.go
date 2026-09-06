@@ -37,6 +37,19 @@ const eggRefineCeiling = 15
 
 func (d *Dispatcher) useBirthAccelerator(w *world.World, s *world.Session, e *world.Entity, body protocol.MsgUseItemBody, src int) {
 	dst := d.itemSlot(w, s, e, int(body.DestType), int(body.DestPos))
+	// Logged on EVERY use, before the gates. A refusal here is indistinguishable
+	// on the client from "the item does nothing" — the player only sees a line —
+	// and the two have completely different causes: a target that is not an egg,
+	// versus a use that carried no target at all because the item was clicked
+	// instead of dragged onto the egg.
+	target := int16(0)
+	if dst != nil {
+		target = dst.Index
+	}
+	d.log.Info("birth accelerator attempt",
+		"conn", s.Conn, "account", s.AccountName,
+		"dest_type", body.DestType, "dest_pos", body.DestPos, "target", target)
+
 	if dst == nil || dst.Empty() {
 		return // no target slot: the legacy drops the message, and so do we
 	}
