@@ -103,6 +103,38 @@ func IsWaterDungeonGenerator(idx int) bool {
 	return false
 }
 
+// eventOwnedGenerators are NPCGener blocks whose mobs are props of a scripted
+// war, not world population. The event spawns them when it starts and clears
+// them when it ends, so the boot populate must skip them and a death must not
+// enqueue the 15s respawn — otherwise the prop stands in the world permanently
+// and reappears fifteen seconds after anyone knocks it down.
+//
+// The indices are NPCGener block positions (npcgener.Load returns blocks in file
+// order, dropping the ones with no Leader), which is the same numbering
+// towerGenerator already uses.
+//
+//	1078 "Torre"      — the guild tower war. handler/towerwar.go already spawns it
+//	                    at TowerStart and clears it at TowerEnd; the boot populate
+//	                    was leaving a second one standing outside the war window.
+//	4236 "Torre_"     — Torre_RvR, inside the RvR box (1023-1280 × 1919-2179).
+//	4237 "Torre__"    — Torre_RvR, same box.
+//	4238/4239 "Torre_Real" — the royal towers on the kings' corridor.
+//
+// The RvR war itself is not modeled yet (handler/chat.go), so 4236-4239 have no
+// owner to spawn them at all: until one exists they simply stay out of the world,
+// which is what the original does with them outside the event.
+var eventOwnedGenerators = map[int]bool{
+	1078: true,
+	4236: true,
+	4237: true,
+	4238: true,
+	4239: true,
+}
+
+// IsEventOwnedGenerator reports whether a block belongs to a scripted event
+// rather than to the world population.
+func IsEventOwnedGenerator(idx int) bool { return eventOwnedGenerators[idx] }
+
 // ClearGenerator removes every live entity and queued respawn owned by one
 // generator slot before a DB snapshot replaces its recipe. Loop-only.
 func (w *World) ClearGenerator(idx int) {

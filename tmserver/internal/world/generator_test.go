@@ -265,3 +265,49 @@ func TestGenerateMobNegativeCapSpawnsStaticMerchant(t *testing.T) {
 		t.Fatalf("second GenerateMob spawned %d, want cap reached", got)
 	}
 }
+
+// The war towers are event props, not world population. 1078 belongs to the
+// guild tower war (handler/towerwar.go spawns and clears it); 4236-4239 are the
+// RvR towers and the Torre Real, which had no owner at all and simply stood in
+// the map. Neighbouring blocks and the kingdom guardian towers — ordinary
+// population on a 10-minute generator next to each king — must keep spawning.
+func TestIsEventOwnedGenerator(t *testing.T) {
+	for _, idx := range []int{1078, 4236, 4237, 4238, 4239} {
+		if !IsEventOwnedGenerator(idx) {
+			t.Errorf("IsEventOwnedGenerator(%d) = false, want true", idx)
+		}
+	}
+	for _, idx := range []int{0, 1077, 1079, 4235, 4240, 2783, 2844, 3824, 3829} {
+		if IsEventOwnedGenerator(idx) {
+			t.Errorf("IsEventOwnedGenerator(%d) = true, want false", idx)
+		}
+	}
+}
+
+// A fallen war tower must stay down: the 15s respawn queue that keeps ordinary
+// MinuteGenerate<=0 monsters alive is exactly what made the towers reappear.
+func TestEventOwnedGeneratorSkipsRespawnQueue(t *testing.T) {
+	now := uint32(1000)
+	w := New(Config{GridDim: 16, Now: func() uint32 { return now }}, slogDiscard(), nil, nil)
+
+	tower := w.SpawnMobAt(MobSpawn{
+		Template: make([]byte, structMobTemplateSize), X: 5, Y: 6, GenIndex: 4236,
+	})
+	if tower < MaxUser {
+		t.Fatalf("SpawnMobAt(tower) = %d, want a mob id >= %d", tower, MaxUser)
+	}
+	w.DespawnMob(tower, 1) // killed in combat
+	if len(w.respawnQueue) != 0 {
+		t.Fatalf("respawnQueue len = %d, want the war tower left out", len(w.respawnQueue))
+	}
+
+	// The control: a mob from a block one index away still respawns, so the
+	// exclusion is the generator id and not something broader.
+	mob := w.SpawnMobAt(MobSpawn{
+		Template: make([]byte, structMobTemplateSize), X: 7, Y: 8, GenIndex: 4240,
+	})
+	w.DespawnMob(mob, 1)
+	if len(w.respawnQueue) != 1 {
+		t.Fatalf("respawnQueue len = %d, want the ordinary mob queued", len(w.respawnQueue))
+	}
+}
