@@ -73,6 +73,12 @@ func (f *fakeStore) ReserveSerials(_ context.Context, quantos int64) (int64, err
 	return primeiro, nil
 }
 
+func (f *fakeStore) RecordChat(_ context.Context, linhas []domain.ChatLinha) error {
+	f.chat = append(f.chat, linhas...)
+	f.lotes = append(f.lotes, len(linhas))
+	return nil
+}
+
 func (f *fakeStore) RecordGround(_ context.Context, g domain.GroundEvent) error {
 	f.chao = append(f.chao, g)
 	return nil

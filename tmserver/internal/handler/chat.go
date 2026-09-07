@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
@@ -32,6 +33,7 @@ func (d *Dispatcher) messageChat(w *world.World, s *world.Session, _ protocol.He
 	default:
 		// Public speech → everyone in view (HEADER.ID = speaker).
 		w.BroadcastInView(s.Conn, protocol.MsgMessageChat, payload)
+		d.registraFala(w, s, world.ChatPublico, "", text)
 	}
 }
 
@@ -89,6 +91,29 @@ func (d *Dispatcher) messageWhisper(w *world.World, s *world.Session, _ protocol
 		return
 	}
 	w.SendTo(target, protocol.Header{Type: protocol.MsgMessageWhisper, ID: uint16(s.Conn)}, payload)
+	d.registraFala(w, s, world.ChatSussurro, name, cstr(body.String[:]))
+}
+
+// registraFala files one line in the chat log (0034_chat_log).
+//
+// AFTER the message is delivered, never before: the log exists to answer a
+// ticket, and nothing about it should be able to hold up somebody's sentence.
+// Buffered by the world and flushed in batches, so the database is not in the
+// path of typing.
+//
+// Only the two things a player actually said to another player. Slash commands
+// are handled and returned before this is reached, which is deliberate — the
+// keyword already goes to the application log, and a command is not conversation.
+func (d *Dispatcher) registraFala(w *world.World, s *world.Session, tipo world.ChatTipo, alvo, texto string) {
+	e := w.Entity(s.Conn)
+	if e == nil {
+		return
+	}
+	w.RegistraChat(world.ChatLinha{
+		At: time.Now(), Tipo: tipo,
+		AccountID: s.AccountID, Character: e.Name, Alvo: alvo,
+		Texto: texto, X: int32(e.X), Y: int32(e.Y),
+	})
 }
 
 // teleportCmds maps a chat slash command to its destination tile. The client sends

@@ -99,6 +99,16 @@ service AccountService {
   // for more before running out.
   rpc ReserveSerials(ReserveSerialsRequest) returns (ReserveSerialsResponse);
 
+  // RecordChat stores a BATCH of chat lines (0034_chat_log).
+  //
+  // A batch, not one call per line, because chat is the highest-volume thing a
+  // game server produces: the tmServer buffers a few seconds' worth and sends
+  // them together, so the database is not in the path of every sentence anybody
+  // types.
+  //
+  // Best-effort from the caller's side — the words were already said and heard.
+  rpc RecordChat(RecordChatRequest) returns (RecordChatResponse);
+
   // SetCharacterPresence marks a character as in-play (login) or out (logout or
   // disconnect), so the staff panel can tell whether the database is the
   // authority for that character's items.
@@ -441,6 +451,26 @@ message ReserveSerialsRequest { int64 count = 1; }
 // ReserveSerialsResponse is the first serial of the reserved block; the caller
 // owns [first, first+count).
 message ReserveSerialsResponse { int64 first = 1; }
+
+// ChatLine is one thing somebody said.
+message ChatLine {
+  // Unix seconds. Set by the tmServer when the line was spoken, not when the
+  // batch was sent: a buffered batch would otherwise stamp everything with the
+  // flush time and lose the order inside a conversation.
+  int64 at = 1;
+  // "publico" or "sussurro".
+  string tipo = 2;
+  int64 account_id = 3;
+  string character = 4;
+  // Who the whisper was for; empty on public speech.
+  string alvo = 5;
+  string texto = 6;
+  int32 pos_x = 7;
+  int32 pos_y = 8;
+}
+
+message RecordChatRequest { repeated ChatLine lines = 1; }
+message RecordChatResponse { bool ok = 1; }
 
 // RecordReportRequest is one player report and the snapshot around it.
 message RecordGroundRequest {

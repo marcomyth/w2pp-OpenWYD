@@ -48,6 +48,9 @@ type fakeStore struct {
 
 	serialProximo int64 // último serial entregue (0033_item_serial)
 	serialErr     error
+
+	chat  []domain.ChatLinha // linhas recebidas (0034_chat_log)
+	lotes []int              // tamanho de cada lote, para provar que veio em lote
 }
 
 type duelResult struct{ winner, loser string }

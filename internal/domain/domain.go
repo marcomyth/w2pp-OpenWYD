@@ -920,6 +920,57 @@ type ItemDup struct {
 	Eff       [3][2]uint8
 }
 
+// ChatTipo is which channel a line was said on.
+type ChatTipo string
+
+// The two channels stored. Public speech reaches whoever was in view; a whisper
+// reaches one person.
+const (
+	ChatPublico  ChatTipo = "publico"
+	ChatSussurro ChatTipo = "sussurro"
+)
+
+// ChatRetencaoPadrao is how long a line is kept when nothing says otherwise.
+//
+// Thirty days, decided by the server owner, with instructions to drop to twenty
+// if the table gets heavy — which is why the retention is applied at SWEEP time
+// against ocorrido_em, not written into each row. Lowering the number shrinks
+// what is already stored, instead of only affecting lines written afterwards.
+const ChatRetencaoPadrao = 30
+
+// ChatRetencaoMax caps the setting. A number pulled out of the air here would
+// quietly turn a moderation log into a permanent archive of private messages.
+const ChatRetencaoMax = 90
+
+// ChatLinha is one thing somebody said (0034_chat_log).
+//
+// This is people's conversation, and two rules ride with it: the retention is
+// the protection — past the deadline it is gone, with no way back — and every
+// panel READ of this table is written to the audit trail, because reading a
+// player's private messages has to leave a trace of who read it.
+type ChatLinha struct {
+	ID   int64
+	At   time.Time
+	Tipo ChatTipo
+
+	AccountID int64 // 0 quando desconhecida
+	Character string
+	// Alvo is who the whisper was for. Empty on public speech, which has no
+	// addressee.
+	Alvo string
+
+	Texto string
+	X, Y  int32
+}
+
+// ChatVarredura is what the last sweep did, read back by the panel so the screen
+// states the retention actually being enforced rather than one it assumes.
+type ChatVarredura struct {
+	VarridoEm time.Time
+	Dias      int
+	Apagadas  int64
+}
+
 // EffSanc is EF_SANC, the item-effect type that carries the refine level
 // ("anc"/joias). The census groups by it, and that is what makes the census
 // worth reading: nobody duplicates a plain sword.

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Conversa — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  .busca-chat { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  .busca-chat input { min-width: 200px; }
+  .filtros { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 22px; font-size: 13px; align-items: center; }
+  .filtros .rot {
+    font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3); margin-right: 2px;
+  }
+  .filtros a {
+    border: 1px solid var(--rule); border-radius: 3px; padding: 5px 11px;
+    color: var(--ink-2); text-decoration: none;
+  }
+  .filtros a.on { border-color: var(--ink-3); color: var(--ink); background: var(--surface); }
+
+  td.quando { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.quando .idade { display: block; color: var(--ink-3); font-size: 12px; }
+  td.fala { color: var(--ink); }
+  .canal {
+    font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .canal.priv { color: var(--danger); }
+  .para { color: var(--ink-3); font-size: 12.5px; }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main class="larga">
+  <h1>Conversa</h1>
+  <p class="sub">
+    O que foi dito no jogo: fala pública e sussurro. Serve para o chamado de
+    quem foi xingado, ameaçado ou enganado por conversa — a denúncia guarda o
+    momento e quem estava perto, não guarda as palavras.
+  </p>
+
+  <div class="nota perigo">
+    <strong>Toda busca aqui vai para a auditoria</strong>, com seu nome, o que
+    você procurou e quando — inclusive as que não acham nada. Isto é conversa
+    privada de jogador: quem lê fica registrado.
+    {{if .Falha.prazo}}
+      <br><br>Não consegui ler qual prazo está valendo agora.
+    {{else if .Varredura.Dias}}
+      <br><br>Guardado por <strong>{{.Varredura.Dias}} dias</strong>. Passou
+      disso, some, e não tem como recuperar.
+      {{if .VarridoHa}}Última limpeza há {{.VarridoHa}}.{{end}}
+    {{else}}
+      <br><br>Nenhuma limpeza rodou ainda, então o prazo em vigor não foi
+      registrado. Ele é aplicado pelo servidor de banco.
+    {{end}}
+  </div>
+
+  {{if .Falha.chat}}{{template "falha-de-leitura" "a conversa"}}{{end}}
+
+  <form class="busca-chat" method="get" action="/chat">
+    <input name="personagem" value="{{.Personagem}}" placeholder="Nome do personagem"
+           autocapitalize="off" spellcheck="false" autofocus>
+    <input name="texto" value="{{.Texto}}" placeholder="Palavra dita">
+    <input type="hidden" name="dias" value="{{.Dias}}">
+    {{if .Tipo}}<input type="hidden" name="tipo" value="{{.Tipo}}">{{end}}
+    <button type="submit">Buscar</button>
+  </form>
+
+  {{$n := .Personagem}}{{$t := .Texto}}{{$d := .Dias}}{{$tp := .Tipo}}
+  <div class="filtros">
+    <span class="rot">Período</span>
+    {{range .Janelas}}
+    <a href="/chat?dias={{.}}{{if $n}}&amp;personagem={{$n}}{{end}}{{if $t}}&amp;texto={{$t}}{{end}}{{if $tp}}&amp;tipo={{$tp}}{{end}}"
+       {{if eq . $d}}class="on"{{end}}>{{if eq . 0}}Tudo que resta{{else}}{{.}} dia{{if ne . 1}}s{{end}}{{end}}</a>
+    {{end}}
+    <span style="width:14px"></span>
+    <span class="rot">Canal</span>
+    <a href="/chat?dias={{$d}}{{if $n}}&amp;personagem={{$n}}{{end}}{{if $t}}&amp;texto={{$t}}{{end}}"
+       {{if not $tp}}class="on"{{end}}>Os dois</a>
+    <a href="/chat?dias={{$d}}&amp;tipo=publico{{if $n}}&amp;personagem={{$n}}{{end}}{{if $t}}&amp;texto={{$t}}{{end}}"
+       {{if eq $tp "publico"}}class="on"{{end}}>Só público</a>
+    <a href="/chat?dias={{$d}}&amp;tipo=sussurro{{if $n}}&amp;personagem={{$n}}{{end}}{{if $t}}&amp;texto={{$t}}{{end}}"
+       {{if eq $tp "sussurro"}}class="on"{{end}}>Só sussurro</a>
+  </div>
+
+  {{if not .Buscou}}
+    <div class="vazio">
+      Digite um nome de personagem ou uma palavra para procurar.
+      <br><br>
+      A tela abre vazia de propósito: passear pela conversa de todo mundo não é
+      coisa que ela deva facilitar. O nome procura os dois lados — o que a
+      pessoa falou e o que mandaram para ela.
+    </div>
+  {{else if .Linhas}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Quando</th>
+            <th>Canal</th>
+            <th>Quem</th>
+            <th>Disse</th>
+            <th class="num">Onde</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Linhas}}
+          <tr>
+            <td class="quando">
+              {{.At.Local.Format "02/01 15:04:05"}}
+              {{if .Idade}}<span class="idade">há {{.Idade}}</span>{{end}}
+            </td>
+            <td><span class="canal {{if .Sussurro}}priv{{end}}">{{if .Sussurro}}sussurro{{else}}público{{end}}</span></td>
+            <td>
+              {{.Character}}
+              {{if .Alvo}}<br><span class="para">para {{.Alvo}}</span>{{end}}
+            </td>
+            <td class="fala">{{.Texto}}</td>
+            <td class="num mono">{{.X}}, {{.Y}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{if .Cheio}}
+      <p class="sub" style="margin-top:14px">
+        Mostrando as {{.Limite}} mais recentes. Estreite o período ou a palavra.
+      </p>
+    {{end}}
+  {{else}}
+    <div class="vazio">
+      Nada encontrado{{if .Personagem}} para “{{.Personagem}}”{{end}}{{if .Texto}}
+      com “{{.Texto}}”{{end}} no período escolhido.
+      <br><br>
+      Vazio aqui pode ser duas coisas: não foi dito, ou já passou do prazo e foi
+      apagado. Se o chamado é de mais de {{if .Varredura.Dias}}{{.Varredura.Dias}}{{else}}30{{end}}
+      dias atrás, é a segunda.
+    </div>
+  {{end}}
+</main>
+</body>
+</html>

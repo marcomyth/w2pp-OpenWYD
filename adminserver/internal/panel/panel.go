@@ -241,6 +241,18 @@ type Censo interface {
 	CountMarked(ctx context.Context) (marcados, semMarca int64, err error)
 }
 
+// Chat reads what players said (0034_chat_log).
+//
+// Its own interface, not folded into TradeLog or Censo, because it is the one
+// read in the panel that touches private conversation: keeping it separate is
+// what lets a deployment wire the others and leave this one out.
+type Chat interface {
+	ListChat(ctx context.Context, q store.ChatQuery) ([]domain.ChatLinha, error)
+	// ChatSweep reports the retention the sweep actually applied, so the screen
+	// states a number somebody is enforcing rather than one it assumes.
+	ChatSweep(ctx context.Context) (domain.ChatVarredura, error)
+}
+
 // Platform is the hosting API, used to report the game server's boot time and
 // restart it. Optional: without it the restart card is hidden.
 type Platform interface {
@@ -263,6 +275,7 @@ type Config struct {
 	Entregas    Deliveries
 	Trocas      TradeLog
 	Censo       Censo
+	Chat        Chat
 	Jogo        Live
 	GameData    GameData
 	Writer      Writer
@@ -377,6 +390,9 @@ func (h *Handler) Routes() http.Handler {
 	if h.cfg.Censo != nil {
 		mux.Handle("GET /censo", h.requireStaff(http.HandlerFunc(h.censo)))
 	}
+	if h.cfg.Chat != nil {
+		mux.Handle("GET /chat", h.requireStaff(http.HandlerFunc(h.chat)))
+	}
 	if h.cfg.Jogo != nil {
 		mux.Handle("GET /servidor", h.requireStaff(http.HandlerFunc(h.servidor)))
 		// Read-only, same single read as /servidor. Staff, not admin: seeing
@@ -471,6 +487,7 @@ type page struct {
 	HasItems  bool   // the item pages exist only when a webServer is configured
 	HasTrocas bool   // the trade log exists only when a database read is configured
 	HasCenso  bool   // o censo de itens precisa da leitura do banco
+	HasChat   bool   // o registro de conversa precisa da leitura do banco
 	HasJogo   bool   // the live pages exist only when the game link is configured
 	HasSeguro bool   // the safe restart needs BOTH the game link and the hosting API
 	HasEvento bool   // the event switches need the database read
@@ -516,6 +533,7 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		HasItems:  h.cfg.GameData != nil,
 		HasTrocas: h.cfg.Trocas != nil,
 		HasCenso:  h.cfg.Censo != nil,
+		HasChat:   h.cfg.Chat != nil,
 		HasJogo:   h.cfg.Jogo != nil,
 		HasSeguro: h.cfg.Jogo != nil && h.cfg.Platform != nil,
 		HasEvento: h.cfg.Eventos != nil,

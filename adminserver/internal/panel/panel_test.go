@@ -4635,3 +4635,198 @@ func TestAgrupaCopiasJuntaPorSerial(t *testing.T) {
 		t.Errorf("owner_kind não foi traduzido: %q", got[1].Copias[0].Onde)
 	}
 }
+
+// --- conversa (0034_chat_log) ---
+
+type fakeChat struct {
+	mu       sync.Mutex
+	linhas   []domain.ChatLinha
+	pedidos  []store.ChatQuery
+	err      error
+	varre    domain.ChatVarredura
+	varreErr error
+}
+
+func (f *fakeChat) ListChat(_ context.Context, q store.ChatQuery) ([]domain.ChatLinha, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return nil, f.err
+	}
+	f.pedidos = append(f.pedidos, q)
+	return f.linhas, nil
+}
+
+func (f *fakeChat) ChatSweep(context.Context) (domain.ChatVarredura, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.varre, f.varreErr
+}
+
+func newTestPanelChat(t *testing.T, c Chat, aud *fakeAudit) http.Handler {
+	t.Helper()
+	h, err := New(Config{
+		Accounts:   withTarget(roleAdmin),
+		Writer:     newFakeWriter(),
+		Chat:       c,
+		Audit:      aud,
+		Sessions:   session.New(time.Hour),
+		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return h.Routes()
+}
+
+func umaConversa() *fakeChat {
+	agora := time.Now()
+	return &fakeChat{
+		varre: domain.ChatVarredura{VarridoEm: agora.Add(-2 * time.Hour), Dias: 30, Apagadas: 41},
+		linhas: []domain.ChatLinha{
+			{At: agora.Add(-time.Minute), Tipo: domain.ChatSussurro,
+				Character: "Acusado", Alvo: "Vitima", Texto: "me passa o item", X: 2100, Y: 2100},
+			{At: agora.Add(-2 * time.Minute), Tipo: domain.ChatPublico,
+				Character: "Vitima", Texto: "alguem ai", X: 2100, Y: 2100},
+		},
+	}
+}
+
+// A regra que justifica a tela existir do jeito que existe: conversa privada só
+// se lê deixando rastro de quem leu.
+func TestConversaGravaNaAuditoriaQuemLeu(t *testing.T) {
+	aud := newFakeAudit()
+	get := signedIn(t, newTestPanelChat(t, umaConversa(), aud))
+
+	if rec := get("/chat?personagem=Vitima"); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	aud.mu.Lock()
+	escritas := append([]audit.Record(nil), aud.written...)
+	aud.mu.Unlock()
+
+	if len(escritas) != 1 {
+		t.Fatalf("registros na auditoria = %d, want 1", len(escritas))
+	}
+	if escritas[0].Action != "chat.ler" {
+		t.Errorf("ação = %q, want chat.ler", escritas[0].Action)
+	}
+	novos, _ := escritas[0].New.(map[string]any)
+	if novos["personagem"] != "Vitima" {
+		t.Errorf("a auditoria não guarda o que foi procurado: %+v", novos)
+	}
+}
+
+// Inclusive a busca que não acha nada: "procurei e não tinha" é exatamente o
+// que alguém diria depois, e sem registro não dá para saber que procurou.
+func TestConversaGravaNaAuditoriaAteQuandoNaoAchaNada(t *testing.T) {
+	aud := newFakeAudit()
+	get := signedIn(t, newTestPanelChat(t, &fakeChat{}, aud))
+	get("/chat?personagem=Ninguem")
+
+	aud.mu.Lock()
+	n := len(aud.written)
+	aud.mu.Unlock()
+	if n != 1 {
+		t.Errorf("registros = %d, want 1 mesmo sem resultado", n)
+	}
+}
+
+// Abrir a tela não é ler conversa. Registrar isso encheria a auditoria de ruído
+// e enterraria as entradas que significam alguma coisa.
+func TestConversaAbrirSemBuscarNaoGravaNada(t *testing.T) {
+	aud := newFakeAudit()
+	get := signedIn(t, newTestPanelChat(t, umaConversa(), aud))
+	body := get("/chat").Body.String()
+
+	aud.mu.Lock()
+	n := len(aud.written)
+	aud.mu.Unlock()
+	if n != 0 {
+		t.Errorf("registros = %d, want 0 ao só abrir a tela", n)
+	}
+	if !strings.Contains(body, "Digite um nome") {
+		t.Error("a tela não explica que abre vazia de propósito")
+	}
+	if strings.Contains(body, "me passa o item") {
+		t.Error("mostrou conversa sem ninguém ter buscado")
+	}
+}
+
+// Se a auditoria não aceita a escrita, a leitura NÃO acontece. É o único
+// resultado que esta tela não pode produzir: ler mensagem privada sem rastro.
+func TestConversaSemAuditoriaRecusaALeitura(t *testing.T) {
+	aud := newFakeAudit()
+	aud.failWrite = errors.New("sem banco")
+	fc := umaConversa()
+	get := signedIn(t, newTestPanelChat(t, fc, aud))
+
+	rec := get("/chat?personagem=Vitima")
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", rec.Code)
+	}
+	fc.mu.Lock()
+	consultas := len(fc.pedidos)
+	fc.mu.Unlock()
+	if consultas != 0 {
+		t.Error("leu a conversa mesmo sem conseguir registrar quem leu")
+	}
+}
+
+func TestConversaMostraOsDoisCanaisEOPrazoQueEstaValendo(t *testing.T) {
+	get := signedIn(t, newTestPanelChat(t, umaConversa(), newFakeAudit()))
+	body := get("/chat?personagem=Vitima").Body.String()
+
+	for _, want := range []string{"me passa o item", "Acusado", "para Vitima",
+		"sussurro", "público", "30 dias", "vai para a auditoria"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("a página não traz %q", want)
+		}
+	}
+}
+
+// Vazio aqui quer dizer duas coisas opostas — não foi dito, ou já foi apagado —
+// e quem lê precisa saber disso antes de concluir inocência.
+func TestConversaVaziaExplicaOPrazo(t *testing.T) {
+	fc := &fakeChat{varre: domain.ChatVarredura{Dias: 30}}
+	get := signedIn(t, newTestPanelChat(t, fc, newFakeAudit()))
+	body := get("/chat?personagem=Ninguem").Body.String()
+	if !strings.Contains(body, "passou do prazo") {
+		t.Error("não avisa que vazio pode ser conversa apagada")
+	}
+}
+
+func TestConversaPassaOsFiltrosParaAConsulta(t *testing.T) {
+	fc := umaConversa()
+	get := signedIn(t, newTestPanelChat(t, fc, newFakeAudit()))
+	get("/chat?personagem=Vitima&texto=item&tipo=sussurro&dias=1")
+
+	q := fc.pedidos[0]
+	if q.Char != "Vitima" || q.Texto != "item" || q.Tipo != domain.ChatSussurro {
+		t.Errorf("consulta = %+v", q)
+	}
+	if q.Desde.IsZero() {
+		t.Error("o período de 1 dia não virou um corte de data")
+	}
+}
+
+// Canal inventado na URL vira "os dois" em vez de chegar cru no banco.
+func TestConversaIgnoraCanalInventado(t *testing.T) {
+	fc := umaConversa()
+	get := signedIn(t, newTestPanelChat(t, fc, newFakeAudit()))
+	get("/chat?personagem=Vitima&tipo=grito")
+	if fc.pedidos[0].Tipo != "" {
+		t.Errorf("tipo = %q, want vazio", fc.pedidos[0].Tipo)
+	}
+}
+
+func TestConversaSomeSemAConfiguracao(t *testing.T) {
+	get := signedIn(t, newTestPanel(t, withTarget(roleAdmin)))
+	if rec := get("/chat"); rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404 sem o registro de conversa", rec.Code)
+	}
+	if strings.Contains(get("/").Body.String(), `href="/chat"`) {
+		t.Error("o menu oferece um link para uma página que não existe")
+	}
+}

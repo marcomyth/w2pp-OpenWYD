@@ -178,6 +178,14 @@ type World struct {
 	// successful event drops.
 	worldEvent EventConfig
 
+	// Chat log buffer (chatlog.go). Loop-owned: lines are appended while
+	// handling chat, and flushed in batches off the loop. chatEnviando keeps one
+	// batch in flight at a time.
+	chatBuf         []ChatLinha
+	chatEnviando    bool
+	chatUltimo      time.Time
+	chatDescartadas int
+
 	// Item-serial block (serial.go). Loop-owned: the numbers are handed out
 	// while stamping items on save, which happens inside the loop, and refilled
 	// off it. serialProximo == serialFim means the block is spent and items go
@@ -394,6 +402,17 @@ func (w *World) shutdown() {
 		if err := w.persist.SaveCargo(context.Background(), w.cargoSave(accountID)); err != nil {
 			w.log.Warn("save cargo on shutdown failed", "account", accountID, "err", err)
 		}
+	}
+	// The last few seconds of chat, written straight rather than buffered: the
+	// loop is ending, so there is no tick left to flush it and no reason to hand
+	// it to a goroutine nobody will wait for.
+	if len(w.chatBuf) > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), chatTempo)
+		if err := w.persist.RecordChat(ctx, w.chatBuf); err != nil {
+			w.log.Warn("chat log: last batch lost on shutdown", "linhas", len(w.chatBuf), "err", err)
+		}
+		cancel()
+		w.chatBuf = nil
 	}
 	// Wait for in-flight disconnect/logout saves so a shutdown never loses one.
 	w.saveWG.Wait()

@@ -6,6 +6,7 @@ package grpcsrv
 import (
 	"context"
 	"errors"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -42,6 +43,7 @@ type Store interface {
 	RecordReport(ctx context.Context, r domain.PlayerReport) error
 	RecordGround(ctx context.Context, g domain.GroundEvent) error
 	ReserveSerials(ctx context.Context, quantos int64) (int64, error)
+	RecordChat(ctx context.Context, linhas []domain.ChatLinha) error
 	SetCharacterPresence(ctx context.Context, name string, online bool) (bool, error)
 	ClearAllPresence(ctx context.Context) (int64, error)
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
@@ -630,6 +632,32 @@ func (s *Server) ReserveSerials(ctx context.Context, req *dbv1.ReserveSerialsReq
 		return nil, status.Errorf(codes.Internal, "reserve serials: %v", err)
 	}
 	return &dbv1.ReserveSerialsResponse{First: primeiro}, nil
+}
+
+// RecordChat stores a batch of chat lines.
+//
+// Best-effort like the other logs: the words were already said and heard, and
+// failing to write them down must not disturb the game. The error goes back so
+// the tmServer logs it; nothing is retried, because a retry of a chat batch
+// competes with the next one and the next one is more useful.
+func (s *Server) RecordChat(ctx context.Context, req *dbv1.RecordChatRequest) (*dbv1.RecordChatResponse, error) {
+	linhas := make([]domain.ChatLinha, 0, len(req.GetLines()))
+	for _, l := range req.GetLines() {
+		linhas = append(linhas, domain.ChatLinha{
+			At:        time.Unix(l.GetAt(), 0),
+			Tipo:      domain.ChatTipo(l.GetTipo()),
+			AccountID: l.GetAccountId(),
+			Character: l.GetCharacter(),
+			Alvo:      l.GetAlvo(),
+			Texto:     l.GetTexto(),
+			X:         l.GetPosX(),
+			Y:         l.GetPosY(),
+		})
+	}
+	if err := s.store.RecordChat(ctx, linhas); err != nil {
+		return nil, status.Errorf(codes.Internal, "record chat: %v", err)
+	}
+	return &dbv1.RecordChatResponse{Ok: true}, nil
 }
 
 // SetCharacterPresence marks a character in-play or out, so the staff panel can

@@ -856,6 +856,29 @@ func (c *Client) ReserveSerials(ctx context.Context, quantos int64) (int64, erro
 	return resp.GetFirst(), nil
 }
 
+// RecordChat stores a batch of chat lines (0034_chat_log).
+//
+// Best-effort: the words were already said and heard, so a failed write is
+// logged by the caller and nothing is retried — a retry would compete with the
+// next batch, and the next batch is the more useful one.
+func (c *Client) RecordChat(ctx context.Context, linhas []world.ChatLinha) error {
+	if len(linhas) == 0 {
+		return nil
+	}
+	req := &dbv1.RecordChatRequest{Lines: make([]*dbv1.ChatLine, 0, len(linhas))}
+	for _, l := range linhas {
+		req.Lines = append(req.Lines, &dbv1.ChatLine{
+			At: l.At.Unix(), Tipo: string(l.Tipo), AccountId: l.AccountID,
+			Character: l.Character, Alvo: l.Alvo, Texto: l.Texto,
+			PosX: l.X, PosY: l.Y,
+		})
+	}
+	if _, err := c.api.RecordChat(ctx, req); err != nil {
+		return fmt.Errorf("dbclient: record chat (%d lines): %w", len(linhas), err)
+	}
+	return nil
+}
+
 // RecordTrade stores one completed player-to-player trade (0025_trade_log).
 func (c *Client) RecordTrade(ctx context.Context, t world.TradeRecord) error {
 	_, err := c.api.RecordTrade(ctx, &dbv1.RecordTradeRequest{

@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS chat_log_meta;
+DROP TABLE IF EXISTS chat_log;

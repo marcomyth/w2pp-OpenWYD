@@ -3,6 +3,7 @@ package world
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 // MobPerAccount is MOB_PER_ACCOUNT (Basedef.h:131): the number of character
@@ -365,6 +366,11 @@ type Persistence interface {
 	// because an item with no identity is a gap while an item carrying
 	// somebody else's identity is a false accusation.
 	ReserveSerials(ctx context.Context, quantos int64) (int64, error)
+	// RecordChat stores a BATCH of chat lines (0034_chat_log). Called off the
+	// loop and best-effort: the words were already said and heard. A batch
+	// because chat is the highest-volume thing the server produces, and one
+	// round trip per sentence would put the database in the path of typing.
+	RecordChat(ctx context.Context, linhas []ChatLinha) error
 	// SetCharacterPresence marks a character in-play (login) or out (logout or
 	// disconnect), so the staff panel can tell whether the database is the
 	// authority for that character's items. Bookkeeping only — nothing in the
@@ -498,6 +504,10 @@ func (NopPersistence) ReserveSerials(context.Context, int64) (int64, error) {
 	return 0, errors.New("world: no persistence configured; item serials unavailable")
 }
 
+// RecordChat does nothing: with no database there is nowhere to keep what was
+// said, and the game itself does not need the log to work.
+func (NopPersistence) RecordChat(context.Context, []ChatLinha) error { return nil }
+
 // SetCharacterPresence does nothing: presence exists only for the staff panel,
 // which is not there either when there is no database.
 func (NopPersistence) SetCharacterPresence(context.Context, string, bool) error { return nil }
@@ -581,6 +591,31 @@ const (
 	GroundLargou = "largou"
 	GroundPegou  = "pegou"
 )
+
+// ChatTipo is which channel a line was said on: public speech, or a whisper.
+type ChatTipo string
+
+// The two channels the log keeps.
+const (
+	ChatPublico  ChatTipo = "publico"
+	ChatSussurro ChatTipo = "sussurro"
+)
+
+// ChatLinha is one thing somebody said, as the loop saw it (0034_chat_log).
+//
+// At is when it was SPOKEN, not when the batch was sent. Lines are buffered for
+// a few seconds before going out, and stamping them at flush time would put a
+// whole conversation on one instant and lose its order.
+type ChatLinha struct {
+	At        time.Time
+	Tipo      ChatTipo
+	AccountID int64
+	Character string
+	// Alvo is who a whisper was for. Empty on public speech.
+	Alvo  string
+	Texto string
+	X, Y  int32
+}
 
 // GroundEvent is one item dropped on or taken from the floor, as the loop saw it.
 //

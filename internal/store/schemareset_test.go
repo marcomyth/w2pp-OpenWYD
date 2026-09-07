@@ -21,6 +21,8 @@ import (
 // order a courtesy rather than a requirement. schema_migrations is last and is
 // not created by a migration file; migrate.go makes it.
 var tabelasDeTeste = []string{
+	"chat_log_meta",
+	"chat_log",
 	"item_serial_seq",
 	"item_census_meta",
 	"item_census",

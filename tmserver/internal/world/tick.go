@@ -25,6 +25,9 @@ func (w *World) SetTickHandler(interval time.Duration, fn func(*World)) {
 type tickEvent struct{}
 
 func (tickEvent) apply(w *World) {
+	// Before the game hook, and unconditionally: the chat buffer has to drain on
+	// a quiet server too, and a world with no tick handler still logs chat.
+	w.chatTick(time.Now())
 	if w.onTick != nil {
 		w.onTick(w)
 	}

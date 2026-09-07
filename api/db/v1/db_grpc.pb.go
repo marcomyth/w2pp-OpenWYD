@@ -48,6 +48,7 @@ const (
 	AccountService_RecordReport_FullMethodName            = "/db.v1.AccountService/RecordReport"
 	AccountService_RecordGround_FullMethodName            = "/db.v1.AccountService/RecordGround"
 	AccountService_ReserveSerials_FullMethodName          = "/db.v1.AccountService/ReserveSerials"
+	AccountService_RecordChat_FullMethodName              = "/db.v1.AccountService/RecordChat"
 	AccountService_SetCharacterPresence_FullMethodName    = "/db.v1.AccountService/SetCharacterPresence"
 	AccountService_ClearAllPresence_FullMethodName        = "/db.v1.AccountService/ClearAllPresence"
 	AccountService_CreateGuild_FullMethodName             = "/db.v1.AccountService/CreateGuild"
@@ -153,6 +154,15 @@ type AccountServiceClient interface {
 	// a number while stamping an item. It takes a few thousand at boot and asks
 	// for more before running out.
 	ReserveSerials(ctx context.Context, in *ReserveSerialsRequest, opts ...grpc.CallOption) (*ReserveSerialsResponse, error)
+	// RecordChat stores a BATCH of chat lines (0034_chat_log).
+	//
+	// A batch, not one call per line, because chat is the highest-volume thing a
+	// game server produces: the tmServer buffers a few seconds' worth and sends
+	// them together, so the database is not in the path of every sentence anybody
+	// types.
+	//
+	// Best-effort from the caller's side — the words were already said and heard.
+	RecordChat(ctx context.Context, in *RecordChatRequest, opts ...grpc.CallOption) (*RecordChatResponse, error)
 	// SetCharacterPresence marks a character as in-play (login) or out (logout or
 	// disconnect), so the staff panel can tell whether the database is the
 	// authority for that character's items.
@@ -397,6 +407,16 @@ func (c *accountServiceClient) ReserveSerials(ctx context.Context, in *ReserveSe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReserveSerialsResponse)
 	err := c.cc.Invoke(ctx, AccountService_ReserveSerials_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) RecordChat(ctx context.Context, in *RecordChatRequest, opts ...grpc.CallOption) (*RecordChatResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecordChatResponse)
+	err := c.cc.Invoke(ctx, AccountService_RecordChat_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -650,6 +670,15 @@ type AccountServiceServer interface {
 	// a number while stamping an item. It takes a few thousand at boot and asks
 	// for more before running out.
 	ReserveSerials(context.Context, *ReserveSerialsRequest) (*ReserveSerialsResponse, error)
+	// RecordChat stores a BATCH of chat lines (0034_chat_log).
+	//
+	// A batch, not one call per line, because chat is the highest-volume thing a
+	// game server produces: the tmServer buffers a few seconds' worth and sends
+	// them together, so the database is not in the path of every sentence anybody
+	// types.
+	//
+	// Best-effort from the caller's side — the words were already said and heard.
+	RecordChat(context.Context, *RecordChatRequest) (*RecordChatResponse, error)
 	// SetCharacterPresence marks a character as in-play (login) or out (logout or
 	// disconnect), so the staff panel can tell whether the database is the
 	// authority for that character's items.
@@ -752,6 +781,9 @@ func (UnimplementedAccountServiceServer) RecordGround(context.Context, *RecordGr
 }
 func (UnimplementedAccountServiceServer) ReserveSerials(context.Context, *ReserveSerialsRequest) (*ReserveSerialsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReserveSerials not implemented")
+}
+func (UnimplementedAccountServiceServer) RecordChat(context.Context, *RecordChatRequest) (*RecordChatResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecordChat not implemented")
 }
 func (UnimplementedAccountServiceServer) SetCharacterPresence(context.Context, *SetCharacterPresenceRequest) (*SetCharacterPresenceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetCharacterPresence not implemented")
@@ -1200,6 +1232,24 @@ func _AccountService_ReserveSerials_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_RecordChat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecordChatRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).RecordChat(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_RecordChat_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).RecordChat(ctx, req.(*RecordChatRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_SetCharacterPresence_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetCharacterPresenceRequest)
 	if err := dec(in); err != nil {
@@ -1578,6 +1628,10 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReserveSerials",
 			Handler:    _AccountService_ReserveSerials_Handler,
+		},
+		{
+			MethodName: "RecordChat",
+			Handler:    _AccountService_RecordChat_Handler,
 		},
 		{
 			MethodName: "SetCharacterPresence",

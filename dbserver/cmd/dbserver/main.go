@@ -506,6 +506,7 @@ func runServe(args []string, logger *slog.Logger) error {
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve(ln) }()
 	go rodarCenso(ctx, st, logger)
+	go varrerChat(ctx, st, logger, chatRetencao(logger))
 
 	select {
 	case <-ctx.Done():
@@ -550,6 +551,54 @@ func rodarCenso(ctx context.Context, st *store.Store, logger *slog.Logger) {
 		case contou:
 			logger.Info("item census taken",
 				"day", run.Day.Format(time.DateOnly), "units", run.Units, "kinds", run.Kinds)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+	}
+}
+
+// chatRetencao reads how many days of chat to keep.
+//
+// From the environment, not a constant, because the owner asked for thirty with
+// room to drop to twenty if the table gets heavy — and changing a Railway
+// variable is a restart, while changing a constant is a deploy. An unreadable or
+// out-of-range value falls back to the default and says so, rather than quietly
+// keeping conversation forever or throwing it away today.
+func chatRetencao(logger *slog.Logger) int {
+	bruto := os.Getenv("W2PP_CHAT_RETENCAO_DIAS")
+	if bruto == "" {
+		return domain.ChatRetencaoPadrao
+	}
+	dias, err := strconv.Atoi(strings.TrimSpace(bruto))
+	if err != nil || dias <= 0 || dias > domain.ChatRetencaoMax {
+		logger.Warn("W2PP_CHAT_RETENCAO_DIAS ignored; using the default",
+			"valor", bruto, "padrao", domain.ChatRetencaoPadrao, "maximo", domain.ChatRetencaoMax)
+		return domain.ChatRetencaoPadrao
+	}
+	return dias
+}
+
+// varrerChat deletes chat past the retention, on the same rhythm as the census.
+//
+// The retention is compared against when the line was said, not against a
+// deadline written into each row, so lowering the number shrinks what is ALREADY
+// stored. That is the whole reason it works this way: "thirty days, twenty if it
+// gets heavy" has to mean the table gets smaller when the number does.
+//
+// It runs at boot too. A server restarted daily would otherwise take six hours
+// to enforce a retention that somebody may have just lowered on purpose.
+func varrerChat(ctx context.Context, st *store.Store, logger *slog.Logger, dias int) {
+	tick := time.NewTicker(censoIntervalo)
+	defer tick.Stop()
+	logger.Info("chat retention", "dias", dias)
+	for {
+		if n, err := st.PurgeChat(ctx, dias); err != nil {
+			logger.Warn("chat sweep failed", "err", err)
+		} else if n > 0 {
+			logger.Info("chat swept", "apagadas", n, "dias", dias)
 		}
 		select {
 		case <-ctx.Done():

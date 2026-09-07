@@ -33,6 +33,8 @@ type fakeAPI struct {
 	chao                 []*dbv1.RecordGroundRequest
 	serialPedidos        []int64
 	serialProximo        int64
+	chat                 []*dbv1.ChatLine
+	chatLotes            []int
 	savedCargoDeliveries *dbv1.SaveCargoWithDeliveriesRequest
 
 	pinSetOK   bool
@@ -456,6 +458,12 @@ func (f *fakeAPI) ClearAllPresence(context.Context, *dbv1.ClearAllPresenceReques
 
 func (f *fakeAPI) RecordTrade(context.Context, *dbv1.RecordTradeRequest, ...grpc.CallOption) (*dbv1.RecordTradeResponse, error) {
 	return &dbv1.RecordTradeResponse{Ok: true}, nil
+}
+
+func (f *fakeAPI) RecordChat(_ context.Context, req *dbv1.RecordChatRequest, _ ...grpc.CallOption) (*dbv1.RecordChatResponse, error) {
+	f.chat = append(f.chat, req.GetLines()...)
+	f.chatLotes = append(f.chatLotes, len(req.GetLines()))
+	return &dbv1.RecordChatResponse{Ok: true}, nil
 }
 
 func (f *fakeAPI) ReserveSerials(_ context.Context, req *dbv1.ReserveSerialsRequest, _ ...grpc.CallOption) (*dbv1.ReserveSerialsResponse, error) {
