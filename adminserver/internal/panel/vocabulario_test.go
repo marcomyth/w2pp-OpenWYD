@@ -2,9 +2,10 @@ package panel
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
-	"net/url"
+	neturl "net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -307,7 +308,7 @@ func TestOrdenarPreservaABusca(t *testing.T) {
 // primeira, então clicar na segunda coluna não faria nada.
 func TestOrdemNaoRepeteChaveNoLink(t *testing.T) {
 	o := ordem{Por: "nome", Desc: true}
-	extras := url.Values{"ordem": {"nome"}, "desc": {"1"}, "q": {"busca"}}
+	extras := neturl.Values{"ordem": {"nome"}, "desc": {"1"}, "q": {"busca"}}
 	link := o.Link("/contas", "cargo", extras)
 
 	if strings.Count(link, "ordem=") != 1 {
@@ -323,4 +324,142 @@ func TestOrdemNaoRepeteChaveNoLink(t *testing.T) {
 	if strings.Contains(link, "desc=1") {
 		t.Errorf("link = %q, começou decrescente numa coluna nova", link)
 	}
+}
+
+// --- virar página ---
+
+// A ideia toda: pedir UMA linha a mais do que cabe. Se ela veio, existe próxima
+// página — sem um COUNT(*) sobre a tabela inteira cuja resposta já nasce velha.
+func TestPaginaPedeUmaLinhaAMaisEACorta(t *testing.T) {
+	p := paginaDe(&http.Request{URL: mustURL(t, "/x")}, "pagina")
+	if p.Pedir() != p.Tam+1 {
+		t.Fatalf("Pedir = %d, want %d", p.Pedir(), p.Tam+1)
+	}
+
+	// Veio a linha extra: tem próxima, e ela não aparece na tela.
+	cheia := make([]int, p.Tam+1)
+	vistas := Corta(&p, cheia)
+	if len(vistas) != p.Tam {
+		t.Errorf("mostrou %d linhas, want %d", len(vistas), p.Tam)
+	}
+	if !p.TemMais {
+		t.Error("veio a linha extra e não marcou que existe próxima")
+	}
+
+	// Não veio: é a última página.
+	p2 := paginaDe(&http.Request{URL: mustURL(t, "/x")}, "pagina")
+	curta := make([]int, p2.Tam)
+	if got := Corta(&p2, curta); len(got) != p2.Tam {
+		t.Errorf("cortou %d linhas de uma página exata", p2.Tam-len(got))
+	}
+	if p2.TemMais {
+		t.Error("marcou próxima numa página exata")
+	}
+}
+
+func TestPaginaDeLeONumeroEOTeto(t *testing.T) {
+	casos := []struct {
+		url  string
+		quer int
+	}{
+		{"/x", 1},
+		{"/x?pagina=3", 3},
+		{"/x?pagina=0", 1},
+		{"/x?pagina=-5", 1},
+		{"/x?pagina=abacaxi", 1},
+		// Teto, para que uma URL digitada não vire um OFFSET que o banco percorre
+		// linha por linha.
+		{"/x?pagina=99999999", 500},
+	}
+	for _, c := range casos {
+		p := paginaDe(&http.Request{URL: mustURL(t, c.url)}, "pagina")
+		if p.N != c.quer {
+			t.Errorf("%s: página = %d, want %d", c.url, p.N, c.quer)
+		}
+	}
+}
+
+// Duas listas na mesma tela têm de virar a página separadas. Um "pagina" só
+// moveria as duas ao mesmo tempo, que nunca é o que quem clicou quis.
+func TestDuasListasViramPaginaSeparadas(t *testing.T) {
+	r := &http.Request{URL: mustURL(t, "/trocas?pagina=2&chao=5")}
+	pt := paginaDe(r, "pagina")
+	pc := paginaDe(r, "chao")
+	if pt.N != 2 || pc.N != 5 {
+		t.Fatalf("páginas = %d e %d, want 2 e 5", pt.N, pc.N)
+	}
+	// E o link de uma não pode mexer no número da outra.
+	link := pt.Link("/trocas", 3, r.URL.Query())
+	if !strings.Contains(link, "chao=5") {
+		t.Errorf("link = %q, perdeu a página da outra lista", link)
+	}
+	if !strings.Contains(link, "pagina=3") {
+		t.Errorf("link = %q, não avançou a própria", link)
+	}
+}
+
+// Virar a página não pode jogar fora a busca nem a ordem: quem está na página 2
+// de uma lista filtrada quer a página 3 DA MESMA lista.
+func TestVirarPaginaPreservaBuscaEOrdem(t *testing.T) {
+	p := paginaDe(&http.Request{URL: mustURL(t, "/chat?pagina=2")}, "pagina")
+	extras := mustURL(t, "/chat?pagina=2&personagem=Fulano&ordem=quem&desc=1").Query()
+	link := p.Link("/chat", 3, extras)
+
+	for _, quer := range []string{"personagem=Fulano", "ordem=quem", "desc=1", "pagina=3"} {
+		if !strings.Contains(link, quer) {
+			t.Errorf("link = %q, falta %q", link, quer)
+		}
+	}
+	if strings.Count(link, "pagina=") != 1 {
+		t.Errorf("link = %q, tem mais de uma chave pagina", link)
+	}
+	// Voltar para a primeira tira a chave em vez de escrever pagina=1: a URL
+	// limpa é a mesma coisa, e uma a mais na barra é ruído.
+	if strings.Contains(p.Link("/chat", 1, extras), "pagina=") {
+		t.Error("a primeira página carregou pagina=1 na URL")
+	}
+}
+
+func TestAuditoriaViraAPagina(t *testing.T) {
+	aud := newFakeAudit()
+	for i := 0; i < paginaTam+10; i++ {
+		aud.add(audit.Entry{
+			ActorName: fmt.Sprintf("ator%03d", i), Action: "role",
+			CreatedAt: time.Now().Add(-time.Duration(i) * time.Minute),
+		})
+	}
+	get := signedIn(t, newTestPanelWith(t, withTarget(roleAdmin), aud))
+
+	primeira := get("/auditoria").Body.String()
+	if !strings.Contains(primeira, "ator000") || strings.Contains(primeira, "ator050") {
+		t.Error("a primeira página não trouxe exatamente as primeiras linhas")
+	}
+	if !strings.Contains(primeira, "Próxima") {
+		t.Error("com mais linhas do que cabe, não ofereceu a próxima página")
+	}
+	if strings.Contains(primeira, "Anterior") {
+		t.Error("ofereceu anterior na primeira página")
+	}
+
+	segunda := get("/auditoria?pagina=2").Body.String()
+	if !strings.Contains(segunda, "ator050") {
+		t.Error("a segunda página não trouxe a linha 51")
+	}
+	if !strings.Contains(segunda, "Anterior") {
+		t.Error("a segunda página não oferece voltar")
+	}
+	// Passou do fim: em vez de uma tela vazia sem saída, uma saída.
+	longe := get("/auditoria?pagina=9").Body.String()
+	if !strings.Contains(longe, "Voltar para o começo") {
+		t.Error("página além do fim não oferece caminho de volta")
+	}
+}
+
+func mustURL(t *testing.T, s string) *neturl.URL {
+	t.Helper()
+	u, err := neturl.Parse(s)
+	if err != nil {
+		t.Fatalf("url %q: %v", s, err)
+	}
+	return u
 }

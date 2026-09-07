@@ -92,6 +92,10 @@ type ChatQuery struct {
 	Desde time.Time
 	Ate   time.Time
 	Limit int
+	// Offset skips rows, so the panel can turn the page. A conversation worth
+	// reading is longer than one screen, and a cap that only ever showed the
+	// most recent hundred was a dead end in the middle of a ticket.
+	Offset int
 }
 
 // ListChat returns lines newest first.
@@ -104,6 +108,9 @@ type ChatQuery struct {
 func (s *Store) ListChat(ctx context.Context, q ChatQuery) ([]domain.ChatLinha, error) {
 	if q.Limit <= 0 || q.Limit > 500 {
 		q.Limit = 100
+	}
+	if q.Offset < 0 {
+		q.Offset = 0
 	}
 	nome := strings.TrimSpace(q.Char)
 	texto := strings.TrimSpace(q.Texto)
@@ -121,8 +128,8 @@ func (s *Store) ListChat(ctx context.Context, q ChatQuery) ([]domain.ChatLinha, 
 		   AND ($4::timestamptz IS NULL OR ocorrido_em >= $4)
 		   AND ($5::timestamptz IS NULL OR ocorrido_em <= $5)
 		 ORDER BY ocorrido_em DESC, id DESC
-		 LIMIT $6`,
-		nome, texto, tipo, nullableTime(q.Desde), nullableTime(q.Ate), q.Limit)
+		 LIMIT $6 OFFSET $7`,
+		nome, texto, tipo, nullableTime(q.Desde), nullableTime(q.Ate), q.Limit, q.Offset)
 	if err != nil {
 		return nil, fmt.Errorf("store: list chat: %w", err)
 	}

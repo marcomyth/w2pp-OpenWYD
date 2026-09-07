@@ -126,6 +126,8 @@ type CensusQuery struct {
 	// lives.
 	SoRefinado bool
 	Limit      int
+	// Offset skips rows so the panel can turn the page.
+	Offset int
 }
 
 // CensusGrowth compares the newest snapshot against one Dias older.
@@ -181,7 +183,7 @@ func (s *Store) CensusGrowth(ctx context.Context, q CensusQuery) (domain.CensusC
 		 WHERE COALESCE(h.unidades, 0) <> COALESCE(a.unidades, 0)`+refinado+`
 		 ORDER BY COALESCE(h.unidades, 0) - COALESCE(a.unidades, 0) `+ordem+`,
 		          COALESCE(h.sanc, a.sanc) DESC
-		 LIMIT $3`, ate, de, q.Limit)
+		 LIMIT $3 OFFSET $4`, ate, de, q.Limit, max(q.Offset, 0))
 	if err != nil {
 		return domain.CensusCompare{}, fmt.Errorf("store: census growth: %w", err)
 	}

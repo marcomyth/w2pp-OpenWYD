@@ -12,15 +12,6 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
 
-// trocasLimit caps one page. A busy server writes a lot of these and nobody
-// reads past the first screen of a scam report.
-const trocasLimit = 100
-
-// chaoLimit is higher than trocasLimit because dropping things is constant:
-// every fight ends with somebody discarding loot, so the same hundred rows
-// cover far less time on the floor than in the trade window.
-const chaoLimit = 200
-
 // chaoParMax is how long after a drop a pickup still counts as the same event.
 //
 // The floor slot is reused, so a "pegou" on slot 7 an hour after a "largou" on
@@ -109,18 +100,24 @@ func (h *Handler) trocas(w http.ResponseWriter, r *http.Request) {
 	nome := strings.TrimSpace(r.URL.Query().Get("personagem"))
 	maos := r.URL.Query().Get("maos") == "1"
 
+	// Two lists, two page numbers. One shared "pagina" would move both at once,
+	// which is never what somebody turning one of them meant.
+	pagT := paginaDe(r, "pagina")
+	pagC := paginaDe(r, "chao")
+
 	var falha falhas
 
 	achadas, err := h.cfg.Trocas.ListTrades(r.Context(), store.TradeQuery{
-		Char: nome, Limit: trocasLimit,
+		Char: nome, Limit: pagT.Pedir(), Offset: pagT.Offset(),
 	})
 	if err != nil {
 		h.cfg.Logger.Error("trade list failed", "personagem", nome, "err", err)
 		falha.nao("trocas")
 	}
+	achadas = Corta(&pagT, achadas)
 
 	brutas, err := h.cfg.Trocas.ListGround(r.Context(), store.GroundQuery{
-		Char: nome, Limit: chaoLimit,
+		Char: nome, Limit: pagC.Pedir(), Offset: pagC.Offset(),
 	})
 	if err != nil {
 		h.cfg.Logger.Error("ground list failed", "personagem", nome, "err", err)
@@ -128,6 +125,7 @@ func (h *Handler) trocas(w http.ResponseWriter, r *http.Request) {
 	}
 	// Pairing runs on the full page, then the filter: a hand-off is only
 	// visible once both halves are matched, so filtering first would hide it.
+	brutas = Corta(&pagC, brutas)
 	chao := emparelhaChao(brutas)
 	total := len(chao)
 	if maos {
@@ -155,16 +153,13 @@ func (h *Handler) trocas(w http.ResponseWriter, r *http.Request) {
 		Chao       []chaoLinha
 		ChaoTotal  int
 		SoMaos     bool
-		Limite     int
-		ChaoLimite int
-		Cheio      bool
-		ChaoCheio  bool
+		PagTrocas  pagina
+		PagChao    pagina
 		Ordem      ordem
 		Extras     url.Values
 		Falha      falhas
 	}{
 		h.pageFor(r, "trocas"), nome, achadas, chao, total, maos,
-		trocasLimit, chaoLimit,
-		len(achadas) >= trocasLimit, total >= chaoLimit, o, r.URL.Query(), falha,
+		pagT, pagC, o, r.URL.Query(), falha,
 	})
 }

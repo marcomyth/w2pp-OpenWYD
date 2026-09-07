@@ -2,6 +2,7 @@ package panel
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -9,9 +10,6 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
-
-// limiteDenuncias bounds one page of the queue.
-const limiteDenuncias = 100
 
 // denunciaView is one report as the page shows it.
 type denunciaView struct {
@@ -25,9 +23,10 @@ func (h *Handler) denuncias(w http.ResponseWriter, r *http.Request) {
 	// The queue opens on what is still open. Everything is one click away, but
 	// the page exists to answer "what needs me now".
 	todas := r.URL.Query().Get("todas") != ""
+	pag := paginaDe(r, "pagina")
 
 	rs, err := h.cfg.Denuncias.ListReports(r.Context(), store.ReportQuery{
-		SoAbertos: !todas, Limit: limiteDenuncias,
+		SoAbertos: !todas, Limit: pag.Pedir(), Offset: pag.Offset(),
 	})
 	if err != nil {
 		h.cfg.Logger.Error("report list failed", "err", err)
@@ -44,6 +43,8 @@ func (h *Handler) denuncias(w http.ResponseWriter, r *http.Request) {
 		contagem = store.ReportCounts{}
 		naoLeu.nao("contagem")
 	}
+
+	rs = Corta(&pag, rs)
 
 	agora := time.Now()
 	vistas := make([]denunciaView, 0, len(rs))
@@ -64,10 +65,13 @@ func (h *Handler) denuncias(w http.ResponseWriter, r *http.Request) {
 		Todas     bool
 		Prazo     int
 		Aviso     string
+		Pagina    pagina
+		Extras    url.Values
 	}{
 		h.pageFor(r, "denuncias"), vistas, contagem, naoLeu,
 		idade(contagem.MaisAntigo, agora), todas,
 		domain.ReportRetentionDays, r.URL.Query().Get("aviso"),
+		pag, r.URL.Query(),
 	})
 }
 

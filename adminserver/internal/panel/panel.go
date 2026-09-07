@@ -75,7 +75,7 @@ type Accounts interface {
 // AuditLog is the panel's view of the action log.
 type AuditLog interface {
 	Write(ctx context.Context, r audit.Record) error
-	List(ctx context.Context, targetID int64) ([]audit.Entry, error)
+	List(ctx context.Context, targetID int64, limit, offset int) ([]audit.Entry, error)
 	ListActions(ctx context.Context, actions []string) ([]audit.Entry, error)
 	Limit() int
 }
@@ -587,12 +587,12 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	// duplicated ban.
 	var recentes []audit.Entry
 	if h.cfg.Audit != nil {
-		es, err := h.cfg.Audit.List(r.Context(), 0)
+		// Only what the card shows. Reading a hundred to draw five was work the
+		// database did for nothing on every load of the home page.
+		es, err := h.cfg.Audit.List(r.Context(), 0, ultimasAcoes, 0)
 		if err != nil {
 			h.cfg.Logger.Error("audit list failed", "err", err)
 			naoLeu.nao("auditoria")
-		} else if len(es) > ultimasAcoes {
-			recentes = es[:ultimasAcoes]
 		} else {
 			recentes = es
 		}
@@ -846,13 +846,20 @@ func (h *Handler) auditoria(w http.ResponseWriter, r *http.Request) {
 	// instead of a 500. The rest of the panel already worked this way; this page
 	// was the last one answering a broken read with a blank error screen, which
 	// reads as "the panel is down" when only one query failed.
+	pag := paginaDe(r, "pagina")
 	var falha falhas
-	entradas, err := h.cfg.Audit.List(r.Context(), alvo)
+	entradas, err := h.cfg.Audit.List(r.Context(), alvo, pag.Pedir(), pag.Offset())
 	if err != nil {
 		h.cfg.Logger.Error("audit list failed", "target", alvo, "err", err)
 		falha.nao("auditoria")
 	}
+	entradas = Corta(&pag, entradas)
 
+	// Sorting applies WITHIN the page, not across the whole log: the store
+	// already returned these newest first, and re-ordering a slice the database
+	// chose is the only thing a page of fifty rows can honestly do. Sorting the
+	// whole history by actor would mean reading the whole history.
+	//
 	// The default is the order the store returned — newest first — because that
 	// is what somebody opening the audit log is asking for. Sorting by actor or
 	// action answers the other two questions: "what has this person been doing"
@@ -891,10 +898,11 @@ func (h *Handler) auditoria(w http.ResponseWriter, r *http.Request) {
 		Truncado bool
 		Ordem    ordem
 		Extras   url.Values
+		Pagina   pagina
 		Falha    falhas
 	}{
 		h.pageFor(r, "auditoria"), linhas, alvo, h.cfg.Audit.Limit(),
-		len(entradas) == h.cfg.Audit.Limit(), o, r.URL.Query(), falha,
+		false, o, r.URL.Query(), pag, falha,
 	})
 }
 

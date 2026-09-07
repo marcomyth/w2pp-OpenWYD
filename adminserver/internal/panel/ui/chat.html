@@ -121,11 +121,13 @@
         </tbody>
       </table>
     </div>
-    {{if .Cheio}}
-      <p class="sub" style="margin-top:14px">
-        Mostrando as {{.Limite}} mais recentes. Estreite o período ou a palavra.
-      </p>
-    {{end}}
+    {{template "paginacao" (dict "Pagina" .Pagina "Base" "/chat" "Extras" .Extras)}}
+  {{else if not .Pagina.Primeira}}
+    <div class="vazio">
+      A conversa acabou antes desta página.
+      <br><br>
+      <a href="{{.Pagina.Link "/chat" 1 .Extras}}">Voltar para o começo</a>
+    </div>
   {{else}}
     <div class="vazio">
       Nada encontrado{{if .Personagem}} para “{{.Personagem}}”{{end}}{{if .Texto}}

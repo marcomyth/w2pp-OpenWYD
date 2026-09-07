@@ -43,6 +43,10 @@ func (s *Store) RecordGround(ctx context.Context, g domain.GroundEvent) error {
 type GroundQuery struct {
 	Char  string
 	Limit int
+	// Offset skips rows so the panel can turn the page. A cap that only ever
+	// showed the most recent hundred was honest and still a dead end: there was
+	// no way to reach the hundred-and-first.
+	Offset int
 }
 
 // ListGround returns ground events, newest first.
@@ -70,7 +74,7 @@ func (s *Store) ListGround(ctx context.Context, q GroundQuery) ([]domain.GroundE
 		 WHERE expira_em > now()
 		   AND ($1 = '' OR char_nome = $1)
 		 ORDER BY ocorrido_em DESC, id DESC
-		 LIMIT $2`, strings.TrimSpace(q.Char), q.Limit)
+		 LIMIT $2 OFFSET $3`, strings.TrimSpace(q.Char), q.Limit, max(q.Offset, 0))
 	if err != nil {
 		return nil, fmt.Errorf("store: list ground log: %w", err)
 	}

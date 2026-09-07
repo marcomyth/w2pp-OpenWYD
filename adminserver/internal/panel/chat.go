@@ -2,6 +2,7 @@ package panel
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -10,9 +11,6 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
-
-// chatLimite caps one page of the log.
-const chatLimite = 150
 
 // chatJanelas are the periods offered, in days. Zero means "everything that is
 // still kept", which is bounded by the retention anyway.
@@ -63,6 +61,7 @@ func (h *Handler) chat(w http.ResponseWriter, r *http.Request) {
 	// easy, and an audit entry for merely opening the menu would bury the
 	// entries that mean something.
 	buscou := nome != "" || texto != ""
+	pag := paginaDe(r, "pagina")
 
 	var falha falhas
 	var linhas []chatLinha
@@ -86,7 +85,10 @@ func (h *Handler) chat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		cq := store.ChatQuery{Char: nome, Texto: texto, Tipo: tipo, Limit: chatLimite}
+		cq := store.ChatQuery{
+			Char: nome, Texto: texto, Tipo: tipo,
+			Limit: pag.Pedir(), Offset: pag.Offset(),
+		}
 		if dias > 0 {
 			cq.Desde = agora.AddDate(0, 0, -dias)
 		}
@@ -95,6 +97,7 @@ func (h *Handler) chat(w http.ResponseWriter, r *http.Request) {
 			h.cfg.Logger.Error("chat list failed", "personagem", nome, "err", err)
 			falha.nao("chat")
 		}
+		achadas = Corta(&pag, achadas)
 		linhas = make([]chatLinha, 0, len(achadas))
 		for _, l := range achadas {
 			linhas = append(linhas, chatLinha{ChatLinha: l, Idade: idade(l.At, agora)})
@@ -122,12 +125,12 @@ func (h *Handler) chat(w http.ResponseWriter, r *http.Request) {
 		Linhas     []chatLinha
 		Varredura  domain.ChatVarredura
 		VarridoHa  string
-		Limite     int
-		Cheio      bool
+		Pagina     pagina
+		Extras     url.Values
 		Falha      falhas
 	}{
 		h.pageFor(r, "chat"), nome, texto, string(tipo), dias, chatJanelas,
 		buscou, linhas, varredura, idade(varredura.VarridoEm, agora),
-		chatLimite, len(linhas) >= chatLimite, falha,
+		pag, r.URL.Query(), falha,
 	})
 }

@@ -80,12 +80,7 @@
         </div>
       </div>
     {{end}}
-    {{if .Cheio}}
-      <p class="sub" style="margin-top:18px">
-        Mostrando as {{.Limite}} mais recentes. Busque por um personagem para
-        estreitar.
-      </p>
-    {{end}}
+    {{template "paginacao" (dict "Pagina" .PagTrocas "Base" "/trocas" "Extras" .Extras)}}
   {{else}}
     <div class="vazio">
       {{if .Personagem}}Nenhuma troca registrada para “{{.Personagem}}”.
@@ -145,13 +140,11 @@
           </tbody>
         </table>
       </div>
-      {{if .ChaoCheio}}
-        <p class="sub" style="margin-top:14px">
-          Mostrando as {{.ChaoLimite}} linhas mais recentes. Um “pegou” cujo
-          “largou” ficou fora dessas linhas aparece sem par, mesmo tendo um.
-          Busque por um personagem para estreitar.
-        </p>
-      {{end}}
+      <p class="sub" style="margin-top:14px">
+        O emparelhamento só enxerga esta página: um “pegou” cujo “largou” ficou
+        na página anterior aparece sem par, mesmo tendo um.
+      </p>
+      {{template "paginacao" (dict "Pagina" .PagChao "Base" "/trocas" "Extras" .Extras)}}
     {{else}}
       <div class="vazio">
         {{if .SoMaos}}

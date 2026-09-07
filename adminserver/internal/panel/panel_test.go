@@ -163,7 +163,9 @@ func newFakeAuditEspelhado() *fakeAudit { return &fakeAudit{limit: 100, espelha:
 
 func (f *fakeAudit) Limit() int { return f.limit }
 
-func (f *fakeAudit) List(_ context.Context, targetID int64) ([]audit.Entry, error) {
+// List honours limit and offset like the real store, so a pagination test
+// exercises the paging and not the fake's willingness to return everything.
+func (f *fakeAudit) List(_ context.Context, targetID int64, limit, offset int) ([]audit.Entry, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.failList != nil {
@@ -174,6 +176,13 @@ func (f *fakeAudit) List(_ context.Context, targetID int64) ([]audit.Entry, erro
 		if targetID == 0 || e.TargetID == targetID {
 			out = append(out, e)
 		}
+	}
+	if offset >= len(out) {
+		return nil, nil
+	}
+	out = out[offset:]
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
 	}
 	return out, nil
 }
@@ -3331,8 +3340,10 @@ func TestTrocasMostraOChaoEmparelhado(t *testing.T) {
 			t.Errorf("a página não traz %q", want)
 		}
 	}
-	if tl.pedidosChao[0].Limit != chaoLimit {
-		t.Errorf("limite do chão = %d, want %d", tl.pedidosChao[0].Limit, chaoLimit)
+	// Uma linha a mais do que cabe na página: é assim que a tela sabe se existe
+	// próxima, sem um COUNT(*) que já nasce desatualizado.
+	if tl.pedidosChao[0].Limit != paginaTam+1 {
+		t.Errorf("limite do chão = %d, want %d", tl.pedidosChao[0].Limit, paginaTam+1)
 	}
 }
 
@@ -3400,8 +3411,8 @@ func TestTrocasPassaOPersonagemDaBusca(t *testing.T) {
 	if len(tl.pedidos) != 1 || tl.pedidos[0].Char != "Vendedor" {
 		t.Errorf("consultou %+v, want o nome do formulário", tl.pedidos)
 	}
-	if tl.pedidos[0].Limit != trocasLimit {
-		t.Errorf("limite = %d, want %d", tl.pedidos[0].Limit, trocasLimit)
+	if tl.pedidos[0].Limit != paginaTam+1 {
+		t.Errorf("limite = %d, want %d", tl.pedidos[0].Limit, paginaTam+1)
 	}
 }
 

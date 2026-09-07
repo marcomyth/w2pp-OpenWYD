@@ -207,12 +207,7 @@
           </tbody>
         </table>
       </div>
-      {{if .Cheio}}
-        <p class="sub" style="margin-top:14px">
-          Mostrando {{.Limite}} linhas. Estreite com “só refinado”, que é onde o
-          sinal costuma estar.
-        </p>
-      {{end}}
+      {{template "paginacao" (dict "Pagina" .Pagina "Base" "/censo" "Extras" .Extras)}}
     {{else}}
       <div class="vazio">
         Nada mudou de quantidade entre as duas fotos{{if .Refinado}} entre os

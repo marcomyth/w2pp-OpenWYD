@@ -10,10 +10,6 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
 
-// censoLimite caps one page. The interesting rows are at the ends of the sort;
-// nobody reads to the middle, where every item moved by one.
-const censoLimite = 120
-
 // censoJanelas are the comparison windows offered, in days. One day catches a
 // jump; thirty catches a leak too slow to see day by day.
 var censoJanelas = []int{1, 7, 30}
@@ -102,9 +98,12 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 	subiu := q.Get("ordem") != "sumiu"
 	refinado := q.Get("refino") == "1"
 
+	pag := paginaDe(r, "pagina")
+
 	var falha falhas
 	cmp, err := h.cfg.Censo.CensusGrowth(r.Context(), store.CensusQuery{
-		Dias: dias, Subiu: subiu, SoRefinado: refinado, Limit: censoLimite,
+		Dias: dias, Subiu: subiu, SoRefinado: refinado,
+		Limit: pag.Pedir(), Offset: pag.Offset(),
 	})
 	if err != nil {
 		h.cfg.Logger.Error("census read failed", "dias", dias, "err", err)
@@ -139,6 +138,7 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	cmp.Linha = Corta(&pag, cmp.Linha)
 	linhas := make([]censoLinha, 0, len(cmp.Linha))
 	for _, c := range cmp.Linha {
 		linhas = append(linhas, censoLinha{ItemCensus: c, Nome: nomes[c.Index]})
@@ -185,8 +185,7 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 		Linhas    []censoLinha
 		Encurtado bool
 		UmDiaSo   bool
-		Limite    int
-		Cheio     bool
+		Pagina    pagina
 		Ordem     ordem
 		Extras    url.Values
 		Falha     falhas
@@ -195,6 +194,6 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 		dias, censoJanelas, subiu, refinado,
 		cmp.De, cmp.Ate, linhas, encurtado,
 		!cmp.Ate.Zero() && cmp.De.Day.Equal(cmp.Ate.Day),
-		censoLimite, len(linhas) >= censoLimite, o, r.URL.Query(), falha,
+		pag, o, r.URL.Query(), falha,
 	})
 }

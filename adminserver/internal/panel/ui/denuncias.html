@@ -109,6 +109,13 @@
       {{end}}
     </div>
     {{end}}
+    {{template "paginacao" (dict "Pagina" .Pagina "Base" "/denuncias" "Extras" .Extras)}}
+  {{else if not .Pagina.Primeira}}
+    <div class="vazio">
+      A fila acabou antes desta página.
+      <br><br>
+      <a href="{{.Pagina.Link "/denuncias" 1 .Extras}}">Voltar para o começo</a>
+    </div>
   {{else if .Todas}}
     <div class="vazio">Nenhuma denúncia guardada.</div>
   {{else}}

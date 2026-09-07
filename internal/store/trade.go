@@ -89,6 +89,10 @@ func (s *Store) RecordTrade(ctx context.Context, t domain.TradeRecord) error {
 type TradeQuery struct {
 	Char  string
 	Limit int
+	// Offset skips rows so the panel can turn the page. A cap that only ever
+	// showed the most recent hundred was honest and still a dead end: there was
+	// no way to reach the hundred-and-first.
+	Offset int
 }
 
 // ListTrades returns trades involving Char (on either side), newest first.
@@ -106,7 +110,7 @@ func (s *Store) ListTrades(ctx context.Context, q TradeQuery) ([]domain.TradeRec
 		  FROM trade_log
 		 WHERE $1 = '' OR char_a = $1 OR char_b = $1
 		 ORDER BY ocorrido_em DESC, id DESC
-		 LIMIT $2`, nome, q.Limit)
+		 LIMIT $2 OFFSET $3`, nome, q.Limit, max(q.Offset, 0))
 	if err != nil {
 		return nil, fmt.Errorf("store: list trades: %w", err)
 	}

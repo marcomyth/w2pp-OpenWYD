@@ -63,6 +63,9 @@ type ReportQuery struct {
 	// AccountID limits the list to one account's reports; 0 means every account.
 	AccountID int64
 	Limit     int
+	// Offset skips rows so the panel can turn the page. A queue longer than one
+	// screen still has to be worked to the end.
+	Offset int
 }
 
 // ListReports returns reports, oldest-open first.
@@ -101,7 +104,7 @@ func (s *Store) ListReports(ctx context.Context, q ReportQuery) ([]domain.Player
 		 ORDER BY (tratado_em IS NULL) DESC,
 		          CASE WHEN tratado_em IS NULL THEN criado_em END ASC,
 		          criado_em DESC
-		 LIMIT $3`, q.SoAbertos, q.AccountID, q.Limit)
+		 LIMIT $3 OFFSET $4`, q.SoAbertos, q.AccountID, q.Limit, max(q.Offset, 0))
 	if err != nil {
 		return nil, fmt.Errorf("store: list reports: %w", err)
 	}

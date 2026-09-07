@@ -153,6 +153,19 @@
   .quando-vale.reiniciar { border-left-color: var(--danger); }
   .quando-vale.reiniciar strong { color: var(--danger); }
 
+  /* Virar página. Sem script: são links, então a página funda pode ser
+     compartilhada e o botão voltar sai dela. */
+  .paginacao {
+    display: flex; align-items: center; gap: 12px;
+    margin-top: 18px; font-size: 13px; color: var(--ink-3);
+  }
+  .paginacao a {
+    border: 1px solid var(--rule); border-radius: 3px; padding: 6px 13px;
+    color: var(--ink-2); text-decoration: none;
+  }
+  .paginacao a:hover { border-color: var(--ink-3); color: var(--ink); }
+  .paginacao .onde { font-variant-numeric: tabular-nums; }
+
   .vazio {
     border: 1px dashed var(--rule); border-radius: 4px; padding: 28px 22px;
     color: var(--ink-2); text-align: center; font-size: 14px;
@@ -516,6 +529,25 @@
     grava no banco, mas o jogo segue com o que carregou quando ligou.</span>
   {{end}}
 </p>
+{{end}}
+
+{{/* Virar página.
+     Recebe um dict com Pagina, Base e Extras. Desenha só os links que levam a
+     algum lugar: um "anterior" apagado na primeira página é um controle morto,
+     e controle morto ensina a não clicar nos vivos. */}}
+{{define "paginacao"}}
+{{$p := .Pagina}}
+{{if or (not $p.Primeira) $p.TemMais}}
+<div class="paginacao">
+  {{if not $p.Primeira}}
+    <a href="{{$p.Link .Base $p.Anterior .Extras}}">Anterior</a>
+  {{end}}
+  <span class="onde">a partir da linha {{$p.De}}</span>
+  {{if $p.TemMais}}
+    <a href="{{$p.Link .Base $p.Proxima .Extras}}">Próxima</a>
+  {{end}}
+</div>
+{{end}}
 {{end}}
 
 {{define "falha-de-leitura"}}

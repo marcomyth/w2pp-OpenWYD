@@ -70,15 +70,17 @@
         </tbody>
       </table>
     </div>
-    {{if .Truncado}}
-      <p class="sub" style="margin-top:18px">
-        Mostrando as {{.Limite}} mais recentes.
-      </p>
-    {{end}}
+    {{template "paginacao" (dict "Pagina" .Pagina "Base" "/auditoria" "Extras" .Extras)}}
   {{else}}
     <div class="vazio">
-      {{if .Alvo}}Nenhuma ação registrada sobre esta conta.
-      {{else}}Nenhuma ação administrativa registrada ainda.{{end}}
+      {{if .Pagina.Primeira}}
+        {{if .Alvo}}Nenhuma ação registrada sobre esta conta.
+        {{else}}Nenhuma ação administrativa registrada ainda.{{end}}
+      {{else}}
+        Acabou antes desta página.
+        <br><br>
+        <a href="{{.Pagina.Link "/auditoria" 1 .Extras}}">Voltar para o começo</a>
+      {{end}}
     </div>
   {{end}}
 </main>

@@ -118,7 +118,20 @@ func (s *Store) Write(ctx context.Context, r Record) error {
 
 // List returns the most recent entries, newest first. A non-zero targetID
 // narrows to one account's history.
-func (s *Store) List(ctx context.Context, targetID int64) ([]Entry, error) {
+// List returns audit entries newest first.
+//
+// limit and offset come from the caller so the page can be turned: the audit
+// log is a HISTORY, and a fixed cap that said "showing the 100 most recent" was
+// honest and still a dead end — there was no way to reach the 101st. A limit at
+// or below zero, or above listLimit, falls back to listLimit rather than
+// letting a typed URL ask for the whole table.
+func (s *Store) List(ctx context.Context, targetID int64, limit, offset int) ([]Entry, error) {
+	if limit <= 0 || limit > listLimit {
+		limit = listLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
 	// One query with a nullable filter rather than two: the difference is a
 	// parameter, and two near-identical SQL strings drift apart over time.
 	rows, err := s.pool.Query(ctx, `
@@ -130,7 +143,7 @@ func (s *Store) List(ctx context.Context, targetID int64) ([]Entry, error) {
 		  LEFT JOIN account t ON t.id = l.target_account_id
 		 WHERE $1::bigint IS NULL OR l.target_account_id = $1
 		 ORDER BY l.created_at DESC, l.id DESC
-		 LIMIT $2`, nullableID(targetID), listLimit)
+		 LIMIT $2 OFFSET $3`, nullableID(targetID), limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("audit: list: %w", err)
 	}
