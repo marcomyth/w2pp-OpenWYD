@@ -2,6 +2,8 @@ package panel
 
 import (
 	"net/http"
+	"net/url"
+	"sort"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 )
@@ -32,7 +34,10 @@ func (h *Handler) drops(w http.ResponseWriter, r *http.Request) {
 			Truncado  bool
 			Limite    int
 			Pediu     bool
-		}{h.pageFor(r, "drops"), "", "", nil, false, dropsLimit, false})
+			Ordem     ordem
+			Extras    url.Values
+		}{h.pageFor(r, "drops"), "", "", nil, false, dropsLimit, false,
+			ordem{}, r.URL.Query()})
 		return
 	}
 
@@ -46,6 +51,31 @@ func (h *Handler) drops(w http.ResponseWriter, r *http.Request) {
 		achados = achados[:dropsLimit]
 	}
 
+	// Sorting applies inside EACH item's mob list, not across them: the page is
+	// one table per item, and the question people bring here is "which of these
+	// monsters is the easiest source", asked one item at a time.
+	//
+	// Chance ascending puts the best odds on top, because Divisor is "one in N"
+	// — a smaller divisor is a better drop, and sorting the raw number the other
+	// way would put the rarest source first for anyone who did not read this.
+	o := ordemDe(r, "monstro", "nivel", "chance")
+	for _, d := range achados {
+		switch o.Por {
+		case "monstro":
+			sort.SliceStable(d.Mobs, o.Menor(func(i, j int) bool {
+				return nomeDeMob(d.Mobs[i]) < nomeDeMob(d.Mobs[j])
+			}))
+		case "nivel":
+			sort.SliceStable(d.Mobs, o.Menor(func(i, j int) bool {
+				return d.Mobs[i].MobLevel < d.Mobs[j].MobLevel
+			}))
+		case "chance":
+			sort.SliceStable(d.Mobs, o.Menor(func(i, j int) bool {
+				return d.Mobs[i].Divisor < d.Mobs[j].Divisor
+			}))
+		}
+	}
+
 	h.render(w, "drops.html", struct {
 		page
 		Item, Mob string
@@ -53,5 +83,18 @@ func (h *Handler) drops(w http.ResponseWriter, r *http.Request) {
 		Truncado  bool
 		Limite    int
 		Pediu     bool
-	}{h.pageFor(r, "drops"), item, mob, achados, truncado, dropsLimit, true})
+		Ordem     ordem
+		Extras    url.Values
+	}{h.pageFor(r, "drops"), item, mob, achados, truncado, dropsLimit, true,
+		o, r.URL.Query()})
+}
+
+// nomeDeMob is what the row shows: the readable name when the catalog has one,
+// and the template name when it does not — so sorting by the column orders what
+// the reader actually sees rather than a name half the rows do not display.
+func nomeDeMob(m gamedata.DropMob) string {
+	if m.MobName != "" {
+		return m.MobName
+	}
+	return m.TemplateName
 }

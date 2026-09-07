@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
@@ -29,13 +31,35 @@ func (h *Handler) servidor(w http.ResponseWriter, r *http.Request) {
 	// anyone looks for a server control, and having the only restart button on
 	// Início meant the obvious place had kick and broadcast but no way to
 	// restart — which reads as the feature being missing.
+	// Sorting happens HERE, on the copy the page already has, and never by asking
+	// the game again: every call crosses into the single-owner loop, and clicking
+	// a column header is not worth a trip that competes with player input.
+	o := ordemDe(r, "conta", "personagem", "nivel")
+	switch o.Por {
+	case "conta":
+		sort.SliceStable(estado.Players, o.Menor(func(i, j int) bool {
+			return estado.Players[i].Conta < estado.Players[j].Conta
+		}))
+	case "personagem":
+		sort.SliceStable(estado.Players, o.Menor(func(i, j int) bool {
+			return estado.Players[i].Personagem < estado.Players[j].Personagem
+		}))
+	case "nivel":
+		sort.SliceStable(estado.Players, o.Menor(func(i, j int) bool {
+			return estado.Players[i].Nivel < estado.Players[j].Nivel
+		}))
+	}
+
 	h.render(w, "servidor.html", struct {
 		page
 		Estado   jogo.Estado
 		Servidor estadoServidor
 		Erro     string
 		Aviso    string
-	}{h.pageFor(r, "servidor"), estado, h.statusServidor(r), erro, r.URL.Query().Get("aviso")})
+		Ordem    ordem
+		Extras   url.Values
+	}{h.pageFor(r, "servidor"), estado, h.statusServidor(r), erro,
+		r.URL.Query().Get("aviso"), o, r.URL.Query()})
 }
 
 // derrubarConta ends every session of one account.

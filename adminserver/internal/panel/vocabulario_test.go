@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -193,5 +194,133 @@ func TestAuditoriaQuebradaNaoViraTelaDeErro(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "a auditoria") {
 		t.Error("a página não avisa que não conseguiu ler")
+	}
+}
+
+// --- ordenação por link ---
+
+// ordemPos returns where each needle appears in the body, so a test can assert
+// the order rows came out in without parsing HTML.
+func ordemPos(t *testing.T, body string, agulhas ...string) []int {
+	t.Helper()
+	pos := make([]int, len(agulhas))
+	for i, a := range agulhas {
+		p := strings.Index(body, a)
+		if p < 0 {
+			t.Fatalf("a página não traz %q", a)
+		}
+		pos[i] = p
+	}
+	return pos
+}
+
+func crescente(pos []int) bool {
+	for i := 1; i < len(pos); i++ {
+		if pos[i] < pos[i-1] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestAuditoriaOrdenaPorQuemFez(t *testing.T) {
+	aud := newFakeAudit()
+	base := time.Now()
+	aud.add(audit.Entry{ActorName: "zeca", Action: "role", CreatedAt: base.Add(-time.Hour)})
+	aud.add(audit.Entry{ActorName: "ana", Action: "vip", CreatedAt: base})
+	get := signedIn(t, newTestPanelWith(t, withTarget(roleAdmin), aud))
+
+	body := get("/auditoria?ordem=quem").Body.String()
+	if !crescente(ordemPos(t, body, "ana", "zeca")) {
+		t.Error("ordem=quem não colocou ana antes de zeca")
+	}
+	// E clicar de novo inverte, que é o que qualquer tabela faz.
+	body = get("/auditoria?ordem=quem&desc=1").Body.String()
+	if !crescente(ordemPos(t, body, "zeca", "ana")) {
+		t.Error("desc não inverteu")
+	}
+}
+
+// O cabeçalho tem de mostrar por onde a tabela está ordenada. Sem a marca, a
+// pessoa clica, a lista muda e nada diz o que aconteceu.
+func TestCabecalhoMarcaPorOndeEstaOrdenado(t *testing.T) {
+	aud := newFakeAudit()
+	aud.add(audit.Entry{ActorName: "ana", Action: "vip", CreatedAt: time.Now()})
+	get := signedIn(t, newTestPanelWith(t, withTarget(roleAdmin), aud))
+
+	body := get("/auditoria?ordem=quem").Body.String()
+	if !strings.Contains(body, `class="ord asc"`) {
+		t.Error("nenhuma coluna foi marcada como ordenada")
+	}
+	if !strings.Contains(get("/auditoria?ordem=quem&desc=1").Body.String(), `class="ord desc"`) {
+		t.Error("a marca não acompanha a direção")
+	}
+}
+
+// Chave inventada cai no padrão da página em vez de derrubar a tela: ela chega
+// de link velho ou de URL digitada, e recusar a página por causa de uma coluna
+// que não existe mais é um beco sem saída onde ainda havia o que mostrar.
+func TestOrdemDesconhecidaNaoQuebraAPagina(t *testing.T) {
+	aud := newFakeAudit()
+	aud.add(audit.Entry{ActorName: "ana", Action: "vip", CreatedAt: time.Now()})
+	get := signedIn(t, newTestPanelWith(t, withTarget(roleAdmin), aud))
+
+	rec := get("/auditoria?ordem=coluna_que_nao_existe")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), `class="ord asc"`) {
+		t.Error("marcou como ordenada uma coluna que a página não aceita")
+	}
+}
+
+func TestCensoOrdenaPorColuna(t *testing.T) {
+	cmp := duasFotos()
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{cmp: cmp, marcados: 9}))
+
+	// Por variação, crescente: o que caiu (-5) vem antes do que subiu (+2).
+	body := get("/censo?ordem=variacao").Body.String()
+	if !crescente(ordemPos(t, body, "· 30", "· 1415")) {
+		t.Error("ordem=variacao não pôs a queda antes do crescimento")
+	}
+	// Por refino: o +0 antes do +11.
+	body = get("/censo?ordem=refino").Body.String()
+	if !crescente(ordemPos(t, body, "· 30", "· 1415")) {
+		t.Error("ordem=refino não ordenou pelo refino")
+	}
+}
+
+// A busca não pode ser jogada fora pelo ato de ordenar: quem ordenou uma lista
+// filtrada quer a MESMA lista em outra ordem.
+func TestOrdenarPreservaABusca(t *testing.T) {
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{cmp: duasFotos(), marcados: 9}))
+	body := get("/censo?dias=30&refino=1").Body.String()
+
+	// Todo link de coluna tem de levar os filtros junto.
+	if !strings.Contains(body, "dias=30") || !strings.Contains(body, "refino=1") {
+		t.Error("os links de ordenação perderam os filtros da página")
+	}
+}
+
+// TestOrdemNaoRepeteChaveNoLink: o link de uma coluna não pode carregar a ordem
+// anterior junto com a nova — duas chaves iguais na URL e o servidor lê a
+// primeira, então clicar na segunda coluna não faria nada.
+func TestOrdemNaoRepeteChaveNoLink(t *testing.T) {
+	o := ordem{Por: "nome", Desc: true}
+	extras := url.Values{"ordem": {"nome"}, "desc": {"1"}, "q": {"busca"}}
+	link := o.Link("/contas", "cargo", extras)
+
+	if strings.Count(link, "ordem=") != 1 {
+		t.Errorf("link = %q, tem mais de uma chave ordem", link)
+	}
+	if strings.Contains(link, "ordem=nome") {
+		t.Errorf("link = %q, carregou a ordem antiga", link)
+	}
+	if !strings.Contains(link, "q=busca") {
+		t.Errorf("link = %q, perdeu a busca", link)
+	}
+	// Coluna diferente começa crescente; a mesma coluna é que inverte.
+	if strings.Contains(link, "desc=1") {
+		t.Errorf("link = %q, começou decrescente numa coluna nova", link)
 	}
 }

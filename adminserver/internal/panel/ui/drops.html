@@ -67,10 +67,11 @@
           <table>
             <thead>
               <tr>
-                <th>Monstro</th>
-                <th class="num">Nível</th>
+                {{$o := $.Ordem}}{{$e := $.Extras}}
+                {{template "coluna" (dict "Rotulo" "Monstro" "Classe" "" "Marca" ($o.Marca "monstro") "Href" ($o.Link "/drops" "monstro" $e))}}
+                {{template "coluna" (dict "Rotulo" "Nível" "Classe" "num" "Marca" ($o.Marca "nivel") "Href" ($o.Link "/drops" "nivel" $e))}}
                 <th class="num">Slot</th>
-                <th class="pct">Chance por morte</th>
+                {{template "coluna" (dict "Rotulo" "Chance por morte" "Classe" "pct" "Marca" ($o.Marca "chance") "Href" ($o.Link "/drops" "chance" $e))}}
                 <th class="pct">Mortes até cair</th>
               </tr>
             </thead>

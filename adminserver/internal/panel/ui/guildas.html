@@ -66,10 +66,11 @@
       <table>
         <thead>
           <tr>
-            <th class="num">Id</th>
-            <th>Nome</th>
-            <th class="num">Membros</th>
-            <th class="num">Fama</th>
+            {{$o := .Ordem}}{{$e := .Extras}}
+            {{template "coluna" (dict "Rotulo" "Id" "Classe" "num" "Marca" ($o.Marca "id") "Href" ($o.Link "/guildas" "id" $e))}}
+            {{template "coluna" (dict "Rotulo" "Nome" "Classe" "" "Marca" ($o.Marca "nome") "Href" ($o.Link "/guildas" "nome" $e))}}
+            {{template "coluna" (dict "Rotulo" "Membros" "Classe" "num" "Marca" ($o.Marca "membros") "Href" ($o.Link "/guildas" "membros" $e))}}
+            {{template "coluna" (dict "Rotulo" "Fama" "Classe" "num" "Marca" ($o.Marca "fama") "Href" ($o.Link "/guildas" "fama" $e))}}
             <th>Aliada de</th>
             <th>Em guerra com</th>
           </tr>

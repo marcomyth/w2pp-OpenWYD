@@ -175,10 +175,11 @@
         <table>
           <thead>
             <tr>
-              <th>Item</th>
-              <th class="num">Refino</th>
-              <th class="num">Variação</th>
-              <th class="num">Agora</th>
+              {{$o := .Ordem}}{{$e := .Extras}}
+              {{template "coluna" (dict "Rotulo" "Item" "Classe" "" "Marca" ($o.Marca "item") "Href" ($o.Link "/censo" "item" $e))}}
+              {{template "coluna" (dict "Rotulo" "Refino" "Classe" "num" "Marca" ($o.Marca "refino") "Href" ($o.Link "/censo" "refino" $e))}}
+              {{template "coluna" (dict "Rotulo" "Variação" "Classe" "num" "Marca" ($o.Marca "variacao") "Href" ($o.Link "/censo" "variacao" $e))}}
+              {{template "coluna" (dict "Rotulo" "Agora" "Classe" "num" "Marca" ($o.Marca "agora") "Href" ($o.Link "/censo" "agora" $e))}}
               <th class="num">Antes</th>
               <th class="num">Equipado</th>
               <th class="num">Mochila</th>

@@ -36,10 +36,11 @@
       <table>
         <thead>
           <tr>
-            <th>Quando</th>
-            <th>Quem</th>
-            <th>Ação</th>
-            <th>Sobre</th>
+            {{$o := .Ordem}}{{$e := .Extras}}
+            {{template "coluna" (dict "Rotulo" "Quando" "Classe" "" "Marca" ($o.Marca "quando") "Href" ($o.Link "/auditoria" "quando" $e))}}
+            {{template "coluna" (dict "Rotulo" "Quem" "Classe" "" "Marca" ($o.Marca "quem") "Href" ($o.Link "/auditoria" "quem" $e))}}
+            {{template "coluna" (dict "Rotulo" "Ação" "Classe" "" "Marca" ($o.Marca "acao") "Href" ($o.Link "/auditoria" "acao" $e))}}
+            {{template "coluna" (dict "Rotulo" "Sobre" "Classe" "" "Marca" ($o.Marca "sobre") "Href" ($o.Link "/auditoria" "sobre" $e))}}
             <th>Mudança</th>
           </tr>
         </thead>

@@ -2,6 +2,7 @@ package panel
 
 import (
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 
@@ -126,12 +127,28 @@ func (h *Handler) guildas(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Slice(cidades, func(i, j int) bool { return cidades[i].Zone < cidades[j].Zone })
 
+	// Fame descending is the ranking everyone means by "the guild list"; the
+	// other columns answer "who has the most people" and "find this one by name".
+	o := ordemDe(r, "id", "nome", "membros", "fama")
+	switch o.Por {
+	case "id":
+		sort.SliceStable(vistas, o.Menor(func(i, j int) bool { return vistas[i].ID < vistas[j].ID }))
+	case "nome":
+		sort.SliceStable(vistas, o.Menor(func(i, j int) bool { return vistas[i].Name < vistas[j].Name }))
+	case "membros":
+		sort.SliceStable(vistas, o.Menor(func(i, j int) bool { return vistas[i].Membros < vistas[j].Membros }))
+	case "fama":
+		sort.SliceStable(vistas, o.Menor(func(i, j int) bool { return vistas[i].Fame < vistas[j].Fame }))
+	}
+
 	h.render(w, "guildas.html", struct {
 		page
 		Guildas []guildaView
 		Cidades []cidadeView
+		Ordem   ordem
+		Extras  url.Values
 		NaoLeu  falhas
-	}{h.pageFor(r, "guildas"), vistas, cidades, naoLeu})
+	}{h.pageFor(r, "guildas"), vistas, cidades, o, r.URL.Query(), naoLeu})
 }
 
 // guilda shows one guild and its roster.

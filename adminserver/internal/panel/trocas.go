@@ -3,6 +3,8 @@ package panel
 import (
 	"fmt"
 	"net/http"
+	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -132,6 +134,20 @@ func (h *Handler) trocas(w http.ResponseWriter, r *http.Request) {
 		chao = soMaos(chao)
 	}
 
+	// The default is newest first, which is what an investigation opens on.
+	// Sorting by character gathers one person's floor activity; sorting by item
+	// gathers everything that happened to one index, which is the question the
+	// census sends people here with.
+	o := ordemDe(r, "quando", "personagem", "item")
+	switch o.Por {
+	case "quando":
+		sort.SliceStable(chao, o.Menor(func(i, j int) bool { return chao[i].At.Before(chao[j].At) }))
+	case "personagem":
+		sort.SliceStable(chao, o.Menor(func(i, j int) bool { return chao[i].Character < chao[j].Character }))
+	case "item":
+		sort.SliceStable(chao, o.Menor(func(i, j int) bool { return chao[i].Item.Index < chao[j].Item.Index }))
+	}
+
 	h.render(w, "trocas.html", struct {
 		page
 		Personagem string
@@ -143,10 +159,12 @@ func (h *Handler) trocas(w http.ResponseWriter, r *http.Request) {
 		ChaoLimite int
 		Cheio      bool
 		ChaoCheio  bool
+		Ordem      ordem
+		Extras     url.Values
 		Falha      falhas
 	}{
 		h.pageFor(r, "trocas"), nome, achadas, chao, total, maos,
 		trocasLimit, chaoLimit,
-		len(achadas) >= trocasLimit, total >= chaoLimit, falha,
+		len(achadas) >= trocasLimit, total >= chaoLimit, o, r.URL.Query(), falha,
 	})
 }

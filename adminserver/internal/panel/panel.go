@@ -853,6 +853,30 @@ func (h *Handler) auditoria(w http.ResponseWriter, r *http.Request) {
 		falha.nao("auditoria")
 	}
 
+	// The default is the order the store returned — newest first — because that
+	// is what somebody opening the audit log is asking for. Sorting by actor or
+	// action answers the other two questions: "what has this person been doing"
+	// and "who has been changing roles".
+	o := ordemDe(r, "quando", "quem", "acao", "sobre")
+	switch o.Por {
+	case "quando":
+		sort.SliceStable(entradas, o.Menor(func(i, j int) bool {
+			return entradas[i].CreatedAt.Before(entradas[j].CreatedAt)
+		}))
+	case "quem":
+		sort.SliceStable(entradas, o.Menor(func(i, j int) bool {
+			return entradas[i].ActorName < entradas[j].ActorName
+		}))
+	case "acao":
+		sort.SliceStable(entradas, o.Menor(func(i, j int) bool {
+			return entradas[i].Action < entradas[j].Action
+		}))
+	case "sobre":
+		sort.SliceStable(entradas, o.Menor(func(i, j int) bool {
+			return entradas[i].TargetName < entradas[j].TargetName
+		}))
+	}
+
 	agora := time.Now()
 	linhas := make([]auditoriaLinha, 0, len(entradas))
 	for _, e := range entradas {
@@ -865,10 +889,12 @@ func (h *Handler) auditoria(w http.ResponseWriter, r *http.Request) {
 		Alvo     int64
 		Limite   int
 		Truncado bool
+		Ordem    ordem
+		Extras   url.Values
 		Falha    falhas
 	}{
 		h.pageFor(r, "auditoria"), linhas, alvo, h.cfg.Audit.Limit(),
-		len(entradas) == h.cfg.Audit.Limit(), falha,
+		len(entradas) == h.cfg.Audit.Limit(), o, r.URL.Query(), falha,
 	})
 }
 

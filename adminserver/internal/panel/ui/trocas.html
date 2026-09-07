@@ -115,10 +115,11 @@
         <table>
           <thead>
             <tr>
-              <th>Quando</th>
+              {{$o := .Ordem}}{{$e := .Extras}}
+              {{template "coluna" (dict "Rotulo" "Quando" "Classe" "" "Marca" ($o.Marca "quando") "Href" ($o.Link "/trocas" "quando" $e))}}
               <th>Ação</th>
-              <th>Personagem</th>
-              <th>Item</th>
+              {{template "coluna" (dict "Rotulo" "Personagem" "Classe" "" "Marca" ($o.Marca "personagem") "Href" ($o.Link "/trocas" "personagem" $e))}}
+              {{template "coluna" (dict "Rotulo" "Item" "Classe" "" "Marca" ($o.Marca "item") "Href" ($o.Link "/trocas" "item" $e))}}
               <th class="num">Onde</th>
               <th>Par</th>
             </tr>

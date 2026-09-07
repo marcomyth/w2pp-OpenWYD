@@ -2,6 +2,8 @@ package panel
 
 import (
 	"net/http"
+	"net/url"
+	"sort"
 	"strconv"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
@@ -142,6 +144,27 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 		linhas = append(linhas, censoLinha{ItemCensus: c, Nome: nomes[c.Index]})
 	}
 
+	// The default is the variation, which is why the page exists — the store
+	// already returned it in that order, so no sort at all is the fastest path
+	// to the answer people come for. The columns are for the follow-up
+	// questions: "how many of this exist in total", "show me the refined ones".
+	o := ordemDe(r, "item", "refino", "variacao", "agora")
+	switch o.Por {
+	case "item":
+		sort.SliceStable(linhas, o.Menor(func(i, j int) bool {
+			if linhas[i].Nome != linhas[j].Nome {
+				return linhas[i].Nome < linhas[j].Nome
+			}
+			return linhas[i].Index < linhas[j].Index
+		}))
+	case "refino":
+		sort.SliceStable(linhas, o.Menor(func(i, j int) bool { return linhas[i].Sanc < linhas[j].Sanc }))
+	case "variacao":
+		sort.SliceStable(linhas, o.Menor(func(i, j int) bool { return linhas[i].Delta < linhas[j].Delta }))
+	case "agora":
+		sort.SliceStable(linhas, o.Menor(func(i, j int) bool { return linhas[i].Units < linhas[j].Units }))
+	}
+
 	// The window actually compared, which is not always the one asked for: with
 	// less history than that, CensusGrowth falls back to the oldest snapshot,
 	// and a page that did not say so would report a month's growth as a day's.
@@ -164,12 +187,14 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 		UmDiaSo   bool
 		Limite    int
 		Cheio     bool
+		Ordem     ordem
+		Extras    url.Values
 		Falha     falhas
 	}{
 		h.pageFor(r, "censo"), copias, marcados, semMarca,
 		dias, censoJanelas, subiu, refinado,
 		cmp.De, cmp.Ate, linhas, encurtado,
 		!cmp.Ate.Zero() && cmp.De.Day.Equal(cmp.Ate.Day),
-		censoLimite, len(linhas) >= censoLimite, falha,
+		censoLimite, len(linhas) >= censoLimite, o, r.URL.Query(), falha,
 	})
 }
