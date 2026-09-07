@@ -127,10 +127,10 @@ func TestQuandoValeSoUsaOsTresEstados(t *testing.T) {
 // o que o jogo carrega. Elas são as que mais confundem, porque o resultado da
 // gravação não aparece no jogo na mesma hora.
 func TestTodaTelaQueGravaDizQuandoVale(t *testing.T) {
-	// A página da conta fica de fora de propósito: a resposta dela é
-	// condicional (bloquear derruba quem está online SE o painel falar com o
-	// jogo, e só impede o próximo login se não falar), e ela já diz isso na
-	// mensagem de cada ação. Um aviso fixo no topo seria menos verdadeiro.
+	// A página da conta fica de fora de propósito: a resposta dela depende do
+	// caso — bloquear derruba quem está online SE o painel falar com o jogo, e
+	// só impede o próximo login se não falar —, e ela já diz isso na mensagem
+	// de cada ação. Um aviso fixo no topo seria menos verdadeiro.
 	querem := []string{
 		"ui/itens.html", "ui/item_atributos.html",
 		"ui/monstros.html", "ui/monstro.html",
