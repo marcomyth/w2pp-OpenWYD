@@ -1411,3 +1411,32 @@ func TestTrocarDeCriaturaDispensaOBandoAnterior(t *testing.T) {
 		}
 	}
 }
+
+// TestEvocationRecastComVariosPets é o caso que o jogo tem e o teste de
+// re-invocação não tinha: mais de um bicho.
+//
+// Com Evocação 90 o Condor sai de três em três. Re-invocar tem de devolver TRÊS,
+// não seis — e nenhum dos três pode ser um sobrevivente do bando anterior.
+func TestEvocationRecastComVariosPets(t *testing.T) {
+	addr, stop, _ := startServerSummon(t, summonDB(90), nil, 0, 0)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	skillAttackFrame(t, c, serverTime, 1, 56, damSkill)
+	primeiro := collectPets(t, c, 700*time.Millisecond)
+	if len(primeiro) != 3 {
+		t.Fatalf("primeira invocação = %d pets, want 3 (Evocação 90 / 30)", len(primeiro))
+	}
+
+	skillAttackFrame(t, c, serverTime+1000, 1, 56, damSkill)
+	segundo := collectPets(t, c, 700*time.Millisecond)
+	if len(segundo) != 3 {
+		t.Errorf("re-invocação = %d pets, want 3 — o bando volta inteiro, não acumula", len(segundo))
+	}
+	for id := range segundo {
+		if _, jaExistia := primeiro[id]; jaExistia {
+			t.Errorf("pet %d sobreviveu à re-invocação; o bando antigo tem de ir embora", id)
+		}
+	}
+}
