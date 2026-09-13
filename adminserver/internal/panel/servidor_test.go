@@ -327,7 +327,10 @@ func TestInicialNaoDizNoArComOServidorDesligado(t *testing.T) {
 func TestAsDuasTelasContamAMesmaCoisaSobreOServidor(t *testing.T) {
 	plat := newFakePlatform()
 	plat.dep.Status = "REMOVED"
-	h := newTestPanelPlatJogo(t, plat)
+	// Servidor parado NÃO responde: desde 13/09/2026 o painel cruza a hospedagem
+	// com o jogo, e um jogo que responde vence o papel. Um fake que respondesse
+	// aqui descreveria uma situação que não existe.
+	h := newTestPanelPlatJogoCom(t, plat, &fakeJogo{estadoErr: errors.New("connection refused")})
 	get := signedIn(t, h)
 
 	inicial := get("/").Body.String()
@@ -346,9 +349,16 @@ func TestAsDuasTelasContamAMesmaCoisaSobreOServidor(t *testing.T) {
 // what /servidor needs to render at all.
 func newTestPanelPlatJogo(t *testing.T, plat Platform) http.Handler {
 	t.Helper()
+	return newTestPanelPlatJogoCom(t, plat, &fakeJogo{estado: estadoDeTeste()})
+}
+
+// newTestPanelPlatJogoCom deixa o teste escolher o jogo, que é o que permite
+// modelar servidor REALMENTE parado: parado não responde.
+func newTestPanelPlatJogoCom(t *testing.T, plat Platform, j *fakeJogo) http.Handler {
+	t.Helper()
 	h, err := New(Config{
 		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
-		Platform: plat, Jogo: &fakeJogo{estado: estadoDeTeste()},
+		Platform: plat, Jogo: j,
 		Sessions: session.New(time.Hour),
 		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
 	})
@@ -1087,5 +1097,100 @@ func TestDesatolarExigeOsDoisEixosJuntos(t *testing.T) {
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("%s: status = %d, want 400", c.nome, rec.Code)
 		}
+	}
+}
+
+// Os dois testes abaixo isolam as DUAS metades do conserto. Cada metade sozinha
+// já salva o cartão no caso comum, então um teste só passaria mesmo com uma
+// delas quebrada - e um teste que sobrevive ao próprio defeito não serve.
+
+// TestPuladoNaoContaMesmoComOJogoMudo prende a metade da HOSPEDAGEM: registro
+// PULADO não fala deste serviço, nem para dizer que subiu nem para dizer que
+// caiu. Aqui o jogo não responde, então só a escolha do registro decide - com o
+// LatestAny antigo, o cartão escreveria desligado por causa do pulado.
+func TestPuladoNaoContaMesmoComOJogoMudo(t *testing.T) {
+	plat := newFakePlatform()
+	agora := time.Now()
+	plat.historico = []plataforma.Deployment{
+		{ID: "dep-pulado", Status: "SKIPPED", CreatedAt: agora.Add(-1 * time.Minute)},
+		{ID: "dep-bom", Status: "SUCCESS", CreatedAt: agora.Add(-3 * time.Hour)},
+	}
+	h := newTestPanelPlatJogoCom(t, plat, &fakeJogo{estadoErr: errors.New("connection refused")})
+	body := signedIn(t, h)("/").Body.String()
+
+	if strings.Contains(body, "está desligado") {
+		t.Error("um registro PULADO apagou o servidor na home")
+	}
+	if strings.Contains(body, "SKIPPED") {
+		t.Error("a home mostra SKIPPED como se fosse o estado do serviço")
+	}
+}
+
+// TestJogoRespondendoVenceOPapelDaHospedagem prende a metade do JOGO: a verdade
+// sobre estar rodando é o jogo responder. Aqui a hospedagem diz REMOVED e o jogo
+// atende - sem o cruzamento, o cartão chamaria de desligado um servidor no ar.
+func TestJogoRespondendoVenceOPapelDaHospedagem(t *testing.T) {
+	plat := newFakePlatform()
+	plat.dep.Status = "REMOVED"
+	h := newTestPanelPlatJogoCom(t, plat, &fakeJogo{estado: estadoDeTeste()})
+	body := signedIn(t, h)("/").Body.String()
+	if strings.Contains(body, "está desligado") {
+		t.Error("o jogo respondeu e mesmo assim a home disse desligado")
+	}
+}
+
+// TestPuladoNaoApagaOServidorNaHome freezes the bug of 13/09/2026: um commit que
+// tocava só o adminserver deixou um registro PULADO no topo da lista do serviço
+// do jogo, e a home do painel escreveu "O servidor de jogo está desligado" em
+// vermelho com o jogo no ar - a Hanna apertou Ligar e a hospedagem recusou,
+// porque registro pulado não tem imagem para subir.
+func TestPuladoNaoApagaOServidorNaHome(t *testing.T) {
+	plat := newFakePlatform()
+	agora := time.Now()
+	plat.historico = []plataforma.Deployment{
+		{ID: "dep-pulado", Status: "SKIPPED", CreatedAt: agora.Add(-1 * time.Minute)},
+		{ID: "dep-bom", Status: "SUCCESS", CreatedAt: agora.Add(-3 * time.Hour)},
+	}
+	h := newTestPanelPlatJogoCom(t, plat, &fakeJogo{estado: estadoDeTeste()})
+	body := signedIn(t, h)("/").Body.String()
+
+	if strings.Contains(body, "está desligado") {
+		t.Error("a home diz desligado por causa de um registro PULADO, com o jogo respondendo")
+	}
+	if strings.Contains(body, "SKIPPED") {
+		t.Error("a home mostra SKIPPED como se fosse o estado do serviço")
+	}
+}
+
+// TestLigarPegaOIdQueDaParaRepublicar: o botão não pode apontar para o registro
+// pulado, que é o que a hospedagem recusa republicar.
+func TestLigarPegaOIdQueDaParaRepublicar(t *testing.T) {
+	plat := newFakePlatform()
+	agora := time.Now()
+	plat.historico = []plataforma.Deployment{
+		{ID: "dep-pulado", Status: "SKIPPED", CreatedAt: agora.Add(-1 * time.Minute)},
+		{ID: "dep-parado", Status: "REMOVED", CreatedAt: agora.Add(-2 * time.Hour)},
+	}
+	h := newTestPanelPlatJogoCom(t, plat, &fakeJogo{estadoErr: errors.New("connection refused")})
+	post, token := signedInPost(t, h)
+	post("/servidor/ligar", url.Values{"csrf": {token}})
+
+	plat.mu.Lock()
+	defer plat.mu.Unlock()
+	if len(plat.redeploys) != 1 || plat.redeploys[0] != "dep-parado" {
+		t.Errorf("republicou %v, want [dep-parado] - o pulado não tem imagem para subir", plat.redeploys)
+	}
+}
+
+// TestServidorParadoContinuaDizendoDesligado protege o outro lado: o conserto
+// não pode esconder um servidor de verdade parado, que é quando a equipe precisa
+// do aviso e do botão.
+func TestServidorParadoContinuaDizendoDesligado(t *testing.T) {
+	plat := newFakePlatform()
+	plat.dep.Status = "REMOVED"
+	h := newTestPanelPlatJogoCom(t, plat, &fakeJogo{estadoErr: errors.New("connection refused")})
+	body := signedIn(t, h)("/").Body.String()
+	if !strings.Contains(body, "está desligado") {
+		t.Error("servidor parado e jogo mudo: a home tinha que avisar")
 	}
 }

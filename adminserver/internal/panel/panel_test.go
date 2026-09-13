@@ -1556,15 +1556,19 @@ func TestWebServerFailureIsNotAPanelFailure(t *testing.T) {
 
 // fakePlatform stands in for the hosting API.
 type fakePlatform struct {
-	mu            sync.Mutex
-	dep           plataforma.Deployment
-	latestErr     error
-	restartEr     error
-	restarts      []string
-	stops         []string
-	redeploys     []string
-	redeployEr    error
-	usouLatestAny int
+	mu               sync.Mutex
+	dep              plataforma.Deployment
+	latestErr        error
+	restartEr        error
+	restarts         []string
+	stops            []string
+	redeploys        []string
+	redeployEr       error
+	usouLatestAny    int
+	usouRedeployavel int
+	// historico é a lista como a hospedagem devolve, do mais novo para o mais
+	// velho. Vazia: o fake responde só com dep, como sempre respondeu.
+	historico []plataforma.Deployment
 }
 
 func newFakePlatform() *fakePlatform {
@@ -1590,7 +1594,36 @@ func (f *fakePlatform) LatestAny(context.Context) (plataforma.Deployment, error)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.usouLatestAny++
-	return f.dep, f.latestErr
+	if f.latestErr != nil {
+		return plataforma.Deployment{}, f.latestErr
+	}
+	// Com histórico, devolve o PRIMEIRO seja qual for o estado - é isso que a
+	// hospedagem de verdade faz, e é o que faz a diferença entre este e o
+	// LatestRedeployable aparecer nos testes.
+	if len(f.historico) > 0 {
+		return f.historico[0], nil
+	}
+	return f.dep, nil
+}
+
+// LatestRedeployable devolve o mais recente que NÃO é PULADO, que é o que a
+// hospedagem de verdade faz agora.
+func (f *fakePlatform) LatestRedeployable(context.Context) (plataforma.Deployment, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.usouRedeployavel++
+	if f.latestErr != nil {
+		return plataforma.Deployment{}, f.latestErr
+	}
+	for _, d := range f.historico {
+		if plataforma.Redeployavel(d.Status) {
+			return d, nil
+		}
+	}
+	if len(f.historico) > 0 {
+		return plataforma.Deployment{}, errors.New("plataforma: nada redeployável")
+	}
+	return f.dep, nil
 }
 
 func (f *fakePlatform) Stop(_ context.Context, id string) error {
@@ -4226,7 +4259,7 @@ func TestLigarUsaODeploymentMaisRecenteSejaQualForOEstado(t *testing.T) {
 	if len(plat.redeploys) != 1 || plat.redeploys[0] != "dep-1" {
 		t.Fatalf("redeploys = %v, want [dep-1]", plat.redeploys)
 	}
-	if plat.usouLatestAny == 0 {
+	if plat.usouRedeployavel == 0 {
 		t.Error("procurou o deployment com o filtro de sucesso, que esconderia um parado")
 	}
 }
@@ -4234,7 +4267,9 @@ func TestLigarUsaODeploymentMaisRecenteSejaQualForOEstado(t *testing.T) {
 func TestPaginaMostraDesligadoEOfereceLigar(t *testing.T) {
 	plat := newFakePlatform()
 	plat.dep.Status = "REMOVED"
-	get := signedIn(t, newTestPanelJogoPlat(t, &fakeJogo{}, plat))
+	// Parado não responde: o painel agora cruza a hospedagem com o jogo, e um
+	// fake que respondesse aqui descreveria um servidor parado que atende.
+	get := signedIn(t, newTestPanelJogoPlat(t, &fakeJogo{estadoErr: errors.New("connection refused")}, plat))
 	body := get("/servidor").Body.String()
 
 	if !strings.Contains(body, "Desligado") {
