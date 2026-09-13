@@ -123,3 +123,61 @@ func TestRankingDeKillsFiltraEOrdena(t *testing.T) {
 		t.Errorf("com o bloqueio vencido o personagem devia voltar ao ranking: %v", depois)
 	}
 }
+
+// TestRankingTrazAGuildaDoPersonagem exercises the LEFT JOIN against a real
+// PostgreSQL, which is the only place it CAN be exercised: the unit tests use a
+// fake reader and never touch SQL.
+//
+// The two cases that matter are the two the join has to get right: a character
+// in a guild shows the guild's name, and a character without one (guild_id = 0,
+// the column's default) still shows up on the board, with an empty name. A JOIN
+// instead of a LEFT JOIN would silently drop every guildless player.
+func TestRankingTrazAGuildaDoPersonagem(t *testing.T) {
+	pool := testPool(t)
+	h := realAPI(t, pool)
+	ctx := context.Background()
+
+	// Limpa execuções anteriores deste teste.
+	for _, n := range []string{"kr_com_guilda", "kr_sem_guilda"} {
+		if _, err := pool.Exec(ctx, `DELETE FROM character WHERE name = $1`, n); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	conta := seed(t, pool, "kr_conta_guilda", "senha9")
+	if _, err := pool.Exec(ctx, `INSERT INTO guild (id, name) VALUES (901, 'Guilda de Teste')
+		ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name`); err != nil {
+		t.Fatalf("guilda: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(context.Background(), `DELETE FROM guild WHERE id = 901`) })
+
+	personagem(t, pool, conta, 0, "kr_com_guilda", 100, 30)
+	personagem(t, pool, conta, 1, "kr_sem_guilda", 100, 20)
+	if _, err := pool.Exec(ctx, `UPDATE character SET guild_id = 901 WHERE account_id = $1 AND slot = 0`, conta); err != nil {
+		t.Fatalf("vincula guilda: %v", err)
+	}
+
+	rec := chama(h, "GET", "/site/v1/ranking/kills?limite=200", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	var r struct {
+		Linhas []struct {
+			Nome   string `json:"nome"`
+			Guilda string `json:"guilda"`
+		} `json:"linhas"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
+		t.Fatal(err)
+	}
+	achou := map[string]string{}
+	for _, l := range r.Linhas {
+		achou[l.Nome] = l.Guilda
+	}
+	if g, ok := achou["kr_com_guilda"]; !ok || g != "Guilda de Teste" {
+		t.Errorf("kr_com_guilda = %q (presente: %v), want \"Guilda de Teste\"", g, ok)
+	}
+	if g, ok := achou["kr_sem_guilda"]; !ok || g != "" {
+		t.Errorf("kr_sem_guilda = %q (presente: %v), want presente e vazio", g, ok)
+	}
+}

@@ -21,7 +21,7 @@ func comKills(c *cenario) {
 	c.banco.mu.Lock()
 	defer c.banco.mu.Unlock()
 	c.banco.kills = []KillRanking{
-		{Nome: "Matador", Classe: 0, Evolucao: 2, Reino: 1, Nivel: 355, Kills: 120},
+		{Nome: "Matador", Classe: 0, Evolucao: 2, Reino: 1, Nivel: 355, Kills: 120, Guilda: "Os Medidos"},
 		{Nome: "Segundo", Classe: 3, Evolucao: 1, Reino: 2, Nivel: 200, Kills: 7},
 	}
 	c.banco.killsTotal = 2
@@ -101,5 +101,37 @@ func TestRankingDeKillsPrecisaDaChaveESoAceitaGET(t *testing.T) {
 		if rec := c.pede("GET", p, ""); rec.Code != http.StatusNotFound {
 			t.Errorf("%s: status = %d, want 404", p, rec.Code)
 		}
+	}
+}
+
+// TestRankingMostraGuildaESilencioParaQuemNaoTem checks the two cases the site
+// renders differently: a character in a guild carries its name, and one without
+// carries an EMPTY string.
+//
+// Empty, not "sem guilda": what to show in that cell is the site's decision, and
+// a word invented here would be repeated down the whole table, with no way for
+// the site to tell it apart from a real guild name.
+func TestRankingMostraGuildaESilencioParaQuemNaoTem(t *testing.T) {
+	c := novoCenario(t)
+	comKills(c)
+	rec := c.pede("GET", "/site/v1/ranking/kills?limite=10", "")
+	confereStatus(t, rec, http.StatusOK, "")
+	var r struct {
+		Linhas []linhaKill `json:"linhas"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Linhas) != 2 {
+		t.Fatalf("linhas = %+v", r.Linhas)
+	}
+	if r.Linhas[0].Guilda != "Os Medidos" {
+		t.Errorf("guilda do primeiro = %q, want \"Os Medidos\"", r.Linhas[0].Guilda)
+	}
+	if r.Linhas[1].Guilda != "" {
+		t.Errorf("quem não tem guilda veio com %q; tem que vir vazio", r.Linhas[1].Guilda)
+	}
+	if strings.Contains(rec.Body.String(), "sem guilda") {
+		t.Errorf("o endpoint inventou texto para quem não tem guilda: %s", rec.Body.String())
 	}
 }
