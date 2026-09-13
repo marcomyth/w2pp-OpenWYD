@@ -1621,7 +1621,9 @@ func (f *fakePlatform) LatestRedeployable(context.Context) (plataforma.Deploymen
 		}
 	}
 	if len(f.historico) > 0 {
-		return plataforma.Deployment{}, errors.New("plataforma: nada redeployável")
+		// O mesmo erro que a hospedagem de verdade devolve: ela respondeu, e não há
+		// nada republicável na janela.
+		return plataforma.Deployment{}, plataforma.ErrSemRedeployavel
 	}
 	return f.dep, nil
 }

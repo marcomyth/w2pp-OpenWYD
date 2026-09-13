@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -186,10 +187,11 @@ func (c *Client) do(ctx context.Context, query string, vars map[string]any, out 
 // is refused by the hosting.
 //
 // It asks for a page of recent ones rather than just the first: skipped records
-// pile up, one per unrelated deploy.
+// pile up, one per unrelated deploy. Vazia a janela inteira, devolve
+// ErrSemRedeployavel - a hospedagem respondeu, e isso precisa ser dito assim.
 func (c *Client) LatestRedeployable(ctx context.Context) (Deployment, error) {
 	const q = `query($input: DeploymentListInput!) {
-	  deployments(input: $input, first: 20) {
+	  deployments(input: $input, first: 50) {
 	    edges { node { id status createdAt } }
 	  }
 	}`
@@ -220,7 +222,7 @@ func (c *Client) LatestRedeployable(ctx context.Context) (Deployment, error) {
 			return Deployment{ID: e.Node.ID, Status: e.Node.Status, CreatedAt: e.Node.CreatedAt}, nil
 		}
 	}
-	return Deployment{}, fmt.Errorf("plataforma: service %s has no redeployable deployment in the last 20", c.cfg.ServiceID)
+	return Deployment{}, fmt.Errorf("%w: serviço %s, últimas %d", ErrSemRedeployavel, c.cfg.ServiceID, JanelaDeployments)
 }
 
 // LatestAny returns the service's most recent deployment whatever its state.
@@ -293,6 +295,19 @@ const (
 // precisa achar. Filtrar REMOVED deixaria a equipe com o servidor desligado e
 // sem botão, que é o problema que o LatestAny existe para evitar.
 func Redeployavel(status string) bool { return status != EstadoPulado }
+
+// JanelaDeployments é quantas publicações recentes olhamos para achar uma
+// republicável. Registro PULADO se acumula, um por deploy de outro serviço, e
+// uma semana de commits alheios empilha vários.
+const JanelaDeployments = 50
+
+// ErrSemRedeployavel: a hospedagem RESPONDEU, e nenhuma publicação da janela dá
+// para republicar.
+//
+// É um caso diferente de não conseguir falar com ela, e quem lê o painel age
+// diferente nos dois: aqui não adianta esperar a hospedagem voltar. Confundir os
+// dois seria contar à equipe uma coisa falsa sobre onde está o problema.
+var ErrSemRedeployavel = errors.New("plataforma: nenhuma publicação republicável na janela")
 
 // Stop takes the deployment down without deleting the service.
 //

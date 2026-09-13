@@ -1104,6 +1104,38 @@ func TestDesatolarExigeOsDoisEixosJuntos(t *testing.T) {
 // já salva o cartão no caso comum, então um teste só passaria mesmo com uma
 // delas quebrada - e um teste que sobrevive ao próprio defeito não serve.
 
+// TestHospedagemQueRespondeNaoViraHospedagemMuda separa as duas falhas.
+//
+// Janela inteira de registros PULADOS é diferente de hospedagem fora do ar: no
+// primeiro caso ela RESPONDEU, na hora e por completo. Dizer "não consegui falar
+// com a hospedagem" mandaria a equipe esperar uma coisa que já funciona - e
+// contar à equipe algo falso sobre onde está o problema é o defeito que este
+// conserto existe para matar.
+func TestHospedagemQueRespondeNaoViraHospedagemMuda(t *testing.T) {
+	plat := newFakePlatform()
+	plat.historico = []plataforma.Deployment{
+		{ID: "só-pulados", Status: "SKIPPED", CreatedAt: time.Now()},
+	}
+	h := newTestPanelPlatJogoCom(t, plat, &fakeJogo{estado: estadoDeTeste()})
+	body := signedIn(t, h)("/").Body.String()
+
+	if strings.Contains(body, "Não consegui falar com a hospedagem") {
+		t.Error("a hospedagem respondeu e o painel culpou a hospedagem")
+	}
+	if !strings.Contains(body, "não achei nenhuma publicação que dê para religar") {
+		t.Errorf("a home não explica o que de fato aconteceu: %s", primeirasLinhas(body))
+	}
+}
+
+// primeirasLinhas encurta o corpo da página no erro, para a saída do teste caber
+// na tela de quem o roda.
+func primeirasLinhas(body string) string {
+	if len(body) > 400 {
+		return body[:400] + "..."
+	}
+	return body
+}
+
 // TestPuladoNaoContaMesmoComOJogoMudo prende a metade da HOSPEDAGEM: registro
 // PULADO não fala deste serviço, nem para dizer que subiu nem para dizer que
 // caiu. Aqui o jogo não responde, então só a escolha do registro decide - com o

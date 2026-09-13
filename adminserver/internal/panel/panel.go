@@ -1741,7 +1741,16 @@ func (h *Handler) statusServidor(r *http.Request) estadoServidor {
 	// hospedagem recusa republicar. Uma publicação PARADA continua sendo achada,
 	// que é o motivo de não filtrar por sucesso.
 	dep, err := h.cfg.Platform.LatestRedeployable(r.Context())
-	if err != nil {
+	switch {
+	case errors.Is(err, plataforma.ErrSemRedeployavel):
+		// A hospedagem FALOU: respondeu na hora e por completo, e nenhuma das
+		// publicações da janela dá para religar. Dizer "não consegui falar com a
+		// hospedagem" aqui apontaria a equipe para o lugar errado.
+		h.cfg.Logger.Warn("no redeployable deployment in the window", "err", err)
+		return estadoServidor{Erro: fmt.Sprintf(
+			"A hospedagem respondeu, mas não achei nenhuma publicação que dê para religar nas últimas %d deste serviço.",
+			plataforma.JanelaDeployments)}
+	case err != nil:
 		h.cfg.Logger.Warn("platform status unavailable", "err", err)
 		return estadoServidor{Erro: "Não consegui falar com a hospedagem: " + explicaPlataforma(err)}
 	}
