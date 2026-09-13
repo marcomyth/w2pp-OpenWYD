@@ -983,7 +983,10 @@ func TestARecusaDaHospedagemChegaNaTela(t *testing.T) {
 	plat := newFakePlatform()
 	plat.dep = plataforma.Deployment{ID: "dep-1", Status: "REMOVED", CreatedAt: time.Now()}
 	plat.redeployEr = errors.New("plataforma: api error: Deployment cannot be redeployed")
-	j := &fakeJogo{estado: estadoDeTeste(), plat: plat}
+	// Servidor parado não responde. Desde 13/09/2026 o Ligar pergunta ao jogo
+	// antes de republicar, então um falso que respondesse aqui pararia no aviso
+	// "já está no ar" e nunca chegaria à hospedagem.
+	j := &fakeJogo{estadoErr: errors.New("connection refused"), plat: plat}
 	post, token := signedInPost(t, newTestPanelJogoPlat(t, j, plat))
 
 	rec := post("/servidor/ligar", url.Values{"csrf": {token}, "voltar": {"/servidor"}})
@@ -996,6 +999,29 @@ func TestARecusaDaHospedagemChegaNaTela(t *testing.T) {
 	// permissão, deployment errado ou estado que não aceita a ação.
 	if !strings.Contains(recado, "REMOVED") {
 		t.Errorf("o recado não diz em que estado o deployment estava: %q", recado)
+	}
+}
+
+// TestLigarNaoDerrubaServidorQueEstaNoAr fecha um buraco que o próprio conserto
+// abriu.
+//
+// Enquanto o botão apontava para um registro PULADO, apertá-lo com o servidor no
+// ar era inofensivo: a hospedagem recusava com "Cannot redeploy without a
+// snapshot". Agora ele aponta para uma publicação de verdade, e republicar a que
+// está rodando derrubaria o servidor SEM esvaziar - exatamente o que o Reinício
+// seguro existe para evitar. Então o Ligar pergunta ao jogo antes.
+func TestLigarNaoDerrubaServidorQueEstaNoAr(t *testing.T) {
+	plat := newFakePlatform()
+	plat.dep = plataforma.Deployment{ID: "dep-1", Status: "REMOVED", CreatedAt: time.Now()}
+	j := &fakeJogo{estado: estadoDeTeste(), plat: plat}
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, j, plat))
+
+	post("/servidor/ligar", url.Values{"csrf": {token}, "voltar": {"/servidor"}})
+
+	plat.mu.Lock()
+	defer plat.mu.Unlock()
+	if len(plat.redeploys) != 0 {
+		t.Errorf("republicou %v com o jogo no ar: isso derruba jogador sem esvaziar", plat.redeploys)
 	}
 }
 

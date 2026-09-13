@@ -1,6 +1,7 @@
 package panel
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -374,6 +375,23 @@ func (h *Handler) ligarServidor(w http.ResponseWriter, r *http.Request) {
 		h.voltaComAviso(w, r, "/servidor",
 			"Não liguei: "+explicaPlataforma(err))
 		return
+	}
+
+	// Pergunta ao jogo ANTES de republicar. Enquanto o botão apontava para um
+	// registro pulado, apertá-lo com o servidor no ar era inofensivo: a
+	// hospedagem recusava. Agora ele aponta para uma publicação de verdade, e
+	// republicar a que está rodando derruba o servidor SEM esvaziar - que é
+	// justamente o que o Reinício seguro existe para evitar.
+	if h.cfg.Jogo != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), tempoConfereJogo)
+		defer cancel()
+		if _, err := h.cfg.Jogo.Estado(ctx); err == nil {
+			h.cfg.Logger.Info("start refused: game already answering", "actor", sess.AccountName)
+			h.voltaComAviso(w, r, "/servidor",
+				"Não liguei: o servidor JÁ está no ar e acabou de responder. "+
+					"Para trocar a versão ou aplicar edições, use o Reinício seguro, que esvazia antes.")
+			return
+		}
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{

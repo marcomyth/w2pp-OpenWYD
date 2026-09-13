@@ -4252,7 +4252,7 @@ func TestLigarUsaODeploymentMaisRecenteSejaQualForOEstado(t *testing.T) {
 	// be the one that could not find anything to press.
 	plat := newFakePlatform()
 	plat.dep.Status = "REMOVED"
-	post, token := signedInPost(t, newTestPanelJogoPlat(t, &fakeJogo{}, plat))
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, &fakeJogo{estadoErr: errors.New("connection refused")}, plat))
 
 	rec := post("/servidor/ligar", url.Values{"csrf": {token}})
 	if rec.Code != http.StatusSeeOther {
@@ -4334,7 +4334,9 @@ func TestLigarNaoLigaSemAuditoria(t *testing.T) {
 	log := newFakeAudit()
 	log.failWrite = errors.New("banco fora do ar")
 	h, err := New(Config{
-		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Jogo: &fakeJogo{}, Platform: plat,
+		// Servidor parado não responde: o Ligar pergunta ao jogo antes de republicar.
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(),
+		Jogo: &fakeJogo{estadoErr: errors.New("connection refused")}, Platform: plat,
 		Audit: log, Sessions: session.New(time.Hour),
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
 	})

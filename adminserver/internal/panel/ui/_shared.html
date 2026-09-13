@@ -485,14 +485,20 @@
      sem nunca checar se o servidor estava de pé, então um servidor desligado
      aparecia como no ar por três horas. Uma informação, um desenho. */}}
 {{define "estado-servidor"}}
-<div class="estado {{if .Rodando}}ativa{{else}}parada{{end}}">
+<div class="estado {{if .Rodando}}ativa{{else if .Incerto}}incerta{{else}}parada{{end}}">
   <span class="farol"></span>
   {{if .Rodando}}
   <span class="nome-estado">No ar</span>
   <span class="detalhe">há {{.NoAr}}</span>
+  {{else if .Incerto}}
+  {{/* Nem no ar nem desligado: o jogo não respondeu a tempo. As duas telas dizem
+       a mesma coisa porque desenham este mesmo bloco - foi para isso que ele
+       virou um template só. */}}
+  <span class="nome-estado">Não consegui conferir</span>
+  <span class="detalhe">o jogo não respondeu a tempo; na hospedagem: {{.Estado}}</span>
   {{else}}
   <span class="nome-estado">Desligado</span>
-  <span class="detalhe">estado na hospedagem: {{.Estado}}</span>
+  <span class="detalhe">o jogo não respondeu e a hospedagem diz: {{.Estado}}</span>
   {{end}}
   {{if .Pendentes}}
     <span class="bloq">{{.Pendentes}} edição(ões) aguardando reinício</span>
