@@ -64,8 +64,8 @@ func TestAgendaCongelaOsMinutosDoJogo(t *testing.T) {
 		if p.Duracao != 4 {
 			t.Errorf("%s: janela de %d min, want 4", chave, p.Duracao)
 		}
-		if p.Hora != -1 {
-			t.Errorf("%s: hora %d, want -1 (repete em toda hora)", chave, p.Hora)
+		if !p.TodaHora {
+			t.Errorf("%s: toda_hora falso; o Pesadelo repete dentro de toda hora", chave)
 		}
 	}
 }
@@ -105,11 +105,44 @@ func TestAgendaNaoPublicaOQueNaoTemRelogio(t *testing.T) {
 				t.Errorf("agenda publica %q, que não tem horário legível", l.Chave)
 			}
 		}
-		if l.Hora < -1 || l.Hora > 23 {
-			t.Errorf("%s: hora %d fora de 0..23 (e -1 para o que repete toda hora)", l.Chave, l.Hora)
+		if !l.TodaHora && (l.Hora < 0 || l.Hora > 23) {
+			t.Errorf("%s: hora %d fora de 0..23", l.Chave, l.Hora)
 		}
 		if len(l.Minutos) == 0 {
 			t.Errorf("%s: sem minuto nenhum, não é agenda", l.Chave)
+		}
+	}
+}
+
+// TestAgendaTemChaveParaTodaPortaDePesadelo guards the contract against the
+// cheapest kind of accident: someone adds a Pesadelo tier to the game and the
+// agenda quietly stops mentioning it, or ships it with a key built from the
+// label. Keys are written by hand in pesaJanelas; this is what makes sure the
+// hand-written list stays complete.
+func TestAgendaTemChaveParaTodaPortaDePesadelo(t *testing.T) {
+	comChave := map[dungeon.Gate]string{}
+	for _, j := range pesaJanelas {
+		if j.chave == "" {
+			t.Errorf("porta %s sem chave em pesaJanelas", j.porta.Name())
+		}
+		if outra, repetida := comChave[j.porta]; repetida {
+			t.Errorf("porta %s aparece duas vezes (%q e %q)", j.porta.Name(), outra, j.chave)
+		}
+		comChave[j.porta] = j.chave
+	}
+	for _, g := range dungeon.Gates() {
+		if g.Kind() != dungeon.KindPesadelo {
+			continue
+		}
+		if _, ok := comChave[g]; !ok {
+			t.Errorf("porta de Pesadelo %q não tem linha em pesaJanelas: a agenda não a publicaria", g.Name())
+		}
+	}
+	// A chave não pode ser derivada do rótulo: se um dia o rótulo mudar, a chave
+	// tem que continuar a mesma.
+	for _, j := range pesaJanelas {
+		if j.chave == j.porta.Name() {
+			t.Errorf("chave %q é o próprio rótulo; renomear a porta quebraria o site", j.chave)
 		}
 	}
 }

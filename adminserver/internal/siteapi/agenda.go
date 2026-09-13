@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/dungeon"
@@ -54,34 +53,44 @@ const (
 	pesaPasso     = 20
 )
 
-// pesaPrimeiroMinuto is each tier's first window. The other two follow at +20
-// and +40 (handler/pesadelo.go: openMinute).
-var pesaPrimeiroMinuto = map[dungeon.Gate]int32{
-	dungeon.PesadeloN: 0,
-	dungeon.PesadeloM: 5,
-	dungeon.PesadeloA: 10,
-}
-
-// chaveDaPorta is the stable key the site matches on: the door's name, lowercased
-// and without the accent, so "Pesadelo Místico" travels as pesadelo_mistico.
-func chaveDaPorta(g dungeon.Gate) string {
-	semAcento := strings.NewReplacer("í", "i", "á", "a", "â", "a", "ã", "a", "ç", "c", "é", "e", "ê", "e", "ó", "o", "ú", "u")
-	return strings.ReplaceAll(strings.ToLower(semAcento.Replace(g.Name())), " ", "_")
+// pesaJanelas is each Pesadelo tier: the key the site matches on and the first
+// of its three windows (the others follow at +20 and +40 —
+// handler/pesadelo.go: openMinute).
+//
+// The key is WRITTEN HERE and never derived from the door's label. The label is
+// display text, and rewording one is the most harmless-looking change there is;
+// a key that followed it would change this contract by accident, the site would
+// stop recognising the line, and the page would break with nobody having touched
+// the site. The label keeps coming from Name(), which is exactly what may change
+// without hurting anyone.
+var pesaJanelas = []struct {
+	porta    dungeon.Gate
+	chave    string
+	primeiro int32
+}{
+	{dungeon.PesadeloN, "pesadelo_normal", 0},
+	{dungeon.PesadeloM, "pesadelo_mistico", 5},
+	{dungeon.PesadeloA, "pesadelo_arcano", 10},
 }
 
 // linhaAgenda is one scheduled thing.
 //
 // Numbers, not a sentence: the site writes the sentence, and a number survives a
-// change of wording. Hora is the hour of the day for something daily, and -1 for
-// something that repeats inside EVERY hour.
+// change of wording.
+//
+// TodaHora says whether this repeats inside every hour. It is a field of its own
+// rather than a magic value in Hora: a reader that misses a sentinel renders
+// "às -1h", and nobody ever finds out where the -1 came from.
 type linhaAgenda struct {
-	Chave   string  `json:"chave"`
-	Rotulo  string  `json:"rotulo"`
-	Ligado  bool    `json:"ligado"`
-	Hora    int32   `json:"hora"`
-	Minutos []int32 `json:"minutos"`
-	Duracao int32   `json:"duracao"`
-	Detalhe string  `json:"detalhe"`
+	Chave  string `json:"chave"`
+	Rotulo string `json:"rotulo"`
+	Ligado bool   `json:"ligado"`
+	// TodaHora true: this happens in every hour, and Hora means nothing.
+	TodaHora bool    `json:"toda_hora"`
+	Hora     int32   `json:"hora"`
+	Minutos  []int32 `json:"minutos"`
+	Duracao  int32   `json:"duracao"`
+	Detalhe  string  `json:"detalhe"`
 }
 
 type respostaAgenda struct {
@@ -116,15 +125,15 @@ func agendaDaConfig(evt domain.WorldEventConfig, portas domain.DungeonGateConfig
 		Detalhe: "o aviso sai no minuto :00 da hora marcada, a torre aparece às :06 e a guerra termina às :30",
 	}}
 	// The panel's own order for the three tiers.
-	for _, g := range []dungeon.Gate{dungeon.PesadeloN, dungeon.PesadeloM, dungeon.PesadeloA} {
+	for _, j := range pesaJanelas {
 		out = append(out, linhaAgenda{
-			Chave:   chaveDaPorta(g),
-			Rotulo:  g.Name(),
-			Ligado:  portaAberta(portas, g),
-			Hora:    -1,
-			Minutos: janelasDoPesadelo(pesaPrimeiroMinuto[g]),
-			Duracao: pesaJanelaMin,
-			Detalhe: fmt.Sprintf("três janelas por hora, de %d minutos cada", pesaJanelaMin),
+			Chave:    j.chave,
+			Rotulo:   j.porta.Name(),
+			Ligado:   portaAberta(portas, j.porta),
+			TodaHora: true,
+			Minutos:  janelasDoPesadelo(j.primeiro),
+			Duracao:  pesaJanelaMin,
+			Detalhe:  fmt.Sprintf("três janelas por hora, de %d minutos cada", pesaJanelaMin),
 		})
 	}
 	return out
