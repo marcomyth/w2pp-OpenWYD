@@ -99,7 +99,16 @@ func pergaDaBolsaParaRecomecar(vols map[int]int, e *world.Entity, variant int) (
 // agendarAvancoDaFada queues the ride, and reports whether it took it. False
 // means the caller keeps the old behaviour and hands out the scroll.
 func (d *Dispatcher) agendarAvancoDaFada(w *world.World, leader *world.Entity, variant, room int) bool {
-	if leader == nil || !fadaLevaNaAgua(leader.Equip[fairyEquipSlot].Index) {
+	if leader == nil {
+		return false
+	}
+	if fada := leader.Equip[fairyEquipSlot].Index; !fadaLevaNaAgua(fada) {
+		// Logged and not announced: most parties clear rooms with no fairy at all,
+		// and a panel line on every clear would be noise. It is the one refusal
+		// that happens BEFORE a ride is queued, so without this line a fairy
+		// carried in the bag instead of the slot left no trace anywhere.
+		d.log.Info("fairy ride not scheduled: no carrying fairy in the slot",
+			"leader", leader.Name, "variant", variant, "room", room, "fairy_slot_item", fada)
 		return false
 	}
 	s := w.Session(leader.ID)
@@ -151,15 +160,25 @@ func (d *Dispatcher) tickFadaDaAgua(w *world.World) {
 		s := w.Session(a.leader)
 		// Logged out, no longer the leader, or the fairy came off: whatever earned
 		// the ride is gone, but the room was cleared and the scroll is still owed.
-		if leader == nil || s == nil || s.Mode != world.UserPlay || leader.Leader != 0 ||
-			!fadaLevaNaAgua(leader.Equip[fairyEquipSlot].Index) {
-			d.entregarPergaminhoDaFada(w, leader, a, "lider saiu ou tirou a fada")
+		// Three checks and not one, so the player is told WHICH — the one-line
+		// "saiu ou tirou a fada" left a party that lost its leader wondering about
+		// a fairy nobody had touched.
+		if leader == nil || s == nil || s.Mode != world.UserPlay {
+			d.entregarPergaminhoDaFada(w, leader, a, motivoFadaSaiuDoJogo)
+			continue
+		}
+		if leader.Leader != 0 {
+			d.entregarPergaminhoDaFada(w, leader, a, motivoFadaNaoELider)
+			continue
+		}
+		if !fadaLevaNaAgua(leader.Equip[fairyEquipSlot].Index) {
+			d.entregarPergaminhoDaFada(w, leader, a, motivoFadaForaDoSlot)
 			continue
 		}
 		// Walked out of the dungeon on foot: moving the party from outside would
 		// teleport people who already left the run.
 		if !insideAnyWaterRoom(a.variant, leader.X, leader.Y) {
-			d.entregarPergaminhoDaFada(w, leader, a, "lider fora da agua")
+			d.entregarPergaminhoDaFada(w, leader, a, motivoFadaForaDaAgua)
 			continue
 		}
 		proxima := proximaSalaDaAgua(a.room)
@@ -184,7 +203,7 @@ func (d *Dispatcher) tickFadaDaAgua(w *world.World) {
 			}
 			d.log.Info("fairy advance gave up: next room busy",
 				"variant", a.variant, "room", proxima, "occupant", ocupante)
-			d.entregarPergaminhoDaFada(w, leader, a, "proxima sala ocupada")
+			d.entregarPergaminhoDaFada(w, leader, a, motivoFadaSalaOcupada)
 			continue
 		}
 		// Charged only now, with the room about to open: every path above leaves
@@ -202,6 +221,31 @@ func (d *Dispatcher) tickFadaDaAgua(w *world.World) {
 	d.events.aguaFada = restantes
 }
 
+// Why a ride was given up. They go to the log AND to the player's panel: a
+// fairy that stopped used to look exactly like a fairy that never worked, and
+// telling the two apart took someone reading the server log.
+//
+// Plain ASCII on purpose. The panel copies the bytes raw (EncodeExpPanelBody)
+// and the client reads CP1252, so an accent here reaches the screen as mojibake.
+const (
+	motivoFadaSaiuDoJogo  = "saiu do jogo"
+	motivoFadaNaoELider   = "nao e mais lider"
+	motivoFadaForaDoSlot  = "fada fora do slot"
+	motivoFadaForaDaAgua  = "fora da agua"
+	motivoFadaSalaOcupada = "proxima sala ocupada"
+)
+
+// textoDaFadaQueParou is the panel line for a ride given up after room.
+//
+// A numbered room still hands the scroll over, so the line says what to do with
+// it; after the boss there is nothing to hand back, so it only says why.
+func textoDaFadaQueParou(room int, motivo string) string {
+	if room >= waterDeadRoom {
+		return "A fada parou: " + motivo + "."
+	}
+	return waterRoomLabel(room) + " limpa! A fada parou: " + motivo + ". Use o proximo pergaminho."
+}
+
 // entregarPergaminhoDaFada is every failed path: the party gets the scroll it
 // would have got without a fairy, and the announcement that goes with it.
 func (d *Dispatcher) entregarPergaminhoDaFada(w *world.World, leader *world.Entity, a avancoDaFada, motivo string) {
@@ -215,13 +259,13 @@ func (d *Dispatcher) entregarPergaminhoDaFada(w *world.World, leader *world.Enti
 	// A failed lap after the boss has nothing to hand back: the boss pays loot,
 	// never a scroll, and rewardBase+9 is not an item at all. The cycle just ends.
 	if a.room >= waterDeadRoom {
-		d.announceWaterRoom(w, leader, "A fada para aqui.")
+		d.announceWaterRoom(w, leader, textoDaFadaQueParou(a.room, motivo))
 		d.log.Info("fairy cycle ended after the boss",
 			"leader", leader.Name, "variant", a.variant, "motivo", motivo)
 		return
 	}
 	d.grantNextWaterScroll(w, leader, a.variant, a.room)
-	d.announceWaterRoom(w, leader, waterRoomLabel(a.room)+" limpa! Use o proximo pergaminho.")
+	d.announceWaterRoom(w, leader, textoDaFadaQueParou(a.room, motivo))
 	d.log.Info("fairy advance fell back to the scroll",
 		"leader", leader.Name, "variant", a.variant, "room", a.room, "motivo", motivo)
 }

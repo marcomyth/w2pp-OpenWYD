@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -224,6 +226,44 @@ func TestACaronaValeNasTresCorrentes(t *testing.T) {
 			if quer := proximaSalaDaAgua(room); sala != quer {
 				t.Errorf("corrente %d: a fada leva da sala %d para a %d, e o pergaminho para a %d",
 					v, room, quer, sala)
+			}
+		}
+	}
+}
+
+// TestTextoDaFadaQueParou pins the line the player sees when the fairy gives a
+// ride up. It exists because "the fairy stopped" was indistinguishable from "the
+// fairy never worked" without reading the server log.
+func TestTextoDaFadaQueParou(t *testing.T) {
+	motivos := []string{
+		motivoFadaSaiuDoJogo, motivoFadaNaoELider, motivoFadaForaDoSlot,
+		motivoFadaForaDaAgua, motivoFadaSalaOcupada,
+	}
+	for _, motivo := range motivos {
+		for _, room := range []int{0, waterDeadRoom - 1, waterBossRoom} {
+			texto := textoDaFadaQueParou(room, motivo)
+			if !strings.Contains(texto, motivo) {
+				t.Errorf("sala %d: %q não diz o motivo %q", room, texto, motivo)
+			}
+			// The panel copies raw bytes and the client reads CP1252: anything
+			// outside ASCII arrives as mojibake.
+			for i, r := range texto {
+				if r >= 0x80 {
+					t.Errorf("sala %d: %q tem %q fora de ASCII na posição %d", room, texto, r, i)
+					break
+				}
+			}
+			if len(texto) > protocol.MessageLength {
+				t.Errorf("sala %d: %q tem %d bytes, o painel corta em %d", room, texto, len(texto), protocol.MessageLength)
+			}
+			// After the boss nothing is handed back, so telling the player to use
+			// the next scroll would send them looking for one that does not exist.
+			manda := strings.Contains(texto, "Use o proximo pergaminho")
+			if room >= waterDeadRoom && manda {
+				t.Errorf("boss: %q manda usar um pergaminho que não foi entregue", texto)
+			}
+			if room < waterDeadRoom && !manda {
+				t.Errorf("sala %d: %q não diz o que fazer com o pergaminho entregue", room, texto)
 			}
 		}
 	}
