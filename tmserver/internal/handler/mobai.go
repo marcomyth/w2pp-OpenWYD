@@ -105,6 +105,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 		}
 	})
 	d.guardQuest256Areas(w)
+	d.clearQuestAreas(w)
 	d.guardGuildAreas(w)
 	d.guardCampoDeTreino(w)
 	d.regenPlayers(w)
