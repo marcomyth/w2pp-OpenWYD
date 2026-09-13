@@ -272,8 +272,8 @@ func (d *Dispatcher) odinFreshResult(w *world.World, s *world.Session, e *world.
 }
 
 // odinDestraveLv40 is id 4: no item is produced, only the Celestial level-40
-// gate flips. Reuses destravarCelestial (chat.go), the same flag /destravar40
-// already sets — the caller's pre-gate already confirmed Level==39,
+// gate flips. Chama destravarCelestialFor (chat.go), que é hoje o único caminho
+// até essa bandeira — o caller's pre-gate already confirmed Level==39,
 // CelLv40==0 and ClassMaster==Celestial.
 func (d *Dispatcher) odinDestraveLv40(w *world.World, s *world.Session, e *world.Entity, roll int) {
 	chance, _ := d.odinChance(combine.OdinDestraveLv40)

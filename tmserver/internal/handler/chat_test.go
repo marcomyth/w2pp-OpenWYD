@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/binary"
 	"net"
 	"strings"
 	"testing"
@@ -441,125 +440,35 @@ func TestWhisperBlocked(t *testing.T) {
 	}
 }
 
-// TestCommandDestravar40 verifies /destravar40 on a Celestial sets the Lv40 gate
-// (signalled by MsgCombineComplete) and the flag persists through a save.
-func TestCommandDestravar40(t *testing.T) {
-	db := celestialDB(classMasterCelestial)
-	addr, stop, _ := startServerClock(t, db)
-	defer stop()
-	c := enterWorld(t, addr)
-	defer c.Close()
-
-	whisperFrame(t, c, "destravar40", "")
-	ty, p, ok := readMaybe(t, c)
-	if !ok || ty != protocol.MsgCombineComplete {
-		t.Fatalf("got %#x ok=%v, want MsgCombineComplete", ty, ok)
-	}
-	if parm := int16(binary.LittleEndian.Uint16(p)); parm != celestialUnlockParm {
-		t.Errorf("CombineComplete parm = %d, want %d", parm, celestialUnlockParm)
-	}
-
-	// Logout flushes the character save; the gate flag must ride along.
-	send(t, c, protocol.MsgCharacterLogout, nil)
-	expect(t, c, protocol.MsgCNFCharacterLogout)
-	char, n := db.lastSavedChar()
-	if n == 0 || char.CelLv40 != 1 {
-		t.Errorf("saved CelLv40 = %d (n=%d), want 1", char.CelLv40, n)
-	}
-}
-
-// TestCommandDestravarNonCelestial verifies the unlock is a no-op for a non-Celestial
-// (Mortal): the command is still consumed (not delivered as a whisper) but nothing
-// is sent and no flag is set.
-func TestCommandDestravarNonCelestial(t *testing.T) {
-	db := celestialDB(classMasterMortal)
-	addr, stop, _ := startServerClock(t, db)
-	defer stop()
-	c := enterWorld(t, addr)
-	defer c.Close()
-
-	whisperFrame(t, c, "destravar40", "")
-	if ty, _, ok := readMaybe(t, c); ok {
-		t.Errorf("/destravar40 on a mortal produced %#x; want a silent no-op", ty)
-	}
-}
-
-// TestCommandDestravar90 verifies /destravar90 grants the Cythera Mística (item
-// 3502) to carry, signals the client, and persists both the item and the Lv90 gate.
-func TestCommandDestravar90(t *testing.T) {
-	db := celestialDB(classMasterCelestial)
-	addr, stop, _ := startServerClock(t, db)
-	defer stop()
-	c := enterWorld(t, addr)
-	defer c.Close()
-
-	whisperFrame(t, c, "destravar90", "")
-	expect(t, c, protocol.MsgSendItem)        // Cythera Mística into carry
-	expect(t, c, protocol.MsgCombineComplete) // unlock signal
-	expect(t, c, protocol.MsgMotion)          // unlock emote
-
-	send(t, c, protocol.MsgCharacterLogout, nil)
-	expect(t, c, protocol.MsgCNFCharacterLogout)
-	char, n := db.lastSavedChar()
-	if n == 0 || char.CelLv90 != 1 {
-		t.Errorf("saved CelLv90 = %d (n=%d), want 1", char.CelLv90, n)
-	}
-	if !hasItem(char.Carry, itemCytheraMistica) {
-		t.Errorf("saved carry missing Cythera Mística %d: %+v", itemCytheraMistica, char.Carry)
-	}
-}
-
-// TestCommandDestravarPlayerDenied: a player typing any of the three unlock
-// commands gets nothing — no flag, no item, no signal — while the command is
-// still swallowed (not delivered as a whisper to someone named "destravar90").
-// Anybody could type them before, which skipped every requirement of the 90 lock
-// and of the Arcana.
-func TestCommandDestravarPlayerDenied(t *testing.T) {
+// TestComandosDeDestraveSairam prende a remoção: os três nomes não são mais
+// comando, nem para a equipe. Quem os sussurra agora recebe o aviso de
+// "não conectado", porque o servidor os trata como qualquer outro nome de
+// jogador — que é exatamente o sinal de que a porta do bate-papo fechou.
+//
+// O destrave continua existindo pelo caminho do jogador: a combinação do Odin
+// para o 40 e a Pedra da Fúria para o 90 e para a Arcana. Quem confere a parte
+// do Odin é combine_odin_test.go, que chama a mesma destravarCelestialFor.
+func TestComandosDeDestraveSairam(t *testing.T) {
 	for _, cmd := range []string{"destravar40", "destravar90", "arcana"} {
 		t.Run(cmd, func(t *testing.T) {
-			db := celestialDB(classMasterCelestial)
-			db.accounts["tester"].role = "player"
+			db := celestialDB(classMasterCelestial) // conta de equipe, o caso mais forte
 			addr, stop, _ := startServerClock(t, db)
 			defer stop()
 			c := enterWorld(t, addr)
 			defer c.Close()
 
 			whisperFrame(t, c, cmd, "")
-			if ty, _, ok := readMaybe(t, c); ok {
-				t.Errorf("/%s from a player produced %#x; want silence", cmd, ty)
+			ty, p, ok := readMaybe(t, c)
+			if !ok || ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeNotConnected {
+				t.Errorf("/%s respondeu %#x/%d; queria o aviso de não conectado", cmd, ty, noticeCode(t, p))
 			}
 			send(t, c, protocol.MsgCharacterLogout, nil)
 			expect(t, c, protocol.MsgCNFCharacterLogout)
 			char, _ := db.lastSavedChar()
 			if char.CelLv40 != 0 || char.CelLv90 != 0 || char.CelCircle != 0 {
-				t.Errorf("/%s from a player set Lv40/Lv90/Circle = %d/%d/%d, want 0/0/0", cmd, char.CelLv40, char.CelLv90, char.CelCircle)
+				t.Errorf("/%s marcou Lv40/Lv90/Circle = %d/%d/%d, queria 0/0/0", cmd, char.CelLv40, char.CelLv90, char.CelCircle)
 			}
 		})
-	}
-}
-
-// TestCommandArcana verifies /arcana places the reward (item 3507) in Equip[1], sets
-// the Circle flag, and persists both.
-func TestCommandArcana(t *testing.T) {
-	db := celestialDB(classMasterCelestial)
-	addr, stop, _ := startServerClock(t, db)
-	defer stop()
-	c := enterWorld(t, addr)
-	defer c.Close()
-
-	whisperFrame(t, c, "arcana", "")
-	expect(t, c, protocol.MsgSendItem)        // reward into Equip[1]
-	expect(t, c, protocol.MsgCombineComplete) // signal
-	expect(t, c, protocol.MsgMotion)          // emote
-
-	send(t, c, protocol.MsgCharacterLogout, nil)
-	expect(t, c, protocol.MsgCNFCharacterLogout)
-	char, n := db.lastSavedChar()
-	if n == 0 || char.CelCircle != 1 {
-		t.Errorf("saved CelCircle = %d (n=%d), want 1", char.CelCircle, n)
-	}
-	if !hasItem(char.Equip, arcanaItemIndex) {
-		t.Errorf("saved equip missing arcana item %d: %+v", arcanaItemIndex, char.Equip)
 	}
 }
 

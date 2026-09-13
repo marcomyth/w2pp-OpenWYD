@@ -115,7 +115,7 @@ func CommandReference() CommandBus {
 					"Só SOBE: pedir um nível igual ou menor que o atual não faz nada.",
 					"Teto de 399 (Mortal/Arch); valores maiores são cortados.",
 					"Em personagem Celestial o número pedido não é o que sai: o Exp é calculado na curva Mortal mas consumido na curva Celestial, cujo teto é 199.",
-					"Os portões celestiais de 39 e 89 continuam travando sem /destravar40 e /destravar90.",
+					"Os portões celestiais de 39 e 89 continuam travando: o 39 abre na combinação do Destrave Lv40 no Odin, o 89 com a Pedra da Fúria. Não há comando que adiante.",
 				},
 			},
 			{
