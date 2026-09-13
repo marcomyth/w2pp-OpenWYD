@@ -440,7 +440,6 @@ func TestWhisperBlocked(t *testing.T) {
 	}
 }
 
-
 // TestComandosDeDestraveSairam prende a remoção: os três nomes não são mais
 // comando, nem para a equipe. Quem os sussurra agora recebe o aviso de
 // "não conectado", porque o servidor os trata como qualquer outro nome de
@@ -472,6 +471,7 @@ func TestComandosDeDestraveSairam(t *testing.T) {
 		})
 	}
 }
+
 // TestCommandNickGuildless verifies /nick on a guildless target reports "Sem
 // guilda" plus its (zeroed) citizenship/fame.
 func TestCommandNickGuildless(t *testing.T) {
