@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -176,6 +177,54 @@ func (c *Client) do(ctx context.Context, query string, vars map[string]any, out 
 	return nil
 }
 
+// LatestRedeployable returns the most recent deployment that can be turned back
+// on - the most recent one that is not SKIPPED.
+//
+// This is the question the panel actually has: "which deployment speaks for this
+// service". A commit that touches only one service leaves a SKIPPED record on
+// top of every OTHER service, and that record answers nothing: taking it as the
+// service's state reads the game as off while it is up, and pressing Ligar on it
+// is refused by the hosting.
+//
+// It asks for a page of recent ones rather than just the first: skipped records
+// pile up, one per unrelated deploy. Vazia a janela inteira, devolve
+// ErrSemRedeployavel - a hospedagem respondeu, e isso precisa ser dito assim.
+func (c *Client) LatestRedeployable(ctx context.Context) (Deployment, error) {
+	const q = `query($input: DeploymentListInput!) {
+	  deployments(input: $input, first: 50) {
+	    edges { node { id status createdAt } }
+	  }
+	}`
+	vars := map[string]any{
+		"input": map[string]any{
+			"projectId":     c.cfg.ProjectID,
+			"environmentId": c.cfg.EnvironmentID,
+			"serviceId":     c.cfg.ServiceID,
+		},
+	}
+
+	var out struct {
+		Deployments struct {
+			Edges []struct {
+				Node struct {
+					ID        string    `json:"id"`
+					Status    string    `json:"status"`
+					CreatedAt time.Time `json:"createdAt"`
+				} `json:"node"`
+			} `json:"edges"`
+		} `json:"deployments"`
+	}
+	if err := c.do(ctx, q, vars, &out); err != nil {
+		return Deployment{}, err
+	}
+	for _, e := range out.Deployments.Edges {
+		if Redeployavel(e.Node.Status) {
+			return Deployment{ID: e.Node.ID, Status: e.Node.Status, CreatedAt: e.Node.CreatedAt}, nil
+		}
+	}
+	return Deployment{}, fmt.Errorf("%w: serviço %s, últimas %d", ErrSemRedeployavel, c.cfg.ServiceID, JanelaDeployments)
+}
+
 // LatestAny returns the service's most recent deployment whatever its state.
 //
 // Latest filters to successful ones, which is right for "how long has it been
@@ -223,7 +272,42 @@ func (c *Client) LatestAny(ctx context.Context) (Deployment, error) {
 // crashed, removed — and only one of them means players can connect. Anything
 // else is offered to the operator as "turn it on", which is safe to press when
 // it is already on.
-func NoAr(status string) bool { return status == "SUCCESS" }
+func NoAr(status string) bool { return status == EstadoNoAr }
+
+// Os estados que este projeto produz de fato, medidos no histórico dos sete
+// serviços em 13/09/2026: SUCCESS, SKIPPED e REMOVED.
+const (
+	EstadoNoAr = "SUCCESS"
+	// EstadoPulado é o registro que a Railway cria para um serviço que o commit
+	// NÃO tocou. Ele não fala deste serviço: não diz que subiu, não diz que caiu,
+	// e não tem imagem construída.
+	EstadoPulado = "SKIPPED"
+)
+
+// Redeployavel diz se dá para religar por este registro.
+//
+// SKIPPED não dá, e isso foi MEDIDO em produção: em 13/09/2026 o botão Ligar
+// caiu num registro pulado e a Railway recusou com "Cannot redeploy without a
+// snapshot" - não existe imagem para subir de volta.
+//
+// REMOVED continua valendo de propósito: é o estado em que uma publicação fica
+// depois de parada (é o que o Desligar produz), e é exatamente essa que o Ligar
+// precisa achar. Filtrar REMOVED deixaria a equipe com o servidor desligado e
+// sem botão, que é o problema que o LatestAny existe para evitar.
+func Redeployavel(status string) bool { return status != EstadoPulado }
+
+// JanelaDeployments é quantas publicações recentes olhamos para achar uma
+// republicável. Registro PULADO se acumula, um por deploy de outro serviço, e
+// uma semana de commits alheios empilha vários.
+const JanelaDeployments = 50
+
+// ErrSemRedeployavel: a hospedagem RESPONDEU, e nenhuma publicação da janela dá
+// para republicar.
+//
+// É um caso diferente de não conseguir falar com ela, e quem lê o painel age
+// diferente nos dois: aqui não adianta esperar a hospedagem voltar. Confundir os
+// dois seria contar à equipe uma coisa falsa sobre onde está o problema.
+var ErrSemRedeployavel = errors.New("plataforma: nenhuma publicação republicável na janela")
 
 // Stop takes the deployment down without deleting the service.
 //

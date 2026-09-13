@@ -269,6 +269,8 @@ type Platform interface {
 	Latest(ctx context.Context) (plataforma.Deployment, error)
 	Restart(ctx context.Context, deploymentID string) error
 	LatestAny(ctx context.Context) (plataforma.Deployment, error)
+	// LatestRedeployable pula os registros PULADOS, que não falam deste serviço.
+	LatestRedeployable(ctx context.Context) (plataforma.Deployment, error)
 	Stop(ctx context.Context, deploymentID string) error
 	Redeploy(ctx context.Context, deploymentID string) error
 }
@@ -1696,6 +1698,11 @@ func (h *Handler) setPreco(w http.ResponseWriter, r *http.Request) {
 // --- estado do servidor de jogo e reinício ---
 
 // estadoServidor is what the home page shows about the game server.
+// tempoConfereJogo is the short deadline for the home card's liveness check.
+// The game client's own timeout is 8 s, which is right for an action a person
+// asked for and far too long for the page the staff land on.
+const tempoConfereJogo = 1500 * time.Millisecond
+
 type estadoServidor struct {
 	Conhecido    bool   // false when the platform could not be reached
 	Erro         string // why, when it could not
@@ -1711,6 +1718,10 @@ type estadoServidor struct {
 	// Desligar button, crashed, or still building. The page offers Ligar then,
 	// which is safe to press when it is already running.
 	Rodando bool
+	// Incerto: the hosting record does not say it is up AND the game did not
+	// answer in time. The card must say "could not check" then, never "off": a
+	// slow answer is not a stopped server, and the staff act on this card.
+	Incerto bool
 	Estado  string // the platform's own word for it, shown when not running
 }
 
@@ -1723,11 +1734,23 @@ func (h *Handler) statusServidor(r *http.Request) estadoServidor {
 	if h.cfg.Platform == nil {
 		return estadoServidor{}
 	}
-	// LatestAny, not Latest: a stopped deployment is exactly the one this page
-	// has to be able to show, and filtering to successful ones would render the
-	// server as unreachable instead of as off.
-	dep, err := h.cfg.Platform.LatestAny(r.Context())
-	if err != nil {
+	// LatestRedeployable, not LatestAny: a commit that touches only one service
+	// leaves a SKIPPED record on top of every OTHER service, and esse registro não
+	// fala deste serviço. Tomá-lo como estado escrevia "servidor desligado" na home
+	// com o jogo no ar (13/09/2026), e o botão Ligar apontava para um id que a
+	// hospedagem recusa republicar. Uma publicação PARADA continua sendo achada,
+	// que é o motivo de não filtrar por sucesso.
+	dep, err := h.cfg.Platform.LatestRedeployable(r.Context())
+	switch {
+	case errors.Is(err, plataforma.ErrSemRedeployavel):
+		// A hospedagem FALOU: respondeu na hora e por completo, e nenhuma das
+		// publicações da janela dá para religar. Dizer "não consegui falar com a
+		// hospedagem" aqui apontaria a equipe para o lugar errado.
+		h.cfg.Logger.Warn("no redeployable deployment in the window", "err", err)
+		return estadoServidor{Erro: fmt.Sprintf(
+			"A hospedagem respondeu, mas não achei nenhuma publicação que dê para religar nas últimas %d deste serviço.",
+			plataforma.JanelaDeployments)}
+	case err != nil:
 		h.cfg.Logger.Warn("platform status unavailable", "err", err)
 		return estadoServidor{Erro: "Não consegui falar com a hospedagem: " + explicaPlataforma(err)}
 	}
@@ -1735,6 +1758,26 @@ func (h *Handler) statusServidor(r *http.Request) estadoServidor {
 	est := estadoServidor{
 		Conhecido: true, DeployID: dep.ID, NoAr: idade(dep.CreatedAt, time.Now()),
 		Rodando: plataforma.NoAr(dep.Status), Estado: dep.Status,
+	}
+	// A VERDADE sobre estar rodando é o jogo responder, não o papel da
+	// hospedagem. Só pergunta quando o papel diria "desligado", porque é só aí
+	// que a resposta muda alguma coisa - e cada chamada destas entra na fila do
+	// laço único do jogo, que serve os jogadores primeiro.
+	if !est.Rodando && h.cfg.Jogo != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), tempoConfereJogo)
+		defer cancel()
+		switch _, err := h.cfg.Jogo.Estado(ctx); {
+		case err == nil:
+			est.Rodando = true
+		case errors.Is(err, context.DeadlineExceeded):
+			// Não respondeu a tempo. Isso não é "desligado": a página diz que não
+			// conseguiu conferir, em vez de afirmar o que não sabe.
+			est.Incerto = true
+			h.cfg.Logger.Warn("game did not answer the status check in time", "estado_hospedagem", dep.Status)
+		default:
+			// Recusa de conexão é resposta: não tem ninguém escutando.
+			h.cfg.Logger.Info("game not answering; hosting agrees it is off", "estado_hospedagem", dep.Status, "err", err)
+		}
 	}
 	if !est.Rodando {
 		// Pending edits are counted against a boot that has not happened. Asking

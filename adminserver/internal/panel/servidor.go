@@ -1,6 +1,7 @@
 package panel
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -302,7 +303,7 @@ func (h *Handler) desligarServidor(w http.ResponseWriter, r *http.Request) {
 		aviso = "O servidor vai sair do ar agora."
 	}
 
-	dep, err := h.cfg.Platform.LatestAny(r.Context())
+	dep, err := h.cfg.Platform.LatestRedeployable(r.Context())
 	if err != nil {
 		h.cfg.Logger.Error("shutdown: platform unavailable", "err", err)
 		h.voltaComAviso(w, r, "/servidor",
@@ -350,10 +351,15 @@ func (h *Handler) desligarServidor(w http.ResponseWriter, r *http.Request) {
 
 // ligarServidor brings a stopped deployment back.
 //
-// It redeploys whatever the most recent deployment is, whatever its state, and
-// not the most recent SUCCESSFUL one: stopping may well leave a status that the
-// success filter hides, and then the button that fixes the situation would be
-// the one that could not find anything to press.
+// It redeploys the most recent REDEPLOYABLE deployment, and not the most recent
+// SUCCESSFUL one: parar deixa um estado que o filtro de sucesso esconderia, e aí
+// o botão que conserta a situação seria justamente o que não acha nada para
+// apertar.
+//
+// Redeployável exclui só o PULADO, e por medição: um commit que toca apenas um
+// serviço deixa um registro SKIPPED no topo de todos os OUTROS, sem imagem
+// construída. Em 13/09/2026 o botão caiu num desses e a hospedagem recusou com
+// "Cannot redeploy without a snapshot", com o jogo no ar o tempo todo.
 func (h *Handler) ligarServidor(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
 		if err != nil {
@@ -363,12 +369,29 @@ func (h *Handler) ligarServidor(w http.ResponseWriter, r *http.Request) {
 	}
 	sess, _ := staffFrom(r.Context())
 
-	dep, err := h.cfg.Platform.LatestAny(r.Context())
+	dep, err := h.cfg.Platform.LatestRedeployable(r.Context())
 	if err != nil {
 		h.cfg.Logger.Error("start: platform unavailable", "err", err)
 		h.voltaComAviso(w, r, "/servidor",
 			"Não liguei: "+explicaPlataforma(err))
 		return
+	}
+
+	// Pergunta ao jogo ANTES de republicar. Enquanto o botão apontava para um
+	// registro pulado, apertá-lo com o servidor no ar era inofensivo: a
+	// hospedagem recusava. Agora ele aponta para uma publicação de verdade, e
+	// republicar a que está rodando derruba o servidor SEM esvaziar - que é
+	// justamente o que o Reinício seguro existe para evitar.
+	if h.cfg.Jogo != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), tempoConfereJogo)
+		defer cancel()
+		if _, err := h.cfg.Jogo.Estado(ctx); err == nil {
+			h.cfg.Logger.Info("start refused: game already answering", "actor", sess.AccountName)
+			h.voltaComAviso(w, r, "/servidor",
+				"Não liguei: o servidor JÁ está no ar e acabou de responder. "+
+					"Para trocar a versão ou aplicar edições, use o Reinício seguro, que esvazia antes.")
+			return
+		}
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{

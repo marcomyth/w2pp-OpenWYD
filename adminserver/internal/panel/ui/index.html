@@ -124,12 +124,20 @@
   {{end}}
 
   {{if .Servidor.Conhecido}}
-    {{if not .Servidor.Rodando}}
+    {{if .Servidor.Incerto}}
+    <a class="tarefa atencao" href="/servidor">
+      <span class="quanto">?</span>
+      <span class="oque">
+        <strong>Não consegui conferir o servidor de jogo</strong>
+        <span class="detalhe">ele não respondeu a tempo; estado na hospedagem: {{.Servidor.Estado}}</span>
+      </span>
+    </a>
+    {{else if not .Servidor.Rodando}}
     <a class="tarefa urgente" href="/servidor">
       <span class="quanto">!</span>
       <span class="oque">
         <strong>O servidor de jogo está desligado</strong>
-        <span class="detalhe">estado na hospedagem: {{.Servidor.Estado}}</span>
+        <span class="detalhe">ele não respondeu e a hospedagem diz: {{.Servidor.Estado}}</span>
       </span>
     </a>
     {{else if .Servidor.Pendentes}}
