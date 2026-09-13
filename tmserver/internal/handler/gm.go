@@ -273,8 +273,14 @@ func (d *Dispatcher) gmItem(w *world.World, s *world.Session, rest string) {
 	if len(fields) == 0 {
 		return
 	}
+	// maxItemList, not world.MaxItem: MaxItem is the size of the GROUND item
+	// array (pItem[]), which has nothing to do with how high a catalogue index
+	// goes. With MaxItem the guard silently refused every id from 5000 up —
+	// ItemList.csv reaches 5750, so the Escritura do Pesadelo (5137) and the
+	// Escritura Magica (5136) could not be granted at all, and the refusal
+	// logged nothing.
 	id, err := strconv.Atoi(fields[0])
-	if err != nil || id <= 0 || id >= world.MaxItem {
+	if err != nil || id <= 0 || id >= maxItemList {
 		return
 	}
 	args := fields[1:]

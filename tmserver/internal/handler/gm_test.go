@@ -272,3 +272,25 @@ func expectStillConnected(t *testing.T, c net.Conn) {
 	}
 	t.Fatalf("expected still-connected, got %v (disconnected)", err)
 }
+
+// TestGMItemAcimaDe5000 is the regression for the bound that was wrong: the guard
+// used world.MaxItem, the size of the GROUND item array (pItem[]), where the
+// catalogue bound belongs. Every index from 5000 up was refused, silently — no
+// message to the player and no log line — and ItemList.csv reaches 5750.
+//
+// 5137 is the Escritura do Pesadelo, which is how a Celestial buys entries to the
+// Pesadelo Arcano, so the bug made that dungeon ungrantable by staff.
+func TestGMItemAcimaDe5000(t *testing.T) {
+	addr, stop, _ := startServerClock(t, gmDB())
+	defer stop()
+	c := enterWorldAs(t, addr, "mod")
+	defer c.Close()
+
+	gmFrame(t, c, "item 5137")
+
+	got := expect(t, c, protocol.MsgSendItem)
+	if idx := le16(got[4:6]); idx != 5137 {
+		t.Errorf("item index on the wire = %d, want 5137 — an id past world.MaxItem\n"+
+			"(5000) used to be dropped by the guard without a word", idx)
+	}
+}
