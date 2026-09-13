@@ -487,6 +487,9 @@ type linhaKill struct {
 	Reino    int16  `json:"reino"`
 	Nivel    int32  `json:"nivel"`
 	Kills    int32  `json:"kills"`
+	// Guilda is empty for a character without one. Empty, not a word: what to
+	// show in that cell is the site's decision, not this endpoint's.
+	Guilda string `json:"guilda"`
 }
 
 // rankingKills is the kill board. No account in the path: it is the same public

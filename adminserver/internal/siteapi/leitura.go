@@ -104,6 +104,10 @@ type KillRanking struct {
 	Reino    int16 // clan
 	Nivel    int32
 	Kills    int32 // tot_kill
+	// Guilda is the guild's registered name, empty when the character has none.
+	// The join is LEFT on purpose: guild_id = 0 is "no guild" and must not drop the
+	// line from the board.
+	Guilda string
 }
 
 // Kills lists the kill ranking, most kills first, plus the total the filter
@@ -128,9 +132,11 @@ type KillRanking struct {
 // to `account`.
 func (l *Leitor) Kills(ctx context.Context, limite, deslocamento int) ([]KillRanking, int, error) {
 	rows, err := l.pool.Query(ctx, `
-		SELECT c.name, c.class, c.class_master, c.clan, c.level, c.tot_kill, count(*) OVER()
+		SELECT c.name, c.class, c.class_master, c.clan, c.level, c.tot_kill,
+		       COALESCE(g.name, ''), count(*) OVER()
 		  FROM character c
 		  JOIN account a ON a.id = c.account_id
+		  LEFT JOIN guild g ON g.id = c.guild_id
 		 WHERE c.tot_kill > 0
 		   AND c.level < 1000
 		   AND a.role = 'player'
@@ -146,7 +152,7 @@ func (l *Leitor) Kills(ctx context.Context, limite, deslocamento int) ([]KillRan
 	total := 0
 	for rows.Next() {
 		var k KillRanking
-		if err := rows.Scan(&k.Nome, &k.Classe, &k.Evolucao, &k.Reino, &k.Nivel, &k.Kills, &total); err != nil {
+		if err := rows.Scan(&k.Nome, &k.Classe, &k.Evolucao, &k.Reino, &k.Nivel, &k.Kills, &k.Guilda, &total); err != nil {
 			return nil, 0, fmt.Errorf("siteapi: scan kill ranking: %w", err)
 		}
 		out = append(out, k)
