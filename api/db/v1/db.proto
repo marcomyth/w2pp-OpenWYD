@@ -135,6 +135,12 @@ service AccountService {
   // command. A missing wallet row is zero, not an error.
   rpc ShopPoints(ShopPointsRequest) returns (ShopPointsResponse);
 
+  // ClaimNewbieKit takes the once-per-account newbie kit (0062_newbie_kit) for
+  // the in-game /novato command. granted is true only for the call that actually
+  // took it: the gate is an INSERT ... ON CONFLICT DO NOTHING, so two characters
+  // of the same account asking at the same instant cannot both be served.
+  rpc ClaimNewbieKit(ClaimNewbieKitRequest) returns (ClaimNewbieKitResponse);
+
   // Guild lifecycle and war/city state (issue #114). These RPCs are modern
   // tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
   // GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -577,6 +583,14 @@ message AddShopPointsResponse { int32 balance = 1; }
 
 message ShopPointsRequest { int64 account_id = 1; }
 message ShopPointsResponse { int32 balance = 1; }
+
+message ClaimNewbieKitRequest {
+  int64 account_id = 1;
+  string character_name = 2; // informativo: quem pediu, para o suporte
+}
+message ClaimNewbieKitResponse {
+  bool granted = 1; // false = a conta já havia recebido o kit
+}
 
 message Guild {
   uint32 id = 1;      // legacy ushort guild id

@@ -53,6 +53,7 @@ const (
 	AccountService_ClearAllPresence_FullMethodName        = "/db.v1.AccountService/ClearAllPresence"
 	AccountService_AddShopPoints_FullMethodName           = "/db.v1.AccountService/AddShopPoints"
 	AccountService_ShopPoints_FullMethodName              = "/db.v1.AccountService/ShopPoints"
+	AccountService_ClaimNewbieKit_FullMethodName          = "/db.v1.AccountService/ClaimNewbieKit"
 	AccountService_CreateGuild_FullMethodName             = "/db.v1.AccountService/CreateGuild"
 	AccountService_SetGuildMember_FullMethodName          = "/db.v1.AccountService/SetGuildMember"
 	AccountService_LeaveGuild_FullMethodName              = "/db.v1.AccountService/LeaveGuild"
@@ -190,6 +191,11 @@ type AccountServiceClient interface {
 	// ShopPoints reads one account's shop-points balance, for the in-game /pontos
 	// command. A missing wallet row is zero, not an error.
 	ShopPoints(ctx context.Context, in *ShopPointsRequest, opts ...grpc.CallOption) (*ShopPointsResponse, error)
+	// ClaimNewbieKit takes the once-per-account newbie kit (0062_newbie_kit) for
+	// the in-game /novato command. granted is true only for the call that actually
+	// took it: the gate is an INSERT ... ON CONFLICT DO NOTHING, so two characters
+	// of the same account asking at the same instant cannot both be served.
+	ClaimNewbieKit(ctx context.Context, in *ClaimNewbieKitRequest, opts ...grpc.CallOption) (*ClaimNewbieKitResponse, error)
 	// Guild lifecycle and war/city state (issue #114). These RPCs are modern
 	// tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
 	// GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -480,6 +486,16 @@ func (c *accountServiceClient) ShopPoints(ctx context.Context, in *ShopPointsReq
 	return out, nil
 }
 
+func (c *accountServiceClient) ClaimNewbieKit(ctx context.Context, in *ClaimNewbieKitRequest, opts ...grpc.CallOption) (*ClaimNewbieKitResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClaimNewbieKitResponse)
+	err := c.cc.Invoke(ctx, AccountService_ClaimNewbieKit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accountServiceClient) CreateGuild(ctx context.Context, in *CreateGuildRequest, opts ...grpc.CallOption) (*CreateGuildResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CreateGuildResponse)
@@ -750,6 +766,11 @@ type AccountServiceServer interface {
 	// ShopPoints reads one account's shop-points balance, for the in-game /pontos
 	// command. A missing wallet row is zero, not an error.
 	ShopPoints(context.Context, *ShopPointsRequest) (*ShopPointsResponse, error)
+	// ClaimNewbieKit takes the once-per-account newbie kit (0062_newbie_kit) for
+	// the in-game /novato command. granted is true only for the call that actually
+	// took it: the gate is an INSERT ... ON CONFLICT DO NOTHING, so two characters
+	// of the same account asking at the same instant cannot both be served.
+	ClaimNewbieKit(context.Context, *ClaimNewbieKitRequest) (*ClaimNewbieKitResponse, error)
 	// Guild lifecycle and war/city state (issue #114). These RPCs are modern
 	// tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
 	// GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -857,6 +878,9 @@ func (UnimplementedAccountServiceServer) AddShopPoints(context.Context, *AddShop
 }
 func (UnimplementedAccountServiceServer) ShopPoints(context.Context, *ShopPointsRequest) (*ShopPointsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ShopPoints not implemented")
+}
+func (UnimplementedAccountServiceServer) ClaimNewbieKit(context.Context, *ClaimNewbieKitRequest) (*ClaimNewbieKitResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClaimNewbieKit not implemented")
 }
 func (UnimplementedAccountServiceServer) CreateGuild(context.Context, *CreateGuildRequest) (*CreateGuildResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateGuild not implemented")
@@ -1392,6 +1416,24 @@ func _AccountService_ShopPoints_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_ClaimNewbieKit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClaimNewbieKitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ClaimNewbieKit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ClaimNewbieKit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ClaimNewbieKit(ctx, req.(*ClaimNewbieKitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_CreateGuild_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateGuildRequest)
 	if err := dec(in); err != nil {
@@ -1772,6 +1814,10 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ShopPoints",
 			Handler:    _AccountService_ShopPoints_Handler,
+		},
+		{
+			MethodName: "ClaimNewbieKit",
+			Handler:    _AccountService_ClaimNewbieKit_Handler,
 		},
 		{
 			MethodName: "CreateGuild",

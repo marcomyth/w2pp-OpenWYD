@@ -49,6 +49,7 @@ type Store interface {
 	ClearAllPresence(ctx context.Context) (int64, error)
 	AddShopPoints(ctx context.Context, accountID int64, delta int32, characterName, reason string) (int32, error)
 	ShopPoints(ctx context.Context, accountID int64) (int32, error)
+	ClaimNewbieKit(ctx context.Context, accountID int64, characterName string) (bool, error)
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
 	LeaveGuild(ctx context.Context, accountID int64, slot int) error
@@ -749,4 +750,18 @@ func (s *Server) ShopPoints(ctx context.Context, req *dbv1.ShopPointsRequest) (*
 		return nil, status.Errorf(codes.Internal, "ler pontos de lojinha: %v", err)
 	}
 	return &dbv1.ShopPointsResponse{Balance: saldo}, nil
+}
+
+// ClaimNewbieKit takes the once-per-account newbie kit (0062_newbie_kit). The
+// answer is not "already claimed?" but "was it YOU who claimed it?", because the
+// store settles the race in the INSERT and only the winner may deliver items.
+func (s *Server) ClaimNewbieKit(ctx context.Context, req *dbv1.ClaimNewbieKitRequest) (*dbv1.ClaimNewbieKitResponse, error) {
+	if req.GetAccountId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "account_id obrigatório")
+	}
+	granted, err := s.store.ClaimNewbieKit(ctx, req.GetAccountId(), req.GetCharacterName())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "registrar kit de novato: %v", err)
+	}
+	return &dbv1.ClaimNewbieKitResponse{Granted: granted}, nil
 }

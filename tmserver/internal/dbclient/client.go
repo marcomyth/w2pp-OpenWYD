@@ -1013,3 +1013,17 @@ func (c *Client) ShopPoints(ctx context.Context, accountID int64) (int32, error)
 	}
 	return resp.GetBalance(), nil
 }
+
+// ClaimNewbieKit takes the once-per-account newbie kit (0062_newbie_kit). true
+// means this call took it and the caller must deliver; false means the account
+// already had it.
+func (c *Client) ClaimNewbieKit(ctx context.Context, accountID int64, characterName string) (bool, error) {
+	resp, err := c.api.ClaimNewbieKit(ctx, &dbv1.ClaimNewbieKitRequest{
+		AccountId:     accountID,
+		CharacterName: characterName,
+	})
+	if err != nil {
+		return false, fmt.Errorf("dbclient: registrar kit de novato: %w", err)
+	}
+	return resp.GetGranted(), nil
+}

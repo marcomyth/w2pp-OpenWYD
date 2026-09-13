@@ -122,3 +122,16 @@ func (f *fakeStore) AddShopPoints(_ context.Context, accountID int64, delta int3
 func (f *fakeStore) ShopPoints(_ context.Context, accountID int64) (int32, error) {
 	return f.shopPoints[accountID], nil
 }
+
+// ClaimNewbieKit: a primeira chamada de cada conta concede, as seguintes não —
+// o mesmo contrato do INSERT ... ON CONFLICT DO NOTHING do store real.
+func (f *fakeStore) ClaimNewbieKit(_ context.Context, accountID int64, _ string) (bool, error) {
+	if f.newbieKit == nil {
+		f.newbieKit = map[int64]bool{}
+	}
+	if f.newbieKit[accountID] {
+		return false, nil
+	}
+	f.newbieKit[accountID] = true
+	return true, nil
+}

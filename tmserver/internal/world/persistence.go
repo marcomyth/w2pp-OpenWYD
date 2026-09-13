@@ -429,6 +429,14 @@ type Persistence interface {
 	AddShopPoints(ctx context.Context, accountID int64, delta int32, characterName, reason string) (int32, error)
 	ShopPoints(ctx context.Context, accountID int64) (int32, error)
 
+	// ClaimNewbieKit takes the once-per-account /novato kit (0062_newbie_kit) and
+	// reports whether THIS call took it. Called off the loop via World.Go.
+	//
+	// It is the gate itself, not a question about the gate: the database settles
+	// two simultaneous claims in one INSERT, and a caller that reads false must
+	// hand out nothing.
+	ClaimNewbieKit(ctx context.Context, accountID int64, characterName string) (bool, error)
+
 	// Guild lifecycle/state (issue #114). These calls block on dbServer and must
 	// be made through World.Go/GoDetached by loop handlers.
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (GuildRecord, bool, error)
@@ -576,6 +584,13 @@ func (NopPersistence) AddShopPoints(context.Context, int64, int32, string, strin
 
 // ShopPoints reports an empty wallet.
 func (NopPersistence) ShopPoints(context.Context, int64) (int32, error) { return 0, nil }
+
+// ClaimNewbieKit refuses without a backend. A server booted with no -dbserver has
+// nowhere to write the claim, and granting the kit anyway would make it
+// once-per-LOGIN instead of once-per-account — an item faucet.
+func (NopPersistence) ClaimNewbieKit(context.Context, int64, string) (bool, error) {
+	return false, errNoPersistence
+}
 
 // CreateGuild is unsupported without a backend.
 func (NopPersistence) CreateGuild(context.Context, int64, int, string, string, uint8, uint8, int, int32) (GuildRecord, bool, error) {

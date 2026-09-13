@@ -50,6 +50,9 @@ type fakeDB struct {
 
 	pending map[int64][]world.Delivery // accountID -> mailbox rows (donate drain)
 
+	kitNovato    map[int64]bool // contas que já tomaram o kit de novato (0062)
+	kitNovatoErr error          // quando não-nil, ClaimNewbieKit falha
+
 	pinVerify    world.PinResult // VerifyPin result (default PinOK)
 	pinVerifyErr error           // forces VerifyPin to error
 	pinSetOK     bool            // SetPin ok flag

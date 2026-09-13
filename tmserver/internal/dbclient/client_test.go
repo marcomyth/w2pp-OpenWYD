@@ -17,17 +17,20 @@ type fakeAPI struct {
 	presenceReq     *dbv1.SetCharacterPresenceRequest
 	presenceCleared int64
 	shopPoints      int32 // running personal-shop balance, as the real wallet accumulates
-	loginResp       *dbv1.AccountLoginResponse
-	listResp        *dbv1.ListCharactersResponse
-	loadResp        *dbv1.LoadCharacterResponse
-	createOK        bool
-	archReq         *dbv1.CreateArchCharacterRequest
-	archOK          bool
-	archSlot        int32
-	deleteOK        bool
-	saved           *dbv1.SaveCharacterRequest
-	cargoResp       *dbv1.LoadCargoResponse
-	savedCargo      *dbv1.SaveCargoRequest
+
+	newbieKitAccount int64 // conta do último ClaimNewbieKit
+	newbieKitGranted bool  // resposta que o dbServer devolveria
+	loginResp        *dbv1.AccountLoginResponse
+	listResp         *dbv1.ListCharactersResponse
+	loadResp         *dbv1.LoadCharacterResponse
+	createOK         bool
+	archReq          *dbv1.CreateArchCharacterRequest
+	archOK           bool
+	archSlot         int32
+	deleteOK         bool
+	saved            *dbv1.SaveCharacterRequest
+	cargoResp        *dbv1.LoadCargoResponse
+	savedCargo       *dbv1.SaveCargoRequest
 
 	deliveriesResp       *dbv1.ListPendingDeliveriesResponse
 	reports              []*dbv1.RecordReportRequest
@@ -498,4 +501,9 @@ func (f *fakeAPI) AddShopPoints(_ context.Context, req *dbv1.AddShopPointsReques
 
 func (f *fakeAPI) ShopPoints(context.Context, *dbv1.ShopPointsRequest, ...grpc.CallOption) (*dbv1.ShopPointsResponse, error) {
 	return &dbv1.ShopPointsResponse{Balance: f.shopPoints}, nil
+}
+
+func (f *fakeAPI) ClaimNewbieKit(_ context.Context, req *dbv1.ClaimNewbieKitRequest, _ ...grpc.CallOption) (*dbv1.ClaimNewbieKitResponse, error) {
+	f.newbieKitAccount = req.GetAccountId()
+	return &dbv1.ClaimNewbieKitResponse{Granted: f.newbieKitGranted}, nil
 }

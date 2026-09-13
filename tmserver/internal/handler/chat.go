@@ -180,6 +180,10 @@ func (d *Dispatcher) runCommand(w *world.World, s *world.Session, name string, a
 		d.mostrarPontosDeLojinha(w, s)
 		return true
 	}
+	if cmd == "novato" {
+		d.novatoKit(w, s)
+		return true
+	}
 	if cmd == "create" {
 		d.createGuild(w, s, args)
 		return true
