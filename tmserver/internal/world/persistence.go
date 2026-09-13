@@ -144,7 +144,7 @@ type CharacterState struct {
 	// trocar o conteudo dos dois lugares, e por isso o resto do servidor nao
 	// precisa saber que existe segunda vida.
 	SubCelestialGuardada string
-	// SubCelestialLevel e o nivel da vida INATIVA, fora do JSON de proposito: a
+	// SubCelestialLevel e o nivel da vida INATIVA, fora do JSON de propósito: a
 	// formula de pontos do Celestial CS o le em TODA derivacao de score.
 	SubCelestialLevel uint16
 	// SubCelestialAtivo: 0 a principal, 1 o Sub. Nao e redundante com
@@ -257,7 +257,7 @@ type CharacterSave struct {
 	// trocar o conteudo dos dois lugares, e por isso o resto do servidor nao
 	// precisa saber que existe segunda vida.
 	SubCelestialGuardada string
-	// SubCelestialLevel e o nivel da vida INATIVA, fora do JSON de proposito: a
+	// SubCelestialLevel e o nivel da vida INATIVA, fora do JSON de propósito: a
 	// formula de pontos do Celestial CS o le em TODA derivacao de score.
 	SubCelestialLevel uint16
 	// SubCelestialAtivo: 0 a principal, 1 o Sub. Nao e redundante com

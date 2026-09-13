@@ -36,7 +36,7 @@ var errSemVidaGuardada = errors.New("personagem sem vida guardada")
 // vidaGuardada e o que faz de uma vida uma vida: nivel, experiencia, pontos,
 // atributos e habilidades.
 //
-// O QUE NAO ESTA AQUI, DE PROPOSITO: equipamento e bolsa. Eles sao do
+// O QUE NAO ESTA AQUI, DE PROPÓSITO: equipamento e bolsa. Eles sao do
 // PERSONAGEM, nao da vida — a bolsa acompanha o jogador, e o equipamento tem de
 // sair antes da troca de qualquer jeito (um Sub de nivel 1 vestido de Celestial
 // 120 teria as pocas derivadas do conjunto errado, que foi o defeito que a
