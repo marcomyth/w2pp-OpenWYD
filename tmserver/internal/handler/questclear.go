@@ -7,7 +7,7 @@ import "github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 // O que o legado faz, e o que faltava aqui: a cada `SecCounter % 1200 == 0` ele
 // esvazia dez áreas e, logo depois, zera o QuestFlag de TODO jogador em jogo.
 // SecCounter anda a cada 500 ms (SetTimer TIMER_SEC, Server.cpp:4086), então
-// 1200 passagens são 600 segundos — dez minutos.
+// 1200 voltas dele dão 600 segundos — dez minutos.
 //
 // Sem esse relógio o passe nunca vencia. guardQuest256Areas só expulsa quem está
 // numa arena com a bandeira ERRADA (mobai.go), e nada mais zerava a bandeira
