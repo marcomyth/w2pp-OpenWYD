@@ -347,11 +347,6 @@ func TestAsDuasTelasContamAMesmaCoisaSobreOServidor(t *testing.T) {
 
 // newTestPanelPlatJogo wires both the hosting API and the game link, which is
 // what /servidor needs to render at all.
-func newTestPanelPlatJogo(t *testing.T, plat Platform) http.Handler {
-	t.Helper()
-	return newTestPanelPlatJogoCom(t, plat, &fakeJogo{estado: estadoDeTeste()})
-}
-
 // newTestPanelPlatJogoCom deixa o teste escolher o jogo, que é o que permite
 // modelar servidor REALMENTE parado: parado não responde.
 func newTestPanelPlatJogoCom(t *testing.T, plat Platform, j *fakeJogo) http.Handler {
@@ -1187,7 +1182,7 @@ func TestPuladoNaoApagaOServidorNaHome(t *testing.T) {
 	body := signedIn(t, h)("/").Body.String()
 
 	if strings.Contains(body, "está desligado") {
-		t.Error("a home diz desligado por causa de um registro PULADO, com o jogo respondendo")
+		t.Error("a home diz desligado por causa de um registro PULADO, com o jogo no ar")
 	}
 	if strings.Contains(body, "SKIPPED") {
 		t.Error("a home mostra SKIPPED como se fosse o estado do serviço")
