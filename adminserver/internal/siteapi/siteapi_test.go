@@ -64,6 +64,8 @@ type fakeBanco struct {
 	eventosErr  error
 	drop        domain.DropBonusConfig
 	dropErr     error
+	portas      domain.DungeonGateConfig
+	portasErr   error
 }
 
 func (f *fakeBanco) WorldEventConfig(_ context.Context) (domain.WorldEventConfig, error) {
@@ -73,6 +75,15 @@ func (f *fakeBanco) WorldEventConfig(_ context.Context) (domain.WorldEventConfig
 		return domain.WorldEventConfig{}, f.eventosErr
 	}
 	return f.eventosJogo, nil
+}
+
+func (f *fakeBanco) DungeonGates(_ context.Context) (domain.DungeonGateConfig, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.portasErr != nil {
+		return domain.DungeonGateConfig{}, f.portasErr
+	}
+	return f.portas, nil
 }
 
 func (f *fakeBanco) DropBonus(_ context.Context) (domain.DropBonusConfig, error) {
@@ -312,7 +323,7 @@ func novoCenario(t *testing.T) *cenario {
 
 	api, err := New(Config{
 		Chave: chaveTeste, Contas: c.banco, Credenciais: c.banco, Leitura: c.banco,
-		Eventos: c.banco, Taxas: c.banco,
+		Eventos: c.banco, Taxas: c.banco, Masmorras: c.banco,
 		Carteira: c.banco, Entregas: c.banco, Jogo: jogo.New(conn, "token-do-jogo"),
 		Audit: c.audit, Sessoes: c.sessoes,
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),

@@ -251,6 +251,7 @@ func run(logger *slog.Logger) error {
 			Credenciais: st,
 			Eventos:     st,
 			Taxas:       st,
+			Masmorras:   st,
 			Leitura:     siteapi.NovoLeitor(pool),
 			Carteira:    donate.New(pool),
 			Entregas:    entrega.New(pool),
