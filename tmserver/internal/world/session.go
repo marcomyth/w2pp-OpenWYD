@@ -267,7 +267,8 @@ type Entity struct {
 	ClassMaster uint8    // party tier (MobExtra.ClassMaster)
 	// Celestial quest gate flags (MobExtra.QuestInfo.Celestial, Basedef.h:659-678).
 	// CelLv40/CelLv90 unlock the Celestial level 40/90 caps (CheckGetLevel gate,
-	// CMob.cpp:1107); CelCircle marks the Cythera Arcana quest done (/arcana). Persisted.
+	// CMob.cpp:1107); CelCircle marks the Cythera Arcana quest done (Pedra da
+	// Fúria no nível 200). Persisted.
 	CelLv40, CelLv90, CelCircle uint8
 	// TerraMistica is MobExtra.QuestInfo.Mortal.TerraMistica (_MSG_Quest.cpp
 	// AMU_MISTICO, issue #139): set once the party quest is completed, so the

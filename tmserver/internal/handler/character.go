@@ -350,8 +350,9 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		if e.PKPoint == 0 {
 			e.PKPoint = pkPointNeutral
 		}
-		// Celestial quest gates (set by /destravar40/90 and /arcana; CheckGetLevel
-		// reads Lv40/Lv90 to unlock the 40/90 caps).
+		// Celestial quest gates (a combinação do Odin marca o Lv40, a Pedra da
+		// Fúria marca o Lv90 e o Circle; CheckGetLevel lê Lv40/Lv90 para soltar os
+		// tetos de 40 e 90).
 		e.CelLv40, e.CelLv90, e.CelCircle = st.CelLv40, st.CelLv90, st.CelCircle
 		e.ArchLv355, e.ArchLv370, e.ArchCristal = st.ArchLv355, st.ArchLv370, st.ArchCristal
 		e.MortalLevel, e.CelestialArchLevel = st.MortalLevel, st.CelestialArchLevel

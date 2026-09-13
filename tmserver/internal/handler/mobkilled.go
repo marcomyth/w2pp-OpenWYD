@@ -436,7 +436,8 @@ func isCelestialTier(classMaster uint8) bool {
 // desired total. It is tier-aware: Mortal/Arch ride g_pNextLevel to MAX_LEVEL and
 // gain skill/special points per level; Celestial tiers ride g_pNextLevel_2 to
 // MAX_CLEVEL, gain only AC + attribute points, and stay gated at levels 40/90 until
-// /destravar40 and /destravar90 set the flags (CMob.cpp:1107, 1121-1151). Shared by
+// a combinação do Odin e a Pedra da Fúria marcam as bandeiras (CMob.cpp:1107,
+// 1121-1151). Shared by
 // kill EXP, Poeira de Fada, GM setlevel and combat.
 func (d *Dispatcher) applyLevelUps(w *world.World, s *world.Session, e *world.Entity) bool {
 	gained := int32(0) // levels actually crossed — the Chaos Point grant below is per level
@@ -639,8 +640,8 @@ func quarterNotice(seg int32) Notice {
 }
 
 // tierGateBlocks reports whether the character sits at a progression wall its
-// unlock quest has not opened yet: Celestial 40/90 (/destravar40, /destravar90)
-// or Arch 355/370. CheckGetLevel returns 0 at either (CMob.cpp:1107,1110),
+// unlock quest has not opened yet: Celestial 40/90 (combinação do Odin e Pedra
+// da Fúria) or Arch 355/370. CheckGetLevel returns 0 at either (CMob.cpp:1107,1110),
 // BEFORE it would report a quarter — so a character held at a wall gets neither
 // the level nor the quarter bonus, and keeps accumulating experience quietly
 // until the quest is run.

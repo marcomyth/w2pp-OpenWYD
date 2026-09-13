@@ -16,10 +16,12 @@ import (
 //     and the four Pedras Secretas in the bag becomes Circle 1 and its Equip[1]
 //     turns into the Cythera Arcana.
 //
-// Until this was ported, the only way through the level-90 lock was the
-// /destravar90 chat command, which anybody could use. Closing that command
-// without this would have frozen every Celestial at level 90 on screen: the XP
-// becomes 0 at stored 89 (GetFunc.cpp:1042-1046, mobkilled.go).
+// Antes deste arquivo existir, a única saída do portão de 90 era o comando
+// /destravar90, que qualquer um podia usar. O comando foi removido, e este
+// caminho é agora o único: sem ele, todo Celestial ficaria congelado no nível 90
+// na tela, porque a XP vira 0 no 89 guardado (GetFunc.cpp:1042-1046,
+// mobkilled.go). Não há atalho de equipe — quem perde o sorteio junta os 500 de
+// fama de novo, e foi decisão da dona do servidor que seja assim.
 const (
 	itemPedraDaFuria = 3020
 	// itemCytheraMistica is the level-90 reward (_MSG_UseItem.cpp:3668,
