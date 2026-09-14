@@ -158744,7 +158744,7 @@
 	DestWait:	6
 
 
-// Castelo Orc (quest): tropa COrc_MeioOrc num ponto de spawn do castelo do legado. Bloco de evento (world.IsCasteloOrcGenerator).
+// Castelo Orc (quest): tropa COrc_Mago num ponto de spawn do castelo do legado. Bloco de evento (world.IsCasteloOrcGenerator).
 // ********************************************
 
 #	[6109]
@@ -158752,8 +158752,8 @@
 	MaxNumMob:	5
 	MinGroup:	4
 	MaxGroup:	4
-	Leader:		COrc_MeioOrc
-	Follower:	COrc_MeioOrc
+	Leader:		COrc_Mago
+	Follower:	COrc_Mago
 	RouteType:	2
 	Formation:	0
 	StartX:		2526
@@ -158924,7 +158924,7 @@
 	DestWait:	6
 
 
-// Castelo Orc (quest): tropa COrc_MeioOrc num ponto de spawn do castelo do legado. Bloco de evento (world.IsCasteloOrcGenerator).
+// Castelo Orc (quest): tropa COrc_Mago num ponto de spawn do castelo do legado. Bloco de evento (world.IsCasteloOrcGenerator).
 // ********************************************
 
 #	[6115]
@@ -158932,8 +158932,8 @@
 	MaxNumMob:	5
 	MinGroup:	4
 	MaxGroup:	4
-	Leader:		COrc_MeioOrc
-	Follower:	COrc_MeioOrc
+	Leader:		COrc_Mago
+	Follower:	COrc_Mago
 	RouteType:	2
 	Formation:	0
 	StartX:		2522

@@ -24,6 +24,7 @@ var casteloOrcTemplates = map[string]bool{
 	droprule.Canonical("COrc_Cavaleiro"): true,
 	droprule.Canonical("COrc_Arqueiro"):  true,
 	droprule.Canonical("COrc_MeioOrc"):   true,
+	droprule.Canonical("COrc_Mago"):      true,
 }
 
 func isCasteloOrcMob(mob *world.Entity) bool {
@@ -76,17 +77,44 @@ const (
 	itemAmuletLast  = 554 // Amuleto de Prata (Special4 +2)
 )
 
+const (
+	casteloOrcAmagoSemSelaN = 2396 // Âmago de Cav s/Sela N
+	casteloOrcAmagoSemSelaB = 2401 // Âmago de Ca s/Sela B
+	casteloOrcPergaAguaN    = 3173 // Pergaminho da Água (N) LV1, the only one of its chain found outside it
+)
+
+// casteloOrcGuardianPacks is how many units one drop carries from the first two
+// gate guardians (the team's call, 14/09/2026): a pack of 10 Âmagos and a pack
+// of 3 water scrolls. The Mesa de Drops says whether the item falls and how
+// often, but it has no quantity, so the size of the pile lives here, as the
+// amulet's add does.
+var casteloOrcGuardianPacks = map[int16]int{
+	casteloOrcAmagoSemSelaN: 10,
+	casteloOrcAmagoSemSelaB: 10,
+	casteloOrcPergaAguaN:    3,
+}
+
+var casteloOrcPacks = map[string]map[int16]int{
+	droprule.Canonical("COrc_Sentinela"): casteloOrcGuardianPacks,
+	droprule.Canonical("COrc_Capitao"):   casteloOrcGuardianPacks,
+}
+
 // casteloOrcFinish marks one item a quest monster dropped, after the ordinary
 // drop bonus (which leaves rings and amulets untouched).
 //
 // A ring or amulet gets +0 in the first slot — what makes it refinable, as the
 // legacy's own amulet reward writes it (_MSG_Quest.cpp:1627-1743) — and one add
-// in the second.
+// in the second. A stackable the guardian drops as a pack leaves with the pack's
+// amount; only a stackable, because EF_AMOUNT on anything else is a pile the
+// client cannot split and spends whole.
 func (d *Dispatcher) casteloOrcFinish(w *world.World, mob *world.Entity, it *world.Item) {
 	if !isCasteloOrcMob(mob) {
 		return
 	}
 	idx := it.Index
+	if n := casteloOrcPacks[droprule.Canonical(mob.TemplateName)][idx]; n > 1 && isSplittable(idx) {
+		setItemAmount(it, n)
+	}
 	switch {
 	case idx >= itemAmuletFirst && idx <= itemAmuletLast:
 		stampAccessoryAdd(w, it, casteloOrcAmuletAdds)

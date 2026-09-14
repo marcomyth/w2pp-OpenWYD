@@ -7,8 +7,11 @@ party e as decisões ficam no artefato "Atlas de Quests W2PP".
 
 ## Estado
 
-✅ Os oito monstros da quest (templates `COrc_*`) <br/>
-✅ O saque e a chave na Mesa de Drops (migração `0053_castelo_orc_drops`) <br/>
+✅ Os nove monstros da quest (templates `COrc_*`) <br/>
+✅ O saque e a chave na Mesa de Drops (migrações `0053_castelo_orc_drops` e
+`0063_castelo_orc_guardioes`) <br/>
+✅ Visual de 14/09: Manto de Shiner em todos, armas novas, guardiões montados <br/>
+⏳ Pacote de 20 Classe D nos guardiões: espera as Classes empilharem <br/>
 ✅ 0 XP para os monstros da quest <br/>
 ✅ Amuleto com add sorteado <br/>
 ✅ A corrida: a Chave do Rei Orc abre o castelo (no portão ou com o Xamã), um
@@ -41,8 +44,9 @@ próprios), item que o cliente já conhece. A migração tira a chave de todo mo
   entrar e sair farmaria chaves.
 - O sorteio usa o gerador dos eventos, não o dos drops, para não mexer na ordem
   que os testes de drop e refino fixam.
-- **O Sentinela da quest** carrega a 466 (Portão Orc Leste), e não a 465: senão cada
-  corrida pagaria a entrada da seguinte.
+- **Nenhum monstro da quest dá a 465**: senão cada corrida pagaria a entrada da
+  seguinte. Desde 14/09 o Sentinela e o Capitão não carregam mais chave de portão
+  (eram a 466 e a 467); só o Chefe Orc ainda leva a 469.
 
 ## A corrida (`handler/castelo_orc_run.go`)
 
@@ -111,14 +115,36 @@ quem não é do grupo não chega até ele enquanto uma corrida acontece.
 
 | Template | Nome no jogo | Nv | HP | Defesa | Dano | Resist. | Bloco |
 |---|---|---|---|---|---|---|---|
-| `COrc_GraoLorde` | Grão-Lorde Orc | 350 | 3.000.000 | 3.000 | 2.020 | 25 | 6099 |
-| `COrc_Guarda` | Guarda do Lorde | 320 | 150.000 | 2.200 | 1.520 | 15 | 6100 (grupo de 4) |
-| `COrc_Sentinela` | Sentinela Orc | 330 | 450.000 | 2.400 | 1.620 | 20 | 6101 · chave 466 |
-| `COrc_Capitao` | Capitão Orc | 330 | 450.000 | 2.400 | 1.620 | 20 | 6102 · chave 467 |
+| `COrc_GraoLorde` | Grão-Lorde Orc | 350 | 1.500.000 | 3.000 | 2.020 | 25 | 6099 |
+| `COrc_Guarda` | Guarda do Lorde | 320 | 105.000 | 2.200 | 1.520 | 15 | 6100 (grupo de 4) |
+| `COrc_Sentinela` | Sentinela Orc | 330 | 450.000 | 2.400 | 1.620 | 20 | 6101 |
+| `COrc_Capitao` | Capitão Orc | 330 | 450.000 | 2.400 | 1.620 | 20 | 6102 |
 | `COrc_Chefe` | Chefe Orc | 330 | 450.000 | 2.400 | 1.620 | 20 | 6103 · chave 469 |
 | `COrc_Cavaleiro` | Cavaleiro Orc | 300 | 18.000 | 1.800 | 1.220 | 10 | 6104, 6107, 6110, 6113 |
 | `COrc_Arqueiro` | Arqueiro Orc | 300 | 18.000 | 1.800 | 1.220 | 10 | 6105, 6108, 6111, 6114 |
-| `COrc_MeioOrc` | Meio Orc | 300 | 18.000 | 1.800 | 1.220 | 10 | 6106, 6109, 6112, 6115 |
+| `COrc_MeioOrc` | Meio Orc | 300 | 18.000 | 1.800 | 1.220 | 10 | 6106, 6112 |
+| `COrc_Mago` | Mago Orc | 300 | 18.000 | 1.800 | 1.220 | 10 | 6109, 6115 |
+
+**14/09/2026, pedido da equipe:** o Grão-Lorde caiu mais metade (3 mi → 1,5 mi), o
+Guarda do Lorde 30% (150 mil → 105 mil), e o Mago Orc entrou na tropa no lugar
+de metade dos Meio Orcs, com os números e o saque deles.
+
+**O que cada um veste** (só aparência, menos o alcance, que é o maior `EF_RANGE`
+entre o corpo e a arma):
+
+| Monstro | Corpo | Armas | Montaria | Alcance |
+|---|---|---|---|---|
+| Grão-Lorde Orc | Troll_Martelo 213 | Espada Bastarda +11 nas duas mãos | Lobo | 2 |
+| Guarda do Lorde | Troll_Machado 212 | Lança de Taurus +7 | Dragão Menor | 2 |
+| Sentinela e Capitão | Cavaleiro_Orc_2 208 | Katana +11 nas duas mãos | Dragão Menor | 2 |
+| Chefe Orc | Cavaleiro_Orc_2 208 | Martelo de Guerra +9 | — | 2 |
+| Cavaleiro Orc | Cavaleiro_Orc 207 | Tsurugi | — | 2 (era 1) |
+| Arqueiro Orc | Arqueiro_Orc 209 | Arco de Caveira | — | 5 (era 6) |
+| Meio Orc | Cavaleiro_Orc_2 208 | Grande Machado | — | 2 |
+| Mago Orc | Shamã_Orc 232 | Cajado Orc | — | 4 |
+
+Todos com o Manto de Shiner (544). As armas novas são todas de nível C
+(`EF_ITEMLEVEL 3`).
 
 **Onde a tropa nasce:** 12 blocos de 5, raio 2, cada um num ponto de spawn do
 miolo do castelo do legado (blocos 476–496 do `NPCGener`):
@@ -187,6 +213,24 @@ na última sala).
   sempre 63. Assim a meta não depende de quanto tempo o grupo fica na última sala.
 - **Cavalo s/ Sela não cai**: só os ovos.
 
+**Os dois primeiros guardiões** (Sentinela e Capitão, migração `0063`) soltam,
+além do saque acima:
+
+| Item | Quantidade | Chance |
+|---|---|---|
+| Âmago de Cav. s/ Sela N 2396 | pacote de 10 | 5% |
+| Âmago de Cav. s/ Sela B 2401 | pacote de 10 | 5% |
+| Moeda de Prata (5Mi) 4027 | 1 | 10% |
+| Pergaminho da Água (N) LV1 3173 | pacote de 3 | 5% |
+
+- N e B são duas linhas de 5%: dá ~10% de sair um pacote de âmago, e 0,25% de
+  saírem os dois.
+- A Mesa não guarda quantidade. O tamanho do pacote vem do tmServer
+  (`casteloOrcGuardianPacks`), e só vale para item que empilha.
+- **Pacote de 20 Classe D: ainda não.** As Classes não empilham neste servidor
+  (`isSplittable`), então uma pilha de 20 seria gasta inteira no primeiro uso, e o
+  cliente perderia a conta. A Classe D segue caindo como uma unidade, a 6,5%.
+
 **Bolsa cheia perde o item.** Uma entrada rende uns 106 itens, uns 26 para cada
 um de 4 jogadores. O drop de mob ocupa sempre um espaço novo, sem juntar na pilha
 que já está na bolsa (`putMobDrop`), e com a bolsa cheia o item se perde.
@@ -219,7 +263,7 @@ Um monstro solto, perto do castelo e sem corrida:
 ```
 /gm criar COrc_GraoLorde        um boss na sua frente (não renasce)
 /gm gerar 6100 aqui             o grupo de 4 seguidores
-/gm gerar 6104 aqui             um grupo de tropa (6105, 6106: as outras)
+/gm gerar 6104 aqui             um grupo de tropa (6105, 6106, 6109: as outras)
 /gm criar COrc_Sentinela        um guardião (Capitão e Chefe: os outros)
 ```
 

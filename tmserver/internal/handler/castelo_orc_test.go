@@ -124,21 +124,50 @@ func TestCasteloOrcNaoMexeNoDropDeOutroMonstro(t *testing.T) {
 // The Dano column assumes the monster swing reads the player's armour as it is
 // (dano − AC/2) against the legacy's doubled player HP (65346fe8). It was 2300-2700
 // while the port tripled that armour; a change to either rule moves all of it.
+//
+// 14/09/2026, from the team: the Grão-Lorde down another half (1.5 million), the
+// Guarda do Lorde down 30%, the Sentinela and the Capitão without their gate
+// keys, and the Mago Orc added to the troop with the Meio Orc's numbers.
 var casteloOrcDesign = map[string]struct {
 	name             string
 	lvl, hp, ac, dmg int32
 	res              int8
 	key              int16
 }{
-	"COrc_GraoLorde": {"Grão-Lorde Orc", 350, 3000000, 3000, 2020, 25, 0},
-	"COrc_Guarda":    {"Guarda do Lorde", 320, 150000, 2200, 1520, 15, 0},
-	"COrc_Sentinela": {"Sentinela Orc", 330, 450000, 2400, 1620, 20, 466},
-	"COrc_Capitao":   {"Capitão Orc", 330, 450000, 2400, 1620, 20, 467},
+	"COrc_GraoLorde": {"Grão-Lorde Orc", 350, 1500000, 3000, 2020, 25, 0},
+	"COrc_Guarda":    {"Guarda do Lorde", 320, 105000, 2200, 1520, 15, 0},
+	"COrc_Sentinela": {"Sentinela Orc", 330, 450000, 2400, 1620, 20, 0},
+	"COrc_Capitao":   {"Capitão Orc", 330, 450000, 2400, 1620, 20, 0},
 	"COrc_Chefe":     {"Chefe Orc", 330, 450000, 2400, 1620, 20, 469},
 	"COrc_Cavaleiro": {"Cavaleiro Orc", 300, 18000, 1800, 1220, 10, 0},
 	"COrc_Arqueiro":  {"Arqueiro Orc", 300, 18000, 1800, 1220, 10, 0},
 	"COrc_MeioOrc":   {"Meio Orc", 300, 18000, 1800, 1220, 10, 0},
+	"COrc_Mago":      {"Mago Orc", 300, 18000, 1800, 1220, 10, 0},
 }
+
+// casteloOrcVisual is what each quest monster wears (14/09/2026): Manto de Shiner
+// on all of them, the first two gate guardians with two Katanas +11 on a Dragão
+// Menor, the Lorde's guard on one too. Monster gear adds no stat, with one
+// exception that makes a weapon swap a balance change as well: the reach is the
+// highest EF_RANGE over the body and the weapon (world.SpawnMob). The Cavaleiro
+// went from 1 to 2 with the Tsurugi, the Arqueiro from 6 to 5 with the Arco de
+// Caveira, and the Mago's Shamã body gives it 4.
+var casteloOrcVisual = map[string]struct {
+	body, right, left, mount int16
+	sanc                     uint8
+}{
+	"COrc_GraoLorde": {213, 907, 907, 2362, 234},
+	"COrc_Guarda":    {212, 944, 0, 2363, 7},
+	"COrc_Sentinela": {208, 939, 939, 2363, 234},
+	"COrc_Capitao":   {208, 939, 939, 2363, 234},
+	"COrc_Chefe":     {208, 932, 0, 0, 9},
+	"COrc_Cavaleiro": {207, 945, 0, 0, 0},
+	"COrc_Arqueiro":  {209, 943, 0, 0, 0},
+	"COrc_MeioOrc":   {208, 934, 0, 0, 0},
+	"COrc_Mago":      {232, 940, 0, 0, 0},
+}
+
+const itemMantoDeShiner = 544
 
 func releaseDir(t *testing.T) string {
 	t.Helper()
@@ -232,6 +261,148 @@ func TestCasteloOrcBossComDuasEspadasMais11(t *testing.T) {
 		if it.Index != 907 || it.Effects[0].Effect != efSanc || it.Effects[0].Value < 234 || it.Effects[0].Value > 237 {
 			t.Errorf("mão %d: %d %+v, want Espada Bastarda (907) com EF_SANC 234..237 (+11)", slot, it.Index, it.Effects[0])
 		}
+	}
+}
+
+// Body, both hands, mount and cape of every quest monster, as the team asked.
+func TestCasteloOrcVisualDosMonstros(t *testing.T) {
+	root := releaseDir(t)
+	if len(casteloOrcVisual) != len(casteloOrcTemplates) {
+		t.Fatalf("%d templates no visual, %d na regra do handler", len(casteloOrcVisual), len(casteloOrcTemplates))
+	}
+	arma := func(idx int16, sanc uint8) world.Item {
+		it := world.Item{Index: idx}
+		if idx != 0 && sanc > 0 {
+			it.Effects[0] = world.Effect{Effect: efSanc, Value: sanc}
+		}
+		return it
+	}
+	for file, want := range casteloOrcVisual {
+		b, _, err := npctemplate.Load(root, file)
+		if err != nil {
+			t.Errorf("%s: %v", file, err)
+			continue
+		}
+		m, err := savefmt.DecodeMob(b)
+		if err != nil {
+			t.Fatalf("%s: %v", file, err)
+		}
+		eq := func(slot int) world.Item {
+			it := m.Equip[slot]
+			out := world.Item{Index: it.Index}
+			for i, ef := range it.Effects {
+				out.Effects[i] = world.Effect{Effect: ef.Effect, Value: ef.Value}
+			}
+			return out
+		}
+		if got := m.Equip[0].Index; got != want.body {
+			t.Errorf("%s: corpo %d, want %d", file, got, want.body)
+		}
+		if got, w := eq(6), arma(want.right, want.sanc); got != w {
+			t.Errorf("%s: mão direita %+v, want %+v", file, got, w)
+		}
+		if got, w := eq(7), arma(want.left, want.sanc); got != w {
+			t.Errorf("%s: mão esquerda %+v, want %+v", file, got, w)
+		}
+		if got := m.Equip[14].Index; got != want.mount {
+			t.Errorf("%s: montaria %d, want %d", file, got, want.mount)
+		}
+		if got := m.Equip[15].Index; got != itemMantoDeShiner {
+			t.Errorf("%s: manto %d, want o Manto de Shiner (%d)", file, got, itemMantoDeShiner)
+		}
+	}
+}
+
+// The first two gate guardians drop their stackables as packs; the same item
+// from any other quest monster is still one unit.
+func TestCasteloOrcGuardiaoSoltaPacote(t *testing.T) {
+	for _, c := range []struct {
+		mob  string
+		item int16
+		want int
+	}{
+		{"COrc_Sentinela", casteloOrcAmagoSemSelaN, 10},
+		{"COrc_Capitao", casteloOrcAmagoSemSelaB, 10},
+		{"COrc_Sentinela", casteloOrcPergaAguaN, 3},
+		{"COrc_Capitao", casteloOrcPergaAguaN, 3},
+		{"COrc_Chefe", casteloOrcAmagoSemSelaN, 1},
+		{"COrc_Guarda", casteloOrcAmagoSemSelaB, 1},
+		{"COrc_Cavaleiro", casteloOrcPergaAguaN, 1},
+	} {
+		d, w, killer := mobKilledWorld(t)
+		d.dropRules = droprule.NewTable([]droprule.Rule{{Mob: c.mob, Item: c.item, Chance: droprule.MaxChance}})
+		d.mobKilled(w, killer, spawnNamed(t, w, expMobTemplate(330, 0, 0), c.mob))
+		it, ok := carryHas(killer, c.item)
+		if !ok {
+			t.Errorf("%s não soltou o %d a 100%%", c.mob, c.item)
+			continue
+		}
+		if got := itemAmount(it); got != c.want {
+			t.Errorf("%s soltou %d de %d, want %d", c.mob, got, c.item, c.want)
+		}
+	}
+}
+
+// A pack is only ever a stackable: every item in the pack table stacks, or the
+// client would get a pile it cannot split and spends whole.
+func TestCasteloOrcPacoteSoDeEmpilhavel(t *testing.T) {
+	for mob, packs := range casteloOrcPacks {
+		for item := range packs {
+			if !isSplittable(item) {
+				t.Errorf("%s: pacote de %d, que não empilha", mob, item)
+			}
+		}
+	}
+}
+
+// The guardians' new loot names the quest's monsters and items the catalog has,
+// and the Mago Orc inherits the Meio Orc's rows rather than a copy frozen here.
+func TestCasteloOrcMigracaoDosGuardioes(t *testing.T) {
+	root := releaseDir(t)
+	items, err := content.LoadItemList(filepath.Join(root, "Common", "ItemList.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := migrations.FS.ReadFile("0063_castelo_orc_guardioes.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := string(b)
+	rows := regexp.MustCompile(`\('([^']+)',\s*(\d+),\s*(\d+)\)`).FindAllStringSubmatch(sql, -1)
+	type chave struct {
+		mob  string
+		item int16
+	}
+	got := map[chave]int32{}
+	for _, r := range rows {
+		item, _ := strconv.Atoi(r[2])
+		chance, _ := strconv.Atoi(r[3])
+		rule := droprule.Rule{Mob: r[1], Item: int16(item), Chance: int32(chance)}
+		if !rule.Valid() {
+			t.Errorf("%v: a Mesa de Drops recusaria esta linha", r[0])
+		}
+		if _, ok := items.Get(item); !ok {
+			t.Errorf("item %d não existe no ItemList", item)
+		}
+		if !casteloOrcTemplates[droprule.Canonical(r[1])] {
+			t.Errorf("%s não é monstro da quest", r[1])
+		}
+		got[chave{r[1], int16(item)}] = int32(chance)
+	}
+	for _, mob := range []string{"COrc_Sentinela", "COrc_Capitao"} {
+		for item, chance := range map[int16]int32{
+			casteloOrcAmagoSemSelaN: 500,
+			casteloOrcAmagoSemSelaB: 500,
+			4027:                    1000, // Moeda de Prata (5Mi)
+			casteloOrcPergaAguaN:    500,
+		} {
+			if got[chave{mob, item}] != chance {
+				t.Errorf("%s: item %d a %d, want %d", mob, item, got[chave{mob, item}], chance)
+			}
+		}
+	}
+	if !regexp.MustCompile(`SELECT\s+'COrc_Mago',\s*item,\s*chance\s+FROM\s+drop_rule\s+WHERE\s+mob\s*=\s*'COrc_MeioOrc'`).MatchString(sql) {
+		t.Error("o Mago Orc não herda o saque do Meio Orc")
 	}
 }
 
@@ -359,7 +530,9 @@ func TestCasteloOrcMigracaoDeDrops(t *testing.T) {
 		t.Errorf("a chave precisa sair de todos (%v) e voltar em algum lugar (%v)", chaveTodos, chaveEmAlgum)
 	}
 	for file := range casteloOrcDesign {
-		if porMonstro[file] == 0 {
+		// The Mago Orc came later and takes the Meio Orc's rows in 0063
+		// (TestCasteloOrcMigracaoDosGuardioes).
+		if porMonstro[file] == 0 && file != "COrc_Mago" {
 			t.Errorf("%s não tem saque nenhum na migração", file)
 		}
 	}
