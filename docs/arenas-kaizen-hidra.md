@@ -12,6 +12,7 @@ afeta nenhum outro lugar do mundo.
 ## Ajuste de 14/09/2026
 
 Pedido da equipe: a arena do Kaizen castigava quem chegava com os itens da quest.
+Na mesma leva, a Hidra Dourada também caiu pela metade.
 
 **Vida** (templates em `Release/TMsrv/run/npc`, BaseScore e CurrentScore):
 
@@ -19,11 +20,11 @@ Pedido da equipe: a arena do Kaizen castigava quem chegava com os itens da quest
 |---|---|---|---|---|---|
 | Cav. Kaizen | 241 | 8.100 | **4.050** | 1.496 | 608 |
 | Cav. Servo | 230 | 17.100 | **8.550** | 1.656 | 728 |
-| Hidra Dourada | 310 | 23.000 | 23.000 | 961 | 991 |
+| Hidra Dourada | 310 | 23.000 | **11.500** | 961 | 991 |
 | Hidra Imortal | 311 | 7.200 | 7.200 | 811 | 421 |
 
-A XP do template não mudou: com metade da vida, o Kaizen passa a render perto do
-dobro de XP por minuto.
+A XP do template não mudou: com metade da vida, esses monstros passam a render
+perto do dobro de XP por minuto.
 
 **Saque** (Mesa de Drops, migração `0065_arenas_kaizen_hidra`, editável em /drops):
 
@@ -53,11 +54,11 @@ defesa que as Hidras**, apesar de ser o passo anterior:
 |---|---|---|---|
 | Cav. Kaizen | 748 | 1.252 | 6,5 → 3,2 |
 | Cav. Servo | 828 | 1.172 | 14,6 → 7,3 |
-| Hidra Dourada | 480 | 1.520 | 15,1 |
+| Hidra Dourada | 480 | 1.520 | 15,1 → 7,6 |
 | Hidra Imortal | 405 | 1.595 | 4,5 |
 
 Para limpar a arena com golpes de 2.000: Kaizen ~389 golpes antes e ~195 agora;
-Hidras ~346. Quem entra nas Hidras é 75 níveis acima e bate mais forte: com golpes
-de 2.500, as Hidras caem em ~262. A Hidra Dourada é o monstro mais pesado das duas
-arenas, tanto em vida quanto em dano (991). O Cav. Servo era o gargalo do Kaizen:
-tinha o dobro da vida do próprio líder.
+Hidras ~346 antes e ~263 agora. Quem entra nas Hidras é 75 níveis acima e bate
+mais forte: com golpes de 2.500, as Hidras caem em ~200. A Hidra Dourada segue o
+monstro mais pesado das duas arenas, em vida e em dano (991). O Cav. Servo era o
+gargalo do Kaizen: tinha o dobro da vida do próprio líder.

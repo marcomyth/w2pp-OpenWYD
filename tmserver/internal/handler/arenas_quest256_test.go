@@ -16,12 +16,13 @@ import (
 
 // arenaQuest256Vida é a vida de cada monstro das arenas do Kaizen e das Hidras.
 // Em 14/09/2026 a equipe cortou o Kaizen pela metade (eram 8.100 e 17.100: a
-// arena castigava quem chegava com os itens da quest); as Hidras seguem as do
-// legado. Mudar um número aqui é mudar o balanceamento, e de propósito.
+// arena castigava quem chegava com os itens da quest) e a Hidra Dourada também
+// (era 23.000); a Hidra Imortal segue a do legado. Mudar um número aqui é mudar
+// o balanceamento, e de propósito.
 var arenaQuest256Vida = map[string]int32{
 	"Cav._Kaizen":   4050,
 	"Cav._Servo":    8550,
-	"Hidra_Dourada": 23000,
+	"Hidra_Dourada": 11500,
 	"Hidra_Imortal": 7200,
 }
 
