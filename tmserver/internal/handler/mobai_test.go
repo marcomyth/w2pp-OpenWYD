@@ -1175,7 +1175,13 @@ func TestGroupFocusesAttacker(t *testing.T) {
 	// Strike the LEADER: the followers spawn on adjacent cells (emptyCellNear
 	// rings), so the dragged ones can hit without pathing around the victim (the
 	// blind fallback step has no avoidance and would stall behind it).
-	victim := w.Entity(ids[0])
+	// A posição é copiada AQUI, antes de o laço subir. O estado do mundo tem um
+	// dono só (ver a doc do pacote world) e ler victim.X depois do Serve seria ler
+	// da rotina do teste o que a rotina do mundo está movendo — o mesmo tipo de
+	// corrida que o detector pegou no teste do kit de novato, e este ainda não
+	// disparou só porque a janela é estreita: o alvo é de clã amigo, então ele
+	// vagueia em vez de atacar, e vaguear é justamente escrever em X e Y.
+	victimX, victimY := w.Entity(ids[0]).X, w.Entity(ids[0]).Y
 	// Advance the clock with the tick: a mob staggers its FIRST swing across the
 	// attack cadence (mobAttack), so a frozen clock would leave every mob whose
 	// offset is non-zero waiting forever.
@@ -1190,8 +1196,8 @@ func TestGroupFocusesAttacker(t *testing.T) {
 
 	c := enterWorld(t, ln.Addr().String())
 	defer c.Close()
-	actionFrameAt(t, c, serverTime, victim.X-1, victim.Y) // adjacent to the leader
-	attackFrame(t, c, serverTime, ids[0], 0)              // strike it
+	actionFrameAt(t, c, serverTime, victimX-1, victimY) // adjacent to the leader
+	attackFrame(t, c, serverTime, ids[0], 0)            // strike it
 
 	attackers := map[uint16]bool{}
 	for i := 0; i < 40 && len(attackers) < 2; i++ {
