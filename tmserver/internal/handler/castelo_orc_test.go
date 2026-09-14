@@ -126,8 +126,9 @@ func TestCasteloOrcNaoMexeNoDropDeOutroMonstro(t *testing.T) {
 // while the port tripled that armour; a change to either rule moves all of it.
 //
 // 14/09/2026, from the team: the Grão-Lorde down another half (1.5 million), the
-// Guarda do Lorde down 30%, the Sentinela and the Capitão without their gate
-// keys, and the Mago Orc added to the troop with the Meio Orc's numbers.
+// Guarda do Lorde down 30%, no gate key on any guardian (the run ends by
+// teleport after the Grão-Lorde, so nothing inside needs opening), and the Mago
+// Orc added to the troop with the Meio Orc's numbers.
 var casteloOrcDesign = map[string]struct {
 	name             string
 	lvl, hp, ac, dmg int32
@@ -138,7 +139,7 @@ var casteloOrcDesign = map[string]struct {
 	"COrc_Guarda":    {"Guarda do Lorde", 320, 105000, 2200, 1520, 15, 0},
 	"COrc_Sentinela": {"Sentinela Orc", 330, 450000, 2400, 1620, 20, 0},
 	"COrc_Capitao":   {"Capitão Orc", 330, 450000, 2400, 1620, 20, 0},
-	"COrc_Chefe":     {"Chefe Orc", 330, 450000, 2400, 1620, 20, 469},
+	"COrc_Chefe":     {"Chefe Orc", 330, 450000, 2400, 1620, 20, 0},
 	"COrc_Cavaleiro": {"Cavaleiro Orc", 300, 18000, 1800, 1220, 10, 0},
 	"COrc_Arqueiro":  {"Arqueiro Orc", 300, 18000, 1800, 1220, 10, 0},
 	"COrc_MeioOrc":   {"Meio Orc", 300, 18000, 1800, 1220, 10, 0},

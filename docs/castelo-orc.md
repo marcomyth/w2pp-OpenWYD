@@ -46,8 +46,9 @@ próprios), item que o cliente já conhece. A migração tira a chave de todo mo
 - O sorteio usa o gerador dos eventos, não o dos drops, para não mexer na ordem
   que os testes de drop e refino fixam.
 - **Nenhum monstro da quest dá a 465**: senão cada corrida pagaria a entrada da
-  seguinte. Desde 14/09 o Sentinela e o Capitão não carregam mais chave de portão
-  (eram a 466 e a 467); só o Chefe Orc ainda leva a 469.
+  seguinte. Desde 14/09 nenhum guardião carrega chave de portão (eram a 466, a 467
+  e a 469): a corrida termina com o grupo teleportado depois do Grão-Lorde, então
+  nada lá dentro precisa ser aberto.
 
 ## A corrida (`handler/castelo_orc_run.go`)
 
@@ -120,7 +121,7 @@ quem não é do grupo não chega até ele enquanto uma corrida acontece.
 | `COrc_Guarda` | Guarda do Lorde | 320 | 105.000 | 2.200 | 1.520 | 15 | 6100 (grupo de 4) |
 | `COrc_Sentinela` | Sentinela Orc | 330 | 450.000 | 2.400 | 1.620 | 20 | 6101 |
 | `COrc_Capitao` | Capitão Orc | 330 | 450.000 | 2.400 | 1.620 | 20 | 6102 |
-| `COrc_Chefe` | Chefe Orc | 330 | 450.000 | 2.400 | 1.620 | 20 | 6103 · chave 469 |
+| `COrc_Chefe` | Chefe Orc | 330 | 450.000 | 2.400 | 1.620 | 20 | 6103 |
 | `COrc_Cavaleiro` | Cavaleiro Orc | 300 | 18.000 | 1.800 | 1.220 | 10 | 6104, 6107, 6110, 6113 |
 | `COrc_Arqueiro` | Arqueiro Orc | 300 | 18.000 | 1.800 | 1.220 | 10 | 6105, 6108, 6111, 6114 |
 | `COrc_MeioOrc` | Meio Orc | 300 | 18.000 | 1.800 | 1.220 | 10 | 6106, 6112 |
@@ -189,8 +190,8 @@ equipamento de mob no score.
 
 ## O saque
 
-Os templates não têm drop próprio, só a chave de portão dos guardiões (slot 56,
-cai sempre). O resto é da Mesa de Drops e se ajusta em `/drops` no painel.
+Os templates não têm drop próprio (até 14/09 os guardiões levavam uma chave de
+portão no slot 56). Tudo é da Mesa de Drops e se ajusta em `/drops` no painel.
 
 As chances saem da meta por entrada do design. A conta supõe 60 de tropa, 3
 guardiões, o boss e ~44 seguidores (4 no começo, mais 4 a cada 30 s em uns 5 min
