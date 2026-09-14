@@ -314,13 +314,21 @@ func TestCasteloOrcVisualDosMonstros(t *testing.T) {
 }
 
 // The first two gate guardians drop their stackables as packs; the same item
-// from any other quest monster is still one unit.
+// from any other quest monster is still one unit. The Classe D pack is 20 once
+// the Classes stack, and one unit until then.
 func TestCasteloOrcGuardiaoSoltaPacote(t *testing.T) {
+	classeD := 1
+	if isSplittable(casteloOrcClasseD) {
+		classeD = 20
+	}
 	for _, c := range []struct {
 		mob  string
 		item int16
 		want int
 	}{
+		{"COrc_Sentinela", casteloOrcClasseD, classeD},
+		{"COrc_Capitao", casteloOrcClasseD, classeD},
+		{"COrc_Chefe", casteloOrcClasseD, 1},
 		{"COrc_Sentinela", casteloOrcAmagoSemSelaN, 10},
 		{"COrc_Capitao", casteloOrcAmagoSemSelaB, 10},
 		{"COrc_Sentinela", casteloOrcPergaAguaN, 3},
@@ -343,13 +351,20 @@ func TestCasteloOrcGuardiaoSoltaPacote(t *testing.T) {
 	}
 }
 
-// A pack is only ever a stackable: every item in the pack table stacks, or the
-// client would get a pile it cannot split and spends whole.
+// A pack is only ever a stackable: the pack table may name an item that does not
+// stack yet (the Classe D), but it leaves as one unit, never as a pile the
+// client cannot split and spends whole.
 func TestCasteloOrcPacoteSoDeEmpilhavel(t *testing.T) {
+	d, w, _ := mobKilledWorld(t)
 	for mob, packs := range casteloOrcPacks {
 		for item := range packs {
-			if !isSplittable(item) {
-				t.Errorf("%s: pacote de %d, que não empilha", mob, item)
+			if isSplittable(item) {
+				continue
+			}
+			it := world.Item{Index: item}
+			d.casteloOrcFinish(w, &world.Entity{TemplateName: mob}, &it)
+			if hasAmountEffect(it) {
+				t.Errorf("%s: %d não empilha e saiu com quantidade %+v", mob, item, it.Effects)
 			}
 		}
 	}
@@ -395,6 +410,7 @@ func TestCasteloOrcMigracaoDosGuardioes(t *testing.T) {
 			casteloOrcAmagoSemSelaB: 500,
 			4027:                    1000, // Moeda de Prata (5Mi)
 			casteloOrcPergaAguaN:    500,
+			casteloOrcClasseD:       1000,
 		} {
 			if got[chave{mob, item}] != chance {
 				t.Errorf("%s: item %d a %d, want %d", mob, item, got[chave{mob, item}], chance)

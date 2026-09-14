@@ -81,17 +81,23 @@ const (
 	casteloOrcAmagoSemSelaN = 2396 // Âmago de Cav s/Sela N
 	casteloOrcAmagoSemSelaB = 2401 // Âmago de Ca s/Sela B
 	casteloOrcPergaAguaN    = 3173 // Pergaminho da Água (N) LV1, the only one of its chain found outside it
+	casteloOrcClasseD       = 4019 // Classe_D, the team's "Repletion D"
 )
 
 // casteloOrcGuardianPacks is how many units one drop carries from the first two
-// gate guardians (the team's call, 14/09/2026): a pack of 10 Âmagos and a pack
-// of 3 water scrolls. The Mesa de Drops says whether the item falls and how
+// gate guardians (the team's call, 14/09/2026): a pack of 10 Âmagos, 3 water
+// scrolls and 20 Classe D. The Mesa de Drops says whether the item falls and how
 // often, but it has no quantity, so the size of the pile lives here, as the
 // amulet's add does.
+//
+// The Classe D pack waits on the Classes stacking: until they are in
+// isSplittable, casteloOrcFinish leaves it at one unit, and it becomes 20 on its
+// own the day they are.
 var casteloOrcGuardianPacks = map[int16]int{
 	casteloOrcAmagoSemSelaN: 10,
 	casteloOrcAmagoSemSelaB: 10,
 	casteloOrcPergaAguaN:    3,
+	casteloOrcClasseD:       20,
 }
 
 var casteloOrcPacks = map[string]map[int16]int{
