@@ -351,7 +351,7 @@ func (h *Handler) setMesaXP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	aviso := "Gravado. O jogo só passa a usar isto no próximo reinício."
+	aviso := "Gravado. O jogo passa a usar isto em até 15 segundos, sem reinício."
 	if len(alvos) > 1 {
 		nomes := make([]string, 0, len(alvos))
 		for _, z := range alvos {
@@ -359,7 +359,7 @@ func (h *Handler) setMesaXP(w http.ResponseWriter, r *http.Request) {
 		}
 		// Naming them back is the confirmation that matters: a group shortcut
 		// that quietly hit one zone more than intended is invisible otherwise.
-		aviso = fmt.Sprintf("Gravado em %d zonas (%s). O jogo só passa a usar isto no próximo reinício.",
+		aviso = fmt.Sprintf("Gravado em %d zonas (%s). O jogo passa a usar isto em até 15 segundos, sem reinício.",
 			len(alvos), strings.Join(nomes, ", "))
 	}
 	h.voltarParaMesa(w, r, aviso)
@@ -455,7 +455,7 @@ func (h *Handler) restaurarMesaXP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.voltarParaMesa(w, r, "Restaurado: "+nome+" voltou ao legado, como estava. "+
-			"Vale no próximo reinício do jogo.")
+			"Vale em até 15 segundos, sem reinício.")
 		return
 	}
 
@@ -481,7 +481,7 @@ func (h *Handler) restaurarMesaXP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.voltarParaMesa(w, r, "Restaurado: "+nome+" voltou ao estado daquele registro. "+
-		"Vale no próximo reinício do jogo.")
+		"Vale em até 15 segundos, sem reinício.")
 }
 
 // limparMesaXP returns one branch to the legacy tables.
@@ -511,7 +511,7 @@ func (h *Handler) limparMesaXP(w http.ResponseWriter, r *http.Request) {
 		h.auditoriaFalhou(w, err)
 		return
 	}
-	h.voltarParaMesa(w, r, "Voltou ao legado. Vale no próximo reinício do jogo.")
+	h.voltarParaMesa(w, r, "Voltou ao legado. Vale em até 15 segundos, sem reinício.")
 }
 
 func (h *Handler) voltarParaMesa(w http.ResponseWriter, r *http.Request, aviso string) {
@@ -1285,7 +1285,7 @@ func (h *Handler) aplicarDificuldade(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	h.voltarParaMesa(w, r, fmt.Sprintf(
-		"%s (%d%%) aplicado em %s, nas três evoluções. O jogo só passa a usar isto no próximo reinício.",
+		"%s (%d%%) aplicado em %s, nas três evoluções. O jogo passa a usar isto em até 15 segundos, sem reinício.",
 		dif.Name, dif.Percent, zona.Name()))
 }
 
