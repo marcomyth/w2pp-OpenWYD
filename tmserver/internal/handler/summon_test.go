@@ -618,7 +618,23 @@ func TestSummonExpires(t *testing.T) {
 	}
 
 	// 20 lifespan decrements at one per 8 world ticks (10ms each) ≈ 1.6s.
-	deadline := time.Now().Add(5 * time.Second)
+	//
+	// O prazo é generoso de propósito. O que o pet espera não é tempo de
+	// relógio, são 160 tiques do mundo: medido aqui, com tique de 10 ms ele sai
+	// em 1,60 s; com tique de 30 ms sai em 4,80 s, exatamente o triplo. Sob
+	// -race, numa máquina emprestada da CI, o laço não entrega tique de 10 ms, e
+	// o relógio de parede estica junto: este teste falhou com "summon never
+	// expired" nas rodadas 34642244434 (11/09), 34711493813 (12/09) e
+	// 34799298499 (14/09) — duas delas na main —, sempre queimando o prazo
+	// inteiro de 5 s, ou seja, tique efetivo acima de 31 ms. Há piso medido para
+	// essa degradação, não há teto.
+	//
+	// Prazo grande não custa nada: o laço devolve no instante em que o RemoveMob
+	// chega, então o caminho saudável continua em 1,6 s. O prazo só decide quanto
+	// se demora para relatar uma falha de verdade. E ele continua mordendo: com o
+	// tique lento do startServerSummonTick o pet nunca expira e este teste falha
+	// nos 30 s.
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		h, _, ok := readMaybeHeaderRaw(t, c)
 		if !ok {
@@ -1147,7 +1163,13 @@ func TestSummonExpiradoSaiDoPainelDeGrupo(t *testing.T) {
 	}
 
 	saiuDoChao, saiuDoGrupo := false, false
-	deadline := time.Now().Add(5 * time.Second)
+	// 30 s pelo mesmo motivo do TestSummonExpires logo acima: o pet não espera
+	// tempo de relógio, espera 160 tiques do mundo, e sob -race a CI não entrega
+	// tique de 10 ms. Este teste espera exatamente a mesma expiração com o mesmo
+	// prazo que falhou lá três vezes; o prazo só decide quanto se demora para
+	// relatar uma falha de verdade, porque o laço sai assim que os dois avisos
+	// chegam.
+	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) && (!saiuDoChao || (petsNoPainelDeGrupo && !saiuDoGrupo)) {
 		h, payload, ok := readMaybeHeaderRaw(t, c)
 		if !ok {
