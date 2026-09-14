@@ -41,16 +41,45 @@ func startServerNovato(t *testing.T, persist world.Persistence) (string, func(),
 	}, w
 }
 
+// noLacoDoMundo roda fn DENTRO da rotina do mundo e espera ela terminar.
+//
+// Existe porque o estado do mundo tem um dono só: a rotina do World.Run o muta
+// sem tranca nenhuma, e é isso que segura a paridade e impede item duplicado
+// (ver a doc do pacote world). Um teste que alcança o estado direto da própria
+// rotina lê ao mesmo tempo em que o laço escreve — e o detector de corrida pega,
+// de vez em quando, no teste que estiver passando na hora errada.
+//
+// GoDetached é o caminho que o mundo já oferece para isso: entrega o retorno
+// dentro do laço. O canal fecha depois de fn rodar, então o que fn escreveu
+// chega ao teste com a ordem garantida.
+func noLacoDoMundo(t *testing.T, w *world.World, fn func(*world.World)) {
+	t.Helper()
+	pronto := make(chan struct{})
+	w.GoDetached(func() func(*world.World) {
+		return func(w *world.World) {
+			defer close(pronto)
+			fn(w)
+		}
+	})
+	select {
+	case <-pronto:
+	case <-time.After(2 * time.Second):
+		t.Fatal("a leitura dentro do laço do mundo não voltou")
+	}
+}
+
 // bolsaDoJogador devolve os itens não vazios da bolsa do único jogador em jogo.
 func bolsaDoJogador(t *testing.T, w *world.World) map[int16]world.Item {
 	t.Helper()
 	achados := map[int16]world.Item{}
-	w.ForEachPlaying(-1, func(_ *world.Session, e *world.Entity) {
-		for _, it := range e.Carry {
-			if !it.Empty() {
-				achados[it.Index] = it
+	noLacoDoMundo(t, w, func(w *world.World) {
+		w.ForEachPlaying(-1, func(_ *world.Session, e *world.Entity) {
+			for _, it := range e.Carry {
+				if !it.Empty() {
+					achados[it.Index] = it
+				}
 			}
-		}
+		})
 	})
 	return achados
 }

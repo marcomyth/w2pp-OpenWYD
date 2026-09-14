@@ -241,6 +241,11 @@ type Config struct {
 	// best-effort Castle/Zakum port disabled.
 	CastleQuests []content.CastleQuest
 
+	// LevelItems é a tabela de LevelItem.txt: a peça que cada nível entrega no
+	// armazém. Nil desliga a entrega, que é o que todo teste que não se importa
+	// com ela quer.
+	LevelItems *content.LevelItems
+
 	// EventRNGSeed seeds the dedicated world-event stream (see Dispatcher.eventRNG).
 	// Zero keeps the fixed worldEventRNGSeed, which is what tests want; main.go
 	// passes the wall clock so the weather sequence is not replayed identically
@@ -302,6 +307,7 @@ type Dispatcher struct {
 	towerState      world.GuildTowerState        // loop-owned GTorre ownership cache
 	castleState     world.CastleQuestState       // loop-owned Castle/Zakum state cache
 	castleQuests    []content.CastleQuest
+	levelItems      *content.LevelItems
 	castleParty     [world.MaxParty + 1]int
 	guildStateLoad  bool // guild persistence boot snapshot has been applied
 	guildStateBusy  bool // one guild-state load in flight
@@ -570,6 +576,7 @@ func New(cfg Config) *Dispatcher {
 		combineRateSource: cfg.CombineRateSrc,
 		xpConfigSource:    cfg.XPConfigs,
 		castleQuests:      cfg.CastleQuests,
+		levelItems:        cfg.LevelItems,
 		eventRNG:          rng.NewSeeded(cfg.EventRNGSeed),
 		events:            worldEventState{forceWeather: weatherAuto},
 	}

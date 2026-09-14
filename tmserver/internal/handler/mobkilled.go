@@ -505,6 +505,12 @@ func (d *Dispatcher) applyLevelUps(w *world.World, s *world.Session, e *world.En
 	// purpose: it can emit a CreateMob that recolors the nick, which must land
 	// after the score/etc refresh above, not in the middle of it.
 	d.grantLevelUpPKPoint(w, s, e, gained)
+
+	// A peça que este nível entrega no armazém (levelitem.go). Aqui e não nos
+	// quatro pontos que o legado usa: applyLevelUps é por onde TODOS eles passam
+	// — XP de morte, Poeira de Fada, setlevel do GM e combate —, então um gancho
+	// só cobre os quatro sem quatro chances de esquecer um.
+	d.entregaItemDeNivel(w, s, e)
 	return true
 }
 
