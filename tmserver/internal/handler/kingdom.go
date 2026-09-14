@@ -42,7 +42,10 @@ func (d *Dispatcher) tickKingdomRvR(w *world.World) {
 			d.sendDamageKingdom(w, box, clanAkelonia)
 		}
 	}
-	if d.tickCount%minutoTicks == 0 {
+	// A contagem 1→2→0 do legado corre no ProcessMinTimer
+	// (ProcessSecMinTimer.cpp:2621-2642), que dispara a cada 12 s — não a cada
+	// minuto. São duas voltas, então a sala esvazia em 24 s, e não em 120.
+	if d.tickCount%minTimerTicks == 0 {
 		d.advanceKingdomClear(w, &d.events.kingdom1, kingdom1Room)
 		d.advanceKingdomClear(w, &d.events.kingdom2, kingdom2Room)
 	}

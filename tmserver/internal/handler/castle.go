@@ -63,7 +63,9 @@ func (d *Dispatcher) tickCastle(w *world.World) {
 		d.cleanupCastle(w)
 		d.persistCastle(w, -1, -1, false, "")
 	}
-	if d.tickCount%minutoTicks == 0 && d.events.castle.TickMinute() {
+	// CCastleZakum::ProcessMinTimer (CCastleZakum.cpp:345) é chamado do minuto do
+	// legado (ProcessSecMinTimer.cpp:2619), de 12 em 12 s: a limpeza sai em 24 s.
+	if d.tickCount%minTimerTicks == 0 && d.events.castle.TickMinute() {
 		d.cleanupCastle(w)
 		d.persistCastle(w, -1, -1, false, "")
 	}

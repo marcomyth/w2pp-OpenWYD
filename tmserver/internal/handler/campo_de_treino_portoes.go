@@ -22,7 +22,7 @@ import (
 // Orc Sul sozinho até agora (castelo_orc_gate.go). O desenho e o corpo do pacote
 // são os dele, reusados.
 //
-// UNVERIFIED, como no Portão Orc: que o cliente 7662 impeça a passagem só com
+// UNVERIFIED, como no Portão Orc: que o cliente 7662 impeça a volta só com
 // estes pacotes. Quem levanta o chão sob o portão é o cliente; o servidor não tem
 // checagem de altura no movimento do jogador.
 var portoesDoCampo = [3]struct {
@@ -100,7 +100,11 @@ func (d *Dispatcher) syncPortoesDoCampo(w *world.World, s *world.Session, x, y i
 // relock do timer de minuto do legado. Sem ele a primeira chave abriria o campo
 // para sempre, e a chave dos outros jogadores não valeria mais nada.
 func (d *Dispatcher) tickPortoesDoCampo(w *world.World) {
-	if d.tickCount%minutoTicks != 0 {
+	// O "Close Gates" do legado está no ProcessMinTimer
+	// (ProcessSecMinTimer.cpp:2650), que dispara a cada 12 s. Trancar de novo só
+	// no minuto deixa o portão aberto cinco vezes mais tempo, e é a chave dos
+	// outros jogadores que paga a diferença.
+	if d.tickCount%minTimerTicks != 0 {
 		return
 	}
 	for _, id := range d.portoesDoCampoIDs(w) {
@@ -111,7 +115,7 @@ func (d *Dispatcher) tickPortoesDoCampo(w *world.World) {
 		g.State = world.StateLocked
 		key := gateSeenKey(g.ID)
 		// Trancar vai como CreateItem: o cliente já desenhou o portão aberto, e é
-		// o CreateItem que carrega a altura que fecha a passagem (gateCreateBody).
+		// o CreateItem que carrega a altura que fecha a volta (gateCreateBody).
 		w.ForEachInViewAt(g.X, g.Y, -1, func(s *world.Session, _ *world.Entity) {
 			w.MarkSeen(s, key)
 			w.SendTo(s, protocol.Header{Type: protocol.MsgCreateItem, ID: protocol.IDScene}, d.gateCreateBody(g))

@@ -61,28 +61,34 @@ func TestPortoesDoCampoAusentesNaoDesenham(t *testing.T) {
 // O portão que alguém abriu volta a trancar no minuto seguinte — o relock do
 // timer de minuto do legado. Sem isso a primeira chave abriria o campo para
 // sempre.
-func TestPortaoDoCampoTrancaDeNovoNoMinuto(t *testing.T) {
+func TestPortaoDoCampoTrancaNoPassoDeDozeSegundos(t *testing.T) {
 	d, w := portoesFixture(t)
 	id := d.portoesDoCampoIDs(w)[0]
 	g := w.GroundItem(id)
 	g.State = world.StateOpen
 
-	// Um tique fora do minuto não mexe.
-	d.tickCount = 1
-	d.tickPortoesDoCampo(w)
-	if g.State != world.StateOpen {
-		t.Fatalf("trancou fora do minuto (estado %d)", g.State)
+	// Um tique fora do passo não mexe — e o segundo 11 é o que separa os 12 s do
+	// legado de um minuto de parede: aqui ainda está aberto.
+	for _, tique := range []int{1, 11} {
+		d.tickCount = tique
+		d.tickPortoesDoCampo(w)
+		if g.State != world.StateOpen {
+			t.Fatalf("trancou no segundo %d, antes do passo (estado %d)", tique, g.State)
+		}
 	}
 
-	d.tickCount = minutoTicks
+	// O "Close Gates" do legado está no ProcessMinTimer (ProcessSecMinTimer.cpp:2650),
+	// que dispara a cada 12 s. Trancar só no minuto deixaria o portão aberto cinco
+	// vezes mais tempo, e nesse intervalo a chave dos outros jogadores não vale nada.
+	d.tickCount = minTimerTicks
 	d.tickPortoesDoCampo(w)
 	if g.State != world.StateLocked {
-		t.Errorf("estado %d depois do minuto, want trancado (%d)", g.State, world.StateLocked)
+		t.Errorf("estado %d no segundo %d, queria trancado (%d)", g.State, minTimerTicks, world.StateLocked)
 	}
 }
 
 // O corpo do CreateItem de um portão trancado leva a altura que fecha a
-// passagem; aberto, a altura do chão.
+// volta; aberto, a altura do chão.
 func TestPortaoDoCampoCorpoDoCreateItem(t *testing.T) {
 	d, w := portoesFixture(t)
 	g := w.GroundItem(d.portoesDoCampoIDs(w)[0])
