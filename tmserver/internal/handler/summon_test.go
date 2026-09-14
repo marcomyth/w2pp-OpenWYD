@@ -600,9 +600,39 @@ func TestEvocationRefundsWhenNothingSpawns(t *testing.T) {
 
 // TestSummonExpires: the Type-24 lifespan (20 affect ticks) runs out and the
 // pet is removed (DeleteMob(idx,3), Server.cpp:5843).
+// expiraRapido e prazoDaExpiracao são as duas metades do mesmo conserto, e é a
+// SEGUNDA tentativa: o prazo sozinho já falhou duas vezes.
+//
+// O que o pet espera não é tempo de relógio, são 160 tiques de mundo — 20 quedas
+// de vida útil, uma a cada 8 tiques. Medido aqui: tique de 10 ms expira em 1,60 s,
+// de 5 ms em 0,80 s, de 30 ms em 4,80 s. É linear, o tique é o único fator.
+//
+// Primeiro eu subi o prazo de 5 s para 30 s (PR 27). Não bastou: o teste falhou
+// na CI aos 30,73 s, numa rodada em que o pacote levou 255 s sob -race. Subir o
+// número de novo seria chutar uma terceira vez o mesmo teto que eu não conheço —
+// eu só conheço o piso, e ele já passou de 187 ms por tique.
+//
+// Então aqui as duas pontas são atacadas ao mesmo tempo:
+//   - o tique cai para 5 ms, o que corta o tempo esperado pela METADE (0,80 s).
+//     Não muda o que o teste afirma: a vida útil é contada em TIQUES, não em
+//     segundos, então um tique mais curto preserva exatamente a mesma asserção.
+//     5 ms é o piso útil — com 2 ms o tiquetaqueador não entrega e o teste falha
+//     mesmo com o mundo são (medido).
+//   - o prazo sobe para 120 s, que não custa nada: o laço devolve no instante em
+//     que o RemoveMob chega, então o caminho saudável continua em 0,80 s. O prazo
+//     só decide quanto se demora para relatar uma falha de verdade.
+//
+// Folga resultante: 150x contra os 9,4x que acabaram de falhar. E os dois testes
+// continuam mordendo — com o tique lento do startServerSummonTick o pet não
+// expira e cada um falha no prazo.
+const (
+	expiraRapido     = 5 * time.Millisecond
+	prazoDaExpiracao = 120 * time.Second
+)
+
 func TestSummonExpires(t *testing.T) {
 	// Evocação 30 → exactly one pet, keeping the wire quiet.
-	addr, stop, _ := startServerSummon(t, summonDB(30), nil, 0, 0)
+	addr, stop, _ := startServerSummonTick(t, summonDB(30), evokeSpell(), [][]byte{summonTemplate("Condor")}, nil, 0, 0, expiraRapido)
 	defer stop()
 	c := enterWorld(t, addr)
 	defer c.Close()
@@ -634,7 +664,7 @@ func TestSummonExpires(t *testing.T) {
 	// se demora para relatar uma falha de verdade. E ele continua mordendo: com o
 	// tique lento do startServerSummonTick o pet nunca expira e este teste falha
 	// nos 30 s.
-	deadline := time.Now().Add(30 * time.Second)
+	deadline := time.Now().Add(prazoDaExpiracao)
 	for time.Now().Before(deadline) {
 		h, _, ok := readMaybeHeaderRaw(t, c)
 		if !ok {
@@ -1147,7 +1177,7 @@ func TestPetOcupadoAindaRecebeOAtacanteDoDono(t *testing.T) {
 // nenhum teste acusa nada: o que se lê ali é o mundo, e a mentira estava só na
 // tela.
 func TestSummonExpiradoSaiDoPainelDeGrupo(t *testing.T) {
-	addr, stop, _ := startServerSummon(t, summonDB(30), nil, 0, 0)
+	addr, stop, _ := startServerSummonTick(t, summonDB(30), evokeSpell(), [][]byte{summonTemplate("Condor")}, nil, 0, 0, expiraRapido)
 	defer stop()
 	c := enterWorld(t, addr)
 	defer c.Close()
@@ -1169,7 +1199,7 @@ func TestSummonExpiradoSaiDoPainelDeGrupo(t *testing.T) {
 	// prazo que falhou lá três vezes; o prazo só decide quanto se demora para
 	// relatar uma falha de verdade, porque o laço sai assim que os dois avisos
 	// chegam.
-	deadline := time.Now().Add(30 * time.Second)
+	deadline := time.Now().Add(prazoDaExpiracao)
 	for time.Now().Before(deadline) && (!saiuDoChao || (petsNoPainelDeGrupo && !saiuDoGrupo)) {
 		h, payload, ok := readMaybeHeaderRaw(t, c)
 		if !ok {
