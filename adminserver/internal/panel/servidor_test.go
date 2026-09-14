@@ -351,8 +351,15 @@ func TestAsDuasTelasContamAMesmaCoisaSobreOServidor(t *testing.T) {
 // modelar servidor REALMENTE parado: parado não responde.
 func newTestPanelPlatJogoCom(t *testing.T, plat Platform, j *fakeJogo) http.Handler {
 	t.Helper()
+	return newTestPanelPlatJogoWriter(t, plat, j, newFakeWriter())
+}
+
+// newTestPanelPlatJogoWriter é o mesmo com o writer escolhido, para um teste
+// poder ter edições esperando reinício.
+func newTestPanelPlatJogoWriter(t *testing.T, plat Platform, j *fakeJogo, wr *fakeWriter) http.Handler {
+	t.Helper()
 	h, err := New(Config{
-		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		Accounts: withTarget(roleAdmin), Writer: wr, Audit: newFakeAudit(),
 		Platform: plat, Jogo: j,
 		Sessions: session.New(time.Hour),
 		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
@@ -1212,6 +1219,40 @@ func TestPuladoNaoApagaOServidorNaHome(t *testing.T) {
 	}
 	if strings.Contains(body, "SKIPPED") {
 		t.Error("a home mostra SKIPPED como se fosse o estado do serviço")
+	}
+}
+
+// TestAvisoDeReinicioSobreviveQuandoSoOJogoProvaQueEstaNoAr prende a METADE do
+// defeito de 13/09/2026 que não tinha teste.
+//
+// A home só conta as edições que esperam reinício quando acha que o jogo está no
+// ar — e com razão: contar contra um boot que não aconteceu dá um número que não
+// quer dizer nada. Mas enquanto a página se enganava sobre estar no ar, o aviso
+// sumia junto, e o alerta desaparecia exatamente na hora em que seria preciso:
+// havia edição de monstro esperando e ninguém via.
+//
+// O cenário é o único em que a conta depende do cruzamento com o jogo: a
+// hospedagem diz que a publicação foi REMOVIDA, e quem prova que o servidor está
+// de pé é o jogo responder. Tirando esse cruzamento, o teste falha — foi assim
+// que ele foi conferido.
+func TestAvisoDeReinicioSobreviveQuandoSoOJogoProvaQueEstaNoAr(t *testing.T) {
+	plat := newFakePlatform()
+	agora := time.Now()
+	plat.historico = []plataforma.Deployment{
+		{ID: "dep-removido", Status: "REMOVED", CreatedAt: agora.Add(-3 * time.Hour)},
+	}
+	wr := newFakeWriter()
+	wr.pendentes = 3
+	wr.ultimaEdicao = agora.Add(-20 * time.Minute)
+
+	h := newTestPanelPlatJogoWriter(t, plat, &fakeJogo{estado: estadoDeTeste()}, wr)
+	body := signedIn(t, h)("/").Body.String()
+
+	if !strings.Contains(body, "3 edição") {
+		t.Error("o aviso de edição pendente sumiu, e o jogo atendeu a checagem")
+	}
+	if strings.Contains(body, "nenhuma edição pendente") {
+		t.Error("a home disse que não há nada pendente, com três edições esperando")
 	}
 }
 

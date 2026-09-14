@@ -19,10 +19,21 @@ import (
 // ports.
 const minTimerTicks = int(spawnrate.MinTimerPass / time.Second)
 
-// minutoTicks is a wall-clock minute in world ticks. The castle, the kingdom
-// throne rooms and the tower war still step on it. Whether each of them ports a
-// count of ProcessMinTimer passes (and so has the same five-fold defect) or only
-// polls the time of day is an open audit, answered one by one against the
-// legacy before anything moves: castle.go tickCastle, kingdom.go tickKingdomRvR,
-// towerwar.go tickTowerWar.
+// minutoTicks e um minuto de parede em tiques do mundo.
+//
+// A auditoria que este comentario pedia esta FEITA, e a distincao que ela achou
+// vale mais que a lista: o que decide nao e o nome do relogio, e o que o codigo
+// faz com ele.
+//
+//   - quem CONTA VOLTAS do relogio do legado tem que usar minTimerTicks, que
+//     vale 12 s. Eram tres, e os tres estavam cinco vezes mais lentos: a sala do
+//     trono do reino (kingdom.go, a contagem 1-2-0 de ProcessSecMinTimer.cpp:2621),
+//     o portao do campo de treino (o "Close Gates" de :2650) e a limpeza do
+//     Castelo Zakum (CCastleZakum.cpp:345, chamado de :2619).
+//   - quem LE O RELOGIO DE PAREDE pode ficar aqui, porque o tique e so cadencia
+//     de consulta e nao entra na conta: a Guerra de Torres compara now.Hour() e
+//     now.Minute() (towerwar.go) e o Kefra semanal compara Weekday() e Hour()
+//     (kefra.go). Consultar de minuto em minuto pega todas as janelas dos dois.
+//
+// Ou seja: antes de trocar um pelo outro, pergunte se o trecho CONTA ou CONSULTA.
 const minutoTicks = 60
