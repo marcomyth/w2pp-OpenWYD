@@ -46,3 +46,16 @@ cópia do cliente (a pasta original é só lida):
 
 Ele escolhe a célula sozinho pela regra acima e imprime qual usou — a tabela
 deste arquivo é para quem for ler o cliente depois, não uma entrada do comando.
+
+## Variantes que reaproveitam o ícone de outro item
+
+Um item que é cópia de outro não precisa de arte nem de célula nova: basta
+apontar o `itemicon.bin` dele para a célula da origem. É o caso do kit de novato
+(5760 Frango Assado (Novato) → célula do 3314; 5761 Baú de Experiência (Novato) →
+célula do 4140). O `webserver/cmd/kitnovatocliente` grava os três arquivos de uma
+vez — `ItemList.bin`, `itemicon.bin` e `itemhelp.dat` — e o atlas não muda.
+
+Os três têm de ir juntos. A primeira versão do gerador só escrevia o
+`ItemList.bin`, e o kit chegou à bolsa como quadrados sem ícone e sem descrição
+(14/09/2026). O 4140 não tem bloco no `itemhelp.dat`, então a variante dele
+também fica sem texto próprio, igual ao original.
