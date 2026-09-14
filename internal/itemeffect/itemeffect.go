@@ -147,6 +147,12 @@ const (
 	EFRange = "EF_RANGE"
 	// EFVolatile is what an item does when used: potion, divine, scroll, stone.
 	EFVolatile = "EF_VOLATILE"
+	// EFKeyID is the number a gate and its key share (ItemEffect.h:96). Not a
+	// score stat either. While it was absent from efName AND unnamed here,
+	// BaseEffects dropped it: every locked gate read "no key needed" and no key
+	// was ever spent (measured on the test copy, 14/09/2026). Read through
+	// content.ItemList.KeyIDs.
+	EFKeyID = "EF_KEYID"
 )
 
 // PairValue reads the value of one EF_<name> pair from a catalog row.

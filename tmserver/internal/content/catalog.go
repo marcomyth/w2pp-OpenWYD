@@ -112,6 +112,20 @@ func (l *ItemList) Volatiles() map[int]int {
 	return out
 }
 
+// KeyIDs returns item index → its EF_KEYID value: the number a gate and its key
+// share (_MSG_UpdateItem.cpp:58-91). It is read by name, like Volatiles, because
+// EF_KEYID is not a score stat and BaseEffects never carries it; while the gate
+// path relied on BaseEffects, every locked gate read key 0 and opened for anyone.
+func (l *ItemList) KeyIDs() map[int]int {
+	out := make(map[int]int)
+	for idx, e := range l.items {
+		if v, ok := itemeffect.PairValue(e.Fields, itemeffect.EFKeyID); ok && v != 0 {
+			out[idx] = int(v)
+		}
+	}
+	return out
+}
+
 // Ranges returns item index → its EF_RANGE value (the attack reach an equipped
 // item grants). A mob's reach is the max EF_RANGE over its template's 16 equips
 // (BASE_GetMobAbility → BASE_GetMaxAbility, Basedef.cpp:2415/2523); EF_RANGE is
