@@ -251,6 +251,7 @@ func run(logger *slog.Logger) error {
 	var casteloOrcNPC []byte
 	var shopCloneMob []byte
 	var castleQuests []content.CastleQuest
+	var levelItems *content.LevelItems
 	if *contentDir != "" {
 		statusFile = filepath.Join(*contentDir, "Common", "serv00.htm")
 		if bm, err := content.LoadBaseMobs(*contentDir); err != nil {
@@ -302,6 +303,27 @@ func run(logger *slog.Logger) error {
 		} else {
 			castleQuests = cq
 			logger.Info("castle quests loaded", "count", len(castleQuests))
+		}
+		// A tabela de itens por nível. Sem ela ninguém recebe peça ao subir — que
+		// foi exatamente o estado do servidor até agora, porque o arquivo viajava
+		// no conteúdo e ninguém o abria.
+		if li, avisos, err := content.LoadLevelItems(filepath.Join(*contentDir, "TMsrv", "run", "LevelItem.txt")); err != nil {
+			logger.Warn("itens por nível não carregados (ninguém recebe peça ao subir)", "err", err)
+		} else {
+			levelItems = li
+			linhas, sobrescritas, indefinidas := li.Linhas, li.Sobrescritas, li.ConstrucaoIndefinida
+			logger.Info("itens por nível carregados",
+				"linhas", linhas, "sobrescritas", sobrescritas, "construcao_indefinida", indefinidas)
+			if sobrescritas > 0 {
+				// Não é erro: o legado tem o mesmo comportamento, a última linha
+				// ganha. É desperdício, e até agora invisível — no arquivo que veio
+				// no conteúdo quase metade das linhas não faz nada.
+				logger.Warn("itens por nível: linhas apagadas por outra do mesmo nível, classe e construção",
+					"sobrescritas", sobrescritas, "de", linhas)
+			}
+			for _, a := range avisos {
+				logger.Warn("itens por nível: linha ignorada", "motivo", a)
+			}
 		}
 	}
 
@@ -585,6 +607,7 @@ func run(logger *slog.Logger) error {
 		CombatRuleSrc:   combatRules,
 		DropRuleSrc:     dropRules,
 		CastleQuests:    castleQuests,
+		LevelItems:      levelItems,
 		EventRNGSeed:    eventSeed,
 		MaxNightmare:    *maxNightmare,
 		AffectDuration: world.AffectDuration{
