@@ -1,12 +1,14 @@
-// Command kitnovatocliente grava no ItemList.bin do cliente as duas variantes do
-// kit de novato (5760 Frango Assado (Novato) e 5761 Baú de Experiência
-// (Novato)), copiando nome, malha, textura e efeitos dos itens de origem.
+// Command kitnovatocliente grava no cliente as duas variantes do kit de novato
+// (5760 Frango Assado (Novato) e 5761 Baú de Experiência (Novato)), copiando dos
+// itens de origem o nome, a malha e os efeitos (ItemList.bin), o ícone
+// (itemicon.bin) e a descrição (itemhelp.dat).
 //
 // Sem isto o jogador recebe pelo /novato dois itens que o cliente dele não
-// conhece: o registro existe no catálogo (é um vetor fixo de 6500) mas está
-// zerado, então a bolsa mostra um quadrado sem nome e sem ícone.
+// conhece: a bolsa mostra um quadrado sem nome, sem ícone e sem descrição. Os
+// três arquivos têm de ir juntos — só o ItemList.bin, como na primeira versão,
+// ainda deixa o quadrado vazio, porque o ícone não mora nele.
 //
-// Ele NUNCA escreve dentro da pasta do cliente: lê o ItemList.bin de lá e põe o
+// Ele NUNCA escreve dentro da pasta do cliente: lê os arquivos de lá e põe o
 // resultado na pasta de saída, pronto para o launcher publicar. Trocar o arquivo
 // do cliente é decisão de quem está jogando com ele.
 //
@@ -24,8 +26,8 @@ import (
 )
 
 func main() {
-	cliente := flag.String("cliente", "", "pasta do cliente, com ItemList.bin (só é lida)")
-	saida := flag.String("saida", "out", "pasta onde o ItemList.bin novo é escrito")
+	cliente := flag.String("cliente", "", "pasta do cliente, com ItemList.bin, itemicon.bin e itemhelp.dat (só é lida)")
+	saida := flag.String("saida", "out", "pasta onde os arquivos novos são escritos")
 	flag.Parse()
 
 	if err := executar(*cliente, *saida); err != nil {
@@ -34,29 +36,46 @@ func main() {
 	}
 }
 
+// arquivo é um dos três arquivos do cliente e a transformação que ele recebe.
+type arquivo struct {
+	nome     string
+	aplicar  func([]byte, []clientkit.Variante) ([]byte, error)
+	conteudo []byte
+}
+
 func executar(cliente, saida string) error {
 	if cliente == "" {
 		return fmt.Errorf("informe -cliente com a pasta do cliente")
 	}
-	origem := filepath.Join(cliente, "ItemList.bin")
-	il, err := os.ReadFile(origem)
-	if err != nil {
-		return fmt.Errorf("ler %s: %w", origem, err)
+	arquivos := []*arquivo{
+		{nome: "ItemList.bin", aplicar: clientkit.Aplicar},
+		{nome: "itemicon.bin", aplicar: clientkit.AplicarIcones},
+		{nome: "itemhelp.dat", aplicar: clientkit.AplicarDescricoes},
 	}
-	novo, err := clientkit.Aplicar(il, clientkit.KitDoNovato())
-	if err != nil {
-		return err
+	// Tudo é calculado antes de qualquer gravação: uma saída com o ItemList.bin
+	// novo e o itemicon.bin velho é exatamente o kit sem ícone.
+	for _, a := range arquivos {
+		origem := filepath.Join(cliente, a.nome)
+		dados, err := os.ReadFile(origem)
+		if err != nil {
+			return fmt.Errorf("ler %s: %w", origem, err)
+		}
+		if a.conteudo, err = a.aplicar(dados, clientkit.KitDoNovato()); err != nil {
+			return err
+		}
 	}
 	if err := os.MkdirAll(saida, 0o755); err != nil {
 		return fmt.Errorf("criar %s: %w", saida, err)
 	}
-	destino := filepath.Join(saida, "ItemList.bin")
-	if err := os.WriteFile(destino, novo, 0o644); err != nil {
-		return fmt.Errorf("escrever %s: %w", destino, err)
+	for _, a := range arquivos {
+		destino := filepath.Join(saida, a.nome)
+		if err := os.WriteFile(destino, a.conteudo, 0o644); err != nil {
+			return fmt.Errorf("escrever %s: %w", destino, err)
+		}
 	}
 	for _, v := range clientkit.KitDoNovato() {
 		fmt.Printf("item %d gravado a partir do %d: %s\n", v.Destino, v.Origem, v.Nome)
 	}
-	fmt.Println("saída:", destino)
+	fmt.Println("saída:", saida)
 	return nil
 }

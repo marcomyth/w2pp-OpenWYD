@@ -266,3 +266,53 @@ func cp1252(s string) []byte {
 	}
 	return out
 }
+
+// Copiar devolve o itemhelp.dat com a descrição de origem repetida sob o índice
+// destino, trocando a que o destino tivesse. O bool diz se a origem tinha texto:
+// sem bloco, o arquivo volta intacto, porque um item sem descrição é um estado
+// válido do cliente e a cópia dele é outro item sem descrição.
+//
+// As linhas vão como bytes, sem passar por Linha: decodificar e codificar de
+// novo é justamente o caminho em que um acento se perde.
+func Copiar(data []byte, origem, destino int) ([]byte, bool, error) {
+	if origem <= 0 || destino <= 0 || origem == destino {
+		return nil, false, fmt.Errorf("clientitemhelp: cópia de %d para %d inválida", origem, destino)
+	}
+	inicio, fim, err := bloco(data, origem)
+	if err != nil {
+		return nil, false, err
+	}
+	if inicio == fim {
+		return data, false, nil
+	}
+	corpo := data[inicio:fim]
+	if nl := bytes.IndexByte(corpo, '\n'); nl >= 0 {
+		corpo = corpo[nl+1:]
+	} else {
+		corpo = nil // o índice é a última linha do arquivo: bloco sem texto
+	}
+	var linhas bytes.Buffer
+	linhas.WriteString(strconv.Itoa(destino))
+	linhas.WriteString("\r\n")
+	linhas.Write(corpo)
+	// O último bloco do arquivo pode acabar sem quebra; sem esta, a última linha
+	// dele ficaria colada no índice do bloco seguinte.
+	if len(corpo) > 0 && corpo[len(corpo)-1] != '\n' {
+		linhas.WriteString("\r\n")
+	}
+
+	di, df, err := bloco(data, destino)
+	if err != nil {
+		return nil, false, err
+	}
+	var novo bytes.Buffer
+	novo.Write(data[:di])
+	// Inserir no fim de um arquivo que não termina em quebra colaria o índice
+	// novo na última linha do bloco anterior.
+	if di == len(data) && di > 0 && data[di-1] != '\n' {
+		novo.WriteString("\r\n")
+	}
+	novo.Write(linhas.Bytes())
+	novo.Write(data[df:])
+	return novo.Bytes(), true, nil
+}

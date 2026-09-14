@@ -155,3 +155,90 @@ func TestSetGravaEmCP1252(t *testing.T) {
 		t.Errorf("acento não saiu em Windows-1252:\n%q", string(out))
 	}
 }
+
+// TestCopiarRepeteOBlocoByteAByte: a variante tem de mostrar o mesmo texto do
+// original, e os bytes vão sem decodificar — o "ó" de "caóticos" sai como o
+// mesmo byte único de Windows-1252.
+func TestCopiarRepeteOBlocoByteAByte(t *testing.T) {
+	out, ok, err := Copiar([]byte(arquivo), 410, 5760)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("Copiar disse que o 410 não tem descrição")
+	}
+	got := string(out)
+	quer := "5760\r\nFFFFFFFF Ao_ser_utilizado_no_campo,\r\nFFFFFFFF o_personagem_retorna_à_cidade.\r\n"
+	if !strings.HasSuffix(got, quer) {
+		t.Errorf("o bloco copiado não foi para o fim, na ordem:\n%q", got)
+	}
+	if !strings.HasPrefix(got, arquivo) {
+		t.Errorf("os blocos que já existiam mudaram:\n%q", got)
+	}
+}
+
+// TestCopiarOrigemSemBlocoNaoMexe: o Baú de Experiência (4140) não tem texto no
+// cliente, e a variante dele fica igual — sem descrição, sem erro.
+func TestCopiarOrigemSemBlocoNaoMexe(t *testing.T) {
+	out, ok, err := Copiar([]byte(arquivo), 4140, 5761)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok || string(out) != arquivo {
+		t.Errorf("origem sem bloco alterou o arquivo (ok=%v):\n%q", ok, out)
+	}
+}
+
+// TestCopiarDeUltimoBlocoSemQuebraFinal: o último bloco do arquivo pode não
+// terminar em CRLF, e a cópia não pode colar a última linha dele no índice
+// seguinte.
+func TestCopiarDeUltimoBlocoSemQuebraFinal(t *testing.T) {
+	semQuebra := strings.TrimSuffix(arquivo, "\r\n")
+	out, _, err := Copiar([]byte(semQuebra), 3343, 3000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "3000\r\nFFFF00FF [Item_Premium]\r\nFFFFFFFF Dispensa_os_pontos_caóticos.\r\n3343\r\n") {
+		t.Errorf("a cópia do último bloco saiu colada:\n%q", out)
+	}
+}
+
+// TestCopiarNoFimDeArquivoSemQuebra: o itemhelp.dat do cliente termina sem CRLF
+// e o 5760 é maior que todo índice dele, então o bloco novo vai para o fim. Sem
+// a quebra, "5760" colaria na última linha do arquivo e o cliente leria um texto
+// estranho no item anterior e nenhum no Frango.
+func TestCopiarNoFimDeArquivoSemQuebra(t *testing.T) {
+	semQuebra := strings.TrimSuffix(arquivo, "\r\n")
+	out, _, err := Copiar([]byte(semQuebra), 410, 5760)
+	if err != nil {
+		t.Fatal(err)
+	}
+	quer := semQuebra + "\r\n5760\r\nFFFFFFFF Ao_ser_utilizado_no_campo,\r\n"
+	if !strings.HasPrefix(string(out), quer) {
+		t.Errorf("o bloco novo colou no fim do arquivo:\n%q", out)
+	}
+}
+
+// foraDeOrdem tem a forma do itemhelp.dat real: a ordem crescente quebra (no
+// cliente, os blocos 3310-3315 vêm depois do 3463, e há outras 15 quedas).
+const foraDeOrdem = "3463\r\n" +
+	"FFFFFFFF Item_3463.\r\n" +
+	"3314\r\n" +
+	"FFFFFFFF Um_suculento_frango_assado.\r\n" +
+	"3315\r\n" +
+	"FFFFFFFF Item_3315.\r\n"
+
+// TestCopiarAchaBlocoForaDeOrdem: parar no primeiro índice maior dava o 3314
+// como inexistente, e a variante do Frango saía sem descrição, calada.
+func TestCopiarAchaBlocoForaDeOrdem(t *testing.T) {
+	out, ok, err := Copiar([]byte(foraDeOrdem), 3314, 5760)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("Copiar não achou o 3314, que está depois do 3463")
+	}
+	if !strings.HasSuffix(string(out), "5760\r\nFFFFFFFF Um_suculento_frango_assado.\r\n") {
+		t.Errorf("a descrição não foi copiada:\n%q", out)
+	}
+}

@@ -1,11 +1,18 @@
-// Package clientkit escreve no ItemList.bin do cliente as variantes de item que
-// só existem neste servidor — hoje, as duas do kit de novato (/novato).
+// Package clientkit escreve no cliente as variantes de item que só existem
+// neste servidor — hoje, as duas do kit de novato (/novato).
 //
-// Por que isto é preciso: o cliente desenha a bolsa a partir do PRÓPRIO
-// catálogo. Um índice que o servidor conhece e o cliente não vira um item sem
-// nome e sem ícone na mão do jogador — o registro existe (o arquivo é um vetor
-// fixo de 6500), mas está zerado. Copiar a entrada do item de origem resolve as
-// duas coisas de uma vez, porque nome, malha e textura moram no mesmo registro.
+// Por que isto é preciso: o cliente desenha a bolsa a partir dos PRÓPRIOS
+// arquivos. Um índice que o servidor conhece e o cliente não vira um item sem
+// nome, sem ícone e sem descrição na mão do jogador. E são três arquivos, não
+// um, todos indexados pelo número do item:
+//
+//   - ItemList.bin: nome, malha, textura, efeitos e preço (Aplicar);
+//   - itemicon.bin: a célula do atlas que desenha o ícone (AplicarIcones);
+//   - itemhelp.dat: o texto abaixo do nome (AplicarDescricoes).
+//
+// A primeira versão só escrevia o ItemList.bin, e o kit chegou à bolsa com
+// quadrados vazios (14/09/2026). Copiar o ícone aponta a variante para a MESMA
+// célula da origem, sem desenhar nada: o atlas não muda.
 //
 // Irmão de clientmount, e com a mesma divisão de trabalho: aqui só se mexe no
 // que o jogador LÊ. O que o servidor aplica vem do Release/Common/ItemList.csv.
@@ -13,7 +20,10 @@ package clientkit
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
+
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/clientitemhelp"
 )
 
 // O ItemList.bin do cliente: 6500 registros de 140 bytes sob um XOR 0x5A plano,
@@ -43,12 +53,69 @@ type Variante struct {
 // KitDoNovato são as duas variantes do /novato, com os mesmos índices que o
 // Release/Common/ItemList.csv e o handler usam. Mudar um lado sem o outro
 // entrega ao jogador um item que o cliente dele não sabe desenhar.
+//
+// Os nomes levam "_" no lugar do espaço, byte a byte como no CSV: é a forma de
+// todo nome do ItemList.bin, e o cliente desenha o sublinhado como espaço.
 func KitDoNovato() []Variante {
 	const efNoTrade = 127
 	return []Variante{
-		{Origem: 3314, Destino: 5760, Nome: "Frango Assado (Novato)", Efeitos: [][2]int16{{efNoTrade, 1}}},
-		{Origem: 4140, Destino: 5761, Nome: "Ba\xfa de Experi\xeancia (Novato)", Efeitos: [][2]int16{{efNoTrade, 1}}},
+		{Origem: 3314, Destino: 5760, Nome: "Frango_Assado_(Novato)", Efeitos: [][2]int16{{efNoTrade, 1}}},
+		{Origem: 4140, Destino: 5761, Nome: "Ba\xfa_de_Experi\xeancia_(Novato)", Efeitos: [][2]int16{{efNoTrade, 1}}},
 	}
+}
+
+// AplicarIcones devolve uma cópia do itemicon.bin com cada variante apontando
+// para a célula do seu item de origem.
+//
+// A tabela é um int32 little-endian por item com o id 1-based da célula, e 0 é
+// "sem ícone" (ver itemicons.SetIcon).
+func AplicarIcones(tabela []byte, vars []Variante) ([]byte, error) {
+	if len(tabela)%4 != 0 {
+		return nil, fmt.Errorf("clientkit: o itemicon.bin tem %d bytes, que não é múltiplo de 4", len(tabela))
+	}
+	out := bytes.Clone(tabela)
+	icone := func(item int16) (uint32, error) {
+		if item < 0 || (int(item)+1)*4 > len(out) {
+			return 0, fmt.Errorf("clientkit: o itemicon.bin tem %d bytes e não alcança o item %d", len(out), item)
+		}
+		return binary.LittleEndian.Uint32(out[int(item)*4:]), nil
+	}
+	for _, v := range vars {
+		org, err := icone(v.Origem)
+		if err != nil {
+			return nil, err
+		}
+		dst, err := icone(v.Destino)
+		if err != nil {
+			return nil, err
+		}
+		// Copiar "nenhum ícone" entregaria o quadrado vazio de novo, calado.
+		if org == 0 {
+			return nil, fmt.Errorf("clientkit: o item de origem %d não tem ícone no itemicon.bin", v.Origem)
+		}
+		// Mesma regra do ItemList.bin: um destino com ícone próprio é um item que
+		// o cliente já desenha. Igual ao da origem é o gerador rodado de novo.
+		if dst != 0 && dst != org {
+			return nil, fmt.Errorf("clientkit: o índice de destino %d já tem o ícone %d", v.Destino, dst)
+		}
+		binary.LittleEndian.PutUint32(out[int(v.Destino)*4:], org)
+	}
+	return out, nil
+}
+
+// AplicarDescricoes devolve o itemhelp.dat com a descrição de cada origem
+// repetida na sua variante. Origem sem texto não é erro: o Baú de Experiência
+// (4140) não tem bloco no cliente, e a variante dele fica igual ao original.
+func AplicarDescricoes(help []byte, vars []Variante) ([]byte, error) {
+	out := help
+	for _, v := range vars {
+		novo, _, err := clientitemhelp.Copiar(out, int(v.Origem), int(v.Destino))
+		if err != nil {
+			return nil, fmt.Errorf("clientkit: descrição do item %d: %w", v.Destino, err)
+		}
+		out = novo
+	}
+	return out, nil
 }
 
 // Aplicar devolve uma cópia do ItemList.bin com as variantes gravadas.

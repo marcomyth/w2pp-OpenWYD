@@ -1,6 +1,7 @@
 package clientkit
 
 import (
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"testing"
@@ -94,6 +95,67 @@ func TestRecusaOrigemVazia(t *testing.T) {
 	il := catalogoFalso(t, 3314, "Frango_Assado", nil, 0)
 	if _, err := Aplicar(il, []Variante{{Origem: 4140, Destino: 5761, Nome: "X"}}); err == nil {
 		t.Fatal("Aplicar aceitou copiar de um item que não existe")
+	}
+}
+
+// tabelaDeIcones monta um itemicon.bin com os ícones dados (1-based, como o
+// cliente guarda).
+func tabelaDeIcones(icones map[int]uint32) []byte {
+	b := make([]byte, 6500*4)
+	for item, icon := range icones {
+		binary.LittleEndian.PutUint32(b[item*4:], icon)
+	}
+	return b
+}
+
+// TestIconeDaVarianteEhODaOrigem: sem isto a variante chega à bolsa como um
+// quadrado vazio, que foi o que o /novato entregou — o ItemList.bin não guarda
+// ícone, quem guarda é o itemicon.bin.
+func TestIconeDaVarianteEhODaOrigem(t *testing.T) {
+	out, err := AplicarIcones(tabelaDeIcones(map[int]uint32{3314: 507, 4140: 681}), KitDoNovato())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for item, quer := range map[int]uint32{5760: 507, 5761: 681, 3314: 507, 4140: 681} {
+		if got := binary.LittleEndian.Uint32(out[item*4:]); got != quer {
+			t.Errorf("item %d: ícone %d, queria %d", item, got, quer)
+		}
+	}
+}
+
+// TestIconeRecusaOrigemSemIcone: copiar "nenhum ícone" entregaria de novo o
+// quadrado vazio, calado.
+func TestIconeRecusaOrigemSemIcone(t *testing.T) {
+	if _, err := AplicarIcones(tabelaDeIcones(map[int]uint32{3314: 507}), KitDoNovato()); err == nil {
+		t.Fatal("AplicarIcones aceitou o 4140 sem ícone")
+	}
+}
+
+// TestIconeRecusaDestinoDeOutroItem: um destino que já aponta para OUTRA
+// célula é um item que o cliente desenha, e trocá-lo mudaria o que o jogador vê
+// na bolsa. Apontar para a mesma célula é o gerador rodado duas vezes, e passa.
+func TestIconeRecusaDestinoDeOutroItem(t *testing.T) {
+	outro := tabelaDeIcones(map[int]uint32{3314: 507, 4140: 681, 5760: 12})
+	if _, err := AplicarIcones(outro, KitDoNovato()); err == nil {
+		t.Fatal("AplicarIcones trocou o ícone de um item existente")
+	}
+	deNovo := tabelaDeIcones(map[int]uint32{3314: 507, 4140: 681, 5760: 507, 5761: 681})
+	if _, err := AplicarIcones(deNovo, KitDoNovato()); err != nil {
+		t.Fatalf("rodar o gerador de novo falhou: %v", err)
+	}
+}
+
+// TestDescricaoDaVariante: o Frango tem texto no itemhelp.dat e a variante leva
+// o mesmo; o Baú de Experiência não tem, e a variante dele fica igual.
+func TestDescricaoDaVariante(t *testing.T) {
+	help := "3314\r\nFFFF00FF [Item_Premium]\r\nFFFFFFFF Um_suculento_frango_assado.\r\n"
+	out, err := AplicarDescricoes([]byte(help), KitDoNovato())
+	if err != nil {
+		t.Fatal(err)
+	}
+	quer := help + "5760\r\nFFFF00FF [Item_Premium]\r\nFFFFFFFF Um_suculento_frango_assado.\r\n"
+	if string(out) != quer {
+		t.Errorf("itemhelp.dat =\n%q\nqueria\n%q", out, quer)
 	}
 }
 
