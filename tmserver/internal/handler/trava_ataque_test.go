@@ -322,3 +322,105 @@ func TestRecusaDeAtaqueContaPorConta(t *testing.T) {
 		t.Errorf("a distância foi ao log %d vezes na 1ª recusa, want 1", distancia)
 	}
 }
+
+// TestMortoQueAtacaEAvisadoDeQueMorreu prende o aviso que faltava.
+//
+// O legado responde a toda ação de personagem morto com SendHpMode ANTES de
+// contar a falta (_MSG_Attack.cpp:40-43). Este porte ficou com a falta — o
+// mesmo AddCrackError(1, 8) — e perdeu o aviso, mandando MSG_SetHpMp no lugar.
+// SetHpMp leva vida e mana; não leva o MODO, que é a única coisa que conta ao
+// cliente que o servidor o considera morto.
+//
+// Quem morria e ANDAVA era avisado (movement.go). Quem morria e só ATACAVA,
+// não: apertava e não acontecia nada, sem mensagem na tela e sem linha no log,
+// porque o tipo 8 é um dos três que AddCrackError não registra. Do lado do
+// jogador isso é indistinguível de o jogo ter travado — e é o que está descrito
+// em docs/migration/investigacao-freeze-cliente.md, aberta desde 19/07/2026,
+// onde duas das seis janelas registradas terminam com o personagem morto e uma
+// delas com 262 cliques de ApplyBonus em 48 s (apertar botão, não andar).
+func TestMortoQueAtacaEAvisadoDeQueMorreu(t *testing.T) {
+	c, w, fim := umMobNoCampo(t)
+	defer fim()
+
+	// Mata o jogador DENTRO do laço: o estado do mundo tem um dono só.
+	var matou bool
+	noLacoDoMundo(t, w, func(w *world.World) {
+		w.ForEachPlaying(-1, func(_ *world.Session, e *world.Entity) {
+			e.HP = 0
+			matou = true
+		})
+	})
+	if !matou {
+		t.Fatal("o teste nao achou o jogador para matar: sem isso ele nao mede nada")
+	}
+	// Esvazia o que o laco mandou ate aqui, para o SetHpMode do golpe nao se
+	// confundir com trafego anterior.
+	esvazia := time.Now().Add(300 * time.Millisecond)
+	for time.Now().Before(esvazia) {
+		readMaybe(t, c)
+	}
+
+	golpeCorpoACorpo(t, c, serverTime+2*attackCadence, world.MaxUser, 6, 5, 6, 5)
+
+	var viuHpMode bool
+	fim2 := time.Now().Add(2 * time.Second)
+	for time.Now().Before(fim2) && !viuHpMode {
+		ty, _, ok := readMaybe(t, c)
+		if ok && ty == protocol.MsgSetHpMode {
+			viuHpMode = true
+		}
+	}
+	if !viuHpMode {
+		t.Error("um morto atacou e o servidor não mandou MSG_SetHpMode: " +
+			"o cliente continua desenhando o personagem vivo e o jogador " +
+			"aperta o botão para sempre sem retorno nenhum")
+	}
+
+	// E o mob não pode ter levado dano: o golpe do morto é recusado.
+	if hp := vidaDoMob(w); hp != 5000 {
+		t.Errorf("o mob levou dano de um golpe de personagem morto: HP = %d", hp)
+	}
+}
+
+// TestMortoQueAndaContinuaSendoAvisado prende o que JÁ funcionava, para o
+// conserto do golpe não estragar o caminho do passo.
+//
+// movement.go já mandava SendHpMode antes de contar a falta, citando o legado
+// (_MSG_Action.cpp:27-37). Não havia teste segurando isso, e um conserto no
+// ataque que mexesse no mesmo ajudante derrubaria os dois de uma vez sem
+// ninguém perceber.
+func TestMortoQueAndaContinuaSendoAvisado(t *testing.T) {
+	c, w, fim := umMobNoCampo(t)
+	defer fim()
+
+	var matou bool
+	noLacoDoMundo(t, w, func(w *world.World) {
+		w.ForEachPlaying(-1, func(_ *world.Session, e *world.Entity) {
+			e.HP = 0
+			matou = true
+		})
+	})
+	if !matou {
+		t.Fatal("o teste nao achou o jogador para matar: sem isso ele nao mede nada")
+	}
+	esvazia := time.Now().Add(300 * time.Millisecond)
+	for time.Now().Before(esvazia) {
+		readMaybe(t, c)
+	}
+
+	actionFrameBody(t, c, serverTime, protocol.MsgAction,
+		protocol.MsgActionBody{PosX: 6, PosY: 5, Speed: 30, TargetX: 7, TargetY: 5})
+
+	var viuHpMode bool
+	prazo := time.Now().Add(2 * time.Second)
+	for time.Now().Before(prazo) && !viuHpMode {
+		ty, _, ok := readMaybe(t, c)
+		if ok && ty == protocol.MsgSetHpMode {
+			viuHpMode = true
+		}
+	}
+	if !viuHpMode {
+		t.Error("um morto andou e o servidor nao mandou MSG_SetHpMode; " +
+			"esse caminho ja funcionava e nao pode ter sido quebrado")
+	}
+}

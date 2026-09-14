@@ -142,6 +142,19 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 	// == 0) so a negative-HP edge can never slip an action through.
 	if e.HP <= 0 && int(body.SkillIndex) != combat.ResurrectSkill {
 		d.sendSetHpMp(w, s, e) // ver a nota sobre mana prevista, acima
+		// FIDELIDADE AO LEGADO (restaurada): o original manda SendHpMode ANTES de
+		// contar a falta (_MSG_Attack.cpp:40-43, o mesmo par 1/8 que está logo
+		// abaixo). Este porte ficou com a falta e perdeu o aviso, e o aviso é a
+		// metade que importa: MSG_SetHpMp leva vida e mana, não leva o MODO, e o
+		// cliente não tem outro jeito de saber que o servidor o considera morto
+		// (mesma nota que já existe no sendHpMode).
+		//
+		// O que isso custava: quem morre e NÃO ANDA — só ataca, usa item, aperta
+		// botão — nunca era avisado. O caminho de andar (movement.go:33/47) já
+		// avisava; o de atacar, não. Para o jogador isso é indistinguível de o jogo
+		// ter travado: ele aperta e nada acontece, sem mensagem na tela e sem linha
+		// no log — porque o tipo 8 é um dos três que AddCrackError não registra.
+		d.sendHpMode(w, s, e.HP)
 		w.AddCrackError(s, 1, 8)
 		return
 	}
