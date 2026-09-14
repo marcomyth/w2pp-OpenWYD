@@ -56,6 +56,7 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 	}
 	d.castleBossKilled(w, reward, mob)
 	d.casteloOrcBossKilled(w, mob)
+	d.corridaBossMorto(w, &d.acampamentoTroll, mob)
 	// Runs BEFORE the DespawnMob below, so the generator still counts this mob —
 	// which is how the legacy detects the last one down (CurrentNumMob == 1).
 	d.waterRoomCleared(w, reward, mob)
@@ -80,8 +81,9 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 	// handler's MSG_Attack echo (CurrentExp); grantExp also applies any level-ups.
 	// Clan 4 mobs never award EXP: the legacy wraps the whole distribution in
 	// `MOB.Clan != 4` (MobKilled.cpp:402); gold and drops sit outside that gate.
-	// The Castelo Orc quest's monsters pay nothing either (castelo_orc.go).
-	if mob.Clan != 4 && casteloOrcAwardsExp(mob) {
+	// The Castelo Orc and Acampamento Troll quests' monsters pay nothing either
+	// (castelo_orc.go, acampamento_troll.go).
+	if mob.Clan != 4 && casteloOrcAwardsExp(mob) && acampamentoTrollAwardsExp(mob) {
 		d.grantPartyExp(w, ks, reward, mob)
 	}
 

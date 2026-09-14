@@ -199,10 +199,27 @@ func IsCasteloOrcGenerator(idx int) bool {
 	return idx >= CasteloOrcGenFirst && idx <= CasteloOrcGenLast
 }
 
+// AcampamentoTrollGenFirst/Last delimitam os blocos da quest do Acampamento Troll,
+// logo depois dos do Castelo Orc no fim do NPCGener.txt: o boss (6116), os
+// seguidores (6117), os dois guardiões e oito blocos de tropa de cinco
+// (handler/acampamento_troll.go). Pelo mesmo motivo do Orc são de evento: no boot
+// ocupariam o acampamento para todo mundo, e na fila de 15 s voltariam atrás de
+// quem os limpou. Quem os levanta é a corrida (handler/acampamento_troll_run.go).
+const (
+	AcampamentoTrollGenFirst = 6116
+	AcampamentoTrollGenLast  = 6127
+)
+
+// IsAcampamentoTrollGenerator diz se um bloco é da quest do Acampamento Troll.
+func IsAcampamentoTrollGenerator(idx int) bool {
+	return idx >= AcampamentoTrollGenFirst && idx <= AcampamentoTrollGenLast
+}
+
 // IsEventOwnedGenerator reports whether a block belongs to a scripted event
 // rather than to the world population.
 func IsEventOwnedGenerator(idx int) bool {
-	return eventOwnedGenerators[idx] || IsSecretRoomGenerator(idx) || IsCasteloOrcGenerator(idx)
+	return eventOwnedGenerators[idx] || IsSecretRoomGenerator(idx) || IsCasteloOrcGenerator(idx) ||
+		IsAcampamentoTrollGenerator(idx)
 }
 
 // ClearGenerator removes every live entity and queued respawn owned by one

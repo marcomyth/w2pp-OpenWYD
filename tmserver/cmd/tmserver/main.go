@@ -249,6 +249,7 @@ func run(logger *slog.Logger) error {
 	var summonMobs [][]byte
 	var vineMob []byte
 	var casteloOrcNPC []byte
+	var acampamentoTrollNPC []byte
 	var shopCloneMob []byte
 	var castleQuests []content.CastleQuest
 	var levelItems *content.LevelItems
@@ -283,6 +284,13 @@ func run(logger *slog.Logger) error {
 			logger.Warn("Castelo Orc NPC template not loaded (the run cannot be opened)", "err", err)
 		} else {
 			casteloOrcNPC = xm
+		}
+		// O Xamã Troll abre a corrida do Acampamento Troll, levantado pelo handler
+		// pelo mesmo motivo do Xamã Orc.
+		if xt, err := content.LoadNPCTemplate(*contentDir, "ATroll_Xama"); err != nil {
+			logger.Warn("Acampamento Troll NPC template not loaded (the run cannot be opened)", "err", err)
+		} else {
+			acampamentoTrollNPC = xt
 		}
 		// The body a personal shop stands in (a lojinha solta). Merc_Carbunkle is
 		// the merchant Carbúnculo — the closest thing the 1991 shipped templates
@@ -585,7 +593,7 @@ func run(logger *slog.Logger) error {
 		eventSeed = 1
 	}
 	dispatch := handler.New(handler.Config{
-		Log: logger, ClientVersion: int32(*clientVersion), BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, CasteloOrcNPC: casteloOrcNPC, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemReqs: itemReqs,
+		Log: logger, ClientVersion: int32(*clientVersion), BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, CasteloOrcNPC: casteloOrcNPC, AcampamentoTrollNPC: acampamentoTrollNPC, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemReqs: itemReqs,
 		ItemVolatiles: itemVolatiles, ItemDurations: itemDurations, MountRates: mountRates, MountAbsorb: mountAbsorb, MountBonus: mountBonus, ItemPos: itemPos, ItemUnique: itemUnique, ItemGrades: itemGrades, ItemExtra: itemExtra, Spells: spells, Heights: heights, Attributes: attributes,
 		SancRate:        sancRate,
 		ExpEvents:       level.ExpEvents{DoubleMode: *doubleExp, NewbieEvent: *newbieEvent, KefraLive: *kefraLive},

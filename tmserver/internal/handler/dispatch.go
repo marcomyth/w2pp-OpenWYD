@@ -85,6 +85,11 @@ type Config struct {
 	// the Castelo Orc run (castelo_orc_run.go). When nil the run cannot be opened.
 	CasteloOrcNPC []byte
 
+	// AcampamentoTrollNPC é o template do Xamã Troll (npc/ATroll_Xama), o NPC que
+	// abre a corrida do Acampamento Troll (acampamento_troll_run.go). Nil: a
+	// corrida não abre.
+	AcampamentoTrollNPC []byte
+
 	// ItemPrices maps item index → base Price (g_pItemList[].Price) for NPC buy/sell.
 	ItemPrices map[int]int32
 
@@ -429,6 +434,8 @@ type Dispatcher struct {
 	casteloOrc        casteloOrcRun
 	casteloOrcNPCTmpl []byte
 	casteloOrcNPCID   int
+	// acampamentoTroll é a corrida do Acampamento Troll (corrida.go). Do laço.
+	acampamentoTroll corrida
 	// casteloOrcGateID is the ground id of the Portão Orc Sul (InitItem 462),
 	// looked up on first use (castelo_orc_gate.go): 0 before that, -1 when
 	// InitItem.csv did not seed it.
@@ -537,6 +544,7 @@ func New(cfg Config) *Dispatcher {
 		summonMobs:        cfg.SummonMobs,
 		vineMob:           cfg.VineMob,
 		casteloOrcNPCTmpl: cfg.CasteloOrcNPC,
+		acampamentoTroll:  corrida{spec: &acampamentoTrollSpec, npcTmpl: cfg.AcampamentoTrollNPC},
 		itemPrices:        cfg.ItemPrices,
 		itemNames:         cfg.ItemNames,
 		itemEffects:       cfg.ItemEffects,

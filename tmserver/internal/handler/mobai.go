@@ -122,6 +122,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.tickFadaDaAgua(w)
 	d.tickCarta(w)
 	d.tickCasteloOrc(w)
+	d.tickCorrida(w, &d.acampamentoTroll)
 	d.tickPortoesDoCampo(w)
 	d.tickPesadelo(w)
 	d.tickFairies(w)

@@ -145,7 +145,8 @@ func (d *Dispatcher) action(w *world.World, s *world.Session, h protocol.Header,
 	// in a castle room could take themselves and their neighbours off the server just
 	// by trying to walk out.
 	if s.AccessLevel < world.AccessModerator && (!d.castleMoveAllowed(s.Conn, body.TargetX, body.TargetY) ||
-		!d.casteloOrcMoveAllowed(s.Conn, body.TargetX, body.TargetY)) {
+		!d.casteloOrcMoveAllowed(s.Conn, body.TargetX, body.TargetY) ||
+		!d.acampamentoTroll.movimentoPermitido(s.Conn, body.TargetX, body.TargetY)) {
 		d.doTeleport(w, s, e.X, e.Y)
 		return
 	}

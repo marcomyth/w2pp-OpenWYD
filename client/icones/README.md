@@ -34,6 +34,11 @@ item.
 Em 12/09/2026 a `itemicon.bin` apontava até a célula 939; a 940 foi para a Chave
 do Rei Orc e a 941 para a Chave do Inferno, então a próxima livre é a 942.
 
+**A fazer:** a Chave dos Trolls (3223, quest do Acampamento Troll,
+`docs/acampamento-troll.md`) ainda não tem arte. O nome já está no
+`ItemList.csv`; no cliente ela segue como "Cupom da Sorte" até a arte, o
+`itemicon.bin`, a descrição e o `ItemList.bin` novo irem pelo launcher.
+
 O comando `webserver/cmd/itemnovocliente` faz os quatro passos de uma vez, numa
 cópia do cliente (a pasta original é só lida):
 

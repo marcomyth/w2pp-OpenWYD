@@ -5,8 +5,8 @@
 // se o campo de 128x128 em que o personagem está for um de 15 pares fixos (laço
 // em 0x47DAA4-0x47DE75: Duelo, Carta, Água, Pesadelo e mais sete). Fora deles ele
 // esconde o contador e zera a flag, e só um pacote novo o traz de volta. O
-// Castelo Orc fica no campo (19,16), fora da lista: o servidor manda o 0x3A1 e
-// nada aparece.
+// Castelo Orc fica no campo (19,16) e o Acampamento Troll no (20,15), os dois
+// fora da lista: o servidor manda o 0x3A1 e nada aparece.
 //
 // O desvio entra no primeiro par, em 0x47DACA. Se o campo for um dos daqui, salta
 // para o desenho (0x47DD1A), como fazem os 15 pares; senão refaz a comparação que
@@ -46,8 +46,16 @@ __declspec(naked) void FieldHook() {
         mov edx, dword ptr [ecx + 0x40]
         // Castelo Orc: x 2432-2559, y 2048-2175.
         cmp dword ptr [edx + 0x20A20], 19
-        jne original
+        jne troll
         cmp dword ptr [edx + 0x20A24], 16
+        jne troll
+        push 0x47DD1A // kDrawTimer
+        ret
+    troll:
+        // Acampamento Troll: x 2560-2687, y 1920-2047.
+        cmp dword ptr [edx + 0x20A20], 20
+        jne original
+        cmp dword ptr [edx + 0x20A24], 15
         jne original
         push 0x47DD1A // kDrawTimer
         ret

@@ -129,6 +129,9 @@ func TestBlocosDesligadosPorIndice(t *testing.T) {
 		// 6098-6102; they are stale and never the index.
 		6084: "AcessoriosErion", 6085: "Set_TK_Erion", 6086: "Set_BM_Erion",
 		6087: "Set_HT_Erion", 6088: "Set_FM_Erion",
+		// Migration 0064: the world's Troll Enigma, whose cage the Acampamento
+		// Troll quest took over. Switched off in npc_generator_off.
+		3804: "Troll_Enigma",
 		// The two the square keeps.
 		3442: "Perzen", 3809: "GodGovernment",
 	}

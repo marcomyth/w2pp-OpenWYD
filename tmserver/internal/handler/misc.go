@@ -207,6 +207,12 @@ func (d *Dispatcher) quest(w *world.World, s *world.Session, _ protocol.Header, 
 		d.casteloOrcQuestNPC(w, s, e, npc)
 		return
 	}
+	// O Xamã Troll (Merchant 100, EF_GRADE0 41): a corrida do Acampamento Troll,
+	// regra nova (acampamento_troll_run.go).
+	if npc.Merchant == 100 && npc.Grade == gradeAcampamentoTroll {
+		d.corridaNPC(w, &d.acampamentoTroll, s, e, npc)
+		return
+	}
 	// QUEST_CAPAREAL (Merchant 100, EF_GRADE0 13): Royal Cape quest entry.
 	if npc.Merchant == 100 && npc.Grade == 13 {
 		d.royalCapeQuest(w, s, e)
@@ -967,6 +973,7 @@ func (d *Dispatcher) quest256NPC(w *world.World, s *world.Session, e *world.Enti
 	d.sendSlot(w, s, world.ItemPlaceCarry, slot, e.Carry[slot])
 	d.teleportQuest256Step(w, s, e, step)
 	d.casteloOrcKeyOnEntry(w, s, e, step)
+	d.acampamentoTrollKeyOnEntry(w, s, e, step)
 	d.log.Info("quest256 NPC teleport", "conn", s.Conn, "item", ticket, "level", e.Level, "quest_flag", step.flag)
 }
 

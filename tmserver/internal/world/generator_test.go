@@ -295,8 +295,30 @@ func TestIsCasteloOrcGenerator(t *testing.T) {
 			t.Errorf("bloco %d devia ser da quest e de evento", idx)
 		}
 	}
-	for _, idx := range []int{CasteloOrcGenFirst - 1, CasteloOrcGenLast + 1, 373, 483, 497} {
+	for _, idx := range []int{CasteloOrcGenFirst - 1, 373, 483, 497} {
 		if IsCasteloOrcGenerator(idx) || IsEventOwnedGenerator(idx) {
+			t.Errorf("bloco %d não é da quest", idx)
+		}
+	}
+	if IsCasteloOrcGenerator(CasteloOrcGenLast + 1) {
+		t.Errorf("bloco %d é do Acampamento Troll, não do Orc", CasteloOrcGenLast+1)
+	}
+}
+
+// Os blocos do Acampamento Troll vêm logo depois dos do Orc e também são de evento;
+// o Troll Enigma do mundo (3804) e os Trolls do acampamento aberto (700-715)
+// continuam do mundo.
+func TestIsAcampamentoTrollGenerator(t *testing.T) {
+	if AcampamentoTrollGenFirst != CasteloOrcGenLast+1 {
+		t.Errorf("o Acampamento Troll começa em %d, want logo depois do Orc (%d)", AcampamentoTrollGenFirst, CasteloOrcGenLast+1)
+	}
+	for idx := AcampamentoTrollGenFirst; idx <= AcampamentoTrollGenLast; idx++ {
+		if !IsAcampamentoTrollGenerator(idx) || !IsEventOwnedGenerator(idx) || IsCasteloOrcGenerator(idx) {
+			t.Errorf("bloco %d devia ser do Acampamento Troll e de evento", idx)
+		}
+	}
+	for _, idx := range []int{AcampamentoTrollGenLast + 1, 700, 715, 3804} {
+		if IsAcampamentoTrollGenerator(idx) || IsEventOwnedGenerator(idx) {
 			t.Errorf("bloco %d não é da quest", idx)
 		}
 	}
