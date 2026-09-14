@@ -23,9 +23,14 @@ const (
 	// levelItemMaxLevel é o tamanho do vetor do legado (LevelItem[...][400]).
 	levelItemMaxLevel = 400
 
-	// levelItemTodas é o coringa dos DOIS eixos: classe 4 vale para as quatro
-	// profissões, construção 4 vale para as quatro construções.
+	// levelItemTodas é o coringa da classe: 4 vale para as quatro profissões.
 	levelItemTodas = 4
+	// levelItemIndependeDosPontos é o 0 da construção, pelo cabeçalho do arquivo:
+	// a peça vale para qualquer construção.
+	levelItemIndependeDosPontos = 0
+	// levelItemIndependeDaClasse é o -1 da construção, também pelo cabeçalho: a
+	// peça vale para qualquer classe e qualquer construção.
+	levelItemIndependeDaClasse = -1
 )
 
 // LevelItem é a peça que um nível entrega: o índice do catálogo e os três pares
@@ -66,28 +71,44 @@ func (t *LevelItems) Para(classe, construcao int, nivel int32) LevelItem {
 
 // aplicar grava uma linha nas casas que ela cobre, contando as sobreposições.
 //
-// DIVERGÊNCIA DELIBERADA DO LEGADO, e é a única aqui: o original trata a
-// construção 4 como coringa e não olha mais nada, então uma linha com -1 cai no
-// ramo final e escreve em LevelItem[classe][-1][nivel] — FORA DO VETOR. O
-// arquivo que veio no conteúdo tem duas dessas, e são justamente as que entregam
-// a montaria do nível 149 (item 2368). Reproduzir isso seria reproduzir uma
-// escrita em memória alheia, que não é fidelidade, é defeito: o cabeçalho do
-// próprio arquivo diz que -1 significa "independe", e é assim que se lê aqui.
-// Sem essa leitura a montaria não chega a ninguém.
+// DUAS DIVERGÊNCIAS DELIBERADAS, e são da mesma família: o arquivo diz uma
+// coisa, o código do legado faz outra, e aqui se segue o arquivo quando o
+// resultado do código é claramente acidental.
+//
+// A PRIMEIRA é a numeração da construção. O cabeçalho do arquivo diz 1 = mais
+// Força, 2 = mais Int, 3 = mais Destreza, 0 = independe dos pontos — e as seções
+// confirmam em palavras: "#TK DN SET MALHA" (o set físico) vem com 1, "#TK MAG
+// SET MALHA" (o mágico) com 2. O DoItemLevel do legado numera outra coisa
+// (0 = Força, 1 = Int, 2 = Destreza, 3 = o resto), e lendo o arquivo por essa
+// régua o set FÍSICO vai para quem tem mais Int, quem tem mais Força quase não
+// recebe, e a Huntress — a classe de Destreza — fica com ZERO se for construída
+// em Destreza. Isso não é a intenção de ninguém; é um desencontro entre quem
+// escreveu o conteúdo e quem escreveu o código.
+//
+// A SEGUNDA é o -1. O original não o trata: a linha cai no ramo final e escreve
+// em LevelItem[classe][-1][nivel] — FORA DO VETOR. O arquivo tem duas dessas, e
+// são justamente as que entregam a montaria do nível 149 (item 2368). O
+// cabeçalho diz que -1 significa "independe da classe", e é assim que se lê.
+// Reproduzir uma escrita em memória alheia não é fidelidade.
 func (t *LevelItems) aplicar(classe, construcao int, nivel int32, item LevelItem) {
 	if nivel < 0 || int(nivel) >= levelItemMaxLevel {
 		return
 	}
+	todas := []int{0, 1, 2, 3}
 	classes := []int{classe}
-	if classe == levelItemTodas {
-		classes = []int{0, 1, 2, 3}
+	// -1 é "independe da classe", pelo cabeçalho; 4 é o coringa que o código usa
+	if classe == levelItemTodas || construcao == levelItemIndependeDaClasse {
+		classes = todas
 	}
-	construcoes := []int{construcao}
-	if construcao == levelItemTodas || construcao < 0 || construcao >= LevelItemBuilds {
-		if construcao != levelItemTodas {
-			t.ConstrucaoIndefinida++
-		}
-		construcoes = []int{0, 1, 2, 3}
+	var construcoes []int
+	switch construcao {
+	case levelItemIndependeDosPontos, levelItemTodas, levelItemIndependeDaClasse:
+		construcoes = todas
+	case 1, 2, 3: // Força, Int, Destreza — o arquivo conta a partir de 1
+		construcoes = []int{construcao - 1}
+	default:
+		t.ConstrucaoIndefinida++
+		construcoes = todas
 	}
 	for _, c := range classes {
 		if c < 0 || c >= LevelItemClasses {

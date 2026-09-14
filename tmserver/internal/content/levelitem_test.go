@@ -31,21 +31,22 @@ func TestLevelItemLeOsQuatroEixos(t *testing.T) {
 	if len(avisos) != 0 {
 		t.Errorf("avisos inesperados: %v", avisos)
 	}
-	got := tab.Para(0, 1, 29) // TK, mais INT
+	// a linha diz construção 1, que no cabeçalho do arquivo é "mais Força"
+	got := tab.Para(0, 0, 29)
 	if got.Index != 1147 {
-		t.Errorf("TK/INT/29 = %d, queria 1147", got.Index)
+		t.Errorf("TK/Força/29 = %d, queria 1147", got.Index)
 	}
 	if got.Effects != [3][2]uint8{{43, 3}, {2, 20}, {42, 40}} {
 		t.Errorf("efeitos = %v", got.Effects)
 	}
-	if x := tab.Para(3, 2, 29); x.Index != 1159 { // Huntress, mais DES
-		t.Errorf("HT/DES/29 = %d, queria 1159", x.Index)
+	if x := tab.Para(3, 1, 29); x.Index != 1159 { // construção 2 = mais Int
+		t.Errorf("Huntress/Int/29 = %d, queria 1159", x.Index)
 	}
 	// as casas que a linha não cobre continuam vazias
-	if x := tab.Para(0, 0, 29); !x.Empty() {
-		t.Errorf("TK/FOR/29 devia estar vazio, veio %d", x.Index)
+	if x := tab.Para(0, 1, 29); !x.Empty() {
+		t.Errorf("TK/Int/29 devia estar vazio, veio %d", x.Index)
 	}
-	if x := tab.Para(0, 1, 30); !x.Empty() {
+	if x := tab.Para(0, 0, 30); !x.Empty() {
 		t.Errorf("nível 30 devia estar vazio, veio %d", x.Index)
 	}
 }
@@ -61,12 +62,13 @@ func TestLevelItemCoringas(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// classe 4 = todas as profissões; construção 1 = mais Força
 	for c := 0; c < LevelItemClasses; c++ {
-		if x := tab.Para(c, 1, 50); x.Index != 900 {
-			t.Errorf("classe %d no 50 = %d, queria 900", c, x.Index)
+		if x := tab.Para(c, 0, 50); x.Index != 900 {
+			t.Errorf("classe %d de Força no 50 = %d, queria 900", c, x.Index)
 		}
-		if x := tab.Para(c, 0, 50); !x.Empty() {
-			t.Errorf("classe %d construção 0 no 50 devia estar vazia", c)
+		if x := tab.Para(c, 1, 50); !x.Empty() {
+			t.Errorf("classe %d de Int no 50 devia estar vazia", c)
 		}
 	}
 	for b := 0; b < LevelItemBuilds; b++ {
@@ -103,12 +105,17 @@ func TestLevelItemConstrucaoMenosUmNaoEstouraOVetor(t *testing.T) {
 			t.Errorf("TK construção %d no 149 = %d, queria a montaria 2368", b, x.Index)
 		}
 	}
-	if tab.ConstrucaoIndefinida != 1 {
-		t.Errorf("construções indefinidas = %d, queria 1", tab.ConstrucaoIndefinida)
+	// -1 é "independe da CLASSE" pelo cabeçalho, então alcança as quatro
+	for c := 0; c < LevelItemClasses; c++ {
+		for b := 0; b < LevelItemBuilds; b++ {
+			if x := tab.Para(c, b, 149); x.Index != 2368 {
+				t.Errorf("classe %d construção %d no 149 = %d, queria a montaria 2368", c, b, x.Index)
+			}
+		}
 	}
-	// e não vazou para as outras classes: a linha diz classe 0
-	if x := tab.Para(1, 0, 149); !x.Empty() {
-		t.Errorf("a linha da classe 0 vazou para a classe 1: %d", x.Index)
+	// -1 é tratado, não cai no balde de "não sei o que é isto"
+	if tab.ConstrucaoIndefinida != 0 {
+		t.Errorf("construções indefinidas = %d, queria 0: o -1 tem significado", tab.ConstrucaoIndefinida)
 	}
 }
 
@@ -123,7 +130,7 @@ func TestLevelItemUltimaLinhaGanhaEConta(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if x := tab.Para(1, 2, 80); x.Index != 333 {
+	if x := tab.Para(1, 1, 80); x.Index != 333 {
 		t.Errorf("ganhou %d, queria a última (333)", x.Index)
 	}
 	if tab.Linhas != 3 {
@@ -149,10 +156,10 @@ isto nao e numero
 	if len(avisos) != 2 {
 		t.Errorf("avisos = %d (%v), queria 2", len(avisos), avisos)
 	}
-	if x := tab.Para(0, 1, 29); x.Index != 1147 {
+	if x := tab.Para(0, 0, 29); x.Index != 1147 {
 		t.Error("a linha boa antes da torta se perdeu")
 	}
-	if x := tab.Para(0, 1, 31); x.Index != 1148 {
+	if x := tab.Para(0, 0, 31); x.Index != 1148 {
 		t.Error("a linha boa depois da torta se perdeu")
 	}
 }
@@ -174,52 +181,46 @@ func TestLevelItemArquivoDoJogo(t *testing.T) {
 	if tab.Linhas != 318 {
 		t.Errorf("entradas = %d, o levantamento achou 318", tab.Linhas)
 	}
-	if tab.ConstrucaoIndefinida != 2 {
-		t.Errorf("linhas com construção -1 = %d, o levantamento achou 2", tab.ConstrucaoIndefinida)
-	}
 	// a montaria do 149 é a razão de a divergência do -1 existir
 	for b := 0; b < LevelItemBuilds; b++ {
 		if x := tab.Para(0, b, 149); x.Index != 2368 {
 			t.Errorf("a montaria do nível 149 não chega ao TK de construção %d (veio %d)", b, x.Index)
 		}
 	}
-	// O DESENCONTRO DE NUMERAÇÃO, preso aqui até alguém decidir o que fazer.
+	if tab.ConstrucaoIndefinida != 0 {
+		t.Errorf("construções indefinidas = %d, queria 0: o -1 tem significado", tab.ConstrucaoIndefinida)
+	}
+
+	// A LEITURA ESCOLHIDA, presa aqui.
 	//
 	// O arquivo numera a construção pelo próprio cabeçalho — 1 = mais Força,
-	// 2 = mais Int, 3 = mais Destreza, 0 = independe dos pontos — e as seções
-	// dizem a mesma coisa em palavras: "#TK DN SET MALHA" (o set físico) vem com
-	// construção 1, "#TK MAG SET MALHA" (o mágico) com 2.
+	// 2 = mais Int, 3 = mais Destreza, 0 = independe dos pontos, -1 = independe da
+	// classe — e as seções confirmam em palavras: "#TK DN SET MALHA" (o físico)
+	// vem com 1, "#TK MAG SET MALHA" (o mágico) com 2.
 	//
-	// O código do legado numera outra coisa: 0 = Força, 1 = Int, 2 = Destreza,
-	// 3 = o resto. Lendo o arquivo por essa régua, o set FÍSICO vai para quem tem
-	// mais INT, e quem tem mais FORÇA não recebe quase nada.
-	//
-	// Este carregador é fiel ao CÓDIGO, e o teste prende o resultado disso para
-	// que a conversa aconteça com o número na mão em vez de com uma impressão.
-	niveis := 23
-	conta := func(classe, construcao int) int {
-		n := 0
-		for nv := int32(0); nv < 400; nv++ {
-			if !tab.Para(classe, construcao, nv).Empty() {
-				n++
-			}
-		}
-		return n
+	// Lendo pela régua do DoItemLevel (0 = Força, 1 = Int, 2 = Destreza) o
+	// resultado seria outro, e claramente acidental: TK de Força 1 nível de 23,
+	// Foema e BM de Força ZERO, e a Huntress de Destreza ZERO — a classe de
+	// Destreza sem receber nada. Fica registrado para quem vier conferir.
+	quer := [LevelItemClasses][LevelItemBuilds]int{
+		{23, 23, 1, 1},   // TK
+		{23, 23, 1, 1},   // Foema
+		{23, 23, 1, 1},   // BM
+		{23, 21, 23, 21}, // Huntress
 	}
-	for _, c := range []struct {
-		nome                  string
-		classe, construcao, q int
-	}{
-		{"TK com mais Força", 0, 0, 1},
-		{"TK com mais Int", 0, 1, 23},
-		{"Foema com mais Força", 1, 0, 0},
-		{"BM com mais Força", 2, 0, 0},
-		{"Huntress com mais Destreza", 3, 2, 0},
-		{"Huntress com mais Força", 3, 0, 20},
-	} {
-		if got := conta(c.classe, c.construcao); got != c.q {
-			t.Errorf("%s recebe em %d dos %d níveis, o levantamento achou %d",
-				c.nome, got, niveis, c.q)
+	nomes := [LevelItemClasses]string{"TK", "Foema", "BM", "Huntress"}
+	cons := [LevelItemBuilds]string{"Força", "Int", "Destreza", "resto"}
+	for c := 0; c < LevelItemClasses; c++ {
+		for b := 0; b < LevelItemBuilds; b++ {
+			n := 0
+			for nv := int32(0); nv < 400; nv++ {
+				if !tab.Para(c, b, nv).Empty() {
+					n++
+				}
+			}
+			if n != quer[c][b] {
+				t.Errorf("%s de %s recebe em %d níveis, esperado %d", nomes[c], cons[b], n, quer[c][b])
+			}
 		}
 	}
 }
