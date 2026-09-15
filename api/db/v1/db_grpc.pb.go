@@ -2350,6 +2350,7 @@ const (
 	WorldEventConfigService_WorldEventConfigVersion_FullMethodName  = "/db.v1.WorldEventConfigService/WorldEventConfigVersion"
 	WorldEventConfigService_GetWorldEventConfig_FullMethodName      = "/db.v1.WorldEventConfigService/GetWorldEventConfig"
 	WorldEventConfigService_UpdateWorldEventProgress_FullMethodName = "/db.v1.WorldEventConfigService/UpdateWorldEventProgress"
+	WorldEventConfigService_SetKefraState_FullMethodName            = "/db.v1.WorldEventConfigService/SetKefraState"
 )
 
 // WorldEventConfigServiceClient is the client API for WorldEventConfigService service.
@@ -2357,8 +2358,9 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
 // WorldEventConfigService serves portal-managed global world events to tmServer
-// (issue #116). tmServer reads the config and writes only the event-progress
-// counter; all moderator edits go through the web-api.
+// (issue #116). tmServer reads the config and writes only two things: the
+// event-progress counter and the Kefra state (SetKefraState). Moderator edits go
+// through the web-api and the panel.
 type WorldEventConfigServiceClient interface {
 	// WorldEventConfigVersion returns the monotonic moderator config version.
 	WorldEventConfigVersion(ctx context.Context, in *WorldEventConfigVersionRequest, opts ...grpc.CallOption) (*WorldEventConfigVersionResponse, error)
@@ -2367,6 +2369,11 @@ type WorldEventConfigServiceClient interface {
 	// UpdateWorldEventProgress persists tmServer's current_index without bumping
 	// the config version. expected_version rejects stale tmServer snapshots.
 	UpdateWorldEventProgress(ctx context.Context, in *UpdateWorldEventProgressRequest, opts ...grpc.CallOption) (*UpdateWorldEventProgressResponse, error)
+	// SetKefraState records the Kefra as defeated (live = true, full experience)
+	// or alive (live = false, half), with the guild that killed it. The boss dying
+	// and the weekly return both go through it; it is audited with the source
+	// "jogo" and bumps the config version (migration 0067).
+	SetKefraState(ctx context.Context, in *SetKefraStateRequest, opts ...grpc.CallOption) (*SetKefraStateResponse, error)
 }
 
 type worldEventConfigServiceClient struct {
@@ -2407,13 +2414,24 @@ func (c *worldEventConfigServiceClient) UpdateWorldEventProgress(ctx context.Con
 	return out, nil
 }
 
+func (c *worldEventConfigServiceClient) SetKefraState(ctx context.Context, in *SetKefraStateRequest, opts ...grpc.CallOption) (*SetKefraStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetKefraStateResponse)
+	err := c.cc.Invoke(ctx, WorldEventConfigService_SetKefraState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorldEventConfigServiceServer is the server API for WorldEventConfigService service.
 // All implementations must embed UnimplementedWorldEventConfigServiceServer
 // for forward compatibility.
 //
 // WorldEventConfigService serves portal-managed global world events to tmServer
-// (issue #116). tmServer reads the config and writes only the event-progress
-// counter; all moderator edits go through the web-api.
+// (issue #116). tmServer reads the config and writes only two things: the
+// event-progress counter and the Kefra state (SetKefraState). Moderator edits go
+// through the web-api and the panel.
 type WorldEventConfigServiceServer interface {
 	// WorldEventConfigVersion returns the monotonic moderator config version.
 	WorldEventConfigVersion(context.Context, *WorldEventConfigVersionRequest) (*WorldEventConfigVersionResponse, error)
@@ -2422,6 +2440,11 @@ type WorldEventConfigServiceServer interface {
 	// UpdateWorldEventProgress persists tmServer's current_index without bumping
 	// the config version. expected_version rejects stale tmServer snapshots.
 	UpdateWorldEventProgress(context.Context, *UpdateWorldEventProgressRequest) (*UpdateWorldEventProgressResponse, error)
+	// SetKefraState records the Kefra as defeated (live = true, full experience)
+	// or alive (live = false, half), with the guild that killed it. The boss dying
+	// and the weekly return both go through it; it is audited with the source
+	// "jogo" and bumps the config version (migration 0067).
+	SetKefraState(context.Context, *SetKefraStateRequest) (*SetKefraStateResponse, error)
 	mustEmbedUnimplementedWorldEventConfigServiceServer()
 }
 
@@ -2440,6 +2463,9 @@ func (UnimplementedWorldEventConfigServiceServer) GetWorldEventConfig(context.Co
 }
 func (UnimplementedWorldEventConfigServiceServer) UpdateWorldEventProgress(context.Context, *UpdateWorldEventProgressRequest) (*UpdateWorldEventProgressResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method UpdateWorldEventProgress not implemented")
+}
+func (UnimplementedWorldEventConfigServiceServer) SetKefraState(context.Context, *SetKefraStateRequest) (*SetKefraStateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetKefraState not implemented")
 }
 func (UnimplementedWorldEventConfigServiceServer) mustEmbedUnimplementedWorldEventConfigServiceServer() {
 }
@@ -2517,6 +2543,24 @@ func _WorldEventConfigService_UpdateWorldEventProgress_Handler(srv interface{}, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorldEventConfigService_SetKefraState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetKefraStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorldEventConfigServiceServer).SetKefraState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorldEventConfigService_SetKefraState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorldEventConfigServiceServer).SetKefraState(ctx, req.(*SetKefraStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorldEventConfigService_ServiceDesc is the grpc.ServiceDesc for WorldEventConfigService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2535,6 +2579,10 @@ var WorldEventConfigService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateWorldEventProgress",
 			Handler:    _WorldEventConfigService_UpdateWorldEventProgress_Handler,
+		},
+		{
+			MethodName: "SetKefraState",
+			Handler:    _WorldEventConfigService_SetKefraState_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -108,6 +108,9 @@ func webProtoToWorldEventConfig(cfg *webv1.WorldEventConfig) domain.WorldEventCo
 		StartIndex: cfg.GetStartIndex(), CurrentIndex: cfg.GetCurrentIndex(), EndIndex: cfg.GetEndIndex(),
 		Indexed: cfg.GetIndexed(), NoticeEnabled: cfg.GetNoticeEnabled(),
 		DoubleExpEnabled: cfg.GetDoubleExpEnabled(), NewbieEventEnabled: cfg.GetNewbieEventEnabled(),
+		// Carried for the shape only: the store no longer writes the Kefra state
+		// through this path (migration 0067). The game and the panel's own action
+		// write it through SetKefraState, so this field is ignored on a set.
 		KefraLiveEnabled: cfg.GetKefraLiveEnabled(),
 		TowerWarEnabled:  cfg.GetTowerWarEnabled(), TowerWarHour: cfg.GetTowerWarHour(),
 		BossRespawnHours: cfg.GetBossRespawnHours(),

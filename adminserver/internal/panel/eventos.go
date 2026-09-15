@@ -75,11 +75,34 @@ func (h *Handler) eventos(w http.ResponseWriter, r *http.Request) {
 		MinChefe int32
 		MaxChefe int32
 		Aviso    string
+		// GuildaDoKefra is the name of the guild that killed the Kefra; empty
+		// falls back to the number on the page.
+		GuildaDoKefra string
 	}{
 		h.pageFor(r, "eventos"), cfg, caindo(cfg), motivoParado(cfg), restam(cfg),
 		maxItemEvento, domain.MaxTowerWarHour, domain.MinBossRespawnHours, domain.MaxBossRespawnHours,
-		r.URL.Query().Get("aviso"),
+		r.URL.Query().Get("aviso"), h.nomeDaGuildaDoKefra(r, cfg.KefraGuildID),
 	})
+}
+
+// nomeDaGuildaDoKefra is the name of the guild that killed the Kefra, or "" when
+// there is none, the panel has no guild list, or the read fails — the page then
+// shows the number instead.
+func (h *Handler) nomeDaGuildaDoKefra(r *http.Request, guildID int32) string {
+	if guildID <= 0 || h.cfg.Guildas == nil {
+		return ""
+	}
+	lista, err := h.cfg.Guildas.ListGuilds(r.Context())
+	if err != nil {
+		h.cfg.Logger.Warn("guild list read failed for the Kefra box", "err", err)
+		return ""
+	}
+	for _, g := range lista {
+		if int32(g.ID) == guildID {
+			return g.Name
+		}
+	}
+	return ""
 }
 
 // errCampoEvento carries the field name a bad number came from, so the message
@@ -124,10 +147,15 @@ func (h *Handler) setEventos(w http.ResponseWriter, r *http.Request) {
 		Enabled:            r.PostFormValue("chuva") != "",
 		DoubleExpEnabled:   r.PostFormValue("xp_dobro") != "",
 		NewbieEventEnabled: r.PostFormValue("novato") != "",
-		KefraLiveEnabled:   r.PostFormValue("kefra") != "",
 		Indexed:            r.PostFormValue("numerado") != "",
 		NoticeEnabled:      r.PostFormValue("anunciar") != "",
 		TowerWarEnabled:    r.PostFormValue("torre") != "",
+		// The Kefra is not part of this form: the game writes its state too (the
+		// boss dying, the Tuesday return), and a form opened before the kill must
+		// not write the old value back when saved. It keeps what the database has;
+		// the store ignores it anyway, and the audit summary stays truthful.
+		KefraLiveEnabled: antes.KefraLiveEnabled,
+		KefraGuildID:     antes.KefraGuildID,
 	}
 	campos := []struct {
 		nome string
@@ -204,6 +232,62 @@ func (h *Handler) setEventos(w http.ResponseWriter, r *http.Request) {
 	// the server for nothing.
 	http.Redirect(w, r, "/eventos?aviso="+urlQuery("Salvo. O servidor pega a mudança em menos de um minuto, sem reiniciar."),
 		http.StatusSeeOther)
+}
+
+// setKefra marks the Kefra as defeated (full experience) or alive (half).
+//
+// It is an action of its own, outside the events form, because the game writes
+// the Kefra state as well: the boss dying and the Tuesday return. Here is only the
+// manual correction, through the same path the game uses, and in the audit log.
+// Admin-only, like the form: it changes what every player on the server earns.
+func (h *Handler) setKefra(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	var derrotado bool
+	switch r.PostFormValue("estado") {
+	case "derrotado":
+		derrotado = true
+	case "vivo":
+		derrotado = false
+	default:
+		http.Error(w, "O estado do Kefra precisa ser \"derrotado\" ou \"vivo\".", http.StatusBadRequest)
+		return
+	}
+	sess, _ := staffFrom(r.Context())
+
+	antes, err := h.cfg.Eventos.WorldEventConfig(r.Context())
+	if err != nil {
+		h.cfg.Logger.Error("world event config read failed", "err", err)
+		http.Error(w, "Erro ao ler a configuração dos eventos.", http.StatusInternalServerError)
+		return
+	}
+	if _, err := h.cfg.Eventos.SetKefraState(r.Context(), derrotado, 0, "painel", sess.AccountID); err != nil {
+		h.cfg.Logger.Error("kefra state write failed", "err", err)
+		http.Error(w, "Erro ao gravar o estado do Kefra.", http.StatusBadGateway)
+		return
+	}
+	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
+		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		Action: audit.ActionSetKefra,
+		Old:    map[string]any{"derrotado": antes.KefraLiveEnabled, "guilda": antes.KefraGuildID},
+		New:    map[string]any{"derrotado": derrotado, "guilda": 0},
+	}); err != nil {
+		h.cfg.Logger.Error("kefra state saved but NOT audited", "err", err)
+		http.Error(w, "O estado do Kefra foi gravado, mas a auditoria falhou. Avise quem cuida do servidor.",
+			http.StatusInternalServerError)
+		return
+	}
+	h.cfg.Logger.Info("kefra state set by staff", "actor", sess.AccountName, "derrotado", derrotado)
+
+	aviso := "Kefra marcado como vivo: o servidor volta a entregar metade da experiência."
+	if derrotado {
+		aviso = "Kefra marcado como derrotado: o servidor entrega a experiência inteira."
+	}
+	http.Redirect(w, r, "/eventos?aviso="+urlQuery(aviso), http.StatusSeeOther)
 }
 
 func resumoEvento(c domain.WorldEventConfig) map[string]any {

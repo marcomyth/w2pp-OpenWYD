@@ -16,6 +16,7 @@ type fakeWorldEventAPI struct {
 	progressVersion  int64
 	progressIndex    int32
 	progressResponse bool
+	kefraReq         *dbv1.SetKefraStateRequest
 }
 
 func (f *fakeWorldEventAPI) WorldEventConfigVersion(context.Context, *dbv1.WorldEventConfigVersionRequest, ...grpc.CallOption) (*dbv1.WorldEventConfigVersionResponse, error) {
@@ -28,6 +29,10 @@ func (f *fakeWorldEventAPI) GetWorldEventConfig(context.Context, *dbv1.GetWorldE
 func (f *fakeWorldEventAPI) UpdateWorldEventProgress(_ context.Context, req *dbv1.UpdateWorldEventProgressRequest, _ ...grpc.CallOption) (*dbv1.UpdateWorldEventProgressResponse, error) {
 	f.progressVersion, f.progressIndex = req.GetExpectedVersion(), req.GetCurrentIndex()
 	return &dbv1.UpdateWorldEventProgressResponse{Applied: f.progressResponse}, nil
+}
+func (f *fakeWorldEventAPI) SetKefraState(_ context.Context, req *dbv1.SetKefraStateRequest, _ ...grpc.CallOption) (*dbv1.SetKefraStateResponse, error) {
+	f.kefraReq = req
+	return &dbv1.SetKefraStateResponse{Version: 9}, nil
 }
 
 func TestWorldEventConfigClientMapsSnapshotAndProgress(t *testing.T) {
