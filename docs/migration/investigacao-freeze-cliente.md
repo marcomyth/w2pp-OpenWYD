@@ -2,6 +2,10 @@
 
 > **Status:** ABERTO — causa-raiz não confirmada. Instrumentação S→C adicionada em 2026-07-19
 > (branch `investigando-bug-logoff`); aguardando a próxima reprodução com os novos logs.
+> **Atualização 2026-09-14:** há uma causa candidata forte, já consertada (PR #29): o servidor
+> não avisava ao cliente que o personagem tinha morrido. Ela explica duas das seis janelas e
+> NÃO explica os ~14 KB a cada 4 s — ver a seção
+> ["Causa candidata: a morte não avisada"](#2026-09-14--causa-candidata-a-morte-não-avisada-pr-29).
 > Este arquivo é o estado da investigação para sessões futuras: leia antes de re-derivar
 > qualquer coisa dos logs do Railway.
 
@@ -32,6 +36,73 @@ O travamento é **do cliente (WYD.exe), não do servidor**. Evidência colhida v
 
 Descartado portanto: crash/lentidão do servidor, OOM, deploy no meio da sessão, DB, rede/proxy
 Railway, fila S→C cheia (o WARN nunca disparou), notebook do usuário.
+
+> **Ressalva de 2026-09-14 sobre a "prova-chave":** bytes chegando e o cliente ACKando com o
+> jogo parado é também o que se vê com um jogador morto que não foi avisado da morte (seção
+> abaixo). Nesse caso o cliente pode estar processando tudo, e só o personagem dele não age.
+> As duas leituras cabem na mesma evidência, então "o cliente recebe e descarta" deixa de ser
+> conclusão e volta a ser uma das hipóteses. O resto do descarte (servidor, DB, rede) segue de pé.
+
+## 2026-09-14 — Causa candidata: a morte não avisada (PR #29)
+
+### O mecanismo (lido no código e no legado)
+
+1. Quando um monstro leva o jogador a 0 de vida, o servidor só larga o alvo
+   (`tmserver/internal/handler/mobai.go`, comentário *"the death/resurrection flow is
+   deferred"*). Não há aviso de morte, e o golpe fatal leva `CurrentHp: -1`, que não informa
+   a vida de ninguém.
+2. A partir daí todo ataque do morto era recusado em `combat.go`: o servidor respondia
+   `MSG_SetHpMp` e `AddCrackError(s, 1, 8)`. O tipo 8 é um dos três que `AddCrackError` não
+   registra, então a recusa não deixava linha no log.
+3. O pacote que diz ao cliente que o servidor o considera morto é `MSG_SetHpMode` (0x0292).
+   Antes do PR #29 ele só saía quando o morto tentava **andar** (`movement.go`). O legado
+   manda também quando ele **ataca** (`Source/Code/TMSrv/_MSG_Attack.cpp:40-43`).
+
+Resultado: quem morre e não anda (só ataca, usa item ou aperta botão) continua vendo o
+personagem em pé, e nada do que faz tem efeito. De fora, é igual a um jogo travado.
+
+### O que foi medido
+
+- **Na cópia `teste-xp-grupo`, 14/09**, com um robô de medição que entrou morto numa sala da
+  Água Arcana (condição do instrumento, não de jogo), numa janela com `W2PP_LOG_SENDS=true`:
+  69 pacotes de ataque recebidos, **0** respostas de ataque, 68 `MSG_SetHpMp`, nenhuma linha
+  de recusa no log, e `hp=0` no banco. O primeiro `MSG_SetHpMode` só apareceu **58 s** depois
+  da primeira recusa.
+- **Nos registros de julho deste documento**, duas das seis janelas terminam com o personagem
+  morto: `00:10:44Z` ("2 passos andados e morto") e `11:36:35Z` ("262× ApplyBonus em 48s,
+  1 whisper, morto"). 262 cliques em 48 s é apertar botão sem andar.
+
+### O conserto
+
+PR #29 (merge `95943311`, deploy em produção em 14/09 às 06:07Z): o ataque de um morto passa
+a receber `MSG_SetHpMode`, como no legado. Testes: `TestMortoQueAtacaEAvisadoDeQueMorreu`
+(falha sem o conserto) e `TestMortoQueAndaContinuaSendoAvisado` (prende o caminho de andar,
+que já funcionava).
+
+Ele **não** implementa o fluxo de morte do legado (ida à cidade, perda de XP e de item). Isso
+continua pendente em `mobai.go` e é outro trabalho.
+
+### O que continua sem explicação
+
+1. **As outras quatro janelas** (`00:14:16Z`, `00:17:28Z`, `00:33:47Z`, `11:34:37Z`) não
+   mencionam morte. Os logs de julho expiraram, então não dá para voltar e conferir a vida do
+   personagem naqueles minutos.
+2. **Os ~14 KB a cada 4 s durante o freeze das 11:36Z.** O mecanismo acima produz um pacote
+   pequeno por ação recusada. Ninguém mediu quanto um personagem parado numa cidade recebe
+   normalmente (monstros, outros jogadores, clima), nem de que tipo eram aqueles bytes. Sem
+   essas duas medidas não se sabe se 14 KB/4 s é tráfego comum de cidade ou sinal de outra
+   coisa. **Se os relatos continuarem depois de 14/09 06:07Z, é por aqui que se começa.**
+3. **Falta de relato não fecha a investigação.** O servidor tem pouco movimento; semanas sem
+   reclamação não provam que o conserto resolveu.
+
+### Se o relato voltar
+
+- Anotar a hora do travamento e se o personagem estava morto (`hp` no banco logo depois, e se
+  `0x0292` aparece no `session last sends`).
+- Ler o `session send stats` do disconnect: o `by_type` diz de que tipo eram os bytes que
+  continuaram chegando.
+- Se o personagem estava vivo e o `by_type` tem algo fora do comum, as hipóteses abaixo
+  voltam à frente.
 
 ## Linha do tempo observada
 
@@ -73,6 +144,9 @@ não tratar como lei.
 
 ## Hipóteses vivas (em ordem)
 
+0. **(2026-09-14) Morte não avisada** — causa candidata forte, consertada no PR #29. Explica
+   duas das seis janelas; ver a seção acima. As hipóteses 1 a 3 continuam valendo para as
+   outras quatro e para os ~14 KB/4 s.
 1. **Frame S→C malformado dessincroniza o parser do cliente.** O cliente lê o stream por
    `Size` do header; um único frame com Size/encoding errado faz TODO o resto decodificar
    lixo → o cliente passa a dropar tudo silenciosamente (bate com "TCP ACKa, jogo morto").

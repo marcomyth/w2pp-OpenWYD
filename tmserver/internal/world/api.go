@@ -261,8 +261,13 @@ func (w *World) DespawnMob(id int, removeType int32) {
 	w.ForEachInView(id, func(vs *Session, _ *Entity) {
 		w.enqueue(vs, protocol.Header{Type: protocol.MsgRemoveMob, ID: uint16(id)}, body)
 	})
-	// Generator population accounting on death (DeleteMob decrements
-	// CurrentNumMob, Server.cpp:7825-7831, clamped at 0).
+	// Generator population accounting: the legacy DeleteMob decrements
+	// CurrentNumMob for EVERY removal type except 0, clamped at 0
+	// (Server.cpp:7821-7833). Only type 1 used to count here, so a mob that left
+	// with type 3 (a route-3 mob at the end of its route, the Sala Secreta and
+	// castle sweeps, a war tower) stayed counted, and a MaxNumMob 1 block was
+	// pinned at its cap and never spawned again until a restart. The 15s respawn
+	// queue below is a different question and stays type 1 only.
 	gen := w.GeneratorAt(int(e.GenIndex))
 	// Water-dungeon rooms always count, whatever the template's Merchant byte
 	// says. Imp_ ships Merchant=64, so the plain rule below never decremented
@@ -271,7 +276,7 @@ func (w *World) DespawnMob(id int, removeType int32) {
 	// could never trigger. Same field that made the Imp invulnerable; the combat
 	// gate was fixed without this accounting half.
 	countsForGenerator := monstroDeCombate(e) || IsWaterDungeonGenerator(int(e.GenIndex))
-	if removeType == 1 && countsForGenerator && gen != nil {
+	if removeType != 0 && countsForGenerator && gen != nil {
 		if gen.CurrentNumMob--; gen.CurrentNumMob < 0 {
 			gen.CurrentNumMob = 0
 		}

@@ -102,6 +102,12 @@ type Config struct {
 	// CurrentScore (content.ItemList.BaseEffects). When nil, gear contributes nothing.
 	ItemEffects map[int][]content.BaseEffect
 
+	// ItemKeyIDs maps item index → its EF_KEYID (content.ItemList.KeyIDs): the
+	// number a gate and its key share. Kept out of ItemEffects on purpose: that
+	// map feeds the score, and itemeffect's name table also feeds the web client
+	// item list. When nil, a gate or key carries only its instance effects.
+	ItemKeyIDs map[int]int
+
 	// ItemReqs maps item index → its equip requirement (level/attributes,
 	// content.ItemList.Requirements). When nil, no equip is gated.
 	ItemReqs map[int]content.ItemReq
@@ -282,6 +288,7 @@ type Dispatcher struct {
 	itemPrices      map[int]int32                // item index → base price (NPC shop)
 	itemNames       map[int]string               // item index → catalog name (NPC dialogue)
 	itemEffects     map[int][]content.BaseEffect // item index → static base effects (equip score)
+	itemKeyIDs      map[int]int                  // item index → EF_KEYID (gate and key pairing)
 	itemReqs        map[int]content.ItemReq      // item index → equip requirement (level/attrs)
 	itemVolatiles   map[int]int                  // item index → EF_VOLATILE (consumable class)
 	itemDurations   map[int]int                  // item index → lifetime in days (timed items)
@@ -548,6 +555,7 @@ func New(cfg Config) *Dispatcher {
 		itemPrices:        cfg.ItemPrices,
 		itemNames:         cfg.ItemNames,
 		itemEffects:       cfg.ItemEffects,
+		itemKeyIDs:        cfg.ItemKeyIDs,
 		itemReqs:          cfg.ItemReqs,
 		itemVolatiles:     cfg.ItemVolatiles,
 		itemDurations:     cfg.ItemDurations,

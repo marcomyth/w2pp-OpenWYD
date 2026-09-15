@@ -41,18 +41,28 @@ func construcaoDoPersonagem(e *world.Entity) int {
 // entregaItemDeNivel dá ao personagem a peça do nível que ele acabou de
 // alcançar, se houver uma.
 //
-// Chamado UMA vez por subida, com o nível final — é o que o legado faz: os
-// quatro pontos que chamam DoItemLevel chamam depois do CheckGetLevel, com o
-// nível já atualizado. Quem pula três níveis de uma vez recebe a peça do nível
-// em que parou, não as três.
+// Chamado UMA vez por nível cruzado, de dentro do laço do applyLevelUps. O legado
+// sobe um nível por chamada de CheckGetLevel (CMob.cpp:1113) e chama DoItemLevel
+// logo depois de cada uma, então quem pula sete níveis recebe a peça de cada
+// nível que entrega. Este comentário já disse o contrário ("recebe a peça do nível
+// em que parou"), o código seguiu o comentário, e a peça dos níveis do meio sumia
+// calada.
 //
-// A peça vai para o armazém da conta, como no original (ITEM_PLACE_CARGO). Se
-// não couber, o legado desiste calado e o item some. Aqui o item também não é
+// A peça vai para o armazém da conta, como no original (ITEM_PLACE_CARGO), numa
+// das vagas que o legado usa (vagaParaItemDeNivel). Se não couber, o legado
+// desiste calado e o item some. Aqui o item também não é
 // entregue — a fidelidade da regra fica —, mas fica registrado com nome, conta e
 // item, porque um item que some sem rastro é um chamado de suporte sem resposta,
 // e a equipe já tem uma lista desses para investigar.
 func (d *Dispatcher) entregaItemDeNivel(w *world.World, s *world.Session, e *world.Entity) {
 	if d.levelItems == nil || s == nil || e == nil {
+		return
+	}
+	// Só o Mortal recebe. Os oito pontos do legado que sobem nível chamam
+	// DoItemLevel atrás de `if ClassMaster == MORTAL` (SendFunc.cpp:1042,
+	// _MSG_Attack.cpp:1772 e _MSG_UseItem.cpp:1028, 1045, 1080, 2397, 2435 e
+	// 2475). Sem isto, um Arch ou um Celestial que passasse pelo 29 recebia a peça.
+	if e.ClassMaster != classMasterMortal {
 		return
 	}
 	item := d.levelItems.Para(int(e.Class), construcaoDoPersonagem(e), e.Level)
@@ -65,7 +75,7 @@ func (d *Dispatcher) entregaItemDeNivel(w *world.World, s *world.Session, e *wor
 			"conn", s.Conn, "personagem", e.Name, "nivel", e.Level, "item", item.Index)
 		return
 	}
-	vaga := firstEmptyCargoSlot(cargo)
+	vaga := vagaParaItemDeNivel(cargo)
 	if vaga < 0 {
 		d.log.Warn("item de nível: armazém cheio, o item não foi entregue",
 			"conn", s.Conn, "conta", s.AccountID, "personagem", e.Name,
@@ -82,4 +92,18 @@ func (d *Dispatcher) entregaItemDeNivel(w *world.World, s *world.Session, e *wor
 	d.log.Info("item de nível entregue",
 		"conn", s.Conn, "conta", s.AccountID, "personagem", e.Name, "classe", e.Class,
 		"construcao", construcaoDoPersonagem(e), "nivel", e.Level, "item", item.Index, "vaga", vaga)
+}
+
+// vagaParaItemDeNivel é a primeira vaga livre do armazém entre as que o legado
+// usa para esta entrega: o DoItemLevel percorre i < MAX_CARGO - 2
+// (Server.cpp:9762), então as duas últimas nunca recebem a peça e, com as outras
+// ocupadas, o original desiste. O firstEmptyCargoSlot vai até o fim e fica como
+// está, porque o kit de novato também o usa.
+func vagaParaItemDeNivel(c *world.CargoState) int {
+	for i := 0; i < world.MaxCargo-2; i++ {
+		if c.Items[i].Empty() {
+			return i
+		}
+	}
+	return -1
 }

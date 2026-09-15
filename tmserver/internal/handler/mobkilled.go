@@ -440,8 +440,24 @@ func isCelestialTier(classMaster uint8) bool {
 // MAX_CLEVEL, gain only AC + attribute points, and stay gated at levels 40/90 until
 // a combinação do Odin e a Pedra da Fúria marcam as bandeiras (CMob.cpp:1107,
 // 1121-1151). Shared by
-// kill EXP, Poeira de Fada, GM setlevel and combat.
+// kill EXP, Poeira de Fada and combat; the /gm setlevel goes through
+// applyLevelUpsSemPeca.
 func (d *Dispatcher) applyLevelUps(w *world.World, s *world.Session, e *world.Entity) bool {
+	return d.subirDeNivel(w, s, e, true)
+}
+
+// applyLevelUpsSemPeca é a mesma subida para o /gm setlevel, sem a peça do nível.
+// O equivalente do legado é o "set exp" (imple.cpp:154-159), que chama
+// CheckGetLevel e não chama DoItemLevel: subir um boneco de teste não entrega
+// peça nenhuma, e sem isso levar um boneco de medição do 1 ao 399 encheria o
+// armazém dele.
+func (d *Dispatcher) applyLevelUpsSemPeca(w *world.World, s *world.Session, e *world.Entity) bool {
+	return d.subirDeNivel(w, s, e, false)
+}
+
+// subirDeNivel é o corpo das duas. entregaPeca diz se cada nível cruzado entrega
+// a peça do LevelItem.txt.
+func (d *Dispatcher) subirDeNivel(w *world.World, s *world.Session, e *world.Entity, entregaPeca bool) bool {
 	gained := int32(0) // levels actually crossed — the Chaos Point grant below is per level
 	celestial := isCelestialTier(e.ClassMaster)
 	levelCap := level.MaxLevelForTier(e.ClassMaster)
@@ -477,6 +493,16 @@ func (d *Dispatcher) applyLevelUps(w *world.World, s *world.Session, e *world.En
 		}
 		gained++
 		e.Segment = 0 // a new level starts its quarters over (CMob.cpp:1157)
+
+		// A peça de CADA nível cruzado (levelitem.go). O legado sobe um nível por
+		// chamada (CMob.cpp:1113) e todo ponto que chama CheckGetLevel chama
+		// DoItemLevel logo depois, então quem ganha XP para vários níveis recebe a
+		// peça de cada um. Entregar uma vez só, depois do laço e com o nível final,
+		// fazia a peça dos níveis do meio sumir sem linha nenhuma no log. O gancho
+		// fica aqui, e não em cada ponto que dá XP, porque todos passam por este laço.
+		if entregaPeca {
+			d.entregaItemDeNivel(w, s, e)
+		}
 	}
 	if gained == 0 {
 		d.applyExpSegment(w, s, e)
@@ -507,12 +533,6 @@ func (d *Dispatcher) applyLevelUps(w *world.World, s *world.Session, e *world.En
 	// purpose: it can emit a CreateMob that recolors the nick, which must land
 	// after the score/etc refresh above, not in the middle of it.
 	d.grantLevelUpPKPoint(w, s, e, gained)
-
-	// A peça que este nível entrega no armazém (levelitem.go). Aqui e não nos
-	// quatro pontos que o legado usa: applyLevelUps é por onde TODOS eles passam
-	// — XP de morte, Poeira de Fada, setlevel do GM e combate —, então um gancho
-	// só cobre os quatro sem quatro chances de esquecer um.
-	d.entregaItemDeNivel(w, s, e)
 	return true
 }
 
