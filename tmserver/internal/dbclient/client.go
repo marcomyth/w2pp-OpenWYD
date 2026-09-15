@@ -672,6 +672,7 @@ func characterStateFromProto(c *dbv1.Character) world.CharacterState {
 		CelestialArchLevel:   uint8(c.GetCelestialArchLevel()),
 		ArchCristal:          uint8(c.GetArchCristal()),
 		NightmareTickets:     c.GetNightmareTickets(),
+		KefraTicket:          c.GetKefraTicket(),
 		CelLv90:              uint8(c.GetCelestialLv90()),
 		CelCircle:            uint8(c.GetCelestialCircle()),
 		TerraMistica:         uint8(c.GetMortalTerraMistica()),
@@ -804,6 +805,7 @@ func characterSaveToProto(s world.CharacterSave) *dbv1.Character {
 		CelestialArchLevel: int32(s.CelestialArchLevel),
 		ArchCristal:        int32(s.ArchCristal),
 		NightmareTickets:   s.NightmareTickets,
+		KefraTicket:        s.KefraTicket,
 		CelestialLv90:      int32(s.CelLv90),
 		CelestialCircle:    int32(s.CelCircle),
 		// The trainer step has to travel on the SAVE too: the dbServer writes the

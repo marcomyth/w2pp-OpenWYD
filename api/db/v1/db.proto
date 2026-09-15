@@ -307,6 +307,10 @@ message Character {
   // QuestInfo.Celestial.Reset, worth 200 points each in the grant formula. It
   // was already read there and had nowhere to live, so it stayed at zero.
   int32 celestial_reset = 54;
+  // MobExtra.KefraTicket: entries into the Kefra Hall. The Sobrevivente trades a
+  // Pergaminho_Selado for 100 and each passage through the Hall tile spends one
+  // (migration 0068).
+  int32 kefra_ticket = 55;
 }
 
 message Item {

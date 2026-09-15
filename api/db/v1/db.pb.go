@@ -709,8 +709,12 @@ type Character struct {
 	// QuestInfo.Celestial.Reset, worth 200 points each in the grant formula. It
 	// was already read there and had nowhere to live, so it stayed at zero.
 	CelestialReset int32 `protobuf:"varint,54,opt,name=celestial_reset,json=celestialReset,proto3" json:"celestial_reset,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// MobExtra.KefraTicket: entries into the Kefra Hall. The Sobrevivente trades a
+	// Pergaminho_Selado for 100 and each passage through the Hall tile spends one
+	// (migration 0068).
+	KefraTicket   int32 `protobuf:"varint,55,opt,name=kefra_ticket,json=kefraTicket,proto3" json:"kefra_ticket,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Character) Reset() {
@@ -1117,6 +1121,13 @@ func (x *Character) GetSubCelestialAtivo() int32 {
 func (x *Character) GetCelestialReset() int32 {
 	if x != nil {
 		return x.CelestialReset
+	}
+	return 0
+}
+
+func (x *Character) GetKefraTicket() int32 {
+	if x != nil {
+		return x.KefraTicket
 	}
 	return 0
 }
@@ -10971,7 +10982,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x14LoadCharacterRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12\x12\n" +
-	"\x04slot\x18\x02 \x01(\x05R\x04slot\"\xea\f\n" +
+	"\x04slot\x18\x02 \x01(\x05R\x04slot\"\x8d\r\n" +
 	"\tCharacter\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -11032,7 +11043,8 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x16sub_celestial_guardada\x183 \x01(\tR\x14subCelestialGuardada\x12.\n" +
 	"\x13sub_celestial_level\x184 \x01(\x05R\x11subCelestialLevel\x12.\n" +
 	"\x13sub_celestial_ativo\x185 \x01(\x05R\x11subCelestialAtivo\x12'\n" +
-	"\x0fcelestial_reset\x186 \x01(\x05R\x0ecelestialReset\"\xe5\x01\n" +
+	"\x0fcelestial_reset\x186 \x01(\x05R\x0ecelestialReset\x12!\n" +
+	"\fkefra_ticket\x187 \x01(\x05R\vkefraTicket\"\xe5\x01\n" +
 	"\x04Item\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x14\n" +
 	"\x05index\x18\x02 \x01(\x05R\x05index\x12\x12\n" +

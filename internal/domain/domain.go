@@ -80,6 +80,7 @@ type Character struct {
 	CelestialArchLevel uint8  // MobExtra.QuestInfo.Celestial.ArchLevel
 	ArchCristal        uint8  // MobExtra.QuestInfo.Arch.Cristal — stages done (0..4)
 	NightmareTickets   int32  // MobExtra.NT: Pesadelo Arcano entries held (pesadelo-plan.md)
+	KefraTicket        int32  // MobExtra.KefraTicket: entries into the Kefra Hall (migration 0068)
 	// The Sub-Celestial second life (0061_sub_celestial). The fields ABOVE are
 	// always the ACTIVE life; SubCelestialGuardada carries the whole life that is
 	// put away, as JSON. Swapping lives swaps the two places, so nothing else in

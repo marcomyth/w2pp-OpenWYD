@@ -8,8 +8,11 @@ type teleRoute struct {
 }
 
 // teleportTable maps a rounded origin tile (x&0xFFFC, y&0xFFFC) to its
-// destination + gold cost. It is the complete GetTeleportPosition
-// (GetFunc.cpp:782-1026) — all 37 routes, in the order the original tests them.
+// destination + gold cost. It is GetTeleportPosition (GetFunc.cpp:782-1026) minus
+// its two CONDITIONAL routes, which a table lookup cannot express: the Kefra Hall
+// floor only moves a player who carries an entry (handler/kefra_hall.go), and the
+// desert route only opens while the Kefra is alive (not ported yet). Everything
+// else is here, in the order the original tests them.
 // The client sends an empty _MSG_ReqTeleport when it steps on a teleport tile;
 // the server resolves the route from the player's position.
 //
