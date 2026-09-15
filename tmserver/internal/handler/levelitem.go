@@ -58,6 +58,13 @@ func (d *Dispatcher) entregaItemDeNivel(w *world.World, s *world.Session, e *wor
 	if d.levelItems == nil || s == nil || e == nil {
 		return
 	}
+	// Só o Mortal recebe. Os oito pontos do legado que sobem nível chamam
+	// DoItemLevel atrás de `if ClassMaster == MORTAL` (SendFunc.cpp:1042,
+	// _MSG_Attack.cpp:1772 e _MSG_UseItem.cpp:1028, 1045, 1080, 2397, 2435 e
+	// 2475). Sem isto, um Arch ou um Celestial que passasse pelo 29 recebia a peça.
+	if e.ClassMaster != classMasterMortal {
+		return
+	}
 	item := d.levelItems.Para(int(e.Class), construcaoDoPersonagem(e), e.Level)
 	if item.Empty() {
 		return
