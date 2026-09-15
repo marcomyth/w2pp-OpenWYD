@@ -110,21 +110,10 @@
         </span>
       </label>
 
-      <label class="interruptor">
-        <input type="checkbox" name="kefra" value="1"
-               {{if .Cfg.KefraLiveEnabled}}checked{{end}} {{if not .IsAdmin}}disabled{{end}}>
-        <span>
-          <span class="t">XP inteira (KefraLive)</span>
-          <span class="d">
-            <strong>Desmarcado, o servidor entrega metade da experiência</strong> —
-            e é assim que ele está desde sempre. Marcar não é um bônus: é parar
-            de cortar. Vale para todo mundo, em qualquer nível, e entra depois
-            do XP em dobro na conta. O nome é do código do jogo original, e foi
-            mantido para quem for procurar no log.
-            <br><strong>Ligado = XP em dobro no servidor inteiro. A Mesa de XP foi calibrada com esta chave desligada.</strong>
-          </span>
-        </span>
-      </label>
+      <p class="nota calma">
+        A metade da experiência do Kefra vivo não é salva aqui: ela tem o quadro
+        próprio mais abaixo.
+      </p>
     </div>
 
     <div class="caixa">
@@ -256,6 +245,31 @@
     <button type="submit" class="principal">Salvar</button>
     {{end}}
   </form>
+
+  <div class="caixa">
+    <h2>Kefra</h2>
+    <p class="sub">
+      Agora: <strong>{{if .Cfg.KefraLiveEnabled}}Kefra derrotado — XP inteira{{else}}Kefra vivo — metade da XP{{end}}</strong>{{if .Cfg.KefraGuildID}}, derrotado pela guilda {{if .GuildaDoKefra}}{{.GuildaDoKefra}}{{else}}{{.Cfg.KefraGuildID}}{{end}}{{end}}.
+    </p>
+    <p class="nota calma">
+      Com o Kefra vivo o servidor entrega metade da experiência, como no jogo
+      original; derrotado, entrega a experiência inteira, e isso vale para todo
+      mundo, depois do XP em dobro na conta. No código o nome é KefraLive, mantido
+      para quem for procurar no log. Marcar aqui é uma correção manual: não é salva
+      junto com o formulário acima e fica na auditoria.
+      <br><strong>Marcar muda a experiência do servidor inteiro na hora.</strong>
+    </p>
+    {{if .IsAdmin}}
+    <form method="post" action="/eventos/kefra">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      {{if .Cfg.KefraLiveEnabled}}
+      <button type="submit" name="estado" value="vivo">Marcar Kefra vivo</button>
+      {{else}}
+      <button type="submit" name="estado" value="derrotado">Marcar Kefra derrotado</button>
+      {{end}}
+    </form>
+    {{end}}
+  </div>
 </main>
 </body>
 </html>

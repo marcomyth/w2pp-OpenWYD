@@ -307,6 +307,10 @@ type WorldEventConfig struct {
 	// halves every PvE reward (expreward.go step 11). False is the legacy value
 	// and the one this server has always run.
 	KefraLiveEnabled bool
+	// KefraGuildID is the guild that killed the Kefra (migration 0067), 0 when it
+	// fell to someone without a guild or while it is alive. The legacy keeps it
+	// inside KefraLive itself and names the guild at login.
+	KefraGuildID int32
 	// TowerWarEnabled and TowerWarHour schedule the daily Guerra de Torres
 	// (migration 0051): every day at TowerWarHour, server time. It used to ride
 	// on NewbieEventEnabled, which also changes EXP and monster HP for low

@@ -113,7 +113,7 @@ type mesaForm struct {
 	Segundos  int32
 	XPDobro   bool
 	Novato    bool
-	KefraViva bool
+	XPInteira bool
 	Quests    bool
 }
 
@@ -183,7 +183,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	form := lerMesaForm(r.URL.Query())
+	form := lerMesaForm(r.URL.Query(), h.xpInteiraNoBanco(r.Context()))
 	zona := level.Zone(form.Zona)
 	evo := uint8(form.Evolucao)
 
@@ -671,7 +671,23 @@ func cortesDoForm(r *http.Request, desloc, teto int32) ([]domain.XPCut, error) {
 	return cortes, nil
 }
 
-func lerMesaForm(q url.Values) mesaForm {
+// xpInteiraNoBanco is the Kefra switch as the game has it
+// (world_event_config.kefra_live_enabled), so the simulator opens on the
+// experience production pays. Without the Eventos store, or when the read fails,
+// it answers false: the database default (migration 0039), half the experience.
+func (h *Handler) xpInteiraNoBanco(ctx context.Context) bool {
+	if h.cfg.Eventos == nil {
+		return false
+	}
+	cfg, err := h.cfg.Eventos.WorldEventConfig(ctx)
+	if err != nil {
+		h.cfg.Logger.Warn("mesa de XP: could not read the Kefra switch, the simulator opens at half experience", "err", err)
+		return false
+	}
+	return cfg.KefraLiveEnabled
+}
+
+func lerMesaForm(q url.Values, xpInteiraNoJogo bool) mesaForm {
 	f := mesaForm{
 		Zona:     intDe(q, "zona", 0, 0, len(level.Zones())-1),
 		Nivel:    int32(intDe(q, "nivel", 1, 0, int(level.MaxLevel))),
@@ -688,13 +704,15 @@ func lerMesaForm(q url.Values) mesaForm {
 	if !evolucaoValida(uint8(f.Evolucao)) {
 		f.Evolucao = int(level.TierMortal)
 	}
-	// The three event switches and the quest gates default to the state a live
-	// server is normally in: no events running, Kefra alive, walls already
-	// opened — so the first number the page shows is the ordinary one.
+	// The event switches and the quest gates open on the state a live server is
+	// in: no double or newbie event, walls already opened, and the Kefra switch as
+	// the game has it (xpInteiraNoJogo). That box used to open checked, which
+	// simulated full experience while the database default is half, so the first
+	// number the page showed could be double what a player got.
 	primeira := q.Get("simular") == ""
 	f.XPDobro = q.Get("xp_dobro") != ""
 	f.Novato = q.Get("novato") != ""
-	f.KefraViva = primeira || q.Get("kefra") != ""
+	f.XPInteira = q.Get("kefra") != "" || (primeira && xpInteiraNoJogo)
 	f.Quests = primeira || q.Get("quests") != ""
 	return f
 }
@@ -784,7 +802,7 @@ func (f mesaForm) entrada(cfg level.Config) level.ExpRewardInput {
 		ExpBonus:     bonus,
 		FairyContent: fairyContent,
 		Events: level.ExpEvents{
-			DoubleMode: f.XPDobro, NewbieEvent: f.Novato, KefraLive: f.KefraViva,
+			DoubleMode: f.XPDobro, NewbieEvent: f.Novato, KefraLive: f.XPInteira,
 		},
 		Config: cfg,
 	}

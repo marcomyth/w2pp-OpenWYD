@@ -21,8 +21,28 @@ type fakeEventos struct {
 	cfg     domain.WorldEventConfig
 	gravado []domain.WorldEventConfig
 	ator    []int64
+	kefra   []chamadaKefra
 	lerErr  error
 	gravErr error
+}
+
+// chamadaKefra é uma gravação do estado do Kefra pelo caminho próprio.
+type chamadaKefra struct {
+	derrotado bool
+	guilda    int32
+	fonte     string
+	ator      int64
+}
+
+func (f *fakeEventos) SetKefraState(_ context.Context, live bool, guildID int32, fonte string, ator int64) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.gravErr != nil {
+		return 0, f.gravErr
+	}
+	f.kefra = append(f.kefra, chamadaKefra{derrotado: live, guilda: guildID, fonte: fonte, ator: ator})
+	f.cfg.KefraLiveEnabled = live
+	return int64(len(f.kefra)), nil
 }
 
 func (f *fakeEventos) WorldEventConfig(context.Context) (domain.WorldEventConfig, error) {
@@ -155,10 +175,11 @@ func TestAdminSalvaOsInterruptores(t *testing.T) {
 	if g.NewbieEventEnabled {
 		t.Error("o evento de novato ligou sozinho")
 	}
-	// KefraLive desmarcado corta a XP pela metade, então gravar errado aqui é a
-	// diferença entre o servidor pagar o dobro e a metade do que se pediu.
-	if !g.KefraLiveEnabled {
-		t.Error("o KefraLive foi marcado no formulário e não foi gravado")
+	// A caixa "kefra" do formulário não grava mais nada: o estado do Kefra tem a
+	// ação própria (/eventos/kefra) e também é gravado pelo jogo. O que vai é o
+	// valor que já estava no banco (aqui, vivo).
+	if g.KefraLiveEnabled {
+		t.Error("o formulário dos eventos gravou o estado do Kefra")
 	}
 	if !g.TowerWarEnabled || g.TowerWarHour != 21 {
 		t.Errorf("guerra de torres gravada = %v às %dh, want ligada às 21h", g.TowerWarEnabled, g.TowerWarHour)
@@ -391,8 +412,8 @@ func TestAPaginaMostraOsChefesEOsAvisos(t *testing.T) {
 	body := getSignedIn(t, newTestPanelEventos(t, roleAdmin, ev, newFakeAudit()), "/eventos").Body.String()
 	for _, quer := range []string{
 		"Chefes sozinhos", "voltam em 36h", `name="chefes_horas"`, `value="36"`,
-		"Ligado = XP em dobro no servidor inteiro.",
-		"A Mesa de XP foi calibrada com esta chave desligada.",
+		// O aviso vive agora no quadro próprio do Kefra, junto do botão.
+		"Marcar muda a experiência do servidor inteiro na hora.",
 		"Brasília é UTC−3",
 		"O Kefra e os quatro guardas não entram aqui",
 	} {
