@@ -35,7 +35,7 @@ var teleportTable = map[[2]int16]teleRoute{
 	// (g_pRvrWar.Status == 1) vai para a base do clã, azul (1061,2129) ou vermelha
 	// (1237,1966), com SendCounterMob. Só o ramo de fora da guerra está aqui,
 	// porque a guerra RvR não existe neste port (generator.go, eventOwnedGenerators).
-	// A linha levava a (3250,1703), que é o destino da rota condicional
+	// A linha levava a (3250,1703), que é o destino da rota com condição
 	// "Deserto - Kefra" (GetFunc.cpp:1007-1011, só com KefraLive != 0): um passo
 	// em Noatum levava de graça à cidade do Kefra.
 	{1056, 1724}: {1164, 1720, 0},
