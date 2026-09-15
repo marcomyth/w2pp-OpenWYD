@@ -2316,6 +2316,12 @@ func (d *Dispatcher) itemAbility(it world.Item, effect uint8) int {
 			total += attSpeedValue(effect, int(be.Val))
 		}
 	}
+	if effect == efKeyID {
+		// O EF_KEYID do catálogo vem por um mapa próprio (Config.ItemKeyIDs): o
+		// itemEffects é o da conta de atributos e nunca o carregou, e sem isto todo
+		// portão trancado lia chave 0 e abria para qualquer um.
+		total += d.itemKeyIDs[int(it.Index)]
+	}
 	for _, ef := range it.Effects {
 		if ef.Effect == effect {
 			total += attSpeedValue(effect, int(ef.Value))
