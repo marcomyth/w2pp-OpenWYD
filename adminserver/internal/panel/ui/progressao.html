@@ -185,6 +185,8 @@
         </div>
       </div>
 
+      <p class="sub">Conta feita com {{if .Form.XPInteira}}a XP inteira (chave da Kefra ligada em Eventos){{else}}metade da XP (chave da Kefra desligada em Eventos){{end}}.</p>
+
       {{if .Resultado.Aviso}}
       <div class="nota perigo"><strong>{{.Resultado.Aviso}}</strong></div>
       {{end}}
