@@ -53,8 +53,9 @@ func TestWorldEventConfigCRUDAndProgress(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WorldEventConfig: %v", err)
 	}
-	if !got.KefraLiveEnabled {
-		t.Error("o KefraLive não voltou do banco; desligado ele corta a XP pela metade")
+	// O formulário não grava o estado do Kefra (0067): ele fica como estava, vivo.
+	if got.KefraLiveEnabled {
+		t.Error("o formulário dos eventos gravou o estado do Kefra")
 	}
 	if got.ItemIndex != 777 || got.CurrentIndex != 100 || !got.DoubleExpEnabled {
 		t.Fatalf("config = %+v, want saved values", got)
@@ -99,6 +100,53 @@ func TestWorldEventConfigCRUDAndProgress(t *testing.T) {
 	got, _ = st.WorldEventConfig(ctx)
 	if got.CurrentIndex != 101 {
 		t.Fatalf("current after lower progress = %d, want monotonic 101", got.CurrentIndex)
+	}
+}
+
+// TestKefraStateGravaSoOEstadoEAudita: o estado do Kefra tem o caminho próprio
+// (0067). Grava as duas colunas, audita com a fonte, sobe a versão, e o formulário
+// salvo depois não desfaz o estado.
+func TestKefraStateGravaSoOEstadoEAudita(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	resetTestSchema(ctx, pool)
+	if err := Migrate(ctx, pool); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	st := New(pool)
+
+	v, err := st.SetKefraState(ctx, true, 7, FonteEventoJogo, 0)
+	if err != nil || v != 1 {
+		t.Fatalf("SetKefraState = %d/%v, want 1/nil", v, err)
+	}
+	got, err := st.WorldEventConfig(ctx)
+	if err != nil || !got.KefraLiveEnabled || got.KefraGuildID != 7 {
+		t.Fatalf("config = %+v/%v, want Kefra derrotado pela guilda 7", got, err)
+	}
+	var conta *int64
+	var fonte string
+	if err := pool.QueryRow(ctx,
+		`SELECT account_id, fonte FROM world_event_audit ORDER BY id DESC LIMIT 1`).Scan(&conta, &fonte); err != nil {
+		t.Fatal(err)
+	}
+	if conta != nil || fonte != FonteEventoJogo {
+		t.Errorf("auditoria = conta %v fonte %q, want sem conta e fonte jogo", conta, fonte)
+	}
+
+	cfg := domain.DefaultWorldEventConfig()
+	cfg.DoubleExpEnabled = true
+	if err := st.UpsertWorldEventConfig(ctx, cfg, 0); err != nil {
+		t.Fatalf("UpsertWorldEventConfig: %v", err)
+	}
+	if got, _ = st.WorldEventConfig(ctx); !got.KefraLiveEnabled || got.KefraGuildID != 7 || !got.DoubleExpEnabled {
+		t.Errorf("depois do formulário = %+v, want Kefra ainda derrotado pela 7 e XP em dobro", got)
+	}
+
+	if _, err := st.SetKefraState(ctx, false, 9, FonteEventoPainel, 0); err != nil {
+		t.Fatalf("SetKefraState vivo: %v", err)
+	}
+	if got, _ = st.WorldEventConfig(ctx); got.KefraLiveEnabled || got.KefraGuildID != 0 {
+		t.Errorf("Kefra vivo = %+v, want sem guilda", got)
 	}
 }
 

@@ -14,6 +14,18 @@ type fakeWorldEventStore struct {
 	progressVersion int64
 	progressIndex   int32
 	progressApplied bool
+	kefraCalls      int
+	kefraLive       bool
+	kefraGuild      int32
+	kefraFonte      string
+	kefraConta      int64
+}
+
+func (f *fakeWorldEventStore) SetKefraState(_ context.Context, live bool, guildID int32, fonte string, accountID int64) (int64, error) {
+	f.kefraCalls++
+	f.kefraLive, f.kefraGuild, f.kefraFonte, f.kefraConta = live, guildID, fonte, accountID
+	f.version++
+	return f.version, nil
 }
 
 func (f *fakeWorldEventStore) WorldEventConfigVersion(context.Context) (int64, error) {

@@ -54,6 +54,16 @@ func (c *WorldEventConfig) UpdateProgress(ctx context.Context, expectedVersion i
 	return resp.GetApplied(), nil
 }
 
+// SetKefraState records the Kefra state through dbServer and returns the new
+// config version.
+func (c *WorldEventConfig) SetKefraState(ctx context.Context, live bool, guildID int32) (int64, error) {
+	resp, err := c.api.SetKefraState(ctx, &dbv1.SetKefraStateRequest{Live: live, GuildId: guildID})
+	if err != nil {
+		return 0, fmt.Errorf("dbclient: set kefra state: %w", err)
+	}
+	return resp.GetVersion(), nil
+}
+
 func dbWorldEventToConfig(cfg *dbv1.WorldEventConfig) worldcfg.EventConfig {
 	if cfg == nil {
 		return worldcfg.EventConfig{
@@ -88,7 +98,10 @@ func dbWorldEventToConfig(cfg *dbv1.WorldEventConfig) worldcfg.EventConfig {
 		Indexed: cfg.GetIndexed(), NoticeEnabled: cfg.GetNoticeEnabled(),
 		DoubleExpEnabled: cfg.GetDoubleExpEnabled(), NewbieEventEnabled: cfg.GetNewbieEventEnabled(),
 		KefraLiveEnabled: cfg.GetKefraLiveEnabled(),
-		TowerWarEnabled:  ligada, TowerWarHour: hora,
+		// Absent (a dbServer before 0067) reads as 0: no guild, the same as a Kefra
+		// killed by someone without one.
+		KefraGuildID:    cfg.GetKefraGuildId(),
+		TowerWarEnabled: ligada, TowerWarHour: hora,
 		BossRespawnHours: chefes,
 	}
 }

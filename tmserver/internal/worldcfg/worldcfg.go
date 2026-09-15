@@ -1,6 +1,6 @@
 // Package worldcfg carries portal-managed world configuration into the tmServer.
 // The flow is one-way for moderator edits (web -> Postgres -> dbServer ->
-// tmServer); tmServer only writes back event progress.
+// tmServer); tmServer only writes back event progress and the Kefra state.
 package worldcfg
 
 import "context"
@@ -18,6 +18,9 @@ type EventConfig struct {
 	DoubleExpEnabled   bool
 	NewbieEventEnabled bool
 	KefraLiveEnabled   bool
+	// KefraGuildID is the guild that killed the Kefra (migration 0067), 0 for
+	// none or while it is alive.
+	KefraGuildID int32
 	// TowerWarEnabled and TowerWarHour schedule the daily Guerra de Torres
 	// (migration 0051). A dbServer too old to send them yields the decided
 	// default (domain.DefaultTowerWar*), never the zero values.
@@ -39,4 +42,7 @@ type Source interface {
 	Version(ctx context.Context) (int64, error)
 	Snapshot(ctx context.Context) (Snapshot, error)
 	UpdateProgress(ctx context.Context, expectedVersion int64, currentIndex int32) (bool, error)
+	// SetKefraState records the Kefra as defeated (live) or alive, with the guild
+	// that killed it, and returns the new config version.
+	SetKefraState(ctx context.Context, live bool, guildID int32) (int64, error)
 }

@@ -156,9 +156,14 @@ type Personagens interface {
 // Unlike the account writes there is nothing panel-specific to add: the shape is
 // the same row the game polls, and a second way to write it could only disagree
 // with the first.
+//
+// The Kefra state is the exception to "one form writes the row": the game writes
+// it too (migration 0067), so the panel writes it only through SetKefraState, the
+// same path the game uses, and never through the form.
 type Eventos interface {
 	WorldEventConfig(ctx context.Context) (domain.WorldEventConfig, error)
 	UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEventConfig, moderatorID int64) error
+	SetKefraState(ctx context.Context, live bool, guildID int32, fonte string, accountID int64) (int64, error)
 }
 
 // Denuncias is the /reportar queue.
@@ -530,6 +535,8 @@ func (h *Handler) Routes() http.Handler {
 	if h.cfg.Eventos != nil {
 		mux.Handle("GET /eventos", h.requireStaff(http.HandlerFunc(h.eventos)))
 		mux.Handle("POST /eventos", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setEventos))))
+		// The Kefra has its own action: the game writes that state too.
+		mux.Handle("POST /eventos/kefra", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setKefra))))
 	}
 	if h.cfg.GameData != nil {
 		mux.Handle("GET /itens", h.requireStaff(http.HandlerFunc(h.itens)))

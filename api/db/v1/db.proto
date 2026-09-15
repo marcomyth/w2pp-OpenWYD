@@ -845,8 +845,9 @@ message ItemPrice {
 }
 
 // WorldEventConfigService serves portal-managed global world events to tmServer
-// (issue #116). tmServer reads the config and writes only the event-progress
-// counter; all moderator edits go through the web-api.
+// (issue #116). tmServer reads the config and writes only two things: the
+// event-progress counter and the Kefra state (SetKefraState). Moderator edits go
+// through the web-api and the panel.
 service WorldEventConfigService {
   // WorldEventConfigVersion returns the monotonic moderator config version.
   rpc WorldEventConfigVersion(WorldEventConfigVersionRequest) returns (WorldEventConfigVersionResponse);
@@ -855,6 +856,11 @@ service WorldEventConfigService {
   // UpdateWorldEventProgress persists tmServer's current_index without bumping
   // the config version. expected_version rejects stale tmServer snapshots.
   rpc UpdateWorldEventProgress(UpdateWorldEventProgressRequest) returns (UpdateWorldEventProgressResponse);
+  // SetKefraState records the Kefra as defeated (live = true, full experience)
+  // or alive (live = false, half), with the guild that killed it. The boss dying
+  // and the weekly return both go through it; it is audited with the source
+  // "jogo" and bumps the config version (migration 0067).
+  rpc SetKefraState(SetKefraStateRequest) returns (SetKefraStateResponse);
 }
 
 message WorldEventConfigVersionRequest {}
@@ -872,6 +878,16 @@ message UpdateWorldEventProgressRequest {
 }
 message UpdateWorldEventProgressResponse {
   bool applied = 1;
+}
+
+message SetKefraStateRequest {
+  bool live = 1;
+  // guild_id is the guild that killed the Kefra, 0 for none. An alive Kefra has
+  // no killer: it is stored as 0 when live is false.
+  int32 guild_id = 2;
+}
+message SetKefraStateResponse {
+  int64 version = 1;
 }
 
 message WorldEventConfig {
@@ -898,6 +914,9 @@ message WorldEventConfig {
   // `optional` for the same reason as the Tower War pair: absent is a dbServer
   // that predates the field, and tmServer then runs the decided default (24).
   optional int32 boss_respawn_hours = 14;
+  // The guild that killed the Kefra (migration 0067), 0 for none or while it is
+  // alive. `optional` for the same reason as the fields above.
+  optional int32 kefra_guild_id = 15;
 }
 
 message ListMobTemplateStatsRequest {}
