@@ -46,9 +46,11 @@ func (li LevelItem) Empty() bool { return li.Index == 0 }
 // LevelItems é a tabela inteira, mais o que se aprendeu lendo o arquivo.
 type LevelItems struct {
 	itens [LevelItemClasses][LevelItemBuilds][levelItemMaxLevel]LevelItem
-	// Sobrescritas conta quantas linhas foram apagadas por uma linha posterior
-	// que cai no mesmo (classe, construção, nível). No arquivo que veio no
-	// conteúdo são 157 das 318 — quase metade dele não faz nada. O legado tem o
+	// Sobrescritas conta quantas CASAS (classe, construção, nível) uma linha
+	// posterior apagou — é por casa, não por linha: uma linha de "todas as
+	// construções" cobre quatro casas de uma vez. No arquivo que veio no
+	// conteúdo, lido pelo cabeçalho, são 236 casas sobrescritas por 318 linhas
+	// (conferido pelo próprio carregador em 14/09/2026). O legado tem o
 	// mesmo comportamento e não conta; contar aqui é o que tira o desperdício da
 	// invisibilidade, sem mudar o que o jogo entrega.
 	Sobrescritas int

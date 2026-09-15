@@ -350,7 +350,7 @@ func (d *Dispatcher) gmItem(w *world.World, s *world.Session, rest string) {
 }
 
 // gmSetLevel raises the caller to the given level for testing. It reuses the
-// level-up path (applyLevelUps), so it only levels UP — setting a level at or below
+// level-up path (applyLevelUpsSemPeca), so it only levels UP — setting a level at or below
 // the current one is a no-op (documented; a downlevel would need to unwind the
 // derived score and is out of scope).
 func (d *Dispatcher) gmSetLevel(w *world.World, s *world.Session, rest string) {
@@ -371,7 +371,9 @@ func (d *Dispatcher) gmSetLevel(w *world.World, s *world.Session, rest string) {
 	if e.Exp < level.NextLevelExp(int32(n)-1) {
 		e.Exp = level.NextLevelExp(int32(n) - 1)
 	}
-	d.applyLevelUps(w, s, e)
+	// Sem a peça do nível: o "set exp" do legado (imple.cpp:154-159) não chama
+	// DoItemLevel.
+	d.applyLevelUpsSemPeca(w, s, e)
 	d.log.Info("gm setlevel", "account", s.AccountName, "target", n, "level", e.Level)
 }
 

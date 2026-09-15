@@ -181,6 +181,26 @@ func IsSecretRoomGenerator(idx int) bool {
 	return idx >= SecretRoomGenFirst && idx <= SecretRoomGenLast
 }
 
+// SecretRoomStrayGenFirst/Last são os blocos 81-97 do NPCGener.txt: Krill e
+// ChaosOrc__ que começam dentro da caixa da Sala Secreta (767-896 × 3582-3711),
+// com MinuteGenerate -1. O legado nunca os gera. O relógio de minuto pula todo
+// bloco com MinuteGenerate <= 0 (ProcessSecMinTimer.cpp:2727); nenhuma faixa que
+// chama GenerateMob os cobre (a carta gera só 2395-2424, _MSG_UseItem.cpp:2939-2966);
+// e a carta limpa a caixa inteira ao começar (:2922-2933). Populados no nosso
+// boot, eles ficavam na sala até a primeira carta, que os removia.
+//
+// Só estes blocos. O boot que popula os blocos -1 no resto do mundo é divergência
+// deliberada (spawnNPCs, cmd/tmserver/main.go) e os chefes sozinhos dependem dela.
+const (
+	SecretRoomStrayGenFirst = 81
+	SecretRoomStrayGenLast  = 97
+)
+
+// isSecretRoomStrayGenerator diz se um bloco é um dos 81-97 da Sala Secreta.
+func isSecretRoomStrayGenerator(idx int) bool {
+	return idx >= SecretRoomStrayGenFirst && idx <= SecretRoomStrayGenLast
+}
+
 // CasteloOrcGenFirst/Last bound the Castelo Orc quest blocks, appended at the
 // end of NPCGener.txt (boss, followers, three gate guardians, and twelve troop
 // blocks of five on the legacy castle's own inner spawn points —
@@ -218,8 +238,8 @@ func IsAcampamentoTrollGenerator(idx int) bool {
 // IsEventOwnedGenerator reports whether a block belongs to a scripted event
 // rather than to the world population.
 func IsEventOwnedGenerator(idx int) bool {
-	return eventOwnedGenerators[idx] || IsSecretRoomGenerator(idx) || IsCasteloOrcGenerator(idx) ||
-		IsAcampamentoTrollGenerator(idx)
+	return eventOwnedGenerators[idx] || IsSecretRoomGenerator(idx) || isSecretRoomStrayGenerator(idx) ||
+		IsCasteloOrcGenerator(idx) || IsAcampamentoTrollGenerator(idx)
 }
 
 // ClearGenerator removes every live entity and queued respawn owned by one
