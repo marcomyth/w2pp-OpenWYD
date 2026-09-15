@@ -435,7 +435,7 @@ func TestMesaPesadeloPagaCelestial(t *testing.T) {
 func TestComparativoNaoDizQuePesadeloEIgual(t *testing.T) {
 	f := mesaForm{
 		Zona: int(level.ZoneAguaMistico), Evolucao: int(level.TierCelestial),
-		MobExp: 500_000, MobNivel: 399, Nivel: 200, Quests: true, KefraViva: true,
+		MobExp: 500_000, MobNivel: 399, Nivel: 200, Quests: true, XPInteira: true,
 	}
 	linhas, iguais := compararZonas(f, level.Config{})
 	if !iguais {
@@ -471,7 +471,7 @@ func TestComparativoNaoDizQuePesadeloEIgual(t *testing.T) {
 func TestComparativoNaoAfirmaIgualdadeParaMortal(t *testing.T) {
 	f := mesaForm{
 		Zona: int(level.ZoneAguaMistico), Evolucao: int(level.TierMortal),
-		MobExp: 2_990_849, MobNivel: 399, Nivel: 395, Quests: true, KefraViva: true,
+		MobExp: 2_990_849, MobNivel: 399, Nivel: 395, Quests: true, XPInteira: true,
 	}
 	if _, iguais := compararZonas(f, level.Config{}); iguais {
 		t.Error("mortal vê diferença entre campo, Água A, M e N; o comparativo disse que não")
@@ -899,7 +899,7 @@ func TestPaginaListaAsZonasDoDeserto(t *testing.T) {
 func TestEscadaPrecificaOsSeisDegraus(t *testing.T) {
 	f := mesaForm{
 		Zona: int(level.ZonePesadeloNormal), Evolucao: int(level.TierMortal),
-		MobExp: 200_000, MobNivel: 350, Nivel: 1, Segundos: 6, KefraViva: true,
+		MobExp: 200_000, MobNivel: 350, Nivel: 1, Segundos: 6, XPInteira: true,
 	}
 	escada := escadaDeDificuldade(f, level.Config{})
 	if len(escada) != len(level.Difficulties()) {
@@ -934,7 +934,7 @@ func TestEscadaPrecificaOsSeisDegraus(t *testing.T) {
 func TestEscadaIgnoraOsPortoesDeQuest(t *testing.T) {
 	f := mesaForm{
 		Zona: int(level.ZonePesadeloNormal), Evolucao: int(level.TierMortal),
-		MobExp: 200_000, MobNivel: 350, Nivel: 1, Segundos: 6, KefraViva: true,
+		MobExp: 200_000, MobNivel: 350, Nivel: 1, Segundos: 6, XPInteira: true,
 		Quests: false, // o simulador está com as quests desmarcadas
 	}
 	for _, d := range escadaDeDificuldade(f, level.Config{}) {
@@ -960,7 +960,7 @@ func TestEscadaMarcaODegrauEmUso(t *testing.T) {
 	}}
 	f := mesaForm{
 		Zona: int(level.ZonePesadeloNormal), Evolucao: int(level.TierMortal),
-		MobExp: 200_000, MobNivel: 350, Nivel: 1, Segundos: 6, KefraViva: true,
+		MobExp: 200_000, MobNivel: 350, Nivel: 1, Segundos: 6, XPInteira: true,
 	}
 	var emUso int
 	for _, d := range escadaDeDificuldade(f, cfg) {
