@@ -27,6 +27,23 @@ func TestTeleportDest(t *testing.T) {
 	}
 }
 
+// TestNoatumParaODesertoForaDaGuerra: o tile (1056,1724) de Noatum leva ao Deserto
+// em (1164,1720)+rand%3 fora da guerra RvR (GetFunc.cpp:987-991). A tabela tinha
+// (3250,1703), que é o destino da rota com condição "Deserto - Kefra"
+// (GetFunc.cpp:1007-1011, só com KefraLive != 0): um passo em Noatum levava de
+// graça à cidade do Kefra.
+func TestNoatumParaODesertoForaDaGuerra(t *testing.T) {
+	for i := 0; i < 30; i++ {
+		dx, dy, cost, ok := TeleportDest(1056+int16(i%4), 1724+int16(i%4))
+		if !ok || cost != 0 {
+			t.Fatalf("tile de Noatum → Deserto: ok=%v custo=%d, queria ok e custo 0", ok, cost)
+		}
+		if dx < 1164 || dx > 1166 || dy < 1720 || dy > 1722 {
+			t.Fatalf("tile de Noatum → Deserto levou a (%d,%d), queria (1164..1166, 1720..1722)", dx, dy)
+		}
+	}
+}
+
 // The floors past the first were unreachable: every stair between dungeon levels
 // was missing from the table, so the tile answered with silence. These are the
 // exact pairs of GetFunc.cpp:876-944.

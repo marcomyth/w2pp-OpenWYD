@@ -30,7 +30,15 @@ var teleportTable = map[[2]int16]teleRoute{
 	{1048, 1764}: {1100, 1712, 0},   // Noatum guilda → área de cerco de Noatum
 	{1052, 1708}: {3650, 3110, 0},   // Noatum → Karden
 	{3648, 3108}: {1054, 1710, 0},   // Karden → Noatum
-	{1056, 1724}: {3250, 1703, 0},   // Noatum → RvR, Deserto
+	// Noatum → Deserto (RvR). GetFunc.cpp:969-992 tem dois ramos: fora da guerra
+	// RvR vai para (1164,1720)+rand%3, no Deserto_Pilar; durante a guerra
+	// (g_pRvrWar.Status == 1) vai para a base do clã, azul (1061,2129) ou vermelha
+	// (1237,1966), com SendCounterMob. Só o ramo de fora da guerra está aqui,
+	// porque a guerra RvR não existe neste port (generator.go, eventOwnedGenerators).
+	// A linha levava a (3250,1703), que é o destino da rota com condição
+	// "Deserto - Kefra" (GetFunc.cpp:1007-1011, só com KefraLive != 0): um passo
+	// em Noatum levava de graça à cidade do Kefra.
+	{1056, 1724}: {1164, 1720, 0},
 
 	// Cities ↔ their fields.
 	{2140, 2068}: {2588, 2096, 0}, // Armia → Campo de Armia
