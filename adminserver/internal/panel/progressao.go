@@ -55,6 +55,9 @@ type progressaoForm struct {
 	Grau7    int32
 	Gemas    int32
 	Paradas  [maxParadas]paradaForm
+	// XPInteira is the Kefra switch as the game has it (xpInteiraNoBanco): the
+	// plan is priced at the experience production pays, not a fixed guess.
+	XPInteira bool
 }
 
 // progressaoFaixa is one stretch of the climb spent in one place.
@@ -111,6 +114,7 @@ func (h *Handler) progressao(w http.ResponseWriter, r *http.Request) {
 	}
 
 	form := lerProgressaoForm(r.URL.Query())
+	form.XPInteira = h.xpInteiraNoBanco(r.Context())
 	for i := range form.Paradas {
 		p := &form.Paradas[i]
 		if p.Mob == "" {
@@ -206,9 +210,12 @@ func (f progressaoForm) entrada(cfg level.Config) level.ExpRewardInput {
 	}
 	return level.ExpRewardInput{
 		ExpBonus: bonus, FairyContent: fairy,
-		// Kefra alive is the ordinary state of a running server; the events are
-		// left off, because a plan built on a double-XP weekend is not a plan.
-		Events: level.ExpEvents{KefraLive: true},
+		// The double-XP and newbie events are left off, because a plan built on
+		// a bonus weekend is not a plan. The Kefra switch is read from the game
+		// (XPInteira): it used to be KefraLive: true here, under a comment that
+		// called it "Kefra alive", which prices every plan at FULL experience while
+		// the database default (0039) — and the legacy Kefra alive — is half.
+		Events: level.ExpEvents{KefraLive: f.XPInteira},
 		Config: cfg,
 	}
 }
