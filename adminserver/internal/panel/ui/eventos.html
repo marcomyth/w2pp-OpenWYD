@@ -249,7 +249,7 @@
   <div class="caixa">
     <h2>Kefra</h2>
     <p class="sub">
-      Agora: <strong>{{if .Cfg.KefraLiveEnabled}}Kefra derrotado — XP inteira{{else}}Kefra vivo — metade da XP{{end}}</strong>{{if .Cfg.KefraGuildID}}, derrotado pela guilda {{.Cfg.KefraGuildID}}{{end}}.
+      Agora: <strong>{{if .Cfg.KefraLiveEnabled}}Kefra derrotado — XP inteira{{else}}Kefra vivo — metade da XP{{end}}</strong>{{if .Cfg.KefraGuildID}}, derrotado pela guilda {{if .GuildaDoKefra}}{{.GuildaDoKefra}}{{else}}{{.Cfg.KefraGuildID}}{{end}}{{end}}.
     </p>
     <p class="nota calma">
       Com o Kefra vivo o servidor entrega metade da experiência, como no jogo
@@ -257,7 +257,7 @@
       mundo, depois do XP em dobro na conta. No código o nome é KefraLive, mantido
       para quem for procurar no log. Marcar aqui é uma correção manual: não é salva
       junto com o formulário acima e fica na auditoria.
-      <br><strong>Derrotado = XP em dobro no servidor inteiro. A Mesa de XP foi calibrada com o Kefra vivo.</strong>
+      <br><strong>Marcar muda a experiência do servidor inteiro na hora.</strong>
     </p>
     {{if .IsAdmin}}
     <form method="post" action="/eventos/kefra">

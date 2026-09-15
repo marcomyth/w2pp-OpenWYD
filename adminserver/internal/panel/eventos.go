@@ -75,11 +75,34 @@ func (h *Handler) eventos(w http.ResponseWriter, r *http.Request) {
 		MinChefe int32
 		MaxChefe int32
 		Aviso    string
+		// GuildaDoKefra is the name of the guild that killed the Kefra; empty
+		// falls back to the number on the page.
+		GuildaDoKefra string
 	}{
 		h.pageFor(r, "eventos"), cfg, caindo(cfg), motivoParado(cfg), restam(cfg),
 		maxItemEvento, domain.MaxTowerWarHour, domain.MinBossRespawnHours, domain.MaxBossRespawnHours,
-		r.URL.Query().Get("aviso"),
+		r.URL.Query().Get("aviso"), h.nomeDaGuildaDoKefra(r, cfg.KefraGuildID),
 	})
+}
+
+// nomeDaGuildaDoKefra is the name of the guild that killed the Kefra, or "" when
+// there is none, the panel has no guild list, or the read fails — the page then
+// shows the number instead.
+func (h *Handler) nomeDaGuildaDoKefra(r *http.Request, guildID int32) string {
+	if guildID <= 0 || h.cfg.Guildas == nil {
+		return ""
+	}
+	lista, err := h.cfg.Guildas.ListGuilds(r.Context())
+	if err != nil {
+		h.cfg.Logger.Warn("guild list read failed for the Kefra box", "err", err)
+		return ""
+	}
+	for _, g := range lista {
+		if int32(g.ID) == guildID {
+			return g.Name
+		}
+	}
+	return ""
 }
 
 // errCampoEvento carries the field name a bad number came from, so the message

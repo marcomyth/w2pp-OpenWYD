@@ -1,13 +1,52 @@
 package panel
 
 import (
+	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 )
+
+// TestQuadroDoKefraMostraONomeDaGuilda: com a lista de guildas, o quadro diz o
+// nome de quem matou; sem ela, fica o número.
+func TestQuadroDoKefraMostraONomeDaGuilda(t *testing.T) {
+	cfg := domain.DefaultWorldEventConfig()
+	cfg.KefraLiveEnabled, cfg.KefraGuildID = true, 7
+	for _, c := range []struct {
+		nome    string
+		guildas Guildas
+		quer    string
+	}{
+		{"com a lista de guildas", &fakeGuildas{guildas: []domain.Guild{{ID: 7, Name: "Os Sete"}}}, "derrotado pela guilda Os Sete"},
+		{"sem a lista de guildas", nil, "derrotado pela guilda 7"},
+	} {
+		t.Run(c.nome, func(t *testing.T) {
+			conf := Config{
+				Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+				Eventos:  &fakeEventos{cfg: cfg},
+				Sessions: session.New(time.Hour),
+				Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+			}
+			if c.guildas != nil {
+				conf.Guildas = c.guildas
+			}
+			h, err := New(conf)
+			if err != nil {
+				t.Fatalf("New: %v", err)
+			}
+			body := getSignedIn(t, h.Routes(), "/eventos").Body.String()
+			if !strings.Contains(body, c.quer) {
+				t.Errorf("o quadro do Kefra não diz %q", c.quer)
+			}
+		})
+	}
+}
 
 // TestFormularioDosEventosNaoMexeNaKefra: o estado do Kefra também é gravado pelo
 // jogo (a morte do chefe e a terça). Um formulário de eventos aberto antes de o

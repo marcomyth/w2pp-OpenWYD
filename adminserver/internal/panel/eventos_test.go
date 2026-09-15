@@ -412,9 +412,8 @@ func TestAPaginaMostraOsChefesEOsAvisos(t *testing.T) {
 	body := getSignedIn(t, newTestPanelEventos(t, roleAdmin, ev, newFakeAudit()), "/eventos").Body.String()
 	for _, quer := range []string{
 		"Chefes sozinhos", "voltam em 36h", `name="chefes_horas"`, `value="36"`,
-		// Os dois avisos vivem agora no quadro próprio do Kefra, junto do botão.
-		"Derrotado = XP em dobro no servidor inteiro.",
-		"A Mesa de XP foi calibrada com o Kefra vivo.",
+		// O aviso vive agora no quadro próprio do Kefra, junto do botão.
+		"Marcar muda a experiência do servidor inteiro na hora.",
 		"Brasília é UTC−3",
 		"O Kefra e os quatro guardas não entram aqui",
 	} {
