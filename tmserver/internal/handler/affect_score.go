@@ -21,8 +21,8 @@ const maxLegacyDamage int32 = 1_000_000_000
 // (Assalto: +15% damage, DAMAGEMULTI, −10% MaxHP), 14/24 (CON/HP —
 // Possuído and Samaritano), 15 (Special, cap 400 at read), 16 (BM transform → transform.go),
 // 19/26/28/36 (Rsv flags), 25 (fire/ice/thunder resists), 27 (weapon-gated Frost),
-// 29 (Soul attribute multiplier), 30/37 (ForceMobDamage/ForceDamage), 38/42
-// (HP↔MP swap), 39 (Baú de XP → AffExpBonus). Deferred (need systems we don't
+// 29 (Soul attribute multiplier), 30/37 (ForceMobDamage/ForceDamage), 38
+// (Troca de Espíritos — HP/crit/AC by Força, server rule), 42 (HP↔MP swap), 39 (Baú de XP → AffExpBonus). Deferred (need systems we don't
 // model yet): 17/20/22 (periodic — handled by the tick engine), 34/35
 // (Divine/Vigor — already read-time via buffScaleHpMp).
 func applyAffectScore(e *world.Entity) {
@@ -45,6 +45,7 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 	if !e.HasAnyAffect() {
 		return
 	}
+	trocaDeEspiritos := false
 	for i := range e.Affect {
 		af := e.Affect[i]
 		if af.Type == 0 {
@@ -228,10 +229,10 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 			}
 		case 37:
 			e.AffForceDamage += int32(e.Special[2])
-		case 38: // Troca de Espíritos: half max MP becomes max HP
-			mana := e.MaxMP / 2
-			e.AffMaxHP += mana
-			e.AffMaxMP -= mana
+		case affectTrocaDeEspiritos:
+			// Applied after the loop: it reads the attributes, and other affects
+			// in this same loop (Soul, DEX buffs) may still move them.
+			trocaDeEspiritos = true
 		case world.AffectExpChest:
 			e.AffExpBonus += 100
 		case 42: // soul link: shift a fifth of the mana pool into HP
@@ -240,6 +241,44 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 			e.AffMaxMP -= mana
 		}
 	}
+	if trocaDeEspiritos {
+		applyTrocaDeEspiritos(e)
+	}
+}
+
+// affectTrocaDeEspiritos is the affect of Troca de Espíritos (Huntress, skill 87).
+const affectTrocaDeEspiritos = 38
+
+// applyTrocaDeEspiritos — REGRA DO SERVIDOR, decidida pelo Marco em 16/09/2026.
+//
+// O legado trocava metade do MP máximo por HP (Basedef.cpp:4443), e o port nem
+// isso entregava: lia o MaxMP cru, sem o dobro que scoreMaxMP aplica, e trocava
+// um quarto. A skill virou um buff da HT de Força — a de garra e espada:
+//
+//	f       = STR ÷ (STR + DEX)          (Força pura 1, meio a meio 0,5, Destreza pura 0)
+//	HP      = +10% + 20% × f   do HP máximo
+//	Crítico = +10  + 30  × f   (escala 0-255 do byte de crítico)
+//	Defesa  = +5%  + 5%  × f   da AC
+//
+// É a mesma parcela de Força da Invisibilidade (chanceGolpeFurtivoX4), para que
+// as duas skills leiam a build do mesmo jeito. Não exige arma: quem joga de Força
+// já está de garra ou espada, e a conta favorece essa build sozinha.
+func applyTrocaDeEspiritos(e *world.Entity) {
+	str, dex := int32(effectiveStr(e)), int32(effectiveDex(e))
+	if str < 0 {
+		str = 0
+	}
+	if dex < 0 {
+		dex = 0
+	}
+	// Sem atributo nenhum não há build para ler: conta como meio a meio.
+	num, den := int32(1), int32(2)
+	if str+dex > 0 {
+		num, den = str, str+dex
+	}
+	e.AffMaxHP += scoreMaxHP(e) * (10 + 20*num/den) / 100
+	e.AffCritical += int16(10 + 30*num/den)
+	e.AffAC += e.AC * (5 + 5*num/den) / 100
 }
 
 // applyConHpBuff is the CON/MaxHP buff shape shared by affect 14 (Possuído,

@@ -96,12 +96,51 @@ func TestMagicAffectsStack(t *testing.T) {
 	}
 }
 
-func TestAffect38SwapsHalfMPToHP(t *testing.T) {
-	e := &world.Entity{MaxMP: 1000}
-	e.Affect[0] = world.Affect{Type: 38}
+// Troca de Espíritos (skill 87) is a server rule: HP%, critical and AC% by the
+// Força share of Força+Destreza. The HP pool of a player is 2×MaxHP
+// (scoreMaxHP), so MaxHP 5000 is a 10000 pool.
+func TestAffect38TrocaDeEspiritosPorForca(t *testing.T) {
+	cases := []struct {
+		name     string
+		str, dex int16
+		wantHP   int32
+		wantCrit int16
+		wantAC   int32
+	}{
+		{"força pura", 2000, 0, 3000, 40, 100},
+		{"meio a meio", 1000, 1000, 2000, 25, 70},
+		{"destreza pura", 0, 2000, 1000, 10, 50},
+		{"força 1500 / destreza 1000", 1500, 1000, 2200, 28, 80},
+		{"sem atributo conta meio a meio", 0, 0, 2000, 25, 70},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			e := &world.Entity{ID: 1, Class: 3, MaxHP: 5000, MaxMP: 1000, AC: 1000, Str: c.str, Dex: c.dex}
+			e.Affect[0] = world.Affect{Type: affectTrocaDeEspiritos, Level: 200}
+			applyAffectScore(e)
+			if e.AffMaxHP != c.wantHP || e.AffCritical != c.wantCrit || e.AffAC != c.wantAC {
+				t.Errorf("HP/crítico/AC = %d/%d/%d, want %d/%d/%d",
+					e.AffMaxHP, e.AffCritical, e.AffAC, c.wantHP, c.wantCrit, c.wantAC)
+			}
+			if e.AffMaxMP != 0 {
+				t.Errorf("AffMaxMP = %d, want 0 (a troca de mana saiu da skill)", e.AffMaxMP)
+			}
+		})
+	}
+}
+
+// The share is read after every affect of the loop, whatever slot order they
+// sit in: a Força buff installed in a LATER slot must still count.
+func TestAffect38LeAForcaDepoisDosOutrosAfetos(t *testing.T) {
+	e := &world.Entity{ID: 1, Class: 3, ClassMaster: classMasterMortal, MaxHP: 5000, AC: 1000, Str: 1000, Dex: 1000}
+	e.Affect[0] = world.Affect{Type: affectTrocaDeEspiritos, Level: 200}
+	e.Affect[1] = world.Affect{Type: affectSoul}
+	e.Soul = soulF // Mortal: Força ×1,8 → 1800 contra Destreza 1000
 	applyAffectScore(e)
-	if e.AffMaxHP != 500 || e.AffMaxMP != -500 {
-		t.Errorf("AffMaxHP/AffMaxMP = %d/%d, want 500/-500", e.AffMaxHP, e.AffMaxMP)
+
+	// 10 + 30×1800/2800 = 29; lida antes da Soul seria 25.
+	if e.AffCritical != 29 {
+		t.Errorf("crítico = %d, want 29 (a parcela de Força tem de contar a Soul)", e.AffCritical)
 	}
 }
 
