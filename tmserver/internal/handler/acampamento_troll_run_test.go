@@ -21,7 +21,7 @@ func xamaTrollTemplate() []byte {
 }
 
 // acampamentoTrollFixture é o acampamento como produção o monta: os doze blocos da
-// quest, na mesma ordem (boss, seguidores, dois guardiões, oito de tropa).
+// quest, na mesma ordem (boss, seguidores, dois blocos de dois guardiões, oito de tropa).
 func acampamentoTrollFixture(t *testing.T) (*Dispatcher, *world.World, *world.Session, *world.Entity) {
 	t.Helper()
 	log := slog.New(slog.DiscardHandler)
@@ -29,10 +29,10 @@ func acampamentoTrollFixture(t *testing.T) (*Dispatcher, *world.World, *world.Se
 	w := world.New(world.Config{}, log, nil, d.Handle) // grid padrão de 4096: o acampamento fica perto de (2650,1985)
 	first := world.AcampamentoTrollGenFirst
 	gens := make([]*world.Generator, world.AcampamentoTrollGenLast+1)
-	gens[first] = casteloOrcBlock("ATroll_Enigma", 2668, 1985, 1, 0)
+	gens[first] = casteloOrcBlock("ATroll_Enigma", 2651, 1983, 1, 0)
 	gens[first+1] = casteloOrcBlock("ATroll_Mago", 2660, 1985, 4, 3)
-	gens[first+2] = casteloOrcBlock("ATroll_Caos", 2658, 1973, 1, 0)
-	gens[first+3] = casteloOrcBlock("ATroll_Caos", 2662, 1994, 1, 0)
+	gens[first+2] = casteloOrcBlock("ATroll_Caos", 2658, 1973, 2, 1)
+	gens[first+3] = casteloOrcBlock("ATroll_Caos", 2662, 1994, 2, 1)
 	for gen := first + 4; gen <= world.AcampamentoTrollGenLast; gen++ {
 		gens[gen] = casteloOrcBlock("ATroll_Tropa", int16(2644+2*(gen-first)), 1985, 5, 4)
 	}
@@ -121,8 +121,9 @@ func TestAcampamentoTrollSemChaveNaoAbre(t *testing.T) {
 	}
 }
 
-// A chave abre o acampamento por 15 minutos e levanta tudo: o boss, os quatro
-// seguidores, os dois guardiões e cada bloco de tropa cheio.
+// A chave abre o acampamento por 15 minutos e levanta tudo menos o boss: os
+// quatro seguidores, os quatro guardiões e cada bloco de tropa cheio. O Enigma
+// espera os 100 abates.
 func TestAcampamentoTrollChaveAbreOAcampamento(t *testing.T) {
 	d, w, s, e := acampamentoTrollFixture(t)
 	e.Carry[3] = world.Item{Index: itemChaveCasteloOrc}
@@ -136,8 +137,8 @@ func TestAcampamentoTrollChaveAbreOAcampamento(t *testing.T) {
 		t.Error("a chave não foi consumida")
 	}
 	first := world.AcampamentoTrollGenFirst
-	if live(w, first) != 1 || live(w, first+1) != 4 || live(w, first+2) != 1 || live(w, first+3) != 1 {
-		t.Errorf("boss %d, seguidores %d, guardiões %d e %d; want 1, 4, 1 e 1",
+	if live(w, first) != 0 || live(w, first+1) != 4 || live(w, first+2) != 2 || live(w, first+3) != 2 {
+		t.Errorf("boss %d, seguidores %d, guardiões %d e %d; want 0, 4, 2 e 2",
 			live(w, first), live(w, first+1), live(w, first+2), live(w, first+3))
 	}
 	for gen := first + 4; gen <= world.AcampamentoTrollGenLast; gen++ {
@@ -194,29 +195,61 @@ func TestAcampamentoTrollSoOGrupoEntra(t *testing.T) {
 	}
 }
 
-// O boss caído corta o relógio para o saque; o relógio no fim encerra a corrida e
-// leva os monstros da quest junto.
-func TestAcampamentoTrollBossETempo(t *testing.T) {
-	d, w, _, _ := abrirAcampamento(t)
-	c := &d.acampamentoTroll
+// derrubarTrolls conta n abates de tropa da quest, como o mobKilled os entrega.
+func derrubarTrolls(d *Dispatcher, w *world.World, c *corrida, n int) {
+	tropa := &world.Entity{GenIndex: int16(world.AcampamentoTrollGenLast)}
+	for range n {
+		d.corridaMobMorto(w, c, tropa)
+	}
+}
+
+func bossDoAcampamento(w *world.World, c *corrida) *world.Entity {
 	var boss *world.Entity
 	w.ForEachMob(func(_ int, m *world.Entity) {
 		if int(m.GenIndex) == c.spec.genBoss {
 			boss = m
 		}
 	})
-	if boss == nil {
-		t.Fatal("o boss não está no mundo")
+	return boss
+}
+
+// O Enigma nasce no centro no 100º abate, um só; um monstro de fora da quest não
+// conta. Morto, ele encerra a corrida e leva os monstros da quest junto.
+func TestAcampamentoTrollEnigmaDepoisDe100Abates(t *testing.T) {
+	d, w, _, _ := abrirAcampamento(t)
+	c := &d.acampamentoTroll
+	if c.spec.bossAposAbates != 100 {
+		t.Fatalf("o Enigma nasce aos %d abates, want 100", c.spec.bossAposAbates)
 	}
-	d.corridaBossMorto(w, c, boss)
-	if !c.estado.bossDown || c.estado.secondsLeft != 2*60 {
-		t.Fatalf("depois do boss: %+v, want 120 s de saque", c.estado)
+	for range 50 {
+		d.corridaMobMorto(w, c, &world.Entity{GenIndex: 3804}) // o Troll do mundo aberto
 	}
-	c.estado.secondsLeft = 2
-	d.tickCorrida(w, c)
-	d.tickCorrida(w, c)
+	derrubarTrolls(d, w, c, 99)
+	if live(w, c.spec.genBoss) != 0 || c.estado.abates != 99 {
+		t.Fatalf("com 99 abates: boss %d, contagem %d; want 0 e 99", live(w, c.spec.genBoss), c.estado.abates)
+	}
+	derrubarTrolls(d, w, c, 1)
+	boss := bossDoAcampamento(w, c)
+	if boss == nil || live(w, c.spec.genBoss) != 1 {
+		t.Fatal("o Enigma não nasceu no 100º abate")
+	}
+	if dx, dy := boss.X-c.spec.entrada[0], boss.Y-c.spec.entrada[1]; dx < -2 || dx > 2 || dy < -2 || dy > 2 {
+		t.Errorf("o Enigma nasceu em (%d,%d), longe do centro %v", boss.X, boss.Y, c.spec.entrada)
+	}
+	derrubarTrolls(d, w, c, 150)
+	if live(w, c.spec.genBoss) != 1 {
+		t.Errorf("mais abates levantaram %d Enigmas, want 1", live(w, c.spec.genBoss))
+	}
+
+	d.corridaMobMorto(w, c, boss)
+	if !c.estado.bossDown || c.estado.secondsLeft > 10 {
+		t.Fatalf("depois do Enigma: %+v, want o fim em segundos", c.estado)
+	}
+	for range c.spec.saque {
+		d.tickCorrida(w, c)
+	}
 	if c.estado.active {
-		t.Fatal("o relógio zerou e a corrida continuou")
+		t.Fatal("o Enigma caiu e a corrida continuou")
 	}
 	for gen := world.AcampamentoTrollGenFirst; gen <= world.AcampamentoTrollGenLast; gen++ {
 		if live(w, gen) != 0 {
@@ -225,14 +258,25 @@ func TestAcampamentoTrollBossETempo(t *testing.T) {
 	}
 }
 
-// Um monstro de outro bloco não conta como boss.
+// O relógio no fim encerra a corrida mesmo sem o Enigma.
+func TestAcampamentoTrollTempoAcaba(t *testing.T) {
+	d, w, _, _ := abrirAcampamento(t)
+	c := &d.acampamentoTroll
+	c.estado.secondsLeft = 1
+	d.tickCorrida(w, c)
+	if c.estado.active {
+		t.Fatal("o relógio zerou e a corrida continuou")
+	}
+}
+
+// Um guardião não conta como boss: soma um abate e não corta o relógio.
 func TestAcampamentoTrollSoOBossCortaORelogio(t *testing.T) {
 	d, w, _, _ := abrirAcampamento(t)
 	c := &d.acampamentoTroll
 	guardiao := &world.Entity{GenIndex: int16(world.AcampamentoTrollGenFirst + 2)}
-	d.corridaBossMorto(w, c, guardiao)
-	if c.estado.bossDown || c.estado.secondsLeft != 15*60 {
-		t.Errorf("um guardião cortou o relógio: %+v", c.estado)
+	d.corridaMobMorto(w, c, guardiao)
+	if c.estado.bossDown || c.estado.secondsLeft != 15*60 || c.estado.abates != 1 {
+		t.Errorf("um guardião cortou o relógio ou não contou: %+v", c.estado)
 	}
 }
 

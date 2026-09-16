@@ -35,25 +35,22 @@ func TestAcampamentoTrollNaoDaXP(t *testing.T) {
 	}
 }
 
-// As tabelas são o design: a tropa nunca solta os adds de boss, e todo valor é um
-// degrau que o bônus de drop do legado já dá (dano de 9 em 9, magia de 4 em 4,
-// skill de 3 em 3).
+// As tabelas são o design (16/09/2026): a mesma escada para todo monstro, o raro
+// cada vez mais raro, teto de 63 de dano e 32 de magia; e todo valor é um degrau
+// que o bônus de drop do legado já dá (dano de 9 em 9, magia de 4 em 4, skill de
+// 3 em 3).
 func TestAcampamentoTrollTabelasDoDesign(t *testing.T) {
-	type linha struct {
-		valor int
-		skill bool
-	}
-	ler := func(tab []addArma, efeito uint8) []linha {
-		var out []linha
+	valores := func(tab []addArma, efeito uint8) []int {
+		var out []int
 		for _, l := range tab {
 			if l.efeito != efeito || l.peso <= 0 {
 				t.Errorf("linha %+v: efeito %d ou peso inválido", l, l.efeito)
 			}
-			out = append(out, linha{l.valor, l.skill})
+			out = append(out, l.valor)
 		}
 		return out
 	}
-	iguais := func(nome string, got, want []linha) {
+	iguais := func(nome string, got, want []int) {
 		if len(got) != len(want) {
 			t.Errorf("%s = %v, want %v", nome, got, want)
 			return
@@ -65,10 +62,10 @@ func TestAcampamentoTrollTabelasDoDesign(t *testing.T) {
 			}
 		}
 	}
-	iguais("física da tropa", ler(addTrollFisicaMob, efDamage), []linha{{36, false}, {45, false}, {63, false}})
-	iguais("física do boss", ler(addTrollFisicaBoss, efDamage), []linha{{45, false}, {63, false}, {72, false}, {27, true}})
-	iguais("mágica da tropa", ler(addTrollMagicaMob, efMagic), []linha{{20, false}, {24, false}, {28, false}})
-	iguais("mágica do boss", ler(addTrollMagicaBoss, efMagic), []linha{{24, false}, {28, false}, {32, false}, {20, true}})
+	iguais("física dos monstros", valores(addTrollFisicaMob, efDamage), []int{27, 36, 45, 54, 63})
+	iguais("física do Enigma", valores(addTrollFisicaBoss, efDamage), []int{36, 45, 54, 63})
+	iguais("mágica dos monstros", valores(addTrollMagicaMob, efMagic), []int{12, 16, 20, 24, 28, 32})
+	iguais("mágica do Enigma", valores(addTrollMagicaBoss, efMagic), []int{20, 24, 28, 32})
 
 	for _, tab := range [][]addArma{addTrollFisicaMob, addTrollFisicaBoss} {
 		for _, l := range tab {
@@ -87,41 +84,61 @@ func TestAcampamentoTrollTabelasDoDesign(t *testing.T) {
 	if len(skillTroll) != 3 || skillTroll[0] != 15 || skillTroll[1] != 18 || skillTroll[2] != 21 {
 		t.Errorf("skill = %v, want 15, 18 e 21", skillTroll)
 	}
-	// O raro é raro: a linha de 63 e a de 28 pesam menos que as outras da tropa.
+	if addTrollSkillBoss <= 0 || addTrollSkillBoss >= 100 {
+		t.Errorf("chance de skill no Enigma = %d%%, want entre 1 e 99", addTrollSkillBoss)
+	}
+	// Quanto maior o add, mais raro: nos monstros comuns o peso só cai.
 	for _, tab := range [][]addArma{addTrollFisicaMob, addTrollMagicaMob} {
-		raro := tab[len(tab)-1]
-		for _, l := range tab[:len(tab)-1] {
-			if raro.peso >= l.peso {
-				t.Errorf("o raro %+v pesa tanto quanto %+v", raro, l)
+		for i := 1; i < len(tab); i++ {
+			if tab[i].peso >= tab[i-1].peso {
+				t.Errorf("%+v pesa tanto quanto o add menor %+v", tab[i], tab[i-1])
 			}
+		}
+	}
+	// O Enigma pende para o alto: o topo dele pesa mais que o topo dos outros.
+	for _, par := range [][2][]addArma{{addTrollFisicaBoss, addTrollFisicaMob}, {addTrollMagicaBoss, addTrollMagicaMob}} {
+		boss, mob := par[0], par[1]
+		if boss[len(boss)-1].peso*100/pesoTotal(boss) <= mob[len(mob)-1].peso*100/pesoTotal(mob) {
+			t.Errorf("o topo do Enigma %+v não pesa mais que o dos monstros %+v", boss[len(boss)-1], mob[len(mob)-1])
 		}
 	}
 }
 
-// Toda arma que um monstro da quest solta sai refinável e com o add do design da
-// tabela do monstro: a tropa nunca dá os 72, os 32 ou a skill, e o boss dá.
+func pesoTotal(tab []addArma) int {
+	n := 0
+	for _, l := range tab {
+		n += l.peso
+	}
+	return n
+}
+
+// Toda arma que um monstro da quest solta sai refinável e com um add da tabela do
+// monstro; a skill só sai do Troll Enigma, e nele nem sempre.
 func TestAcampamentoTrollArmaSaiComAddDoDesign(t *testing.T) {
 	for _, tc := range []struct {
 		nome   string
 		mob    string
 		item   int16
 		tabela []addArma
+		boss   bool
 	}{
-		{"Gram da tropa", "ATroll_Insano", 869, addTrollFisicaMob},
-		{"Arco Élfico do guardião", "ATroll_Caos", 824, addTrollFisicaMob},
-		{"Luna do boss", "ATroll_Enigma", 910, addTrollFisicaBoss},
-		{"Gungnir do seguidor", "ATroll_Mago", 854, addTrollMagicaMob},
-		{"Cajado de Âmbar do boss", "ATroll_Enigma", 902, addTrollMagicaBoss},
+		{"Gram da tropa", "ATroll_Insano", 869, addTrollFisicaMob, false},
+		{"Arco Élfico do guardião", "ATroll_Caos", 824, addTrollFisicaMob, false},
+		{"Luna do boss", "ATroll_Enigma", 910, addTrollFisicaBoss, true},
+		{"Gungnir do seguidor", "ATroll_Mago", 854, addTrollMagicaMob, false},
+		{"Cajado de Âmbar do boss", "ATroll_Enigma", 902, addTrollMagicaBoss, true},
 	} {
 		t.Run(tc.nome, func(t *testing.T) {
 			d, w, killer := mobKilledWorld(t)
 			d.dropRules = droprule.NewTable([]droprule.Rule{{Mob: tc.mob, Item: tc.item, Chance: droprule.MaxChance}})
-			comSkill := map[world.Effect]bool{}
+			naTabela := map[world.Effect]bool{}
 			for _, l := range tc.tabela {
-				comSkill[world.Effect{Effect: l.efeito, Value: uint8(l.valor)}] = l.skill
+				naTabela[world.Effect{Effect: l.efeito, Value: uint8(l.valor)}] = true
 			}
 			visto := map[world.Effect]bool{}
-			for kill := 0; kill < 80; kill++ {
+			comSkill, semSkill := 0, 0
+			const armas = 200
+			for kill := 0; kill < armas; kill++ {
 				for i := range killer.Carry {
 					killer.Carry[i] = world.Item{}
 				}
@@ -133,21 +150,27 @@ func TestAcampamentoTrollArmaSaiComAddDoDesign(t *testing.T) {
 				if it.Effects[0].Effect != efSanc || it.Effects[0].Value > 2 {
 					t.Errorf("slot 0 = %+v, want EF_SANC de +0 a +2", it.Effects[0])
 				}
-				skill, ok := comSkill[it.Effects[1]]
-				switch {
-				case !ok:
+				if !naTabela[it.Effects[1]] {
 					t.Errorf("add %+v fora da tabela do design", it.Effects[1])
-				case skill:
-					if v := it.Effects[2]; v.Effect != efSpecialAll || (v.Value != 15 && v.Value != 18 && v.Value != 21) {
-						t.Errorf("arma com skill: slot 2 = %+v, want EF_SPECIALALL 15, 18 ou 21", v)
-					}
-				case it.Effects[2] != (world.Effect{}):
-					t.Errorf("slot 2 = %+v, want vazio", it.Effects[2])
+				}
+				switch v := it.Effects[2]; {
+				case v == (world.Effect{}):
+					semSkill++
+				case v.Effect == efSpecialAll && (v.Value == 15 || v.Value == 18 || v.Value == 21):
+					comSkill++
+				default:
+					t.Errorf("slot 2 = %+v, want vazio ou EF_SPECIALALL 15, 18 ou 21", v)
 				}
 				visto[it.Effects[1]] = true
 			}
 			if len(visto) != len(tc.tabela) {
-				t.Errorf("80 armas e só %d dos %d adds da tabela: %v", len(visto), len(tc.tabela), visto)
+				t.Errorf("%d armas e só %d dos %d adds da tabela: %v", armas, len(visto), len(tc.tabela), visto)
+			}
+			if !tc.boss && comSkill > 0 {
+				t.Errorf("%s soltou %d armas com skill; a skill é só do Enigma", tc.mob, comSkill)
+			}
+			if tc.boss && (comSkill == 0 || semSkill == 0) {
+				t.Errorf("Enigma: %d com skill e %d sem, want as duas", comSkill, semSkill)
 			}
 		})
 	}
@@ -197,17 +220,22 @@ func TestAcampamentoTrollChaveNoTicketDosElfos(t *testing.T) {
 // acampamentoTrollDesign é a quest como desenhada (14/09/2026): os números do
 // Castelo Orc por tier, e o rosto do Troll de onde cada template saiu, para a
 // réplica ter a cara do original.
+//
+// Recalibrado em 16/09/2026 (pedido do Marco): o Mago com metade do HP e do dano,
+// o Caos com o HP que era do Mago e o dano de antes, a tropa com metade do dano;
+// o Enigma fica para depois. Todos montados e com a arma +11, só no visual.
 var acampamentoTrollDesign = map[string]struct {
 	name             string
 	lvl, hp, ac, dmg int32
 	res              int8
 	face             int16
+	mount            int16
 }{
-	"ATroll_Enigma":  {"Troll Enigma", 350, 3000000, 3000, 2020, 25, 213},
-	"ATroll_Caos":    {"Troll Caos", 330, 450000, 2400, 1620, 20, 213},
-	"ATroll_Mago":    {"Troll Mago", 320, 150000, 2200, 1520, 15, 213},
-	"ATroll_Insano":  {"Troll Insano", 300, 18000, 1800, 1220, 10, 212},
-	"ATroll_Cacador": {"Caçador Troll", 300, 18000, 1800, 1220, 10, 213},
+	"ATroll_Enigma":  {"Troll Enigma", 350, 3000000, 3000, 2020, 25, 213, 2372}, // Cavalo Fantasma B
+	"ATroll_Caos":    {"Troll Caos", 330, 150000, 2400, 1620, 20, 213, 2366},    // Cavalo s/Sela N
+	"ATroll_Mago":    {"Troll Mago", 320, 75000, 2200, 760, 15, 213, 2365},      // Dente de Sabre
+	"ATroll_Insano":  {"Troll Insano", 300, 18000, 1800, 610, 10, 212, 2363},    // Dragão Menor
+	"ATroll_Cacador": {"Caçador Troll", 300, 18000, 1800, 610, 10, 213, 2365},   // Dente de Sabre
 }
 
 // Os templates entregues são o design, e nada vem junto: sem ouro, sem XP no
@@ -259,6 +287,14 @@ func TestAcampamentoTrollTemplatesBatemComODesign(t *testing.T) {
 		}
 		if m.Equip[0].Index != want.face {
 			t.Errorf("%s: rosto %d, want %d (o do Troll original)", file, m.Equip[0].Index, want.face)
+		}
+		// +11 é EF_SANC 234..237: um 11 cru o cliente lê como +1 (protocol/visual.go).
+		if arma := m.Equip[6]; arma.Index == 0 || arma.Effects[0].Effect != efSanc || arma.Effects[0].Value < 234 || arma.Effects[0].Value > 237 {
+			t.Errorf("%s: arma %d %+v, want +11 (EF_SANC 234..237)", file, arma.Index, arma.Effects[0])
+		}
+		// A montaria precisa de vida no primeiro efeito, ou aparece morta.
+		if mt := m.Equip[14]; mt.Index != want.mount || mt.Effects[0].Value == 0 {
+			t.Errorf("%s: montaria %d %+v, want %d com vida", file, mt.Index, mt.Effects[0], want.mount)
 		}
 		for slot, it := range m.Carry {
 			if it.Index != 0 {
@@ -322,9 +358,17 @@ func TestAcampamentoTrollBlocosDoNPCGener(t *testing.T) {
 	if got := gens[sp.genSeguidor].Leader; droprule.Canonical(got) != droprule.Canonical("ATroll_Mago") {
 		t.Errorf("o bloco dos seguidores (%d) lidera %q, want ATroll_Mago", sp.genSeguidor, got)
 	}
+	// Um Enigma só, no centro do acampamento; e quatro Troll Caos por chave.
+	if b := gens[sp.genBoss]; b.MaxNumMob != 1 || b.SegX[0] != sp.entrada[0] || b.SegY[0] != sp.entrada[1] {
+		t.Errorf("bloco do boss: até %d em (%d,%d), want 1 no centro %v", b.MaxNumMob, b.SegX[0], b.SegY[0], sp.entrada)
+	}
+	caos := 0
 	lidera := map[string]bool{}
 	for idx := world.AcampamentoTrollGenFirst; idx <= world.AcampamentoTrollGenLast; idx++ {
 		g := gens[idx]
+		if droprule.Canonical(g.Leader) == droprule.Canonical("ATroll_Caos") {
+			caos += g.MaxNumMob
+		}
 		if !acampamentoTrollTemplates[droprule.Canonical(g.Leader)] {
 			t.Errorf("bloco %d lidera %q, que não é da quest", idx, g.Leader)
 		}
@@ -335,6 +379,9 @@ func TestAcampamentoTrollBlocosDoNPCGener(t *testing.T) {
 			t.Errorf("bloco %d nasce em (%d,%d), fora da caixa %v", idx, g.SegX[0], g.SegY[0], sp.caixa)
 		}
 		lidera[droprule.Canonical(g.Leader)] = true
+	}
+	if caos != 4 {
+		t.Errorf("os blocos da quest levantam %d Troll Caos, want 4", caos)
 	}
 	for file := range acampamentoTrollDesign {
 		if !lidera[droprule.Canonical(file)] {

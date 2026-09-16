@@ -42,8 +42,16 @@ var acampamentoTrollSpec = corridaSpec{
 	genBoss:     world.AcampamentoTrollGenFirst,
 	genSeguidor: world.AcampamentoTrollGenFirst + 1,
 
-	duracao:      15 * 60,
-	saque:        2 * 60,
+	// O Enigma não abre a corrida: nasce no centro do acampamento depois de 100
+	// abates (pedido do Marco, 16/09/2026).
+	bossAposAbates: 100,
+	abatesAviso:    25,
+
+	duracao: 15 * 60,
+	// Matar o Enigma encerra a corrida. Não há tempo de saque a guardar porque o
+	// drop cai direto na bolsa (putMobDrop); os poucos segundos são para o grupo
+	// ver o Enigma cair e ler o aviso antes do teleporte.
+	saque:        5,
 	seguidorCada: 30,
 	abandono:     60,
 
@@ -52,10 +60,12 @@ var acampamentoTrollSpec = corridaSpec{
 		soLider:  "Só o líder do grupo pode abrir o acampamento.",
 		traga:    "Traga a %s para abrir o acampamento.",
 		aberta:   "O acampamento é de vocês por 15 minutos.",
-		chegada:  "Acampamento Troll: 15 minutos. Derrube o Troll Enigma.",
+		chegada:  "Acampamento Troll: 15 minutos. Derrube 100 Trolls e o Enigma aparece.",
 		estranho: "Um grupo abriu o Acampamento Troll. Volte em 15 minutos.",
 		fim:      "A corrida do Acampamento Troll terminou.",
 		relogio:  "Acampamento Troll: %d min",
-		bossCaiu: "O Troll Enigma caiu! 2 minutos para o saque.",
+		bossCaiu: "O Troll Enigma caiu! A corrida terminou.",
+		abates:   "Acampamento Troll: %d de %d Trolls derrubados.",
+		bossVeio: "O Troll Enigma apareceu no centro do acampamento!",
 	},
 }

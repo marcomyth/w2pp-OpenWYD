@@ -158954,7 +158954,7 @@
 	DestWait:	6
 
 
-// Acampamento Troll (quest): Troll Enigma, o boss, na jaula do Enigma do mundo. Bloco de evento: não nasce no boot nem renasce sozinho (world.IsAcampamentoTrollGenerator).
+// Acampamento Troll (quest): Troll Enigma, o boss, no centro do acampamento; a corrida o levanta depois de 100 abates. Bloco de evento: não nasce no boot nem renasce sozinho (world.IsAcampamentoTrollGenerator).
 // ********************************************
 
 #	[6116]
@@ -158966,20 +158966,20 @@
 	Follower:	ATroll_Enigma
 	RouteType:	2
 	Formation:	0
-	StartX:		2668
-	StartY:		1985
+	StartX:		2651
+	StartY:		1983
 	StartRange:	1
 	StartWait:	9
-	Segment1X:	2668
-	Segment1Y:	1985
+	Segment1X:	2651
+	Segment1Y:	1983
 	Segment1Range:	1
 	Segment1Wait:	5
-	Segment2X:	2668
-	Segment2Y:	1985
+	Segment2X:	2651
+	Segment2Y:	1983
 	Segment2Range:	1
 	Segment2Wait:	8
-	DestX:		2668
-	DestY:		1985
+	DestX:		2651
+	DestY:		1983
 	DestRange:	1
 	DestWait:	6
 
@@ -159014,14 +159014,14 @@
 	DestWait:	6
 
 
-// Acampamento Troll (quest): Troll Caos, guardião norte. Bloco de evento: não nasce no boot nem renasce sozinho (world.IsAcampamentoTrollGenerator).
+// Acampamento Troll (quest): Troll Caos, guardiães norte (dois). Bloco de evento: não nasce no boot nem renasce sozinho (world.IsAcampamentoTrollGenerator).
 // ********************************************
 
 #	[6118]
 	MinuteGenerate:	-1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		ATroll_Caos
 	Follower:	ATroll_Caos
 	RouteType:	2
@@ -159044,14 +159044,14 @@
 	DestWait:	6
 
 
-// Acampamento Troll (quest): Troll Caos, guardião sul. Bloco de evento: não nasce no boot nem renasce sozinho (world.IsAcampamentoTrollGenerator).
+// Acampamento Troll (quest): Troll Caos, guardiães sul (dois). Bloco de evento: não nasce no boot nem renasce sozinho (world.IsAcampamentoTrollGenerator).
 // ********************************************
 
 #	[6119]
 	MinuteGenerate:	-1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		ATroll_Caos
 	Follower:	ATroll_Caos
 	RouteType:	2

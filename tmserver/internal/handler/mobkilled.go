@@ -56,7 +56,7 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 	}
 	d.castleBossKilled(w, reward, mob)
 	d.casteloOrcBossKilled(w, mob)
-	d.corridaBossMorto(w, &d.acampamentoTroll, mob)
+	d.corridaMobMorto(w, &d.acampamentoTroll, mob)
 	// O Kefra liga a experiência do servidor inteiro, paga a guilda que o matou e
 	// distribui o saque. Aqui, antes do laço de drop, que é onde o legado o põe
 	// (MobKilled.cpp:1451) — e enquanto o corpo ainda está na grade, de que o

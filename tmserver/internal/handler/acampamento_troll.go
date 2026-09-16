@@ -29,8 +29,8 @@ var acampamentoTrollTemplates = map[string]bool{
 	droprule.Canonical("ATroll_Cacador"): true,
 }
 
-// acampamentoTrollBoss é o único que solta os adds de boss (72 de dano, 32 de
-// magia e a arma com skill) e os ovos de Cavalo Fantasma.
+// acampamentoTrollBoss é o único que solta a arma com skill, sorteia os adds
+// pendendo para o alto e solta os ovos de Cavalo Fantasma.
 const acampamentoTrollBoss = "ATroll_Enigma"
 
 func isAcampamentoTrollMob(mob *world.Entity) bool {
@@ -64,12 +64,11 @@ var (
 )
 
 // addArma é uma linha do sorteio do add: o peso dela entre as outras, o efeito e o
-// valor, e se a arma leva também um add de skill.
+// valor.
 type addArma struct {
 	peso   int
 	efeito uint8
 	valor  int
-	skill  bool
 }
 
 // Os adds do design, em bytes do próprio item. Cada número é um degrau do bônus de
@@ -77,34 +76,45 @@ type addArma struct {
 // 4 em 4 e o EF_SPECIALALL (a "skill") de 3 em 3, então nenhum valor aqui é
 // estranho a um item que o jogo já solta.
 //
-//	física   36 · 45 · 63 (raro) · 72 (só boss) · 27 com skill (só boss)
-//	mágica   20 · 24 · 28 (raro) · 32 (só boss) · 20 com skill (só boss)
+// Recalibrado em 16/09/2026, pedido do Marco: todo monstro sorteia da mesma
+// escada, e quanto maior o add mais raro; o teto é 63 de dano e 32 de magia.
 //
-// A arma mágica com skill fica nos 20 de magia porque o design fixou 20-24-28-32
-// para as magas; a física com skill cai para 27, um degrau abaixo dos 36.
+//	física   27 · 36 · 45 · 54 · 63
+//	mágica   12 · 16 · 20 · 24 · 28 · 32
+//
+// O Troll Enigma usa a mesma escada pendendo para o alto, e é o único que solta
+// a skill (addTrollSkillBoss).
 var (
 	addTrollFisicaMob = []addArma{
-		{50, efDamage, 36, false},
-		{35, efDamage, 45, false},
-		{15, efDamage, 63, false},
+		{35, efDamage, 27},
+		{28, efDamage, 36},
+		{20, efDamage, 45},
+		{12, efDamage, 54},
+		{5, efDamage, 63},
 	}
 	addTrollFisicaBoss = []addArma{
-		{25, efDamage, 45, false},
-		{30, efDamage, 63, false},
-		{25, efDamage, 72, false},
-		{20, efDamage, 27, true},
+		{10, efDamage, 36},
+		{20, efDamage, 45},
+		{35, efDamage, 54},
+		{35, efDamage, 63},
 	}
 	addTrollMagicaMob = []addArma{
-		{50, efMagic, 20, false},
-		{35, efMagic, 24, false},
-		{15, efMagic, 28, false},
+		{30, efMagic, 12},
+		{25, efMagic, 16},
+		{18, efMagic, 20},
+		{13, efMagic, 24},
+		{9, efMagic, 28},
+		{5, efMagic, 32},
 	}
 	addTrollMagicaBoss = []addArma{
-		{25, efMagic, 24, false},
-		{30, efMagic, 28, false},
-		{25, efMagic, 32, false},
-		{20, efMagic, 20, true},
+		{10, efMagic, 20},
+		{20, efMagic, 24},
+		{35, efMagic, 28},
+		{35, efMagic, 32},
 	}
+	// addTrollSkillBoss é a chance, em %, de uma arma do Enigma levar também o add
+	// de skill, por cima do add de dano ou magia.
+	addTrollSkillBoss = 20
 	// skillTroll são os valores do add de skill, sorteados por igual.
 	skillTroll = []int{15, 18, 21}
 )
@@ -114,8 +124,8 @@ var (
 //
 // O slot 0 fica com o refino que o bônus sorteou (+0, +1 ou +2); se o bônus pôs ali
 // outra coisa, a arma sai +0, para ser refinável. Os slots 1 e 2 são do design: o
-// add sorteado e, na arma com skill, o EF_SPECIALALL. O que o bônus de drop tinha
-// escrito neles sai.
+// add sorteado e, numa parte das armas do Enigma, o EF_SPECIALALL. O que o bônus
+// de drop tinha escrito neles sai.
 func (d *Dispatcher) acampamentoTrollFinish(w *world.World, mob *world.Entity, it *world.Item) {
 	if !isAcampamentoTrollMob(mob) {
 		return
@@ -140,7 +150,7 @@ func (d *Dispatcher) acampamentoTrollFinish(w *world.World, mob *world.Entity, i
 	}
 	it.Effects[1] = world.Effect{Effect: linha.efeito, Value: uint8(linha.valor)}
 	it.Effects[2] = world.Effect{}
-	if linha.skill {
+	if boss && w.Rand().Intn(100) < addTrollSkillBoss {
 		it.Effects[2] = world.Effect{Effect: efSpecialAll, Value: uint8(skillTroll[w.Rand().Intn(len(skillTroll))])}
 	}
 }

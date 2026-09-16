@@ -14,6 +14,7 @@ em 14/09/2026; o design fica no artefato "Atlas de Quests W2PP".
 ✅ Armas D com o add do design <br/>
 ✅ A corrida: a Chave do Rei Orc abre o acampamento, um grupo por vez, 15 min <br/>
 ✅ O Troll Enigma do mundo (bloco 3804) desligado <br/>
+✅ Recalibrada em 16/09: Enigma no centro depois de 100 abates, 4 Caos, todos montados com arma +11, escada nova de adds <br/>
 ⏳ A descrição nova da Chave do Rei Orc no `itemhelp.dat` precisa ir pelo launcher <br/>
 ⏳ O contador gráfico: o `GamePatch.dll` com o campo (20,15) precisa ser compilado e ir pelo launcher <br/>
 ⏳ Prêmio de conclusão e trava de nível/evolução <br/>
@@ -45,15 +46,22 @@ Hidras e dos Elfos e o Deserto.
   quantos minutos faltam.
 - **Na abertura:**
   - quem não é do grupo e está dentro vai para fora do muro oeste (2633,1985);
-  - nascem o boss, os 4 seguidores, os 2 guardiões e 40 de tropa;
+  - nascem os 4 seguidores, os 4 guardiões e 40 de tropa. **O boss não**;
   - o grupo cai no meio do acampamento (2651,1983), cada um numa casa livre, com o
     contador de 15 min.
 - **Durante:**
   - quem não é do grupo não entra andando no acampamento;
-  - os seguidores voltam a cada 30 s.
-- **Fim:** aos 15 min; 2 min depois que o Troll Enigma cai (o tempo de saque); ou 1
-  min depois que ninguém do grupo está mais no acampamento. Os monstros da quest
-  somem e quem estiver dentro vai para fora do muro.
+  - os seguidores voltam a cada 30 s;
+  - **o Troll Enigma nasce no centro (2651,1983) no 100º abate** de monstro da
+    quest. Um só por chave. O grupo ouve a contagem a cada 25 abates.
+- **Fim:** aos 15 min; **5 s depois que o Troll Enigma cai** (o drop já foi direto
+  para a bolsa, então não há tempo de saque a guardar); ou 1 min depois que ninguém
+  do grupo está mais no acampamento. Os monstros da quest somem e quem estiver
+  dentro vai para fora do muro.
+- **Os 100 abates cabem nos 15 min, mas sem folga:** a abertura põe 48 monstros no
+  acampamento (40 de tropa, 4 Caos e 4 Magos), e só os Magos voltam, até 4 vivos a
+  cada 30 s. Os 52 que faltam são Magos, ou seja, no mínimo 13 levas (6,5 min) de
+  Magos de 75 mil de HP.
 - **Reinício do servidor** encerra a corrida (nada é persistido).
 - **A caixa é só o miolo**, dentro do muro. Os Trolls do mundo aberto em volta
   (blocos 700–715) nascem nas linhas y 1960 e 2010, fora dela: quem caça ali não é
@@ -73,24 +81,33 @@ para o motor é um passo à parte.
 
 ## Os monstros
 
-Réplicas dos Trolls do acampamento, com o visual do original e os números do tier
-correspondente do Castelo Orc.
+Réplicas dos Trolls do acampamento, com o visual do original. Partiram dos números
+do tier correspondente do Castelo Orc e foram recalibradas em 16/09/2026, a pedido
+do Marco: o Mago com metade do HP e do dano, o Caos com o HP que era do Mago, a
+tropa com metade do dano. O Enigma fica para depois.
 
-| Template | Nome no jogo | Veio de | Tier (Orc) | Nv | HP | Defesa | Dano | Resist. | Bloco |
-|---|---|---|---|---|---|---|---|---|---|
-| `ATroll_Enigma` | Troll Enigma | `Troll_Enigma` | boss (Grão-Lorde) | 350 | 3.000.000 | 3.000 | 2.020 | 25 | 6116 |
-| `ATroll_Mago` | Troll Mago | `Troll_Mago` | seguidor (Guarda do Lorde) | 320 | 150.000 | 2.200 | 1.520 | 15 | 6117 (grupo de 4) |
-| `ATroll_Caos` | Troll Caos | `Troll_Caos` | guardião (Sentinela) | 330 | 450.000 | 2.400 | 1.620 | 20 | 6118, 6119 |
-| `ATroll_Insano` | Troll Insano | `Troll_Insano` | tropa (Cavaleiro) | 300 | 18.000 | 1.800 | 1.220 | 10 | 6120–6123 |
-| `ATroll_Cacador` | Caçador Troll | `Cacador_Troll` | tropa (Cavaleiro) | 300 | 18.000 | 1.800 | 1.220 | 10 | 6124–6127 |
+| Template | Nome no jogo | Veio de | Papel | Nv | HP | Defesa | Dano | Resist. | Montaria | Bloco |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `ATroll_Enigma` | Troll Enigma | `Troll_Enigma` | boss | 350 | 3.000.000 | 3.000 | 2.020 | 25 | Cavalo Fantasma B (2372) | 6116 |
+| `ATroll_Mago` | Troll Mago | `Troll_Mago` | seguidor | 320 | 75.000 | 2.200 | 760 | 15 | Dente de Sabre (2365) | 6117 (grupo de 4) |
+| `ATroll_Caos` | Troll Caos | `Troll_Caos` | guardião | 330 | 150.000 | 2.400 | 1.620 | 20 | Cavalo s/Sela N (2366) | 6118, 6119 (2 cada) |
+| `ATroll_Insano` | Troll Insano | `Troll_Insano` | tropa | 300 | 18.000 | 1.800 | 610 | 10 | Dragão Menor (2363) | 6120–6123 |
+| `ATroll_Cacador` | Caçador Troll | `Cacador_Troll` | tropa | 300 | 18.000 | 1.800 | 610 | 10 | Dente de Sabre (2365) | 6124–6127 |
+
+- **Visual:** todos montados e com a arma do Troll original em +11 (EF_SANC 234).
+  Só aparência, como nos guardiões do Castelo Orc: o Equip de monstro é visual e
+  não entra nos números dele.
+- **Exceção de status no painel** (`mob_template_stat`, com `W2PP_MOB_STAT_EDITING`)
+  passa por cima destes arquivos, inclusive do equipamento. Se um template já foi
+  editado no painel, o ajuste daqui não aparece.
 
 **Onde nascem:**
 
 | Quem | Pontos |
 |---|---|
-| Troll Enigma | (2668,1985), a jaula do Enigma do mundo |
+| Troll Enigma | (2651,1983), o centro, depois de 100 abates |
 | Troll Mago | (2660,1985), raio 3 |
-| Troll Caos | (2658,1973) e (2662,1994) |
+| Troll Caos | 2 em (2658,1973) e 2 em (2662,1994) |
 | Troll Insano | (2651,1983) · (2650,1972) · (2655,1990) · (2648,1978) |
 | Caçador Troll | (2646,1997) · (2656,1998) · (2660,1971) · (2663,1978) |
 
@@ -106,23 +123,27 @@ correspondente do Castelo Orc.
 ## O saque
 
 Os templates não têm drop próprio. Tudo é da Mesa de Drops e se ajusta em `/drops`
-no painel. A conta supõe 40 de tropa, 2 guardiões, o boss e ~44 seguidores (4 no
-começo e mais 4 a cada 30 s, em uns 5 min perto do boss).
+no painel. A conta supõe 40 de tropa, 4 guardiões, o boss e ~56 seguidores (os 4
+do começo e as levas que faltam para os 100 abates). As chances não mudaram em
+16/09; a meta subiu porque há mais guardiões e mais Magos por entrada.
 
 | Meta por entrada | Tropa | Seguidor | Guardião | Boss |
 |---|---|---|---|---|
-| ~6 Armas D (8 tipos, chance por tipo) | 0,5% | 0,5% | 10% | 12,5% |
-| ~4,2 Repletion D (Classe D 4019) | 10% | — | 10% | — |
-| ~3,5 Poeira de Oriharucon 412 | 7,5% | — | 7,5% | 30% |
-| ~1,4 Poeira de Lactolerium 413 | 2,8% | — | 2,8% | 25% |
-| ~5,2 Âmago de Cav. s/ Sela N 2396 | 3% | 9% | — | — |
-| ~3,9 Âmago de Cav. s/ Sela B 2401 | 2% | 7% | — | — |
-| ~2,7 Âmago de Cav. Fantasma N 2397 | — | 5% | 25% | — |
-| ~1,6 Âmago de Cav. Fantasma B 2402 | — | 3% | 15% | — |
+| ~8 Armas D (8 tipos, chance por tipo) | 0,5% | 0,5% | 10% | 12,5% |
+| ~4,4 Repletion D (Classe D 4019) | 10% | — | 10% | — |
+| ~3,6 Poeira de Oriharucon 412 | 7,5% | — | 7,5% | 30% |
+| ~1,5 Poeira de Lactolerium 413 | 2,8% | — | 2,8% | 25% |
+| ~6,2 Âmago de Cav. s/ Sela N 2396 | 3% | 9% | — | — |
+| ~4,7 Âmago de Cav. s/ Sela B 2401 | 2% | 7% | — | — |
+| ~3,8 Âmago de Cav. Fantasma N 2397 | — | 5% | 25% | — |
+| ~2,3 Âmago de Cav. Fantasma B 2402 | — | 3% | 15% | — |
 | ~0,4 Ovo de Cav. Fantasma: N 2307 + B 2312 | — | — | — | 25% + 12,5% |
 
 - **Os ovos de Cavalo Fantasma só caem do boss**: 1 a cada ~2,7 entradas.
-- Uma entrada rende uns 28 itens, bem menos que os ~106 do Orc: a bolsa cheia
+- **Cada Troll Caos rola as 8 armas separadas, a 10% cada**: sai em média 0,8 arma
+  por Caos, e 3 armas de um Caos só acontecem (~4% das vezes). Com 4 Caos, são
+  ~3,2 armas por entrada só deles.
+- Uma entrada rende uns 35 itens, bem menos que os ~106 do Orc: a bolsa cheia
   preocupa menos aqui. Drop de mob ocupa um espaço novo, e com a bolsa cheia o item
   se perde.
 
@@ -136,19 +157,22 @@ As D de nível mais baixo, a primeira de cada par D do catálogo:
 
 **O que o servidor acrescenta** (`acampamentoTrollFinish`, só em monstro da quest):
 a arma sai com o refino que o bônus de drop sorteou (+0 a +2; se ele pôs outra
-coisa no slot, a arma sai +0) e com **um** add sorteado da tabela:
+coisa no slot, a arma sai +0) e com **um** add sorteado da tabela. Desde 16/09/2026
+todo monstro usa a mesma escada, e quanto maior o add, mais raro:
 
-| | Tropa, seguidor e guardião | Só o boss |
+| | Tropa, seguidor e guardião | Só o Troll Enigma |
 |---|---|---|
-| Física | dano 36 (50%) · 45 (35%) · 63 raro (15%) | dano 45 (25%) · 63 (30%) · **72** (25%) · **27 + skill** (20%) |
-| Mágica | magia 20 (50%) · 24 (35%) · 28 raro (15%) | magia 24 (25%) · 28 (30%) · **32** (25%) · **20 + skill** (20%) |
+| Física | dano 27 (35%) · 36 (28%) · 45 (20%) · 54 (12%) · **63** (5%) | dano 36 (10%) · 45 (20%) · 54 (35%) · 63 (35%) |
+| Mágica | magia 12 (30%) · 16 (25%) · 20 (18%) · 24 (13%) · 28 (9%) · **32** (5%) | magia 20 (10%) · 24 (20%) · 28 (35%) · 32 (35%) |
+| Skill | nunca | **20% das armas** levam também skill |
 
-- **Skill** é o `EF_SPECIALALL` ("Aprendizagem de Skill"), 15, 18 ou 21 por igual.
+- **O teto é 63 de dano e 32 de magia**, para todo monstro. O Enigma não passa
+  dele: só sorteia pendendo para o alto.
+- **Skill** é o `EF_SPECIALALL` ("Aprendizagem de Skill"), 15, 18 ou 21 por igual,
+  no terceiro slot da arma, **por cima** do add de dano ou magia. Só o Troll Enigma
+  solta.
 - Cada número é um degrau do bônus de drop do legado (`refine/dropbonus.go`): dano
   de arma anda de 9 em 9, magia de 4 em 4 e skill de 3 em 3.
-- **A mágica com skill fica nos 20 de magia** porque o design fixou 20-24-28-32 para
-  as magas; a física com skill cai para 27, um degrau abaixo dos 36. Esta é a
-  leitura do pedido e fica para confirmar em jogo.
 
 ## Como testar
 

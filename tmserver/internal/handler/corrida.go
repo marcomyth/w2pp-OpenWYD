@@ -45,6 +45,12 @@ type corridaSpec struct {
 	genBoss           int // o bloco cujo monstro, morto, corta o relógio para o saque
 	genSeguidor       int // o bloco que volta a encher durante a corrida
 
+	// bossAposAbates segura o boss fora da abertura: ele só nasce quando o grupo
+	// derruba essa quantidade de monstros da quest. Zero, nasce junto com o resto.
+	bossAposAbates int
+	// abatesAviso é de quantos em quantos abates o grupo ouve a contagem.
+	abatesAviso int
+
 	// Em segundos: a corrida, o saque depois do boss, o intervalo dos seguidores
 	// e quanto tempo sem ninguém do grupo na área a encerra.
 	duracao, saque, seguidorCada, abandono int
@@ -64,6 +70,8 @@ type corridaTextos struct {
 	fim      string // para quem estava dentro quando acabou
 	relogio  string // %d: minutos que faltam, reenviado a cada minuto
 	bossCaiu string
+	abates   string // %d de %d: abates até agora e quantos chamam o boss
+	bossVeio string // quando o boss nasce pelos abates
 }
 
 // corridaEstado é a corrida em andamento. Zerado, não há corrida.
@@ -73,6 +81,8 @@ type corridaEstado struct {
 	party         []int // as conexões dos jogadores admitidos na abertura
 	leaderName    string
 	bossDown      bool
+	bossUp        bool // o boss já nasceu nesta corrida
+	abates        int  // monstros da quest derrubados, fora o boss
 	emptyFor      int
 	sinceFollower int
 }
@@ -162,7 +172,7 @@ func (d *Dispatcher) abrirCorrida(w *world.World, c *corrida, e *world.Entity) {
 			party = append(party, id)
 		}
 	}
-	c.estado = corridaEstado{active: true, secondsLeft: sp.duracao, party: party, leaderName: e.Name}
+	c.estado = corridaEstado{active: true, secondsLeft: sp.duracao, party: party, leaderName: e.Name, bossUp: sp.bossAposAbates <= 0}
 
 	// As sobras de uma corrida anterior saem pelo ClearGenerator, e não por uma
 	// varredura de despawn: assim o contador de cada bloco cai junto e nada fica
@@ -174,6 +184,9 @@ func (d *Dispatcher) abrirCorrida(w *world.World, c *corrida, e *world.Entity) {
 
 	spawned := 0
 	for idx := sp.genFirst; idx <= sp.genLast; idx++ {
+		if idx == sp.genBoss && sp.bossAposAbates > 0 {
+			continue // vem pelos abates (corridaMobMorto)
+		}
 		// Um bloco de tropa enche grupo a grupo até o teto; GenerateMob devolve
 		// vazio quando chega lá. O limite é só um freio.
 		for range 10 {
@@ -298,11 +311,24 @@ func (d *Dispatcher) tickCorrida(w *world.World, c *corrida) {
 	}
 }
 
-// corridaBossMorto corta o relógio para o tempo do saque. Roda antes do despawn,
-// como os outros ganchos de boss.
-func (d *Dispatcher) corridaBossMorto(w *world.World, c *corrida, mob *world.Entity) {
+// corridaMobMorto conta um monstro da quest que caiu. O boss corta o relógio para
+// o tempo do saque; os outros somam para chamá-lo, quando a área o segura até lá.
+// Roda antes do despawn, como os outros ganchos de boss.
+func (d *Dispatcher) corridaMobMorto(w *world.World, c *corrida, mob *world.Entity) {
 	r := &c.estado
-	if !r.active || r.bossDown || mob == nil || int(mob.GenIndex) != c.spec.genBoss {
+	sp := c.spec
+	if !r.active || mob == nil {
+		return
+	}
+	gen := int(mob.GenIndex)
+	if gen < sp.genFirst || gen > sp.genLast {
+		return
+	}
+	if gen != sp.genBoss {
+		d.contarAbateCorrida(w, c)
+		return
+	}
+	if r.bossDown {
 		return
 	}
 	r.bossDown = true
@@ -311,6 +337,28 @@ func (d *Dispatcher) corridaBossMorto(w *world.World, c *corrida, mob *world.Ent
 	}
 	d.avisarGrupoCorrida(w, c, c.spec.textos.bossCaiu)
 	d.log.Info("corrida: boss caiu", "area", c.spec.nome, "leader", r.leaderName)
+}
+
+// contarAbateCorrida soma um abate e, na conta certa, levanta o boss no bloco
+// dele. Depois que o boss nasce a contagem para: a área tem um boss só.
+func (d *Dispatcher) contarAbateCorrida(w *world.World, c *corrida) {
+	r := &c.estado
+	sp := c.spec
+	if r.bossUp {
+		return
+	}
+	r.abates++
+	if r.abates < sp.bossAposAbates {
+		if sp.abatesAviso > 0 && r.abates%sp.abatesAviso == 0 {
+			d.avisarGrupoCorrida(w, c, fmt.Sprintf(sp.textos.abates, r.abates, sp.bossAposAbates))
+		}
+		return
+	}
+	r.bossUp = true
+	ids := w.GenerateMob(sp.genBoss)
+	d.revealSpawned(w, ids)
+	d.avisarGrupoCorrida(w, c, sp.textos.bossVeio)
+	d.log.Info("corrida: boss nasceu", "area", sp.nome, "leader", r.leaderName, "abates", r.abates, "ids", len(ids))
 }
 
 // encerrarCorrida tira os monstros da quest e esvazia a área.
