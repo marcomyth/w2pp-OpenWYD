@@ -33,6 +33,24 @@ var acampamentoTrollTemplates = map[string]bool{
 // pendendo para o alto e solta os ovos de Cavalo Fantasma.
 const acampamentoTrollBoss = "ATroll_Enigma"
 
+// acampamentoTrollPacks é quantas unidades um drop leva, por monstro (pedido do
+// Marco, 16/09/2026, migração 0069): o Troll Caos solta âmagos de Cavalo s/ Sela
+// em pacote de 20 e de Cavalo Fantasma em pacote de 10, e o Enigma solta
+// Pergaminhos da Água (N) em pacote de 5. A Mesa de Drops diz se cai e com que
+// chance; ela não guarda quantidade, então o tamanho do pacote mora aqui, como em
+// casteloOrcGuardianPacks. O mesmo item de outro monstro da quest cai um só.
+var acampamentoTrollPacks = map[string]map[int16]int{
+	droprule.Canonical("ATroll_Caos"): {
+		casteloOrcAmagoSemSelaN: 20,
+		casteloOrcAmagoSemSelaB: 20,
+		2397:                    10, // Âmago de Cav Fantasm N
+		2402:                    10, // Âmago de Cav Fantasm B
+	},
+	droprule.Canonical(acampamentoTrollBoss): {
+		casteloOrcPergaAguaN: 5,
+	},
+}
+
 func isAcampamentoTrollMob(mob *world.Entity) bool {
 	return mob != nil && mob.TemplateName != "" && acampamentoTrollTemplates[droprule.Canonical(mob.TemplateName)]
 }
@@ -128,6 +146,12 @@ var (
 // de drop tinha escrito neles sai.
 func (d *Dispatcher) acampamentoTrollFinish(w *world.World, mob *world.Entity, it *world.Item) {
 	if !isAcampamentoTrollMob(mob) {
+		return
+	}
+	// Só empilhável sai em pacote: EF_AMOUNT em outra coisa vira uma pilha que o
+	// cliente não divide e gasta inteira.
+	if n := acampamentoTrollPacks[droprule.Canonical(mob.TemplateName)][it.Index]; n > 1 && isSplittable(it.Index) {
+		setItemAmount(it, n)
 		return
 	}
 	boss := droprule.Canonical(mob.TemplateName) == droprule.Canonical(acampamentoTrollBoss)

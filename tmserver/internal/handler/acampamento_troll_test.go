@@ -193,6 +193,108 @@ func TestAcampamentoTrollNaoMexeEmOutroDrop(t *testing.T) {
 	}
 }
 
+// O Troll Caos solta os âmagos em pacote (20 de s/ Sela, 10 de Fantasma) e o
+// Enigma os Pergaminhos da Água em pacote de 5; o mesmo item de outro monstro da
+// quest, ou do Orc, cai um só.
+func TestAcampamentoTrollPacotes(t *testing.T) {
+	for _, c := range []struct {
+		mob  string
+		item int16
+		want int
+	}{
+		{"ATroll_Caos", 2396, 20},
+		{"ATroll_Caos", 2401, 20},
+		{"ATroll_Caos", 2397, 10},
+		{"ATroll_Caos", 2402, 10},
+		{"ATroll_Enigma", 3173, 5},
+		{"ATroll_Mago", 2396, 1},
+		{"ATroll_Mago", 2397, 1},
+		{"ATroll_Insano", 2401, 1},
+		{"ATroll_Caos", 3173, 1},
+		{"ATroll_Enigma", 2396, 1},
+	} {
+		d, w, killer := mobKilledWorld(t)
+		d.dropRules = droprule.NewTable([]droprule.Rule{{Mob: c.mob, Item: c.item, Chance: droprule.MaxChance}})
+		d.mobKilled(w, killer, spawnNamed(t, w, expMobTemplate(330, 0, 0), c.mob))
+		it, ok := carryHas(killer, c.item)
+		if !ok {
+			t.Errorf("%s não soltou o %d a 100%%", c.mob, c.item)
+			continue
+		}
+		if got := itemAmount(it); got != c.want {
+			t.Errorf("%s soltou %d de %d, want %d", c.mob, got, c.item, c.want)
+		}
+	}
+	for mob, packs := range acampamentoTrollPacks {
+		for item := range packs {
+			if !isSplittable(item) {
+				t.Errorf("%s: pacote de %d, que não empilha", mob, item)
+			}
+		}
+	}
+}
+
+// A 0069 tira arma do Troll Caos, dá a ele os quatro âmagos que saem em pacote e
+// dá ao Enigma o Pergaminho da Água; cada linha é de monstro da quest, de item do
+// catálogo, e o pacote de cada uma está no código.
+func TestAcampamentoTrollMigracaoDosPacotes(t *testing.T) {
+	root := releaseDir(t)
+	items, err := content.LoadItemList(filepath.Join(root, "Common", "ItemList.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := migrations.FS.ReadFile("0069_acampamento_troll_pacotes.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	type chave struct {
+		mob  string
+		item int16
+	}
+	got := map[chave]int32{}
+	for _, r := range regexp.MustCompile(`\('([^']+)',\s*(\d+),\s*(\d+)\)`).FindAllStringSubmatch(string(b), -1) {
+		item, _ := strconv.Atoi(r[2])
+		chance, _ := strconv.Atoi(r[3])
+		if rule := (droprule.Rule{Mob: r[1], Item: int16(item), Chance: int32(chance)}); !rule.Valid() || chance == 0 {
+			t.Errorf("%v: a Mesa de Drops recusaria esta linha, ou ela não solta nada", r[0])
+		}
+		if _, ok := items.Get(item); !ok {
+			t.Errorf("item %d não existe no ItemList", item)
+		}
+		if !acampamentoTrollTemplates[droprule.Canonical(r[1])] {
+			t.Errorf("%s não é monstro da quest", r[1])
+		}
+		got[chave{r[1], int16(item)}] = int32(chance)
+	}
+	want := map[chave]int32{
+		{"ATroll_Caos", 2396}:   1500,
+		{"ATroll_Caos", 2401}:   1000,
+		{"ATroll_Caos", 2397}:   1500,
+		{"ATroll_Caos", 2402}:   1000,
+		{"ATroll_Enigma", 3173}: 3000,
+	}
+	for item := range armasTrollFisicas {
+		want[chave{"ATroll_Caos", item}] = 250
+	}
+	for item := range armasTrollMagicas {
+		want[chave{"ATroll_Caos", item}] = 250
+	}
+	if len(got) != len(want) {
+		t.Errorf("%d linhas na 0069, want %d", len(got), len(want))
+	}
+	for k, chance := range want {
+		if got[k] != chance {
+			t.Errorf("%s item %d a %d, want %d", k.mob, k.item, got[k], chance)
+		}
+		if chance != 250 && acampamentoTrollPacks[droprule.Canonical(k.mob)][k.item] <= 1 {
+			t.Errorf("%s item %d entra na 0069 sem pacote no código", k.mob, k.item)
+		}
+	}
+	if !strings.Contains(string(b), "DO UPDATE SET chance = EXCLUDED.chance") {
+		t.Error("a 0069 não sobrescreve as chances que a 0064 já gravou")
+	}
+}
+
 // O acampamento usa a Chave do Rei Orc, então a entrada dos Elfos sorteia uma
 // chave só: um sorteio ganho não pode render duas.
 func TestAcampamentoTrollChaveNoTicketDosElfos(t *testing.T) {

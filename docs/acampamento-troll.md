@@ -15,6 +15,7 @@ em 14/09/2026; o design fica no artefato "Atlas de Quests W2PP".
 ✅ A corrida: a Chave do Rei Orc abre o acampamento, um grupo por vez, 15 min <br/>
 ✅ O Troll Enigma do mundo (bloco 3804) desligado <br/>
 ✅ Recalibrada em 16/09: Enigma no centro depois de 100 abates, 4 Caos, todos montados com arma +11, escada nova de adds <br/>
+✅ Troll Caos com menos arma e âmagos em pacote, Enigma com Pergaminho da Água (0069) <br/>
 ⏳ A descrição nova da Chave do Rei Orc no `itemhelp.dat` precisa ir pelo launcher <br/>
 ⏳ O contador gráfico: o `GamePatch.dll` com o campo (20,15) precisa ser compilado e ir pelo launcher <br/>
 ⏳ Prêmio de conclusão e trava de nível/evolução <br/>
@@ -124,28 +125,29 @@ tropa com metade do dano. O Enigma fica para depois.
 
 Os templates não têm drop próprio. Tudo é da Mesa de Drops e se ajusta em `/drops`
 no painel. A conta supõe 40 de tropa, 4 guardiões, o boss e ~56 seguidores (os 4
-do começo e as levas que faltam para os 100 abates). As chances não mudaram em
-16/09; a meta subiu porque há mais guardiões e mais Magos por entrada.
+do começo e as levas que faltam para os 100 abates).
 
-| Meta por entrada | Tropa | Seguidor | Guardião | Boss |
+| Meta por entrada | Tropa | Seguidor | Guardião (Caos) | Boss |
 |---|---|---|---|---|
-| ~8 Armas D (8 tipos, chance por tipo) | 0,5% | 0,5% | 10% | 12,5% |
+| ~5,6 Armas D (8 tipos, chance por tipo) | 0,5% | 0,5% | 2,5% | 12,5% |
 | ~4,4 Repletion D (Classe D 4019) | 10% | — | 10% | — |
 | ~3,6 Poeira de Oriharucon 412 | 7,5% | — | 7,5% | 30% |
 | ~1,5 Poeira de Lactolerium 413 | 2,8% | — | 2,8% | 25% |
-| ~6,2 Âmago de Cav. s/ Sela N 2396 | 3% | 9% | — | — |
-| ~4,7 Âmago de Cav. s/ Sela B 2401 | 2% | 7% | — | — |
-| ~3,8 Âmago de Cav. Fantasma N 2397 | — | 5% | 25% | — |
-| ~2,3 Âmago de Cav. Fantasma B 2402 | — | 3% | 15% | — |
+| ~18 Âmago de Cav. s/ Sela N 2396 | 3% | 9% | 15%, **pacote de 20** | — |
+| ~13 Âmago de Cav. s/ Sela B 2401 | 2% | 7% | 10%, **pacote de 20** | — |
+| ~9 Âmago de Cav. Fantasma N 2397 | — | 5% | 15%, **pacote de 10** | — |
+| ~6 Âmago de Cav. Fantasma B 2402 | — | 3% | 10%, **pacote de 10** | — |
+| ~1,5 Pergaminho da Água (N) LV1 3173 | — | — | — | 30%, **pacote de 5** |
 | ~0,4 Ovo de Cav. Fantasma: N 2307 + B 2312 | — | — | — | 25% + 12,5% |
 
 - **Os ovos de Cavalo Fantasma só caem do boss**: 1 a cada ~2,7 entradas.
-- **Cada Troll Caos rola as 8 armas separadas, a 10% cada**: sai em média 0,8 arma
-  por Caos, e 3 armas de um Caos só acontecem (~4% das vezes). Com 4 Caos, são
-  ~3,2 armas por entrada só deles.
-- Uma entrada rende uns 35 itens, bem menos que os ~106 do Orc: a bolsa cheia
-  preocupa menos aqui. Drop de mob ocupa um espaço novo, e com a bolsa cheia o item
-  se perde.
+- **O Troll Caos solta pouca arma e muito âmago** (migração 0069, 16/09/2026): as
+  armas foram de 10% para 2,5% por tipo, e duas armas do mesmo Caos saem ~1,6%
+  das vezes. Os âmagos dele saem em pacote, e só dele: o mesmo âmago do Mago ou da
+  tropa cai um só. O tamanho do pacote não cabe na Mesa e está em
+  `acampamentoTrollPacks`; na Mesa se muda só a chance.
+- Drop de mob ocupa um espaço novo na bolsa (o pacote ocupa um), e com a bolsa
+  cheia o item se perde.
 
 ### As Armas D
 
