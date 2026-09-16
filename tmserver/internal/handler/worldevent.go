@@ -124,6 +124,9 @@ func (d *Dispatcher) applyWorldEventConfig(w *world.World, snap worldcfg.Snapsho
 	// No side effects to run, unlike the newbie event: KefraLive is one branch
 	// in the reward pipeline and touches nothing that is already in the world.
 	d.expEvents.KefraLive = ev.KefraLiveEnabled
+	// A guilda vem junto: o painel e a morte escrevem as duas colunas, e uma sem
+	// a outra faria o aviso citar a guilda errada (kefra.go).
+	d.kefraGuildID = ev.KefraGuildID
 	w.SetWorldEventConfig(world.EventConfig{
 		Version: snap.Version, Enabled: ev.Enabled, ItemIndex: ev.ItemIndex, Rate: ev.Rate,
 		StartIndex: ev.StartIndex, CurrentIndex: ev.CurrentIndex, EndIndex: ev.EndIndex,

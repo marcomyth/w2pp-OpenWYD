@@ -726,6 +726,9 @@ func run(logger *slog.Logger) error {
 	}
 	// After the populate and the NPC overlay, so it removes what they raised.
 	dispatch.ApplyGeneratorOffBoot(w)
+	// Same reason, and necessarily after the world-event config above: the Kefra
+	// and its guards only stay standing while the database says he is alive.
+	dispatch.ApplyKefraStateBoot(w)
 	// The individual respawn queue takes its delay from the same area dial the
 	// minute timer does, so the desert's dozen blocks without a minute period
 	// are not left running at 15s while everything around them slows down. It is

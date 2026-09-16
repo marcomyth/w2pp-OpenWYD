@@ -57,6 +57,11 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 	d.castleBossKilled(w, reward, mob)
 	d.casteloOrcBossKilled(w, mob)
 	d.corridaBossMorto(w, &d.acampamentoTroll, mob)
+	// O Kefra liga a experiência do servidor inteiro, paga a guilda que o matou e
+	// distribui o saque. Aqui, antes do laço de drop, que é onde o legado o põe
+	// (MobKilled.cpp:1451) — e enquanto o corpo ainda está na grade, de que o
+	// saque depende.
+	d.kefraKilled(w, reward, mob)
 	// Runs BEFORE the DespawnMob below, so the generator still counts this mob —
 	// which is how the legacy detects the last one down (CurrentNumMob == 1).
 	d.waterRoomCleared(w, reward, mob)
