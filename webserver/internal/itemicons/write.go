@@ -72,10 +72,11 @@ func SetIcon(clientDir string, item int, bmpPath string) (int, error) {
 	}
 	// A célula tomada é arte órfã, não branco: um desenho menor que ela deixaria
 	// a borda da arte antiga à mostra (os planetas de 32×32, em 16/09/2026,
-	// saíram com riscos em cima e embaixo). Limpa a célula inteira antes.
+	// saíram com riscos em cima e embaixo). Pinta a célula inteira de preto
+	// opaco antes, o fundo que os ícones do próprio cliente têm.
 	for y := range CellSize {
 		for x := range CellSize {
-			atlas.SetNRGBA(x0+x, y0+y, color.NRGBA{})
+			atlas.SetNRGBA(x0+x, y0+y, color.NRGBA{A: 0xff})
 		}
 	}
 	offX := x0 + (CellSize-art.Bounds().Dx())/2
@@ -123,6 +124,13 @@ func freeIcon(itemToIcon []int) int {
 
 // encodeWYT writes the wrapper and an uncompressed 32-bit TGA, the shape the
 // client's own atlases have (type 2, descriptor 8, origin at the bottom).
+//
+// Every pixel goes out opaque. The shipped atlases have no transparent pixel at
+// all, but SetIcon reads the atlas through decodeWYT, the web export's decoder,
+// which keys black out; written back as is, every black pixel of the atlas lost
+// its alpha and the slot's rarity fill showed through every icon in it
+// (itemicon10, from the Chave do Inferno on, found 16/09/2026). Only the alpha
+// changes in that decoder, so forcing it back to 255 restores the file exactly.
 func encodeWYT(img *image.NRGBA) []byte {
 	w := img.Bounds().Dx()
 	h := img.Bounds().Dy()
@@ -138,7 +146,7 @@ func encodeWYT(img *image.NRGBA) []byte {
 	for y := h - 1; y >= 0; y-- {
 		for x := range w {
 			p := img.NRGBAAt(x, y)
-			out = append(out, p.B, p.G, p.R, p.A)
+			out = append(out, p.B, p.G, p.R, 0xff)
 		}
 	}
 	// Os atlas do cliente terminam com oito bytes zerados depois dos pixels — não
@@ -154,9 +162,11 @@ func encodeWYT(img *image.NRGBA) []byte {
 // is the whole format we need, so it is read here instead of adding a
 // dependency to the module.
 //
-// Black is turned into transparent, the same rule decodeTGAPixels applies to
-// the client's own art: the classic icons carry no alpha and the client treats
-// black as the hole around the drawing.
+// Black stays opaque black. The client's own icons are drawn on an opaque black
+// background (alpha 255 in the atlas), and a transparent one lets the slot's
+// rarity fill show through the drawing — the planets looked wrong on an
+// equipped +11 (16/09/2026). Only the web export (decodeTGAPixels) keys black
+// out.
 func readBMP24(path string) (*image.NRGBA, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -195,9 +205,6 @@ func readBMP24(path string) (*image.NRGBA, error) {
 			c := color.NRGBA{B: p[0], G: p[1], R: p[2], A: 0xff}
 			if pixelSize == 4 {
 				c.A = p[3]
-			}
-			if c.R == 0 && c.G == 0 && c.B == 0 {
-				c.A = 0
 			}
 			img.SetNRGBA(x, y, c)
 		}

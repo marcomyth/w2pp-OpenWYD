@@ -94,8 +94,8 @@ func TestSetIconGravaCelulaEAponta(t *testing.T) {
 	if centro.R != vermelho.R || centro.G != vermelho.G || centro.B != vermelho.B || centro.A != 0xff {
 		t.Errorf("centro da célula = %+v, want o desenho %+v", centro, vermelho)
 	}
-	if canto := atlas.NRGBAAt(CellSize-1, CellSize-1); canto.A != 0 {
-		t.Errorf("a borda da célula ficou opaca (%+v), want transparente", canto)
+	if canto := pixelGravado(t, dados, CellSize-1, CellSize-1); canto != (color.NRGBA{A: 0xff}) {
+		t.Errorf("a borda da célula = %+v, want preto opaco, o fundo dos ícones do cliente", canto)
 	}
 }
 

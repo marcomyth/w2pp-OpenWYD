@@ -71,7 +71,7 @@ func TestPlanetasNoCatalogo(t *testing.T) {
 		{762, "Netuno", map[uint8]int16{efHP: 250, efDamage: 60}},
 		{763, "Urano", map[uint8]int16{efHP: 250, efAC: 120}},
 		{764, "Vênus", map[uint8]int16{efMP: 250, efMagic: 20}},
-		{765, "Marte", map[uint8]int16{efHP: 250, efCritical: 120}},
+		{765, "Marte", map[uint8]int16{efHP: 250, efCritical: 70}},
 		{766, "Saturno", map[uint8]int16{efHP: 250, efMagic: 20}},
 		{767, "Mercúrio", map[uint8]int16{efHP: 250, efMP: 250}},
 		{768, "Júpiter", map[uint8]int16{efMagic: 20, efAC: 120}},
@@ -93,6 +93,28 @@ func TestPlanetasNoCatalogo(t *testing.T) {
 		}
 		if req := full.Requirements()[tc.idx]; req.Lvl != 249 {
 			t.Errorf("%s (%d): nível cru %d, esperado 249", tc.nome, tc.idx, req.Lvl)
+		}
+	}
+}
+
+// O Ankh da Glória e Marte têm o mesmo crítico base, 7% (70 no catálogo),
+// decidido em 16/09/2026: 12% em Marte ficou forte demais em jogo.
+func TestCriticoDaGloriaEDeMarte(t *testing.T) {
+	const efCritical = 42
+	full, err := LoadItemList(release(t, "Common", "ItemList.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	eff := full.BaseEffects()
+	for _, idx := range []int{663, 765} {
+		var got int16
+		for _, e := range eff[idx] {
+			if e.Eff == efCritical {
+				got += e.Val
+			}
+		}
+		if got != 70 {
+			t.Errorf("item %d: crítico %d, esperado 70 (7%%)", idx, got)
 		}
 	}
 }

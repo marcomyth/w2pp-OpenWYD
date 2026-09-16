@@ -249,7 +249,7 @@ Máquinas (sem linha: 35%). O Arcano não é mais vendido nem cai de monstro.
 | Amuleto Místico | 200 (era 147) | Skill 12 (era 10) |
 | Amuleto Arcano | 300 (era 180) | Skill 14 (era 15) |
 | Gema da Siren | 150 (era 156-195) | igual |
-| Ankh da Justiça / Eternidade / Glória | 220 (era 160) | MP 300 / HP 300 / Crítico 100 (eram 115 / 100 / 50) |
+| Ankh da Justiça / Eternidade / Glória | 220 (era 160) | MP 300 / HP 300 / Crítico 7% (eram 115 / 100 / 5%) |
 | Planetas | 250 (era 54) | dois status cada, ver abaixo |
 | Amuleto dos Amantes | 200 (era 0) | HP 150 (era 100) |
 
@@ -262,13 +262,16 @@ Mítico no tooltip, ícone próprio para cada um, nível 250.
 | Netuno | físico | HP 250 · Dano 60 | HP 1000 · Dano 240 |
 | Urano | tanque | HP 250 · Defesa 120 | HP 1000 · Defesa 480 |
 | Vênus | Foema | MP 250 · Magia 20 | MP 1000 · Magia 80 |
-| Marte | crítico | HP 250 · Crítico 12% | HP 1000 · Crítico 48% |
+| Marte | crítico | HP 250 · Crítico 7% | HP 1000 · Crítico 28% |
 | Saturno | mago com vida | HP 250 · Magia 20 | HP 1000 · Magia 80 |
 | Mercúrio | híbrido | HP 250 · MP 250 | HP 1000 · MP 1000 |
 | Júpiter | mago defensivo | Magia 20 · Defesa 120 | Magia 80 · Defesa 480 |
 
 Todos com Resistência a todos 10, que **cresce com o refino** como o tooltip mostra (40 no +15).
 Os pontos de Skill que Marte a Júpiter davam saíram.
+
+O **Crítico** do tooltip é a chance real: o servidor soma o crítico do equipamento, divide por 4 e
+sorteia contra 255, então 7% no tooltip (70 no catálogo) dá 17 em 255, 6,9%.
 
 A **Resistência a todos** do Amuleto dos Amantes **não cresce com o refino** (regra deste
 servidor): um +15 continua dando 10. No resto do equipamento o refino multiplica a resistência
