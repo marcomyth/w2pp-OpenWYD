@@ -182,9 +182,27 @@ Pegue lv 200 no seu Cele, faça a quest da Cythera Arcana (Pedra da Fúria + as 
 # Acessórios
 
 Reforma decidida em 16/09/2026. O plano completo, com o diagnóstico de cada item, está no
-artefato "Reforma dos Acessórios". Os brincos, braceletes, pingentes e colares (as famílias
-Hércules, Zeus, Hecate, Titã, Athena e Gaia) ainda vão ser refeitos; por ora só os brincos
-entram na +10 e no Odin, com os status de sempre.
+artefato "Reforma dos Acessórios". Das famílias do primeiro espaço (anel, bracelete, pingente,
+brinco e colar), Hércules e Hecate já foram refeitas; Zeus, Titã, Athena e Gaia seguem com os
+status de sempre.
+
+**Hércules e Hecate: porcentagem de dano e Defesa.** Os dois deixaram de dar Dano e Magia fixos.
+Hércules dá **% de dano físico** e Hecate **% de dano mágico**, mais Defesa:
+
+| Degrau | % de dano | Defesa | +9 · +15 (só a %) |
+|---|---|---|---|
+| Bracelete | 4% | 50 | 8% · 14% |
+| Pingente | 6% | 100 | 12% · 22% |
+| Brinco | 8% | 150 | 16% · 29% |
+| Colar | 10% | 200 | 20% · 37% |
+
+- A porcentagem cresce com o refino; a **Defesa não** (regra deste servidor para o primeiro
+  espaço de acessório — só o Anel Branco de Amante tinha Defesa ali, e ela também parou de crescer).
+- A **% física** vale no ataque inteiro, arma incluída, e nas skills que não usam Magia (2ª
+  árvore do TK e Huntress). Soma com as poções e o Assalto: poção +5% com brinco +8% dá +13%.
+- A **% mágica** vale no dano pronto de toda skill que usa Magia, somada ao mesmo multiplicador
+  das poções. A janela "Atq Mágico" do cliente não mostra essa porcentagem; o golpe tem.
+- Os anéis de Hércules (Dano 10) e Hecate (INT 8) continuam como estão.
 
 **Caminho até o +15.** Poeira do +1 ao +9, máquina +10 (Ailyn), Lactolerium para o +11 e
 Odin (receita do +12) do +12 ao +15. Aceitam: Brincos (591-595), Amuletos Místicos

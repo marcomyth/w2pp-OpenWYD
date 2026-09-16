@@ -27,6 +27,10 @@ type SkillCaster struct {
 	// DamageMultiPct is the legacy DAMAGEMULTI (100 = neutral). It lands on the
 	// finished spell damage, NOT inside Magic — see the comment at its use site.
 	DamageMultiPct int
+	// DanoFisicoPct is the gear percentage of physical damage (reforma dos
+	// acessórios, not legacy). It lands on the skills that skip Magic — TK tree 2 and
+	// the Huntress — the physical counterpart of DamageMultiPct above.
+	DanoFisicoPct int
 	// Mortal selects the unevolved formula: the mastery counts once and the level
 	// counts half. LearnedSkill feeds the tree bonus. See SkillBaseDamage.
 	Mortal       bool
@@ -145,6 +149,8 @@ func SkillBaseDamage(skillnum int, sp SkillSpell, c SkillCaster, weather, weapon
 			if c.DamageMultiPct > 0 && c.DamageMultiPct != 100 {
 				dam = dam * c.DamageMultiPct / 100
 			}
+		} else if c.DanoFisicoPct > 0 {
+			dam = dam * (100 + c.DanoFisicoPct) / 100
 		}
 		dam = 5 * dam / 4
 		// The tree bonus comes last, on the finished number (0x543009).

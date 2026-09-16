@@ -78,6 +78,9 @@ var efCode = map[string]int{
 	"EF_CRITICAL2":  71,
 	"EF_ACADD2":     72,
 	"EF_DAMAGE2":    73,
+	// Reforma dos acessórios: só este servidor conhece (internal/itemeffect).
+	"EF_DANOFISICO": 89,
+	"EF_DANOMAGICO": 90,
 	"EF_SPECIALALL": 74,
 	"EF_CURKILL":    75,
 	"EF_LTOTKILL":   76,

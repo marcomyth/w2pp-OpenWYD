@@ -54,6 +54,7 @@ var scored = map[string]bool{
 	"EF_CRITICAL2": true, "EF_ITEMLEVEL": true, "EF_MOBTYPE": true,
 	"EF_RUNSPEED": true, "EF_ITEMTYPE": true, "EF_NOSANC": true,
 	"EF_INCUBATE": true, "EF_INCUDELAY": true,
+	"EF_DANOFISICO": true, "EF_DANOMAGICO": true,
 }
 
 // effectDefs is the raw legend: token → id + Portuguese meaning.
@@ -133,6 +134,8 @@ var effectDefs = map[string][2]string{
 	"EF_CRITICAL2":  {"Crítico (2)", "Segunda fonte de crítico"},
 	"EF_ACADD2":     {"Defesa percentual (2)", ""},
 	"EF_DAMAGE2":    {"Dano (2)", "Sem descrição na fonte"},
+	"EF_DANOFISICO": {"Dano físico (%)", "Porcentagem sobre o ataque físico e as skills físicas; cresce com o refino"},
+	"EF_DANOMAGICO": {"Dano mágico (%)", "Porcentagem sobre o dano pronto das magias; cresce com o refino"},
 	"EF_SPECIALALL": {"Todas as maestrias", "Aumenta as maestrias, com uma exclusão que a fonte não detalha"},
 	"EF_CURKILL":    {"Abates atuais", "Marcado como não usado na fonte"},
 	"EF_LTOTKILL":   {"Abates totais (word baixo)", "Marcado como não usado na fonte"},
@@ -191,6 +194,7 @@ var effectIDs = map[string]int{
 	"EF_GRADE3": 103, "EF_GRADE4": 104, "EF_GRADE5": 105, "EF_WDAY": 106,
 	"EF_HOUR": 107, "EF_MIN": 108, "EF_YEAR": 109, "EF_WMONTH": 110,
 	"EF_MOBTYPE": 112, "EF_ITEMTYPE": 113, "EF_NOSANC": 126, "EF_NOTRADE": 127,
+	"EF_DANOFISICO": 89, "EF_DANOMAGICO": 90, // só deste servidor (internal/itemeffect)
 }
 
 // EffectTable builds the legend the UI renders: every EF_* token with its id,

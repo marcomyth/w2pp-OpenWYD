@@ -84,7 +84,21 @@ var efName = map[string]uint8{
 	// EF_ITEMTYPE above: 156 rows of ItemList.csv carry it, and while it was missing
 	// from this table every one of those items read 0 and traded freely.
 	"EF_NOTRADE": 127,
+	// Reforma dos acessórios (2026-09-16): porcentagem de dano físico e de dano
+	// mágico, das famílias Hércules e Hecate. Não existem no legado nem no
+	// ItemEffect.h.
+	"EF_DANOFISICO": DanoFisicoPct,
+	"EF_DANOMAGICO": DanoMagicoPct,
 }
+
+// Efeitos que só este servidor conhece. Os números são os que o tooltip do
+// cliente mostra com os rótulos "Dano físico (%)" e "Dano mágico (%)"; escolhidos
+// entre os códigos que nenhum item do catálogo, nenhum escritor do servidor e
+// nenhuma conta do WYD.exe usam.
+const (
+	DanoFisicoPct uint8 = 89
+	DanoMagicoPct uint8 = 90
+)
 
 // EffectID returns the STRUCT_EFFECT id for an EF_<name> token, and whether the
 // score model understands it.

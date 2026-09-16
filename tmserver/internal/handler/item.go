@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/itemeffect"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/refine"
@@ -2196,6 +2197,9 @@ const (
 	efMobType    = 112
 	efRunSpeed   = 29 // EF_RUNSPEED: boots' bonus to the move-speed (low) nibble of AttackRun
 	efAttSpeed   = 26 // EF_ATTSPEED: gear bonus to the attack (high) nibble of AttackRun (Basedef.cpp:3201)
+	// Reforma dos acessórios: porcentagem de dano das famílias Hércules e Hecate.
+	efDanoFisico = itemeffect.DanoFisicoPct
+	efDanoMagico = itemeffect.DanoMagicoPct
 	efDamage2    = 73 // EF_DAMAGE2: enchanted damage — SUPERSEDES EF_DAMAGE on a nPos 32 item
 
 	// Effect ids that BASE_GetItemAbility leaves UNSCALED by the refine multiplier
@@ -2392,6 +2396,13 @@ func (d *Dispatcher) itemAbilityRefined(it world.Item, eff uint8) int32 {
 	if v == 0 || !refineScaled(eff) {
 		return v
 	}
+	// Reforma dos acessórios (2026-09-16): a Defesa do primeiro espaço de acessório
+	// não cresce com o refino. Bracelete, Pingente, Brinco e Colar de Hércules e
+	// Hecate dão de 50 a 200 de Defesa; multiplicada por 3,7 no +15, um brinco
+	// passaria da defesa de um elmo. O que cresce ali é a porcentagem de dano.
+	if eff == efAc && d.itemPos[int(it.Index)] == nPosAcessorio1 {
+		return v
+	}
 	factor := d.refineFactor(it)
 	v = v * int32(factor) / 10
 	if eff == efRunSpeed {
@@ -2455,8 +2466,13 @@ func (d *Dispatcher) itemResist(it world.Item, i int) int32 {
 	return v * int32(d.refineFactor(it)) / 10
 }
 
-// nPosAcessorio4 é o quarto espaço de acessório: Ankhs, planetas, gemas, pedras.
-const nPosAcessorio4 = 2048
+// nPosAcessorio1 e nPosAcessorio4 são o primeiro e o quarto espaço de acessório:
+// anel, bracelete, pingente, brinco e colar no primeiro; Ankhs, planetas, gemas e
+// pedras no quarto.
+const (
+	nPosAcessorio1 = 256
+	nPosAcessorio4 = 2048
+)
 
 // weaponDamage is GetCurrentScore's WeaponDamage (CMob.cpp:756-789): the stronger
 // weapon hand at full damage plus the weaker at half (dual-wield), plus a +40 refine
@@ -2500,6 +2516,10 @@ type equipBonus struct {
 	hpAddPct, mpAddPct   int32
 	runSpeed             int32
 	attSpeed             int32
+
+	// danoFisicoPct/danoMagicoPct are the refine-scaled EF_DANOFISICO/EF_DANOMAGICO
+	// sums (reforma dos acessórios) — see effectiveDamage and resolveSkillHit.
+	danoFisicoPct, danoMagicoPct int32
 	// regenHP/regenMP are the EF_REGENHP/EF_REGENMP sums. They are NOT a score
 	// stat: the trickle reads them once every ten seconds, and regenMP doubles as
 	// the debuff-resist term in combat.
@@ -2580,6 +2600,10 @@ func (d *Dispatcher) equipBonus(e *world.Entity) equipBonus {
 			b.runSpeed += val
 		case efAttSpeed:
 			b.attSpeed += val
+		case efDanoFisico:
+			b.danoFisicoPct += val
+		case efDanoMagico:
+			b.danoMagicoPct += val
 		}
 	}
 	for slot := range e.Equip {
@@ -2673,6 +2697,8 @@ func (d *Dispatcher) refreshScore(e *world.Entity) {
 	e.MpAddPct = b.mpAddPct
 	e.RunSpeedBonus = b.runSpeed
 	e.AttackSpeedBonus = b.attSpeed
+	e.DanoFisicoPct = b.danoFisicoPct
+	e.DanoMagicoPct = b.danoMagicoPct
 	// Clamped to 0..255 as the legacy does before storing (Basedef.cpp:4657-4671):
 	// the field is an unsigned char there, and a negative sum would otherwise make
 	// the trickle drain and the resist roll easier.
@@ -2810,8 +2836,14 @@ func semNegativo(v int32) int32 {
 // DAMAGEMULTI additively; composing the two here diverges by a few points when both are up.
 func (d *Dispatcher) effectiveDamage(e *world.Entity) int32 {
 	dmg := e.Damage + e.AffDamage
-	if e.AffDamageMultiPct != 100 && e.AffDamageMultiPct > 0 {
-		dmg = dmg * e.AffDamageMultiPct / 100
+	// The gear percentage (reforma dos acessórios) joins the potions' DAMAGEMULTI
+	// instead of multiplying on top of it: a +5% potion and a +10% earring are +15%.
+	multi := e.AffDamageMultiPct
+	if multi > 0 {
+		multi += e.DanoFisicoPct
+	}
+	if multi != 100 && multi > 0 {
+		dmg = dmg * multi / 100
 	}
 	if e.HasAffect(world.AffectDivine) {
 		// (X/100)*20 + X, the legacy's quantised step (Basedef.cpp:4567) — not
@@ -2819,7 +2851,14 @@ func (d *Dispatcher) effectiveDamage(e *world.Entity) int32 {
 		// favour, and the whole economy was tuned against the legacy form.
 		dmg += (dmg / 100) * 20
 	}
-	dmg += d.weaponDamage(e)
+	// The legacy DAMAGEMULTI never reached the weapon; the gear percentage does, or
+	// the earring would be worth less the better the weapon — the opposite of what
+	// a percentage promises.
+	weapon := d.weaponDamage(e)
+	if e.DanoFisicoPct > 0 {
+		weapon = weapon * (100 + e.DanoFisicoPct) / 100
+	}
+	dmg += weapon
 	// SERVER RULE (combatrule.PhysicalDamagePct): the last step, so the number
 	// here is the one the character window shows and the one the blow uses. Only
 	// a PLAYER is scaled — this same function answers for monsters and summons

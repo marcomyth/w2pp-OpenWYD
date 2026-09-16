@@ -1031,7 +1031,11 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 		// effectiveDamage above already carries the multiplier, so skill 79 (the only
 		// branch reading Damage) must not be handed it twice — SkillBaseDamage applies
 		// this one only on the magic branch, which reads Magic and never Damage.
-		DamageMultiPct: d.spellDamageMultiPct(e),
+		//
+		// The Hecate accessories' percentage (reforma dos acessórios) joins it the same
+		// way it joins the potions: added to the multiplier, never multiplied on top.
+		DamageMultiPct: d.spellDamageMultiPct(e) + int(e.DanoMagicoPct),
+		DanoFisicoPct:  int(e.DanoFisicoPct),
 		// The client picks its branch from the character's face, and only a
 		// Mortal's face has %10 <= 5 — ClassMaster says the same thing without
 		// being fooled by a BM transformation swapping the face mid-fight.

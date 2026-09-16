@@ -406,6 +406,10 @@ type Entity struct {
 	// AttackSpeedBonus is the summed EF_ATTSPEED from equipped gear, refine-scaled
 	// (Basedef.cpp:3201), cached by refreshScore for the attack nibble of AttackRun.
 	AttackSpeedBonus int32
+	// DanoFisicoPct and DanoMagicoPct are the percentage damage the Hércules and
+	// Hecate accessories grant (reforma dos acessórios), refine-scaled and cached by
+	// refreshScore. Not legacy.
+	DanoFisicoPct, DanoMagicoPct int32
 
 	// Affect holds the active buffs/debuffs (STRUCT_AFFECT[32]). DivineEnd is the
 	// wall-clock (Unix seconds) deadline of the Divine buff — the source of truth for
