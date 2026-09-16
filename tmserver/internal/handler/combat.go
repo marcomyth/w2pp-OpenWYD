@@ -260,6 +260,10 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 
 	// Swinging drops Samaritano (_MSG_Attack.cpp:274), before the damage loop.
 	d.removeSamaritano(w, e)
+	// And Invisibilidade, for the same reason and at the same point; a melee swing
+	// out of it carries the sneak-attack multiplier into the first hit below
+	// (invisibilidade.go).
+	golpeFurtivo := d.sairDaInvisibilidadeAoAtacar(w, e, cast)
 
 	// Server-authoritative attack power = CurrentScore.Damage + the equipped weapon's
 	// damage, with the Divine buff's +20% folded in (effectiveDamage).
@@ -425,9 +429,25 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 				ParryRate:        d.parryRate(e, target),
 				TargetRsvBlock:   target.Rsv&world.RsvBlock != 0,
 			})
+			// The sneak attack multiplies ONE blow — the first target the swing
+			// resolves — and is spent whether that blow lands or misses.
+			if golpeFurtivo > 0 {
+				if dmg > 0 {
+					dmg *= golpeFurtivo
+					sendClientMessage(w, s, fmt.Sprintf(msgGolpeFurtivo, golpeFurtivo))
+				}
+				d.log.Info("invisibilidade: golpe furtivo", "conn", s.Conn, "account", s.AccountName,
+					"multiplicador", golpeFurtivo, "dano", dmg, "target", tid)
+				golpeFurtivo = 0
+			}
 			dmg, airBlade = d.applyAirBladeProc(w, e, target, h.Type, &body, payload, dmg)
 		}
 		if dmg > 0 {
+			// Being struck ends Invisibilidade (invisibilidade.go). Positive damage
+			// only: a party heal or buff aimed at the Huntress must not reveal her.
+			if pvpHit {
+				d.revelarInvisivel(w, target)
+			}
 			// The legacy PvP block (pvp.go): every blow on a player or a summon keeps
 			// a quarter ("Perfuração"), and the panel's PvP share rides on top.
 			dmg = perfuracao(target, tid, dmg, airBlade)
@@ -661,6 +681,14 @@ func (d *Dispatcher) validateCast(w *world.World, s *world.Session, e *world.Ent
 				"conn", s.Conn, "account", s.AccountName, "skill", skillnum,
 				"need_bit", learnedSkillBit(skillnum), "mask", e.LearnedSkill)
 			w.AddCrackError(s, 8, 10)
+			return castInfo{}, false
+		}
+	}
+	// Invisibilidade has an 80 s cooldown of its own (invisibilidade.go). It is
+	// checked before mana is charged, so a refused cast costs nothing.
+	if skillnum == skillInvisibilidade {
+		if falta := d.invisRecargaRestante(s, w.Now()); falta > 0 {
+			sendClientMessage(w, s, textoRecargaInvis(falta))
 			return castInfo{}, false
 		}
 	}
@@ -922,6 +950,9 @@ func (d *Dispatcher) applyCastAffect(w *world.World, e, target *world.Entity, ti
 	}
 	if !applied {
 		return
+	}
+	if sp.AffectType == affectInvisibilidade && world.IsPlayer(tid) {
+		d.armarInvisibilidade(w, target)
 	}
 	// Affect 29 (Limite da Alma, skill 102) multiplies attributes by the
 	// character's CONFIGURED Soul — every branch of the legacy reads extra.Soul

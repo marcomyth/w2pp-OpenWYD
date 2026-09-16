@@ -110,6 +110,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.guardCampoDeTreino(w)
 	d.regenPlayers(w)
 	d.sweepAffects(w)
+	d.sweepInvisibilidade(w)
 	d.sweepMobAffects(w) // ProcessAffect for monsters (mobskill.go)
 	d.sweepGuilty(w)
 	d.sweepDuelInvites(w)
@@ -811,6 +812,9 @@ func (d *Dispatcher) mobAttack(w *world.World, id int, e, target *world.Entity) 
 	}
 	dmg := d.danoDoGolpeDeMonstro(w, e, target)
 	if dmg > 0 {
+		if world.IsPlayer(target.ID) {
+			d.revelarInvisivel(w, target) // apanhar encerra a Invisibilidade (invisibilidade.go)
+		}
 		target.HP -= int32(dmg)
 		if target.HP < 0 {
 			target.HP = 0

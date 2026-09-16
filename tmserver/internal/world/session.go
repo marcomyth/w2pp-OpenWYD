@@ -413,6 +413,14 @@ type Entity struct {
 	Affect    [MaxAffect]Affect
 	DivineEnd int64
 
+	// InvisivelDesde is the server clock (World.Now, ms) at which the Huntress's
+	// Invisibilidade landed, and InvisivelAtiva says the clock is running. The
+	// affect slot is only the icon: the 10 s the skill lasts are shorter than one
+	// 8 s affect sweep can measure, so the handler expires it from this clock
+	// (handler/invisibilidade.go).
+	InvisivelDesde uint32
+	InvisivelAtiva bool
+
 	// Rsv is the MOB.Rsv state-flag byte (RSV_HASTE/BLOCK/…), recomputed from
 	// the active affects by refreshScore. The affect score contributions (Aff*)
 	// are cached the same way and applied at READ time (effective getters), so
