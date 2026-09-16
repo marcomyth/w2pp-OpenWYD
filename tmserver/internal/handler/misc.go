@@ -168,6 +168,14 @@ func (d *Dispatcher) quest(w *world.World, s *world.Session, _ protocol.Header, 
 		d.treinadorDoCampo(w, s, e, npc, passo)
 		return
 	}
+	// SOBREVIVENTE (_MSG_Quest.cpp:85-86): o porteiro do Hall do Kefra. Roteia
+	// pelo byte 17, como o legado, e não pelo 104 dos ramos de grau abaixo: a
+	// ficha dele tem 100 no 17 e 68 (GODGOVERNMENT) no 104, então por aqueles
+	// ramos ele nunca casava e o clique nele não fazia nada.
+	if npc.MobMerchant == 100 && npc.Grade == gradeSobrevivente {
+		d.sobreviventeDoKefra(w, s, e)
+		return
+	}
 	// QUEST_COVEIRO (Merchant 100, EF_GRADE0 0): step 1 of the Quest 256 chain.
 	// Grade is also 0 for Merchant-100 templates without EF_GRADE0; routing those
 	// here matches BASE_GetItemAbilityNosanc in the legacy server.

@@ -284,6 +284,11 @@ func (d *Dispatcher) reqTeleport(w *world.World, s *world.Session, _ protocol.He
 		d.notify(w, s, NoticeOnlyByWaterScroll)
 		return
 	}
+	// O piso do Hall do Kefra não é rota de tabela: só anda com entrada no bolso,
+	// e por isso fica fora da teleportTable, que é consulta pura (kefra_hall.go).
+	if d.entraNoHallDoKefra(w, s, e) {
+		return
+	}
 	destX, destY, cost, ok := world.TeleportDest(e.X, e.Y)
 	if !ok {
 		return // no teleport tile here
