@@ -18,8 +18,12 @@ import (
 // the arch with fifteen minutes on the clock. One party at a time, server-wide,
 // like the Sala Secreta: the castle, its blocks and the sweep are shared.
 //
-// It ends on the clock, two minutes after the Grão-Lorde falls (the loot
-// window), or a minute after the last member left the castle. Then the quest's
+// The Grão-Lorde does not rise with the rest: he comes after the party brings
+// down 100 of the quest's orcs, as in the Acampamento Troll (the team's call,
+// 16/09/2026).
+//
+// It ends on the clock, a few seconds after the Grão-Lorde falls, or a minute
+// after the last member left the castle. Then the quest's
 // monsters go, whoever is still inside is sent back to the /erion landing, and
 // the open-world orcs refill on their own generator timers.
 //
@@ -35,10 +39,18 @@ const (
 	itemChaveCasteloOrc = 465
 	gradeCasteloOrc     = 40 // the Xamã Orc's EF_GRADE0 (Merchant 100); no shipped template uses 40
 
-	casteloOrcRunSeconds  = 15 * 60
-	casteloOrcLootSeconds = 2 * 60
-	// casteloOrcFollowerEvery is how often the Guarda do Lorde block is topped
-	// back up while a run is on: the last room is meant to be farmed.
+	casteloOrcRunSeconds = 15 * 60
+	// casteloOrcLootSeconds is what is left after the Grão-Lorde falls: killing
+	// him ends the run. The drop goes straight to the bag (putMobDrop), so the
+	// seconds are only for the party to see him fall and read the notice.
+	casteloOrcLootSeconds = 5
+	// casteloOrcBossAfterKills is how many of the quest's orcs bring the
+	// Grão-Lorde; casteloOrcKillsNotice, how often the party hears the count.
+	casteloOrcBossAfterKills = 100
+	casteloOrcKillsNotice    = 25
+	// casteloOrcFollowerEvery is how often the Guarda do Lorde and the troop
+	// blocks are topped back up while a run is on: the 60 troops the castle opens
+	// with do not reach 100 kills. The three gate guardians do not come back.
 	casteloOrcFollowerEvery = 30
 	// casteloOrcAbandonSeconds ends a run nobody is in any more, so a party that
 	// walked away does not hold the castle for the rest of its fifteen minutes.
@@ -54,6 +66,9 @@ const (
 	casteloOrcNPCTemplate = "COrc_Xama"
 	casteloOrcBossGen     = world.CasteloOrcGenFirst
 	casteloOrcFollowerGen = world.CasteloOrcGenFirst + 1
+	// casteloOrcTroopFirst is the first of the twelve troop blocks, after the
+	// boss, the followers and the three guardians.
+	casteloOrcTroopFirst = world.CasteloOrcGenFirst + 5
 )
 
 // casteloOrcBox is the castle the run owns: every spawn of the old castle blocks
@@ -89,6 +104,8 @@ type casteloOrcRun struct {
 	party         []int // player conns admitted at the start
 	leaderName    string
 	bossDown      bool
+	bossUp        bool // the Grão-Lorde has risen in this run
+	kills         int  // quest orcs brought down, the boss aside
 	emptyFor      int
 	sinceFollower int
 }
@@ -180,16 +197,10 @@ func (d *Dispatcher) openCasteloOrc(w *world.World, e *world.Entity) {
 
 	spawned := 0
 	for idx := world.CasteloOrcGenFirst; idx <= world.CasteloOrcGenLast; idx++ {
-		// A troop block is filled to its cap group by group; GenerateMob returns
-		// nothing once the cap is reached. The bound is only a backstop.
-		for range 10 {
-			ids := w.GenerateMob(idx)
-			if len(ids) == 0 {
-				break
-			}
-			d.revealSpawned(w, ids)
-			spawned += len(ids)
+		if idx == casteloOrcBossGen {
+			continue // he comes with the kills (casteloOrcMobKilled)
 		}
+		spawned += d.encherBloco(w, idx)
 	}
 
 	for _, conn := range party {
@@ -202,7 +213,7 @@ func (d *Dispatcher) openCasteloOrc(w *world.World, e *world.Entity) {
 			}
 			d.doTeleport(w, s, x, y)
 			d.sendCasteloOrcCountdown(w, s)
-			sendClientMessage(w, s, "Castelo Orc: 15 minutos. Derrube o Grão-Lorde.")
+			sendClientMessage(w, s, "Castelo Orc: 15 minutos. Derrube 100 orcs e o Grão-Lorde aparece.")
 		}
 	}
 	d.log.Info("castelo orc started", "leader", e.Name, "party", len(party), "mobs", spawned)
@@ -288,6 +299,9 @@ func (d *Dispatcher) tickCasteloOrc(w *world.World) {
 	if r.sinceFollower >= casteloOrcFollowerEvery {
 		r.sinceFollower = 0
 		d.revealSpawned(w, w.GenerateMob(casteloOrcFollowerGen))
+		for idx := casteloOrcTroopFirst; idx <= world.CasteloOrcGenLast; idx++ {
+			d.encherBloco(w, idx)
+		}
 	}
 
 	inside := false
@@ -309,19 +323,48 @@ func (d *Dispatcher) tickCasteloOrc(w *world.World) {
 	}
 }
 
-// casteloOrcBossKilled cuts the clock to the loot window. It runs before the
-// despawn, like the other boss hooks.
-func (d *Dispatcher) casteloOrcBossKilled(w *world.World, mob *world.Entity) {
+// casteloOrcMobKilled counts a quest orc that fell. The Grão-Lorde ends the run;
+// the others add up to bring him. It runs before the despawn, like the other
+// boss hooks.
+func (d *Dispatcher) casteloOrcMobKilled(w *world.World, mob *world.Entity) {
 	r := &d.casteloOrc
-	if !r.active || r.bossDown || mob == nil || int(mob.GenIndex) != casteloOrcBossGen {
+	if !r.active || mob == nil || !world.IsCasteloOrcGenerator(int(mob.GenIndex)) {
+		return
+	}
+	if int(mob.GenIndex) != casteloOrcBossGen {
+		d.casteloOrcCountKill(w)
+		return
+	}
+	if r.bossDown {
 		return
 	}
 	r.bossDown = true
 	if r.secondsLeft > casteloOrcLootSeconds {
 		r.secondsLeft = casteloOrcLootSeconds
 	}
-	d.broadcastCasteloOrcCountdown(w, "O Grão-Lorde caiu! 2 minutos para o saque.")
+	d.broadcastCasteloOrcCountdown(w, "O Grão-Lorde caiu! A corrida terminou.")
 	d.log.Info("castelo orc boss down", "leader", r.leaderName)
+}
+
+// casteloOrcCountKill adds a kill and, on the count, raises the Grão-Lorde in his
+// own block. Once he is up the count stops: the castle has one boss.
+func (d *Dispatcher) casteloOrcCountKill(w *world.World) {
+	r := &d.casteloOrc
+	if r.bossUp {
+		return
+	}
+	r.kills++
+	if r.kills < casteloOrcBossAfterKills {
+		if r.kills%casteloOrcKillsNotice == 0 {
+			d.broadcastCasteloOrcCountdown(w, fmt.Sprintf("Castelo Orc: %d de %d orcs derrubados.", r.kills, casteloOrcBossAfterKills))
+		}
+		return
+	}
+	r.bossUp = true
+	ids := w.GenerateMob(casteloOrcBossGen)
+	d.revealSpawned(w, ids)
+	d.broadcastCasteloOrcCountdown(w, "O Grão-Lorde Orc apareceu!")
+	d.log.Info("castelo orc boss up", "leader", r.leaderName, "kills", r.kills, "ids", len(ids))
 }
 
 // endCasteloOrc takes the quest's monsters away and empties the castle.

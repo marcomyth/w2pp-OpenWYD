@@ -66,7 +66,9 @@ próprios), item que o cliente já conhece. A migração tira a chave de todo mo
   - os orcs do castelo aberto (blocos 373–394 e 402–497) saem e não renascem até o
     fim;
   - quem não é do grupo e está dentro vai para a chegada do `/erion`;
-  - nascem o boss, os 4 seguidores, os 3 guardiões e 60 de tropa;
+  - nascem os 4 seguidores, os 3 guardiões e 60 de tropa. O Grão-Lorde não:
+    desde 16/09 ele nasce no trono depois de 100 orcs da quest derrubados, com
+    aviso a cada 25;
   - o portão continua fechado;
   - o grupo cai sob o arco do Portão Sul (2494,2128), cada um numa casa livre,
     com o contador de 15 min. Até 11/09 caía em (2446,2134), que fica fora da
@@ -74,8 +76,10 @@ próprios), item que o cliente já conhece. A migração tira a chave de todo mo
 - **Durante:**
   - quem não é do grupo não entra no castelo andando;
   - o Pedido de Caça não leva estranhos para dentro (os warps 2 e 3 caem lá);
-  - os seguidores voltam a cada 30 s, para a última sala render saque.
-- **Fim:** aos 15 min; 2 min depois que o Grão-Lorde cai (o tempo de saque); ou 1
+  - os seguidores e a tropa voltam a cada 30 s (os 60 da abertura não chegam aos
+    100 abates); os guardiões não voltam.
+- **Fim:** aos 15 min; 5 s depois que o Grão-Lorde cai (o saque vai direto para a
+  bolsa, então não há tempo de coleta a guardar); ou 1
   min depois que ninguém do grupo está mais no castelo. Os monstros da quest somem,
   quem estiver dentro volta para o `/erion` e os orcs do castelo aberto renascem
   pelos próprios timers.

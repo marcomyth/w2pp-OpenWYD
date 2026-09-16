@@ -129,8 +129,8 @@ func TestCasteloOrcChaveAbreOCastelo(t *testing.T) {
 	if live(w, 402) != 0 {
 		t.Error("os orcs do castelo aberto ficaram lá dentro")
 	}
-	if live(w, casteloOrcBossGen) != 1 || live(w, casteloOrcFollowerGen) != 4 {
-		t.Errorf("boss %d, seguidores %d; want 1 e 4", live(w, casteloOrcBossGen), live(w, casteloOrcFollowerGen))
+	if live(w, casteloOrcBossGen) != 0 || live(w, casteloOrcFollowerGen) != 4 {
+		t.Errorf("boss %d, seguidores %d; want 0 (vem pelos abates) e 4", live(w, casteloOrcBossGen), live(w, casteloOrcFollowerGen))
 	}
 	for gen := casteloOrcBossGen + 5; gen <= world.CasteloOrcGenLast; gen++ {
 		if live(w, gen) != 5 {
@@ -199,12 +199,30 @@ func TestCasteloOrcPedidoDeCacaNaoFuraACorrida(t *testing.T) {
 	}
 }
 
-// The boss down cuts the clock to the loot window; the clock running out ends
-// the run and takes the quest's monsters with it.
+// The Grão-Lorde rises on the 100th kill, and only then; his fall cuts the clock
+// to a few seconds, and the clock running out ends the run and takes the quest's
+// monsters with it.
 func TestCasteloOrcBossETempo(t *testing.T) {
 	d, w, s, e := casteloOrcFixture(t)
 	e.Carry[0] = world.Item{Index: itemChaveCasteloOrc}
 	d.casteloOrcQuestNPC(w, s, e, raiseXama(t, d, w))
+	tropa := &world.Entity{GenIndex: int16(casteloOrcTroopFirst)}
+	fora := &world.Entity{GenIndex: 402} // um orc do castelo aberto não conta
+	d.casteloOrcMobKilled(w, fora)
+	for range casteloOrcBossAfterKills - 1 {
+		d.casteloOrcMobKilled(w, tropa)
+	}
+	if live(w, casteloOrcBossGen) != 0 || d.casteloOrc.kills != casteloOrcBossAfterKills-1 {
+		t.Fatalf("com %d abates: boss %d; want 0", d.casteloOrc.kills, live(w, casteloOrcBossGen))
+	}
+	d.casteloOrcMobKilled(w, tropa)
+	if live(w, casteloOrcBossGen) != 1 || !d.casteloOrc.bossUp {
+		t.Fatalf("no abate %d o boss não nasceu (vivos %d)", casteloOrcBossAfterKills, live(w, casteloOrcBossGen))
+	}
+	d.casteloOrcMobKilled(w, tropa)
+	if live(w, casteloOrcBossGen) != 1 {
+		t.Fatalf("abate depois do boss levantou outro: vivos %d", live(w, casteloOrcBossGen))
+	}
 	var boss *world.Entity
 	w.ForEachMob(func(_ int, m *world.Entity) {
 		if int(m.GenIndex) == casteloOrcBossGen {
@@ -214,7 +232,7 @@ func TestCasteloOrcBossETempo(t *testing.T) {
 	if boss == nil {
 		t.Fatal("o boss não está no mundo")
 	}
-	d.casteloOrcBossKilled(w, boss)
+	d.casteloOrcMobKilled(w, boss)
 	if !d.casteloOrc.bossDown || d.casteloOrc.secondsLeft != casteloOrcLootSeconds {
 		t.Fatalf("depois do boss: %+v, want %d s de saque", d.casteloOrc, casteloOrcLootSeconds)
 	}
@@ -244,6 +262,32 @@ func TestCasteloOrcSeguidoresRenascem(t *testing.T) {
 	d.tickCasteloOrc(w)
 	if live(w, casteloOrcFollowerGen) == 0 {
 		t.Error("os seguidores não renasceram")
+	}
+}
+
+// The troop comes back with the followers — the 60 the castle opens with do not
+// reach the 100 kills — and the gate guardians do not.
+func TestCasteloOrcTropaRenasceGuardiaoNao(t *testing.T) {
+	d, w, s, e := casteloOrcFixture(t)
+	e.Carry[0] = world.Item{Index: itemChaveCasteloOrc}
+	d.casteloOrcQuestNPC(w, s, e, raiseXama(t, d, w))
+	for gen := casteloOrcBossGen + 2; gen <= world.CasteloOrcGenLast; gen++ {
+		w.ClearGenerator(gen)
+	}
+	d.casteloOrc.sinceFollower = casteloOrcFollowerEvery - 1
+	d.tickCasteloOrc(w)
+	for gen := casteloOrcTroopFirst; gen <= world.CasteloOrcGenLast; gen++ {
+		if live(w, gen) != 5 {
+			t.Errorf("tropa %d com %d, want 5", gen, live(w, gen))
+		}
+	}
+	for gen := casteloOrcBossGen + 2; gen < casteloOrcTroopFirst; gen++ {
+		if live(w, gen) != 0 {
+			t.Errorf("guardião %d renasceu", gen)
+		}
+	}
+	if live(w, casteloOrcBossGen) != 0 {
+		t.Error("o boss nasceu pelo relógio, sem os abates")
 	}
 }
 
