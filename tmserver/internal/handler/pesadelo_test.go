@@ -699,7 +699,7 @@ func TestTickPesadeloDespawnsMonsters(t *testing.T) {
 
 // The entry ladder, class and level together. The legacy gates on class alone;
 // the caps are a server rule mirroring the Pergaminho da Água, so this table IS
-// the specification — Mortal runs N from 351 to 400, Arch runs M to 400, a Celestial
+// the specification — Mortal runs N from 350 to 400, Arch runs M to 400, a Celestial
 // borrows M only while under 40, and Arcano is Celestial-only up to 150, after
 // which the progression moves to the Água A chain.
 func TestPesadeloEntryLadder(t *testing.T) {
