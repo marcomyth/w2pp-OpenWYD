@@ -11,7 +11,7 @@ type teleRoute struct {
 // destination + gold cost. It is GetTeleportPosition (GetFunc.cpp:782-1026) minus
 // its two CONDITIONAL routes, which a table lookup cannot express: the Kefra Hall
 // floor only moves a player who carries an entry (handler/kefra_hall.go), and the
-// desert route only opens once the Kefra has been DEFEATED (not ported yet).
+// desert route only opens once the Kefra has been DEFEATED (handler/kefra.go).
 //
 // Mind that legacy flag's name, which says the opposite of what it holds:
 // KefraLive == 0 is the boss ALIVE. On 0 the /kefra command answers that he still

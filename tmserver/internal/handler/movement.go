@@ -289,6 +289,11 @@ func (d *Dispatcher) reqTeleport(w *world.World, s *world.Session, _ protocol.He
 	if d.entraNoHallDoKefra(w, s, e) {
 		return
 	}
+	// O piso do deserto é a outra rota com condição: só abre depois de o Kefra cair
+	// (kefra.go). Mesmo motivo do piso acima para ficar fora da teleportTable.
+	if d.entraNoDesertoDoKefra(w, s, e) {
+		return
+	}
 	destX, destY, cost, ok := world.TeleportDest(e.X, e.Y)
 	if !ok {
 		return // no teleport tile here

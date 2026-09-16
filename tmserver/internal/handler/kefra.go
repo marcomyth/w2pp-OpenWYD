@@ -125,6 +125,54 @@ func (d *Dispatcher) destinoDoComandoKefra() (dest [2]int16, avisa bool) {
 	return kefraZonaPos, true
 }
 
+// O piso do deserto, a outra porta da cidade. Irmão do piso do Hall
+// (kefra_hall.go): os dois são rota com condição, que consulta de tabela não
+// expressa, e por isso nenhum dos dois está na teleportTable.
+//
+// CUIDADO: os dois pisos têm o MESMO x, 2364, e diferem só no y — 3892 é o Hall e
+// 3924 é o deserto. São checagens separadas de propósito; juntá-las numa só abriria
+// a cidade a quem pisou no Hall.
+const (
+	kefraDesertoPisoX = 2364
+	kefraDesertoPisoY = 3924
+	kefraDesertoDestX = 3250
+	kefraDesertoDestY = 1703
+)
+
+// noPisoDoDesertoDoKefra diz se a posição está no bloco de 4x4 do piso do deserto.
+// O legado arredonda a posição para múltiplo de 4 antes de comparar
+// (`xv = (*x) & 0xFFFC`, GetFunc.cpp:784-785), então é bloco e não casa.
+func noPisoDoDesertoDoKefra(x, y int16) bool {
+	return x&^3 == kefraDesertoPisoX && y&^3 == kefraDesertoPisoY
+}
+
+// destinoDoDesertoDoKefra sorteia onde o jogador cai, com o espalhamento de três
+// casas de toda rota do legado (`3250 + rand() % 3`, GetFunc.cpp:1009-1010).
+func destinoDoDesertoDoKefra(intn func(int) int) (int16, int16) {
+	return kefraDesertoDestX + int16(intn(3)), kefraDesertoDestY + int16(intn(3))
+}
+
+// entraNoDesertoDoKefra é o piso do deserto. Devolve true quando o piso é dele — aí
+// o chamador não procura mais rota nenhuma.
+//
+// A condição do legado é `KefraLive != 0` (GetFunc.cpp:1007), e vale lembrar que o
+// nome mente: essa variável guarda a MORTE do chefe, então a rota abre com ele
+// DERROTADO. Com o chefe de pé, pisar não faz nada e não diz nada, porque no
+// original a posição simplesmente não casa com rota alguma.
+//
+// LOOP ONLY.
+func (d *Dispatcher) entraNoDesertoDoKefra(w *world.World, s *world.Session, e *world.Entity) bool {
+	if !noPisoDoDesertoDoKefra(e.X, e.Y) {
+		return false
+	}
+	if !d.expEvents.KefraLive {
+		return true // chefe vivo: o piso é nosso, e não leva a lugar nenhum
+	}
+	x, y := destinoDoDesertoDoKefra(w.Rand().Intn)
+	d.doTeleport(w, s, x, y)
+	return true
+}
+
 // kefraClanConta diz se a morte conta para quem bateu. O legado trata Clan fora
 // de {0,4,7,8} noutro ramo, que só REMOVE o monstro e nem chega ao bloco do Kefra
 // (MobKilled.cpp:1437-1438): sem estado, sem fama, sem aviso e sem saque.
