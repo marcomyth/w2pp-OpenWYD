@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -80,35 +81,56 @@ func rollText(roll, chance int) string {
 //
 // acao is the infinitive clause ("passar Espada para +10", "compor X"), so every
 // machine reads the same way and a new one is one call, not a new template.
-func (d *Dispatcher) announceRoll(w *world.World, name, acao string, roll, chance int, success bool) {
+//
+// chance is the one the roll compared against, the Huntress's Alquimia already
+// in it (alquimia.go), and bonus is how many of its points the Alquimia added.
+// With a bonus the line says so right after the number — "30/43 (+2 Alquimia)"
+// — so nobody reads 43 as the machine's chance; without one it is unchanged.
+func (d *Dispatcher) announceRoll(w *world.World, name, acao string, roll, chance, bonus int, success bool) {
 	if name == "" {
 		return
 	}
-	if success {
-		broadcastNotice(w, fmt.Sprintf("%s conseguiu em %s %s!", name, rollText(roll, chance), acao))
-	} else {
-		broadcastNotice(w, fmt.Sprintf("%s falhou em %s ao %s.", name, rollText(roll, chance), acao))
+	broadcastNotice(w, rollLine(name, acao, roll, chance, bonus, success))
+	d.log.Info("announce machine roll", "name", name, "acao", acao, "roll", roll, "chance", chance, "alquimia", bonus, "success", success)
+}
+
+// rollLine builds announceRoll's text. When the Alquimia's mark pushes the line
+// past the panel, the mark shrinks to "(+2 Alq.)" rather than let the client cut
+// the item's name off the end.
+func rollLine(name, acao string, roll, chance, bonus int, success bool) string {
+	build := func(marca string) string {
+		if success {
+			return fmt.Sprintf("%s conseguiu em %s%s %s!", name, rollText(roll, chance), marca, acao)
+		}
+		return fmt.Sprintf("%s falhou em %s%s ao %s.", name, rollText(roll, chance), marca, acao)
 	}
-	d.log.Info("announce machine roll", "name", name, "acao", acao, "roll", roll, "chance", chance, "success", success)
+	if bonus <= 0 {
+		return build("")
+	}
+	line := build(marcaAlquimia(bonus, false))
+	if len(protocol.ClientText(line)) > anuncioPainelMax {
+		line = build(marcaAlquimia(bonus, true))
+	}
+	return line
 }
 
 // announceMais10 is the +10 machine's (Ailyn) line.
-func (d *Dispatcher) announceMais10(w *world.World, name string, item int16, roll, chance int, success bool) {
-	d.announceRoll(w, name, "passar "+d.itemName(item)+" para +10", roll, chance, success)
+func (d *Dispatcher) announceMais10(w *world.World, name string, item int16, roll, chance, bonus int, success bool) {
+	d.announceRoll(w, name, "passar "+d.itemName(item)+" para +10", roll, chance, bonus, success)
 }
 
 // announceComposicao is the compositor's line. item is what the combine makes —
 // on a failure, what it would have made — because "compor Espada Anciente" is
 // the news, not the name of the +9 that went into it.
-func (d *Dispatcher) announceComposicao(w *world.World, name string, item int16, roll, chance int, success bool) {
-	d.announceRoll(w, name, "compor "+d.itemName(item), roll, chance, success)
+func (d *Dispatcher) announceComposicao(w *world.World, name string, item int16, roll, chance, bonus int, success bool) {
+	d.announceRoll(w, name, "compor "+d.itemName(item), roll, chance, bonus, success)
 }
 
 // announceAgatha is the ADD machine's line. It names the item that receives the
 // ADD and never the ADD itself: which bonus a player just moved onto their
 // weapon is theirs to show, not the server's to publish.
-func (d *Dispatcher) announceAgatha(w *world.World, name string, item int16, roll, chance int, success bool) {
-	d.announceRoll(w, name, "passar o ADD para "+d.itemName(item), roll, chance, success)
+func (d *Dispatcher) announceAgatha(w *world.World, name string, item int16, roll, chance, bonus int, success bool) {
+	d.announceRoll(w, name, "passar o ADD para "+d.itemName(item), roll, chance, bonus, success)
 }
 
 // announceSemSorteio is for a machine that did not roll — the Lindy with no

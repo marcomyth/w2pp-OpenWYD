@@ -106,9 +106,10 @@ func (d *Dispatcher) combineItemAilyn(w *world.World, s *world.Session, _ protoc
 	}
 	e.Coin -= ailynCost
 	d.sendEtc(w, s, e)
+	rate, alq := chanceComAlquimia(e, rate)
 	roll, success := combine.Roll(w.Rand(), rate)
 	if !success {
-		d.announceMais10(w, e.Name, it[0].Index, roll, rate, false)
+		d.announceMais10(w, e.Name, it[0].Index, roll, rate, alq, false)
 		sendCombineComplete(w, s, combineFailed)
 		return
 	}
@@ -121,7 +122,7 @@ func (d *Dispatcher) combineItemAilyn(w *world.World, s *world.Session, _ protoc
 	e.Carry[sl[0]] = result
 	e.Carry[sl[1]] = world.Item{}
 	sendCarrySlot(w, s, e, sl[1])
-	d.announceMais10(w, e.Name, result.Index, roll, rate, true)
+	d.announceMais10(w, e.Name, result.Index, roll, rate, alq, true)
 	sendCombineComplete(w, s, combineSuccess)
 	sendCarrySlot(w, s, e, sl[0])
 }
@@ -144,6 +145,9 @@ func (d *Dispatcher) combineItemTiny(w *world.World, s *world.Session, _ protoco
 		d.refuseCombine(w, s, msgPilhaSemEspaco)
 		return
 	}
+	// A Alquimia entra depois da grade×5 que MatchTiny já somou, sobre a chance
+	// que de fato vai ao sorteio, e o teto 100 vale para a soma inteira.
+	rate, _ = chanceComAlquimia(e, rate)
 	if _, success := combine.Roll(w.Rand(), rate); !success {
 		e.Carry[sl[0]] = world.Item{}
 		sendCarrySlot(w, s, e, sl[0])
@@ -176,9 +180,10 @@ func (d *Dispatcher) combineItemAgatha(w *world.World, s *world.Session, _ proto
 		d.refuseCombine(w, s, msgPilhaSemEspaco)
 		return
 	}
+	rate, alq := chanceComAlquimia(e, rate)
 	roll, success := combine.Roll(w.Rand(), rate)
 	if !success {
-		d.announceAgatha(w, e.Name, it[0].Index, roll, rate, false)
+		d.announceAgatha(w, e.Name, it[0].Index, roll, rate, alq, false)
 		sendCombineComplete(w, s, combineFailed)
 		return
 	}
@@ -188,7 +193,7 @@ func (d *Dispatcher) combineItemAgatha(w *world.World, s *world.Session, _ proto
 	e.Carry[sl[0]] = result
 	e.Carry[sl[1]] = world.Item{}
 	sendCarrySlot(w, s, e, sl[1])
-	d.announceAgatha(w, e.Name, result.Index, roll, rate, true)
+	d.announceAgatha(w, e.Name, result.Index, roll, rate, alq, true)
 	sendCombineComplete(w, s, combineSuccess)
 	sendCarrySlot(w, s, e, sl[0])
 }
@@ -206,7 +211,8 @@ func (d *Dispatcher) combineItemShany(w *world.World, s *world.Session, _ protoc
 		d.refuseCombine(w, s, msgPilhaSemEspaco)
 		return
 	}
-	if _, success := combine.Roll(w.Rand(), d.machineKeyRate("Shany", "ChanceBase", d.compRate.ChanceBase("Shany"))); !success {
+	rate, _ := chanceComAlquimia(e, d.machineKeyRate("Shany", "ChanceBase", d.compRate.ChanceBase("Shany")))
+	if _, success := combine.Roll(w.Rand(), rate); !success {
 		combineLost(w, s)
 		return
 	}
@@ -235,18 +241,18 @@ func (d *Dispatcher) combineItemAlquimia(w *world.World, s *world.Session, _ pro
 		d.refuseCombine(w, s, msgPilhaSemEspaco)
 		return
 	}
-	rate := d.huntressChance("Alquimia", e)
+	rate, alq := chanceComAlquimia(e, d.huntressChance("Alquimia", e))
 	result := int16(3200 + id)
 	acao := "criar " + d.itemName(result)
 	roll, success := combine.Roll(w.Rand(), rate)
 	if !success {
-		d.announceRoll(w, e.Name, acao, roll, rate, false)
+		d.announceRoll(w, e.Name, acao, roll, rate, alq, false)
 		sendCombineComplete(w, s, combineFailed)
 		return
 	}
 	e.Carry[sl[0]] = world.Item{Index: result}
 	sendCarrySlot(w, s, e, sl[0])
-	d.announceRoll(w, e.Name, acao, roll, rate, true)
+	d.announceRoll(w, e.Name, acao, roll, rate, alq, true)
 	sendCombineComplete(w, s, combineSuccess)
 }
 
@@ -293,12 +299,15 @@ func (d *Dispatcher) combineItemLindy(w *world.World, s *world.Session, _ protoc
 	// unlock.
 	acao := fmt.Sprintf("destravar o nível %d com a Lindy", questLevel+1)
 	chance, rolls := d.lindyChance()
-	roll := 0
+	roll, alq := 0, 0
 	if rolls {
+		// A Alquimia só pega quando há sorteio: sem linha na Mesa o destrave é
+		// certo e não gasta rand(), e continua assim.
+		chance, alq = chanceComAlquimia(e, chance)
 		var success bool
 		roll, success = combine.Roll(w.Rand(), chance)
 		if !success {
-			d.announceRoll(w, e.Name, acao, roll, chance, false)
+			d.announceRoll(w, e.Name, acao, roll, chance, alq, false)
 			sendCombineComplete(w, s, combineFailed)
 			return
 		}
@@ -354,7 +363,7 @@ func (d *Dispatcher) combineItemLindy(w *world.World, s *world.Session, _ protoc
 	// The whole server hears it, the player included — in place of the legacy's
 	// private "processo concluído" line.
 	if rolls {
-		d.announceRoll(w, e.Name, acao, roll, chance, true)
+		d.announceRoll(w, e.Name, acao, roll, chance, alq, true)
 	} else {
 		d.announceSemSorteio(w, e.Name, fmt.Sprintf("destravou o nível %d com a Lindy", questLevel+1))
 	}
@@ -461,6 +470,9 @@ func (d *Dispatcher) combineItemEhre(w *world.World, s *world.Session, _ protoco
 		d.sendEtc(w, s, e)
 		d.sendScore(w, s, e)
 	}
+	// A Alquimia pega todas as receitas do Ehre, a 5 inclusive, sobre a chance
+	// já resolvida (arquivo, Mesa ou a tabela por nível da 5).
+	rate, _ = chanceComAlquimia(e, rate)
 	if _, success := combine.Roll(w.Rand(), rate); !success {
 		if id == 5 {
 			e.Carry[sl[2]] = it[2]

@@ -171,18 +171,19 @@ func (d *Dispatcher) combineItem(w *world.World, s *world.Session, h protocol.He
 		sendCarrySlot(w, s, e, sl)
 	}
 
+	rate, alq := chanceComAlquimia(e, rate)
 	roll, success := combine.Roll(w.Rand(), rate)
 	if !success {
 		// Apply is pure — it only builds the result — so naming what the roll
 		// would have made costs nothing and draws nothing from the RNG.
-		d.announceComposicao(w, e.Name, fam.Apply(items).Index, roll, rate, false)
+		d.announceComposicao(w, e.Name, fam.Apply(items).Index, roll, rate, alq, false)
 		sendCombineComplete(w, s, combineFailed)
 		return
 	}
 
 	ipos := slotByPos[active[0]]
 	e.Carry[ipos] = fam.Apply(items)
-	d.announceComposicao(w, e.Name, e.Carry[ipos].Index, roll, rate, true)
+	d.announceComposicao(w, e.Name, e.Carry[ipos].Index, roll, rate, alq, true)
 	sendCombineComplete(w, s, combineSuccess)
 	sendCarrySlot(w, s, e, ipos)
 }
@@ -233,12 +234,12 @@ func (d *Dispatcher) combineExtracao(w *world.World, s *world.Session, _ protoco
 	if roll > 100 {
 		roll -= 15
 	}
-	rate := d.huntressChance("Extracao", e)
+	rate, alq := chanceComAlquimia(e, d.huntressChance("Extracao", e))
 	acao := "extrair " + d.itemName(it.Index)
 	// Strictly under, as the legacy compares here — unlike combine.Roll's "at or
 	// under". Kept: it is the extraction's own rule, one point either way.
 	success := roll < rate
-	d.announceRoll(w, e.Name, acao, roll, rate, success)
+	d.announceRoll(w, e.Name, acao, roll, rate, alq, success)
 	if success {
 		if it.Effects[1].Effect == efDamage {
 			it.Effects[1].Value = addEffectByte(it.Effects[1].Value, d.itemBaseDamage(it))

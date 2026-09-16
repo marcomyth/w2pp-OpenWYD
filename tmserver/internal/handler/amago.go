@@ -140,7 +140,9 @@ func (d *Dispatcher) useAmago(w *world.World, s *world.Session, e *world.Entity,
 
 		// Only an adult can fail. A cria grows on every feed, which is what makes
 		// the early mount levels deterministic.
-		if adult && w.Rand().Intn(101) > d.amagoGrowthRate(*dst) {
+		// A Alquimia da Huntress (alquimia.go) soma à curva da montaria, com teto 100.
+		growth, _ := chanceComAlquimia(e, d.amagoGrowthRate(*dst))
+		if adult && w.Rand().Intn(101) > growth {
 			failed++
 			// One feed in five costs the adult a level (:1633).
 			if w.Rand().Intn(5) == 0 && dst.Effects[1].Effect > 0 {

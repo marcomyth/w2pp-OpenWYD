@@ -196,6 +196,8 @@ func (d *Dispatcher) odinComposicao(w *world.World, s *world.Session, e *world.E
 	if !fromMesa {
 		chance += jitter
 	}
+	// A Alquimia entra depois do jitter, sobre a chance que o sorteio compara.
+	chance, alq := chanceComAlquimia(e, chance)
 	result := base
 	if extra := d.odinCatalog.Extra[int(catalyst.Index)]; extra > 0 {
 		result.Index = int16(extra)
@@ -204,14 +206,14 @@ func (d *Dispatcher) odinComposicao(w *world.World, s *world.Session, e *world.E
 	if roll > chance {
 		e.Carry[baseSlot] = base
 		sendCarrySlot(w, s, e, baseSlot)
-		d.announceRoll(w, e.Name, acao, roll, chance, false)
+		d.announceRoll(w, e.Name, acao, roll, chance, alq, false)
 		sendCombineComplete(w, s, combineFailed)
 		return
 	}
 	refine.Set(&result, 0, 0)
 	e.Carry[baseSlot] = result
 	sendCarrySlot(w, s, e, baseSlot)
-	d.announceRoll(w, e.Name, acao, roll, chance, true)
+	d.announceRoll(w, e.Name, acao, roll, chance, alq, true)
 	sendCombineComplete(w, s, combineSuccess)
 }
 
@@ -232,6 +234,7 @@ func (d *Dispatcher) odinPlus12(w *world.World, s *world.Session, e *world.Entit
 	if !fromMesa {
 		chance = 100
 	}
+	chance, alq := chanceComAlquimia(e, chance)
 	newLevel, ok := combine.Plus12NewLevel(level)
 	if !ok {
 		newLevel = level
@@ -240,7 +243,7 @@ func (d *Dispatcher) odinPlus12(w *world.World, s *world.Session, e *world.Entit
 	if roll > chance {
 		e.Carry[targetSlot] = items[2]
 		sendCarrySlot(w, s, e, targetSlot)
-		d.announceRoll(w, e.Name, acao, roll, chance, false)
+		d.announceRoll(w, e.Name, acao, roll, chance, alq, false)
 		sendCombineComplete(w, s, combineFailed)
 		d.log.Info("odin +12+ refine failed", "conn", s.Conn, "level", level, "roll", roll, "chance", chance, "rate", rate, "protect", protect)
 		return
@@ -249,7 +252,7 @@ func (d *Dispatcher) odinPlus12(w *world.World, s *world.Session, e *world.Entit
 	refine.Set(&result, newLevel, refine.Gem(items[2]))
 	e.Carry[targetSlot] = result
 	sendCarrySlot(w, s, e, targetSlot)
-	d.announceRoll(w, e.Name, acao, roll, chance, true)
+	d.announceRoll(w, e.Name, acao, roll, chance, alq, true)
 	sendCombineComplete(w, s, combineSuccess)
 	d.log.Info("odin +12+ refine", "conn", s.Conn, "from", level, "to", newLevel, "roll", roll, "chance", chance, "rate", rate, "protect", protect)
 }
@@ -262,15 +265,16 @@ func (d *Dispatcher) odinPlus12(w *world.World, s *world.Session, e *world.Entit
 // of these recipes restores anything (_MSG_CombineItemOdin.cpp:517-650).
 func (d *Dispatcher) odinFreshResult(w *world.World, s *world.Session, e *world.Entity, slot int, result int16, roll, id int) {
 	chance, _ := d.odinChance(id)
+	chance, alq := chanceComAlquimia(e, chance)
 	acao := "criar " + d.itemName(result)
 	if roll > chance {
-		d.announceRoll(w, e.Name, acao, roll, chance, false)
+		d.announceRoll(w, e.Name, acao, roll, chance, alq, false)
 		sendCombineComplete(w, s, combineFailed)
 		return
 	}
 	e.Carry[slot] = world.Item{Index: result}
 	sendCarrySlot(w, s, e, slot)
-	d.announceRoll(w, e.Name, acao, roll, chance, true)
+	d.announceRoll(w, e.Name, acao, roll, chance, alq, true)
 	sendCombineComplete(w, s, combineSuccess)
 }
 
@@ -280,15 +284,16 @@ func (d *Dispatcher) odinFreshResult(w *world.World, s *world.Session, e *world.
 // CelLv40==0 and ClassMaster==Celestial.
 func (d *Dispatcher) odinDestraveLv40(w *world.World, s *world.Session, e *world.Entity, roll int) {
 	chance, _ := d.odinChance(combine.OdinDestraveLv40)
+	chance, alq := chanceComAlquimia(e, chance)
 	const acao = "destravar o nível 40"
 	if roll > chance {
-		d.announceRoll(w, e.Name, acao, roll, chance, false)
+		d.announceRoll(w, e.Name, acao, roll, chance, alq, false)
 		sendCombineComplete(w, s, combineFailed)
 		return
 	}
 	// The caller's pre-gate already guaranteed the unlock goes through, so the
 	// line can go first, where _MSG_CombineItemOdin.cpp:534 puts it.
-	d.announceRoll(w, e.Name, acao, roll, chance, true)
+	d.announceRoll(w, e.Name, acao, roll, chance, alq, true)
 	d.destravarCelestialFor(w, s, e, false) // sends its own MsgCombineComplete + persists
 }
 
@@ -299,9 +304,10 @@ func (d *Dispatcher) odinDestraveLv40(w *world.World, s *world.Session, e *world
 // computed level, the cape's current refine level.
 func (d *Dispatcher) odinCapaCelestial(w *world.World, s *world.Session, e *world.Entity, roll, level int) {
 	chance, _ := d.odinChance(combine.OdinCapaCelestial)
+	chance, alq := chanceComAlquimia(e, chance)
 	acao := fmt.Sprintf("refinar a Capa Celestial para +%d", level+1)
 	if roll > chance {
-		d.announceRoll(w, e.Name, acao, roll, chance, false)
+		d.announceRoll(w, e.Name, acao, roll, chance, alq, false)
 		sendCombineComplete(w, s, combineFailed)
 		return
 	}
@@ -318,6 +324,6 @@ func (d *Dispatcher) odinCapaCelestial(w *world.World, s *world.Session, e *worl
 	}
 	refine.Set(cape, level+1, 0)
 	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceEquip, reinoCapeSlot, itemToSel(*cape)))
-	d.announceRoll(w, e.Name, acao, roll, chance, true)
+	d.announceRoll(w, e.Name, acao, roll, chance, alq, true)
 	sendCombineComplete(w, s, combineSuccess)
 }

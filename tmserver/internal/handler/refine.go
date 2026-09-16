@@ -206,6 +206,9 @@ func (d *Dispatcher) refineItem(w *world.World, s *world.Session, e *world.Entit
 	// Order is parity-critical: the rate is computed BEFORE the roll, and the
 	// grade read after it (:850-853). One rand() on the hot path.
 	rate := refine.SuccessRate(d.sancRate, *dst, rateAnvil)
+	// A Alquimia da Huntress (alquimia.go) soma à taxa, sem gastar rand(). Taxa 0
+	// continua impossível: chanceComAlquimia não mexe em chance zero.
+	rate, _ = chanceComAlquimia(e, rate)
 	roll := w.Rand().Intn(refineRollModulo)
 	grade := d.itemAbility(*dst, efItemLevel)
 

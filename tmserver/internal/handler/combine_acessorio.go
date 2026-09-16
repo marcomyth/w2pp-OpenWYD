@@ -70,9 +70,10 @@ func (d *Dispatcher) acessorioMais10(w *world.World, s *world.Session, e *world.
 	}
 	e.Coin -= ailynCost
 	d.sendEtc(w, s, e)
+	rate, alq := chanceComAlquimia(e, rate)
 	roll, success := combine.Roll(w.Rand(), rate)
 	if !success {
-		d.announceMais10(w, e.Name, it[0].Index, roll, rate, false)
+		d.announceMais10(w, e.Name, it[0].Index, roll, rate, alq, false)
 		sendCombineComplete(w, s, combineFailed)
 		return
 	}
@@ -83,7 +84,7 @@ func (d *Dispatcher) acessorioMais10(w *world.World, s *world.Session, e *world.
 	e.Carry[sl[0]] = result
 	e.Carry[sl[1]] = world.Item{}
 	sendCarrySlot(w, s, e, sl[1])
-	d.announceMais10(w, e.Name, result.Index, roll, rate, true)
+	d.announceMais10(w, e.Name, result.Index, roll, rate, alq, true)
 	sendCombineComplete(w, s, combineSuccess)
 	sendCarrySlot(w, s, e, sl[0])
 }
@@ -99,17 +100,18 @@ func (d *Dispatcher) evoluirAcessorio(w *world.World, s *world.Session, e *world
 	}
 	e.Coin -= ailynCost
 	d.sendEtc(w, s, e)
+	rate, alq := chanceComAlquimia(e, rate)
 	roll, success := combine.Roll(w.Rand(), rate)
 	acao := "evoluir " + d.itemName(it[0].Index) + " em " + d.itemName(next)
 	if !success {
-		d.announceRoll(w, e.Name, acao, roll, rate, false)
+		d.announceRoll(w, e.Name, acao, roll, rate, alq, false)
 		sendCombineComplete(w, s, combineFailed)
 		return
 	}
 	e.Carry[sl[0]] = world.Item{Index: next}
 	e.Carry[sl[1]] = world.Item{}
 	sendCarrySlot(w, s, e, sl[1])
-	d.announceRoll(w, e.Name, acao, roll, rate, true)
+	d.announceRoll(w, e.Name, acao, roll, rate, alq, true)
 	sendCombineComplete(w, s, combineSuccess)
 	sendCarrySlot(w, s, e, sl[0])
 }
@@ -138,18 +140,18 @@ func (d *Dispatcher) odinArcano(w *world.World, s *world.Session, e *world.Entit
 		sendCarrySlot(w, s, e, slots[i])
 	}
 	roll := combine.RollOdin(w.Rand())
-	chance := d.machineKeyRate("Odin", chaveEvolucaoArcano, padraoEvolucaoArcano)
+	chance, alq := chanceComAlquimia(e, d.machineKeyRate("Odin", chaveEvolucaoArcano, padraoEvolucaoArcano))
 	acao := "evoluir " + d.itemName(items[0].Index) + " em " + d.itemName(arcano)
 	if roll > chance {
 		e.Carry[slots[0]] = items[0]
 		sendCarrySlot(w, s, e, slots[0])
-		d.announceRoll(w, e.Name, acao, roll, chance, false)
+		d.announceRoll(w, e.Name, acao, roll, chance, alq, false)
 		sendCombineComplete(w, s, combineFailed)
 		return true
 	}
 	e.Carry[slots[0]] = world.Item{Index: arcano}
 	sendCarrySlot(w, s, e, slots[0])
-	d.announceRoll(w, e.Name, acao, roll, chance, true)
+	d.announceRoll(w, e.Name, acao, roll, chance, alq, true)
 	sendCombineComplete(w, s, combineSuccess)
 	return true
 }

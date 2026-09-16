@@ -18,7 +18,7 @@ func TestLugeferLadder(t *testing.T) {
 		{63, 0, false}, {100, 0, false}, // acima do corte, falha
 	}
 	for _, c := range cases {
-		got, ok := pedraArchResult(1758, c.roll)
+		got, ok := pedraArchResult(1758, c.roll, nil)
 		if ok != c.ok || got != c.stone {
 			t.Errorf("roll %d = (%d, %v), esperado (%d, %v)", c.roll, got, ok, c.stone, c.ok)
 		}
@@ -44,14 +44,14 @@ func TestEveryLadderBoundary(t *testing.T) {
 		{1759, 60, 1751, 1748},
 	}
 	for _, c := range cases {
-		if got, ok := pedraArchResult(c.source, 0); !ok || got != c.firstStone {
+		if got, ok := pedraArchResult(c.source, 0, nil); !ok || got != c.firstStone {
 			t.Errorf("pedra %d, roll 0 = (%d,%v), esperado %d", c.source, got, ok, c.firstStone)
 		}
-		if got, ok := pedraArchResult(c.source, c.lastRung-1); !ok || got != c.rarest {
+		if got, ok := pedraArchResult(c.source, c.lastRung-1, nil); !ok || got != c.rarest {
 			t.Errorf("pedra %d, roll %d = (%d,%v), esperado a mais rara %d",
 				c.source, c.lastRung-1, got, ok, c.rarest)
 		}
-		if _, ok := pedraArchResult(c.source, c.lastRung+1); ok {
+		if _, ok := pedraArchResult(c.source, c.lastRung+1, nil); ok {
 			t.Errorf("pedra %d teve sucesso com roll %d, acima do corte %d",
 				c.source, c.lastRung+1, c.lastRung)
 		}
@@ -66,7 +66,7 @@ func TestEveryLadderBoundary(t *testing.T) {
 func TestRollOnTheRateStaysInFamily(t *testing.T) {
 	upper := map[int16]int{1756: 70, 1757: 65, 1758: 62, 1759: 60}
 	for source, rate := range upper {
-		got, ok := pedraArchResult(source, rate)
+		got, ok := pedraArchResult(source, rate, nil)
 		if !ok {
 			t.Errorf("pedra %d falhou no roll %d, que é o próprio corte", source, rate)
 			continue
@@ -81,7 +81,7 @@ func TestRollOnTheRateStaysInFamily(t *testing.T) {
 	// The lower family cannot show the bug (its default IS its own family), but
 	// the boundary still has to succeed.
 	for source, rate := range map[int16]int{1752: 93, 1753: 90, 1754: 85, 1755: 80} {
-		got, ok := pedraArchResult(source, rate)
+		got, ok := pedraArchResult(source, rate, nil)
 		if !ok || got < 1744 || got > 1747 {
 			t.Errorf("pedra %d no corte %d = (%d,%v), esperado a família baixa", source, rate, got, ok)
 		}
@@ -93,7 +93,7 @@ func TestFamiliesDoNotMix(t *testing.T) {
 	for source := int16(pedraArchLo); source <= pedraArchHi; source++ {
 		lower := source <= 1755
 		for roll := 0; roll <= 100; roll++ {
-			got, ok := pedraArchResult(source, roll)
+			got, ok := pedraArchResult(source, roll, nil)
 			if !ok {
 				continue
 			}

@@ -77,17 +77,24 @@ func pedraArchRoll(r interface{ Intn(int) int }) int {
 // of the upper family can otherwise produce. It is an off-by-one, not a design,
 // and it fires on roughly one attempt in 115. Here the last rung is inclusive
 // instead, so that roll yields the rarest stone of the correct family.
-func pedraArchResult(source int16, roll int) (int16, bool) {
+//
+// e is who refines, for the Huntress's Alquimia (alquimia.go; nil = no bonus): it
+// raises the success cap, and the rolls it wins past the table's rate land on the
+// last rung — the rarest stone of the family, the same rung a roll exactly on the
+// rate already gets. The ladder below the rate is untouched, so the passive
+// only turns failures into successes and never trades one stone for another.
+func pedraArchResult(source int16, roll int, e *world.Entity) (int16, bool) {
 	t, ok := pedraArchTable[source]
 	if !ok {
 		return 0, false
 	}
-	if roll > t.rate {
+	rate, _ := chanceComAlquimia(e, t.rate)
+	if roll > rate {
 		return 0, false
 	}
 	for i, rung := range t.rungs {
 		last := i == len(t.rungs)-1
-		if roll < rung.upTo || (last && roll == rung.upTo) {
+		if roll < rung.upTo || (last && roll >= rung.upTo) {
 			return rung.stone, true
 		}
 	}
@@ -115,7 +122,7 @@ func (d *Dispatcher) refinePedraArch(w *world.World, s *world.Session, e *world.
 
 	source := dst.Index
 	roll := pedraArchRoll(w.Rand())
-	next, ok := pedraArchResult(source, roll)
+	next, ok := pedraArchResult(source, roll, e)
 
 	consumeOneItem(&e.Carry[src])
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
