@@ -232,6 +232,11 @@ func (d *Dispatcher) deleteItem(w *world.World, s *world.Session, _ protocol.Hea
 // itemPedraDoSabio is a deliberate divergence from the legacy list: the NPC shop
 // sells it in packs (npcconfig.go shopEffects writes EF_AMOUNT), so Shift+click
 // must be able to peel units off the stack (issue #268).
+//
+// The Classes A-E and (P) are another (the team's call, 14/09/2026): the legacy
+// never stacks them (_MSG_SplitItem.cpp:45-48, _MSG_TradingItem.cpp:249), but
+// useClasseItem already spends one unit through consumeOneItem, and the Castelo
+// Orc guardians drop them in packs of 20.
 func isSplittable(index int16) bool {
 	switch index {
 	case 412, 413, 414, 416, 419, 420, itemPedraDoSabio:
@@ -247,6 +252,8 @@ func isSplittable(index int16) bool {
 	case index >= itemAguaMBase && index <= itemAguaMLast: // Pergaminho da Água (M) LV1-8 + Neses
 		return true
 	case index >= itemAguaNBase && index <= itemAguaALast: // idem (N) e (A), faixas contíguas
+		return true
+	case index >= classeALo && index <= classeLast: // Classe A-E e (P), o "Repletion" da equipe
 		return true
 	}
 	return index >= itemQuestRewardBase && index <= itemQuestRewardLast

@@ -9,7 +9,10 @@ import (
 // Classe A-E item range (_MSG_UseItem.cpp:4989): 4016-4020 are the plain
 // tiers, 4021-4025 the "(P)" variant — both contiguous 5-item ranges mapping
 // to the same tier 1..5 (A..E), matched against the target's EF_ITEMLEVEL.
-const classeALo = 4016
+const (
+	classeALo  = 4016
+	classeLast = 4025 // Classe_E(P)
+)
 
 // classeTier maps a Classe item's sIndex to its tier 1..5 (A..E)
 // (_MSG_UseItem.cpp:4989). Only meaningful for items already classified as
@@ -78,5 +81,7 @@ func (d *Dispatcher) useClasseItem(w *world.World, s *world.Session, e *world.En
 	d.log.Info("classe item bonus reroll", "conn", s.Conn, "item", dst.Index, "effects", dst.Effects)
 	consumeOneItem(&e.Carry[src])
 	// The Classe slot is deliberately NOT re-sent on success, mirroring
-	// refineSucceed: the client already removed the item it dragged.
+	// refineSucceed: the client takes the unit off on its own — one unit from a
+	// stack, not the whole pile (confirmed in game on 14/09/2026 with a stack of
+	// 110).
 }

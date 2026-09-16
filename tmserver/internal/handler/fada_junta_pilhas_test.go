@@ -58,6 +58,7 @@ func TestItensQueEmpilham(t *testing.T) {
 		"Água N (LV1..Neses)":    {3173, 3176, 3180, 3181},
 		"Água A (LV1..Neses)":    {3182, 3186, 3189, 3190},
 		"Barras de gold":         {4010, 4011, 4028, 4029},
+		"Classes A-E e (P)":      {4016, 4019, 4020, 4021, 4024, 4025},
 	}
 	for nome, idxs := range empilham {
 		for _, idx := range idxs {
@@ -77,6 +78,8 @@ func TestItensQueEmpilham(t *testing.T) {
 		"logo depois da Água M":                  786,
 		"logo antes da Água N":                   3172,
 		"logo depois da Água A":                  3191,
+		"logo antes das Classes (Capa)":          4015,
+		"logo depois das Classes (Moeda 1Mi)":    4026,
 		"uma espada":                             30,
 	}
 	for nome, idx := range naoEmpilham {

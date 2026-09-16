@@ -315,20 +315,15 @@ func TestCasteloOrcVisualDosMonstros(t *testing.T) {
 }
 
 // The first two gate guardians drop their stackables as packs; the same item
-// from any other quest monster is still one unit. The Classe D pack is 20 once
-// the Classes stack, and one unit until then.
+// from any other quest monster is still one unit.
 func TestCasteloOrcGuardiaoSoltaPacote(t *testing.T) {
-	classeD := 1
-	if isSplittable(casteloOrcClasseD) {
-		classeD = 20
-	}
 	for _, c := range []struct {
 		mob  string
 		item int16
 		want int
 	}{
-		{"COrc_Sentinela", casteloOrcClasseD, classeD},
-		{"COrc_Capitao", casteloOrcClasseD, classeD},
+		{"COrc_Sentinela", casteloOrcClasseD, 20},
+		{"COrc_Capitao", casteloOrcClasseD, 20},
 		{"COrc_Chefe", casteloOrcClasseD, 1},
 		{"COrc_Sentinela", casteloOrcAmagoSemSelaN, 10},
 		{"COrc_Capitao", casteloOrcAmagoSemSelaB, 10},
@@ -352,9 +347,9 @@ func TestCasteloOrcGuardiaoSoltaPacote(t *testing.T) {
 	}
 }
 
-// A pack is only ever a stackable: the pack table may name an item that does not
-// stack yet (the Classe D), but it leaves as one unit, never as a pile the
-// client cannot split and spends whole.
+// A pack is only ever a stackable: if the pack table names an item that does not
+// stack, it leaves as one unit, never as a pile the client cannot split and
+// spends whole.
 func TestCasteloOrcPacoteSoDeEmpilhavel(t *testing.T) {
 	d, w, _ := mobKilledWorld(t)
 	for mob, packs := range casteloOrcPacks {

@@ -299,3 +299,40 @@ func TestClasseConsumesOneUnitFromStack(t *testing.T) {
 		t.Errorf("amount = %d, want 2 after consuming one unit", got)
 	}
 }
+
+// The Classes stack: dragging one onto another of the same kind joins them, a
+// Classe already in someone's bag from before, with no EF_AMOUNT, joins too, and
+// a different tier or the (P) variant stays apart.
+func TestClassesEmpilham(t *testing.T) {
+	pilha := func(idx int16, n int) world.Item {
+		it := world.Item{Index: idx}
+		setItemAmount(&it, n)
+		return it
+	}
+	for _, c := range []struct {
+		nome      string
+		src, dst  world.Item
+		junta     bool
+		wantTotal int
+	}{
+		{"mesma Classe", pilha(itemClasseD, 20), pilha(itemClasseD, 90), true, 110},
+		{"Classe antiga sem quantidade", world.Item{Index: itemClasseD}, pilha(itemClasseD, 5), true, 6},
+		{"teto de 120", pilha(itemClasseE, 30), pilha(itemClasseE, 100), true, maxStackAmount},
+		{"tier diferente", pilha(itemClasseD, 1), pilha(itemClasseE, 1), false, 1},
+		{"(P) não junta com a comum", pilha(itemClasseDP, 1), pilha(itemClasseD, 1), false, 1},
+	} {
+		src, dst := c.src, c.dst
+		if got := tryMergeItemStacks(&src, &dst); got != c.junta {
+			t.Errorf("%s: tryMergeItemStacks = %v, want %v", c.nome, got, c.junta)
+		}
+		if got := itemAmount(dst); got != c.wantTotal {
+			t.Errorf("%s: pilha de destino com %d, want %d", c.nome, got, c.wantTotal)
+		}
+	}
+
+	// A bare Classe never reaches the client without an amount: that shape kills
+	// the client on login (countStacksMissingAmount).
+	if sel := itemToSel(world.Item{Index: itemClasseA}); sel.Eff[0] != [2]uint8{efAmount, 1} {
+		t.Errorf("Classe sem quantidade sai para o cliente como %v, want EF_AMOUNT 1", sel.Eff)
+	}
+}

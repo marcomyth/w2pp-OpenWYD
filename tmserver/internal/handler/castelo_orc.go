@@ -89,10 +89,6 @@ const (
 // scrolls and 20 Classe D. The Mesa de Drops says whether the item falls and how
 // often, but it has no quantity, so the size of the pile lives here, as the
 // amulet's add does.
-//
-// The Classe D pack waits on the Classes stacking: until they are in
-// isSplittable, casteloOrcFinish leaves it at one unit, and it becomes 20 on its
-// own the day they are.
 var casteloOrcGuardianPacks = map[int16]int{
 	casteloOrcAmagoSemSelaN: 10,
 	casteloOrcAmagoSemSelaB: 10,

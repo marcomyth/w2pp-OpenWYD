@@ -11,8 +11,7 @@ party e as decisões ficam no artefato "Atlas de Quests W2PP".
 ✅ O saque e a chave na Mesa de Drops (migrações `0053_castelo_orc_drops` e
 `0063_castelo_orc_guardioes`) <br/>
 ✅ Visual de 14/09: Manto de Shiner em todos, armas novas, guardiões montados <br/>
-⏳ Pacote de 20 Classe D nos guardiões: a regra está pronta, sai com 1 até as
-Classes empilharem <br/>
+✅ Pacote de 20 Classe D nos guardiões <br/>
 ✅ 0 XP para os monstros da quest <br/>
 ✅ Amuleto com add sorteado <br/>
 ✅ A corrida: a Chave do Rei Orc abre o castelo (no portão ou com o Xamã), um
@@ -227,16 +226,14 @@ além do saque acima:
 | Âmago de Cav. s/ Sela B 2401 | pacote de 10 | 5% |
 | Moeda de Prata (5Mi) 4027 | 1 | 10% |
 | Pergaminho da Água (N) LV1 3173 | pacote de 3 | 5% |
-| Classe D 4019 | pacote de 20 (1 até as Classes empilharem) | 10% (era 6,5%) |
+| Classe D 4019 | pacote de 20 | 10% (era 6,5%) |
 
 - N e B são duas linhas de 5%: dá ~10% de sair um pacote de âmago, e 0,25% de
   saírem os dois.
 - A Mesa não guarda quantidade. O tamanho do pacote vem do tmServer
   (`casteloOrcGuardianPacks`), e só vale para item que empilha.
-- **Classe D:** as Classes ainda não empilham neste servidor (`isSplittable`). Uma
-  pilha de 20 seria gasta inteira no primeiro uso, e o cliente perderia a conta.
-  Por isso, até elas empilharem, o pacote sai com uma unidade. No dia em que
-  entrarem no `isSplittable`, passa a sair com 20 sem outra mudança.
+- **Classe D:** as Classes empilham desde 14/09 (`isSplittable`), divergência
+  do legado. Cada uso gasta uma unidade da pilha.
 
 **Bolsa cheia perde o item.** Uma entrada rende uns 106 itens, uns 26 para cada
 um de 4 jogadores. O drop de mob ocupa sempre um espaço novo, sem juntar na pilha
