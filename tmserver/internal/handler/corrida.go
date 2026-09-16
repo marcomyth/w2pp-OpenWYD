@@ -75,6 +75,8 @@ type corridaTextos struct {
 	bossCaiu string
 	abates   string // %d de %d: abates até agora e quantos chamam o boss
 	bossVeio string // quando o boss nasce pelos abates
+	// grupoCaiu é o aviso quando todo o grupo que está na área morreu.
+	grupoCaiu string
 }
 
 // corridaEstado é a corrida em andamento. Zerado, não há corrida.
@@ -134,7 +136,18 @@ func (c *corrida) movimentoPermitido(conn int, x, y int16) bool {
 
 // corridaNPC é o clique no NPC da corrida: ele responde falando.
 func (d *Dispatcher) corridaNPC(w *world.World, c *corrida, s *world.Session, e, npc *world.Entity) {
-	d.tentarAbrirCorrida(w, c, s, e, func(text string) { sendSay(w, npc, text) })
+	// No painel também: o balão do NPC some rápido e, com o grupo de fora olhando
+	// para a área, "tem um grupo lá dentro" passava despercebido.
+	d.tentarAbrirCorrida(w, c, s, e, func(text string) {
+		sendSay(w, npc, text)
+		sendClientMessage(w, s, text)
+	})
+}
+
+// avisoDeFora é o que ouve quem tenta entrar andando na área de uma corrida
+// aberta por outro grupo.
+func (c *corrida) avisoDeFora() string {
+	return fmt.Sprintf(c.spec.textos.ocupada, (c.estado.secondsLeft+59)/60)
 }
 
 // tentarAbrirCorrida abre a corrida para o grupo de e quando a área está livre, e
@@ -311,14 +324,13 @@ func (d *Dispatcher) tickCorrida(w *world.World, c *corrida) {
 		}
 	}
 
-	inside := false
-	for _, conn := range r.party {
-		if e := w.Entity(conn); e != nil && e.Mode == world.MobUser && c.spec.caixa.contains(e.X, e.Y) {
-			if s := w.Session(conn); s != nil && s.Mode == world.UserPlay {
-				inside = true
-				break
-			}
-		}
+	inside, vivo := grupoNaArea(r.party, c.spec.caixa, membroEmJogo(w))
+	// O grupo inteiro caído lá dentro zera a corrida (pedido do Marco, 16/09):
+	// ninguém de pé para levantar os outros, e a área fica livre para a próxima.
+	if inside && !vivo {
+		d.avisarGrupoCorrida(w, c, c.spec.textos.grupoCaiu)
+		d.encerrarCorrida(w, c, "grupo morreu")
+		return
 	}
 	if inside {
 		r.emptyFor = 0
@@ -327,6 +339,35 @@ func (d *Dispatcher) tickCorrida(w *world.World, c *corrida) {
 	r.emptyFor++
 	if r.emptyFor >= c.spec.abandono {
 		d.encerrarCorrida(w, c, "abandono")
+	}
+}
+
+// grupoNaArea diz se algum membro do grupo em jogo está na área, e se algum dos
+// que estão lá está vivo. É dos dois motores (este e o do Castelo Orc). membro
+// devolve a entidade de quem está em jogo, ou nil.
+func grupoNaArea(party []int, caixa areaBox, membro func(conn int) *world.Entity) (dentro, vivo bool) {
+	for _, conn := range party {
+		e := membro(conn)
+		if e == nil || !caixa.contains(e.X, e.Y) {
+			continue
+		}
+		dentro = true
+		vivo = vivo || e.HP > 0
+	}
+	return dentro, vivo
+}
+
+// membroEmJogo é o membro de grupoNaArea no mundo: um jogador com sessão em jogo.
+func membroEmJogo(w *world.World) func(conn int) *world.Entity {
+	return func(conn int) *world.Entity {
+		e := w.Entity(conn)
+		if e == nil || e.Mode != world.MobUser {
+			return nil
+		}
+		if s := w.Session(conn); s == nil || s.Mode != world.UserPlay {
+			return nil
+		}
+		return e
 	}
 }
 

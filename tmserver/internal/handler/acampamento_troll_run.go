@@ -61,7 +61,7 @@ var acampamentoTrollSpec = corridaSpec{
 	abandono:     60,
 
 	textos: corridaTextos{
-		ocupada:  "Um grupo já está no acampamento. Volte em %d min.",
+		ocupada:  "Um grupo está fazendo o Acampamento Troll. Volte em %d min.",
 		soLider:  "Só o líder do grupo pode abrir o acampamento.",
 		traga:    "Traga a %s para abrir o acampamento.",
 		aberta:   "O acampamento é de vocês por 15 minutos.",
@@ -72,5 +72,7 @@ var acampamentoTrollSpec = corridaSpec{
 		bossCaiu: "O Troll Enigma caiu! A corrida terminou.",
 		abates:   "Acampamento Troll: %d de %d Trolls derrubados.",
 		bossVeio: "O Troll Enigma apareceu no centro do acampamento!",
+
+		grupoCaiu: "O grupo caiu. A corrida do Acampamento Troll terminou.",
 	},
 }

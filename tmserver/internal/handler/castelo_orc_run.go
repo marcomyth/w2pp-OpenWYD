@@ -136,7 +136,17 @@ func (d *Dispatcher) casteloOrcSuppresses(idx int) bool {
 
 // casteloOrcQuestNPC is the Xamã Orc (Merchant 100, grade 40).
 func (d *Dispatcher) casteloOrcQuestNPC(w *world.World, s *world.Session, e, npc *world.Entity) {
-	d.casteloOrcTryOpen(w, s, e, func(text string) { sendSay(w, npc, text) })
+	// On the message panel too: the NPC's bubble is gone in a moment.
+	d.casteloOrcTryOpen(w, s, e, func(text string) {
+		sendSay(w, npc, text)
+		sendClientMessage(w, s, text)
+	})
+}
+
+// casteloOrcBusyText is what a player outside the party hears, at the Xamã or
+// stepping into the castle, while a run is on.
+func (d *Dispatcher) casteloOrcBusyText() string {
+	return fmt.Sprintf("Um grupo está fazendo o Castelo Orc. Volte em %d min.", (d.casteloOrc.secondsLeft+59)/60)
 }
 
 // casteloOrcTryOpen opens a run for e's party when the castle is free, e leads
@@ -144,7 +154,7 @@ func (d *Dispatcher) casteloOrcQuestNPC(w *world.World, s *world.Session, e, npc
 // share it; say is where each one answers.
 func (d *Dispatcher) casteloOrcTryOpen(w *world.World, s *world.Session, e *world.Entity, say func(string)) {
 	if d.casteloOrc.active {
-		say(fmt.Sprintf("Um grupo já está no castelo. Volte em %d min.", (d.casteloOrc.secondsLeft+59)/60))
+		say(d.casteloOrcBusyText())
 		return
 	}
 	// Members carry their leader's conn; only a leader or a soloist opens a run.
@@ -304,14 +314,13 @@ func (d *Dispatcher) tickCasteloOrc(w *world.World) {
 		}
 	}
 
-	inside := false
-	for _, conn := range r.party {
-		if e := w.Entity(conn); e != nil && e.Mode == world.MobUser && casteloOrcBox.contains(e.X, e.Y) {
-			if s := w.Session(conn); s != nil && s.Mode == world.UserPlay {
-				inside = true
-				break
-			}
-		}
+	inside, alive := grupoNaArea(r.party, casteloOrcBox, membroEmJogo(w))
+	// The whole party down inside ends the run (the team's call, 16/09/2026):
+	// nobody is standing to raise the others, and the castle frees up.
+	if inside && !alive {
+		d.broadcastCasteloOrcCountdown(w, "O grupo caiu. A corrida do Castelo Orc terminou.")
+		d.endCasteloOrc(w, "grupo morreu")
+		return
 	}
 	if inside {
 		r.emptyFor = 0

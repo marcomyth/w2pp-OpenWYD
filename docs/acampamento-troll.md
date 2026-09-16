@@ -90,11 +90,11 @@ para o motor é um passo à parte.
 Réplicas dos Trolls do acampamento, com o visual do original. Partiram dos números
 do tier correspondente do Castelo Orc e foram recalibradas em 16/09/2026, a pedido
 do Marco: o Mago com metade do HP e do dano, o Caos com o HP que era do Mago, a
-tropa com metade do dano. Depois do primeiro teste, o Insano dobrou de HP (18 mil para 36 mil). O Enigma fica para depois.
+tropa com metade do dano. Depois do primeiro teste, o Insano dobrou de HP (18 mil para 36 mil). No segundo teste o Enigma caiu pela metade no HP e no dano (3 mi para 1,5 mi; 2.020 para 1.010).
 
 | Template | Nome no jogo | Veio de | Papel | Nv | HP | Defesa | Dano | Resist. | Montaria | Bloco |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `ATroll_Enigma` | Troll Enigma | `Troll_Enigma` | boss | 350 | 3.000.000 | 3.000 | 2.020 | 25 | Cavalo Fantasma B (2372) | 6116 |
+| `ATroll_Enigma` | Troll Enigma | `Troll_Enigma` | boss | 350 | 1.500.000 | 3.000 | 1.010 | 25 | Cavalo Fantasma B (2372) | 6116 |
 | `ATroll_Mago` | Troll Mago | `Troll_Mago` | seguidor | 320 | 75.000 | 2.200 | 760 | 15 | Dente de Sabre (2365) | 6117 (grupo de 4) |
 | `ATroll_Caos` | Troll Caos | `Troll_Caos` | guardião | 330 | 150.000 | 2.400 | 1.620 | 20 | Cavalo s/Sela N (2366) | 6118, 6119 (2 cada) |
 | `ATroll_Insano` | Troll Insano | `Troll_Insano` | tropa | 300 | 36.000 | 1.800 | 610 | 10 | Dragão Menor (2363) | 6120–6123 |

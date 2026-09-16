@@ -144,11 +144,22 @@ func (d *Dispatcher) action(w *world.World, s *world.Session, h protocol.Header,
 	// session outright once its out queue fills (world/world.go:755), so a GM standing
 	// in a castle room could take themselves and their neighbours off the server just
 	// by trying to walk out.
-	if s.AccessLevel < world.AccessModerator && (!d.castleMoveAllowed(s.Conn, body.TargetX, body.TargetY) ||
-		!d.casteloOrcMoveAllowed(s.Conn, body.TargetX, body.TargetY) ||
-		!d.acampamentoTroll.movimentoPermitido(s.Conn, body.TargetX, body.TargetY)) {
-		d.doTeleport(w, s, e.X, e.Y)
-		return
+	if s.AccessLevel < world.AccessModerator {
+		// Pulled back from a quest run, the player is told why: in silence it
+		// looked like a map bug (the team's call, 16/09/2026).
+		aviso, recusa := "", !d.castleMoveAllowed(s.Conn, body.TargetX, body.TargetY)
+		switch {
+		case recusa:
+		case !d.casteloOrcMoveAllowed(s.Conn, body.TargetX, body.TargetY):
+			aviso, recusa = d.casteloOrcBusyText(), true
+		case !d.acampamentoTroll.movimentoPermitido(s.Conn, body.TargetX, body.TargetY):
+			aviso, recusa = d.acampamentoTroll.avisoDeFora(), true
+		}
+		if recusa {
+			d.doTeleport(w, s, e.X, e.Y)
+			sendClientMessage(w, s, aviso)
+			return
+		}
 	}
 
 	// No-op move: legacy only processes when the destination differs from the

@@ -333,7 +333,7 @@ var acampamentoTrollDesign = map[string]struct {
 	face             int16
 	mount            int16
 }{
-	"ATroll_Enigma":  {"Troll Enigma", 350, 3000000, 3000, 2020, 25, 213, 2372}, // Cavalo Fantasma B
+	"ATroll_Enigma":  {"Troll Enigma", 350, 1500000, 3000, 1010, 25, 213, 2372}, // Cavalo Fantasma B
 	"ATroll_Caos":    {"Troll Caos", 330, 150000, 2400, 1620, 20, 213, 2366},    // Cavalo s/Sela N
 	"ATroll_Mago":    {"Troll Mago", 320, 75000, 2200, 760, 15, 213, 2365},      // Dente de Sabre
 	"ATroll_Insano":  {"Troll Insano", 300, 36000, 1800, 610, 10, 212, 2363},    // Dragão Menor

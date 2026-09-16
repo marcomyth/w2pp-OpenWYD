@@ -375,3 +375,43 @@ func TestAcampamentoTrollTropaRenasce(t *testing.T) {
 		t.Error("os Troll Caos renasceram; são 4 por chave")
 	}
 }
+
+// O grupo inteiro caído dentro da área encerra a corrida; um de pé, ou alguém
+// morto fora dela, não (pedido do Marco, 16/09/2026).
+func TestCorridaGrupoNaArea(t *testing.T) {
+	caixa := acampamentoTrollSpec.caixa
+	dentro, fora := acampamentoTrollSpec.entrada, acampamentoTrollSpec.saida
+	ent := func(x, y int16, hp int32) *world.Entity { return &world.Entity{X: x, Y: y, HP: hp} }
+	for _, tc := range []struct {
+		nome         string
+		membros      map[int]*world.Entity
+		dentro, vivo bool
+	}{
+		{"todos mortos dentro", map[int]*world.Entity{0: ent(dentro[0], dentro[1], 0), 3: ent(dentro[0]+1, dentro[1], 0)}, true, false},
+		{"um de pé", map[int]*world.Entity{0: ent(dentro[0], dentro[1], 0), 3: ent(dentro[0]+1, dentro[1], 50)}, true, true},
+		{"morto dentro, vivo fora", map[int]*world.Entity{0: ent(dentro[0], dentro[1], 0), 3: ent(fora[0], fora[1], 50)}, true, false},
+		{"ninguém dentro", map[int]*world.Entity{0: ent(fora[0], fora[1], 0)}, false, false},
+		{"desconectado não conta", map[int]*world.Entity{0: ent(dentro[0], dentro[1], 0)}, true, false},
+	} {
+		t.Run(tc.nome, func(t *testing.T) {
+			d, v := grupoNaArea([]int{0, 3, 9}, caixa, func(conn int) *world.Entity { return tc.membros[conn] })
+			if d != tc.dentro || v != tc.vivo {
+				t.Errorf("dentro %v vivo %v, want %v %v", d, v, tc.dentro, tc.vivo)
+			}
+		})
+	}
+}
+
+// Quem tenta entrar andando durante a corrida de outro grupo ouve por quê.
+func TestCorridaAvisoDeFora(t *testing.T) {
+	d, _, _, _ := acampamentoTrollFixture(t)
+	c := &d.acampamentoTroll
+	c.estado = corridaEstado{active: true, secondsLeft: 61, party: []int{0}}
+	if got, want := c.avisoDeFora(), "Um grupo está fazendo o Acampamento Troll. Volte em 2 min."; got != want {
+		t.Errorf("aviso = %q, want %q", got, want)
+	}
+	d.casteloOrc = casteloOrcRun{active: true, secondsLeft: 600}
+	if got, want := d.casteloOrcBusyText(), "Um grupo está fazendo o Castelo Orc. Volte em 10 min."; got != want {
+		t.Errorf("aviso do Orc = %q, want %q", got, want)
+	}
+}

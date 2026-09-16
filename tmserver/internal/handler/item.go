@@ -729,7 +729,7 @@ func (d *Dispatcher) useHuntingScroll(w *world.World, s *world.Session, e *world
 	// Warps 2 and 3 of the Armia scroll land inside the Castelo Orc: during a run
 	// they would drop a stranger past the party (castelo_orc_run.go).
 	if s.AccessLevel < world.AccessModerator && !d.casteloOrcMoveAllowed(s.Conn, dest[0], dest[1]) {
-		sendClientMessage(w, s, "Um grupo está no Castelo Orc. Volte em alguns minutos.")
+		sendClientMessage(w, s, d.casteloOrcBusyText())
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}
