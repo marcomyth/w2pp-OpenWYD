@@ -67,7 +67,7 @@ func MatchOdin(cat Catalog, items []world.Item) int {
 	case ((idx(0) == 413 && amt(0) >= 10 && idx(1) == 413 && amt(1) >= 10) || (idx(0) == 4043 && idx(1) == 4043)) &&
 		inRange(lvl(2), 10, 15) &&
 		isRuneOr3338(idx(3)) && isRuneOr3338(idx(4)) && isRuneOr3338(idx(5)) && isRuneOr3338(idx(6)) &&
-		isPlus12Pos(cat.Pos[idx(2)]):
+		(isPlus12Pos(cat.Pos[idx(2)]) || AcessorioAteMais15(items[2].Index)):
 		return OdinPlus12
 
 	case idx(0) == 413 && idx(1) == 413 && idx(2) == 413 && idx(3) == 413 && idx(4) == 413 && idx(5) == 413 && idx(6) == 413:

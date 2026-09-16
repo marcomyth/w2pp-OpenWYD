@@ -41,6 +41,10 @@ linters:
         # the Pedra Ideal. misspell reads it as a typo for "secrets"; the item
         # names are cited verbatim from the shipped catalog.
         - secretas
+        # Portuguese for "planets" -- Netuno, Urano, Venus and the other planet
+        # accessories (762-768) of the accessory reform. misspell reads it as a
+        # typo for "planets"; it is the name the players and the staff use.
+        - planetas
         # Portuguese for "moment", inside a refusal copied verbatim from
         # Language.txt. misspell reads it as a typo for "memento".
         - momento

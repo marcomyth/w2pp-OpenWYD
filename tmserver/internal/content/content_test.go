@@ -504,10 +504,11 @@ func TestRequirementsClasseD(t *testing.T) {
 		{911, "Solaris", ItemReq{Lvl: 174, Str: 464, Dex: 140}},
 		{1191, "Elmo_Anao(N)", ItemReq{Lvl: 115, Str: 146, Con: 98}},
 		{1892, "Tunica_Conjuradora(A), the EF_BONUS variant", ItemReq{Lvl: 132, Str: 90, Int: 157}},
-		// Issue #308: the client displays ReqLvl one-based, so raw 160 is level 161.
-		{661, "Ankh_da_Justica", ItemReq{Lvl: 160}},
-		{662, "Ankh_da_Eternidade", ItemReq{Lvl: 160}},
-		{663, "Ankh_da_Gloria", ItemReq{Lvl: 160}},
+		// Issue #308: the client displays ReqLvl one-based, so raw 219 is level
+		// 220 — the level the accessory reform (2026-09-16) moved the Ankhs to.
+		{661, "Ankh_da_Justica", ItemReq{Lvl: 219}},
+		{662, "Ankh_da_Eternidade", ItemReq{Lvl: 219}},
+		{663, "Ankh_da_Gloria", ItemReq{Lvl: 219}},
 		// Untouched: below the rescaled band, and above it (the special capes).
 		{1331, "Tunica_Conjuradora(A), base set", ItemReq{Lvl: 174, Str: 119, Int: 208}},
 		{1720, "Capa_da_Escuridao", ItemReq{Lvl: 399}},
@@ -519,8 +520,17 @@ func TestRequirementsClasseD(t *testing.T) {
 
 	// The band itself must stay empty: no class D item may demand 181..260
 	// again. Above 260 only the preserved specials survive (capes, Pedra Amunra).
+	//
+	// The band guards the armour sets against a stale regeneration. The accessory
+	// reform (2026-09-16) put two class D accessories inside it on purpose: the
+	// Amuleto Místico at level 200 and the Ankhs at 220 — rungs of a ladder, not
+	// gear that was rescaled.
+	reforma := map[int]bool{559: true, 560: true, 561: true, 562: true, 661: true, 662: true, 663: true}
 	effects := full.BaseEffects()
 	for idx, req := range reqs {
+		if reforma[idx] {
+			continue
+		}
 		classeD := false
 		for _, e := range effects[idx] {
 			if e.Eff == 87 && e.Val == 4 { // EF_ITEMLEVEL 4 = classe D

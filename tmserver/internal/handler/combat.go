@@ -1054,6 +1054,7 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 		if skillnum == 27 {
 			heal = 2*cast.special + cast.spell.InstanceValue
 		}
+		heal = foemaAmantesHeal(e, skillnum, heal)
 		healCap := 1100
 		if e.ClassMaster != classMasterMortal && e.ClassMaster != classMasterArch {
 			heal *= 2

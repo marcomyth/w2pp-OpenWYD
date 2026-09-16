@@ -2438,12 +2438,25 @@ func (d *Dispatcher) itemResist(it world.Item, i int) int32 {
 	if it.Empty() {
 		return 0
 	}
-	v := int32(d.itemAbility(it, resistEffects[i])) + int32(d.itemAbility(it, efResistAll))
+	one := int32(d.itemAbility(it, resistEffects[i]))
+	all := int32(d.itemAbility(it, efResistAll))
+	// Reforma dos acessórios (2026-09-16): no quarto espaço de acessório a
+	// Resistência a todos não cresce com o refino. Ali só a carregam os sete
+	// planetas e o Amuleto dos Amantes, que agora sobem até +15 — e 10 viraria 37
+	// contra todos os elementos. No resto do equipamento segue o legado, que
+	// multiplica a SOMA.
+	if d.itemPos[int(it.Index)] == nPosAcessorio4 {
+		return one*int32(d.refineFactor(it))/10 + all
+	}
+	v := one + all
 	if v == 0 {
 		return 0
 	}
 	return v * int32(d.refineFactor(it)) / 10
 }
+
+// nPosAcessorio4 é o quarto espaço de acessório: Ankhs, planetas, gemas, pedras.
+const nPosAcessorio4 = 2048
 
 // weaponDamage is GetCurrentScore's WeaponDamage (CMob.cpp:756-789): the stronger
 // weapon hand at full damage plus the weaker at half (dual-wield), plus a +40 refine

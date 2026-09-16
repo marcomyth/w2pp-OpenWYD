@@ -178,3 +178,66 @@ Para destravar o lv 40 do Cele, faça a combinação do Destrave Lv40 no Odin. P
 
 Pegue lv 200 no seu Cele, faça a quest da Cythera Arcana (Pedra da Fúria + as 4 Pedras Secretas + 500 de fama). O Sub Celestial e os três resets ainda não existem neste servidor.
 • Refine a capa para +9 logo após disso.
+
+# Acessórios
+
+Reforma decidida em 16/09/2026. O plano completo, com o diagnóstico de cada item, está no
+artefato "Reforma dos Acessórios". Os brincos, braceletes, pingentes e colares (as famílias
+Hércules, Zeus, Hecate, Titã, Athena e Gaia) ainda vão ser refeitos; por ora só os brincos
+entram na +10 e no Odin, com os status de sempre.
+
+**Caminho até o +15.** Poeira do +1 ao +9, máquina +10 (Ailyn), Lactolerium para o +11 e
+Odin (receita do +12) do +12 ao +15. Aceitam: Brincos (591-595), Amuletos Místicos
+(559-562) e Arcanos (567-570), Ankhs (661-663), os sete planetas (762-768) e o Amuleto dos
+Amantes (1738). A liberação é por item, não pelo espaço do equipamento: orbs, Pedras
+Espirituais, Pedra Amunra e Sephirot continuam fora.
+
+**+10 de acessório.** Dois iguais em +9, a Pedra do Sábio e **quatro Diamantes (+8% de drop)
+ou quatro Corais (+2% de XP)**. Esmeralda e Garnet são recusadas: a joia fica gravada no item
+e vale em qualquer espaço, e quatro acessórios +15 com Esmeralda somariam 960 de perfuração.
+As duas ficam reservadas às Pedras Espirituais (absorção ou perfuração), que ainda serão
+liberadas. Custo e chance são os da +10 das armas.
+
+**Evolução (máquina +10).** O item em +9, uma cópia dele em qualquer refino, a Pedra do Sábio e
+quatro Diamantes ou quatro Corais. O item sai **em +0** no degrau seguinte da mesma linha:
+
+| De (+9) | Para (+0) |
+|---|---|
+| Amuleto de Cristal (563-566) | Amuleto Místico da mesma árvore (559-562) |
+| Pedra Necromântica (654-656) | Gema da Siren do mesmo status (658-660) |
+| Gema da Siren (658-660) | Ankh do mesmo status (661-663) |
+
+Na falha ficam o item e a cópia; perdem-se a pedra e as joias. A chance é a linha "Evolução de
+acessórios" da Mesa das Máquinas (sem linha: 41%), anunciada para o servidor como a +10.
+
+**Arcano (Odin).** Amuleto Místico +15 na primeira célula, a segunda e a terceira vazias, e as
+quatro Pedras Secretas (Água, Terra, Sol, Vento) da quarta à sétima. Sai o Amuleto Arcano da
+mesma árvore, em +0. Na falha o Místico volta +15 e só as pedras se perdem. Chance na Mesa das
+Máquinas (sem linha: 35%). O Arcano não é mais vendido nem cai de monstro.
+
+**Status novos.**
+
+| Item | Nível | Status |
+|---|---|---|
+| Amuleto de Cristal | 145 | Skill 10 (era 8) |
+| Amuleto Místico | 200 (era 147) | Skill 12 (era 10) |
+| Amuleto Arcano | 300 (era 180) | Skill 14 (era 15) |
+| Gema da Siren | 150 (era 156-195) | igual |
+| Ankh da Justiça / Eternidade / Glória | 220 (era 160) | MP 300 / HP 300 / Crítico 100 (eram 115 / 100 / 50) |
+| Planetas | 200 (era 54) | HP 150 (era 30); Netuno dano 40, Urano defesa 40, Vênus magia 14 (o dobro); Marte a Júpiter skill 15 |
+| Amuleto dos Amantes | 200 (era 0) | HP 150 (era 100) |
+
+A **Resistência a todos** dos planetas e do Amuleto dos Amantes **não cresce com o refino**
+(regra deste servidor): um +15 continua dando 10. No resto do equipamento o refino multiplica a
+resistência como no legado.
+
+**Onde se consegue.** Planetas e Amuleto dos Amantes são raros: saíram de toda loja (inclusive
+a de doação) e só caem de monstro — a raridade se ajusta na Mesa de Drops. Os Ankhs continuam à
+venda. O Aki de Armia passa a vender os anéis de Hércules, Titã, Athena, Hecate e Zeus, no lugar
+do Remédio e do Elixir da Coragem e dos três Círculos Divinos (que seguem na loja da
+CustomShop). O Anel de Gaia ficou de fora por falta de vaga.
+
+**Cura da Foema com o Amuleto dos Amantes.** A Foema que aprendeu Renascimento (a oitava skill
+da árvore de cura) e está com o Amuleto dos Amantes equipado cura **30% a mais** com Cura e
+Recuperar. O bônus entra antes do teto de 1100 (Mortal e Arch) e 2200 (Celestial): quem já
+cura no teto não ganha nada. Não existe no legado.

@@ -63,6 +63,9 @@ func (d *Dispatcher) combineOdin(w *world.World, s *world.Session, e *world.Enti
 	if !ok {
 		return
 	}
+	if d.odinArcano(w, s, e, items, slots, active) {
+		return
+	}
 
 	id := combine.MatchOdin(d.odinCatalog, items[:])
 

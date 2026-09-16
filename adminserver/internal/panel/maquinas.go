@@ -101,6 +101,12 @@ var maquinaGrupos = []struct {
 		{Familia: "Ehre", Chave: "Soul", Nome: "Soul", Onde: "Erion", Padrao: 100},
 	}},
 	{"Odin", odinChavesDoPainel()},
+	{"Evolução de acessórios", []maquinaChave{
+		{Familia: "Ailyn", Chave: "Evolucao", Nome: "Acessório +9 → degrau seguinte", Onde: "Armia (máquina +10)", Padrao: 41,
+			Nota: "Cristal → Místico, Necromântica → Siren, Siren → Ankh. O item sai em +0. Na falha ficam o item e a cópia; perdem-se a Pedra do Sábio e as joias."},
+		{Familia: "Odin", Chave: "Evolucao_Arcano", Nome: "Amuleto Místico +15 → Arcano", Padrao: 35,
+			Nota: "O Místico +15 com as quatro Pedras Secretas. Na falha o Místico volta +15; perdem-se as pedras."},
+	}},
 	{"Caçadora — Alquimia e Extração", []maquinaChave{
 		{Familia: "Alquimia", Chave: "Chance", Nome: "Alquimia", Onde: "skill da Caçadora", Padrao: 40,
 			PadraoTexto: "varia pela skill",
@@ -236,7 +242,9 @@ func (h *Handler) maquinas(w http.ResponseWriter, r *http.Request) {
 				l.Valor, l.NoBanco = v, true
 			}
 			switch {
-			case mc.Familia == "Ailyn":
+			// Só a linha da +10: a evolução de acessório também é da Ailyn, e as
+			// faixas não se aplicam a ela.
+			case mc.Familia == "Ailyn" && strings.EqualFold(mc.Chave, "Chance"):
 				chanceMais10 = l.Valor
 			case mc.Familia == "Compositor" && strings.EqualFold(mc.Chave, "Item_+9"):
 				pesoMais9 = l.Valor

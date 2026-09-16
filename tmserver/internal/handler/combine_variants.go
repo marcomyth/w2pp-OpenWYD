@@ -79,6 +79,9 @@ func (d *Dispatcher) combineItemAilyn(w *world.World, s *world.Session, _ protoc
 		d.refuseCombine(w, s, combineNeedsGold(ailynCost))
 		return
 	}
+	if d.combineAcessorioAilyn(w, s, e, it, sl, active) {
+		return
+	}
 	if !combine.AilynRecipe(d.combineCatalog, it[:]) {
 		// The +10 machine wants seven filled cells, cells 0 and 1 the SAME index, a
 		// Pedra do Sábio (1774) in cell 2 and four jewels chosen by the item's grade
