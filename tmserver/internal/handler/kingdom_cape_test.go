@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
@@ -26,17 +27,31 @@ func TestCapeKingdomMode(t *testing.T) {
 	}
 }
 
-func TestSapphirePaymentPlanExactOnly(t *testing.T) {
+func TestSapphirePaymentPlan(t *testing.T) {
+	const (
+		s1  = sapphireUnit1
+		s10 = sapphireUnit10
+	)
 	tests := []struct {
 		name  string
 		items []int16
 		cost  int
-		ok    bool
+		want  sapphirePayment
+		sobra map[int16]int // what the bag holds afterwards, by item
+		mexeu int           // how many slots the client must be told about
+		cheia bool          // every other active slot is occupied
 	}{
-		{"exact singles", []int16{697, 697, 697, 697}, 4, true},
-		{"mixed", []int16{4131, 697, 697}, 12, true},
-		{"insufficient", []int16{697, 697}, 4, false},
-		{"ten cannot overpay", []int16{4131}, 8, false},
+		{"soltas exatas", []int16{s1, s1, s1, s1}, 4, sapphirePaid, map[int16]int{}, 4, false},
+		{"pacote e soltas", []int16{s10, s1, s1}, 12, sapphirePaid, map[int16]int{}, 3, false},
+		{"faltam unidades", []int16{s1, s1}, 4, sapphireShort, map[int16]int{s1: 2}, 0, false},
+		// The report of 17/09/2026: three Pacotes, a King quoting 8.
+		{"so pacotes, troco de 2", []int16{s10, s10, s10}, 8, sapphirePaid, map[int16]int{s10: 2, s1: 2}, 2, false},
+		{"soltas bastam, pacote fica", []int16{s10, s1, s1, s1}, 3, sapphirePaid, map[int16]int{s10: 1}, 3, false},
+		{"soltas nao bastam, pacote paga", []int16{s10, s10, s1}, 18, sapphirePaid, map[int16]int{s1: 3}, 2, false},
+		// The pack's own slot takes the first unit of change; the second needs
+		// a slot that a full bag does not have.
+		{"sem espaco para o troco", []int16{s10}, 8, sapphireNoRoom, map[int16]int{s10: 1}, 0, true},
+		{"um de troco cabe no slot do pacote", []int16{s10}, 9, sapphirePaid, map[int16]int{s1: 1}, 1, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -44,9 +59,26 @@ func TestSapphirePaymentPlanExactOnly(t *testing.T) {
 			for i, index := range tc.items {
 				e.Carry[i] = world.Item{Index: index}
 			}
-			_, ok := sapphirePaymentPlan(&e, tc.cost)
-			if ok != tc.ok {
-				t.Fatalf("ok = %v, want %v", ok, tc.ok)
+			if tc.cheia {
+				for i := len(tc.items); i < activeCarryLimit(&e); i++ {
+					e.Carry[i] = world.Item{Index: 1}
+				}
+			}
+			changed, got := sapphirePaymentPlan(&e, tc.cost)
+			if got != tc.want {
+				t.Fatalf("result = %v, want %v", got, tc.want)
+			}
+			if len(changed) != tc.mexeu {
+				t.Errorf("changed slots = %v, want %d of them", changed, tc.mexeu)
+			}
+			sobra := map[int16]int{}
+			for _, it := range e.Carry {
+				if it.Index == s1 || it.Index == s10 {
+					sobra[it.Index]++
+				}
+			}
+			if !maps.Equal(sobra, tc.sobra) {
+				t.Errorf("bag afterwards = %v, want %v", sobra, tc.sobra)
 			}
 		})
 	}

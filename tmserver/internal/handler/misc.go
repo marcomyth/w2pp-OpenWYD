@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -402,9 +403,13 @@ func (d *Dispatcher) kingCapeService(w *world.World, s *world.Session, e, npc *w
 				return
 			}
 			staged := *e
-			changed, exact := sapphirePaymentPlan(&staged, cost)
-			if !exact {
-				d.sendChatText(w, s, fmt.Sprintf("Sao necessarias %d safiras em pagamento exato.", cost))
+			changed, pagamento := sapphirePaymentPlan(&staged, cost)
+			switch pagamento {
+			case sapphireShort:
+				d.sendChatText(w, s, fmt.Sprintf("Sao necessarias %d safiras.", cost))
+				return
+			case sapphireNoRoom:
+				d.sendChatText(w, s, "Libere espaco no inventario para o troco das safiras.")
 				return
 			}
 			staged.Equip[capeEquipSlot] = world.Item{Index: target}
@@ -488,24 +493,75 @@ func kingdomCapeTarget(classMaster uint8, level int32, current int16, kingdom ui
 	return 0, false
 }
 
-func sapphirePaymentPlan(e *world.Entity, cost int) ([]int, bool) {
-	remaining := cost
-	var changed []int
-	for i := 0; i < activeCarryLimit(e) && remaining >= 10; i++ {
-		if e.Carry[i].Index == sapphireUnit10 {
-			e.Carry[i] = world.Item{}
-			remaining -= 10
-			changed = append(changed, i)
+// sapphirePayment is the outcome of planning a sapphire payment.
+type sapphirePayment int
+
+const (
+	sapphirePaid   sapphirePayment = iota
+	sapphireShort                  // the bag holds fewer sapphire units than the price
+	sapphireNoRoom                 // enough units, but no free slot for the change
+)
+
+// sapphirePaymentPlan takes cost sapphire units out of e's bag, giving change
+// in loose Safiras when a Pacote pays more than is owed. It returns every carry
+// slot it touched.
+//
+// The legacy clears a whole Pacote for a smaller remainder and keeps the
+// difference (_MSG_Quest.cpp:1018-1027). The first port refused instead, asking
+// for exact payment — but nothing in the game opens a Pacote, so a player holding
+// only Pacotes could never pay a price that is not a multiple of ten (a King
+// quoting 8 against three Pacotes, 17/09/2026). Change keeps both: the price is
+// paid and no unit is lost.
+//
+// A 4131 counts as ten whatever its stack says, as in the legacy. Loose Safiras
+// settle the remainder when there are enough of them; otherwise one more Pacote
+// pays it, which leaves the fewest items to hand back. The change goes into free
+// slots, including the ones the payment just emptied.
+func sapphirePaymentPlan(e *world.Entity, cost int) ([]int, sapphirePayment) {
+	limit := activeCarryLimit(e)
+	var packs, singles []int
+	for i := 0; i < limit; i++ {
+		switch e.Carry[i].Index {
+		case sapphireUnit10:
+			packs = append(packs, i)
+		case sapphireUnit1:
+			singles = append(singles, i)
 		}
 	}
-	for i := 0; i < activeCarryLimit(e) && remaining > 0; i++ {
-		if e.Carry[i].Index == sapphireUnit1 {
-			e.Carry[i] = world.Item{}
-			remaining--
-			changed = append(changed, i)
+	if 10*len(packs)+len(singles) < cost {
+		return nil, sapphireShort
+	}
+
+	tens := min(len(packs), cost/10)
+	remainder := cost - 10*tens
+	spent := append([]int(nil), packs[:tens]...)
+	change := 0
+	if remainder <= len(singles) {
+		spent = append(spent, singles[:remainder]...)
+	} else {
+		// Enough units overall with too few loose ones means an unused Pacote is
+		// left (see the count above), and it pays the remainder.
+		spent = append(spent, packs[tens])
+		change = 10 - remainder
+	}
+
+	staged := e.Carry
+	for _, i := range spent {
+		staged[i] = world.Item{}
+	}
+	changed := spent
+	for range change {
+		slot := firstEmptyCarrySlot(staged[:], limit)
+		if slot < 0 {
+			return nil, sapphireNoRoom
+		}
+		staged[slot] = world.Item{Index: sapphireUnit1}
+		if !slices.Contains(changed, slot) {
+			changed = append(changed, slot)
 		}
 	}
-	return changed, remaining == 0
+	e.Carry = staged
+	return changed, sapphirePaid
 }
 
 const (
