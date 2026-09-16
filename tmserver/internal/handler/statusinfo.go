@@ -77,9 +77,9 @@ func (d *Dispatcher) showStatus(w *world.World, s *world.Session) {
 	// a zero attacker is the defender side on its own.
 	precisao := precisaoDe(e, int(effectiveDex(e)))
 	st := estadoStatus{
-		Esquiva:        combat.ParryRate(int(effectiveDex(e)), e.Parry, 0, 0),
+		Esquiva:        esquivaComMelhoria(combat.ParryRate(int(effectiveDex(e)), e.Parry, 0, 0), e),
 		Precisao:       precisao,
-		EsquivaEspelho: combat.ParryRate(int(effectiveDex(e)), e.Parry, precisao, int(e.Rsv)),
+		EsquivaEspelho: esquivaComMelhoria(combat.ParryRate(int(effectiveDex(e)), e.Parry, precisao, int(e.Rsv)), e),
 		Perfuracao:     e.EquipForceDamage,
 		Reflect:        d.reflectDamage(e),
 		AtaquePvP:      d.pvpAttackPct(e),

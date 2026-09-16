@@ -32,12 +32,14 @@ func TestAffect40PlusAreIconOnly(t *testing.T) {
 	}
 }
 
+// Escudo Dourado is a server rule now (arvore_troca.go): with no attributes the
+// build reads as half and half, so 150 + 75 + 100×80/255 = 256.
 func TestAffect31GoldenShieldAC(t *testing.T) {
 	e := &world.Entity{}
 	e.Affect[0] = world.Affect{Type: 31, Value: 150, Level: 80}
 	applyAffectScore(e)
-	if e.AffAC != 190 {
-		t.Errorf("AffAC = %d, want 190", e.AffAC)
+	if e.AffAC != 256 {
+		t.Errorf("AffAC = %d, want 256", e.AffAC)
 	}
 }
 

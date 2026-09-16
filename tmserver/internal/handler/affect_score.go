@@ -46,6 +46,7 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 		return
 	}
 	trocaDeEspiritos := false
+	escudoDourado := int32(-1) // Level of the Escudo Dourado affect; -1 = none
 	for i := range e.Affect {
 		af := e.Affect[i]
 		if af.Type == 0 {
@@ -221,14 +222,17 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 			applySoulScore(e)
 		case world.AffectForceMobDamage:
 			e.AffForceMobDamage += level
-		case 31: // Escudo Dourado: AC + Level/2 + Value
-			e.AffAC += level/2 + value
+		case affectEscudoDourado:
+			// Applied after the loop, like Troca de Espíritos: it reads the
+			// attributes (arvore_troca.go).
+			escudoDourado = level
 		case 36:
 			if itemAbility != nil && itemAbility(e.Equip[weaponSlotR], efWType) == 41 {
 				e.Rsv |= world.RsvDrain
 			}
-		case 37:
+		case 37: // Ligação Espectral
 			e.AffForceDamage += int32(e.Special[2])
+			e.AffDamageMultiPct += multiplicadorLigacaoEspectral(level)
 		case affectTrocaDeEspiritos:
 			// Applied after the loop: it reads the attributes, and other affects
 			// in this same loop (Soul, DEX buffs) may still move them.
@@ -244,7 +248,13 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 	if trocaDeEspiritos {
 		applyTrocaDeEspiritos(e)
 	}
+	if escudoDourado >= 0 {
+		e.AffAC += defesaEscudoDourado(e, escudoDourado)
+	}
 }
+
+// affectEscudoDourado is the affect of Escudo Dourado (Huntress, skill 85).
+const affectEscudoDourado = 31
 
 // affectTrocaDeEspiritos is the affect of Troca de Espíritos (Huntress, skill 87).
 const affectTrocaDeEspiritos = 38

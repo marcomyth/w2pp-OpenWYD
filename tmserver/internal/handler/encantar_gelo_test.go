@@ -15,12 +15,12 @@ var nevascaCarregada = content.Spell{Index: 36, AffectType: 1, AffectValue: 2, A
 	Aggressive: 1, AffectResist: 2, MaxTarget: 1, Name: "Nevasca"}
 
 // politicaDeProducao is the duration policy tmServer boots with (main.go): the
-// cut the Agressividade slow must NOT go through.
+// cut the Encantar Gelo slow must NOT go through.
 var politicaDeProducao = world.AffectDuration{ScalePct: 15, MinTicks: 8, MaxTicks: 75}
 
-// golpeComAgressividade swings until the 50% proc lands the slow on target, and
+// golpeComEncantarGelo swings until the 50% proc lands the slow on target, and
 // reports whether it ever did.
-func golpeComAgressividade(d *Dispatcher, w *world.World, ht, target *world.Entity) bool {
+func golpeComEncantarGelo(d *Dispatcher, w *world.World, ht, target *world.Entity) bool {
 	for i := 0; i < 64; i++ {
 		d.applyOnHitAffects(w, ht, target, target.ID)
 		if target.HasAffect(1) {
@@ -39,9 +39,9 @@ func tempoDoAfeto(e *world.Entity, t uint8) uint32 {
 	return 0
 }
 
-// TestAgressividadeLentidaoPegaEmMonstro: the slow lands on a monster, lasts the
+// TestEncantarGeloLentidaoPegaEmMonstro: the slow lands on a monster, lasts the
 // legacy (0+1)×(Special[1]+150)/100 ticks, and the monster AI reads it.
-func TestAgressividadeLentidaoPegaEmMonstro(t *testing.T) {
+func TestEncantarGeloLentidaoPegaEmMonstro(t *testing.T) {
 	cases := []struct {
 		special   int16
 		wantTicks uint32
@@ -58,7 +58,7 @@ func TestAgressividadeLentidaoPegaEmMonstro(t *testing.T) {
 		ht.Special[1] = c.special
 		mob := w.Entity(w.SpawnMobAt(world.MobSpawn{Template: plainMobTemplate("Alvo"), X: 5, Y: 5, GenIndex: -1}))
 
-		if !golpeComAgressividade(d, w, ht, mob) {
+		if !golpeComEncantarGelo(d, w, ht, mob) {
 			t.Fatalf("maestria %d: a lentidão nunca pegou no monstro", c.special)
 		}
 		if got := tempoDoAfeto(mob, 1); got != c.wantTicks {
@@ -71,9 +71,9 @@ func TestAgressividadeLentidaoPegaEmMonstro(t *testing.T) {
 	}
 }
 
-// TestAgressividadeLentidaoEmJogadorDuraOLegado: against a player the slow also
+// TestEncantarGeloLentidaoEmJogadorDuraOLegado: against a player the slow also
 // keeps its legacy length instead of the production policy's one tick.
-func TestAgressividadeLentidaoEmJogadorDuraOLegado(t *testing.T) {
+func TestEncantarGeloLentidaoEmJogadorDuraOLegado(t *testing.T) {
 	d := New(Config{Spells: content.NewSkillData([]content.Spell{nevascaCarregada}),
 		AffectDuration: politicaDeProducao, CombatRules: regraSemEscala()})
 	w := world.New(world.Config{GridDim: 16}, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil)
@@ -81,7 +81,7 @@ func TestAgressividadeLentidaoEmJogadorDuraOLegado(t *testing.T) {
 	ht.Special[1] = 250
 	alvo := &world.Entity{ID: 2}
 
-	if !golpeComAgressividade(d, w, ht, alvo) {
+	if !golpeComEncantarGelo(d, w, ht, alvo) {
 		t.Fatal("a lentidão nunca pegou no jogador")
 	}
 	if got := tempoDoAfeto(alvo, 1); got != 4 {
@@ -89,15 +89,15 @@ func TestAgressividadeLentidaoEmJogadorDuraOLegado(t *testing.T) {
 	}
 }
 
-// TestSemAgressividadeNaoHaLentidao: no RsvFrost (no buff, or no bow in the right
+// TestSemEncantarGeloNaoHaLentidao: no RsvFrost (no Encantar Gelo buff, or no bow in the right
 // hand — affect_score.go), no slow.
-func TestSemAgressividadeNaoHaLentidao(t *testing.T) {
+func TestSemEncantarGeloNaoHaLentidao(t *testing.T) {
 	d := New(Config{Spells: content.NewSkillData([]content.Spell{nevascaCarregada}), CombatRules: regraSemEscala()})
 	w := world.New(world.Config{GridDim: 16}, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil)
 	ht := &world.Entity{ID: 1, Class: 3}
 	mob := w.Entity(w.SpawnMobAt(world.MobSpawn{Template: plainMobTemplate("Alvo"), X: 5, Y: 5, GenIndex: -1}))
 
-	if golpeComAgressividade(d, w, ht, mob) {
-		t.Fatal("lentidão sem o buff da Agressividade")
+	if golpeComEncantarGelo(d, w, ht, mob) {
+		t.Fatal("lentidão sem o buff da Encantar Gelo")
 	}
 }

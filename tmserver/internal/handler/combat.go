@@ -253,6 +253,12 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 		}
 	}
 
+	// Explosão Etérea (86) is PvE: the server fills the packet's free slots with
+	// the monsters around the main target before the damage loop (arvore_troca.go).
+	if cast.isSkill && skillnum == skillExplosaoEterea {
+		cast.extrasDoServidor = d.completarAlvosDaExplosao(w, e, &h, &body, &payload)
+	}
+
 	if cast.isSkill && skillnum == combat.ResurrectSkill && e.HP <= 0 {
 		d.applyBookResurrection(w, s, e)
 		body.ReqMp = int16(s.ReqMp)
@@ -361,6 +367,14 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 				continue
 			}
 			dmg = d.resolveSkillHit(w, e, target, tid, skillnum, cast)
+			// Golpe Felino rolls its own critical, x2.0-x3.0 (arvore_troca.go).
+			if skillnum == skillGolpeFelino && dmg > 0 {
+				if mult := rolarCriticoGolpeFelino(w.Rand(), int(effectiveStr(e)), int(effectiveDex(e))); mult > 0 {
+					dmg = dmg * mult / 10
+					body.DoubleCritical |= 2
+					writeDoubleCritical(payload, body.DoubleCritical)
+				}
+			}
 			skipGenericAffect := d.applySkillSpecial(w, s, e, target, tid, skillnum, cast, &body, &dmg)
 			// The client can self-target aggressive skill rows through the hotbar.
 			// Do not turn those rows into damage against the caster; explicit HP
@@ -649,6 +663,9 @@ type castInfo struct {
 	spell   content.Spell
 	special int // CurrentScore.Special[kind] (or Level for Sephira skills)
 	master  int // skill-mitigation mastery (TK bit-14 rule; 0 otherwise)
+	// extrasDoServidor marks (bit i = Dam[i]) the targets the server added to a
+	// Explosão Etérea; they were chosen around a main target already in reach.
+	extrasDoServidor uint16
 }
 
 // validateCast runs the skill gates of _MSG_Attack.cpp:98-215 for SkillIndex ∈
@@ -665,6 +682,11 @@ func (d *Dispatcher) validateCast(w *world.World, s *world.Session, e *world.Ent
 		return castInfo{}, false
 	}
 	if spell.Passive == 1 && tick != protocol.SkipCheckTick {
+		return castInfo{}, false
+	}
+	// Extração (83) and Alquimia (84) became passives (arvore_troca.go); the
+	// client still offers them as casts.
+	if skillPassivaDaTroca(skillnum) {
 		return castInfo{}, false
 	}
 	cast := castInfo{isSkill: true, spell: spell}
@@ -693,15 +715,8 @@ func (d *Dispatcher) validateCast(w *world.World, s *world.Session, e *world.Ent
 		}
 	}
 	cast.special = effectiveSpecial(e, content.SkillKind(skillnum))
-	// Escudo Dourado (85) charges 100×Special gold on cast (_MSG_Attack.cpp:222).
-	if skillnum == 85 {
-		coin := int32(100 * cast.special)
-		if e.Coin < coin {
-			return castInfo{}, false
-		}
-		e.Coin -= coin
-		d.sendEtc(w, s, e)
-	}
+	// Escudo Dourado (85) no longer charges the legacy 100×Special gold
+	// (_MSG_Attack.cpp:222) — server rule, arvore_troca.go.
 	// Skill mitigation mastery: only a TK with bit 14 learned gets Special[2]/20
 	// (clamped 0..15); everyone else casts with 0 (_MSG_Attack.cpp:258-268).
 	if e.Class == 0 && e.LearnedSkill&(1<<14) != 0 {
@@ -757,7 +772,15 @@ func (d *Dispatcher) validateSkillTarget(w *world.World, s *world.Session, caste
 	sp := cast.spell
 	// MaxTarget is a legacy max Dam[] index, not a count: _MSG_Attack.cpp rejects
 	// only i > MaxTarget. Keep that off-by-one shape for packet parity.
-	if tick != protocol.SkipCheckTick && sp.MaxTarget >= 0 && targetSlot > sp.MaxTarget {
+	maxTarget, spellRange := sp.MaxTarget, sp.Range
+	if sp.Index == skillExplosaoEterea {
+		// Server rule (arvore_troca.go): every slot of the packet, and a longer reach.
+		maxTarget, spellRange = protocol.MaxTarget-1, explosaoEtereaAlcance
+		if targetSlot >= 0 && targetSlot < 16 && cast.extrasDoServidor&(1<<targetSlot) != 0 {
+			spellRange = 0 // picked around a main target that was already in reach
+		}
+	}
+	if tick != protocol.SkipCheckTick && maxTarget >= 0 && targetSlot > maxTarget {
 		w.AddCrackError(s, 10, 28)
 		return false
 	}
@@ -768,7 +791,7 @@ func (d *Dispatcher) validateSkillTarget(w *world.World, s *world.Session, caste
 		w.AddCrackError(s, 10, 27)
 		return false
 	}
-	if sp.Range > 0 && mobDistance(caster.X, caster.Y, target.X, target.Y) > skillReach(caster, sp.Range) {
+	if spellRange > 0 && mobDistance(caster.X, caster.Y, target.X, target.Y) > skillReach(caster, spellRange) {
 		return false
 	}
 	// TargetType is otherwise client/UI guidance in the local legacy _MSG_Attack
@@ -1630,8 +1653,8 @@ func precisaoDe(attacker *world.Entity, accuracyDex int) int {
 }
 
 func (d *Dispatcher) parryRateWith(attacker, target *world.Entity, accuracyDex int) int {
-	return combat.ParryRate(int(effectiveDex(target)), target.Parry,
-		precisaoDe(attacker, accuracyDex), int(attacker.Rsv))
+	return esquivaComMelhoria(combat.ParryRate(int(effectiveDex(target)), target.Parry,
+		precisaoDe(attacker, accuracyDex), int(attacker.Rsv)), target)
 }
 
 // applyForceDamage adds the attacker's flat forced damage, from both of the
@@ -1690,7 +1713,9 @@ func (d *Dispatcher) applyOnHitAffects(w *world.World, attacker, target *world.E
 	if attacker == nil || target == nil {
 		return
 	}
-	// Agressividade (HT 75, affect 27 → RsvFrost): the Nevasca slow on a hit.
+	// Encantar Gelo (HT 75, affect 27 → RsvFrost): the Nevasca slow on a hit. (The
+	// SkillData.csv calls row 75 "Agressividade"; the book and the client call it
+	// Encantar Gelo.)
 	// DIVERGÊNCIA DELIBERADA, decidida pelo Marco em 16/09/2026: a lentidão pega
 	// também em MONSTRO (o legado recusa alvo acima de MAX_USER, e a skill não
 	// fazia nada no PvE), e dura como no legado — 1 a 4 ticks pela maestria da
@@ -1709,7 +1734,7 @@ func (d *Dispatcher) applyOnHitAffects(w *world.World, attacker, target *world.E
 var duracaoDoLegado = world.AffectDuration{}
 
 // aceitaMob abre a instalação do afeto em MONSTRO — ver SetAffectOnMob. Passam
-// true o caminho do pet e a lentidão da Agressividade; os demais procs seguem a
+// true o caminho do pet e a lentidão da Encantar Gelo; os demais procs seguem a
 // regra do legado, que recusa alvo acima de MAX_USER. dur é a política de duração
 // aplicada: d.affectDur, ou duracaoDoLegado para quem dura como no original.
 func (d *Dispatcher) applyOnHitSpell(w *world.World, target *world.Entity, tid, skillnum, delay, level int, aceitaMob bool, dur world.AffectDuration) {

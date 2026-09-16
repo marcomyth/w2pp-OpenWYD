@@ -251,39 +251,6 @@ func TestHuntressSkill79UsesDamageFormulaHalf(t *testing.T) {
 	}
 }
 
-func TestHuntressSkill85ChargesGoldBut86DoesNot(t *testing.T) {
-	spells := content.NewSkillData([]content.Spell{
-		{Index: 85, ManaSpent: 120, AffectType: 31, AffectValue: 150, AffectTime: 7},
-		{Index: 86, ManaSpent: 25, InstanceType: 1, InstanceValue: 35},
-	})
-	d := New(Config{Spells: spells})
-	w := world.New(world.Config{GridDim: 16}, slog.Default(), nil, nil)
-	s := &world.Session{Conn: 1}
-	e := &world.Entity{ID: 1, Class: 3, LearnedSkill: (1 << (85 % content.MaxSkill)) | (1 << (86 % content.MaxSkill)), Coin: 600}
-	e.Special[content.SkillKind(85)] = 5
-
-	if _, ok := d.validateCast(w, s, e, 85, 1000); !ok {
-		t.Fatal("skill 85 rejected with enough gold")
-	}
-	if e.Coin != 100 {
-		t.Fatalf("coin after skill 85 = %d, want 100", e.Coin)
-	}
-	if _, ok := d.validateCast(w, s, e, 86, 1000); !ok {
-		t.Fatal("skill 86 rejected")
-	}
-	if e.Coin != 100 {
-		t.Fatalf("coin after skill 86 = %d, want unchanged 100", e.Coin)
-	}
-
-	e.Coin = 499
-	if _, ok := d.validateCast(w, s, e, 85, 1000); ok {
-		t.Fatal("skill 85 accepted without enough gold")
-	}
-	if e.Coin != 499 {
-		t.Fatalf("coin after rejected skill 85 = %d, want 499", e.Coin)
-	}
-}
-
 func TestHuntressSkill86DoesNotDamageSelf(t *testing.T) {
 	addr, stop := startServerCustomSpells(t, huntressSkill86DB(), huntressSkill86Spells())
 	defer stop()
