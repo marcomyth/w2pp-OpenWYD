@@ -1009,6 +1009,16 @@ var masterGriffDestinations = []masterGriffDestination{
 // matching their level and must set CMob.QuestFlag first; otherwise the legacy
 // area guard recalls the player as an intruder.
 func (d *Dispatcher) mestreGrifo(w *world.World, s *world.Session, e, npc *world.Entity) {
+	// Mortal only, with the same refusal and the same line as the quest NPC
+	// (quest256NPC). The five Quest 256 chains belong to Mortal on this server —
+	// the ticket, the NPC and the trophy all say so — and this shortcut was the one
+	// door that skipped the rule: it set the flag for any class, so an Arch or a
+	// Celestial walked into the arenas for free.
+	if e.ClassMaster != classMasterMortal {
+		d.say(w, npc, "_NN_Level_Limit2", "Seu nível não permite o uso disto.") // 340
+		d.log.Info("mestre grifo refused: not a Mortal", "conn", s.Conn, "npc", npc.ID, "classMaster", e.ClassMaster)
+		return
+	}
 	step, ok := quest256StepForLevel(e.Level)
 	if !ok {
 		d.log.Debug("mestre grifo: level outside quest range", "conn", s.Conn, "npc", npc.ID, "level", e.Level)
