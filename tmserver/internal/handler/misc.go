@@ -282,6 +282,12 @@ func (d *Dispatcher) quest(w *world.World, s *world.Session, _ protocol.Header, 
 		d.compSephi(w, s, e, npc, int(confirm))
 		return
 	}
+	// JEFFI (Merchant 12, _MSG_Quest.cpp:514): purifies the Círculo Divino
+	// piece, or turns Restos de Ori/Lac into Poeiras.
+	if npc.Merchant == merchantJeffi {
+		d.jeffi(w, s, e, npc)
+		return
+	}
 	// KIBITA (Merchant 74): permanently unlocks Mortal Soul with the
 	// class-specific Secreta stone (_MSG_Quest.cpp:2518-2558).
 	if npc.Merchant == 74 {

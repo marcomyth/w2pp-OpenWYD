@@ -28,7 +28,7 @@ O **`Merchant`** do NPC decide o que o clique manda:
 | 9 | 2 | Freyja | _MSG_Quest | ❌ |
 | 10 | 2 | Cap.Mercenario | _MSG_Quest (AMU_MISTICO) | ❌ |
 | 11 | 2 | ExploitLeader | _MSG_Quest (EXPLOIT_LEADER) | ❌ |
-| 12 | 3 | Jeffi, Alchemy_Jeffi | _MSG_Quest (JEFFI) | ❌ |
+| 12 | 3 | Jeffi, Alchemy_Jeffi | _MSG_Quest (JEFFI) | ✅ Poeiras de Ori/Lac (empilham) + Círculo Divino Puro (`handler/jeffi.go`) |
 | 13 | 2 | Curandeiro, Shaman | _MSG_Quest (SHAMA) | ❌ |
 | 16 | 81 | BarebackHorse, WildBoar, Sem_Sela | REQShopList? | ❌ **montarias** (captura/loja de mount) |
 | 19 | 5 | Foema_Ancian, Mestre_Archi | REQShopList | ✅ loja especial (shopType 3) |
