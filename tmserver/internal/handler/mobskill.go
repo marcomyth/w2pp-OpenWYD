@@ -142,7 +142,7 @@ func (d *Dispatcher) applyMobSkill(w *world.World, e, target *world.Entity, sk m
 	}
 	// true: um PET pode debuffar monstro. É a divergência estreita descrita em
 	// SetAffectOnMob; jogador contra monstro segue a regra do legado.
-	d.applyOnHitSpell(w, target, target.ID, sk.index, delay, level, e != nil && e.Summoner != 0)
+	d.applyOnHitSpell(w, target, target.ID, sk.index, delay, level, e != nil && e.Summoner != 0, d.affectDur)
 }
 
 // healMobSkill runs the SkillBar[3] slot: a tenth of maximum HP onto whichever of

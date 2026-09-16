@@ -1690,29 +1690,40 @@ func (d *Dispatcher) applyOnHitAffects(w *world.World, attacker, target *world.E
 	if attacker == nil || target == nil {
 		return
 	}
+	// Agressividade (HT 75, affect 27 → RsvFrost): the Nevasca slow on a hit.
+	// DIVERGÊNCIA DELIBERADA, decidida pelo Marco em 16/09/2026: a lentidão pega
+	// também em MONSTRO (o legado recusa alvo acima de MAX_USER, e a skill não
+	// fazia nada no PvE), e dura como no legado — 1 a 4 ticks pela maestria da
+	// árvore 1, sem o corte de 15% da política de duração, que a deixava em um
+	// tick só. A exigência de arco na mão direita continua (affect_score.go).
 	if attacker.Rsv&world.RsvFrost != 0 && w.Rand().Intn(2) == 0 {
-		d.applyOnHitSpell(w, target, tid, 36, effectiveSpecial(attacker, 1)+150, effectiveSpecial(attacker, 1), false)
+		d.applyOnHitSpell(w, target, tid, 36, effectiveSpecial(attacker, 1)+150, effectiveSpecial(attacker, 1), true, duracaoDoLegado)
 	}
 	if attacker.Rsv&world.RsvDrain != 0 && w.Rand().Intn(2) == 0 {
-		d.applyOnHitSpell(w, target, tid, 40, effectiveSpecial(attacker, 1)+150, effectiveSpecial(attacker, 1), false)
+		d.applyOnHitSpell(w, target, tid, 40, effectiveSpecial(attacker, 1)+150, effectiveSpecial(attacker, 1), false, d.affectDur)
 	}
 }
 
-// aceitaMob abre a instalação do afeto em MONSTRO, e só o caminho do pet passa
-// true — ver SetAffectOnMob. Os procs de item de jogador continuam com a regra do
-// legado, que recusa alvo acima de MAX_USER.
-func (d *Dispatcher) applyOnHitSpell(w *world.World, target *world.Entity, tid, skillnum, delay, level int, aceitaMob bool) {
+// duracaoDoLegado é a política de duração vazia: sem corte, sem piso e sem teto,
+// o afeto dura exatamente os ticks que o SetAffect do legado calcula.
+var duracaoDoLegado = world.AffectDuration{}
+
+// aceitaMob abre a instalação do afeto em MONSTRO — ver SetAffectOnMob. Passam
+// true o caminho do pet e a lentidão da Agressividade; os demais procs seguem a
+// regra do legado, que recusa alvo acima de MAX_USER. dur é a política de duração
+// aplicada: d.affectDur, ou duracaoDoLegado para quem dura como no original.
+func (d *Dispatcher) applyOnHitSpell(w *world.World, target *world.Entity, tid, skillnum, delay, level int, aceitaMob bool, dur world.AffectDuration) {
 	sp, ok := onHitSpell(d.spells, skillnum)
 	if !ok {
 		return
 	}
 	var applied bool
 	if aceitaMob && !world.IsPlayer(target.ID) {
-		applied = target.SetAffectOnMob(sp.AffectType, sp.AffectValue, sp.AffectTime, sp.Aggressive, delay, level, d.affectDur)
+		applied = target.SetAffectOnMob(sp.AffectType, sp.AffectValue, sp.AffectTime, sp.Aggressive, delay, level, dur)
 	} else {
-		applied = target.SetAffect(sp.AffectType, sp.AffectValue, sp.AffectTime, sp.Aggressive, delay, level, d.affectDur)
+		applied = target.SetAffect(sp.AffectType, sp.AffectValue, sp.AffectTime, sp.Aggressive, delay, level, dur)
 	}
-	if target.SetTick(sp.TickType, sp.TickValue, sp.AffectTime, sp.Aggressive, delay, level, d.affectDur) {
+	if target.SetTick(sp.TickType, sp.TickValue, sp.AffectTime, sp.Aggressive, delay, level, dur) {
 		applied = true
 	}
 	if !applied {
