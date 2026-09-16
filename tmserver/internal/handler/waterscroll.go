@@ -134,16 +134,17 @@ func waterRoomExit(room int) [2]int16 {
 const waterMCelestialMaxLevel = 40
 
 // waterNMortalMinLevel is where the N chain opens to a Mortal. Server rule
-// (2026-09-16), shared with the Pesadelo N door (pesaNMortalMinLevel): up to
-// here a Mortal levels on quests and the open field only, and at this level
-// both dungeons open together. The 20-day XP plan is computed on exactly that
-// premise, so a door that let any Mortal in would not bend the plan — it would
-// void it.
+// (2026-09-16), shared with the Pesadelo N door (pesaNMortalMinLevel): below it
+// a Mortal levels on quests and the open field only, and at it both dungeons
+// open together. The 20-day XP plan is computed on exactly that premise, so a
+// door that let any Mortal in would not bend the plan — it would void it.
 //
-// The number is the STORED level: the one the staff panel shows, the one the XP
-// table's rows are written in, and the one the plan's model walks. The client
-// draws Level+1, so a player reads this door as 352.
-const waterNMortalMinLevel = 351
+// The rule was given as level 351 ON SCREEN. The client draws Level+1, so that
+// is stored level 350 — the number the staff panel, the XP table rows and the
+// plan's model use. It is also where the last Quest 256 step closes (its
+// maxLevel is 350, refused at >= 350), so the door opens on the very level the
+// quests stop paying, and no level is left with neither.
+const waterNMortalMinLevel = 350
 
 // waterClassAllowed gates each chain to a progression tier.
 //
@@ -175,6 +176,13 @@ func waterClassAllowed(variant int, classMaster uint8, level int32) bool {
 // need different words, and the second one has to say the level.
 func waterBelowMinLevel(variant int, classMaster uint8, level int32) bool {
 	return variant == waterN && classMaster == classMasterMortal && level < waterNMortalMinLevel
+}
+
+// waterAllowed is the whole gate — class, cap and floor — the way pesadeloAllowed
+// is for the Pesadelo. The party loop uses it: the scroll only ever tested the
+// leader, so a member of any class used to ride into any chain.
+func waterAllowed(variant int, classMaster uint8, level int32) bool {
+	return waterClassAllowed(variant, classMaster, level) && !waterBelowMinLevel(variant, classMaster, level)
 }
 
 // waterRoomForVolatile maps an EF_VOLATILE to its dungeon and room. The dead
@@ -496,10 +504,12 @@ func waterBossBlock(roll int) int {
 // and pushes the countdown to each of them. The parm is the countdown in
 // SECONDS: one unit is 2s, which is exactly the legacy's `WaterClear1 * 2`.
 //
-// A member below the chain's level floor is left behind in silence, the way the
-// Pesadelo party loop leaves one behind: the run goes on for everyone else. The
-// floor has to be checked HERE and not only on the scroll, because the scroll is
-// the leader's — without this, any Mortal rides into N in a high Mortal's party.
+// A member who fails the chain's gate (waterAllowed: wrong class, past the cap,
+// or below the floor) is left behind in silence, the way the Pesadelo party loop
+// leaves one behind: the run goes on for everyone else. The gate has to be
+// checked HERE and not only on the scroll, because the scroll is the leader's —
+// without this, an Arch rode into N with a Mortal, and any Mortal rode into N in
+// a high Mortal's party.
 func (d *Dispatcher) enterWaterRoom(w *world.World, s *world.Session, e *world.Entity, variant int, dest [2]int16, countdown uint8) {
 	d.doTeleport(w, s, dest[0], dest[1])
 	d.sendWaterCountdown(w, s, countdown)
@@ -512,7 +522,7 @@ func (d *Dispatcher) enterWaterRoom(w *world.World, s *world.Session, e *world.E
 		if ms == nil || ms.Mode != world.UserPlay {
 			continue
 		}
-		if me := w.Entity(member); me == nil || waterBelowMinLevel(variant, me.ClassMaster, me.Level) {
+		if me := w.Entity(member); me == nil || !waterAllowed(variant, me.ClassMaster, me.Level) {
 			continue
 		}
 		d.doTeleport(w, ms, dest[0], dest[1])

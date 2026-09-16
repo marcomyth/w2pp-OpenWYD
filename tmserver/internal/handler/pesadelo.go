@@ -237,7 +237,7 @@ const (
 	// pesaNMortalMinLevel is the one FLOOR on the ladder: a Mortal enters N only
 	// from here, the same stored level the Água N chain opens at
 	// (waterNMortalMinLevel, where the reason is written down).
-	pesaNMortalMinLevel = 351
+	pesaNMortalMinLevel = 350
 )
 
 // pesadeloTierClass reports whether a progression tier may enter this dungeon at
