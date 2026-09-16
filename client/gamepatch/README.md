@@ -72,6 +72,16 @@ O nó tem **0x16C bytes** (construtor em `0x40BF80`). A cópia precisa ser intei
 o desenho lê o índice de textura em `+0x160`, e uma cópia curta faz o último
 pedaço ser tratado como textura 0 e não aparecer.
 
+## Descrição na janela de skills
+
+O tooltip da janela de skills só tem as linhas fixas do cliente (alcance, mana,
+dano, propriedades, pontos, classe, "Skill Passiva"). O DLL escreve nas linhas
+livres abaixo delas a descrição do livro da skill (item 5000–5447), lida do
+próprio `itemhelp.dat` do cliente: texto novo de skill é só o `itemhelp.dat`.
+A skill da janela é um slot com o item do livro em `+0x670`, o mesmo campo que
+o desvio do slot já lê. No livro da bolsa o cliente já mostra essas linhas, e
+o DLL não repete.
+
 ## Como o cliente carrega
 
 O `WYD.exe` já tem um carregador no ponto de entrada (`0x5F3C66`) que chama

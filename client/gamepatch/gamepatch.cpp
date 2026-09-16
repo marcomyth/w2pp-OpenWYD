@@ -127,7 +127,12 @@ bool g_tooltipBuilt = false;
 // linhas fora dela é outro tooltip — o de skill usa as mesmas linhas e o mesmo
 // painel — e aí o estado de montaria tem de ser desfeito.
 bool g_insideTooltip = false;
+// O texto de cada linha neste tooltip, como o cliente o escreveu: é por ele que
+// a descrição da skill sabe que o cliente já a mostrou (o livro na bolsa).
+constexpr int kLineTextSize = 96;
+char g_lineText[kTracked][kLineTextSize];
 void ForgetMountTooltip();
+void ForgetSkillDescription();
 bool g_applying = false; // true enquanto este DLL pinta: não conta como escolha do cliente
 
 bool StartsWith(const char* text, const char* prefix) {
@@ -176,8 +181,10 @@ void __fastcall HookedSetText(void* self, void* edx, const char* text, int flag)
     if (i >= 0) {
         if (g_insideTooltip) {
             g_tooltipBuilt = true;
+            strncpy_s(g_lineText[i], kLineTextSize, text != nullptr ? text : "", _TRUNCATE);
         } else {
             ForgetMountTooltip();
+            ForgetSkillDescription();
         }
         g_lineUsed[i] = text != nullptr && text[0] != 0;
         if (i == 0 && g_insideTooltip) {
@@ -866,6 +873,196 @@ void ForgetMountTooltip() {
     }
 }
 
+// --- Descrição da skill ------------------------------------------------------------
+//
+// O tooltip da janela de skills só tem as linhas fixas do cliente (alcance, mana,
+// dano, propriedades, pontos, classe, "Skill Passiva"); o que a skill faz só
+// aparecia no livro. A skill da janela é um slot como o da bolsa, com o item do
+// livro em +0x670 (5000 + skill; o cliente tira o número da skill dele em
+// 0x4193C5), então o desvio do slot já anota o índice. Aqui a descrição do livro,
+// lida do próprio itemhelp.dat do cliente, vai nas linhas livres abaixo das do
+// cliente — a mesma fonte do tooltip do livro, então texto novo de skill é só o
+// itemhelp.dat.
+//
+// No livro da bolsa o cliente já escreve essas linhas: se a primeira da descrição
+// já está no tooltip, nada é acrescentado.
+//
+// itemhelp.dat: texto Windows-1252, um bloco por item — uma linha com o índice e
+// depois linhas "AARRGGBB texto" (o "_" é desenhado como espaço). As linhas vazias
+// do começo e do fim do bloco não entram.
+
+constexpr int kDescFirst = 5000;   // livros das skills das classes
+constexpr int kDescLast = 5447;    // até os da Sephira
+constexpr int kDescMaxLines = 12;  // o bloco do itemhelp.dat tem até dez linhas
+constexpr int kDescLineSize = 96;
+// A cor das linhas da descrição: o laranja claro do "Item nível Lendário". A cor
+// do itemhelp.dat (CC9900FF, roxo) some no fundo escuro do tooltip.
+constexpr DWORD kColorSkillDescription = 0xFFFF9E48;
+
+struct SkillDesc {
+    int count;
+    DWORD color[kDescMaxLines];
+    char text[kDescMaxLines][kDescLineSize];
+};
+SkillDesc g_skillDesc[kDescLast - kDescFirst + 1];
+bool g_skillDescLoaded = false;
+// As linhas em que a descrição foi escrita, [g_descFrom, g_descTo); -1 sem nenhuma.
+int g_descFrom = -1, g_descTo = -1;
+
+bool IsHexColor(const char* s) {
+    for (int i = 0; i < 8; i++) {
+        const char c = s[i];
+        if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f'))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void LoadSkillDescriptions() {
+    g_skillDescLoaded = true;
+    HANDLE f = CreateFileA("itemhelp.dat", GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) {
+        return;
+    }
+    const DWORD size = GetFileSize(f, nullptr);
+    if (size == INVALID_FILE_SIZE || size > 4 * 1024 * 1024) {
+        CloseHandle(f);
+        return;
+    }
+    char* data = static_cast<char*>(HeapAlloc(GetProcessHeap(), 0, size + 1));
+    if (data == nullptr) {
+        CloseHandle(f);
+        return;
+    }
+    DWORD read = 0;
+    ReadFile(f, data, size, &read, nullptr);
+    CloseHandle(f);
+    data[read] = 0;
+
+    SkillDesc* current = nullptr;
+    char* line = data;
+    while (line != nullptr && *line != 0) {
+        char* next = strchr(line, '\n');
+        if (next != nullptr) {
+            *next++ = 0;
+        }
+        size_t n = strlen(line);
+        while (n > 0 && (line[n - 1] == '\r' || line[n - 1] == ' ' || line[n - 1] == '\t')) {
+            line[--n] = 0;
+        }
+        if (n > 0 && strspn(line, "0123456789") == n) {
+            const int index = atoi(line);
+            current = index >= kDescFirst && index <= kDescLast ? &g_skillDesc[index - kDescFirst] : nullptr;
+            if (current != nullptr) {
+                current->count = 0; // um índice repetido fica com o último bloco
+            }
+        } else if (current != nullptr && current->count < kDescMaxLines && n >= 8 && IsHexColor(line) &&
+                   (n == 8 || line[8] == ' ')) {
+            // "FFFFFFFF " perde o espaço no corte do fim da linha: é linha vazia.
+            const int k = current->count++;
+            char hex[9] = {};
+            memcpy(hex, line, 8);
+            current->color[k] = strtoul(hex, nullptr, 16);
+            strncpy_s(current->text[k], kDescLineSize, n > 9 ? line + 9 : "", _TRUNCATE);
+        }
+        line = next;
+    }
+    HeapFree(GetProcessHeap(), 0, data);
+
+    // Tira as linhas vazias do começo e do fim de cada bloco.
+    for (SkillDesc& d : g_skillDesc) {
+        int first = 0;
+        while (first < d.count && d.text[first][0] == 0) {
+            first++;
+        }
+        int last = d.count;
+        while (last > first && d.text[last - 1][0] == 0) {
+            last--;
+        }
+        for (int i = first; i < last; i++) {
+            d.color[i - first] = d.color[i];
+            memmove(d.text[i - first], d.text[i], kDescLineSize);
+        }
+        d.count = last - first;
+    }
+}
+
+const SkillDesc* SkillDescriptionOf(int item) {
+    if (!g_skillDescLoaded) {
+        LoadSkillDescriptions();
+    }
+    if (item < kDescFirst || item > kDescLast) {
+        return nullptr;
+    }
+    const SkillDesc& d = g_skillDesc[item - kDescFirst];
+    return d.count > 0 ? &d : nullptr;
+}
+
+// Apaga as linhas da descrição anterior que este tooltip não reescreveu.
+void ClearSkillDescription(bool keepRewritten) {
+    for (int i = g_descFrom; i >= 0 && i < g_descTo; i++) {
+        if (!keepRewritten || !g_lineUsed[i]) {
+            SetLineRaw(i, "", 0);
+        }
+    }
+    g_descFrom = g_descTo = -1;
+}
+
+void ForgetSkillDescription() {
+    if (g_descFrom >= 0) {
+        ClearSkillDescription(false);
+    }
+}
+
+// true se o cliente já escreveu esta linha da descrição no tooltip (o livro).
+bool TooltipHasLine(const char* text) {
+    for (int i = 1; i < kTracked; i++) {
+        if (g_lineUsed[i] && strcmp(g_lineText[i], text) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void PlaceSkillDescription() {
+    ClearSkillDescription(true);
+    const SkillDesc* d = g_slotHooked ? SkillDescriptionOf(g_tooltipItem) : nullptr;
+    if (d == nullptr || TooltipHasLine(d->text[0])) {
+        return;
+    }
+    int last = 0;
+    for (int i = 1; i < kPriceLine; i++) {
+        if (g_lineUsed[i]) {
+            last = i;
+        }
+    }
+    if (g_levelLine > last) {
+        last = g_levelLine;
+    }
+    if (g_extraLine > last) {
+        last = g_extraLine;
+    }
+    // Uma linha em branco separa a descrição das linhas do cliente, se couber.
+    int from = last + 1;
+    if (last > 0 && from + d->count < kPriceLine) {
+        from++;
+    }
+    if (from > last + 1) {
+        SetLineRaw(last + 1, "", 0);
+    }
+    int to = from;
+    for (int k = 0; k < d->count && to < kPriceLine; k++, to++) {
+        SetLineRaw(to, d->text[k], kColorSkillDescription);
+    }
+    if (to > from) {
+        g_descFrom = last + 1; // inclui a linha em branco, que também é apagada depois
+        g_descTo = to;
+    }
+}
+// -----------------------------------------------------------------------------
+
 void __cdecl BeforeTooltip() {
     g_insideTooltip = true;
     if (!g_controlsHooked) {
@@ -875,6 +1072,7 @@ void __cdecl BeforeTooltip() {
         g_wantedColor[i] = 0;
         g_clientColor[i] = 0;
         g_lineUsed[i] = false;
+        g_lineText[i][0] = 0;
     }
     g_title[0] = 0;
     g_tooltipHasAbsorb = false;
@@ -924,6 +1122,7 @@ void __cdecl AfterTooltip() {
         PanelColor(panel) = g_styledTooltip ? kColorBackground : g_panelOriginalColor;
     }
     PlaceLevelLine(prefix, label, g_family, extra);
+    PlaceSkillDescription();
     // A paleta das linhas, por enquanto, é só da montaria: o equipamento fica
     // com as cores do cliente até ter a sua.
     if (!mount) {
