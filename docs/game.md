@@ -189,15 +189,18 @@ status de sempre.
 **Hércules e Hecate: porcentagem de dano e Defesa.** Os dois deixaram de dar Dano e Magia fixos.
 Hércules dá **% de dano físico** e Hecate **% de dano mágico**, mais Defesa:
 
-| Degrau | % de dano | Defesa | +9 · +15 (só a %) |
-|---|---|---|---|
-| Bracelete | 4% | 50 | 8% · 14% |
-| Pingente | 6% | 100 | 12% · 22% |
-| Brinco | 8% | 150 | 16% · 29% |
-| Colar | 10% | 200 | 20% · 37% |
+| Degrau | % de dano | Defesa | +9 | +15 |
+|---|---|---|---|---|
+| Bracelete | 4% | 50 | 8% · 100 | 16% · 200 |
+| Pingente | 6% | 100 | 12% · 200 | 24% · 400 |
+| Brinco | 8% | 150 | 16% · 300 | 32% · 600 |
+| Colar | 10% | 200 | 20% · 400 | 40% · 800 |
 
-- A porcentagem cresce com o refino; a **Defesa não** (regra deste servidor para o primeiro
-  espaço de acessório — só o Anel Branco de Amante tinha Defesa ali, e ela também parou de crescer).
+- A porcentagem e a Defesa crescem com o refino, exatamente como o tooltip do cliente mostra.
+- **Refino de acessório acima do +9 segue o cliente**, não o legado do servidor: +9 ×2,0, +10
+  ×2,2, +11 ×2,5, +12 ×2,8, +13 ×3,2, +14 ×3,7, +15 ×4,0 (WYD.exe soma 1 ao nível de todo
+  acessório a partir do +9). Vale para todos os acessórios que sobem além do +9: brincos,
+  Místicos, Arcanos, Ankhs, planetas e Amuleto dos Amantes.
 - A **% física** vale no ataque inteiro, arma incluída, e nas skills que não usam Magia (2ª
   árvore do TK e Huntress). Soma com as poções e o Assalto: poção +5% com brinco +8% dá +13%.
 - A **% mágica** vale no dano pronto de toda skill que usa Magia, somada ao mesmo multiplicador

@@ -2383,12 +2383,21 @@ func refineScaled(eff uint8) bool {
 // Accessories (nPos & 0xF00) reaching +9 are promoted to sanc 10 first, which is what
 // turns the +9 bonus into a clean x2 — the rule behind a +9 Pedra_Amunra granting 200
 // per attribute instead of 100 (#282).
+//
+// Reforma dos acessórios (2026-09-16): acima do +9 o acessório segue o WYD.exe
+// 7662, não o Basedef.cpp. O cliente (0x537F31) soma 1 ao nível de TODO acessório
+// a partir do +9 e usa a tabela 220/250/280/320/370/400 (0x5380F2), então +10 vale
+// ×2,2 e +15 vale ×4,0. Antes da reforma nenhum acessório passava do +9, e
+// agora o tooltip mostra essa conta; o servidor aplica a mesma.
 func (d *Dispatcher) refineFactor(it world.Item) int {
-	sanc := itemScoreSanc(itemSanc(it))
-	if sanc == refineThreshold && d.itemPos[int(it.Index)]&accessoryPosMask != 0 {
-		sanc = 10
+	level := itemSanc(it)
+	if level >= refineThreshold && d.itemPos[int(it.Index)]&accessoryPosMask != 0 {
+		level++
+		if level > 10 {
+			return [...]int{11: 22, 12: 25, 13: 28, 14: 32, 15: 37, 16: 40}[level]
+		}
 	}
-	return sanc + 10
+	return itemScoreSanc(level) + 10
 }
 
 // itemAbilityRefined is BASE_GetItemAbility (Basedef.cpp:1687-1867): the catalog+instance
@@ -2401,13 +2410,6 @@ func (d *Dispatcher) refineFactor(it world.Item) int {
 func (d *Dispatcher) itemAbilityRefined(it world.Item, eff uint8) int32 {
 	v := int32(d.itemAbility(it, eff))
 	if v == 0 || !refineScaled(eff) {
-		return v
-	}
-	// Reforma dos acessórios (2026-09-16): a Defesa do primeiro espaço de acessório
-	// não cresce com o refino. Bracelete, Pingente, Brinco e Colar de Hércules e
-	// Hecate dão de 50 a 200 de Defesa; multiplicada por 3,7 no +15, um brinco
-	// passaria da defesa de um elmo. O que cresce ali é a porcentagem de dano.
-	if eff == efAc && d.itemPos[int(it.Index)] == nPosAcessorio1 {
 		return v
 	}
 	factor := d.refineFactor(it)

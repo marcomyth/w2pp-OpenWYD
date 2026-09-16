@@ -92,8 +92,12 @@ func TestItemAbilityRefinedScale(t *testing.T) {
 			world.Item{Index: scaleArmor, Effects: [3]world.Effect{sancEffect(9)}}, efStr, 190},
 		{"+8 accessory gets no promotion",
 			world.Item{Index: scaleAmunra, Effects: [3]world.Effect{sancEffect(8)}}, efStr, 180},
-		{"+11 uses REF_11 and scales by 22/10",
-			world.Item{Index: scaleAmunra, Effects: [3]world.Effect{sancEffect(234)}}, efStr, 220},
+		{"+11 non-accessory uses REF_11 and scales by 22/10",
+			world.Item{Index: scaleArmor, Effects: [3]world.Effect{sancEffect(234)}}, efStr, 220},
+		// Reforma dos acessórios: acima do +9 o acessório segue o WYD.exe, que soma 1
+		// ao nível; +11 vira a linha do +12 do cliente, ×2,5.
+		{"+11 accessory follows the client table, 25/10",
+			world.Item{Index: scaleAmunra, Effects: [3]world.Effect{sancEffect(234)}}, efStr, 250},
 		{"catalog and instance are summed BEFORE the multiplier",
 			// (5+5)*19/10 = 19. Scaling each entry instead would truncate twice:
 			// 5*19/10 + 5*19/10 = 9+9 = 18.

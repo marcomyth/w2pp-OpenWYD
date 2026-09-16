@@ -32,8 +32,8 @@ func brincoRefinado(t *testing.T, level int) world.Item {
 	return it
 }
 
-// A porcentagem cresce com o refino, e a Defesa do primeiro espaço de acessório
-// não: um Brinco +15 dá 29% (8 × 3,7) e continua dando 150 de Defesa.
+// A porcentagem e a Defesa crescem com o refino pela conta do WYD.exe: um Brinco
+// +15 dá 32% (8 × 4,0) e 600 de Defesa, os números que o tooltip mostra.
 func TestBrincoDeHerculesMais15(t *testing.T) {
 	d := dispatcherDoBrinco()
 	sem := testPlayerEntity()
@@ -43,11 +43,11 @@ func TestBrincoDeHerculesMais15(t *testing.T) {
 	com.Equip[8] = brincoRefinado(t, 15)
 	d.refreshScore(com)
 
-	if com.DanoFisicoPct != 29 {
-		t.Errorf("dano físico = %d%%, esperado 29%%", com.DanoFisicoPct)
+	if com.DanoFisicoPct != 32 {
+		t.Errorf("dano físico = %d%%, esperado 32%%", com.DanoFisicoPct)
 	}
-	if got := com.AC - sem.AC; got != 150 {
-		t.Errorf("Defesa do brinco +15 = %d, esperado 150 (não cresce com o refino)", got)
+	if got := com.AC - sem.AC; got != 600 {
+		t.Errorf("Defesa do brinco +15 = %d, esperado 600", got)
 	}
 }
 
@@ -81,5 +81,17 @@ func TestDefesaForaDoAcessorioSegueORefino(t *testing.T) {
 	refine.Set(&it, 15, 0)
 	if got := d.itemAbilityRefined(it, efAc); got != 370 {
 		t.Errorf("Defesa da armadura +15 = %d, esperado 370", got)
+	}
+}
+
+// Fator de refino de acessório nível a nível, contra a tabela do WYD.exe
+// (0x537F31 e 0x5380F2). A armadura continua no legado: +15 é ×3,7.
+func TestFatorDeRefinoDoAcessorioSegueOCliente(t *testing.T) {
+	d := dispatcherDoBrinco()
+	want := map[int]int{0: 10, 5: 15, 8: 18, 9: 20, 10: 22, 11: 25, 12: 28, 13: 32, 14: 37, 15: 40}
+	for level, f := range want {
+		if got := d.refineFactor(brincoRefinado(t, level)); got != f {
+			t.Errorf("brinco +%d: fator %d, esperado %d", level, got, f)
+		}
 	}
 }
