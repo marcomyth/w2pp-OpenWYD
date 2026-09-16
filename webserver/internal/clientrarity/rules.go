@@ -53,7 +53,7 @@ var accessoryByIndex = func() map[int]Tier {
 		{Incomum, span(608, 611)},                      // Olhos
 		{Raro, span(612, 615)},                         // Defesas elementais
 		{Comum, []int{651, 652, 653, 657}},             // Rubis
-		{Incomum, span(762, 768)},                      // Netuno a Júpiter, lv 54
+		{Mitico, span(762, 768)},                       // Planetas, lv 250: os míticos do espaço 4
 		{Incomum, span(654, 656)},                      // Pedras Necromânticas
 		{Raro, span(658, 663)},                         // Gemas da Siren e Ankhs
 		{Raro, span(1760, 1763)},                       // Sephirot

@@ -70,6 +70,14 @@ func SetIcon(clientDir string, item int, bmpPath string) (int, error) {
 		return 0, fmt.Errorf("itemicons: a célula %d não cabe em %s (%dx%d)",
 			cell, atlasName, atlas.Bounds().Dx(), atlas.Bounds().Dy())
 	}
+	// A célula tomada é arte órfã, não branco: um desenho menor que ela deixaria
+	// a borda da arte antiga à mostra (os planetas de 32×32, em 16/09/2026,
+	// saíram com riscos em cima e embaixo). Limpa a célula inteira antes.
+	for y := range CellSize {
+		for x := range CellSize {
+			atlas.SetNRGBA(x0+x, y0+y, color.NRGBA{})
+		}
+	}
 	offX := x0 + (CellSize-art.Bounds().Dx())/2
 	offY := y0 + (CellSize-art.Bounds().Dy())/2
 	for y := range art.Bounds().Dy() {

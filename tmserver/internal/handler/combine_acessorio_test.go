@@ -204,9 +204,10 @@ func TestOdinLevaBrincoDeMais11ParaMais12(t *testing.T) {
 	}
 }
 
-// A Resistência a todos dos planetas e do Amuleto dos Amantes não cresce com o
-// refino; o resto do espaço 4 e o resto do equipamento seguem o legado.
-func TestResistenciaDoEspaco4NaoSobeNoRefino(t *testing.T) {
+// A Resistência a todos do Amuleto dos Amantes não cresce com o refino; a dos
+// planetas cresce como o tooltip mostra (×4,0 no +15), e o resto do equipamento
+// segue o legado.
+func TestResistenciaDoEspaco4NoRefino(t *testing.T) {
 	d := New(Config{
 		Log:     slog.New(slog.DiscardHandler),
 		ItemPos: map[int]int{762: nPosAcessorio4, 1738: nPosAcessorio4, 612: 1024},
@@ -222,7 +223,7 @@ func TestResistenciaDoEspaco4NaoSobeNoRefino(t *testing.T) {
 		fogo int32
 		gelo int32
 	}{
-		{"Netuno +15", itemRefinado(t, 762, 15), 10, 10},
+		{"Netuno +15", itemRefinado(t, 762, 15), 40, 40},
 		{"Amantes +9", itemRefinado(t, 1738, 9), 10, 10},
 		// Orb de fogo +9 (espaço 3): segue dobrando como no legado.
 		{"Defesa contra Fogo +9", itemRefinado(t, 612, 9), 14, 0},

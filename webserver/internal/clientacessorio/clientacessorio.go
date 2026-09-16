@@ -123,8 +123,8 @@ func texto(rec []byte) string {
 
 // ItensDaReforma são os registros do ItemList.bin que mudaram: bracelete,
 // pingente, brinco e colar de Hércules e de Hecate, e bracelete, pingente e
-// brinco de Zeus (Defesa nova; Zeus não tem colar).
-var ItensDaReforma = []int{507, 513, 514, 519, 520, 521, 593, 594, 595, 642, 643}
+// brinco de Zeus (Defesa nova; Zeus não tem colar), e os sete planetas (762-768).
+var ItensDaReforma = []int{507, 513, 514, 519, 520, 521, 593, 594, 595, 642, 643, 762, 763, 764, 765, 766, 767, 768}
 
 const itemRecord = 140
 

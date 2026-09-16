@@ -250,12 +250,29 @@ Máquinas (sem linha: 35%). O Arcano não é mais vendido nem cai de monstro.
 | Amuleto Arcano | 300 (era 180) | Skill 14 (era 15) |
 | Gema da Siren | 150 (era 156-195) | igual |
 | Ankh da Justiça / Eternidade / Glória | 220 (era 160) | MP 300 / HP 300 / Crítico 100 (eram 115 / 100 / 50) |
-| Planetas | 200 (era 54) | HP 150 (era 30); Netuno dano 40, Urano defesa 40, Vênus magia 14 (o dobro); Marte a Júpiter skill 15 |
+| Planetas | 250 (era 54) | dois status cada, ver abaixo |
 | Amuleto dos Amantes | 200 (era 0) | HP 150 (era 100) |
 
-A **Resistência a todos** dos planetas e do Amuleto dos Amantes **não cresce com o refino**
-(regra deste servidor): um +15 continua dando 10. No resto do equipamento o refino multiplica a
-resistência como no legado.
+**Planetas: os míticos do quarto espaço.** Ocupam o lugar dos Ankhs como o item a ter: cada um dá
+dois status perto do Ankh (HP e MP 250, contra 300 do Ankh) e Resistência a todos 10. Raridade
+Mítico no tooltip, ícone próprio para cada um, nível 250.
+
+| Planeta | Para quem | Status | +15 |
+|---|---|---|---|
+| Netuno | físico | HP 250 · Dano 60 | HP 1000 · Dano 240 |
+| Urano | tanque | HP 250 · Defesa 120 | HP 1000 · Defesa 480 |
+| Vênus | Foema | MP 250 · Magia 20 | MP 1000 · Magia 80 |
+| Marte | crítico | HP 250 · Crítico 12% | HP 1000 · Crítico 48% |
+| Saturno | mago com vida | HP 250 · Magia 20 | HP 1000 · Magia 80 |
+| Mercúrio | híbrido | HP 250 · MP 250 | HP 1000 · MP 1000 |
+| Júpiter | mago defensivo | Magia 20 · Defesa 120 | Magia 80 · Defesa 480 |
+
+Todos com Resistência a todos 10, que **cresce com o refino** como o tooltip mostra (40 no +15).
+Os pontos de Skill que Marte a Júpiter davam saíram.
+
+A **Resistência a todos** do Amuleto dos Amantes **não cresce com o refino** (regra deste
+servidor): um +15 continua dando 10. No resto do equipamento o refino multiplica a resistência
+como no legado.
 
 **Onde se consegue.** Planetas e Amuleto dos Amantes são raros: saíram de toda loja (inclusive
 a de doação) e só caem de monstro — a raridade se ajusta na Mesa de Drops. Os Ankhs continuam à

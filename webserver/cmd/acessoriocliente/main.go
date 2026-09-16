@@ -1,14 +1,14 @@
 // Command acessoriocliente gera os arquivos do cliente para a reforma dos
 // acessórios: o WYD.exe com as linhas "Dano físico (%)" e "Dano mágico (%)" no
-// tooltip, o UI\strdef.bin com os dois rótulos e o ItemList.bin com os onze
-// acessórios de Hércules, Hecate e Zeus tirados do catálogo do servidor.
+// tooltip, o UI\strdef.bin com os dois rótulos e o ItemList.bin com os
+// acessórios de Hércules, Hecate e Zeus e os planetas tirados do catálogo do servidor.
 //
 //	acessoriocliente -cliente "C:\...\WYD-Cliente-Pronto" \
 //	                 -catalogo Release/Common/ItemList.csv
 //
 // A pasta do cliente é só LIDA: os arquivos vão para -saida (por padrão
-// <cliente>\gerado-acessorios), com a mesma disposição. Do ItemList.bin só os
-// onze registros mudam, para não desfazer o que outros geradores gravaram nele.
+// <cliente>\gerado-acessorios), com a mesma disposição. Do ItemList.bin só esses
+// registros mudam, para não desfazer o que outros geradores gravaram nele.
 package main
 
 import (

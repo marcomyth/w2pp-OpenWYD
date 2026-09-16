@@ -48,3 +48,51 @@ func TestAcessoriosDasFamiliasNoCatalogo(t *testing.T) {
 		}
 	}
 }
+
+// Planetas (2026-09-16): os míticos do quarto espaço, dois status cada e
+// Resistência a todos 10, nível 250 (249 cru, o cliente soma 1).
+func TestPlanetasNoCatalogo(t *testing.T) {
+	const (
+		efDamage, efAC, efHP, efMP = 2, 3, 4, 5
+		efCritical, efResistAll    = 42, 54
+		efMagic                    = 60
+		efSpecial1, efSpecial4     = 11, 14
+	)
+	full, err := LoadItemList(release(t, "Common", "ItemList.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	eff := full.BaseEffects()
+	for _, tc := range []struct {
+		idx  int
+		nome string
+		want map[uint8]int16
+	}{
+		{762, "Netuno", map[uint8]int16{efHP: 250, efDamage: 60}},
+		{763, "Urano", map[uint8]int16{efHP: 250, efAC: 120}},
+		{764, "Vênus", map[uint8]int16{efMP: 250, efMagic: 20}},
+		{765, "Marte", map[uint8]int16{efHP: 250, efCritical: 120}},
+		{766, "Saturno", map[uint8]int16{efHP: 250, efMagic: 20}},
+		{767, "Mercúrio", map[uint8]int16{efHP: 250, efMP: 250}},
+		{768, "Júpiter", map[uint8]int16{efMagic: 20, efAC: 120}},
+	} {
+		got := map[uint8]int16{}
+		for _, e := range eff[tc.idx] {
+			got[e.Eff] += e.Val
+		}
+		tc.want[efResistAll] = 10
+		for _, ef := range []uint8{efDamage, efAC, efHP, efMP, efCritical, efResistAll, efMagic} {
+			if got[ef] != tc.want[ef] {
+				t.Errorf("%s (%d): efeito %d = %d, esperado %d", tc.nome, tc.idx, ef, got[ef], tc.want[ef])
+			}
+		}
+		for ef := uint8(efSpecial1); ef <= efSpecial4; ef++ {
+			if got[ef] != 0 {
+				t.Errorf("%s (%d): ainda dá Skill (efeito %d = %d)", tc.nome, tc.idx, ef, got[ef])
+			}
+		}
+		if req := full.Requirements()[tc.idx]; req.Lvl != 249 {
+			t.Errorf("%s (%d): nível cru %d, esperado 249", tc.nome, tc.idx, req.Lvl)
+		}
+	}
+}

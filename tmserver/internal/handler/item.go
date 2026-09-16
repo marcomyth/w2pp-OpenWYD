@@ -2460,12 +2460,12 @@ func (d *Dispatcher) itemResist(it world.Item, i int) int32 {
 	}
 	one := int32(d.itemAbility(it, resistEffects[i]))
 	all := int32(d.itemAbility(it, efResistAll))
-	// Reforma dos acessórios (2026-09-16): no quarto espaço de acessório a
-	// Resistência a todos não cresce com o refino. Ali só a carregam os sete
-	// planetas e o Amuleto dos Amantes, que agora sobem até +15 — e 10 viraria 37
-	// contra todos os elementos. No resto do equipamento segue o legado, que
+	// Reforma dos acessórios (2026-09-16): a Resistência a todos do Amuleto dos
+	// Amantes não cresce com o refino — 10 viraria 40 contra todos os elementos no
+	// +15. Os planetas, itens míticos do quarto espaço, multiplicam como o tooltip
+	// mostra: Netuno +15 dá 40. No resto do equipamento segue o legado, que
 	// multiplica a SOMA.
-	if d.itemPos[int(it.Index)] == nPosAcessorio4 {
+	if it.Index == itemAmuletoAmantes {
 		return one*int32(d.refineFactor(it))/10 + all
 	}
 	v := one + all
