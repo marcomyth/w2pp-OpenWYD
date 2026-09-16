@@ -325,6 +325,12 @@ func (d *Dispatcher) saqueDoKefra(w *world.World, matador, mob *world.Entity) {
 // Se a gravação falhar de vez, o processo VOLTA ATRÁS e diz que voltou. Sem isso
 // o tmserver ficaria "derrotado" e o banco "vivo", e a próxima leitura de
 // configuração desfaria a morte em silêncio — divergência muda, que é a pior.
+//
+// A REVERSÃO DESFAZ SÓ O INTERRUPTOR. A fama da guilda, o saque na bolsa de quem
+// matou e o aviso ao servidor já saíram, e não voltam. É deliberado: tirar item da
+// bolsa de jogador para consertar uma falha nossa de banco seria pior que o
+// problema. Mas quem ler a linha de reversão no log precisa saber que o mundo NÃO
+// voltou inteiro — só a experiência voltou à metade.
 func (d *Dispatcher) gravaEstadoDoKefra(w *world.World, derrotado bool, guilda int32, personagem string, antesLive bool, antesGuilda int32) {
 	if d.worldEventSource == nil {
 		return
@@ -348,7 +354,9 @@ func (d *Dispatcher) gravaEstadoDoKefra(w *world.World, derrotado bool, guilda i
 		return func(*world.World) {
 			d.marcaKefra(antesLive, antesGuilda)
 			log.Error("estado do kefra REVERTIDO no processo: a gravação não passou",
-				"guilda", guilda, "personagem", personagem, "voltou_para_derrotado", antesLive, "err", err)
+				"guilda", guilda, "personagem", personagem, "voltou_para_derrotado", antesLive,
+				"atencao", "a reversão desfaz só o interruptor de XP; a fama da guilda, o saque e o aviso já saíram e NÃO voltam",
+				"err", err)
 		}
 	})
 }
