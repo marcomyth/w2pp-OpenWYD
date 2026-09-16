@@ -82,6 +82,12 @@ func (d *Dispatcher) esvaziaArea(w *world.World, a areaDeLimpeza) {
 		if !a.contem(e.X, e.Y) {
 			return
 		}
+		// O Acampamento Troll fica em cima do "Reset de habilidades (Armia)": sem
+		// isto, o relógio devolvia o grupo à cidade no meio da corrida (16/09/2026,
+		// aos 11 min). Quem não é do grupo continua sendo esvaziado.
+		if d.acampamentoTroll.protege(s.Conn, e.X, e.Y) {
+			return
+		}
 		// Morto dentro da área volta vivo com 2 de vida, não como cadáver
 		// (Server.cpp:6276-6280). O original manda o Score antes do recall.
 		if e.HP <= 0 {

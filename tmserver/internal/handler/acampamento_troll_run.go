@@ -41,6 +41,11 @@ var acampamentoTrollSpec = corridaSpec{
 	genLast:     world.AcampamentoTrollGenLast,
 	genBoss:     world.AcampamentoTrollGenFirst,
 	genSeguidor: world.AcampamentoTrollGenFirst + 1,
+	// A tropa (Insano e Caçador) volta junto com os Magos: só com os Magos, os 100
+	// abates demoravam demais (teste do Marco, 16/09/2026). Os Troll Caos não
+	// voltam: são 4 por chave.
+	genTropaFirst: world.AcampamentoTrollGenFirst + 4,
+	genTropaLast:  world.AcampamentoTrollGenLast,
 
 	// O Enigma não abre a corrida: nasce no centro do acampamento depois de 100
 	// abates (pedido do Marco, 16/09/2026).

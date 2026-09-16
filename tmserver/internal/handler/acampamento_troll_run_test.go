@@ -323,3 +323,55 @@ func TestAcampamentoTrollContadorComoOdaAgua(t *testing.T) {
 		}
 	}
 }
+
+// O acampamento fica dentro do "Reset de habilidades (Armia)", que o relógio de
+// dez minutos esvazia: o grupo de uma corrida aberta, lá dentro, não é tocado; um
+// estranho, ou o grupo fora da corrida, continua sendo.
+func TestAcampamentoTrollRelogioDasArenasPoupaOGrupo(t *testing.T) {
+	sp := acampamentoTrollSpec
+	var armia *areaDeLimpeza
+	for i := range areasDeLimpeza {
+		if areasDeLimpeza[i].nome == "Reset de habilidades (Armia)" {
+			armia = &areasDeLimpeza[i]
+		}
+	}
+	if armia == nil || !armia.contem(sp.entrada[0], sp.entrada[1]) {
+		t.Fatal("o centro do acampamento saiu do Reset de habilidades (Armia); revise se a proteção ainda é preciso")
+	}
+	d, _, _, _ := acampamentoTrollFixture(t)
+	c := &d.acampamentoTroll
+	dentro := sp.entrada
+	if c.protege(0, dentro[0], dentro[1]) {
+		t.Error("sem corrida, o relógio pouparia alguém")
+	}
+	c.estado = corridaEstado{active: true, secondsLeft: 660, party: []int{0, 3}}
+	if !c.protege(3, dentro[0], dentro[1]) {
+		t.Error("o relógio tiraria um membro do grupo no meio da corrida")
+	}
+	if c.protege(7, dentro[0], dentro[1]) {
+		t.Error("o relógio pouparia um estranho")
+	}
+	if c.protege(3, sp.saida[0], sp.saida[1]) {
+		t.Error("a proteção vale fora do acampamento")
+	}
+}
+
+// A tropa volta junto com os Magos, bloco a bloco até o teto; os Troll Caos não.
+func TestAcampamentoTrollTropaRenasce(t *testing.T) {
+	d, w, _, _ := abrirAcampamento(t)
+	c := &d.acampamentoTroll
+	first := world.AcampamentoTrollGenFirst
+	for gen := first + 2; gen <= world.AcampamentoTrollGenLast; gen++ {
+		w.ClearGenerator(gen) // o grupo limpou guardiões e tropa
+	}
+	c.estado.sinceFollower = c.spec.seguidorCada - 1
+	d.tickCorrida(w, c)
+	for gen := first + 4; gen <= world.AcampamentoTrollGenLast; gen++ {
+		if live(w, gen) != 5 {
+			t.Errorf("bloco de tropa %d voltou com %d, want 5", gen, live(w, gen))
+		}
+	}
+	if live(w, first+2) != 0 || live(w, first+3) != 0 {
+		t.Error("os Troll Caos renasceram; são 4 por chave")
+	}
+}

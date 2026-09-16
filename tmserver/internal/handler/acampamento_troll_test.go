@@ -336,7 +336,7 @@ var acampamentoTrollDesign = map[string]struct {
 	"ATroll_Enigma":  {"Troll Enigma", 350, 3000000, 3000, 2020, 25, 213, 2372}, // Cavalo Fantasma B
 	"ATroll_Caos":    {"Troll Caos", 330, 150000, 2400, 1620, 20, 213, 2366},    // Cavalo s/Sela N
 	"ATroll_Mago":    {"Troll Mago", 320, 75000, 2200, 760, 15, 213, 2365},      // Dente de Sabre
-	"ATroll_Insano":  {"Troll Insano", 300, 18000, 1800, 610, 10, 212, 2363},    // Dragão Menor
+	"ATroll_Insano":  {"Troll Insano", 300, 36000, 1800, 610, 10, 212, 2363},    // Dragão Menor
 	"ATroll_Cacador": {"Caçador Troll", 300, 18000, 1800, 610, 10, 213, 2365},   // Dente de Sabre
 }
 
@@ -560,5 +560,51 @@ func TestAcampamentoTrollMigracaoDeDrops(t *testing.T) {
 	// O Xamã fala o nome do catálogo ("Traga a %s").
 	if chave, ok := items.Get(int(acampamentoTrollSpec.chave)); !ok || chave.Name != "Chave_do_Rei_Orc" {
 		t.Errorf("item %d no catálogo = %q, want Chave_do_Rei_Orc", acampamentoTrollSpec.chave, chave.Name)
+	}
+}
+
+// A 0071 põe os Restos de Ori e de Lac em todo monstro da quest, uma unidade por
+// drop, e mais no Caos e no Enigma.
+func TestAcampamentoTrollMigracaoDosRestos(t *testing.T) {
+	b, err := migrations.FS.ReadFile("0071_acampamento_troll_restos.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]map[int]int{}
+	for _, r := range regexp.MustCompile(`\('([^']+)',\s*(\d+),\s*(\d+)\)`).FindAllStringSubmatch(string(b), -1) {
+		item, _ := strconv.Atoi(r[2])
+		chance, _ := strconv.Atoi(r[3])
+		if rule := (droprule.Rule{Mob: r[1], Item: int16(item), Chance: int32(chance)}); !rule.Valid() || chance == 0 {
+			t.Errorf("%v: a Mesa de Drops recusaria esta linha, ou ela não solta nada", r[0])
+		}
+		if !acampamentoTrollTemplates[droprule.Canonical(r[1])] {
+			t.Errorf("%s não é monstro da quest", r[1])
+		}
+		if got[r[1]] == nil {
+			got[r[1]] = map[int]int{}
+		}
+		got[r[1]][item] = chance
+	}
+	want := map[string][2]int{
+		"ATroll_Insano":  {500, 200},
+		"ATroll_Cacador": {500, 200},
+		"ATroll_Mago":    {500, 200},
+		"ATroll_Caos":    {1500, 750},
+		"ATroll_Enigma":  {5000, 3000},
+	}
+	for mob, w := range want {
+		if got[mob][419] != w[0] || got[mob][420] != w[1] || len(got[mob]) != 2 {
+			t.Errorf("%s: %v, want Resto de Ori %d e de Lac %d", mob, got[mob], w[0], w[1])
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("%d monstros na 0071, want %d", len(got), len(want))
+	}
+	for mob := range acampamentoTrollPacks {
+		for _, resto := range []int16{419, 420} {
+			if acampamentoTrollPacks[mob][resto] > 1 {
+				t.Errorf("%s solta Resto %d em pacote; o pedido é uma unidade", mob, resto)
+			}
+		}
 	}
 }

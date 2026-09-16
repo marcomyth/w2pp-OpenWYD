@@ -44,6 +44,9 @@ type corridaSpec struct {
 	genFirst, genLast int // os blocos da quest no NPCGener
 	genBoss           int // o bloco cujo monstro, morto, corta o relógio para o saque
 	genSeguidor       int // o bloco que volta a encher durante a corrida
+	// genTropaFirst..genTropaLast também voltam a encher, no mesmo intervalo dos
+	// seguidores. Zerados, a tropa não renasce.
+	genTropaFirst, genTropaLast int
 
 	// bossAposAbates segura o boss fora da abertura: ele só nasce quando o grupo
 	// derruba essa quantidade de monstros da quest. Zero, nasce junto com o resto.
@@ -112,6 +115,12 @@ func (c *corrida) doGrupo(conn int) bool {
 		}
 	}
 	return false
+}
+
+// protege diz se conn é do grupo de uma corrida aberta e está dentro da área
+// dela: quem cuida dele ali é a corrida, e nenhuma varredura de fora o tira.
+func (c *corrida) protege(conn int, x, y int16) bool {
+	return c.estado.active && c.spec.caixa.contains(x, y) && c.doGrupo(conn)
 }
 
 // movimentoPermitido recusa a um estranho o passo para dentro da área enquanto a
@@ -187,16 +196,7 @@ func (d *Dispatcher) abrirCorrida(w *world.World, c *corrida, e *world.Entity) {
 		if idx == sp.genBoss && sp.bossAposAbates > 0 {
 			continue // vem pelos abates (corridaMobMorto)
 		}
-		// Um bloco de tropa enche grupo a grupo até o teto; GenerateMob devolve
-		// vazio quando chega lá. O limite é só um freio.
-		for range 10 {
-			ids := w.GenerateMob(idx)
-			if len(ids) == 0 {
-				break
-			}
-			d.revealSpawned(w, ids)
-			spawned += len(ids)
-		}
+		spawned += d.encherBloco(w, idx)
 	}
 
 	for _, conn := range party {
@@ -213,6 +213,22 @@ func (d *Dispatcher) abrirCorrida(w *world.World, c *corrida, e *world.Entity) {
 		}
 	}
 	d.log.Info("corrida aberta", "area", sp.nome, "leader", e.Name, "party", len(party), "mobs", spawned)
+}
+
+// encherBloco levanta um bloco até o teto dele e diz quantos nasceram. Um bloco
+// de tropa enche grupo a grupo; GenerateMob devolve vazio quando chega lá. O
+// limite é só um freio.
+func (d *Dispatcher) encherBloco(w *world.World, idx int) int {
+	n := 0
+	for range 10 {
+		ids := w.GenerateMob(idx)
+		if len(ids) == 0 {
+			break
+		}
+		d.revealSpawned(w, ids)
+		n += len(ids)
+	}
+	return n
 }
 
 // varrerCorrida manda para a saída quem está na área: todos no fim, só quem não é
@@ -290,6 +306,9 @@ func (d *Dispatcher) tickCorrida(w *world.World, c *corrida) {
 	if r.sinceFollower >= c.spec.seguidorCada {
 		r.sinceFollower = 0
 		d.revealSpawned(w, w.GenerateMob(c.spec.genSeguidor))
+		for idx := c.spec.genTropaFirst; c.spec.genTropaLast > 0 && idx <= c.spec.genTropaLast; idx++ {
+			d.encherBloco(w, idx)
+		}
 	}
 
 	inside := false

@@ -16,6 +16,7 @@ em 14/09/2026; o design fica no artefato "Atlas de Quests W2PP".
 ✅ O Troll Enigma do mundo (bloco 3804) desligado <br/>
 ✅ Recalibrada em 16/09: Enigma no centro depois de 100 abates, 4 Caos, todos montados com arma +11, escada nova de adds <br/>
 ✅ Troll Caos com menos arma e âmagos em pacote, Enigma com Pergaminho da Água (0069) <br/>
+✅ Depois do primeiro teste: tropa renasce, Insano com 36 mil de HP, Restos de Ori e Lac (0071), relógio das arenas poupa o grupo <br/>
 ⏳ A descrição nova da Chave do Rei Orc no `itemhelp.dat` precisa ir pelo launcher <br/>
 ⏳ O contador gráfico: o `GamePatch.dll` com o campo (20,15) precisa ser compilado e ir pelo launcher <br/>
 ⏳ Prêmio de conclusão e trava de nível/evolução <br/>
@@ -52,17 +53,21 @@ Hidras e dos Elfos e o Deserto.
     contador de 15 min.
 - **Durante:**
   - quem não é do grupo não entra andando no acampamento;
-  - os seguidores voltam a cada 30 s;
+  - os seguidores voltam a cada 30 s, e a tropa (Insano e Caçador) volta junto, bloco a bloco até o teto. Os Troll Caos não voltam;
   - **o Troll Enigma nasce no centro (2651,1983) no 100º abate** de monstro da
     quest. Um só por chave. O grupo ouve a contagem a cada 25 abates.
 - **Fim:** aos 15 min; **5 s depois que o Troll Enigma cai** (o drop já foi direto
   para a bolsa, então não há tempo de saque a guardar); ou 1 min depois que ninguém
   do grupo está mais no acampamento. Os monstros da quest somem e quem estiver
   dentro vai para fora do muro.
-- **Os 100 abates cabem nos 15 min, mas sem folga:** a abertura põe 48 monstros no
-  acampamento (40 de tropa, 4 Caos e 4 Magos), e só os Magos voltam, até 4 vivos a
-  cada 30 s. Os 52 que faltam são Magos, ou seja, no mínimo 13 levas (6,5 min) de
-  Magos de 75 mil de HP.
+- **Os 100 abates:** a abertura põe 48 monstros (40 de tropa, 4 Caos e 4 Magos), e a
+  cada 30 s voltam até 4 Magos e os 40 de tropa. Até 16/09 só os Magos voltavam, e
+  no primeiro teste os abates não chegavam aos 100.
+- **O relógio das arenas de quest não tira o grupo.** O acampamento fica dentro do
+  "Reset de habilidades (Armia)" do legado (2640-2670 x 1966-2004), que é esvaziado
+  a cada 10 min (`handler/questclear.go`). No primeiro teste ele devolveu o grupo à
+  cidade aos 11 min. Agora poupa quem é do grupo de uma corrida aberta; estranhos e
+  quem está ali fora de corrida continuam sendo esvaziados.
 - **Reinício do servidor** encerra a corrida (nada é persistido).
 - **A caixa é só o miolo**, dentro do muro. Os Trolls do mundo aberto em volta
   (blocos 700–715) nascem nas linhas y 1960 e 2010, fora dela: quem caça ali não é
@@ -85,14 +90,14 @@ para o motor é um passo à parte.
 Réplicas dos Trolls do acampamento, com o visual do original. Partiram dos números
 do tier correspondente do Castelo Orc e foram recalibradas em 16/09/2026, a pedido
 do Marco: o Mago com metade do HP e do dano, o Caos com o HP que era do Mago, a
-tropa com metade do dano. O Enigma fica para depois.
+tropa com metade do dano. Depois do primeiro teste, o Insano dobrou de HP (18 mil para 36 mil). O Enigma fica para depois.
 
 | Template | Nome no jogo | Veio de | Papel | Nv | HP | Defesa | Dano | Resist. | Montaria | Bloco |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `ATroll_Enigma` | Troll Enigma | `Troll_Enigma` | boss | 350 | 3.000.000 | 3.000 | 2.020 | 25 | Cavalo Fantasma B (2372) | 6116 |
 | `ATroll_Mago` | Troll Mago | `Troll_Mago` | seguidor | 320 | 75.000 | 2.200 | 760 | 15 | Dente de Sabre (2365) | 6117 (grupo de 4) |
 | `ATroll_Caos` | Troll Caos | `Troll_Caos` | guardião | 330 | 150.000 | 2.400 | 1.620 | 20 | Cavalo s/Sela N (2366) | 6118, 6119 (2 cada) |
-| `ATroll_Insano` | Troll Insano | `Troll_Insano` | tropa | 300 | 18.000 | 1.800 | 610 | 10 | Dragão Menor (2363) | 6120–6123 |
+| `ATroll_Insano` | Troll Insano | `Troll_Insano` | tropa | 300 | 36.000 | 1.800 | 610 | 10 | Dragão Menor (2363) | 6120–6123 |
 | `ATroll_Cacador` | Caçador Troll | `Cacador_Troll` | tropa | 300 | 18.000 | 1.800 | 610 | 10 | Dente de Sabre (2365) | 6124–6127 |
 
 - **Visual:** todos montados e com a arma do Troll original em +11 (EF_SANC 234).
@@ -125,7 +130,9 @@ tropa com metade do dano. O Enigma fica para depois.
 
 Os templates não têm drop próprio. Tudo é da Mesa de Drops e se ajusta em `/drops`
 no painel. A conta supõe 40 de tropa, 4 guardiões, o boss e ~56 seguidores (os 4
-do começo e as levas que faltam para os 100 abates).
+do começo e as levas que faltam para os 100 abates). Desde que a tropa passou a
+voltar (16/09), a entrada que dura mais rende mais do que esta conta; as chances
+são as da tabela.
 
 | Meta por entrada | Tropa | Seguidor | Guardião (Caos) | Boss |
 |---|---|---|---|---|
@@ -138,6 +145,8 @@ do começo e as levas que faltam para os 100 abates).
 | ~9 Âmago de Cav. Fantasma N 2397 | — | 5% | 15%, **pacote de 10** | — |
 | ~6 Âmago de Cav. Fantasma B 2402 | — | 3% | 10%, **pacote de 10** | — |
 | ~1,5 Pergaminho da Água (N) LV1 3173 | — | — | — | 30%, **pacote de 5** |
+| Resto de Oriharucon 419 | 5% | 5% | 15% | 50% |
+| Resto de Lactolerium 420 | 2% | 2% | 7,5% | 30% |
 | ~0,4 Ovo de Cav. Fantasma: N 2307 + B 2312 | — | — | — | 25% + 12,5% |
 
 - **Os ovos de Cavalo Fantasma só caem do boss**: 1 a cada ~2,7 entradas.
