@@ -238,7 +238,12 @@ func (d *Dispatcher) classWeaponDamage(e *world.Entity) int32 {
 		if e.LearnedSkill&(1<<bit) == 0 {
 			continue
 		}
-		total += weaponTableBonus(e.Str, e.Dex, nUnique, table)
+		if e.Class == 3 {
+			// Agressividade: o Arco sobe com a 8ª de Sobrevivência (arvore_sobrevivencia.go).
+			total += bonusAgressividade(e, nUnique)
+		} else {
+			total += weaponTableBonus(e.Str, e.Dex, nUnique, table)
+		}
 		grants--
 	}
 	return total

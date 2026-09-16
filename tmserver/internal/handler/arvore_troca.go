@@ -61,7 +61,7 @@ func rolarCriticoGolpeFelino(r combat.Rand, str, dex int) int {
 // 81 · Ligação Espectral: além da maestria somada a cada golpe (a regra antiga,
 // que fica), um multiplicador de dano de 10% do da Meditação — que é
 // maestria/10 + 15 por cento. Vai de +1% (maestria 0) a +4% (maestria 255). Como
-// o da Meditação, só aumenta o ataque físico e a Tempestade de Raios: as skills
+// o da Meditação, só aumenta o ataque físico e a Tempestade de Flechas: as skills
 // de dano da HT não leem o Ataque.
 func multiplicadorLigacaoEspectral(level int32) int32 {
 	return (level/10 + 15) / 10

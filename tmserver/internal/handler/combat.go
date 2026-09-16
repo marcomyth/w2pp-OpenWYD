@@ -433,7 +433,7 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			}
 			dmg = combat.ResolveHit(w.Rand(), combat.HitInput{
 				AttackerDamage:   atkDamage,
-				TargetAC:         int(effectiveAC(target)),
+				TargetAC:         defesaPerfurada(e, int(effectiveAC(target))),
 				TargetIsPlayer:   world.IsPlayer(tid),
 				AttackerIsPlayer: true,
 				DoubleCritical:   doubleCritical,
@@ -714,6 +714,15 @@ func (d *Dispatcher) validateCast(w *world.World, s *world.Session, e *world.Ent
 			return castInfo{}, false
 		}
 	}
+	// Tempestade de Flechas: 40 s of its own (arvore_sobrevivencia.go), started by
+	// the accepted cast.
+	if skillnum == skillTempestadeDeFlechas {
+		if falta := d.tempestadeRecargaRestante(s, w.Now()); falta > 0 {
+			sendClientMessage(w, s, textoRecargaTempestade(falta))
+			return castInfo{}, false
+		}
+		d.marcarRecargaTempestade(s, w.Now())
+	}
 	cast.special = effectiveSpecial(e, content.SkillKind(skillnum))
 	// Escudo Dourado (85) no longer charges the legacy 100×Special gold
 	// (_MSG_Attack.cpp:222) — server rule, arvore_troca.go.
@@ -779,6 +788,12 @@ func (d *Dispatcher) validateSkillTarget(w *world.World, s *world.Session, caste
 		if targetSlot >= 0 && targetSlot < 16 && cast.extrasDoServidor&(1<<targetSlot) != 0 {
 			spellRange = 0 // picked around a main target that was already in reach
 		}
+	}
+	// Tempestade de Flechas hits one target (arvore_sobrevivencia.go). A client with
+	// the old SkillData.bin still sends up to six: the extras are dropped, not
+	// charged as a crack.
+	if sp.Index == skillTempestadeDeFlechas && targetSlot > 0 {
+		return false
 	}
 	if tick != protocol.SkipCheckTick && maxTarget >= 0 && targetSlot > maxTarget {
 		w.AddCrackError(s, 10, 28)
@@ -1049,18 +1064,19 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 
 	switch {
 	case sp.InstanceType >= 1 && sp.InstanceType <= 5:
-		if skillnum == 79 {
-			def := int(effectiveAC(target))
+		if skillnum == skillTempestadeDeFlechas {
+			// Five arrows of 40% of the damage, each with its own multiplier, as one
+			// blow (arvore_sobrevivencia.go). Replaces the legacy 180% halved.
+			raw, soma := danoBrutoTempestade(w.Rand(), caster.Damage, caster.Str, int(effectiveDex(e)))
+			def := defesaPerfurada(e, int(effectiveAC(target)))
 			if world.IsPlayer(tid) {
-				def *= 3
+				def *= tempestadeDefesaPvPx3
 			}
 			dmg := combat.Damage(w.Rand(), raw, def, cast.master)
-			if dmg > 0 {
-				dmg /= 2
-			}
+			d.log.Debug("tempestade de flechas", "caster", e.ID, "target", tid, "multiplicadores", soma, "bruto", raw, "dano", dmg)
 			return dmg
 		}
-		def := int(effectiveAC(target))
+		def := defesaPerfurada(e, int(effectiveAC(target)))
 		if world.IsPlayer(tid) {
 			def *= 2
 		}
@@ -1701,7 +1717,7 @@ func (d *Dispatcher) applyAirBladeProc(w *world.World, attacker, target *world.E
 		return dmg, 0
 	}
 	skillDam := effectiveSpecial(attacker, 3) + int(effectiveStr(attacker))
-	skillDam = combat.Damage(w.Rand(), skillDam, int(effectiveAC(target)), attacker.Master)
+	skillDam = combat.Damage(w.Rand(), skillDam, defesaPerfurada(attacker, int(effectiveAC(target))), attacker.Master)
 	if skillDam > 0 {
 		skillDam /= 2
 	}

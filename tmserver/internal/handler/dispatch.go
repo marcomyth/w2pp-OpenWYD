@@ -271,59 +271,60 @@ type handlerFunc func(w *world.World, s *world.Session, h protocol.Header, paylo
 // wrong-password counters) is only touched from the loop goroutine, so it needs
 // no locks.
 type Dispatcher struct {
-	cfg             Config
-	log             *slog.Logger
-	routes          map[protocol.Type]handlerFunc
-	fails           map[string]int        // wrong-password count per account (CheckFailAccount)
-	reportadoEm     map[int64]time.Time   // account id -> last /reportar (flood gate)
-	invisRecarga    map[personagem]uint32 // (conta, slot) -> World.Now do último cast de Invisibilidade
-	combineFamilies map[protocol.Type]CombineFamily
-	odinCatalog     combine.Catalog
-	combineCatalog  combine.Catalog
-	compRate        *content.CompRate
-	combineRates    combine.RateConfig
-	questRates      *content.QuestRates
-	baseMobs        map[int][]byte               // per-class STRUCT_MOB templates
-	summonMobs      [][]byte                     // BM evocation templates (summon id → STRUCT_MOB)
-	vineMob         []byte                       // Sephira Muro de Espinhos template
-	itemPrices      map[int]int32                // item index → base price (NPC shop)
-	itemNames       map[int]string               // item index → catalog name (NPC dialogue)
-	itemEffects     map[int][]content.BaseEffect // item index → static base effects (equip score)
-	itemKeyIDs      map[int]int                  // item index → EF_KEYID (gate and key pairing)
-	itemReqs        map[int]content.ItemReq      // item index → equip requirement (level/attrs)
-	itemVolatiles   map[int]int                  // item index → EF_VOLATILE (consumable class)
-	itemDurations   map[int]int                  // item index → lifetime in days (timed items)
-	itemPos         map[int]int                  // item index → nPos (refine threshold)
-	itemUnique      map[int]int                  // item index → nUnique (EF_DAMAGEADD gate)
-	itemGrades      map[int]int                  // item index → Grade (ExpBonus)
-	itemExtra       map[int]int                  // item index → Extra (Anct/Adamantita combine result)
-	sancRate        refine.RateTable             // dust-refine success table (g_pSancRate)
-	dropBonus       refine.Tabelas               // drop-time bonus ladders (SetItemBonus)
-	expEvents       level.ExpEvents              // global EXP event flags
-	xpConfig        level.Config                 // panel-managed reward tables (Mesa de XP)
-	spells          *content.SkillData           // skill catalog (g_pSpell)
-	lang            *content.Language            // client string table (notification text)
-	mountRates      mountrate.Table              // mount growth curves (0030_mount_growth_rate)
-	mountAbsorb     mountrate.AbsorbTable        // mount absorption pairs (0035_mount_absorb)
-	mountBonus      mountbonus.Table             // mount attribute overlay (0043_mount_bonus)
-	heights         *content.Grid                // baked walkability grid (mob pathfinding)
-	attributes      *content.Grid                // raw AttributeMap flags (guild area)
-	now             func() time.Time             // wall clock for calendar-gated guild ops
-	maxNightmare    int                          // Pesadelo runs per window per tier (Server.cpp:687)
-	tickCount       int                          // loop-only tick counter (affect sweep phase)
-	affectDur       world.AffectDuration         // cast-affect duration tuning (issue #229)
-	serverIndex     int                          // legacy guild id high bits
-	guildZones      [5]world.GuildZone           // loop-owned city/guild-zone cache
-	taxChangedAt    [5]time.Time                 // day each zone's guildtax last changed (one change/day, lote2-chat.md)
-	guildWars       map[uint16]uint16            // directed guild -> current war target
-	guildAllies     map[uint16]uint16            // directed guild -> current ally target
-	towerState      world.GuildTowerState        // loop-owned GTorre ownership cache
-	castleState     world.CastleQuestState       // loop-owned Castle/Zakum state cache
-	castleQuests    []content.CastleQuest
-	levelItems      *content.LevelItems
-	castleParty     [world.MaxParty + 1]int
-	guildStateLoad  bool // guild persistence boot snapshot has been applied
-	guildStateBusy  bool // one guild-state load in flight
+	cfg               Config
+	log               *slog.Logger
+	routes            map[protocol.Type]handlerFunc
+	fails             map[string]int        // wrong-password count per account (CheckFailAccount)
+	reportadoEm       map[int64]time.Time   // account id -> last /reportar (flood gate)
+	invisRecarga      map[personagem]uint32 // (conta, slot) -> World.Now do último cast de Invisibilidade
+	tempestadeRecarga map[personagem]uint32 // (conta, slot) -> World.Now do último cast de Tempestade de Flechas
+	combineFamilies   map[protocol.Type]CombineFamily
+	odinCatalog       combine.Catalog
+	combineCatalog    combine.Catalog
+	compRate          *content.CompRate
+	combineRates      combine.RateConfig
+	questRates        *content.QuestRates
+	baseMobs          map[int][]byte               // per-class STRUCT_MOB templates
+	summonMobs        [][]byte                     // BM evocation templates (summon id → STRUCT_MOB)
+	vineMob           []byte                       // Sephira Muro de Espinhos template
+	itemPrices        map[int]int32                // item index → base price (NPC shop)
+	itemNames         map[int]string               // item index → catalog name (NPC dialogue)
+	itemEffects       map[int][]content.BaseEffect // item index → static base effects (equip score)
+	itemKeyIDs        map[int]int                  // item index → EF_KEYID (gate and key pairing)
+	itemReqs          map[int]content.ItemReq      // item index → equip requirement (level/attrs)
+	itemVolatiles     map[int]int                  // item index → EF_VOLATILE (consumable class)
+	itemDurations     map[int]int                  // item index → lifetime in days (timed items)
+	itemPos           map[int]int                  // item index → nPos (refine threshold)
+	itemUnique        map[int]int                  // item index → nUnique (EF_DAMAGEADD gate)
+	itemGrades        map[int]int                  // item index → Grade (ExpBonus)
+	itemExtra         map[int]int                  // item index → Extra (Anct/Adamantita combine result)
+	sancRate          refine.RateTable             // dust-refine success table (g_pSancRate)
+	dropBonus         refine.Tabelas               // drop-time bonus ladders (SetItemBonus)
+	expEvents         level.ExpEvents              // global EXP event flags
+	xpConfig          level.Config                 // panel-managed reward tables (Mesa de XP)
+	spells            *content.SkillData           // skill catalog (g_pSpell)
+	lang              *content.Language            // client string table (notification text)
+	mountRates        mountrate.Table              // mount growth curves (0030_mount_growth_rate)
+	mountAbsorb       mountrate.AbsorbTable        // mount absorption pairs (0035_mount_absorb)
+	mountBonus        mountbonus.Table             // mount attribute overlay (0043_mount_bonus)
+	heights           *content.Grid                // baked walkability grid (mob pathfinding)
+	attributes        *content.Grid                // raw AttributeMap flags (guild area)
+	now               func() time.Time             // wall clock for calendar-gated guild ops
+	maxNightmare      int                          // Pesadelo runs per window per tier (Server.cpp:687)
+	tickCount         int                          // loop-only tick counter (affect sweep phase)
+	affectDur         world.AffectDuration         // cast-affect duration tuning (issue #229)
+	serverIndex       int                          // legacy guild id high bits
+	guildZones        [5]world.GuildZone           // loop-owned city/guild-zone cache
+	taxChangedAt      [5]time.Time                 // day each zone's guildtax last changed (one change/day, lote2-chat.md)
+	guildWars         map[uint16]uint16            // directed guild -> current war target
+	guildAllies       map[uint16]uint16            // directed guild -> current ally target
+	towerState        world.GuildTowerState        // loop-owned GTorre ownership cache
+	castleState       world.CastleQuestState       // loop-owned Castle/Zakum state cache
+	castleQuests      []content.CastleQuest
+	levelItems        *content.LevelItems
+	castleParty       [world.MaxParty + 1]int
+	guildStateLoad    bool // guild persistence boot snapshot has been applied
+	guildStateBusy    bool // one guild-state load in flight
 
 	// NPC-config overlay (npc-editing-plan.md). All loop-only. baseItemPrices is the
 	// immutable content catalog; itemPrices is the effective map (base + global

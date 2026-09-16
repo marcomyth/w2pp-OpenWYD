@@ -239,15 +239,20 @@ func startServerCustomSpells(t *testing.T, persist world.Persistence, spells *co
 	}
 }
 
-func TestHuntressSkill79UsesDamageFormulaHalf(t *testing.T) {
+// Tempestade de Flechas (arvore_sobrevivencia.go): a Destreza pura tira sempre
+// 1x nas 5 flechas, 5 × 40% do dano = 200% brutos, e a defesa 20 (×3: o alvo 2 é jogador) tira 30 antes do
+// fator de 99 a 110% de combat.Damage.
+func TestHuntressSkill79TempestadeDeFlechasDestrezaPura(t *testing.T) {
 	d := New(Config{CombatRules: regraSemEscala()})
 	w := world.New(world.Config{GridDim: 16}, slog.Default(), nil, nil)
-	caster := &world.Entity{ID: 1, Class: 3, Damage: 100}
+	caster := &world.Entity{ID: 1, Class: 3, Damage: 100, Dex: 300}
 	target := &world.Entity{ID: 2, AC: 20}
 	cast := castInfo{isSkill: true, spell: content.Spell{InstanceType: 1}}
 
-	if got := d.resolveSkillHit(w, caster, target, target.ID, 79, cast); got != 78 {
-		t.Fatalf("skill 79 damage = %d, want 78", got)
+	bruto := 2 * int(d.effectiveDamage(caster))
+	lo, hi := (bruto-30)*99/100, (bruto-30)*110/100
+	if got := d.resolveSkillHit(w, caster, target, target.ID, 79, cast); got < lo || got > hi {
+		t.Fatalf("skill 79 damage = %d, want %d-%d", got, lo, hi)
 	}
 }
 

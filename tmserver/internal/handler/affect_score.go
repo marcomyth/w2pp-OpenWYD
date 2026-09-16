@@ -47,6 +47,7 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 	}
 	trocaDeEspiritos := false
 	escudoDourado := int32(-1) // Level of the Escudo Dourado affect; -1 = none
+	meditacaoLevel, meditacaoValue := int32(-1), int32(0)
 	for i := range e.Affect {
 		af := e.Affect[i]
 		if af.Type == 0 {
@@ -169,9 +170,11 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 			applyTransformScore(e, af)
 		case 19:
 			e.Rsv |= world.RsvBlock
-		case 21: // curse/Meditação: −AC and +DAMAGEMULTI.
+		case affectMeditacao: // Meditação: −AC and +DAMAGEMULTI.
 			e.AffAC -= level/3 + 10
-			e.AffDamageMultiPct += level/10 + value
+			// The damage share reads the attributes: applied after the loop
+			// (arvore_sobrevivencia.go).
+			meditacaoLevel, meditacaoValue = level, value
 		case affectSamaritano: // Samaritano: +CON and +2×value MaxHP
 			// DELIBERATE DIVERGENCE FROM THE LEGACY (issue #267). Basedef.cpp:4225
 			// ("else if(Type == 24) // Samaritano") and Buff Loop.txt:295 both make
@@ -213,7 +216,8 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 		case 26:
 			e.Rsv |= world.RsvParry
 		case 27:
-			if itemAbility != nil && itemAbility(e.Equip[weaponSlotR], efWType) == 101 {
+			// Encantar Gelo: Arco or Garra (arvore_sobrevivencia.go; the legacy is bow only).
+			if itemAbility != nil && armaDoEncantarGelo(itemAbility(e.Equip[weaponSlotR], efWType)) {
 				e.Rsv |= world.RsvFrost
 			}
 		case 28:
@@ -250,6 +254,9 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 	}
 	if escudoDourado >= 0 {
 		e.AffAC += defesaEscudoDourado(e, escudoDourado)
+	}
+	if meditacaoLevel >= 0 {
+		e.AffDamageMultiPct += danoMeditacaoPct(e, meditacaoLevel, meditacaoValue)
 	}
 }
 
