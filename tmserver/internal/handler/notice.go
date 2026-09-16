@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/binary"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -214,6 +215,14 @@ const (
 	// Pedra da Fúria roll that loses (_MSG_UseItem.cpp:3563/3680). Appended at the
 	// end for the reason NoticeLevelLimit gives.
 	NoticeFailure
+
+	// The level floor of the N tier, for a Mortal still below it: one code per
+	// dungeon, like the class refusals, so a test and a log can tell the two doors
+	// apart. No legacy counterpart — the floor is this server's rule
+	// (waterNMortalMinLevel). Appended at the end for the reason NoticeLevelLimit
+	// gives.
+	NoticeWaterLevelTooLow
+	NoticePesadeloLevelTooLow
 )
 
 // noticeKey maps a Notice to its key in the shipped client string table
@@ -344,6 +353,11 @@ var noticeText = map[Notice]string{
 	// Pesadelo literals (_MSG_UseItem.cpp:2548/2644/2748), copied verbatim from
 	// the legacy calls: these never went through the string table.
 	NoticePesadeloNoEntries: "Entrada não permitida. Cheque sua quantidade de entradas com o comando /nt",
+
+	// The N floor. The number is the one the CLIENT draws (Level+1), because the
+	// player reads it against their own screen; the constants hold the stored one.
+	NoticeWaterLevelTooLow:    "Pergaminho da Água N: entrada a partir do nível " + strconv.Itoa(int(waterNMortalMinLevel)+1) + ".",
+	NoticePesadeloLevelTooLow: "Pesadelo N: entrada a partir do nível " + strconv.Itoa(int(pesaNMortalMinLevel)+1) + ".",
 
 	// These two were sent as local literals beside the notice before the string
 	// table existed. The literal is gone (it would now arrive twice), so they keep
