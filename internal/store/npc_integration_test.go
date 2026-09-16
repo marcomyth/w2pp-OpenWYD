@@ -151,6 +151,100 @@ func TestSeedNPCDefinitionsIdempotent(t *testing.T) {
 	}
 }
 
+// TestSeedKeepsSlotsEmptiedInThePanel is the reason 0072 exists: the boot seed
+// used to refill every free slot from the template, so an item a moderator took
+// out of a shop came back on the next dbServer start.
+func TestSeedKeepsSlotsEmptiedInThePanel(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	if err := Migrate(ctx, pool); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	_, _ = pool.Exec(ctx, `DELETE FROM npc_definition WHERE slug LIKE 'seed-vazia-%'`)
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM npc_definition WHERE slug LIKE 'seed-vazia-%'`) })
+
+	s := New(pool)
+	defs := []domain.NPCDefinition{{
+		Slug: "seed-vazia-1", TemplateName: "A", Enabled: true, Merchant: 1, GeneratorIndex: 300000,
+		Shop: []domain.NPCShopItem{
+			{Slot: 0, ItemIndex: 10}, {Slot: 1, ItemIndex: 11}, {Slot: 2, ItemIndex: 12},
+		},
+	}}
+	if _, _, err := s.SeedNPCDefinitions(ctx, defs); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	var id int64
+	if err := pool.QueryRow(ctx, `SELECT id FROM npc_definition WHERE slug = 'seed-vazia-1'`).Scan(&id); err != nil {
+		t.Fatalf("read id: %v", err)
+	}
+
+	slots := func() map[int16]int32 {
+		t.Helper()
+		items, err := s.loadShopItems(ctx, pool, id)
+		if err != nil {
+			t.Fatalf("load shop: %v", err)
+		}
+		out := map[int16]int32{}
+		for _, it := range items {
+			out[it.Slot] = it.ItemIndex
+		}
+		return out
+	}
+
+	// The panel empties slot 1 and replaces slot 2.
+	if err := s.SetNPCShop(ctx, id, []domain.NPCShopItem{
+		{Slot: 0, ItemIndex: 10}, {Slot: 2, ItemIndex: 99},
+	}, 0); err != nil {
+		t.Fatalf("set shop: %v", err)
+	}
+	if _, _, err := s.SeedNPCDefinitions(ctx, defs); err != nil {
+		t.Fatalf("seed (reboot): %v", err)
+	}
+	got := slots()
+	if _, voltou := got[1]; voltou {
+		t.Errorf("slot 1 was emptied in the panel and the seed put item %d back", got[1])
+	}
+	if got[2] != 99 {
+		t.Errorf("slot 2 = %d, want the panel's 99", got[2])
+	}
+
+	// A migration that deletes a row without a record still gets the template
+	// item back — 0070 depends on it for the Aki's rings.
+	if _, err := pool.Exec(ctx, `DELETE FROM npc_shop_item WHERE npc_id = $1 AND slot = 0`, id); err != nil {
+		t.Fatalf("delete like a migration: %v", err)
+	}
+	if _, _, err := s.SeedNPCDefinitions(ctx, defs); err != nil {
+		t.Fatalf("seed (after migration): %v", err)
+	}
+	if got := slots(); got[0] != 10 {
+		t.Errorf("slot 0 = %d, want the template's 10 refilled", got[0])
+	}
+
+	// Filling the slot again in the panel drops the record, so emptying the whole
+	// shop later records every slot — including through an empty list.
+	if err := s.SetNPCShop(ctx, id, []domain.NPCShopItem{
+		{Slot: 0, ItemIndex: 10}, {Slot: 1, ItemIndex: 50}, {Slot: 2, ItemIndex: 99},
+	}, 0); err != nil {
+		t.Fatalf("refill: %v", err)
+	}
+	var marcas int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM npc_shop_slot_cleared WHERE npc_id = $1`, id).Scan(&marcas); err != nil {
+		t.Fatalf("count records: %v", err)
+	}
+	if marcas != 0 {
+		t.Errorf("records after refilling = %d, want 0", marcas)
+	}
+	if err := s.SetNPCShop(ctx, id, nil, 0); err != nil {
+		t.Fatalf("empty shop: %v", err)
+	}
+	if _, _, err := s.SeedNPCDefinitions(ctx, defs); err != nil {
+		t.Fatalf("seed (after emptying): %v", err)
+	}
+	if got := slots(); len(got) != 0 {
+		t.Errorf("shop emptied in the panel came back after a reboot: %v", got)
+	}
+}
+
 // contentGenIndex keeps TestDeleteNPCDefinitionContentOwned's generator index
 // clear of the ones the other tests in this package use (generator_index is
 // globally unique).

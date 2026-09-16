@@ -4,26 +4,16 @@
 <title>{{if .NPC.DisplayName}}{{.NPC.DisplayName}}{{else}}{{.NPC.Slug}}{{end}} — Painel OpenWYD</title>
 {{template "head" .}}
 <style>
-  td.slot { font-variant-numeric: tabular-nums; color: var(--ink-3); width: 4ch; }
-  td.campo-item input, td.campo-qtd input {
-    width: 100%; padding: 5px 8px; font: inherit; font-size: 13px; color: var(--ink);
-    background: var(--ground); border: 1px solid var(--rule); border-radius: 3px;
-    font-variant-numeric: tabular-nums;
-  }
-  td.campo-item { width: 12ch; }
-  td.campo-qtd { width: 9ch; }
-  td input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  .barra-salvar {
-    position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--rule);
-    padding: 14px 0; margin-top: 8px; display: flex; align-items: center; gap: 16px;
-  }
-  .barra-salvar .dica { margin: 0; }
+  /* The shop window in the client is five columns, filled row by row. */
+  .g-loja { grid-template-columns: repeat(5, minmax(0, 1fr)); max-width: 460px; }
+  .g-loja .slot { min-height: 64px; }
+  .g-loja .slot .nome { font-size: 10.5px; }
 </style>
 </head>
 <body>
 {{template "topbar" .}}
 
-<main>
+<main class="larga">
   <h1>{{if .NPC.DisplayName}}{{.NPC.DisplayName}}{{else}}{{.NPC.Slug}}{{end}}</h1>
   <p class="sub"><a href="/npcs">Voltar para a lista</a></p>
 
@@ -83,50 +73,113 @@
 
   <h2>O que este NPC vende</h2>
   <p class="sub">
-    Cada linha é um espaço da loja. Deixe o item em branco para esvaziar o espaço.
+    A grade segue a janela da loja no jogo: cinco colunas, espaço 0 no canto de cima.
     O preço vem do catálogo ou da exceção definida em <a href="/itens">Itens</a>.
   </p>
 
-  <form method="post" action="/npcs/{{.NPC.ID}}/loja">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <div class="tw">
-      <table>
-        <thead>
-          <tr><th class="num">Espaço</th><th>Item (índice)</th><th>Quantidade</th></tr>
-        </thead>
-        <tbody>
-          {{range .Slots}}
-          {{$slot := .Slot}}
-          <tr>
-            <td class="slot num">{{.Slot}}</td>
-            <td class="campo-item">
-              <input name="item{{.Slot}}" type="number" min="0" inputmode="numeric"
-                     value="{{if .ItemIndex}}{{.ItemIndex}}{{end}}"
-                     aria-label="Item do espaço {{.Slot}}">
-            </td>
-            <td class="campo-qtd">
-              <input name="qtd{{.Slot}}" type="number" min="1" inputmode="numeric"
-                     value="{{if .ItemIndex}}{{if .Quantity}}{{.Quantity}}{{else}}1{{end}}{{end}}"
-                     aria-label="Quantidade do espaço {{.Slot}}">
-              {{/* The three effect pairs ride through untouched: the panel edits
-                   WHAT is sold, not how a sold item is enchanted, and dropping
-                   them on save would quietly strip stock configured elsewhere. */}}
-              {{range $i, $e := .Eff}}
-              <input type="hidden" name="eff{{$slot}}_{{$i}}" value="{{index $e 0}}">
-              <input type="hidden" name="effv{{$slot}}_{{$i}}" value="{{index $e 1}}">
-              {{end}}
-            </td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
+  <div class="colunas">
+    <div>
+      <div class="cartao">
+        <h2>Loja</h2>
+        <div class="grade g-loja">
+          {{range .Loja}}{{template "slot" (dict "It" . "Href" (printf "?slot=%d" .Slot) "Sel" (and $.Sel.Ativa (eq $.Sel.Slot .Slot)))}}{{end}}
+        </div>
+      </div>
     </div>
 
-    <div class="barra-salvar">
-      <button type="submit" class="principal">Gravar loja</button>
-      <p class="dica">A loja passa a vender exatamente esta lista.</p>
+    <div>
+      {{if .IsAdmin}}
+      {{if .Sel.Ativa}}
+      <div class="cartao">
+        <h2>Procurar item</h2>
+        <form method="get" class="busca-item">
+          <input type="hidden" name="slot" value="{{.Sel.Slot}}">
+          <input name="q" value="{{.Sel.Busca}}" placeholder="nome ou índice — ex.: anel, 1740"
+                 autocomplete="off" spellcheck="false" aria-label="Procurar item">
+          <button type="submit">Buscar</button>
+        </form>
+        {{if .Sel.Busca}}
+          {{if .Sel.Achados}}
+            <ul class="achados">
+              {{range .Sel.Achados}}
+              <li>
+                <a href="{{.Href}}">
+                  <span class="ach-nome">{{.Nome}}</span>
+                  <span class="ach-meta">{{.Index}}{{if .Onde}} · {{.Onde}}{{end}}</span>
+                </a>
+              </li>
+              {{end}}
+            </ul>
+            {{if gt .Sel.Demais 0}}
+              <p class="sub" style="margin:8px 0 0;font-size:12px">
+                e mais {{.Sel.Demais}} — refine a busca.
+              </p>
+            {{end}}
+          {{else}}
+            <p class="sub" style="margin:10px 0 0;font-size:12.5px">
+              Nada com “{{.Sel.Busca}}”.
+            </p>
+          {{end}}
+        {{end}}
+      </div>
+
+      <div class="cartao">
+        <h2>Espaço {{.Sel.Slot}}</h2>
+        <form method="post" action="/npcs/{{.NPC.ID}}/loja">
+          <input type="hidden" name="csrf" value="{{.CSRF}}">
+          <input type="hidden" name="slot" value="{{.Sel.Slot}}">
+          <div class="par-campo">
+            <div>
+              <label class="campo-rot" for="indice">Índice do item</label>
+              <input id="indice" name="indice" inputmode="numeric" placeholder="use a busca acima"
+                     value="{{if not .Sel.Item.Vazio}}{{.Sel.Item.Index}}{{end}}">
+            </div>
+            <div>
+              <label class="campo-rot" for="qtd">Qtd.</label>
+              <input id="qtd" name="qtd" inputmode="numeric" placeholder="1"
+                     value="{{if not .Sel.Item.Vazio}}{{.Sel.Item.Qtd}}{{end}}">
+            </div>
+          </div>
+          <div class="par-campo">
+            <div><label class="campo-rot" for="eff1">Efeito 1</label><input id="eff1" name="eff1" inputmode="numeric" placeholder="0" value="{{(index .Sel.Item.Efeitos 0).Tipo}}"></div>
+            <div><label class="campo-rot" for="effv1">Valor</label><input id="effv1" name="effv1" inputmode="numeric" placeholder="0" value="{{(index .Sel.Item.Efeitos 0).Valor}}"></div>
+          </div>
+          <div class="par-campo">
+            <div><label class="campo-rot" for="eff2">Efeito 2</label><input id="eff2" name="eff2" inputmode="numeric" placeholder="0" value="{{(index .Sel.Item.Efeitos 1).Tipo}}"></div>
+            <div><label class="campo-rot" for="effv2">Valor</label><input id="effv2" name="effv2" inputmode="numeric" placeholder="0" value="{{(index .Sel.Item.Efeitos 1).Valor}}"></div>
+          </div>
+          <div class="par-campo">
+            <div><label class="campo-rot" for="eff3">Efeito 3</label><input id="eff3" name="eff3" inputmode="numeric" placeholder="0" value="{{(index .Sel.Item.Efeitos 2).Tipo}}"></div>
+            <div><label class="campo-rot" for="effv3">Valor</label><input id="effv3" name="effv3" inputmode="numeric" placeholder="0" value="{{(index .Sel.Item.Efeitos 2).Valor}}"></div>
+          </div>
+          <p class="sub" style="font-size:12px;margin:2px 0 12px">
+            {{if .Sel.Item.Vazio}}Espaço vazio: procure um item para vender aqui.{{else}}Vende <strong>{{.Sel.Item.Nome}}</strong>.{{end}}
+            Refino é o efeito 43. Esvaziar vale também depois do reinício.
+          </p>
+          <div style="display:flex;gap:8px">
+            <button type="submit" name="remover" value="1" class="perigo" {{if .Sel.Item.Vazio}}disabled{{end}}>Esvaziar espaço</button>
+            <button type="submit" class="principal">Gravar</button>
+          </div>
+        </form>
+      </div>
+      {{else}}
+      <div class="cartao">
+        <h2>Editar</h2>
+        <p class="sub" style="margin:0;font-size:13px">
+          Clique num espaço da grade para ver o item, trocar por outro ou esvaziar.
+        </p>
+      </div>
+      {{end}}
+      {{else}}
+      <div class="cartao">
+        <h2>Somente leitura</h2>
+        <p class="sub" style="margin:0;font-size:13px">
+          Mudar a loja é ação de admin. Você pode consultar tudo nesta página.
+        </p>
+      </div>
+      {{end}}
     </div>
-  </form>
+  </div>
 </main>
 </body>
 </html>

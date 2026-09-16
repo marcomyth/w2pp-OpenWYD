@@ -197,12 +197,37 @@ func (s *Store) UpsertNPCDefinition(ctx context.Context, d domain.NPCDefinition,
 
 // SetNPCShop replaces a merchant NPC's shop stock. Returns ErrNotFound if the
 // definition does not exist.
+//
+// A slot that held an item and is left out of items is recorded in
+// npc_shop_slot_cleared, and a slot that items fills loses its record. The boot
+// seed skips recorded slots: without that, the template's item came back into
+// every slot a moderator had emptied on the next dbServer start
+// (0072_npc_shop_slot_cleared.up.sql).
 func (s *Store) SetNPCShop(ctx context.Context, npcID int64, items []domain.NPCShopItem, moderatorID int64) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		if err := ensureDefExists(ctx, tx, npcID); err != nil {
 			return err
 		}
 		before, _ := fetchShopJSON(ctx, tx, npcID)
+		// Non-nil on purpose: pgx sends a nil slice as NULL, and `slot <> ALL(NULL)`
+		// is NULL for every row, so emptying the whole shop would record nothing.
+		filled := make([]int16, 0, len(items))
+		for _, it := range items {
+			filled = append(filled, it.Slot)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO npc_shop_slot_cleared (npc_id, slot, cleared_by)
+			SELECT npc_id, slot, $2 FROM npc_shop_item
+			WHERE npc_id = $1 AND slot <> ALL($3::smallint[])
+			ON CONFLICT (npc_id, slot) DO UPDATE SET cleared_by = EXCLUDED.cleared_by, cleared_at = now()`,
+			npcID, nullableID(moderatorID), filled); err != nil {
+			return fmt.Errorf("store: record cleared shop slots %d: %w", npcID, err)
+		}
+		if _, err := tx.Exec(ctx,
+			`DELETE FROM npc_shop_slot_cleared WHERE npc_id = $1 AND slot = ANY($2::smallint[])`,
+			npcID, filled); err != nil {
+			return fmt.Errorf("store: forget refilled shop slots %d: %w", npcID, err)
+		}
 		if _, err := tx.Exec(ctx, `DELETE FROM npc_shop_item WHERE npc_id = $1`, npcID); err != nil {
 			return fmt.Errorf("store: clear npc shop %d: %w", npcID, err)
 		}
@@ -473,9 +498,15 @@ func seedNPCShopRows(ctx context.Context, tx pgx.Tx, defs []domain.NPCDefinition
 		end := min(start+seedBatchChunk, len(rows))
 		batch := &pgx.Batch{}
 		for _, r := range rows[start:end] {
+			// A slot a moderator emptied stays empty (npc_shop_slot_cleared); any
+			// other free slot is filled, which migrations such as 0070 rely on to
+			// put the template's item back.
 			batch.Queue(`
 				INSERT INTO npc_shop_item (npc_id, slot, item_index, quantity, eff1, effv1, eff2, effv2, eff3, effv3)
-				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+				SELECT $1::bigint, $2::smallint, $3::integer, $4::smallint,
+				       $5::smallint, $6::smallint, $7::smallint, $8::smallint, $9::smallint, $10::smallint
+				WHERE NOT EXISTS (
+					SELECT 1 FROM npc_shop_slot_cleared c WHERE c.npc_id = $1::bigint AND c.slot = $2::smallint)
 				ON CONFLICT (npc_id, slot) DO NOTHING`,
 				r.npcID, r.item.Slot, r.item.ItemIndex, normalizedQuantity(r.item.Quantity),
 				r.item.Eff1, r.item.EffV1, r.item.Eff2, r.item.EffV2, r.item.Eff3, r.item.EffV3,

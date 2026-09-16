@@ -1824,77 +1824,121 @@ func TestNpcsListsAndFilters(t *testing.T) {
 	}
 }
 
-func TestNpcPageRendersEveryStockSlot(t *testing.T) {
-	// Occupied slots only would leave no way to ADD stock — the empty rows are
-	// the input, not decoration.
-	body := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))("/npcs/5").Body.String()
-	for _, name := range []string{`name="item0"`, `name="item26"`, `name="qtd26"`} {
-		if !strings.Contains(body, name) {
-			t.Errorf("missing form field %s", name)
+func TestNpcPageDrawsTheShopAsAGrid(t *testing.T) {
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	body := get("/npcs/5").Body.String()
+	// Every slot is a cell, empty ones included: an empty cell is where stock
+	// gets added.
+	for _, href := range []string{`href="?slot=0"`, `href="?slot=26"`} {
+		if !strings.Contains(body, href) {
+			t.Errorf("missing grid cell %s", href)
 		}
 	}
-	if strings.Contains(body, `name="item27"`) {
-		t.Error("rendered a slot the service does not accept")
+	if strings.Contains(body, `href="?slot=27"`) {
+		t.Error("drew a slot the service does not accept")
 	}
-	if !strings.Contains(body, `value="1415"`) {
-		t.Error("the existing stock is not filled in")
+	if !strings.Contains(body, "Sapatos Pele de Animal (A)") {
+		t.Error("the stock is shown by index instead of the catalog name")
 	}
-}
-
-func TestNpcPageCarriesEffectsThrough(t *testing.T) {
-	body := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))("/npcs/5").Body.String()
-	if !strings.Contains(body, `name="eff0_0" value="7"`) || !strings.Contains(body, `name="effv0_0" value="42"`) {
-		t.Fatal("the effect pair of an existing stock item is not carried in the form")
+	if strings.Contains(body, `action="/npcs/5/loja"`) {
+		t.Error("the slot form is shown before any slot was picked")
 	}
 }
 
-func TestSetLojaSavesAndAudits(t *testing.T) {
+func TestNpcPagePickedSlotFillsTheForm(t *testing.T) {
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	body := get("/npcs/5?slot=0").Body.String()
+	for _, want := range []string{
+		`action="/npcs/5/loja"`, `name="slot" value="0"`,
+		`value="1415"`,
+		`name="eff1" inputmode="numeric" placeholder="0" value="7"`,
+		`name="effv1" inputmode="numeric" placeholder="0" value="42"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("form is missing %q", want)
+		}
+	}
+}
+
+func TestNpcPageSearchPicksAnItemForTheSlot(t *testing.T) {
+	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
+	body := get("/npcs/5?slot=3&q=espada").Body.String()
+	if !strings.Contains(body, `href="?slot=3&amp;indice=2000&amp;q=espada"`) {
+		t.Fatalf("the search result does not link back to the same slot:\n%s", body)
+	}
+	// Following the link fills the form with the picked item, not the old one.
+	body = get("/npcs/5?slot=0&indice=2000&q=espada").Body.String()
+	if !strings.Contains(body, `value="2000"`) || !strings.Contains(body, "Espada Longa") {
+		t.Error("the picked item did not reach the form")
+	}
+	if strings.Contains(body, `name="eff1" inputmode="numeric" placeholder="0" value="7"`) {
+		t.Error("the old item's effects carried over to the picked one")
+	}
+}
+
+func TestSetLojaChangesOnlyTheChosenSlot(t *testing.T) {
 	game := newFakeGameData()
 	log := newFakeAudit()
-	h := newTestPanelGame(t, log, game)
-	post, token := signedInPost(t, h)
+	post, token := signedInPost(t, newTestPanelGame(t, log, game))
 
-	form := url.Values{"csrf": {token}, "item0": {"1415"}, "qtd0": {"3"},
-		"eff0_0": {"7"}, "effv0_0": {"42"}, "item1": {"2000"}, "qtd1": {"1"}}
-	rec := post("/npcs/5/loja", form)
+	rec := post("/npcs/5/loja", url.Values{"csrf": {token}, "slot": {"4"}, "indice": {"2000"}, "qtd": {"120"}})
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
 	}
-	if len(game.shopSaves) != 1 {
-		t.Fatalf("shop saves = %d, want 1", len(game.shopSaves))
+	if loc := rec.Header().Get("Location"); !strings.HasPrefix(loc, "/npcs/5?slot=4&") {
+		t.Errorf("redirect = %q, want back on slot 4", loc)
 	}
-	saved := game.shopSaves[0]
-	if len(saved) != 2 {
-		t.Fatalf("saved %d items, want 2", len(saved))
+	if len(game.shopSaves) != 1 || len(game.shopSaves[0]) != 2 {
+		t.Fatalf("saves = %+v, want one save with both slots", game.shopSaves)
 	}
-	if saved[0].ItemIndex != 1415 || saved[0].Quantity != 3 {
-		t.Errorf("first slot = %+v, want item 1415 x3", saved[0])
+	porSlot := map[int32]gamedata.ShopItem{}
+	for _, it := range game.shopSaves[0] {
+		porSlot[it.Slot] = it
 	}
-	if saved[0].Eff[0] != [2]int32{7, 42} {
-		t.Errorf("the effect pair was lost on save: %v", saved[0].Eff[0])
+	if got := porSlot[0]; got.ItemIndex != 1415 || got.Eff[0] != [2]int32{7, 42} {
+		t.Errorf("slot 0 was not kept as it was: %+v", got)
+	}
+	if got := porSlot[4]; got.ItemIndex != 2000 || got.Quantity != 120 {
+		t.Errorf("slot 4 = %+v, want item 2000 x120", got)
 	}
 	if len(log.recorded()) != 1 || log.recorded()[0].Action != audit.ActionSetNpcShop {
 		t.Error("the shop change was not audited")
 	}
 }
 
-func TestEmptySlotsAreSimplyNotSent(t *testing.T) {
+func TestSetLojaEmptiesASlot(t *testing.T) {
 	game := newFakeGameData()
-	h := newTestPanelGame(t, newFakeAudit(), game)
-	post, token := signedInPost(t, h)
-
-	// Everything blank: the shop is emptied rather than left alone.
-	post("/npcs/5/loja", url.Values{"csrf": {token}})
+	post, token := signedInPost(t, newTestPanelGame(t, newFakeAudit(), game))
+	rec := post("/npcs/5/loja", url.Values{"csrf": {token}, "slot": {"0"}, "indice": {"1415"}, "remover": {"1"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
 	if len(game.shopSaves) != 1 || len(game.shopSaves[0]) != 0 {
-		t.Fatalf("saves = %v, want one empty list", game.shopSaves)
+		t.Fatalf("saves = %+v, want one empty list", game.shopSaves)
 	}
 }
 
-func TestSetLojaRejectsABadItem(t *testing.T) {
-	h := newTestPanelGame(t, newFakeAudit(), newFakeGameData())
-	post, token := signedInPost(t, h)
-	if rec := post("/npcs/5/loja", url.Values{"csrf": {token}, "item0": {"abc"}}); rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", rec.Code)
+func TestSetLojaRefusesBadInput(t *testing.T) {
+	cases := map[string]url.Values{
+		"item não numérico":        {"slot": {"0"}, "indice": {"abc"}},
+		"espaço fora da loja":      {"slot": {"27"}, "indice": {"2000"}},
+		"sem espaço":               {"indice": {"2000"}},
+		"quantidade acima do teto": {"slot": {"0"}, "indice": {"2000"}, "qtd": {"256"}},
+		// Blank index behind "Gravar" would empty the slot without saying so.
+		"gravar sem item": {"slot": {"0"}, "indice": {""}},
+	}
+	for nome, form := range cases {
+		t.Run(nome, func(t *testing.T) {
+			game := newFakeGameData()
+			post, token := signedInPost(t, newTestPanelGame(t, newFakeAudit(), game))
+			form.Set("csrf", token)
+			if rec := post("/npcs/5/loja", form); rec.Code != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400", rec.Code)
+			}
+			if len(game.shopSaves) != 0 {
+				t.Fatal("a refused request changed the shop")
+			}
+		})
 	}
 }
 

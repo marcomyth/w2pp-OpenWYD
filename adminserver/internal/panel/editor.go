@@ -72,6 +72,9 @@ type itemView struct {
 	Vazio      bool
 	Alcancavel bool // false for a Bolsa do Andarilho band the character has not unlocked
 	Marcador   bool // the bag item itself, in slot 60/61
+	// Qtd is the stack a shop sells in one purchase. Only the NPC shop grid sets
+	// it; everywhere else it stays 0 and the cell shows no count.
+	Qtd int
 }
 
 type efeitoView struct {
@@ -170,6 +173,9 @@ type selecao struct {
 	Busca   string
 	Achados []itemAchado
 	Demais  int // matches beyond the ones listed
+	// Prefixo is the query string that addresses the slot in a search result
+	// link. Empty means the character editor's own onde=&slot=.
+	Prefixo string
 }
 
 // itemAchado is one catalog hit, with the link that puts it in the form.
@@ -244,6 +250,10 @@ func (h *Handler) buscaItens(r *http.Request, sel selecao) selecao {
 			}
 		}
 	}
+	prefixo := sel.Prefixo
+	if prefixo == "" {
+		prefixo = fmt.Sprintf("onde=%s&slot=%d", url.QueryEscape(sel.Destino), sel.Slot)
+	}
 	for i, it := range itens {
 		if i >= maxAchados {
 			sel.Demais = len(itens) - maxAchados
@@ -253,8 +263,7 @@ func (h *Handler) buscaItens(r *http.Request, sel selecao) selecao {
 			Index: it.Index,
 			Nome:  it.DisplayName,
 			Onde:  strings.Join(it.Slots, ", "),
-			Href: fmt.Sprintf("?onde=%s&slot=%d&indice=%d&q=%s",
-				url.QueryEscape(sel.Destino), sel.Slot, it.Index, url.QueryEscape(sel.Busca)),
+			Href:  fmt.Sprintf("?%s&indice=%d&q=%s", prefixo, it.Index, url.QueryEscape(sel.Busca)),
 		})
 	}
 	return sel

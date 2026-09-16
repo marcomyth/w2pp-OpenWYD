@@ -43,6 +43,7 @@ var tabelasDeTeste = []string{
 	"world_event_meta",
 	"world_event_config",
 	"npc_audit",
+	"npc_shop_slot_cleared",
 	"npc_shop_item",
 	"npc_definition",
 	"item_price",

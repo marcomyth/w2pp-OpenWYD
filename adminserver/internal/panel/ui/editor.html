@@ -216,6 +216,7 @@
    title="Slot {{.It.Slot}}{{if not .It.Vazio}} — {{.It.Nome}}{{end}}{{if not .It.Alcancavel}} (fora da faixa liberada){{end}}">
   <span class="idx">{{.It.Slot}}</span>
   {{if gt .It.Refino 0}}<span class="sanc">+{{.It.Refino}}</span>{{end}}
+  {{if gt .It.Qtd 1}}<span class="qtd">{{.It.Qtd}}</span>{{end}}
   <span class="nome">{{.It.Nome}}</span>
 </a>
 {{end}}

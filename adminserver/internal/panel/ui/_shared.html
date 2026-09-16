@@ -353,6 +353,11 @@
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }
   .slot.cheio .nome { color: var(--ink); }
+  /* Stack sold per purchase, where the client draws it: bottom right. */
+  .slot .qtd {
+    position: absolute; bottom: 2px; right: 3px; font-size: 10px; font-weight: 700;
+    color: var(--ink); background: var(--surface); padding: 0 2px; font-variant-numeric: tabular-nums;
+  }
   .slot img { width: 100%; height: auto; image-rendering: pixelated; }
   .slot.travado {
     cursor: not-allowed; opacity: .5;
