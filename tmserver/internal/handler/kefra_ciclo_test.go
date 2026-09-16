@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/worldcfg"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/worldevents"
 )
 
 // fonteDoCiclo é a ponte com o dbServer, de mentira. O SetKefraState é chamado
@@ -420,5 +423,209 @@ func TestKefraBootNaoLimpaQuandoVivo(t *testing.T) {
 
 	if got := vivosDoKefra(w); got != 5 {
 		t.Errorf("%d vivos depois do boot com o chefe vivo, want 5 intactos", got)
+	}
+}
+
+// O ACESSO. O /kefra tem dois destinos DIFERENTES no legado
+// (_MSG_MessageWhisper.cpp:835-849) e o tile do deserto tem um terceiro
+// (GetFunc.cpp:1007-1011). Os números são parecidos e não são os mesmos:
+//
+//	chefe vivo      -> 2365,3884 (a zona, com o aviso de que ele precisa cair)
+//	chefe derrotado -> 3250,1695 (a cidade)
+//	tile do deserto -> 3250,1703 (a cidade, por outra porta)
+//
+// 1695 não é 1703. Eu já tratei os dois como o mesmo ponto duas vezes ao ler isto.
+
+// fichaEm é a ficha de quem entra parado num ponto. Nível alto porque ficha sem
+// nível é lida como personagem recém-criado.
+func fichaEm(x, y int16) world.CharacterState {
+	return world.CharacterState{
+		Slot: 0, Name: "Heroi", Level: 330,
+		X: x, Y: y, HP: 1000, MaxHP: 1000, MP: 100, MaxMP: 100,
+	}
+}
+
+// servidorDoCiclo sobe um mundo SERVINDO, com a grade inteira, e deixa o teste
+// preparar o Dispatcher ANTES de o laço começar: o Dispatcher é do laço, e mexer
+// nele com o laço rodando seria corrida.
+func servidorDoCiclo(t *testing.T, db world.Persistence, prepara func(*Dispatcher)) (string, func(), *world.World) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := slog.New(slog.DiscardHandler)
+	quarta := time.Date(2026, time.September, 16, 15, 0, 0, 0, time.UTC)
+	d := New(Config{Log: log, Now: func() time.Time { return quarta }})
+	w := world.New(world.Config{GridDim: 4096}, log, db, d.Handle)
+	if prepara != nil {
+		prepara(d)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = w.Serve(ctx, ln); close(done) }()
+	return ln.Addr().String(), func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Error("o servidor não parou")
+		}
+	}, w
+}
+
+// esperarTeleporte drena até o quadro do salto (MSG_Action, o Effect 1 do
+// doTeleport) chegar.
+//
+// Existe por causa de um teste MEU que piscava: ler a posição logo depois de
+// mandar o comando é uma corrida com o laço, e quem lê primeiro vê o jogador
+// ainda no lugar de origem. O teste do chefe vivo nunca piscou porque espera o
+// aviso antes de ler; o do chefe derrotado não tem aviso para esperar, e falhava
+// uma vez em cada tantas. Teste que pisca na CI vale menos que teste nenhum,
+// porque ensina a ignorar vermelho.
+func esperarTeleporte(t *testing.T, c net.Conn) {
+	t.Helper()
+	for i := 0; i < 40; i++ {
+		ty, _, ok := readMaybe(t, c)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgAction {
+			return
+		}
+	}
+	t.Fatal("o quadro do teleporte não chegou")
+}
+
+// posicaoNoLaco lê a posição do único jogador em jogo, dentro do laço.
+func posicaoNoLaco(t *testing.T, w *world.World) (int16, int16) {
+	t.Helper()
+	var x, y int16
+	noLacoDoMundo(t, w, func(w *world.World) {
+		w.ForEachPlaying(-1, func(_ *world.Session, e *world.Entity) { x, y = e.X, e.Y })
+	})
+	return x, y
+}
+
+func dentroDe(x, y, x0, y0 int16) bool {
+	return x >= x0 && x <= x0+2 && y >= y0 && y <= y0+2
+}
+
+// Com o chefe VIVO, o /kefra leva à zona e diz que ele precisa ser derrotado — não
+// à cidade. A cidade é o prêmio de tê-lo matado.
+func TestKefraComandoComChefeVivoLevaAZona(t *testing.T) {
+	db := newDB()
+	db.loadResult = fichaEm(2100, 2100)
+	addr, stop, w := servidorDoCiclo(t, db, nil) // estado padrão: chefe vivo
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	whisperFrame(t, c, "kefra", "")
+
+	if got := esperarMensagem(t, c, "vivo"); got != "O kefra ainda esta vivo, precisa ser derrotado" {
+		t.Errorf("aviso = %q", got)
+	}
+	if x, y := posicaoNoLaco(t, w); !dentroDe(x, y, 2365, 3884) {
+		t.Errorf("caiu em (%d,%d), want a zona 2365..2367 x 3884..3886", x, y)
+	}
+}
+
+// Com o chefe DERROTADO, o /kefra leva à cidade, em 3250,1695.
+func TestKefraComandoComChefeDerrotadoLevaACidade(t *testing.T) {
+	db := newDB()
+	db.loadResult = fichaEm(2100, 2100)
+	addr, stop, w := servidorDoCiclo(t, db, func(d *Dispatcher) { d.marcaKefra(true, 7) })
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	whisperFrame(t, c, "kefra", "")
+	esperarTeleporte(t, c) // sem isto a leitura da posição corre com o laço
+
+	if x, y := posicaoNoLaco(t, w); !dentroDe(x, y, 3250, 1695) {
+		t.Errorf("caiu em (%d,%d), want a cidade 3250..3252 x 1695..1697", x, y)
+	}
+}
+
+// O tile do deserto (2364,3924) só abre com o chefe DERROTADO, e leva a 3250,1703
+// — outro ponto, não o do comando. Com o chefe vivo não acontece nada, calado,
+// porque a posição não casa com rota nenhuma.
+func TestTileDoDesertoSoAbreComOChefeDerrotado(t *testing.T) {
+	casos := []struct {
+		nome      string
+		derrotado bool
+		andou     bool
+	}{
+		{"chefe derrotado abre", true, true},
+		{"chefe vivo não abre", false, false},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			db := newDB()
+			db.loadResult = fichaEm(2364, 3924)
+			addr, stop, w := servidorDoCiclo(t, db, func(d *Dispatcher) {
+				if c.derrotado {
+					d.marcaKefra(true, 0)
+				}
+			})
+			defer stop()
+			conn := enterWorld(t, addr)
+			defer conn.Close()
+
+			send(t, conn, protocol.MsgReqTeleport, nil)
+			if c.andou {
+				esperarTeleporte(t, conn) // a posição só vale depois do salto
+			}
+
+			x, y := posicaoNoLaco(t, w)
+			if c.andou {
+				if !dentroDe(x, y, 3250, 1703) {
+					t.Errorf("caiu em (%d,%d), want 3250..3252 x 1703..1705", x, y)
+				}
+				return
+			}
+			if x != 2364 || y != 3924 {
+				t.Errorf("andou para (%d,%d) com o chefe vivo, want ficar no tile", x, y)
+			}
+			if ty, _, ok := readMaybe(t, conn); ok {
+				t.Errorf("o servidor respondeu %#x com o chefe vivo; o legado fica calado", ty)
+			}
+		})
+	}
+}
+
+// O bloqueio de guerra continua valendo nos DOIS ramos: o /kefra sai da rota
+// simples da tabela e ganha condição, e é fácil deixar a recusa para trás no
+// caminho novo (towerTeleportBlocked já lista "kefra").
+func TestKefraComandoRecusadoNaGuerraNosDoisRamos(t *testing.T) {
+	for _, derrotado := range []bool{false, true} {
+		nome := "chefe vivo"
+		if derrotado {
+			nome = "chefe derrotado"
+		}
+		t.Run(nome, func(t *testing.T) {
+			db := newDB()
+			db.loadResult = fichaEm(2100, 2100)
+			addr, stop, w := servidorDoCiclo(t, db, func(d *Dispatcher) {
+				if derrotado {
+					d.marcaKefra(true, 7)
+				}
+				d.events.tower = worldevents.NewTower(20)
+				d.events.tower.ForceAnnounce(d.now(), 6*time.Minute, 24*time.Minute)
+			})
+			defer stop()
+			c := enterWorld(t, addr)
+			defer c.Close()
+
+			whisperFrame(t, c, "kefra", "")
+
+			if got := esperarMensagem(t, c, "guerras"); got != "Não é possível se teleportar em guerras!" {
+				t.Errorf("recusa = %q", got)
+			}
+			if x, y := posicaoNoLaco(t, w); x != 2100 || y != 2100 {
+				t.Errorf("andou para (%d,%d) durante a guerra, want ficar em (2100,2100)", x, y)
+			}
+		})
 	}
 }

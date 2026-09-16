@@ -96,6 +96,35 @@ const (
 	msgKefraSemGuilda = "O Kefra foi derrotado."
 )
 
+// O /kefra tem dois destinos DIFERENTES (_MSG_MessageWhisper.cpp:835-849), e o
+// tile do deserto tem um terceiro (GetFunc.cpp:1009). Os três números se parecem e
+// não são o mesmo:
+//
+//	chefe vivo      -> 2365,3884, a zona, com o aviso de que ele precisa cair
+//	chefe derrotado -> 3250,1695, a cidade
+//	tile do deserto -> 3250,1703, a cidade por outra porta
+//
+// 1695 NÃO é 1703. Confundir os dois é o erro fácil aqui.
+var (
+	kefraZonaPos   = [2]int16{2365, 3884}
+	kefraCidadePos = [2]int16{3250, 1695}
+)
+
+// msgKefraAindaVivo é a linha que o legado escreve à mão, sem passar pelo
+// Language.txt (_MSG_MessageWhisper.cpp:839), acentuação inclusa — copiada como
+// está para o jogador ler o que sempre leu.
+const msgKefraAindaVivo = "O kefra ainda esta vivo, precisa ser derrotado"
+
+// destinoDoComandoKefra diz para onde o /kefra leva e se o jogador ouve o aviso.
+// A cidade é o prêmio de ter derrubado o chefe; com ele de pé o comando leva à
+// zona, que é onde se luta.
+func (d *Dispatcher) destinoDoComandoKefra() (dest [2]int16, avisa bool) {
+	if d.expEvents.KefraLive {
+		return kefraCidadePos, false
+	}
+	return kefraZonaPos, true
+}
+
 // kefraClanConta diz se a morte conta para quem bateu. O legado trata Clan fora
 // de {0,4,7,8} noutro ramo, que só REMOVE o monstro e nem chega ao bloco do Kefra
 // (MobKilled.cpp:1437-1438): sem estado, sem fama, sem aviso e sem saque.
@@ -147,6 +176,15 @@ func (d *Dispatcher) kefraKilled(w *world.World, matador, mob *world.Entity) {
 // tickKefraGuardas devolve os guardas ENQUANTO o chefe está de pé. Eles são o anel
 // que protege o chefe, e um anel que só se refizesse na terça deixaria o chefe
 // sozinho pelo resto da semana.
+//
+// DIVERGÊNCIA, pequena e de propósito: o legado repõe o guarda NO INSTANTE em que
+// ele morre, e só o bloco que morreu — `if (GenerateIndex >= KEFRA_MOB_INITIAL &&
+// GenerateIndex <= KEFRA_MOB_END && KefraLive == 0) GenerateMob(GenerateIndex)`
+// (MobKilled.cpp:2989-2990). Aqui a volta acontece no tique seguinte e varre os
+// quatro blocos. O efeito em jogo é o mesmo anel de volta em menos de um segundo,
+// e o preço é não pendurar mais um gancho no caminho da morte. Quem ler isto e
+// quiser fidelidade ao instante, o gancho é o mobKilled. A condição de o chefe
+// estar vivo é fiel: é o `KefraLive == 0` da mesma linha.
 //
 // Roda a cada tique, e não de minuto em minuto, porque aqui não se lê relógio de
 // parede, se olha população: pela régua do mintimer.go isto CONTA, não CONSULTA.
@@ -204,6 +242,13 @@ func (d *Dispatcher) avisoDoKefra(guilda string) string {
 // saqueDoKefra dá a quem matou UM sorteio no Carry do chefe por monstro de pé na
 // caixa (MobKilled.cpp:1494-1509). Bolsa cheia perde o item, como o PutItem do
 // legado — mas registra, porque item que desaparece sem rastro ninguém investiga.
+//
+// O CHEFE CONTA A SI MESMO, e isso não é descuido: ele nasce dentro da própria
+// caixa (kefraChefePos) e ainda está na grade quando esta varredura roda, porque
+// quem o retira é o despawn no FIM do mobKilled. Ou seja, matar o chefe numa área
+// vazia ainda rende um sorteio. Está fixado em teste de propósito: é o tipo de
+// coisa que alguém "conserta" seis meses depois sem saber que era assim no
+// original.
 func (d *Dispatcher) saqueDoKefra(w *world.World, matador, mob *world.Entity) {
 	entregues, perdidos := 0, 0
 	w.ForEachMob(func(_ int, e *world.Entity) {
