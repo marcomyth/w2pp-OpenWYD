@@ -293,6 +293,13 @@ type Entity struct {
 	// (migration 0025). Both the grant and the spend flush immediately, because
 	// an entry is bought with gold.
 	NightmareTickets int32
+	// KefraTicket is MobExtra.KefraTicket: the Kefra Hall entries the character
+	// holds. The Sobrevivente trades a Pergaminho_Selado for 100 and each passage
+	// through the Hall tile spends one (handler/kefra_hall.go, migration 0068).
+	// Persisted on the character row, and both the grant and the spend flush
+	// immediately, for the same reason as the Pesadelo entries: the scroll is paid
+	// for.
+	KefraTicket int32
 	// A SEGUNDA VIDA DO CELESTIAL (0061_sub_celestial). Os campos de progressao
 	// acima sao sempre a vida ATIVA. A guardada viaja inteira como JSON e so a
 	// troca a le; o NIVEL dela fica fora do JSON porque a formula de pontos do

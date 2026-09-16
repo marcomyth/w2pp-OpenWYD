@@ -120,6 +120,11 @@ func (d *Dispatcher) registraFala(w *world.World, s *world.Session, tipo world.C
 // "/armia" as a whisper whose target name is "armia", so the command keyword IS the
 // whisper name (_MSG_MessageWhisper.cpp). Coordinates are the peacetime ones; the
 // RvR/Torre/Castle war-state variants are not modeled.
+//
+// "kefra" is the one entry whose destination is NOT fixed: the coordinate here is
+// the one for a living boss (the zone), and runCommand replaces it with the city
+// once the boss has been defeated (destinoDoComandoKefra, kefra.go). It stays in
+// this table so the war refusal above keeps covering it.
 var teleportCmds = map[string][2]int16{
 	"armia": {2100, 2100}, "azran": {2500, 1716}, "erion": {2461, 2003},
 	"gelo": {3650, 3130}, "kefra": {2365, 3884}, "torre": {2506, 1878},
@@ -166,7 +171,20 @@ func (d *Dispatcher) runCommand(w *world.World, s *world.Session, name string, a
 			return true
 		}
 		if e := w.Entity(s.Conn); e != nil {
+			// O /kefra é o único com destino que depende do estado do mundo: a
+			// cidade só se abre depois de o chefe cair (kefra.go). A recusa de
+			// guerra acima continua valendo para ele, que é o que a tabela garante
+			// ao mantê-lo aqui em vez de num caminho próprio.
+			avisa := false
+			if cmd == "kefra" {
+				dest, avisa = d.destinoDoComandoKefra()
+			}
 			d.doTeleport(w, s, dest[0]+int16(w.Rand().Intn(3)), dest[1]+int16(w.Rand().Intn(3)))
+			if avisa {
+				// Depois do teleporte, como no legado: ele move e então explica
+				// (_MSG_MessageWhisper.cpp:838-839).
+				sendClientMessage(w, s, msgKefraAindaVivo)
+			}
 		}
 		return true
 	}

@@ -9,11 +9,14 @@ import (
 // Server-wide announcements for the things worth interrupting everyone for: a
 // rebirth, an Ancient item, a high refine.
 //
-// DELIBERATE DIVERGENCE: the legacy announces guild wars, the Kefra kill and
-// event drops (SendNotice, MobKilled.cpp:1480 and CWarTower.cpp), but nothing
-// for these four. They are announced here because on a live server they are the
-// events players actually gather around, and a rebirth nobody sees is a rebirth
-// that may as well not have happened.
+// The legacy announces guild wars, the Kefra kill and event drops (SendNotice,
+// MobKilled.cpp:1480 and CWarTower.cpp); the first two are announced here too,
+// from towerwar.go and kefra.go.
+//
+// DELIBERATE DIVERGENCE: it says nothing for the four below. They are announced
+// here because on a live server they are the events players actually gather
+// around, and a rebirth nobody sees is a rebirth that may as well not have
+// happened.
 //
 // They ride SendNotice — the message panel to every player in world — so they
 // arrive as the server speaking, not as a player talking (HEADER.ID zero, see

@@ -342,6 +342,10 @@ type Dispatcher struct {
 	worldEventVersion  int64
 	worldEventPolling  bool
 	worldEventPollTick int
+	// kefraGuildID é a guilda que derrubou o Kefra (migração 0067). Chega no
+	// snapshot e é reescrita na hora da morte; o interruptor em si mora no
+	// expEvents.KefraLive, e os dois só mudam juntos (kefra.go).
+	kefraGuildID int32
 
 	// The instanced dungeons' doors, read LIVE (dungeongate.go). The zero value
 	// is every door open, which is how the server ran before this existed — so a

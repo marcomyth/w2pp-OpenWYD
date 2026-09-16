@@ -8,8 +8,19 @@ type teleRoute struct {
 }
 
 // teleportTable maps a rounded origin tile (x&0xFFFC, y&0xFFFC) to its
-// destination + gold cost. It is the complete GetTeleportPosition
-// (GetFunc.cpp:782-1026) — all 37 routes, in the order the original tests them.
+// destination + gold cost. It is GetTeleportPosition (GetFunc.cpp:782-1026) minus
+// its two CONDITIONAL routes, which a table lookup cannot express: the Kefra Hall
+// floor only moves a player who carries an entry (handler/kefra_hall.go), and the
+// desert route only opens once the Kefra has been DEFEATED (handler/kefra.go).
+//
+// Mind that legacy flag's name, which says the opposite of what it holds:
+// KefraLive == 0 is the boss ALIVE. On 0 the /kefra command answers that he still
+// has to be defeated (_MSG_MessageWhisper.cpp:837), the GM createkefra zeroes it
+// right before spawning him (imple.cpp:1729), and the kill path halves experience
+// while it is 0 (MobKilled.cpp:543). So the `KefraLive != 0` that guards the desert
+// route (GetFunc.cpp:1007) is the defeated state, not the living one.
+//
+// Everything else is here, in the order the original tests them.
 // The client sends an empty _MSG_ReqTeleport when it steps on a teleport tile;
 // the server resolves the route from the player's position.
 //

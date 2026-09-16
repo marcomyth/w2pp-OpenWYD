@@ -23,6 +23,7 @@ func TestCharacterSaveForCopiesProgression(t *testing.T) {
 		CelestialArchLevel: 5,
 		TerraMistica:       2,
 		NightmareTickets:   13,
+		KefraTicket:        100,
 		Soul:               4,
 		Fame:               1234,
 	}
@@ -35,6 +36,11 @@ func TestCharacterSaveForCopiesProgression(t *testing.T) {
 	}
 	if got.NightmareTickets != 13 {
 		t.Errorf("NightmareTickets = %d, want 13", got.NightmareTickets)
+	}
+	// As entradas do Hall do Kefra vêm do Pergaminho_Selado, que é comprado
+	// (migração 0068): esquecer a cópia aqui apaga o que o jogador pagou.
+	if got.KefraTicket != 100 {
+		t.Errorf("KefraTicket = %d, want 100", got.KefraTicket)
 	}
 	if got.CelestialArchLevel != 5 || got.MortalLevel != 399 || got.TerraMistica != 2 {
 		t.Errorf("progression lost: %+v", got)
