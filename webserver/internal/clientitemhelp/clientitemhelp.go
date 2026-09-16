@@ -67,7 +67,13 @@ func Set(data []byte, item int, linhas []Linha) ([]byte, error) {
 // bloco acha onde começa e termina o bloco do item. Quando o item não tem
 // bloco, os dois valores apontam para o lugar onde ele deve ser inserido para
 // manter a ordem crescente dos índices.
+//
+// O arquivo inteiro é varrido atrás do item antes de escolher onde inserir: o
+// itemhelp.dat real não está em ordem (blocos novos, como o da Chave do Rei Orc,
+// foram acrescentados depois de índices maiores), e parar no primeiro índice maior
+// punha um segundo bloco do mesmo item em vez de trocar o que existia.
 func bloco(data []byte, item int) (int, int, error) {
+	insere := -1
 	pos := 0
 	for pos < len(data) {
 		fimLinha := bytes.IndexByte(data[pos:], '\n')
@@ -85,10 +91,13 @@ func bloco(data []byte, item int) (int, int, error) {
 		switch {
 		case idx == item:
 			return pos, fimDoBloco(data, proxima), nil
-		case idx > item:
-			return pos, pos, nil // o item entra aqui, antes deste
+		case idx > item && insere < 0:
+			insere = pos // sem bloco próprio, o item entra aqui, antes deste
 		}
 		pos = proxima
+	}
+	if insere >= 0 {
+		return insere, insere, nil
 	}
 	return len(data), len(data), nil
 }

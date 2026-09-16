@@ -58,7 +58,7 @@ func raiseXamaTroll(t *testing.T, d *Dispatcher, w *world.World) *world.Entity {
 func abrirAcampamento(t *testing.T) (*Dispatcher, *world.World, *world.Session, *world.Entity) {
 	t.Helper()
 	d, w, s, e := acampamentoTrollFixture(t)
-	e.Carry[0] = world.Item{Index: itemChaveDosTrolls}
+	e.Carry[0] = world.Item{Index: itemChaveCasteloOrc}
 	d.corridaNPC(w, &d.acampamentoTroll, s, e, raiseXamaTroll(t, d, w))
 	if !d.acampamentoTroll.estado.active {
 		t.Fatal("a chave não abriu o acampamento")
@@ -107,13 +107,14 @@ func TestAcampamentoTrollXamaNasceUmaVez(t *testing.T) {
 
 func TestAcampamentoTrollSemChaveNaoAbre(t *testing.T) {
 	d, w, s, e := acampamentoTrollFixture(t)
-	e.Carry[0] = world.Item{Index: itemChaveCasteloOrc} // a chave do outro lugar não serve
+	// A antiga Chave dos Trolls voltou a ser o Cupom da Sorte e não abre nada.
+	e.Carry[0] = world.Item{Index: 3223}
 	d.corridaNPC(w, &d.acampamentoTroll, s, e, raiseXamaTroll(t, d, w))
 	if d.acampamentoTroll.estado.active {
-		t.Fatal("abriu sem a Chave dos Trolls")
+		t.Fatal("abriu sem a Chave do Rei Orc")
 	}
-	if e.Carry[0].Index != itemChaveCasteloOrc {
-		t.Error("a Chave do Rei Orc foi gasta no Xamã Troll")
+	if e.Carry[0].Index != 3223 {
+		t.Error("o Cupom da Sorte foi gasto no Xamã Troll")
 	}
 	if live(w, acampamentoTrollSpec.genBoss) != 0 {
 		t.Error("o boss nasceu sem a corrida")
@@ -124,7 +125,7 @@ func TestAcampamentoTrollSemChaveNaoAbre(t *testing.T) {
 // seguidores, os dois guardiões e cada bloco de tropa cheio.
 func TestAcampamentoTrollChaveAbreOAcampamento(t *testing.T) {
 	d, w, s, e := acampamentoTrollFixture(t)
-	e.Carry[3] = world.Item{Index: itemChaveDosTrolls}
+	e.Carry[3] = world.Item{Index: itemChaveCasteloOrc}
 	d.corridaNPC(w, &d.acampamentoTroll, s, e, raiseXamaTroll(t, d, w))
 
 	r := d.acampamentoTroll.estado
@@ -154,17 +155,17 @@ func TestAcampamentoTrollChaveAbreOAcampamento(t *testing.T) {
 func TestAcampamentoTrollUmGrupoPorVez(t *testing.T) {
 	d, w, _, _ := abrirAcampamento(t)
 	outro := &world.Entity{ID: 7, Mode: world.MobUser, Name: "Outro", HP: 1000}
-	outro.Carry[0] = world.Item{Index: itemChaveDosTrolls}
+	outro.Carry[0] = world.Item{Index: itemChaveCasteloOrc}
 	d.corridaNPC(w, &d.acampamentoTroll, &world.Session{Conn: 7, Mode: world.UserPlay}, outro, w.Entity(d.acampamentoTroll.npcID))
-	if outro.Carry[0].Index != itemChaveDosTrolls || d.acampamentoTroll.estado.leaderName != "Lider" {
+	if outro.Carry[0].Index != itemChaveCasteloOrc || d.acampamentoTroll.estado.leaderName != "Lider" {
 		t.Error("um segundo grupo entrou ou perdeu a chave com o acampamento ocupado")
 	}
 
 	d2, w2, s2, membro := acampamentoTrollFixture(t)
 	membro.Leader = 5
-	membro.Carry[0] = world.Item{Index: itemChaveDosTrolls}
+	membro.Carry[0] = world.Item{Index: itemChaveCasteloOrc}
 	d2.corridaNPC(w2, &d2.acampamentoTroll, s2, membro, raiseXamaTroll(t, d2, w2))
-	if d2.acampamentoTroll.estado.active || membro.Carry[0].Index != itemChaveDosTrolls {
+	if d2.acampamentoTroll.estado.active || membro.Carry[0].Index != itemChaveCasteloOrc {
 		t.Error("um membro de grupo abriu o acampamento")
 	}
 }

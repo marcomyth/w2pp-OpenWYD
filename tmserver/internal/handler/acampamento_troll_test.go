@@ -170,31 +170,8 @@ func TestAcampamentoTrollNaoMexeEmOutroDrop(t *testing.T) {
 	}
 }
 
-func TestAcampamentoTrollChaveNaEntradaDosElfos(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		step  quest256Step
-		roll  sorteioFixo
-		chave bool
-	}{
-		{"elfos, sorteio ganho", quest256Steps[4], 0, true},
-		{"elfos, sorteio perdido", quest256Steps[4], 2, false},
-		{"hidras nunca dá", quest256Steps[3], 0, false},
-		{"coveiro nunca dá", quest256Steps[0], 0, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			d, w, killer := mobKilledWorld(t)
-			d.eventRNG = tc.roll
-			d.acampamentoTrollKeyOnEntry(w, &world.Session{Conn: killer.ID, Mode: world.UserPlay}, killer, tc.step)
-			if _, ok := carryHas(killer, itemChaveDosTrolls); ok != tc.chave {
-				t.Errorf("chave na bolsa = %v, want %v", ok, tc.chave)
-			}
-		})
-	}
-}
-
-// Gastar o Emblema do Guarda na arena dos Elfos sorteia as duas chaves, cada uma
-// no seu sorteio.
+// O acampamento usa a Chave do Rei Orc, então a entrada dos Elfos sorteia uma
+// chave só: um sorteio ganho não pode render duas.
 func TestAcampamentoTrollChaveNoTicketDosElfos(t *testing.T) {
 	d, w, e := mobKilledWorld(t)
 	d.eventRNG = sorteioFixo(0)
@@ -203,11 +180,17 @@ func TestAcampamentoTrollChaveNoTicketDosElfos(t *testing.T) {
 	if !d.useQuest256Ticket(w, &world.Session{Conn: e.ID, Mode: world.UserPlay}, e, 0) {
 		t.Fatal("o ticket dos Elfos não foi tratado")
 	}
-	if _, ok := carryHas(e, itemChaveDosTrolls); !ok {
-		t.Error("a entrada paga nos Elfos não sorteou a Chave dos Trolls")
+	chaves := 0
+	for _, it := range e.Carry {
+		switch it.Index {
+		case itemChaveCasteloOrc:
+			chaves++
+		case 3223:
+			t.Error("a entrada ainda dá a antiga Chave dos Trolls (3223)")
+		}
 	}
-	if _, ok := carryHas(e, itemChaveCasteloOrc); !ok {
-		t.Error("a Chave do Rei Orc parou de sair na mesma entrada")
+	if chaves != 1 {
+		t.Errorf("a entrada paga nos Elfos deu %d Chaves do Rei Orc, want 1", chaves)
 	}
 }
 
@@ -425,9 +408,8 @@ func TestAcampamentoTrollMigracaoDeDrops(t *testing.T) {
 	if !strings.Contains(sql, "INSERT INTO npc_generator_off (generator_index, turned_off_by) VALUES (3804,") {
 		t.Error("a migração não desliga o Troll Enigma do mundo (bloco 3804)")
 	}
-	// O Xamã fala o nome do catálogo ("Traga a %s"): com o nome velho, pediria um
-	// Cupom da Sorte.
-	if chave, ok := items.Get(itemChaveDosTrolls); !ok || chave.Name != "Chave_dos_Trolls" {
-		t.Errorf("item %d no catálogo = %q, want Chave_dos_Trolls", itemChaveDosTrolls, chave.Name)
+	// O Xamã fala o nome do catálogo ("Traga a %s").
+	if chave, ok := items.Get(int(acampamentoTrollSpec.chave)); !ok || chave.Name != "Chave_do_Rei_Orc" {
+		t.Errorf("item %d no catálogo = %q, want Chave_do_Rei_Orc", acampamentoTrollSpec.chave, chave.Name)
 	}
 }

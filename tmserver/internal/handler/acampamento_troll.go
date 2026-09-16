@@ -160,39 +160,3 @@ func sortearAddArma(w *world.World, tabela []addArma) addArma {
 	}
 	return tabela[len(tabela)-1]
 }
-
-// itemChaveDosTrolls é a chave que o Xamã Troll pede: o item 3223, que o catálogo
-// trazia como um dos "Cupom da Sorte" sem uso, o mesmo caminho da Chave do Inferno
-// (3222). Nome, ícone e descrição no cliente são um passo à parte
-// (webserver/cmd/itemnovocliente).
-const itemChaveDosTrolls = 3223
-
-// acampamentoTrollKeyOneIn é de quantas entradas pagas da Quest 256 sai uma chave,
-// pela flag do passo: uma a cada três na arena dos Elfos (passo 5), pedido da
-// equipe em 14/09/2026. É a mesma entrada que sorteia a Chave do Rei Orc, com um
-// sorteio próprio: uma entrada pode dar as duas chaves.
-var acampamentoTrollKeyOneIn = map[uint8]int{5: 3}
-
-// acampamentoTrollKeyOnEntry sorteia a chave para quem acabou de gastar um ticket
-// da Quest 256 no passo dos Elfos. Só a entrada paga sorteia, pelos mesmos motivos
-// da chave do Orc (casteloOrcKeyOnEntry): o Mestre Grifo leva de graça, e a chave
-// no abate premiaria quem acampa na arena.
-//
-// O sorteio é do gerador dos eventos, não do dos drops: a ordem que os testes de
-// drop e refino fixam não muda.
-func (d *Dispatcher) acampamentoTrollKeyOnEntry(w *world.World, s *world.Session, e *world.Entity, step quest256Step) {
-	n, ok := acampamentoTrollKeyOneIn[step.flag]
-	if !ok || d.eventRNG.Intn(n) != 0 {
-		return
-	}
-	slot := firstEmptyAccessibleCarry(e)
-	if slot < 0 {
-		sendClientMessage(w, s, "Bolsa cheia: a Chave dos Trolls se perdeu.")
-		d.log.Info("acampamento troll key lost to a full bag", "conn", s.Conn, "quest_flag", step.flag)
-		return
-	}
-	e.Carry[slot] = world.Item{Index: itemChaveDosTrolls}
-	d.sendSlot(w, s, world.ItemPlaceCarry, slot, e.Carry[slot])
-	sendClientMessage(w, s, "Você ganhou a Chave dos Trolls: ela abre o Acampamento Troll.")
-	d.log.Info("acampamento troll key on quest entry", "conn", s.Conn, "quest_flag", step.flag)
-}

@@ -56,6 +56,27 @@ func TestSetInsereNaOrdem(t *testing.T) {
 	}
 }
 
+// O itemhelp.dat real não está em ordem: a Chave do Rei Orc (465) foi acrescentada
+// depois de índices maiores. Trocar a descrição dela tem de trocar esse bloco, não
+// inserir um segundo antes do primeiro índice maior — o cliente ficava com a velha.
+func TestSetTrocaBlocoForaDeOrdem(t *testing.T) {
+	desordenado := arquivo + "465\r\nFFFFFFFF Abre_o_Castelo_Orc.\r\n"
+	out, err := Set([]byte(desordenado), 465, []Linha{{Branco, "Trolls ou Orcs o que vamos caçar hoje?"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(out)
+	if n := strings.Count(got, "465\r\n"); n != 1 {
+		t.Errorf("%d blocos do item 465, want 1:\n%s", n, got)
+	}
+	if strings.Contains(got, "Abre_o_Castelo_Orc") {
+		t.Errorf("a descrição antiga continuou no arquivo:\n%s", got)
+	}
+	if !strings.HasPrefix(got, arquivo) {
+		t.Errorf("os blocos antes do 465 mudaram:\n%s", got)
+	}
+}
+
 func TestSetSemLinhasApagaODescricao(t *testing.T) {
 	out, err := Set([]byte(arquivo), 3343, nil)
 	if err != nil {

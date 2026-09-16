@@ -45,8 +45,9 @@ próprios), item que o cliente já conhece. A migração tira a chave de todo mo
   entrar e sair farmaria chaves.
 - O sorteio usa o gerador dos eventos, não o dos drops, para não mexer na ordem
   que os testes de drop e refino fixam.
-- **A entrada dos Elfos também sorteia a Chave dos Trolls** (3223, 1 a cada 3), num
-  sorteio próprio: uma entrada pode dar as duas chaves (`docs/acampamento-troll.md`).
+- **A mesma chave abre o Acampamento Troll** (desde 16/09/2026): o jogador escolhe
+  onde gastá-la. O sorteio próprio da antiga Chave dos Trolls (3223) saiu, então
+  cada entrada dá no máximo uma chave (`docs/acampamento-troll.md`).
 - **Nenhum monstro da quest dá a 465**: senão cada corrida pagaria a entrada da
   seguinte. Desde 14/09 nenhum guardião carrega chave de portão (eram a 466, a 467
   e a 469): a corrida termina com o grupo teleportado depois do Grão-Lorde, então

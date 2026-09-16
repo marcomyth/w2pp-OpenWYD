@@ -12,33 +12,26 @@ em 14/09/2026; o design fica no artefato "Atlas de Quests W2PP".
 ✅ O saque na Mesa de Drops (migração `0064_acampamento_troll`) <br/>
 ✅ 0 XP para os monstros da quest <br/>
 ✅ Armas D com o add do design <br/>
-✅ A corrida: a Chave dos Trolls abre o acampamento, um grupo por vez, 15 min <br/>
+✅ A corrida: a Chave do Rei Orc abre o acampamento, um grupo por vez, 15 min <br/>
 ✅ O Troll Enigma do mundo (bloco 3804) desligado <br/>
-⏳ A Chave dos Trolls no cliente: nome, ícone e descrição (ver abaixo) <br/>
+⏳ A descrição nova da Chave do Rei Orc no `itemhelp.dat` precisa ir pelo launcher <br/>
 ⏳ O contador gráfico: o `GamePatch.dll` com o campo (20,15) precisa ser compilado e ir pelo launcher <br/>
 ⏳ Prêmio de conclusão e trava de nível/evolução <br/>
 
 ## A chave
 
-É a **Chave dos Trolls (3223)**, um dos "Cupom da Sorte" sem uso do catálogo — o
-mesmo caminho da Chave do Inferno (3222).
+É a **Chave do Rei Orc (465)**, a mesma do Castelo Orc, desde 16/09/2026. Quem
+tem a chave escolhe onde gastá-la: com o Xamã Orc (ou no Portão Sul) ou com o
+Xamã Troll. De onde ela sai está em `docs/castelo-orc.md`: entradas pagas das
+Hidras e dos Elfos e o Deserto.
 
-| Onde | Como | Meta |
-|---|---|---|
-| Quest 256 dos Elfos (nível 320–350) | na entrada paga, sorteada (`acampamentoTrollKeyOnEntry`) | 1 a cada 3 entradas |
-
-- É a mesma entrada que sorteia a Chave do Rei Orc, com um sorteio próprio: uma
-  entrada pode dar as duas chaves.
-- Só a entrada paga sorteia: gastar o Emblema do Guarda no NPC ou pela bolsa. O
-  Mestre Grifo leva de graça para a mesma arena e não dá chave.
-- Os monstros da arena não dão a chave, pelo mesmo motivo do Orc: a arena não tem
-  relógio e renasce sozinha.
-
-**No cliente, a chave ainda aparece como "Cupom da Sorte".** O nome sai do
-`ItemList.bin`, que é gerado do `ItemList.csv`, e o ícone e a descrição são os
-passos do `webserver/cmd/itemnovocliente` (`client/icones/README.md`). Até isso
-chegar pelo launcher, o servidor já trata o item como chave, e o Xamã já fala
-"Chave dos Trolls".
+- Até 16/09 o acampamento tinha chave própria, a Chave dos Trolls (3223), com um
+  sorteio à parte na entrada dos Elfos. Ela nunca chegou ao cliente (lá era o
+  "Cupom da Sorte"), e o sorteio saiu junto: a entrada dos Elfos dá uma chave só,
+  a 465, 1 a cada 3. A linha 3223 do `ItemList.csv` voltou a ser `Cupom_da_Sorte`.
+- **A descrição da chave no cliente** (`itemhelp.dat`, bloco 465) passou a citar
+  os dois lugares e termina com "Trolls ou Orcs o que vamos caçar hoje?". É gravada
+  com o `webserver/cmd/itemnovocliente` (`client/icones/README.md`).
 
 ## A corrida (`handler/acampamento_troll_run.go`, motor em `handler/corrida.go`)
 
@@ -162,7 +155,7 @@ coisa no slot, a arma sai +0) e com **um** add sorteado da tabela:
 A corrida inteira, com conta de GM:
 
 ```
-/gm item 3223                   a Chave dos Trolls (o cliente ainda mostra "Cupom da Sorte")
+/gm item 465                    a Chave do Rei Orc
 vá ao muro oeste do acampamento (2633,1979) e clique no Xamã Troll como líder
 ```
 

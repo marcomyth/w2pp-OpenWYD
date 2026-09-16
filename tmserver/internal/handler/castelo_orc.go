@@ -164,6 +164,6 @@ func (d *Dispatcher) casteloOrcKeyOnEntry(w *world.World, s *world.Session, e *w
 	}
 	e.Carry[slot] = world.Item{Index: itemChaveCasteloOrc}
 	d.sendSlot(w, s, world.ItemPlaceCarry, slot, e.Carry[slot])
-	sendClientMessage(w, s, "Você ganhou a Chave do Rei Orc: ela abre o Castelo Orc.")
+	sendClientMessage(w, s, "Você ganhou a Chave do Rei Orc: ela abre o Castelo Orc ou o Acampamento Troll.")
 	d.log.Info("castelo orc key on quest entry", "conn", s.Conn, "quest_flag", step.flag)
 }

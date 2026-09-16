@@ -3,9 +3,14 @@ package handler
 import "github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 
 // A corrida do Acampamento Troll (corrida.go): o acampamento murado a leste de
-// Erion, onde o Troll Enigma ficava na jaula. O líder entrega a Chave dos Trolls
+// Erion, onde o Troll Enigma ficava na jaula. O líder entrega a Chave do Rei Orc
 // ao Xamã Troll, do lado de fora do muro oeste; o grupo cai no meio do acampamento
 // com 15 minutos, os mesmos tempos do Castelo Orc.
+//
+// A chave é a mesma do Castelo Orc desde 16/09/2026, pedido do Marco: o jogador
+// escolhe onde gastá-la ("Trolls ou Orcs, o que vamos caçar hoje?"). Por isso não
+// há sorteio próprio: a Chave dos Trolls (3223) nunca chegou ao cliente e voltou a
+// ser o Cupom da Sorte do catálogo.
 //
 // O acampamento não tem portão que o servidor desenhe, e ninguém anda até lá
 // dentro: o grupo entra por teleporte, e durante a corrida estranhos não passam da
@@ -23,7 +28,7 @@ const (
 var acampamentoTrollSpec = corridaSpec{
 	nome: "acampamento troll",
 
-	chave:       itemChaveDosTrolls,
+	chave:       itemChaveCasteloOrc,
 	grauNPC:     gradeAcampamentoTroll,
 	npcTemplate: acampamentoTrollNPCTemplate,
 	npc:         [2]int16{2633, 1979},

@@ -30,7 +30,8 @@ const (
 	// itemChaveCasteloOrc is the entry key: Chave_do_Rei_Orc, the first of the
 	// legacy castle's four gate keys (Chave_Portão_Orc_Sul until 11/09/2026, when
 	// it took the quest's own name and icon). Where it drops is the Mesa de Drops' call
-	// (migration 0053): the Quest 256 Hydra and Elf arenas and the Desert.
+	// (migration 0053): the Quest 256 Hydra and Elf arenas and the Desert. Since
+	// 16/09/2026 the same key also opens the Acampamento Troll (spent on either).
 	itemChaveCasteloOrc = 465
 	gradeCasteloOrc     = 40 // the Xamã Orc's EF_GRADE0 (Merchant 100); no shipped template uses 40
 
