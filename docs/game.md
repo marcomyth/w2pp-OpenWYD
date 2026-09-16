@@ -183,8 +183,8 @@ Pegue lv 200 no seu Cele, faça a quest da Cythera Arcana (Pedra da Fúria + as 
 
 Reforma decidida em 16/09/2026. O plano completo, com o diagnóstico de cada item, está no
 artefato "Reforma dos Acessórios". Das famílias do primeiro espaço (anel, bracelete, pingente,
-brinco e colar), Hércules e Hecate já foram refeitas; Zeus, Titã, Athena e Gaia seguem com os
-status de sempre.
+brinco e colar), Hércules e Hecate já foram refeitas e Zeus ganhou Defesa; Titã, Athena e Gaia
+seguem com os status de sempre.
 
 **Hércules e Hecate: porcentagem de dano e Defesa.** Os dois deixaram de dar Dano e Magia fixos.
 Hércules dá **% de dano físico** e Hecate **% de dano mágico**, mais Defesa:
@@ -206,6 +206,11 @@ Hércules dá **% de dano físico** e Hecate **% de dano mágico**, mais Defesa:
 - A **% mágica** vale no dano pronto de toda skill que usa Magia, somada ao mesmo multiplicador
   das poções. A janela "Atq Mágico" do cliente não mostra essa porcentagem; o golpe tem.
 - Os anéis de Hércules (Dano 10) e Hecate (INT 8) continuam como estão.
+
+**Zeus: velocidade de ataque e Defesa.** Bracelete, Pingente e Brinco de Zeus mantêm a velocidade
+de ataque (15/18/21) e ganham a mesma Defesa do degrau de Hércules e Hecate (50/100/150), que
+também cresce com o refino: Brinco de Zeus +15 dá 84 de velocidade e 600 de Defesa. Zeus não tem
+colar, e o Anel de Zeus continua como está.
 
 **Caminho até o +15.** Poeira do +1 ao +9, máquina +10 (Ailyn), Lactolerium para o +11 e
 Odin (receita do +12) do +12 ao +15. Aceitam: Brincos (591-595), Amuletos Místicos
