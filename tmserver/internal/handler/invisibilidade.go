@@ -38,7 +38,7 @@ const (
 
 	// A chance de X3 é fixa; a de X4 vem da Força e a de X2 é o resto.
 	invisChanceX3 = 30
-	// invisChanceX4Max é o teto do X4, alcançado só por Força pura (Destreza 0).
+	// invisChanceX4Max é o teto do X4, alcançado na Força pura (3× a Destreza).
 	invisChanceX4Max = 50
 )
 
@@ -51,26 +51,20 @@ type personagem struct {
 
 // chanceGolpeFurtivoX4 é a chance, em %, de o golpe furtivo sair X4.
 //
-// A Invisibilidade é uma skill de Força: conta a parcela de Força em Força+Destreza,
-// e não o valor bruto, para que a curva não dependa da escala de atributos do
-// servidor. Com Destreza igual ou maior que a Força o personagem é build de
-// Destreza, e o golpe nunca passa de X2.
+// A Invisibilidade é uma skill de Força e lê a build pela parcelaDeForca, a mesma
+// régua da Troca de Espíritos, e não pelo valor bruto, para que a curva não
+// dependa da escala de atributos do servidor. Da metade da régua para baixo
+// (Destreza igual ou maior que a Força) o golpe nunca passa de X2.
 //
-//	X4 = 50 × (STR − DEX) ÷ (STR + DEX)   — que é (STR÷(STR+DEX) − 0,5) × 100
+//	X4 = 50% × (2f − 1)
 //
-// STR 1500 / DEX 1000 → 10%; STR 3000 / DEX 1000 → 25%; Força pura → 50%.
+// 1500/1000 → 20%; 2000/1000 → 33%; 1600/500 (Força pura, 3× a Destreza) → 50%.
 func chanceGolpeFurtivoX4(str, dex int) int {
-	if dex < 0 {
-		dex = 0
-	}
-	if str <= dex {
+	f := parcelaDeForca(str, dex)
+	if f <= 500 {
 		return 0
 	}
-	c := invisChanceX4Max * (str - dex) / (str + dex)
-	if c > invisChanceX4Max {
-		c = invisChanceX4Max
-	}
-	return c
+	return invisChanceX4Max * (2*f - 1000) / 1000
 }
 
 // rolarGolpeFurtivo sorteia o multiplicador do golpe que sai da invisibilidade.

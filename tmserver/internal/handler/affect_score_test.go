@@ -107,11 +107,13 @@ func TestAffect38TrocaDeEspiritosPorForca(t *testing.T) {
 		wantCrit int16
 		wantAC   int32
 	}{
-		{"força pura", 2000, 0, 3000, 40, 100},
-		{"meio a meio", 1000, 1000, 2000, 25, 70},
-		{"destreza pura", 0, 2000, 1000, 10, 50},
-		{"força 1500 / destreza 1000", 1500, 1000, 2200, 28, 80},
-		{"sem atributo conta meio a meio", 0, 0, 2000, 25, 70},
+		{"destreza zero", 2000, 0, 4000, 40, 150},
+		{"1600 / 500 já é força pura", 1600, 500, 4000, 40, 150},
+		{"força 2000 / destreza 1000", 2000, 1000, 3490, 34, 133},
+		{"força 1500 / destreza 1000", 1500, 1000, 3100, 31, 120},
+		{"meio a meio", 1000, 1000, 2500, 25, 100},
+		{"500 / 1600 já é destreza pura", 500, 1600, 1000, 10, 50},
+		{"sem atributo conta meio a meio", 0, 0, 2500, 25, 100},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -138,9 +140,10 @@ func TestAffect38LeAForcaDepoisDosOutrosAfetos(t *testing.T) {
 	e.Soul = soulF // Mortal: Força ×1,8 → 1800 contra Destreza 1000
 	applyAffectScore(e)
 
-	// 10 + 30×1800/2800 = 29; lida antes da Soul seria 25.
-	if e.AffCritical != 29 {
-		t.Errorf("crítico = %d, want 29 (a parcela de Força tem de contar a Soul)", e.AffCritical)
+	// f = 500 + 1000×800/2800 = 785 → 10 + 30×785/1000 = 33; lida antes da Soul
+	// (1000/1000) seria 25.
+	if e.AffCritical != 33 {
+		t.Errorf("crítico = %d, want 33 (a parcela de Força tem de contar a Soul)", e.AffCritical)
 	}
 }
 

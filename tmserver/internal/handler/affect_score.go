@@ -255,30 +255,22 @@ const affectTrocaDeEspiritos = 38
 // isso entregava: lia o MaxMP cru, sem o dobro que scoreMaxMP aplica, e trocava
 // um quarto. A skill virou um buff da HT de Força — a de garra e espada:
 //
-//	f       = STR ÷ (STR + DEX)          (Força pura 1, meio a meio 0,5, Destreza pura 0)
-//	HP      = +10% + 20% × f   do HP máximo
+//	f       = parcelaDeForca  (Força pura 1 — a partir de 3× a Destreza —, meio a meio 0,5)
+//	HP      = +10% + 30% × f   do HP máximo
 //	Crítico = +10  + 30  × f   (escala 0-255 do byte de crítico)
-//	Defesa  = +5%  + 5%  × f   da AC
+//	Defesa  = +5%  + 10% × f   da AC
 //
-// É a mesma parcela de Força da Invisibilidade (chanceGolpeFurtivoX4), para que
-// as duas skills leiam a build do mesmo jeito. Não exige arma: quem joga de Força
-// já está de garra ou espada, e a conta favorece essa build sozinha.
+// Força pura (1600/500) ganha +40% de HP, +40 de crítico e +15% de defesa;
+// Destreza pura, +10%, +10 e +5%. É a mesma régua da Invisibilidade, para que as
+// duas skills leiam a build do mesmo jeito. Não exige arma: quem joga de Força já
+// está de garra ou espada, e a conta favorece essa build sozinha.
 func applyTrocaDeEspiritos(e *world.Entity) {
-	str, dex := int32(effectiveStr(e)), int32(effectiveDex(e))
-	if str < 0 {
-		str = 0
-	}
-	if dex < 0 {
-		dex = 0
-	}
-	// Sem atributo nenhum não há build para ler: conta como meio a meio.
-	num, den := int32(1), int32(2)
-	if str+dex > 0 {
-		num, den = str, str+dex
-	}
-	e.AffMaxHP += scoreMaxHP(e) * (10 + 20*num/den) / 100
-	e.AffCritical += int16(10 + 30*num/den)
-	e.AffAC += e.AC * (5 + 5*num/den) / 100
+	f := int64(parcelaDeForca(int(effectiveStr(e)), int(effectiveDex(e)))) // milésimos
+	hpPermil := 100 + 300*f/1000
+	acPermil := 50 + 100*f/1000
+	e.AffMaxHP += int32(int64(scoreMaxHP(e)) * hpPermil / 1000)
+	e.AffCritical += int16(10 + 30*f/1000)
+	e.AffAC += int32(int64(e.AC) * acPermil / 1000)
 }
 
 // applyConHpBuff is the CON/MaxHP buff shape shared by affect 14 (Possuído,

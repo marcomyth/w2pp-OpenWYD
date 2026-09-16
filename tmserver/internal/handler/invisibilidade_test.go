@@ -30,10 +30,12 @@ func TestChanceGolpeFurtivoX4(t *testing.T) {
 	}{
 		{"força igual à destreza é build de destreza", 1000, 1000, 0},
 		{"destreza maior", 500, 2000, 0},
-		{"força 1500 / destreza 1000", 1500, 1000, 10},
-		{"força 3000 / destreza 1000", 3000, 1000, 25},
-		{"força 3000 / destreza 300", 3000, 300, 40},
-		{"força pura", 1000, 0, 50},
+		{"força 1200 / destreza 1000", 1200, 1000, 9},
+		{"força 1500 / destreza 1000", 1500, 1000, 20},
+		{"força 2000 / destreza 1000", 2000, 1000, 33},
+		{"1600 / 500 já é força pura", 1600, 500, 50},
+		{"força 3000 / destreza 300", 3000, 300, 50},
+		{"destreza zero", 1000, 0, 50},
 		{"destreza negativa não passa do teto", 1000, -500, 50},
 	}
 	for _, c := range cases {
@@ -59,15 +61,15 @@ func (r semRolagem) Intn(int) int {
 }
 
 func TestRolarGolpeFurtivo(t *testing.T) {
-	// Força 3000 / Destreza 1000: X4 25%, X3 30%, X2 45%.
+	// Força 2000 / Destreza 1000: X4 33%, X3 30%, X2 37%.
 	cases := []struct {
 		roll int
 		want int
 	}{
-		{0, 4}, {24, 4}, {25, 3}, {54, 3}, {55, 2}, {99, 2},
+		{0, 4}, {32, 4}, {33, 3}, {62, 3}, {63, 2}, {99, 2},
 	}
 	for _, c := range cases {
-		if got := rolarGolpeFurtivo(rolagemFixa(c.roll), 3000, 1000); got != c.want {
+		if got := rolarGolpeFurtivo(rolagemFixa(c.roll), 2000, 1000); got != c.want {
 			t.Errorf("roll %d → X%d, want X%d", c.roll, got, c.want)
 		}
 	}
