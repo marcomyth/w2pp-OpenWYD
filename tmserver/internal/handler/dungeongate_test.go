@@ -133,6 +133,7 @@ func TestPesadeloFechadoPelaAdministracao(t *testing.T) {
 // N e segura o M".
 func TestPesadeloVizinhoContinuaAberto(t *testing.T) {
 	db := pesadeloDB(stageNX, stageNY, classMasterMortal, itemPesadeloGrupoN)
+	db.loadResult.Level = pesaNMortalMinLevel
 	addr, stop := startPesadeloServerFechado(t, db,
 		map[int]int{itemPesadeloGrupoN: volPesadeloN}, at(0, 10), dungeon.PesadeloM)
 	defer stop()

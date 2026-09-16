@@ -234,6 +234,10 @@ const (
 	// pesaACelestialMaxLevel graduates a Celestial out of Arcano: past 150 the
 	// progression continues in the Água A chain, which has no cap of its own.
 	pesaACelestialMaxLevel = 150
+	// pesaNMortalMinLevel is the one FLOOR on the ladder: a Mortal enters N only
+	// from here, the same stored level the Água N chain opens at
+	// (waterNMortalMinLevel, where the reason is written down).
+	pesaNMortalMinLevel = 351
 )
 
 // pesadeloTierClass reports whether a progression tier may enter this dungeon at
@@ -266,11 +270,21 @@ func pesadeloLevelCap(tier int, classMaster uint8) int32 {
 	return pesaMaxLevel
 }
 
-// pesadeloAllowed is the whole gate — class and level. The party loop uses it to
-// decide who rides along, where a member who fails is skipped silently rather
-// than told why.
+// pesadeloMinLevel is the lowest level that class may enter that tier at.
+func pesadeloMinLevel(tier int, classMaster uint8) int32 {
+	if tier == pesaN && classMaster == classMasterMortal {
+		return pesaNMortalMinLevel
+	}
+	return 0
+}
+
+// pesadeloAllowed is the whole gate — class, floor and cap. The party loop uses
+// it to decide who rides along, where a member who fails is skipped silently
+// rather than told why.
 func pesadeloAllowed(tier int, classMaster uint8, level int32) bool {
-	return pesadeloTierClass(tier, classMaster) && level <= pesadeloLevelCap(tier, classMaster)
+	return pesadeloTierClass(tier, classMaster) &&
+		level >= pesadeloMinLevel(tier, classMaster) &&
+		level <= pesadeloLevelCap(tier, classMaster)
 }
 
 // refusePesadelo answers a rejected use: notify, then resend the slot so the
@@ -359,9 +373,16 @@ func (d *Dispatcher) usePesadeloScroll(w *world.World, s *world.Session, e *worl
 		d.refusePesadelo(w, s, e, src, t, NoticePesadeloClassNotAllowed)
 		return
 	}
-	// The level cap is checked after the class so someone in the wrong dungeon
-	// entirely is told that, rather than being told they are too high for a tier
-	// they could never enter anyway.
+	// The level gates are checked after the class so someone in the wrong dungeon
+	// entirely is told that, rather than being told they are too low or too high
+	// for a tier they could never enter anyway.
+	if minLevel := pesadeloMinLevel(tier, e.ClassMaster); e.Level < minLevel {
+		d.log.Info("pesadelo refused: below this tier's minimum level",
+			"account", s.AccountName, "tier", t.name,
+			"classMaster", e.ClassMaster, "level", e.Level, "min", minLevel)
+		d.refusePesadelo(w, s, e, src, t, NoticePesadeloLevelTooLow)
+		return
+	}
 	if maxLevel := pesadeloLevelCap(tier, e.ClassMaster); e.Level > maxLevel {
 		d.log.Info("pesadelo refused: outgrew this tier",
 			"account", s.AccountName, "tier", t.name,

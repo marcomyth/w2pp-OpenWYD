@@ -133,6 +133,18 @@ func waterRoomExit(room int) [2]int16 {
 // no cap of its own — MaxLevel (399) is already the ceiling for that tier.
 const waterMCelestialMaxLevel = 40
 
+// waterNMortalMinLevel is where the N chain opens to a Mortal. Server rule
+// (2026-09-16), shared with the Pesadelo N door (pesaNMortalMinLevel): up to
+// here a Mortal levels on quests and the open field only, and at this level
+// both dungeons open together. The 20-day XP plan is computed on exactly that
+// premise, so a door that let any Mortal in would not bend the plan — it would
+// void it.
+//
+// The number is the STORED level: the one the staff panel shows, the one the XP
+// table's rows are written in, and the one the plan's model walks. The client
+// draws Level+1, so a player reads this door as 352.
+const waterNMortalMinLevel = 351
+
 // waterClassAllowed gates each chain to a progression tier.
 //
 // DELIBERATE DIVERGENCE: the legacy has no class gate at all — any character can
@@ -155,6 +167,14 @@ func waterClassAllowed(variant int, classMaster uint8, level int32) bool {
 		return isCelestialTier(classMaster)
 	}
 	return false
+}
+
+// waterBelowMinLevel reports whether a character is still too low for the chain.
+// Only a Mortal in N has a floor. It is kept apart from waterClassAllowed for
+// the reason the Pesadelo keeps its two gates apart: "wrong chain" and "not yet"
+// need different words, and the second one has to say the level.
+func waterBelowMinLevel(variant int, classMaster uint8, level int32) bool {
+	return variant == waterN && classMaster == classMasterMortal && level < waterNMortalMinLevel
 }
 
 // waterRoomForVolatile maps an EF_VOLATILE to its dungeon and room. The dead
@@ -285,6 +305,15 @@ func (d *Dispatcher) useWaterScroll(w *world.World, s *world.Session, e *world.E
 		d.refuseWaterScroll(w, s, e, src, NoticeWaterClassNotAllowed)
 		return
 	}
+	// Gate 1c: the right class, not yet the level (waterNMortalMinLevel). After
+	// the class gate so an Arch in N hears it is the wrong chain, not a level it
+	// could never reach there.
+	if waterBelowMinLevel(variant, e.ClassMaster, e.Level) {
+		d.log.Info("water scroll refused: below the chain's minimum level",
+			"account", s.AccountName, "variant", variant, "level", e.Level, "min", waterNMortalMinLevel)
+		d.refuseWaterScroll(w, s, e, src, NoticeWaterLevelTooLow)
+		return
+	}
 	// Gate 2: party members cannot open a room; only the leader (Leader == 0)
 	// may, and the whole party rides along.
 	if e.Leader != 0 {
@@ -329,7 +358,7 @@ func (d *Dispatcher) abrirSalaDaAgua(w *world.World, s *world.Session, e *world.
 	d.events.waterPaid[variant][room] = false
 
 	dest := waterScrollPosition[variant][room]
-	d.enterWaterRoom(w, s, e, dest, countdown)
+	d.enterWaterRoom(w, s, e, variant, dest, countdown)
 
 	// The room's monsters. Numbered rooms get their own block twice (the legacy
 	// tops the block up to MaxNumMob with two calls); the boss room draws one of
@@ -466,7 +495,12 @@ func waterBossBlock(roll int) int {
 // enterWaterRoom teleports the leader and every online party member to the room
 // and pushes the countdown to each of them. The parm is the countdown in
 // SECONDS: one unit is 2s, which is exactly the legacy's `WaterClear1 * 2`.
-func (d *Dispatcher) enterWaterRoom(w *world.World, s *world.Session, e *world.Entity, dest [2]int16, countdown uint8) {
+//
+// A member below the chain's level floor is left behind in silence, the way the
+// Pesadelo party loop leaves one behind: the run goes on for everyone else. The
+// floor has to be checked HERE and not only on the scroll, because the scroll is
+// the leader's — without this, any Mortal rides into N in a high Mortal's party.
+func (d *Dispatcher) enterWaterRoom(w *world.World, s *world.Session, e *world.Entity, variant int, dest [2]int16, countdown uint8) {
 	d.doTeleport(w, s, dest[0], dest[1])
 	d.sendWaterCountdown(w, s, countdown)
 	for i := 0; i < world.MaxParty; i++ {
@@ -476,6 +510,9 @@ func (d *Dispatcher) enterWaterRoom(w *world.World, s *world.Session, e *world.E
 		}
 		ms := w.Session(member)
 		if ms == nil || ms.Mode != world.UserPlay {
+			continue
+		}
+		if me := w.Entity(member); me == nil || waterBelowMinLevel(variant, me.ClassMaster, me.Level) {
 			continue
 		}
 		d.doTeleport(w, ms, dest[0], dest[1])

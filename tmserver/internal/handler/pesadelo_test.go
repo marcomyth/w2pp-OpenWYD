@@ -421,6 +421,7 @@ func TestUsePesadeloScrollRefusedOutsideStagingArea(t *testing.T) {
 
 func TestUsePesadeloScrollRefusedOutsideWindow(t *testing.T) {
 	db := pesadeloDB(stageNX, stageNY, classMasterMortal, itemPesadeloGrupoN)
+	db.loadResult.Level = pesaNMortalMinLevel
 	// :10 is inside the A window, so N is firmly closed.
 	addr, stop := startPesadeloServer(t, db,
 		map[int]int{itemPesadeloGrupoN: volPesadeloN}, at(10, 0))
@@ -504,6 +505,7 @@ func TestUsePesadeloScrollRefusedWithoutEntries(t *testing.T) {
 // gets the remaining window as a countdown, and the scroll is consumed.
 func TestUsePesadeloScrollEntersAndConsumes(t *testing.T) {
 	db := pesadeloDB(stageNX, stageNY, classMasterMortal, itemPesadeloGrupoN)
+	db.loadResult.Level = pesaNMortalMinLevel
 	addr, stop := startPesadeloServer(t, db,
 		map[int]int{itemPesadeloGrupoN: volPesadeloN}, at(0, 30))
 	defer stop()
@@ -697,7 +699,7 @@ func TestTickPesadeloDespawnsMonsters(t *testing.T) {
 
 // The entry ladder, class and level together. The legacy gates on class alone;
 // the caps are a server rule mirroring the Pergaminho da Água, so this table IS
-// the specification — Mortal runs N to 400, Arch runs M to 400, a Celestial
+// the specification — Mortal runs N from 351 to 400, Arch runs M to 400, a Celestial
 // borrows M only while under 40, and Arcano is Celestial-only up to 150, after
 // which the progression moves to the Água A chain.
 func TestPesadeloEntryLadder(t *testing.T) {
@@ -708,8 +710,10 @@ func TestPesadeloEntryLadder(t *testing.T) {
 		level       int32
 		want        bool
 	}{
-		// N — Mortal, uncapped in practice (MaxLevel is 399).
-		{"N: Mortal nivel 1", pesaN, classMasterMortal, 1, true},
+		// N — Mortal from the floor up, uncapped in practice (MaxLevel is 399).
+		{"N: Mortal nivel 1 abaixo do piso", pesaN, classMasterMortal, 1, false},
+		{"N: Mortal um abaixo do piso", pesaN, classMasterMortal, pesaNMortalMinLevel - 1, false},
+		{"N: Mortal exatamente no piso", pesaN, classMasterMortal, pesaNMortalMinLevel, true},
 		{"N: Mortal no teto do servidor", pesaN, classMasterMortal, 399, true},
 		{"N: Arch nao entra", pesaN, classMasterArch, 1, false},
 		{"N: Celestial nao entra", pesaN, classMasterCelestial, 1, false},
