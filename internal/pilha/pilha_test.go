@@ -37,3 +37,11 @@ func TestMaxPorEnvioCabeNoBau(t *testing.T) {
 		t.Errorf("item avulso: máximo %d, quero %d", MaxPorEnvio(1100), EspacosDoBau)
 	}
 }
+
+// O Fragmento de Alma sai em pacote da Escolta do Trono e se junta de dez em dez
+// no Dragão de Armia: tem de empilhar.
+func TestFragmentoDeAlmaEmpilha(t *testing.T) {
+	if !Empilha(3224) {
+		t.Error("Fragmento de Alma (3224) não empilha")
+	}
+}

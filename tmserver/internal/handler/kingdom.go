@@ -29,6 +29,7 @@ var (
 // throne-room clear state machines (ProcessSecMinTimer.cpp:1702-1713,2621-2643).
 func (d *Dispatcher) tickKingdomRvR(w *world.World) {
 	if d.tickCount%kingdomTickPeriod == 0 {
+		d.vigiarReis(w)
 		for _, box := range blueKingdomBoxes {
 			d.sendEnvEffectKingdom(w, box, clanHekalotia)
 		}
@@ -81,7 +82,8 @@ func (d *Dispatcher) sendDamageKingdom(w *world.World, box areaBox, exempt uint8
 	})
 }
 
-func (d *Dispatcher) kingdomKingKilled(w *world.World, mob *world.Entity) {
+func (d *Dispatcher) kingdomKingKilled(w *world.World, killer, mob *world.Entity) {
+	d.avisarQuedaDoRei(w, killer, mob)
 	switch mob.GenIndex {
 	case kingHarabardGen:
 		d.events.kingdom1 = 1

@@ -104,6 +104,9 @@ func (d *Dispatcher) setChefeHoras(h int32) {
 // esperaDoRenascimento is the individual queue's wait for one generator's dead
 // monster: hours for a lone boss, the desert dial over 15 s for the rest.
 func (d *Dispatcher) esperaDoRenascimento(w *world.World, idx int) uint32 {
+	if tronoDoReino(idx) {
+		return horasDoTrono * msPorHora // os Reis e a Escolta do Trono (reinos.go)
+	}
 	if d.chefeSozinho(w, idx) {
 		return uint32(d.horasDosChefes()) * msPorHora
 	}

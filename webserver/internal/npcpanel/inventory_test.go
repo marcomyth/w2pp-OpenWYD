@@ -56,9 +56,10 @@ func TestLoadReal(t *testing.T) {
 		t.Errorf("parsed %d blocks, want the full NPCGener (~6099)", data.Stats.Blocks)
 	}
 	// The merchant count is the figure npc-generator-inventory.md documents; a
-	// drift here means the content tree or the decoder changed under us.
-	if data.Stats.Merchants != 548 {
-		t.Errorf("merchant blocks = %d, want 548 (npc-generator-inventory.md)", data.Stats.Merchants)
+	// drift here means the content tree or the decoder changed under us. 552 = the
+	// documented 548 plus the four Lendas of the Praça (Reinos, blocks 6140-6143).
+	if data.Stats.Merchants != 552 {
+		t.Errorf("merchant blocks = %d, want 552 (npc-generator-inventory.md + 4 Lendas)", data.Stats.Merchants)
 	}
 	if len(data.NPCs) == 0 {
 		t.Fatal("no NPCs loaded")

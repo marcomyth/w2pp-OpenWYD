@@ -33,6 +33,8 @@ const defaultMountAbsorb = domain.DefaultMountAbsorb
 // blow whole — the legacy gates on the mount's HP being above zero for the same
 // reason it gates the attribute bonus on it (Basedef.cpp:1616).
 func (d *Dispatcher) absorbBlow(w *world.World, victim *world.Entity, dam int, byPlayer bool) int {
+	// O Rei Azul dos Reinos absorve parte de todo golpe (reinos.go).
+	dam = absorcaoDoRei(victim, dam)
 	if dam <= 0 || victim == nil || !world.IsPlayer(victim.ID) {
 		return dam
 	}

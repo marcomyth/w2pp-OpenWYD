@@ -64,3 +64,17 @@ func clanParaOReino(id int, e *Entity) uint8 {
 	}
 	return e.Clan
 }
+
+// EscoltaDoTronoGenFirst/Last são os doze blocos da Escolta do Trono, seis
+// cavaleiros em volta de cada Rei, logo depois dos do Acampamento Troll no fim do
+// NPCGener.txt (6128-6133 Hekalotia, 6134-6139 Akelonia). Não são de evento:
+// nascem no boot e voltam pela fila individual, em horas (handler/reinos.go).
+const (
+	EscoltaDoTronoGenFirst = 6128
+	EscoltaDoTronoGenLast  = 6139
+)
+
+// IsEscoltaDoTronoGenerator diz se um bloco é da Escolta do Trono.
+func IsEscoltaDoTronoGenerator(idx int) bool {
+	return idx >= EscoltaDoTronoGenFirst && idx <= EscoltaDoTronoGenLast
+}

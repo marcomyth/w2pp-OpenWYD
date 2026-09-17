@@ -22,11 +22,11 @@ func TestBuildNPCDefinitionsRealCatalog(t *testing.T) {
 	// 528 = the 548 blocks whose leader carries a shop byte on 104, minus the 20
 	// in the training field that are monsters by the legacy's byte 17 — the 19
 	// Aguia blocks (1619-1637) and the Orc_Sniper (1684); see internal/campotreino.
-	// 407 = 528 minus the 121 Reinos blocks whose leader is a kingdom monster by
+	// 411 = 528 minus the 121 Reinos blocks whose leader is a kingdom monster by
 	// the legacy byte — the two kings and their merchant-byte army; see
-	// internal/reinos.
-	if len(defs) != 407 {
-		t.Fatalf("merchant generator definitions = %d, want 407", len(defs))
+	// internal/reinos — plus the four Lendas of the Praça (6140-6143).
+	if len(defs) != 411 {
+		t.Fatalf("merchant generator definitions = %d, want 411", len(defs))
 	}
 	want := map[string]struct {
 		index    int32

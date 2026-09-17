@@ -370,6 +370,9 @@ type Dispatcher struct {
 	// until the first config arrives (read as the decided default).
 	genChefe   []bool
 	chefeHoras int32
+	// reiAvisado marca, por reino (0 Hekalotia, 1 Akelonia), que o aviso de Rei sob
+	// ataque já saiu nesta luta (reinos.go).
+	reiAvisado [2]bool
 	// kefraVolta is the UTC day (YYYY-MM-DD) the weekly Kefra respawn last ran
 	// (kefra.go), so the per-minute tick fires once on the Tuesday, not sixty
 	// times in the hour.

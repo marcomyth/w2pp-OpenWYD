@@ -46,7 +46,7 @@ func TestKingdomDamageExemptsClanAndNeverKills(t *testing.T) {
 
 func TestKingdomKingClearDelay(t *testing.T) {
 	d, w, _ := mobKilledWorld(t)
-	d.kingdomKingKilled(w, &world.Entity{GenIndex: kingHarabardGen})
+	d.kingdomKingKilled(w, nil, &world.Entity{GenIndex: kingHarabardGen})
 	if d.events.kingdom1 != 1 {
 		t.Fatalf("Kingdom1Clear = %d after king death, want 1", d.events.kingdom1)
 	}

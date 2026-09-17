@@ -38,7 +38,7 @@ const (
 // UNVERIFIED / deferred: party EXP distribution (the unreliable g_EmptyMob/UNK
 // divisors).
 func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
-	d.kingdomKingKilled(w, mob)
+	d.kingdomKingKilled(w, killer, mob)
 	reward := killer
 	if killer.Summoner != 0 {
 		d.growBabyMountOnKill(w, killer, mob)

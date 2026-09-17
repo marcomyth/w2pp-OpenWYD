@@ -33,6 +33,8 @@ func Empilha(index int16) bool {
 		return true
 	case 4010, 4011, 4028, 4029: // Barras de Prata
 		return true
+	case 3224: // Fragmento de Alma, da Escolta do Trono dos Reinos (tmserver handler/reinos.go)
+		return true
 	}
 	switch {
 	case index >= 2390 && index <= 2419: // Âmagos, todos

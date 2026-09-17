@@ -168,7 +168,7 @@
 // no0000 (1312ï¿½Êµï¿½E
 // ********************************************
 #	[   8]
-	MinuteGenerate:	3
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -195,7 +195,7 @@
 // no0000 (1314ï¿½Êµï¿½E
 // ********************************************
 #	[   9]
-	MinuteGenerate:	3
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -159313,3 +159313,339 @@
 	DestRange:	2
 	DestWait:	6
 
+
+// Reinos: Escolta do Trono de Hekalotia. Volta 4 h depois de morrer (handler/reinos.go).
+// ********************************************
+
+#	[6128]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Escolta_Real
+	Follower:	Escolta_Real
+	RouteType:	0
+	Formation:	0
+	StartX:		1746
+	StartY:		1570
+	StartRange:	1
+	StartWait:	9
+	DestX:		1746
+	DestY:		1570
+	DestRange:	1
+	DestWait:	10
+
+// Reinos: Escolta do Trono de Hekalotia. Volta 4 h depois de morrer (handler/reinos.go).
+// ********************************************
+
+#	[6129]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Escolta_Real
+	Follower:	Escolta_Real
+	RouteType:	0
+	Formation:	0
+	StartX:		1750
+	StartY:		1570
+	StartRange:	1
+	StartWait:	9
+	DestX:		1750
+	DestY:		1570
+	DestRange:	1
+	DestWait:	10
+
+// Reinos: Escolta do Trono de Hekalotia. Volta 4 h depois de morrer (handler/reinos.go).
+// ********************************************
+
+#	[6130]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Escolta_Real
+	Follower:	Escolta_Real
+	RouteType:	0
+	Formation:	0
+	StartX:		1754
+	StartY:		1570
+	StartRange:	1
+	StartWait:	9
+	DestX:		1754
+	DestY:		1570
+	DestRange:	1
+	DestWait:	10
+
+// Reinos: Escolta do Trono de Hekalotia. Volta 4 h depois de morrer (handler/reinos.go).
+// ********************************************
+
+#	[6131]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Escolta_Real
+	Follower:	Escolta_Real
+	RouteType:	0
+	Formation:	0
+	StartX:		1746
+	StartY:		1578
+	StartRange:	1
+	StartWait:	9
+	DestX:		1746
+	DestY:		1578
+	DestRange:	1
+	DestWait:	10
+
+// Reinos: Escolta do Trono de Hekalotia. Volta 4 h depois de morrer (handler/reinos.go).
+// ********************************************
+
+#	[6132]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Escolta_Real
+	Follower:	Escolta_Real
+	RouteType:	0
+	Formation:	0
+	StartX:		1750
+	StartY:		1578
+	StartRange:	1
+	StartWait:	9
+	DestX:		1750
+	DestY:		1578
+	DestRange:	1
+	DestWait:	10
+
+// Reinos: Escolta do Trono de Hekalotia. Volta 4 h depois de morrer (handler/reinos.go).
+// ********************************************
+
+#	[6133]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Escolta_Real
+	Follower:	Escolta_Real
+	RouteType:	0
+	Formation:	0
+	StartX:		1754
+	StartY:		1578
+	StartRange:	1
+	StartWait:	9
+	DestX:		1754
+	DestY:		1578
+	DestRange:	1
+	DestWait:	10
+
+// Reinos: Escolta do Trono de Akelonia. Volta 4 h depois de morrer (handler/reinos.go).
+// ********************************************
+
+#	[6134]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Escolta_Real_
+	Follower:	Escolta_Real_
+	RouteType:	0
+	Formation:	0
+	StartX:		1746
+	StartY:		1875
+	StartRange:	1
+	StartWait:	9
+	DestX:		1746
+	DestY:		1875
+	DestRange:	1
+	DestWait:	10
+
+// Reinos: Escolta do Trono de Akelonia. Volta 4 h depois de morrer (handler/reinos.go).
+// ********************************************
+
+#	[6135]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Escolta_Real_
+	Follower:	Escolta_Real_
+	RouteType:	0
+	Formation:	0
+	StartX:		1750
+	StartY:		1875
+	StartRange:	1
+	StartWait:	9
+	DestX:		1750
+	DestY:		1875
+	DestRange:	1
+	DestWait:	10
+
+// Reinos: Escolta do Trono de Akelonia. Volta 4 h depois de morrer (handler/reinos.go).
+// ********************************************
+
+#	[6136]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Escolta_Real_
+	Follower:	Escolta_Real_
+	RouteType:	0
+	Formation:	0
+	StartX:		1754
+	StartY:		1875
+	StartRange:	1
+	StartWait:	9
+	DestX:		1754
+	DestY:		1875
+	DestRange:	1
+	DestWait:	10
+
+// Reinos: Escolta do Trono de Akelonia. Volta 4 h depois de morrer (handler/reinos.go).
+// ********************************************
+
+#	[6137]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Escolta_Real_
+	Follower:	Escolta_Real_
+	RouteType:	0
+	Formation:	0
+	StartX:		1746
+	StartY:		1885
+	StartRange:	1
+	StartWait:	9
+	DestX:		1746
+	DestY:		1885
+	DestRange:	1
+	DestWait:	10
+
+// Reinos: Escolta do Trono de Akelonia. Volta 4 h depois de morrer (handler/reinos.go).
+// ********************************************
+
+#	[6138]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Escolta_Real_
+	Follower:	Escolta_Real_
+	RouteType:	0
+	Formation:	0
+	StartX:		1750
+	StartY:		1885
+	StartRange:	1
+	StartWait:	9
+	DestX:		1750
+	DestY:		1885
+	DestRange:	1
+	DestWait:	10
+
+// Reinos: Escolta do Trono de Akelonia. Volta 4 h depois de morrer (handler/reinos.go).
+// ********************************************
+
+#	[6139]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Escolta_Real_
+	Follower:	Escolta_Real_
+	RouteType:	0
+	Formation:	0
+	StartX:		1754
+	StartY:		1885
+	StartRange:	1
+	StartWait:	9
+	DestX:		1754
+	DestY:		1885
+	DestRange:	1
+	DestWait:	10
+
+// Praça das Lendas: Lenda Passada TK, em volta do Dragão Dourado de Armia (handler/reinos_praca.go).
+// ********************************************
+
+#	[6140]
+	MinuteGenerate:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Lenda_TK
+	Follower:	Lenda_TK
+	RouteType:	0
+	Formation:	0
+	StartX:		2064
+	StartY:		2064
+	StartRange:	1
+	StartWait:	9
+	DestX:		2064
+	DestY:		2064
+	DestRange:	1
+	DestWait:	10
+
+// Praça das Lendas: Lenda Passada FM, em volta do Dragão Dourado de Armia (handler/reinos_praca.go).
+// ********************************************
+
+#	[6141]
+	MinuteGenerate:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Lenda_FM
+	Follower:	Lenda_FM
+	RouteType:	0
+	Formation:	0
+	StartX:		2072
+	StartY:		2064
+	StartRange:	1
+	StartWait:	9
+	DestX:		2072
+	DestY:		2064
+	DestRange:	1
+	DestWait:	10
+
+// Praça das Lendas: Lenda Passada BM, em volta do Dragão Dourado de Armia (handler/reinos_praca.go).
+// ********************************************
+
+#	[6142]
+	MinuteGenerate:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Lenda_BM
+	Follower:	Lenda_BM
+	RouteType:	0
+	Formation:	0
+	StartX:		2064
+	StartY:		2072
+	StartRange:	1
+	StartWait:	9
+	DestX:		2064
+	DestY:		2072
+	DestRange:	1
+	DestWait:	10
+
+// Praça das Lendas: Lenda Passada HT, em volta do Dragão Dourado de Armia (handler/reinos_praca.go).
+// ********************************************
+
+#	[6143]
+	MinuteGenerate:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Lenda_HT
+	Follower:	Lenda_HT
+	RouteType:	0
+	Formation:	0
+	StartX:		2072
+	StartY:		2072
+	StartRange:	1
+	StartWait:	9
+	DestX:		2072
+	DestY:		2072
+	DestRange:	1
+	DestWait:	10

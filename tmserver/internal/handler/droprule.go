@@ -105,11 +105,15 @@ func (d *Dispatcher) dropTableRolls(w *world.World, reward, mob *world.Entity, b
 		d.rolarBonusDrop(w, &it, int(mob.Level), bonusDrop)
 		d.casteloOrcFinish(w, mob, &it)
 		d.acampamentoTrollFinish(w, mob, &it)
+		copias := reinosFinish(mob, &it)
 		arenaQuest256Finish(mob, &it)
 		if d.castleKeyDrop(w, reward, it) {
 			continue
 		}
 		d.putMobDrop(w, reward, it)
+		for range copias - 1 {
+			d.putMobDrop(w, reward, it)
+		}
 		d.log.Info("drop table hit", "mob", mob.TemplateName, "item", r.Item,
 			"chance", droprule.Percent(r.Chance), "killer", reward.Name)
 	}

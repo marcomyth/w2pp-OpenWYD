@@ -221,6 +221,16 @@ func (d *Dispatcher) quest(w *world.World, s *world.Session, _ protocol.Header, 
 		d.corridaNPC(w, &d.acampamentoTroll, s, e, npc)
 		return
 	}
+	// As Lendas da praça do Dragão de Armia (Merchant 100, EF_GRADE0 42) e o
+	// próprio Dragão (Merchant 36), regras novas (reinos_praca.go).
+	if ehLendaPassada(npc) {
+		d.lendaPassada(w, s, npc)
+		return
+	}
+	if ehDragaoDeArmia(npc) {
+		d.dragaoDeArmia(w, s, e, npc)
+		return
+	}
 	// QUEST_CAPAREAL (Merchant 100, EF_GRADE0 13): Royal Cape quest entry.
 	if npc.Merchant == 100 && npc.Grade == 13 {
 		d.royalCapeQuest(w, s, e)
