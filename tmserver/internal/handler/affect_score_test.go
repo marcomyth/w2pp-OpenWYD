@@ -267,7 +267,8 @@ func TestAffect36SetsDrainFlag(t *testing.T) {
 // the SAME formula to two classes from two different bits: TK "Confiança" (Class 0, bit 7,
 // Basedef.cpp:3252/3366-3371) and Huntress "Visão do Caçador" (Class 3, bit 18,
 // :3856/3858-3863). Special[3]=99, Dex=150 → (99+1)/10 + 150/75 = 12, on top of
-// Critical 10 → 22.
+// Critical 10 → 22. The Huntress side is a server rule since 17/09
+// (arvore_captura.go): Destreza pura, 25 × 99/255 × 0,4 = 3 → 13.
 func TestSkillCriticalBonus(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -276,7 +277,7 @@ func TestSkillCriticalBonus(t *testing.T) {
 		want         uint8
 	}{
 		{name: "TK with Confiança", class: 0, learnedSkill: 1 << 7, want: 22},
-		{name: "Huntress with Visão do Caçador", class: 3, learnedSkill: 1 << 18, want: 22},
+		{name: "Huntress with Visão do Caçador", class: 3, learnedSkill: 1 << 18, want: 13},
 		{name: "TK without Confiança", class: 0, learnedSkill: 0, want: 10},
 		{name: "Huntress without Visão do Caçador", class: 3, learnedSkill: 0, want: 10},
 		// The bits are class-scoped: the other class's bit must not grant it.

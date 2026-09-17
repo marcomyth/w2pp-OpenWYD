@@ -42,6 +42,10 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 	e.AffSpecial = [4]int16{}
 	e.AffResist = [4]int16{}
 	e.AffDamageMultiPct = 100
+	// Captura passives read attributes and the weapon, and run with or without
+	// affects (arvore_captura.go); evasao is the Evasão Aprimorada buff.
+	evasao := false
+	defer func() { applyPassivasDaCaptura(e, itemAbility, evasao) }()
 	if !e.HasAnyAffect() {
 		return
 	}
@@ -213,8 +217,9 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 			for _, k := range [3]int{0, 1, 3} {
 				e.AffResist[k] += add
 			}
-		case 26:
+		case affectEvasao:
 			e.Rsv |= world.RsvParry
+			evasao = true
 		case 27:
 			// Encantar Gelo: Arco or Garra (arvore_sobrevivencia.go; the legacy is bow only).
 			if itemAbility != nil && armaDoEncantarGelo(itemAbility(e.Equip[weaponSlotR], efWType)) {
@@ -486,9 +491,11 @@ func effectiveCritical(e *world.Entity) uint8 {
 // :3366-3371) and Huntress "Visão do Caçador" (:3856, bonus at :3858-3863) — so the gate
 // is the only thing that differs between them.
 func skillCriticalBonus(e *world.Entity) int16 {
-	tk := e.Class == 0 && e.LearnedSkill&(1<<7) != 0
-	ht := e.Class == 3 && e.LearnedSkill&(1<<18) != 0
-	if !tk && !ht {
+	if e.Class == 3 && e.LearnedSkill&learnedVisaoDeCacadora != 0 {
+		// Visão de Caçadora is a server rule now (arvore_captura.go).
+		return int16(criticoVisaoDeCacadora(e))
+	}
+	if e.Class != 0 || e.LearnedSkill&(1<<7) == 0 {
 		return 0
 	}
 	add := (int(e.Special[3])+1)/10 + int(effectiveDex(e))/75

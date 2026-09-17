@@ -430,18 +430,21 @@ type Entity struct {
 	// are cached the same way and applied at READ time (effective getters), so
 	// the persisted flat score never bakes a buff in (no double-count on
 	// re-login — same policy as HpAddPct/Divine).
-	Rsv               uint8
-	AffDamage         int32
-	AffAC             int32
-	AffMaxHP          int32
-	AffMaxMP          int32
-	AffStr            int16
-	AffInt            int16
-	AffDex            int16
-	AffCon            int16
-	AffRunSpeed       int32
-	AffAttackSpeed    int32
-	AffCritical       int16
+	Rsv            uint8
+	AffDamage      int32
+	AffAC          int32
+	AffMaxHP       int32
+	AffMaxMP       int32
+	AffStr         int16
+	AffInt         int16
+	AffDex         int16
+	AffCon         int16
+	AffRunSpeed    int32
+	AffAttackSpeed int32
+	AffCritical    int16
+	// AffEsquivaPct multiplies the dodge roll (+50 = ×1,5): the Huntress Captura
+	// tree, Evasão Aprimorada and Proteção das Sombras (handler/arvore_captura.go).
+	AffEsquivaPct     int32
 	AffSpecial        [4]int16
 	AffResist         [4]int16
 	AffForceDamage    int32 // ForceDamage, e.g. Ligacao Espectral

@@ -335,8 +335,9 @@ func TestHuntressAirBladeProcAddsDamage(t *testing.T) {
 
 	got, proc := d.applyAirBladeProc(w, attacker, target, protocol.MsgAttackTwo, body, payload, 100)
 
-	if got != 198 || proc != 98 {
-		t.Fatalf("air blade damage = %d (proc %d), want 198 (proc 98)", got, proc)
+	// The proc (98 before the cap) is held to 30% of the 100 blow (arvore_captura.go).
+	if got != 130 || proc != 30 {
+		t.Fatalf("air blade damage = %d (proc %d), want 130 (proc 30)", got, proc)
 	}
 	if body.DoubleCritical&4 == 0 || payload[36]&4 == 0 {
 		t.Fatalf("air blade flags = body %#x payload %#x, want bit 4", body.DoubleCritical, payload[36])

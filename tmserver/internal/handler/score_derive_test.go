@@ -281,13 +281,14 @@ func TestTKClassWeaponDamage(t *testing.T) {
 	}
 }
 
-func TestHuntressShadowProtectionUsesTreeThree(t *testing.T) {
+// Proteção das Sombras left the Invisibilidade bit (the legacy bug) and the flat
+// score: it lives in applyPassivasDaCaptura now (arvore_captura.go).
+func TestHuntressShadowProtectionLeftTheInvisibilityBit(t *testing.T) {
 	e := &world.Entity{Class: 3, LearnedSkill: 1 << 23}
-	e.Special[2] = 300
 	e.Special[3] = 90
 
-	if got := skillDerivedACBonus(e, 100); got != 40 {
-		t.Fatalf("skillDerivedACBonus = %d, want Special[3]/3+10 = 40", got)
+	if got := skillDerivedACBonus(e, 100); got != 0 {
+		t.Fatalf("skillDerivedACBonus = %d, want 0", got)
 	}
 }
 

@@ -244,7 +244,11 @@ func (d *Dispatcher) processMobAffect(w *world.World, id int, e *world.Entity) {
 			continue
 		}
 		if af.Type == affectPoison {
-			if hp := e.HP - poisonTickDamage; hp != e.HP {
+			veneno := int32(poisonTickDamage)
+			if af.Value == toxinaMarca {
+				veneno = danoToxinaEmMonstro(e, int(af.Level)) // Toxina de Serpente (arvore_captura.go)
+			}
+			if hp := e.HP - veneno; hp != e.HP {
 				if hp < 1 {
 					hp = 1
 				}

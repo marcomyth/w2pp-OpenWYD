@@ -375,6 +375,14 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 					writeDoubleCritical(payload, body.DoubleCritical)
 				}
 			}
+			// Lâmina das Sombras: Força and, with the 8th, its own critical (arvore_captura.go).
+			if skillnum == skillLaminaDasSombras && e.Class == 3 && dmg > 0 {
+				var crit bool
+				if dmg, crit = danoLaminaDasSombras(w.Rand(), e, dmg); crit {
+					body.DoubleCritical |= 2
+					writeDoubleCritical(payload, body.DoubleCritical)
+				}
+			}
 			skipGenericAffect := d.applySkillSpecial(w, s, e, target, tid, skillnum, cast, &body, &dmg)
 			// The client can self-target aggressive skill rows through the hotbar.
 			// Do not turn those rows into damage against the caster; explicit HP
@@ -1715,17 +1723,17 @@ func applyForceDamage(attacker, target *world.Entity, tid, dmg int) int {
 // the PvP quarter divides the blow but leaves the proc whole (perfuracao).
 func (d *Dispatcher) applyAirBladeProc(w *world.World, attacker, target *world.Entity, msgType protocol.Type, body *protocol.MsgAttackBody, payload []byte, dmg int) (int, int) {
 	if dmg <= 0 || attacker == nil || target == nil || msgType != protocol.MsgAttackTwo ||
-		attacker.Class != 3 || attacker.LearnedSkill&(1<<21) == 0 || w.Rand().Intn(4) != 0 {
+		attacker.Class != 3 || attacker.LearnedSkill&learnedLaminaAerea == 0 {
+		return dmg, 0
+	}
+	// Chance and cap are server rules (arvore_captura.go); the legacy was a flat 25%.
+	wtype := d.itemAbility(attacker.Equip[weaponSlotR], efWType)
+	if w.Rand().Intn(100) >= chanceLaminaAerea(attacker, wtype) {
 		return dmg, 0
 	}
 	skillDam := effectiveSpecial(attacker, 3) + int(effectiveStr(attacker))
 	skillDam = combat.Damage(w.Rand(), skillDam, defesaPerfurada(attacker, int(effectiveAC(target))), attacker.Master)
-	if skillDam > 0 {
-		skillDam /= 2
-	}
-	if skillDam < 60 {
-		skillDam = 60
-	}
+	skillDam = limitarLaminaAerea(skillDam, dmg)
 	body.DoubleCritical |= 4
 	writeDoubleCritical(payload, body.DoubleCritical)
 	return dmg + skillDam, skillDam
@@ -1746,8 +1754,12 @@ func (d *Dispatcher) applyOnHitAffects(w *world.World, attacker, target *world.E
 	if attacker.Rsv&world.RsvFrost != 0 && w.Rand().Intn(2) == 0 {
 		d.applyOnHitSpell(w, target, tid, 36, effectiveSpecial(attacker, 1)+150, effectiveSpecial(attacker, 1), true, duracaoDoLegado)
 	}
-	if attacker.Rsv&world.RsvDrain != 0 && w.Rand().Intn(2) == 0 {
-		d.applyOnHitSpell(w, target, tid, 40, effectiveSpecial(attacker, 1)+150, effectiveSpecial(attacker, 1), false, d.affectDur)
+	// Toxina de Serpente (HT 92, affect 36 → RsvDrain, Garra only): every hit
+	// poisons, on monsters too, for the legacy duration; on a monster the tick
+	// scales with the Captura mastery (arvore_captura.go).
+	if attacker.Rsv&world.RsvDrain != 0 {
+		d.applyOnHitSpell(w, target, tid, 40, effectiveSpecial(attacker, 1)+150, effectiveSpecial(attacker, 1), true, duracaoDoLegado)
+		marcarVenenoDaToxina(target, effectiveSpecial(attacker, 3))
 	}
 }
 

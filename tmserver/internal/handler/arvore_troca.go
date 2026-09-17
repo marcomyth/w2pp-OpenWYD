@@ -95,6 +95,10 @@ func melhoriaNaEsquiva(e *world.Entity) int {
 // esquivaComMelhoria soma a Melhoria na Esquiva do alvo a um resultado de
 // combat.ParryRate, respeitando o teto do sorteio.
 func esquivaComMelhoria(parry int, target *world.Entity) int {
+	// The Captura tree multiplies the dodge first (arvore_captura.go).
+	if target != nil && target.AffEsquivaPct > 0 {
+		parry = parry * (100 + int(target.AffEsquivaPct)) / 100
+	}
 	return min(parry+melhoriaNaEsquiva(target), esquivaTeto)
 }
 

@@ -355,9 +355,6 @@ func skillDerivedACBonus(e *world.Entity, flatAC int32) int32 {
 	if e.Class == 0 && e.LearnedSkill&(1<<15) != 0 {
 		bonus += flatAC / 10
 	}
-	if e.Class == 3 && e.LearnedSkill&(1<<23) != 0 {
-		bonus += int32(e.Special[3])/3 + 10
-	}
 	return bonus
 }
 
