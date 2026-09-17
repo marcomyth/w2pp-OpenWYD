@@ -163,12 +163,34 @@ type servidorDoRelogio struct {
 	// tiques conta os tiques rodados desde que anda ligou. saiuNoTique é o
 	// primeiro deles que terminou com o jogador fora do Cemitério (0 = ainda lá).
 	tiques, saiuNoTique atomic.Int32
+	// pendente é uma função que o teste quer rodar DENTRO do laço, uma vez, com o
+	// tique parado (entrada_arena_test.go). feito avisa que ela rodou.
+	pendente atomic.Pointer[func(*world.World, *Dispatcher)]
+	feito    chan struct{}
+}
+
+// noLaco roda fn no laço do mundo e espera ela terminar.
+func (srv *servidorDoRelogio) noLaco(t *testing.T, fn func(*world.World, *Dispatcher)) {
+	t.Helper()
+	srv.pendente.Store(&fn)
+	select {
+	case <-srv.feito:
+	case <-time.After(5 * time.Second):
+		t.Fatal("a função não rodou no laço")
+	}
 }
 
 // startServerRelogioDasArenas sobe o servidor com tickCount já no valor pedido.
 // A escrita vem antes do Serve, quando ainda não há laço nenhum para disputá-la;
 // daí em diante só o laço mexe nele, pelo Tick.
 func startServerRelogioDasArenas(t *testing.T, st world.CharacterState, tickCount int) *servidorDoRelogio {
+	t.Helper()
+	return startServerRelogioDasArenasCom(t, st, tickCount, nil)
+}
+
+// startServerRelogioDasArenasCom é o mesmo servidor com personagens por conta
+// (fakeDB.loads), para testes com mais de uma pessoa.
+func startServerRelogioDasArenasCom(t *testing.T, st world.CharacterState, tickCount int, porConta map[int64]world.CharacterState) *servidorDoRelogio {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -181,10 +203,16 @@ func startServerRelogioDasArenas(t *testing.T, st world.CharacterState, tickCoun
 	d.tickCount = tickCount
 	db := newDB()
 	db.loadResult = st
+	db.loads = porConta
 	w := world.New(world.Config{GridDim: world.DefaultGridDim}, log, db, d.Handle)
 	srv := &servidorDoRelogio{addr: ln.Addr().String()}
 	cemiterio := quest256Steps[0].area
+	srv.feito = make(chan struct{}, 1)
 	w.SetTickHandler(time.Millisecond, func(w *world.World) {
+		if fn := srv.pendente.Swap(nil); fn != nil {
+			(*fn)(w, d)
+			srv.feito <- struct{}{}
+		}
 		if !srv.anda.Load() {
 			return
 		}

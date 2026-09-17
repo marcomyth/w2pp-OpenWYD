@@ -802,6 +802,11 @@ func (d *Dispatcher) useQuest256Ticket(w *world.World, s *world.Session, e *worl
 		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, src, itemToSel(e.Carry[src])))
 		return true
 	}
+	// Uma entrada por rodada (entrada_arena.go): o bilhete fica na bolsa.
+	if d.entradaDaRodadaUsada(s) {
+		d.recusaBilheteDaRodada(w, s, e, src)
+		return true
+	}
 
 	itemIdx := e.Carry[src].Index
 	consumeOneItem(&e.Carry[src])

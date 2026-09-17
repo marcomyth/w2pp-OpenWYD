@@ -104,6 +104,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 			d.mobBattle(w, id, e)
 		}
 	})
+	d.vigiaSaidasDasArenas(w)
 	d.guardQuest256Areas(w)
 	d.clearQuestAreas(w)
 	d.guardGuildAreas(w)
