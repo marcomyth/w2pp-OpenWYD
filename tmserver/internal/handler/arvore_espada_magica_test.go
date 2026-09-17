@@ -94,7 +94,7 @@ func TestCriticoDaEspadaMagica(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := c.rolls
-			if got := rolarCriticoEspadaMagica(&r, tkDaEspadaMagica(c.intel, learnedTempestadeDeGelo, 255)); got != c.want {
+			if got := rolarCriticoDeMago(&r, tkDaEspadaMagica(c.intel, learnedTempestadeDeGelo, 255)); got != c.want {
 				t.Errorf("multiplicador = %d, want %d", got, c.want)
 			}
 		})

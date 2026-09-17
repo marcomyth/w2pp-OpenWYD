@@ -59,7 +59,8 @@ func armaPctEspadaMagica(e *world.Entity, itemAbility func(world.Item, uint8) in
 }
 
 // ---------------------------------------------------------------------------
-// Crítico das skills da árvore: chance 10% + 15% × i, multiplicador sorteado de
+// Crítico de mago, nas skills de dano da árvore — do TK Espada Mágica e da FM
+// Magia Negra (arvore_magia_negra.go, magoCritico): chance 10% + 15% × i, multiplicador sorteado de
 // ×2,0 até ×(2 + 2 × i), em passos de 0,1. A INT sobe a chance e o teto; o
 // sorteio dentro da faixa é a sorte.
 const (
@@ -69,9 +70,9 @@ const (
 	espadaCritMultInt10  = 20
 )
 
-// rolarCriticoEspadaMagica devolve o multiplicador × 10 (20 a 40), ou 0 sem
+// rolarCriticoDeMago devolve o multiplicador × 10 (20 a 40), ou 0 sem
 // crítico.
-func rolarCriticoEspadaMagica(r combat.Rand, e *world.Entity) int {
+func rolarCriticoDeMago(r combat.Rand, e *world.Entity) int {
 	i := reguaDeInt(e)
 	if r.Intn(100) >= espadaCritChanceBase+espadaCritChanceInt*i/1000 {
 		return 0

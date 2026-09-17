@@ -279,6 +279,8 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 	doubleCriticalReady := false
 	var healExp int64
 	var hpSyncTargets []int
+	// FM Magia Negra: the mana one cast gives back, summed over its targets (arvore_magia_negra.go).
+	var manaRoubada int32
 	for i := range body.Dam {
 		tid := int(body.Dam[i].TargetID)
 		target := w.Entity(tid)
@@ -395,18 +397,18 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			if dmg > 0 && tid == s.Conn && cast.spell.Aggressive != 0 && skillnum != 30 {
 				dmg = 0
 			}
-			// TK Espada Mágica: crítico ×2-×4 nas skills da árvore, e o Exterminar tudo
-			// ou nada (arvore_espada_magica.go).
-			espadaMagica := tid != s.Conn && tkEspadaMagica(e) && skillDeDanoDaEspadaMagica(skillnum)
+			// TK Espada Mágica e FM Magia Negra: crítico ×2-×4 nas skills da árvore, e o
+			// Exterminar tudo ou nada (arvore_espada_magica.go, arvore_magia_negra.go).
+			espadaMagica := tid != s.Conn && magoCritico(e, skillnum)
 			if espadaMagica && dmg > 0 {
-				if mult := rolarCriticoEspadaMagica(w.Rand(), e); mult > 0 {
+				if mult := rolarCriticoDeMago(w.Rand(), e); mult > 0 {
 					dmg = dmg * mult / 10
 					body.DoubleCritical |= 2
 					writeDoubleCritical(payload, body.DoubleCritical)
 				}
 			}
 			if dmg > 0 && tid != s.Conn {
-				if espadaMagica && skillnum == skillExterminar {
+				if espadaMagica && e.Class == 0 && skillnum == skillExterminar {
 					// The 10% roll replaces the dodge, and the miss streak never forces it.
 					if !exterminarAcerta(w.Rand()) {
 						dmg = -3
@@ -560,6 +562,9 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			// Roubo de vida do TK Espada Mágica, sobre o dano que entrou (arvore_espada_magica.go).
 			if skillHit && tid != s.Conn && tkEspadaMagica(e) && skillDeDanoDaEspadaMagica(skillnum) {
 				d.curarPeloRoubo(w, s, e, rouboDeVida(w.Rand(), e, dmg))
+			}
+			if skillHit && tid != s.Conn && fmMagiaNegra(e) && skillDeDanoDaMagiaNegra(skillnum) {
+				manaRoubada += d.reporMana(w, s, e, rouboDeMana(w.Rand(), e, dmg, tetoDoRouboDeMana(e)-manaRoubada))
 			}
 			// Landing a PvP hit against a comparatively clean target (PKPoint>10)
 			// marks BOTH sides Guilty (_MSG_Attack.cpp: SetGuilty(conn,8);
@@ -1108,6 +1113,9 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 	} else if tkEspadaMagica(e) && skillDeDanoDaEspadaMagica(skillnum) {
 		// A lança do TK Espada Mágica (arvore_espada_magica.go).
 		caster.ArmaPct = armaPctEspadaMagica(e, d.itemAbility)
+	} else if fmMagiaNegra(e) && skillDeDanoDaMagiaNegra(skillnum) {
+		// O cajado da FM Magia Negra (arvore_magia_negra.go).
+		caster.ArmaPct = armaPctMagiaNegra(e, d.itemAbility)
 	}
 	// CurrentWeather scales InstanceType 2/3/5 output (_MSG_Attack.cpp:520,594,972
 	// → BASE_GetSkillDamage). Weather 0 is neutral, so this is a no-op until a

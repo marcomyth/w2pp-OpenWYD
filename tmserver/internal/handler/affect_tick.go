@@ -174,13 +174,24 @@ func (d *Dispatcher) applyThunderTick(w *world.World, s *world.Session, e *world
 		PosX: uint16(e.X), PosY: uint16(e.Y), TargetX: uint16(e.X), TargetY: uint16(e.Y),
 		AttackerID: uint16(s.Conn), Motion: 254, CurrentMp: e.MP, SkillIndex: 33, ReqMp: int16(s.ReqMp),
 	}
+	// FM Magia Negra: the thunder crits and steals mana too, capped per tick (arvore_magia_negra.go).
+	var manaRoubada int32
 	for _, target := range targets {
 		dmg := d.resolveSkillHit(w, e, target, target.ID, 33, cast)
 		if dmg > 0 {
+			if fmMagiaNegra(e) {
+				if mult := rolarCriticoDeMago(w.Rand(), e); mult > 0 {
+					dmg = dmg * mult / 10
+					body.DoubleCritical |= 2
+				}
+			}
 			if miss := combat.ResolveParry(w.Rand(), 33, d.parryRate(e, target), target.Rsv&world.RsvBlock != 0); miss != 0 {
 				dmg = miss
 			}
 			dmg = d.applyManaControl(w, e, target, target.ID, dmg)
+			if fmMagiaNegra(e) {
+				manaRoubada += d.reporMana(w, s, e, rouboDeMana(w.Rand(), e, dmg, tetoDoRouboDeMana(e)-manaRoubada))
+			}
 			target.HP -= int32(dmg)
 			if target.HP < 0 {
 				target.HP = 0

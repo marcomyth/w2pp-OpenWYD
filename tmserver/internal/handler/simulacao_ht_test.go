@@ -174,6 +174,13 @@ func (sm *simulador) aplicar(l *lado, alvo *world.Entity, dmg, airBlade int, ski
 		dmg = sm.absorveGarnet(l.e, alvo, dmg)
 	}
 	dmg = sm.d.applyManaControl(sm.w, l.e, alvo, alvo.ID, dmg)
+	// Sem sessão o applyManaControl não age: o Controle de Mana (46) do alvo entra
+	// pela conta pura, com a mana saindo da barra dele.
+	if world.IsPlayer(alvo.ID) && sm.w.Session(alvo.ID) == nil {
+		if r, _, ok := manaControlDamage(alvo, dmg, l.e.LearnedSkill&(1<<23) != 0); ok {
+			dmg = r
+		}
+	}
 	dmg = sm.d.absorbBlow(sm.w, alvo, dmg, true)
 	alvo.HP = max(0, alvo.HP-int32(dmg))
 	// O afeto que pega chama refreshScore, que remonta o score pelo equipamento — e

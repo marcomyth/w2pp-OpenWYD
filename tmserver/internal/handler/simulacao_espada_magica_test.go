@@ -129,7 +129,7 @@ func (sm *simulador) skillDoMago(l *lutador, alvo *world.Entity, sk int, sp cont
 	}
 	crit := false
 	if dmg > 0 {
-		if mult := rolarCriticoEspadaMagica(sm.w.Rand(), e); mult > 0 {
+		if mult := rolarCriticoDeMago(sm.w.Rand(), e); mult > 0 {
 			dmg, crit = dmg*mult/10, true
 		}
 	}
