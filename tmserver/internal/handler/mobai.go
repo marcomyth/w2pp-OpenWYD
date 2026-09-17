@@ -192,7 +192,6 @@ func (d *Dispatcher) guardQuest256Areas(w *world.World) {
 // msgNivelForaDaQuest é o aviso de quem é devolvido por ter passado da faixa.
 const msgNivelForaDaQuest = "Seu nível passou do limite desta quest."
 
-
 // battleDragBox is the SetBattle engage box: a group member joins the fight only
 // when the target is within ±23 of it (Server.cpp:8029).
 const battleDragBox = 23
