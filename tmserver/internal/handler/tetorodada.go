@@ -23,6 +23,8 @@ import (
 //   na rodada é menor que a metade do teto; quando cai, o valor dele entra na hora
 //   no total da rodada, até o que ainda cabe. Usar o troféu depois não recusa, não
 //   corta e não soma de novo.
+//   O jogador vê quantos troféus ainda cabem: na entrada da arena, a cada troféu
+//   que cai e no /xp, pela mesma conta da trava (trofeusQueCabem).
 // - O troféu é do personagem: não vai ao chão nem ao baú da conta (item.go), e a
 //   troca e a lojinha já recusam EF_NOTRADE (trade.go, autotrade.go). Sem isso, um
 //   alt no mesmo baú farmaria troféu para o principal.
@@ -122,12 +124,28 @@ func (d *Dispatcher) textoTrofeusDaRodada() string {
 	return fmt.Sprintf("Você já recebeu os troféus desta rodada. A próxima começa em %d min %02d s.", seg/60, seg%60)
 }
 
-// trofeuPodeCair diz se o troféu pode cair para quem recebe o saque: enquanto a
-// XP de troféu reservada na rodada for menor que a metade do teto E o valor
-// inteiro do troféu couber no que falta do total. Sem a segunda condição, quem
-// enche o total matando no campo e depois entra na arena ganharia troféus que não
-// reservam nada e, com o uso livre, passaria do ritmo. Na primeira recusa da
-// rodada, avisa. Item que não é troféu, e quem não tem teto, sempre pode.
+// trofeusQueCabem é quantos troféus de valor `valor` ainda podem cair na rodada, e
+// é a ÚNICA conta disso: a trava do drop (trofeuPodeCair) e o número que o
+// jogador vê (as mensagens abaixo e o /xp) passam por aqui, para o número mostrado
+// nunca discordar do que cai. Um troféu cai enquanto a XP de troféu reservada é
+// menor que a metade do teto E o valor inteiro cabe no que falta do total; como
+// cada um que cai soma o valor nas duas contas, são dois limites contados de uma
+// vez: os que ainda começam abaixo da metade e os que cabem inteiros no total.
+func trofeusQueCabem(teto int64, st xpDaRodada, valor int64) int64 {
+	metade := teto / 2
+	if valor <= 0 || st.trofeu >= metade {
+		return 0
+	}
+	pelaMetade := (metade - st.trofeu + valor - 1) / valor
+	pelaSobra := max(teto-st.total, 0) / valor
+	return min(pelaMetade, pelaSobra)
+}
+
+// trofeuPodeCair diz se o troféu pode cair para quem recebe o saque
+// (trofeusQueCabem). Sem o limite do total, quem enche o total matando no campo e
+// depois entra na arena ganharia troféus que não reservam nada e, com o uso livre,
+// passaria do ritmo. Na primeira recusa da rodada, avisa. Item que não é troféu,
+// troféu sem valor de XP e quem não tem teto sempre podem.
 func (d *Dispatcher) trofeuPodeCair(w *world.World, e *world.Entity, it world.Item) bool {
 	if !ehTrofeuDeQuest(it.Index) {
 		return true
@@ -140,9 +158,13 @@ func (d *Dispatcher) trofeuPodeCair(w *world.World, e *world.Entity, it world.It
 	if !ok {
 		return true
 	}
+	valor := d.valorDoTrofeu(it)
+	if valor <= 0 {
+		return true // não paga XP, não há o que limitar
+	}
 	k := donoDe(s)
 	st := d.xpDaRodada[k]
-	if st.trofeu < teto/2 && d.valorDoTrofeu(it) <= teto-st.total {
+	if trofeusQueCabem(teto, st, valor) > 0 {
 		return true
 	}
 	if !st.avisadoTrofeu {
@@ -190,10 +212,70 @@ func (d *Dispatcher) reservaTrofeuDaRodada(w *world.World, e *world.Entity, it w
 	st := d.xpDaRodada[k]
 	st.trofeu += valor
 	st.total = min(st.total+valor, teto)
+	// A cada troféu que cai, quantos faltam; no último, o aviso de sempre, uma vez,
+	// que a recusa seguinte não repete.
+	faltam := trofeusQueCabem(teto, st, valor)
+	avisaFim := faltam == 0 && !st.avisadoTrofeu
+	if avisaFim {
+		st.avisadoTrofeu = true
+	}
 	if d.xpDaRodada == nil {
 		d.xpDaRodada = make(map[donoDaEntrada]xpDaRodada)
 	}
 	d.xpDaRodada[k] = st
+	switch {
+	case faltam > 0:
+		sendClientMessage(w, s, fmt.Sprintf("Troféu: faltam %d nesta rodada.", faltam))
+	case avisaFim:
+		sendClientMessage(w, s, d.textoTrofeusDaRodada())
+	}
+}
+
+// nomesDasArenas segue a ordem de quest256Steps, para o /xp dizer de qual quest é
+// o número.
+var nomesDasArenas = [...]string{"Coveiro", "Jardim dos Deuses", "Kaizen", "Hidras", "Elfos"}
+
+// trofeusDaArena é quantos troféus da arena `passo` (índice em quest256Steps) o
+// personagem ainda pode receber nesta rodada; ok falso quando não há teto ou o
+// troféu não vale XP.
+func (d *Dispatcher) trofeusDaArena(s *world.Session, e *world.Entity, passo int) (int64, bool) {
+	if s == nil || passo < 0 || passo >= len(quest256Steps) {
+		return 0, false
+	}
+	teto, ok := d.tetoDoGanho(e)
+	if !ok {
+		return 0, false
+	}
+	valor := d.valorDoTrofeu(world.Item{Index: int16(itemQuestRewardBase + passo)})
+	if valor <= 0 {
+		return 0, false
+	}
+	return trofeusQueCabem(teto, d.xpDaRodada[donoDe(s)], valor), true
+}
+
+// enviarTrofeusDaRodada diz, na entrada da arena, quantos troféus a rodada ainda dá.
+func (d *Dispatcher) enviarTrofeusDaRodada(w *world.World, s *world.Session, e *world.Entity, passo int) {
+	if n, ok := d.trofeusDaArena(s, e, passo); ok {
+		sendClientMessage(w, s, fmt.Sprintf("Troféus nesta rodada: %d.", n))
+	}
+}
+
+// linhaTrofeusDaRodada é a linha do /xp para quem está na faixa de nível de uma
+// das cinco quests.
+func (d *Dispatcher) linhaTrofeusDaRodada(s *world.Session, e *world.Entity) (string, bool) {
+	if e == nil {
+		return "", false
+	}
+	for i, step := range quest256Steps {
+		if e.Level >= step.minLevel && e.Level < step.maxLevel {
+			n, ok := d.trofeusDaArena(s, e, i)
+			if !ok {
+				return "", false
+			}
+			return fmt.Sprintf("Troféus da rodada: faltam %d (quest %s)", n, nomesDasArenas[i]), true
+		}
+	}
+	return "", false
 }
 
 // zeraXPDaRodada abre a rodada nova. Chamado pelo pulso.
