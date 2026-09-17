@@ -358,7 +358,10 @@ func attributeDamageBonus(e *world.Entity, withAffectSpecial bool) int32 {
 
 func skillDerivedACBonus(e *world.Entity, flatAC int32) int32 {
 	var bonus int32
-	if e.Class == 0 && e.LearnedSkill&(1<<15) != 0 {
+	if tkTrans(e) {
+		// Armadura Crítica: the legacy 10% plus the tree mastery (arvore_trans.go).
+		bonus += defesaDaArmadura(e, flatAC)
+	} else if e.Class == 0 && e.LearnedSkill&(1<<15) != 0 {
 		bonus += flatAC / 10
 	}
 	return bonus

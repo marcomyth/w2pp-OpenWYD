@@ -165,6 +165,7 @@ func (sm *simulador) aplicar(l *lado, alvo *world.Entity, dmg, airBlade int, ski
 	dmg = perfuracao(alvo, alvo.ID, dmg, airBlade)
 	if pvp {
 		dmg = sm.d.applyPvPRule(dmg, skill)
+		dmg = danoDoTransContraHT(l.e, alvo, dmg)
 	}
 	dmg = applyForceDamage(l.e, alvo, alvo.ID, dmg)
 	if pvp {
@@ -212,7 +213,7 @@ func (sm *simulador) fisico(l *lado, alvo *world.Entity) golpe {
 	dmg := combat.ResolveHit(r, combat.HitInput{
 		AttackerDamage: int(sm.d.effectiveDamage(e)), TargetAC: defesaPerfurada(e, int(effectiveAC(alvo))),
 		TargetIsPlayer: world.IsPlayer(alvo.ID), AttackerIsPlayer: true, DoubleCritical: dc,
-		Master: e.Master, SkillIndex: -1, ParryRate: sm.d.parryRate(e, alvo),
+		Master: masterDoGolpe(e), SkillIndex: -1, ParryRate: sm.d.parryRate(e, alvo),
 		TargetRsvBlock: alvo.Rsv&world.RsvBlock != 0,
 	})
 	body := &protocol.MsgAttackBody{}

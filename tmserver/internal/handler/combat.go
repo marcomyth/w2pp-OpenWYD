@@ -454,7 +454,7 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 				TargetIsPlayer:   world.IsPlayer(tid),
 				AttackerIsPlayer: true,
 				DoubleCritical:   doubleCritical,
-				Master:           e.Master,
+				Master:           masterDoGolpe(e),
 				UseSkill:         false,
 				SkillIndex:       skillnum,
 				ParryRate:        d.parryRate(e, target),
@@ -485,6 +485,8 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			dmg = perfuracao(target, tid, dmg, airBlade)
 			if pvpHit {
 				dmg = d.applyPvPRule(dmg, skillHit)
+				// Armadura Crítica: extra damage on a Huntress only (arvore_trans.go).
+				dmg = danoDoTransContraHT(e, target, dmg)
 			}
 			dmg = applyForceDamage(e, target, tid, dmg)
 			// Defesa de Evolução (tierdefense.go) — a server rule, not parity, so it
@@ -751,15 +753,9 @@ func (d *Dispatcher) validateCast(w *world.World, s *world.Session, e *world.Ent
 	// (_MSG_Attack.cpp:222) — server rule, arvore_troca.go.
 	// Skill mitigation mastery: only a TK with bit 14 learned gets Special[2]/20
 	// (clamped 0..15); everyone else casts with 0 (_MSG_Attack.cpp:258-268).
-	if e.Class == 0 && e.LearnedSkill&(1<<14) != 0 {
-		m := int(e.Special[2]) / 20
-		if m < 0 {
-			m = 0
-		}
-		if m > 15 {
-			m = 15
-		}
-		cast.master = m
+	// The same floor now reaches the normal blow (masterDoGolpe, arvore_trans.go).
+	if temNocaoDeCombate(e) {
+		cast.master = pisoDaNocao(e)
 	}
 	return cast, true
 }
@@ -1707,8 +1703,8 @@ func precisaoDe(attacker *world.Entity, accuracyDex int) int {
 }
 
 func (d *Dispatcher) parryRateWith(attacker, target *world.Entity, accuracyDex int) int {
-	return esquivaComMelhoria(combat.ParryRate(int(effectiveDex(target)), target.Parry,
-		precisaoDe(attacker, accuracyDex), int(attacker.Rsv)), target)
+	return esquivaComAcerto(esquivaComMelhoria(combat.ParryRate(int(effectiveDex(target)), target.Parry,
+		precisaoDe(attacker, accuracyDex), int(attacker.Rsv)), target), attacker, target)
 }
 
 // applyForceDamage adds the attacker's flat forced damage, from both of the

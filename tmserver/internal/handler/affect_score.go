@@ -47,7 +47,8 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 	evasao := false
 	defer func() {
 		applyPassivasDaCaptura(e, itemAbility, evasao)
-		applyPassivasDaConfianca(e) // TK: Destino e esquiva (arvore_confianca.go)
+		applyPassivasDaConfianca(e)          // TK: Destino e esquiva (arvore_confianca.go)
+		applyPassivasDoTrans(e, itemAbility) // TK: Noção de Combate, armas de 2 mãos (arvore_trans.go)
 	}()
 	if !e.HasAnyAffect() {
 		return
@@ -502,6 +503,10 @@ func skillCriticalBonus(e *world.Entity) int16 {
 	}
 	if e.Class != 0 || e.LearnedSkill&(1<<15) == 0 {
 		return 0
+	}
+	if tkTrans(e) {
+		// The Armadura Crítica reads Força and the tree mastery now (arvore_trans.go).
+		return int16(criticoDaArmadura(e))
 	}
 	add := (int(e.Special[3])+1)/10 + int(effectiveDex(e))/75
 	if add < 4 {

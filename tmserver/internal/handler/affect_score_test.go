@@ -277,7 +277,8 @@ func TestSkillCriticalBonus(t *testing.T) {
 		want         uint8
 	}{
 		// The TK bonus is the Armadura Crítica (bit 15) since 17/09/2026; the Destino (7) gives none.
-		{name: "TK with Armadura Crítica", class: 0, learnedSkill: 1 << 15, want: 22},
+		// It reads the Trans mastery (Special[2]) and Força now, both zero here (arvore_trans_test.go).
+		{name: "TK with Armadura Crítica", class: 0, learnedSkill: 1 << 15, want: 10},
 		{name: "TK with only Destino", class: 0, learnedSkill: 1 << 7, want: 10},
 		{name: "Huntress with Visão do Caçador", class: 3, learnedSkill: 1 << 18, want: 13},
 		{name: "TK without Confiança", class: 0, learnedSkill: 0, want: 10},
