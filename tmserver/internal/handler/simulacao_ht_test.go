@@ -63,6 +63,9 @@ type simulador struct {
 	w     *world.World
 	tick  int64
 	nextM map[int]int64 // próximo golpe do monstro (ms)
+	// garnet é a absorção da Garnet por personagem, ainda só da simulação
+	// (simulacao_garnet_test.go); vazio, nada muda.
+	garnet map[int]int
 }
 
 func novoSimulador(t *testing.T, root string) *simulador {
@@ -78,7 +81,7 @@ func novoSimulador(t *testing.T, root string) *simulador {
 	regras := combatrule.Default()
 	d := New(Config{Log: log, Spells: spells, ItemEffects: items.BaseEffects(), CombatRules: &regras})
 	w := world.New(world.Config{GridDim: 64}, log, nil, nil)
-	return &simulador{t: t, d: d, w: w, nextM: map[int]int64{}}
+	return &simulador{t: t, d: d, w: w, nextM: map[int]int64{}, garnet: map[int]int{}}
 }
 
 // montar cria o personagem com os números da janela: o Ataque, a Defesa e o
@@ -167,6 +170,7 @@ func (sm *simulador) aplicar(l *lado, alvo *world.Entity, dmg, airBlade int, ski
 	if pvp {
 		dmg = applyTierDefense(l.e.ClassMaster, alvo.ClassMaster, dmg)
 		dmg = sm.d.applyPvPStats(l.e, alvo, dmg)
+		dmg = sm.absorveGarnet(alvo, dmg)
 	}
 	dmg = sm.d.applyManaControl(sm.w, l.e, alvo, alvo.ID, dmg)
 	dmg = sm.d.absorbBlow(sm.w, alvo, dmg, true)
@@ -186,15 +190,17 @@ type fotografia struct {
 	str, dex, con         int16
 	special               [4]int16
 	parry                 int
+	equipForce            int32
 }
 
 func fotografar(e *world.Entity) fotografia {
-	return fotografia{e.Damage, e.AC, e.MaxHP, e.HP, e.Critical, e.Str, e.Dex, e.Con, e.Special, e.Parry}
+	return fotografia{e.Damage, e.AC, e.MaxHP, e.HP, e.Critical, e.Str, e.Dex, e.Con, e.Special, e.Parry, e.EquipForceDamage}
 }
 
 func (f fotografia) restaurar(e *world.Entity) {
 	e.Damage, e.AC, e.MaxHP, e.HP, e.Critical = f.damage, f.ac, f.maxHP, f.hp, f.critical
 	e.Str, e.Dex, e.Con, e.Special, e.Parry = f.str, f.dex, f.con, f.special, f.parry
+	e.EquipForceDamage = f.equipForce
 }
 
 func (sm *simulador) fisico(l *lado, alvo *world.Entity) golpe {
