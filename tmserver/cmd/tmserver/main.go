@@ -33,6 +33,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/internal/mountbonus"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
+	"github.com/jeanluca/w2pp-openwyd/internal/reinos"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/binclient"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
@@ -875,6 +876,9 @@ func spawnNPCs(w *world.World, dir string, skipMerchants bool, mobStatOverrides 
 		// rawMobMerchant is the other merchant byte (STRUCT_MOB.Merchant @17), the
 		// one the training field classifies by (campotreino).
 		rawMobMerchant uint8
+		// rawClan is STRUCT_MOB.Clan @16, which the Reinos city classifies by
+		// together with rawMobMerchant (internal/reinos).
+		rawClan uint8
 		// file is the template file the name resolved to (npctemplate.Resolve):
 		// what the Mesa de Drops keys on, carried onto each spawned mob.
 		file string
@@ -899,7 +903,7 @@ func spawnNPCs(w *world.World, dir string, skipMerchants bool, mobStatOverrides 
 			} else {
 				stats.Count(res.Version)
 				raw := protocol.ParseMobBasics(b)
-				t.rawMerchant, t.rawMobMerchant = raw.Merchant, raw.MobMerchant
+				t.rawMerchant, t.rawMobMerchant, t.rawClan = raw.Merchant, raw.MobMerchant, raw.Clan
 				t.file = res.Name
 				// Apply the moderator stat override (if any) BEFORE the exp sanity
 				// check below, so a fix made via the web tool clears the warning too.
@@ -996,8 +1000,10 @@ func spawnNPCs(w *world.World, dir string, skipMerchants bool, mobStatOverrides 
 		// stay monster generators here — killable, respawning, and named for the
 		// Mesa de Drops, which a DB-managed block is not (campotreino). The
 		// dbServer importer applies the same rule, so no definition claims them.
+		// The Reinos city does the same for its kings and army (internal/reinos).
 		if skipMerchants && leader.rawMerchant != 0 &&
-			!campotreino.MonstroNoCampo(leader.rawMobMerchant, int(g.SegX[0]), int(g.SegY[0])) {
+			!campotreino.MonstroNoCampo(leader.rawMobMerchant, int(g.SegX[0]), int(g.SegY[0])) &&
+			!reinos.MonstroDoReino(leader.rawMobMerchant, leader.rawClan, int(g.SegX[0]), int(g.SegY[0])) {
 			skipped++
 			dbOwned[i] = true
 		}

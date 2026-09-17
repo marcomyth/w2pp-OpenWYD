@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
+	"github.com/jeanluca/w2pp-openwyd/internal/reinos"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combat"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -302,6 +303,10 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			continue
 		}
 		if !d.towerAttackAllowed(e, target) {
+			writeDamage(payload, i, 0)
+			continue
+		}
+		if !d.golpeNoReinoPermitido(w, e, target) {
 			writeDamage(payload, i, 0)
 			continue
 		}
@@ -951,6 +956,9 @@ func (d *Dispatcher) applyCastAffect(w *world.World, e, target *world.Entity, ti
 		if !world.IsPlayer(tid) && target.NonCombatNPC {
 			return
 		}
+		if monstroDoReino(target) && reinos.ClanDaCapa(e.Equip[reinos.SlotDaCapa].Index) == target.Clan {
+			return // a capa não enfraquece o próprio reino (reinos.go)
+		}
 		leader := e.Leader
 		if leader == 0 {
 			leader = e.ID
@@ -1399,6 +1407,7 @@ func (d *Dispatcher) applyFoemaResurrection(w *world.World, s *world.Session, ca
 	if w.Rand().Intn(100) >= 70 {
 		return
 	}
+	world.LimparInimigoDoReino(target) // a morte perdoa (reinos.go)
 	target.HP = hp
 	if ts := w.Session(tid); ts != nil {
 		ts.CrackError = 0
@@ -1581,6 +1590,7 @@ func (d *Dispatcher) applyBookResurrection(w *world.World, s *world.Session, e *
 	if e.HP != 0 {
 		return
 	}
+	world.LimparInimigoDoReino(e) // a morte perdoa (reinos.go)
 	var hp, mp int32
 	if w.Rand().Intn(100) < bookResurrectPct {
 		hp = effectiveMaxHP(e) * bookResurrectPoolPct / 100

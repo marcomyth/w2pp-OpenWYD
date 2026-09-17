@@ -86,9 +86,9 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 	// handler's MSG_Attack echo (CurrentExp); grantExp also applies any level-ups.
 	// Clan 4 mobs never award EXP: the legacy wraps the whole distribution in
 	// `MOB.Clan != 4` (MobKilled.cpp:402); gold and drops sit outside that gate.
-	// The Castelo Orc and Acampamento Troll quests' monsters pay nothing either
-	// (castelo_orc.go, acampamento_troll.go).
-	if mob.Clan != 4 && casteloOrcAwardsExp(mob) && acampamentoTrollAwardsExp(mob) {
+	// The Castelo Orc, Acampamento Troll and Reinos monsters pay nothing either
+	// (castelo_orc.go, acampamento_troll.go, reinos.go).
+	if mob.Clan != 4 && casteloOrcAwardsExp(mob) && acampamentoTrollAwardsExp(mob) && reinoAwardsExp(mob) {
 		d.grantPartyExp(w, ks, reward, mob)
 	}
 

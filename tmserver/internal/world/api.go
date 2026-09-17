@@ -3,6 +3,7 @@ package world
 import (
 	"github.com/jeanluca/w2pp-openwyd/internal/campotreino"
 	"github.com/jeanluca/w2pp-openwyd/internal/mapaevento"
+	"github.com/jeanluca/w2pp-openwyd/internal/reinos"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/rng"
 )
@@ -168,9 +169,13 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 	// the Orc_Sniper and the Águias, which carry 16 in the byte this port reads
 	// and 0 in the one the legacy reads, and keeps every service NPC there
 	// protected — they all carry a non-zero byte 17.
+	//
+	// The Reinos city is the third such exception (internal/reinos): the kings
+	// and their army carry a shop byte on 104, and the legacy lets them be hit.
 	e.NonCombatNPC = nonCombatNPC(e.Merchant, e.Clan, e.X, e.Y) &&
 		!IsWaterDungeonGenerator(int(sp.GenIndex)) &&
-		!campotreino.MonstroNoCampo(b.MobMerchant, int(x), int(y))
+		!campotreino.MonstroNoCampo(b.MobMerchant, int(x), int(y)) &&
+		!reinos.MonstroDoReino(b.MobMerchant, b.Clan, int(x), int(y))
 	for i, r := range b.Resist {
 		e.Resist[i] = int16(r)
 	}
@@ -239,7 +244,8 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 // combat without this is the half-fix the water dungeon's Imp_ had: the
 // generator keeps counting the dead mob, so it dies once and never returns.
 func monstroDeCombate(e *Entity) bool {
-	return !e.NonCombatNPC && (e.Merchant == 0 || campotreino.Contem(int(e.SpawnX), int(e.SpawnY)))
+	return !e.NonCombatNPC && (e.Merchant == 0 || campotreino.Contem(int(e.SpawnX), int(e.SpawnY)) ||
+		reinos.MonstroDoReino(e.MobMerchant, e.Clan, int(e.SpawnX), int(e.SpawnY)))
 }
 
 // DespawnMob removes a mob/NPC from the world after it dies (or otherwise leaves):

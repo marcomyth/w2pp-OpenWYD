@@ -874,8 +874,9 @@ func (d *Dispatcher) restart(w *world.World, s *world.Session, _ protocol.Header
 	if e == nil {
 		return
 	}
-	e.HP = 2         // revive (CurrentScore.Hp = 2)
-	s.CrackError = 0 // NumError = 0
+	e.HP = 2                      // revive (CurrentScore.Hp = 2)
+	world.LimparInimigoDoReino(e) // a morte perdoa (reinos.go)
+	s.CrackError = 0              // NumError = 0
 	d.sendScore(w, s, e)
 	s.ReqHp = e.HP
 	setReqMp(s, e)

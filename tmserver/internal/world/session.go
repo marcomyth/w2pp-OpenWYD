@@ -521,6 +521,12 @@ type Entity struct {
 	// in closeAutoTrade.
 	ShopOwner int
 
+	// inimigoDoReino é a marca de Inimigo do Reino, por reino (0 Hekalotia,
+	// 1 Akelonia): se está ligada e desde quando (Now, em ms). Só jogador tem;
+	// ver world/reinos.go.
+	inimigoDoReino      [2]bool
+	inimigoDoReinoDesde [2]uint32
+
 	Equip [MaxEquip]Item // equipped items
 	Carry [MaxCarry]Item // inventory; for mobs this is also the loot table (§2.2)
 }

@@ -39,6 +39,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/campotreino"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
+	"github.com/jeanluca/w2pp-openwyd/internal/reinos"
 	"github.com/jeanluca/w2pp-openwyd/internal/savefmt"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
@@ -192,7 +193,8 @@ func buildNPCDefinitions(contentDir string, logger *slog.Logger) ([]domain.NPCDe
 		// definitions they were immortal NPCs, respawned nameless and so outside the
 		// Mesa de Drops. Leaving them out here is also what removes them from a live
 		// database: the seed prunes content rows the importer no longer produces.
-		if campotreino.MonstroNoCampo(mob.Merchant, b.startX, b.startY) {
+		if campotreino.MonstroNoCampo(mob.Merchant, b.startX, b.startY) ||
+			reinos.MonstroDoReino(mob.Merchant, mob.Clan, b.startX, b.startY) {
 			continue
 		}
 		def := domain.NPCDefinition{

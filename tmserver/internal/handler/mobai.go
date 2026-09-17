@@ -979,6 +979,13 @@ func (d *Dispatcher) danoDoGolpeDeMonstro(w *world.World, e, target *world.Entit
 			return 0
 		}
 	}
+	// Nos Reinos o pet também obedece à capa do dono, e o golpe dele marca o dono
+	// como Inimigo do Reino (reinos.go).
+	if e.Summoner != 0 {
+		if dono := w.Entity(e.Summoner); dono != nil && !d.golpeNoReinoPermitido(w, dono, target) {
+			return 0
+		}
+	}
 	dmg := combat.ResolveHit(w.Rand(), combat.HitInput{
 		// effectiveDamage, não e.Damage cru: é o que soma AffDamage, e sem isso um
 		// debuff de dano no monstro não tira dano nenhum (o Enfraquecer).

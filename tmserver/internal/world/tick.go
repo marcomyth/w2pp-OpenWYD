@@ -3,6 +3,8 @@ package world
 import (
 	"context"
 	"time"
+
+	"github.com/jeanluca/w2pp-openwyd/internal/reinos"
 )
 
 // DefaultMobTick is how often the mob-AI tick fires. The original server's main
@@ -90,6 +92,7 @@ func (w *World) ForEachPlayer(fn func(s *Session, e *Entity)) {
 // Loop-only.
 func (w *World) FindEnemyFromView(x, y int16, clan uint8) int {
 	startX, startY, sizeX, sizeY := int(x)-4, int(y)-4, 9, 9
+	guardaDoReino := reinos.ClanDeReino(clan) && reinos.Contem(int(x), int(y))
 	if clan == 7 || clan == 8 {
 		startX, startY, sizeX, sizeY = int(x)-6, int(y)-6, 16, 16
 	}
@@ -126,7 +129,16 @@ func (w *World) FindEnemyFromView(x, y int16, clan uint8) int {
 				w.log.Debug("clan out of range in aggro scan", "clan", clan, "target_clan", e.Clan)
 				return 0
 			}
-			if ClanHostile(clan, e.Clan) {
+			alvoClan := e.Clan
+			if guardaDoReino {
+				// Na cidade dos Reinos a capa decide o lado do jogador, e quem
+				// está marcado como Inimigo deste reino é caçado mesmo sem capa.
+				alvoClan = clanParaOReino(int(id), e)
+				if int(id) < MaxUser && w.InimigoDoReino(e, clan) {
+					return int(id)
+				}
+			}
+			if ClanHostile(clan, alvoClan) {
 				return int(id)
 			}
 		}
