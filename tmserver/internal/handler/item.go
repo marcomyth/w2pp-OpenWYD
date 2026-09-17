@@ -72,6 +72,12 @@ func (d *Dispatcher) dropItem(w *world.World, s *world.Session, _ protocol.Heade
 	if dropBlacklist[item.Index] {
 		return // non-droppable
 	}
+	// O troféu da Quest 256 é do personagem (tetorodada.go): no chão, outro
+	// personagem o pegaria e passaria do ritmo da rodada.
+	if ehTrofeuDeQuest(item.Index) {
+		sendClientMessage(w, s, msgTrofeuDoPersonagem)
+		return
+	}
 
 	// Resolve the cell BEFORE taking the item, the way the original does
 	// (_MSG_DropItem.cpp:58-67): GetEmptyItemGrid moves the drop to a free tile and
@@ -1224,16 +1230,9 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}
-	// O teto de XP por rodada do Mortal (tetorodada.go): o troféu que não cabe
-	// nada fica na bolsa, sem ouro; o que cabe em parte paga até o teto e é gasto.
-	if cabe, comTeto := d.cabeNaRodada(s, e, true); comTeto {
-		if cabe <= 0 {
-			sendClientMessage(w, s, d.textoTrofeuForaDoTeto())
-			d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
-			return
-		}
-		questExp = d.cortaXPDaRodada(w, s, e, questExp, true)
-	}
+	// Uso livre: o teto de XP por rodada limita o troféu no DROP (tetorodada.go),
+	// que já reservou o valor dele na rodada em que caiu. Usar não recusa, não
+	// corta e não soma de novo.
 
 	if int64(e.Coin)+int64(rate.Coin) > maxCoin {
 		e.Coin = maxCoin
@@ -1241,8 +1240,8 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 		e.Coin += rate.Coin
 	}
 	d.grantDirectExp(w, s, e, questExp)
-	// A parte do grupo sai do valor do troféu, não do que coube a quem usou; cada
-	// um que recebe responde pelo próprio teto.
+	// A parte do grupo é ganho passivo de quem recebe: conta no total da rodada
+	// dele, com corte (tetorodada.go).
 	d.grantQuestPartyExp(w, e, rate.MortalExp/10)
 
 	consumeOneItem(&e.Carry[src])
@@ -1279,8 +1278,8 @@ func (d *Dispatcher) grantQuestPartyExp(w *world.World, consumer *world.Entity, 
 		if rs == nil || rs.Mode != world.UserPlay || re == nil {
 			continue
 		}
-		// Conta em quem recebe, no total e na metade troféu (tetorodada.go).
-		d.grantDirectExp(w, rs, re, d.cortaXPDaRodada(w, rs, re, share, true))
+		// Conta no total da rodada de quem recebe, com corte (tetorodada.go).
+		d.grantDirectExp(w, rs, re, d.cortaXPDaRodada(w, rs, re, share))
 	}
 }
 
@@ -3077,6 +3076,16 @@ func (d *Dispatcher) tradingItem(w *world.World, s *world.Session, _ protocol.He
 	}
 	if src.Empty() && dst.Empty() {
 		return // nothing to move
+	}
+	// O troféu da Quest 256 não entra no baú da conta (tetorodada.go): o baú é
+	// dividido entre os personagens da conta, e um alt farmaria para o principal.
+	// Tirar do baú o que já estava lá continua valendo.
+	if dstPlace == world.ItemPlaceCargo && ehTrofeuDeQuest(src.Index) ||
+		srcPlace == world.ItemPlaceCargo && ehTrofeuDeQuest(dst.Index) {
+		sendClientMessage(w, s, msgTrofeuDoPersonagem)
+		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(srcPlace, srcSlot, itemToSel(*src)))
+		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(dstPlace, dstSlot, itemToSel(*dst)))
+		return
 	}
 	// Equip rules: the item that would land in an equip slot must fit that slot (nPos)
 	// AND meet the level/attribute requirement. On a swap the src item moves into the
