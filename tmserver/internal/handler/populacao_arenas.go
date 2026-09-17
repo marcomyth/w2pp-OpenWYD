@@ -19,14 +19,13 @@ import (
 // seguinte, e monstro vivo não é morto: a população desce conforme os monstros
 // morrem.
 //
-// A base de uma arena é o maior entre o que o modelo pede e densidadeMinimaArena
-// monstros por jogador, repartida pelos blocos em proporção ao teto de hoje
+// A base de uma arena é o maior entre o que o modelo pede e o mínimo dela em
+// densidadeMinimaPorArena, repartida pelos blocos em proporção ao teto de hoje
 // (distribuiPopulacao). O modelo (zzplano, TROFEU=populacao, divisores corrigidos)
 // pede a população de hoje no Coveiro, Jardim e Hidras e um monstro a mais por
 // bloco no Kaizen e nos Elfos. Mas a Hanna viu o Jardim quase vazio com uma pessoa
-// só, e o modelo não conta o tempo de andar entre monstros. Por isso o mínimo de
-// 45, o nível do Coveiro, das Hidras e do Kaizen ajustado: o Jardim vai de 25 para
-// 45, os Elfos de 22 para 45.
+// só, e o modelo não conta o tempo de andar entre monstros. Por isso o mínimo, que
+// em 17/09/2026 levou o Jardim de 25 para 45 e os Elfos de 22 para 45.
 //
 // A reposição: TODO bloco da arena enche a cada 12 s, o da fila de 15 s e o de
 // relógio (o Jardim tinha blocos de 96 s). O período do conteúdo não vale dentro
@@ -41,14 +40,19 @@ import (
 // hoje, na ordem de quest256Steps (Coveiro, Jardim, Kaizen, Hidras, Elfos).
 var baseDaArenaDecimos = [...]int{10, 10, 11, 10, 11}
 
-// densidadeMinimaArena é o mínimo de monstros por jogador em cada arena.
-const densidadeMinimaArena = 45
+// densidadeMinimaPorArena é o mínimo de monstros por jogador em cada arena, na
+// ordem de quest256Steps. REGRA ESCOLHIDA, NÃO MEDIDA, e revista pelo que a Hanna
+// vê em jogo: depois do mínimo de 45 em todas, o Coveiro e o Jardim continuaram
+// vazios para ela, e em 17/09/2026 (fim do dia) pediu 90 nos dois. As outras três
+// ficam em 45, porque nelas ela não reclamou.
+var densidadeMinimaPorArena = [...]int{90, 90, 45, 45, 45}
 
 // cargaMaxArena é o maior número de monstros que uma arena chega a ter. REGRA
 // ESCOLHIDA, NÃO MEDIDA: o mundo inteiro tem milhares de monstros e a arena é uma
-// área pequena; com 45 por jogador dá cinco jogadores. A prova com o robô lê a
-// duração do tique com a arena cheia, e se passar do normal o número baixa.
-const cargaMaxArena = 240
+// área pequena. Subiu de 240 para 270 junto com os 90 do Coveiro e do Jardim, para
+// caber gente: com 90 por jogador dá três jogadores, com 45 dá seis, e nas Hidras
+// (51) cinco. O log do boot diz, por arena, até quantos jogadores a base multiplica.
+const cargaMaxArena = 270
 
 // blocoDaArena é um bloco resolvido no boot.
 type blocoDaArena struct {
@@ -85,7 +89,7 @@ func (d *Dispatcher) resolverBlocosDasArenas(w *world.World) {
 		for _, t := range ts {
 			modelo += (t*baseDaArenaDecimos[passo] + 9) / 10
 		}
-		bases[passo] = distribuiPopulacao(ts, max(modelo, densidadeMinimaArena))
+		bases[passo] = distribuiPopulacao(ts, max(modelo, densidadeMinimaPorArena[passo]))
 	}
 	var prox [len(baseDaArenaDecimos)]int
 	for i := range d.blocosDasArenas {
