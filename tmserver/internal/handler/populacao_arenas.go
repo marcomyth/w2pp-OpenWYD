@@ -8,24 +8,27 @@ import (
 
 // População das arenas da Quest 256 (pedido de 17/09/2026). Regra NOSSA.
 //
-// Cada bloco de monstro das cinco arenas passa a ser reposto por esta passada, a
-// cada 12 s, e cada reposição enche o bloco até o teto de agora:
+// Cada arena tem um número FIXO de monstros, e cada bloco dela é reposto por esta
+// passada, a cada 12 s, até o teto do bloco. O teto NÃO depende de quem está
+// dentro.
 //
-//	teto = base do bloco × jogadores dentro
+// POR QUE FIXO (decisão da Hanna, 17/09 à noite): a primeira versão multiplicava a
+// base pelos jogadores dentro, e isso se abusa — bastava levar alts ou bots para a
+// arena para multiplicar os monstros de um jogador só. O número de cada arena é
+// exatamente o que a versão anterior dava para UM jogador, que é o que a conta dos
+// 5 dias usou, então nada de troféu e nada da Mesa precisa ser refeito.
 //
-// com jogadores dentro contando só quem está vivo, na área e com a bandeira
-// daquela arena, no mínimo 1 e no máximo o limite de carga. Um jogador tem a
-// arena da base; três têm três vezes. Quem sai baixa o teto na reposição
-// seguinte, e monstro vivo não é morto: a população desce conforme os monstros
-// morrem.
+// CONSEQUÊNCIA ESCOLHIDA: com muita gente dentro, os monstros passam a ser
+// disputados. Foi a troca que ela aceitou para fechar o abuso.
 //
-// A base de uma arena é o maior entre o que o modelo pede e o mínimo dela em
+// A população de uma arena é o maior entre o que o modelo pede e o mínimo dela em
 // densidadeMinimaPorArena, repartida pelos blocos em proporção ao teto de hoje
 // (distribuiPopulacao). O modelo (zzplano, TROFEU=populacao, divisores corrigidos)
 // pede a população de hoje no Coveiro, Jardim e Hidras e um monstro a mais por
-// bloco no Kaizen e nos Elfos. Mas a Hanna viu o Jardim quase vazio com uma pessoa
-// só, e o modelo não conta o tempo de andar entre monstros. Por isso o mínimo, que
-// em 17/09/2026 levou o Jardim de 25 para 45 e os Elfos de 22 para 45.
+// bloco no Kaizen e nos Elfos. Mas a Hanna viu o Jardim quase vazio, e o modelo não
+// conta o tempo de andar entre monstros. Por isso o mínimo, que em 17/09/2026 levou
+// o Jardim de 25 para 90 e os Elfos de 22 para 45. Dá, hoje: Coveiro 90, Jardim 90,
+// Kaizen 45, Hidras 51 e Elfos 45.
 //
 // A reposição: TODO bloco da arena enche a cada 12 s, o da fila de 15 s e o de
 // relógio (o Jardim tinha blocos de 96 s). O período do conteúdo não vale dentro
@@ -40,25 +43,27 @@ import (
 // hoje, na ordem de quest256Steps (Coveiro, Jardim, Kaizen, Hidras, Elfos).
 var baseDaArenaDecimos = [...]int{10, 10, 11, 10, 11}
 
-// densidadeMinimaPorArena é o mínimo de monstros por jogador em cada arena, na
-// ordem de quest256Steps. REGRA ESCOLHIDA, NÃO MEDIDA, e revista pelo que a Hanna
-// vê em jogo: depois do mínimo de 45 em todas, o Coveiro e o Jardim continuaram
-// vazios para ela, e em 17/09/2026 (fim do dia) pediu 90 nos dois. As outras três
-// ficam em 45, porque nelas ela não reclamou.
+// densidadeMinimaPorArena é o mínimo de monstros de cada arena, na ordem de
+// quest256Steps. REGRA ESCOLHIDA, NÃO MEDIDA, e revista pelo que a Hanna vê em
+// jogo: depois do mínimo de 45 em todas, o Coveiro e o Jardim continuaram vazios
+// para ela, e em 17/09/2026 (fim do dia) pediu 90 nos dois. As outras três ficam em
+// 45, porque nelas ela não reclamou.
+//
+// Não subir Kaizen, Hidras e Elfos sem falar com a planejadora: qualquer um deles
+// acelera a faixa 200-349, que é quase toda a conta dos 5 dias, e as chances de
+// troféu teriam de ser refeitas.
 var densidadeMinimaPorArena = [...]int{90, 90, 45, 45, 45}
 
-// cargaMaxArena é o maior número de monstros que uma arena chega a ter. REGRA
-// ESCOLHIDA, NÃO MEDIDA: o mundo inteiro tem milhares de monstros e a arena é uma
-// área pequena. Subiu de 240 para 270 junto com os 90 do Coveiro e do Jardim, para
-// caber gente: com 90 por jogador dá três jogadores, com 45 dá seis, e nas Hidras
-// (51) cinco. O log do boot diz, por arena, até quantos jogadores a base multiplica.
-const cargaMaxArena = 270
+// O limite de carga por arena SAIU com o multiplicador: ele existia só para
+// segurar quantas vezes a base podia ser multiplicada pelos jogadores dentro. Com
+// a população fixa, o teto de uma arena é a própria população (no máximo 90 hoje),
+// então um limite de 270 nunca seria alcançado e seria código morto.
 
 // blocoDaArena é um bloco resolvido no boot.
 type blocoDaArena struct {
 	idx   int
 	passo int // índice em quest256Steps
-	base  int // teto do bloco para um jogador
+	base  int // teto do bloco, fixo
 }
 
 // resolverBlocosDasArenas acha os blocos das cinco arenas, marca cada um para
@@ -100,7 +105,7 @@ func (d *Dispatcher) resolverBlocosDasArenas(w *world.World) {
 	}
 	for i, pop := range d.popBaseDasArenas {
 		d.log.Info("arena: população", "faixa_min", quest256Steps[i].minLevel, "faixa_max", quest256Steps[i].maxLevel-1,
-			"blocos", len(tetos[i]), "monstros_por_jogador", pop, "ate_jogadores", d.limiteDeJogadores(i), "carga_max", cargaMaxArena)
+			"blocos", len(tetos[i]), "monstros", pop)
 	}
 }
 
@@ -149,51 +154,17 @@ func passoDoBloco(segX, segY [5]int16) (int, bool) {
 	return 0, false
 }
 
-// limiteDeJogadores é quantas vezes a base a arena pode chegar a ter.
-func (d *Dispatcher) limiteDeJogadores(passo int) int {
-	pop := d.popBaseDasArenas[passo]
-	if pop <= 0 {
-		return 1
-	}
-	return max(1, cargaMaxArena/pop)
-}
-
-// multiplicadorDaArena é por quantos jogadores a base da arena conta agora.
-func (d *Dispatcher) multiplicadorDaArena(passo, jogadores int) int {
-	return min(max(1, jogadores), d.limiteDeJogadores(passo))
-}
-
-// jogadoresNasArenas conta, por arena, quem está vivo, dentro da área e com a
-// bandeira daquela arena. Sem a bandeira o guarda devolve à cidade no mesmo tique;
-// morto não caça.
-func jogadoresNasArenas(w *world.World) [len(baseDaArenaDecimos)]int {
-	var n [len(baseDaArenaDecimos)]int
-	w.ForEachPlayer(func(_ *world.Session, e *world.Entity) {
-		if e.HP <= 0 {
-			return
-		}
-		for passo, step := range quest256Steps {
-			if e.QuestFlag == step.flag && step.area.contains(e.X, e.Y) {
-				n[passo]++
-				return
-			}
-		}
-	})
-	return n
-}
-
 // reporArenas é a passada das arenas, a cada 12 s, logo depois de generateMobs.
 func (d *Dispatcher) reporArenas(w *world.World) {
 	if len(d.blocosDasArenas) == 0 || d.tickCount%minTimerTicks != 0 {
 		return
 	}
-	dentro := jogadoresNasArenas(w)
 	for _, b := range d.blocosDasArenas {
 		g := w.GeneratorAt(b.idx)
 		if g == nil || !g.ArenaRefill || g.Off || d.casteloOrcSuppresses(b.idx) {
 			continue
 		}
-		teto := b.base * d.multiplicadorDaArena(b.passo, dentro[b.passo])
+		teto := b.base
 		// Cada grupo nasce com pelo menos um monstro; o limite de voltas só guarda
 		// contra uma célula cheia que devolva grupo vazio para sempre.
 		for voltas := teto; g.CurrentNumMob < teto && voltas > 0; voltas-- {
