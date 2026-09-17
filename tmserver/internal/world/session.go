@@ -450,7 +450,10 @@ type Entity struct {
 	UltimoPvP uint32
 	// ImuneDebuffAte é o World.Now até quando o Desintoxicar da FM Magia Branca
 	// segura debuff novo; 0 é nunca (handler/arvore_magia_branca.go).
-	ImuneDebuffAte    uint32
+	ImuneDebuffAte uint32
+	// CuraReduzidaAte é o World.Now até quando o Choque Divino corta a cura que
+	// este personagem recebe, poção inclusive (handler/arvore_magia_branca.go).
+	CuraReduzidaAte   uint32
 	AffSpecial        [4]int16
 	AffResist         [4]int16
 	AffForceDamage    int32 // ForceDamage, e.g. Ligacao Espectral

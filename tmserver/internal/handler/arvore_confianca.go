@@ -142,6 +142,18 @@ func (d *Dispatcher) aplicarDebuffDoFanatismo(w *world.World, e, target *world.E
 	if !applied {
 		return
 	}
+	d.scoreDepoisDoDebuff(w, target, tid)
+}
+
+// scoreDepoisDoDebuff refaz a ficha de quem levou um debuff de skill e avisa o
+// dono. Em MONSTRO só o score dos afetos é refeito: o refreshScore remonta a
+// ficha pelo equipamento e pelos Base*, que no monstro são zero — ele zerava o
+// HP máximo do bicho e o matava no lugar de debufá-lo.
+func (d *Dispatcher) scoreDepoisDoDebuff(w *world.World, target *world.Entity, tid int) {
+	if !world.IsPlayer(tid) {
+		d.applyAffectScore(target)
+		return
+	}
 	d.refreshScore(target)
 	if ts := w.Session(tid); ts != nil {
 		d.sendScore(w, ts, target)

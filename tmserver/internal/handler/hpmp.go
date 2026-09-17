@@ -49,6 +49,12 @@ const applyCasting = 2000
 // it at or above HP. The max clamp is the live effective max (gear/buff %HP), not
 // the flat stored MaxHP, consistent with the rest of this file.
 func applyHp(s *world.Session, e *world.Entity) bool {
+	return applyHpEm(s, e, 0)
+}
+
+// applyHpEm é o applyHp com o relógio: a cura recebida cai enquanto o Choque
+// Divino da FM Magia Branca estiver valendo (arvore_magia_branca.go).
+func applyHpEm(s *world.Session, e *world.Entity, now uint32) bool {
 	maxHP := effectiveMaxHP(e)
 	if s.ReqHp > maxHP {
 		s.ReqHp = maxHP
@@ -59,6 +65,10 @@ func applyHp(s *world.Session, e *world.Entity) bool {
 	diff := s.ReqHp - e.HP
 	if diff > applyCasting {
 		diff = applyCasting
+	}
+	diff = curaReduzida(e, diff, now)
+	if diff <= 0 {
+		return false
 	}
 	e.HP += diff
 	if e.HP > s.ReqHp {

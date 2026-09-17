@@ -172,3 +172,73 @@ func (d *Dispatcher) mortosPertoDoAlvo(w *world.World, target *world.Entity, tid
 	})
 	return ids
 }
+
+// ---------------------------------------------------------------------------
+// 24 · Flecha Mágica e 28 · Choque Divino: com a 8ª, o golpe que acerta marca o
+// alvo por 8 s. A Flecha tira 10% do ataque dele (o afeto 10 do legado, com o
+// valor tirado do ataque na hora); o Choque corta 25% de toda a cura que ele
+// recebe, poção inclusive. Os dois renovam sem acumular, em jogador e em monstro.
+const (
+	marcaSagradaPct   = 10
+	antiCuraPct       = 25
+	brancaDebuffMs    = 8000
+	affectDanoFlat    = 10 // afeto do legado: AffDamage -= Level/5 + Value
+	brancaAffectTime  = 0  // um tique de 8 s
+	brancaAffectDelay = 100
+)
+
+// debuffDaFlechaMagica é o valor do afeto 10: 10% do ataque do alvo agora,
+// limitado a 255 porque o Value do afeto é um BYTE no fio — acima disso ele dá a
+// volta e vira um número pequeno. Com o Level/5 do legado por cima, a marca tira
+// no máximo 306 de ataque.
+const marcaSagradaTeto = 255
+
+func debuffDaFlechaMagica(d *Dispatcher, target *world.Entity) int32 {
+	return min(d.effectiveDamage(target)*marcaSagradaPct/100, marcaSagradaTeto)
+}
+
+// marcarAntiCura abre a janela em que o alvo cura menos.
+func marcarAntiCura(target *world.Entity, now uint32) {
+	if target == nil {
+		return
+	}
+	target.CuraReduzidaAte = now + brancaDebuffMs
+}
+
+// curaReduzida corta a cura de quem está marcado pelo Choque Divino.
+func curaReduzida(e *world.Entity, cura int32, now uint32) int32 {
+	if cura <= 0 || e == nil || e.CuraReduzidaAte == 0 || now >= e.CuraReduzidaAte {
+		return cura
+	}
+	return cura * (100 - antiCuraPct) / 100
+}
+
+// aplicarMarcasDaBranca põe a marca da skill que acabou de acertar: a Flecha
+// Mágica tira ataque, o Choque Divino corta a cura. Renovam sem acumular.
+func (d *Dispatcher) aplicarMarcasDaBranca(w *world.World, e, target *world.Entity, tid, skillnum int) {
+	if !fmMagiaBranca(e) || target == nil || (!world.IsPlayer(tid) && target.NonCombatNPC) {
+		return
+	}
+	if imuneADebuff(target, w.Now()) {
+		return // Desintoxicar
+	}
+	switch skillnum {
+	case skillChoqueDivino:
+		marcarAntiCura(target, w.Now())
+	case skillFlechaMagica:
+		valor := int(debuffDaFlechaMagica(d, target))
+		if valor <= 0 {
+			return
+		}
+		var applied bool
+		if world.IsPlayer(tid) {
+			applied = target.SetAffect(affectDanoFlat, valor, brancaAffectTime, fanatismoAffectHostil, brancaAffectDelay, effectiveSpecial(e, 1), duracaoDoLegado)
+		} else {
+			applied = target.SetAffectOnMob(affectDanoFlat, valor, brancaAffectTime, fanatismoAffectHostil, brancaAffectDelay, effectiveSpecial(e, 1), duracaoDoLegado)
+		}
+		if !applied {
+			return
+		}
+		d.scoreDepoisDoDebuff(w, target, tid)
+	}
+}

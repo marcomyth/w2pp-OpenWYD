@@ -49,6 +49,8 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 		applyPassivasDaCaptura(e, itemAbility, evasao)
 		applyPassivasDaConfianca(e)          // TK: Destino e esquiva (arvore_confianca.go)
 		applyPassivasDoTrans(e, itemAbility) // TK: Noção de Combate, armas de 2 mãos (arvore_trans.go)
+		// FM Cancelamento: os buffs dela valem em dobro nela mesma (arvore_magia_especial.go).
+		applyPassivasDaEspecial(e, e.Class == 1 && e.LearnedSkill&0x80000 != 0)
 	}()
 	if !e.HasAnyAffect() {
 		return

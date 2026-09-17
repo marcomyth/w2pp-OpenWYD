@@ -391,3 +391,26 @@ func TestFanatismoPerfuraNoGolpe(t *testing.T) {
 		}
 	}
 }
+
+// O debuff em MONSTRO não pode remontar a ficha dele: o refreshScore zera o HP
+// máximo do bicho (BaseMaxHP é 0 no monstro) e o mata no lugar de debufá-lo.
+func TestDebuffEmMonstroNaoZeraAVida(t *testing.T) {
+	d := New(Config{CombatRules: regraSemEscala()})
+	w := world.New(world.Config{GridDim: 16}, slog.Default(), nil, nil)
+	mid := w.SpawnMobAt(world.MobSpawn{Template: plainMobTemplate("Alvo"), X: 6, Y: 5, GenIndex: -1})
+	mob := w.Entity(mid)
+	mob.HP, mob.MaxHP, mob.AC = 500_000, 500_000, 4000
+	tk := tkDaConfianca(1500, 800, learnedDestino, 255)
+
+	d.aplicarDebuffDoFanatismo(w, tk, mob, mid)
+
+	if w.Entity(mid) == nil {
+		t.Fatal("o monstro sumiu depois do debuff")
+	}
+	if mob.MaxHP != 500_000 || mob.HP != 500_000 {
+		t.Fatalf("vida do monstro = %d/%d, want 500.000/500.000", mob.HP, mob.MaxHP)
+	}
+	if mob.AffAC >= 0 {
+		t.Errorf("AffAC = %d, want a defesa cortada pelo Fanatismo", mob.AffAC)
+	}
+}

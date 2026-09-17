@@ -7,6 +7,7 @@ import (
 	"net"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -390,4 +391,194 @@ func TestFlashTiraDaMiraNoFio(t *testing.T) {
 	if alvo := w.Entity(3).Target; alvo != 0 {
 		t.Fatalf("mira do inimigo = %d, want 0 depois do Flash", alvo)
 	}
+}
+
+// A Flecha Mágica tira 10% do ataque do alvo e o Choque Divino corta 25% da cura.
+func TestMarcasDaMagiaBranca(t *testing.T) {
+	d := New(Config{CombatRules: regraSemEscala()})
+	clock := new(atomic.Uint32)
+	clock.Store(10_000)
+	w := world.New(world.Config{GridDim: 16, Now: clock.Load}, slog.Default(), nil, nil)
+	branca := fmBranca(30_000, learnedRenascimento, classMasterMortal)
+
+	alvo := &world.Entity{ID: 2, Class: 0, Damage: 4000, HP: 1000, MaxHP: 5000}
+	// O afeto 10 do legado tira Level/5 + Value, e o Value é 10% do ataque do alvo.
+	querFlecha := -(int32(effectiveSpecial(branca, 1))/5 + min(d.effectiveDamage(alvo)*marcaSagradaPct/100, marcaSagradaTeto))
+	d.aplicarMarcasDaBranca(w, branca, alvo, alvo.ID, skillFlechaMagica)
+	if alvo.AffDamage != querFlecha {
+		t.Errorf("ataque do alvo = %d, want %d (10%% do ataque dele)", alvo.AffDamage, querFlecha)
+	}
+	if querFlecha >= 0 {
+		t.Fatalf("a marca tem de ser negativa, veio %d", querFlecha)
+	}
+
+	outro := &world.Entity{ID: 3, Class: 0, HP: 1000, MaxHP: 5000}
+	d.aplicarMarcasDaBranca(w, branca, outro, outro.ID, skillChoqueDivino)
+	if got := curaReduzida(outro, 1000, w.Now()); got != 750 {
+		t.Errorf("cura marcada = %d, want 750 (−25%%)", got)
+	}
+	if got := curaReduzida(outro, 1000, w.Now()+brancaDebuffMs); got != 1000 {
+		t.Errorf("depois dos 8 s: cura = %d, want 1000 inteira", got)
+	}
+
+	// A poção do alvo marcado também cura menos.
+	s := &world.Session{Conn: 3, ReqHp: 5000}
+	outro.HP = 1000
+	if !applyHpEm(s, outro, w.Now()) {
+		t.Fatal("a poção tem de mover a barra")
+	}
+	if outro.HP != 1000+applyCasting*75/100 {
+		t.Errorf("vida pela poção = %d, want %d", outro.HP, 1000+applyCasting*75/100)
+	}
+
+	// Quem não é FM Magia Branca não marca nada.
+	semOitava := fmBranca(30_000, 1<<6, classMasterMortal)
+	limpo := &world.Entity{ID: 4, Class: 0, Damage: 4000}
+	d.aplicarMarcasDaBranca(w, semOitava, limpo, limpo.ID, skillFlechaMagica)
+	if limpo.AffDamage != 0 || limpo.CuraReduzidaAte != 0 {
+		t.Errorf("sem a 8ª não marca: AffDamage %d, CuraReduzidaAte %d", limpo.AffDamage, limpo.CuraReduzidaAte)
+	}
+}
+
+// brancaNoFio sobe um servidor com uma FM Magia Branca e um monstro ao lado.
+func brancaNoFio(t *testing.T, skill int, tipo, valor int) (net.Conn, *world.World, int, *atomic.Uint32, func()) {
+	t.Helper()
+	return brancaNoFioComOpcao(t, skill, tipo, valor, false)
+}
+
+func brancaNoFioComOpcao(t *testing.T, skill, tipo, valor int, tique bool) (net.Conn, *world.World, int, *atomic.Uint32, func()) {
+	t.Helper()
+	db := newDB()
+	db.loadResult = world.CharacterState{
+		Slot: 0, Name: "Branca", Class: 1, X: 5, Y: 5,
+		HP: 20_000, MaxHP: 20_000, MP: 20_000, MaxMP: 20_000, Level: 100, Int: 1000, Con: 1000,
+		LearnedSkill: 1<<(skill%24) | learnedRenascimento, BaseSpecial: [4]int16{0, 255, 0, 0},
+	}
+	spells := content.NewSkillData([]content.Spell{{
+		Index: skill, TargetType: 1, Range: 5, InstanceType: tipo, InstanceValue: valor, Aggressive: 1, MaxTarget: 1,
+	}})
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	clock := new(atomic.Uint32)
+	clock.Store(serverTime)
+	d := New(Config{Log: log, Spells: spells, CombatRules: regraSemEscala()})
+	w := world.New(world.Config{GridDim: 16, Now: clock.Load}, log, db, d.Handle)
+	mid := w.SpawnMobAt(world.MobSpawn{Template: plainMobTemplate("Alvo"), X: 6, Y: 5, GenIndex: -1})
+	mob := w.Entity(mid)
+	mob.HP, mob.MaxHP, mob.Damage = 5_000_000, 5_000_000, 4000
+	if tique {
+		w.SetTickHandler(50*time.Millisecond, d.Tick)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = w.Serve(ctx, ln); close(done) }()
+	c := enterWorld(t, ln.Addr().String())
+	return c, w, mid, clock, func() { c.Close(); cancel(); <-done }
+}
+
+// brancaNoFioComTique é o brancaNoFio com o tique do servidor ligado, para o
+// caminho da poção (mobai.Tick → applyHpEm) valer no teste.
+func brancaNoFioComTique(t *testing.T, skill, tipo, valor int) (net.Conn, *world.World, int, *atomic.Uint32, func()) {
+	t.Helper()
+	return brancaNoFioComOpcao(t, skill, tipo, valor, true)
+}
+
+// Pelo golpe real: a Flecha Mágica marca o ataque do alvo e o Choque Divino
+// marca a cura dele.
+func TestMarcasDaMagiaBrancaNoGolpe(t *testing.T) {
+	c, w, mid, clock, fechar := brancaNoFio(t, skillFlechaMagica, 4, 15)
+	golpesNoFio(t, c, clock, 5, mid, skillFlechaMagica)
+	if aff := w.Entity(mid).AffDamage; aff >= 0 {
+		t.Errorf("ataque do monstro = %d, want abaixo de zero depois da Flecha Mágica", aff)
+	}
+	fechar()
+
+	c2, w2, mid2, clock2, fechar2 := brancaNoFio(t, skillChoqueDivino, 4, 155)
+	defer fechar2()
+	golpesNoFio(t, c2, clock2, 5, mid2, skillChoqueDivino)
+	if w2.Entity(mid2).CuraReduzidaAte == 0 {
+		t.Error("o Choque Divino não marcou a cura do alvo")
+	}
+}
+
+// A cura de skill num alvo marcado entra cortada.
+func TestCuraEmAlvoMarcadoNoGolpe(t *testing.T) {
+	db := newDB()
+	db.loadResult = world.CharacterState{
+		Slot: 0, Name: "Branca", Class: 1, X: 5, Y: 5,
+		HP: 20_000, MaxHP: 20_000, MP: 20_000, MaxMP: 20_000, Level: 100, Con: 1000,
+		LearnedSkill: 1<<(skillCura%24) | learnedRenascimento, BaseSpecial: [4]int16{0, 255, 0, 0},
+	}
+	spells := content.NewSkillData([]content.Spell{{
+		Index: skillCura, TargetType: 1, Range: 10, InstanceType: 6, InstanceValue: 100, MaxTarget: 1,
+	}})
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	clock := new(atomic.Uint32)
+	clock.Store(serverTime)
+	d := New(Config{Log: log, Spells: spells, CombatRules: regraSemEscala()})
+	w := world.New(world.Config{GridDim: 16, Now: clock.Load}, log, db, d.Handle)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = w.Serve(ctx, ln); close(done) }()
+	defer func() { cancel(); <-done }()
+
+	branca := enterWorld(t, ln.Addr().String())
+	defer branca.Close()
+	ferido := enterWorld(t, ln.Addr().String())
+	defer ferido.Close()
+
+	cura := func() int32 {
+		alvo := w.Entity(2)
+		alvo.HP = 1000
+		skillAttackFrame(t, branca, clock.Load(), 2, skillCura, -1)
+		for {
+			ty, _, ok := readMaybe(t, branca)
+			if !ok {
+				t.Fatal("sem eco da Cura")
+			}
+			if ty == protocol.MsgAttack {
+				break
+			}
+		}
+		return w.Entity(2).HP - 1000
+	}
+	inteira := cura()
+	clock.Store(serverTime + 1000)
+	w.Entity(2).CuraReduzidaAte = clock.Load() + brancaDebuffMs
+	cortada := cura()
+	if inteira <= 0 || cortada != inteira*75/100 {
+		t.Errorf("cura inteira %d, cortada %d; want a cortada em 75%%", inteira, cortada)
+	}
+}
+
+// A poção do tique do servidor também cura menos em quem está marcado pelo
+// Choque Divino.
+func TestPocaoDoTiqueCuraMenosComAMarca(t *testing.T) {
+	c, w, _, clock, fechar := brancaNoFioComTique(t, skillChoqueDivino, 4, 155)
+	defer fechar()
+
+	e, s := w.Entity(1), w.Session(1)
+	e.HP = 1000
+	e.CuraReduzidaAte = clock.Load() + brancaDebuffMs
+	s.ReqHp = 20_000
+
+	prazo := time.After(3 * time.Second)
+	for e.HP == 1000 {
+		select {
+		case <-prazo:
+			t.Fatal("o tique do servidor não moveu a barra")
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	if ganho := e.HP - 1000; ganho > applyCasting*75/100 {
+		t.Errorf("a poção curou %d de uma vez, want no máximo %d com a marca", ganho, applyCasting*75/100)
+	}
+	_ = c
 }

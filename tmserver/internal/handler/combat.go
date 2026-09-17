@@ -432,6 +432,10 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			if skillnum == skillFanatismo && dmg > 0 && tid != s.Conn && tkConfianca(e) {
 				d.aplicarDebuffDoFanatismo(w, e, target, tid)
 			}
+			// Marcas da FM Magia Branca: Flecha Mágica e Choque Divino (arvore_magia_branca.go).
+			if dmg > 0 && tid != s.Conn {
+				d.aplicarMarcasDaBranca(w, e, target, tid, skillnum)
+			}
 		} else {
 			// FIDELIDADE AO LEGADO (restaurada): melee farther than the reach is
 			// refused whole and in silence — no crack error, no echo
@@ -583,7 +587,8 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 		} else if dmg < 0 && cast.isSkill && cast.spell.InstanceType == 6 {
 			// Heal: a negative Dam is the healed amount; clamp to the target's max.
 			before := target.HP
-			target.HP += d.foemaHealAmount(target, -int32(dmg))
+			// O Choque Divino corta a cura recebida (arvore_magia_branca.go).
+			target.HP += curaReduzida(target, d.foemaHealAmount(target, -int32(dmg)), w.Now())
 			if m := effectiveMaxHP(target); target.HP > m {
 				target.HP = m
 			}
@@ -850,6 +855,11 @@ func (d *Dispatcher) validateSkillTarget(w *world.World, s *world.Session, caste
 		return false
 	}
 	if (sp.Index == 41 || sp.Index == 44) && targetSlot >= foemaMultiBuffTargetCap(cast.special) {
+		return false
+	}
+	// Cancelamento: o número de alvos sai da arma e da Destreza dela
+	// (arvore_magia_especial.go).
+	if sp.Index == skillCancelamento && fmCancelamento(caster) && targetSlot >= alvosDoCancelamento(caster, d.itemAbility) {
 		return false
 	}
 	if sp.BParty != 0 && !skillSameLeaderOrGuild(w, caster, target) {
@@ -1596,6 +1606,10 @@ func manaControlDamage(target *world.Entity, dmg int, enhanced bool) (int, int32
 	divisor := int32(55)
 	if enhanced {
 		divisor = 50
+	}
+	if fmCancelamento(target) {
+		// Com o Cancelamento, o Controle de Mana segura mais (arvore_magia_especial.go).
+		divisor = manaControlDivisorCancel
 	}
 	reduced := ((spent >> 1) + (spent << 4)) / divisor
 	if reduced < 0 {

@@ -353,6 +353,13 @@ func attributeDamageBonus(e *world.Entity, withAffectSpecial bool) int32 {
 	if tkConfianca(e) {
 		dex = 0 // a Destreza do TK Confiança não dá dano físico (arvore_confianca.go)
 	}
+	if fmCancelamento(e) {
+		// A FM Cancelamento bate pela INT no lugar da Força (arvore_magia_especial.go).
+		str = e.Int
+		if withAffectSpecial {
+			str = effectiveInt(e)
+		}
+	}
 	return int32(str)/2 + int32(dex)/3 + sp + attributeDamageLevelTerm(e)
 }
 

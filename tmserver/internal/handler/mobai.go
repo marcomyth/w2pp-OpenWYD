@@ -603,7 +603,7 @@ func (d *Dispatcher) regenPlayers(w *world.World) {
 		// Both bars always drain; only the SEND is either/or. Keep these as separate
 		// statements — folding them into `if applyHp(...) else if applyMp(...)` would
 		// short-circuit and stop MP regenerating whenever HP is.
-		movedHP := applyHp(s, e)
+		movedHP := applyHpEm(s, e, w.Now())
 		movedMP := applyMp(s, e)
 		// SendScore (multicast) when HP moved, else SendSetHpMp (self-only) for a
 		// mana-only change — the original's exact else-if, so an MP tick never costs
