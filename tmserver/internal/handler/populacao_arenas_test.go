@@ -2,6 +2,7 @@ package handler
 
 import (
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/npcgener"
@@ -11,33 +12,50 @@ import (
 // A população das arenas (populacao_arenas.go). Os testes sobem o servidor do
 // relógio com o tique parado e rodam as passadas DENTRO do laço, com os blocos
 // postos à mão: dois no Cemitério (um da fila de 15 s, um de relógio com grupo) e
-// dois fora, em Armia, ao lado do Mestre Grifo. Os monstros são de clã hostil: um
-// de clã neutro dentro da cidade é NPC (world.nonCombatNPC) e não volta pela fila.
+// dois fora, em Armia, ao lado do Mestre Grifo. Os blocos da arena espalham o
+// ponto de nascimento (SegRange), como o conteúdo: o servidor só procura célula
+// livre num 7x7 em volta do ponto, e 81 monstros parados não cabem num ponto só.
+// Os monstros são de clã hostil: um de clã neutro dentro da cidade é NPC
+// (world.nonCombatNPC) e não volta pela fila.
 
 // Os índices ficam longe de 0-7, que são do evento do Coliseu
 // (world.IsEventOwnedGenerator) e não entram nem na fila nem nas arenas.
 const (
-	arenaFila    = 40 // Cemitério, MinuteGenerate -1, até 2
-	arenaRelogio = 41 // Cemitério, relógio de 8 passadas, grupo de 3, até 3
-	foraFila     = 42 // Armia, MinuteGenerate -1, até 2
-	foraRelogio  = 43 // Armia, relógio de 1 passada, até 2
+	arenaFila    = 40 // Cemitério, MinuteGenerate -1, teto 2 no conteúdo
+	arenaRelogio = 41 // Cemitério, relógio de 8 passadas, grupo de 3, teto 3
+	foraFila     = 42 // Armia, MinuteGenerate -1, teto 2
+	foraRelogio  = 43 // Armia, relógio de 1 passada, teto 2
 )
 
-// passadaDoRelogio é a passada 9: o bloco de relógio de 8 (índice 41) só roda em
-// 1, 9, 17...
-const passadaDoRelogio = 9
+// Com o mínimo de 45 por jogador, os tetos 2 e 3 do conteúdo viram 18 e 27.
+const (
+	baseFila    = 18
+	baseRelogio = 27
+)
+
+// passadaDoRelogio é a vez do bloco de relógio de 8 (índice 41) pelo período do
+// conteúdo (1, 9, 17...); passadaForaDaVez não é, e dentro da arena ele enche
+// assim mesmo.
+const (
+	passadaDoRelogio = 9
+	passadaForaDaVez = 10
+)
 
 func montaBlocosDaArena(w *world.World, d *Dispatcher) []*world.Generator {
-	mob := func(nome string) []byte { b := expMobTemplate(80, 1000, 5); copy(b[0:16], nome); return b }
-	gens := make([]*world.Generator, foraRelogio+1)
-	for idx, g := range map[int]*world.Generator{
-		arenaFila:    {Name: "Esqueleto", MinuteGenerate: -1, MaxNumMob: 2, LeaderTmpl: mob("Esqueleto"), SegX: [5]int16{2400}, SegY: [5]int16{2100}},
-		arenaRelogio: {Name: "Aparicao", MinuteGenerate: 8, MinGroup: 2, MaxGroup: 2, MaxNumMob: 3, LeaderTmpl: mob("Aparicao"), FollowerTmpl: mob("Esqueleto"), SegX: [5]int16{2412}, SegY: [5]int16{2115}},
-		foraFila:     {Name: "Lobo", MinuteGenerate: -1, MaxNumMob: 2, LeaderTmpl: mob("Lobo"), SegX: [5]int16{2130}, SegY: [5]int16{2090}},
-		foraRelogio:  {Name: "Urso", MinuteGenerate: 1, MaxNumMob: 2, LeaderTmpl: mob("Urso"), SegX: [5]int16{2140}, SegY: [5]int16{2095}},
-	} {
-		gens[idx] = g
+	mob := func(nome string) []byte {
+		b := expMobTemplate(80, 1000, 5)
+		copy(b[0:16], nome)
+		return b
 	}
+	gens := make([]*world.Generator, foraRelogio+1)
+	gens[arenaFila] = &world.Generator{Name: "Esqueleto", MinuteGenerate: -1, MaxNumMob: 2, LeaderTmpl: mob("Esqueleto"),
+		SegX: [5]int16{2400}, SegY: [5]int16{2100}, SegRange: [5]int16{12}}
+	gens[arenaRelogio] = &world.Generator{Name: "Aparicao", MinuteGenerate: 8, MinGroup: 2, MaxGroup: 2, MaxNumMob: 3,
+		LeaderTmpl: mob("Aparicao"), FollowerTmpl: mob("Esqueleto"), SegX: [5]int16{2412}, SegY: [5]int16{2115}, SegRange: [5]int16{12}}
+	gens[foraFila] = &world.Generator{Name: "Lobo", MinuteGenerate: -1, MaxNumMob: 2, LeaderTmpl: mob("Lobo"),
+		SegX: [5]int16{2130}, SegY: [5]int16{2090}}
+	gens[foraRelogio] = &world.Generator{Name: "Urso", MinuteGenerate: 1, MaxNumMob: 2, LeaderTmpl: mob("Urso"),
+		SegX: [5]int16{2140}, SegY: [5]int16{2095}}
 	w.RegisterGenerators(gens)
 	d.resolverBlocosDasArenas(w)
 	return gens
@@ -77,8 +95,8 @@ func mataDoBloco(w *world.World, gen, n int) int {
 }
 
 // TestArenaUmJogadorMantemABase: sem ninguém e com um jogador dentro, os blocos da
-// arena ficam no teto do conteúdo (base 1,0 do Coveiro), e só os da arena são
-// marcados para a passada nova.
+// arena ficam na base (45 repartidos: 18 e 27), o de relógio inclusive fora da
+// vez dele, e só os da arena são marcados para a passada nova.
 func TestArenaUmJogadorMantemABase(t *testing.T) {
 	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), inicioDaVolta)
 	c := enterWorldAs(t, srv.addr, "tester")
@@ -92,20 +110,25 @@ func TestArenaUmJogadorMantemABase(t *testing.T) {
 				t.Errorf("bloco %d: da arena = %v, quero %v", i, gens[i].ArenaRefill, quer)
 			}
 		}
-		passada(w, d, passadaDoRelogio)
-		if gens[arenaFila].CurrentNumMob != 2 || gens[arenaRelogio].CurrentNumMob != 3 {
-			t.Errorf("sem ninguém dentro: %d e %d, quero a base 2 e 3", gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob)
+		if d.popBaseDasArenas[0] != densidadeMinimaArena {
+			t.Errorf("população de um jogador no Cemitério = %d, quero o mínimo %d", d.popBaseDasArenas[0], densidadeMinimaArena)
+		}
+		passada(w, d, passadaForaDaVez)
+		if gens[arenaFila].CurrentNumMob != baseFila || gens[arenaRelogio].CurrentNumMob != baseRelogio {
+			t.Errorf("sem ninguém dentro: %d e %d, quero a base %d e %d",
+				gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob, baseFila, baseRelogio)
 		}
 		poeNaArena(w, d)
 		if n := jogadoresNasArenas(w)[0]; n != 1 {
 			t.Errorf("jogadores no Cemitério = %d, quero 1", n)
 			return
 		}
-		mataDoBloco(w, arenaFila, 2)
-		mataDoBloco(w, arenaRelogio, 3)
-		passada(w, d, passadaDoRelogio+8)
-		if gens[arenaFila].CurrentNumMob != 2 || gens[arenaRelogio].CurrentNumMob != 3 {
-			t.Errorf("um jogador dentro: %d e %d, quero a base 2 e 3", gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob)
+		mataDoBloco(w, arenaFila, baseFila)
+		mataDoBloco(w, arenaRelogio, baseRelogio)
+		passada(w, d, passadaForaDaVez+1)
+		if gens[arenaFila].CurrentNumMob != baseFila || gens[arenaRelogio].CurrentNumMob != baseRelogio {
+			t.Errorf("um jogador dentro: %d e %d, quero a base %d e %d",
+				gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob, baseFila, baseRelogio)
 		}
 	})
 }
@@ -131,9 +154,10 @@ func TestArenaTresJogadoresTriplicamESaidaBaixaSemMatar(t *testing.T) {
 			t.Errorf("jogadores no Cemitério = %d, quero 3", n)
 			return
 		}
-		passada(w, d, passadaDoRelogio)
-		if gens[arenaFila].CurrentNumMob != 6 || gens[arenaRelogio].CurrentNumMob != 9 {
-			t.Errorf("três dentro: %d e %d, quero 6 e 9", gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob)
+		passada(w, d, passadaForaDaVez)
+		if gens[arenaFila].CurrentNumMob != 3*baseFila || gens[arenaRelogio].CurrentNumMob != 3*baseRelogio {
+			t.Errorf("três dentro: %d e %d, quero %d e %d",
+				gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob, 3*baseFila, 3*baseRelogio)
 			return
 		}
 
@@ -150,22 +174,24 @@ func TestArenaTresJogadoresTriplicamESaidaBaixaSemMatar(t *testing.T) {
 			t.Errorf("depois da saída, jogadores no Cemitério = %d, quero 1", n)
 			return
 		}
-		passada(w, d, passadaDoRelogio+8)
-		if gens[arenaFila].CurrentNumMob != 6 || gens[arenaRelogio].CurrentNumMob != 9 {
-			t.Errorf("a passada depois da saída mexeu nos vivos: %d e %d, quero 6 e 9", gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob)
+		passada(w, d, passadaForaDaVez+1)
+		if gens[arenaFila].CurrentNumMob != 3*baseFila || gens[arenaRelogio].CurrentNumMob != 3*baseRelogio {
+			t.Errorf("a passada depois da saída mexeu nos vivos: %d e %d, quero %d e %d",
+				gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob, 3*baseFila, 3*baseRelogio)
 		}
 
-		// Morrem cinco da fila e sete do relógio; a fila de 15 s não traz nenhum.
-		if mataDoBloco(w, arenaFila, 5) != 5 || mataDoBloco(w, arenaRelogio, 7) != 7 {
+		// Morre quase tudo; a fila de 15 s não traz nenhum.
+		if mataDoBloco(w, arenaFila, 50) != 50 || mataDoBloco(w, arenaRelogio, 70) != 70 {
 			t.Error("não achei os monstros para matar")
 			return
 		}
 		if ids := w.SpawnDueRespawns(w.Now() + 60_000); len(ids) != 0 {
 			t.Errorf("a fila de 15 s repôs %d monstros da arena", len(ids))
 		}
-		passada(w, d, passadaDoRelogio+16)
-		if gens[arenaFila].CurrentNumMob != 2 || gens[arenaRelogio].CurrentNumMob != 3 {
-			t.Errorf("reposição com um jogador: %d e %d, quero a base 2 e 3", gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob)
+		passada(w, d, passadaForaDaVez+2)
+		if gens[arenaFila].CurrentNumMob != baseFila || gens[arenaRelogio].CurrentNumMob != baseRelogio {
+			t.Errorf("reposição com um jogador: %d e %d, quero a base %d e %d",
+				gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob, baseFila, baseRelogio)
 		}
 	})
 }
@@ -232,10 +258,11 @@ func TestBlocoForaDaArenaNaoMuda(t *testing.T) {
 			passada(w, d, p)
 		}
 		if gens[foraRelogio].CurrentNumMob != 2 || gens[foraFila].CurrentNumMob != 2 {
-			t.Errorf("fora da arena: relógio %d e fila %d, quero o teto do conteúdo 2 e 2", gens[foraRelogio].CurrentNumMob, gens[foraFila].CurrentNumMob)
+			t.Errorf("fora da arena: relógio %d e fila %d, quero o teto do conteúdo 2 e 2",
+				gens[foraRelogio].CurrentNumMob, gens[foraFila].CurrentNumMob)
 		}
-		if gens[arenaFila].CurrentNumMob != 4 {
-			t.Errorf("na arena com dois: %d, quero 4 (a conta do teste está certa?)", gens[arenaFila].CurrentNumMob)
+		if gens[arenaFila].CurrentNumMob != 2*baseFila {
+			t.Errorf("na arena com dois: %d, quero %d (a conta do teste está certa?)", gens[arenaFila].CurrentNumMob, 2*baseFila)
 		}
 
 		mataDoBloco(w, foraFila, 1)
@@ -243,7 +270,7 @@ func TestBlocoForaDaArenaNaoMuda(t *testing.T) {
 			t.Errorf("o bloco de fora não voltou pela fila: %d renascidos, contagem %d", len(ids), gens[foraFila].CurrentNumMob)
 		}
 
-		// O relógio comum não repõe o bloco de relógio da arena.
+		// O relógio comum não repõe o bloco de relógio da arena, nem na vez dele.
 		mataDoBloco(w, arenaRelogio, gens[arenaRelogio].CurrentNumMob)
 		antes := d.tickCount
 		d.tickCount = (passadaDoRelogio + 8) * minTimerTicks
@@ -258,17 +285,17 @@ func TestBlocoForaDaArenaNaoMuda(t *testing.T) {
 // TestLimiteDeCargaDaArena: o multiplicador para no limite de carga, e nunca fica
 // abaixo de um.
 func TestLimiteDeCargaDaArena(t *testing.T) {
-	if cargaMaxArena != 164 {
-		t.Fatalf("carga máxima = %d, quero 164 (8 salas de 20 e os 4 do chefe da Água)", cargaMaxArena)
+	if cargaMaxArena != 240 {
+		t.Fatalf("carga máxima = %d, quero 240", cargaMaxArena)
 	}
 	d := New(Config{})
-	d.popBaseDasArenas = [len(baseDaArenaDecimos)]int{46, 25, 45, 51, 29}
+	d.popBaseDasArenas = [len(baseDaArenaDecimos)]int{46, 45, 45, 51, 45}
 	casos := []struct {
 		passo, jogadores, quero int
 	}{
-		{0, 0, 1}, {0, 1, 1}, {0, 3, 3}, {0, 10, 3}, // Coveiro: 164/46 = 3
-		{1, 6, 6}, {1, 7, 6}, // Jardim: 164/25 = 6
-		{4, 5, 5}, {4, 9, 5}, // Elfos: 164/29 = 5
+		{0, 0, 1}, {0, 1, 1}, {0, 3, 3}, {0, 10, 5}, // Coveiro: 240/46 = 5
+		{1, 5, 5}, {1, 6, 5}, // Jardim: 240/45 = 5
+		{3, 4, 4}, {3, 5, 4}, // Hidras: 240/51 = 4
 	}
 	for _, cs := range casos {
 		if got := d.multiplicadorDaArena(cs.passo, cs.jogadores); got != cs.quero {
@@ -277,31 +304,58 @@ func TestLimiteDeCargaDaArena(t *testing.T) {
 	}
 }
 
-// TestBlocosDasArenasNoConteudo: no NPCGener de verdade, os blocos e a população
-// de um jogador por arena são os que o modelo mediu (zzplano, TROFEU=populacao).
+// TestDistribuiPopulacao: o alvo repartido pelos blocos como o modelo reparte, em
+// proporção ao teto de hoje, pelos maiores restos.
+func TestDistribuiPopulacao(t *testing.T) {
+	casos := []struct {
+		nome  string
+		tetos []int
+		alvo  int
+		quero []int
+	}{
+		{"Jardim", []int{3, 3, 3, 3, 3, 2, 2, 2, 2, 2}, 45, []int{5, 5, 5, 5, 5, 4, 4, 4, 4, 4}},
+		{"Elfos", []int{4, 4, 4, 4, 2, 2, 2}, 45, []int{9, 8, 8, 8, 4, 4, 4}},
+		{"Kaizen", []int{2, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2}, 45, []int{3, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3}},
+		{"alvo igual a hoje", []int{3, 2, 2}, 7, []int{3, 2, 2}},
+		{"sem blocos", nil, 45, []int{}},
+	}
+	for _, cs := range casos {
+		if got := distribuiPopulacao(cs.tetos, cs.alvo); !slices.Equal(got, cs.quero) {
+			t.Errorf("%s: %v, quero %v", cs.nome, got, cs.quero)
+		}
+	}
+}
+
+// TestBlocosDasArenasNoConteudo: com o NPCGener de verdade, o boot resolve os
+// mesmos blocos que o modelo mediu, e a população de um jogador fica no mínimo de
+// 45, ou acima quando o conteúdo já tem mais (Coveiro 46, Hidras 51).
 func TestBlocosDasArenasNoConteudo(t *testing.T) {
 	root := releaseDir(t)
 	gens, err := npcgener.Load(filepath.Join(root, "TMsrv", "run", "NPCGener.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var blocos, pop [len(baseDaArenaDecimos)]int
+	d := New(Config{})
+	w := world.New(world.Config{GridDim: 32}, d.log, nil, d.Handle)
+	blocos := make([]*world.Generator, len(gens))
 	for idx, g := range gens {
-		if g.Leader == "" || g.MaxNumMob <= 0 ||
-			world.IsWaterDungeonGenerator(idx) || world.IsEventOwnedGenerator(idx) || world.IsKefraGenerator(idx) {
+		if g.Leader == "" {
 			continue
 		}
-		passo, ok := passoDoBloco(g.SegX, g.SegY)
-		if !ok {
-			continue
-		}
-		blocos[passo]++
-		pop[passo] += (g.MaxNumMob*baseDaArenaDecimos[passo] + 9) / 10
+		blocos[idx] = &world.Generator{Name: g.Leader, MinuteGenerate: g.MinuteGenerate, MaxNumMob: g.MaxNumMob,
+			SegX: g.SegX, SegY: g.SegY, LeaderTmpl: []byte{0}}
 	}
-	if quero := [...]int{18, 10, 13, 20, 7}; blocos != quero {
-		t.Errorf("blocos por arena = %v, quero %v", blocos, quero)
+	w.RegisterGenerators(blocos)
+	d.resolverBlocosDasArenas(w)
+
+	var porArena [len(baseDaArenaDecimos)]int
+	for _, b := range d.blocosDasArenas {
+		porArena[b.passo]++
 	}
-	if quero := [...]int{46, 25, 45, 51, 29}; pop != quero {
-		t.Errorf("população de um jogador por arena = %v, quero %v", pop, quero)
+	if quero := [...]int{18, 10, 13, 20, 7}; porArena != quero {
+		t.Errorf("blocos por arena = %v, quero %v", porArena, quero)
+	}
+	if quero := [...]int{46, 45, 45, 51, 45}; d.popBaseDasArenas != quero {
+		t.Errorf("população de um jogador por arena = %v, quero %v", d.popBaseDasArenas, quero)
 	}
 }

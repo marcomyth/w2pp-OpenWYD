@@ -1,16 +1,17 @@
 package handler
 
 import (
-	"github.com/jeanluca/w2pp-openwyd/internal/spawnrate"
+	"sort"
+
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
 // População das arenas da Quest 256 (pedido de 17/09/2026). Regra NOSSA.
 //
-// Cada bloco de monstro das cinco arenas passa a ser reposto por esta passada, no
-// relógio de 12 s, e cada reposição enche o bloco até o teto de agora:
+// Cada bloco de monstro das cinco arenas passa a ser reposto por esta passada, a
+// cada 12 s, e cada reposição enche o bloco até o teto de agora:
 //
-//	teto = ceil(MaxNumMob do conteúdo × base da arena) × jogadores dentro
+//	teto = base do bloco × jogadores dentro
 //
 // com jogadores dentro contando só quem está vivo, na área e com a bandeira
 // daquela arena, no mínimo 1 e no máximo o limite de carga. Um jogador tem a
@@ -18,33 +19,36 @@ import (
 // seguinte, e monstro vivo não é morto: a população desce conforme os monstros
 // morrem.
 //
-// A reposição:
-//   - bloco da fila de 15 s (MinuteGenerate <= 0) vira uma passada de 12 s. A fila
-//     devolve só o monstro que morreu, no lugar dele, e não sabe crescer com o
-//     número de jogadores. world.DespawnMob deixa de pôr esses blocos na fila
-//     (Generator.ArenaRefill).
-//   - bloco de relógio mantém o próprio período, e na vez dele enche até o teto de
-//     uma vez, em vez de um grupo só: com o teto maior que o conteúdo, um grupo só
-//     não chegaria nunca.
+// A base de uma arena é o maior entre o que o modelo pede e densidadeMinimaArena
+// monstros por jogador, repartida pelos blocos em proporção ao teto de hoje
+// (distribuiPopulacao). O modelo (zzplano, TROFEU=populacao, divisores corrigidos)
+// pede a população de hoje no Coveiro, Jardim e Hidras e um monstro a mais por
+// bloco no Kaizen e nos Elfos. Mas a Hanna viu o Jardim quase vazio com uma pessoa
+// só, e o modelo não conta o tempo de andar entre monstros. Por isso o mínimo de
+// 45, o nível do Coveiro, das Hidras e do Kaizen ajustado: o Jardim vai de 25 para
+// 45, os Elfos de 22 para 45.
 //
-// Os números saem do modelo (zzplano, TROFEU=populacao, divisores corrigidos). Um
-// jogador do plano, a rodada inteira dentro, num nível do meio da faixa, precisa
-// encher o teto total da rodada com morte e troféus. Com a fila virando relógio,
-// Coveiro, Jardim e Hidras já enchem com a população de hoje (286%, 140% e 284%);
-// Kaizen e Elfos ficavam em 85% e 87% e pedem um monstro a mais por bloco (base
-// 1,1: 104% e 106%). A base nunca fica abaixo de hoje. As horas do plano não mudam
-// de faixa (a melhor rota por nível vai de 248,3 h para 247,6 h de 1 a 349), então
-// nenhum divisor muda.
+// A reposição: TODO bloco da arena enche a cada 12 s, o da fila de 15 s e o de
+// relógio (o Jardim tinha blocos de 96 s). O período do conteúdo não vale dentro
+// da arena. A fila de 15 s devolve só o monstro que morreu, no lugar dele, e não
+// sabe crescer com o número de jogadores; world.DespawnMob deixa de pôr esses
+// blocos nela, e o relógio comum os pula (Generator.ArenaRefill).
+//
+// O teto da rodada segura a XP: com essas populações a melhor rota de 1 a 349 fica
+// no alvo em toda faixa (246,6 h no modelo), e nenhum divisor muda.
 
-// baseDaArenaDecimos é a base de cada arena em décimos, na ordem de quest256Steps
-// (Coveiro, Jardim, Kaizen, Hidras, Elfos).
+// baseDaArenaDecimos é o que o modelo pede em cada arena, em décimos do teto de
+// hoje, na ordem de quest256Steps (Coveiro, Jardim, Kaizen, Hidras, Elfos).
 var baseDaArenaDecimos = [...]int{10, 10, 11, 10, 11}
 
-// cargaMaxArena é o maior número de monstros que uma arena chega a ter: a corrida
-// da Água Normal, a maior população que o servidor já enche de uma vez para um
-// grupo (oito salas de waterRoomMobCap e os quatro do chefe). É referência de uso,
-// não medida de carga.
-const cargaMaxArena = waterRoomMobCap*8 + 4
+// densidadeMinimaArena é o mínimo de monstros por jogador em cada arena.
+const densidadeMinimaArena = 45
+
+// cargaMaxArena é o maior número de monstros que uma arena chega a ter. REGRA
+// ESCOLHIDA, NÃO MEDIDA: o mundo inteiro tem milhares de monstros e a arena é uma
+// área pequena; com 45 por jogador dá cinco jogadores. A prova com o robô lê a
+// duração do tique com a arena cheia, e se passar do normal o número baixa.
+const cargaMaxArena = 240
 
 // blocoDaArena é um bloco resolvido no boot.
 type blocoDaArena struct {
@@ -53,13 +57,14 @@ type blocoDaArena struct {
 	base  int // teto do bloco para um jogador
 }
 
-// resolverBlocosDasArenas acha os blocos das cinco arenas e marca cada um para
-// esta passada. Um bloco é da arena quando algum ponto da rota dele fica dentro da
-// área: o monstro anda por ali. Roda no boot, depois do conteúdo e do NPC do banco
-// (InstallRespawnDelay).
+// resolverBlocosDasArenas acha os blocos das cinco arenas, marca cada um para
+// esta passada e reparte a base. Um bloco é da arena quando algum ponto da rota
+// dele fica dentro da área: o monstro anda por ali. Roda no boot, depois do
+// conteúdo e do NPC do banco (InstallRespawnDelay).
 func (d *Dispatcher) resolverBlocosDasArenas(w *world.World) {
 	d.blocosDasArenas = d.blocosDasArenas[:0]
 	d.popBaseDasArenas = [len(baseDaArenaDecimos)]int{}
+	var tetos [len(baseDaArenaDecimos)][]int
 	for idx := 0; idx < w.GeneratorCount(); idx++ {
 		g := w.GeneratorAt(idx)
 		if g == nil || g.LeaderTmpl == nil || g.MaxNumMob <= 0 ||
@@ -70,15 +75,59 @@ func (d *Dispatcher) resolverBlocosDasArenas(w *world.World) {
 		if !ok {
 			continue
 		}
-		base := (g.MaxNumMob*baseDaArenaDecimos[passo] + 9) / 10
 		g.ArenaRefill = true
-		d.blocosDasArenas = append(d.blocosDasArenas, blocoDaArena{idx: idx, passo: passo, base: base})
-		d.popBaseDasArenas[passo] += base
+		d.blocosDasArenas = append(d.blocosDasArenas, blocoDaArena{idx: idx, passo: passo})
+		tetos[passo] = append(tetos[passo], g.MaxNumMob)
+	}
+	var bases [len(baseDaArenaDecimos)][]int
+	for passo, ts := range tetos {
+		modelo := 0
+		for _, t := range ts {
+			modelo += (t*baseDaArenaDecimos[passo] + 9) / 10
+		}
+		bases[passo] = distribuiPopulacao(ts, max(modelo, densidadeMinimaArena))
+	}
+	var prox [len(baseDaArenaDecimos)]int
+	for i := range d.blocosDasArenas {
+		b := &d.blocosDasArenas[i]
+		b.base = bases[b.passo][prox[b.passo]]
+		prox[b.passo]++
+		d.popBaseDasArenas[b.passo] += b.base
 	}
 	for i, pop := range d.popBaseDasArenas {
 		d.log.Info("arena: população", "faixa_min", quest256Steps[i].minLevel, "faixa_max", quest256Steps[i].maxLevel-1,
-			"monstros_por_jogador", pop, "ate_jogadores", d.limiteDeJogadores(i), "carga_max", cargaMaxArena)
+			"blocos", len(tetos[i]), "monstros_por_jogador", pop, "ate_jogadores", d.limiteDeJogadores(i), "carga_max", cargaMaxArena)
 	}
+}
+
+// distribuiPopulacao reparte alvo monstros pelos blocos em proporção ao teto de
+// hoje, pelos maiores restos (no empate, o bloco que vem antes). O modelo usa a
+// mesma conta (zzplano, distribui).
+func distribuiPopulacao(tetos []int, alvo int) []int {
+	total := 0
+	for _, t := range tetos {
+		total += t
+	}
+	out := make([]int, len(tetos))
+	if total <= 0 || alvo <= 0 {
+		return out
+	}
+	resto := make([]int, len(tetos))
+	usado := 0
+	for i, t := range tetos {
+		out[i] = t * alvo / total
+		resto[i] = t * alvo % total
+		usado += out[i]
+	}
+	ordem := make([]int, len(tetos))
+	for i := range ordem {
+		ordem[i] = i
+	}
+	sort.SliceStable(ordem, func(a, b int) bool { return resto[ordem[a]] > resto[ordem[b]] })
+	for k := 0; k < alvo-usado; k++ {
+		out[ordem[k%len(ordem)]]++
+	}
+	return out
 }
 
 // passoDoBloco diz de qual arena é um bloco, pelos pontos da rota.
@@ -129,24 +178,15 @@ func jogadoresNasArenas(w *world.World) [len(baseDaArenaDecimos)]int {
 	return n
 }
 
-// reporArenas é a passada das arenas, no relógio de 12 s, logo depois de
-// generateMobs.
+// reporArenas é a passada das arenas, a cada 12 s, logo depois de generateMobs.
 func (d *Dispatcher) reporArenas(w *world.World) {
 	if len(d.blocosDasArenas) == 0 || d.tickCount%minTimerTicks != 0 {
 		return
 	}
-	pass := d.tickCount / minTimerTicks
 	dentro := jogadoresNasArenas(w)
 	for _, b := range d.blocosDasArenas {
 		g := w.GeneratorAt(b.idx)
 		if g == nil || !g.ArenaRefill || g.Off || d.casteloOrcSuppresses(b.idx) {
-			continue
-		}
-		periodo := 1
-		if g.MinuteGenerate > 0 {
-			periodo = spawnrate.ScaleMinutes(g.MinuteGenerate, d.spawnPercentFor(w, b.idx))
-		}
-		if pass%periodo != b.idx%periodo {
 			continue
 		}
 		teto := b.base * d.multiplicadorDaArena(b.passo, dentro[b.passo])
