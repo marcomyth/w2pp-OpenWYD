@@ -200,7 +200,7 @@ func ExpRewardOutcome(in ExpRewardInput) (int64, ExpLoss) {
 	}
 
 	tier := tierKeyFor(classMaster)
-	if ov, edited := in.Config.Overrides[ConfigKey{Zone: in.Zone, Tier: tier}]; edited && ov.Cuts != nil {
+	if ov, edited := in.Config.Row(in.Zone, tier); edited && ov.Cuts != nil {
 		// A moderator's table replaces the branch's, including the doubled
 		// celestial block of Pesadelo Normal: an edited table is read as
 		// written, not as the legacy's quirk plus an edit.

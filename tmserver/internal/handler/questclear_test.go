@@ -165,7 +165,7 @@ type servidorDoRelogio struct {
 	// primeiro deles que terminou com o jogador fora do Cemitério (0 = ainda lá).
 	tiques, saiuNoTique atomic.Int32
 	// pendente é uma função que o teste quer rodar DENTRO do laço, uma vez, com o
-	// tique parado (entrada_arena_test.go). feito avisa que ela rodou.
+	// tique parado (entrada_arena_test.go e outros). feito avisa que ela rodou.
 	pendente atomic.Pointer[func(*world.World, *Dispatcher)]
 	feito    chan struct{}
 }

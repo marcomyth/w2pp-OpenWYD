@@ -34,6 +34,16 @@ const (
 	ZoneDesertoLugefer
 	ZoneDesertoBaixo
 	ZoneDesertoReino
+
+	// ZoneArenas is the five Quest 256 arenas (Coveiro, Jardim, Kaizen, Hidras,
+	// Elfos), one zone for all of them. NOT a legacy branch: the legacy pays
+	// field rates there, and this starts out as the field's own branch. It exists
+	// so the world's cut table can move without the arenas (pedido de 17/09: a XP
+	// do mundo cai dez vezes e a das arenas não). Until the Mesa has a row of its
+	// own for this zone, it reads the field's row (Config.Row), so adding it
+	// changes no reward on any server. At the END of the iota because the number
+	// is stored in xp_rule.zone.
+	ZoneArenas
 )
 
 // zoneRect is one named rectangle on the global grid, for zones the legacy
@@ -54,6 +64,16 @@ var zoneRects = []zoneRect{
 	{1283, 1788, 1397, 1910, ZoneDesertoLugefer},
 	{1397, 1671, 1521, 1785, ZoneDesertoBaixo},
 	{1522, 1675, 1669, 1787, ZoneDesertoReino},
+
+	// The arenas are quest256Steps' areas (tmserver/internal/handler/misc.go),
+	// whose guard is exclusive at the border (questArea.contains), so each one is
+	// written here one tile in from every side: the zone is exactly the ground
+	// the guard keeps. A handler test checks every tile against quest256Steps.
+	{2380, 2077, 2425, 2132, ZoneArenas}, // Coveiro
+	{2229, 1701, 2256, 1727, ZoneArenas}, // Jardim
+	{460, 3888, 496, 3915, ZoneArenas},   // Kaizen
+	{659, 3729, 702, 3761, ZoneArenas},   // Hidras
+	{1313, 4028, 1347, 4054, ZoneArenas}, // Elfos
 }
 
 // Name is the zone's name in the language the panel and the design docs use.
@@ -346,9 +366,11 @@ var zoneRules = [...]expRule{
 	ZoneDesertoLugefer:   desertoRule("Deserto Lugefer (Tauron)"),
 	ZoneDesertoBaixo:     desertoRule("Deserto Baixo"),
 	ZoneDesertoReino:     desertoRule("Deserto Reino"),
+
+	ZoneArenas: desertoRule("Arenas da Quest"),
 }
 
-// desertoRule copies the field branch under a new name.
+// desertoRule copies the field branch under a new name. The arenas use it too.
 //
 // A copy rather than a reference to zoneRules[ZoneField], because that entry is
 // still being built when this runs — Go initializes the composite literal as a

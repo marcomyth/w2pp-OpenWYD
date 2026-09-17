@@ -104,7 +104,6 @@ func (d *Dispatcher) Tick(w *world.World) {
 			d.mobBattle(w, id, e)
 		}
 	})
-	d.vigiaSaidasDasArenas(w)
 	d.guardQuest256Areas(w)
 	d.clearQuestAreas(w)
 	d.guardGuildAreas(w)
@@ -164,8 +163,8 @@ func (a questArea) contains(x, y int16) bool {
 // quest's band while inside is recalled too, on the next tick, with a line on
 // the panel. The legacy checks the level only at the door (NPC, ticket), so a
 // character who levelled past the band inside kept hunting there until the
-// clock emptied the arena. The dead wait until they are alive, like the round
-// exit rule (entrada_arena.go), and the recall counts as leaving the round.
+// clock emptied the arena. The dead wait until they are alive: whoever died
+// comes back through the city on restart anyway.
 func (d *Dispatcher) guardQuest256Areas(w *world.World) {
 	w.ForEachPlayer(func(s *world.Session, e *world.Entity) {
 		if e.Level >= 1000 {

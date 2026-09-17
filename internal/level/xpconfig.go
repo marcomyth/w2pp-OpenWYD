@@ -54,7 +54,7 @@ const CutOpenEnded int32 = math.MaxInt32
 // answer and not an error: Pesadelo Normal has no Mortal or Arch table at all,
 // and there the reward is simply not divided.
 func (c Config) Cuts(zone Zone, tier uint8) []Cut {
-	if ov, ok := c.Overrides[ConfigKey{Zone: zone, Tier: tier}]; ok && ov.Cuts != nil {
+	if ov, ok := c.Row(zone, tier); ok && ov.Cuts != nil {
 		return ov.Cuts
 	}
 	return legacyCuts(zone, tier)
@@ -120,9 +120,25 @@ type Config struct {
 	Overrides map[ConfigKey]Override
 }
 
+// Row is the moderator's row the branch is paid on. It is the zone's own row
+// when there is one. The arenas (ZoneArenas) read the field's row until they
+// have their own: the zone was split out of the field after the field already
+// had a Mesa, and falling back to the legacy table there would change what the
+// arenas pay the moment the server boots, before anyone wrote a row for them.
+func (c Config) Row(zone Zone, tier uint8) (Override, bool) {
+	if ov, ok := c.Overrides[ConfigKey{Zone: zone, Tier: tier}]; ok {
+		return ov, true
+	}
+	if zone == ZoneArenas {
+		ov, ok := c.Overrides[ConfigKey{Zone: ZoneField, Tier: tier}]
+		return ov, ok
+	}
+	return Override{}, false
+}
+
 // RatePercent is the branch's configured rate, defaulting to 100.
 func (c Config) RatePercent(zone Zone, tier uint8) int32 {
-	if ov, ok := c.Overrides[ConfigKey{Zone: zone, Tier: tier}]; ok && ov.RatePercent > 0 {
+	if ov, ok := c.Row(zone, tier); ok && ov.RatePercent > 0 {
 		return ov.RatePercent
 	}
 	return 100

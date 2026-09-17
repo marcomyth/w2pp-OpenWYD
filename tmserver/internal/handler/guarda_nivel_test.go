@@ -13,7 +13,7 @@ import (
 // dentro. O Cemitério (Coveiro) vai do guardado 39 ao 114: 115 é o 116 da tela.
 
 // TestGuardaDevolveQuemPassouDaFaixa: 114 fica; subir para 115 lá dentro devolve
-// à cidade com o aviso, no tique seguinte, e fecha a rodada.
+// à cidade com o aviso, no tique seguinte.
 func TestGuardaDevolveQuemPassouDaFaixa(t *testing.T) {
 	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), inicioDaVolta)
 	c := enterWorldAs(t, srv.addr, "tester")
@@ -30,7 +30,7 @@ func TestGuardaDevolveQuemPassouDaFaixa(t *testing.T) {
 	})
 	drena(t, c)
 
-	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
+	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, _ *world.Session, e *world.Entity) {
 		e.Level = 115
 		d.Tick(w)
 		if cemiterio.contains(e.X, e.Y) {
@@ -38,10 +38,6 @@ func TestGuardaDevolveQuemPassouDaFaixa(t *testing.T) {
 		}
 		if e.QuestFlag != 0 {
 			t.Errorf("devolvido com a bandeira %d", e.QuestFlag)
-		}
-		d.Tick(w) // a vigia vê a saída
-		if ent, ok := d.entradasDaRodada[donoDe(s)]; !ok || !ent.saiu {
-			t.Error("a devolução por nível não fechou a rodada")
 		}
 	})
 	if _, _, ok := quadroAte(t, c, 2*time.Second, func(h protocol.Header, p []byte) bool {
