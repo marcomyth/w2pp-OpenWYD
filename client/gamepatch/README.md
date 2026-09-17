@@ -167,3 +167,10 @@ A % é a soma do efeito no equipamento (montaria fora), lida com a mesma funçã
 do tooltip (`0x53821E`), que já aplica o refino: o +15 conta 32%, como o
 tooltip mostra. O "Ataque" da janela não passa por aqui: ele vem do servidor, que
 já soma o Hércules. As poções continuam fora da janela.
+
+## Olhos de Águia (`olhosdeaguia.cpp`)
+
+O alcance do golpe físico é do cliente: `BASE_GetMobAbility` (`0x539C2C`) com
+`EF_RANGE`. O DLL troca a regra da Huntress com Olhos de Águia (bit 19): com
+Garra na mão direita, +1 de alcance, ou +2 com a Invisibilidade (bit 23); com
+outra arma, nada. A Força Espectral continua somando +1 por fora, em quem chama.
