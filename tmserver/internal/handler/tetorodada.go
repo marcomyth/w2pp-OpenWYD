@@ -9,8 +9,8 @@ import (
 
 // O teto de XP por rodada do Mortal (decidido em 17/09/2026). Regra NOSSA.
 //
-// Por personagem (a mesma chave da entrada nas arenas: conta e posição do
-// personagem), a cada rodada do relógio das arenas (questClearTicks), toda XP que
+// Por personagem (conta e posição do personagem, donoDaEntrada), a cada rodada do
+// relógio das arenas (questClearTicks), toda XP que
 // o Mortal recebe soma no máximo o teto da faixa do nível que ele tem NO MOMENTO
 // do ganho; com o dobro ligado, o teto do dobro. Os valores vêm do painel
 // (tetorodada_config.go).
@@ -34,6 +34,27 @@ import (
 //
 // Tudo em memória e zerado no pulso do relógio. Um relog não zera; um reinício do
 // servidor zera, o que é aceitável.
+
+// donoDaEntrada é o personagem, e não a sessão: um relog cai na mesma chave.
+type donoDaEntrada struct {
+	conta int64
+	slot  int
+}
+
+func donoDe(s *world.Session) donoDaEntrada {
+	return donoDaEntrada{conta: s.AccountID, slot: s.Slot}
+}
+
+// passoDaArena é o índice do passo em quest256Steps, achado pela bandeira.
+func passoDaArena(step quest256Step) int {
+	passo := 0
+	for i := range quest256Steps {
+		if quest256Steps[i].flag == step.flag {
+			passo = i
+		}
+	}
+	return passo
+}
 
 type xpDaRodada struct {
 	total, trofeu int64

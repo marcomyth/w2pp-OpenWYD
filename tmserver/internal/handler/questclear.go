@@ -72,9 +72,6 @@ func (d *Dispatcher) clearQuestAreas(w *world.World) {
 	w.ForEachPlayer(func(_ *world.Session, e *world.Entity) {
 		e.QuestFlag = 0
 	})
-	// Depois da expulsão: quem o pulso tirou da arena começa a rodada nova com a
-	// entrada livre.
-	d.zeraEntradasDaRodada()
 	d.zeraXPDaRodada()
 }
 

@@ -894,6 +894,17 @@ func TestPaginaListaAsZonasDoDeserto(t *testing.T) {
 	}
 }
 
+// A zona das arenas tem que chegar à página e dizer que segue o Campo até ter
+// linha própria, senão uma aba nova parece uma taxa nova já valendo.
+func TestPaginaListaAZonaDasArenas(t *testing.T) {
+	corpo := abrirMesa(t, newTestPanelMesa(t, roleAdmin, newFakeMesa(), newFakeAudit()), "").Body.String()
+	for _, n := range []string{"Arenas da Quest", "pagam pela linha do Campo desta Mesa"} {
+		if !strings.Contains(corpo, n) {
+			t.Errorf("a página não mostra %q", n)
+		}
+	}
+}
+
 // --- a escada de dificuldade ----------------------------------------------
 
 func TestEscadaPrecificaOsSeisDegraus(t *testing.T) {

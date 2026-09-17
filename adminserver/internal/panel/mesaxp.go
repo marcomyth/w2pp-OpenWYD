@@ -1278,7 +1278,7 @@ func (h *Handler) aplicarDificuldade(w http.ResponseWriter, r *http.Request) {
 		// Carry the existing cut table across untouched. Cuts nil means "use the
 		// legacy table", which is the right thing for a row nobody has cut, and
 		// the wrong thing for a row somebody has.
-		if ov, editada := cfg.Overrides[level.ConfigKey{Zone: zona, Tier: evo}]; editada && ov.Cuts != nil {
+		if ov, editada := cfg.Row(zona, evo); editada && ov.Cuts != nil {
 			regra.Cuts = make([]domain.XPCut, 0, len(ov.Cuts))
 			for _, c := range ov.Cuts {
 				regra.Cuts = append(regra.Cuts, domain.XPCut{UpTo: c.UpTo, Divisor: c.Divisor})

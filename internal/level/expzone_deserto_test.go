@@ -103,8 +103,8 @@ func TestTodaZonaTemNomeERegra(t *testing.T) {
 		}
 		vistos[nome] = true
 	}
-	if len(Zones()) != 12 {
-		t.Errorf("%d zonas, want 12 (7 do legado + 5 do deserto)", len(Zones()))
+	if len(Zones()) != 13 {
+		t.Errorf("%d zonas, want 13 (7 do legado + 5 do deserto + as arenas)", len(Zones()))
 	}
 }
 

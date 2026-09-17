@@ -466,10 +466,6 @@ type Dispatcher struct {
 	// "ainda não procurei", -1 em cada posição que o InitItem não tem.
 	portoesCampoIDs [3]int
 
-	// entradasDaRodada: quem já entrou numa arena de quest nesta rodada do relógio
-	// (entrada_arena.go). Loop-only; zera no pulso.
-	entradasDaRodada map[donoDaEntrada]entradaDaRodada
-
 	// tetoRodadaCfg: o teto de XP por rodada do Mortal que o painel manda
 	// (tetorodada_config.go).
 	tetoRodadaCfg tetoDaRodadaConfig

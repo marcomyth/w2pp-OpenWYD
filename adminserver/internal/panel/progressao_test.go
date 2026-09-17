@@ -183,7 +183,7 @@ func TestPaginaProgressaoAbreEeNaoTemJavaScript(t *testing.T) {
 		t.Fatalf("status = %d", rec.Code)
 	}
 	corpo := rec.Body.String()
-	for _, quero := range []string{"Progressão", "Horas por dia", "Meta, em dias", "A partir do nível"} {
+	for _, quero := range []string{"Progressão", "Horas por dia", "Meta, em dias", "A partir do nível", "Arenas da Quest"} {
 		if !strings.Contains(corpo, quero) {
 			t.Errorf("a página não mostra %q", quero)
 		}

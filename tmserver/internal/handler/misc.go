@@ -974,11 +974,6 @@ func (d *Dispatcher) quest256NPC(w *world.World, s *world.Session, e *world.Enti
 		d.say(w, npc, "_NN_Level_limit", "Nível Insuficiente. Isto não pode ser utilizado.") // 298
 		return
 	}
-	// Uma entrada por rodada (entrada_arena.go). Antes do bilhete: o NPC não o toma.
-	if d.entradaDaRodadaUsada(s) {
-		sendSay(w, npc, d.textoRodadaUsada())
-		return
-	}
 
 	slot := -1
 	for i := 0; i < activeCarryLimit(e); i++ {
@@ -1037,12 +1032,6 @@ func (d *Dispatcher) mestreGrifo(w *world.World, s *world.Session, e, npc *world
 	step, ok := quest256StepForLevel(e.Level)
 	if !ok {
 		d.log.Debug("mestre grifo: level outside quest range", "conn", s.Conn, "npc", npc.ID, "level", e.Level)
-		return
-	}
-	// Uma entrada por rodada (entrada_arena.go).
-	if d.entradaDaRodadaUsada(s) {
-		sendSay(w, npc, d.textoRodadaUsada())
-		d.log.Info("arena: entrada da rodada ja usada", "porta", "mestre grifo", "conta", s.AccountName, "conn", s.Conn)
 		return
 	}
 	d.teleportQuest256Step(w, s, e, step)
@@ -1131,7 +1120,6 @@ func (d *Dispatcher) teleportQuest256Step(w *world.World, s *world.Session, e *w
 	// clock goes out once for each. After the jump, as the Água, the Pesadelo and
 	// the Castelo Orc send theirs.
 	d.enviarRelogioDasArenas(w, s)
-	d.marcaEntradaDaRodada(s, step)
 	d.enviarTrofeusDaRodada(w, s, e, passoDaArena(step))
 }
 
