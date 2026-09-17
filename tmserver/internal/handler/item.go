@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/itemeffect"
@@ -2817,13 +2818,32 @@ func buffScaleHpMp(e *world.Entity, v int32) int32 {
 // EF_HPADD% × buff. Applied at read time (display/combat/regen), never stored
 // (captura §C,E).
 func effectiveMaxHP(e *world.Entity) int32 {
-	return semNegativo(buffScaleHpMp(e, (scoreMaxHP(e)+e.AffMaxHP)*(e.HpAddPct+100)/100))
+	return semNegativo(buffScaleHpMp(e, escalaPorcentoDoPool(scoreMaxHP(e)+e.AffMaxHP, e.HpAddPct)))
+}
+
+// escalaPorcentoDoPool faz `pool × (pct+100)/100` em 64 bits e para no teto do
+// legado (MAX_HP = 1 bilhão).
+//
+// A conta era em int32 e estourava a partir de 21.474.836 de pool, porque a
+// multiplicação por 100 já não cabe. Jogador nenhum chega perto disso, mas um
+// chefe de guilda chega: com 25 milhões de vida o resultado dava 0 — e como
+// refreshScore prende o HP ao máximo efetivo, o primeiro afeto que expirasse
+// zerava o chefe. Com 1,35 bilhão dava 18 milhões, e o chefe caía sozinho.
+func escalaPorcentoDoPool(pool, pct int32) int32 {
+	v := int64(pool) * int64(pct+100) / 100
+	if v > int64(level.MaxHPCap) {
+		return level.MaxHPCap
+	}
+	if v < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(v)
 }
 
 // effectiveMaxMP is the player's real max MP: (score MaxMP + affect deltas) ×
 // EF_MPADD% × buff.
 func effectiveMaxMP(e *world.Entity) int32 {
-	return semNegativo(buffScaleHpMp(e, (scoreMaxMP(e)+e.AffMaxMP)*(e.MpAddPct+100)/100))
+	return semNegativo(buffScaleHpMp(e, escalaPorcentoDoPool(scoreMaxMP(e)+e.AffMaxMP, e.MpAddPct)))
 }
 
 // scoreMaxHP is the legacy CurrentScore.MaxHp as the affect pass finds it. For
