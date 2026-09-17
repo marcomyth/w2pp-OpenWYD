@@ -38,3 +38,19 @@ func TestSkillBaseDamageConfianca(t *testing.T) {
 		t.Fatalf("sem a Confiança: SkillBaseDamage = %d, want %d", got, want)
 	}
 }
+
+// A lança do TK Espada Mágica entra no ramo mágico por ArmaPct; 0 é neutro.
+func TestSkillBaseDamageArmaNoRamoMagico(t *testing.T) {
+	sp := SkillSpell{InstanceType: 1, InstanceValue: 65} // Ataque da Alma
+	caster := SkillCaster{Class: 0, Level: 300, Int: 2500, Special: 255, Magic: 50, DamageMultiPct: 100, LearnedSkill: 1 << 23}
+	neutro := SkillBaseDamage(20, sp, caster, 0, 500)
+	caster.ArmaPct = 100
+	if got := SkillBaseDamage(20, sp, caster, 0, 500); got != neutro {
+		t.Fatalf("ArmaPct 100 = %d, want %d (neutro)", got, neutro)
+	}
+	caster.ArmaPct = 140
+	// (255 + 65 + 500 + 300 + 625 + 62) × 300% = 5421; × 1,40 = 7589; × 5/4 = 9486; × 1,15 = 10908.
+	if got := SkillBaseDamage(20, sp, caster, 0, 500); got != 10908 {
+		t.Fatalf("lança: SkillBaseDamage = %d, want 10908", got)
+	}
+}

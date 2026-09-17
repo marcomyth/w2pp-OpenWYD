@@ -169,6 +169,7 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 			e.AffMaxHP -= scoreMaxHP(e) / 10
 		case 14: // Possuído (skill 3): +CON and twice that in MaxHP
 			applyConHpBuff(e, level, value)
+			applyConDaEspadaMagica(e) // +500 CON for the TK Espada Mágica (arvore_espada_magica.go)
 		case 15: // all four Special trees (+cap 400 applied at read)
 			v := int16(level/10 + value)
 			for k := range e.AffSpecial {
@@ -201,6 +202,7 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 			// buff off its own death timer.
 			if world.IsPlayer(e.ID) {
 				applyConHpBuff(e, level, value)
+				applyConDaEspadaMagica(e)
 			}
 		case 25: // Proteção Elemental: the three elements, never holy.
 			add := int16((value + level/4) / 10)

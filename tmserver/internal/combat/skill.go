@@ -38,6 +38,8 @@ type SkillCaster struct {
 	// Confianca liga a regra do TK Confiança (handler/arvore_confianca.go) numa
 	// das quatro skills de dano da árvore: o dano sai da DES e da INT, sem a Magia,
 	// e a arma multiplica por ArmaPct (100 = neutro). Quem decide é o handler.
+	// ArmaPct também vale no ramo mágico: é a lança do TK Espada Mágica
+	// (handler/arvore_espada_magica.go); 0 é neutro.
 	Confianca bool
 	Dex       int
 	ArmaPct   int
@@ -165,6 +167,9 @@ func SkillBaseDamage(skillnum int, sp SkillSpell, c SkillCaster, weather, weapon
 			// same way they do on a melee's attack.
 			if c.DamageMultiPct > 0 && c.DamageMultiPct != 100 {
 				dam = dam * c.DamageMultiPct / 100
+			}
+			if c.ArmaPct > 0 && c.ArmaPct != 100 {
+				dam = dam * c.ArmaPct / 100
 			}
 		} else if c.DanoFisicoPct > 0 {
 			dam = dam * (100 + c.DanoFisicoPct) / 100
