@@ -158,19 +158,40 @@ func (a questArea) contains(x, y int16) bool {
 // guardQuest256Areas ports the ProcessSecMinTimer QuestFlag guard for the five
 // Quest 256 arenas. Entering without the matching volatile flag recalls the
 // player, which is the behavior Mestre Grifo must satisfy before teleporting.
+//
+// DELIBERATE DIVERGENCE (17/09/2026): a living Mortal whose level left the
+// quest's band while inside is recalled too, on the next tick, with a line on
+// the panel. The legacy checks the level only at the door (NPC, ticket), so a
+// character who levelled past the band inside kept hunting there until the
+// clock emptied the arena. The dead wait until they are alive, like the round
+// exit rule (entrada_arena.go), and the recall counts as leaving the round.
 func (d *Dispatcher) guardQuest256Areas(w *world.World) {
 	w.ForEachPlayer(func(s *world.Session, e *world.Entity) {
 		if e.Level >= 1000 {
 			return
 		}
 		for _, step := range quest256Steps {
-			if step.area.contains(e.X, e.Y) && e.QuestFlag != step.flag {
+			if !step.area.contains(e.X, e.Y) {
+				continue
+			}
+			if e.QuestFlag != step.flag {
+				d.recall(w, s, e)
+				return
+			}
+			if e.HP > 0 && e.ClassMaster == classMasterMortal && (e.Level < step.minLevel || e.Level >= step.maxLevel) {
+				sendClientMessage(w, s, msgNivelForaDaQuest)
+				d.log.Info("arena: nivel fora da faixa, devolvido", "conta", s.AccountName, "conn", s.Conn,
+					"nivel", e.Level, "faixa_min", step.minLevel, "faixa_max", step.maxLevel)
 				d.recall(w, s, e)
 				return
 			}
 		}
 	})
 }
+
+// msgNivelForaDaQuest é o aviso de quem é devolvido por ter passado da faixa.
+const msgNivelForaDaQuest = "Seu nível passou do limite desta quest."
+
 
 // battleDragBox is the SetBattle engage box: a group member joins the fight only
 // when the target is within ±23 of it (Server.cpp:8029).
