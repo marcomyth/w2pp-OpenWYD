@@ -32,6 +32,11 @@ type Generator struct {
 	// generates nothing — boot, minute timer, NPC overlay, GM command — until it
 	// is switched back on. The recipe stays, so switching on needs nothing else.
 	Off bool
+	// ArenaRefill marks a Quest 256 arena block (handler/populacao_arenas.go): the
+	// handler's own 12 s pass refills it, to a cap that grows with the players
+	// inside, so the plain minute timer and the individual 15 s respawn queue both
+	// leave it alone. Set once at boot; the content fields above stay as loaded.
+	ArenaRefill bool
 
 	// LeaderName and FollowerName are the template FILE names behind the two
 	// byte blobs — the file Name resolved to, not Name as NPCGener.txt spells it —
@@ -348,7 +353,20 @@ func (w *World) SpawnGeneratorLeader(idx int) int {
 // Not ported: the MinuteGenerate>=500 relocation hack, the Coliseum-rectangle
 // disable and event hooks (BrState/GTORRE) — event systems, out of scope.
 func (w *World) GenerateMob(idx int) []int {
-	return w.generateMob(idx, false, 0, 0)
+	return w.generateMob(idx, false, 0, 0, 0)
+}
+
+// GenerateMobUpTo is GenerateMob against a cap the caller gives instead of the
+// block's MaxNumMob, and the cap is exact: the group is cut so that leader plus
+// followers never pass it. The arena population (handler/populacao_arenas.go)
+// raises an arena block above its content cap while players are inside; the
+// plain GenerateMob keeps the legacy count, which lets a group overshoot the cap
+// by its leader.
+func (w *World) GenerateMobUpTo(idx, limit int) []int {
+	if limit <= 0 {
+		return nil
+	}
+	return w.generateMob(idx, false, 0, 0, limit)
 }
 
 // GenerateMobNear is GenerateMob with the group raised around (x, y) instead of
@@ -357,10 +375,12 @@ func (w *World) GenerateMob(idx int) []int {
 // the legacy GM "generate", which passed the GM's position to GenerateMob
 // (imple.cpp:663-673) — how staff calls a boss to where the event is.
 func (w *World) GenerateMobNear(idx int, x, y int16) []int {
-	return w.generateMob(idx, true, x, y)
+	return w.generateMob(idx, true, x, y, 0)
 }
 
-func (w *World) generateMob(idx int, near bool, nearX, nearY int16) []int {
+// generateMob spawns one group. limit > 0 replaces MaxNumMob with an exact cap
+// (GenerateMobUpTo); 0 is the legacy count.
+func (w *World) generateMob(idx int, near bool, nearX, nearY int16, limit int) []int {
 	g := w.GeneratorAt(idx)
 	if g == nil || g.LeaderTmpl == nil || g.Off {
 		return nil
@@ -377,10 +397,16 @@ func (w *World) generateMob(idx int, near bool, nearX, nearY int16) []int {
 		// instead of treating the negative cap as already saturated.
 		maxNumMob = 1
 	}
+	if limit > 0 {
+		maxNumMob = limit
+	}
 	if g.CurrentNumMob >= maxNumMob {
 		return nil
 	}
-	if g.CurrentNumMob+n > maxNumMob {
+	if limit > 0 {
+		// The leader counts too: cut the followers so the group fits exactly.
+		n = min(n, maxNumMob-g.CurrentNumMob-1)
+	} else if g.CurrentNumMob+n > maxNumMob {
 		n = maxNumMob - g.CurrentNumMob
 	}
 	if w.mobCount >= generateWorldCap {

@@ -144,6 +144,9 @@ func (d *Dispatcher) spawnPercentFor(w *world.World, idx int) int32 {
 // list here, at boot, after the populate and the NPC overlay.
 func (d *Dispatcher) InstallRespawnDelay(w *world.World) {
 	d.resolverChefes(w)
+	// Os blocos das arenas saem desta fila e do relógio comum: a população deles é
+	// da passada das arenas (populacao_arenas.go).
+	d.resolverBlocosDasArenas(w)
 	w.SetRespawnDelayFor(func(genIndex int32) uint32 {
 		return d.esperaDoRenascimento(w, int(genIndex))
 	})
