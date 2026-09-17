@@ -14,11 +14,11 @@ import (
 // Amunra e as Pedras Espirituais — liberar o nPos inteiro levaria todos juntos.
 
 // acessoriosAteMais15 são os acessórios que a +10 aceita e o Odin leva até +15.
-// Os brincos entram com os status de hoje; a reforma deles vem depois. Braceletes
-// e os Amuletos de Prata e de Ouro entraram em 17/09, a pedido do Marco.
+// Os brincos entram com os status de hoje; a reforma deles vem depois. Os seis de
+// bracelete (507, 510-514) e os Amuletos de Prata e de Ouro entraram em 17/09, a pedido do Marco.
 var acessoriosAteMais15 = map[int16]bool{
 	591: true, 592: true, 593: true, 594: true, 595: true, // Brincos
-	507: true, 510: true, 511: true, 512: true, 513: true, 514: true, // Braceletes
+	507: true, 510: true, 511: true, 512: true, 513: true, 514: true, // Bracelete de Hércules, Athena, Titã, Gaia, Zeus e Hecate
 	551: true, 552: true, 553: true, 554: true, // Amuletos de Prata
 	555: true, 556: true, 557: true, 558: true, // Amuletos de Ouro
 	559: true, 560: true, 561: true, 562: true, // Amuletos Místicos
