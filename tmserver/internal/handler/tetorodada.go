@@ -16,10 +16,16 @@ import (
 // (tetorodada_config.go).
 //
 // - Morte (a própria e a parte do grupo, que conta em quem recebe), prêmio do
-//   Castelo e XP de cura: passando do teto, paga até o teto e o resto se perde.
-// - Troféu (4117-4121) e os 10% dele que vão para o grupo: além do total, somam no
-//   máximo a metade do teto. O troféu que não cabe nada é recusado e fica na
-//   bolsa; o que cabe em parte paga até o teto e é gasto.
+//   Castelo, XP de cura e os 10% do troféu que vão para o grupo: passando do
+//   teto, paga até o teto e o resto se perde.
+// - Troféu (4117-4121): limitado no DROP, não no uso (pedido de 17/09). O espaço
+//   do troféu só cai para quem recebe o saque enquanto a XP de troféu reservada
+//   na rodada é menor que a metade do teto; quando cai, o valor dele entra na hora
+//   no total da rodada, até o que ainda cabe. Usar o troféu depois não recusa, não
+//   corta e não soma de novo.
+// - O troféu é do personagem: não vai ao chão nem ao baú da conta (item.go), e a
+//   troca e a lojinha já recusam EF_NOTRADE (trade.go, autotrade.go). Sem isso, um
+//   alt no mesmo baú farmaria troféu para o principal.
 // - Poeira de Fada: ISENTA. A oferta é finita (saiu de venda e drop) e cortar
 //   gastaria o item quase sem efeito (useFairyDust).
 // - Arch e Celestial: sem teto.
@@ -30,6 +36,15 @@ import (
 type xpDaRodada struct {
 	total, trofeu int64
 	avisado       bool // o aviso de teto já saiu nesta rodada
+	avisadoTrofeu bool // o aviso de troféus da rodada já saiu
+}
+
+// msgTrofeuDoPersonagem é a recusa de levar o troféu ao chão ou ao baú.
+const msgTrofeuDoPersonagem = "O troféu é do personagem: não vai ao chão nem ao baú da conta."
+
+// ehTrofeuDeQuest diz se o item é um dos cinco troféus da Quest 256.
+func ehTrofeuDeQuest(index int16) bool {
+	return index >= itemQuestRewardBase && index <= itemQuestRewardLast
 }
 
 // faixaDoTeto é o índice de domain.RoundXPCapTopLevels do nível guardado.
@@ -58,7 +73,7 @@ func (d *Dispatcher) tetoDoGanho(e *world.Entity) (int64, bool) {
 }
 
 // cabeNaRodada é quanto ainda cabe agora, sem gravar nada. ok falso = sem teto.
-func (d *Dispatcher) cabeNaRodada(s *world.Session, e *world.Entity, trofeu bool) (int64, bool) {
+func (d *Dispatcher) cabeNaRodada(s *world.Session, e *world.Entity) (int64, bool) {
 	if s == nil {
 		return 0, false // sem sessão não há de quem contar; só acontece fora de jogo
 	}
@@ -67,20 +82,16 @@ func (d *Dispatcher) cabeNaRodada(s *world.Session, e *world.Entity, trofeu bool
 		return 0, false
 	}
 	st := d.xpDaRodada[donoDe(s)]
-	cabe := teto - st.total
-	if trofeu {
-		cabe = min(cabe, teto/2-st.trofeu)
-	}
-	return max(cabe, 0), true
+	return max(teto-st.total, 0), true
 }
 
 // cortaXPDaRodada devolve quanto do ganho pode ser pago e grava. Na primeira vez
 // que corta na rodada, avisa o jogador com o tempo até a próxima.
-func (d *Dispatcher) cortaXPDaRodada(w *world.World, s *world.Session, e *world.Entity, ganho int64, trofeu bool) int64 {
+func (d *Dispatcher) cortaXPDaRodada(w *world.World, s *world.Session, e *world.Entity, ganho int64) int64 {
 	if ganho <= 0 {
 		return ganho
 	}
-	cabe, ok := d.cabeNaRodada(s, e, trofeu)
+	cabe, ok := d.cabeNaRodada(s, e)
 	if !ok {
 		return ganho
 	}
@@ -88,9 +99,6 @@ func (d *Dispatcher) cortaXPDaRodada(w *world.World, s *world.Session, e *world.
 	k := donoDe(s)
 	st := d.xpDaRodada[k]
 	st.total += pago
-	if trofeu {
-		st.trofeu += pago
-	}
 	if pago < ganho && !st.avisado {
 		st.avisado = true
 		sendClientMessage(w, s, d.textoTetoDaRodada())
@@ -109,9 +117,83 @@ func (d *Dispatcher) textoTetoDaRodada() string {
 	return fmt.Sprintf("Você chegou ao limite de XP desta rodada. A próxima começa em %d min %02d s.", seg/60, seg%60)
 }
 
-func (d *Dispatcher) textoTrofeuForaDoTeto() string {
+func (d *Dispatcher) textoTrofeusDaRodada() string {
 	seg := d.segundosAteALimpeza()
-	return fmt.Sprintf("O troféu passa do limite de XP desta rodada e ficou na bolsa. A próxima começa em %d min %02d s.", seg/60, seg%60)
+	return fmt.Sprintf("Você já recebeu os troféus desta rodada. A próxima começa em %d min %02d s.", seg/60, seg%60)
+}
+
+// trofeuPodeCair diz se o troféu pode cair para quem recebe o saque: enquanto a
+// XP de troféu reservada na rodada for menor que a metade do teto E o valor
+// inteiro do troféu couber no que falta do total. Sem a segunda condição, quem
+// enche o total matando no campo e depois entra na arena ganharia troféus que não
+// reservam nada e, com o uso livre, passaria do ritmo. Na primeira recusa da
+// rodada, avisa. Item que não é troféu, e quem não tem teto, sempre pode.
+func (d *Dispatcher) trofeuPodeCair(w *world.World, e *world.Entity, it world.Item) bool {
+	if !ehTrofeuDeQuest(it.Index) {
+		return true
+	}
+	s := w.Session(e.ID)
+	if s == nil {
+		return true
+	}
+	teto, ok := d.tetoDoGanho(e)
+	if !ok {
+		return true
+	}
+	k := donoDe(s)
+	st := d.xpDaRodada[k]
+	if st.trofeu < teto/2 && d.valorDoTrofeu(it) <= teto-st.total {
+		return true
+	}
+	if !st.avisadoTrofeu {
+		st.avisadoTrofeu = true
+		if d.xpDaRodada == nil {
+			d.xpDaRodada = make(map[donoDaEntrada]xpDaRodada)
+		}
+		d.xpDaRodada[k] = st
+		sendClientMessage(w, s, d.textoTrofeusDaRodada())
+		d.log.Info("teto da rodada: troféu não caiu", "conta", s.AccountName, "conn", s.Conn, "nivel", e.Level, "trofeu", st.trofeu)
+	}
+	return false
+}
+
+// valorDoTrofeu é a XP que o troféu vale no uso, pela quantidade que ele traz.
+func (d *Dispatcher) valorDoTrofeu(it world.Item) int64 {
+	rate, ok := d.questRates.Tier(int(it.Index) - itemQuestRewardBase)
+	if !ok || rate.MortalExp <= 0 {
+		return 0
+	}
+	return rate.MortalExp * int64(itemAmount(it))
+}
+
+// reservaTrofeuDaRodada põe na rodada o valor do troféu que acabou de cair, inteiro
+// na parte do troféu e no total (trofeuPodeCair já conferiu que cabe). A morte da
+// rodada só ocupa o que sobrar, e guardar o troféu para usar depois não passa do
+// ritmo.
+func (d *Dispatcher) reservaTrofeuDaRodada(w *world.World, e *world.Entity, it world.Item) {
+	if !ehTrofeuDeQuest(it.Index) {
+		return
+	}
+	s := w.Session(e.ID)
+	if s == nil {
+		return
+	}
+	teto, ok := d.tetoDoGanho(e)
+	if !ok {
+		return
+	}
+	valor := d.valorDoTrofeu(it)
+	if valor <= 0 {
+		return
+	}
+	k := donoDe(s)
+	st := d.xpDaRodada[k]
+	st.trofeu += valor
+	st.total = min(st.total+valor, teto)
+	if d.xpDaRodada == nil {
+		d.xpDaRodada = make(map[donoDaEntrada]xpDaRodada)
+	}
+	d.xpDaRodada[k] = st
 }
 
 // zeraXPDaRodada abre a rodada nova. Chamado pelo pulso.
