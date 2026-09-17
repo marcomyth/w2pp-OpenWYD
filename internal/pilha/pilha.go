@@ -22,6 +22,9 @@ const EspacosDoBau = 128
 // Empilha diz se o item pode ser dividido e juntado em pilhas (_MSG_SplitItem.cpp:
 // 45-52): um conjunto fixo de moedas e especiais, os Âmagos 2390-2419, e as
 // divergências decididas pela equipe, comentadas em handler.isSplittable.
+//
+// O cliente tem a própria lista para abrir a caixa de dividir: a mesma, copiada
+// em Divide (client/gamepatch/divisao.cpp). Item novo aqui entra lá também.
 func Empilha(index int16) bool {
 	switch index {
 	case 412, 413, 414, 416, 419, 420:

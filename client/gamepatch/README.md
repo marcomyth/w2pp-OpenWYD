@@ -174,3 +174,13 @@ O alcance do golpe físico é do cliente: `BASE_GetMobAbility` (`0x539C2C`) com
 `EF_RANGE`. O DLL troca a regra da Huntress com Olhos de Águia (bit 19): com
 Garra na mão direita, +1 de alcance, ou +2 com a Invisibilidade (bit 23); com
 outra arma, nada. A Força Espectral continua somando +1 por fora, em quem chama.
+
+## Dividir pilha (`divisao.cpp`)
+
+Shift+clique só abre a caixa de quantidade para os itens de uma lista fixa do
+WYD.exe (`0x42052A`), a do legado: Poeiras, Restos, Âmagos e pouco mais. O
+DLL troca essa decisão pela lista do servidor (`internal/pilha`), mantendo a
+original: Jóias 2441-2444, Pedra do Sábio, Classes A-E e (P), Barras, Pergaminhos
+da Água e troféus da Quest 256 passam a dividir. O envio (`0x46B41C`) não tem
+lista própria. **Item novo em `pilha.Empilha` precisa entrar também em
+`Divide`**, ou o servidor divide e o cliente nunca pede.
