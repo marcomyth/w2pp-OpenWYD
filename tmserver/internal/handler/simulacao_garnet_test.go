@@ -44,12 +44,29 @@ var montagens = []montagem{
 	{"full Garnet (11 peças)", 0, 11},
 }
 
-func (sm *simulador) absorveGarnet(alvo *world.Entity, dmg int) int {
+// garnetPct, quando maior que zero, é o teto percentual: a Garnet nunca tira
+// mais que esse tanto de cada golpe (opção A de 17/09).
+var garnetPct int
+
+// garnetAnulaEsmeralda: com teto percentual, a Garnet primeiro anula por inteiro
+// a Esmeralda de quem bate e só o que sobra dela obedece ao teto, aplicado ao
+// resto do golpe (variante A2).
+var garnetAnulaEsmeralda bool
+
+func (sm *simulador) absorveGarnet(atk, alvo *world.Entity, dmg int) int {
 	g := sm.garnet[alvo.ID]
 	if g <= 0 || dmg <= 0 {
 		return dmg
 	}
-	return max(dmg-g, 1)
+	if garnetPct <= 0 {
+		return max(dmg-g, 1)
+	}
+	anula := 0
+	if garnetAnulaEsmeralda && atk != nil {
+		anula = min(g, int(atk.EquipForceDamage), dmg)
+	}
+	tira := anula + min(g-anula, (dmg-anula)*garnetPct/100)
+	return max(dmg-tira, 1)
 }
 
 func (sm *simulador) vestir(e *world.Entity, m montagem, teto int) {
@@ -155,7 +172,7 @@ func (sm *simulador) rodadaPvE(m montagem, teto int, vida int32, danoX10, defesa
 				sm.d.tickCount = int(agora / 1000)
 				dmg := sm.d.danoDoGolpeDeMonstro(sm.w, mob, ht.e)
 				if dmg > 0 {
-					dmg = sm.absorveGarnet(ht.e, dmg)
+					dmg = sm.absorveGarnet(mob, ht.e, dmg)
 					ht.e.HP = max(0, ht.e.HP-int32(dmg))
 					somaMob += dmg
 					r.nMob++
@@ -263,6 +280,83 @@ func TestSimulacaoGarnetEsmeralda(t *testing.T) {
 					nome = fmt.Sprint(teto)
 				}
 				fmt.Fprintf(&b, "| %s | %s | %d | %d | %.1f | %d | %d | %d |\n", m.nome, nome, r.vitoriasA, r.mortesDoJogador, mt, danoMedio(r.golpesA), r.nMob, r.danoMobMedio)
+			}
+		}
+	}
+
+	t.Log("\n" + b.String())
+	if out := os.Getenv("SIM_OUT"); out != "" {
+		if err := os.WriteFile(out, []byte(b.String()), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// TestSimulacaoGarnetPct: a opção A — a Garnet tira no máximo X% de cada golpe.
+func TestSimulacaoGarnetPct(t *testing.T) {
+	root := filepath.Join("..", "..", "..", "Release")
+	sm := novoSimulador(t, root)
+	defer func() { garnetPct, garnetAnulaEsmeralda = 0, false }()
+	var b strings.Builder
+	fmt.Fprintf(&b, "# Garnet com teto percentual — %d lutas por cenário\n\n", simRodadas)
+	fmt.Fprintf(&b, "A Garnet tira min(soma das peças, X%% do golpe). Peça +15 = %d; full = %d. Sem poção.\n\n", joiaPorPeca, 11*joiaPorPeca)
+	pcts := []struct {
+		p     int
+		anula bool
+	}{{0, false}, {30, false}, {50, false}, {70, false}, {20, true}, {30, true}, {50, true}}
+	nomePct := func(c struct {
+		p     int
+		anula bool
+	}) string {
+		if c.p == 0 {
+			return "sem teto"
+		}
+		if c.anula {
+			return fmt.Sprintf("A2 %d%%", c.p)
+		}
+		return fmt.Sprintf("A %d%%", c.p)
+	}
+
+	fmt.Fprintf(&b, "## Espelho TK\n\n| Teto | TK A | TK B | A venceu | B venceu | Tempo médio (s) | Dano A → B | Dano B → A |\n|---|---|---|---|---|---|---|---|\n")
+	for _, p := range pcts {
+		garnetAnulaEsmeralda = p.anula
+		garnetPct = p.p
+		for _, par := range [][2]int{{0, 4}, {3, 4}, {1, 4}, {1, 2}} {
+			mA, mB := montagens[par[0]], montagens[par[1]]
+			r := sm.espelhoTK(mA, mB, 0)
+			mt, _ := media(r.tempos)
+			fmt.Fprintf(&b, "| %s | %s | %s | %d | %d | %.1f | %d | %d |\n", nomePct(p), mA.nome, mB.nome, r.vitoriasA, r.mortesDoJogador, mt, danoMedio(r.golpesA), danoMedio(r.golpesB))
+		}
+	}
+
+	fmt.Fprintf(&b, "\n## HT contra TK\n\n| Teto | HT | TK | HT venceu | Tempo médio (s) | Dano HT → TK | Dano TK → HT |\n|---|---|---|---|---|---|---|\n")
+	for _, p := range pcts {
+		garnetAnulaEsmeralda = p.anula
+		garnetPct = p.p
+		for _, par := range [][2]int{{0, 4}, {4, 0}, {3, 4}, {4, 3}} {
+			mHT, mTK := montagens[par[0]], montagens[par[1]]
+			r := sm.rodadaPvP(mHT, mTK, 0)
+			mt, _ := media(r.tempos)
+			fmt.Fprintf(&b, "| %s | %s | %s | %d de %d | %.1f | %d | %d |\n", nomePct(p), mHT.nome, mTK.nome, r.vitoriasA, simRodadas, mt, danoMedio(r.golpesA), danoMedio(r.golpesB))
+		}
+	}
+
+	fmt.Fprintf(&b, "\n## PvE — HT contra o Cav. Lugefer\n\n| Teto | Lugefer | HT | HT venceu | HT morreu | Tempo médio (s) | Golpes do monstro | Dano médio do monstro |\n|---|---|---|---|---|---|---|---|\n")
+	for _, p := range pcts {
+		garnetAnulaEsmeralda = p.anula
+		garnetPct = p.p
+		for _, c := range []struct {
+			nome               string
+			vida               int32
+			danoX10, defesaX10 int
+		}{
+			{"como está", 0, 10, 10},
+			{"proposto", 1_000_000, 20, 15},
+		} {
+			for _, m := range []montagem{montagens[0], montagens[2], montagens[4]} {
+				r := sm.rodadaPvE(m, 0, c.vida, c.danoX10, c.defesaX10)
+				mt, _ := media(r.tempos)
+				fmt.Fprintf(&b, "| %s | %s | %s | %d | %d | %.1f | %d | %d |\n", nomePct(p), c.nome, m.nome, r.vitoriasA, r.mortesDoJogador, mt, r.nMob, r.danoMobMedio)
 			}
 		}
 	}

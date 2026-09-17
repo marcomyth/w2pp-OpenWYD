@@ -170,7 +170,7 @@ func (sm *simulador) aplicar(l *lado, alvo *world.Entity, dmg, airBlade int, ski
 	if pvp {
 		dmg = applyTierDefense(l.e.ClassMaster, alvo.ClassMaster, dmg)
 		dmg = sm.d.applyPvPStats(l.e, alvo, dmg)
-		dmg = sm.absorveGarnet(alvo, dmg)
+		dmg = sm.absorveGarnet(l.e, alvo, dmg)
 	}
 	dmg = sm.d.applyManaControl(sm.w, l.e, alvo, alvo.ID, dmg)
 	dmg = sm.d.absorbBlow(sm.w, alvo, dmg, true)
