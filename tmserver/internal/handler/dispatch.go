@@ -470,6 +470,9 @@ type Dispatcher struct {
 	// tetoRodadaCfg: o teto de XP por rodada do Mortal que o painel manda
 	// (tetorodada_config.go).
 	tetoRodadaCfg tetoDaRodadaConfig
+	// xpDaRodada: a XP que cada Mortal já recebeu na rodada (tetorodada.go).
+	// Loop-only; zera no pulso.
+	xpDaRodada map[donoDaEntrada]xpDaRodada
 }
 
 // worldEventRNGSeed is the fallback seed for eventRNG, used when Config leaves

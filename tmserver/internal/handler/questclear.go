@@ -75,6 +75,7 @@ func (d *Dispatcher) clearQuestAreas(w *world.World) {
 	// Depois da expulsão: quem o pulso tirou da arena começa a rodada nova com a
 	// entrada livre.
 	d.zeraEntradasDaRodada()
+	d.zeraXPDaRodada()
 }
 
 // segundosAteALimpeza é quanto falta para o relógio virar de novo.

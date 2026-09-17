@@ -1057,6 +1057,9 @@ func (d *Dispatcher) useExpChest(w *world.World, s *world.Session, e *world.Enti
 // useFairyDust consumes Poeira de Fada (EF_VOLATILE 7). The legacy handler sets
 // Exp directly to the next curve threshold, then calls CheckGetLevel; both sides
 // of its rand()%2 branch do the same in this fork.
+//
+// ISENTA do teto de XP por rodada (tetorodada.go): a oferta é finita e cortar
+// gastaria o item quase sem efeito.
 func (d *Dispatcher) useFairyDust(w *world.World, s *world.Session, e *world.Entity, src int) {
 	if e.Level < 0 {
 		return
@@ -1236,6 +1239,16 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}
+	// O teto de XP por rodada do Mortal (tetorodada.go): o troféu que não cabe
+	// nada fica na bolsa, sem ouro; o que cabe em parte paga até o teto e é gasto.
+	if cabe, comTeto := d.cabeNaRodada(s, e, true); comTeto {
+		if cabe <= 0 {
+			sendClientMessage(w, s, d.textoTrofeuForaDoTeto())
+			d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+			return
+		}
+		questExp = d.cortaXPDaRodada(w, s, e, questExp, true)
+	}
 
 	if int64(e.Coin)+int64(rate.Coin) > maxCoin {
 		e.Coin = maxCoin
@@ -1243,7 +1256,9 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 		e.Coin += rate.Coin
 	}
 	d.grantDirectExp(w, s, e, questExp)
-	d.grantQuestPartyExp(w, e, questExp/10)
+	// A parte do grupo sai do valor do troféu, não do que coube a quem usou; cada
+	// um que recebe responde pelo próprio teto.
+	d.grantQuestPartyExp(w, e, rate.MortalExp/10)
 
 	consumeOneItem(&e.Carry[src])
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
@@ -1279,7 +1294,8 @@ func (d *Dispatcher) grantQuestPartyExp(w *world.World, consumer *world.Entity, 
 		if rs == nil || rs.Mode != world.UserPlay || re == nil {
 			continue
 		}
-		d.grantDirectExp(w, rs, re, share)
+		// Conta em quem recebe, no total e na metade troféu (tetorodada.go).
+		d.grantDirectExp(w, rs, re, d.cortaXPDaRodada(w, rs, re, share, true))
 	}
 }
 

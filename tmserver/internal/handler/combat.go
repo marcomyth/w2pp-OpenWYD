@@ -565,6 +565,8 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 		if healExp > 200 {
 			healExp = 200
 		}
+		// Entra no teto de XP por rodada do Mortal (tetorodada.go).
+		healExp = d.cortaXPDaRodada(w, s, e, healExp, false)
 		e.Exp += healExp
 		if e.Exp > level.MaxExp {
 			e.Exp = level.MaxExp
