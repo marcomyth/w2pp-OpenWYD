@@ -1229,9 +1229,8 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}
-	// Uso livre: o teto de XP por rodada limita o troféu no DROP (tetorodada.go),
-	// que já reservou o valor dele na rodada em que caiu. Usar não recusa, não
-	// corta e não soma de novo.
+	// Uso livre: o troféu está fora do teto de XP por rodada desde 17/09/2026
+	// (tetorodada.go). Usar não recusa, não corta e não soma na rodada.
 
 	if int64(e.Coin)+int64(rate.Coin) > maxCoin {
 		e.Coin = maxCoin
@@ -1239,8 +1238,7 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 		e.Coin += rate.Coin
 	}
 	d.grantDirectExp(w, s, e, questExp)
-	// A parte do grupo é ganho passivo de quem recebe: conta no total da rodada
-	// dele, com corte (tetorodada.go).
+	// A parte do grupo é do troféu, e o troféu está fora do teto: paga inteira.
 	d.grantQuestPartyExp(w, e, rate.MortalExp/10)
 
 	consumeOneItem(&e.Carry[src])
@@ -1277,8 +1275,7 @@ func (d *Dispatcher) grantQuestPartyExp(w *world.World, consumer *world.Entity, 
 		if rs == nil || rs.Mode != world.UserPlay || re == nil {
 			continue
 		}
-		// Conta no total da rodada de quem recebe, com corte (tetorodada.go).
-		d.grantDirectExp(w, rs, re, d.cortaXPDaRodada(w, rs, re, share))
+		d.grantDirectExp(w, rs, re, share)
 	}
 }
 

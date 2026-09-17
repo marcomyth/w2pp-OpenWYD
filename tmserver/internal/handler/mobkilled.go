@@ -184,18 +184,12 @@ func (d *Dispatcher) putMobDrop(w *world.World, reward *world.Entity, it world.I
 	if reward == nil {
 		return false
 	}
-	// O troféu da Quest 256 só cai enquanto cabe na rodada de quem recebe
-	// (tetorodada.go); o resto do saque não passa por aqui.
-	if !d.trofeuPodeCair(w, reward, it) {
-		return false
-	}
 	if d.putCarryItem(w, reward, it) < 0 {
 		if s := w.Session(reward.ID); s != nil {
 			d.notify(w, s, NoticeNoSpaceToTrade)
 		}
 		return false
 	}
-	d.reservaTrofeuDaRodada(w, reward, it)
 	return true
 }
 

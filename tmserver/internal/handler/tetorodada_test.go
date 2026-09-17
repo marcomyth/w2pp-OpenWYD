@@ -80,8 +80,8 @@ func TestTetoNaMorte(t *testing.T) {
 	})
 }
 
-// TestTrofeuUsoLivre: usar o troféu paga inteiro e é gasto, mesmo com a parte do
-// troféu e o total da rodada cheios: o limite é no drop.
+// TestTrofeuUsoLivre: usar o troféu paga inteiro e é gasto, mesmo com o total da
+// rodada cheio, e não soma na rodada: o troféu está fora do teto.
 func TestTrofeuUsoLivre(t *testing.T) {
 	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), inicioDaVolta)
 	c := enterWorldAs(t, srv.addr, "tester")
@@ -94,7 +94,7 @@ func TestTrofeuUsoLivre(t *testing.T) {
 		}
 		e.Carry[1] = world.Item{Index: itemQuestRewardBase}
 		k := donoDe(s)
-		d.xpDaRodada = map[donoDaEntrada]xpDaRodada{k: {total: tetoFaixa99, trofeu: tetoFaixa99, avisado: true}}
+		d.xpDaRodada = map[donoDaEntrada]xpDaRodada{k: {total: tetoFaixa99, avisado: true}}
 		exp := e.Exp
 		d.useQuestReward(w, s, e, 1)
 		if got := e.Exp - exp; got != rate.MortalExp {
@@ -103,127 +103,40 @@ func TestTrofeuUsoLivre(t *testing.T) {
 		if e.Carry[1].Index != 0 {
 			t.Errorf("o troféu usado não foi gasto: espaço 1 = %d", e.Carry[1].Index)
 		}
-		if st := d.xpDaRodada[k]; st.total != tetoFaixa99 || st.trofeu != tetoFaixa99 {
+		if st := d.xpDaRodada[k]; st.total != tetoFaixa99 {
 			t.Errorf("o uso somou na rodada: %+v", st)
 		}
 	})
 }
 
-// TestTrofeuCaiAteAMetadeEPara: o troféu cai enquanto a parte reservada é menor
-// que a metade do teto; depois não cai, com o aviso uma vez só. O que cai reserva
-// o valor no total, e a morte só paga o que sobrou.
-func TestTrofeuCaiAteAMetadeEPara(t *testing.T) {
+// TestTrofeuCaiSemTrava: com o total da rodada cheio, o troféu continua caindo
+// na bolsa, um atrás do outro, e nada é reservado nem avisado.
+func TestTrofeuCaiSemTrava(t *testing.T) {
 	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), inicioDaVolta)
 	c := enterWorldAs(t, srv.addr, "tester")
 	defer c.Close()
 	drena(t, c)
 
 	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
-		rate, _ := d.questRates.Tier(0)
-		valor := rate.MortalExp
-		metade := int64(tetoFaixa99 / 2)
-		k := donoDe(s)
 		for i := range e.Carry {
 			e.Carry[i] = world.Item{}
 		}
-		// Falta um pouco menos que dois troféus para a metade: caem dois, o terceiro não.
-		d.xpDaRodada = map[donoDaEntrada]xpDaRodada{k: {trofeu: metade - valor - 1, total: metade - valor - 1}}
-		caiu := 0
-		for range 4 {
-			if d.putMobDrop(w, e, world.Item{Index: itemQuestRewardBase}) {
-				caiu++
+		k := donoDe(s)
+		d.xpDaRodada = map[donoDaEntrada]xpDaRodada{k: {total: tetoFaixa99, avisado: true}}
+		for i := range 20 {
+			if !d.putMobDrop(w, e, world.Item{Index: itemQuestRewardBase}) {
+				t.Fatalf("o troféu %d não caiu com a rodada cheia", i+1)
 			}
 		}
-		if caiu != 2 {
-			t.Errorf("caíram %d troféus, quero 2", caiu)
-		}
-		st := d.xpDaRodada[k]
-		if st.trofeu != metade-valor-1+2*valor {
-			t.Errorf("parte do troféu reservada = %d, quero %d", st.trofeu, metade-valor-1+2*valor)
-		}
-		if st.total != st.trofeu {
-			t.Errorf("o total não recebeu a reserva: total %d, troféu %d", st.total, st.trofeu)
-		}
-		// Uma espada do mesmo saque continua caindo.
-		if !d.putMobDrop(w, e, world.Item{Index: 1100}) {
-			t.Error("o resto do saque parou junto com o troféu")
-		}
-		// A morte agora só cabe no que o troféu deixou.
-		if cabe, _ := d.cabeNaRodada(s, e); cabe != tetoFaixa99-st.total {
-			t.Errorf("depois da reserva cabem %d, quero %d", cabe, tetoFaixa99-st.total)
+		if st := d.xpDaRodada[k]; st.total != tetoFaixa99 {
+			t.Errorf("o drop mexeu na rodada: %+v", st)
 		}
 	})
-	avisos := 0
 	quadroAte(t, c, time.Second, func(h protocol.Header, p []byte) bool {
-		if h.Type == protocol.MsgMessagePanel && strings.Contains(decodePanel(p), "recebeu os troféus desta rodada") {
-			avisos++
+		if h.Type == protocol.MsgMessagePanel && strings.Contains(decodePanel(p), "roféu") {
+			t.Errorf("mensagem de troféu no drop: %q", decodePanel(p))
 		}
 		return false
-	})
-	if avisos != 1 {
-		t.Errorf("o aviso dos troféus saiu %d vezes em duas recusas, quero 1", avisos)
-	}
-}
-
-// TestTrofeuSoCaiSeOValorCabeNoTotal: quem encheu o total matando não ganha troféu
-// na arena; com espaço exato para o troféu inteiro ele cai, com um a menos não.
-func TestTrofeuSoCaiSeOValorCabeNoTotal(t *testing.T) {
-	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), inicioDaVolta)
-	c := enterWorldAs(t, srv.addr, "tester")
-	defer c.Close()
-
-	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
-		valor := d.valorDoTrofeu(world.Item{Index: itemQuestRewardBase})
-		if valor <= 0 {
-			t.Fatal("troféu do Coveiro sem valor")
-		}
-		k := donoDe(s)
-		casos := []struct {
-			nome  string
-			total int64
-			cai   bool
-		}{
-			{"total cheio de mortes", tetoFaixa99, false},
-			{"espaço exato para um troféu", tetoFaixa99 - valor, true},
-			{"espaço um abaixo do troféu", tetoFaixa99 - valor + 1, false},
-		}
-		for _, cs := range casos {
-			for i := range e.Carry {
-				e.Carry[i] = world.Item{}
-			}
-			d.xpDaRodada = map[donoDaEntrada]xpDaRodada{k: {total: cs.total, avisado: true, avisadoTrofeu: true}}
-			if got := d.putMobDrop(w, e, world.Item{Index: itemQuestRewardBase}); got != cs.cai {
-				t.Errorf("%s: caiu = %v, quero %v", cs.nome, got, cs.cai)
-			}
-			if cs.cai {
-				if st := d.xpDaRodada[k]; st.total != tetoFaixa99 || st.trofeu != valor {
-					t.Errorf("%s: reserva = %+v, quero total %d e troféu %d", cs.nome, st, tetoFaixa99, valor)
-				}
-			}
-		}
-	})
-}
-
-// TestTrofeuComDobroCaiODobro: com o dobro, a metade é a do teto do dobro.
-func TestTrofeuComDobroCaiODobro(t *testing.T) {
-	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), inicioDaVolta)
-	c := enterWorldAs(t, srv.addr, "tester")
-	defer c.Close()
-
-	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
-		k := donoDe(s)
-		for i := range e.Carry {
-			e.Carry[i] = world.Item{}
-		}
-		d.xpDaRodada = map[donoDaEntrada]xpDaRodada{k: {trofeu: tetoFaixa99 / 2, avisadoTrofeu: true}}
-		if d.putMobDrop(w, e, world.Item{Index: itemQuestRewardBase}) {
-			t.Error("sem dobro e com a metade cheia, o troféu caiu")
-		}
-		d.expEvents.DoubleMode = true
-		if !d.putMobDrop(w, e, world.Item{Index: itemQuestRewardBase}) {
-			t.Error("com dobro a metade dobra, e o troféu não caiu")
-		}
-		d.expEvents.DoubleMode = false
 	})
 }
 
@@ -294,9 +207,9 @@ func TestTrofeuNaoVaiAoBauNemAoChao(t *testing.T) {
 	}
 }
 
-// TestTetoNaParteDoGrupo: os 10% do troféu contam no total da rodada de QUEM
-// RECEBE, com corte.
-func TestTetoNaParteDoGrupo(t *testing.T) {
+// TestParteDoGrupoForaDoTeto: os 10% do troféu pagam inteiros a quem recebe, mesmo
+// com a rodada dele quase cheia, e não somam no total: o troféu está fora do teto.
+func TestParteDoGrupoForaDoTeto(t *testing.T) {
 	outro := mortalDoCemiterio()
 	outro.Name = "HeroB"
 	srv := startServerRelogioDasArenasCom(t, mortalDoCemiterio(), inicioDaVolta, map[int64]world.CharacterState{11: outro})
@@ -324,11 +237,11 @@ func TestTetoNaParteDoGrupo(t *testing.T) {
 		d.xpDaRodada = map[donoDaEntrada]xpDaRodada{donoDe(sRecebe): {total: tetoFaixa99 - 50, avisado: true}}
 		antes := recebe.Exp
 		d.grantQuestPartyExp(w, usa, 1000)
-		if got := recebe.Exp - antes; got != 50 {
-			t.Errorf("a parte do grupo pagou %d a quem tinha 50 de rodada", got)
+		if got := recebe.Exp - antes; got != 1000 {
+			t.Errorf("a parte do grupo pagou %d a quem tinha 50 de rodada, quero os 1000", got)
 		}
-		if st := d.xpDaRodada[donoDe(sRecebe)]; st.total != tetoFaixa99 {
-			t.Errorf("total de quem recebe = %d, quero %d", st.total, tetoFaixa99)
+		if st := d.xpDaRodada[donoDe(sRecebe)]; st.total != tetoFaixa99-50 {
+			t.Errorf("total de quem recebe = %d, quero %d (a parte não soma)", st.total, tetoFaixa99-50)
 		}
 	})
 }
@@ -404,7 +317,7 @@ func TestPoeiraDeFadaIsentaDoTeto(t *testing.T) {
 	defer c.Close()
 
 	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
-		d.xpDaRodada = map[donoDaEntrada]xpDaRodada{donoDe(s): {total: tetoFaixa99, trofeu: tetoFaixa99 / 2, avisado: true}}
+		d.xpDaRodada = map[donoDaEntrada]xpDaRodada{donoDe(s): {total: tetoFaixa99, avisado: true}}
 		nivel := e.Level
 		e.Carry[1] = world.Item{Index: 414}
 		d.useFairyDust(w, s, e, 1)
