@@ -55,7 +55,7 @@ func naContaDoRelogio(t *testing.T, srv *servidorDoRelogio, conta int64, fn func
 // tique para a vigia ver a saída.
 func saiDaArena(t *testing.T, srv *servidorDoRelogio, conta int64) {
 	t.Helper()
-	naContaDoRelogio(t, srv, conta, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
+	naContaDoRelogio(t, srv, conta, func(w *world.World, d *Dispatcher, s *world.Session, _ *world.Entity) {
 		d.doTeleport(w, s, 2113, 2079)
 	})
 	srv.noLaco(t, func(w *world.World, d *Dispatcher) { d.Tick(w) })

@@ -51,6 +51,8 @@ message WorldEventConfig {
   optional bool tower_war_enabled = 12;
   optional int32 tower_war_hour = 13;
   optional int32 boss_respawn_hours = 14;
+  repeated int64 round_xp_cap = 15;
+  repeated int64 round_xp_cap_double = 16;
 }
 
 message GetWorldEventConfigRequest {
@@ -90,6 +92,8 @@ antes de salvar para evitar sobrescrever dados de uma aba antiga.
 | `tower_war_enabled` | `optional bool` | liga/desliga a Guerra de Torres diária (padrão: ligada) |
 | `tower_war_hour` | `optional int32` | hora (0 a 23, relógio do servidor, que é UTC) em que a guerra começa; padrão 20 |
 | `boss_respawn_hours` | `optional int32` | horas (1 a 168) até um chefe sozinho renascer — bloco sem período, até 3 monstros, 1 milhão de XP ou mais; padrão 24 |
+| `round_xp_cap` | `repeated int64` | teto de XP por rodada de 10 minutos do Mortal, um valor por faixa de nível guardado (1-99, 100-199, 200-299, 300-349, 350-398); 0 = sem teto na faixa; padrão 604951, 2669386, 500454, 1263881, 1263881 |
+| `round_xp_cap_double` | `repeated int64` | o mesmo teto com o XP em dobro ligado; padrão 1209902, 5338772, 1000908, 2527761, 2527761 |
 
 Os dois campos da Guerra de Torres e o dos chefes são `optional` de propósito.
 No `SetWorldEventConfig`, um campo **ausente mantém o valor gravado** em vez de
@@ -98,6 +102,10 @@ meia-noite nem traz os chefes de volta a cada 15 segundos só por salvar o XP em
 dobro. Presente e zerado é escolha na guerra: `false` desliga, `0` é
 meia-noite; nos chefes, `0` é inválido. O `GetWorldEventConfig` sempre manda os
 três.
+
+As duas listas do teto seguem a mesma ideia pelo tamanho: no `SetWorldEventConfig`,
+uma lista com qualquer tamanho que não seja cinco mantém o que está gravado. O
+`GetWorldEventConfig` sempre manda as cinco faixas.
 
 `version` vem apenas no `GetWorldEventConfigResponse`. Ele é incrementado por
 edições de moderador e não muda quando o `tmServer` persiste progresso de

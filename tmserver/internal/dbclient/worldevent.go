@@ -71,6 +71,8 @@ func dbWorldEventToConfig(cfg *dbv1.WorldEventConfig) worldcfg.EventConfig {
 			TowerWarEnabled:  domain.DefaultTowerWarEnabled,
 			TowerWarHour:     domain.DefaultTowerWarHour,
 			BossRespawnHours: domain.DefaultBossRespawnHours,
+			RoundXPCap:       domain.DefaultRoundXPCap,
+			RoundXPCapDouble: domain.DefaultRoundXPCapDouble,
 		}
 	}
 	// The Tower War pair is `optional` on the wire. Absent means a dbServer that
@@ -92,6 +94,16 @@ func dbWorldEventToConfig(cfg *dbv1.WorldEventConfig) worldcfg.EventConfig {
 	if cfg.BossRespawnHours != nil {
 		chefes = *cfg.BossRespawnHours
 	}
+	// The Mortal round XP cap (migration 0073): five values or none. None is a
+	// dbServer that predates it, and the decided caps run instead of zeros, which
+	// would read as "no cap" in every band.
+	teto, tetoDobro := domain.DefaultRoundXPCap, domain.DefaultRoundXPCapDouble
+	if v := cfg.GetRoundXpCap(); len(v) == len(teto) {
+		copy(teto[:], v)
+	}
+	if v := cfg.GetRoundXpCapDouble(); len(v) == len(tetoDobro) {
+		copy(tetoDobro[:], v)
+	}
 	return worldcfg.EventConfig{
 		Enabled: cfg.GetEnabled(), ItemIndex: cfg.GetItemIndex(), Rate: cfg.GetRate(),
 		StartIndex: cfg.GetStartIndex(), CurrentIndex: cfg.GetCurrentIndex(), EndIndex: cfg.GetEndIndex(),
@@ -103,5 +115,7 @@ func dbWorldEventToConfig(cfg *dbv1.WorldEventConfig) worldcfg.EventConfig {
 		KefraGuildID:    cfg.GetKefraGuildId(),
 		TowerWarEnabled: ligada, TowerWarHour: hora,
 		BossRespawnHours: chefes,
+		RoundXPCap:       teto,
+		RoundXPCapDouble: tetoDobro,
 	}
 }

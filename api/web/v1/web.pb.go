@@ -6725,6 +6725,12 @@ type WorldEventConfig struct {
 	// Like the Tower War pair: on SetWorldEventConfig, absent keeps the stored
 	// value rather than resetting it.
 	BossRespawnHours *int32 `protobuf:"varint,14,opt,name=boss_respawn_hours,json=bossRespawnHours,proto3,oneof" json:"boss_respawn_hours,omitempty"`
+	// The Mortal round XP cap (migration 0073), one value per level band
+	// (99/199/299/349/398), without and with the double-XP event. On
+	// SetWorldEventConfig anything but five values keeps what is stored, like the
+	// optional fields above. Zero in a band = no cap there.
+	RoundXpCap       []int64 `protobuf:"varint,15,rep,packed,name=round_xp_cap,json=roundXpCap,proto3" json:"round_xp_cap,omitempty"`
+	RoundXpCapDouble []int64 `protobuf:"varint,16,rep,packed,name=round_xp_cap_double,json=roundXpCapDouble,proto3" json:"round_xp_cap_double,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -6855,6 +6861,20 @@ func (x *WorldEventConfig) GetBossRespawnHours() int32 {
 		return *x.BossRespawnHours
 	}
 	return 0
+}
+
+func (x *WorldEventConfig) GetRoundXpCap() []int64 {
+	if x != nil {
+		return x.RoundXpCap
+	}
+	return nil
+}
+
+func (x *WorldEventConfig) GetRoundXpCapDouble() []int64 {
+	if x != nil {
+		return x.RoundXpCapDouble
+	}
+	return nil
 }
 
 type GetWorldEventConfigRequest struct {
@@ -11537,7 +11557,7 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\aenabled\x18\x03 \x01(\bR\aenabled\"U\n" +
 	"\x17DeleteRewardItemRequest\x12!\n" +
 	"\fmoderator_id\x18\x01 \x01(\x03R\vmoderatorId\x12\x17\n" +
-	"\aitem_id\x18\x02 \x01(\x03R\x06itemId\"\xe0\x04\n" +
+	"\aitem_id\x18\x02 \x01(\x03R\x06itemId\"\xb1\x05\n" +
 	"\x10WorldEventConfig\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1d\n" +
 	"\n" +
@@ -11555,7 +11575,10 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\x12kefra_live_enabled\x18\v \x01(\bR\x10kefraLiveEnabled\x12/\n" +
 	"\x11tower_war_enabled\x18\f \x01(\bH\x00R\x0ftowerWarEnabled\x88\x01\x01\x12)\n" +
 	"\x0etower_war_hour\x18\r \x01(\x05H\x01R\ftowerWarHour\x88\x01\x01\x121\n" +
-	"\x12boss_respawn_hours\x18\x0e \x01(\x05H\x02R\x10bossRespawnHours\x88\x01\x01B\x14\n" +
+	"\x12boss_respawn_hours\x18\x0e \x01(\x05H\x02R\x10bossRespawnHours\x88\x01\x01\x12 \n" +
+	"\fround_xp_cap\x18\x0f \x03(\x03R\n" +
+	"roundXpCap\x12-\n" +
+	"\x13round_xp_cap_double\x18\x10 \x03(\x03R\x10roundXpCapDoubleB\x14\n" +
 	"\x12_tower_war_enabledB\x11\n" +
 	"\x0f_tower_war_hourB\x15\n" +
 	"\x13_boss_respawn_hours\"?\n" +

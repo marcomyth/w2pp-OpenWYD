@@ -6943,9 +6943,15 @@ type WorldEventConfig struct {
 	BossRespawnHours *int32 `protobuf:"varint,14,opt,name=boss_respawn_hours,json=bossRespawnHours,proto3,oneof" json:"boss_respawn_hours,omitempty"`
 	// The guild that killed the Kefra (migration 0067), 0 for none or while it is
 	// alive. `optional` for the same reason as the fields above.
-	KefraGuildId  *int32 `protobuf:"varint,15,opt,name=kefra_guild_id,json=kefraGuildId,proto3,oneof" json:"kefra_guild_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	KefraGuildId *int32 `protobuf:"varint,15,opt,name=kefra_guild_id,json=kefraGuildId,proto3,oneof" json:"kefra_guild_id,omitempty"`
+	// The Mortal round XP cap (migration 0073), one value per level band
+	// (99/199/299/349/398), without and with the double-XP event. Presence is the
+	// length: five values, or none from a dbServer that predates the columns, in
+	// which case tmServer runs the decided defaults. Zero in a band = no cap there.
+	RoundXpCap       []int64 `protobuf:"varint,16,rep,packed,name=round_xp_cap,json=roundXpCap,proto3" json:"round_xp_cap,omitempty"`
+	RoundXpCapDouble []int64 `protobuf:"varint,17,rep,packed,name=round_xp_cap_double,json=roundXpCapDouble,proto3" json:"round_xp_cap_double,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *WorldEventConfig) Reset() {
@@ -7081,6 +7087,20 @@ func (x *WorldEventConfig) GetKefraGuildId() int32 {
 		return *x.KefraGuildId
 	}
 	return 0
+}
+
+func (x *WorldEventConfig) GetRoundXpCap() []int64 {
+	if x != nil {
+		return x.RoundXpCap
+	}
+	return nil
+}
+
+func (x *WorldEventConfig) GetRoundXpCapDouble() []int64 {
+	if x != nil {
+		return x.RoundXpCapDouble
+	}
+	return nil
 }
 
 type ListMobTemplateStatsRequest struct {
@@ -11452,7 +11472,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x04live\x18\x01 \x01(\bR\x04live\x12\x19\n" +
 	"\bguild_id\x18\x02 \x01(\x05R\aguildId\"1\n" +
 	"\x15SetKefraStateResponse\x12\x18\n" +
-	"\aversion\x18\x01 \x01(\x03R\aversion\"\x9e\x05\n" +
+	"\aversion\x18\x01 \x01(\x03R\aversion\"\xef\x05\n" +
 	"\x10WorldEventConfig\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1d\n" +
 	"\n" +
@@ -11471,7 +11491,10 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x11tower_war_enabled\x18\f \x01(\bH\x00R\x0ftowerWarEnabled\x88\x01\x01\x12)\n" +
 	"\x0etower_war_hour\x18\r \x01(\x05H\x01R\ftowerWarHour\x88\x01\x01\x121\n" +
 	"\x12boss_respawn_hours\x18\x0e \x01(\x05H\x02R\x10bossRespawnHours\x88\x01\x01\x12)\n" +
-	"\x0ekefra_guild_id\x18\x0f \x01(\x05H\x03R\fkefraGuildId\x88\x01\x01B\x14\n" +
+	"\x0ekefra_guild_id\x18\x0f \x01(\x05H\x03R\fkefraGuildId\x88\x01\x01\x12 \n" +
+	"\fround_xp_cap\x18\x10 \x03(\x03R\n" +
+	"roundXpCap\x12-\n" +
+	"\x13round_xp_cap_double\x18\x11 \x03(\x03R\x10roundXpCapDoubleB\x14\n" +
 	"\x12_tower_war_enabledB\x11\n" +
 	"\x0f_tower_war_hourB\x15\n" +
 	"\x13_boss_respawn_hoursB\x11\n" +

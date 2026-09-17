@@ -921,6 +921,12 @@ message WorldEventConfig {
   // The guild that killed the Kefra (migration 0067), 0 for none or while it is
   // alive. `optional` for the same reason as the fields above.
   optional int32 kefra_guild_id = 15;
+  // The Mortal round XP cap (migration 0073), one value per level band
+  // (99/199/299/349/398), without and with the double-XP event. Presence is the
+  // length: five values, or none from a dbServer that predates the columns, in
+  // which case tmServer runs the decided defaults. Zero in a band = no cap there.
+  repeated int64 round_xp_cap = 16;
+  repeated int64 round_xp_cap_double = 17;
 }
 
 message ListMobTemplateStatsRequest {}

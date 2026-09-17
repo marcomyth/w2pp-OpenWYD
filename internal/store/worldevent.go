@@ -54,9 +54,13 @@ func (s *Store) UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEven
 				id, enabled, item_index, rate, start_index, current_index, end_index,
 				indexed, notice_enabled, double_exp_enabled, newbie_event_enabled,
 				tower_war_enabled, tower_war_hour, boss_respawn_hours,
+				round_xp_cap_99, round_xp_cap_199, round_xp_cap_299, round_xp_cap_349, round_xp_cap_398,
+				round_xp_cap_double_99, round_xp_cap_double_199, round_xp_cap_double_299,
+				round_xp_cap_double_349, round_xp_cap_double_398,
 				updated_by, updated_at
 			)
-			VALUES (TRUE,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,now())
+			VALUES (TRUE,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+				$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,now())
 			ON CONFLICT (id) DO UPDATE SET
 				enabled              = EXCLUDED.enabled,
 				item_index           = EXCLUDED.item_index,
@@ -71,12 +75,26 @@ func (s *Store) UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEven
 				tower_war_enabled    = EXCLUDED.tower_war_enabled,
 				tower_war_hour       = EXCLUDED.tower_war_hour,
 				boss_respawn_hours   = EXCLUDED.boss_respawn_hours,
+				round_xp_cap_99         = EXCLUDED.round_xp_cap_99,
+				round_xp_cap_199        = EXCLUDED.round_xp_cap_199,
+				round_xp_cap_299        = EXCLUDED.round_xp_cap_299,
+				round_xp_cap_349        = EXCLUDED.round_xp_cap_349,
+				round_xp_cap_398        = EXCLUDED.round_xp_cap_398,
+				round_xp_cap_double_99  = EXCLUDED.round_xp_cap_double_99,
+				round_xp_cap_double_199 = EXCLUDED.round_xp_cap_double_199,
+				round_xp_cap_double_299 = EXCLUDED.round_xp_cap_double_299,
+				round_xp_cap_double_349 = EXCLUDED.round_xp_cap_double_349,
+				round_xp_cap_double_398 = EXCLUDED.round_xp_cap_double_398,
 				updated_by           = EXCLUDED.updated_by,
 				updated_at           = now()`,
 			cfg.Enabled, cfg.ItemIndex, cfg.Rate, cfg.StartIndex, cfg.CurrentIndex,
 			cfg.EndIndex, cfg.Indexed, cfg.NoticeEnabled, cfg.DoubleExpEnabled,
 			cfg.NewbieEventEnabled, cfg.TowerWarEnabled, cfg.TowerWarHour,
-			cfg.BossRespawnHours, nullableID(moderatorID)); err != nil {
+			cfg.BossRespawnHours,
+			cfg.RoundXPCap[0], cfg.RoundXPCap[1], cfg.RoundXPCap[2], cfg.RoundXPCap[3], cfg.RoundXPCap[4],
+			cfg.RoundXPCapDouble[0], cfg.RoundXPCapDouble[1], cfg.RoundXPCapDouble[2],
+			cfg.RoundXPCapDouble[3], cfg.RoundXPCapDouble[4],
+			nullableID(moderatorID)); err != nil {
 			return fmt.Errorf("store: upsert world event config: %w", err)
 		}
 		after, _ := fetchWorldEventConfigJSON(ctx, tx)
@@ -166,7 +184,10 @@ func (s *Store) UpdateWorldEventProgress(ctx context.Context, expectedVersion in
 const worldEventConfigSelect = `
 	SELECT enabled, item_index, rate, start_index, current_index, end_index,
 	       indexed, notice_enabled, double_exp_enabled, newbie_event_enabled,
-	       kefra_live_enabled, kefra_guild_id, tower_war_enabled, tower_war_hour, boss_respawn_hours
+	       kefra_live_enabled, kefra_guild_id, tower_war_enabled, tower_war_hour, boss_respawn_hours,
+	       round_xp_cap_99, round_xp_cap_199, round_xp_cap_299, round_xp_cap_349, round_xp_cap_398,
+	       round_xp_cap_double_99, round_xp_cap_double_199, round_xp_cap_double_299,
+	       round_xp_cap_double_349, round_xp_cap_double_398
 	FROM world_event_config WHERE id = TRUE`
 
 type worldEventScanRow interface {
@@ -178,7 +199,10 @@ func scanWorldEventConfig(row worldEventScanRow) (domain.WorldEventConfig, error
 	err := row.Scan(&cfg.Enabled, &cfg.ItemIndex, &cfg.Rate, &cfg.StartIndex,
 		&cfg.CurrentIndex, &cfg.EndIndex, &cfg.Indexed, &cfg.NoticeEnabled,
 		&cfg.DoubleExpEnabled, &cfg.NewbieEventEnabled, &cfg.KefraLiveEnabled, &cfg.KefraGuildID,
-		&cfg.TowerWarEnabled, &cfg.TowerWarHour, &cfg.BossRespawnHours)
+		&cfg.TowerWarEnabled, &cfg.TowerWarHour, &cfg.BossRespawnHours,
+		&cfg.RoundXPCap[0], &cfg.RoundXPCap[1], &cfg.RoundXPCap[2], &cfg.RoundXPCap[3], &cfg.RoundXPCap[4],
+		&cfg.RoundXPCapDouble[0], &cfg.RoundXPCapDouble[1], &cfg.RoundXPCapDouble[2],
+		&cfg.RoundXPCapDouble[3], &cfg.RoundXPCapDouble[4])
 	return cfg, err
 }
 

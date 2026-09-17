@@ -78,10 +78,13 @@ func (h *Handler) eventos(w http.ResponseWriter, r *http.Request) {
 		// GuildaDoKefra is the name of the guild that killed the Kefra; empty
 		// falls back to the number on the page.
 		GuildaDoKefra string
+		// Tetos são as linhas do teto de XP por rodada do Mortal (migração 0073).
+		Tetos []linhaDoTeto
 	}{
 		h.pageFor(r, "eventos"), cfg, caindo(cfg), motivoParado(cfg), restam(cfg),
 		maxItemEvento, domain.MaxTowerWarHour, domain.MinBossRespawnHours, domain.MaxBossRespawnHours,
 		r.URL.Query().Get("aviso"), h.nomeDaGuildaDoKefra(r, cfg.KefraGuildID),
+		linhasDoTeto(cfg),
 	})
 }
 
@@ -200,6 +203,18 @@ func (h *Handler) setEventos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	novo.BossRespawnHours = horas
+	teto, tetoDobro, veio, ok := tetosDoFormulario(r)
+	if !veio {
+		// Um formulário sem nenhuma caixa do teto (uma página aberta antes da
+		// migração 0073) guarda o que está gravado, em vez de desligar o teto.
+		teto, tetoDobro, ok = antes.RoundXPCap, antes.RoundXPCapDouble, true
+	}
+	if !ok {
+		http.Error(w, "O teto de XP por rodada precisa de um número inteiro de 0 para cima em cada faixa, com e sem dobro (0 = sem teto na faixa).",
+			http.StatusBadRequest)
+		return
+	}
+	novo.RoundXPCap, novo.RoundXPCapDouble = teto, tetoDobro
 
 	if err := h.cfg.Eventos.UpsertWorldEventConfig(r.Context(), novo, sess.AccountID); err != nil {
 		h.cfg.Logger.Error("world event config write failed", "err", err)
@@ -225,7 +240,8 @@ func (h *Handler) setEventos(w http.ResponseWriter, r *http.Request) {
 		"xp_dobro", novo.DoubleExpEnabled, "novato", novo.NewbieEventEnabled,
 		"kefra", novo.KefraLiveEnabled, "chuva", novo.Enabled,
 		"torre", novo.TowerWarEnabled, "torre_hora", novo.TowerWarHour,
-		"chefes_horas", novo.BossRespawnHours)
+		"chefes_horas", novo.BossRespawnHours,
+		"teto_rodada", novo.RoundXPCap, "teto_rodada_dobro", novo.RoundXPCapDouble)
 
 	// The game polls this config, so the change is already on its way without a
 	// restart — the page says so, because the alternative is somebody restarting
@@ -299,6 +315,7 @@ func resumoEvento(c domain.WorldEventConfig) map[string]any {
 		"numerado": c.Indexed, "anunciar": c.NoticeEnabled,
 		"torre": c.TowerWarEnabled, "torre_hora": c.TowerWarHour,
 		"chefes_horas": c.BossRespawnHours,
+		"teto_rodada":  c.RoundXPCap, "teto_rodada_dobro": c.RoundXPCapDouble,
 	}
 }
 
@@ -323,4 +340,54 @@ func horasDosChefes(r *http.Request) (int32, bool) {
 		return 0, false
 	}
 	return int32(v), true
+}
+
+// linhaDoTeto é uma faixa do teto de XP por rodada na tela de eventos.
+type linhaDoTeto struct {
+	Faixa      string
+	Campo      string
+	CampoDobro string
+	Valor      int64
+	ValorDobro int64
+}
+
+// linhasDoTeto monta as cinco faixas (domain.RoundXPCapTopLevels) com os valores
+// gravados. A tela mostra o nível como o jogador vê, um acima do guardado.
+func linhasDoTeto(c domain.WorldEventConfig) []linhaDoTeto {
+	out := make([]linhaDoTeto, 0, len(domain.RoundXPCapTopLevels))
+	de := int32(1)
+	for i, topo := range domain.RoundXPCapTopLevels {
+		out = append(out, linhaDoTeto{
+			Faixa:      fmt.Sprintf("%d a %d (tela %d a %d)", de, topo, de+1, topo+1),
+			Campo:      fmt.Sprintf("teto_%d", topo),
+			CampoDobro: fmt.Sprintf("teto_dobro_%d", topo),
+			Valor:      c.RoundXPCap[i],
+			ValorDobro: c.RoundXPCapDouble[i],
+		})
+		de = topo + 1
+	}
+	return out
+}
+
+// tetosDoFormulario lê as dez caixas do teto. veio diz se o formulário trouxe
+// alguma delas; trazendo, as dez têm de ser inteiros de 0 para cima. Uma caixa
+// vazia no meio é recusada como a hora da torre: um formulário que perdeu um
+// campo não pode desligar o teto de uma faixa calado.
+func tetosDoFormulario(r *http.Request) (teto, dobro [5]int64, veio, ok bool) {
+	ok = true
+	le := func(nome string) int64 {
+		if _, tem := r.PostForm[nome]; tem {
+			veio = true
+		}
+		v, err := strconv.ParseInt(strings.TrimSpace(r.PostFormValue(nome)), 10, 64)
+		if err != nil || v < 0 {
+			ok = false
+		}
+		return v
+	}
+	for i, topo := range domain.RoundXPCapTopLevels {
+		teto[i] = le(fmt.Sprintf("teto_%d", topo))
+		dobro[i] = le(fmt.Sprintf("teto_dobro_%d", topo))
+	}
+	return teto, dobro, veio, ok && veio
 }

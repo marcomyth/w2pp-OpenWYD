@@ -85,6 +85,12 @@ func validConfig(cfg domain.WorldEventConfig) bool {
 	if cfg.BossRespawnHours < domain.MinBossRespawnHours || cfg.BossRespawnHours > domain.MaxBossRespawnHours {
 		return false
 	}
+	// The round XP cap columns are CHECK >= 0; a negative would die in Postgres.
+	for i := range cfg.RoundXPCap {
+		if cfg.RoundXPCap[i] < 0 || cfg.RoundXPCapDouble[i] < 0 {
+			return false
+		}
+	}
 	if cfg.ItemIndex < 0 || cfg.ItemIndex > maxWorldEventItemIndex ||
 		cfg.Rate < 0 || cfg.StartIndex < 0 || cfg.CurrentIndex < 0 || cfg.EndIndex < 0 {
 		return false

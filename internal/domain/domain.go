@@ -324,6 +324,11 @@ type WorldEventConfig struct {
 	// the rewrite's 15 s queue made each one a farm. The rest of the world keeps
 	// the 15 s queue.
 	BossRespawnHours int32
+	// RoundXPCap e RoundXPCapDouble são o teto de XP por rodada do Mortal por
+	// faixa (RoundXPCapTopLevels), sem e com o dobro (migração 0073). Zero numa
+	// faixa = sem teto.
+	RoundXPCap       [5]int64
+	RoundXPCapDouble [5]int64
 }
 
 // The daily Tower War as decided for this server: on, every day at 20:00. They
@@ -371,6 +376,8 @@ func DefaultWorldEventConfig() WorldEventConfig {
 		TowerWarEnabled:  DefaultTowerWarEnabled,
 		TowerWarHour:     DefaultTowerWarHour,
 		BossRespawnHours: DefaultBossRespawnHours,
+		RoundXPCap:       DefaultRoundXPCap,
+		RoundXPCapDouble: DefaultRoundXPCapDouble,
 	}
 }
 

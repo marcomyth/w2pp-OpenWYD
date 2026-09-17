@@ -949,6 +949,12 @@ message WorldEventConfig {
   // Like the Tower War pair: on SetWorldEventConfig, absent keeps the stored
   // value rather than resetting it.
   optional int32 boss_respawn_hours = 14;
+  // The Mortal round XP cap (migration 0073), one value per level band
+  // (99/199/299/349/398), without and with the double-XP event. On
+  // SetWorldEventConfig anything but five values keeps what is stored, like the
+  // optional fields above. Zero in a band = no cap there.
+  repeated int64 round_xp_cap = 15;
+  repeated int64 round_xp_cap_double = 16;
 }
 
 message GetWorldEventConfigRequest { int64 moderator_id = 1; }
