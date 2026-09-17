@@ -76,6 +76,9 @@ func (d *Dispatcher) dropItem(w *world.World, s *world.Session, _ protocol.Heade
 	// personagem o pegaria e passaria do ritmo da rodada.
 	if ehTrofeuDeQuest(item.Index) {
 		sendClientMessage(w, s, msgTrofeuDoPersonagem)
+		// O cliente já tirou o item da tela ao soltar; reenviar o espaço o traz
+		// de volta, como a recusa do baú.
+		d.sendSlot(w, s, world.ItemPlaceCarry, slot, item)
 		return
 	}
 

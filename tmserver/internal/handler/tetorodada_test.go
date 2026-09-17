@@ -165,6 +165,45 @@ func TestTrofeuCaiAteAMetadeEPara(t *testing.T) {
 	}
 }
 
+// TestTrofeuSoCaiSeOValorCabeNoTotal: quem encheu o total matando não ganha troféu
+// na arena; com espaço exato para o troféu inteiro ele cai, com um a menos não.
+func TestTrofeuSoCaiSeOValorCabeNoTotal(t *testing.T) {
+	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), inicioDaVolta)
+	c := enterWorldAs(t, srv.addr, "tester")
+	defer c.Close()
+
+	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
+		valor := d.valorDoTrofeu(world.Item{Index: itemQuestRewardBase})
+		if valor <= 0 {
+			t.Fatal("troféu do Coveiro sem valor")
+		}
+		k := donoDe(s)
+		casos := []struct {
+			nome  string
+			total int64
+			cai   bool
+		}{
+			{"total cheio de mortes", tetoFaixa99, false},
+			{"espaço exato para um troféu", tetoFaixa99 - valor, true},
+			{"espaço um abaixo do troféu", tetoFaixa99 - valor + 1, false},
+		}
+		for _, cs := range casos {
+			for i := range e.Carry {
+				e.Carry[i] = world.Item{}
+			}
+			d.xpDaRodada = map[donoDaEntrada]xpDaRodada{k: {total: cs.total, avisado: true, avisadoTrofeu: true}}
+			if got := d.putMobDrop(w, e, world.Item{Index: itemQuestRewardBase}); got != cs.cai {
+				t.Errorf("%s: caiu = %v, quero %v", cs.nome, got, cs.cai)
+			}
+			if cs.cai {
+				if st := d.xpDaRodada[k]; st.total != tetoFaixa99 || st.trofeu != valor {
+					t.Errorf("%s: reserva = %+v, quero total %d e troféu %d", cs.nome, st, tetoFaixa99, valor)
+				}
+			}
+		}
+	})
+}
+
 // TestTrofeuComDobroCaiODobro: com o dobro, a metade é a do teto do dobro.
 func TestTrofeuComDobroCaiODobro(t *testing.T) {
 	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), inicioDaVolta)
@@ -226,7 +265,11 @@ func TestTrofeuNaoVaiAoBauNemAoChao(t *testing.T) {
 		if cargo.Items[6].Index != 1100 {
 			t.Fatalf("a espada não foi ao baú (%d); o teste não chegou à trava do troféu", cargo.Items[6].Index)
 		}
+	})
+	// A recusa do baú também reenvia o espaço; o chão é conferido à parte.
+	drena(t, c)
 
+	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
 		solta := func(slot int) {
 			body := protocol.MsgDropItemBody{SourType: int32(world.ItemPlaceCarry), SourPos: int32(slot),
 				GridX: uint16(e.X), GridY: uint16(e.Y + 2)}
@@ -242,6 +285,13 @@ func TestTrofeuNaoVaiAoBauNemAoChao(t *testing.T) {
 			t.Fatalf("a espada não foi ao chão (%d); o teste não chegou à trava do troféu", e.Carry[3].Index)
 		}
 	})
+	// A recusa do chão reenvia o espaço do troféu, que o cliente tirou da tela.
+	if _, _, ok := quadroAte(t, c, 2*time.Second, func(h protocol.Header, p []byte) bool {
+		return h.Type == protocol.MsgSendItem && len(p) >= 6 && binary.LittleEndian.Uint16(p[0:2]) == uint16(world.ItemPlaceCarry) &&
+			binary.LittleEndian.Uint16(p[2:4]) == 1 && int16(binary.LittleEndian.Uint16(p[4:6])) == itemQuestRewardBase
+	}); !ok {
+		t.Error("a recusa do chão não reenviou o espaço do troféu")
+	}
 }
 
 // TestTetoNaParteDoGrupo: os 10% do troféu contam no total da rodada de QUEM

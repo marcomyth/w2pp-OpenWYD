@@ -123,9 +123,11 @@ func (d *Dispatcher) textoTrofeusDaRodada() string {
 }
 
 // trofeuPodeCair diz se o troféu pode cair para quem recebe o saque: enquanto a
-// XP de troféu reservada na rodada for menor que a metade do teto. Na primeira
-// recusa da rodada, avisa. Item que não é troféu, e quem não tem teto, sempre
-// pode.
+// XP de troféu reservada na rodada for menor que a metade do teto E o valor
+// inteiro do troféu couber no que falta do total. Sem a segunda condição, quem
+// enche o total matando no campo e depois entra na arena ganharia troféus que não
+// reservam nada e, com o uso livre, passaria do ritmo. Na primeira recusa da
+// rodada, avisa. Item que não é troféu, e quem não tem teto, sempre pode.
 func (d *Dispatcher) trofeuPodeCair(w *world.World, e *world.Entity, it world.Item) bool {
 	if !ehTrofeuDeQuest(it.Index) {
 		return true
@@ -140,7 +142,7 @@ func (d *Dispatcher) trofeuPodeCair(w *world.World, e *world.Entity, it world.It
 	}
 	k := donoDe(s)
 	st := d.xpDaRodada[k]
-	if st.trofeu < teto/2 {
+	if st.trofeu < teto/2 && d.valorDoTrofeu(it) <= teto-st.total {
 		return true
 	}
 	if !st.avisadoTrofeu {
@@ -155,9 +157,19 @@ func (d *Dispatcher) trofeuPodeCair(w *world.World, e *world.Entity, it world.It
 	return false
 }
 
-// reservaTrofeuDaRodada põe na rodada o valor do troféu que acabou de cair: inteiro
-// na parte do troféu, e no total até o que ainda cabe. A morte da rodada só ocupa
-// o que sobrar, e guardar o troféu para usar depois não passa do ritmo.
+// valorDoTrofeu é a XP que o troféu vale no uso, pela quantidade que ele traz.
+func (d *Dispatcher) valorDoTrofeu(it world.Item) int64 {
+	rate, ok := d.questRates.Tier(int(it.Index) - itemQuestRewardBase)
+	if !ok || rate.MortalExp <= 0 {
+		return 0
+	}
+	return rate.MortalExp * int64(itemAmount(it))
+}
+
+// reservaTrofeuDaRodada põe na rodada o valor do troféu que acabou de cair, inteiro
+// na parte do troféu e no total (trofeuPodeCair já conferiu que cabe). A morte da
+// rodada só ocupa o que sobrar, e guardar o troféu para usar depois não passa do
+// ritmo.
 func (d *Dispatcher) reservaTrofeuDaRodada(w *world.World, e *world.Entity, it world.Item) {
 	if !ehTrofeuDeQuest(it.Index) {
 		return
@@ -170,15 +182,14 @@ func (d *Dispatcher) reservaTrofeuDaRodada(w *world.World, e *world.Entity, it w
 	if !ok {
 		return
 	}
-	rate, ok := d.questRates.Tier(int(it.Index) - itemQuestRewardBase)
-	if !ok || rate.MortalExp <= 0 {
+	valor := d.valorDoTrofeu(it)
+	if valor <= 0 {
 		return
 	}
-	valor := rate.MortalExp * int64(itemAmount(it))
 	k := donoDe(s)
 	st := d.xpDaRodada[k]
 	st.trofeu += valor
-	st.total += min(valor, max(teto-st.total, 0))
+	st.total = min(st.total+valor, teto)
 	if d.xpDaRodada == nil {
 		d.xpDaRodada = make(map[donoDaEntrada]xpDaRodada)
 	}
