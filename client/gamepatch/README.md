@@ -146,3 +146,24 @@ Campo novo: mais um par de `cmp`/`jne` em `FieldHook`, e o servidor tem de
 mandar o 0x3A1 a quem chega nele (as arenas mandam na entrada, em
 `teleportQuest256Step`). O desvio se instala sozinho, por um objeto global, e
 confere os 16 bytes antes de gravar, como os outros.
+
+## Porcentagem dos acessórios no dano de skill (`acessoriopct.cpp`)
+
+Desde 16/09 o Hércules dá % de dano físico (efeito 89) e o Hecate % de dano
+mágico (efeito 90). O servidor aplica as duas dentro da conta de dano de skill,
+mas o `WYD.exe` tem a própria cópia dessa conta (`0x542AA7`), que é o "Atq
+Mágico" da janela C e o dano dos tooltips de skill. Sem o DLL, trocar um Brinco
+de Hecate +9 por um +15 não muda a janela, embora o golpe suba.
+
+O DLL desvia dois pontos, na mesma ordem e com a mesma conta inteira do servidor
+(`tmserver/internal/combat/skill.go`):
+
+| Endereço | Ramo | Conta |
+|---|---|---|
+| `0x542FCC` | sem Magia (2ª árvore do TK, Huntress) | dano × (100 + físico) / 100, antes do 5/4 |
+| `0x542FF4` | com Magia | depois de (4×Magia+100), dano × (100 + mágico) / 100, antes do 5/4 |
+
+A % é a soma do efeito no equipamento (montaria fora), lida com a mesma função
+do tooltip (`0x53821E`), que já aplica o refino: o +15 conta 32%, como o
+tooltip mostra. O "Ataque" da janela não passa por aqui: ele vem do servidor, que
+já soma o Hércules. As poções continuam fora da janela.
