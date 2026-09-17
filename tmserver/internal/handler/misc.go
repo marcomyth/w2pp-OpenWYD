@@ -1052,23 +1052,66 @@ func (d *Dispatcher) masterGriff(w *world.World, s *world.Session, _ protocol.He
 	if !ok {
 		return
 	}
+	// The client sends the packet TWICE per trip: Ty 1 when the flight starts and
+	// Ty 2 when it lands (production log, 17/09: 9.87-9.89 s apart, every trip).
+	// Ty 2 used to start a second trip, whose delayed teleport pulled the player
+	// back to the landing point ten seconds after they had walked off — once out
+	// of the Jardim arena itself. Ty 2 now only lands a trip still in the air.
+	if ty == masterGriffLanding {
+		v, ok := d.viagensDoGrifo[s.Conn]
+		if !ok || v.conta != s.AccountID {
+			d.log.Debug("master griff: landing with no trip in the air", "conn", s.Conn, "warp_id", warpID)
+			return
+		}
+		d.pousoDoGrifo(w, s, v, "pouso")
+		return
+	}
 	dest, ok := masterGriffDestinationForWarpID(warpID)
 	if !ok {
 		d.log.Debug("master griff: no destination", "conn", s.Conn, "level", e.Level, "warp_id", warpID, "ty", ty)
 		return
 	}
 	d.log.Info("master griff travel started", "conn", s.Conn, "level", e.Level, "warp_id", warpID, "ty", ty, "dest", dest.name, "x", dest.x, "y", dest.y)
+	d.seqGrifo++
+	viagem := viagemDoGrifo{conta: s.AccountID, seq: d.seqGrifo, warpID: warpID, dest: dest}
+	if d.viagensDoGrifo == nil {
+		d.viagensDoGrifo = make(map[int]viagemDoGrifo)
+	}
+	d.viagensDoGrifo[s.Conn] = viagem
+	// The delay stays as the fallback for a client that never sends the landing:
+	// it lands only a trip that is still this one, still in the air.
 	w.Go(s, func() func(*world.World, *world.Session) {
 		time.Sleep(masterGriffTravelDelay)
 		return func(w *world.World, s *world.Session) {
-			e := w.Entity(s.Conn)
-			if e == nil || e.HP <= 0 || s.Mode != world.UserPlay {
-				return
+			if v, ok := d.viagensDoGrifo[s.Conn]; ok && v.seq == viagem.seq {
+				d.pousoDoGrifo(w, s, v, "tempo")
 			}
-			d.doTeleport(w, s, dest.x, dest.y)
-			d.log.Info("master griff teleport", "conn", s.Conn, "level", e.Level, "warp_id", warpID, "ty", ty, "dest", dest.name, "x", dest.x, "y", dest.y)
 		}
 	})
+}
+
+// masterGriffLanding is the Ty the 7662 client sends when the flight lands.
+const masterGriffLanding = 2
+
+// viagemDoGrifo is one Mestre Grifo flight between the start packet and the
+// teleport. conta guards a connection id reused by somebody else; seq tells a
+// fallback timer apart from the trip that replaced it.
+type viagemDoGrifo struct {
+	conta  int64
+	seq    uint64
+	warpID int32
+	dest   masterGriffDestination
+}
+
+// pousoDoGrifo ends the trip and teleports to its destination, once.
+func (d *Dispatcher) pousoDoGrifo(w *world.World, s *world.Session, v viagemDoGrifo, por string) {
+	delete(d.viagensDoGrifo, s.Conn)
+	e := w.Entity(s.Conn)
+	if e == nil || e.HP <= 0 || s.Mode != world.UserPlay {
+		return
+	}
+	d.doTeleport(w, s, v.dest.x, v.dest.y)
+	d.log.Info("master griff teleport", "conn", s.Conn, "level", e.Level, "warp_id", v.warpID, "por", por, "dest", v.dest.name, "x", v.dest.x, "y", v.dest.y)
 }
 
 func (d *Dispatcher) teleportQuest256Step(w *world.World, s *world.Session, e *world.Entity, step quest256Step) {
