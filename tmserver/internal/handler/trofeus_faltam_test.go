@@ -178,7 +178,7 @@ func TestXPMostraOsTrofeusDaRodada(t *testing.T) {
 	drena(t, c)
 
 	var quer string
-	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
+	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, _ *world.Entity) {
 		valor := d.valorDoTrofeu(world.Item{Index: itemQuestRewardBase})
 		d.xpDaRodada = map[donoDaEntrada]xpDaRodada{donoDe(s): {total: tetoFaixa99 - 5*valor}}
 		quer = "Troféus da rodada: faltam 5 (quest Coveiro)"
