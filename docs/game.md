@@ -260,10 +260,17 @@ Amantes (1738). A liberação é por item, não pelo espaço do equipamento: orb
 Espirituais, Pedra Amunra e Sephirot continuam fora.
 
 **+10 de acessório.** Dois iguais em +9, a Pedra do Sábio e **quatro joias iguais, de qualquer
-uma das quatro**: Diamante (drop), Esmeralda (perfuração), Coral (XP) ou Garnet. A joia fica
+uma das quatro**: Diamante (drop), Esmeralda (perfuração), Coral (XP) ou Garnet (absorção). A joia fica
 gravada no item e vale em qualquer espaço. Com o acessório já +10 equipado, usar uma Gema
 (Diamante, Esmeralda, Coral ou Garnet) troca a joia gravada. Custo e chance são os da +10 das
 armas.
+
+**Garnet (absorção).** Cada peça +10 a +15 com Garnet vale 40 por refino acima de +9 (80 em
+Grade 8); 11 peças +15 somam 2.640. No golpe que chega em você, de jogador ou de monstro, a
+Garnet primeiro **anula a Esmeralda de quem bate**, inteira, até o total dela; o que sobra tira
+**no máximo 20% do resto do golpe** (ajustável em /rates/combate). No legado ela tirava o total
+inteiro, e todo golpe menor que 2.640 virava 1. Decidido em 17/09/2026 pela simulação em
+`docs/balanceamento/garnet-esmeralda-2026-09-17.md`. Aparece no /status.
 
 **Evolução (máquina +10).** O item em +9, uma cópia dele em qualquer refino, a Pedra do Sábio e
 quatro joias iguais. O item sai **em +0** no degrau seguinte da mesma linha:

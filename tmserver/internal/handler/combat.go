@@ -500,6 +500,9 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			// (_MSG_Attack.cpp:1322-1331, 1494-1510), before the mount takes its share.
 			if pvpHit {
 				dmg = d.applyPvPStats(e, target, dmg)
+				// The Garnet sits with the reflect it belongs to in the legacy
+				// (_MSG_Attack.cpp:1496), under the rule in garnet.go.
+				dmg = d.absorverGarnet(e, target, dmg)
 			}
 			dmg = d.applyManaControl(w, e, target, tid, dmg)
 			// The victim's mount eats its share LAST, after every other adjustment,

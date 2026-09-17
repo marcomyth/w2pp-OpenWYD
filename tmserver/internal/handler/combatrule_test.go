@@ -110,6 +110,7 @@ func TestRegraForaDaFaixaNaoEntra(t *testing.T) {
 		com(func(r *combatrule.Rules) { r.WeaponDamageGrants = 4 }),
 		com(func(r *combatrule.Rules) { r.DoubleCriticalMaxPct = 101 }),
 		com(func(r *combatrule.Rules) { r.PhysicalDamagePct = 201 }),
+		com(func(r *combatrule.Rules) { r.GarnetPct = 101 }),
 	} {
 		d.setCombatRules(ruim)
 		if d.combatRules != combatrule.Default() {
@@ -123,7 +124,7 @@ func TestRegraForaDaFaixaNaoEntra(t *testing.T) {
 	ok := combatrule.Rules{
 		WeaponIntMagicPct: 20, SpellDamageMulti: true, MobResistBase: 120,
 		PvPSkillPct: 60, PvPMeleePct: 80,
-		SpellIntAccuracyPct: 30, MaxMissStreak: 4, WeaponDamageGrants: 2, DoubleCriticalMaxPct: 40, PhysicalDamagePct: 70,
+		SpellIntAccuracyPct: 30, MaxMissStreak: 4, WeaponDamageGrants: 2, DoubleCriticalMaxPct: 40, PhysicalDamagePct: 70, GarnetPct: 35,
 	}
 	d.setCombatRules(ok)
 	if d.combatRules != ok {

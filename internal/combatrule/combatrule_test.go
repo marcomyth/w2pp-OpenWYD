@@ -34,6 +34,11 @@ func TestValid(t *testing.T) {
 		// 0 é o legado nos dois, e tem de ser uma regra válida.
 		{"precisão e erros no piso (legado)", com(func(r *Rules) { r.SpellIntAccuracyPct, r.MaxMissStreak = MinSpellIntAccuracy, MinMissStreak }), true},
 		{"precisão e erros no teto", com(func(r *Rules) { r.SpellIntAccuracyPct, r.MaxMissStreak = MaxSpellIntAccuracy, MaxMissStreak }), true},
+		{"Garnet negativa", com(func(r *Rules) { r.GarnetPct = -1 }), false},
+		{"Garnet acima de 100", com(func(r *Rules) { r.GarnetPct = 101 }), false},
+		// 0: a Garnet só anula a Esmeralda. 100: o legado, sem teto.
+		{"Garnet no piso", com(func(r *Rules) { r.GarnetPct = MinGarnetPct }), true},
+		{"Garnet no teto (legado)", com(func(r *Rules) { r.GarnetPct = MaxGarnetPct }), true},
 		{"valor zero não é regra", Rules{}, false},
 	}
 	for _, tt := range tests {

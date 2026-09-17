@@ -1024,6 +1024,11 @@ func (d *Dispatcher) danoDoGolpeDeMonstro(w *world.World, e, target *world.Entit
 	// ProcessSecMinTimer.cpp:2294). byPlayer is false — a pet counts as a monster
 	// here, which matches the legacy: its absorption block gates on the TARGET being
 	// a player and never asks what swung.
+	// The Garnet comes off first, after the defence and before the mount, where
+	// the legacy takes its ReflectDamage from a monster's blow (GetFunc.cpp:1639);
+	// garnet.go has the rule. A pet swinging at a player is not a thing
+	// (validTarget), and absorverGarnet ignores any target that is not one.
+	dmg = d.absorverGarnet(e, target, dmg)
 	return d.absorbBlow(w, target, dmg, false)
 }
 

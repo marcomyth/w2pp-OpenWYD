@@ -59,6 +59,7 @@ func (c *CombatRuleSource) Fetch(ctx context.Context) (combatrule.Config, error)
 			WeaponDamageGrants:   presentOr(resp.WeaponDamageGrants, padrao.WeaponDamageGrants),
 			DoubleCriticalMaxPct: presentOr(resp.DoubleCriticalMaxPct, padrao.DoubleCriticalMaxPct),
 			PhysicalDamagePct:    presentOr(resp.PhysicalDamagePct, padrao.PhysicalDamagePct),
+			GarnetPct:            presentOr(resp.GarnetPct, padrao.GarnetPct),
 		},
 	}, nil
 }

@@ -490,6 +490,11 @@ type Entity struct {
 	// it perfuração and not damage (_MSG_Attack.cpp:1309).
 	EquipForceDamage int32
 
+	// EquipGarnet is the absorção half (CMob.cpp:873): the Garnet gem (gem 3) on a
+	// +10..+15 piece, 40 per refine step above +9, or 80 on a Grade 8 piece.
+	// garnet.go decides how much of a blow it actually takes.
+	EquipGarnet int32
+
 	EquipVisual [16]uint16 // visual item codes for MSG_CreateMob/UpdateEquip
 	EquipAnct   [16]uint8  // refine/ancient glow overlay bytes paired with EquipVisual
 

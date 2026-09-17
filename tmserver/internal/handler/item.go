@@ -2750,6 +2750,7 @@ func (d *Dispatcher) refreshScore(e *world.Entity) {
 	e.EquipExpBonus = d.equipExpBonus(e)
 	e.EquipDropBonus = d.equipDropBonus(e)
 	e.EquipForceDamage = d.equipForceDamage(e)
+	e.EquipGarnet = d.equipGarnet(e)
 	if isPlayerMob(e) {
 		e.Damage += attributeDamageBonus(e, true)
 	}

@@ -1408,6 +1408,10 @@ message GetCombatRuleResponse {
   // 1..200: scale on a PLAYER's melee attack power (the window's "Ataque" and
   // the blow). 100 is no scaling; monsters and summons are never scaled.
   optional int32 physical_damage_pct = 12;
+  // 0..100: the most a Garnet takes of a blow on a player BEYOND the attacker's
+  // Esmeralda, which it always cancels first. 100 is the legacy flat subtraction.
+  // `optional` because 0 is a real value: absence alone says an older dbServer.
+  optional int32 garnet_pct = 13;
 }
 
 // NpcGeneratorService is the staff switch per NPCGener block
