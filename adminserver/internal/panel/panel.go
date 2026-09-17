@@ -530,6 +530,10 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("GET /denuncias", h.requireStaff(http.HandlerFunc(h.denuncias)))
 		mux.Handle("POST /denuncias/{denuncia}/tratar", h.requireStaff(http.HandlerFunc(h.tratarDenuncia)))
 	}
+	// Os mapas guardados para evento são uma lista do código (internal/mapaevento),
+	// a mesma que o tmServer usa para não gerar mob neles. Não dependem de banco
+	// nem de jogo, então a tela existe sempre.
+	mux.Handle("GET /mapas-evento", h.requireStaff(http.HandlerFunc(h.mapasEvento)))
 	// The global event switches. Reading is staff; flipping them is admin —
 	// double experience and an item rain change what every player on the server
 	// earns, and an event item is real value handed out.

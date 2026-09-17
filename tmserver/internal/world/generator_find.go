@@ -27,7 +27,7 @@ type GeneratorInfo struct {
 	Minute       int
 	Off          bool
 	DBManaged    bool // a merchant of the NPC panel
-	EventOwned   bool // an event or a dungeon run spawns it, not the world
+	EventOwned   bool // an event, a dungeon run or a map kept for events owns it, not the world
 	HasTemplates bool // false: its templates failed to load, it never spawns
 }
 
@@ -69,7 +69,7 @@ func (w *World) FindGenerators(q GeneratorQuery) ([]GeneratorInfo, int) {
 			Index: i, Name: g.Name, X: x, Y: y,
 			Alive: g.CurrentNumMob, Max: maxNum, Minute: g.MinuteGenerate,
 			Off: g.Off, DBManaged: g.DBManaged,
-			EventOwned:   IsEventOwnedGenerator(i) || IsWaterDungeonGenerator(i),
+			EventOwned:   IsEventOwnedGenerator(i) || IsWaterDungeonGenerator(i) || geradorEmMapaDeEvento(g),
 			HasTemplates: g.LeaderTmpl != nil || g.DBManaged,
 		})
 	}

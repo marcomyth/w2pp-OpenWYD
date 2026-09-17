@@ -7,6 +7,8 @@ package world
 // decrements its population, so farmed areas repopulate in groups the way the
 // original world does. All of this is loop-only state.
 
+import "github.com/jeanluca/w2pp-openwyd/internal/mapaevento"
+
 // Generator is the runtime state of one NPCGener.txt block (NPCGENLIST,
 // CNPCGene.h:29-51): the spawn recipe plus the live population counter.
 type Generator struct {
@@ -378,11 +380,30 @@ func (w *World) GenerateMobNear(idx int, x, y int16) []int {
 	return w.generateMob(idx, true, x, y, 0)
 }
 
+// geradorEmMapaDeEvento diz se o ponto de partida do bloco — o primeiro waypoint
+// preenchido, a mesma âncora que generateMob usa — fica num mapa de evento.
+func geradorEmMapaDeEvento(g *Generator) bool {
+	for i := range g.SegX {
+		if g.SegX[i] != 0 {
+			return mapaevento.Contem(int(g.SegX[i]), int(g.SegY[i]))
+		}
+	}
+	return false
+}
+
 // generateMob spawns one group. limit > 0 replaces MaxNumMob with an exact cap
 // (GenerateMobUpTo); 0 is the legacy count.
 func (w *World) generateMob(idx int, near bool, nearX, nearY int16, limit int) []int {
 	g := w.GeneratorAt(idx)
 	if g == nil || g.LeaderTmpl == nil || g.Off {
+		return nil
+	}
+	// Mapa guardado para evento (internal/mapaevento): nenhum bloco põe mob lá —
+	// nem o boot, nem o relógio de minuto, nem a tabela de NPCs, nem o "gerar
+	// <bloco>". Só o "gerar <bloco> aqui" passa, porque é o GM trazendo o grupo
+	// para onde ele está, que é justamente como se monta um evento. Testado antes
+	// de qualquer rand(), para não mexer na sequência dos outros blocos.
+	if !near && geradorEmMapaDeEvento(g) {
 		return nil
 	}
 	qmob := g.MaxGroup - g.MinGroup + 1

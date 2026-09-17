@@ -67,6 +67,31 @@
 > prefixada `[GM]`. A guerra forçada ignora a hora e o interruptor do painel até terminar, e passa
 > pelas mesmas transições da agendada: mesmos avisos a todos, mesma limpeza da área, mesmo prêmio.
 >
+## Mapas de evento
+
+Áreas guardadas para a equipe montar evento (17/09/2026). **Nenhum bloco do
+NPCGener gera mob nelas**: nem a subida, nem o relógio de minuto, nem a tabela de
+NPCs, nem o `/gm gerar <bloco>`. E mob que morre lá dentro não renasce. A lista mora
+em `internal/mapaevento` e o painel mostra em **Mapas de evento**.
+
+| Mapa | Área (x, y) | Chegar |
+|---|---|---|
+| Nova Guerra de Noatun (evento de Natal) | 895, 1409 – 1146, 1534 | `/gm pos 1085 1467` |
+| Monster City | 261, 261 – 380, 380 | `/gm pos 321 309` |
+| Pistas | 3330, 1025 – 3602, 1659 | `/gm pos 3426 1430` |
+| Cubo Normal | 1656, 3968 – 1797, 4092 | `/gm pos 1725 4031` |
+| Cubo Místico | 1794, 3845 – 1910, 3963 | `/gm pos 1831 3947` |
+| Cubo Arcano | 1924, 3973 – 2045, 4091 | `/gm pos 1984 4032` |
+| Big Cubo | 1272, 1427 – 1403, 1532 | `/gm pos 1342 1463` |
+
+Para montar um evento: `/gm gerar <bloco> aqui` (o grupo vem para onde você está)
+ou `/gm criar <template>`; `/gm matar [raio]` limpa o que sobrar.
+
+Por que: o boot gera os blocos com MinuteGenerate -1 (divergência deliberada, por
+causa dos chefes sozinhos), e com isso ficavam de pé populações que no legado só
+existiam em evento — 2.318 Ladrões Fantasmas e Seguidores do Grinch na Nova Guerra,
+824 Taurons em Monster City (cada um com peça LE a 1 em 891), Pistas e Cubos.
+
 > `ban`/`unban` gravam em `account.is_blocked` — o login já rejeita contas bloqueadas; a migração do ban administrativo para o binServer
 > (entitlement) fica para uma issue futura (`web-platform-plan.md §binServer`).
 

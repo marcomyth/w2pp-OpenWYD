@@ -287,10 +287,14 @@ func TestGrupoSemPaginaNaoDeixaRiscoSolto(t *testing.T) {
 	}
 	body := getSignedIn(t, h.Routes(), "/contas").Body.String()
 
-	// Only the people group survives with no webServer, no game link and no
-	// database read.
-	if n := strings.Count(body, `class="grupo"`); n != 1 {
-		t.Errorf("grupos = %d, want 1 — sobrou grupo vazio", n)
+	// With no webServer, no game link and no database read, two groups survive:
+	// people, and "Agora" holding only Mapas de evento, a list from the code that
+	// needs nothing wired. The world group has nothing and must be gone.
+	if n := strings.Count(body, `class="grupo"`); n != 2 {
+		t.Errorf("grupos = %d, want 2 — sobrou grupo vazio ou sumiu Mapas de evento", n)
+	}
+	if !strings.Contains(body, ">Mapas de evento<") {
+		t.Error("Mapas de evento sumiu do menu num painel sem dependências")
 	}
 	for _, ausente := range []string{">Itens<", ">NPCs<", ">Mapa<", ">Eventos<"} {
 		if strings.Contains(body, ausente) {

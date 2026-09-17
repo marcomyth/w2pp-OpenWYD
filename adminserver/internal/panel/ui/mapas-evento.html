@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Mapas de evento — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  td.cmd code, .uso code {
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px;
+    background: var(--chip-bg); padding: 1px 6px; border-radius: 3px; white-space: nowrap;
+  }
+  td.area { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.nota { color: var(--ink-2); font-size: 13px; }
+  .uso { margin: 0; padding-left: 18px; }
+  .uso li { margin: 4px 0; }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Mapas de evento</h1>
+  <p class="sub">
+    Áreas guardadas para a equipe montar evento. <strong>Nenhum gerador põe mob
+    nelas</strong>: nem na subida do servidor, nem no relógio de minuto, nem pela
+    tabela de NPCs. E o que morrer lá dentro não renasce.
+  </p>
+
+  <div class="caixa">
+    <h2>Os mapas</h2>
+    <div class="tw">
+    <table>
+      <thead><tr><th scope="col">Mapa</th><th scope="col">Área (x, y)</th><th scope="col">Chegar lá</th><th scope="col">O que havia</th></tr></thead>
+      <tbody>
+      {{range .Mapas}}
+        <tr>
+          <td>{{.Nome}}</td>
+          <td class="area">{{.Area}}</td>
+          <td class="cmd"><code>{{.Comando}}</code></td>
+          <td class="nota">{{.Nota}}</td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="caixa">
+    <h2>Montar um evento</h2>
+    <ul class="uso">
+      <li>Vá até o mapa com o comando da tabela.</li>
+      <li><code>/gm gerar &lt;bloco&gt; aqui</code> traz o grupo de um bloco para onde você está. O número do bloco sai da tela Blocos.</li>
+      <li><code>/gm criar &lt;template&gt;</code> põe um mob só, pelo nome do arquivo do monstro.</li>
+      <li><code>/gm matar [raio]</code> limpa o que sobrou quando o evento acaba.</li>
+    </ul>
+    <p class="sub">
+      O <code>/gm gerar &lt;bloco&gt;</code> sem o "aqui" não funciona para blocos
+      destes mapas: ele gera no lugar do bloco, e esse lugar está guardado.
+      A lista de mapas mora no código (internal/mapaevento). Para mudar a lista, é preciso um deploy.
+    </p>
+  </div>
+</main>
+</body>
+</html>

@@ -455,8 +455,8 @@
     </span>
     {{end}}
 
-    {{/* Agora: o servidor rodando neste instante. */}}
-    {{if or .HasJogo (or .HasEvento .HasBlocos)}}
+    {{/* Agora: o servidor rodando neste instante. Sempre aparece, porque Mapas
+         de evento, no fim do grupo, não depende de nada configurado. */}}
     <span class="grupo">
       {{if .HasJogo}}<a href="/servidor" {{if eq .Nav "servidor"}}class="on"{{end}}>Servidor</a>{{end}}
       {{if .HasJogo}}<a href="/mapa" {{if eq .Nav "mapa"}}class="on"{{end}}>Quem está onde</a>{{end}}
@@ -464,8 +464,10 @@
            são os mobs vivos neste instante, e cada botão vale na hora. */}}
       {{if .HasBlocos}}<a href="/blocos" {{if eq .Nav "blocos"}}class="on"{{end}}>Blocos</a>{{end}}
       {{if .HasEvento}}<a href="/eventos" {{if eq .Nav "eventos"}}class="on"{{end}}>Eventos</a>{{end}}
+      {{/* Mapas de evento não depende de banco nem de jogo: é a lista do código
+           que o tmServer usa para não gerar mob lá. */}}
+      <a href="/mapas-evento" {{if eq .Nav "mapas-evento"}}class="on"{{end}}>Mapas de evento</a>
     </span>
-    {{end}}
   </nav>
   {{/* Uma caixa só, em toda página. Sem JavaScript: é um formulário GET que vai
        para uma rota que decide o destino. */}}

@@ -152,6 +152,7 @@ func TestTodaPaginaRenderiza(t *testing.T) {
 		"/masmorras",
 		"/auditoria/xp",
 		"/eventos",
+		"/mapas-evento",
 		"/servidor",
 		"/mapa",
 		"/blocos",

@@ -2,6 +2,7 @@ package world
 
 import (
 	"github.com/jeanluca/w2pp-openwyd/internal/campotreino"
+	"github.com/jeanluca/w2pp-openwyd/internal/mapaevento"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/rng"
 )
@@ -319,7 +320,11 @@ func (w *World) DespawnMob(id int, removeType int32) {
 	// its guards are weekly (handler/kefra.go) and never take the queue either.
 	// The Quest 256 arena blocks neither: their own pass refills them
 	// (Generator.ArenaRefill).
+	// Nor does a monster that was standing in a map kept for events
+	// (internal/mapaevento): what a GM raised there for an event must not come
+	// back fifteen seconds after the event ends.
 	if removeType == 1 && monstroDeCombate(e) && e.Template != nil && e.Summoner == 0 &&
+		!mapaevento.Contem(int(e.SpawnX), int(e.SpawnY)) &&
 		!IsWaterDungeonGenerator(int(e.GenIndex)) &&
 		!IsEventOwnedGenerator(int(e.GenIndex)) &&
 		!IsKefraGenerator(int(e.GenIndex)) &&
