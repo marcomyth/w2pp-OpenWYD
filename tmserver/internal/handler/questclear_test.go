@@ -150,3 +150,242 @@ func TestRelogioEsvaziaAArena(t *testing.T) {
 		t.Error("o relógio levou alguém que estava longe de qualquer área")
 	}
 }
+
+// servidorDoRelogio é o servidor do Mestre Grifo (startServerMestreGrifo) com um
+// Coveiro ao lado e o relógio das arenas na mão do teste.
+type servidorDoRelogio struct {
+	addr           string
+	grifo, coveiro int
+	// anda solta o tique. Com ele desligado a entrada acontece com tickCount
+	// exatamente no valor que o teste pediu; o teste liga quando quer ver o
+	// relógio virar.
+	anda atomic.Bool
+	// tiques conta os tiques rodados desde que anda ligou. saiuNoTique é o
+	// primeiro deles que terminou com o jogador fora do Cemitério (0 = ainda lá).
+	tiques, saiuNoTique atomic.Int32
+	// pendente é uma função que o teste quer rodar DENTRO do laço, uma vez, com o
+	// tique parado (entrada_arena_test.go). feito avisa que ela rodou.
+	pendente atomic.Pointer[func(*world.World, *Dispatcher)]
+	feito    chan struct{}
+}
+
+// noLaco roda fn no laço do mundo e espera ela terminar.
+func (srv *servidorDoRelogio) noLaco(t *testing.T, fn func(*world.World, *Dispatcher)) {
+	t.Helper()
+	srv.pendente.Store(&fn)
+	select {
+	case <-srv.feito:
+	case <-time.After(5 * time.Second):
+		t.Fatal("a função não rodou no laço")
+	}
+}
+
+// startServerRelogioDasArenas sobe o servidor com tickCount já no valor pedido.
+// A escrita vem antes do Serve, quando ainda não há laço nenhum para disputá-la;
+// daí em diante só o laço mexe nele, pelo Tick.
+func startServerRelogioDasArenas(t *testing.T, st world.CharacterState, tickCount int) *servidorDoRelogio {
+	t.Helper()
+	return startServerRelogioDasArenasCom(t, st, tickCount, nil)
+}
+
+// startServerRelogioDasArenasCom é o mesmo servidor com personagens por conta
+// (fakeDB.loads), para testes com mais de uma pessoa.
+func startServerRelogioDasArenasCom(t *testing.T, st world.CharacterState, tickCount int, porConta map[int64]world.CharacterState) *servidorDoRelogio {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// Relógio de parede parado, como em TestRelogioEsvaziaAArena: nenhum evento
+	// marcado por hora entra no meio da contagem.
+	d := New(Config{Log: log, Now: func() time.Time { return time.Unix(0, 0) }})
+	d.tickCount = tickCount
+	db := newDB()
+	db.loadResult = st
+	db.loads = porConta
+	w := world.New(world.Config{GridDim: world.DefaultGridDim}, log, db, d.Handle)
+	srv := &servidorDoRelogio{addr: ln.Addr().String()}
+	cemiterio := quest256Steps[0].area
+	srv.feito = make(chan struct{}, 1)
+	w.SetTickHandler(time.Millisecond, func(w *world.World) {
+		if fn := srv.pendente.Swap(nil); fn != nil {
+			(*fn)(w, d)
+			srv.feito <- struct{}{}
+		}
+		if !srv.anda.Load() {
+			return
+		}
+		d.Tick(w)
+		n := srv.tiques.Add(1)
+		w.ForEachPlayer(func(_ *world.Session, e *world.Entity) {
+			if !cemiterio.contains(e.X, e.Y) {
+				srv.saiuNoTique.CompareAndSwap(0, n)
+			}
+		})
+	})
+	srv.grifo = w.SpawnMob(mestreGrifoTemplate(), 2116, 2080)
+	srv.coveiro = w.SpawnMob(questNPCTemplate("Coveiro", 100, 0, 0), 2110, 2080)
+	if srv.grifo < 0 || srv.coveiro < 0 {
+		t.Fatalf("NPCs não nasceram: grifo=%d coveiro=%d", srv.grifo, srv.coveiro)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = w.Serve(ctx, ln); close(done) }()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Error("o servidor não parou")
+		}
+	})
+	return srv
+}
+
+// mortalDoCemiterio é um Mortal na faixa do Coveiro, ao lado do Mestre Grifo em
+// Armia, com a Vela do Coveiro no slot 0: serve às três portas da mesma arena.
+func mortalDoCemiterio() world.CharacterState {
+	st := world.CharacterState{
+		Slot: 0, Name: "Hero", Level: 50, X: 2113, Y: 2079,
+		HP: 1000, MaxHP: 1000, LastCity: 0, ClassMaster: classMasterMortal,
+	}
+	st.Carry[0] = world.Item{Index: itemVelaDoCoveiro}
+	return st
+}
+
+// quadroAte lê até um quadro que `quer` aceite, por tempo de parede. O leitor do
+// harness desiste em 300 ms, e um silêncio desses no meio do prazo não é
+// resposta: só o prazo encerra a espera.
+func quadroAte(t *testing.T, c net.Conn, prazo time.Duration, quer func(protocol.Header, []byte) bool) (protocol.Header, []byte, bool) {
+	t.Helper()
+	fim := time.Now().Add(prazo)
+	for time.Now().Before(fim) {
+		h, p, ok := readMaybeHeaderRaw(t, c)
+		if ok && quer(h, p) {
+			return h, p, true
+		}
+	}
+	return protocol.Header{}, nil, false
+}
+
+// ehPulo diz se o quadro é o teleporte do próprio avatar (MsgAction, Effect 1).
+func ehPulo(h protocol.Header, p []byte) bool {
+	var b protocol.MsgActionBody
+	return h.Type == protocol.MsgAction && b.Decode(p) == nil && b.Effect == 1
+}
+
+// TestRelogioDasArenasNaEntrada: quem entra numa arena vê quanto falta para o
+// relógio esvaziá-la, pelas três portas — Mestre Grifo, bilhete e NPC — e em
+// qualquer ponto da volta. O tickCount já traz voltas inteiras atrás, para a
+// conta ser pelo resto e não pelo total.
+func TestRelogioDasArenasNaEntrada(t *testing.T) {
+	voltas := []struct {
+		nome      string
+		tickCount int
+		segundos  int32
+	}{
+		{"começo da volta", 3*questClearTicks + 1, 599},
+		{"fim da volta", 3*questClearTicks + 599, 1},
+		{"a limpeza acabou de rodar", 4 * questClearTicks, 600},
+	}
+	portas := []struct {
+		nome  string
+		entra func(t *testing.T, c net.Conn, srv *servidorDoRelogio)
+	}{
+		{"Mestre Grifo", func(t *testing.T, c net.Conn, srv *servidorDoRelogio) {
+			questFrame(t, c, srv.grifo)
+		}},
+		{"bilhete", func(t *testing.T, c net.Conn, _ *servidorDoRelogio) {
+			body := protocol.MsgUseItemBody{SourType: world.ItemPlaceCarry, SourPos: 0}
+			send(t, c, protocol.MsgUseItem, body.Encode())
+		}},
+		{"Coveiro", func(t *testing.T, c net.Conn, srv *servidorDoRelogio) {
+			questFrame(t, c, srv.coveiro)
+		}},
+	}
+	for _, porta := range portas {
+		for _, v := range voltas {
+			t.Run(porta.nome+"/"+v.nome, func(t *testing.T) {
+				srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), v.tickCount)
+				c := enterWorld(t, srv.addr)
+				defer c.Close()
+
+				porta.entra(t, c, srv)
+				pulou := false
+				h, p, ok := quadroAte(t, c, 2*time.Second, func(h protocol.Header, p []byte) bool {
+					if ehPulo(h, p) {
+						pulou = true
+					}
+					return h.Type == protocol.MsgStartTime
+				})
+				if !ok {
+					t.Fatal("entrou na arena e o relógio não veio")
+				}
+				// O cliente só desenha o contador no campo em que está: o relógio
+				// vem depois do pulo que o põe na arena, como na Água e no Orc.
+				if !pulou {
+					t.Error("o relógio chegou antes do teleporte para a arena")
+				}
+				if h.ID != protocol.IDScene {
+					t.Errorf("HEADER.ID = %d, quero IDScene como os outros relógios", h.ID)
+				}
+				if got, _ := protocol.StandardParm(p); got != v.segundos {
+					t.Errorf("tickCount %d: a tela mostra %d s, quero %d", v.tickCount, got, v.segundos)
+				}
+			})
+		}
+	}
+}
+
+// TestRelogioDasArenasBateComORecall: o número que a tela mostra é o mesmo que o
+// relógio cumpre. O tique fica parado até o contador chegar; aí anda, e o
+// jogador tem de ser devolvido a Armia exatamente no tique que o contador
+// anunciou: nem antes, nem depois. É também a prova de que a entrada não tirou
+// ninguém do alcance do relógio.
+func TestRelogioDasArenasBateComORecall(t *testing.T) {
+	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), 3*questClearTicks+590)
+	c := enterWorld(t, srv.addr)
+	defer c.Close()
+
+	questFrame(t, c, srv.grifo)
+	var eu uint16
+	_, p, ok := quadroAte(t, c, 2*time.Second, func(h protocol.Header, p []byte) bool {
+		if ehPulo(h, p) {
+			eu = h.ID // o pulo vai com o id do próprio jogador no cabeçalho
+		}
+		return h.Type == protocol.MsgStartTime
+	})
+	if !ok || eu == 0 {
+		t.Fatalf("a entrada pelo Mestre Grifo não chegou inteira: relógio=%v pulo=%d", ok, eu)
+	}
+	mostrou, _ := protocol.StandardParm(p)
+	if mostrou != 10 {
+		t.Errorf("a tela mostra %d s, quero 10", mostrou) // segue: o tique do recall diz o resto
+	}
+
+	srv.anda.Store(true)
+	// Dez tiques de 1 ms; o prazo largo é para máquina carregada, não para o relógio.
+	_, p, ok = quadroAte(t, c, 5*time.Second, func(h protocol.Header, p []byte) bool {
+		return h.ID == eu && ehPulo(h, p)
+	})
+	if !ok {
+		t.Fatalf("o relógio virou (%d tiques) e o jogador continuou na arena", srv.tiques.Load())
+	}
+	var recall protocol.MsgActionBody
+	if err := recall.Decode(p); err != nil {
+		t.Fatal(err)
+	}
+	if recall.TargetX < 2086 || recall.TargetX > 2100 || recall.TargetY < 2093 || recall.TargetY > 2107 {
+		t.Errorf("recall para %d,%d, quero o nascimento de Armia", recall.TargetX, recall.TargetY)
+	}
+	// O quadro sai pela rede enquanto o tique ainda está terminando; a marca é
+	// gravada logo depois, no mesmo laço.
+	fim := time.Now().Add(time.Second)
+	for srv.saiuNoTique.Load() == 0 && time.Now().Before(fim) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := srv.saiuNoTique.Load(); got != mostrou {
+		t.Errorf("a tela mostrou %d s e o jogador saiu da arena no tique %d", mostrou, got)
+	}
+}

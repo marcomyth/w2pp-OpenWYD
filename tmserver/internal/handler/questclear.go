@@ -1,6 +1,9 @@
 package handler
 
-import "github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
+import (
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
+)
 
 // O relógio de dez minutos das arenas de quest (ProcessSecMinTimer.cpp:560-578).
 //
@@ -69,6 +72,38 @@ func (d *Dispatcher) clearQuestAreas(w *world.World) {
 	w.ForEachPlayer(func(_ *world.Session, e *world.Entity) {
 		e.QuestFlag = 0
 	})
+	// Depois da expulsão: quem o pulso tirou da arena começa a rodada nova com a
+	// entrada livre.
+	d.zeraEntradasDaRodada()
+	d.zeraXPDaRodada()
+}
+
+// segundosAteALimpeza é quanto falta para o relógio virar de novo.
+//
+// Tick soma um a tickCount ANTES de chamar clearQuestAreas, e ela só age quando
+// a conta cai num múltiplo de questClearTicks. Fora do tique, que é de onde o
+// NPC, o bilhete e o Mestre Grifo chamam, faltam questClearTicks -
+// tickCount%questClearTicks tiques; com resto zero a limpeza acabou de rodar e
+// a volta inteira está pela frente. O tique é world.DefaultMobTick (1 s), então
+// tique e segundo dão o mesmo número. A fração do segundo em curso não entra: o
+// recall pode chegar até um segundo antes de a tela zerar.
+func (d *Dispatcher) segundosAteALimpeza() int {
+	return questClearTicks - d.tickCount%questClearTicks
+}
+
+// enviarRelogioDasArenas mostra quanto falta para o relógio esvaziar a arena: o
+// mesmo MsgStartTime, na mesma unidade (segundos), da Água, do Pesadelo e do
+// Castelo Orc.
+//
+// A volta é do servidor, não de quem entra: quem chega no fim dela é devolvido
+// à cidade em segundos, pague ele com bilhete ou não. O contador é o único aviso.
+//
+// O WYD.exe 7662 não o desenha em nenhuma das cinco arenas: os campos delas
+// estão fora dos quinze que ele conhece, e quem os acrescenta é o GamePatch
+// (client/gamepatch/timerfields.cpp). Cliente sem o patch não vê nada.
+func (d *Dispatcher) enviarRelogioDasArenas(w *world.World, s *world.Session) {
+	body := protocol.EncodeStandardParm(int32(d.segundosAteALimpeza()))
+	w.SendTo(s, protocol.Header{Type: protocol.MsgStartTime, ID: protocol.IDScene}, body)
 }
 
 // esvaziaArea é ClearAreaQuest (zeraBandeira) ou ClearArea (sem ela).

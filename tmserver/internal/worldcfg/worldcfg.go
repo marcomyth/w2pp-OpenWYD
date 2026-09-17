@@ -29,6 +29,11 @@ type EventConfig struct {
 	// BossRespawnHours is the lone-boss respawn (migration 0056). A dbServer too
 	// old to send it yields domain.DefaultBossRespawnHours.
 	BossRespawnHours int32
+	// RoundXPCap e RoundXPCapDouble são o teto de XP por rodada do Mortal, por
+	// faixa (domain.RoundXPCapTopLevels), sem e com o dobro. Um dbServer antigo
+	// demais para mandá-los dá os padrões do domain.
+	RoundXPCap       [5]int64
+	RoundXPCapDouble [5]int64
 }
 
 // Snapshot is the full world config at a given version.

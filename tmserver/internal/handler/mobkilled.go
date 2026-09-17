@@ -381,6 +381,10 @@ func (d *Dispatcher) grantExp(w *world.World, ks *world.Session, member, mob *wo
 		d.avisarXPPerdida(w, ks, member, mob, in.Zone, loss)
 		return
 	}
+	// O teto de XP por rodada do Mortal (tetorodada.go): o que passa se perde.
+	if gain = d.cortaXPDaRodada(w, ks, member, gain, false); gain <= 0 {
+		return
+	}
 	previousExp := member.Exp
 	member.Exp += gain
 	if member.Exp > level.MaxExp {

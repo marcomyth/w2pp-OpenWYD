@@ -462,6 +462,17 @@ type Dispatcher struct {
 	// (campo_de_treino_portoes.go), procurados uma vez: [0] == 0 quer dizer
 	// "ainda não procurei", -1 em cada posição que o InitItem não tem.
 	portoesCampoIDs [3]int
+
+	// entradasDaRodada: quem já entrou numa arena de quest nesta rodada do relógio
+	// (entrada_arena.go). Loop-only; zera no pulso.
+	entradasDaRodada map[donoDaEntrada]entradaDaRodada
+
+	// tetoRodadaCfg: o teto de XP por rodada do Mortal que o painel manda
+	// (tetorodada_config.go).
+	tetoRodadaCfg tetoDaRodadaConfig
+	// xpDaRodada: a XP que cada Mortal já recebeu na rodada (tetorodada.go).
+	// Loop-only; zera no pulso.
+	xpDaRodada map[donoDaEntrada]xpDaRodada
 }
 
 // worldEventRNGSeed is the fallback seed for eventRNG, used when Config leaves

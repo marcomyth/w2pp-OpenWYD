@@ -59,7 +59,12 @@ func (s *WorldEventAdminServer) SetWorldEventConfig(ctx context.Context, req *we
 	temLigada := in != nil && in.TowerWarEnabled != nil
 	temHora := in != nil && in.TowerWarHour != nil
 	temChefes := in != nil && in.BossRespawnHours != nil
-	if !temLigada || !temHora || !temChefes {
+	// The round XP cap (migration 0073) is present only as five values per list;
+	// anything else keeps what is stored, so an older caller cannot switch the cap
+	// off by sending nothing.
+	temTeto := len(in.GetRoundXpCap()) == len(cfg.RoundXPCap)
+	temTetoDobro := len(in.GetRoundXpCapDouble()) == len(cfg.RoundXPCapDouble)
+	if !temLigada || !temHora || !temChefes || !temTeto || !temTetoDobro {
 		res, _, atual, err := s.admin.Get(ctx, req.GetModeratorId())
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "set world event config: read current: %v", err)
@@ -75,6 +80,12 @@ func (s *WorldEventAdminServer) SetWorldEventConfig(ctx context.Context, req *we
 		}
 		if !temChefes {
 			cfg.BossRespawnHours = atual.BossRespawnHours
+		}
+		if !temTeto {
+			cfg.RoundXPCap = atual.RoundXPCap
+		}
+		if !temTetoDobro {
+			cfg.RoundXPCapDouble = atual.RoundXPCapDouble
 		}
 	}
 	res, err := s.admin.Set(ctx, req.GetModeratorId(), cfg)
@@ -96,6 +107,8 @@ func worldEventConfigToWebProto(cfg domain.WorldEventConfig) *webv1.WorldEventCo
 		TowerWarEnabled:  proto.Bool(cfg.TowerWarEnabled),
 		TowerWarHour:     proto.Int32(cfg.TowerWarHour),
 		BossRespawnHours: proto.Int32(cfg.BossRespawnHours),
+		RoundXpCap:       cfg.RoundXPCap[:],
+		RoundXpCapDouble: cfg.RoundXPCapDouble[:],
 	}
 }
 
@@ -114,7 +127,19 @@ func webProtoToWorldEventConfig(cfg *webv1.WorldEventConfig) domain.WorldEventCo
 		KefraLiveEnabled: cfg.GetKefraLiveEnabled(),
 		TowerWarEnabled:  cfg.GetTowerWarEnabled(), TowerWarHour: cfg.GetTowerWarHour(),
 		BossRespawnHours: cfg.GetBossRespawnHours(),
+		RoundXPCap:       cincoValores(cfg.GetRoundXpCap()),
+		RoundXPCapDouble: cincoValores(cfg.GetRoundXpCapDouble()),
 	}
+}
+
+// cincoValores copies a per-band cap list; a list of any other length comes out
+// as zeros, and SetWorldEventConfig then keeps the stored values instead.
+func cincoValores(v []int64) [5]int64 {
+	var out [5]int64
+	if len(v) == len(out) {
+		copy(out[:], v)
+	}
+	return out
 }
 
 func worldEventResultToProto(r worldevent.Result) webv1.AdminResult {

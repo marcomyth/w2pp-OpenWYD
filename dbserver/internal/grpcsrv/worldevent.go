@@ -90,6 +90,10 @@ func worldEventConfigToDBProto(cfg domain.WorldEventConfig) *dbv1.WorldEventConf
 		TowerWarEnabled:  proto.Bool(cfg.TowerWarEnabled),
 		TowerWarHour:     proto.Int32(cfg.TowerWarHour),
 		BossRespawnHours: proto.Int32(cfg.BossRespawnHours),
+		// Always five values: the length is how tmServer tells this dbServer from
+		// one that predates migration 0073.
+		RoundXpCap:       cfg.RoundXPCap[:],
+		RoundXpCapDouble: cfg.RoundXPCapDouble[:],
 		KefraGuildId:     proto.Int32(cfg.KefraGuildID),
 	}
 }

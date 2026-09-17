@@ -167,7 +167,8 @@ func (d *Dispatcher) rewardCastlePlayer(w *world.World, e *world.Entity, q conte
 		}
 	}
 	if idx := int(e.ClassMaster); idx < len(q.ExpPrize) {
-		e.Exp += q.ExpPrize[idx]
+		// Repetível: entra no teto de XP por rodada do Mortal (tetorodada.go).
+		e.Exp += d.cortaXPDaRodada(w, s, e, q.ExpPrize[idx], false)
 	}
 	e.Coin += q.CoinPrize
 	if e.Coin > coinCap {
