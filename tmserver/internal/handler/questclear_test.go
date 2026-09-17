@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -204,6 +205,18 @@ func startServerRelogioDasArenasCom(t *testing.T, st world.CharacterState, tickC
 	db := newDB()
 	db.loadResult = st
 	db.loads = porConta
+	// Conta que o newDB não tem entra como "conta<id>", para testes com mais de
+	// duas pessoas (populacao_arenas_test.go).
+	for id, pc := range porConta {
+		existe := false
+		for _, a := range db.accounts {
+			existe = existe || a.id == id
+		}
+		if !existe {
+			db.accounts[fmt.Sprintf("conta%d", id)] = &fakeAccount{id: id, pass: "secret",
+				chars: []world.CharSummary{{Slot: 0, Name: pc.Name, Class: 1, Level: pc.Level}}}
+		}
+	}
 	w := world.New(world.Config{GridDim: world.DefaultGridDim}, log, db, d.Handle)
 	srv := &servidorDoRelogio{addr: ln.Addr().String()}
 	cemiterio := quest256Steps[0].area

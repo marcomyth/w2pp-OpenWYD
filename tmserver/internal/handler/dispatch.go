@@ -478,6 +478,10 @@ type Dispatcher struct {
 	// xpDaRodada: a XP que cada Mortal já recebeu na rodada (tetorodada.go).
 	// Loop-only; zera no pulso.
 	xpDaRodada map[donoDaEntrada]xpDaRodada
+	// blocosDasArenas e popBaseDasArenas: os blocos das cinco arenas e a
+	// população de um jogador em cada (populacao_arenas.go). Resolvidos no boot.
+	blocosDasArenas  []blocoDaArena
+	popBaseDasArenas [len(baseDaArenaDecimos)]int
 }
 
 // worldEventRNGSeed is the fallback seed for eventRNG, used when Config leaves

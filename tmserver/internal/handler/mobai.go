@@ -131,6 +131,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.tickFairies(w)
 	d.respawnMobs(w)
 	d.generateMobs(w)
+	d.reporArenas(w)
 	// World events (issue #116). tickWeather sits after generateMobs so this
 	// reads in the legacy ProcessMinTimer order: generators first
 	// (ProcessSecMinTimer.cpp:2720-2789), then the weather roll (:2791).
@@ -438,7 +439,8 @@ func (d *Dispatcher) generateMobs(w *world.World) {
 	pass := d.tickCount / minTimerTicks
 	for idx := 0; idx < w.GeneratorCount(); idx++ {
 		g := w.GeneratorAt(idx)
-		if g == nil || g.MinuteGenerate <= 0 || d.casteloOrcSuppresses(idx) {
+		// Os blocos das arenas têm a passada deles (reporArenas).
+		if g == nil || g.MinuteGenerate <= 0 || g.ArenaRefill || d.casteloOrcSuppresses(idx) {
 			continue
 		}
 		// The block's own period, re-timed by the area dial (spawnrate.go).

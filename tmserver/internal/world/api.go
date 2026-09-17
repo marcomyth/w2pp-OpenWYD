@@ -317,11 +317,13 @@ func (w *World) DespawnMob(id int, removeType int32) {
 	// Event props are the same exception for the same reason: a war tower that
 	// respawns fifteen seconds after it falls is not a war tower. The Kefra and
 	// its guards are weekly (handler/kefra.go) and never take the queue either.
+	// The Quest 256 arena blocks neither: their own pass refills them
+	// (Generator.ArenaRefill).
 	if removeType == 1 && monstroDeCombate(e) && e.Template != nil && e.Summoner == 0 &&
 		!IsWaterDungeonGenerator(int(e.GenIndex)) &&
 		!IsEventOwnedGenerator(int(e.GenIndex)) &&
 		!IsKefraGenerator(int(e.GenIndex)) &&
-		(gen == nil || gen.MinuteGenerate <= 0) {
+		(gen == nil || (gen.MinuteGenerate <= 0 && !gen.ArenaRefill)) {
 		w.respawnQueue = append(w.respawnQueue, respawnEntry{
 			spawn: MobSpawn{
 				Template: e.Template, X: e.SpawnX, Y: e.SpawnY,
