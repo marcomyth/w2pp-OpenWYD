@@ -28,12 +28,16 @@ const (
 	// Fairy item range (BASE_CheckFairyDate bails outside it).
 	fairyFirstIndex = 3900
 	fairyLastIndex  = 3913
+	// fadaDoValeIndex is the Fada do Vale(7dias): a fairy by name, by slot and by
+	// the shop that sells it (the same Fadas stock as 3900-3908), but outside the
+	// legacy range. Left out, it never burned while worn and never showed its time.
+	fadaDoValeIndex = 3916
 	// fairyTickPeriod is how many 1s loop ticks make the legacy's minute pulse.
 	fairyTickPeriod = 60
 )
 
 func isFairy(index int16) bool {
-	return index >= fairyFirstIndex && index <= fairyLastIndex
+	return index >= fairyFirstIndex && index <= fairyLastIndex || index == fadaDoValeIndex
 }
 
 // durationEffects renders a lifetime as the three effect slots an un-started
@@ -140,6 +144,21 @@ func (d *Dispatcher) tickFairies(w *world.World) {
 	w.ForEachPlaying(-1, func(s *world.Session, e *world.Entity) {
 		it := &e.Equip[fairyEquipSlot]
 		if !isFairy(it.Index) {
+			return
+		}
+		// A Fada do Vale worn before it counted as a fairy may already run on a
+		// deadline (startTimedItem converted it then). dropExpired owns that one;
+		// reading its empty effects as "no time left" would delete it.
+		if it.ExpiresAt != 0 {
+			return
+		}
+		// A fairy that reaches the slot never started — its effects hold no
+		// duration — is started here, not deleted. The shop sells fairies with no
+		// effects at all, so every path that equips one without startTimedItem used
+		// to lose it on the first pulse, with no time ever on screen.
+		if effectsDuration(it.Effects) <= 0 && d.startTimedItem(it, time.Now()) {
+			d.sendSlot(w, s, world.ItemPlaceEquip, fairyEquipSlot, *it)
+			d.log.Info("fairy started on the pulse", "account", s.AccountName, "conn", s.Conn, "item", it.Index)
 			return
 		}
 		left := effectsDuration(it.Effects) - time.Minute
