@@ -9,6 +9,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/itemeffect"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/internal/pilha"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/refine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
@@ -1464,6 +1465,10 @@ func baseGemVariant(vol int) (int, bool) {
 // They change an equipped ANCT grade-5..8 item to the selected base variant and,
 // on +10..+15 targets, rewrite the packed sanc gem index. The legacy accepts only
 // equipped gear except body slot 0 and accessory slots 8..15.
+//
+// Divergência (17/09, pedido do Marco): um acessório da reforma já +10 também
+// aceita, para trocar a joia gravada — o bônus segue a Gema (drop, perfuração,
+// XP ou absorção). Continua sendo só a joia: acessório não tem variante de grade.
 func (d *Dispatcher) useBaseGem(w *world.World, s *world.Session, e *world.Entity, body protocol.MsgUseItemBody, src, vol int) {
 	gem, ok := baseGemVariant(vol)
 	if !ok {
@@ -1471,7 +1476,9 @@ func (d *Dispatcher) useBaseGem(w *world.World, s *world.Session, e *world.Entit
 	}
 
 	dstSlot := int(body.DestPos)
-	if int(body.DestType) != world.ItemPlaceEquip || dstSlot == 0 || (dstSlot >= 8 && dstSlot < world.MaxEquip) {
+	acessorio := int(body.DestType) == world.ItemPlaceEquip && dstSlot >= 8 && dstSlot < world.MaxEquip &&
+		combine.AcessorioAteMais15(e.Equip[dstSlot].Index) && refine.Level(e.Equip[dstSlot]) >= gemSancLvl
+	if int(body.DestType) != world.ItemPlaceEquip || dstSlot == 0 || (dstSlot >= 8 && dstSlot < world.MaxEquip && !acessorio) {
 		d.baseGemReject(w, s, e, src, NoticeOnlyToEquips)
 		return
 	}

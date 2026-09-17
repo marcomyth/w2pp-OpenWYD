@@ -88,9 +88,9 @@ func TestBrincoMais10ComCoral(t *testing.T) {
 	}
 }
 
-// Esmeralda e Garnet em acessório: recusa sem gastar nada.
-func TestBrincoMais10RecusaEsmeraldaSemCobrar(t *testing.T) {
-	itens := receitaAilyn(t, itemRefinado(t, 595, 9), itemRefinado(t, 595, 9), 2442)
+// Joia fora das quatro em acessório: recusa sem gastar nada.
+func TestBrincoMais10RecusaJoiaErradaSemCobrar(t *testing.T) {
+	itens := receitaAilyn(t, itemRefinado(t, 595, 9), itemRefinado(t, 595, 9), 2445)
 	f := newAcessorioFixture(t, mesaMaquina("Ailyn", chaveMais10Chance, 100), itens...)
 	f.enviar(t)
 

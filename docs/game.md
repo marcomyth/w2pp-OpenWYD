@@ -213,19 +213,20 @@ também cresce com o refino: Brinco de Zeus +15 dá 84 de velocidade e 600 de De
 colar, e o Anel de Zeus continua como está.
 
 **Caminho até o +15.** Poeira do +1 ao +9, máquina +10 (Ailyn), Lactolerium para o +11 e
-Odin (receita do +12) do +12 ao +15. Aceitam: Brincos (591-595), Amuletos Místicos
+Odin (receita do +12) do +12 ao +15. Aceitam: Brincos (591-595), Braceletes (507, 510-514),
+Amuletos de Prata (551-554) e de Ouro (555-558), Amuletos Místicos
 (559-562) e Arcanos (567-570), Ankhs (661-663), os sete planetas (762-768) e o Amuleto dos
 Amantes (1738). A liberação é por item, não pelo espaço do equipamento: orbs, Pedras
 Espirituais, Pedra Amunra e Sephirot continuam fora.
 
-**+10 de acessório.** Dois iguais em +9, a Pedra do Sábio e **quatro Diamantes (+8% de drop)
-ou quatro Corais (+2% de XP)**. Esmeralda e Garnet são recusadas: a joia fica gravada no item
-e vale em qualquer espaço, e quatro acessórios +15 com Esmeralda somariam 960 de perfuração.
-As duas ficam reservadas às Pedras Espirituais (absorção ou perfuração), que ainda serão
-liberadas. Custo e chance são os da +10 das armas.
+**+10 de acessório.** Dois iguais em +9, a Pedra do Sábio e **quatro joias iguais, de qualquer
+uma das quatro**: Diamante (drop), Esmeralda (perfuração), Coral (XP) ou Garnet. A joia fica
+gravada no item e vale em qualquer espaço. Com o acessório já +10 equipado, usar uma Gema
+(Diamante, Esmeralda, Coral ou Garnet) troca a joia gravada. Custo e chance são os da +10 das
+armas.
 
 **Evolução (máquina +10).** O item em +9, uma cópia dele em qualquer refino, a Pedra do Sábio e
-quatro Diamantes ou quatro Corais. O item sai **em +0** no degrau seguinte da mesma linha:
+quatro joias iguais. O item sai **em +0** no degrau seguinte da mesma linha:
 
 | De (+9) | Para (+0) |
 |---|---|

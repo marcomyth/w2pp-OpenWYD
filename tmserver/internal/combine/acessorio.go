@@ -14,9 +14,13 @@ import (
 // Amunra e as Pedras Espirituais — liberar o nPos inteiro levaria todos juntos.
 
 // acessoriosAteMais15 são os acessórios que a +10 aceita e o Odin leva até +15.
-// Os brincos entram com os status de hoje; a reforma deles vem depois.
+// Os brincos entram com os status de hoje; a reforma deles vem depois. Braceletes
+// e os Amuletos de Prata e de Ouro entraram em 17/09, a pedido do Marco.
 var acessoriosAteMais15 = map[int16]bool{
 	591: true, 592: true, 593: true, 594: true, 595: true, // Brincos
+	507: true, 510: true, 511: true, 512: true, 513: true, 514: true, // Braceletes
+	551: true, 552: true, 553: true, 554: true, // Amuletos de Prata
+	555: true, 556: true, 557: true, 558: true, // Amuletos de Ouro
 	559: true, 560: true, 561: true, 562: true, // Amuletos Místicos
 	567: true, 568: true, 569: true, 570: true, // Amuletos Arcanos
 	661: true, 662: true, 663: true, // Ankhs
@@ -27,19 +31,20 @@ var acessoriosAteMais15 = map[int16]bool{
 // AcessorioAteMais15 diz se o item é um acessório que a +10 e o Odin aceitam.
 func AcessorioAteMais15(index int16) bool { return acessoriosAteMais15[index] }
 
-// Joias que um acessório aceita na +10. Toda peça +10 guarda a joia usada, e o
-// bônus dela vale em qualquer espaço do equipamento (gem_bonus.go). Esmeralda
-// (perfuração) e Garnet (absorção) ficam de fora de propósito: somadas em quatro
-// acessórios +15 dariam 960 de perfuração, e as duas estão reservadas às Pedras
-// Espirituais.
+// Joias que um acessório aceita na +10: as quatro, sempre quatro iguais. Toda
+// peça +10 guarda a joia usada, e o bônus dela vale em qualquer espaço do
+// equipamento (gem_bonus.go). Até 17/09 Esmeralda e Garnet ficavam de fora; o
+// Marco liberou as quatro, e a Gema troca a joia gravada depois (useBaseGem).
 const (
-	joiaDiamante int16 = 2441 // +8% de drop por peça
-	joiaCoral    int16 = 2443 // +2% de XP por peça
-	pedraDoSabio int16 = 1774
+	joiaDiamante  int16 = 2441 // +8% de drop por peça
+	joiaEsmeralda int16 = 2442 // perfuração
+	joiaCoral     int16 = 2443 // +2% de XP por peça
+	joiaGarnet    int16 = 2444 // absorção
+	pedraDoSabio  int16 = 1774
 )
 
 // AcessorioMais10Recipe é a receita da +10 para acessório: dois iguais em +9,
-// a Pedra do Sábio e quatro Diamantes ou quatro Corais.
+// a Pedra do Sábio e quatro joias iguais, de qualquer uma das quatro.
 //
 // A +10 das armas não confere o +9 porque o legado deixa isso para a janela do
 // cliente. Aqui o servidor confere: é uma receita nova, e não há janela que
@@ -51,7 +56,7 @@ func AcessorioMais10Recipe(items []world.Item) bool {
 	if refine.Level(items[0]) != 9 || refine.Level(items[1]) != 9 || items[2].Index != pedraDoSabio {
 		return false
 	}
-	return quatroJoiasIguais(items, joiaDiamante, joiaCoral)
+	return quatroJoiasIguais(items, joiaDiamante, joiaEsmeralda, joiaCoral, joiaGarnet)
 }
 
 // evolucoes leva cada degrau da escada ao seguinte, na mesma linha: a mesma
@@ -69,8 +74,7 @@ func EvolucaoAcessorio(index int16) (int16, bool) {
 }
 
 // EvolucaoRecipe é a evolução na +10: o item em +9, uma cópia dele como
-// sacrifício (em qualquer refino), a Pedra do Sábio e quatro Diamantes ou
-// quatro Corais. A forma é a da +10 para o jogador não aprender outra janela; a
+// sacrifício (em qualquer refino), a Pedra do Sábio e quatro joias iguais. A forma é a da +10 para o jogador não aprender outra janela; a
 // joia não fica gravada, porque o item evoluído sai em +0.
 func EvolucaoRecipe(items []world.Item) bool {
 	if !validItems(items, 7) || items[1].Index != items[0].Index || items[2].Index != pedraDoSabio {
@@ -79,7 +83,7 @@ func EvolucaoRecipe(items []world.Item) bool {
 	if _, ok := EvolucaoAcessorio(items[0].Index); !ok || refine.Level(items[0]) != 9 {
 		return false
 	}
-	return quatroJoiasIguais(items, joiaDiamante, joiaCoral)
+	return quatroJoiasIguais(items, joiaDiamante, joiaEsmeralda, joiaCoral, joiaGarnet)
 }
 
 // quatroJoiasIguais confere as células 3-6: a mesma joia nas quatro, e uma das

@@ -185,3 +185,49 @@ func startServerClockBaseGem(t *testing.T, persist world.Persistence) (string, f
 		}
 	}
 }
+
+// A Gema troca a joia de um acessório da reforma já +10 (pedido de 17/09), e
+// continua recusando acessório abaixo de +10 e o que está fora da lista.
+func TestBaseGemTrocaAJoiaDoAcessorio(t *testing.T) {
+	casos := []struct {
+		nome   string
+		index  int16
+		level  int
+		aceita bool
+	}{
+		{"Brinco de Hecate +12", 594, 12, true},
+		{"Bracelete de Hecate +10", 514, 10, true},
+		{"Brinco +9", 594, 9, false},
+		{"orb +12 fora da lista", 612, 12, false},
+	}
+	for _, tc := range casos {
+		t.Run(tc.nome, func(t *testing.T) {
+			d, w, s, e := baseGemFixture(nil)
+			alvo := world.Item{Index: tc.index, Effects: [3]world.Effect{{Effect: efSanc}}}
+			refine.Set(&alvo, tc.level, 0)
+			e.Carry[0] = world.Item{Index: itemGemaGarnet}
+			e.Equip[9] = alvo
+
+			d.useBaseGem(w, s, e, baseGemUseBody(world.ItemPlaceEquip, 9), 0, volGemGarnet)
+
+			if !tc.aceita {
+				if e.Carry[0].Empty() || e.Equip[9] != alvo {
+					t.Fatalf("recusa mexeu nos itens: gema %+v, alvo %+v", e.Carry[0], e.Equip[9])
+				}
+				return
+			}
+			if got := refine.Gem(e.Equip[9]); got != 3 {
+				t.Errorf("joia = %d, esperado 3 (Garnet)", got)
+			}
+			if got := refine.Level(e.Equip[9]); got != tc.level {
+				t.Errorf("refino = %d, esperado %d", got, tc.level)
+			}
+			if e.Equip[9].Index != tc.index {
+				t.Errorf("índice = %d, esperado %d intacto", e.Equip[9].Index, tc.index)
+			}
+			if !e.Carry[0].Empty() {
+				t.Errorf("gema não foi gasta: %+v", e.Carry[0])
+			}
+		})
+	}
+}

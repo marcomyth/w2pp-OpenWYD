@@ -38,10 +38,11 @@ func TestAcessorioMais10Recipe(t *testing.T) {
 	}{
 		{"brinco com Diamantes", receita(append([]world.Item{brinco(9), brinco(9), {Index: 1774}}, joias(2441)...)...), true},
 		{"brinco com Corais", receita(append([]world.Item{brinco(9), brinco(9), {Index: 1774}}, joias(2443)...)...), true},
-		// Perfuração e absorção ficam para as Pedras Espirituais: quatro
-		// acessórios +15 com Esmeralda somariam 960 de perfuração.
-		{"Esmeralda recusada", receita(append([]world.Item{brinco(9), brinco(9), {Index: 1774}}, joias(2442)...)...), false},
-		{"Garnet recusada", receita(append([]world.Item{brinco(9), brinco(9), {Index: 1774}}, joias(2444)...)...), false},
+		// As quatro joias valem desde 17/09.
+		{"brinco com Esmeraldas", receita(append([]world.Item{brinco(9), brinco(9), {Index: 1774}}, joias(2442)...)...), true},
+		{"brinco com Garnets", receita(append([]world.Item{brinco(9), brinco(9), {Index: 1774}}, joias(2444)...)...), true},
+		{"bracelete com Garnets", receita(append([]world.Item{refinado(t, 514, 9), refinado(t, 514, 9), {Index: 1774}}, joias(2444)...)...), true},
+		{"joia que não é das quatro", receita(append([]world.Item{brinco(9), brinco(9), {Index: 1774}}, joias(2445)...)...), false},
 		{"joias misturadas", receita(brinco(9), brinco(9), world.Item{Index: 1774}, world.Item{Index: 2441}, world.Item{Index: 2441}, world.Item{Index: 2443}, world.Item{Index: 2441}), false},
 		{"brinco +8", receita(append([]world.Item{brinco(8), brinco(9), {Index: 1774}}, joias(2441)...)...), false},
 		{"sacrifício +8", receita(append([]world.Item{brinco(9), brinco(8), {Index: 1774}}, joias(2441)...)...), false},
@@ -61,8 +62,8 @@ func TestAcessorioMais10Recipe(t *testing.T) {
 }
 
 func TestListaDaReforma(t *testing.T) {
-	dentro := []int16{591, 595, 559, 562, 567, 570, 661, 663, 762, 768, 1738}
-	fora := []int16{501, 507, 516, 523, 551, 563, 612, 633, 640, 3464, 1760}
+	dentro := []int16{591, 595, 507, 510, 514, 551, 554, 555, 558, 559, 562, 567, 570, 661, 663, 762, 768, 1738}
+	fora := []int16{501, 508, 509, 515, 516, 523, 563, 612, 633, 640, 3464, 1760}
 	for _, idx := range dentro {
 		if !AcessorioAteMais15(idx) {
 			t.Errorf("%d devia subir até +15", idx)
@@ -87,7 +88,7 @@ func TestEvolucaoRecipe(t *testing.T) {
 		{"Siren +9 → Ankh", receita(append([]world.Item{refinado(t, 660, 9), refinado(t, 660, 9), {Index: 1774}}, joias(2441)...)...), true, 663},
 		{"Cristal +8", receita(append([]world.Item{refinado(t, 563, 8), refinado(t, 563, 0), {Index: 1774}}, joias(2443)...)...), false, 0},
 		{"cópia de outra árvore", receita(append([]world.Item{refinado(t, 563, 9), refinado(t, 564, 0), {Index: 1774}}, joias(2443)...)...), false, 0},
-		{"Esmeralda", receita(append([]world.Item{refinado(t, 563, 9), refinado(t, 563, 0), {Index: 1774}}, joias(2442)...)...), false, 0},
+		{"Cristal com Esmeraldas", receita(append([]world.Item{refinado(t, 563, 9), refinado(t, 563, 0), {Index: 1774}}, joias(2442)...)...), true, 559},
 		{"Ankh não evolui", receita(append([]world.Item{refinado(t, 661, 9), refinado(t, 661, 0), {Index: 1774}}, joias(2441)...)...), false, 0},
 	}
 	for _, tc := range casos {
