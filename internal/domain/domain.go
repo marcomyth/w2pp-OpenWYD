@@ -344,6 +344,24 @@ const (
 	MaxBossRespawnHours     = 168
 )
 
+// O teto de XP por rodada do Mortal (decidido em 17/09/2026). A cada rodada de
+// 600 s do relógio das arenas, toda XP que o Mortal recebe soma no máximo o teto
+// da faixa do nível que ele tem no momento do ganho; o troféu, no máximo a
+// metade. Com o dobro ligado vale a coluna do dobro. Zero numa faixa = sem teto
+// naquela faixa.
+//
+// Os valores são P/6 com P = XP exigida da faixa / horas-alvo, tirada a média do
+// dobro (53 h de 168 por semana): quem enche o teto toda rodada faz exatamente as
+// horas do plano.
+var (
+	// RoundXPCapTopLevels é o último nível GUARDADO de cada faixa.
+	RoundXPCapTopLevels = [5]int32{99, 199, 299, 349, 398}
+	// DefaultRoundXPCap é o teto por rodada sem o dobro, por faixa.
+	DefaultRoundXPCap = [5]int64{604951, 2669386, 500454, 1263881, 1263881}
+	// DefaultRoundXPCapDouble é o teto por rodada com o dobro ligado, por faixa.
+	DefaultRoundXPCapDouble = [5]int64{1209902, 5338772, 1000908, 2527761, 2527761}
+)
+
 // DefaultWorldEventConfig is the config of a server whose row was never
 // written: everything off except the item-rain notice, the daily Tower War on at
 // its decided hour, and lone bosses back after their decided wait.

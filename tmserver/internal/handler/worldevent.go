@@ -121,6 +121,8 @@ func (d *Dispatcher) applyWorldEventConfig(w *world.World, snap worldcfg.Snapsho
 	// taken at each death, so a change reaches the next boss to die, not the
 	// ones already waiting.
 	d.setChefeHoras(ev.BossRespawnHours)
+	// O teto de XP por rodada do Mortal (tetorodada.go): vale no próximo ganho.
+	d.setTetoDaRodada(ev.RoundXPCap, ev.RoundXPCapDouble)
 	// No side effects to run, unlike the newbie event: KefraLive is one branch
 	// in the reward pipeline and touches nothing that is already in the world.
 	d.expEvents.KefraLive = ev.KefraLiveEnabled

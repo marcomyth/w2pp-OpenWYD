@@ -466,6 +466,10 @@ type Dispatcher struct {
 	// entradasDaRodada: quem já entrou numa arena de quest nesta rodada do relógio
 	// (entrada_arena.go). Loop-only; zera no pulso.
 	entradasDaRodada map[donoDaEntrada]entradaDaRodada
+
+	// tetoRodadaCfg: o teto de XP por rodada do Mortal que o painel manda
+	// (tetorodada_config.go).
+	tetoRodadaCfg tetoDaRodadaConfig
 }
 
 // worldEventRNGSeed is the fallback seed for eventRNG, used when Config leaves
