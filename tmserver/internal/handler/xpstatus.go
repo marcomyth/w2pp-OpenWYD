@@ -75,6 +75,9 @@ func (d *Dispatcher) showXPBonus(w *world.World, s *world.Session) {
 	for _, linha := range textoXP(st) {
 		sendClientMessage(w, s, linha)
 	}
+	if linha, ok := d.linhaTrofeusDaRodada(s, e); ok {
+		sendClientMessage(w, s, linha)
+	}
 }
 
 // afetoRestante is the time left on one affect slot, in affect ticks. 0 means

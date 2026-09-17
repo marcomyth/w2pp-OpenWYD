@@ -1122,6 +1122,7 @@ func (d *Dispatcher) teleportQuest256Step(w *world.World, s *world.Session, e *w
 	// the Castelo Orc send theirs.
 	d.enviarRelogioDasArenas(w, s)
 	d.marcaEntradaDaRodada(s, step)
+	d.enviarTrofeusDaRodada(w, s, e, passoDaArena(step))
 }
 
 func quest256StepForLevel(level int32) (quest256Step, bool) {

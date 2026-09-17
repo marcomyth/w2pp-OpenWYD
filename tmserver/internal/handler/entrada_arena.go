@@ -59,16 +59,21 @@ func (d *Dispatcher) recusaBilheteDaRodada(w *world.World, s *world.Session, e *
 // marcaEntradaDaRodada grava a entrada. Chamado depois do pulo, em
 // teleportQuest256Step, por onde as três portas passam.
 func (d *Dispatcher) marcaEntradaDaRodada(s *world.Session, step quest256Step) {
+	if d.entradasDaRodada == nil {
+		d.entradasDaRodada = make(map[donoDaEntrada]entradaDaRodada)
+	}
+	d.entradasDaRodada[donoDe(s)] = entradaDaRodada{passo: passoDaArena(step)}
+}
+
+// passoDaArena é o índice do passo em quest256Steps, achado pela bandeira.
+func passoDaArena(step quest256Step) int {
 	passo := 0
 	for i := range quest256Steps {
 		if quest256Steps[i].flag == step.flag {
 			passo = i
 		}
 	}
-	if d.entradasDaRodada == nil {
-		d.entradasDaRodada = make(map[donoDaEntrada]entradaDaRodada)
-	}
-	d.entradasDaRodada[donoDe(s)] = entradaDaRodada{passo: passo}
+	return passo
 }
 
 // vigiaSaidasDasArenas fecha a rodada de quem saiu. Roda no Tick, antes do guarda

@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1309,6 +1310,10 @@ func TestQuest256TicketSecondUseOnEmptySlotIsNoop(t *testing.T) {
 	}
 	expectAction(t, c)
 	expect(t, c, protocol.MsgStartTime) // the arena clock the first use sends
+	// ...and how many trophies the round still gives (tetorodada.go).
+	if txt := decodePanel(expect(t, c, protocol.MsgMessagePanel)); !strings.HasPrefix(txt, "Troféus nesta rodada:") {
+		t.Fatalf("after the clock came %q, want the round's trophy count", txt)
+	}
 
 	send(t, c, protocol.MsgUseItem, body.Encode())
 	if ty, _, ok := readMaybe(t, c); ok {
