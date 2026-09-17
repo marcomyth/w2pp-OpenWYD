@@ -292,7 +292,16 @@ func TestKefraGravacaoQueFalhaReverteOProcesso(t *testing.T) {
 	// A reversão entra pela fila de callbacks do laço, então quem aplica é o
 	// laço; aqui o mundo não está servindo, e o teste de ponta a ponta da
 	// reversão é o do servidor de verdade.
-	if _, _, chamadas := fonte.estado(); chamadas < 2 {
+	// A nova tentativa sai logo depois da primeira, mas na goroutine da gravação:
+	// ler a contagem no instante em que a primeira chega falhou na CI do main
+	// (17/09/2026, "1 tentativas"). Espera por ela, com prazo.
+	chamadas := 0
+	for prazo := time.Now().Add(2 * time.Second); time.Now().Before(prazo); time.Sleep(5 * time.Millisecond) {
+		if _, _, chamadas = fonte.estado(); chamadas >= 2 {
+			break
+		}
+	}
+	if chamadas < 2 {
 		t.Errorf("%d tentativas de gravação, want ao menos 2 (a nova tentativa)", chamadas)
 	}
 }
