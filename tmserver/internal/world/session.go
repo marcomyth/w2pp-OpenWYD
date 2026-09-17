@@ -447,7 +447,10 @@ type Entity struct {
 	AffEsquivaPct int32
 	// UltimoPvP é o World.Now do último golpe de jogador em jogador, dado ou
 	// levado; 0 é nunca. A Aura da Vida do TK Confiança cura menos em PvP.
-	UltimoPvP         uint32
+	UltimoPvP uint32
+	// ImuneDebuffAte é o World.Now até quando o Desintoxicar da FM Magia Branca
+	// segura debuff novo; 0 é nunca (handler/arvore_magia_branca.go).
+	ImuneDebuffAte    uint32
 	AffSpecial        [4]int16
 	AffResist         [4]int16
 	AffForceDamage    int32 // ForceDamage, e.g. Ligacao Espectral

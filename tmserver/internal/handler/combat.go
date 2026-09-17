@@ -413,6 +413,11 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 					if !exterminarAcerta(w.Rand()) {
 						dmg = -3
 					}
+				} else if skillnum == skillJulgamento && fmMagiaBranca(e) {
+					// O Julgamento Divino dela acerta 30% das vezes, por alvo (arvore_magia_branca.go).
+					if !julgamentoAcerta(w.Rand()) {
+						dmg = -3
+					}
 				} else {
 					miss := combat.ResolveParry(w.Rand(), skillnum, d.skillParryRate(e, target), target.Rsv&world.RsvBlock != 0)
 					if miss = capMissStreak(e, tid, miss, int(d.combatRules.MaxMissStreak)); miss != 0 {
@@ -1025,6 +1030,10 @@ func (d *Dispatcher) applyCastAffect(w *world.World, e, target *world.Entity, ti
 		if target.Rsv&world.RsvBlock != 0 {
 			return
 		}
+		// Desintoxicar da FM Magia Branca (arvore_magia_branca.go).
+		if imuneADebuff(target, w.Now()) {
+			return
+		}
 		if world.IsPlayer(e.ID) && target.Clan == 6 {
 			return // clan 6 is immune to player-cast affects
 		}
@@ -1158,11 +1167,15 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 			heal = 2*cast.special + cast.spell.InstanceValue
 		}
 		heal = foemaAmantesHeal(e, skillnum, heal)
+		// A FM Magia Branca cura pela própria vida, com o cajado de 1 mão por cima
+		// (arvore_magia_branca.go).
+		heal = curaDaMagiaBranca(e, skillnum, heal, d.itemAbility)
 		healCap := 1100
 		if e.ClassMaster != classMasterMortal && e.ClassMaster != classMasterArch {
 			heal *= 2
 			healCap = 2200
 		}
+		healCap = tetoDaCura(e, skillnum, healCap)
 		if heal >= healCap {
 			heal = healCap
 		}
@@ -1185,6 +1198,11 @@ func (d *Dispatcher) applySkillSpecial(w *world.World, s *world.Session, e, targ
 	case cast.spell.InstanceType == 7: // Flash: clear combat state.
 		target.Target = 0
 		clearEnemyList(target)
+		if world.IsPlayer(tid) && fmMagiaBranca(e) {
+			// Com a 8ª, o Flash também tira o aliado da mira de quem está perto
+			// (arvore_magia_branca.go).
+			d.tirarDaMira(w, target, tid)
+		}
 		if !world.IsPlayer(tid) && target.Mode == world.MobCombat {
 			target.Mode = world.MobPeace
 		}
@@ -1192,6 +1210,10 @@ func (d *Dispatcher) applySkillSpecial(w *world.World, s *world.Session, e, targ
 
 	case cast.spell.InstanceType == 8:
 		d.clearDetoxAffects(w, e, target, tid)
+		if skillnum == skillDesintoxicar {
+			// Com a 8ª, o Desintoxicar segura debuff novo por 4 s (arvore_magia_branca.go).
+			marcarImunidadeADebuff(e, target, w.Now())
+		}
 		if skillnum == 31 {
 			d.applyFoemaResurrection(w, s, e, target, tid, body)
 		}
@@ -1205,9 +1227,18 @@ func (d *Dispatcher) applySkillSpecial(w *world.World, s *world.Session, e, targ
 		d.applyEtherealFlame(w, e, target, tid)
 		return true
 
-	case skillnum == 30: // Julgamento Divino.
-		*dmg += int(e.HP)
-		e.HP = e.HP/6 + 1
+	case skillnum == skillJulgamento: // Julgamento Divino.
+		if fmMagiaBranca(e) {
+			// Tudo ou nada da FM Magia Branca: gasta 70% da vida, soma o dobro disso ao
+			// golpe e fica com 30% (arvore_magia_branca.go). O acerto de 30% é sorteado
+			// no laço do ataque, como o do Exterminar.
+			gasto, add := custoDoJulgamento(e)
+			*dmg += int(add)
+			e.HP -= gasto
+		} else {
+			*dmg += int(e.HP)
+			e.HP = e.HP/6 + 1
+		}
 		s.ReqHp = e.HP
 		setReqHp(s, e)
 		d.sendSetHpMp(w, s, e)
@@ -1441,16 +1472,35 @@ func (d *Dispatcher) clearDetoxAffects(w *world.World, caster, target *world.Ent
 }
 
 func (d *Dispatcher) applyFoemaResurrection(w *world.World, s *world.Session, caster, target *world.Entity, tid int, body *protocol.MsgAttackBody) {
-	hp := int32((w.Rand().Intn(10) + 10) * int((effectiveMaxHP(caster)+1)/100))
 	caster.MP = 0
 	s.ReqMp = 0
 	body.ReqMp = 0
 	d.sendSetHpMp(w, s, caster)
-	if w.Rand().Intn(100) >= 70 {
+	// Com a 8ª (arvore_magia_branca.go) o alvo clicado volta sempre, e cada morto
+	// a até 3 casas dele tem 10% de chance; sem ela, o legado: um alvo, 70%.
+	if !fmMagiaBranca(caster) {
+		if w.Rand().Intn(100) >= renascimentoChanceLegado {
+			return
+		}
+		d.reviverAlvo(w, caster, target, tid)
 		return
 	}
+	d.reviverAlvo(w, caster, target, tid)
+	for _, id := range d.mortosPertoDoAlvo(w, target, tid) {
+		if w.Rand().Intn(100) >= renascimentoChanceExtra {
+			continue
+		}
+		if outro := w.Entity(id); outro != nil {
+			d.reviverAlvo(w, caster, outro, id)
+		}
+	}
+}
+
+// reviverAlvo põe um morto de pé com a vida do legado: 10% a 19% do HP máximo de
+// quem lançou, que é o que faz a CON da FM Magia Branca valer aqui.
+func (d *Dispatcher) reviverAlvo(w *world.World, caster, target *world.Entity, tid int) {
 	world.LimparInimigoDoReino(target) // a morte perdoa (reinos.go)
-	target.HP = hp
+	target.HP = int32((w.Rand().Intn(10) + 10) * int((effectiveMaxHP(caster)+1)/100))
 	if ts := w.Session(tid); ts != nil {
 		ts.CrackError = 0
 		ts.ReqHp = target.HP
@@ -1794,6 +1844,9 @@ func (d *Dispatcher) applyAirBladeProc(w *world.World, attacker, target *world.E
 func (d *Dispatcher) applyOnHitAffects(w *world.World, attacker, target *world.Entity, tid int) {
 	if attacker == nil || target == nil {
 		return
+	}
+	if imuneADebuff(target, w.Now()) {
+		return // Desintoxicar (arvore_magia_branca.go)
 	}
 	// Encantar Gelo (HT 75, affect 27 → RsvFrost): the Nevasca slow on a hit. (The
 	// SkillData.csv calls row 75 "Agressividade"; the book and the client call it

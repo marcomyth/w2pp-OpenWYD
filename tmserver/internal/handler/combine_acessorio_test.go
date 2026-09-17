@@ -325,9 +325,15 @@ func TestCuraDaFoemaComAmantesPassaPeloTeto(t *testing.T) {
 	if got := d.resolveSkillHit(w, caster, target, target.ID, skillCura, cast); got != -650 {
 		t.Errorf("Cura com Amantes = %d, esperado -650", got)
 	}
-	// Special 450: 1000, que com os 30% passaria de 1300 — o teto segue 1100.
+	// Special 450: 1000, e 1300 com os 30%. O teto desta FM é 2.500, porque ela tem
+	// o Renascimento (arvore_magia_branca.go); sem ele seriam os 1.100 do legado.
 	cast.special = 450
-	if got := d.resolveSkillHit(w, caster, target, target.ID, skillCura, cast); got != -1100 {
-		t.Errorf("Cura no teto = %d, esperado -1100", got)
+	if got := d.resolveSkillHit(w, caster, target, target.ID, skillCura, cast); got != -1300 {
+		t.Errorf("Cura com os 30%% = %d, esperado -1300", got)
+	}
+	// Special 1400: 3000, 3900 com os 30%, e o teto da 8ª corta em 2.500.
+	cast.special = 1400
+	if got := d.resolveSkillHit(w, caster, target, target.ID, skillCura, cast); got != -2500 {
+		t.Errorf("Cura no teto da 8ª = %d, esperado -2500", got)
 	}
 }

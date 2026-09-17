@@ -129,6 +129,9 @@ func (d *Dispatcher) aplicarDebuffDoFanatismo(w *world.World, e, target *world.E
 	if valor <= 0 || target == nil || (!world.IsPlayer(tid) && target.NonCombatNPC) {
 		return
 	}
+	if imuneADebuff(target, w.Now()) {
+		return // Desintoxicar (arvore_magia_branca.go)
+	}
 	// Renova em vez de acumular: o slot do afeto 12 é reaproveitado pelo SetAffect.
 	var applied bool
 	if world.IsPlayer(tid) {
