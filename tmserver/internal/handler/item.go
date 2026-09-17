@@ -3089,6 +3089,18 @@ func (d *Dispatcher) tradingItem(w *world.World, s *world.Session, _ protocol.He
 		return
 	}
 	*src, *dst = *dst, *src
+	// A temporary item starts its life the first time it is worn, whichever
+	// gesture put it on. Dragging and the client's double-click both arrive here,
+	// not at equipItem, and skipping this left a fairy from the shop with no time:
+	// the first minute pulse deleted it. Started before the SendItem below, so the
+	// client draws the time it now has.
+	now := time.Now()
+	if dstPlace == world.ItemPlaceEquip {
+		d.startTimedItem(dst, now)
+	}
+	if srcPlace == world.ItemPlaceEquip {
+		d.startTimedItem(src, now)
+	}
 	w.Send(s, protocol.MsgTradingItem, payload) // echo the move
 	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(srcPlace, srcSlot, itemToSel(*src)))
 	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(dstPlace, dstSlot, itemToSel(*dst)))
