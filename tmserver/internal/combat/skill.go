@@ -35,6 +35,12 @@ type SkillCaster struct {
 	// counts half. LearnedSkill feeds the tree bonus. See SkillBaseDamage.
 	Mortal       bool
 	LearnedSkill int32
+	// Confianca liga a regra do TK Confiança (handler/arvore_confianca.go) numa
+	// das quatro skills de dano da árvore: o dano sai da DES e da INT, sem a Magia,
+	// e a arma multiplica por ArmaPct (100 = neutro). Quem decide é o handler.
+	Confianca bool
+	Dex       int
+	ArmaPct   int
 }
 
 // treeBonusPct is the percentage the client adds to a skill once its tree's
@@ -113,6 +119,8 @@ func SkillBaseDamage(skillnum int, sp SkillSpell, c SkillCaster, weather, weapon
 			lvl, mastery = level/2, special
 		}
 		switch {
+		case c.Confianca: // TK Confiança — 3× arma e 3× (0,6 DES + 0,4 INT), como as árvores físicas
+			dam = 3*weaponDamage + 3*(6*c.Dex+4*c.Int)/10 + lvl + special + base
 		case skillnum == 97: // Canhão Guardião — the client uses the full level here for everyone
 			dam = 15*level + base
 		case c.Class == 0 && skind == 1: // TK tree 2
@@ -136,7 +144,16 @@ func SkillBaseDamage(skillnum int, sp SkillSpell, c SkillCaster, weather, weapon
 		}
 		// Magic multiplier for casters; TK tree 2 and Huntress skip it, but
 		// everyone gets the flat 5/4.
-		if (c.Class != 0 || skind != 1) && c.Class != 3 {
+		if c.Confianca {
+			// Sem a Magia, mas com os percentuais de dano de skill (poções, acessórios)
+			// no número pronto, como nos magos; e a arma da Confiança por cima.
+			if c.DamageMultiPct > 0 && c.DamageMultiPct != 100 {
+				dam = dam * c.DamageMultiPct / 100
+			}
+			if c.ArmaPct > 0 {
+				dam = dam * c.ArmaPct / 100
+			}
+		} else if (c.Class != 0 || skind != 1) && c.Class != 3 {
 			dam = (4*c.Magic + 100) * dam / 100
 			// SERVER RULE (see AffDamageMultiPct): the percentage damage buffs land
 			// HERE, on the finished spell, and not inside Magic. Magic is not damage —

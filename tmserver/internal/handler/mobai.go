@@ -110,6 +110,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.guardCampoDeTreino(w)
 	d.regenPlayers(w)
 	d.sweepAffects(w)
+	d.tickAuraDaConfianca(w)
 	d.sweepInvisibilidade(w)
 	d.sweepMobAffects(w) // ProcessAffect for monsters (mobskill.go)
 	d.sweepGuilty(w)

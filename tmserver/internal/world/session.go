@@ -444,7 +444,10 @@ type Entity struct {
 	AffCritical    int16
 	// AffEsquivaPct multiplies the dodge roll (+50 = ×1,5): the Huntress Captura
 	// tree, Evasão Aprimorada and Proteção das Sombras (handler/arvore_captura.go).
-	AffEsquivaPct     int32
+	AffEsquivaPct int32
+	// UltimoPvP é o World.Now do último golpe de jogador em jogador, dado ou
+	// levado; 0 é nunca. A Aura da Vida do TK Confiança cura menos em PvP.
+	UltimoPvP         uint32
 	AffSpecial        [4]int16
 	AffResist         [4]int16
 	AffForceDamage    int32 // ForceDamage, e.g. Ligacao Espectral

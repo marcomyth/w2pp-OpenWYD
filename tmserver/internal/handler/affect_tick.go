@@ -65,6 +65,9 @@ func (d *Dispatcher) processAffect(w *world.World, s *world.Session, e *world.En
 		}
 		switch af.Type {
 		case 17: // Aura da Vida HoT: +Level/2 + Value per tick
+			if tkConfianca(e) {
+				break // cura no próprio relógio de 5 s (arvore_confianca.go)
+			}
 			hp := e.HP + int32(af.Level)/2 + int32(af.Value)
 			if m := effectiveMaxHP(e); hp > m {
 				hp = m

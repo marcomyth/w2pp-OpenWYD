@@ -272,12 +272,17 @@ func TestTKClassWeaponDamage(t *testing.T) {
 	d := New(Config{ItemUnique: map[int]int{900: 42}})
 	e := testPlayerEntity()
 	e.Str, e.Dex = 100, 100
-	e.LearnedSkill = 1 << 7
+	e.LearnedSkill = 1 << 15
 	e.Equip[weaponSlotR] = world.Item{Index: 900}
 	got := d.classWeaponDamage(e)
 	want := dexStrWeaponBonus(100, 100, 0.55, 0.60)
 	if got != want {
 		t.Errorf("TK arco bonus = %d, want %d", got, want)
+	}
+	// Com o Destino (TK Confiança), a DES sai do bônus (arvore_confianca.go).
+	e.LearnedSkill = 1 << 7
+	if got, want := d.classWeaponDamage(e), dexStrWeaponBonus(100, 0, 0.55, 0.60); got != want {
+		t.Errorf("TK Confiança arco bonus = %d, want %d (sem a DES)", got, want)
 	}
 }
 

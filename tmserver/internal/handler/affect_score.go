@@ -45,7 +45,10 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 	// Captura passives read attributes and the weapon, and run with or without
 	// affects (arvore_captura.go); evasao is the Evasão Aprimorada buff.
 	evasao := false
-	defer func() { applyPassivasDaCaptura(e, itemAbility, evasao) }()
+	defer func() {
+		applyPassivasDaCaptura(e, itemAbility, evasao)
+		applyPassivasDaConfianca(e) // TK: Destino e esquiva (arvore_confianca.go)
+	}()
 	if !e.HasAnyAffect() {
 		return
 	}
@@ -487,15 +490,17 @@ func effectiveCritical(e *world.Entity) uint8 {
 }
 
 // skillCriticalBonus is the class-skill crit bonus. The legacy grants the SAME formula to
-// two classes from two different skill bits — TK "Confiança" (Basedef.cpp:3252, bonus at
-// :3366-3371) and Huntress "Visão do Caçador" (:3856, bonus at :3858-3863) — so the gate
-// is the only thing that differs between them.
+// two classes from two different skill bits — TK "Trans", bit 15, Armadura Crítica
+// (Basedef.cpp:3309, bonus at :3366-3371) and Huntress "Visão do Caçador" (:3856, bonus
+// at :3858-3863) — so the gate is the only thing that differs between them. Until
+// 17/09/2026 the port read the TK bit 7 (Destino); the Confiança redesign put it back on
+// the 15, where the legacy and the Armadura Crítica book have it.
 func skillCriticalBonus(e *world.Entity) int16 {
 	if e.Class == 3 && e.LearnedSkill&learnedVisaoDeCacadora != 0 {
 		// Visão de Caçadora is a server rule now (arvore_captura.go).
 		return int16(criticoVisaoDeCacadora(e))
 	}
-	if e.Class != 0 || e.LearnedSkill&(1<<7) == 0 {
+	if e.Class != 0 || e.LearnedSkill&(1<<15) == 0 {
 		return 0
 	}
 	add := (int(e.Special[3])+1)/10 + int(effectiveDex(e))/75

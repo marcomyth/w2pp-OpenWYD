@@ -404,6 +404,10 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			if !skipGenericAffect {
 				d.applyCastAffect(w, e, target, tid, cast)
 			}
+			// Fanatismo do TK Confiança: o golpe que acerta tira defesa (arvore_confianca.go).
+			if skillnum == skillFanatismo && dmg > 0 && tid != s.Conn && tkConfianca(e) {
+				d.aplicarDebuffDoFanatismo(w, e, target, tid)
+			}
 		} else {
 			// FIDELIDADE AO LEGADO (restaurada): melee farther than the reach is
 			// refused whole and in silence — no crack error, no echo
@@ -474,6 +478,7 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			// only: a party heal or buff aimed at the Huntress must not reveal her.
 			if pvpHit {
 				d.revelarInvisivel(w, target)
+				marcarPvP(e, target, w.Now())
 			}
 			// The legacy PvP block (pvp.go): every blow on a player or a summon keeps
 			// a quarter ("Perfuração"), and the panel's PvP share rides on top.
@@ -1078,6 +1083,12 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 		Mortal:       e.ClassMaster == classMasterMortal,
 		LearnedSkill: e.LearnedSkill,
 	}
+	if tkConfianca(e) && skillDeDanoDaConfianca(skillnum) {
+		// DES e INT no lugar da Magia, e a arma da árvore (arvore_confianca.go).
+		caster.Confianca = true
+		caster.Dex = int(effectiveDex(e))
+		caster.ArmaPct = armaPctConfianca(e, d.itemAbility)
+	}
 	// CurrentWeather scales InstanceType 2/3/5 output (_MSG_Attack.cpp:520,594,972
 	// → BASE_GetSkillDamage). Weather 0 is neutral, so this is a no-op until a
 	// roll or a GM override moves it (weather.go).
@@ -1097,7 +1108,7 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 			d.log.Debug("tempestade de flechas", "caster", e.ID, "target", tid, "multiplicadores", soma, "bruto", raw, "dano", dmg)
 			return dmg
 		}
-		def := defesaPerfurada(e, int(effectiveAC(target)))
+		def := defesaPerfuradaConfianca(e, skillnum, defesaPerfurada(e, int(effectiveAC(target))))
 		if world.IsPlayer(tid) {
 			def *= 2
 		}
