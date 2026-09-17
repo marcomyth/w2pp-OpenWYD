@@ -725,7 +725,7 @@ func createMobFrom(e *world.Entity, createType uint16) protocol.CreateMobData {
 func createMobViewPacket(w *world.World, e *world.Entity, createType uint16) (protocol.Type, []byte) {
 	data := createMobFrom(e, createType)
 	if s := shopSessionOf(w, e); s != nil {
-		data.Con = 0 // GetCreateMobTrade parity: shop pose hides the Con field.
+		data.Con = stallCon(e) // 0 for the pose (GetCreateMobTrade parity); the clone's own size otherwise.
 		return protocol.MsgCreateMobTrade, protocol.EncodeCreateMobTradeBody(data, nil, s.AutoTrade.Title)
 	}
 	return protocol.MsgCreateMob, protocol.EncodeCreateMobBody(data)
@@ -750,6 +750,13 @@ func shopSessionOf(w *world.World, e *world.Entity) *world.Session {
 	// A clone must still be the one this shop owns. Without this an id recycled
 	// out from under a stale ShopOwner would answer for someone else's shop.
 	if !world.IsPlayer(e.ID) && s.AutoTrade.CloneID != e.ID {
+		return nil
+	}
+	// And a seller who has a clone is not a stall himself. Without this, whoever
+	// entered view after the shop opened was sent TWO stalls — the clone and the
+	// seller's own body in the shop pose — and every move of the seller redrew
+	// him as one, so he could be clicked as a shop while he walked around.
+	if world.IsPlayer(e.ID) && s.AutoTrade.CloneID >= world.MaxUser {
 		return nil
 	}
 	return s

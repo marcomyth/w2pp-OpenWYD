@@ -371,8 +371,8 @@ func shopStallID(s *world.Session) int {
 // It prefers a clone — its own body, which is what frees the seller to walk — and
 // falls back to the legacy pose (_MSG_SendAutoTrade.cpp:112-120), where the
 // seller's own body becomes the stall, when no clone could be raised. The pose is
-// selected by the MSG_CreateMobTrade Type, not by a CreateType value; Score.Con
-// is zeroed for parity either way.
+// selected by the MSG_CreateMobTrade Type, not by a CreateType value. Score.Con is
+// what sizes the model on the client, so each shape gets its own: see stallCon.
 func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.Entity) {
 	tab := make([]byte, 26)
 
@@ -380,7 +380,7 @@ func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.E
 		s.AutoTrade.CloneID = id
 		ce := w.Entity(id)
 		data := createMobFrom(ce, 0)
-		data.Con = 0
+		data.Con = stallCon(ce)
 		body := protocol.EncodeCreateMobTradeBody(data, tab, s.AutoTrade.Title)
 		// One broadcast reaches everyone INCLUDING the owner: BroadcastInView
 		// skips the session whose conn equals the source id, and the source here
@@ -401,6 +401,29 @@ func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.E
 	body := protocol.EncodeCreateMobTradeBody(data, tab, s.AutoTrade.Title)
 	w.SendTo(s, protocol.Header{Type: protocol.MsgCreateMobTrade, ID: protocol.IDScene}, body)
 	w.BroadcastInView(s.Conn, protocol.MsgCreateMobTrade, body)
+}
+
+// shopCloneCon is the Score.Con every clone stall is shown with, and it exists
+// only because the client sizes a model by it: WYD.exe 7662 (0x50D43F) scales a
+// mob to (Con/2000 + 1) × 0.9, reading Con signed. -1000 gives 0.45.
+//
+// The legacy zero was right for the pose it was written for — a player, whom the
+// same function divides by 4000 — and wrong for a clone, which is a mob: 0 drew
+// the Carbúnculo at 0.9, bigger than the -400 merchant in town (0.72), big enough
+// to sit over its own seller and eat the clicks meant for the ground (17/09, the
+// owner's client sent ReqTradeList instead of moves until the shop closed).
+// Marco asked for 0.45. Nothing below -2000 makes sense: at -2000 the scale is 0
+// and the stall vanishes.
+const shopCloneCon int16 = -1000
+
+// stallCon is the Score.Con a stall is announced with: shopCloneCon for a clone,
+// and the legacy 0 for the pose, where the stall is the seller himself
+// (_MSG_SendAutoTrade.cpp:118).
+func stallCon(e *world.Entity) int16 {
+	if world.IsPlayer(e.ID) {
+		return 0
+	}
+	return shopCloneCon
 }
 
 // closeAutoTrade shuts an open personal shop: it settles the shop-points clock,
