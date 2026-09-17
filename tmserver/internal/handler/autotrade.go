@@ -415,7 +415,8 @@ func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.E
 
 // shopCloneCon is the Score.Con that sizes a clone stall on the client:
 // WYD.exe 7662 (0x50D43F) scales a mob to (Con/2000 + 1) × 0.9, reading Con
-// signed. -1000 gives 0.45, the size Marco asked for (17/09).
+// signed. 0 gives 0.9: Marco asked for 0.45 first and then twice that, once he
+// saw it in game (17/09).
 //
 // It cannot ride in the MSG_CreateMobTrade itself. For a titled stall the client
 // rewrites that packet before using it (0x483BF2): face forced to 230, the
@@ -427,16 +428,27 @@ func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.E
 // The fix is the MSG_UpdateScore right behind it: its handler (0x5118BE) copies
 // the score into the entity and recomputes the scale from the new Con (0x511EF4),
 // for any entity, not just the local player.
-const shopCloneCon int16 = -1000
+const shopCloneCon int16 = 0
+
+// shopCloneMerchant is the Score.Merchant a clone stall is shown with. The client
+// draws a mob's name plate — here, the stall's title — only under the mouse
+// unless the low nibble of Merchant is 1..14 (0x4FA230), which is what keeps a
+// service NPC's name up. The clone's own Merchant is 0 on the server on purpose
+// (see SpawnShopClone), so the plate is set on the wire only. It changes nothing
+// else a click does: the click tests the title first (0x4604D2) and the
+// can-attack test answers the same for 0 and 1 (0x4601A0).
+const shopCloneMerchant uint8 = 1
 
 // stallScaleBody is the MSG_UpdateScore that resizes a clone stall. The rest of
 // the score is the clone's own, so the handler's copy leaves nothing else changed.
 func stallScaleBody(e *world.Entity) []byte {
-	return protocol.EncodeUpdateScore(protocol.ScoreData{
+	body := protocol.EncodeUpdateScore(protocol.ScoreData{
 		Level: e.Level, Ac: e.AC, Damage: e.Damage,
 		MaxHp: e.MaxHP, Hp: e.HP, MaxMp: e.MaxMP, Mp: e.MP,
 		Str: e.Str, Int: e.Int, Dex: e.Dex, Con: shopCloneCon,
 	})
+	body[12] = shopCloneMerchant // Score.Merchant; ScoreData has no field for it
+	return body
 }
 
 // sendStallScale follows a clone stall's MSG_CreateMobTrade to one viewer with

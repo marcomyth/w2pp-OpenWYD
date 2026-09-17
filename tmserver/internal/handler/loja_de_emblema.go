@@ -49,6 +49,9 @@ func ehLojaDeEmblema(npc *world.Entity) bool {
 // e 110 cairia em _MSG_Quest, que ninguém trata. O servidor continua vendo 110,
 // que é como a loja de emblema é reconhecida.
 func merchantParaOCliente(e *world.Entity) uint8 {
+	if e.ShopOwner != 0 {
+		return shopCloneMerchant // o clone da lojinha: plaquinha sempre à mostra
+	}
 	if ehLojaDeEmblema(e) {
 		return merchantDeLojaCli
 	}

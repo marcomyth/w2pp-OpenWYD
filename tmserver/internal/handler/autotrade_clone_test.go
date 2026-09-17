@@ -191,6 +191,11 @@ func esperarSemLoja(t *testing.T, buyer net.Conn, stallID int) {
 func stallFrames(t *testing.T, c net.Conn) (stalls []int, cons map[int]int16, quit bool) {
 	t.Helper()
 	cons = map[int]int16{}
+	merchant := func(what string, got byte) {
+		if got != shopCloneMerchant {
+			t.Errorf("Score.Merchant do clone no %s = %d, quer %d (sem ele a plaquinha só aparece com o mouse)", what, got, shopCloneMerchant)
+		}
+	}
 	for {
 		h, p, ok := readMaybeHeader(t, c)
 		if !ok {
@@ -199,8 +204,14 @@ func stallFrames(t *testing.T, c net.Conn) (stalls []int, cons map[int]int16, qu
 		switch h.Type {
 		case protocol.MsgCreateMobTrade:
 			stalls = append(stalls, int(binary.LittleEndian.Uint16(p[4:6]))) // MobID @body4
+			if int(binary.LittleEndian.Uint16(p[4:6])) >= world.MaxUser {
+				merchant("MSG_CreateMobTrade", p[124+12]) // Score @body124, Merchant @+12
+			}
 		case protocol.MsgUpdateScore:
 			cons[int(h.ID)] = int16(binary.LittleEndian.Uint16(p[38:40])) // Score.Con @body38
+			if int(h.ID) >= world.MaxUser {
+				merchant("MSG_UpdateScore", p[12])
+			}
 		case protocol.MsgQuitTrade:
 			quit = true
 		}
@@ -216,6 +227,9 @@ func stallFrames(t *testing.T, c net.Conn) (stalls []int, cons map[int]int16, qu
 //   - the window. It closes by itself (MsgQuitTrade), and the QuitTrade the client
 //     sends back must NOT take the stall down;
 //   - closing. /fecharloja does.
+//
+// And the plate: Score.Merchant goes as shopCloneMerchant on both packets, or the
+// title only shows under the mouse.
 //
 // Also: whoever arrives later sees ONE stall. The seller's own body used to be
 // announced as a second one.

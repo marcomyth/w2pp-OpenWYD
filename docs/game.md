@@ -110,8 +110,13 @@ receber o `MSG_CreateMobTrade` com título ele troca o rosto para o 230 e força
 para 15000 (`WYD.exe` `0x483BF2`). No jogador a escala trava a CON em 500 e o coelho
 sai do tamanho normal; no clone, que é monstro, nada trava e ele saía **7,65 vezes**
 maior, cobrindo o dono e pegando os cliques no chão. O servidor manda, logo atrás, um
-`MSG_UpdateScore` do clone com CON -1000, e o cliente recalcula a escala para **0,45**
+`MSG_UpdateScore` do clone com CON 0, e o cliente recalcula a escala para **0,9**
 (`0x5118BE`). A regra vale ao abrir e para quem chega perto depois.
+
+**Plaquinha.** O cliente só deixa o nome de um monstro sempre à mostra quando o nibble
+baixo do Merchant do Score está entre 1 e 14 (`0x4FA230`), como num NPC de serviço. O
+clone vai com Merchant 1 no fio (no servidor continua 0), e o título da loja fica visível
+sem passar o mouse. O clique não muda: o cliente testa o título antes de tudo.
 
 Desvio consciente do legado, onde o vendedor **era** a barraca (`_MSG_SendAutoTrade.cpp`)
 e qualquer ação derrubava a loja. Só é possível porque o cliente não pergunta se uma
