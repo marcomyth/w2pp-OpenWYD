@@ -135,9 +135,9 @@ func stampAccessoryAdd(w *world.World, it *world.Item, table []addRoll) {
 
 // casteloOrcKeyOneIn is how many paid entries of a Quest 256 arena hand out one
 // Castelo Orc key, by the step's quest flag: one in four of the Hydra arena
-// (step 4), one in three of the Elf arena (step 5). The arenas' monsters drop
-// no key at all — the arenas have no clock and refill themselves, so a key on
-// a kill would reward camping inside rather than entering.
+// (step 4), one in three of the Elf arena (step 5). Since 17/09/2026 the
+// monsters of those two arenas also drop it, at a small chance, through the Mesa
+// de Drops (migration 0075, Marco's call); the entry roll stays as it was.
 var casteloOrcKeyOneIn = map[uint8]int{4: 4, 5: 3}
 
 // casteloOrcKeyOnEntry rolls the key for a player who has just spent a Quest

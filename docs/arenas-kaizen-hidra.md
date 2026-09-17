@@ -34,6 +34,12 @@ perto do dobro de XP por minuto.
 | Resto de Lactolerium 420 | 30%, pacote de 2 | 8% | 30%, pacote de 2 | 5% |
 | Âmago de Lobo 2392, Dragão Menor 2393, Urso 2394, Dente de Sabre 2395 | 6% cada | 1,5% cada | 6% cada | 1,5% cada |
 
+**Elfos** (migração `0075_arena_elfos_e_chave_orc`, 17/09/2026): os mesmos números das
+Hidras, papel por papel — Mestre Elfo como a Hidra Dourada (pacotes de 3 e de 2), Servo
+Elfo como a Hidra Imortal. Antes o Mestre dava os Restos só pelos slots 8 e 9 (25%, uma
+unidade) e o Servo nenhum Resto nem Âmago. A Chave do Rei Orc (465) também cai nas duas
+arenas: 0,5% na Hidra Dourada e no Mestre Elfo, 0,2% na Hidra Imortal e no Servo Elfo.
+
 Por arena limpa: Kaizen ~12,6 Oriharucon, ~5,5 Lactolerium e ~2,9 Âmagos; Hidras
 ~20,5 Oriharucon, ~8,6 Lactolerium e ~5 Âmagos. O pacote é do tmServer
 (`handler/arenas_quest256.go`), porque a Mesa não guarda quantidade. A regra toma

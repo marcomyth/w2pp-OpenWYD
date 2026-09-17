@@ -116,6 +116,9 @@ func TestArenasQuest256PacoteDoLider(t *testing.T) {
 		{"Cav._Kaizen", 420, 2},
 		{"Hidra_Dourada", 419, 3},
 		{"Hidra_Dourada", 420, 2},
+		{"Mestre_Elfo", 419, 3},
+		{"Mestre_Elfo", 420, 2},
+		{"Servo_Elfo", 419, 1},
 		{"Cav._Servo", 419, 1},
 		{"Hidra_Imortal", 420, 1},
 		{"Cav._Kaizen", 2392, 1},
@@ -144,5 +147,74 @@ func TestArenasQuest256PacoteChegaNaBolsa(t *testing.T) {
 	}
 	if got := itemAmount(it); got != 3 {
 		t.Errorf("Resto de Oriharucon com %d unidades, want 3", got)
+	}
+}
+
+// linhasDaMigracao lê as linhas (mob, item, chance) de uma migração da Mesa.
+func linhasDaMigracao(t *testing.T, nome string) map[string]map[int16]int32 {
+	t.Helper()
+	b, err := migrations.FS.ReadFile(nome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := map[string]map[int16]int32{}
+	for _, r := range regexp.MustCompile(`\('([^']+)',\s*(\d+),\s*(\d+)\)`).FindAllStringSubmatch(string(b), -1) {
+		item, _ := strconv.Atoi(r[2])
+		c, _ := strconv.Atoi(r[3])
+		rule := droprule.Rule{Mob: r[1], Item: int16(item), Chance: int32(c)}
+		if !rule.Valid() || c == 0 {
+			t.Errorf("%s %v: a Mesa de Drops recusaria esta linha, ou ela não solta nada", nome, r[0])
+		}
+		if out[r[1]] == nil {
+			out[r[1]] = map[int16]int32{}
+		}
+		out[r[1]][int16(item)] = int32(c)
+	}
+	if len(out) == 0 {
+		t.Fatalf("%s: nenhuma linha", nome)
+	}
+	return out
+}
+
+// A arena dos Elfos paga como a das Hidras, papel por papel (pedido de
+// 17/09/2026): o Mestre Elfo como a Hidra Dourada, o Servo Elfo como a Imortal.
+func TestArenaElfosPagaComoAsHidras(t *testing.T) {
+	hidras := linhasDaMigracao(t, "0065_arenas_kaizen_hidra.up.sql")
+	elfos := linhasDaMigracao(t, "0075_arena_elfos_e_chave_orc.up.sql")
+	for elfo, hidra := range map[string]string{"Mestre_Elfo": "Hidra_Dourada", "Servo_Elfo": "Hidra_Imortal"} {
+		for _, item := range []int16{419, 420, 2392, 2393, 2394, 2395} {
+			if got, want := elfos[elfo][item], hidras[hidra][item]; got != want || got == 0 {
+				t.Errorf("%s item %d a %d, a %s paga %d", elfo, item, got, hidra, want)
+			}
+		}
+	}
+}
+
+// A Chave do Rei Orc cai dos quatro monstros das duas arenas, e o líder nunca
+// dá menos que o seguidor.
+func TestChaveOrcNasArenasDasHidrasEDosElfos(t *testing.T) {
+	linhas := linhasDaMigracao(t, "0075_arena_elfos_e_chave_orc.up.sql")
+	for lider, seguidor := range map[string]string{"Hidra_Dourada": "Hidra_Imortal", "Mestre_Elfo": "Servo_Elfo"} {
+		l, s := linhas[lider][itemChaveCasteloOrc], linhas[seguidor][itemChaveCasteloOrc]
+		if l == 0 || s == 0 {
+			t.Errorf("chave: %s %d, %s %d — as duas arenas precisam dar a chave", lider, l, seguidor, s)
+		}
+		if l < s {
+			t.Errorf("chave: %s (%d) paga menos que %s (%d)", lider, l, seguidor, s)
+		}
+	}
+}
+
+// Pelo abate de verdade: com o '*' a 0% da 0053 ainda na mesa, a linha nomeada
+// do Servo Elfo entrega a chave na bolsa de quem mata.
+func TestChaveOrcCaiDoServoElfo(t *testing.T) {
+	d, w, killer := mobKilledWorld(t)
+	d.setDropRules(droprule.Config{Version: 1, Rules: []droprule.Rule{
+		{Mob: droprule.AllMobs, Item: itemChaveCasteloOrc, Chance: 0},
+		{Mob: "Servo_Elfo", Item: itemChaveCasteloOrc, Chance: droprule.MaxChance},
+	}})
+	d.mobKilled(w, killer, spawnNamed(t, w, expMobTemplate(330, 0, 0), "Servo_Elfo"))
+	if _, ok := carryHas(killer, itemChaveCasteloOrc); !ok {
+		t.Fatal("a Chave do Rei Orc não chegou na bolsa")
 	}
 }

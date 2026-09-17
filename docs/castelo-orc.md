@@ -24,22 +24,24 @@ grupo por vez, 15 min <br/>
 É a **Chave do Rei Orc (465)**, a primeira das quatro chaves do castelo no
 legado (`Chave_Portão_Orc_Sul` até 11/09, quando ganhou nome, ícone e descrição
 próprios), item que o cliente já conhece. A migração tira a chave de todo monstro
-(`*` a 0%). Ela volta só em três lugares:
+(`*` a 0%). Ela volta só nestes lugares:
 
 | Onde | Como | Meta |
 |---|---|---|
 | Quest 256 das Hidras (nível 265–320) | na entrada paga, sorteada (`casteloOrcKeyOnEntry`) | 1 a cada 4 entradas |
 | Quest 256 dos Elfos (nível 320–350) | na entrada paga, sorteada | 1 a cada 3 entradas |
+| Arenas das Hidras e dos Elfos | drop dos monstros (migração `0075`): Hidra Dourada e Mestre Elfo 0,5%, Hidra Imortal e Servo Elfo 0,2% | ~0,14 chave por arena das Hidras limpa, ~0,1 na dos Elfos |
 | Deserto | drop dos monstros que só nascem lá (Adamant_Tauron, Aeon_Tauron, Aranha_Inferno, Arqueiro_Tauron, Cav._Lugefer, Ladrao_Tauron, Lugefer, Manticora, Taron_Assassino, Treant, Verme_, Tauron_Agmo, Verme_Agmo), 0,1% cada | 1 a cada 1.000 abates |
 
 - **Por que o `*` a 0%:** hoje o Guarda_Orc_ do castelo aberto dá a 465 sempre (slot
   56), e ele renasce a cada 6 min.
 - **Templates escolhidos:** só os que nascem apenas nesses lugares. O Tauron comum
   tem 1.648 dos seus 1.826 fora do deserto (Monster City e outros) e ficou de fora.
-- **Nas arenas os monstros não dão a chave.** As arenas não têm relógio e renascem
-  sozinhas: a chave no abate premiaria quem acampa lá dentro. Ela sai na entrada,
-  quando o ticket (Mana do Batedor nas Hidras, Emblema do Guarda nos Elfos) é gasto
-  no NPC ou usado da bolsa.
+- **Nas arenas das Hidras e dos Elfos os monstros também dão a chave** desde
+  17/09/2026, a pedido do Marco, a chance baixa (0,5% no líder, 0,2% no seguidor).
+  Até então ela saía só na entrada, quando o ticket (Mana do Batedor nas Hidras,
+  Emblema do Guarda nos Elfos) é gasto no NPC ou usado da bolsa — e esse sorteio
+  continua.
 - **O Mestre Grifo leva de graça para as mesmas arenas e não dá chave**: senão,
   entrar e sair farmaria chaves.
 - O sorteio usa o gerador dos eventos, não o dos drops, para não mexer na ordem
