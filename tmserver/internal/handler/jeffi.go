@@ -10,7 +10,7 @@ import (
 //   - a Pedaço do Círculo Divino (447) or its Comp version (692) there is purified
 //     into one of the three Círculos Divinos Puros, for 1M or 5M gold;
 //   - otherwise every 10 Restos de Oriharucon/Lactolerium in the bag become one
-//     Poeira, all of them for a single 1M gold.
+//     Poeira, for 1M gold each (the legacy charges 1M for the whole batch).
 //
 // The legacy never reads confirm here: one click on Jeffi does the work.
 const merchantJeffi = 12
@@ -32,8 +32,11 @@ const (
 	jeffiPoeiraOri int16 = 412 // Poeira_de_Oriharucon
 	jeffiPoeiraLac int16 = 413 // Poeira_de_Lactolerium
 
-	jeffiRestosPerPoeira       = 10
-	jeffiPoeiraPrice     int32 = 1000000
+	jeffiRestosPerPoeira = 10
+	// jeffiPoeiraPrice is per Poeira. DELIBERATE DIVERGENCE: the legacy takes 1M
+	// once for the whole click (:593), so one click on a bag of Restos made a
+	// hundred Poeiras for 1M. Decided in game on 17/09/2026: 5 Poeiras, 5M.
+	jeffiPoeiraPrice int32 = 1000000
 )
 
 // The NPC's lines, copied from Language.txt (152, 157, 166) as the fallback for
@@ -99,16 +102,19 @@ func (d *Dispatcher) jeffiPoeira(w *world.World, s *world.Session, e, npc *world
 	}
 
 	// Ori before Lac on every round, as the legacy loop orders the Combine calls
-	// (:579-591) — that order is also the order the prizes draw rand().
+	// (:579-591) — that order is also the order the prizes draw rand(). The gold
+	// caps the batch: what it cannot pay for stays as Restos.
+	before := e.Carry
+	affordable := int(e.Coin / jeffiPoeiraPrice)
 	made := 0
-	for ori >= jeffiRestosPerPoeira || lac >= jeffiRestosPerPoeira {
+	for (ori >= jeffiRestosPerPoeira || lac >= jeffiRestosPerPoeira) && made < affordable {
 		progressed := false
 		if ori >= jeffiRestosPerPoeira && jeffiCombine(w, e, limit, itemRestoOri, jeffiPoeiraOri) {
 			ori -= jeffiRestosPerPoeira
 			made++
 			progressed = true
 		}
-		if lac >= jeffiRestosPerPoeira && jeffiCombine(w, e, limit, itemRestoLac, jeffiPoeiraLac) {
+		if made < affordable && lac >= jeffiRestosPerPoeira && jeffiCombine(w, e, limit, itemRestoLac, jeffiPoeiraLac) {
 			lac -= jeffiRestosPerPoeira
 			made++
 			progressed = true
@@ -122,14 +128,22 @@ func (d *Dispatcher) jeffiPoeira(w *world.World, s *world.Session, e, npc *world
 		return
 	}
 
-	// One price for the whole batch (:593), however many Poeiras came out.
-	e.Coin -= jeffiPoeiraPrice
+	price := int32(made) * jeffiPoeiraPrice
+	e.Coin -= price
 	d.say(w, npc, "_NN_Processing_Complete", msgProcessingComplete)
-	d.sendScore(w, s, e)
-	d.sendCarry(w, s, e)
+	// Only the slots that changed, as every drop does. The legacy sends the whole
+	// bag (MSG_UpdateCarry); after that redraw the 7662 client showed the max HP
+	// with garbage in its upper half (1080 → 50857016, 8258 → 67641410) until the
+	// next score, with and without GamePatch.dll (tested 17/09/2026).
+	for i := range limit {
+		if e.Carry[i] != before[i] {
+			d.sendSlot(w, s, world.ItemPlaceCarry, i, e.Carry[i])
+		}
+	}
 	d.sendEtc(w, s, e)
+	d.sendScore(w, s, e)
 	d.log.Info("jeffi poeira", "conn", s.Conn, "account", s.AccountName,
-		"made", made, "price", jeffiPoeiraPrice)
+		"made", made, "price", price)
 }
 
 // jeffiCombine is Combine (Server.cpp:9448): takes 10 of item from the bag and

@@ -29,8 +29,8 @@ func contaNaBolsa(e *world.Entity, index int16) int {
 	return countCarried(e, activeCarryLimit(e), index)
 }
 
-func TestJeffiFazPoeirasECobraUmaVez(t *testing.T) {
-	d, w, s, e, npc := jeffiFixture(t, jeffiPoeiraPrice+7)
+func TestJeffiFazPoeirasECobraPorPoeira(t *testing.T) {
+	d, w, s, e, npc := jeffiFixture(t, 3*jeffiPoeiraPrice+7)
 	e.Carry[0] = resto(itemRestoOri, 25)
 	for i := 1; i <= 10; i++ {
 		e.Carry[i] = resto(itemRestoLac, 1)
@@ -50,7 +50,7 @@ func TestJeffiFazPoeirasECobraUmaVez(t *testing.T) {
 		t.Errorf("Restos de Lac = %d, want 0", got)
 	}
 	if e.Coin != 7 {
-		t.Errorf("gold = %d, want 7 — o lote inteiro custa 1M uma vez (:593)", e.Coin)
+		t.Errorf("gold = %d, want 7 — três Poeiras custam 3M", e.Coin)
 	}
 	for i := 0; i < activeCarryLimit(e); i++ {
 		it := e.Carry[i]
@@ -68,7 +68,7 @@ func TestJeffiFazPoeirasECobraUmaVez(t *testing.T) {
 
 func TestJeffiNaoComeRestosAMais(t *testing.T) {
 	// The legacy Combine would clear both stacks (28) for one Poeira.
-	d, w, s, e, npc := jeffiFixture(t, jeffiPoeiraPrice)
+	d, w, s, e, npc := jeffiFixture(t, 2*jeffiPoeiraPrice)
 	e.Carry[0] = resto(itemRestoOri, 8)
 	e.Carry[1] = resto(itemRestoOri, 20)
 	d.jeffi(w, s, e, npc)
@@ -83,8 +83,8 @@ func TestJeffiNaoComeRestosAMais(t *testing.T) {
 
 func TestJeffiPoeirasEmpilhamComBolsaQuaseCheia(t *testing.T) {
 	// The Restos drop in piles of 120: eleven piles and one free slot must still
-	// make every Poeira, piled, for one 1M.
-	d, w, s, e, npc := jeffiFixture(t, jeffiPoeiraPrice)
+	// make every Poeira, piled, at 1M each.
+	d, w, s, e, npc := jeffiFixture(t, 132*jeffiPoeiraPrice)
 	limit := activeCarryLimit(e)
 	for i := 0; i < 11; i++ {
 		e.Carry[i] = resto(itemRestoOri, 120)
@@ -185,5 +185,23 @@ func TestJeffiPurificaCirculo(t *testing.T) {
 	d.jeffi(w, s, e, npc)
 	if e.Equip[jeffiCircleSlot].Index != itemCircleCompPiece || e.Coin != jeffiCircleCompPrice-1 {
 		t.Errorf("sem gold: círculo %d gold %d, want intactos", e.Equip[jeffiCircleSlot].Index, e.Coin)
+	}
+}
+
+// O gold limita o lote: com 2M e Restos para 5 Poeiras, saem 2 e o resto fica
+// como Restos.
+func TestJeffiGoldLimitaAsPoeiras(t *testing.T) {
+	d, w, s, e, npc := jeffiFixture(t, 2*jeffiPoeiraPrice+5)
+	e.Carry[0] = resto(itemRestoOri, 50)
+	d.jeffi(w, s, e, npc)
+
+	if got := contaNaBolsa(e, jeffiPoeiraOri); got != 2 {
+		t.Errorf("Poeiras = %d, want 2 (gold para 2)", got)
+	}
+	if got := contaNaBolsa(e, itemRestoOri); got != 30 {
+		t.Errorf("Restos = %d, want 30", got)
+	}
+	if e.Coin != 5 {
+		t.Errorf("gold = %d, want 5", e.Coin)
 	}
 }
