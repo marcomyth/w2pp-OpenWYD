@@ -201,6 +201,44 @@ func isSecretRoomStrayGenerator(idx int) bool {
 	return idx >= SecretRoomStrayGenFirst && idx <= SecretRoomStrayGenLast
 }
 
+// coliseuGenerators são os 26 blocos de população da região Coliseu do
+// Regions.txt (2589-2681 × 1671-1785), todos com MinuteGenerate -1:
+//
+//	0, 1, 2       Ciclope_Forte, Ciclop_Selvagem, Ciclope_Wild — o Coliseu N, 100 cada
+//	5, 6, 7       Orc_Sniper_, Orc_Selvagem, Orc_Wild — o Coliseu N, 100 cada
+//	4854-4863     Espectro, 10 cada, com o primeiro ponto em 2615,1716
+//	4865-4874     Espectro, 10 cada, com o primeiro ponto em 2615,1735
+//
+// A regra é NOSSA, não uma porta do legado. No legado nenhum bloco -1 nasce fora
+// de um evento: o boot só gera o Kefra (Server.cpp:4093-4099) e o relógio de
+// minuto pula todo bloco com MinuteGenerate <= 0 e, à parte, os blocos 0, 1, 2, 5,
+// 6 e 7 do Coliseu N (ProcessSecMinTimer.cpp:2725-2728). Aqui o boot popula os
+// blocos -1 do mundo (divergência deliberada, spawnNPCs) e o evento do Coliseu não
+// existe, então esses 800 monstros ficavam de pé o tempo todo. Com a lista eles
+// ficam fora do mundo: não nascem no boot e não voltam pela fila de 15 s. Um GM
+// ainda os levanta com "gerar <bloco> aqui".
+//
+// Ficam de fora da lista, e seguem do mundo: os dez chefes sozinhos da região
+// (103-106, 4853, 4864, 4885-4888), que voltam em horas (handler/chefes.go); o
+// Guarda_Carga (974); e a Prona (4232). O 4864 fica no meio da faixa dos
+// Espectros e é o Barrack_, um desses chefes.
+//
+// Não é o retângulo de GenerateMob (Server.cpp:3505-3509), que desliga os blocos
+// com o primeiro ponto em 2440-2545 × 1845-1921 quando o líder não veste o item
+// 219: aquilo é outra área (Trolls e Caçadores de Troll) e segue sem porta.
+var coliseuGenerators = map[int]bool{
+	0: true, 1: true, 2: true, 5: true, 6: true, 7: true,
+	4854: true, 4855: true, 4856: true, 4857: true, 4858: true,
+	4859: true, 4860: true, 4861: true, 4862: true, 4863: true,
+	4865: true, 4866: true, 4867: true, 4868: true, 4869: true,
+	4870: true, 4871: true, 4872: true, 4873: true, 4874: true,
+}
+
+// isColiseuGenerator diz se um bloco é um dos 26 do Coliseu.
+func isColiseuGenerator(idx int) bool {
+	return coliseuGenerators[idx]
+}
+
 // CasteloOrcGenFirst/Last bound the Castelo Orc quest blocks, appended at the
 // end of NPCGener.txt (boss, followers, three gate guardians, and twelve troop
 // blocks of five on the legacy castle's own inner spawn points —
@@ -239,7 +277,7 @@ func IsAcampamentoTrollGenerator(idx int) bool {
 // rather than to the world population.
 func IsEventOwnedGenerator(idx int) bool {
 	return eventOwnedGenerators[idx] || IsSecretRoomGenerator(idx) || isSecretRoomStrayGenerator(idx) ||
-		IsCasteloOrcGenerator(idx) || IsAcampamentoTrollGenerator(idx)
+		isColiseuGenerator(idx) || IsCasteloOrcGenerator(idx) || IsAcampamentoTrollGenerator(idx)
 }
 
 // ClearGenerator removes every live entity and queued respawn owned by one

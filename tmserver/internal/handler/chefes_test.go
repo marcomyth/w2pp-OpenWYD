@@ -31,27 +31,28 @@ func geradorSozinho(exp int64, x int16) *world.Generator {
 
 // mundoDeChefes has one generator per case of the rule, at the indices that
 // matter: 396 is the Kefra, WaterGenBaseN the first Água N room, 23 an event
-// tower (Torre_de_Thor).
+// tower (Torre_de_Thor). The plain cases sit at 30-36, clear of every owned
+// range below them: the Coliseu blocks in 0-7 and the Água M rooms in 10-21.
 func mundoDeChefes(t *testing.T, now func() uint32) *world.World {
 	t.Helper()
 	if !world.IsEventOwnedGenerator(23) {
 		t.Fatal("o bloco 23 deixou de ser de evento; este teste precisa de outro índice")
 	}
 	gens := make([]*world.Generator, world.KefraGuardLast+1)
-	gens[0] = geradorSozinho(2_990_849, 10) // chefe sozinho: 1 monstro de 2,99 mi
-	gens[1] = geradorSozinho(999_999, 12)   // um abaixo de 1 milhão: fica nos 15 s
-	quatro := geradorSozinho(2_990_849, 14) // 4 monstros: é grupo, não chefe
+	gens[30] = geradorSozinho(2_990_849, 10) // chefe sozinho: 1 monstro de 2,99 mi
+	gens[31] = geradorSozinho(999_999, 12)   // um abaixo de 1 milhão: fica nos 15 s
+	quatro := geradorSozinho(2_990_849, 14)  // 4 monstros: é grupo, não chefe
 	quatro.MaxNumMob, quatro.FollowerTmpl = 4, moldeDeMonstro("Seguidor", 2_990_849, 0)
-	gens[2] = quatro
+	gens[32] = quatro
 	tres := geradorSozinho(2_990_849, 16) // 3 monstros: ainda é chefe
 	tres.MaxNumMob, tres.FollowerTmpl = 3, moldeDeMonstro("Seguidor", 2_990_849, 0)
-	gens[3] = tres
+	gens[33] = tres
 	comTimer := geradorSozinho(2_990_849, 18) // tem período de minuto: nem usa a fila
 	comTimer.MinuteGenerate = 2
-	gens[4] = comTimer
+	gens[34] = comTimer
 	loja := geradorSozinho(2_990_849, 20) // mercador: não é monstro
 	loja.LeaderTmpl = moldeDeMonstro("Loja", 2_990_849, 1)
-	gens[5] = loja
+	gens[35] = loja
 	gens[23] = geradorSozinho(2_990_849, 22)
 	gens[world.WaterGenBaseN] = geradorSozinho(2_990_849, 24)
 	gens[world.KefraBossGenIndex] = geradorSozinho(2_990_849, 26)
@@ -76,7 +77,7 @@ func TestChefeSozinhoEAsExcecoes(t *testing.T) {
 	w := mundoDeChefes(t, nil)
 	d := dispatcherQuieto()
 	casos := map[int]bool{
-		0: true, 1: false, 2: false, 3: true, 4: false, 5: false, 6: false,
+		30: true, 31: false, 32: false, 33: true, 34: false, 35: false, 36: false,
 		23: false, world.WaterGenBaseN: false, world.KefraBossGenIndex: false,
 	}
 	for idx, quer := range casos {
@@ -98,14 +99,14 @@ func TestAEsperaDoChefeEmHoras(t *testing.T) {
 	d := dispatcherQuieto()
 	d.InstallRespawnDelay(w)
 
-	if got := d.esperaDoRenascimento(w, 0); got != 24*msPorHora {
+	if got := d.esperaDoRenascimento(w, 30); got != 24*msPorHora {
 		t.Errorf("chefe sozinho espera %d ms, quero 24 h", got)
 	}
-	if got := d.esperaDoRenascimento(w, 1); got != world.DefaultRespawnDelay {
+	if got := d.esperaDoRenascimento(w, 31); got != world.DefaultRespawnDelay {
 		t.Errorf("monstro comum espera %d ms, quero os 15 s", got)
 	}
 	d.setChefeHoras(48)
-	if got := d.esperaDoRenascimento(w, 3); got != 48*msPorHora {
+	if got := d.esperaDoRenascimento(w, 33); got != 48*msPorHora {
 		t.Errorf("com 48 h no painel o chefe espera %d ms", got)
 	}
 	for _, ruim := range []int32{0, -1, 169} {
@@ -125,9 +126,9 @@ func TestOChefeMortoVoltaSoDepoisDoPrazo(t *testing.T) {
 	d := dispatcherQuieto()
 	d.InstallRespawnDelay(w)
 
-	ids := w.GenerateMob(0)
+	ids := w.GenerateMob(30)
 	if len(ids) != 1 {
-		t.Fatalf("GenerateMob(0) = %v, quero o chefe", ids)
+		t.Fatalf("GenerateMob(30) = %v, quero o chefe", ids)
 	}
 	w.DespawnMob(ids[0], 1)
 	agora += world.DefaultRespawnDelay
@@ -139,9 +140,9 @@ func TestOChefeMortoVoltaSoDepoisDoPrazo(t *testing.T) {
 		t.Fatalf("o chefe não voltou depois de 24 h: %v", got)
 	}
 
-	ids = w.GenerateMob(1)
+	ids = w.GenerateMob(31)
 	if len(ids) != 1 {
-		t.Fatalf("GenerateMob(1) = %v", ids)
+		t.Fatalf("GenerateMob(31) = %v", ids)
 	}
 	w.DespawnMob(ids[0], 1)
 	agora += world.DefaultRespawnDelay
