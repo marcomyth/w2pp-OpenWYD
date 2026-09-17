@@ -145,6 +145,14 @@ func (d *Dispatcher) sendAutoTrade(w *world.World, s *world.Session, _ protocol.
 	// the list first would hand the owner his own conn as the shop's address.
 	d.raiseShopStall(w, s, e)
 	d.sendShopList(w, s, s.Conn) // SendAutoTrade(conn, conn): echo the owner its list
+	if shop.CloneID >= world.MaxUser {
+		// The shop window closes by itself: the stall stands on its own and the
+		// owner goes back to playing (Marco, 17/09). The client closes it on a
+		// MsgQuitTrade (0x5155BC) and, if the window was still up, echoes one back
+		// — which quitTrade no longer takes as "close the shop" while a clone
+		// exists. Closing is /fecharloja.
+		w.Send(s, protocol.MsgQuitTrade, nil)
+	}
 	d.log.Info("autotrade opened", "conn", s.Conn, "title", shop.Title, "tax", shop.Tax,
 		"clone", shop.CloneID)
 }
@@ -371,8 +379,9 @@ func shopStallID(s *world.Session) int {
 // It prefers a clone — its own body, which is what frees the seller to walk — and
 // falls back to the legacy pose (_MSG_SendAutoTrade.cpp:112-120), where the
 // seller's own body becomes the stall, when no clone could be raised. The pose is
-// selected by the MSG_CreateMobTrade Type, not by a CreateType value. Score.Con is
-// what sizes the model on the client, so each shape gets its own: see stallCon.
+// selected by the MSG_CreateMobTrade Type, not by a CreateType value; Score.Con
+// is zeroed for parity either way. The clone's size is not set by that packet —
+// see shopCloneCon and sendStallScale.
 func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.Entity) {
 	tab := make([]byte, 26)
 
@@ -380,13 +389,14 @@ func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.E
 		s.AutoTrade.CloneID = id
 		ce := w.Entity(id)
 		data := createMobFrom(ce, 0)
-		data.Con = stallCon(ce)
+		data.Con = 0
 		body := protocol.EncodeCreateMobTradeBody(data, tab, s.AutoTrade.Title)
 		// One broadcast reaches everyone INCLUDING the owner: BroadcastInView
 		// skips the session whose conn equals the source id, and the source here
 		// is the clone's mob id, which no session's conn can be. Sending the owner
 		// a separate copy would deliver the stall to him twice.
 		w.BroadcastInView(id, protocol.MsgCreateMobTrade, body)
+		w.BroadcastInView(id, protocol.MsgUpdateScore, stallScaleBody(ce))
 		// The owner's own body stays a normal avatar. Nothing to re-send: he was
 		// never put into the pose.
 		return
@@ -403,27 +413,40 @@ func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.E
 	w.BroadcastInView(s.Conn, protocol.MsgCreateMobTrade, body)
 }
 
-// shopCloneCon is the Score.Con every clone stall is shown with, and it exists
-// only because the client sizes a model by it: WYD.exe 7662 (0x50D43F) scales a
-// mob to (Con/2000 + 1) × 0.9, reading Con signed. -1000 gives 0.45.
+// shopCloneCon is the Score.Con that sizes a clone stall on the client:
+// WYD.exe 7662 (0x50D43F) scales a mob to (Con/2000 + 1) × 0.9, reading Con
+// signed. -1000 gives 0.45, the size Marco asked for (17/09).
 //
-// The legacy zero was right for the pose it was written for — a player, whom the
-// same function divides by 4000 — and wrong for a clone, which is a mob: 0 drew
-// the Carbúnculo at 0.9, bigger than the -400 merchant in town (0.72), big enough
-// to sit over its own seller and eat the clicks meant for the ground (17/09, the
-// owner's client sent ReqTradeList instead of moves until the shop closed).
-// Marco asked for 0.45. Nothing below -2000 makes sense: at -2000 the scale is 0
-// and the stall vanishes.
+// It cannot ride in the MSG_CreateMobTrade itself. For a titled stall the client
+// rewrites that packet before using it (0x483BF2): face forced to 230, the
+// Carbúnculo, equipment cleared, and Con forced to 15000. For a player the same
+// scale function clamps Con to 500 and the stall comes out at ~1.0 — that is the
+// legacy's rabbit. For a clone, a mob, nothing clamps it: 7.65×, a giant sitting
+// over its own seller and eating the clicks meant for the ground.
+//
+// The fix is the MSG_UpdateScore right behind it: its handler (0x5118BE) copies
+// the score into the entity and recomputes the scale from the new Con (0x511EF4),
+// for any entity, not just the local player.
 const shopCloneCon int16 = -1000
 
-// stallCon is the Score.Con a stall is announced with: shopCloneCon for a clone,
-// and the legacy 0 for the pose, where the stall is the seller himself
-// (_MSG_SendAutoTrade.cpp:118).
-func stallCon(e *world.Entity) int16 {
-	if world.IsPlayer(e.ID) {
-		return 0
+// stallScaleBody is the MSG_UpdateScore that resizes a clone stall. The rest of
+// the score is the clone's own, so the handler's copy leaves nothing else changed.
+func stallScaleBody(e *world.Entity) []byte {
+	return protocol.EncodeUpdateScore(protocol.ScoreData{
+		Level: e.Level, Ac: e.AC, Damage: e.Damage,
+		MaxHp: e.MaxHP, Hp: e.HP, MaxMp: e.MaxMP, Mp: e.MP,
+		Str: e.Str, Int: e.Int, Dex: e.Dex, Con: shopCloneCon,
+	})
+}
+
+// sendStallScale follows a clone stall's MSG_CreateMobTrade to one viewer with
+// its resize. Every path that reveals an entity calls it right after the create
+// packet; for anything that is not a clone stall it sends nothing.
+func sendStallScale(w *world.World, s *world.Session, e *world.Entity) {
+	if world.IsPlayer(e.ID) || shopSessionOf(w, e) == nil {
+		return
 	}
-	return shopCloneCon
+	w.SendTo(s, protocol.Header{Type: protocol.MsgUpdateScore, ID: uint16(e.ID)}, stallScaleBody(e))
 }
 
 // closeAutoTrade shuts an open personal shop: it settles the shop-points clock,
@@ -431,10 +454,11 @@ func stallCon(e *world.Entity) int16 {
 // MSG_CreateMob — RemoveTrade, Server.cpp:8138-8145) and closes the shop UI on the
 // owner. No-op when no shop is open.
 //
-// It is called from exactly four places, and the shortness of that list is the
-// design: the owner's own quit-trade, the end of the session (SessionEnd and both
-// character-select paths), this file's anti-tamper refusals, and walking while in
-// the legacy pose. It is NOT called from removeTrade any more — see the note
+// It is called from exactly five places, and the shortness of that list is the
+// design: /fecharloja, the owner's own quit-trade (only for the legacy pose — with
+// a clone, closing the window no longer closes the shop), the end of the session
+// (SessionEnd and both character-select paths), this file's anti-tamper refusals,
+// and walking while in the legacy pose. It is NOT called from removeTrade any more — see the note
 // there. A shop that came down for any other reason would be a shop the player
 // cannot keep.
 func (d *Dispatcher) closeAutoTrade(w *world.World, s *world.Session) {
@@ -469,6 +493,18 @@ func (d *Dispatcher) closeAutoTrade(w *world.World, s *world.Session) {
 	body := protocol.EncodeCreateMobBody(createMobFrom(e, 0))
 	w.SendTo(s, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, body)
 	w.BroadcastInView(s.Conn, protocol.MsgCreateMob, body)
+}
+
+// fecharLojinha is /fecharloja: the one way an owner closes a clone stall, now
+// that closing the window leaves it standing. It closes the legacy pose too, so
+// the command means the same thing whatever shape the shop took.
+func (d *Dispatcher) fecharLojinha(w *world.World, s *world.Session) {
+	if s.AutoTrade == nil && s.TradeMode == 0 {
+		sendClientMessage(w, s, "Você não tem lojinha aberta.")
+		return
+	}
+	d.closeAutoTrade(w, s)
+	sendClientMessage(w, s, "Lojinha fechada.")
 }
 
 // firstFreeTradeSlot returns the first empty Carry slot in the currently unlocked

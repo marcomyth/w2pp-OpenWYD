@@ -397,6 +397,7 @@ func (d *Dispatcher) noViewMob(w *world.World, s *world.Session, _ protocol.Head
 		w.MarkSeen(s, id)
 		ty, body := createMobViewPacket(w, target, 1)
 		w.SendTo(s, protocol.Header{Type: ty, ID: protocol.IDScene}, body)
+		sendStallScale(w, s, target)
 		if id < world.MaxUser {
 			// PKInfo travels only about players (SendPKInfo, SendFunc.cpp:1869).
 			w.SendTo(s, protocol.Header{Type: protocol.MsgPKInfo, ID: uint16(id)}, protocol.EncodeStandardParm(pkInfoParm(target)))

@@ -645,6 +645,7 @@ func (d *Dispatcher) enterWorldView(w *world.World, s *world.Session) {
 		w.MarkSeen(s, ve.ID)
 		ty, body := createMobViewPacket(w, ve, 0)
 		w.SendTo(s, protocol.Header{Type: ty, ID: protocol.IDScene}, body)
+		sendStallScale(w, s, ve)
 		w.SendTo(s, protocol.Header{Type: protocol.MsgPKInfo, ID: uint16(ve.ID)}, protocol.EncodeStandardParm(pkInfoParm(ve)))
 	})
 	// (C) the newcomer sees the NPCs/monsters in view.
@@ -669,6 +670,7 @@ func (d *Dispatcher) revealMobsInView(w *world.World, s *world.Session) {
 			// anyone who walked up after it was raised.
 			typ, body := createMobViewPacket(w, me, 0)
 			w.SendTo(s, protocol.Header{Type: typ, ID: protocol.IDScene}, body)
+			sendStallScale(w, s, me)
 		}
 	})
 }
@@ -725,7 +727,7 @@ func createMobFrom(e *world.Entity, createType uint16) protocol.CreateMobData {
 func createMobViewPacket(w *world.World, e *world.Entity, createType uint16) (protocol.Type, []byte) {
 	data := createMobFrom(e, createType)
 	if s := shopSessionOf(w, e); s != nil {
-		data.Con = stallCon(e) // 0 for the pose (GetCreateMobTrade parity); the clone's own size otherwise.
+		data.Con = 0 // GetCreateMobTrade parity: shop pose hides the Con field.
 		return protocol.MsgCreateMobTrade, protocol.EncodeCreateMobTradeBody(data, nil, s.AutoTrade.Title)
 	}
 	return protocol.MsgCreateMob, protocol.EncodeCreateMobBody(data)

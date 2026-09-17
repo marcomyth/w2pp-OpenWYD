@@ -531,6 +531,7 @@ func (d *Dispatcher) ensureSeenMob(w *world.World, vs *world.Session, id int) {
 	evictStaleMob(w, vs, id)
 	ty, body := createMobViewPacket(w, mob, 0)
 	w.SendTo(vs, protocol.Header{Type: ty, ID: protocol.IDScene}, body)
+	sendStallScale(w, vs, mob)
 }
 
 // inSafeCity reports whether player conn is standing inside a city rectangle —
