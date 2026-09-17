@@ -14,6 +14,17 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
+// enchimentoAteOColiseu devolve os blocos 0-7 de um NPCGener de teste, todos com
+// um Leader que existe. Os números 0, 1, 2, 5, 6 e 7 são do Coliseu e não nascem
+// no boot (world.IsEventOwnedGenerator); o bloco que o teste confere vem depois.
+func enchimentoAteOColiseu(leader string) string {
+	var b strings.Builder
+	for i := 0; i < 8; i++ {
+		fmt.Fprintf(&b, "# [%d]\n\tLeader: %s\n\tMinGroup: 0\n\tMaxGroup: 0\n\tMaxNumMob: 1\n\tStartX: %d\n\tStartY: 40\n\n", i, leader, 30+2*i)
+	}
+	return b.String()
+}
+
 func TestSpawnNPCsWarnsMissingTemplates(t *testing.T) {
 	dir := t.TempDir()
 	runDir := filepath.Join(dir, "TMsrv", "run")
@@ -21,7 +32,7 @@ func TestSpawnNPCsWarnsMissingTemplates(t *testing.T) {
 	if err := os.MkdirAll(npcDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	const npcGener = `# [0]
+	npcGener := enchimentoAteOColiseu("ExistingLeader") + `# [8]
 	Leader: MissingLeader
 	MinGroup: 0
 	MaxGroup: 0
@@ -29,7 +40,7 @@ func TestSpawnNPCsWarnsMissingTemplates(t *testing.T) {
 	StartX: 10
 	StartY: 10
 
-# [1]
+# [9]
 	Leader: ExistingLeader
 	Follower: MissingFollower
 	MinGroup: 1
@@ -50,10 +61,10 @@ func TestSpawnNPCsWarnsMissingTemplates(t *testing.T) {
 	w := world.New(world.Config{GridDim: 64}, logger, nil, nil)
 	spawnNPCs(w, dir, false, nil, nil, nil, logger)
 
-	if g := w.GeneratorAt(0); g != nil {
+	if g := w.GeneratorAt(8); g != nil {
 		t.Fatalf("missing leader generator = %#v, want skipped nil slot", g)
 	}
-	g := w.GeneratorAt(1)
+	g := w.GeneratorAt(9)
 	if g == nil {
 		t.Fatal("existing leader generator was not registered")
 	}
@@ -87,7 +98,7 @@ func TestSpawnNPCsResolvesLegacyTemplateNames(t *testing.T) {
 	if err := os.MkdirAll(npcDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	const npcGener = `# [0]
+	npcGener := enchimentoAteOColiseu("Reiners") + `# [8]
 	Leader: Chefe_Treina.
 	MinGroup: 0
 	MaxGroup: 0
@@ -95,7 +106,7 @@ func TestSpawnNPCsResolvesLegacyTemplateNames(t *testing.T) {
 	StartX: 10
 	StartY: 10
 
-# [1]
+# [9]
 	Leader: Reiners
 	MinGroup: 0
 	MaxGroup: 0
@@ -118,7 +129,7 @@ func TestSpawnNPCsResolvesLegacyTemplateNames(t *testing.T) {
 	w := world.New(world.Config{GridDim: 64}, logger, nil, nil)
 	spawnNPCs(w, dir, false, nil, nil, nil, logger)
 
-	for i := 0; i < 2; i++ {
+	for i := 8; i < 10; i++ {
 		g := w.GeneratorAt(i)
 		if g == nil {
 			t.Fatalf("generator %d was not registered", i)

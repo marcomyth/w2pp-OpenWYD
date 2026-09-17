@@ -118,38 +118,40 @@ func panelWith(t *testing.T, c net.Conn, want string) (string, bool) {
 
 // TestGMNpcListaDesligaELiga is the whole loop a GM runs from inside the game:
 // find the block's number, switch it off (its mob goes and the database hears),
-// fail to raise it while off, switch it on (it comes back).
+// fail to raise it while off, switch it on (it comes back). The Lobo sits at
+// block 8: 0-7 hold Coliseu blocks, which are event-owned and stay down when
+// switched on.
 func TestGMNpcListaDesligaELiga(t *testing.T) {
 	src := newFakeGenOff()
-	addr, w, stop := startGenServer(t, src, []*world.Generator{bloco("Lobo", 8, 8, plainMobTemplate("Lobo"))})
+	addr, w, stop := startGenServer(t, src, append(make([]*world.Generator, 8), bloco("Lobo", 8, 8, plainMobTemplate("Lobo"))))
 	mod := enterWorldAs(t, addr, "mod")
 	defer mod.Close()
 
 	gmFrame(t, mod, "npc")
-	if _, ok := panelWith(t, mod, "#0 Lobo (8,8) x1"); !ok {
-		t.Fatal("/gm npc não listou o bloco #0 Lobo")
+	if _, ok := panelWith(t, mod, "#8 Lobo (8,8) x1"); !ok {
+		t.Fatal("/gm npc não listou o bloco #8 Lobo")
 	}
 
-	gmFrame(t, mod, "npc off 0")
-	if _, ok := panelWith(t, mod, "Bloco #0 Lobo desligado."); !ok {
+	gmFrame(t, mod, "npc off 8")
+	if _, ok := panelWith(t, mod, "Bloco #8 Lobo desligado."); !ok {
 		t.Fatal("/gm npc off não confirmou")
 	}
 	select {
 	case got := <-src.sets:
-		if got.Index != 0 || got.By != "mod:off" {
-			t.Errorf("banco recebeu %+v, want bloco 0 desligado por mod", got)
+		if got.Index != 8 || got.By != "mod:off" {
+			t.Errorf("banco recebeu %+v, want bloco 8 desligado por mod", got)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("o desligar não foi gravado no banco")
 	}
 
-	gmFrame(t, mod, "gerar 0")
+	gmFrame(t, mod, "gerar 8")
 	if _, ok := panelWith(t, mod, "está desligado"); !ok {
 		t.Error("/gm gerar gerou um bloco desligado")
 	}
 
-	gmFrame(t, mod, "npc on 0")
-	if _, ok := panelWith(t, mod, "Bloco #0 Lobo ligado."); !ok {
+	gmFrame(t, mod, "npc on 8")
+	if _, ok := panelWith(t, mod, "Bloco #8 Lobo ligado."); !ok {
 		t.Fatal("/gm npc on não confirmou")
 	}
 	<-src.sets
@@ -157,11 +159,11 @@ func TestGMNpcListaDesligaELiga(t *testing.T) {
 
 	vivos := 0
 	w.ForEachMob(func(_ int, e *world.Entity) {
-		if e.GenIndex == 0 {
+		if e.GenIndex == 8 {
 			vivos++
 		}
 	})
-	if g := w.GeneratorAt(0); g.Off || vivos != 1 {
+	if g := w.GeneratorAt(8); g.Off || vivos != 1 {
 		t.Errorf("depois de ligar: Off=%v, vivos=%d; want ligado com o Lobo de volta", g.Off, vivos)
 	}
 }
@@ -251,24 +253,25 @@ func TestGMCriarNaoVolta(t *testing.T) {
 
 // TestSwitchDoBancoAoVivo: a switch written elsewhere — another server, the
 // command before a restart — reaches the world through the snapshot, both ways.
+// Block 8, for the same reason as TestGMNpcListaDesligaELiga.
 func TestSwitchDoBancoAoVivo(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	d := New(Config{Log: log})
 	w := world.New(world.Config{GridDim: 64}, log, world.NopPersistence{}, d.Handle)
-	w.RegisterGenerators([]*world.Generator{bloco("Lobo", 8, 8, plainMobTemplate("Lobo"))})
-	w.GenerateMob(0)
+	w.RegisterGenerators(append(make([]*world.Generator, 8), bloco("Lobo", 8, 8, plainMobTemplate("Lobo"))))
+	w.GenerateMob(8)
 
-	if n := d.applyGeneratorOff(w, domain.GeneratorOffConfig{Version: 1, Off: []domain.GeneratorOff{{Index: 0}, {Index: 99}}}, false); n != 1 {
+	if n := d.applyGeneratorOff(w, domain.GeneratorOffConfig{Version: 1, Off: []domain.GeneratorOff{{Index: 8}, {Index: 99}}}, false); n != 1 {
 		t.Fatalf("trocou %d blocos, want 1 (o 99 não existe e é ignorado)", n)
 	}
-	if g := w.GeneratorAt(0); !g.Off || g.CurrentNumMob != 0 {
+	if g := w.GeneratorAt(8); !g.Off || g.CurrentNumMob != 0 {
 		t.Fatalf("desligado pelo banco: Off=%v vivos=%d", g.Off, g.CurrentNumMob)
 	}
-	if ids := w.GenerateMob(0); len(ids) != 0 {
+	if ids := w.GenerateMob(8); len(ids) != 0 {
 		t.Error("um bloco desligado ainda gera")
 	}
 	d.applyGeneratorOff(w, domain.GeneratorOffConfig{Version: 2}, false)
-	if g := w.GeneratorAt(0); g.Off || g.CurrentNumMob != 1 {
+	if g := w.GeneratorAt(8); g.Off || g.CurrentNumMob != 1 {
 		t.Errorf("ligado pelo banco: Off=%v vivos=%d, want de volta", g.Off, g.CurrentNumMob)
 	}
 	if d.genOffVersion != 2 {

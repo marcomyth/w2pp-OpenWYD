@@ -226,8 +226,11 @@ func TestGenerateMobQueueFallback(t *testing.T) {
 		SegX: [5]int16{20}, SegY: [5]int16{20},
 		LeaderTmpl: genMobTemplate(5),
 	}
-	w.RegisterGenerators([]*Generator{g})
-	ids := w.GenerateMob(0)
+	// Bloco 8: os números 0-7 incluem o Coliseu, que é de evento e não usa a fila.
+	gens := make([]*Generator, 9)
+	gens[8] = g
+	w.RegisterGenerators(gens)
+	ids := w.GenerateMob(8)
 	if len(ids) != 1 || g.CurrentNumMob != 1 {
 		t.Fatalf("setup: ids=%v CurrentNumMob=%d, want 1/1", ids, g.CurrentNumMob)
 	}
@@ -279,7 +282,8 @@ func TestIsEventOwnedGenerator(t *testing.T) {
 			t.Errorf("IsEventOwnedGenerator(%d) = false, want true", idx)
 		}
 	}
-	for _, idx := range []int{0, 22, 27, 1077, 1079, 4235, 4240, 2783, 2844, 3824, 3829} {
+	// O 0 saiu desta lista: é o Ciclope_Forte do Coliseu N (coliseu_test.go).
+	for _, idx := range []int{22, 27, 1077, 1079, 4235, 4240, 2783, 2844, 3824, 3829} {
 		if IsEventOwnedGenerator(idx) {
 			t.Errorf("IsEventOwnedGenerator(%d) = true, want false", idx)
 		}
