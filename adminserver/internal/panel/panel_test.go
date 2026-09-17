@@ -2834,6 +2834,18 @@ func (f *fakeEntregas) Enfileirar(_ context.Context, _, contaID int64, it entreg
 	return int64(len(f.enfileirou)), nil
 }
 
+func (f *fakeEntregas) EnfileirarLote(ctx context.Context, actorID, contaID int64, itens []entrega.Item) ([]int64, error) {
+	ids := make([]int64, 0, len(itens))
+	for _, it := range itens {
+		id, err := f.Enfileirar(ctx, actorID, contaID, it)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
 func (f *fakeEntregas) Pendentes(_ context.Context, _ int64) ([]entrega.Pendente, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

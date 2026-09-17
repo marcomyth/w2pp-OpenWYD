@@ -8,6 +8,7 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/internal/itemeffect"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
+	"github.com/jeanluca/w2pp-openwyd/internal/pilha"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/refine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
@@ -238,25 +239,9 @@ func (d *Dispatcher) deleteItem(w *world.World, s *world.Session, _ protocol.Hea
 // useClasseItem already spends one unit through consumeOneItem, and the Castelo
 // Orc guardians drop them in packs of 20.
 func isSplittable(index int16) bool {
-	switch index {
-	case 412, 413, 414, 416, 419, 420, itemPedraDoSabio:
-		return true
-	case itemBarraPrata10Mi, itemBarraPrata50Mi, itemBarraPrata100Mi, itemBarraPrata1Bi:
-		return true
-	}
-	switch {
-	case index >= 2390 && index <= 2419: // Âmagos, todos
-		return true
-	case index >= itemGemaBase && index <= itemGemaLast: // Diamante, Esmeralda, Coral, Garnet
-		return true
-	case index >= itemAguaMBase && index <= itemAguaMLast: // Pergaminho da Água (M) LV1-8 + Neses
-		return true
-	case index >= itemAguaNBase && index <= itemAguaALast: // idem (N) e (A), faixas contíguas
-		return true
-	case index >= classeALo && index <= classeLast: // Classe A-E e (P), o "Repletion" da equipe
-		return true
-	}
-	return index >= itemQuestRewardBase && index <= itemQuestRewardLast
+	// A lista mora em internal/pilha, a mesma que o painel usa para entregar uma
+	// quantidade: uma segunda lista aqui deixaria os dois discordarem.
+	return pilha.Empilha(index)
 }
 
 // The stackable families added for the merging fairy (carry.go). They are all
@@ -287,7 +272,7 @@ const (
 // extraction catalyst — see combineExtracao.
 const itemPedraDoSabio = 1774
 
-const maxStackAmount = 120
+const maxStackAmount = pilha.MaxPorPilha
 
 // efUnique is EF_UNIQUE (ItemEffect.h): a filler that says "this slot holds
 // nothing". The legacy drop stamps a random one into every empty slot of the
@@ -835,7 +820,7 @@ func (d *Dispatcher) rejectUnimplementedConsumable(w *world.World, s *world.Sess
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 }
 
-const efAmount = 61
+const efAmount = pilha.EfAmount
 
 // efKeyID is EF_KEYID (ItemEffect.h:96): a gate and its matching key both carry it;
 // a locked gate opens only when a carried item's EF_KEYID equals the gate's (gate.go).

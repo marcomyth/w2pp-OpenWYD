@@ -2,12 +2,14 @@ package panel
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/entrega"
+	"github.com/jeanluca/w2pp-openwyd/internal/pilha"
 )
 
 // entregarItem queues an item into the account's mailbox.
@@ -61,7 +63,29 @@ func (h *Handler) entregarItem(w http.ResponseWriter, r *http.Request) {
 		it.Eff[i] = [2]uint8{uint8(ef), uint8(vl)}
 	}
 
-	id, err := h.cfg.Entregas.Enfileirar(r.Context(), sess.AccountID, auth.ID, it)
+	// Quantidade: vazio é 1, como antes do campo existir. O lote reparte em
+	// pilhas ou itens avulsos pela regra de internal/pilha, e cada parte é uma
+	// linha da fila e um espaço do baú.
+	quantidade, err := strconv.Atoi(strings.TrimSpace(firstNonEmpty(r.PostFormValue("quantidade"), "1")))
+	if err != nil {
+		quantidade = 0
+	}
+	lote, err := entrega.Lote(it, quantidade)
+	switch {
+	case errors.Is(err, entrega.ErrQuantidade):
+		http.Error(w, fmt.Sprintf("A quantidade vai de 1 a %d por envio: é o que cabe no baú da conta, com %d espaços.",
+			pilha.MaxPorEnvio(int16(indice)), pilha.EspacosDoBau), http.StatusBadRequest)
+		return
+	case errors.Is(err, entrega.ErrEfeitos):
+		http.Error(w, fmt.Sprintf("Para mandar em pilha, deixe um dos três efeitos vazio e não escreva o efeito %d (quantidade) à mão: use o campo quantidade.",
+			pilha.EfAmount), http.StatusBadRequest)
+		return
+	case err != nil:
+		http.Error(w, "Quantidade inválida.", http.StatusBadRequest)
+		return
+	}
+
+	ids, err := h.cfg.Entregas.EnfileirarLote(r.Context(), sess.AccountID, auth.ID, lote)
 	if errors.Is(err, entrega.ErrDias) {
 		http.Error(w, "O prazo tem que ficar entre 0 e "+strconv.Itoa(entrega.MaxDias)+" dias.",
 			http.StatusBadRequest)
@@ -77,21 +101,26 @@ func (h *Handler) entregarItem(w http.ResponseWriter, r *http.Request) {
 		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionDeliverItem, TargetID: auth.ID,
 		New: map[string]any{
-			"entrega": id, "item": indice, "nome": nomeItem, "dias": dias,
+			"entrega": ids[0], "entregas": ids, "item": indice, "nome": nomeItem, "dias": dias,
+			"quantidade": quantidade, "espacos": len(lote),
 			"eff": [3][2]uint8{it.Eff[0], it.Eff[1], it.Eff[2]},
 		},
 	}); err != nil {
-		h.cfg.Logger.Error("delivery queued but NOT audited", "account", conta, "id", id, "err", err)
+		h.cfg.Logger.Error("delivery queued but NOT audited", "account", conta, "ids", ids, "err", err)
 		http.Error(w, "A entrega foi enfileirada, mas a auditoria falhou. Avise quem cuida do servidor.",
 			http.StatusInternalServerError)
 		return
 	}
 
 	h.cfg.Logger.Info("item delivery queued",
-		"actor", sess.AccountName, "account", conta, "item", indice, "id", id)
+		"actor", sess.AccountName, "account", conta, "item", indice, "quantidade", quantidade, "ids", ids)
 	// Audited BEFORE this: the record is of the grant, which happened, and the
 	// immediate drain is only about when it lands.
-	h.redirectConta(w, r, conta, h.avisoDaEntrega(r, conta, nomeItem))
+	rotulo := nomeItem
+	if quantidade > 1 {
+		rotulo = fmt.Sprintf("%s (%d, em %d espaços do baú)", nomeItem, quantidade, len(lote))
+	}
+	h.redirectConta(w, r, conta, h.avisoDaEntrega(r, conta, rotulo))
 }
 
 // avisoDaEntrega turns a queued grant into the sentence the operator reads, and

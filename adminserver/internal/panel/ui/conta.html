@@ -229,10 +229,11 @@
   <div class="acoes">
     <form method="post" action="/contas/{{.Conta.Name}}/entregar" class="acao-bloco">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <label for="item">Item e prazo</label>
+      <label for="item">Item, quantidade e prazo</label>
       <div class="linha">
         <input id="item" name="item" type="number" min="1" placeholder="índice" required
                aria-label="Índice do item">
+        <input name="quantidade" type="number" min="1" max="15360" value="1" aria-label="Quantidade" title="Quantidade">
         <input name="dias" type="number" min="0" max="3650" value="0" aria-label="Dias" title="Dias">
         <button type="submit">Entregar</button>
       </div>
@@ -251,6 +252,8 @@
       <p class="dica">
         O índice vem da tela de Itens. Prazo 0 é permanente. Os efeitos são
         opcionais — deixe em branco para o item sair como o catálogo define.
+        Item que empilha sai em pilhas de até 120; o que não empilha sai um por
+        espaço. O baú da conta tem 128 espaços: o que não couber espera na fila.
       </p>
     </form>
   </div>

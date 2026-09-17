@@ -203,6 +203,7 @@ type Carteira interface {
 
 type Deliveries interface {
 	Enfileirar(ctx context.Context, actorID, contaID int64, it entrega.Item) (int64, error)
+	EnfileirarLote(ctx context.Context, actorID, contaID int64, itens []entrega.Item) ([]int64, error)
 	Pendentes(ctx context.Context, contaID int64) ([]entrega.Pendente, error)
 	Cancelar(ctx context.Context, contaID, entregaID int64) error
 }

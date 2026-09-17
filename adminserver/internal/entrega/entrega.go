@@ -23,6 +23,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/jeanluca/w2pp-openwyd/internal/pilha"
 )
 
 // Refusals the caller can tell apart.
@@ -30,6 +32,11 @@ var (
 	ErrNotFound   = errors.New("entrega: delivery not found")
 	ErrJaEntregue = errors.New("entrega: already delivered")
 	ErrDias       = errors.New("entrega: expiry out of range")
+	// ErrQuantidade: menos de 1, ou mais do que cabe num baú vazio.
+	ErrQuantidade = errors.New("entrega: quantity out of range")
+	// ErrEfeitos: uma pilha precisa de um espaço de efeito livre para EF_AMOUNT,
+	// e a quantidade não pode vir também escrita à mão num efeito.
+	ErrEfeitos = errors.New("entrega: no effect slot for the stack amount")
 )
 
 // MaxDias bounds a timed grant. Longer than this is a typo, not an intention,
@@ -81,6 +88,74 @@ type Store struct{ pool *pgxpool.Pool }
 // New wraps a pool.
 func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
+// Lote reparte uma quantidade do item pelos espaços do baú: pilhas de até
+// pilha.MaxPorPilha com EF_AMOUNT para o que empilha, um item por espaço para o
+// que não empilha (internal/pilha decide). Cada elemento vira uma linha da fila e
+// ocupa um espaço, então um baú cheio segura as linhas que sobraram para o
+// próximo login, como qualquer entrega.
+//
+// Uma pilha de 1 sai sem EF_AMOUNT, igual a antes da quantidade existir. A
+// quantidade de uma pilha maior vai no primeiro efeito vazio; sem efeito vazio,
+// ou com EF_AMOUNT já escrito à mão, é ErrEfeitos.
+func Lote(it Item, quantidade int) ([]Item, error) {
+	if quantidade < 1 || quantidade > pilha.MaxPorEnvio(int16(it.Index)) {
+		return nil, ErrQuantidade
+	}
+	partes := pilha.Divide(int16(it.Index), quantidade)
+	out := make([]Item, 0, len(partes))
+	for _, n := range partes {
+		cada := it
+		if n > 1 {
+			livre := -1
+			for i := range cada.Eff {
+				if cada.Eff[i][0] == pilha.EfAmount {
+					return nil, ErrEfeitos
+				}
+				if livre < 0 && cada.Eff[i][0] == 0 {
+					livre = i
+				}
+			}
+			if livre < 0 {
+				return nil, ErrEfeitos
+			}
+			cada.Eff[livre] = [2]uint8{pilha.EfAmount, uint8(n)}
+		}
+		out = append(out, cada)
+	}
+	return out, nil
+}
+
+// EnfileirarLote grava as linhas de um Lote numa transação só e devolve os ids,
+// na ordem. Ou entram todas, ou nenhuma: meia entrega enfileirada seria uma
+// quantidade que ninguém escolheu.
+func (s *Store) EnfileirarLote(ctx context.Context, actorID, contaID int64, itens []Item) ([]int64, error) {
+	if len(itens) == 0 || len(itens) > pilha.EspacosDoBau {
+		return nil, ErrQuantidade
+	}
+	for _, it := range itens {
+		if it.Dias < 0 || it.Dias > MaxDias {
+			return nil, ErrDias
+		}
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("entrega: begin batch for %d: %w", contaID, err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }() // no-op after a commit
+	ids := make([]int64, 0, len(itens))
+	for _, it := range itens {
+		id, err := enfileirar(ctx, tx, actorID, contaID, it)
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("entrega: commit batch for %d: %w", contaID, err)
+	}
+	return ids, nil
+}
+
 // Enfileirar queues an item for an account and returns the delivery id.
 //
 // source records who did it, so a row in the mailbox can be traced back to a
@@ -90,6 +165,15 @@ func (s *Store) Enfileirar(ctx context.Context, actorID, contaID int64, it Item)
 	if it.Dias < 0 || it.Dias > MaxDias {
 		return 0, ErrDias
 	}
+	return enfileirar(ctx, s.pool, actorID, contaID, it)
+}
+
+// querier is what one insert needs: the pool, or a transaction.
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func enfileirar(ctx context.Context, q querier, actorID, contaID int64, it Item) (int64, error) {
 	var expira int64
 	if it.Dias > 0 {
 		expira = time.Now().Add(time.Duration(it.Dias) * 24 * time.Hour).Unix()
@@ -107,7 +191,7 @@ func (s *Store) Enfileirar(ctx context.Context, actorID, contaID int64, it Item)
 	}
 
 	var id int64
-	err = s.pool.QueryRow(ctx, `
+	err = q.QueryRow(ctx, `
 		INSERT INTO delivery_queue (account_id, kind, payload, source)
 		VALUES ($1, 'item', $2, $3)
 		RETURNING id`,
