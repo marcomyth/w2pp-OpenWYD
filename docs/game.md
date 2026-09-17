@@ -272,6 +272,21 @@ Garnet primeiro **anula a Esmeralda de quem bate**, inteira, até o total dela; 
 inteiro, e todo golpe menor que 2.640 virava 1. Decidido em 17/09/2026 pela simulação em
 `docs/balanceamento/garnet-esmeralda-2026-09-17.md`. Aparece no /status.
 
+**Adds na +10 de acessório** (decidido em 17/09/2026). O item tem dois espaços de add; o
+terceiro guarda o refino e a joia. No legado o resultado ficava com os adds do segundo item e
+o do primeiro sumia; aqui os dois passam por esta regra, nesta ordem:
+
+1. **Junção** — o mesmo add nos dois soma, até o teto: Magia 15, Dano 30, Crítico 3%, HP 105
+   (1,5 vez o maior valor do drop do Castelo Orc; MP 30, pelo dos anéis).
+2. **Sorteio** — Magia e Dano não convivem: se os dois sobrarem, fica um, 50% cada.
+3. **Sobra** — se ainda houver mais de dois adds, sorteia-se qual sai.
+4. **Mescla** — dois adds de tipos diferentes que nenhum dos itens já trazia juntos ficam, cada
+   um, com 40% a 80% do valor, sorteado (nunca zera; o crítico anda de 1% em 1%). Um item que já
+   tinha os dois juntos não perde nada.
+
+Hoje só o Amuleto de Prata do Castelo Orc cai com add (um, sorteado); brincos e Arcanos com add
+vêm depois.
+
 **Evolução (máquina +10).** O item em +9, uma cópia dele em qualquer refino, a Pedra do Sábio e
 quatro joias iguais. O item sai **em +0** no degrau seguinte da mesma linha:
 

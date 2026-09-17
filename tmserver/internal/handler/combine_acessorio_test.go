@@ -88,6 +88,44 @@ func TestBrincoMais10ComCoral(t *testing.T) {
 	}
 }
 
+// TestMais10DeAcessorioJuntaOsAdds: a +10 passa os adds dos dois pela regra de
+// 17/09 (combine/acessorio_adds.go). O add do item da célula 0 não some mais, como
+// sumia no legado, e o refino continua no primeiro espaço.
+func TestMais10DeAcessorioJuntaOsAdds(t *testing.T) {
+	cases := []struct {
+		nome string
+		add0 world.Effect
+		add1 world.Effect
+		quer []world.Effect
+	}{
+		{"o add do primeiro fica", world.Effect{Effect: efDamage, Value: 7}, world.Effect{},
+			[]world.Effect{{Effect: efDamage, Value: 7}, {}}},
+		{"junção de magia", world.Effect{Effect: efMagic, Value: 8}, world.Effect{Effect: efMagic, Value: 6},
+			[]world.Effect{{Effect: efMagic, Value: 14}, {}}},
+		{"junção de HP no teto", world.Effect{Effect: efHp, Value: 70}, world.Effect{Effect: efHp, Value: 70},
+			[]world.Effect{{Effect: efHp, Value: 105}, {}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.nome, func(t *testing.T) {
+			alvo, copia := itemRefinado(t, 551, 9), itemRefinado(t, 551, 9)
+			alvo.Effects[1], copia.Effects[1] = tc.add0, tc.add1
+			f := newAcessorioFixture(t, mesaMaquina("Ailyn", chaveMais10Chance, 100), receitaAilyn(t, alvo, copia, 2442)...)
+			f.enviar(t)
+
+			got := f.e.Carry[0]
+			if got.Index != 551 || refine.Level(got) != 10 || refine.Gem(got) != 1 {
+				t.Fatalf("resultado = %d +%d joia %d, esperado Amuleto de Prata +10 com Esmeralda", got.Index, refine.Level(got), refine.Gem(got))
+			}
+			if got.Effects[0].Effect != efSanc {
+				t.Errorf("o refino saiu do primeiro espaço: %+v", got.Effects)
+			}
+			if g := []world.Effect{got.Effects[1], got.Effects[2]}; g[0] != tc.quer[0] || g[1] != tc.quer[1] {
+				t.Errorf("adds = %+v, quero %+v", g, tc.quer)
+			}
+		})
+	}
+}
+
 // Joia fora das quatro em acessório: recusa sem gastar nada.
 func TestBrincoMais10RecusaJoiaErradaSemCobrar(t *testing.T) {
 	itens := receitaAilyn(t, itemRefinado(t, 595, 9), itemRefinado(t, 595, 9), 2445)
