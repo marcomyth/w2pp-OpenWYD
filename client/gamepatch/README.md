@@ -135,7 +135,14 @@ primeiro par da lista (`0x47DACA`) e acrescenta:
 | Campo | Onde |
 |---|---|
 | (19,16) | Castelo Orc de Erion (x 2432–2559, y 2048–2175) |
+| (20,15) | Acampamento Troll (x 2560–2687, y 1920–2047) |
+| (18,16) | Arena da Quest 256: Cemitério, do Coveiro (x 2304–2431, y 2048–2175) |
+| (17,13) | Arena da Quest 256: Jardim dos Deuses, do Jardineiro (x 2176–2303, y 1664–1791) |
+| (3,30) | Arena da Quest 256: Coração do Kaizen (x 384–511, y 3840–3967) |
+| (5,29) | Arena da Quest 256: Hidras (x 640–767, y 3712–3839) |
+| (10,31) | Arena da Quest 256: Elfos (x 1280–1407, y 3968–4095) |
 
-Campo novo: mais um par de `cmp`/`jne` em `FieldHook`. O servidor não muda: ele
-já manda o 0x3A1. O desvio se instala sozinho, por um objeto global, e confere
-os 16 bytes antes de gravar, como os outros.
+Campo novo: mais um par de `cmp`/`jne` em `FieldHook`, e o servidor tem de
+mandar o 0x3A1 a quem chega nele (as arenas mandam na entrada, em
+`teleportQuest256Step`). O desvio se instala sozinho, por um objeto global, e
+confere os 16 bytes antes de gravar, como os outros.

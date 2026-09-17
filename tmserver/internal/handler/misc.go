@@ -1063,6 +1063,10 @@ func (d *Dispatcher) masterGriff(w *world.World, s *world.Session, _ protocol.He
 func (d *Dispatcher) teleportQuest256Step(w *world.World, s *world.Session, e *world.Entity, step quest256Step) {
 	e.QuestFlag = step.flag
 	d.doTeleport(w, s, step.x+int16(w.Rand().Intn(5)-3), step.y+int16(w.Rand().Intn(5)-3))
+	// All three doors (NPC, ticket, Mestre Grifo) come through here, so the arena
+	// clock goes out once for each. After the jump, as the Água, the Pesadelo and
+	// the Castelo Orc send theirs.
+	d.enviarRelogioDasArenas(w, s)
 }
 
 func quest256StepForLevel(level int32) (quest256Step, bool) {

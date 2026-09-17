@@ -5,8 +5,9 @@
 // se o campo de 128x128 em que o personagem está for um de 15 pares fixos (laço
 // em 0x47DAA4-0x47DE75: Duelo, Carta, Água, Pesadelo e mais sete). Fora deles ele
 // esconde o contador e zera a flag, e só um pacote novo o traz de volta. O
-// Castelo Orc fica no campo (19,16) e o Acampamento Troll no (20,15), os dois
-// fora da lista: o servidor manda o 0x3A1 e nada aparece.
+// Castelo Orc fica no campo (19,16), o Acampamento Troll no (20,15) e as cinco
+// arenas da Quest 256 em (18,16), (17,13), (3,30), (5,29) e (10,31), todos fora
+// da lista: o servidor manda o 0x3A1 e nada aparece.
 //
 // O desvio entra no primeiro par, em 0x47DACA. Se o campo for um dos daqui, salta
 // para o desenho (0x47DD1A), como fazem os 15 pares; senão refaz a comparação que
@@ -54,8 +55,50 @@ __declspec(naked) void FieldHook() {
     troll:
         // Acampamento Troll: x 2560-2687, y 1920-2047.
         cmp dword ptr [edx + 0x20A20], 20
-        jne original
+        jne coveiro
         cmp dword ptr [edx + 0x20A24], 15
+        jne coveiro
+        push 0x47DD1A // kDrawTimer
+        ret
+        // As cinco arenas da Quest 256, cada uma no campo em que fica a caixa
+        // dela (quest256Steps, tmserver/internal/handler/misc.go).
+    coveiro:
+        // Cemitério (Coveiro): x 2304-2431, y 2048-2175.
+        cmp dword ptr [edx + 0x20A20], 18
+        jne jardim
+        cmp dword ptr [edx + 0x20A24], 16
+        jne jardim
+        push 0x47DD1A // kDrawTimer
+        ret
+    jardim:
+        // Jardim dos Deuses (Jardineiro): x 2176-2303, y 1664-1791.
+        cmp dword ptr [edx + 0x20A20], 17
+        jne kaizen
+        cmp dword ptr [edx + 0x20A24], 13
+        jne kaizen
+        push 0x47DD1A // kDrawTimer
+        ret
+    kaizen:
+        // Coração do Kaizen: x 384-511, y 3840-3967.
+        cmp dword ptr [edx + 0x20A20], 3
+        jne hidra
+        cmp dword ptr [edx + 0x20A24], 30
+        jne hidra
+        push 0x47DD1A // kDrawTimer
+        ret
+    hidra:
+        // Hidras: x 640-767, y 3712-3839.
+        cmp dword ptr [edx + 0x20A20], 5
+        jne elfos
+        cmp dword ptr [edx + 0x20A24], 29
+        jne elfos
+        push 0x47DD1A // kDrawTimer
+        ret
+    elfos:
+        // Elfos: x 1280-1407, y 3968-4095.
+        cmp dword ptr [edx + 0x20A20], 10
+        jne original
+        cmp dword ptr [edx + 0x20A24], 31
         jne original
         push 0x47DD1A // kDrawTimer
         ret

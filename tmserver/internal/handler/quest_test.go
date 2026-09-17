@@ -1039,6 +1039,9 @@ func TestMestreGrifoTeleportsByLevel(t *testing.T) {
 			if !inRange(body.TargetX, tt.wantX) || !inRange(body.TargetY, tt.wantY) {
 				t.Errorf("target = %d,%d, want around %d,%d", body.TargetX, body.TargetY, tt.wantX, tt.wantY)
 			}
+			// The arena clock follows the jump (questclear_test.go covers its
+			// value); drained here so the next read looks past it for a teleport.
+			expect(t, c, protocol.MsgStartTime)
 			if ty, _, ok := readMaybe(t, c); ok && ty == protocol.MsgAction {
 				t.Errorf("unexpected second teleport after Mestre Grifo: %#x", ty)
 			}
@@ -1096,6 +1099,7 @@ func TestMestreGrifoQuestFlagPreventsImmediateRecall(t *testing.T) {
 	if !inRange(body.TargetX, 2398) || !inRange(body.TargetY, 2105) {
 		t.Fatalf("quest target = %d,%d, want Coveiro", body.TargetX, body.TargetY)
 	}
+	expect(t, c, protocol.MsgStartTime) // the arena clock, right behind the jump
 	if ty, _, ok := readMaybe(t, c); ok && ty == protocol.MsgAction {
 		t.Errorf("Mestre Grifo target was recalled immediately: %#x", ty)
 	}
@@ -1150,6 +1154,7 @@ func TestMestreGrifoRealTemplateTeleportsAndSurvivesGuard(t *testing.T) {
 	if !inRange(body.TargetX, 2398) || !inRange(body.TargetY, 2105) {
 		t.Fatalf("quest target = %d,%d, want Coveiro", body.TargetX, body.TargetY)
 	}
+	expect(t, c, protocol.MsgStartTime) // the arena clock, right behind the jump
 	if ty, _, ok := readMaybe(t, c); ok && ty == protocol.MsgAction {
 		t.Errorf("real Mestre_Grifo target was recalled immediately: %#x", ty)
 	}
@@ -1303,6 +1308,7 @@ func TestQuest256TicketSecondUseOnEmptySlotIsNoop(t *testing.T) {
 		t.Fatalf("first consume idx=%d, want slot cleared", idx)
 	}
 	expectAction(t, c)
+	expect(t, c, protocol.MsgStartTime) // the arena clock the first use sends
 
 	send(t, c, protocol.MsgUseItem, body.Encode())
 	if ty, _, ok := readMaybe(t, c); ok {
