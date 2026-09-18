@@ -225,12 +225,15 @@ func TestRenascimentoEmTresNoFio(t *testing.T) {
 	defer morto1.Close()
 	morto2 := enterWorld(t, ln.Addr().String())
 	defer morto2.Close()
+	esvaziar(morto1, morto2)
 
 	primeiro, segundo := 0, 0
 	for i := range 60 {
 		clock.Store(serverTime + uint32(i)*1000)
-		w.Entity(2).HP, w.Entity(3).HP = 0, 0
-		w.Entity(1).MP = 5000
+		noLaco(t, w, func(w *world.World) {
+			w.Entity(2).HP, w.Entity(3).HP = 0, 0
+			w.Entity(1).MP = 5000
+		})
 		skillAttackFrame(t, branca, serverTime+uint32(i)*1000, 2, skillRenascimento, -1)
 		for {
 			ty, _, ok := readMaybe(t, branca)
@@ -241,12 +244,14 @@ func TestRenascimentoEmTresNoFio(t *testing.T) {
 				break
 			}
 		}
-		if w.Entity(2).HP > 0 {
-			primeiro++
-		}
-		if w.Entity(3).HP > 0 {
-			segundo++
-		}
+		noLaco(t, w, func(w *world.World) {
+			if w.Entity(2).HP > 0 {
+				primeiro++
+			}
+			if w.Entity(3).HP > 0 {
+				segundo++
+			}
+		})
 	}
 	if primeiro != 60 {
 		t.Errorf("o alvo clicado voltou %d de 60, want sempre", primeiro)
@@ -376,8 +381,12 @@ func TestFlashTiraDaMiraNoFio(t *testing.T) {
 	defer aliado.Close()
 	inimigo := enterWorld(t, ln.Addr().String())
 	defer inimigo.Close()
+	// Os dois outros sockets têm de ser esvaziados: sem isso a fila de saída deles
+	// enche, o laço derruba a sessão no meio do teste, e a mira do inimigo zeraria
+	// por motivo errado — o teste passaria sem provar nada.
+	esvaziar(aliado, inimigo)
 
-	w.Entity(3).Target = 2
+	noLaco(t, w, func(w *world.World) { w.Entity(3).Target = 2 })
 	skillAttackFrame(t, branca, serverTime, 2, skillFlash, -1)
 	for {
 		ty, _, ok := readMaybe(t, branca)
@@ -388,7 +397,16 @@ func TestFlashTiraDaMiraNoFio(t *testing.T) {
 			break
 		}
 	}
-	if alvo := w.Entity(3).Target; alvo != 0 {
+	var alvo int
+	noLaco(t, w, func(w *world.World) {
+		e := w.Entity(3)
+		if e == nil {
+			t.Error("a sessão do inimigo caiu no meio do teste")
+			return
+		}
+		alvo = e.Target
+	})
+	if alvo != 0 {
 		t.Fatalf("mira do inimigo = %d, want 0 depois do Flash", alvo)
 	}
 }
@@ -602,4 +620,16 @@ func TestPocaoDoTiqueCuraMenosComAMarca(t *testing.T) {
 		t.Errorf("a poção curou %d de uma vez, want no máximo %d com a marca", ganho, applyCasting*75/100)
 	}
 	_ = c
+}
+
+// ---------------------------------------------------------------------------
+// Dois auxiliares que todo teste de socket com mais de uma conexão precisa.
+
+// esvaziar mantém drenados os sockets que o teste não lê. Sem isso a fila de
+// saída deles enche, o laço derruba a sessão no meio do teste, e a asserção
+// passa (ou falha) por motivo errado.
+func esvaziar(conns ...net.Conn) {
+	for _, c := range conns {
+		go func() { _, _ = io.Copy(io.Discard, c) }()
+	}
 }
