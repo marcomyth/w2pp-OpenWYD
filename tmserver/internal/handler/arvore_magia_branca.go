@@ -149,7 +149,7 @@ func imuneADebuff(target *world.Entity, now uint32) bool {
 
 // tirarDaMira solta o alvo da mira de quem está por perto: todo jogador na volta
 // que estava mirando nele perde o alvo. É o Flash (26) valendo em PvP.
-func (d *Dispatcher) tirarDaMira(w *world.World, target *world.Entity, tid int) {
+func (d *Dispatcher) tirarDaMira(w *world.World, _ *world.Entity, tid int) {
 	w.ForEachInView(tid, func(_ *world.Session, outro *world.Entity) {
 		if outro != nil && outro.Target == tid {
 			outro.Target = 0

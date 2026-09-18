@@ -15,8 +15,6 @@ import "github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 // m é a maestria da árvore (0..255) e f a régua parcelaDeForca (1000 = Força pura,
 // 3× a Destreza).
 const (
-	skillNocaoDeCombate = 14
-
 	learnedNocaoDeCombate  = 1 << 14 // skill 14
 	learnedArmaduraCritica = 1 << 15 // skill 15
 
