@@ -453,11 +453,11 @@ type Entity struct {
 	ImuneDebuffAte uint32
 	// CuraReduzidaAte é o World.Now até quando o Choque Divino corta a cura que
 	// este personagem recebe, poção inclusive (handler/arvore_magia_branca.go).
-	CuraReduzidaAte   uint32
+	CuraReduzidaAte uint32
 	// SemPocaoAte é o World.Now até quando o Cancelamento da FM impede este
 	// personagem de beber poção de vida ou de mana; 0 é nunca
 	// (handler/arvore_magia_especial.go).
-	SemPocaoAte uint32
+	SemPocaoAte       uint32
 	AffSpecial        [4]int16
 	AffResist         [4]int16
 	AffForceDamage    int32 // ForceDamage, e.g. Ligacao Espectral
