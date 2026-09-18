@@ -33,17 +33,21 @@ func noKefra(x, y int16) bool { return x >= 2180 && x <= 2560 && y >= 3840 && y 
 // statsLE é o desenho: HP, dano e defesa de cada template depois da mudança. O
 // Krill do Kefra Meio (nível 8, nasce também em Armia) ficou de fora.
 //
-// Duas exceções à conta de HP ×5, dano ×2 e defesa +30%, decididas em 18/09:
+// Três exceções à conta de HP ×5, dano ×2 e defesa +30%:
 //
 //   - o Ranger Amald tinha dano 7.000, o dobro dos outros três Amald, e fica com
 //     os 4.300 deles: 14.000 mata um jogador de defesa comum num golpe;
-//   - o Kefra vira chefe de guilda: 100 milhões de HP (o template tinha 840) e
-//     dano 20.000, que mata em UM golpe qualquer classe, até um TK montado.
+//   - o Kefra é chefe de guilda: 56 milhões de HP com o divisor ÷20 do slot 13,
+//     1,12 bilhão efetivo, e dano 20.000, que mata em UM golpe qualquer classe,
+//     até um TK montado;
+//   - o Lich Crunt VOLTOU aos números do template (800.000, 5.000, 6.000): o
+//     divisor já multiplica a vida dele por 20, e o ×5 em cima disso fazia uma
+//     party de seis levar mais de 3 h no bicho.
 //
-// Os números saem da simulação de raide (simulacao_kefra_test.go, tag simulacao):
-// com o dano de mono, 13 Huntress iguais ao Xorimpas levam 2 h 29; 20 levam 8 min,
-// porque só a partir de ~14 jogadores a tropa repõe os mortos mais rápido do que
-// o chefe os derruba. O teto de HP é o MAX_HP do legado, 1 bilhão.
+// Os tempos saem da simulação de raide (simulacao_chefes_test.go, tag simulacao),
+// com o divisor ligado: o Kefra cai em 2 h com 20 jogadores e NÃO cai com 16 ou
+// menos, porque o dano de mono derruba mais rápido do que os mortos voltam; o
+// Lich Crunt cai em 51 min com seis.
 var statsLE = map[string]struct{ hp, dmg, ac int32 }{
 	"Templario_Amald": {50000, 4320, 4810},
 	"Mago_Amald":      {50000, 4200, 3900},
@@ -58,7 +62,7 @@ var statsLE = map[string]struct{ hp, dmg, ac int32 }{
 	"Funer_Seamer":    {160000, 3800, 4420},
 	"Horizon_Cropper": {135000, 3300, 4225},
 	"Lich_Batama":     {125000, 10000, 7800},
-	"Lich_Crunt":      {4000000, 10000, 7800},
+	"Lich_Crunt":      {800000, 5000, 6000},
 	"Simio":           {160000, 2660, 5590},
 	"Simio_Bleg":      {100000, 6360, 5070},
 	"Talos_Imortal":   {160000, 10000, 9100},
@@ -72,7 +76,7 @@ var statsLE = map[string]struct{ hp, dmg, ac int32 }{
 	"WriggleSwarm":    {105000, 3300, 3705},
 	"Aranha_Dourada":  {125000, 3260, 3640},
 	"Aranha_Rubra":    {130000, 3200, 4030},
-	"Kefra":           {100000000, 20000, 0},
+	"Kefra":           {56000000, 20000, 0},
 	"LiggleSwarm":     {105000, 3300, 3705},
 	"Mago_Negro":      {160000, 10000, 6500},
 	"Rainha_Rubra":    {160000, 7000, 4810},

@@ -192,7 +192,9 @@ func (d *Dispatcher) applyThunderTick(w *world.World, s *world.Session, e *world
 			if fmMagiaNegra(e) {
 				manaRoubada += d.reporMana(w, s, e, rouboDeMana(w.Rand(), e, dmg, tetoDoRouboDeMana(e)-manaRoubada))
 			}
-			target.HP -= int32(dmg)
+			// Divisor do slot 13 do alvo (divisor_de_dano.go); o body.Dam abaixo
+			// continua levando o golpe inteiro, como no legado.
+			target.HP -= int32(danoNoPortador(target, dmg))
 			if target.HP < 0 {
 				target.HP = 0
 			}
@@ -264,7 +266,9 @@ func (d *Dispatcher) applyBeastAuraTick(w *world.World, s *world.Session, e *wor
 			dmg = d.aplicarBlocoPvP(w, e, target, dmg, true)
 			dmg = d.applyManaControl(w, e, target, target.ID, dmg)
 			dmg = d.absorbBlow(w, target, dmg, true)
-			target.HP -= int32(dmg)
+			// Divisor do slot 13 do alvo (divisor_de_dano.go); o body.Dam abaixo
+			// continua levando o golpe inteiro, como no legado.
+			target.HP -= int32(danoNoPortador(target, dmg))
 			if target.HP < 0 {
 				target.HP = 0
 			}

@@ -554,14 +554,21 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			// player swinging.
 			dmg = d.absorbBlow(w, target, dmg, true)
 			hpBefore := target.HP
-			target.HP -= int32(dmg)
+			// O divisor do slot 13 entra aqui, depois de todos os ajustes: o cliente
+			// desenha o golpe INTEIRO e só a vida do alvo sente a divisão
+			// (divisor_de_dano.go). O legado divide o _pDamage, de antes do Controle
+			// de Mana (_MSG_Attack.cpp:1535,1570); a ordem só difere para um JOGADOR
+			// carregando um desses itens, que não existe em jogo.
+			sofrido := danoNoPortador(target, dmg)
+			target.HP -= int32(sofrido)
 			if target.HP < 0 {
 				target.HP = 0
 			}
 			ts := w.Session(tid)
 			// Drop the victim's heal target by the damage, or the regen tick heals
-			// it straight back (_MSG_Attack.cpp:1638-1642).
-			damageReqHp(ts, target, int32(dmg))
+			// it straight back (_MSG_Attack.cpp:1638-1642) — com o dano já dividido,
+			// que é o tDamage do legado (_MSG_Attack.cpp:1640).
+			damageReqHp(ts, target, int32(sofrido))
 			// O Escudo do Tormento devolve parte do golpe em quem bateu
 			// (arvore_natureza.go). Depois do HP sair, porque o que volta é o que
 			// ENTROU — já passado pela absorção, pela montaria e pelo bloco de PvP.

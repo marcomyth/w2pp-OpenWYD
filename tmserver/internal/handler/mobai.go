@@ -875,13 +875,16 @@ func (d *Dispatcher) mobAttack(w *world.World, id int, e, target *world.Entity) 
 		if world.IsPlayer(target.ID) {
 			d.revelarInvisivel(w, target) // apanhar encerra a Invisibilidade (invisibilidade.go)
 		}
-		target.HP -= int32(dmg)
+		// Divisor do slot 13 do alvo (Server.cpp:10066, divisor_de_dano.go): vale
+		// também quando quem apanha é outro monstro, um pet ou a Torre.
+		sofrido := danoNoPortador(target, dmg)
+		target.HP -= int32(sofrido)
 		if target.HP < 0 {
 			target.HP = 0
 		}
 		// Drop the victim's heal target by the damage, or regenPlayers heals it
 		// straight back next tick (ProcessSecMinTimer.cpp:2389-2397).
-		damageReqHp(w.Session(target.ID), target, int32(dmg))
+		damageReqHp(w.Session(target.ID), target, int32(sofrido))
 	}
 	// A magia de área do pet (o meteoro da Succubus) acerta também os monstros em
 	// volta do alvo, cada um com o próprio golpe.
@@ -993,7 +996,7 @@ func (d *Dispatcher) golpesDaArea(w *world.World, id int, e, target *world.Entit
 			}
 			dano := d.danoDoGolpeDeMonstro(w, e, alvo)
 			if dano > 0 {
-				alvo.HP -= int32(dano)
+				alvo.HP -= int32(danoNoPortador(alvo, dano)) // divisor do slot 13
 				if alvo.HP < 0 {
 					alvo.HP = 0
 				}

@@ -186,7 +186,9 @@ func (sm *simulador) aplicar(l *lado, alvo *world.Entity, dmg, airBlade int, ski
 		}
 	}
 	dmg = sm.d.absorbBlow(sm.w, alvo, dmg, true)
-	alvo.HP = max(0, alvo.HP-int32(dmg))
+	// O divisor do slot 13 do alvo, como no servidor (divisor_de_dano.go): sem ele
+	// a simulação de chefe mede um bicho que não existe.
+	alvo.HP = max(0, alvo.HP-int32(danoNoPortador(alvo, dmg)))
 	// O afeto que pega chama refreshScore, que remonta o score pelo equipamento — e
 	// estes personagens vêm da janela, sem equipamento. Os números da janela voltam
 	// depois; os afetos (lentidão, veneno) ficam.
