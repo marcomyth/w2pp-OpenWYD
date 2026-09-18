@@ -560,24 +560,45 @@ func TestCuraEmAlvoMarcadoNoGolpe(t *testing.T) {
 
 // A poção do tique do servidor também cura menos em quem está marcado pelo
 // Choque Divino.
+//
+// Com o tique ligado, a goroutine do laço mexe na ficha o tempo todo, e o mundo
+// é de dono único (world.go): tudo o que este teste escreve ou lê da ficha entra
+// pelo GoDetached, que roda DENTRO do laço. Mexer daqui é corrida de dados — o
+// -race do CI acusou, e o teste ainda falhava por ler a soma de dois tiques.
 func TestPocaoDoTiqueCuraMenosComAMarca(t *testing.T) {
 	c, w, _, clock, fechar := brancaNoFioComTique(t, skillChoqueDivino, 4, 155)
 	defer fechar()
 
-	e, s := w.Entity(1), w.Session(1)
-	e.HP = 1000
-	e.CuraReduzidaAte = clock.Load() + brancaDebuffMs
-	s.ReqHp = 20_000
+	noLaco := func(fn func(*world.Entity, *world.Session)) {
+		pronto := make(chan struct{})
+		w.GoDetached(func() func(*world.World) {
+			return func(w *world.World) {
+				fn(w.Entity(1), w.Session(1))
+				close(pronto)
+			}
+		})
+		<-pronto
+	}
 
+	noLaco(func(e *world.Entity, s *world.Session) {
+		e.HP = 1000
+		e.CuraReduzidaAte = clock.Load() + brancaDebuffMs
+		s.ReqHp = 20_000
+	})
+
+	// O tique é de 50 ms e a leitura vai de 5 em 5: o que se mede é o PRIMEIRO
+	// tique, não a soma de dois.
+	var ganho int32
 	prazo := time.After(3 * time.Second)
-	for e.HP == 1000 {
+	for ganho == 0 {
 		select {
 		case <-prazo:
 			t.Fatal("o tique do servidor não moveu a barra")
-		case <-time.After(50 * time.Millisecond):
+		case <-time.After(5 * time.Millisecond):
 		}
+		noLaco(func(e *world.Entity, _ *world.Session) { ganho = e.HP - 1000 })
 	}
-	if ganho := e.HP - 1000; ganho > applyCasting*75/100 {
+	if ganho > applyCasting*75/100 {
 		t.Errorf("a poção curou %d de uma vez, want no máximo %d com a marca", ganho, applyCasting*75/100)
 	}
 	_ = c
