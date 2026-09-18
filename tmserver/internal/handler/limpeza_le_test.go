@@ -33,7 +33,15 @@ func noKefra(x, y int16) bool { return x >= 2180 && x <= 2560 && y >= 3840 && y 
 // statsLE é o desenho: HP, dano e defesa de cada template depois da mudança. O
 // Krill do Kefra Meio (nível 8, nasce também em Armia) ficou de fora.
 //
-// Três exceções à conta de HP ×5, dano ×2 e defesa +30%:
+// O dano é o da primeira volta (×2) e a defesa também (+30%). A VIDA já não é:
+// o ×5 valia enquanto o divisor de dano do slot 13 estava desligado, e com ele de
+// pé (divisor_de_dano.go) a vida do template é multiplicada de 2 a 20 vezes de
+// graça. Quem passava de 10 minutos para um jogador sozinho desceu para a faixa
+// pedida pelo Marco em 18/09, 5 a 10 minutos por bicho — um Templário Amald ia a
+// 23 min e agora leva 9. Quem já caía em menos disso não foi tocado (as aranhas,
+// os Cropper e os Swarm, de 1 a 8 min).
+//
+// Três exceções a mais:
 //
 //   - o Ranger Amald tinha dano 7.000, o dobro dos outros três Amald, e fica com
 //     os 4.300 deles: 14.000 mata um jogador de defesa comum num golpe;
@@ -47,32 +55,33 @@ func noKefra(x, y int16) bool { return x >= 2180 && x <= 2560 && y >= 3840 && y 
 // Os tempos saem da simulação de raide (simulacao_chefes_test.go, tag simulacao),
 // com o divisor ligado: o Kefra cai em 2 h com 20 jogadores e NÃO cai com 16 ou
 // menos, porque o dano de mono derruba mais rápido do que os mortos voltam; o
-// Lich Crunt cai em 51 min com seis.
+// Lich Crunt cai em 51 min com seis, e cada bicho de tropa entre 5 e 9 min para um
+// jogador sozinho (TestSimulacaoTropaConfirma).
 var statsLE = map[string]struct{ hp, dmg, ac int32 }{
-	"Templario_Amald": {50000, 4320, 4810},
-	"Mago_Amald":      {50000, 4200, 3900},
-	"Shama_Amald":     {50000, 4400, 4810},
-	"Ranger_Amald":    {75000, 4300, 4810},
+	"Templario_Amald": {20000, 4320, 4810},
+	"Mago_Amald":      {20000, 4200, 3900},
+	"Shama_Amald":     {20000, 4400, 4810},
+	"Ranger_Amald":    {20000, 4300, 4810},
 	"Verid":           {160000, 7200, 6500},
 	"Verid_":          {160000, 7200, 6500},
-	"Batorero":        {160000, 6720, 5590},
-	"Batorero__":      {160000, 4720, 5590},
-	"FunerSickler":    {160000, 2600, 5200},
-	"Funer_Scyther":   {160000, 3800, 4420},
-	"Funer_Seamer":    {160000, 3800, 4420},
+	"Batorero":        {16000, 6720, 5590},
+	"Batorero__":      {30000, 4720, 5590},
+	"FunerSickler":    {75000, 2600, 5200},
+	"Funer_Scyther":   {100000, 3800, 4420},
+	"Funer_Seamer":    {100000, 3800, 4420},
 	"Horizon_Cropper": {135000, 3300, 4225},
 	"Lich_Batama":     {125000, 10000, 7800},
 	"Lich_Crunt":      {800000, 5000, 6000},
-	"Simio":           {160000, 2660, 5590},
-	"Simio_Bleg":      {100000, 6360, 5070},
+	"Simio":           {50000, 2660, 5590},
+	"Simio_Bleg":      {20000, 6360, 5070},
 	"Talos_Imortal":   {160000, 10000, 9100},
 	"Xeno_Cropper":    {135000, 3300, 4225},
-	"FunerSeamer":     {160000, 2600, 5460},
-	"Funer_Momenter":  {160000, 4200, 5070},
-	"Funer_Sickler":   {150000, 4580, 6435},
+	"FunerSeamer":     {75000, 2600, 5460},
+	"Funer_Momenter":  {40000, 4200, 5070},
+	"Funer_Sickler":   {75000, 4580, 6435},
 	"GrubSwarm":       {105000, 3220, 3705},
 	"HorizonCropper":  {135000, 3300, 4225},
-	"Simio_Inf":       {150000, 4380, 6305},
+	"Simio_Inf":       {40000, 4380, 6305},
 	"WriggleSwarm":    {105000, 3300, 3705},
 	"Aranha_Dourada":  {125000, 3260, 3640},
 	"Aranha_Rubra":    {130000, 3200, 4030},

@@ -227,3 +227,90 @@ func TestSimulacaoChefeVolta(t *testing.T) {
 		}
 	}
 }
+
+// TestSimulacaoTropaDosLE procura, para cada monstro de tropa da Vila Amald e do
+// Kefra, a vida de template que faz UM jogador levar o tempo pedido (5-10 min por
+// bicho, decisão de 18/09/2026). A vida efetiva é vida × divisor do slot 13, então
+// o número procurado é bem menor do que o de antes do divisor.
+func TestSimulacaoTropaDosLE(t *testing.T) {
+	const limite = 30 * 60 * 1000
+	alvoMin, alvoMax := int64(5*60_000), int64(10*60_000)
+	tropa := []string{
+		"Templario_Amald", "Mago_Amald", "Shama_Amald", "Ranger_Amald",
+		"Batorero", "Batorero__", "FunerSickler", "Funer_Scyther", "Funer_Seamer",
+		"Horizon_Cropper", "Simio", "Simio_Bleg", "Xeno_Cropper", "FunerSeamer",
+		"Funer_Momenter", "Funer_Sickler", "GrubSwarm", "HorizonCropper", "Simio_Inf",
+		"WriggleSwarm", "Aranha_Dourada", "Aranha_Rubra", "LiggleSwarm", "Serva_Rubra",
+	}
+	for _, arquivo := range tropa {
+		// Tempo com os números de hoje, e depois a busca pela vida do alvo.
+		sm := novoSimulador(t, filepath.Join("..", "..", "..", "Release"))
+		hoje := sm.raide(alvoDeRaide{arquivo: arquivo}, 1, limite, false)
+		vidaHoje := hoje.efetiva / int64(max(hoje.divisor, 1))
+
+		baixo, alto := int32(1_000), int32(200_000)
+		melhor, melhorMs := int32(0), int64(0)
+		for i := 0; i < 18 && baixo <= alto; i++ {
+			meio := baixo + (alto-baixo)/2
+			sm := novoSimulador(t, filepath.Join("..", "..", "..", "Release"))
+			r := sm.raide(alvoDeRaide{arquivo: arquivo, vida: meio}, 1, limite, false)
+			if r.vidaRestant > 0 { // não caiu: vida demais
+				alto = meio - 1
+				continue
+			}
+			melhor, melhorMs = meio, r.ms
+			switch {
+			case r.ms < alvoMin:
+				baixo = meio + 1
+			case r.ms > alvoMax:
+				alto = meio - 1
+			default:
+				baixo, alto = meio, meio-1 // dentro da faixa: para
+			}
+		}
+		status := "hoje NÃO cai em 30 min"
+		if hoje.vidaRestant == 0 {
+			status = fmt.Sprintf("hoje %d min", hoje.ms/60000)
+		}
+		t.Logf("%-16s ÷%-4d vida %6d (%5.2f mi efetivos) %-22s => vida %6d (%.2f mi efetivos) para %d min",
+			arquivo, hoje.divisor, vidaHoje, float64(hoje.efetiva)/1e6, status,
+			melhor, float64(int64(melhor)*int64(hoje.divisor))/1e6, melhorMs/60000)
+	}
+}
+
+// tropaDosLE é a vida proposta para cada monstro de tropa que hoje passa de 10
+// minutos para um jogador sozinho. Quem já cai em menos disso não é mexido.
+var tropaDosLE = []struct {
+	arquivo string
+	vida    int32
+}{
+	{"Templario_Amald", 20_000},
+	{"Mago_Amald", 20_000},
+	{"Shama_Amald", 20_000},
+	{"Ranger_Amald", 20_000},
+	{"Batorero", 16_000},
+	{"Batorero__", 30_000},
+	{"FunerSickler", 75_000},
+	{"Funer_Scyther", 100_000},
+	{"Funer_Seamer", 100_000},
+	{"Simio", 50_000},
+	{"Simio_Bleg", 20_000},
+	{"FunerSeamer", 75_000},
+	{"Funer_Momenter", 40_000},
+	{"Funer_Sickler", 75_000},
+	{"Simio_Inf", 40_000},
+}
+
+func TestSimulacaoTropaConfirma(t *testing.T) {
+	const limite = 30 * 60 * 1000
+	for _, c := range tropaDosLE {
+		sm := novoSimulador(t, filepath.Join("..", "..", "..", "Release"))
+		r := sm.raide(alvoDeRaide{arquivo: c.arquivo, vida: c.vida}, 1, limite, false)
+		status := fmt.Sprintf("%d min", r.ms/60000)
+		if r.vidaRestant > 0 {
+			status = "NÃO cai em 30 min"
+		}
+		t.Logf("%-16s vida %6d ÷%-3d = %5.2f mi efetivos: %s (%d mortes)",
+			c.arquivo, c.vida, r.divisor, float64(r.efetiva)/1e6, status, r.mortes)
+	}
+}
