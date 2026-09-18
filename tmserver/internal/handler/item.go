@@ -1297,6 +1297,13 @@ func (d *Dispatcher) useHealPotion(w *world.World, s *world.Session, e *world.En
 	// SERVER clock — the original reads GetTickCount(), and a client-supplied tick
 	// would be spoofable. int64 math avoids uint32 underflow at tick 0.
 	now := w.Now()
+	// Cancelamento da FM: 20 s sem poção de vida nem de mana
+	// (arvore_magia_especial.go). A recusa devolve o slot, como a trava de spam,
+	// para a pilha não ser consumida e o cliente não ficar dessincronizado.
+	if semPocao(e, now) {
+		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, src, itemToSel(e.Carry[src])))
+		return
+	}
 	if s.PotionTick != 0 && int64(now)-int64(s.PotionTick) < potionDelay {
 		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, src, itemToSel(e.Carry[src])))
 		return

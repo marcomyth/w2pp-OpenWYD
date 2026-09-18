@@ -1270,12 +1270,17 @@ func (d *Dispatcher) applySkillSpecial(w *world.World, s *world.Session, e, targ
 
 	case skillnum == 47: // Cancelamento removes block first.
 		if target.ClearFirstAffect(19) {
+			// O Escudo de Habilidade comeu o Cancelamento: a trava da poção NÃO sai.
+			// É a defesa natural da Huntress (arvore_magia_especial.go).
 			d.refreshScore(target)
 			if ts := w.Session(tid); ts != nil {
 				d.sendScore(w, ts, target)
 				d.sendAffect(w, ts, target)
 			}
 			return true
+		}
+		if !imuneADebuff(target, w.Now()) {
+			trancarAPocao(target, tid, w.Now()) // 20 s sem poção de vida nem de mana
 		}
 		return false
 	}

@@ -176,3 +176,32 @@ func perfuracaoDoCancelamento(attacker *world.Entity, itemAbility func(world.Ite
 	}
 	return cancelPerfuracaoPct
 }
+
+// ---------------------------------------------------------------------------
+// 47 · Cancelamento tranca a poção (REGRA NOVA, decidida pelo Marco em
+// 18/09/2026 — NÃO existe no legado).
+//
+// No legado a skill só limpa o afeto 19 (o Escudo de Habilidade) e, se não achar
+// nenhum, aplica o afeto 32 — que nada no TMSrv lê (docs/migration/skills/
+// audit-affects.md). Aqui ela passa a impedir o alvo de beber poção de VIDA e de
+// MANA por 20 s, que é o que dá sentido à Foema cancel em PvP: contra quem vive
+// da poção, tirar a poção é o dano dela.
+//
+// A Huntress é a única com defesa natural: o Escudo de Habilidade (afeto 19) come
+// o primeiro Cancelamento e a trava não sai. Quem quiser trancá-la precisa
+// cancelar DUAS vezes — e isso já é o caminho do legado, que limpa o escudo e
+// para ali (combat.go).
+const cancelSemPocaoMs = 20_000
+
+// trancarAPocao fecha a poção do alvo. Só em jogador: monstro não bebe.
+func trancarAPocao(target *world.Entity, tid int, now uint32) {
+	if target == nil || !world.IsPlayer(tid) {
+		return
+	}
+	target.SemPocaoAte = now + cancelSemPocaoMs
+}
+
+// semPocao diz se o alvo está trancado neste instante.
+func semPocao(e *world.Entity, now uint32) bool {
+	return e != nil && e.SemPocaoAte != 0 && now < e.SemPocaoAte
+}

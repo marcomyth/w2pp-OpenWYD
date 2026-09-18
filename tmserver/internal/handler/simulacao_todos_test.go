@@ -42,49 +42,33 @@ const (
 // ---------------------------------------------------------------------------
 // FM Cancelamento (CanceleiVoce)
 
+// A janela da CanceleiVoce em 18/09/2026, JÁ com as regras da árvore no ar e com
+// os buffs dela de pé (print do Marco): a maestria da Magia Especial aparece em
+// 366, acima do teto de 255, que é o Toque de Athena valendo em dobro nela.
+//
+// Esta ficha é o resultado FINAL. A calibração roda com tudo ligado — 8ª, duas
+// armas, buffs — e resolve a base para o total cair no número da janela. Somar
+// as regras por cima daqui seria contá-las duas vezes.
+const (
+	cancelAtaque     = 8726
+	cancelDefesa     = 2233
+	cancelHP         = 5432
+	cancelMP         = 17332
+	cancelAtqMagico  = 3887
+	cancelCritico10  = 316 // décimos de %
+	cancelMaestria10 = 366 // Magia Especial na janela, com o buff
+)
+
 func (sm *simulador) montarCancel(id int) *world.Entity {
 	e := &world.Entity{ID: id, Class: 1, ClassMaster: classMasterMortal, Level: 399,
 		Str: 12, BaseStr: 12, Int: 2147, BaseInt: 2147, Dex: 712, BaseDex: 712, Con: 512, BaseCon: 512,
 		LearnedSkill: 0xFF0000} // as oito da Magia Especial
-	e.Special = [4]int16{0, 0, 0, 255}
+	e.Special = [4]int16{0, 0, 0, brancaMaestriaMax}
 	e.BaseSpecial = e.Special
 	arma := world.Item{Index: simEspadaUmaMao, Effects: [3]world.Effect{{Effect: simEfSanc, Value: simRefino11}}}
 	e.Equip[weaponSlotR], e.Equip[weaponSlotL] = arma, arma
+	// Controle de Mana e os quatro buffs dela, que no print estão de pé.
 	e.Affect[0] = world.Affect{Type: affectControleDeMana, Time: 5000}
-	sm.d.applyAffectScore(e)
-	vida := int32(5993 * simCancelVidaPct / 100)
-	e.MaxHP = (vida - e.AffMaxHP) / 2
-	e.MaxMP = (21011 - e.AffMaxMP) / 2
-	e.HP, e.MP = vida, 21011
-	e.AC = 2078 - e.AffAC
-	e.Critical = uint8(max(0, 316/4-int(e.AffCritical)))
-	// A janela do print (3.105 de Ataque) foi tirada do servidor de HOJE, sem as
-	// regras da árvore. A calibração roda SEM elas — tirando a 8ª e o
-	// multiplicador — para o dano pela INT e o bônus de duas armas somarem POR
-	// CIMA dos 3.105, em vez de serem engolidos pela busca.
-	oitava, multi := e.LearnedSkill, e.AffDamageMultiPct
-	e.LearnedSkill, e.AffDamageMultiPct = oitava&^learnedCancelamento, 100
-	lo, hi := int32(0), int32(200_000)
-	for lo < hi {
-		mid := (lo + hi) / 2
-		e.Damage = mid
-		if sm.d.effectiveDamage(e) < 3105 {
-			lo = mid + 1
-		} else {
-			hi = mid
-		}
-	}
-	e.Damage = lo
-	e.LearnedSkill, e.AffDamageMultiPct = oitava, multi
-	// A regra nova (INT/2 no lugar de FOR/2) entra pelo refreshScore, que a
-	// simulação não roda: a diferença entra aqui, por cima dos 3.105 do print.
-	e.LearnedSkill = oitava &^ learnedCancelamento
-	semRegra := attributeDamageBonus(e, true)
-	e.LearnedSkill = oitava
-	e.Damage += attributeDamageBonus(e, true) - semRegra
-	// Ela é a que BUFA: numa luta de verdade os quatro buffs dela estão de pé, e
-	// valem em dobro nela mesma. A ficha do print é a de quem está parado na
-	// cidade, sem buff, então eles entram por cima dela.
 	for i, sk := range []int{skillVelocidade, skillEscudoMagico, skillArmaMagica, skillToqueDeAthena} {
 		sp, ok := sm.d.spells.Get(sk)
 		if !ok || sp.AffectType <= 0 {
@@ -93,16 +77,47 @@ func (sm *simulador) montarCancel(id int) *world.Entity {
 		e.Affect[i+1] = world.Affect{Type: uint8(sp.AffectType), Value: uint8(sp.AffectValue),
 			Level: uint16(e.BaseSpecial[3]), Time: 5000}
 	}
+	// As maestrias da janela (Aprender Arma 272, Branca e Negra 111, Especial 366)
+	// não saem só do Toque de Athena em dobro, que rende 64: o resto vem do
+	// EQUIPAMENTO, que esta ficha não veste — o mesmo motivo de a vida precisar do
+	// comVidaExtra. A base é resolvida para o total cair no número da janela.
+	alvo := [4]int16{272, 111, 111, cancelMaestria10}
+	for range 4 {
+		for k := range e.BaseSpecial {
+			e.BaseSpecial[k] = alvo[k] - e.AffSpecial[k]
+			e.Special[k] = e.BaseSpecial[k]
+		}
+		sm.d.applyAffectScore(e)
+	}
+
 	sm.d.applyAffectScore(e)
-	// A Magia sai do Atq Mágico da janela (3.493), medido na Névoa Venenosa como o
-	// cliente a mostra: com o valor do catálogo e sem o bônus da 8ª da árvore dela.
+
+	vida := int32(cancelHP * simCancelVidaPct / 100)
+	e.MaxHP = (vida - e.AffMaxHP) / 2
+	e.MaxMP = (cancelMP - e.AffMaxMP) / 2
+	e.HP, e.MP = vida, cancelMP
+	e.AC = cancelDefesa - e.AffAC
+	e.Critical = uint8(max(0, cancelCritico10/4-int(e.AffCritical)))
+	lo, hi := int32(0), int32(200_000)
+	for lo < hi {
+		mid := (lo + hi) / 2
+		e.Damage = mid
+		if sm.d.effectiveDamage(e) < cancelAtaque {
+			lo = mid + 1
+		} else {
+			hi = mid
+		}
+	}
+	e.Damage = lo
+	// A Magia sai do Atq Mágico da janela, medido na Névoa Venenosa como o cliente
+	// a mostra.
 	sp, _ := sm.d.spells.Get(skillNevoaVenenosa)
 	spell := combat.SkillSpell{InstanceType: sp.InstanceType, InstanceValue: sp.InstanceValue, AffectValue: sp.AffectValue}
 	for m := int16(0); m <= maxMagic; m++ {
 		e.Magic = m
 		caster := combat.SkillCaster{Class: 1, Level: int(e.Level), Int: int(effectiveInt(e)), Magic: int(effectiveMagic(e)),
 			Special: effectiveSpecial(e, 3), DamageMultiPct: 100, Mortal: true, LearnedSkill: e.LearnedSkill}
-		if combat.SkillBaseDamage(skillNevoaVenenosa, spell, caster, 0, int(sm.d.weaponDamage(e))) >= 3493 {
+		if combat.SkillBaseDamage(skillNevoaVenenosa, spell, caster, 0, int(sm.d.weaponDamage(e))) >= cancelAtqMagico {
 			break
 		}
 	}
@@ -113,6 +128,16 @@ func (sm *simulador) cancelLutador(id int) *lutador {
 	e := sm.montarCancel(id)
 	l := &lutador{lado: &lado{e: e, cd: map[int]int64{}}, nome: "FM Cancel", maxHP: e.HP}
 	l.acao = func(ld *lado, alvo *world.Entity, agora int64) golpe {
+		// O Cancelamento tranca a poção do alvo por 20 s. O Escudo de Habilidade
+		// (afeto 19) come o primeiro cancel e a trava não sai.
+		if agora >= ld.cd[skillCancelamento] {
+			sp, _ := sm.d.spells.Get(skillCancelamento)
+			ld.cd[skillCancelamento] = agora + max(int64(sp.Delay)*1000, simPasso)
+			if !alvo.ClearFirstAffect(19) {
+				trancarAPocao(alvo, alvo.ID, uint32(agora))
+			}
+			return golpe{tipo: "Cancelamento"}
+		}
 		// A Névoa Venenosa é a skill de dano dela; entre uma e outra, golpe físico.
 		if agora >= ld.cd[skillNevoaVenenosa] {
 			sp, _ := sm.d.spells.Get(skillNevoaVenenosa)

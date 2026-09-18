@@ -230,3 +230,84 @@ func TestDanoComDuasArmasDoCancelamento(t *testing.T) {
 		t.Errorf("com escudo = %d, want 100", escudo.AffDamageMultiPct)
 	}
 }
+
+// O Cancelamento tranca a poção por 20 s, e o Escudo de Habilidade da HT come o
+// primeiro cancel.
+func TestCancelamentoTrancaAPocao(t *testing.T) {
+	const agora = 100_000
+	tests := []struct {
+		nome    string
+		escudo  bool
+		imune   bool
+		trancou bool
+	}{
+		{"alvo sem escudo", false, false, true},
+		{"HT com Escudo de Habilidade", true, false, false},
+		{"alvo com o Desintoxicar valendo", false, true, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.nome, func(t *testing.T) {
+			d := New(Config{})
+			w := world.New(world.Config{GridDim: 16, Now: func() uint32 { return agora }}, slog.Default(), nil, nil)
+			alvo := &world.Entity{ID: 2, HP: 1000}
+			if tt.escudo {
+				alvo.Affect[0] = world.Affect{Type: 19, Time: 500}
+			}
+			if tt.imune {
+				alvo.ImuneDebuffAte = agora + 1000
+			}
+			dmg := 0
+			d.applySkillSpecial(w, &world.Session{}, &world.Entity{ID: 1}, alvo, 2, 47, castInfo{}, nil, &dmg)
+			if got := semPocao(alvo, agora); got != tt.trancou {
+				t.Errorf("trancou = %v, want %v", got, tt.trancou)
+			}
+		})
+	}
+	// A trava vence: 20 s depois ele bebe de novo.
+	alvo := &world.Entity{ID: 2, SemPocaoAte: agora + cancelSemPocaoMs}
+	if semPocao(alvo, agora+cancelSemPocaoMs) {
+		t.Error("a trava tem de vencer em 20 s")
+	}
+	// Monstro não bebe: não trancar.
+	mob := &world.Entity{ID: world.MaxUser + 1}
+	trancarAPocao(mob, world.MaxUser+1, agora)
+	if mob.SemPocaoAte != 0 {
+		t.Error("monstro não usa poção; não faz sentido trancar")
+	}
+}
+
+// Trancada, a poção é RECUSADA no caminho real do item: o alvo da barra não
+// sobe e a pilha não é consumida.
+func TestPocaoRecusadaComATranca(t *testing.T) {
+	const pocao, agora = 404, 100_000 // Ultra Poção de Cura: EF_HP 500, EF_MP 500
+	monta := func(trancado bool) (*Dispatcher, *world.World, *world.Session, *world.Entity) {
+		d := New(Config{ItemEffects: map[int][]content.BaseEffect{
+			pocao: {{Eff: efVolatile, Val: volHpMpPotion}, {Eff: efHp, Val: 500}, {Eff: efMp, Val: 500}},
+		}})
+		w := world.New(world.Config{GridDim: 16, Now: func() uint32 { return agora }}, slog.Default(), nil, nil)
+		s := &world.Session{Conn: 1}
+		// Vida baixa de propósito: o ReqHp nunca fica abaixo do HP atual (hpmp.go),
+		// e com a barra cheia o piso engoliria o ganho da poção.
+		e := &world.Entity{ID: 1, HP: 100, MaxHP: 10_000, MP: 100, MaxMP: 10_000}
+		e.Carry[0] = world.Item{Index: pocao, Effects: [3]world.Effect{{Effect: efAmount, Value: 10}}}
+		if trancado {
+			e.SemPocaoAte = agora + cancelSemPocaoMs
+		}
+		return d, w, s, e
+	}
+
+	d, w, s, e := monta(false)
+	d.useHealPotion(w, s, e, 0)
+	if s.ReqHp != 500 || s.ReqMp != 500 {
+		t.Fatalf("sem tranca: ReqHp %d ReqMp %d, want 500 e 500 (o cenário não prova nada)", s.ReqHp, s.ReqMp)
+	}
+
+	d, w, s, e = monta(true)
+	d.useHealPotion(w, s, e, 0)
+	if s.ReqHp != 0 || s.ReqMp != 0 {
+		t.Errorf("trancado: ReqHp %d ReqMp %d, want 0 e 0 — a poção não pode valer", s.ReqHp, s.ReqMp)
+	}
+	if got := int(e.Carry[0].Effects[0].Value); got != 10 {
+		t.Errorf("pilha = %d, want 10 (nada consumido)", got)
+	}
+}

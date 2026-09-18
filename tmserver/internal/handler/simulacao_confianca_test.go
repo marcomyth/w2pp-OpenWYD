@@ -155,9 +155,10 @@ func (l *lutador) curar(v int32) {
 // relogio roda poção (1 s), Aura (5 s) e afetos (8 s) de quem estiver vivo.
 func (sm *simulador) relogio(agora int64, lados ...*lutador) {
 	for _, l := range lados {
-		if agora%(simPocaoS*1000) < simPasso {
+		// Trancado pelo Cancelamento da FM, ele não bebe (arvore_magia_especial.go).
+		if agora%(simPocaoS*1000) < simPasso && !semPocao(l.e, uint32(agora)) {
 			// O Choque Divino da FM Magia Branca corta a poção também (arvore_magia_branca.go).
-			l.curar(curaReduzida(l.e, applyCasting, uint32(agora)+1))
+			l.curar(curaReduzida(l.e, simPocaoPorSegundo, uint32(agora)+1))
 		}
 		if l.aura && agora%(simAuraS*1000) < simPasso {
 			l.curar(curaDaAuraConfianca(l.e, int(auraDaVida.Level), uint32(agora)+1))
@@ -449,3 +450,13 @@ func TestSimulacaoCorte37(t *testing.T) {
 		}
 	}
 }
+
+// simPocaoPorSegundo é quanto a barra de vida sobe por segundo bebendo poção.
+//
+// A poção NÃO cura: ela levanta o ALVO da barra (ReqHp) pelo EF_HP do item, e o
+// tique de 1 s fecha a barra em direção ao alvo, no máximo applyCasting (2.000)
+// por vez (hpmp.go, item.go:useHealPotion). A maior poção do catálogo é a Ultra
+// Poção de Cura (404), de 500, e o potionDelay é de 100 ms — ou seja, quem bebe
+// 4 ou mais por segundo satura o teto de 2.000/s; quem bebe uma por segundo
+// sustenta 500/s. Os dois extremos mudam TODO o resultado, então é botão.
+var simPocaoPorSegundo = int32(applyCasting)

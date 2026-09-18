@@ -66,6 +66,9 @@ type simulador struct {
 	// garnet é a absorção da Garnet por personagem, ainda só da simulação
 	// (simulacao_garnet_test.go); vazio, nada muda.
 	garnet map[int]int
+	// semPocao: até quando cada personagem está impedido de beber poção pelo
+	// Cancelamento da FM (regra em estudo, ainda NÃO existe no servidor).
+	semPocao map[int]int64
 }
 
 func novoSimulador(t *testing.T, root string) *simulador {
