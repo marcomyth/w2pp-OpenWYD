@@ -59,17 +59,28 @@ const (
 	cancelDestrezaFator  = 4 // a Destreza precisa ser pelo menos um quarto da INT
 )
 
+// duasArmasDoCancelamento: duas espadas, dois machados ou garra (a garra só do
+// Arch para cima).
+func duasArmasDoCancelamento(e *world.Entity, itemAbility func(world.Item, uint8) int) bool {
+	if itemAbility == nil || !fmCancelamento(e) {
+		return false
+	}
+	direita := itemAbility(e.Equip[weaponSlotR], efWType)
+	esquerda := itemAbility(e.Equip[weaponSlotL], efWType)
+	garra := (direita == wtypeGarra || esquerda == wtypeGarra) && e.ClassMaster != classMasterMortal
+	duas := direita == esquerda && (direita == wtypeUmaMao || direita == wtypeMachadoUmaMaoFM)
+	return duas || garra
+}
+
 func alvosDoCancelamento(e *world.Entity, itemAbility func(world.Item, uint8) int) int {
 	if itemAbility == nil {
 		return cancelAlvosPadrao
 	}
 	direita := itemAbility(e.Equip[weaponSlotR], efWType)
 	esquerda := itemAbility(e.Equip[weaponSlotL], efWType)
-	garra := direita == wtypeGarra || esquerda == wtypeGarra
-	duasArmas := direita == esquerda && (direita == wtypeUmaMao || direita == wtypeMachadoUmaMaoFM)
 	alvos := cancelAlvosPadrao
 	switch {
-	case duasArmas, garra && e.ClassMaster != classMasterMortal:
+	case duasArmasDoCancelamento(e, itemAbility):
 		alvos = cancelAlvosDuasArmas
 	case direita != 0 && esquerda == 0 && !e.Equip[weaponSlotL].Empty():
 		alvos = cancelAlvosEscudo // arma de 1 mão com escudo: o escudo não tem EF_WTYPE
@@ -91,9 +102,12 @@ const (
 	velocidadeCritico = 25 // byte do crítico: +10% na janela
 )
 
-func applyPassivasDaEspecial(e *world.Entity, bitDaFoema bool) {
+func applyPassivasDaEspecial(e *world.Entity, bitDaFoema bool, itemAbility func(world.Item, uint8) int) {
 	if !fmCancelamento(e) {
 		return
+	}
+	if cancelDanoDuasArmas > 0 && duasArmasDoCancelamento(e, itemAbility) {
+		e.AffDamageMultiPct += int32(cancelDanoDuasArmas)
 	}
 	for i := range e.Affect {
 		af := e.Affect[i]
@@ -125,4 +139,40 @@ func applyPassivasDaEspecial(e *world.Entity, bitDaFoema bool) {
 // Controle de Mana (46) com o Cancelamento aprendido: o divisor sobe, e a parte
 // do golpe que chega à vida cai de ~30% para ~20%. O resto continua saindo da
 // mana, que é o que a INT alta dela paga.
-const manaControlDivisorCancel = 82
+var manaControlDivisorCancel = int32(82)
+
+// manaControlCustoPctCancel é quanto da mana o Controle de Mana gasta por ponto
+// de dano na FM Cancelamento: 100 é o legado. Botão de balanceamento varrido pela
+// simulação (simulacao_todos_test.go).
+var manaControlCustoPctCancel = 100
+
+// ---------------------------------------------------------------------------
+// O GOLPE DELA (17/09/2026). A Foema física bate com as duas mãos, e o que ela
+// cancela é a ARMADURA do alvo. São quatro regras, todas presas à 8ª e às duas
+// armas (ou à garra):
+//
+//  1. a arma da mão esquerda vale INTEIRA, como o Mestre das Armas do TK e a
+//     Perícia do Caçador da HT já fazem (weaponDamage, item.go);
+//  2. o dano vem da INT no lugar da Força (attributeDamageBonus, score_derive.go);
+//  3. o golpe ignora parte da armadura do alvo — é o Cancelamento na defesa;
+//  4. com duas armas ela bate mais forte, porque são duas.
+//
+// Os números de 3 e 4 são PROVISÓRIOS, como o transContraHTPct: medidos na
+// simulação (simulacao_todos_test.go) a 37% de PvP, eles tiram a Foema física de
+// 143 de dano por segundo no Porradeiro Trans e a põem em 734 — a faixa da
+// Xorimpas (1.275) e acima do próprio Trans (455). Recalibrar junto com o corte
+// de dano da HT e com a regra da poção em PvP.
+var (
+	cancelPerfuracaoPct = 80  // % da defesa do alvo que ela ignora
+	cancelDanoDuasArmas = 100 // % a mais de dano com duas armas ou garra
+)
+
+// perfuracaoDoCancelamento entra na mesma conta da Lança de Ferro da Huntress
+// (arvore_sobrevivencia.go), em porcentagem da defesa do alvo. Só com duas
+// espadas, dois machados ou garra: de arma e escudo ela não perfura nada.
+func perfuracaoDoCancelamento(attacker *world.Entity, itemAbility func(world.Item, uint8) int) int {
+	if !duasArmasDoCancelamento(attacker, itemAbility) {
+		return 0
+	}
+	return cancelPerfuracaoPct
+}

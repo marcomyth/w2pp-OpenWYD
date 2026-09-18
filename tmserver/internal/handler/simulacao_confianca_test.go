@@ -156,7 +156,8 @@ func (l *lutador) curar(v int32) {
 func (sm *simulador) relogio(agora int64, lados ...*lutador) {
 	for _, l := range lados {
 		if agora%(simPocaoS*1000) < simPasso {
-			l.curar(applyCasting)
+			// O Choque Divino da FM Magia Branca corta a poção também (arvore_magia_branca.go).
+			l.curar(curaReduzida(l.e, applyCasting, uint32(agora)+1))
 		}
 		if l.aura && agora%(simAuraS*1000) < simPasso {
 			l.curar(curaDaAuraConfianca(l.e, int(auraDaVida.Level), uint32(agora)+1))

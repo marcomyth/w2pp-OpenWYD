@@ -107,8 +107,8 @@ func perfuracaoLancaDeFerro(e *world.Entity) int {
 }
 
 // defesaPerfurada é a defesa do alvo que o golpe de attacker enfrenta.
-func defesaPerfurada(attacker *world.Entity, def int) int {
-	p := perfuracaoLancaDeFerro(attacker)
+func (d *Dispatcher) defesaPerfurada(attacker *world.Entity, def int) int {
+	p := perfuracaoLancaDeFerro(attacker) + perfuracaoDoCancelamento(attacker, d.itemAbility)
 	if p == 0 || def <= 0 {
 		return def
 	}

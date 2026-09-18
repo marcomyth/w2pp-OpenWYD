@@ -149,3 +149,84 @@ func TestControleDeManaDaFmCancelamento(t *testing.T) {
 		t.Errorf("dano que passa = %d com a 8ª e %d sem ela, want 201 e 300", com, sem)
 	}
 }
+
+// cancelComArmas monta a Foema física com o que estiver nas duas mãos, num
+// Dispatcher que conhece o tipo e o dano de cada arma.
+func cancelComArmas(learned int32, dir, esq int16) (*Dispatcher, *world.Entity) {
+	const espada, machado, escudo = 101, 102, 105
+	d := New(Config{ItemEffects: map[int][]content.BaseEffect{
+		espada:  {{Eff: efWType, Val: wtypeUmaMao}, {Eff: efDamage, Val: 300}},
+		machado: {{Eff: efWType, Val: wtypeMachadoUmaMaoFM}, {Eff: efDamage, Val: 300}},
+		escudo:  {{Eff: efDamage, Val: 300}},
+	}})
+	e := fmCancel(2147, 712, learned, classMasterMortal)
+	e.Equip[weaponSlotR], e.Equip[weaponSlotL] = world.Item{Index: dir}, world.Item{Index: esq}
+	return d, e
+}
+
+// A mão esquerda vale INTEIRA nela, como o Mestre das Armas do TK.
+func TestMaoEsquerdaInteiraNoCancelamento(t *testing.T) {
+	const espada, machado, escudo = 101, 102, 105
+	tests := []struct {
+		nome     string
+		learned  int32
+		dir, esq int16
+		want     int32
+	}{
+		{"duas espadas com a 8ª", learnedCancelamento, espada, espada, 600},
+		{"dois machados com a 8ª", learnedCancelamento, machado, machado, 600},
+		{"duas espadas sem a 8ª", 1 << 22, espada, espada, 450},
+		{"espada e escudo com a 8ª", learnedCancelamento, espada, escudo, 450},
+		{"espadas diferentes do par", learnedCancelamento, espada, machado, 450},
+	}
+	for _, tt := range tests {
+		t.Run(tt.nome, func(t *testing.T) {
+			d, e := cancelComArmas(tt.learned, tt.dir, tt.esq)
+			if got := d.weaponDamage(e); got != tt.want {
+				t.Errorf("weaponDamage = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// A perfuração só existe com duas armas e com a 8ª.
+func TestPerfuracaoDoCancelamento(t *testing.T) {
+	const espada, escudo = 101, 105
+	tests := []struct {
+		nome     string
+		learned  int32
+		dir, esq int16
+		want     int
+	}{
+		{"duas espadas com a 8ª", learnedCancelamento, espada, espada, cancelPerfuracaoPct},
+		{"duas espadas sem a 8ª", 1 << 22, espada, espada, 0},
+		{"espada e escudo com a 8ª", learnedCancelamento, espada, escudo, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.nome, func(t *testing.T) {
+			d, e := cancelComArmas(tt.learned, tt.dir, tt.esq)
+			if got := perfuracaoDoCancelamento(e, d.itemAbility); got != tt.want {
+				t.Errorf("perfuracao = %d, want %d", got, tt.want)
+			}
+			// E chega à defesa que o golpe enfrenta.
+			wantDef := 1000 * (100 - tt.want) / 100
+			if got := d.defesaPerfurada(e, 1000); got != wantDef {
+				t.Errorf("defesaPerfurada = %d, want %d", got, wantDef)
+			}
+		})
+	}
+}
+
+// O bônus de dano com duas armas entra no score, e só com duas armas.
+func TestDanoComDuasArmasDoCancelamento(t *testing.T) {
+	d, com := cancelComArmas(learnedCancelamento, 101, 101)
+	applyAffectScoreWithItemAbility(com, d.itemAbility)
+	_, escudo := cancelComArmas(learnedCancelamento, 101, 105)
+	applyAffectScoreWithItemAbility(escudo, d.itemAbility)
+	if com.AffDamageMultiPct != int32(100+cancelDanoDuasArmas) {
+		t.Errorf("com duas armas = %d, want %d", com.AffDamageMultiPct, 100+cancelDanoDuasArmas)
+	}
+	if escudo.AffDamageMultiPct != 100 {
+		t.Errorf("com escudo = %d, want 100", escudo.AffDamageMultiPct)
+	}
+}

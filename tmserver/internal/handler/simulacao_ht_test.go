@@ -218,7 +218,7 @@ func (sm *simulador) fisico(l *lado, alvo *world.Entity) golpe {
 	dc, _ := combat.DoubleCritical(r, attackRunOf(e), int(effectiveCritical(e)),
 		int(sm.d.combatRules.DoubleCriticalMaxPct), &serverProg, &l.progress)
 	dmg := combat.ResolveHit(r, combat.HitInput{
-		AttackerDamage: int(sm.d.effectiveDamage(e)), TargetAC: defesaPerfurada(e, int(effectiveAC(alvo))),
+		AttackerDamage: int(sm.d.effectiveDamage(e)), TargetAC: sm.d.defesaPerfurada(e, int(effectiveAC(alvo))),
 		TargetIsPlayer: world.IsPlayer(alvo.ID), AttackerIsPlayer: true, DoubleCritical: dc,
 		Master: masterDoGolpe(e), SkillIndex: -1, ParryRate: sm.d.parryRate(e, alvo),
 		TargetRsvBlock: alvo.Rsv&world.RsvBlock != 0,

@@ -108,12 +108,13 @@ func TestLancaDeFerroPerfuracao(t *testing.T) {
 			}
 		})
 	}
+	d := New(Config{})
 	e := htSobrevivencia(500, 2000, learnedLancaDeFerro)
-	if got := defesaPerfurada(e, 1000); got != 850 {
+	if got := d.defesaPerfurada(e, 1000); got != 850 {
 		t.Fatalf("defesaPerfurada = %d, want 850", got)
 	}
 	e.Class = 0
-	if got := defesaPerfurada(e, 1000); got != 1000 {
+	if got := d.defesaPerfurada(e, 1000); got != 1000 {
 		t.Fatalf("defesaPerfurada de TK = %d, want 1000 (o bit 6 é outra skill)", got)
 	}
 }

@@ -478,7 +478,7 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			}
 			dmg = combat.ResolveHit(w.Rand(), combat.HitInput{
 				AttackerDamage:   atkDamage,
-				TargetAC:         defesaPerfurada(e, int(effectiveAC(target))),
+				TargetAC:         d.defesaPerfurada(e, int(effectiveAC(target))),
 				TargetIsPlayer:   world.IsPlayer(tid),
 				AttackerIsPlayer: true,
 				DoubleCritical:   doubleCritical,
@@ -1128,7 +1128,7 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 		// DES e INT no lugar da Magia, e a arma da árvore (arvore_confianca.go).
 		caster.Confianca = true
 		caster.Dex = int(effectiveDex(e))
-		caster.ArmaPct = armaPctConfianca(e, d.itemAbility)
+		caster.ArmaPct = armaPctConfianca(e, d.itemAbility) * confiancaDanoPct / 100
 	} else if tkEspadaMagica(e) && skillDeDanoDaEspadaMagica(skillnum) {
 		// A lança do TK Espada Mágica (arvore_espada_magica.go).
 		caster.ArmaPct = armaPctEspadaMagica(e, d.itemAbility)
@@ -1147,7 +1147,7 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 			// Five arrows of 40% of the damage, each with its own multiplier, as one
 			// blow (arvore_sobrevivencia.go). Replaces the legacy 180% halved.
 			raw, soma := danoBrutoTempestade(w.Rand(), caster.Damage, caster.Str, int(effectiveDex(e)))
-			def := defesaPerfurada(e, int(effectiveAC(target)))
+			def := d.defesaPerfurada(e, int(effectiveAC(target)))
 			if world.IsPlayer(tid) {
 				def *= tempestadeDefesaPvPx3
 			}
@@ -1155,7 +1155,7 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 			d.log.Debug("tempestade de flechas", "caster", e.ID, "target", tid, "multiplicadores", soma, "bruto", raw, "dano", dmg)
 			return dmg
 		}
-		def := defesaPerfuradaConfianca(e, skillnum, defesaPerfurada(e, int(effectiveAC(target))))
+		def := defesaPerfuradaConfianca(e, skillnum, d.defesaPerfurada(e, int(effectiveAC(target))))
 		if world.IsPlayer(tid) {
 			def *= 2
 		}
@@ -1599,6 +1599,11 @@ func manaControlDamage(target *world.Entity, dmg int, enhanced bool) (int, int32
 		return dmg, 0, false
 	}
 	spent := int32(dmg)
+	if fmCancelamento(target) {
+		// Com o Cancelamento a mana rende mais: o mesmo golpe custa menos barra
+		// (arvore_magia_especial.go).
+		spent = spent * int32(manaControlCustoPctCancel) / 100
+	}
 	target.MP -= spent
 	if target.MP < 0 {
 		target.MP = 0
@@ -1848,7 +1853,7 @@ func (d *Dispatcher) applyAirBladeProc(w *world.World, attacker, target *world.E
 		return dmg, 0
 	}
 	skillDam := effectiveSpecial(attacker, 3) + int(effectiveStr(attacker))
-	skillDam = combat.Damage(w.Rand(), skillDam, defesaPerfurada(attacker, int(effectiveAC(target))), attacker.Master)
+	skillDam = combat.Damage(w.Rand(), skillDam, d.defesaPerfurada(attacker, int(effectiveAC(target))), attacker.Master)
 	skillDam = limitarLaminaAerea(skillDam, dmg)
 	body.DoubleCritical |= 4
 	writeDoubleCritical(payload, body.DoubleCritical)

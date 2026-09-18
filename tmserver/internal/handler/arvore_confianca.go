@@ -66,7 +66,7 @@ func skillDeDanoDaConfianca(skillnum int) bool {
 // BASE_CanEquip só deixa arma de outra classe para quem não é Mortal); qualquer
 // outra arma, 100%.
 const (
-	confiancaArmaComboPct  = 140
+	confiancaArmaComboPct  = 140 // botão, ver confiancaArmaPctAtual
 	confiancaLancaMortal   = 140
 	confiancaArmaNeutraPct = 100
 )
@@ -92,12 +92,16 @@ func armaPctConfianca(e *world.Entity, itemAbility func(world.Item, uint8) int) 
 //	esquiva     = +60% × d (multiplica a esquiva, como a Captura da Huntress)
 //	perfuração  = ignora até 25% × d da defesa, só no Fanatismo e no Destino
 const (
-	confiancaEsquivaPct    = 60
+	confiancaEsquivaPct    = 60 // botão de balanceamento, ver confiancaEsquivaPctAtual
 	confiancaPerfuracaoPct = 25
 )
 
+// confiancaEsquivaPctAtual é o valor em vigor. É var, e não const, porque é um
+// botão de balanceamento que a simulação varre (simulacao_todos_test.go).
+var confiancaEsquivaPctAtual = confiancaEsquivaPct
+
 func esquivaDaConfianca(e *world.Entity) int {
-	return confiancaEsquivaPct * parcelaDeDestreza(e) / 1000
+	return confiancaEsquivaPctAtual * parcelaDeDestreza(e) / 1000
 }
 
 // defesaPerfuradaConfianca é a defesa que o Fanatismo e o Destino enfrentam.
@@ -269,3 +273,7 @@ func (d *Dispatcher) curarPelaAura(w *world.World, s *world.Session, e *world.En
 		w.SendTo(vs, hdr, body)
 	})
 }
+
+// confiancaDanoPct escala o dano das quatro skills da Confiança: 100 é o
+// desenho aprovado. Botão de balanceamento da simulação.
+var confiancaDanoPct = 100

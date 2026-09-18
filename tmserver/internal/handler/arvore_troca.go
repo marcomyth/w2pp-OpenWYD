@@ -78,7 +78,7 @@ const (
 	esquivaExtracaoBase   = 40
 	esquivaExtracaoForca  = 40
 	esquivaExtracaoOitava = 30
-	esquivaTeto           = 650
+	esquivaTeto           = 650 // botão de balanceamento, ver esquivaTetoAtual
 )
 
 func melhoriaNaEsquiva(e *world.Entity) int {
@@ -99,7 +99,7 @@ func esquivaComMelhoria(parry int, target *world.Entity) int {
 	if target != nil && target.AffEsquivaPct > 0 {
 		parry = parry * (100 + int(target.AffEsquivaPct)) / 100
 	}
-	return min(parry+melhoriaNaEsquiva(target), esquivaTeto)
+	return min(parry+melhoriaNaEsquiva(target), esquivaTetoAtual)
 }
 
 // skillPassivaDaTroca diz se skillnum virou passiva nesta árvore. O cliente ainda
@@ -230,3 +230,7 @@ func (d *Dispatcher) completarAlvosDaExplosao(w *world.World, e *world.Entity, h
 
 // damSkillWire is the -1 skill sentinel as the wire stores it.
 var damSkillWire = int32(damSkill)
+
+// esquivaTetoAtual é o teto do sorteio de esquiva em vigor. É var porque é um
+// botão de balanceamento varrido pela simulação (simulacao_todos_test.go).
+var esquivaTetoAtual = esquivaTeto

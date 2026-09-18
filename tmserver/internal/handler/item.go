@@ -2507,6 +2507,11 @@ func (d *Dispatcher) weaponDamage(e *world.Entity) int32 {
 	if e.Class == 3 && e.LearnedSkill&(1<<10) != 0 {
 		offhandDivisor = 1 // HT Pericia do Cacador: off-hand contributes at full EF_DAMAGE.
 	}
+	if duasArmasDoCancelamento(e, d.itemAbility) {
+		// FM Cancelamento: duas espadas, dois machados ou garra batem com as DUAS
+		// mãos inteiras, como o Mestre das Armas do TK (arvore_magia_especial.go).
+		offhandDivisor = 1
+	}
 	dmg := w1 + w2/offhandDivisor
 	for _, slot := range [2]int{weaponSlotR, weaponSlotL} {
 		it := e.Equip[slot]
