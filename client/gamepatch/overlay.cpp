@@ -371,6 +371,16 @@ void RepintaSeNecessario(bool forcado) {
 
 // --- a camada ---------------------------------------------------------------
 
+// Ditas para o alvos.cpp, que precisa delas no Esc: o painel so some de vez
+// quando a gaveta de opcoes fecha junto.
+int OverlayOpcoesAbertas() {
+    return g_opcoesAbertas ? 1 : 0;
+}
+
+void OverlayFechaOpcoes() {
+    g_opcoesAbertas = false;
+}
+
 namespace {
 
 int PainelVisivel() {

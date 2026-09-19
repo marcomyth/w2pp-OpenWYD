@@ -452,12 +452,9 @@ void PintaMenu(HDC hdc) {
 // estar no lugar - dai o GdiFlush. Item sem icone volta ao losango na cor da
 // moeda, que era o que a loja desenhava antes.
 void DesenhaIcone(HDC hdc, const RECT& r, int item, COLORREF corMoeda) {
-    const int lado = IconeLado();
-    const int x = r.left + (kSlot - lado) / 2;
-    const int y = r.top + 1;
     GdiFlush();
-    if (IconeDesenha(g_tela.pixels, g_tela.l, g_tela.a, x, y, item) == 0) {
-        Losango(hdc, r.left + kSlot / 2, r.top + 15, 9, corMoeda);
+    if (IconeDesenha(g_tela.pixels, g_tela.l, g_tela.a, r.left, r.top, kSlot, kSlot, item) == 0) {
+        Losango(hdc, r.left + kSlot / 2, r.top + kSlot / 2, 9, corMoeda);
     }
 }
 
@@ -1211,7 +1208,6 @@ extern "C" void __cdecl LojaAnotaIcone(int item, int valor) {
     sprintf_s(buf, "=== diag icone: item %d -> tabela %d (o cliente usa %d)", item, valor,
               valor - 1);
     Log(buf);
-    IconeConfere(item);
 }
 
 __declspec(naked) void IconeLeHook() {

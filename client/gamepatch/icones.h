@@ -1,40 +1,31 @@
-// Os icones dos itens, lidos dos proprios arquivos do cliente.
+// Os icones dos itens, tirados do proprio cliente - da textura que ele ja tem
+// carregada, nao de arquivo nenhum nosso.
 //
-// Enquanto a loja desenhava um losango no lugar do item, ela nao parecia do
-// jogo. O desenho de verdade mora em UI\itemicon01..10.wyt, e chegar nele e uma
-// cadeia de tres arquivos, todos do cliente:
+// A primeira versao disto lia os .wyt da pasta por conta propria e remontava o
+// desenho. Alem de ser um segundo caminho para a mesma coisa, dava o item
+// errado: a folha solta no disco nao e necessariamente a que o cliente usa.
+// Agora a loja pergunta ao cliente, e a cadeia e toda memoria dele:
 //
-//   itemicon.bin            6500 inteiros de 32 bits, um por item; o valor e o
-//                           numero do icone, e -1 quer dizer "sem icone".
-//   UI\UITextureSetList.txt o conjunto [ItemIcon], 1000 retangulos de 35x35 na
-//                           forma "textura,x,y,larg,alt,0,0".
-//   UI\UITextureListN.bin   registros de 264 bytes: o numero da textura vira o
-//                           caminho do .wyt.
+//   0x6EA518                    o itemicon.bin que ele ja leu: um inteiro por
+//                               item, e o numero do icone e esse valor MENOS UM
+//                               - e o que o cliente faz em 0x40D6D5.
+//   gerenciador + 0x328/+0x32C  os conjuntos de sprites do UITextureSetList; o
+//                               [ItemIcon] e o 526, e cada entrada tem 28 bytes
+//                               (textura, x, y, largura, altura, ...).
+//   gerenciador + 0xE85E8       um IDirect3DTexture9* por textura, criado pelo
+//                               proprio cliente em 0x4BEA19.
 //
-// O .wyt e um WT10: "WT10", largura em 0x10, altura em 0x12, bits por pixel em
-// 0x14 e os pixels a partir de 0x16, de cima para baixo, em BGRA (ou BGR nas
-// folhas de 24 bits, onde o preto e o que fica transparente).
-//
-// Nada disto e desempacotado na carga: as folhas sao lidas na primeira vez que
-// um icone delas aparece.
+// O gerenciador nao tem ponteiro global obvio, mas tem marca: o
+// UITextureListN.bin inteiro mora em +0x15E8, e comeca com "UI\\cursor.wyt".
+// Achamos o objeto por esse conteudo, uma vez so.
 
 #ifndef ICONES_H
 #define ICONES_H
 
-// Desenha o icone do item no DIB de 32 bits (A8R8G8B8, de cima para baixo) que
-// a camada esta pintando. Devolve 0 quando o item nao tem icone - e ai quem
-// chama desenha o que desenhava antes.
-//
-// pixels/telaL/telaA descrevem o DIB inteiro; x,y sao o canto do icone nele.
-int IconeDesenha(void* pixels, int telaL, int telaA, int x, int y, int item);
-
-// O lado do icone, em pixels. E a medida do proprio jogo.
-int IconeLado();
-
-// Diagnostico: compara, para um item, o retangulo que ESTA loja escolheu com o
-// que o cliente tem na tabela dele, achada na memoria do processo. Serve para
-// saber de que lado esta um icone trocado - da nossa leitura dos arquivos ou da
-// folha .wyt em si.
-void IconeConfere(int item);
+// Desenha o icone do item centrado no quadrado dado, dentro do DIB de 32 bits
+// (A8R8G8B8, de cima para baixo) que a camada esta pintando. Devolve 0 quando
+// nao ha icone - e ai quem chama desenha o que desenhava antes.
+int IconeDesenha(void* pixels, int telaL, int telaA, int quadX, int quadY, int quadL, int quadA,
+                 int item);
 
 #endif

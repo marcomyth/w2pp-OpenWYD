@@ -36,6 +36,10 @@
 
 #include "teclas.h"
 
+// Ditas pelo overlay.cpp, que e quem desenha o painel.
+int OverlayOpcoesAbertas();
+void OverlayFechaOpcoes();
+
 #include <windows.h>
 
 #include <cstdio>
@@ -610,6 +614,24 @@ void AlvosCliqueNaLinha(int indice) {
 void AlvosFechaPainel() {
     g_painelAberto = false;
 }
+
+// Esc fecha o painel sem o jogo ver a tecla — senão a engrenagem abre por cima.
+// Os três caminhos que a mesma tecla percorre estão no teclas.h. Fecha também as
+// opções, que é o que o X do cabeçalho faz.
+int AlvosEsc() {
+    if (!g_painelAberto && !OverlayOpcoesAbertas()) {
+        return 0;
+    }
+    g_painelAberto = false;
+    OverlayFechaOpcoes();
+    return 1;
+}
+
+struct RegistroEsc {
+    RegistroEsc() { TeclaRegistra(VK_ESCAPE, 10, AlvosEsc); }
+};
+
+RegistroEsc g_registroEsc;
 
 // --- opções, para a engrenagem da janela sobreposta ------------------------
 // 0 = mostrar monstros, 1 = mostrar jogadores, 2 = ocultar aliados, 3 = alcance.
