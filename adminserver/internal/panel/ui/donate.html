@@ -1,14 +1,14 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-<title>Donate de {{.Conta}} — Painel OpenWYD</title>
+<title>Rcoins de {{.Conta}} — Painel OpenWYD</title>
 {{template "head" .}}
 </head>
 <body>
 {{template "topbar" .}}
 
 <main class="larga">
-  <h1>Donate</h1>
+  <h1>Rcoins</h1>
   <p class="sub">Conta <a href="/contas/{{.Conta}}">{{.Conta}}</a></p>
 
   {{template "abas-conta" (dict "Conta" .Conta "Personagem" 0 "TemPersonagem" false "Aba" "donate")}}
@@ -37,7 +37,7 @@
           {{end}}
         </div>
         {{else}}
-        <div class="vazio">Esta conta nunca movimentou donate.</div>
+        <div class="vazio">Esta conta nunca movimentou Rcoins.</div>
         {{end}}
       </div>
     </div>
@@ -46,7 +46,7 @@
       <div class="cartao">
         <h2>Saldo</h2>
         <div style="font-size:30px;letter-spacing:-0.02em;font-variant-numeric:tabular-nums">{{.Saldo}}</div>
-        <p class="sub" style="margin:2px 0 0;font-size:12.5px">créditos disponíveis</p>
+        <p class="sub" style="margin:2px 0 0;font-size:12.5px">Rcoins disponíveis</p>
       </div>
 
       {{if .IsAdmin}}
