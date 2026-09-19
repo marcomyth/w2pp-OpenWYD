@@ -433,6 +433,18 @@ void LeAmostras(IDirect3DDevice9* dev) {
     quadro->Release();
 }
 
+// Quem manda desenhar agora e o laco de camadas do cliente: ver loja.cpp.
+IDirect3DDevice9* g_devDoQuadro = nullptr;
+bool g_desenhadoNoQuadro = false;
+
+extern "C" void __cdecl D3DDesenhaCamadasAgora() {
+    if (g_desenhadoNoQuadro || g_devDoQuadro == nullptr) {
+        return;
+    }
+    g_desenhadoNoQuadro = true;
+    Desenha(g_devDoQuadro);
+}
+
 // O desenho sai no fim do quadro, no EndScene.
 //
 // Ja tentei sair antes, na primeira peca da interface (o AppendNode), para
@@ -441,7 +453,11 @@ void LeAmostras(IDirect3DDevice9* dev) {
 // passa por cima do painel - a loja simplesmente sumia. A ordem do cliente e
 // montar a interface primeiro e desenhar tudo depois.
 HRESULT WINAPI MeuEndScene(IDirect3DDevice9* dev) {
-    Desenha(dev);
+    g_devDoQuadro = dev;
+    if (!g_desenhadoNoQuadro) {
+        Desenha(dev);
+    }
+    g_desenhadoNoQuadro = false;
     const HRESULT hr = g_endSceneTramp(dev);
     LeAmostras(dev);
     return hr;

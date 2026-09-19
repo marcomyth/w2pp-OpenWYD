@@ -16,6 +16,8 @@
 
 #include "camadas.h"
 
+extern "C" void __cdecl D3DDesenhaCamadasAgora();
+
 #include "icones.h"
 #include "lojarede.h"
 #include "pincel.h"
@@ -154,6 +156,7 @@ bool g_roubaClique = true;   // desligado durante investigacoes no botao origina
 // O item sob o cursor, que e o que a dica do jogo descreve.
 int g_dicaItem = 0;
 int g_dicaRefino = 0;
+int g_camadaDaDica = -1;
 RECT g_dicaSlot = {0, 0, 0, 0};
 
 // --- diagnostico -----------------------------------------------------------
@@ -964,6 +967,51 @@ extern "C" int __cdecl LojaVaoDaDica(int* x, int* y, int* largura, int* altura) 
     return 1;
 }
 
+// --- entrar na fila de desenho do cliente -----------------------------------
+//
+// O painel era desenhado no fim do quadro, depois de tudo - e por isso passava
+// por cima da caixa de informacao do item, que e do cliente. Recortar o painel
+// no lugar dela foi tentado tres vezes e nunca ficou certo, porque o problema
+// nao era o recorte: era a loja estar por cima de tudo, por definicao.
+//
+// O cliente resolve isso com trinta camadas de desenho (AppendNode, 0x40C43D):
+// ele percorre uma de cada vez, em ordem, no laco de 0x4B9507. As janelas ficam
+// numa camada, a caixa de informacao numa mais alta - e e so por isso que ela
+// aparece por cima do Banco.
+//
+// Entao o painel entra nessa fila: quando o laco chega na camada da dica, ele e
+// desenhado ANTES dela. Fica sobre o mundo e sobre as janelas, e sob a caixa -
+// exatamente como as janelas do proprio jogo se comportam.
+constexpr DWORD kLacoDasCamadas = 0x004B9519;
+constexpr DWORD kLacoVolta = 0x004B9523;
+const BYTE kLacoBytes[10] = {0x83, 0x7D, 0xFC, 0x1E, 0x0F, 0x8D, 0x8B, 0x00, 0x00, 0x00};
+
+extern "C" void __cdecl LojaCamadaDoLaco(int camada) {
+    if (camada == g_camadaDaDica) {
+        D3DDesenhaCamadasAgora();
+    }
+}
+
+__declspec(naked) void LacoDasCamadasHook() {
+    __asm {
+        pushad
+        pushfd
+        mov eax, [ebp - 4]        // a camada da vez
+        push eax
+        call LojaCamadaDoLaco
+        add esp, 4
+        popfd
+        popad
+        cmp dword ptr [ebp - 4], 0x1E   // instrucoes originais
+        jge fim
+        push kLacoVolta
+        ret
+    fim:
+        push 0x004B95AE
+        ret
+    }
+}
+
 // Sonda da caixa de informacao: com diagnostico=1 e o cursor sobre um item do
 // painel, anota o retangulo da janela da dica e o de cada peca desenhada, uma
 // vez cada. E o que falta para o painel abrir um vao do tamanho da caixa - as
@@ -1000,7 +1048,7 @@ void DiagCaixaDaDica(float x, float y, float l, float a) {
     Log(buf);
 }
 
-extern "C" void __cdecl LojaAnotaNo(DWORD no) {
+extern "C" void __cdecl LojaAnotaNo(DWORD no, int camada) {
     if (no < 0x10000) {
         return;
     }
@@ -1009,7 +1057,15 @@ extern "C" void __cdecl LojaAnotaNo(DWORD no) {
     const float y = r[1];
     const float l = r[2];
     const float a = r[3];
-    SomaNaCaixa(x, y, l, a);
+    // A peca da dica tem o tamanho da janela dela: e dela que sai a camada.
+    float jx = 0.0f;
+    float jy = 0.0f;
+    float jl = 0.0f;
+    float ja = 0.0f;
+    if (JanelaDaDica(&jx, &jy, &jl, &ja) && l >= jl - 2.0f && a >= ja - 2.0f &&
+        x >= jx - 2.0f && x <= jx + 2.0f && y >= jy - 2.0f && y <= jy + 2.0f) {
+        g_camadaDaDica = camada;
+    }
     DiagCaixaDaDica(x, y, l, a);
     if (a < 30.0f || a > 48.0f || l < 120.0f || l > 600.0f) {
         return;
@@ -1754,11 +1810,13 @@ const Camada kCamadaJanela = {30, JanelaVisivel, JanelaMedida, JanelaPixels, Jan
 __declspec(naked) void AppendNodeHook() {
     __asm {
         mov eax, [esp + 8]        // o no entregue
+        mov edx, [esp + 12]       // e a camada de desenho dele
         pushad
         pushfd
+        push edx
         push eax
         call LojaAnotaNo
-        add esp, 4
+        add esp, 8
         popfd
         popad
         push ebp                                // instrucoes originais
@@ -1877,6 +1935,8 @@ struct Registro {
         DesviaAppendNode();
         TeclaRegistra(VK_ESCAPE, 30, LojaEsc);
         DesviaDicaDoJogo();
+        DesviaSimples(kLacoDasCamadas, kLacoBytes, sizeof(kLacoBytes),
+                      reinterpret_cast<void*>(&LacoDasCamadasHook), "fila de desenho");
         DesviaSimples(kIconeLe, kIconeLeBytes, sizeof(kIconeLeBytes),
                       reinterpret_cast<void*>(&IconeLeHook), "leitura do icone");
         CamadaRegistra(&kCamadaBotao);
