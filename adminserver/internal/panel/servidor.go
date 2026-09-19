@@ -233,10 +233,20 @@ func (h *Handler) reinicioSeguro(w http.ResponseWriter, r *http.Request) {
 
 	dep, err := h.cfg.Platform.Latest(r.Context())
 	if err != nil {
-		h.cfg.Logger.Error("safe restart: platform unavailable", "err", err)
+		h.cfg.Logger.Error("safe restart: no running deployment", "err", err)
 		h.voltaComAviso(w, r, "/servidor",
-			"Não mexi no servidor: "+explicaPlataforma(err))
+			"Não mexi no servidor: não achei uma publicação no ar para reiniciar. "+
+				"O deploy mais recente deste serviço pode ter sido pulado (um commit que não o "+
+				"tocou, ou teste vermelho no main). Rode um deploy deste serviço ou use Ligar. "+
+				"Detalhe: "+explicaPlataforma(err))
 		return
+	}
+	// Mesma nota do reinício comum: se o topo da pilha não for o que está no ar, o
+	// alvo é a publicação rodando, e a pessoa precisa saber que não foi o registro
+	// mais novo. Cosmético — uma falha aqui não impede o reinício.
+	notaPulado := ""
+	if topo, terr := h.cfg.Platform.LatestAny(r.Context()); terr == nil && topo.ID != dep.ID {
+		notaPulado = " O deploy mais recente não subiu para este serviço; reiniciei o que está no ar."
 	}
 
 	dren, err := h.cfg.Jogo.Drenar(r.Context(), aviso)
@@ -275,8 +285,8 @@ func (h *Handler) reinicioSeguro(w http.ResponseWriter, r *http.Request) {
 	h.cfg.Logger.Info("safe restart", "actor", sess.AccountName,
 		"deployment", dep.ID, "avisados", dren.Avisados, "derrubados", dren.Derrubados)
 	h.redirectServidor(w, r, fmt.Sprintf(
-		"Reinício seguro: %d sessão(ões) salva(s) e encerrada(s) antes de o servidor sair. Volta em cerca de um minuto.",
-		dren.Derrubados))
+		"Reinício seguro: %d sessão(ões) salva(s) e encerrada(s) antes de o servidor sair. Volta em cerca de um minuto.%s",
+		dren.Derrubados, notaPulado))
 }
 
 // desligarServidor empties the game server and then takes it down.
