@@ -484,6 +484,12 @@ void PintaSlot(HDC hdc, const RECT& r, const LojaOferta* o, bool escolhido) {
         return;
     }
     DesenhaIcone(hdc, r, o->indice, kCorMoeda[o->moeda % 3]);
+    // A moeda precisa estar no quadrado, nao so na cor do preco: enquanto o
+    // desenho do item era um losango colorido isso se via de longe, mas com o
+    // icone de verdade a cor sumiu. Uma marca no canto resolve, e a borda toma
+    // o tom da moeda.
+    Contorno(hdc, r.left + 1, r.top + 1, kSlot - 2, kSlot - 2, kCorMoeda[o->moeda % 3]);
+    Losango(hdc, r.left + 6, r.top + kSlot - 8, 4, kCorMoeda[o->moeda % 3]);
     if (o->perto == 0) {
         // Fora do alcance de compra: a vitrine junta a cidade toda, mas levar
         // exige chegar perto da barraca.
@@ -525,6 +531,11 @@ void PintaSlotCofre(HDC hdc, const RECT& r, const LojaItemCofre* it, bool escolh
     const bool naBarraca = prateleira >= 0;
     DesenhaIcone(hdc, r, it->indice,
                  naBarraca ? kCorMoeda[g_prateleiras[prateleira].moeda % 3] : RGB(120, 104, 78));
+    if (naBarraca) {
+        const COLORREF cor = kCorMoeda[g_prateleiras[prateleira].moeda % 3];
+        Contorno(hdc, r.left + 1, r.top + 1, kSlot - 2, kSlot - 2, cor);
+        Losango(hdc, r.left + 6, r.top + kSlot - 8, 4, cor);
+    }
     if (it->refino > 0) {
         char ref[8];
         sprintf_s(ref, "+%d", it->refino);
