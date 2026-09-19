@@ -183,6 +183,29 @@ estoque: o que ela vende e por quanto se define no painel de NPCs.
 > montar o `MSG_Buy` não consulta o ouro nem o preço — o mesmo achado que já
 > sustenta a loja de Emblema Orc do Unicórnio Puro.)
 
+#### O aviso no tooltip do cliente
+
+Para o jogador ver a moeda na própria janela, o `itemhelp.dat` do cliente ganha a
+linha **"Vendido por pontos de lojinha."** nos itens da loja:
+
+```bash
+go run ./webserver/cmd/lojapontoscliente -cliente "C:\...\WYD-Cliente-Pronto" -dsn "$W2PP_DB_DSN"
+```
+
+Ele descobre sozinho o que marcar, lendo os slots com preço em pontos — rode depois
+de mexer no **estoque** da loja. A pasta do cliente é só lida; o que muda vai para
+`gerado-lojapontos`, e publicar pelo launcher continua sendo um passo à parte.
+
+**O aviso não traz o número de pontos, de propósito.** O tooltip é estático e por
+**item**, enquanto o preço vive no painel e muda quando se quiser: um número gravado
+ali começaria a mentir no primeiro ajuste. Quem diz o preço é a linha do chat, que
+sai do banco toda vez.
+
+Pela mesma razão, marcar um item que **também** é vendido por ouro faz o aviso
+aparecer nele em todo lugar do jogo — na bolsa, no chão, na loja do vendedor comum.
+A ferramenta avisa quando isso acontece; a saída é vender na Loja de Pontos um item
+que só ela tenha.
+
 > Divergência deliberada: no legado só a Fada Azul de 3 dias (3901) dá bônus de drop;
 > as de 5 e 7 dias dão XP (`CMob.cpp:716` vs `731`). Aqui as três valem os 7 pontos,
 > porque quem compra "a fada azul" de 7 dias não espera ganhar menos que a de 3. A
