@@ -18,7 +18,8 @@
 #include <windows.h>
 
 // Quantas linhas a dica deste item tem (0 = nao ha dica). Serve para medir a
-// caixa antes de pintar.
+// caixa antes de pintar. A ordem e a do jogo: nome, classe, exigencias de
+// equipar, os efeitos do item e, por fim, a descricao do itemHelp.
 int DicaLinhas(int item);
 
 // A linha i, ja com os espacos no lugar dos sublinhados. Devolve nulo quando a
