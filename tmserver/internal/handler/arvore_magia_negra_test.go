@@ -178,7 +178,12 @@ func TestMagiaNegraCritaERoubaManaNoGolpe(t *testing.T) {
 	if criticos == 0 {
 		t.Error("nenhum crítico em 30 golpes (25% de chance cada)")
 	}
-	if mp := w.Entity(1).MP; mp < 3000 {
+	// Dentro do laço, pelo mesmo motivo do Fanatismo: o mundo é de dono único e
+	// ler a ficha daqui corre com o desmonte da sessão (corrida acusada pelo
+	// -race). A asserção é a mesma.
+	var mp int32
+	noLaco(t, w, func(w *world.World) { mp = w.Entity(1).MP })
+	if mp < 3000 {
 		t.Errorf("MP da black = %d, want o roubo de mana acima de 3.000 (começou em 1.000)", mp)
 	}
 }
