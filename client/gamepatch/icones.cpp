@@ -86,6 +86,21 @@ BYTE* Gerenciador() {
     return nullptr;
 }
 
+// Pede ao cliente que carregue a folha, se ela ainda nao estiver na placa.
+//
+// O cliente so carrega a textura de icones quando alguma janela dele precisa
+// dela: com o Banco fechado, a folha simplesmente nao existe, e a loja ficava
+// sem desenho nenhum. Em vez de carregar por fora, chamamos a funcao dele -
+// 0x4BE5E3, um metodo de dois argumentos (indice, e um segundo que, negativo,
+// vira o proprio indice). Ela ja comeca conferindo se a textura existe, entao
+// chamar de novo nao custa nada.
+typedef int(__thiscall* CarregaTexturaFn)(void* self, int indice, int segundo);
+constexpr DWORD kCarregaTextura = 0x004BE5E3;
+
+void PedeAFolha(BYTE* obj, int tex) {
+    reinterpret_cast<CarregaTexturaFn>(kCarregaTextura)(obj, tex, -1);
+}
+
 // O retangulo do icone do item, como o cliente o tem: qual textura e onde nela.
 bool Sprite(int item, IDirect3DTexture9** textura, int* x, int* y, int* l, int* a) {
     if (item < 0 || item >= kMaxItens) {
@@ -110,7 +125,12 @@ bool Sprite(int item, IDirect3DTexture9** textura, int* x, int* y, int* l, int* 
     if (tex < 0 || tex >= 600 || e[3] <= 0 || e[4] <= 0) {
         return false;
     }
-    IDirect3DTexture9* t = *reinterpret_cast<IDirect3DTexture9**>(obj + kTexturas + tex * 4);
+    IDirect3DTexture9** lugar =
+        reinterpret_cast<IDirect3DTexture9**>(obj + kTexturas + tex * 4);
+    if (*lugar == nullptr) {
+        PedeAFolha(obj, tex);
+    }
+    IDirect3DTexture9* t = *lugar;
     if (t == nullptr) {
         return false;
     }

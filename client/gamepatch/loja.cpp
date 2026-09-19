@@ -524,16 +524,17 @@ void PintaSlotCofre(HDC hdc, const RECT& r, const LojaItemCofre* it, bool escolh
         RECT rq = {r.left + 2, r.top + 1, r.left + kSlot - 3, r.top + 12};
         DrawTextA(hdc, qtd, -1, &rq, DT_RIGHT | DT_TOP | DT_SINGLELINE | DT_NOPREFIX);
     }
-    char rodape[16];
+    // Embaixo so aparece preco, e so depois de o item entrar numa prateleira. O
+    // numero do item era coisa de depuracao: quem olha a barraca quer ver o
+    // desenho e a quantidade, como em qualquer janela do jogo.
     if (naBarraca) {
+        char rodape[16];
         Curto(g_prateleiras[prateleira].preco, rodape, sizeof(rodape));
-    } else {
-        sprintf_s(rodape, "%d", it->indice);
+        SelectObject(hdc, g_miudo);
+        SetTextColor(hdc, kCorMoeda[g_prateleiras[prateleira].moeda % 3]);
+        RECT rp = {r.left + 1, r.top + kSlot - 14, r.right - 1, r.bottom - 2};
+        DrawTextA(hdc, rodape, -1, &rp, DT_CENTER | DT_BOTTOM | DT_SINGLELINE | DT_NOPREFIX);
     }
-    SelectObject(hdc, g_miudo);
-    SetTextColor(hdc, naBarraca ? kCorMoeda[g_prateleiras[prateleira].moeda % 3] : kTextoFraco);
-    RECT rp = {r.left + 1, r.top + kSlot - 14, r.right - 1, r.bottom - 2};
-    DrawTextA(hdc, rodape, -1, &rp, DT_CENTER | DT_BOTTOM | DT_SINGLELINE | DT_NOPREFIX);
 }
 
 // Em que prateleira este slot do cofre ja esta, ou -1.
