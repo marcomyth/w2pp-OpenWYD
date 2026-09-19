@@ -1193,6 +1193,7 @@ void CliqueJanela(int x, int y) {
 
 void JanelaMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura);
 void DiagCliqueNaFaixa();
+void BotaoMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura);
 
 // --- a dica do item --------------------------------------------------------
 //
@@ -1481,15 +1482,21 @@ void BotaoMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura
     if (lado <= 0 || quantas <= 0) {
         return;
     }
-    const int largCelula = static_cast<int>(g_faixaL) / quantas;
-    const int esquerda = static_cast<int>(g_faixaX);
-    const int qual = (*x - esquerda) / (largCelula > 0 ? largCelula : 1);
+    // Em fracao, e nao em divisao inteira: a celula desta faixa tem 38,43 de
+    // largura, e arredondar para 38 ia perdendo quase meio pixel por celula -
+    // na quarta, a borda direita caia um pixel e meio para dentro, e o clique
+    // bem na beirada passava para o jogo. Foi assim que a lojinha antiga
+    // continuou abrindo depois de a area ja cobrir "a celula inteira".
+    const float largCelula = g_faixaL / static_cast<float>(quantas);
+    const int qual = static_cast<int>((static_cast<float>(*x) - g_faixaX) / largCelula);
     if (qual < 0 || qual >= quantas) {
         return;
     }
-    *x = esquerda + qual * largCelula;
+    const float esq = g_faixaX + qual * largCelula;
+    const float dir = g_faixaX + (qual + 1) * largCelula;
+    *x = static_cast<int>(esq);
     *y = static_cast<int>(g_faixaY);
-    *largura = largCelula;
+    *largura = static_cast<int>(dir + 0.5f) - *x;
     *altura = lado;
 }
 
@@ -1517,15 +1524,17 @@ void DiagCliqueNaFaixa() {
     }
     int ix = 0;
     int iy = 0;
-    IconeCanto(CamadaTelaL(), CamadaTelaA(), &ix, &iy);
-    if (cx >= ix && cx < ix + g_iconeL && cy >= iy && cy < iy + g_iconeA) {
+    int il = 0;
+    int ia = 0;
+    BotaoMedida(CamadaTelaL(), CamadaTelaA(), &ix, &iy, &il, &ia);
+    if (cx >= ix && cx < ix + il && cy >= iy && cy < iy + ia) {
         return;   // esse foi nosso
     }
-    char buf[200];
+    char buf[220];
     sprintf_s(buf,
-              "=== diag faixa: clique em (%d,%d); faixa (%.0f,%.0f %.0fx%.0f); nosso icone "
-              "(%d,%d %dx%d)",
-              cx, cy, g_faixaX, g_faixaY, g_faixaL, g_faixaA, ix, iy, g_iconeL, g_iconeA);
+              "=== diag faixa: clique em (%d,%d) FORA; faixa (%.0f,%.0f %.0fx%.0f); nosso "
+              "icone (%d,%d %dx%d)",
+              cx, cy, g_faixaX, g_faixaY, g_faixaL, g_faixaA, ix, iy, il, ia);
     Log(buf);
 }
 
