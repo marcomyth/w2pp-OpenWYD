@@ -879,6 +879,15 @@ func (d *Dispatcher) blackOracle(w *world.World, s *world.Session, e *world.Enti
 
 const compSephiCoinCost = pedraIdealsCraftCoin
 
+// compSephiRewardBase is the legacy's `Item.sIndex = 1759 + pMob[npcIndex].MOB.Class`
+// (_MSG_Quest.cpp:2153) — one BELOW the first Sephirot, because the NPC templates
+// carry Class 1..4, not the 0..3 of the player-side class enum: Cap.Cavaleiros 1
+// (TransKnight), Foema_Anciã 2, Mestre_Archi 3 (BeastMaster), ForeLearner 4
+// (Huntress). Indexing from archSephirotMin instead shifted every NPC one class
+// up — the TransKnight master handed out Sephirot(Foema) — and turned the
+// Huntress's reward into item 1764, the Poção Combatente.
+const compSephiRewardBase = archSephirotMin - 1
+
 // compSephi handles COMP_SEPHI (Merchant 19): crafts the class Sephirot
 // (item 1759+npc.Class, i.e. 1760-1763) from 8 "Pedras" (items 1744-1751, one
 // each) plus 30,000,000 coin (_MSG_Quest.cpp:2103-2166). confirm==0 is a pure
@@ -888,6 +897,17 @@ func (d *Dispatcher) compSephi(w *world.World, s *world.Session, e, npc *world.E
 		return
 	}
 	const pedraCount = 8
+	// DELIBERATE DIVERGENCE: the legacy trusts MOB.Class blindly and would hand
+	// out whatever 1759+Class happens to be. Refusing outside the four Sephirot
+	// keeps a mistyped template from eating eight stones and 30M coin for a
+	// potion — which is exactly what the off-by-one above produced in play.
+	reward := compSephiRewardBase + int16(npc.Class)
+	if reward < archSephirotMin || reward > archSephirotMax {
+		d.log.Warn("comp sephi: classe do NPC fora da faixa",
+			"conn", s.Conn, "npc", npc.Name, "class", npc.Class, "item", reward)
+		d.notify(w, s, NoticeReqNotMet)
+		return
+	}
 	limit := activeCarryLimit(e)
 	slots := make([]int, 0, pedraCount)
 	for j := 0; j < pedraCount; j++ {
@@ -920,9 +940,9 @@ func (d *Dispatcher) compSephi(w *world.World, s *world.Session, e, npc *world.E
 		e.Carry[i] = world.Item{}
 		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, i, itemToSel(e.Carry[i])))
 	}
-	e.Carry[slot] = world.Item{Index: archSephirotMin + int16(npc.Class)}
+	e.Carry[slot] = world.Item{Index: reward}
 	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, slot, itemToSel(e.Carry[slot])))
-	d.log.Info("sephirot created", "conn", s.Conn, "name", e.Name, "class", npc.Class)
+	d.log.Info("sephirot created", "conn", s.Conn, "name", e.Name, "class", npc.Class, "item", reward)
 }
 
 type quest256Step struct {
