@@ -14,6 +14,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
+	"github.com/jeanluca/w2pp-openwyd/internal/mountbonus"
 )
 
 // MesaXP is the Mesa de XP's configuration store, satisfied by *store.Store.
@@ -108,6 +109,7 @@ type mesaForm struct {
 	Nivel     int32
 	Bau       int32
 	Fada      int16
+	Montaria  int16
 	Grau7     int32
 	Gemas     int32
 	Segundos  int32
@@ -238,6 +240,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		Sim         mesaSimulacao
 		Historico   []audit.Entry
 		Fadas       []fadaOpcao
+		Montarias   []montariaOpcao
 		Monstros    []string
 		DoMonstro   bool
 		Aviso       string
@@ -269,6 +272,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		Sim:         sim,
 		Historico:   historico,
 		Fadas:       fadas,
+		Montarias:   montarias,
 		Monstros:    h.nomesDeMonstro(r),
 		DoMonstro:   doMonstro,
 		Aviso:       r.URL.Query().Get("aviso"),
@@ -698,6 +702,7 @@ func lerMesaForm(q url.Values, xpInteiraNoJogo bool) mesaForm {
 		Gemas:    int32(intDe(q, "gemas", 0, 0, 16)),
 		Segundos: int32(intDe(q, "segundos", 6, 1, 3600)),
 		Fada:     int16(intDe(q, "fada", 0, 0, 4000)),
+		Montaria: int16(intDe(q, "montaria", 0, 0, 4000)),
 		Mob:      strings.TrimSpace(q.Get("mob")),
 	}
 	f.Evolucao = intDe(q, "evolucao", int(level.TierMortal), 1, 3)
@@ -775,6 +780,48 @@ func bonusDaFada(idx int16) int32 {
 	return 0
 }
 
+type montariaOpcao struct {
+	Index int16
+	Nome  string
+	Bonus int32
+}
+
+// montarias são as montarias que dão EXP enquanto montadas. O que o servidor
+// soma vem de mountbonus.TempExtra(Equip[14]).ExpPct (handler/exp_bonus.go), e
+// é DE LÁ que o bônus abaixo é lido: se um dia a montaria mudar de valor, esta
+// tela acompanha sozinha, como a fada. Aqui fica só o par índice→nome de tela,
+// um índice representando cada montaria (as variantes de duração compartilham o
+// mesmo ExpPct). O nível da montaria não entra: o ExpPct é fixo, não escala.
+var montarias = montariasDeTela()
+
+func montariasDeTela() []montariaOpcao {
+	tela := []struct {
+		idx  int16
+		nome string
+	}{
+		{0, "sem montaria"},
+		{3980, "Shire (3980)"},
+		{3981, "Puro-Sangue (3981)"},
+		{3982, "Klazedale (3982)"},
+		{3990, "Tigre de Fogo (3990)"},
+		{3991, "Dragão Vermelho (3991)"},
+	}
+	out := make([]montariaOpcao, 0, len(tela))
+	for _, m := range tela {
+		out = append(out, montariaOpcao{Index: m.idx, Nome: m.nome, Bonus: bonusDaMontaria(m.idx)})
+	}
+	return out
+}
+
+// bonusDaMontaria é o ExpPct que a montaria dá, lido do pacote mountbonus. Uma
+// montaria sem extras (ou "sem montaria") dá 0.
+func bonusDaMontaria(idx int16) int32 {
+	if e, ok := mountbonus.TempExtra(idx); ok {
+		return e.ExpPct
+	}
+	return 0
+}
+
 // entrada turns the form into the very call the game makes on a kill. This is
 // the whole point of moving internal/level to the repo root: the panel does not
 // model the reward, it runs it.
@@ -786,9 +833,9 @@ func (f mesaForm) entrada(cfg level.Config) level.ExpRewardInput {
 		tier.CelLv40, tier.CelLv90 = true, true
 	}
 	// The item bonus is the sum the game keeps in ExpBonus: the chest affect,
-	// the fairy, +2 per grade-7 piece and +2 per gem-2 piece
-	// (handler/exp_bonus.go, citing CMob.cpp:838 and :870).
-	bonus := f.Bau + bonusDaFada(f.Fada) + 2*f.Grau7 + 2*f.Gemas
+	// the fairy, the mount's ExpPct while ridden, +2 per grade-7 piece and +2 per
+	// gem-2 piece (handler/exp_bonus.go, citing CMob.cpp:838 and :870).
+	bonus := f.Bau + bonusDaFada(f.Fada) + bonusDaMontaria(f.Montaria) + 2*f.Grau7 + 2*f.Gemas
 	var fairyContent int32
 	if f.Fada == 3913 {
 		fairyContent = 30

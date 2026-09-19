@@ -491,6 +491,15 @@
           </select>
         </label>
         <label>
+          Montaria
+          <select name="montaria">
+            {{$m := .Form.Montaria}}
+            {{range .Montarias}}
+            <option value="{{.Index}}" {{if eq $m .Index}}selected{{end}}>{{.Nome}} — +{{.Bonus}}%</option>
+            {{end}}
+          </select>
+        </label>
+        <label>
           Peças grau 7 (+2% cada)
           <input type="number" name="grau7" min="0" max="16" value="{{.Form.Grau7}}">
         </label>
