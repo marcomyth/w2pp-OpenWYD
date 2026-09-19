@@ -8,6 +8,19 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
+// abreBarraca monta a barraca pelo caminho novo — o painel — e espera o aviso de
+// que ela subiu. A janela de barraca do cliente está aposentada.
+func abreBarraca(t *testing.T, c net.Conn, titulo string, cargoPos int8, preco int32, moeda uint8) {
+	t.Helper()
+	corpo := protocol.LojaAbrirBody{Titulo: titulo}
+	for i := range corpo.Slots {
+		corpo.Slots[i].CargoPos = -1
+	}
+	corpo.Slots[0] = protocol.LojaAbrirSlot{CargoPos: cargoPos, Moeda: moeda, Preco: preco}
+	send(t, c, protocol.MsgLojaAbrir, corpo.Encode())
+	readUntil(t, c, protocol.MsgLojaAbriu)
+}
+
 // pedeVitrine envia MsgLojaPede e devolve a página que voltou.
 func pedeVitrine(t *testing.T, c net.Conn, pagina, filtro int16) protocol.LojaListaBody {
 	t.Helper()
@@ -33,8 +46,7 @@ func TestVitrineMostraBarracaAberta(t *testing.T) {
 	comprador := enterWorldAs(t, addr, "tradeb")
 	defer comprador.Close()
 
-	send(t, vendedor, protocol.MsgSendAutoTrade, openShopPayload("Minha Loja", item, 0, preco))
-	readUntil(t, vendedor, protocol.MsgSendAutoTrade)
+	abreBarraca(t, vendedor, "Minha Loja", 0, preco, protocol.LojaMoedaOuro)
 
 	lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos)
 	if lista.Total != 1 || lista.Qtd != 1 || lista.Paginas != 1 {
@@ -65,8 +77,7 @@ func TestVitrineEsvaziaQuandoALojinhaFecha(t *testing.T) {
 	comprador := enterWorldAs(t, addr, "tradeb")
 	defer comprador.Close()
 
-	send(t, vendedor, protocol.MsgSendAutoTrade, openShopPayload("Minha Loja", item, 0, 1000))
-	readUntil(t, vendedor, protocol.MsgSendAutoTrade)
+	abreBarraca(t, vendedor, "Minha Loja", 0, 1000, protocol.LojaMoedaOuro)
 	if lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos); lista.Total != 1 {
 		t.Fatalf("antes de fechar, total = %d; queria 1", lista.Total)
 	}
@@ -88,8 +99,7 @@ func TestVitrineFiltraMinhasOfertas(t *testing.T) {
 	comprador := enterWorldAs(t, addr, "tradeb")
 	defer comprador.Close()
 
-	send(t, vendedor, protocol.MsgSendAutoTrade, openShopPayload("Minha Loja", item, 0, 1000))
-	readUntil(t, vendedor, protocol.MsgSendAutoTrade)
+	abreBarraca(t, vendedor, "Minha Loja", 0, 1000, protocol.LojaMoedaOuro)
 
 	if lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroMeus); lista.Total != 0 {
 		t.Errorf("para quem nao tem barraca, meus itens = %d; queria 0", lista.Total)
@@ -109,8 +119,7 @@ func TestVitrineAindaNaoTemCashNemRMT(t *testing.T) {
 	vendedor := enterWorldAs(t, addr, "tester")
 	defer vendedor.Close()
 
-	send(t, vendedor, protocol.MsgSendAutoTrade, openShopPayload("Minha Loja", item, 0, 1000))
-	readUntil(t, vendedor, protocol.MsgSendAutoTrade)
+	abreBarraca(t, vendedor, "Minha Loja", 0, 1000, protocol.LojaMoedaOuro)
 
 	for _, filtro := range []int16{protocol.LojaFiltroCash, protocol.LojaFiltroRMT} {
 		if lista := pedeVitrine(t, vendedor, 0, filtro); lista.Total != 0 {
@@ -142,22 +151,9 @@ func TestVitrineLevaRefinoEQuantidade(t *testing.T) {
 	vendedor := enterWorldAs(t, addr, "tester")
 	defer vendedor.Close()
 
-	// A barraca e conferida byte a byte contra o Cargo (anti-troca), entao o
-	// pacote precisa levar o item COM os efeitos, e nao so o indice.
-	corpo := protocol.MsgSendAutoTradeBody{Title: "Minha Loja"}
-	for i := range corpo.Slots {
-		corpo.Slots[i].CarryPos = -1
-	}
-	corpo.Slots[0] = protocol.AutoTradeWireItem{
-		Item: protocol.WireItem{
-			Index:   item,
-			Effects: [3]protocol.WireEffect{{Effect: efSanc, Value: 9}, {Effect: efAmount, Value: 20}},
-		},
-		CarryPos: 0,
-		Coin:     1000,
-	}
-	send(t, vendedor, protocol.MsgSendAutoTrade, corpo.Encode())
-	readUntil(t, vendedor, protocol.MsgSendAutoTrade)
+	// O pedido leva só a posição no cofre: o item de verdade quem lê é o
+	// servidor, e é ele que carrega refino e quantidade para a vitrine.
+	abreBarraca(t, vendedor, "Minha Loja", 0, 1000, protocol.LojaMoedaOuro)
 
 	lista := pedeVitrine(t, vendedor, 0, protocol.LojaFiltroTodos)
 	if lista.Total != 1 {
@@ -177,8 +173,7 @@ func TestVendedorEscolheAMoedaDoItem(t *testing.T) {
 	vendedor := enterWorldAs(t, addr, "tester")
 	defer vendedor.Close()
 
-	send(t, vendedor, protocol.MsgSendAutoTrade, openShopPayload("Minha Loja", item, 0, 300))
-	readUntil(t, vendedor, protocol.MsgSendAutoTrade)
+	abreBarraca(t, vendedor, "Minha Loja", 0, 300, protocol.LojaMoedaOuro)
 
 	moeda := protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaCash}
 	send(t, vendedor, protocol.MsgLojaMoeda, moeda.Encode())
@@ -205,8 +200,7 @@ func TestMoedaSoValeNaPropriaBarraca(t *testing.T) {
 	outro := enterWorldAs(t, addr, "tradeb")
 	defer outro.Close()
 
-	send(t, vendedor, protocol.MsgSendAutoTrade, openShopPayload("Minha Loja", item, 0, 300))
-	readUntil(t, vendedor, protocol.MsgSendAutoTrade)
+	abreBarraca(t, vendedor, "Minha Loja", 0, 300, protocol.LojaMoedaOuro)
 
 	moeda := protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaRMT}
 	send(t, outro, protocol.MsgLojaMoeda, moeda.Encode())
@@ -228,8 +222,7 @@ func TestOfertaAoLadoVemMarcadaComoPerto(t *testing.T) {
 	comprador := enterWorldAs(t, addr, "tradeb")
 	defer comprador.Close()
 
-	send(t, vendedor, protocol.MsgSendAutoTrade, openShopPayload("Minha Loja", item, 0, 1000))
-	readUntil(t, vendedor, protocol.MsgSendAutoTrade)
+	abreBarraca(t, vendedor, "Minha Loja", 0, 1000, protocol.LojaMoedaOuro)
 
 	lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos)
 	if lista.Total != 1 {
@@ -252,8 +245,7 @@ func TestCompraEmOuroPeloPainel(t *testing.T) {
 	comprador := enterWorldAs(t, addr, "tradeb")
 	defer comprador.Close()
 
-	send(t, vendedor, protocol.MsgSendAutoTrade, openShopPayload("Minha Loja", item, 0, preco))
-	readUntil(t, vendedor, protocol.MsgSendAutoTrade)
+	abreBarraca(t, vendedor, "Minha Loja", 0, preco, protocol.LojaMoedaOuro)
 
 	lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos)
 	if lista.Total != 1 {
@@ -283,8 +275,7 @@ func TestCompraEmCashRecusadaSemBanco(t *testing.T) {
 	comprador := enterWorldAs(t, addr, "tradeb")
 	defer comprador.Close()
 
-	send(t, vendedor, protocol.MsgSendAutoTrade, openShopPayload("Minha Loja", item, 0, 300))
-	readUntil(t, vendedor, protocol.MsgSendAutoTrade)
+	abreBarraca(t, vendedor, "Minha Loja", 0, 300, protocol.LojaMoedaOuro)
 	moeda := protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaCash}
 	send(t, vendedor, protocol.MsgLojaMoeda, moeda.Encode())
 
@@ -328,8 +319,7 @@ func TestCompraEmCashComSaldoLigado(t *testing.T) {
 	comprador := enterWorldAs(t, addr, "tradeb")
 	defer comprador.Close()
 
-	send(t, vendedor, protocol.MsgSendAutoTrade, openShopPayload("Minha Loja", item, 0, preco))
-	readUntil(t, vendedor, protocol.MsgSendAutoTrade)
+	abreBarraca(t, vendedor, "Minha Loja", 0, preco, protocol.LojaMoedaOuro)
 	moeda := protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaCash}
 	send(t, vendedor, protocol.MsgLojaMoeda, moeda.Encode())
 
@@ -354,4 +344,83 @@ type saldoDeMentira struct {
 
 func (s saldoDeMentira) Transfere(de, para int64, moeda uint8, valor int32) error {
 	return s.fn(de, para, moeda, valor)
+}
+
+// Montar a barraca pelo painel: o cofre é lido no servidor e as moedas vêm
+// escolhidas de saída.
+func TestAbreBarracaPeloPainel(t *testing.T) {
+	const item = int16(1030)
+	addr, stop, _ := startServerClock(t, autotradeDB(item))
+	defer stop()
+	vendedor := enterWorldAs(t, addr, "tester")
+	defer vendedor.Close()
+	comprador := enterWorldAs(t, addr, "tradeb")
+	defer comprador.Close()
+
+	// O painel primeiro pergunta o que há no cofre.
+	send(t, vendedor, protocol.MsgLojaCargo, nil)
+	payload, _ := readUntil(t, vendedor, protocol.MsgLojaCargoLista)
+	var cofre protocol.LojaCargoListaBody
+	if err := cofre.Decode(payload); err != nil {
+		t.Fatalf("decodificando o cofre: %v", err)
+	}
+	if cofre.Qtd != 1 || cofre.Itens[0].Indice != item || cofre.Itens[0].Slot != 0 {
+		t.Fatalf("cofre = %d itens, primeiro %+v; queria 1 item %d no slot 0", cofre.Qtd,
+			cofre.Itens[0], item)
+	}
+
+	// E então manda montar, com preço e moeda.
+	abrir := protocol.LojaAbrirBody{Titulo: "Barraca do Painel"}
+	for i := range abrir.Slots {
+		abrir.Slots[i].CargoPos = -1
+	}
+	abrir.Slots[0] = protocol.LojaAbrirSlot{CargoPos: 0, Moeda: protocol.LojaMoedaRMT, Preco: 42}
+	send(t, vendedor, protocol.MsgLojaAbrir, abrir.Encode())
+
+	lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos)
+	if lista.Total != 1 {
+		t.Fatalf("vitrine = %d ofertas; queria 1", lista.Total)
+	}
+	if o := lista.Ofertas[0]; o.Indice != item || o.Preco != 42 || o.Moeda != protocol.LojaMoedaRMT {
+		t.Errorf("oferta = item %d, %d, moeda %d; queria %d, 42, RMT", o.Indice, o.Preco, o.Moeda,
+			item)
+	}
+}
+
+// Duas prateleiras apontando para o mesmo slot do cofre venderiam o item duas
+// vezes — a barraca não sobe.
+func TestBarracaRecusaSlotRepetido(t *testing.T) {
+	const item = int16(1030)
+	addr, stop, _ := startServerClock(t, autotradeDB(item))
+	defer stop()
+	vendedor := enterWorldAs(t, addr, "tester")
+	defer vendedor.Close()
+
+	abrir := protocol.LojaAbrirBody{Titulo: "Repetida"}
+	for i := range abrir.Slots {
+		abrir.Slots[i].CargoPos = -1
+	}
+	abrir.Slots[0] = protocol.LojaAbrirSlot{CargoPos: 0, Preco: 100}
+	abrir.Slots[1] = protocol.LojaAbrirSlot{CargoPos: 0, Preco: 200}
+	send(t, vendedor, protocol.MsgLojaAbrir, abrir.Encode())
+
+	if lista := pedeVitrine(t, vendedor, 0, protocol.LojaFiltroTodos); lista.Total != 0 {
+		t.Errorf("a barraca subiu com slot repetido: %d ofertas", lista.Total)
+	}
+}
+
+// A janela de barraca do cliente está aposentada: o pacote antigo não monta mais
+// nada.
+func TestJanelaAntigaDeBarracaNaoAbreMais(t *testing.T) {
+	const item = int16(1030)
+	addr, stop, _ := startServerClock(t, autotradeDB(item))
+	defer stop()
+	vendedor := enterWorldAs(t, addr, "tester")
+	defer vendedor.Close()
+
+	send(t, vendedor, protocol.MsgSendAutoTrade, openShopPayload("Antiga", item, 0, 1000))
+
+	if lista := pedeVitrine(t, vendedor, 0, protocol.LojaFiltroTodos); lista.Total != 0 {
+		t.Errorf("o fluxo antigo montou barraca: %d ofertas; queria 0", lista.Total)
+	}
 }

@@ -25,6 +25,16 @@ constexpr WORD kMsgPede = 0x0F01;
 constexpr WORD kMsgLista = 0x0F02;
 constexpr WORD kMsgMoeda = 0x0F03;
 constexpr WORD kMsgCompra = 0x0F04;
+constexpr WORD kMsgCofre = 0x0F05;
+constexpr WORD kMsgCofreLista = 0x0F06;
+constexpr WORD kMsgAbrir = 0x0F07;
+constexpr WORD kMsgAbriu = 0x0F08;
+
+constexpr int kMaxCofre = 128;
+constexpr int kMaxPrateleiras = 12;
+constexpr int kTamItemCofre = 8;
+constexpr int kTamPrateleira = 8;
+constexpr int kTamTitulo = 24;
 
 constexpr int kCabecalho = 12;
 constexpr int kPorPagina = 32;      // igual ao servidor
@@ -37,6 +47,9 @@ int g_paginas = 1;
 int g_pagina = 0;
 int g_quantas = 0;
 int g_saldo[3] = {0, 0, 0};
+LojaItemCofre g_cofre[kMaxCofre];
+int g_cofreQtd = 0;
+int g_barracaAberta = 0;
 bool g_respondeu = false;
 
 } // namespace
@@ -79,6 +92,36 @@ void LojaRedeMoeda(int slot, int moeda) {
     Envia(kMsgMoeda, corpo, sizeof(corpo));
 }
 
+void LojaRedePedeCofre() {
+    Envia(kMsgCofre, nullptr, 0);
+}
+
+int LojaRedeCofreQtd() {
+    return g_cofreQtd;
+}
+
+const LojaItemCofre* LojaRedeCofreItem(int i) {
+    return (i >= 0 && i < g_cofreQtd) ? &g_cofre[i] : nullptr;
+}
+
+int LojaRedeBarracaAberta() {
+    return g_barracaAberta;
+}
+
+void LojaRedeAbre(const LojaPrateleira* prateleiras, int quantas) {
+    BYTE corpo[kTamTitulo + kMaxPrateleiras * kTamPrateleira];
+    memset(corpo, 0, sizeof(corpo));
+    // Titulo vazio: o servidor poe o nome do personagem.
+    for (int i = 0; i < kMaxPrateleiras; ++i) {
+        BYTE* p = corpo + kTamTitulo + i * kTamPrateleira;
+        const bool tem = (i < quantas && prateleiras[i].cargoPos >= 0);
+        p[0] = tem ? static_cast<BYTE>(prateleiras[i].cargoPos) : 0xFF;   // -1
+        p[1] = tem ? prateleiras[i].moeda : 0;
+        *reinterpret_cast<int*>(p + 4) = tem ? prateleiras[i].preco : 0;
+    }
+    Envia(kMsgAbrir, corpo, sizeof(corpo));
+}
+
 bool LojaRedeRespondeu() {
     return g_respondeu;
 }
@@ -112,10 +155,32 @@ extern "C" int __cdecl LojaRedeRecebe(const unsigned char* pacote) {
         return 0;
     }
     const WORD tipo = *reinterpret_cast<const WORD*>(pacote + 4);
+    const unsigned char* corpo = pacote + kCabecalho;
+    if (tipo == kMsgCofreLista) {
+        g_cofreQtd = *reinterpret_cast<const short*>(corpo + 0);
+        if (g_cofreQtd < 0) {
+            g_cofreQtd = 0;
+        }
+        if (g_cofreQtd > kMaxCofre) {
+            g_cofreQtd = kMaxCofre;
+        }
+        for (int i = 0; i < g_cofreQtd; ++i) {
+            const unsigned char* o = corpo + 4 + i * kTamItemCofre;
+            g_cofre[i].slot = *reinterpret_cast<const short*>(o + 0);
+            g_cofre[i].indice = *reinterpret_cast<const short*>(o + 2);
+            g_cofre[i].refino = o[4];
+            g_cofre[i].qtd = o[5];
+        }
+        return 1;
+    }
+    if (tipo == kMsgAbriu) {
+        g_barracaAberta = *reinterpret_cast<const int*>(corpo + 0);
+        CamadaLog("=== loja: a barraca subiu");
+        return 1;
+    }
     if (tipo != kMsgLista) {
         return 0;
     }
-    const unsigned char* corpo = pacote + kCabecalho;
     g_pagina = *reinterpret_cast<const short*>(corpo + 0);
     g_paginas = *reinterpret_cast<const short*>(corpo + 2);
     g_total = *reinterpret_cast<const short*>(corpo + 4);

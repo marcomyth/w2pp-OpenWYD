@@ -36,6 +36,7 @@ constexpr int kEspacoSlot = 4;
 constexpr int kColunas = 8;
 constexpr int kLinhas = 4;
 constexpr int kPorPagina = kColunas * kLinhas;
+constexpr int kMaxPrateleiras = 12;   // MAX_AUTOTRADE, as prateleiras da barraca
 constexpr int kAltDetalhe = 16;
 constexpr int kAltRodape = 22;
 
@@ -74,6 +75,21 @@ const char* const kMenu[kMenuTotal] = {"Todos",      "Ouro",         "Cash",
                                        "RMT",        "Meus itens",   "Criar lojinha",
                                        "Realizar saque"};
 
+// Em modo montagem a mesma coluna vira os controles de preco: cada degrau soma,
+// "Zerar" recomeca e "Moeda" gira entre ouro, cash e RMT.
+enum {
+    kMontaVoltar = 0,
+    kMontaMil,
+    kMontaDezMil,
+    kMontaCemMil,
+    kMontaMilhao,
+    kMontaZerar,
+    kMontaMoeda,
+};
+const char* const kMenuMonta[kMenuTotal] = {"Voltar", "+1 mil", "+10 mil", "+100 mil",
+                                            "+1 milhao", "Zerar", "Moeda"};
+const int kDegrau[kMenuTotal] = {0, 1000, 10000, 100000, 1000000, 0, 0};
+
 // --- estado ----------------------------------------------------------------
 Tela g_tela;
 HFONT g_fonte = nullptr;
@@ -84,8 +100,20 @@ int g_filtro = kMenuTodos;
 int g_pagina = 0;
 int g_escolhido = -1;
 int g_versao = 0;
+
+// Montar a barraca: o painel virou a janela de montagem, porque a do cliente so
+// sabia de ouro. Nao ha onde digitar - o cliente le o teclado por conta dele e
+// cada numero e um atalho do jogo -, entao o preco entra por botoes e o titulo
+// e o nome do personagem, posto pelo servidor.
+bool g_montando = false;
+int g_cofrePagina = 0;
+int g_cofreEscolhido = -1;    // indice na lista do cofre
+int g_precoEdicao = 0;
+int g_moedaEdicao = kOuro;
+LojaPrateleira g_prateleiras[kMaxPrateleiras];
+int g_prateleirasUsadas = 0;
+
 bool g_roubaClique = true;   // desligado durante investigacoes no botao original
-DWORD g_devolveBotaoAte = 0; // ate este instante o botao volta a ser do jogo
 
 // Em jogo, ou ainda na tela de servidor/personagem? A cena do cliente
 // (0x6F0AB0) so existe depois de entrar com o personagem, e o +0x4C guarda a
@@ -313,7 +341,8 @@ void PintaCabecalho(HDC hdc) {
     SelectObject(hdc, g_negrito);
     SetTextColor(hdc, RGB(255, 255, 255));
     RECT rt = {x + 18, y, x + l - 30, y + kAltCabecalho};
-    DrawTextA(hdc, "Loja do Servidor", -1, &rt, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    DrawTextA(hdc, g_montando ? "Montar a minha barraca" : "Loja do Servidor", -1, &rt,
+              DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
     const RECT f = AreaFechar();
     SelectObject(hdc, g_fonte);
@@ -348,12 +377,24 @@ void PintaSaldos(HDC hdc) {
 void PintaMenu(HDC hdc) {
     for (int i = 0; i < kMenuTotal; ++i) {
         const RECT r = AreaMenu(i);
-        const bool ativo = (i == g_filtro) && i <= kMenuMeus;
+        bool ativo = false;
+        char texto[32];
+        if (g_montando) {
+            if (i == kMontaMoeda) {
+                sprintf_s(texto, "Moeda: %s", kNomeMoeda[g_moedaEdicao % 3]);
+                ativo = true;
+            } else {
+                sprintf_s(texto, "%s", kMenuMonta[i]);
+            }
+        } else {
+            sprintf_s(texto, "%s", kMenu[i]);
+            ativo = (i == g_filtro) && i <= kMenuMeus;
+        }
         LinhaBotao(hdc, r.left, r.top, kLargMenu, kAltBotao, ativo);
         SelectObject(hdc, ativo ? g_negrito : g_fonte);
         SetTextColor(hdc, ativo ? kTextoAtivo : kTexto);
-        RECT rt = {r.left + 10, r.top, r.right - 10, r.bottom};
-        DrawTextA(hdc, kMenu[i], -1, &rt, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        RECT rt = {r.left + 8, r.top, r.right - 8, r.bottom};
+        DrawTextA(hdc, texto, -1, &rt, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
     }
 }
 
@@ -395,11 +436,74 @@ void PintaSlot(HDC hdc, const RECT& r, const LojaOferta* o, bool escolhido) {
     DrawTextA(hdc, preco, -1, &rp, DT_CENTER | DT_BOTTOM | DT_SINGLELINE | DT_NOPREFIX);
 }
 
+// Um item do cofre na grade da montagem. O que ja esta numa prateleira aparece
+// com a marca da moeda escolhida, para nao entrar duas vezes.
+void PintaSlotCofre(HDC hdc, const RECT& r, const LojaItemCofre* it, bool escolhido,
+                    int prateleira) {
+    Degrade(hdc, r.left, r.top, kSlot, kSlot, RGB(28, 22, 16), RGB(14, 11, 8));
+    Contorno(hdc, r.left, r.top, kSlot, kSlot, escolhido ? kCanto : RGB(64, 53, 39));
+    if (it == nullptr) {
+        return;
+    }
+    const bool naBarraca = prateleira >= 0;
+    Losango(hdc, r.left + kSlot / 2, r.top + 15, 9,
+            naBarraca ? kCorMoeda[g_prateleiras[prateleira].moeda % 3] : RGB(120, 104, 78));
+    if (it->refino > 0) {
+        char ref[8];
+        sprintf_s(ref, "+%d", it->refino);
+        SelectObject(hdc, g_miudo);
+        SetTextColor(hdc, kCanto);
+        RECT rr = {r.left + 2, r.top + 1, r.left + kSlot - 2, r.top + 12};
+        DrawTextA(hdc, ref, -1, &rr, DT_LEFT | DT_TOP | DT_SINGLELINE | DT_NOPREFIX);
+    }
+    if (it->qtd > 1) {
+        char qtd[8];
+        sprintf_s(qtd, "%d", it->qtd);
+        SelectObject(hdc, g_miudo);
+        SetTextColor(hdc, RGB(255, 255, 255));
+        RECT rq = {r.left + 2, r.top + 1, r.left + kSlot - 3, r.top + 12};
+        DrawTextA(hdc, qtd, -1, &rq, DT_RIGHT | DT_TOP | DT_SINGLELINE | DT_NOPREFIX);
+    }
+    char rodape[16];
+    if (naBarraca) {
+        Curto(g_prateleiras[prateleira].preco, rodape, sizeof(rodape));
+    } else {
+        sprintf_s(rodape, "%d", it->indice);
+    }
+    SelectObject(hdc, g_miudo);
+    SetTextColor(hdc, naBarraca ? kCorMoeda[g_prateleiras[prateleira].moeda % 3] : kTextoFraco);
+    RECT rp = {r.left + 1, r.top + kSlot - 14, r.right - 1, r.bottom - 2};
+    DrawTextA(hdc, rodape, -1, &rp, DT_CENTER | DT_BOTTOM | DT_SINGLELINE | DT_NOPREFIX);
+}
+
+// Em que prateleira este slot do cofre ja esta, ou -1.
+int PrateleiraDoSlot(int cargoPos) {
+    for (int i = 0; i < g_prateleirasUsadas; ++i) {
+        if (g_prateleiras[i].cargoPos == cargoPos) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+int CofrePaginas() {
+    const int n = LojaRedeCofreQtd();
+    const int p = (n + kPorPagina - 1) / kPorPagina;
+    return p < 1 ? 1 : p;
+}
+
 void PintaGrade(HDC hdc) {
     for (int i = 0; i < kPorPagina; ++i) {
         const RECT r = AreaSlot(i);
-        const LojaOferta* o = LojaRedeOferta(i);
-        PintaSlot(hdc, r, o, o != nullptr && i == g_escolhido);
+        if (g_montando) {
+            const int qual = g_cofrePagina * kPorPagina + i;
+            const LojaItemCofre* it = LojaRedeCofreItem(qual);
+            PintaSlotCofre(hdc, r, it, it != nullptr && qual == g_cofreEscolhido,
+                           it != nullptr ? PrateleiraDoSlot(it->slot) : -1);
+        } else {
+            const LojaOferta* o = LojaRedeOferta(i);
+            PintaSlot(hdc, r, o, o != nullptr && i == g_escolhido);
+        }
     }
 }
 
@@ -410,6 +514,31 @@ void PintaDetalhe(HDC hdc) {
     Barra(hdc, x, y, l, 1, RGB(58, 48, 36));
 
     char texto[160];
+    if (g_montando) {
+        const LojaItemCofre* it = LojaRedeCofreItem(g_cofreEscolhido);
+        char valor[40];
+        Pontuado(g_precoEdicao, valor, sizeof(valor));
+        if (it == nullptr) {
+            sprintf_s(texto, "escolha um item do cofre   %d/%d prateleiras",
+                      g_prateleirasUsadas, kMaxPrateleiras);
+            SelectObject(hdc, g_fonte);
+            SetTextColor(hdc, kTextoFraco);
+        } else {
+            char item[48];
+            if (it->refino > 0) {
+                sprintf_s(item, "item %d +%d", it->indice, it->refino);
+            } else {
+                sprintf_s(item, "item %d", it->indice);
+            }
+            sprintf_s(texto, "%s   %s %s   %d/%d prateleiras", item, valor,
+                      kNomeMoeda[g_moedaEdicao % 3], g_prateleirasUsadas, kMaxPrateleiras);
+            SelectObject(hdc, g_negrito);
+            SetTextColor(hdc, kCorMoeda[g_moedaEdicao % 3]);
+        }
+        RECT rm = {x + 4, y + 2, x + l - 4, y + kAltDetalhe};
+        DrawTextA(hdc, texto, -1, &rm, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        return;
+    }
     const LojaOferta* esc = LojaRedeOferta(g_escolhido);
     if (esc != nullptr) {
         char valor[40];
@@ -456,11 +585,39 @@ void PintaRodape(HDC hdc) {
     DrawTextA(hdc, ">", -1, &rd, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
     char pag[16];
-    sprintf_s(pag, "%d/%d", g_pagina + 1, Paginas());
+    if (g_montando) {
+        sprintf_s(pag, "%d/%d", g_cofrePagina + 1, CofrePaginas());
+    } else {
+        sprintf_s(pag, "%d/%d", g_pagina + 1, Paginas());
+    }
     SelectObject(hdc, g_fonte);
     SetTextColor(hdc, kTexto);
     RECT rp = {esq.right, y, dir.left, y + kAltRodape};
     DrawTextA(hdc, pag, -1, &rp, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+
+    // Na montagem os mesmos dois botoes viram "Incluir" e "Abrir loja".
+    if (g_montando) {
+        const LojaItemCofre* it = LojaRedeCofreItem(g_cofreEscolhido);
+        const bool podeIncluir = it != nullptr && g_precoEdicao > 0 &&
+                                 (PrateleiraDoSlot(it->slot) >= 0 ||
+                                  g_prateleirasUsadas < kMaxPrateleiras);
+        const RECT c = AreaBotaoComprar();
+        LinhaBotao(hdc, c.left, c.top, c.right - c.left, kAltRodape, podeIncluir);
+        SelectObject(hdc, podeIncluir ? g_negrito : g_fonte);
+        SetTextColor(hdc, podeIncluir ? kTextoAtivo : kTextoFraco);
+        RECT rc2 = {c.left, c.top, c.right, c.bottom};
+        DrawTextA(hdc, "Incluir", -1, &rc2, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+
+        const RECT f3 = AreaBotaoFechar();
+        const bool podeAbrir = g_prateleirasUsadas > 0;
+        LinhaBotao(hdc, f3.left, f3.top, f3.right - f3.left, kAltRodape, podeAbrir);
+        SelectObject(hdc, podeAbrir ? g_negrito : g_fonte);
+        SetTextColor(hdc, podeAbrir ? kTextoAtivo : kTextoFraco);
+        RECT rf3 = {f3.left, f3.top, f3.right, f3.bottom};
+        DrawTextA(hdc, "Abrir loja", -1, &rf3,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        return;
+    }
 
     // Comprar so acende com uma oferta escolhida que esteja ao alcance: a vitrine
     // junta a cidade, mas levar o item exige estar perto da barraca.
@@ -558,10 +715,115 @@ bool BarraAberta() {
 }
 
 // --- cliques ---------------------------------------------------------------
+// Guarda o item escolhido numa prateleira, ou atualiza a que ele ja ocupa.
+void IncluiNaBarraca() {
+    const LojaItemCofre* it = LojaRedeCofreItem(g_cofreEscolhido);
+    if (it == nullptr || g_precoEdicao <= 0) {
+        return;
+    }
+    int onde = PrateleiraDoSlot(it->slot);
+    if (onde < 0) {
+        if (g_prateleirasUsadas >= kMaxPrateleiras) {
+            return;
+        }
+        onde = g_prateleirasUsadas++;
+    }
+    g_prateleiras[onde].cargoPos = static_cast<signed char>(it->slot);
+    g_prateleiras[onde].moeda = static_cast<unsigned char>(g_moedaEdicao);
+    g_prateleiras[onde].preco = g_precoEdicao;
+}
+
+void EntraNaMontagem() {
+    g_montando = true;
+    g_cofrePagina = 0;
+    g_cofreEscolhido = -1;
+    g_precoEdicao = 0;
+    g_moedaEdicao = kOuro;
+    g_prateleirasUsadas = 0;
+    for (int i = 0; i < kMaxPrateleiras; ++i) {
+        g_prateleiras[i].cargoPos = -1;
+        g_prateleiras[i].moeda = 0;
+        g_prateleiras[i].preco = 0;
+    }
+    LojaRedePedeCofre();
+}
+
+void SaiDaMontagem() {
+    g_montando = false;
+    g_escolhido = -1;
+    PedeAoServidor();
+}
+
+// Cliques da tela de montagem. A coluna da esquerda vira os degraus de preco,
+// a grade e o cofre, e os dois botoes do rodape incluem e abrem.
+void CliqueMontagem(int x, int y) {
+    for (int i = 0; i < kMenuTotal; ++i) {
+        const RECT r = AreaMenu(i);
+        if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) {
+            if (i == kMontaVoltar) {
+                SaiDaMontagem();
+            } else if (i == kMontaZerar) {
+                g_precoEdicao = 0;
+            } else if (i == kMontaMoeda) {
+                g_moedaEdicao = (g_moedaEdicao + 1) % 3;
+            } else {
+                g_precoEdicao += kDegrau[i];
+            }
+            return;
+        }
+    }
+    for (int i = 0; i < kPorPagina; ++i) {
+        const RECT r = AreaSlot(i);
+        if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) {
+            const int qual = g_cofrePagina * kPorPagina + i;
+            const LojaItemCofre* it = LojaRedeCofreItem(qual);
+            if (it == nullptr) {
+                return;
+            }
+            g_cofreEscolhido = qual;
+            // Item que ja esta na barraca volta com o preco e a moeda dele, para
+            // dar para corrigir sem comecar de novo.
+            const int onde = PrateleiraDoSlot(it->slot);
+            if (onde >= 0) {
+                g_precoEdicao = g_prateleiras[onde].preco;
+                g_moedaEdicao = g_prateleiras[onde].moeda;
+            }
+            return;
+        }
+    }
+    const RECT esq = AreaSeta(false);
+    const RECT dir = AreaSeta(true);
+    if (y >= esq.top && y < esq.bottom) {
+        if (x >= esq.left && x < esq.right && g_cofrePagina > 0) {
+            --g_cofrePagina;
+            return;
+        }
+        if (x >= dir.left && x < dir.right && g_cofrePagina + 1 < CofrePaginas()) {
+            ++g_cofrePagina;
+            return;
+        }
+        const RECT inc = AreaBotaoComprar();
+        if (x >= inc.left && x < inc.right) {
+            IncluiNaBarraca();
+            return;
+        }
+        const RECT abrir = AreaBotaoFechar();
+        if (x >= abrir.left && x < abrir.right && g_prateleirasUsadas > 0) {
+            LojaRedeAbre(g_prateleiras, g_prateleirasUsadas);
+            SaiDaMontagem();
+        }
+    }
+}
+
 void CliqueJanela(int x, int y) {
     const RECT f = AreaFechar();
     if (x >= f.left - 4 && x <= f.right + 4 && y >= f.top - 4 && y <= f.bottom + 4) {
         g_aberta = false;
+        g_montando = false;
+        return;
+    }
+    if (g_montando) {
+        CliqueMontagem(x, y);
         return;
     }
     for (int i = 0; i < kMenuTotal; ++i) {
@@ -573,14 +835,7 @@ void CliqueJanela(int x, int y) {
                 g_escolhido = -1;
                 PedeAoServidor();
             } else if (i == kMenuCriar) {
-                // A barraca continua sendo montada pela janela do proprio jogo:
-                // e la que o jogador escolhe itens do cofre e digita precos. Nos
-                // devolvemos o botao da barra por alguns segundos para que o
-                // clique seguinte abra aquele fluxo; a moeda de cada item ele
-                // escolhe depois, aqui, em "Meus itens".
-                g_aberta = false;
-                g_devolveBotaoAte = GetTickCount() + 6000;
-                Log("=== loja: devolvendo o botao ao jogo para montar a barraca");
+                EntraNaMontagem();
             } else {
                 // EMENDA PARA A HANNA: sacar o dinheiro de vendas em Cash/RMT
                 // mexe no saldo da CONTA, que vive no banco do site. Falta o
@@ -636,27 +891,28 @@ void CliqueJanela(int x, int y) {
 }
 
 // --- as tres camadas -------------------------------------------------------
-void VigiaBotaoDoJogo() {
+// A lojinha antiga esta aposentada: se a janela dela aparecer por qualquer
+// caminho, e fechada na hora. Ela NAO abre a nossa - abrir a nossa e so pelo
+// clique no botao da barra. Enquanto esta funcao tambem abria, a loja aparecia
+// sozinha: bastava o cliente marcar aquela janela como ativa por um instante.
+void FechaLojinhaAntiga() {
     if (!EmJogo()) {
         return;
     }
     volatile WORD* ativa = reinterpret_cast<volatile WORD*>(kIdJanelaAtiva);
-
     if (*ativa != kIdLojaPessoal) {
         return;
     }
     *ativa = kIdNenhuma;
-    if (!g_aberta) {
-        g_aberta = true;
-        g_escolhido = -1;
-        PedeAoServidor();
-        Repinta();
-        Log("=== loja: botao da Loja Pessoal tomado, abrindo a nossa");
+    static bool avisou = false;
+    if (!avisou) {
+        avisou = true;
+        Log("=== loja: janela da lojinha antiga fechada (ela esta aposentada)");
     }
 }
 
 int JanelaVisivel() {
-    VigiaBotaoDoJogo();   // roda todo quadro: e aqui que o botao do jogo e tomado
+    FechaLojinhaAntiga();   // roda todo quadro: a lojinha antiga nao volta
     RenovaSePreciso();
     return g_aberta ? 1 : 0;
 }
@@ -695,12 +951,6 @@ void JanelaClique(int x, int y) {
 int BotaoVisivel() {
     if (!g_roubaClique || !EmJogo()) {
         return 0;
-    }
-    if (g_devolveBotaoAte != 0) {
-        if (GetTickCount() < g_devolveBotaoAte) {
-            return 0;   // o clique e do jogo: e assim que a barraca e montada
-        }
-        g_devolveBotaoAte = 0;
     }
     return BarraAberta() ? 1 : 0;
 }

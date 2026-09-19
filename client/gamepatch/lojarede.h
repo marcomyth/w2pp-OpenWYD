@@ -32,6 +32,34 @@ void LojaRedeCompra(int vendedor, int slot, int moeda);
 // Troca a moeda de um item da MINHA barraca.
 void LojaRedeMoeda(int slot, int moeda);
 
+// --- montar a barraca -------------------------------------------------------
+
+// Um item do cofre, como o servidor o descreve.
+struct LojaItemCofre {
+    short slot;
+    short indice;
+    unsigned char refino;
+    unsigned char qtd;
+};
+
+// Uma prateleira da barraca a montar.
+struct LojaPrateleira {
+    signed char cargoPos;   // -1 = vazia
+    unsigned char moeda;
+    int preco;
+};
+
+// Pede o cofre ao servidor (o painel precisa dele para montar a barraca).
+void LojaRedePedeCofre();
+int LojaRedeCofreQtd();
+const LojaItemCofre* LojaRedeCofreItem(int i);
+
+// Manda montar a barraca. Sem título: o servidor usa o nome do personagem.
+void LojaRedeAbre(const LojaPrateleira* prateleiras, int quantas);
+
+// Id da barraca que subiu, 0 enquanto nenhuma subiu nesta sessão.
+int LojaRedeBarracaAberta();
+
 // O que veio na última resposta.
 bool LojaRedeRespondeu();
 int LojaRedeTotal();

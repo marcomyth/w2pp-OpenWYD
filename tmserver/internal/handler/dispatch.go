@@ -701,6 +701,8 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgLojaPede] = d.lojaPede
 	d.routes[protocol.MsgLojaMoeda] = d.lojaMoeda
 	d.routes[protocol.MsgLojaCompra] = d.lojaCompra
+	d.routes[protocol.MsgLojaCargo] = d.lojaCargo
+	d.routes[protocol.MsgLojaAbrir] = d.lojaAbrir
 	// Batch 6 — combine/refine (one engine, all Item[]-based variants).
 	for _, ty := range combineItemTypes {
 		d.routes[ty] = d.combineItem

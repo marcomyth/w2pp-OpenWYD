@@ -56,7 +56,21 @@ func autoTradeInRange(a, b *world.Entity) bool {
 // are validated against the seller's account Cargo (memcmp anti item-swap) and the
 // sIndex blacklist; the shop is village-only. On success it stores the shop, sets
 // TradeMode, sends the owner its own list, and multicasts the stall pose.
-func (d *Dispatcher) sendAutoTrade(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
+// APOSENTADA (18/09/2026). A janela de barraca do cliente saiu de cena: ela só
+// sabe de ouro, e quem monta a barraca agora é o painel da Loja do Servidor
+// (lojaabrir.go), onde o vendedor escolhe também a moeda de cada item. O
+// GamePatch já toma o clique do botão na barra, então este pacote não deveria
+// mais chegar; se chegar — cliente antigo, ou alguém falando direto com o
+// servidor —, a resposta é recusar, e não abrir uma barraca pela metade, sem
+// moeda escolhida.
+func (d *Dispatcher) sendAutoTrade(w *world.World, s *world.Session, _ protocol.Header, _ []byte) {
+	d.log.Info("autotrade: janela antiga recusada, a barraca se monta pelo painel", "conn", s.Conn)
+	d.notify(w, s, NoticeCantAutoTrade)
+}
+
+// sendAutoTradeLegado é o fluxo antigo, guardado inteiro para consulta e para o
+// caso de a decisão voltar atrás. Nada o chama.
+func (d *Dispatcher) sendAutoTradeLegado(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
 	e := w.Entity(s.Conn)
 	if e == nil || e.HP <= 0 || s.Mode != world.UserPlay {
 		w.AddCrackError(s, 10, 88)

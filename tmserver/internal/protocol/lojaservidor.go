@@ -20,6 +20,10 @@ import (
 //   MsgLojaLista (S→C): uma página de ofertas.
 //   MsgLojaMoeda (C→S): "este item da MINHA barraca é vendido nesta moeda".
 //   MsgLojaCompra(C→S): "quero este item desta barraca, nesta moeda".
+//   MsgLojaCargo (C→S): "o que eu tenho no cofre?" — para montar a barraca.
+//   MsgLojaCargoLista (S→C): o cofre, item a item.
+//   MsgLojaAbrir (C→S): "abre a minha barraca com estes itens, preços e moedas".
+//   MsgLojaAbriu (S→C): "subiu, e o id dela é este".
 //
 // Nada disso é persistido: a vitrine é montada na hora a partir das barracas
 // abertas, então fechar a lojinha tira as ofertas do ar no mesmo instante.
@@ -180,6 +184,138 @@ func (m *LojaCompraBody) Encode() []byte {
 	b[4] = byte(m.Slot)
 	b[5] = m.Moeda
 	return b
+}
+
+// --- montar a barraca pelo painel -------------------------------------------
+//
+// A janela de barraca do cliente está aposentada: ela só sabia de ouro e o
+// jogador escolhia os itens por lá. Agora quem monta é o painel, e para isso
+// precisa ver o cofre — que mora no servidor, não no cliente.
+
+// LojaCargoMax é MaxCargo, os slots do cofre da conta.
+const LojaCargoMax = 128
+
+// LojaCargoItemSize é uma linha do cofre: 8 bytes.
+const LojaCargoItemSize = 8
+
+// LojaCargoItem é um item do cofre como o painel precisa vê-lo.
+type LojaCargoItem struct {
+	Slot   int16
+	Indice int16
+	Refino uint8
+	Qtd    uint8
+}
+
+// LojaCargoListaBodySize é o corpo da resposta do cofre.
+const LojaCargoListaBodySize = 4 + LojaCargoMax*LojaCargoItemSize
+
+// LojaCargoListaBody é o cofre inteiro, só com os slots ocupados.
+type LojaCargoListaBody struct {
+	Qtd   int16
+	Itens [LojaCargoMax]LojaCargoItem
+}
+
+func (m *LojaCargoListaBody) Encode() []byte {
+	b := make([]byte, LojaCargoListaBodySize)
+	binary.LittleEndian.PutUint16(b[0:], uint16(m.Qtd))
+	for i := 0; i < LojaCargoMax; i++ {
+		o := 4 + i*LojaCargoItemSize
+		binary.LittleEndian.PutUint16(b[o+0:], uint16(m.Itens[i].Slot))
+		binary.LittleEndian.PutUint16(b[o+2:], uint16(m.Itens[i].Indice))
+		b[o+4] = m.Itens[i].Refino
+		b[o+5] = m.Itens[i].Qtd
+	}
+	return b
+}
+
+func (m *LojaCargoListaBody) Decode(b []byte) error {
+	if len(b) < LojaCargoListaBodySize {
+		return fmt.Errorf("loja: cofre com %d bytes, esperado %d", len(b), LojaCargoListaBodySize)
+	}
+	m.Qtd = int16(binary.LittleEndian.Uint16(b[0:]))
+	for i := 0; i < LojaCargoMax; i++ {
+		o := 4 + i*LojaCargoItemSize
+		m.Itens[i].Slot = int16(binary.LittleEndian.Uint16(b[o+0:]))
+		m.Itens[i].Indice = int16(binary.LittleEndian.Uint16(b[o+2:]))
+		m.Itens[i].Refino = b[o+4]
+		m.Itens[i].Qtd = b[o+5]
+	}
+	return nil
+}
+
+// LojaAbrirSlot é uma prateleira da barraca: de onde sai o item, por quanto e em
+// que moeda. CargoPos -1 é prateleira vazia.
+type LojaAbrirSlot struct {
+	CargoPos int8
+	Moeda    uint8
+	Preco    int32
+}
+
+// LojaAbrirSlotSize e LojaAbrirBodySize fecham o corpo do pedido.
+const (
+	LojaAbrirSlotSize = 8
+	LojaAbrirBodySize = autoTradeTitleLen + MaxAutoTradeWire*LojaAbrirSlotSize
+)
+
+// LojaAbrirBody é o pedido de montar a barraca. Repare que ele NÃO leva o item:
+// o servidor lê do cofre pela posição, que é o único lugar em que o item de
+// verdade existe.
+type LojaAbrirBody struct {
+	Titulo string
+	Slots  [MaxAutoTradeWire]LojaAbrirSlot
+}
+
+func (m *LojaAbrirBody) Encode() []byte {
+	b := make([]byte, LojaAbrirBodySize)
+	titulo := m.Titulo
+	if len(titulo) >= autoTradeTitleLen {
+		titulo = titulo[:autoTradeTitleLen-1]
+	}
+	copy(b[0:autoTradeTitleLen], titulo)
+	for i := 0; i < MaxAutoTradeWire; i++ {
+		o := autoTradeTitleLen + i*LojaAbrirSlotSize
+		b[o+0] = byte(m.Slots[i].CargoPos)
+		b[o+1] = m.Slots[i].Moeda
+		binary.LittleEndian.PutUint32(b[o+4:], uint32(m.Slots[i].Preco))
+	}
+	return b
+}
+
+func (m *LojaAbrirBody) Decode(b []byte) error {
+	if len(b) < LojaAbrirBodySize {
+		return fmt.Errorf("loja: abrir com %d bytes, esperado %d", len(b), LojaAbrirBodySize)
+	}
+	m.Titulo = cTrimNUL(b[0:autoTradeTitleLen])
+	for i := 0; i < MaxAutoTradeWire; i++ {
+		o := autoTradeTitleLen + i*LojaAbrirSlotSize
+		m.Slots[i].CargoPos = int8(b[o+0])
+		m.Slots[i].Moeda = b[o+1]
+		m.Slots[i].Preco = int32(binary.LittleEndian.Uint32(b[o+4:]))
+	}
+	return nil
+}
+
+// LojaAbriuBody confirma que a barraca subiu e diz por qual id ela é comprada —
+// o mesmo que a vitrine mostra nas ofertas.
+type LojaAbriuBody struct {
+	Barraca int32
+}
+
+// LojaAbriuBodySize é o tamanho do corpo.
+const LojaAbriuBodySize = 4
+
+func (m *LojaAbriuBody) Encode() []byte {
+	b := make([]byte, LojaAbriuBodySize)
+	binary.LittleEndian.PutUint32(b[0:], uint32(m.Barraca))
+	return b
+}
+
+func (m *LojaAbriuBody) Decode(b []byte) error {
+	if len(b) < LojaAbriuBodySize {
+		return fmt.Errorf("loja: abriu com %d bytes, esperado %d", len(b), LojaAbriuBodySize)
+	}
+	m.Barraca = int32(binary.LittleEndian.Uint32(b[0:]))
+	return nil
 }
 
 // LojaListaBodySize é o corpo da resposta: o cabeçalho da página e as ofertas.
