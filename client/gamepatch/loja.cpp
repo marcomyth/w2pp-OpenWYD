@@ -288,11 +288,14 @@ void Pontuado(long long v, char* saida, size_t n) {
 }
 
 // No quadrado do item nao cabe o numero inteiro: 250000000 vira "250M".
+// Numero curto, do jeito que cabe num quadrado ou no rodape. Abaixo de dez mil
+// ele vai inteiro - e a faixa onde cash e RMT vivem, e arredondar ali seria
+// esconder justamente o que interessa.
 void Curto(long long v, char* saida, size_t n) {
     if (v >= 1000000000LL) {
-        sprintf_s(saida, n, "%lldB", v / 1000000000LL);
+        sprintf_s(saida, n, "%lld,%lldB", v / 1000000000LL, (v / 100000000LL) % 10);
     } else if (v >= 1000000LL) {
-        sprintf_s(saida, n, "%lldM", v / 1000000LL);
+        sprintf_s(saida, n, "%lld,%lldM", v / 1000000LL, (v / 100000LL) % 10);
     } else if (v >= 10000LL) {
         sprintf_s(saida, n, "%lldk", v / 1000LL);
     } else {
@@ -844,6 +847,13 @@ constexpr DWORD kNoRetangulo = 0x04;
 
 DWORD g_faixaVistaEm = 0;
 
+// A faixa de icones, como o cliente a desenhou neste quadro. Guardada para o
+// diagnostico do icone poder dizer onde o clique caiu DENTRO dela.
+float g_faixaX = 0.0f;
+float g_faixaY = 0.0f;
+float g_faixaL = 0.0f;
+float g_faixaA = 0.0f;
+
 extern "C" void __cdecl LojaAnotaNo(DWORD no) {
     if (no < 0x10000) {
         return;
@@ -864,6 +874,10 @@ extern "C" void __cdecl LojaAnotaNo(DWORD no) {
     const float topo = static_cast<float>(cy);
     if (x <= esq && x + l >= dir && y <= topo + 2.0f && y + a >= topo + 2.0f) {
         g_faixaVistaEm = GetTickCount();
+        g_faixaX = x;
+        g_faixaY = y;
+        g_faixaL = l;
+        g_faixaA = a;
     }
 }
 
@@ -1178,6 +1192,7 @@ void CliqueJanela(int x, int y) {
 }
 
 void JanelaMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura);
+void DiagCliqueNaFaixa();
 
 // --- a dica do item --------------------------------------------------------
 //
@@ -1190,9 +1205,10 @@ int g_dicaVersao = 0;
 int g_dicaDesenhado = -1;
 int g_dicaL = 0;
 int g_dicaA = 0;
+RECT g_dicaSlot = {0, 0, 0, 0};   // o quadrado sob o cursor, em tela
 
-constexpr int kDicaPad = 8;
-constexpr int kDicaLinha = 15;
+constexpr int kDicaPad = 7;
+constexpr int kDicaAlt = 19;
 
 // Uma DC so para medir texto: a medida acontece antes de haver onde pintar.
 HDC MedidorDC() {
@@ -1204,10 +1220,10 @@ HDC MedidorDC() {
 }
 
 void MedeDica(int item, int* larg, int* alt) {
-    const int linhas = DicaLinhas(item);
     *larg = 0;
     *alt = 0;
-    if (linhas <= 0) {
+    const char* nome = DicaLinha(item, 0);
+    if (nome == nullptr || nome[0] == 0) {
         return;
     }
     CriaFontes();
@@ -1215,23 +1231,17 @@ void MedeDica(int item, int* larg, int* alt) {
     if (dc == nullptr) {
         return;
     }
-    int maior = 0;
-    for (int i = 0; i < linhas; ++i) {
-        const char* t = DicaLinha(item, i);
-        if (t == nullptr) {
-            continue;
-        }
-        SelectObject(dc, i == 0 ? g_negrito : g_fonte);
-        SIZE sz;
-        if (GetTextExtentPoint32A(dc, t, static_cast<int>(strlen(t)), &sz) && sz.cx > maior) {
-            maior = sz.cx;
-        }
+    SelectObject(dc, g_negrito);
+    SIZE sz;
+    if (!GetTextExtentPoint32A(dc, nome, static_cast<int>(strlen(nome)), &sz)) {
+        return;
     }
-    *larg = maior + kDicaPad * 2 + 6;
-    *alt = linhas * kDicaLinha + kDicaPad * 2;
+    *larg = sz.cx + kDicaPad * 2;
+    *alt = kDicaAlt;
 }
 
-// Qual item esta sob o cursor. Roda todo quadro, junto com a camada da janela.
+// Qual item esta sob o cursor, e onde esta o quadrado dele. Roda todo quadro,
+// junto com a camada da janela.
 void AtualizaDica() {
     const int antes = g_dicaItem;
     g_dicaItem = 0;
@@ -1265,6 +1275,12 @@ void AtualizaDica() {
                     g_dicaItem = o->indice;
                 }
             }
+            if (g_dicaItem != 0) {
+                g_dicaSlot.left = px + r.left;
+                g_dicaSlot.top = py + r.top;
+                g_dicaSlot.right = px + r.right;
+                g_dicaSlot.bottom = py + r.bottom;
+            }
         }
     }
     if (g_dicaItem != antes) {
@@ -1273,9 +1289,16 @@ void AtualizaDica() {
 }
 
 int DicaVisivel() {
-    return (g_dicaItem > 0 && DicaLinhas(g_dicaItem) > 0) ? 1 : 0;
+    if (g_dicaItem <= 0) {
+        return 0;
+    }
+    const char* nome = DicaLinha(g_dicaItem, 0);
+    return (nome != nullptr && nome[0] != 0) ? 1 : 0;
 }
 
+// Em cima do quadrado, encostada nele. Nao ha caixa de descricao: o que o jogo
+// mostra ali e o nome, e uma janela grande ao lado do painel tapava a vitrine
+// inteira enquanto o mouse passeava.
 void DicaMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura) {
     MedeDica(g_dicaItem, &g_dicaL, &g_dicaA);
     *largura = g_dicaL;
@@ -1283,25 +1306,19 @@ void DicaMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura)
     if (g_dicaL <= 0 || g_dicaA <= 0) {
         return;
     }
-    int px = 0;
-    int py = 0;
-    int pl = 0;
-    int pa = 0;
-    JanelaMedida(telaL, telaA, &px, &py, &pl, &pa);
-    // Ao lado do painel, nunca embaixo do cursor - senao a caixa roubaria o
-    // clique de quem esta escolhendo o item.
-    *x = px + pl + 4;
-    if (*x + g_dicaL > telaL) {
-        *x = px - g_dicaL - 4;
-    }
+    const int meio = (g_dicaSlot.left + g_dicaSlot.right) / 2;
+    *x = meio - g_dicaL / 2;
+    *y = g_dicaSlot.top - g_dicaA - 2;
     if (*x < 0) {
         *x = 0;
     }
-    int cx = 0;
-    int cy = 0;
-    *y = CamadaCursor(&cx, &cy) ? cy - g_dicaA / 2 : py;
+    if (*x + g_dicaL > telaL) {
+        *x = telaL - g_dicaL;
+    }
+    // Sem espaco em cima (primeira fileira colada no topo da tela), desce para
+    // baixo do quadrado - nunca por cima dele, que e onde o cursor esta.
     if (*y < 0) {
-        *y = 0;
+        *y = g_dicaSlot.bottom + 2;
     }
     if (*y + g_dicaA > telaA) {
         *y = telaA - g_dicaA;
@@ -1316,21 +1333,15 @@ const void* DicaPixels(int* versao) {
         g_dicaDesenhado = g_dicaVersao;
         HDC hdc = g_telaDica.dc;
         SetBkMode(hdc, TRANSPARENT);
-        Moldura(hdc, g_dicaL, g_dicaA);
-        const int linhas = DicaLinhas(g_dicaItem);
-        for (int i = 0; i < linhas; ++i) {
-            const char* t = DicaLinha(g_dicaItem, i);
-            if (t == nullptr) {
-                continue;
-            }
-            SelectObject(hdc, i == 0 ? g_negrito : g_fonte);
-            SetTextColor(hdc, i == 0 ? RGB(255, 255, 255)
-                                     : (DicaLinhaRotulo(g_dicaItem, i) ? kCanto : kTexto));
-            RECT rt = {kDicaPad, kDicaPad + i * kDicaLinha, g_dicaL - kDicaPad,
-                       kDicaPad + (i + 1) * kDicaLinha};
-            DrawTextA(hdc, t, -1, &rt, DT_LEFT | DT_TOP | DT_SINGLELINE | DT_NOPREFIX);
-        }
-        TelaFecha(&g_telaDica, 235);
+        Degrade(hdc, 0, 0, g_dicaL, g_dicaA, RGB(30, 23, 16), RGB(14, 11, 8));
+        Contorno(hdc, 0, 0, g_dicaL, g_dicaA, kCabBorda);
+        const char* nome = DicaLinha(g_dicaItem, 0);
+        SelectObject(hdc, g_negrito);
+        SetTextColor(hdc, RGB(255, 255, 255));
+        RECT rt = {kDicaPad, 0, g_dicaL - kDicaPad, g_dicaA};
+        DrawTextA(hdc, nome != nullptr ? nome : "", -1, &rt,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        TelaFecha(&g_telaDica, 240);
     }
     *versao = g_dicaVersao;
     return g_telaDica.pixels;
@@ -1377,6 +1388,16 @@ int LojaEsc() {
 
 int JanelaVisivel() {
     DiagJanelaAtiva();
+    if (g_diag != 0) {
+        // Borda de aperto do botao esquerdo, vista de fora do dono do clique:
+        // serve so para a sonda da faixa saber quando olhar.
+        static bool antes = false;
+        const bool agora = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+        if (agora && !antes) {
+            DiagCliqueNaFaixa();
+        }
+        antes = agora;
+    }
     // O teclado e decidido a cada quadro, e nao em cada caminho que abre ou
     // fecha o painel: o X, o icone, o Esc e o botao Fechar sao quatro saidas, e
     // esquecer uma delas deixaria o teclado preso conosco.
@@ -1449,6 +1470,37 @@ void BotaoMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura
 const void* BotaoPixels(int* versao) {
     *versao = 0;
     return nullptr;   // camada sem desenho
+}
+
+// Diagnostico do lugar do icone: com a barra aberta, anota todo clique que caiu
+// na faixa e NAO foi nosso. E assim que se descobre onde termina a celula da
+// Loja Pessoal sem adivinhar - a nossa area pode estar menor que ela, e a sobra
+// e por onde a lojinha antiga ainda abre.
+void DiagCliqueNaFaixa() {
+    if (g_diag == 0 || !BarraAberta()) {
+        return;
+    }
+    int cx = 0;
+    int cy = 0;
+    if (!CamadaCursor(&cx, &cy)) {
+        return;
+    }
+    if (static_cast<float>(cx) < g_faixaX || static_cast<float>(cx) > g_faixaX + g_faixaL ||
+        static_cast<float>(cy) < g_faixaY || static_cast<float>(cy) > g_faixaY + g_faixaA) {
+        return;
+    }
+    int ix = 0;
+    int iy = 0;
+    IconeCanto(CamadaTelaL(), CamadaTelaA(), &ix, &iy);
+    if (cx >= ix && cx < ix + g_iconeL && cy >= iy && cy < iy + g_iconeA) {
+        return;   // esse foi nosso
+    }
+    char buf[200];
+    sprintf_s(buf,
+              "=== diag faixa: clique em (%d,%d); faixa (%.0f,%.0f %.0fx%.0f); nosso icone "
+              "(%d,%d %dx%d)",
+              cx, cy, g_faixaX, g_faixaY, g_faixaL, g_faixaA, ix, iy, g_iconeL, g_iconeA);
+    Log(buf);
 }
 
 void BotaoClique(int, int) {
