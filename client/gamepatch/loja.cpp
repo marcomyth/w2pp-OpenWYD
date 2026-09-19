@@ -15,6 +15,7 @@
 // Roubar o clique resolveu as duas coisas de uma vez.
 
 #include "camadas.h"
+#include "icones.h"
 #include "lojarede.h"
 #include "pincel.h"
 
@@ -445,6 +446,20 @@ void PintaMenu(HDC hdc) {
     }
 }
 
+// O desenho do item, tirado das folhas do proprio cliente. Ele nao passa pelo
+// GDI: e escrito direto nos pixels do DIB, entao o que o GDI ja pintou precisa
+// estar no lugar - dai o GdiFlush. Item sem icone volta ao losango na cor da
+// moeda, que era o que a loja desenhava antes.
+void DesenhaIcone(HDC hdc, const RECT& r, int item, COLORREF corMoeda) {
+    const int lado = IconeLado();
+    const int x = r.left + (kSlot - lado) / 2;
+    const int y = r.top + 1;
+    GdiFlush();
+    if (IconeDesenha(g_tela.pixels, g_tela.l, g_tela.a, x, y, item) == 0) {
+        Losango(hdc, r.left + kSlot / 2, r.top + 15, 9, corMoeda);
+    }
+}
+
 // O quadrado do item: moldura de encaixe, um losango na cor da moeda no lugar
 // do desenho do item (que virá das texturas do cliente) e o preco curto embaixo.
 void PintaSlot(HDC hdc, const RECT& r, const LojaOferta* o, bool escolhido) {
@@ -453,7 +468,7 @@ void PintaSlot(HDC hdc, const RECT& r, const LojaOferta* o, bool escolhido) {
     if (o == nullptr) {
         return;
     }
-    Losango(hdc, r.left + kSlot / 2, r.top + 15, 9, kCorMoeda[o->moeda % 3]);
+    DesenhaIcone(hdc, r, o->indice, kCorMoeda[o->moeda % 3]);
     if (o->perto == 0) {
         // Fora do alcance de compra: a vitrine junta a cidade toda, mas levar
         // exige chegar perto da barraca.
@@ -493,8 +508,8 @@ void PintaSlotCofre(HDC hdc, const RECT& r, const LojaItemCofre* it, bool escolh
         return;
     }
     const bool naBarraca = prateleira >= 0;
-    Losango(hdc, r.left + kSlot / 2, r.top + 15, 9,
-            naBarraca ? kCorMoeda[g_prateleiras[prateleira].moeda % 3] : RGB(120, 104, 78));
+    DesenhaIcone(hdc, r, it->indice,
+                 naBarraca ? kCorMoeda[g_prateleiras[prateleira].moeda % 3] : RGB(120, 104, 78));
     if (it->refino > 0) {
         char ref[8];
         sprintf_s(ref, "+%d", it->refino);
@@ -1173,16 +1188,26 @@ void DesviaAppendNode() {
                           sizeof(salto));
 }
 
-constexpr DWORD kTeclaBaixo = 0x004B5803;
-constexpr BYTE kTeclaBaixoBytes[7] = {0x55, 0x8B, 0xEC, 0x51, 0x89, 0x4D, 0xFC};
+// O Esc tem DOIS consumidores, e era por isso que a loja fechava mas o menu
+// abria assim mesmo. O ramo de WM_KEYDOWN da WndProc (0x54C62F) entrega a tecla
+// ao jogo em 0x54C875 - o que o desvio anterior, em 0x4B5803, ja engolia - e
+// DEPOIS cai em 0x54D334, que repassa a mesma mensagem para o outro tratador
+// (o +0x11C, pela vtable +0x98) antes do DefWindowProc. E esse segundo que abre
+// o menu da engrenagem.
+//
+// Entao o desvio subiu: entra na entrada do ramo de WM_KEYDOWN e, quando a
+// tecla e nossa, sai da WndProc devolvendo 0 (0x54D3AB, que e o pop edi/leave/
+// ret 0x10 dela). Nenhum dos dois caminhos chega a ver a tecla.
+constexpr DWORD kRamoTecla = 0x0054C62F;
+constexpr BYTE kRamoTeclaBytes[6] = {0x8B, 0x95, 0x70, 0xFE, 0xFF, 0xFF};
 
 int g_engoliu = 0;
 
-__declspec(naked) void TeclaBaixoHook() {
+__declspec(naked) void RamoTeclaHook() {
     __asm {
         pushad
         pushfd
-        mov eax, [esp + 0x28]             // o codigo da tecla, argumento da chamada
+        mov eax, [ebp + 0x10]             // wParam da WndProc: o codigo da tecla
         push eax
         call LojaTecla
         add esp, 4
@@ -1191,38 +1216,37 @@ __declspec(naked) void TeclaBaixoHook() {
         popad
         cmp g_engoliu, 0
         je segue
-        ret 4                             // era nossa: o cliente nao a ve
+        xor eax, eax                      // era nossa: a WndProc devolve 0
+        push 0x0054D3AB
+        ret
     segue:
-        push ebp                          // instrucoes originais
-        mov ebp, esp
-        push ecx
-        mov dword ptr [ebp - 4], ecx
-        push 0x004B580A                   // volta depois delas
+        mov edx, dword ptr [ebp - 0x190]  // instrucao original
+        push 0x0054C635
         ret
     }
 }
 
 void DesviaTecla() {
-    if (memcmp(reinterpret_cast<void*>(kTeclaBaixo), kTeclaBaixoBytes,
-               sizeof(kTeclaBaixoBytes)) != 0) {
-        Log("=== loja: tecla com bytes diferentes, Esc nao sera tratado");
+    if (memcmp(reinterpret_cast<void*>(kRamoTecla), kRamoTeclaBytes,
+               sizeof(kRamoTeclaBytes)) != 0) {
+        Log("=== loja: ramo da tecla com bytes diferentes, Esc nao sera tratado");
         return;
     }
-    BYTE salto[sizeof(kTeclaBaixoBytes)];
+    BYTE salto[sizeof(kRamoTeclaBytes)];
     memset(salto, 0x90, sizeof(salto));
     salto[0] = 0xE9;
-    const DWORD rel = reinterpret_cast<DWORD>(&TeclaBaixoHook) - (kTeclaBaixo + 5);
+    const DWORD rel = reinterpret_cast<DWORD>(&RamoTeclaHook) - (kRamoTecla + 5);
     memcpy(salto + 1, &rel, sizeof(rel));
     DWORD antes = 0;
-    if (!VirtualProtect(reinterpret_cast<void*>(kTeclaBaixo), sizeof(salto),
+    if (!VirtualProtect(reinterpret_cast<void*>(kRamoTecla), sizeof(salto),
                         PAGE_EXECUTE_READWRITE, &antes)) {
         return;
     }
-    memcpy(reinterpret_cast<void*>(kTeclaBaixo), salto, sizeof(salto));
-    VirtualProtect(reinterpret_cast<void*>(kTeclaBaixo), sizeof(salto), antes, &antes);
-    FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(kTeclaBaixo),
+    memcpy(reinterpret_cast<void*>(kRamoTecla), salto, sizeof(salto));
+    VirtualProtect(reinterpret_cast<void*>(kRamoTecla), sizeof(salto), antes, &antes);
+    FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(kRamoTecla),
                           sizeof(salto));
-    Log("=== loja: Esc desviado em 0x4B5803");
+    Log("=== loja: Esc desviado em 0x54C62F");
 }
 
 struct Registro {
