@@ -157,6 +157,12 @@ type AutoTradeState struct {
 	Tax   int16
 	Slots [MaxAutoTrade]AutoTradeSlot
 
+	// Moeda de cada slot na vitrine (Loja do Servidor): 0 ouro, 1 cash, 2 RMT.
+	// A janela de barraca do cliente só sabe de ouro, então o vendedor escolhe a
+	// moeda depois, pelo nosso painel, e o preço digitado passa a ser cobrado
+	// nela. Slot sem escolha fica em ouro, que é o comportamento de sempre.
+	Moeda [MaxAutoTrade]uint8
+
 	// CloneID is the mob entity that stands in for the seller (Entity.ShopOwner
 	// points back). MaxUser or above when the stall is a separate body; 0 when
 	// the shop had to fall back to the legacy pose, which is what happens when no

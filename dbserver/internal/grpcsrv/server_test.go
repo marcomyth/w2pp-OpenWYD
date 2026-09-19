@@ -26,6 +26,9 @@ type fakeStore struct {
 	byID       map[int64]store.AccountAuth
 	chars      map[int64][]domain.Character // accountID -> characters
 	createErr  error
+	// transferencia e transfErr cobrem TransferePlayerBalance (Loja do Servidor).
+	transferencia transferenciaPedida
+	transfErr     error
 	archErr    error
 	archSlot   int
 	archChar   domain.Character
@@ -146,6 +149,25 @@ func (f *fakeStore) SaveCharacter(_ context.Context, _ int64, ch domain.Characte
 
 func (f *fakeStore) QuoteKingdomCape(context.Context) (domain.KingdomCapeQuote, error) {
 	return domain.KingdomCapeQuote{Revision: 1, HekalotiaCost: 8, AkeloniaCost: 8}, nil
+}
+
+// transferencia guarda a ultima transferencia de carteira pedida, e transfErr o
+// que o store deve devolver — e assim que os testes cobrem saldo curto e conta
+// que nao existe sem precisar de banco.
+type transferenciaPedida struct {
+	de, para int64
+	moeda    store.MoedaDeConta
+	valor    int32
+	motivo   string
+}
+
+func (f *fakeStore) TransferePlayerBalance(_ context.Context, de, para int64,
+	moeda store.MoedaDeConta, valor int32, motivo string) (int32, int32, error) {
+	f.transferencia = transferenciaPedida{de: de, para: para, moeda: moeda, valor: valor, motivo: motivo}
+	if f.transfErr != nil {
+		return 0, 0, f.transfErr
+	}
+	return 100 - valor, 100 + valor, nil
 }
 
 func (f *fakeStore) PurchaseKingdomCape(_ context.Context, _ int64, _ int64, kingdom uint8, ch domain.Character) (domain.KingdomCapeQuote, bool, error) {
@@ -658,5 +680,65 @@ func TestSetPinNoAccount(t *testing.T) {
 	}
 	if resp.GetOk() {
 		t.Error("SetPin ok=true for a missing account, want false")
+	}
+}
+
+// A transferência de carteira é o pagamento de uma venda na Loja do Servidor:
+// sai de uma conta e entra na outra, na mesma transação.
+func TestTransferePlayerBalance(t *testing.T) {
+	fs := &fakeStore{}
+	srv := New(fs)
+	resp, err := srv.TransferPlayerBalance(context.Background(), &dbv1.TransferPlayerBalanceRequest{
+		FromAccountId: 7, ToAccountId: 11,
+		Currency: dbv1.PlayerCurrency_PLAYER_CURRENCY_CASH, Amount: 30, Reason: "loja",
+	})
+	if err != nil {
+		t.Fatalf("transferencia devolveu erro: %v", err)
+	}
+	if !resp.GetOk() || resp.GetFromBalance() != 70 || resp.GetToBalance() != 130 {
+		t.Errorf("resposta = %+v; queria ok com 70 e 130", resp)
+	}
+	if got := fs.transferencia; got.de != 7 || got.para != 11 || got.moeda != store.MoedaCash ||
+		got.valor != 30 {
+		t.Errorf("store recebeu %+v; queria 7->11, cash, 30", got)
+	}
+}
+
+// Saldo curto não é falha de infraestrutura: volta no corpo, para o jogo poder
+// avisar o jogador.
+func TestTransfereSemSaldoVoltaNoCorpo(t *testing.T) {
+	fs := &fakeStore{transfErr: store.ErrSaldoInsuficiente}
+	srv := New(fs)
+	resp, err := srv.TransferPlayerBalance(context.Background(), &dbv1.TransferPlayerBalanceRequest{
+		FromAccountId: 7, ToAccountId: 11,
+		Currency: dbv1.PlayerCurrency_PLAYER_CURRENCY_RMT, Amount: 5,
+	})
+	if err != nil {
+		t.Fatalf("saldo curto virou erro de gRPC: %v", err)
+	}
+	if resp.GetOk() ||
+		resp.GetReason() != dbv1.TransferPlayerBalanceReason_TRANSFER_REASON_INSUFFICIENT_FUNDS {
+		t.Errorf("resposta = %+v; queria recusa por saldo insuficiente", resp)
+	}
+}
+
+// Moeda que não existe (ouro, por exemplo — ele é do personagem, não da conta)
+// é recusada antes de chegar ao banco.
+func TestTransfereMoedaDesconhecida(t *testing.T) {
+	fs := &fakeStore{}
+	srv := New(fs)
+	resp, err := srv.TransferPlayerBalance(context.Background(), &dbv1.TransferPlayerBalanceRequest{
+		FromAccountId: 7, ToAccountId: 11,
+		Currency: dbv1.PlayerCurrency_PLAYER_CURRENCY_UNSPECIFIED, Amount: 5,
+	})
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if resp.GetOk() ||
+		resp.GetReason() != dbv1.TransferPlayerBalanceReason_TRANSFER_REASON_INVALID_AMOUNT {
+		t.Errorf("resposta = %+v; queria recusa", resp)
+	}
+	if fs.transferencia.valor != 0 {
+		t.Errorf("o store foi chamado mesmo com moeda invalida: %+v", fs.transferencia)
 	}
 }

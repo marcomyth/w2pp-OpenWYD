@@ -231,7 +231,8 @@ func run(logger *slog.Logger) error {
 		}
 		defer func() { _ = conn.Close() }()
 		dbConn = conn
-		persist = dbclient.New(conn)
+		banco := dbclient.New(conn)
+		persist = banco
 		worldEvents = dbclient.NewWorldEventConfig(conn)
 		dungeonGates = dbclient.NewDungeonGateSource(conn)
 		spawnRates = dbclient.NewSpawnRateSource(conn)
@@ -240,6 +241,10 @@ func run(logger *slog.Logger) error {
 		combatRules = dbclient.NewCombatRuleSource(conn)
 		generatorOff = dbclient.NewGeneratorOffSource(conn)
 		dropRules = dbclient.NewDropRuleSource(conn)
+		// Cash e RMT da Loja do Servidor: são carteiras da CONTA, no banco, e só
+		// existem com o dbServer ligado. Sem ele, a compra nessas moedas é
+		// recusada e nada se move (handler/lojasaldo.go).
+		handler.UsaSaldoDeConta(handler.SaldoPeloBanco(banco))
 		logger.Info("dbServer wired", "addr", *dbAddr)
 	} else {
 		logger.Warn("no -dbserver: using no-op persistence (logins report no account)")

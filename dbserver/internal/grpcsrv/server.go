@@ -34,6 +34,9 @@ type Store interface {
 	SaveCharacter(ctx context.Context, accountID int64, ch domain.Character) error
 	QuoteKingdomCape(ctx context.Context) (domain.KingdomCapeQuote, error)
 	PurchaseKingdomCape(ctx context.Context, accountID, expectedRevision int64, kingdom uint8, ch domain.Character) (domain.KingdomCapeQuote, bool, error)
+	// Pagamento de uma venda na Loja do Servidor: Cash ou RMT entre duas contas,
+	// numa transação só.
+	TransferePlayerBalance(ctx context.Context, deConta, paraConta int64, moeda store.MoedaDeConta, valor int32, motivo string) (int32, int32, error)
 	LoadCargo(ctx context.Context, accountID int64) (int32, []domain.Item, error)
 	SaveCargo(ctx context.Context, accountID int64, coin int32, items []domain.Item) error
 	PendingItemDeliveries(ctx context.Context, accountID int64) ([]domain.Delivery, error)
@@ -189,6 +192,44 @@ func (s *Server) PurchaseKingdomCape(ctx context.Context, req *dbv1.PurchaseKing
 		return nil, status.Errorf(codes.Internal, "purchase kingdom cape: %v", err)
 	}
 	return &dbv1.PurchaseKingdomCapeResponse{Ok: ok, Quote: kingdomCapeQuoteToProto(q)}, nil
+}
+
+// TransferPlayerBalance move Cash ou RMT entre duas contas, numa transação só —
+// é o pagamento de uma venda na Loja do Servidor. Recusa prevista (saldo curto,
+// conta que não existe, valor fora de faixa) volta no corpo, com ok=false; só
+// falha de infraestrutura vira erro de gRPC.
+func (s *Server) TransferPlayerBalance(ctx context.Context, req *dbv1.TransferPlayerBalanceRequest) (*dbv1.TransferPlayerBalanceResponse, error) {
+	var moeda store.MoedaDeConta
+	switch req.GetCurrency() {
+	case dbv1.PlayerCurrency_PLAYER_CURRENCY_CASH:
+		moeda = store.MoedaCash
+	case dbv1.PlayerCurrency_PLAYER_CURRENCY_RMT:
+		moeda = store.MoedaRMT
+	default:
+		return &dbv1.TransferPlayerBalanceResponse{
+			Reason: dbv1.TransferPlayerBalanceReason_TRANSFER_REASON_INVALID_AMOUNT,
+		}, nil
+	}
+
+	de, para, err := s.store.TransferePlayerBalance(ctx, req.GetFromAccountId(), req.GetToAccountId(),
+		moeda, req.GetAmount(), req.GetReason())
+	switch {
+	case errors.Is(err, store.ErrSaldoInsuficiente):
+		return &dbv1.TransferPlayerBalanceResponse{
+			Reason: dbv1.TransferPlayerBalanceReason_TRANSFER_REASON_INSUFFICIENT_FUNDS,
+		}, nil
+	case errors.Is(err, store.ErrNotFound):
+		return &dbv1.TransferPlayerBalanceResponse{
+			Reason: dbv1.TransferPlayerBalanceReason_TRANSFER_REASON_ACCOUNT_NOT_FOUND,
+		}, nil
+	case errors.Is(err, store.ErrValorInvalido), errors.Is(err, store.ErrMoedaInvalida):
+		return &dbv1.TransferPlayerBalanceResponse{
+			Reason: dbv1.TransferPlayerBalanceReason_TRANSFER_REASON_INVALID_AMOUNT,
+		}, nil
+	case err != nil:
+		return nil, status.Errorf(codes.Internal, "transfer player balance: %v", err)
+	}
+	return &dbv1.TransferPlayerBalanceResponse{Ok: true, FromBalance: de, ToBalance: para}, nil
 }
 
 func kingdomCapeQuoteToProto(q domain.KingdomCapeQuote) *dbv1.QuoteKingdomCapeResponse {

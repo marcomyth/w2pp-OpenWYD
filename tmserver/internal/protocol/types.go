@@ -104,6 +104,14 @@ const (
 	MsgReqRanking          Type = 0x039F // 927  duel / PvP ranking (MSG_STANDARDPARM2)
 	MsgCapsuleInfo         Type = 0x02CD // 717  capsule/cash info (relay to DB)
 	MsgPutoutSeal          Type = 0x03CC // 972  seal
+
+	// Loja do Servidor: a vitrine global das barracas abertas. Nao existem no
+	// cliente original - sao nossos, na faixa 0x0Fxx, que o WYD.exe nao usa. Ver
+	// protocol/lojaservidor.go.
+	MsgLojaPede  Type = 0x0F01 // C->S  pede uma pagina da vitrine
+	MsgLojaLista Type = 0x0F02 // S->C  uma pagina de ofertas
+	MsgLojaMoeda  Type = 0x0F03 // C->S  a moeda de um item da minha barraca
+	MsgLojaCompra Type = 0x0F04 // C->S  comprar uma oferta da vitrine
 	MsgRestart             Type = 0x0289 // 649
 	MsgRemoveParty         Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)
 	MsgSendReqParty        Type = 0x037F // 895  invite to party

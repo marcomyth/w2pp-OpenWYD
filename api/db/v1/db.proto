@@ -23,6 +23,12 @@ service AccountService {
   rpc SaveCharacter(SaveCharacterRequest) returns (SaveCharacterResponse);
   rpc QuoteKingdomCape(QuoteKingdomCapeRequest) returns (QuoteKingdomCapeResponse);
   rpc PurchaseKingdomCape(PurchaseKingdomCapeRequest) returns (PurchaseKingdomCapeResponse);
+  // TransferPlayerBalance moves Cash or RMT between two accounts in one
+  // transaction: it is what pays for a sale in the Loja do Servidor, where the
+  // seller prices an item in a currency that lives on the account, not on the
+  // character. Insufficient funds come back in the body (ok=false, reason), not
+  // as a gRPC error — the same shape BuyResult uses in the donate shop.
+  rpc TransferPlayerBalance(TransferPlayerBalanceRequest) returns (TransferPlayerBalanceResponse);
   // CreateCharacter creates a character in a free slot (_MSG_DBCreateCharacter).
   rpc CreateCharacter(CreateCharacterRequest) returns (CreateCharacterResponse);
   // CreateArchCharacter creates the ARCH twin in the first free account slot
@@ -363,6 +369,41 @@ message PurchaseKingdomCapeRequest {
 message PurchaseKingdomCapeResponse {
   bool ok = 1;
   QuoteKingdomCapeResponse quote = 2;
+}
+
+// PlayerCurrency is a wallet that lives on the ACCOUNT, beside the gold the
+// character carries. Gold is not here on purpose: the tmServer moves gold by
+// itself, inside its own loop.
+enum PlayerCurrency {
+  PLAYER_CURRENCY_UNSPECIFIED = 0;
+  PLAYER_CURRENCY_CASH = 1;   // account.donate_balance, the donate/PIX wallet
+  PLAYER_CURRENCY_RMT = 2;    // account.rmt_balance
+}
+
+// TransferPlayerBalanceReason says why a transfer did not happen. Anything not
+// listed is an infra failure and travels as a gRPC error.
+enum TransferPlayerBalanceReason {
+  TRANSFER_REASON_UNSPECIFIED = 0;
+  TRANSFER_REASON_INSUFFICIENT_FUNDS = 1;
+  TRANSFER_REASON_ACCOUNT_NOT_FOUND = 2;
+  TRANSFER_REASON_INVALID_AMOUNT = 3;   // zero, negative, or over the ceiling
+}
+
+message TransferPlayerBalanceRequest {
+  int64 from_account_id = 1;
+  int64 to_account_id = 2;
+  PlayerCurrency currency = 3;
+  int32 amount = 4;
+  // reason is free text for the audit trail (e.g. "loja: item 1030 de Seller").
+  string reason = 5;
+}
+
+message TransferPlayerBalanceResponse {
+  bool ok = 1;
+  TransferPlayerBalanceReason reason = 2;
+  // Balances after the move, so the caller can refresh what it shows.
+  int32 from_balance = 3;
+  int32 to_balance = 4;
 }
 
 message CreateCharacterRequest {

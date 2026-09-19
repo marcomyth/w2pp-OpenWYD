@@ -184,3 +184,60 @@ original: Jóias 2441-2444, Pedra do Sábio, Classes A-E e (P), Barras, Pergamin
 da Água e troféus da Quest 256 passam a dividir. O envio (`0x46B41C`) não tem
 lista própria. **Item novo em `pilha.Empilha` precisa entrar também em
 `Divide`**, ou o servidor divide e o cliente nunca pede.
+
+## Desenho dentro do quadro (`camadas.cpp`, `pincel.cpp`, `d3dpainel.cpp`)
+
+Base para desenhar por cima do jogo sem janela nenhuma. Cada módulo registra uma
+**camada** (`camadas.h`); o `d3dpainel` percorre todas no `EndScene` e desenha
+cada uma como uma textura, dentro do quadro do cliente — o print do próprio jogo
+sai com elas, e valem em tela cheia.
+
+O desvio do D3D não é na tabela virtual do dispositivo: a deste cliente mora no
+heap e o próprio D3D a reescreve (o desvio durava dois quadros). O caminho é
+desviar a **importação** de `Direct3DCreate9` no WYD.exe, depois `CreateDevice`
+(slot 16), e então o **código** de `d3d9.dll!EndScene`, cujo prólogo é
+`push 0x14; mov eax, imm32` — 7 bytes realocáveis. Breakpoint de hardware não
+serve: o protetor limpa os registradores de depuração.
+
+Cada camada pinta em GDI num DIB top-down de 32 bits (que já é A8R8G8B8) e o
+alfa entra no fim, porque o GDI nunca escreve esse canal. Uma camada cujo
+`pixels` devolve nulo não é desenhada, mas continua no teste do mouse: é assim
+que se toma um clique sem desenhar nada.
+
+Ler pixel do quadro só é permitido **fora** da cena, então acontece depois do
+`EndScene` original (1x1 render target + superfície em memória, no mesmo formato
+do backbuffer), a cada 120 ms e logo após cada clique.
+
+O mouse é lido por DirectInput e o corte fica em `0x4B50EF`, logo após a leitura:
+é o único lugar que decide de quem é o clique, zerando `rgbButtons` quando o
+cursor está sobre uma camada. Sem isso o personagem caminha para o ponto clicado.
+
+## Painel de alvos (`alvos.cpp`, `overlay.cpp`, `macromago.cpp`, `zoomcam.cpp`)
+
+`'` varre os alvos em volta, os números travam e CapsLock solta; o alvo travado
+é atacado todo quadro (`0x5162B3`) ou com magia (`0x4567CE`), à escolha do
+painel. Aliado é quem tem a capa do mesmo reino (item em `entidade+0x0A58`,
+tabelas de `internal/reinos`), o que cobre os guardas. Ajustes em `alvo.txt`.
+
+`macromago.cpp` conserta o macro mágico, que não perseguia: os dois `je` de
+`0x4974C7`/`0x4974D7`, a coleira em volta do ponto e a comporta do retorno em
+`0x496C4A`. `zoomcam.cpp` levanta o limite de zoom (`cam+0xC0`, 15 no original)
+pelo `zoom.txt`.
+
+## Loja do Servidor (`loja.cpp`)
+
+A vitrine global, desenhada como camada. Hoje com ofertas **de mentira**: falta
+o servidor espelhar as barracas abertas (`tmserver/internal/handler/autotrade.go`)
+e o protocolo entre os dois.
+
+Quem abre é o botão de Loja Pessoal do próprio jogo: uma camada sem desenho fica
+sobre aquela célula da barra e toma o clique, então o ícone continua sendo a arte
+do cliente. Medidas em 1024x768: divisórias dos slots em x = 583, 621, 660, 698,
+736, 774, 812; faixa em y 669..706; interior da célula x 664..693, y 670..704.
+Como a barra é ancorada embaixo, o que fica guardado em `loja.txt` é o
+deslocamento a partir do centro e a altura a partir da base.
+
+A célula só toma clique com a barra aberta — senão um clique no chão seria
+engolido —, e isso é descoberto lendo quatro pontos da moldura no quadro
+anterior. Como rede, `0x60F4FC` (id da janela ativa, `0x1388` = janela de itens
+da lojinha) é lido todo quadro: aparecendo, volta a `0xFFFF` e a nossa loja abre.

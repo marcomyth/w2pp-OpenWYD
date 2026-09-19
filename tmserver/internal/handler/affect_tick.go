@@ -55,6 +55,35 @@ func (d *Dispatcher) sweepAffects(w *world.World) {
 	})
 }
 
+// applyLifeAuraTick is the Aura da Vida (Type 17) HoT: +Level/2 + Value per
+// 8s tick, capped at the effective max HP. Returns the HP delta and whether
+// anything changed.
+//
+// MORTO NÃO CURA. Sem esta guarda, o tick ressuscitava o jogador: a conta somava
+// sobre HP 0 e, pior, o piso `if hp < 1 { hp = 1 }` garantia que mesmo um valor
+// nulo levantasse o personagem com 1 de vida. Quem morria com a aura ligada
+// voltava de pé sozinho, sem passar pelo _MSG_Restart (relatado em jogo,
+// 18/09/2026). O piso continua aqui para o caso de um Value negativo em alguma
+// linha do SkillData, mas só depois de a guarda garantir que o alvo está vivo.
+func applyLifeAuraTick(e *world.Entity, af *world.Affect) (int32, bool) {
+	if e.HP <= 0 {
+		return 0, false
+	}
+	hp := e.HP + int32(af.Level)/2 + int32(af.Value)
+	if m := effectiveMaxHP(e); hp > m {
+		hp = m
+	}
+	if hp < 1 {
+		hp = 1
+	}
+	if hp == e.HP {
+		return 0, false
+	}
+	delta := hp - e.HP
+	e.HP = hp
+	return delta, true
+}
+
 func (d *Dispatcher) processAffect(w *world.World, s *world.Session, e *world.Entity) {
 	regen, upScore, faceChange := false, false, false
 	var delta int32
@@ -65,17 +94,9 @@ func (d *Dispatcher) processAffect(w *world.World, s *world.Session, e *world.En
 		}
 		switch af.Type {
 		case 17: // Aura da Vida HoT: +Level/2 + Value per tick
-			hp := e.HP + int32(af.Level)/2 + int32(af.Value)
-			if m := effectiveMaxHP(e); hp > m {
-				hp = m
-			}
-			if hp < 1 {
-				hp = 1
-			}
-			if hp != e.HP {
+			if auraDelta, ok := applyLifeAuraTick(e, af); ok {
 				upScore, regen = true, true
-				delta = hp - e.HP
-				e.HP = hp
+				delta = auraDelta
 			}
 		case 20: // poison DoT: legacy player math collapses to −1000 HP/tick.
 			if poisonDelta, ok := applyPoisonTick(s, e); ok {
@@ -123,7 +144,14 @@ func (d *Dispatcher) processAffect(w *world.World, s *world.Session, e *world.En
 	}
 }
 
+// MORTO NÃO TOMA VENENO — e, sobretudo, não é ressuscitado por ele. O piso
+// `if hp < 1 { hp = 1 }` tem a mesma armadilha da Aura da Vida: com HP 0 a conta
+// dá −1000, o piso a levanta para 1, e o cadáver fica de pé. A guarda aqui é
+// preventiva: o relato de jogo foi sobre a aura, mas o defeito é o mesmo.
 func applyPoisonTick(s *world.Session, e *world.Entity) (int32, bool) {
+	if e.HP <= 0 {
+		return 0, false
+	}
 	hp := e.HP - 1000
 	if hp < 1 {
 		hp = 1
@@ -138,7 +166,13 @@ func applyPoisonTick(s *world.Session, e *world.Entity) (int32, bool) {
 	return delta, true
 }
 
+// MORTO NÃO ATACA. Sem esta guarda, quem morria com o Trovão ligado continuava
+// eletrocutando quem passasse perto do corpo, a cada 8 segundos, até o affect
+// expirar — decisão do Marco em 18/09/2026, junto com a Aura da Vida.
 func (d *Dispatcher) applyThunderTick(w *world.World, s *world.Session, e *world.Entity, affectLevel int) bool {
+	if e.HP <= 0 {
+		return false
+	}
 	if d.spells == nil {
 		return false
 	}
@@ -204,7 +238,11 @@ func (d *Dispatcher) applyThunderTick(w *world.World, s *world.Session, e *world
 	return true
 }
 
+// MORTO NÃO ATACA — mesma regra do Trovão acima.
 func (d *Dispatcher) applyBeastAuraTick(w *world.World, s *world.Session, e *world.Entity, affectLevel int) bool {
+	if e.HP <= 0 {
+		return false
+	}
 	if d.spells == nil {
 		return false
 	}

@@ -221,6 +221,37 @@ func (c *Client) PurchaseKingdomCape(ctx context.Context, expectedRevision int64
 	return world.KingdomCapeQuote{Revision: q.GetRevision(), HekalotiaCost: int(q.GetHekalotiaCost()), AkeloniaCost: int(q.GetAkeloniaCost())}, resp.GetOk(), nil
 }
 
+// TransferePlayerBalance move Cash ou RMT entre duas contas — o pagamento de uma
+// venda na Loja do Servidor. Recusa prevista (saldo curto, conta que não existe,
+// valor inválido) volta como erro desta função, para quem chama traduzir em
+// recusa ao jogador; erro de gRPC é falha de infraestrutura.
+func (c *Client) TransferePlayerBalance(ctx context.Context, deConta, paraConta int64,
+	moeda uint8, valor int32, motivo string) error {
+	var qual dbv1.PlayerCurrency
+	switch moeda {
+	case 1: // protocol.LojaMoedaCash
+		qual = dbv1.PlayerCurrency_PLAYER_CURRENCY_CASH
+	case 2: // protocol.LojaMoedaRMT
+		qual = dbv1.PlayerCurrency_PLAYER_CURRENCY_RMT
+	default:
+		return fmt.Errorf("dbclient: transferencia com moeda %d", moeda)
+	}
+	resp, err := c.api.TransferPlayerBalance(ctx, &dbv1.TransferPlayerBalanceRequest{
+		FromAccountId: deConta,
+		ToAccountId:   paraConta,
+		Currency:      qual,
+		Amount:        valor,
+		Reason:        motivo,
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: transferencia de saldo: %w", err)
+	}
+	if !resp.GetOk() {
+		return fmt.Errorf("dbclient: transferencia recusada: %s", resp.GetReason())
+	}
+	return nil
+}
+
 // LoadCargo loads the account-shared warehouse (gold + items) for world
 // injection. Items are placed positionally into the fixed Cargo array.
 func (c *Client) LoadCargo(ctx context.Context, accountID int64) (world.CargoState, error) {
