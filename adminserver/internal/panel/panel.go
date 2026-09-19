@@ -1830,10 +1830,11 @@ func (h *Handler) reiniciar(w http.ResponseWriter, r *http.Request) {
 
 	// Latest, não LatestAny: o reinício é IN PLACE (deploymentRestart reusa o
 	// artefato que já está rodando), então o alvo tem de ser a publicação NO AR —
-	// a mais recente bem-sucedida. LatestAny devolvia o registro do TOPO, e quando
-	// o CI do main fica vermelho o topo é um PULADO (SKIPPED) sem artefato: a
-	// hospedagem recusava com "Deployment is not restartable" e o botão parecia
-	// não fazer nada. É o mesmo alvo que o reinício seguro já usa.
+	// a mais recente bem-sucedida. LatestAny devolvia o registro do TOPO, que fica
+	// PULADO (SKIPPED) sem artefato tanto quando o commit não tocou este serviço
+	// quanto quando o CI do main fica vermelho — daqui os dois são iguais. Sobre um
+	// PULADO a hospedagem recusa com "Deployment is not restartable" e o botão
+	// parecia não fazer nada. É o mesmo alvo que o reinício seguro já usa.
 	dep, err := h.cfg.Platform.Latest(r.Context())
 	if err != nil {
 		h.cfg.Logger.Error("restart: no running deployment", "err", err)

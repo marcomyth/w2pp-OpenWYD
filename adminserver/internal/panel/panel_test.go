@@ -1826,10 +1826,11 @@ func TestRestartCardIsHiddenWithoutTheHostingAPI(t *testing.T) {
 }
 
 // TestReiniciarMiraNoQueEstaNoArComTopoPulado prende o defeito que travou o
-// botão para a Hanna: o topo da pilha era um deploy PULADO (CI vermelha no main)
-// e o reinício mirava nele, então a hospedagem recusava com "not restartable" e
-// o botão parecia não fazer nada. Agora mira o SUCCESS que está no ar e avisa
-// que o commit mais novo não subiu.
+// botão para a Hanna: o topo da pilha era um deploy PULADO (um commit que não
+// tocou este serviço, ou teste vermelho no main — daqui dá no mesmo) e o
+// reinício mirava nele, então a hospedagem recusava com "not restartable" e o
+// botão parecia não fazer nada. Agora mira o SUCCESS que está no ar e avisa que
+// o commit mais novo não subiu.
 func TestReiniciarMiraNoQueEstaNoArComTopoPulado(t *testing.T) {
 	plat := newFakePlatform()
 	plat.historico = []plataforma.Deployment{
