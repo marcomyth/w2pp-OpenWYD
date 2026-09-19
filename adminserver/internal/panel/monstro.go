@@ -271,7 +271,10 @@ func (h *Handler) setMonstroEquip(w http.ResponseWriter, r *http.Request) {
 		h.auditoriaFalhou(w, err)
 		return
 	}
-	h.redirectMonstro(w, r, nome, "Equipamento gravado. Vale no próximo reinício do servidor.")
+	// O equipamento do molde vem na MESMA exceção que a ficha (ov.Equip em
+	// mobstat.Apply), então recarrega junto — não espera reinício.
+	h.redirectMonstro(w, r, nome,
+		"Equipamento gravado. Entra em jogo em até 15 segundos, nos monstros que nascerem daí em diante.")
 }
 
 // grupoCampos is one titled section of the stat form.
@@ -358,8 +361,13 @@ func (h *Handler) setMonstro(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.cfg.Logger.Info("mob stat changed", "actor", sess.AccountName, "template", nome, "campos", len(mudados))
+	// A mensagem TEM de bater com o que o servidor faz. Ela dizia "só depois de
+	// reiniciar", que era verdade até a ficha passar a recarregar ao vivo
+	// (tmserver handler.pollMobStats) e virou mentira no mesmo dia — o mesmo
+	// defeito que esta tela existe para não cometer.
 	h.redirectMonstro(w, r, nome,
-		"Gravado. Só entra em jogo depois de reiniciar o servidor — o aviso está na página inicial.")
+		"Gravado. Entra em jogo em até 15 segundos, nos monstros que nascerem daí em diante. "+
+			"Os campos marcados como \"só no reinício\" esperam o próximo boot.")
 }
 
 // limparMonstro drops the override, restoring the template file's values.
@@ -387,8 +395,10 @@ func (h *Handler) limparMonstro(w http.ResponseWriter, r *http.Request) {
 			http.StatusInternalServerError)
 		return
 	}
+	// Apagar a exceção também recarrega ao vivo: o delete bumpa a mesma versão, e a
+	// reconstrução varre a união dos nomes, então o molde volta ao valor do arquivo.
 	h.redirectMonstro(w, r, nome,
-		"Valores do arquivo restaurados. Só entra em jogo depois de reiniciar o servidor.")
+		"Valores do arquivo restaurados. Entra em jogo em até 15 segundos, nos monstros que nascerem daí em diante.")
 }
 
 // The tab rides along, so saving lands back where the work was. Without it every

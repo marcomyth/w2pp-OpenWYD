@@ -2394,8 +2394,17 @@ func TestSetMonstroPreservaOsCamposQueOFormularioNaoCarrega(t *testing.T) {
 		t.Error("a edição do monstro não foi auditada")
 	}
 	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
-	if !strings.Contains(loc, "reiniciar") {
-		t.Errorf("o aviso não diz que falta reiniciar: %q", loc)
+	// A confirmação tem de dizer QUANDO entra, e isso mudou quando a ficha passou
+	// a recarregar ao vivo. Antes ela prometia um reinício; prometer isso agora
+	// mandaria alguém derrubar o servidor sem precisar.
+	if !strings.Contains(loc, "15 segundos") {
+		t.Errorf("o aviso não diz em quanto tempo entra: %q", loc)
+	}
+	if !strings.Contains(loc, "nascerem") {
+		t.Errorf("o aviso não diz que vale para os que nascerem daí em diante: %q", loc)
+	}
+	if strings.Contains(loc, "Só entra em jogo depois de reiniciar") {
+		t.Errorf("o aviso ainda promete reinício para a ficha inteira: %q", loc)
 	}
 }
 
