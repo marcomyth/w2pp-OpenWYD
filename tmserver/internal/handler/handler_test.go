@@ -28,6 +28,7 @@ type fakeAccount struct {
 	alreadyPlaying bool
 	chars          []world.CharSummary
 	cargo          world.CargoState // account-shared warehouse loaded on login
+	cash, rmt      int32            // as carteiras da conta, como o login as entrega
 }
 
 type fakeDB struct {
@@ -405,6 +406,8 @@ func (f *fakeDB) AccountLogin(_ context.Context, name, pass string) (world.Login
 		return world.LoginOutcome{
 			Result: world.LoginOK, AccountID: a.id, Role: a.role, Characters: a.chars, Cargo: cargo,
 			PendingDeliveries: f.pending[a.id],
+			Cash:              a.cash,
+			Rmt:               a.rmt,
 		}, nil
 	}
 }

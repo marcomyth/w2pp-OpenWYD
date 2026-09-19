@@ -150,6 +150,8 @@ func (d *Dispatcher) lojaPede(w *world.World, s *world.Session, _ protocol.Heade
 		Paginas: int16(paginas),
 		Total:   int16(total),
 		Ouro:    e.Coin,
+		Cash:    s.Cash,
+		RMT:     s.Rmt,
 	}
 	inicio := pagina * protocol.LojaPorPagina
 	for i := 0; i < protocol.LojaPorPagina && inicio+i < total; i++ {

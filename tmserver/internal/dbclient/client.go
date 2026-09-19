@@ -44,6 +44,8 @@ func (c *Client) AccountLogin(ctx context.Context, name, password string) (world
 		Result:    loginResultFromProto(resp.GetResult()),
 		AccountID: resp.GetAccountId(),
 		Role:      resp.GetRole(),
+		Cash:      resp.GetCash(),
+		Rmt:       resp.GetRmt(),
 	}
 	if out.Result != world.LoginOK {
 		return out, nil

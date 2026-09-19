@@ -101,6 +101,15 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 			d.notify(w, s, NoticeNotEnoughMoney)
 			return
 		}
+		// O banco é a verdade, mas quem mostra o saldo no painel é a sessão: ela
+		// acompanha a transferência que acabou de dar certo, dos dois lados.
+		if moeda == protocol.LojaMoedaCash {
+			s.Cash -= preco
+			vendedor.Cash += preco
+		} else {
+			s.Rmt -= preco
+			vendedor.Rmt += preco
+		}
 	default:
 		return
 	}

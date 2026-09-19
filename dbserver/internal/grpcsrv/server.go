@@ -115,6 +115,10 @@ func (s *Server) AccountLogin(ctx context.Context, req *dbv1.AccountLoginRequest
 		Result:    dbv1.LoginResult_LOGIN_RESULT_OK,
 		AccountId: auth.ID,
 		Role:      auth.Role, // carried to tmServer for in-game GM authz (issue #122)
+		// As carteiras da conta vão no mesmo login: o tmServer não fala com o
+		// banco, e sem isto o painel da loja mostra Cash e RMT zerados.
+		Cash: auth.Cash,
+		Rmt:  auth.Rmt,
 	}, nil
 }
 

@@ -355,6 +355,59 @@ func TestCompraEmCashComSaldoLigado(t *testing.T) {
 	}
 }
 
+// O painel mostra o saldo de verdade, e ele acompanha a compra.
+//
+// Antes o servidor mandava Cash e RMT zerados no cabeçalho da vitrine, sempre.
+// Quem tinha saldo via "Cash 0" e, ao comprar em cash, achava que tinha levado
+// de graça — o dinheiro saía da conta em silêncio.
+func TestVitrineMostraSaldoDaContaEODesconta(t *testing.T) {
+	const item = int16(1030)
+	const preco = int32(300)
+	UsaSaldoDeConta(saldoDeMentira{func(int64, int64, uint8, int32) error { return nil }})
+	defer UsaSaldoDeConta(saldoDeMentira{func(int64, int64, uint8, int32) error {
+		return ErrSaldoNaoLigado
+	}})
+
+	db := autotradeDB(item)
+	db.accounts["tester"].cash, db.accounts["tester"].rmt = 5000, 70
+	db.accounts["tradeb"].cash, db.accounts["tradeb"].rmt = 2300, 0
+
+	addr, stop, _ := startServerClock(t, db)
+	defer stop()
+	vendedor := enterWorldAs(t, addr, "tester")
+	defer vendedor.Close()
+	comprador := enterWorldAs(t, addr, "tradeb")
+	defer comprador.Close()
+
+	if lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos); lista.Cash != 2300 ||
+		lista.RMT != 0 {
+		t.Fatalf("saldo do comprador no painel = cash %d, rmt %d; queria 2300 e 0",
+			lista.Cash, lista.RMT)
+	}
+	if lista := pedeVitrine(t, vendedor, 0, protocol.LojaFiltroTodos); lista.Cash != 5000 ||
+		lista.RMT != 70 {
+		t.Fatalf("saldo do vendedor no painel = cash %d, rmt %d; queria 5000 e 70",
+			lista.Cash, lista.RMT)
+	}
+
+	abreBarraca(t, vendedor, "Minha Loja", 0, preco, protocol.LojaMoedaOuro)
+	moeda := protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaCash}
+	send(t, vendedor, protocol.MsgLojaMoeda, moeda.Encode())
+
+	lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos)
+	o := lista.Ofertas[0]
+	compra := protocol.LojaCompraBody{Vendedor: o.Vendedor, Slot: o.Slot, Moeda: o.Moeda}
+	send(t, comprador, protocol.MsgLojaCompra, compra.Encode())
+	readUntil(t, comprador, protocol.MsgSendItem)
+
+	if depois := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos); depois.Cash != 2300-preco {
+		t.Errorf("cash do comprador depois da compra = %d; queria %d", depois.Cash, 2300-preco)
+	}
+	if depois := pedeVitrine(t, vendedor, 0, protocol.LojaFiltroTodos); depois.Cash != 5000+preco {
+		t.Errorf("cash do vendedor depois da venda = %d; queria %d", depois.Cash, 5000+preco)
+	}
+}
+
 // saldoDeMentira é o lugar da implementação de verdade nos testes.
 type saldoDeMentira struct {
 	fn func(de, para int64, moeda uint8, valor int32) error

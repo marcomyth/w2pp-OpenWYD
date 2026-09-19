@@ -69,6 +69,11 @@ type LoginOutcome struct {
 	Characters        []CharSummary
 	Cargo             CargoState
 	PendingDeliveries []Delivery
+	// As carteiras da conta, lidas no mesmo login. Cash e RMT são da CONTA e
+	// moram no banco; o laço do mundo não fala com ele, então guarda o número
+	// daqui e o mantém em dia por conta própria a cada venda.
+	Cash int32
+	Rmt  int32
 }
 
 // CargoState is the account-shared warehouse (the legacy STRUCT_ACCOUNTFILE

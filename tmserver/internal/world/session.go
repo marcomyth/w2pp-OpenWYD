@@ -59,6 +59,10 @@ type Session struct {
 	AccountName string
 	AccountID   int64
 	AccessLevel AccessLevel // account.role tier; gates in-game GM commands (issue #122)
+	// Cash e RMT da conta, como estavam no login e corrigidos a cada compra da
+	// Loja do Servidor. É o que o painel mostra no rodapé.
+	Cash int32
+	Rmt  int32
 	Slot        int
 	Mode        Mode
 	IP          string

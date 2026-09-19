@@ -366,7 +366,13 @@ type AccountLoginResponse struct {
 	// tmServer so the game loop can gate in-game GM/moderation commands (issue
 	// #122) — the explicit server-side authority that replaces the legacy fragile
 	// "character Level >= 1000" backdoor.
-	Role          string `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"`
+	Role string `protobuf:"bytes,3,opt,name=role,proto3" json:"role,omitempty"`
+	// As duas carteiras da conta, lidas no mesmo login. O tmServer não fala com o
+	// banco e precisa delas para o painel da Loja do Servidor dizer quanto o
+	// jogador tem de Cash e de RMT — antes ele mostrava zero sempre, e o jogador
+	// achava que tinha comprado de graça quando na verdade tinha saldo.
+	Cash          int32 `protobuf:"varint,4,opt,name=cash,proto3" json:"cash,omitempty"`
+	Rmt           int32 `protobuf:"varint,5,opt,name=rmt,proto3" json:"rmt,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -420,6 +426,20 @@ func (x *AccountLoginResponse) GetRole() string {
 		return x.Role
 	}
 	return ""
+}
+
+func (x *AccountLoginResponse) GetCash() int32 {
+	if x != nil {
+		return x.Cash
+	}
+	return 0
+}
+
+func (x *AccountLoginResponse) GetRmt() int32 {
+	if x != nil {
+		return x.Rmt
+	}
+	return 0
 }
 
 type ListCharactersRequest struct {
@@ -11231,12 +11251,14 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x13AccountLoginRequest\x12!\n" +
 	"\faccount_name\x18\x01 \x01(\tR\vaccountName\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12%\n" +
-	"\x0eclient_version\x18\x03 \x01(\x05R\rclientVersion\"u\n" +
+	"\x0eclient_version\x18\x03 \x01(\x05R\rclientVersion\"\x9b\x01\n" +
 	"\x14AccountLoginResponse\x12*\n" +
 	"\x06result\x18\x01 \x01(\x0e2\x12.db.v1.LoginResultR\x06result\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x02 \x01(\x03R\taccountId\x12\x12\n" +
-	"\x04role\x18\x03 \x01(\tR\x04role\"6\n" +
+	"\x04role\x18\x03 \x01(\tR\x04role\x12\x12\n" +
+	"\x04cash\x18\x04 \x01(\x05R\x04cash\x12\x10\n" +
+	"\x03rmt\x18\x05 \x01(\x05R\x03rmt\"6\n" +
 	"\x15ListCharactersRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\"\xe0\x02\n" +

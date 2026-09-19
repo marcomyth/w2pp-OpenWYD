@@ -32,6 +32,10 @@ type AccountAuth struct {
 	PassHash  string
 	IsBlocked bool
 	Role      string // account.role ('player'/'moderator'/'admin'); web-only UI gate
+	// As duas carteiras da conta. O login as leva junto porque o tmServer nao
+	// fala com o banco e precisa delas para mostrar saldo no painel da loja.
+	Cash int32
+	Rmt  int32
 }
 
 // AccountByName fetches the auth row for a canonical (lowercase) account name.
@@ -50,8 +54,8 @@ const BlockedNowSQL = `(is_blocked AND (blocked_until IS NULL OR blocked_until >
 func (s *Store) AccountByName(ctx context.Context, name string) (AccountAuth, error) {
 	var a AccountAuth
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, pass_hash, `+BlockedNowSQL+`, role FROM account WHERE name = $1`, name).
-		Scan(&a.ID, &a.PassHash, &a.IsBlocked, &a.Role)
+		`SELECT id, pass_hash, `+BlockedNowSQL+`, role, donate_balance, rmt_balance FROM account WHERE name = $1`, name).
+		Scan(&a.ID, &a.PassHash, &a.IsBlocked, &a.Role, &a.Cash, &a.Rmt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AccountAuth{}, ErrNotFound
 	}

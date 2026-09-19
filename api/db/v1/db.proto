@@ -192,6 +192,12 @@ message AccountLoginResponse {
   // #122) — the explicit server-side authority that replaces the legacy fragile
   // "character Level >= 1000" backdoor.
   string role = 3;
+  // As duas carteiras da conta, lidas no mesmo login. O tmServer não fala com o
+  // banco e precisa delas para o painel da Loja do Servidor dizer quanto o
+  // jogador tem de Cash e de RMT — antes ele mostrava zero sempre, e o jogador
+  // achava que tinha comprado de graça quando na verdade tinha saldo.
+  int32 cash = 4;
+  int32 rmt = 5;
 }
 
 message ListCharactersRequest { int64 account_id = 1; }
