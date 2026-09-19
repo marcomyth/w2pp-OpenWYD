@@ -10,7 +10,7 @@ import (
 //
 // Ouro é do personagem e o tmServer move sozinho, dentro do próprio laço. Cash e
 // RMT são da CONTA e moram no banco: `account.donate_balance` (a carteira que a
-// recarga por PIX credita) e `account.rmt_balance` (migração 0076). O caminho
+// recarga por PIX credita) e `account.rmt_balance` (migração 0077). O caminho
 // até lá é o RPC TransferPlayerBalance (api/db), que faz débito e crédito na
 // mesma transação e trava as duas carteiras em ordem de id.
 //

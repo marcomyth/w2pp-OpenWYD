@@ -90,8 +90,7 @@ func TestAutoTradeShopPoseWhenBuyerEntersView(t *testing.T) {
 	drainRaw(t, seller)
 	drainRaw(t, buyer)
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload(title, sellItem, 0, 1000))
-	readUntil(t, seller, protocol.MsgSendAutoTrade)
+	abreBarraca(t, seller, title, 0, 1000, protocol.LojaMoedaOuro)
 	if ty, _, ok := readMaybeRaw(t, buyer); ok {
 		t.Fatalf("out-of-view buyer got %#x after shop opened, want no shop pose yet", ty)
 	}
@@ -119,8 +118,10 @@ func TestAutoTradeOpenBrowseBuy(t *testing.T) {
 	buyer := enterWorldAs(t, addr, "tradeb") // conn 2
 	defer buyer.Close()
 
-	// Seller opens the shop; the server echoes the owner its own list.
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Minha Loja", sellItem, 0, price))
+	// O vendedor monta a barraca pelo painel; para conferir a lista como o
+	// cliente antigo a vê, ele navega a própria barraca.
+	stallID := abreBarraca(t, seller, "Minha Loja", 0, price, protocol.LojaMoedaOuro)
+	send(t, seller, protocol.MsgReqTradeList, protocol.EncodeStandardParm(stallID))
 	list, _ := readUntil(t, seller, protocol.MsgSendAutoTrade)
 	if got := cstr(list[0:24]); got != "Minha Loja" {
 		t.Errorf("own list title = %q, want Minha Loja", got)
@@ -176,8 +177,7 @@ func TestAutoTradeBuyNoDup(t *testing.T) {
 	buyer := enterWorldAs(t, addr, "tradeb")
 	defer buyer.Close()
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Loja", sellItem, 0, price))
-	readUntil(t, seller, protocol.MsgSendAutoTrade)
+	abreBarraca(t, seller, "Loja", 0, price, protocol.LojaMoedaOuro)
 
 	// First buy succeeds → item delivered.
 	send(t, buyer, protocol.MsgReqBuy, reqBuyPayload(1, 0, sellItem, price, tax))
@@ -209,8 +209,7 @@ func TestAutoTradeCloseOnQuit(t *testing.T) {
 	buyer := enterWorldAs(t, addr, "tradeb")
 	defer buyer.Close()
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Loja", sellItem, 0, 1000))
-	readUntil(t, seller, protocol.MsgSendAutoTrade)
+	abreBarraca(t, seller, "Loja", 0, 1000, protocol.LojaMoedaOuro)
 	// The buyer, in view, received the stall-pose CreateMobTrade on open — drain it so
 	// the post-close assertion sees a clean socket.
 	readUntil(t, buyer, protocol.MsgCreateMobTrade)
@@ -235,8 +234,16 @@ func TestAutoTradeOpenRejectsBlacklist(t *testing.T) {
 	seller := enterWorldAs(t, addr, "tester")
 	defer seller.Close()
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Loja", blacklisted, 0, 1000))
-	if ty, _, ok := readMaybe(t, seller); ok {
-		t.Fatalf("blacklisted open produced a %#x frame, want none (shop refused)", ty)
+	// A barraca agora se monta pelo painel; o item proibido continua recusado, e
+	// o que prova isso é a barraca não subir.
+	mandaAbrirBarraca(t, seller, "Loja", 0, 1000, protocol.LojaMoedaOuro)
+	for {
+		ty, _, ok := readMaybe(t, seller)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgLojaAbriu {
+			t.Fatalf("a barraca subiu com item proibido")
+		}
 	}
 }

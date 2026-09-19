@@ -71,7 +71,7 @@ func TestTransfereCashEntreContas(t *testing.T) {
 	}
 }
 
-// RMT usa a carteira da migração 0076, separada do Cash.
+// RMT usa a carteira da migração 0077, separada do Cash.
 func TestTransfereRMTNaoMexeNoCash(t *testing.T) {
 	ctx := context.Background()
 	pool := testPool(t)

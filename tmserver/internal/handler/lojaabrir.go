@@ -132,6 +132,13 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 	barraca.PaidUntil = barraca.OpenedAt
 	// A barraca sobe primeiro: é ela que dá o id pelo qual os outros compram.
 	d.raiseShopStall(w, s, e)
+	if barraca.CloneID >= world.MaxUser {
+		// A barraca fica de pé sozinha e o dono volta a jogar (decisão do Marco,
+		// 17/09). O cliente fecha a janela de loja ao receber isto; a nossa nem
+		// abre mais, mas manter o aviso custa nada e cobre um cliente antigo que
+		// ainda tenha aquela janela na tela.
+		w.Send(s, protocol.MsgQuitTrade, nil)
+	}
 	// O painel espera este aviso para fechar a tela de montagem e já mostrar a
 	// barraca na vitrine. O id é o mesmo pelo qual os outros compram.
 	aviso := protocol.LojaAbriuBody{Barraca: int32(shopStallID(s))}

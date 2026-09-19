@@ -74,12 +74,10 @@ func TestAutoTradeCloneVendeComODonoLonge(t *testing.T) {
 	buyer := enterWorldAs(t, addr, "tradeb") // conn 2
 	defer buyer.Close()
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Loja Solta", sellItem, 0, price))
-	list, _ := readUntil(t, seller, protocol.MsgSendAutoTrade)
-
-	// Index is the STALL, not the seller's conn: it is what the client echoes
-	// back as MSG_ReqBuy.TargetID, and the buy path measures distance against it.
-	stallID := int(int16(binary.LittleEndian.Uint16(list[180+2 : 180+4])))
+	// O id que volta ao montar a barraca é o do CLONE, não o conn do dono: é
+	// ele que o cliente devolve em MSG_ReqBuy.TargetID, e é contra ele que a
+	// compra mede distância.
+	stallID := int(abreBarraca(t, seller, "Loja Solta", 0, price, protocol.LojaMoedaOuro))
 	if stallID < world.MaxUser {
 		t.Fatalf("Index da lista = %d, quer o id do clone (>= %d) e não o conn do dono",
 			stallID, world.MaxUser)
@@ -135,9 +133,7 @@ func TestCloneSomeQuandoODonoDesconecta(t *testing.T) {
 	buyer := enterWorldAs(t, addr, "tradeb")
 	defer buyer.Close()
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Some Comigo", sellItem, 0, 1000))
-	list, _ := readUntil(t, seller, protocol.MsgSendAutoTrade)
-	stallID := int(int16(binary.LittleEndian.Uint16(list[182:184])))
+	stallID := int(abreBarraca(t, seller, "Some Comigo", 0, 1000, protocol.LojaMoedaOuro))
 	if stallID < world.MaxUser {
 		t.Fatalf("a loja não subiu como clone (Index %d)", stallID)
 	}
@@ -240,7 +236,8 @@ func TestCloneDaLojaTamanhoJanelaEFechar(t *testing.T) {
 	seller := enterWorldAs(t, addr, "tester")
 	defer seller.Close()
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Loja Solta", sellItem, 0, 1000))
+	// Sem esperar o aviso: quem lê os quadros da subida é o stallFrames.
+	mandaAbrirBarraca(t, seller, "Loja Solta", 0, 1000, protocol.LojaMoedaOuro)
 	stalls, cons, quit := stallFrames(t, seller)
 	if len(stalls) != 1 || stalls[0] < world.MaxUser {
 		t.Fatalf("barracas anunciadas ao dono = %v, quer um clone", stalls)

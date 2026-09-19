@@ -10,7 +10,7 @@ import (
 
 // abreBarraca monta a barraca pelo caminho novo — o painel — e espera o aviso de
 // que ela subiu. A janela de barraca do cliente está aposentada.
-func abreBarraca(t *testing.T, c net.Conn, titulo string, cargoPos int8, preco int32, moeda uint8) {
+func abreBarraca(t *testing.T, c net.Conn, titulo string, cargoPos int8, preco int32, moeda uint8) int32 {
 	t.Helper()
 	corpo := protocol.LojaAbrirBody{Titulo: titulo}
 	for i := range corpo.Slots {
@@ -18,7 +18,25 @@ func abreBarraca(t *testing.T, c net.Conn, titulo string, cargoPos int8, preco i
 	}
 	corpo.Slots[0] = protocol.LojaAbrirSlot{CargoPos: cargoPos, Moeda: moeda, Preco: preco}
 	send(t, c, protocol.MsgLojaAbrir, corpo.Encode())
-	readUntil(t, c, protocol.MsgLojaAbriu)
+	payload, _ := readUntil(t, c, protocol.MsgLojaAbriu)
+	var subiu protocol.LojaAbriuBody
+	if err := subiu.Decode(payload); err != nil {
+		t.Fatalf("decodificando a barraca que subiu: %v", err)
+	}
+	return subiu.Barraca
+}
+
+// mandaAbrirBarraca manda montar e NÃO espera o aviso: serve aos testes que
+// precisam ler, eles mesmos, os quadros que a barraca gera ao subir.
+func mandaAbrirBarraca(t *testing.T, c net.Conn, titulo string, cargoPos int8, preco int32,
+	moeda uint8) {
+	t.Helper()
+	corpo := protocol.LojaAbrirBody{Titulo: titulo}
+	for i := range corpo.Slots {
+		corpo.Slots[i].CargoPos = -1
+	}
+	corpo.Slots[0] = protocol.LojaAbrirSlot{CargoPos: cargoPos, Moeda: moeda, Preco: preco}
+	send(t, c, protocol.MsgLojaAbrir, corpo.Encode())
 }
 
 // pedeVitrine envia MsgLojaPede e devolve a página que voltou.
@@ -376,6 +394,9 @@ func TestAbreBarracaPeloPainel(t *testing.T) {
 	}
 	abrir.Slots[0] = protocol.LojaAbrirSlot{CargoPos: 0, Moeda: protocol.LojaMoedaRMT, Preco: 42}
 	send(t, vendedor, protocol.MsgLojaAbrir, abrir.Encode())
+	// Esperar o aviso antes de perguntar pela vitrine: são duas conexões, e sem
+	// isto a pergunta do comprador pode chegar antes de a barraca subir.
+	readUntil(t, vendedor, protocol.MsgLojaAbriu)
 
 	lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos)
 	if lista.Total != 1 {

@@ -14,7 +14,7 @@ import (
 // A vitrine deixa o vendedor cobrar em três moedas. Ouro é do personagem e o
 // tmServer move sozinho, dentro do próprio laço; Cash e RMT são da CONTA e
 // moram aqui: `account.donate_balance` (a carteira que a recarga por PIX
-// credita) e `account.rmt_balance` (0076_saldo_rmt).
+// credita) e `account.rmt_balance` (0077_saldo_rmt).
 //
 // Débito e crédito acontecem na MESMA transação, e as duas linhas são travadas
 // em ordem crescente de id. A ordem importa: duas compras cruzadas entre as

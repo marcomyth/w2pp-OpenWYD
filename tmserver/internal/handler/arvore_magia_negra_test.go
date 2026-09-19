@@ -194,7 +194,10 @@ func TestTrovaoDaMagiaNegra(t *testing.T) {
 	rodar := func(learned int32) (dano, mana int32) {
 		s := &world.Session{Conn: 1, ReqMp: 1000}
 		fm := fmBlack(3148, learned)
-		fm.X, fm.Y, fm.HP, fm.MP, fm.MaxMP, fm.Level = 5, 5, 1000, 1000, 20_000, 100
+		// MaxHP importa: o roubo de vida cura com min(MaxHP, HP+cura), e sem teto
+		// a Foema zerava a vida no primeiro golpe. Morta, ela não lança mais o
+		// Trovão (affect_tick.go), e a rodada media só o primeiro tique.
+		fm.X, fm.Y, fm.HP, fm.MaxHP, fm.MP, fm.MaxMP, fm.Level = 5, 5, 1000, 1000, 1000, 20_000, 100
 		for range 200 {
 			mob.HP, mob.MaxHP = 50_000_000, 50_000_000
 			d.applyThunderTick(w, s, fm, 100)
