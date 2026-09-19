@@ -849,10 +849,22 @@ DWORD g_faixaVistaEm = 0;
 
 // A faixa de icones, como o cliente a desenhou neste quadro. Guardada para o
 // diagnostico do icone poder dizer onde o clique caiu DENTRO dela.
+// O retangulo que a dica REALMENTE pinta. A janela dela tem o tamanho maximo,
+// nao o do desenho - por isso o vao no painel saia maior que a caixa e o mundo
+// aparecia no meio da loja. Aqui fica o maior no desenhado a partir do canto da
+// janela da dica, que e o fundo dela.
+float g_caixaX = 0.0f;
+float g_caixaY = 0.0f;
+float g_caixaL = 0.0f;
+float g_caixaA = 0.0f;
+DWORD g_caixaVistaEm = 0;
+
 float g_faixaX = 0.0f;
 float g_faixaY = 0.0f;
 float g_faixaL = 0.0f;
 float g_faixaA = 0.0f;
+
+void AnotaCaixaDaDica(float x, float y, float l, float a);
 
 extern "C" void __cdecl LojaAnotaNo(DWORD no) {
     if (no < 0x10000) {
@@ -863,6 +875,7 @@ extern "C" void __cdecl LojaAnotaNo(DWORD no) {
     const float y = r[1];
     const float l = r[2];
     const float a = r[3];
+    AnotaCaixaDaDica(x, y, l, a);
     if (a < 30.0f || a > 48.0f || l < 120.0f || l > 600.0f) {
         return;
     }
@@ -1437,6 +1450,36 @@ constexpr DWORD kDicaEntrada = 0x00416A80;
 constexpr DWORD kDicaEntradaVolta = 0x00416A88;
 const BYTE kDicaEntradaBytes[8] = {0x55, 0x8B, 0xEC, 0xB8, 0x98, 0x14, 0x00, 0x00};
 
+// Guarda o fundo da caixa da dica: o no desenhado no canto da janela dela.
+void AnotaCaixaDaDica(float x, float y, float l, float a) {
+    if (!g_aberta || g_dicaItem <= 0 || !EmJogo()) {
+        return;
+    }
+    const DWORD cena = *reinterpret_cast<const DWORD*>(kCena);
+    if (cena < 0x10000) {
+        return;
+    }
+    const DWORD janela = *reinterpret_cast<const DWORD*>(cena + 0x58);
+    if (janela < 0x10000) {
+        return;
+    }
+    const float* r = reinterpret_cast<const float*>(janela + 0x4C);
+    const float dx = x - r[0];
+    const float dy = y - r[1];
+    if (dx < -8.0f || dx > 8.0f || dy < -8.0f || dy > 8.0f || l < 40.0f || a < 20.0f) {
+        return;
+    }
+    // O maior no que comeca no canto da janela e o fundo dela.
+    const DWORD agora = GetTickCount();
+    if (agora - g_caixaVistaEm > 200 || l * a > g_caixaL * g_caixaA) {
+        g_caixaX = x;
+        g_caixaY = y;
+        g_caixaL = l;
+        g_caixaA = a;
+    }
+    g_caixaVistaEm = agora;
+}
+
 __declspec(naked) void DicaEntradaHook() {
     __asm {
         pushad
@@ -1536,10 +1579,19 @@ extern "C" int __cdecl LojaVaoDaDica(int* x, int* y, int* largura, int* altura) 
         return 0;
     }
     const float* r = reinterpret_cast<const float*>(janela + 0x4C);
-    const float px = r[0];
-    const float py = r[1];
-    const float pl = r[2];
-    const float pa = r[3];
+    float px = r[0];
+    float py = r[1];
+    float pl = r[2];
+    float pa = r[3];
+    // Preferimos a medida do desenho, quando ela foi vista neste quadro: a da
+    // janela e o espaco maximo dela, e abrir o vao por ele deixava o mundo
+    // aparecendo em volta da caixa.
+    if (GetTickCount() - g_caixaVistaEm < 200 && g_caixaL > 0.0f && g_caixaA > 0.0f) {
+        px = g_caixaX;
+        py = g_caixaY;
+        pl = g_caixaL;
+        pa = g_caixaA;
+    }
     // So aceita medida que faz sentido na tela: qualquer outra coisa quer dizer
     // que o campo nao e o que eu penso, e ai e melhor desenhar o painel inteiro
     // do que abrir um buraco no lugar errado.
