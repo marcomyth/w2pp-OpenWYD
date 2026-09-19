@@ -48,7 +48,7 @@ func forcaAlemDaDestreza(e *world.Entity) int {
 // chance de 10% + 20% × f e multiplicador de 2x + 1x × f (2x Destreza pura, 3x
 // Força pura).
 const (
-	laminaSombrasForcaPct    = 50
+	laminaSombrasForcaPct    = 50 // botão de balanceamento, ver laminaSombrasForcaPctAtual
 	laminaSombrasCritBase    = 10
 	laminaSombrasCritForca   = 20
 	laminaSombrasMultBase10  = 20 // décimos
@@ -62,14 +62,15 @@ func danoLaminaDasSombras(r combat.Rand, e *world.Entity, dmg int) (int, bool) {
 		return dmg, false
 	}
 	f := forcaDe(e)
-	dmg = dmg * (1000 + laminaSombrasForcaPct*f/100) / 1000
+	dmg = dmg * (1000 + laminaSombrasForcaPctAtual*f/100) / 1000
 	if !temOitavaDaCaptura(e) {
 		return dmg, false
 	}
 	if r.Intn(100) >= laminaSombrasCritBase+laminaSombrasCritForca*f/1000 {
+		// o multiplicador do crítico também é botão (laminaSombrasMultBase10Atual)
 		return dmg, false
 	}
-	return dmg * (laminaSombrasMultBase10 + laminaSombrasMultForca10*f/1000) / 10, true
+	return dmg * (laminaSombrasMultBase10Atual + laminaSombrasMultForca10*f/1000) / 10, true
 }
 
 // ---------------------------------------------------------------------------
@@ -253,3 +254,10 @@ func limitarLaminaAerea(extra, golpe int) int {
 	extra = max(extra, laminaAereaMinimo)
 	return min(extra, max(1, golpe*laminaAereaTetoDoGolpe/100))
 }
+
+// Botões de balanceamento da Lâmina das Sombras. São var, e não const, porque a
+// simulação de todos contra todos os varre (simulacao_todos_test.go).
+var (
+	laminaSombrasForcaPctAtual   = laminaSombrasForcaPct
+	laminaSombrasMultBase10Atual = laminaSombrasMultBase10
+)

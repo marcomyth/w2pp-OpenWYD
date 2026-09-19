@@ -158,6 +158,11 @@
                  inputmode="numeric" required value="{{.Combate.Regra.PhysicalDamagePct}}">
           <span class="faixa">{{.Combate.MinFisico}} a {{.Combate.MaxFisico}}. Escala do Ataque da janela e do golpe; 100 = sem escala. Não mexe em monstro.</span>
         </label>
+        <label class="num">Absorção da Garnet além da Esmeralda (%)
+          <input name="garnet" type="number" min="{{.Combate.MinGarnet}}" max="{{.Combate.MaxGarnet}}" step="1"
+                 inputmode="numeric" required value="{{.Combate.Regra.GarnetPct}}">
+          <span class="faixa">{{.Combate.MinGarnet}} a {{.Combate.MaxGarnet}}. A Garnet anula a Esmeralda e tira no máximo isto do resto do golpe; 100 = legado (golpe pequeno vira 1), 0 = só anula a Esmeralda.</span>
+        </label>
       </div>
       <button type="submit" class="principal">Gravar a regra</button>
     </form>
@@ -182,6 +187,7 @@
         <input type="hidden" name="arma_fisico" value="{{.Combate.Kersef.WeaponDamageGrants}}">
         <input type="hidden" name="critico_duplo" value="{{.Combate.Kersef.DoubleCriticalMaxPct}}">
         <input type="hidden" name="fisico" value="{{.Combate.Kersef.PhysicalDamagePct}}">
+        <input type="hidden" name="garnet" value="{{.Combate.Kersef.GarnetPct}}">
         <button type="submit">Usar a regra do Kersef</button>
       </form>
       {{if .Combate.Configurada}}

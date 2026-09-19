@@ -60,6 +60,9 @@ linters:
         # (ajudante.go). misspell reads it as a typo for "eels"; it is the most
         # common pronoun in the language, so it will keep coming back.
         - eles
+        # Portuguese for "criticals", as in the critical hits of the TK Espada
+        # Mágica and of the mage trees. misspell reads it as a typo for "critics".
+        - criticos
         # Portuguese for "variants", as in the two catalog variants of the kit
         # the /novato command hands out (5760/5761) — the word names the thing in
         # the migration, the handler and the client generator alike. misspell

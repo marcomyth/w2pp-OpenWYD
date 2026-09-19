@@ -23,6 +23,7 @@
 ✅ /buffs: Remove todos os buffs do personagem <br/>
 ✅ /xp (ou /bonus): mostra todos os bônus de XP ativos — o total que vale no chão onde o personagem está, de onde cada ponto vem (Baú de XP com o tempo restante, fada, montaria de loja, peças grade 7, peças com joia), os eventos do servidor e a taxa da zona na Mesa de XP. Avisa os dois casos que somem calados: de 500% para cima o jogo ignora o bônus inteiro, e os +30% da Fada Suprema não valem dentro do Pesadelo. Em grupo diz a regra (vale o maior bônus de quem está na luta) e não um número, porque esse depende de quem está perto na hora do abate. Comando novo, não existe na fonte legada <br/>
 ✅ /status: a ficha de combate que a janela de personagem não tem. Começa pelo que decide o duelo — **acerto e esquiva** em percentual contra um oponente igual, mais os dois números crus por trás deles (a precisão, que é descontada da esquiva do alvo, e a esquiva própria em milésimos, teto 650) —, depois **perfuração e absorção** e o resto do bloco de PvP do equipamento. Só então vem o contexto: Defesa de Evolução, o quanto a montaria absorve, a Jóia da Absorção e o bônus de drop. A Defesa **não** é repetida: a janela do personagem já a mostra. Cada linha só aparece se o personagem tiver aquilo. Não existe "taxa de acerto" absoluta: a rolagem é sempre a sua precisão MENOS a esquiva do outro, por isso o percentual é medido contra uma cópia do próprio personagem. Comando novo, não existe na fonte legada <br/>
+✅ /fecharloja: fecha a lojinha do personagem e tira o coelho do mundo. É o único jeito de fechar a barraca de pé: a janela da loja fecha sozinha logo depois de abrir, e fechar janela não derruba mais a loja. Comando novo, não existe na fonte legada — ver "Lojinha" abaixo <br/>
 ✅ /pontos: mostra os pontos de lojinha da **conta** e, quando há uma barraca de pé, quanto ela rende por janela e quanto falta para o próximo crédito. Comando novo, não existe na fonte legada — ver "Lojinha" abaixo <br/>
 ✅ /novato: entrega o kit de entrada — 5 Frangos Assados e 3 Baús de Experiência (as variantes 5760/5761, intransferíveis e sem preço, empilhados num espaço cada) e uma Shire de 3 dias (item 3980: +150 de dano, +15 de ataque mágico, 20% de absorção PvE e +3% de XP). **Uma vez por conta**, gravado em `newbie_kit_claim` (0062) — apagar o personagem não devolve o kit — e só para personagens **Mortais**. O que não couber na bolsa vai para o baú da conta, e a mensagem diz isso. O tempo da Shire vai nos efeitos de duração, então o relógio dela só começa quando o jogador montar. Comando novo, não existe na fonte legada. As duas variantes precisam do cliente publicado (`go run ./webserver/cmd/kitnovatocliente`), senão aparecem sem nome e sem ícone <br/>
 ✅ /cp: mostra os pontos de caos atuais do personagem (`PKPoint-75`; 0 = nick branco). Recuperam de duas formas: +1 por hora online (gate do `RegenMob` legado) e **+1 por nível subido**, ambas com teto no neutro 75 — o ganho por nível é um desvio consciente do legado, pedido na issue #279 <br/>
@@ -102,6 +103,20 @@ A barraca de venda (autotrade) **não prende mais o vendedor**. Ao abrir a lojin
 servidor ergue um **clone** ao lado do dono — um Carbúnculo mercador
 (`Release/TMsrv/run/npc/Merc_Carbunkle`) com o nome do dono — e o personagem sai
 livre para andar, caçar e mexer na bolsa enquanto a barraca continua vendendo.
+A janela da loja **fecha sozinha** logo depois de abrir.
+
+**Tamanho do coelho.** Quem desenha a barraca como Carbúnculo é o próprio cliente: ao
+receber o `MSG_CreateMobTrade` com título ele troca o rosto para o 230 e força a CON
+para 15000 (`WYD.exe` `0x483BF2`). No jogador a escala trava a CON em 500 e o coelho
+sai do tamanho normal; no clone, que é monstro, nada trava e ele saía **7,65 vezes**
+maior, cobrindo o dono e pegando os cliques no chão. O servidor manda, logo atrás, um
+`MSG_UpdateScore` do clone com CON 0, e o cliente recalcula a escala para **0,9**
+(`0x5118BE`). A regra vale ao abrir e para quem chega perto depois.
+
+**Plaquinha.** O cliente só deixa o nome de um monstro sempre à mostra quando o nibble
+baixo do Merchant do Score está entre 1 e 14 (`0x4FA230`), como num NPC de serviço. O
+clone vai com Merchant 1 no fio (no servidor continua 0), e o título da loja fica visível
+sem passar o mouse. O clique não muda: o cliente testa o título antes de tudo.
 
 Desvio consciente do legado, onde o vendedor **era** a barraca (`_MSG_SendAutoTrade.cpp`)
 e qualquer ação derrubava a loja. Só é possível porque o cliente não pergunta se uma
@@ -111,7 +126,7 @@ id, e o clique responde com o id cru (confirmado desmontando o `WYD.exe` 7662 em
 
 **A barraca só cai em três situações**, e nenhuma delas é jogar normalmente:
 
-1. o dono fecha a lojinha;
+1. o dono digita **/fecharloja** — fechar a janela não conta;
 2. a **sessão acaba** — sair do jogo, voltar à seleção de personagem ou cair a conexão;
 3. o anti-fraude do próprio autotrade recusa (o item do baú não bate com o anunciado).
 
@@ -245,10 +260,32 @@ Amantes (1738). A liberação é por item, não pelo espaço do equipamento: orb
 Espirituais, Pedra Amunra e Sephirot continuam fora.
 
 **+10 de acessório.** Dois iguais em +9, a Pedra do Sábio e **quatro joias iguais, de qualquer
-uma das quatro**: Diamante (drop), Esmeralda (perfuração), Coral (XP) ou Garnet. A joia fica
+uma das quatro**: Diamante (drop), Esmeralda (perfuração), Coral (XP) ou Garnet (absorção). A joia fica
 gravada no item e vale em qualquer espaço. Com o acessório já +10 equipado, usar uma Gema
 (Diamante, Esmeralda, Coral ou Garnet) troca a joia gravada. Custo e chance são os da +10 das
 armas.
+
+**Garnet (absorção).** Cada peça +10 a +15 com Garnet vale 40 por refino acima de +9 (80 em
+Grade 8); 11 peças +15 somam 2.640. No golpe que chega em você, de jogador ou de monstro, a
+Garnet primeiro **anula a Esmeralda de quem bate**, inteira, até o total dela; o que sobra tira
+**no máximo 20% do resto do golpe** (ajustável em /rates/combate). No legado ela tirava o total
+inteiro, e todo golpe menor que 2.640 virava 1. Decidido em 17/09/2026 pela simulação em
+`docs/balanceamento/garnet-esmeralda-2026-09-17.md`. Aparece no /status.
+
+**Adds na +10 de acessório** (decidido em 17/09/2026). O item tem dois espaços de add; o
+terceiro guarda o refino e a joia. No legado o resultado ficava com os adds do segundo item e
+o do primeiro sumia; aqui os dois passam por esta regra, nesta ordem:
+
+1. **Junção** — o mesmo add nos dois soma, até o teto: Magia 15, Dano 30, Crítico 3%, HP 105
+   (1,5 vez o maior valor do drop do Castelo Orc; MP 30, pelo dos anéis).
+2. **Sorteio** — Magia e Dano não convivem: se os dois sobrarem, fica um, 50% cada.
+3. **Sobra** — se ainda houver mais de dois adds, sorteia-se qual sai.
+4. **Mescla** — dois adds de tipos diferentes que nenhum dos itens já trazia juntos ficam, cada
+   um, com 40% a 80% do valor, sorteado (nunca zera; o crítico anda de 1% em 1%). Um item que já
+   tinha os dois juntos não perde nada.
+
+Hoje só o Amuleto de Prata do Castelo Orc cai com add (um, sorteado); brincos e Arcanos com add
+vêm depois.
 
 **Evolução (máquina +10).** O item em +9, uma cópia dele em qualquer refino, a Pedra do Sábio e
 quatro joias iguais. O item sai **em +0** no degrau seguinte da mesma linha:

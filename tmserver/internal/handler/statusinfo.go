@@ -43,6 +43,8 @@ type estadoStatus struct {
 	EsquivaEspelho int
 
 	Perfuracao int32 // EquipForceDamage: flat damage that lands past armour
+	Garnet     int32 // EquipGarnet: cancels an attacker's Esmeralda, then a share of the blow
+	GarnetPct  int32 // combatrule.GarnetPct in force
 	Reflect    int   // flat damage taken off every blow from a player
 	AtaquePvP  int   // EF_HWORDGUILD percentage
 	DefesaPvP  int   // EF_LWORDGUILD percentage
@@ -81,6 +83,8 @@ func (d *Dispatcher) showStatus(w *world.World, s *world.Session) {
 		Precisao:       precisao,
 		EsquivaEspelho: esquivaComMelhoria(combat.ParryRate(int(effectiveDex(e)), e.Parry, precisao, int(e.Rsv)), e),
 		Perfuracao:     e.EquipForceDamage,
+		Garnet:         e.EquipGarnet,
+		GarnetPct:      d.combatRules.GarnetPct,
 		Reflect:        d.reflectDamage(e),
 		AtaquePvP:      d.pvpAttackPct(e),
 		DefesaPvP:      d.pvpDefensePct(e),
@@ -121,6 +125,14 @@ func textoStatus(st estadoStatus) []string {
 
 	if partes := partesGolpe(st); len(partes) > 0 {
 		linhas = append(linhas, juntarPartes("Contra jogador: ", partes, linhaPainelMax)...)
+	}
+
+	if st.Garnet > 0 {
+		// Its own line, not a "Contra jogador" part: the Garnet takes from a
+		// monster's blow too.
+		linhas = append(linhas, fmt.Sprintf(
+			"Garnet %d: anula a Esmeralda de quem bate e absorve até %d%% do resto do golpe.",
+			st.Garnet, st.GarnetPct))
 	}
 
 	linhas = append(linhas, linhasEvolucao(st.Tier)...)

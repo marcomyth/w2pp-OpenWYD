@@ -450,7 +450,20 @@ type Entity struct {
 	AffCritical    int16
 	// AffEsquivaPct multiplies the dodge roll (+50 = ×1,5): the Huntress Captura
 	// tree, Evasão Aprimorada and Proteção das Sombras (handler/arvore_captura.go).
-	AffEsquivaPct     int32
+	AffEsquivaPct int32
+	// UltimoPvP é o World.Now do último golpe de jogador em jogador, dado ou
+	// levado; 0 é nunca. A Aura da Vida do TK Confiança cura menos em PvP.
+	UltimoPvP uint32
+	// ImuneDebuffAte é o World.Now até quando o Desintoxicar da FM Magia Branca
+	// segura debuff novo; 0 é nunca (handler/arvore_magia_branca.go).
+	ImuneDebuffAte uint32
+	// CuraReduzidaAte é o World.Now até quando o Choque Divino corta a cura que
+	// este personagem recebe, poção inclusive (handler/arvore_magia_branca.go).
+	CuraReduzidaAte uint32
+	// SemPocaoAte é o World.Now até quando o Cancelamento da FM impede este
+	// personagem de beber poção de vida ou de mana; 0 é nunca
+	// (handler/arvore_magia_especial.go).
+	SemPocaoAte       uint32
 	AffSpecial        [4]int16
 	AffResist         [4]int16
 	AffForceDamage    int32 // ForceDamage, e.g. Ligacao Espectral
@@ -495,6 +508,11 @@ type Entity struct {
 	// blow after the target's defence has already come off, which is what makes
 	// it perfuração and not damage (_MSG_Attack.cpp:1309).
 	EquipForceDamage int32
+
+	// EquipGarnet is the absorção half (CMob.cpp:873): the Garnet gem (gem 3) on a
+	// +10..+15 piece, 40 per refine step above +9, or 80 on a Grade 8 piece.
+	// garnet.go decides how much of a blow it actually takes.
+	EquipGarnet int32
 
 	EquipVisual [16]uint16 // visual item codes for MSG_CreateMob/UpdateEquip
 	EquipAnct   [16]uint8  // refine/ancient glow overlay bytes paired with EquipVisual

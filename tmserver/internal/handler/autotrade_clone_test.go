@@ -132,16 +132,8 @@ func TestCloneSomeQuandoODonoDesconecta(t *testing.T) {
 	const sellItem = int16(1030)
 	addr, stop, w := startServerCloneShop(t, autotradeDB(sellItem))
 	seller := enterWorldAs(t, addr, "tester")
-	// By hand rather than enterWorldAs: that helper drains the login burst, and
-	// the stall's view packet is part of the burst.
-	buyer := dial(t, addr)
+	buyer := enterWorldAs(t, addr, "tradeb")
 	defer buyer.Close()
-	send(t, buyer, protocol.MsgAccountLogin, loginBody("tradeb", "secret", protocol.AppVersion))
-	if ty, _ := read(t, buyer); ty != protocol.MsgCNFAccountLogin {
-		t.Fatalf("login tradeb: %#x", ty)
-	}
-	var login protocol.MsgCharacterLoginBody
-	send(t, buyer, protocol.MsgCharacterLogin, login.Encode())
 
 	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Some Comigo", sellItem, 0, 1000))
 	list, _ := readUntil(t, seller, protocol.MsgSendAutoTrade)
@@ -193,12 +185,55 @@ func esperarSemLoja(t *testing.T, buyer net.Conn, stallID int) {
 	}
 }
 
-// TestCloneDaLojaNasceComATamanhoPedido pins the Score.Con the stall is drawn
-// with, on both roads a client can learn about it: the broadcast when the shop
-// opens (the owner sees it through that one) and the view packet sent to whoever
-// arrives afterwards — who must also see only ONE stall, not the seller too. The client sizes a mob by Con, and the legacy 0 made the
-// Carbúnculo big enough to cover its own seller.
-func TestCloneDaLojaNasceComATamanhoPedido(t *testing.T) {
+// stallFrames reads a socket until it goes quiet and returns, in order, the
+// entity ids announced as stalls (MSG_CreateMobTrade) and the Con of every
+// MSG_UpdateScore, keyed by the entity it describes.
+func stallFrames(t *testing.T, c net.Conn) (stalls []int, cons map[int]int16, quit bool) {
+	t.Helper()
+	cons = map[int]int16{}
+	merchant := func(what string, got byte) {
+		if got != shopCloneMerchant {
+			t.Errorf("Score.Merchant do clone no %s = %d, quer %d (sem ele a plaquinha só aparece com o mouse)", what, got, shopCloneMerchant)
+		}
+	}
+	for {
+		h, p, ok := readMaybeHeader(t, c)
+		if !ok {
+			return stalls, cons, quit
+		}
+		switch h.Type {
+		case protocol.MsgCreateMobTrade:
+			stalls = append(stalls, int(binary.LittleEndian.Uint16(p[4:6]))) // MobID @body4
+			if int(binary.LittleEndian.Uint16(p[4:6])) >= world.MaxUser {
+				merchant("MSG_CreateMobTrade", p[124+12]) // Score @body124, Merchant @+12
+			}
+		case protocol.MsgUpdateScore:
+			cons[int(h.ID)] = int16(binary.LittleEndian.Uint16(p[38:40])) // Score.Con @body38
+			if int(h.ID) >= world.MaxUser {
+				merchant("MSG_UpdateScore", p[12])
+			}
+		case protocol.MsgQuitTrade:
+			quit = true
+		}
+	}
+}
+
+// TestCloneDaLojaTamanhoJanelaEFechar is the stall as Marco tested it on 17/09,
+// in the three things that went wrong in game:
+//
+//   - the size. The client forces Con 15000 into every titled MSG_CreateMobTrade,
+//     so the clone is resized by the MSG_UpdateScore behind it — for the owner at
+//     opening and for whoever walks up later;
+//   - the window. It closes by itself (MsgQuitTrade), and the QuitTrade the client
+//     sends back must NOT take the stall down;
+//   - closing. /fecharloja does.
+//
+// And the plate: Score.Merchant goes as shopCloneMerchant on both packets, or the
+// title only shows under the mouse.
+//
+// Also: whoever arrives later sees ONE stall. The seller's own body used to be
+// announced as a second one.
+func TestCloneDaLojaTamanhoJanelaEFechar(t *testing.T) {
 	const sellItem = int16(1030)
 	addr, stop, _ := startServerCloneShop(t, autotradeDB(sellItem))
 	defer stop()
@@ -206,25 +241,23 @@ func TestCloneDaLojaNasceComATamanhoPedido(t *testing.T) {
 	defer seller.Close()
 
 	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Loja Solta", sellItem, 0, 1000))
-	// Body offsets: MobID @4, Score @124, Score.Con @+38.
-	conOf := func(p []byte) (int, int16) {
-		return int(binary.LittleEndian.Uint16(p[4:6])), int16(binary.LittleEndian.Uint16(p[124+38 : 124+40]))
+	stalls, cons, quit := stallFrames(t, seller)
+	if len(stalls) != 1 || stalls[0] < world.MaxUser {
+		t.Fatalf("barracas anunciadas ao dono = %v, quer um clone", stalls)
+	}
+	id := stalls[0]
+	if con, ok := cons[id]; !ok || con != shopCloneCon {
+		t.Fatalf("UpdateScore do clone ao dono: Con %d (enviado=%v), quer %d", con, ok, shopCloneCon)
+	}
+	if !quit {
+		t.Fatal("a janela da loja não foi fechada (sem MsgQuitTrade ao dono)")
 	}
 
-	p, ok := readUntilType(t, seller, protocol.MsgCreateMobTrade)
-	if !ok {
-		t.Fatal("o dono não recebeu o MSG_CreateMobTrade do clone")
-	}
-	id, con := conOf(p)
-	if id < world.MaxUser {
-		t.Fatalf("barraca anunciada com id %d, quer o clone (>= %d)", id, world.MaxUser)
-	}
-	if con != shopCloneCon {
-		t.Errorf("Con do clone ao abrir = %d, quer %d", con, shopCloneCon)
-	}
+	// The client's echo of that close.
+	send(t, seller, protocol.MsgQuitTrade, nil)
 
 	// By hand rather than enterWorldAs: that helper drains the login burst, and
-	// the stall's view packet is part of the burst.
+	// the stall's view packets are part of the burst.
 	buyer := dial(t, addr)
 	defer buyer.Close()
 	send(t, buyer, protocol.MsgAccountLogin, loginBody("tradeb", "secret", protocol.AppVersion))
@@ -233,24 +266,18 @@ func TestCloneDaLojaNasceComATamanhoPedido(t *testing.T) {
 	}
 	var login protocol.MsgCharacterLoginBody
 	send(t, buyer, protocol.MsgCharacterLogin, login.Encode())
-	// Everything the newcomer is told is a stall. Exactly one, and it is the
-	// clone: the seller's own body is a player again, not a second shop.
-	var stalls []int
-	for {
-		h, p, ok := readMaybeHeader(t, buyer)
-		if !ok {
-			break
-		}
-		if h.Type != protocol.MsgCreateMobTrade {
-			continue
-		}
-		vid, vcon := conOf(p)
-		stalls = append(stalls, vid)
-		if vid == id && vcon != shopCloneCon {
-			t.Errorf("Con do clone para quem chega = %d, quer %d", vcon, shopCloneCon)
-		}
-	}
+	stalls, cons, _ = stallFrames(t, buyer)
 	if len(stalls) != 1 || stalls[0] != id {
-		t.Fatalf("barracas vistas por quem chega = %v, quer só o clone [%d]", stalls, id)
+		t.Fatalf("barracas vistas por quem chega = %v, quer só o clone [%d] (o QuitTrade derrubou a loja, ou o vendedor virou barraca)", stalls, id)
 	}
+	if con, ok := cons[id]; !ok || con != shopCloneCon {
+		t.Fatalf("UpdateScore do clone a quem chega: Con %d (enviado=%v), quer %d", con, ok, shopCloneCon)
+	}
+	send(t, buyer, protocol.MsgReqTradeList, protocol.EncodeStandardParm(int32(id)))
+	if _, ok := readUntilType(t, buyer, protocol.MsgSendAutoTrade); !ok {
+		t.Fatal("a barraca não respondeu depois do QuitTrade do dono")
+	}
+
+	whisperFrame(t, seller, "fecharloja", "")
+	esperarSemLoja(t, buyer, id)
 }

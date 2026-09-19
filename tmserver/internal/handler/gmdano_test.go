@@ -10,7 +10,8 @@ import (
 
 // TestGMDanoFechaAConta: as partes que o /gm dano mostra somam o Ataque da
 // janela — sem sobra "não identificada" — numa TK com arma da tabela, luva com
-// dano e as três evoluções.
+// dano e as evoluções da Trans e da Espada Mágica (o Destino faria dela uma TK
+// Confiança, sem a DES no físico — TestGMDanoTKConfianca).
 func TestGMDanoFechaAConta(t *testing.T) {
 	const espada2m, luva = 900, 901
 	d := New(Config{
@@ -22,7 +23,7 @@ func TestGMDanoFechaAConta(t *testing.T) {
 	e.Name = "Porradeiro"
 	e.Level = 400
 	e.BaseStr, e.Str, e.BaseDex, e.Dex = 2802, 2802, 712, 712
-	e.LearnedSkill = 1<<7 | 1<<15 | 1<<23
+	e.LearnedSkill = 1<<15 | 1<<23
 	e.Equip[weaponSlotR] = world.Item{Index: espada2m}
 	e.Equip[4] = world.Item{Index: luva}
 	d.refreshScore(e)
@@ -73,6 +74,31 @@ func TestGMDanoComRostoForaDaFaixa(t *testing.T) {
 		if !strings.Contains(texto, quer) {
 			t.Errorf("o relatório não traz %q:\n%s", quer, texto)
 		}
+	}
+	if strings.Contains(texto, "não identificada") {
+		t.Errorf("as partes não fecham com o Damage guardado:\n%s", texto)
+	}
+}
+
+// TestGMDanoTKConfianca: na TK Confiança a DES não entra no físico, e o /gm dano
+// mostra DES/3 zerado e continua fechando a conta.
+func TestGMDanoTKConfianca(t *testing.T) {
+	const espada2m = 900
+	d := New(Config{
+		ItemUnique:  map[int]int{espada2m: 48},
+		ItemEffects: map[int][]content.BaseEffect{espada2m: {{Eff: efDamage, Val: 300}}},
+	})
+	e := testPlayerEntity()
+	e.Name = "Paladino"
+	e.Level = 400
+	e.BaseStr, e.Str, e.BaseDex, e.Dex = 400, 400, 2000, 2000
+	e.LearnedSkill = 1<<7 | 1<<15 | 1<<23
+	e.Equip[weaponSlotR] = world.Item{Index: espada2m}
+	d.refreshScore(e)
+
+	texto := strings.Join(d.danoLinhas(e), "\n")
+	if !strings.Contains(texto, "DES/3 0 ") {
+		t.Errorf("o relatório devia mostrar DES/3 0:\n%s", texto)
 	}
 	if strings.Contains(texto, "não identificada") {
 		t.Errorf("as partes não fecham com o Damage guardado:\n%s", texto)

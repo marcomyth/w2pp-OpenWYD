@@ -49,8 +49,8 @@ func TestEquipForceDamage(t *testing.T) {
 			want:  0,
 		},
 		{
-			// The Garnet stays out on purpose: that decision belongs with the rest
-			// of the PvP block in pvp.go, not with this walk.
+			// The Garnet has its own total (equipGarnet) and its own rule
+			// (garnet.go); it adds nothing to the perfuração.
 			name:  "garnet nao paga perfuracao",
 			equip: map[int]world.Item{0: gemItem(1000, 15, 3)},
 			want:  0,

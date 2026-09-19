@@ -119,6 +119,8 @@ func TestSetCombatRulesDizSeMudou(t *testing.T) {
 		{"teto do crítico duplo", func(r *combatrule.Rules) { r.DoubleCriticalMaxPct = 40 }},
 		{"crítico duplo desligado", func(r *combatrule.Rules) { r.DoubleCriticalMaxPct = 0 }},
 		{"escala do ataque físico", func(r *combatrule.Rules) { r.PhysicalDamagePct = 80 }},
+		{"absorção da Garnet", func(r *combatrule.Rules) { r.GarnetPct = 35 }},
+		{"Garnet só anulando a Esmeralda", func(r *combatrule.Rules) { r.GarnetPct = 0 }},
 	} {
 		nova := d.combatRules
 		c.mudar(&nova)

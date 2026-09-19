@@ -65,6 +65,8 @@ type combateView struct {
 	MaxCritDup  int32
 	MinFisico   int32
 	MaxFisico   int32
+	MinGarnet   int32
+	MaxGarnet   int32
 }
 
 func pctTexto(v int32) string { return fmt.Sprintf("%d%%", v) }
@@ -184,6 +186,15 @@ func combateBotoes(r combatrule.Rules) []combateBotao {
 			Agora: pctTexto(r.PhysicalDamagePct), Padrao: pctTexto(p.PhysicalDamagePct),
 			Kersef: pctTexto(k.PhysicalDamagePct), Mudado: r.PhysicalDamagePct != p.PhysicalDamagePct,
 		},
+		{
+			Nome: "Absorção da Garnet além da Esmeralda (%)",
+			Explica: "A Garnet primeiro anula por inteiro a Esmeralda de quem bate; o que sobra dela tira no máximo " +
+				"esta parte do resto do golpe, em jogador e em monstro. Uma montagem cheia +15 vale 2.640: no legado " +
+				"(100%) todo golpe menor que isso vira 1. Com 20%, um golpe de 800 sem Esmeralda cai para 640. " +
+				"0% = a Garnet só anula a Esmeralda.",
+			Agora: pctTexto(r.GarnetPct), Padrao: pctTexto(p.GarnetPct),
+			Kersef: pctTexto(k.GarnetPct), Mudado: r.GarnetPct != p.GarnetPct,
+		},
 	}
 }
 
@@ -219,6 +230,7 @@ func (h *Handler) combate(w http.ResponseWriter, r *http.Request) {
 			MinArmaFis: combatrule.MinWeaponDamageGrants, MaxArmaFis: combatrule.MaxWeaponDamageGrants,
 			MinCritDup: combatrule.MinDoubleCriticalPct, MaxCritDup: combatrule.MaxDoubleCriticalPct,
 			MinFisico: combatrule.MinPhysicalDamagePct, MaxFisico: combatrule.MaxPhysicalDamagePct,
+			MinGarnet: combatrule.MinGarnetPct, MaxGarnet: combatrule.MaxGarnetPct,
 		},
 		Historico: h.combateHistorico(r.Context()),
 	})
@@ -266,10 +278,10 @@ func (h *Handler) setCombate(w http.ResponseWriter, r *http.Request) {
 	h.voltarParaCombate(w, r, fmt.Sprintf(
 		"Regra gravada: magia da arma por INT %d%%, multiplicador na magia %s, "+
 			"resistência de monstro %d, skill em jogador %d%%, golpe físico em jogador %d%%, "+
-			"precisão da magia pela INT %d%%, máximo de erros seguidos %s, bônus de arma %s, crítico duplo até %d%%, ataque físico %d%%. "+
+			"precisão da magia pela INT %d%%, máximo de erros seguidos %s, bônus de arma %s, crítico duplo até %d%%, ataque físico %d%%, Garnet %d%%. "+
 			"O jogo passa a usar em até 15 segundos.",
 		regra.WeaponIntMagicPct, ligadoTexto(regra.SpellDamageMulti), regra.MobResistBase,
-		regra.PvPSkillPct, regra.PvPMeleePct, regra.SpellIntAccuracyPct, errosTexto(regra.MaxMissStreak), vezesTexto(regra.WeaponDamageGrants), regra.DoubleCriticalMaxPct, regra.PhysicalDamagePct))
+		regra.PvPSkillPct, regra.PvPMeleePct, regra.SpellIntAccuracyPct, errosTexto(regra.MaxMissStreak), vezesTexto(regra.WeaponDamageGrants), regra.DoubleCriticalMaxPct, regra.PhysicalDamagePct, regra.GarnetPct))
 }
 
 // limparCombate drops the row, back to the decided default.
@@ -360,6 +372,11 @@ func combateDoForm(r *http.Request) (combatrule.Rules, string) {
 		return combatrule.Rules{}, fmt.Sprintf("O ataque físico do jogador precisa ser um número entre %d e %d por cento.",
 			combatrule.MinPhysicalDamagePct, combatrule.MaxPhysicalDamagePct)
 	}
+	garnet, ok := faixaDoForm(r, "garnet", combatrule.MinGarnetPct, combatrule.MaxGarnetPct)
+	if !ok {
+		return combatrule.Rules{}, fmt.Sprintf("A absorção da Garnet precisa ser um número entre %d e %d por cento.",
+			combatrule.MinGarnetPct, combatrule.MaxGarnetPct)
+	}
 	return combatrule.Rules{
 		WeaponIntMagicPct: int32(arma), SpellDamageMulti: multi, MobResistBase: int32(resist),
 		PvPSkillPct: pvpSkill, PvPMeleePct: pvpMelee,
@@ -367,6 +384,7 @@ func combateDoForm(r *http.Request) (combatrule.Rules, string) {
 		WeaponDamageGrants:   armaFis,
 		DoubleCriticalMaxPct: critDup,
 		PhysicalDamagePct:    fisico,
+		GarnetPct:            garnet,
 	}, ""
 }
 
@@ -401,6 +419,7 @@ func combateParaAudit(c combatrule.Config) map[string]any {
 		"bonus_de_arma":          vezesTexto(c.Rules.WeaponDamageGrants),
 		"critico_duplo_maximo":   pctTexto(c.Rules.DoubleCriticalMaxPct),
 		"ataque_fisico":          pctTexto(c.Rules.PhysicalDamagePct),
+		"garnet":                 pctTexto(c.Rules.GarnetPct),
 	}
 }
 

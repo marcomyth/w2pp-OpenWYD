@@ -110,6 +110,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.guardCampoDeTreino(w)
 	d.regenPlayers(w)
 	d.sweepAffects(w)
+	d.tickAuraDaConfianca(w)
 	d.sweepInvisibilidade(w)
 	d.sweepMobAffects(w) // ProcessAffect for monsters (mobskill.go)
 	d.sweepGuilty(w)
@@ -531,6 +532,7 @@ func (d *Dispatcher) ensureSeenMob(w *world.World, vs *world.Session, id int) {
 	evictStaleMob(w, vs, id)
 	ty, body := createMobViewPacket(w, mob, 0)
 	w.SendTo(vs, protocol.Header{Type: ty, ID: protocol.IDScene}, body)
+	sendStallScale(w, vs, mob)
 }
 
 // inSafeCity reports whether player conn is standing inside a city rectangle —
@@ -601,7 +603,7 @@ func (d *Dispatcher) regenPlayers(w *world.World) {
 		// Both bars always drain; only the SEND is either/or. Keep these as separate
 		// statements — folding them into `if applyHp(...) else if applyMp(...)` would
 		// short-circuit and stop MP regenerating whenever HP is.
-		movedHP := applyHp(s, e)
+		movedHP := applyHpEm(s, e, w.Now())
 		movedMP := applyMp(s, e)
 		// SendScore (multicast) when HP moved, else SendSetHpMp (self-only) for a
 		// mana-only change — the original's exact else-if, so an MP tick never costs
@@ -1023,6 +1025,11 @@ func (d *Dispatcher) danoDoGolpeDeMonstro(w *world.World, e, target *world.Entit
 	// ProcessSecMinTimer.cpp:2294). byPlayer is false — a pet counts as a monster
 	// here, which matches the legacy: its absorption block gates on the TARGET being
 	// a player and never asks what swung.
+	// The Garnet comes off first, after the defence and before the mount, where
+	// the legacy takes its ReflectDamage from a monster's blow (GetFunc.cpp:1639);
+	// garnet.go has the rule. A pet swinging at a player is not a thing
+	// (validTarget), and absorverGarnet ignores any target that is not one.
+	dmg = d.absorverGarnet(e, target, dmg)
 	return d.absorbBlow(w, target, dmg, false)
 }
 

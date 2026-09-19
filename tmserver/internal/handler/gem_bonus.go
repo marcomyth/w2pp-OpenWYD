@@ -21,9 +21,8 @@ import (
 // iteration and the line adds zero — dead code in the original, and porting it
 // would mean inventing the slot its author meant.
 //
-// The Garnet (gem 3) stays out too, but for a different reason: it is a decision
-// taken with the rest of the PvP block in pvp.go, and reversing it is a balance
-// call, not a port gap.
+// The Garnet (gem 3) is read by equipGarnet below, but it is NOT the legacy
+// subtraction: garnet.go applies it under the rule decided on 2026-09-17.
 
 // gemRefineSteps is the legacy's isanc: how many refine steps above +9 a piece
 // carries, 1 at +10 through 6 at +15, and 0 below that.
@@ -60,4 +59,23 @@ func (d *Dispatcher) equipForceDamage(e *world.Entity) int32 {
 		force += per * gemRefineSteps(it)
 	}
 	return force
+}
+
+// equipGarnet totals the character's Garnet: the legacy's gem-3 share of
+// ReflectDamage (CMob.cpp:872-873), 40 per refine step above +9, or 80 on a
+// Grade 8 piece. How much of it a blow actually loses is garnet.go's business.
+func (d *Dispatcher) equipGarnet(e *world.Entity) int32 {
+	var garnet int32
+	for slot := range e.Equip {
+		it := e.Equip[slot]
+		if it.Empty() || itemGem(it) != 3 {
+			continue
+		}
+		per := int32(40)
+		if d.itemGrades[int(it.Index)] == 8 {
+			per = 80
+		}
+		garnet += per * gemRefineSteps(it)
+	}
+	return garnet
 }

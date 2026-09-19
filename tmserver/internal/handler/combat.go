@@ -279,6 +279,8 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 	doubleCriticalReady := false
 	var healExp int64
 	var hpSyncTargets []int
+	// FM Magia Negra: the mana one cast gives back, summed over its targets (arvore_magia_negra.go).
+	var manaRoubada int32
 	for i := range body.Dam {
 		tid := int(body.Dam[i].TargetID)
 		target := w.Entity(tid)
@@ -395,14 +397,44 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			if dmg > 0 && tid == s.Conn && cast.spell.Aggressive != 0 && skillnum != 30 {
 				dmg = 0
 			}
+			// TK Espada Mágica e FM Magia Negra: crítico ×2-×4 nas skills da árvore, e o
+			// Exterminar tudo ou nada (arvore_espada_magica.go, arvore_magia_negra.go).
+			espadaMagica := tid != s.Conn && magoCritico(e, skillnum)
+			if espadaMagica && dmg > 0 {
+				if mult := rolarCriticoDeMago(w.Rand(), e); mult > 0 {
+					dmg = dmg * mult / 10
+					body.DoubleCritical |= 2
+					writeDoubleCritical(payload, body.DoubleCritical)
+				}
+			}
 			if dmg > 0 && tid != s.Conn {
-				miss := combat.ResolveParry(w.Rand(), skillnum, d.skillParryRate(e, target), target.Rsv&world.RsvBlock != 0)
-				if miss = capMissStreak(e, tid, miss, int(d.combatRules.MaxMissStreak)); miss != 0 {
-					dmg = miss
+				if espadaMagica && e.Class == 0 && skillnum == skillExterminar {
+					// The 10% roll replaces the dodge, and the miss streak never forces it.
+					if !exterminarAcerta(w.Rand()) {
+						dmg = -3
+					}
+				} else if skillnum == skillJulgamento && fmMagiaBranca(e) {
+					// O Julgamento Divino dela acerta 30% das vezes, por alvo (arvore_magia_branca.go).
+					if !julgamentoAcerta(w.Rand()) {
+						dmg = -3
+					}
+				} else {
+					miss := combat.ResolveParry(w.Rand(), skillnum, d.skillParryRate(e, target), target.Rsv&world.RsvBlock != 0)
+					if miss = capMissStreak(e, tid, miss, int(d.combatRules.MaxMissStreak)); miss != 0 {
+						dmg = miss
+					}
 				}
 			}
 			if !skipGenericAffect {
 				d.applyCastAffect(w, e, target, tid, cast)
+			}
+			// Fanatismo do TK Confiança: o golpe que acerta tira defesa (arvore_confianca.go).
+			if skillnum == skillFanatismo && dmg > 0 && tid != s.Conn && tkConfianca(e) {
+				d.aplicarDebuffDoFanatismo(w, e, target, tid)
+			}
+			// Marcas da FM Magia Branca: Flecha Mágica e Choque Divino (arvore_magia_branca.go).
+			if dmg > 0 && tid != s.Conn {
+				d.aplicarMarcasDaBranca(w, e, target, tid, skillnum)
 			}
 		} else {
 			// FIDELIDADE AO LEGADO (restaurada): melee farther than the reach is
@@ -446,11 +478,11 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			}
 			dmg = combat.ResolveHit(w.Rand(), combat.HitInput{
 				AttackerDamage:   atkDamage,
-				TargetAC:         defesaPerfurada(e, int(effectiveAC(target))),
+				TargetAC:         d.defesaPerfurada(e, int(effectiveAC(target))),
 				TargetIsPlayer:   world.IsPlayer(tid),
 				AttackerIsPlayer: true,
 				DoubleCritical:   doubleCritical,
-				Master:           e.Master,
+				Master:           masterDoGolpe(e),
 				UseSkill:         false,
 				SkillIndex:       skillnum,
 				ParryRate:        d.parryRate(e, target),
@@ -474,12 +506,15 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			// only: a party heal or buff aimed at the Huntress must not reveal her.
 			if pvpHit {
 				d.revelarInvisivel(w, target)
+				marcarPvP(e, target, w.Now())
 			}
 			// The legacy PvP block (pvp.go): every blow on a player or a summon keeps
 			// a quarter ("Perfuração"), and the panel's PvP share rides on top.
 			dmg = perfuracao(target, tid, dmg, airBlade)
 			if pvpHit {
 				dmg = d.applyPvPRule(dmg, skillHit)
+				// Armadura Crítica: extra damage on a Huntress only (arvore_trans.go).
+				dmg = danoDoTransContraHT(e, target, dmg)
 			}
 			dmg = applyForceDamage(e, target, tid, dmg)
 			// Defesa de Evolução (tierdefense.go) — a server rule, not parity, so it
@@ -500,6 +535,9 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			// (_MSG_Attack.cpp:1322-1331, 1494-1510), before the mount takes its share.
 			if pvpHit {
 				dmg = d.applyPvPStats(e, target, dmg)
+				// The Garnet sits with the reflect it belongs to in the legacy
+				// (_MSG_Attack.cpp:1496), under the rule in garnet.go.
+				dmg = d.absorverGarnet(e, target, dmg)
 			}
 			dmg = d.applyManaControl(w, e, target, tid, dmg)
 			// The victim's mount eats its share LAST, after every other adjustment,
@@ -530,6 +568,13 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			}
 			d.applyOnHitAffects(w, e, target, tid)
 			d.applyHpAbs(w, s, e, dmg)
+			// Roubo de vida do TK Espada Mágica, sobre o dano que entrou (arvore_espada_magica.go).
+			if skillHit && tid != s.Conn && tkEspadaMagica(e) && skillDeDanoDaEspadaMagica(skillnum) {
+				d.curarPeloRoubo(w, s, e, rouboDeVida(w.Rand(), e, dmg))
+			}
+			if skillHit && tid != s.Conn && fmMagiaNegra(e) && skillDeDanoDaMagiaNegra(skillnum) {
+				manaRoubada += d.reporMana(w, s, e, rouboDeMana(w.Rand(), e, dmg, tetoDoRouboDeMana(e)-manaRoubada))
+			}
 			// Landing a PvP hit against a comparatively clean target (PKPoint>10)
 			// marks BOTH sides Guilty (_MSG_Attack.cpp: SetGuilty(conn,8);
 			// SetGuilty(idx,8)) — re-broadcasting whichever side's nick wasn't
@@ -542,7 +587,8 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 		} else if dmg < 0 && cast.isSkill && cast.spell.InstanceType == 6 {
 			// Heal: a negative Dam is the healed amount; clamp to the target's max.
 			before := target.HP
-			target.HP += d.foemaHealAmount(target, -int32(dmg))
+			// O Choque Divino corta a cura recebida (arvore_magia_branca.go).
+			target.HP += curaReduzida(target, d.foemaHealAmount(target, -int32(dmg)), w.Now())
 			if m := effectiveMaxHP(target); target.HP > m {
 				target.HP = m
 			}
@@ -743,15 +789,9 @@ func (d *Dispatcher) validateCast(w *world.World, s *world.Session, e *world.Ent
 	// (_MSG_Attack.cpp:222) — server rule, arvore_troca.go.
 	// Skill mitigation mastery: only a TK with bit 14 learned gets Special[2]/20
 	// (clamped 0..15); everyone else casts with 0 (_MSG_Attack.cpp:258-268).
-	if e.Class == 0 && e.LearnedSkill&(1<<14) != 0 {
-		m := int(e.Special[2]) / 20
-		if m < 0 {
-			m = 0
-		}
-		if m > 15 {
-			m = 15
-		}
-		cast.master = m
+	// The same floor now reaches the normal blow (masterDoGolpe, arvore_trans.go).
+	if temNocaoDeCombate(e) {
+		cast.master = pisoDaNocao(e)
 	}
 	return cast, true
 }
@@ -815,6 +855,11 @@ func (d *Dispatcher) validateSkillTarget(w *world.World, s *world.Session, caste
 		return false
 	}
 	if (sp.Index == 41 || sp.Index == 44) && targetSlot >= foemaMultiBuffTargetCap(cast.special) {
+		return false
+	}
+	// Cancelamento: o número de alvos sai da arma e da Destreza dela
+	// (arvore_magia_especial.go).
+	if sp.Index == skillCancelamento && fmCancelamento(caster) && targetSlot >= alvosDoCancelamento(caster, d.itemAbility) {
 		return false
 	}
 	if sp.BParty != 0 && !skillSameLeaderOrGuild(w, caster, target) {
@@ -995,6 +1040,10 @@ func (d *Dispatcher) applyCastAffect(w *world.World, e, target *world.Entity, ti
 		if target.Rsv&world.RsvBlock != 0 {
 			return
 		}
+		// Desintoxicar da FM Magia Branca (arvore_magia_branca.go).
+		if imuneADebuff(target, w.Now()) {
+			return
+		}
 		if world.IsPlayer(e.ID) && target.Clan == 6 {
 			return // clan 6 is immune to player-cast affects
 		}
@@ -1075,6 +1124,18 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 		Mortal:       e.ClassMaster == classMasterMortal,
 		LearnedSkill: e.LearnedSkill,
 	}
+	if tkConfianca(e) && skillDeDanoDaConfianca(skillnum) {
+		// DES e INT no lugar da Magia, e a arma da árvore (arvore_confianca.go).
+		caster.Confianca = true
+		caster.Dex = int(effectiveDex(e))
+		caster.ArmaPct = armaPctConfianca(e, d.itemAbility) * confiancaDanoPct / 100
+	} else if tkEspadaMagica(e) && skillDeDanoDaEspadaMagica(skillnum) {
+		// A lança do TK Espada Mágica (arvore_espada_magica.go).
+		caster.ArmaPct = armaPctEspadaMagica(e, d.itemAbility)
+	} else if fmMagiaNegra(e) && skillDeDanoDaMagiaNegra(skillnum) {
+		// O cajado da FM Magia Negra (arvore_magia_negra.go).
+		caster.ArmaPct = armaPctMagiaNegra(e, d.itemAbility)
+	}
 	// CurrentWeather scales InstanceType 2/3/5 output (_MSG_Attack.cpp:520,594,972
 	// → BASE_GetSkillDamage). Weather 0 is neutral, so this is a no-op until a
 	// roll or a GM override moves it (weather.go).
@@ -1086,7 +1147,7 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 			// Five arrows of 40% of the damage, each with its own multiplier, as one
 			// blow (arvore_sobrevivencia.go). Replaces the legacy 180% halved.
 			raw, soma := danoBrutoTempestade(w.Rand(), caster.Damage, caster.Str, int(effectiveDex(e)))
-			def := defesaPerfurada(e, int(effectiveAC(target)))
+			def := d.defesaPerfurada(e, int(effectiveAC(target)))
 			if world.IsPlayer(tid) {
 				def *= tempestadeDefesaPvPx3
 			}
@@ -1094,7 +1155,7 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 			d.log.Debug("tempestade de flechas", "caster", e.ID, "target", tid, "multiplicadores", soma, "bruto", raw, "dano", dmg)
 			return dmg
 		}
-		def := defesaPerfurada(e, int(effectiveAC(target)))
+		def := defesaPerfuradaConfianca(e, skillnum, d.defesaPerfurada(e, int(effectiveAC(target))))
 		if world.IsPlayer(tid) {
 			def *= 2
 		}
@@ -1116,11 +1177,15 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 			heal = 2*cast.special + cast.spell.InstanceValue
 		}
 		heal = foemaAmantesHeal(e, skillnum, heal)
+		// A FM Magia Branca cura pela própria vida, com o cajado de 1 mão por cima
+		// (arvore_magia_branca.go).
+		heal = curaDaMagiaBranca(e, skillnum, heal, d.itemAbility)
 		healCap := 1100
 		if e.ClassMaster != classMasterMortal && e.ClassMaster != classMasterArch {
 			heal *= 2
 			healCap = 2200
 		}
+		healCap = tetoDaCura(e, skillnum, healCap)
 		if heal >= healCap {
 			heal = healCap
 		}
@@ -1143,6 +1208,11 @@ func (d *Dispatcher) applySkillSpecial(w *world.World, s *world.Session, e, targ
 	case cast.spell.InstanceType == 7: // Flash: clear combat state.
 		target.Target = 0
 		clearEnemyList(target)
+		if world.IsPlayer(tid) && fmMagiaBranca(e) {
+			// Com a 8ª, o Flash também tira o aliado da mira de quem está perto
+			// (arvore_magia_branca.go).
+			d.tirarDaMira(w, target, tid)
+		}
 		if !world.IsPlayer(tid) && target.Mode == world.MobCombat {
 			target.Mode = world.MobPeace
 		}
@@ -1150,6 +1220,10 @@ func (d *Dispatcher) applySkillSpecial(w *world.World, s *world.Session, e, targ
 
 	case cast.spell.InstanceType == 8:
 		d.clearDetoxAffects(w, e, target, tid)
+		if skillnum == skillDesintoxicar {
+			// Com a 8ª, o Desintoxicar segura debuff novo por 4 s (arvore_magia_branca.go).
+			marcarImunidadeADebuff(e, target, w.Now())
+		}
 		if skillnum == 31 {
 			d.applyFoemaResurrection(w, s, e, target, tid, body)
 		}
@@ -1163,9 +1237,18 @@ func (d *Dispatcher) applySkillSpecial(w *world.World, s *world.Session, e, targ
 		d.applyEtherealFlame(w, e, target, tid)
 		return true
 
-	case skillnum == 30: // Julgamento Divino.
-		*dmg += int(e.HP)
-		e.HP = e.HP/6 + 1
+	case skillnum == skillJulgamento: // Julgamento Divino.
+		if fmMagiaBranca(e) {
+			// Tudo ou nada da FM Magia Branca: gasta 70% da vida, soma o dobro disso ao
+			// golpe e fica com 30% (arvore_magia_branca.go). O acerto de 30% é sorteado
+			// no laço do ataque, como o do Exterminar.
+			gasto, add := custoDoJulgamento(e)
+			*dmg += int(add)
+			e.HP -= gasto
+		} else {
+			*dmg += int(e.HP)
+			e.HP = e.HP/6 + 1
+		}
 		s.ReqHp = e.HP
 		setReqHp(s, e)
 		d.sendSetHpMp(w, s, e)
@@ -1187,12 +1270,17 @@ func (d *Dispatcher) applySkillSpecial(w *world.World, s *world.Session, e, targ
 
 	case skillnum == 47: // Cancelamento removes block first.
 		if target.ClearFirstAffect(19) {
+			// O Escudo de Habilidade comeu o Cancelamento: a trava da poção NÃO sai.
+			// É a defesa natural da Huntress (arvore_magia_especial.go).
 			d.refreshScore(target)
 			if ts := w.Session(tid); ts != nil {
 				d.sendScore(w, ts, target)
 				d.sendAffect(w, ts, target)
 			}
 			return true
+		}
+		if !imuneADebuff(target, w.Now()) {
+			trancarAPocao(target, tid, w.Now()) // 20 s sem poção de vida nem de mana
 		}
 		return false
 	}
@@ -1399,16 +1487,35 @@ func (d *Dispatcher) clearDetoxAffects(w *world.World, caster, target *world.Ent
 }
 
 func (d *Dispatcher) applyFoemaResurrection(w *world.World, s *world.Session, caster, target *world.Entity, tid int, body *protocol.MsgAttackBody) {
-	hp := int32((w.Rand().Intn(10) + 10) * int((effectiveMaxHP(caster)+1)/100))
 	caster.MP = 0
 	s.ReqMp = 0
 	body.ReqMp = 0
 	d.sendSetHpMp(w, s, caster)
-	if w.Rand().Intn(100) >= 70 {
+	// Com a 8ª (arvore_magia_branca.go) o alvo clicado volta sempre, e cada morto
+	// a até 3 casas dele tem 10% de chance; sem ela, o legado: um alvo, 70%.
+	if !fmMagiaBranca(caster) {
+		if w.Rand().Intn(100) >= renascimentoChanceLegado {
+			return
+		}
+		d.reviverAlvo(w, caster, target, tid)
 		return
 	}
+	d.reviverAlvo(w, caster, target, tid)
+	for _, id := range d.mortosPertoDoAlvo(w, target, tid) {
+		if w.Rand().Intn(100) >= renascimentoChanceExtra {
+			continue
+		}
+		if outro := w.Entity(id); outro != nil {
+			d.reviverAlvo(w, caster, outro, id)
+		}
+	}
+}
+
+// reviverAlvo põe um morto de pé com a vida do legado: 10% a 19% do HP máximo de
+// quem lançou, que é o que faz a CON da FM Magia Branca valer aqui.
+func (d *Dispatcher) reviverAlvo(w *world.World, caster, target *world.Entity, tid int) {
 	world.LimparInimigoDoReino(target) // a morte perdoa (reinos.go)
-	target.HP = hp
+	target.HP = int32((w.Rand().Intn(10) + 10) * int((effectiveMaxHP(caster)+1)/100))
 	if ts := w.Session(tid); ts != nil {
 		ts.CrackError = 0
 		ts.ReqHp = target.HP
@@ -1497,6 +1604,11 @@ func manaControlDamage(target *world.Entity, dmg int, enhanced bool) (int, int32
 		return dmg, 0, false
 	}
 	spent := int32(dmg)
+	if fmCancelamento(target) {
+		// Com o Cancelamento a mana rende mais: o mesmo golpe custa menos barra
+		// (arvore_magia_especial.go).
+		spent = spent * int32(manaControlCustoPctCancel) / 100
+	}
 	target.MP -= spent
 	if target.MP < 0 {
 		target.MP = 0
@@ -1504,6 +1616,10 @@ func manaControlDamage(target *world.Entity, dmg int, enhanced bool) (int, int32
 	divisor := int32(55)
 	if enhanced {
 		divisor = 50
+	}
+	if fmCancelamento(target) {
+		// Com o Cancelamento, o Controle de Mana segura mais (arvore_magia_especial.go).
+		divisor = manaControlDivisorCancel
 	}
 	reduced := ((spent >> 1) + (spent << 4)) / divisor
 	if reduced < 0 {
@@ -1693,8 +1809,8 @@ func precisaoDe(attacker *world.Entity, accuracyDex int) int {
 }
 
 func (d *Dispatcher) parryRateWith(attacker, target *world.Entity, accuracyDex int) int {
-	return esquivaComMelhoria(combat.ParryRate(int(effectiveDex(target)), target.Parry,
-		precisaoDe(attacker, accuracyDex), int(attacker.Rsv)), target)
+	return esquivaComAcerto(esquivaComMelhoria(combat.ParryRate(int(effectiveDex(target)), target.Parry,
+		precisaoDe(attacker, accuracyDex), int(attacker.Rsv)), target), attacker, target)
 }
 
 // applyForceDamage adds the attacker's flat forced damage, from both of the
@@ -1742,7 +1858,7 @@ func (d *Dispatcher) applyAirBladeProc(w *world.World, attacker, target *world.E
 		return dmg, 0
 	}
 	skillDam := effectiveSpecial(attacker, 3) + int(effectiveStr(attacker))
-	skillDam = combat.Damage(w.Rand(), skillDam, defesaPerfurada(attacker, int(effectiveAC(target))), attacker.Master)
+	skillDam = combat.Damage(w.Rand(), skillDam, d.defesaPerfurada(attacker, int(effectiveAC(target))), attacker.Master)
 	skillDam = limitarLaminaAerea(skillDam, dmg)
 	body.DoubleCritical |= 4
 	writeDoubleCritical(payload, body.DoubleCritical)
@@ -1752,6 +1868,9 @@ func (d *Dispatcher) applyAirBladeProc(w *world.World, attacker, target *world.E
 func (d *Dispatcher) applyOnHitAffects(w *world.World, attacker, target *world.Entity, tid int) {
 	if attacker == nil || target == nil {
 		return
+	}
+	if imuneADebuff(target, w.Now()) {
+		return // Desintoxicar (arvore_magia_branca.go)
 	}
 	// Encantar Gelo (HT 75, affect 27 → RsvFrost): the Nevasca slow on a hit. (The
 	// SkillData.csv calls row 75 "Agressividade"; the book and the client call it

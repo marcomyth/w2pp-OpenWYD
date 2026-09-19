@@ -79,7 +79,14 @@ func (d *Dispatcher) acessorioMais10(w *world.World, s *world.Session, e *world.
 	}
 	w.Rand().Intn(1) // o mesmo rand()%1 da +10 das armas, para o fluxo do RNG não divergir
 	result := it[0]
-	result.Effects = it[1].Effects
+	// O legado copia os efeitos do segundo item e o add do primeiro some
+	// (_MSG_CombineItemAilyn.cpp:113-118). Aqui os adds dos dois passam pela
+	// junção, sorteio e mescla decididos em 17/09 (combine/acessorio_adds.go),
+	// e o primeiro espaço fica para o refino e a joia.
+	result.Effects = [3]world.Effect{{Effect: efSanc}}
+	for i, add := range combine.MesclarAdds(it[0], it[1], w.Rand().Intn) {
+		result.Effects[i+1] = add
+	}
 	refine.Set(&result, 10, int(it[3].Index)-2441)
 	e.Carry[sl[0]] = result
 	e.Carry[sl[1]] = world.Item{}

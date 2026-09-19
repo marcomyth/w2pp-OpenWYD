@@ -241,6 +241,9 @@ func (d *Dispatcher) classWeaponDamage(e *world.Entity) int32 {
 		if e.Class == 3 {
 			// Agressividade: o Arco sobe com a 8ª de Sobrevivência (arvore_sobrevivencia.go).
 			total += bonusAgressividade(e, nUnique)
+		} else if tkConfianca(e) {
+			// A Destreza do TK Confiança não dá dano físico (arvore_confianca.go).
+			total += weaponTableBonus(e.Str, 0, nUnique, table)
 		} else {
 			total += weaponTableBonus(e.Str, e.Dex, nUnique, table)
 		}
@@ -347,12 +350,25 @@ func attributeDamageBonus(e *world.Entity, withAffectSpecial bool) int32 {
 		sp = int32(effectiveSpecial(e, 0))
 		str, dex = effectiveStr(e), effectiveDex(e)
 	}
+	if tkConfianca(e) {
+		dex = 0 // a Destreza do TK Confiança não dá dano físico (arvore_confianca.go)
+	}
+	if fmCancelamento(e) {
+		// A FM Cancelamento bate pela INT no lugar da Força (arvore_magia_especial.go).
+		str = e.Int
+		if withAffectSpecial {
+			str = effectiveInt(e)
+		}
+	}
 	return int32(str)/2 + int32(dex)/3 + sp + attributeDamageLevelTerm(e)
 }
 
 func skillDerivedACBonus(e *world.Entity, flatAC int32) int32 {
 	var bonus int32
-	if e.Class == 0 && e.LearnedSkill&(1<<15) != 0 {
+	if tkTrans(e) {
+		// Armadura Crítica: the legacy 10% plus the tree mastery (arvore_trans.go).
+		bonus += defesaDaArmadura(e, flatAC)
+	} else if e.Class == 0 && e.LearnedSkill&(1<<15) != 0 {
 		bonus += flatAC / 10
 	}
 	return bonus

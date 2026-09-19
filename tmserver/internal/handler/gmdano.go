@@ -95,6 +95,9 @@ func (d *Dispatcher) danoLinhas(e *world.Entity) []string {
 		skill = skillFlatDamage(e)
 		forca = int32(effectiveStr(e)) / 2
 		destreza = int32(effectiveDex(e)) / 3
+		if tkConfianca(e) {
+			destreza = 0 // a DES do TK Confiança não dá dano físico (arvore_confianca.go)
+		}
 		maestria = int32(effectiveSpecial(e, 0))
 		nivel = attributeDamageLevelTerm(e)
 		atributos = forca + destreza + maestria + nivel

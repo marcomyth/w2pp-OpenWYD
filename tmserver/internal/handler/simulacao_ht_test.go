@@ -63,6 +63,12 @@ type simulador struct {
 	w     *world.World
 	tick  int64
 	nextM map[int]int64 // próximo golpe do monstro (ms)
+	// garnet é a absorção da Garnet por personagem, ainda só da simulação
+	// (simulacao_garnet_test.go); vazio, nada muda.
+	garnet map[int]int
+	// semPocao: até quando cada personagem está impedido de beber poção pelo
+	// Cancelamento da FM (regra em estudo, ainda NÃO existe no servidor).
+	semPocao map[int]int64
 }
 
 func novoSimulador(t *testing.T, root string) *simulador {
@@ -78,7 +84,7 @@ func novoSimulador(t *testing.T, root string) *simulador {
 	regras := combatrule.Default()
 	d := New(Config{Log: log, Spells: spells, ItemEffects: items.BaseEffects(), CombatRules: &regras})
 	w := world.New(world.Config{GridDim: 64}, log, nil, nil)
-	return &simulador{t: t, d: d, w: w, nextM: map[int]int64{}}
+	return &simulador{t: t, d: d, w: w, nextM: map[int]int64{}, garnet: map[int]int{}}
 }
 
 // montar cria o personagem com os números da janela: o Ataque, a Defesa e o
@@ -162,13 +168,22 @@ func (sm *simulador) aplicar(l *lado, alvo *world.Entity, dmg, airBlade int, ski
 	dmg = perfuracao(alvo, alvo.ID, dmg, airBlade)
 	if pvp {
 		dmg = sm.d.applyPvPRule(dmg, skill)
+		dmg = danoDoTransContraHT(l.e, alvo, dmg)
 	}
 	dmg = applyForceDamage(l.e, alvo, alvo.ID, dmg)
 	if pvp {
 		dmg = applyTierDefense(l.e.ClassMaster, alvo.ClassMaster, dmg)
 		dmg = sm.d.applyPvPStats(l.e, alvo, dmg)
+		dmg = sm.absorveGarnet(l.e, alvo, dmg)
 	}
 	dmg = sm.d.applyManaControl(sm.w, l.e, alvo, alvo.ID, dmg)
+	// Sem sessão o applyManaControl não age: o Controle de Mana (46) do alvo entra
+	// pela conta pura, com a mana saindo da barra dele.
+	if world.IsPlayer(alvo.ID) && sm.w.Session(alvo.ID) == nil {
+		if r, _, ok := manaControlDamage(alvo, dmg, l.e.LearnedSkill&(1<<23) != 0); ok {
+			dmg = r
+		}
+	}
 	dmg = sm.d.absorbBlow(sm.w, alvo, dmg, true)
 	alvo.HP = max(0, alvo.HP-int32(dmg))
 	// O afeto que pega chama refreshScore, que remonta o score pelo equipamento — e
@@ -186,15 +201,17 @@ type fotografia struct {
 	str, dex, con         int16
 	special               [4]int16
 	parry                 int
+	equipForce            int32
 }
 
 func fotografar(e *world.Entity) fotografia {
-	return fotografia{e.Damage, e.AC, e.MaxHP, e.HP, e.Critical, e.Str, e.Dex, e.Con, e.Special, e.Parry}
+	return fotografia{e.Damage, e.AC, e.MaxHP, e.HP, e.Critical, e.Str, e.Dex, e.Con, e.Special, e.Parry, e.EquipForceDamage}
 }
 
 func (f fotografia) restaurar(e *world.Entity) {
 	e.Damage, e.AC, e.MaxHP, e.HP, e.Critical = f.damage, f.ac, f.maxHP, f.hp, f.critical
 	e.Str, e.Dex, e.Con, e.Special, e.Parry = f.str, f.dex, f.con, f.special, f.parry
+	e.EquipForceDamage = f.equipForce
 }
 
 func (sm *simulador) fisico(l *lado, alvo *world.Entity) golpe {
@@ -204,9 +221,9 @@ func (sm *simulador) fisico(l *lado, alvo *world.Entity) golpe {
 	dc, _ := combat.DoubleCritical(r, attackRunOf(e), int(effectiveCritical(e)),
 		int(sm.d.combatRules.DoubleCriticalMaxPct), &serverProg, &l.progress)
 	dmg := combat.ResolveHit(r, combat.HitInput{
-		AttackerDamage: int(sm.d.effectiveDamage(e)), TargetAC: defesaPerfurada(e, int(effectiveAC(alvo))),
+		AttackerDamage: int(sm.d.effectiveDamage(e)), TargetAC: sm.d.defesaPerfurada(e, int(effectiveAC(alvo))),
 		TargetIsPlayer: world.IsPlayer(alvo.ID), AttackerIsPlayer: true, DoubleCritical: dc,
-		Master: e.Master, SkillIndex: -1, ParryRate: sm.d.parryRate(e, alvo),
+		Master: masterDoGolpe(e), SkillIndex: -1, ParryRate: sm.d.parryRate(e, alvo),
 		TargetRsvBlock: alvo.Rsv&world.RsvBlock != 0,
 	})
 	body := &protocol.MsgAttackBody{}

@@ -55,6 +55,7 @@ func TestTextoStatus(t *testing.T) {
 			st: estadoStatus{
 				Esquiva: 520, Precisao: 200, EsquivaEspelho: 320,
 				Perfuracao: 480, Reflect: 40, AtaquePvP: 12, DefesaPvP: 8,
+				Garnet: 2640, GarnetPct: 20,
 				Tier:        classMasterCelestial,
 				TemMontaria: true, MontariaPvP: 40, MontariaPvE: 25,
 				AbsHp: 20, DropBonus: 26,
@@ -64,6 +65,7 @@ func TestTextoStatus(t *testing.T) {
 				"Precisão 200 (tira da esquiva do alvo) · a sua esquiva 520 em 1000, teto 650.",
 				"Contra jogador: perfuração +480 que passa pela defesa · absorve 40 de cada golpe",
 				"  e mais 8% do que sobrou · você bate +12%",
+				"Garnet 2640: anula a Esmeralda de quem bate e absorve até 20% do resto do golpe.",
 				"Defesa de Evolução: um Mortal te acerta com 10% do dano dele.",
 				"Defesa de Evolução: um Arch te acerta com 40% do dano dele.",
 				"A sua montaria absorve 40% do golpe de jogador e 25% do de monstro.",
@@ -136,6 +138,7 @@ func TestTextoStatusCabeNoPainel(t *testing.T) {
 	st := estadoStatus{
 		Esquiva: 650, Precisao: 9999, EsquivaEspelho: 650,
 		Perfuracao: 999999, Reflect: 99999, AtaquePvP: 999, DefesaPvP: 999,
+		Garnet: 999999, GarnetPct: 100,
 		Tier:        classMasterCelestial,
 		TemMontaria: true, MontariaPvP: 100, MontariaPvE: 100,
 		AbsHp: 100, DropBonus: 999,

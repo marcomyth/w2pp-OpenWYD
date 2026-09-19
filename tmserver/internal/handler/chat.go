@@ -196,6 +196,10 @@ func (d *Dispatcher) runCommand(w *world.World, s *world.Session, name string, a
 		d.clearBuffs(w, s)
 		return true
 	}
+	if cmd == "fecharloja" {
+		d.fecharLojinha(w, s)
+		return true
+	}
 	if cmd == "pontos" {
 		d.mostrarPontosDeLojinha(w, s)
 		return true

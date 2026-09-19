@@ -14,7 +14,7 @@ import (
 // postos à mão: dois no Cemitério (um da fila de 15 s, um de relógio com grupo) e
 // dois fora, em Armia, ao lado do Mestre Grifo. Os blocos da arena espalham o
 // ponto de nascimento (SegRange), como o conteúdo: o servidor só procura célula
-// livre num 7x7 em volta do ponto, e 81 monstros parados não cabem num ponto só.
+// livre num 7x7 em volta do ponto, e 162 monstros parados não cabem num ponto só.
 // Os monstros são de clã hostil: um de clã neutro dentro da cidade é NPC
 // (world.nonCombatNPC) e não volta pela fila.
 
@@ -27,10 +27,10 @@ const (
 	foraRelogio  = 43 // Armia, relógio de 1 passada, teto 2
 )
 
-// Com o mínimo de 45 por jogador, os tetos 2 e 3 do conteúdo viram 18 e 27.
+// Com o mínimo do Cemitério (90 monstros), os tetos 2 e 3 do conteúdo viram 36 e 54.
 const (
-	baseFila    = 18
-	baseRelogio = 27
+	baseFila    = 36
+	baseRelogio = 54
 )
 
 // passadaDoRelogio é a vez do bloco de relógio de 8 (índice 41) pelo período do
@@ -95,8 +95,8 @@ func mataDoBloco(w *world.World, gen, n int) int {
 }
 
 // TestArenaUmJogadorMantemABase: sem ninguém e com um jogador dentro, os blocos da
-// arena ficam na base (45 repartidos: 18 e 27), o de relógio inclusive fora da
-// vez dele, e só os da arena são marcados para a passada nova.
+// arena ficam na população fixa (90 repartidos: 36 e 54), o de relógio inclusive
+// fora da vez dele, e só os da arena são marcados para a passada nova.
 func TestArenaUmJogadorMantemABase(t *testing.T) {
 	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), inicioDaVolta)
 	c := enterWorldAs(t, srv.addr, "tester")
@@ -110,8 +110,8 @@ func TestArenaUmJogadorMantemABase(t *testing.T) {
 				t.Errorf("bloco %d: da arena = %v, quero %v", i, gens[i].ArenaRefill, quer)
 			}
 		}
-		if d.popBaseDasArenas[0] != densidadeMinimaArena {
-			t.Errorf("população de um jogador no Cemitério = %d, quero o mínimo %d", d.popBaseDasArenas[0], densidadeMinimaArena)
+		if d.popBaseDasArenas[0] != densidadeMinimaPorArena[0] {
+			t.Errorf("população do Cemitério = %d, quero o mínimo %d", d.popBaseDasArenas[0], densidadeMinimaPorArena[0])
 		}
 		passada(w, d, passadaForaDaVez)
 		if gens[arenaFila].CurrentNumMob != baseFila || gens[arenaRelogio].CurrentNumMob != baseRelogio {
@@ -119,10 +119,6 @@ func TestArenaUmJogadorMantemABase(t *testing.T) {
 				gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob, baseFila, baseRelogio)
 		}
 		poeNaArena(w, d)
-		if n := jogadoresNasArenas(w)[0]; n != 1 {
-			t.Errorf("jogadores no Cemitério = %d, quero 1", n)
-			return
-		}
 		mataDoBloco(w, arenaFila, baseFila)
 		mataDoBloco(w, arenaRelogio, baseRelogio)
 		passada(w, d, passadaForaDaVez+1)
@@ -133,11 +129,11 @@ func TestArenaUmJogadorMantemABase(t *testing.T) {
 	})
 }
 
-// TestArenaTresJogadoresTriplicamESaidaBaixaSemMatar: três dentro, três vezes a
-// base, em grupos que não passam do teto. Dois saem: a passada seguinte não mata
-// ninguém; conforme os monstros morrem, a reposição para na base de um. A fila de
-// 15 s não repõe os mortos da arena.
-func TestArenaTresJogadoresTriplicamESaidaBaixaSemMatar(t *testing.T) {
+// TestArenaNaoMudaComMaisJogadores: a população é fixa (decisão da Hanna de 17/09
+// à noite, contra o abuso de levar alts). Com três dentro, a arena fica na mesma
+// população de um; quem sai não muda nada; e o que morre volta até a população, sem
+// passar dela.
+func TestArenaNaoMudaComMaisJogadores(t *testing.T) {
 	b, c3 := mortalDoCemiterio(), mortalDoCemiterio()
 	b.Name, c3.Name = "HeroB", "HeroC"
 	srv := startServerRelogioDasArenasCom(t, mortalDoCemiterio(), inicioDaVolta, map[int64]world.CharacterState{11: b, 12: c3})
@@ -150,18 +146,14 @@ func TestArenaTresJogadoresTriplicamESaidaBaixaSemMatar(t *testing.T) {
 	srv.noLaco(t, func(w *world.World, d *Dispatcher) {
 		gens := montaBlocosDaArena(w, d)
 		poeNaArena(w, d)
-		if n := jogadoresNasArenas(w)[0]; n != 3 {
-			t.Errorf("jogadores no Cemitério = %d, quero 3", n)
-			return
-		}
 		passada(w, d, passadaForaDaVez)
-		if gens[arenaFila].CurrentNumMob != 3*baseFila || gens[arenaRelogio].CurrentNumMob != 3*baseRelogio {
-			t.Errorf("três dentro: %d e %d, quero %d e %d",
-				gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob, 3*baseFila, 3*baseRelogio)
+		if gens[arenaFila].CurrentNumMob != baseFila || gens[arenaRelogio].CurrentNumMob != baseRelogio {
+			t.Errorf("três dentro: %d e %d, quero a população %d e %d",
+				gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob, baseFila, baseRelogio)
 			return
 		}
 
-		// Dois saem pela cidade, sem a bandeira.
+		// Dois saem pela cidade, sem a bandeira: nada muda.
 		saiu := 0
 		w.ForEachPlayer(func(s *world.Session, e *world.Entity) {
 			if s.AccountID != 7 {
@@ -170,18 +162,16 @@ func TestArenaTresJogadoresTriplicamESaidaBaixaSemMatar(t *testing.T) {
 				saiu++
 			}
 		})
-		if n := jogadoresNasArenas(w)[0]; n != 1 {
-			t.Errorf("depois da saída, jogadores no Cemitério = %d, quero 1", n)
-			return
-		}
 		passada(w, d, passadaForaDaVez+1)
-		if gens[arenaFila].CurrentNumMob != 3*baseFila || gens[arenaRelogio].CurrentNumMob != 3*baseRelogio {
-			t.Errorf("a passada depois da saída mexeu nos vivos: %d e %d, quero %d e %d",
-				gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob, 3*baseFila, 3*baseRelogio)
+		if gens[arenaFila].CurrentNumMob != baseFila || gens[arenaRelogio].CurrentNumMob != baseRelogio {
+			t.Errorf("depois da saída: %d e %d, quero a população %d e %d",
+				gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob, baseFila, baseRelogio)
 		}
 
-		// Morre quase tudo; a fila de 15 s não traz nenhum.
-		if mataDoBloco(w, arenaFila, 50) != 50 || mataDoBloco(w, arenaRelogio, 70) != 70 {
+		// Morre quase tudo; a fila de 15 s não traz nenhum, e a passada repõe até a
+		// população, nunca além.
+		mortesFila, mortesRelogio := baseFila-baseFila/3, baseRelogio-baseRelogio/3
+		if mataDoBloco(w, arenaFila, mortesFila) != mortesFila || mataDoBloco(w, arenaRelogio, mortesRelogio) != mortesRelogio {
 			t.Error("não achei os monstros para matar")
 			return
 		}
@@ -190,52 +180,14 @@ func TestArenaTresJogadoresTriplicamESaidaBaixaSemMatar(t *testing.T) {
 		}
 		passada(w, d, passadaForaDaVez+2)
 		if gens[arenaFila].CurrentNumMob != baseFila || gens[arenaRelogio].CurrentNumMob != baseRelogio {
-			t.Errorf("reposição com um jogador: %d e %d, quero a base %d e %d",
+			t.Errorf("reposição: %d e %d, quero a população %d e %d",
 				gens[arenaFila].CurrentNumMob, gens[arenaRelogio].CurrentNumMob, baseFila, baseRelogio)
 		}
 	})
 }
 
-// TestArenaContaSoVivoComBandeiraDentro: morto, sem bandeira ou com a bandeira de
-// outra arena não conta.
-func TestArenaContaSoVivoComBandeiraDentro(t *testing.T) {
-	outro := mortalDoCemiterio()
-	outro.Name = "HeroB"
-	srv := startServerRelogioDasArenasCom(t, mortalDoCemiterio(), inicioDaVolta, map[int64]world.CharacterState{11: outro})
-	for _, conta := range []string{"tester", "tradeb"} {
-		c := enterWorldAs(t, srv.addr, conta)
-		t.Cleanup(func() { _ = c.Close() })
-		drena(t, c)
-	}
-
-	srv.noLaco(t, func(w *world.World, d *Dispatcher) {
-		poeNaArena(w, d)
-		var b *world.Entity
-		w.ForEachPlayer(func(s *world.Session, e *world.Entity) {
-			if s.AccountID == 11 {
-				b = e
-			}
-		})
-		casos := []struct {
-			nome  string
-			muda  func()
-			quero int
-		}{
-			{"os dois vivos com bandeira", func() {}, 2},
-			{"um morto", func() { b.HP = 0 }, 1},
-			{"um sem bandeira", func() { b.HP = 1000; b.QuestFlag = 0 }, 1},
-			{"um com a bandeira do Jardim", func() { b.QuestFlag = quest256Steps[1].flag }, 1},
-		}
-		for _, cs := range casos {
-			cs.muda()
-			if n := jogadoresNasArenas(w)[0]; n != cs.quero {
-				t.Errorf("%s: contou %d, quero %d", cs.nome, n, cs.quero)
-			}
-		}
-	})
-}
-
-// TestBlocoForaDaArenaNaoMuda: com dois jogadores na arena, os blocos de fora
+// TestBlocoForaDaArenaNaoMuda: com dois jogadores na arena (que não mudam a
+// população dela), os blocos de fora
 // continuam como sempre: o de relógio põe um grupo por passada até o teto do
 // conteúdo, o da fila volta pela fila, e a passada das arenas não mexe em nenhum.
 // O relógio comum também não mexe no bloco de relógio da arena.
@@ -261,8 +213,8 @@ func TestBlocoForaDaArenaNaoMuda(t *testing.T) {
 			t.Errorf("fora da arena: relógio %d e fila %d, quero o teto do conteúdo 2 e 2",
 				gens[foraRelogio].CurrentNumMob, gens[foraFila].CurrentNumMob)
 		}
-		if gens[arenaFila].CurrentNumMob != 2*baseFila {
-			t.Errorf("na arena com dois: %d, quero %d (a conta do teste está certa?)", gens[arenaFila].CurrentNumMob, 2*baseFila)
+		if gens[arenaFila].CurrentNumMob != baseFila {
+			t.Errorf("na arena com dois: %d, quero a população %d (a conta do teste está certa?)", gens[arenaFila].CurrentNumMob, baseFila)
 		}
 
 		mataDoBloco(w, foraFila, 1)
@@ -282,28 +234,6 @@ func TestBlocoForaDaArenaNaoMuda(t *testing.T) {
 	})
 }
 
-// TestLimiteDeCargaDaArena: o multiplicador para no limite de carga, e nunca fica
-// abaixo de um.
-func TestLimiteDeCargaDaArena(t *testing.T) {
-	if cargaMaxArena != 240 {
-		t.Fatalf("carga máxima = %d, quero 240", cargaMaxArena)
-	}
-	d := New(Config{})
-	d.popBaseDasArenas = [len(baseDaArenaDecimos)]int{46, 45, 45, 51, 45}
-	casos := []struct {
-		passo, jogadores, quero int
-	}{
-		{0, 0, 1}, {0, 1, 1}, {0, 3, 3}, {0, 10, 5}, // Coveiro: 240/46 = 5
-		{1, 5, 5}, {1, 6, 5}, // Jardim: 240/45 = 5
-		{3, 4, 4}, {3, 5, 4}, // Hidras: 240/51 = 4
-	}
-	for _, cs := range casos {
-		if got := d.multiplicadorDaArena(cs.passo, cs.jogadores); got != cs.quero {
-			t.Errorf("arena %d com %d jogadores: %dx, quero %dx", cs.passo, cs.jogadores, got, cs.quero)
-		}
-	}
-}
-
 // TestDistribuiPopulacao: o alvo repartido pelos blocos como o modelo reparte, em
 // proporção ao teto de hoje, pelos maiores restos.
 func TestDistribuiPopulacao(t *testing.T) {
@@ -313,7 +243,8 @@ func TestDistribuiPopulacao(t *testing.T) {
 		alvo  int
 		quero []int
 	}{
-		{"Jardim", []int{3, 3, 3, 3, 3, 2, 2, 2, 2, 2}, 45, []int{5, 5, 5, 5, 5, 4, 4, 4, 4, 4}},
+		{"Jardim com 45", []int{3, 3, 3, 3, 3, 2, 2, 2, 2, 2}, 45, []int{5, 5, 5, 5, 5, 4, 4, 4, 4, 4}},
+		{"Jardim com 90", []int{3, 3, 3, 3, 3, 2, 2, 2, 2, 2}, 90, []int{11, 11, 11, 11, 11, 7, 7, 7, 7, 7}},
 		{"Elfos", []int{4, 4, 4, 4, 2, 2, 2}, 45, []int{9, 8, 8, 8, 4, 4, 4}},
 		{"Kaizen", []int{2, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2}, 45, []int{3, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3}},
 		{"alvo igual a hoje", []int{3, 2, 2}, 7, []int{3, 2, 2}},
@@ -327,8 +258,9 @@ func TestDistribuiPopulacao(t *testing.T) {
 }
 
 // TestBlocosDasArenasNoConteudo: com o NPCGener de verdade, o boot resolve os
-// mesmos blocos que o modelo mediu, e a população de um jogador fica no mínimo de
-// 45, ou acima quando o conteúdo já tem mais (Coveiro 46, Hidras 51).
+// mesmos blocos que o modelo mediu, e a população fica no mínimo de cada arena (90
+// no Coveiro e no Jardim, 45 nas outras), ou acima quando o conteúdo já pede mais
+// (Hidras 51).
 func TestBlocosDasArenasNoConteudo(t *testing.T) {
 	root := releaseDir(t)
 	gens, err := npcgener.Load(filepath.Join(root, "TMsrv", "run", "NPCGener.txt"))
@@ -355,7 +287,7 @@ func TestBlocosDasArenasNoConteudo(t *testing.T) {
 	if quero := [...]int{18, 10, 13, 20, 7}; porArena != quero {
 		t.Errorf("blocos por arena = %v, quero %v", porArena, quero)
 	}
-	if quero := [...]int{46, 45, 45, 51, 45}; d.popBaseDasArenas != quero {
-		t.Errorf("população de um jogador por arena = %v, quero %v", d.popBaseDasArenas, quero)
+	if quero := [...]int{90, 90, 45, 51, 45}; d.popBaseDasArenas != quero {
+		t.Errorf("população por arena = %v, quero %v", d.popBaseDasArenas, quero)
 	}
 }

@@ -32,6 +32,7 @@ func TestCheckDaRegraDeCombateBateComOCodigo(t *testing.T) {
 		{"0052_combat_rule_bonus_arma.up.sql", "weapon_damage_grants", [2]int{combatrule.MinWeaponDamageGrants, combatrule.MaxWeaponDamageGrants}},
 		{"0054_combat_rule_critico_duplo.up.sql", "double_critical_max_pct", [2]int{combatrule.MinDoubleCriticalPct, combatrule.MaxDoubleCriticalPct}},
 		{"0059_combat_rule_ataque_fisico.up.sql", "physical_damage_pct", [2]int{combatrule.MinPhysicalDamagePct, combatrule.MaxPhysicalDamagePct}},
+		{"0076_combat_rule_garnet.up.sql", "garnet_pct", [2]int{combatrule.MinGarnetPct, combatrule.MaxGarnetPct}},
 	}
 	for _, c := range casos {
 		b, err := migrations.FS.ReadFile(c.arquivo)
@@ -156,5 +157,22 @@ func TestAtaqueFisicoNasceNoPadraoDecidido(t *testing.T) {
 	}
 	if n, _ := strconv.Atoi(m[1]); int32(n) != combatrule.Default().PhysicalDamagePct {
 		t.Errorf("DEFAULT de physical_damage_pct é %d, mas combatrule.Default() diz %d", n, combatrule.Default().PhysicalDamagePct)
+	}
+}
+
+// TestGarnetNasceNoPadraoDecidido: a 0076 nasce no teto decidido (20), não no
+// 100 do legado.
+func TestGarnetNasceNoPadraoDecidido(t *testing.T) {
+	b, err := migrations.FS.ReadFile("0076_combat_rule_garnet.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	def := regexp.MustCompile(`ADD COLUMN\s+garnet_pct\s+[^,;]*`).FindString(string(b))
+	m := regexp.MustCompile(`DEFAULT\s+(\d+)`).FindStringSubmatch(def)
+	if !strings.Contains(def, "NOT NULL") || m == nil {
+		t.Fatalf("garnet_pct precisa de NOT NULL DEFAULT, achei: %s", def)
+	}
+	if n, _ := strconv.Atoi(m[1]); int32(n) != combatrule.Default().GarnetPct {
+		t.Errorf("DEFAULT de garnet_pct é %d, mas combatrule.Default() diz %d", n, combatrule.Default().GarnetPct)
 	}
 }

@@ -1229,9 +1229,8 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}
-	// Uso livre: o teto de XP por rodada limita o troféu no DROP (tetorodada.go),
-	// que já reservou o valor dele na rodada em que caiu. Usar não recusa, não
-	// corta e não soma de novo.
+	// Uso livre: o troféu está fora do teto de XP por rodada desde 17/09/2026
+	// (tetorodada.go). Usar não recusa, não corta e não soma na rodada.
 
 	if int64(e.Coin)+int64(rate.Coin) > maxCoin {
 		e.Coin = maxCoin
@@ -1239,8 +1238,7 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 		e.Coin += rate.Coin
 	}
 	d.grantDirectExp(w, s, e, questExp)
-	// A parte do grupo é ganho passivo de quem recebe: conta no total da rodada
-	// dele, com corte (tetorodada.go).
+	// A parte do grupo é do troféu, e o troféu está fora do teto: paga inteira.
 	d.grantQuestPartyExp(w, e, rate.MortalExp/10)
 
 	consumeOneItem(&e.Carry[src])
@@ -1277,8 +1275,7 @@ func (d *Dispatcher) grantQuestPartyExp(w *world.World, consumer *world.Entity, 
 		if rs == nil || rs.Mode != world.UserPlay || re == nil {
 			continue
 		}
-		// Conta no total da rodada de quem recebe, com corte (tetorodada.go).
-		d.grantDirectExp(w, rs, re, d.cortaXPDaRodada(w, rs, re, share))
+		d.grantDirectExp(w, rs, re, share)
 	}
 }
 
@@ -1300,6 +1297,13 @@ func (d *Dispatcher) useHealPotion(w *world.World, s *world.Session, e *world.En
 	// SERVER clock — the original reads GetTickCount(), and a client-supplied tick
 	// would be spoofable. int64 math avoids uint32 underflow at tick 0.
 	now := w.Now()
+	// Cancelamento da FM: 20 s sem poção de vida nem de mana
+	// (arvore_magia_especial.go). A recusa devolve o slot, como a trava de spam,
+	// para a pilha não ser consumida e o cliente não ficar dessincronizado.
+	if semPocao(e, now) {
+		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, src, itemToSel(e.Carry[src])))
+		return
+	}
 	if s.PotionTick != 0 && int64(now)-int64(s.PotionTick) < potionDelay {
 		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, src, itemToSel(e.Carry[src])))
 		return
@@ -2510,6 +2514,11 @@ func (d *Dispatcher) weaponDamage(e *world.Entity) int32 {
 	if e.Class == 3 && e.LearnedSkill&(1<<10) != 0 {
 		offhandDivisor = 1 // HT Pericia do Cacador: off-hand contributes at full EF_DAMAGE.
 	}
+	if duasArmasDoCancelamento(e, d.itemAbility) {
+		// FM Cancelamento: duas espadas, dois machados ou garra batem com as DUAS
+		// mãos inteiras, como o Mestre das Armas do TK (arvore_magia_especial.go).
+		offhandDivisor = 1
+	}
 	dmg := w1 + w2/offhandDivisor
 	for _, slot := range [2]int{weaponSlotR, weaponSlotL} {
 		it := e.Equip[slot]
@@ -2753,6 +2762,7 @@ func (d *Dispatcher) refreshScore(e *world.Entity) {
 	e.EquipExpBonus = d.equipExpBonus(e)
 	e.EquipDropBonus = d.equipDropBonus(e)
 	e.EquipForceDamage = d.equipForceDamage(e)
+	e.EquipGarnet = d.equipGarnet(e)
 	if isPlayerMob(e) {
 		e.Damage += attributeDamageBonus(e, true)
 	}

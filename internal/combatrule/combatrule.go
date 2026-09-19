@@ -68,6 +68,15 @@ type Rules struct {
 	// Monsters and summons keep their own damage: the scale is applied to players
 	// only.
 	PhysicalDamagePct int32
+	// GarnetPct is how much of a blow on a PLAYER the Garnet gem (gem 3) may take
+	// beyond the attacker's Esmeralda. The Garnet always cancels the attacker's
+	// Esmeralda first, whole, up to its own total; what is left of it removes at
+	// most this share of the rest of the blow. The legacy subtracts the whole
+	// total flat (CMob.cpp:873), which turned every blow under 2.640 into 1 against
+	// a full set — immunity to monsters and to anyone without Esmeralda. 100 is
+	// that legacy; 0 leaves the Garnet only cancelling Esmeralda. Decided
+	// 2026-09-17 by simulation (docs/balanceamento/garnet-esmeralda-2026-09-17.md).
+	GarnetPct int32
 }
 
 // The ranges each knob may take. They are what makes sense for the formula, not
@@ -90,6 +99,8 @@ const (
 	MaxDoubleCriticalPct  = 100
 	MinPhysicalDamagePct  = 1
 	MaxPhysicalDamagePct  = 200
+	MinGarnetPct          = 0
+	MaxGarnetPct          = 100
 
 	// LegacyMobResistBase is the constant the original applies to everyone.
 	LegacyMobResistBase = 150
@@ -98,14 +109,14 @@ const (
 // Default is the rule in force when nobody has configured one.
 func Default() Rules {
 	return Rules{WeaponIntMagicPct: 0, SpellDamageMulti: false, MobResistBase: 100, PvPSkillPct: 100, PvPMeleePct: 100,
-		SpellIntAccuracyPct: 50, MaxMissStreak: 2, WeaponDamageGrants: 1, DoubleCriticalMaxPct: 25, PhysicalDamagePct: 61}
+		SpellIntAccuracyPct: 50, MaxMissStreak: 2, WeaponDamageGrants: 1, DoubleCriticalMaxPct: 25, PhysicalDamagePct: 61, GarnetPct: 20}
 }
 
 // Kersef is the rule as ported, kept so the panel can show — and restore — what
 // the server did before the decision.
 func Kersef() Rules {
 	return Rules{WeaponIntMagicPct: 100, SpellDamageMulti: true, MobResistBase: LegacyMobResistBase, PvPSkillPct: 100, PvPMeleePct: 100,
-		SpellIntAccuracyPct: 0, MaxMissStreak: 0, WeaponDamageGrants: MaxWeaponDamageGrants, DoubleCriticalMaxPct: MaxDoubleCriticalPct, PhysicalDamagePct: 100}
+		SpellIntAccuracyPct: 0, MaxMissStreak: 0, WeaponDamageGrants: MaxWeaponDamageGrants, DoubleCriticalMaxPct: MaxDoubleCriticalPct, PhysicalDamagePct: 100, GarnetPct: MaxGarnetPct}
 }
 
 // Valid reports whether every knob is inside its range.
@@ -118,7 +129,8 @@ func (r Rules) Valid() bool {
 		r.MaxMissStreak >= MinMissStreak && r.MaxMissStreak <= MaxMissStreak &&
 		r.WeaponDamageGrants >= MinWeaponDamageGrants && r.WeaponDamageGrants <= MaxWeaponDamageGrants &&
 		r.DoubleCriticalMaxPct >= MinDoubleCriticalPct && r.DoubleCriticalMaxPct <= MaxDoubleCriticalPct &&
-		r.PhysicalDamagePct >= MinPhysicalDamagePct && r.PhysicalDamagePct <= MaxPhysicalDamagePct
+		r.PhysicalDamagePct >= MinPhysicalDamagePct && r.PhysicalDamagePct <= MaxPhysicalDamagePct &&
+		r.GarnetPct >= MinGarnetPct && r.GarnetPct <= MaxGarnetPct
 }
 
 // Config is the rule as the panel left it (migration 0044_combat_rule), plus the

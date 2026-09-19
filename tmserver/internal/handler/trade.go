@@ -214,7 +214,15 @@ func (d *Dispatcher) quitTrade(w *world.World, s *world.Session, _ protocol.Head
 	if e := w.Entity(s.Conn); e == nil || e.HP <= 0 || s.Mode != world.UserPlay {
 		w.AddCrackError(s, 10, 17)
 	}
-	d.closeAutoTrade(w, s)
+	// With a clone the shop window is only a window: the server closes it
+	// itself right after the stall goes up, and the client answers that with
+	// this very message. Taking it as "close the shop" would take the stall down
+	// the moment it was raised. The clone closes by /fecharloja or with the
+	// session. The legacy pose keeps the old meaning — there the seller IS the
+	// stall, and closing the window is how he stands up.
+	if shopPinsOwner(s) {
+		d.closeAutoTrade(w, s)
+	}
 	d.cancelTrade(w, s)
 }
 

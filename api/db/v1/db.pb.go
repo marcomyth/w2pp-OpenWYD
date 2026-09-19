@@ -10545,8 +10545,12 @@ type GetCombatRuleResponse struct {
 	// 1..200: scale on a PLAYER's melee attack power (the window's "Ataque" and
 	// the blow). 100 is no scaling; monsters and summons are never scaled.
 	PhysicalDamagePct *int32 `protobuf:"varint,12,opt,name=physical_damage_pct,json=physicalDamagePct,proto3,oneof" json:"physical_damage_pct,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// 0..100: the most a Garnet takes of a blow on a player BEYOND the attacker's
+	// Esmeralda, which it always cancels first. 100 is the legacy flat subtraction.
+	// `optional` because 0 is a real value: absence alone says an older dbServer.
+	GarnetPct     *int32 `protobuf:"varint,13,opt,name=garnet_pct,json=garnetPct,proto3,oneof" json:"garnet_pct,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetCombatRuleResponse) Reset() {
@@ -10659,6 +10663,13 @@ func (x *GetCombatRuleResponse) GetDoubleCriticalMaxPct() int32 {
 func (x *GetCombatRuleResponse) GetPhysicalDamagePct() int32 {
 	if x != nil && x.PhysicalDamagePct != nil {
 		return *x.PhysicalDamagePct
+	}
+	return 0
+}
+
+func (x *GetCombatRuleResponse) GetGarnetPct() int32 {
+	if x != nil && x.GarnetPct != nil {
+		return *x.GarnetPct
 	}
 	return 0
 }
@@ -11996,7 +12007,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x18CombatRuleVersionRequest\"5\n" +
 	"\x19CombatRuleVersionResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\"\x16\n" +
-	"\x14GetCombatRuleRequest\"\xab\x05\n" +
+	"\x14GetCombatRuleRequest\"\xde\x05\n" +
 	"\x15GetCombatRuleResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\x12\x1e\n" +
 	"\n" +
@@ -12012,12 +12023,15 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x14weapon_damage_grants\x18\n" +
 	" \x01(\x05H\x02R\x12weaponDamageGrants\x88\x01\x01\x12:\n" +
 	"\x17double_critical_max_pct\x18\v \x01(\x05H\x03R\x14doubleCriticalMaxPct\x88\x01\x01\x123\n" +
-	"\x13physical_damage_pct\x18\f \x01(\x05H\x04R\x11physicalDamagePct\x88\x01\x01B\x19\n" +
+	"\x13physical_damage_pct\x18\f \x01(\x05H\x04R\x11physicalDamagePct\x88\x01\x01\x12\"\n" +
+	"\n" +
+	"garnet_pct\x18\r \x01(\x05H\x05R\tgarnetPct\x88\x01\x01B\x19\n" +
 	"\x17_spell_int_accuracy_pctB\x12\n" +
 	"\x10_max_miss_streakB\x17\n" +
 	"\x15_weapon_damage_grantsB\x1a\n" +
 	"\x18_double_critical_max_pctB\x16\n" +
-	"\x14_physical_damage_pct\"\x1c\n" +
+	"\x14_physical_damage_pctB\r\n" +
+	"\v_garnet_pct\"\x1c\n" +
 	"\x1aGeneratorOffVersionRequest\"7\n" +
 	"\x1bGeneratorOffVersionResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\"\x19\n" +
