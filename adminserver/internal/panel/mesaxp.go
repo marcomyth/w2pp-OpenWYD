@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/internal/mountbonus"
@@ -194,8 +195,9 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 	// somebody guessed.
 	var mobAviso string
 	var doMonstro bool
+	var mobOrigens []gamedata.MobOrigem
 	if form.Mob != "" {
-		exp, nivel, err := h.mobExpNivel(r, form.Mob)
+		exp, nivel, origens, err := h.mobExpNivel(r, form.Mob)
 		switch {
 		case errors.Is(err, errSemGameData):
 			mobAviso = "O editor de monstros não está ligado neste painel; digite a XP e o nível à mão."
@@ -207,6 +209,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 			// a picked monster read as "this mob is worth nothing", which is
 			// never what they meant — they meant "não carreguei ainda".
 			form.MobExp, form.MobNivel = exp, nivel
+			mobOrigens = origens
 			doMonstro = true
 		}
 	}
@@ -256,6 +259,11 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		// TemCorteMorto o aviso de linha gravada abaixo do piso da evolução.
 		Celestial     bool
 		TemCorteMorto bool
+
+		// MobOrigens é onde o monstro escolhido nasce, com quantos blocos e se
+		// renasce. Vazio quando ele não nasce em lugar nenhum, que é o caso que
+		// mais precisa ser dito.
+		MobOrigens []gamedata.MobOrigem
 	}{
 		page:        h.pageFor(r, "rates"),
 		Aba:         "xp",
@@ -287,6 +295,8 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 
 		Celestial:     level.IsCelestialTier(evo),
 		TemCorteMorto: temCorteMorto(cortes),
+
+		MobOrigens: mobOrigens,
 	})
 }
 
@@ -984,14 +994,18 @@ var errSemGameData = errors.New("panel: sem editor de monstros configurado")
 
 // mobExpNivel reads a template's reward and level through the same editor that
 // changes them, so the Mesa always simulates the numbers /monstros would show.
-func (h *Handler) mobExpNivel(r *http.Request, nome string) (exp int64, nivel int32, err error) {
+// Devolve também ONDE o monstro nasce, porque é a informação que faltava aqui: a
+// planejadora escolheu Adamant_Tauron para simular "o bicho do Pilar" e ele vive no
+// Deserto Lugefer. A página de ficha já mostrava isso; esta, que é onde o monstro é
+// escolhido, não mostrava nada — e é aqui que a escolha errada acontece.
+func (h *Handler) mobExpNivel(r *http.Request, nome string) (exp int64, nivel int32, origens []gamedata.MobOrigem, err error) {
 	if h.cfg.GameData == nil {
-		return 0, 0, errSemGameData
+		return 0, 0, nil, errSemGameData
 	}
 	sess, _ := staffFrom(r.Context())
 	stat, err := h.cfg.GameData.MobStat(r.Context(), sess.AccountID, nome)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 	for _, f := range stat.Fields() {
 		switch f.Nome {
@@ -1001,7 +1015,7 @@ func (h *Handler) mobExpNivel(r *http.Request, nome string) (exp int64, nivel in
 			nivel = int32(f.Valor)
 		}
 	}
-	return exp, nivel, nil
+	return exp, nivel, stat.Origens(), nil
 }
 
 func (h *Handler) mesaConfig(ctx context.Context) (level.Config, error) {

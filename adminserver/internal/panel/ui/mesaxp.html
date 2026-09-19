@@ -4,6 +4,21 @@
 <title>Mesa de XP — Painel OpenWYD</title>
 {{template "head" .}}
 <style>
+  /* Onde o monstro nasce, ao lado da escolha dele. Discreto por ser contexto, e
+     marcado quando nada o cria — que e o caso que vale interromper alguem. */
+  .onde-nasce {
+    border: 1px solid var(--rule); border-left: 3px solid var(--rule);
+    border-radius: 4px; padding: 10px 13px; margin: 0 0 14px;
+  }
+  .onde-nasce .rot {
+    font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+  }
+  .onde-nasce ul { list-style: none; margin: 6px 0 0; padding: 0; }
+  .onde-nasce li + li { margin-top: 5px; }
+  .onde-nasce .det { display: block; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .onde-nasce p { margin: 6px 0 0; font-size: 13px; color: var(--ink-2); }
+  .onde-nasce.orfao { border-left-color: var(--gold); }
+  .onde-nasce.orfao strong { color: var(--gold); }
   /* Linha gravada com nível abaixo do piso da evolução: existe no banco e o jogo
      nunca a alcança. Fica visível para ser reescrita, não escondida. */
   tr.morta input { border-color: var(--danger); }
@@ -470,6 +485,39 @@
           <input type="number" name="nivel" min="0" max="399" value="{{.Form.Nivel}}">
         </label>
       </div>
+
+      {{/* ONDE O MONSTRO NASCE, do NPCGener + Regions, ao lado da escolha dele.
+           Faltava exatamente aqui: a página de ficha já mostrava, mas é NESTA tela
+           que o monstro é escolhido, e foi aqui que "o Tauron do Pilar" virou
+           Adamant_Tauron, que vive no Deserto Lugefer. Dizer se o bloco RENASCE é
+           obrigatório: 824 blocos que não renascem são um bolo único, não um lugar
+           de farmar, e a conta de ritmo sai errada se alguém confundir. */}}
+      {{if .Form.Mob}}
+      <div class="onde-nasce{{if not .MobOrigens}} orfao{{end}}">
+        {{if .MobOrigens}}
+          <span class="rot">Onde {{.Form.Mob}} nasce</span>
+          <ul>
+            {{range .MobOrigens}}
+            <li>
+              <strong>{{.Local}}</strong>
+              <span class="det">
+                {{if gt .Quantidade 0}}até {{.Quantidade}} por vez{{else}}acompanha outro monstro{{end}}
+                · {{.Pontos}} bloco{{if gt .Pontos 1}}s{{end}}
+                · {{if .Renasce}}renasce a cada {{.RespawnMin}} min{{else}}NÃO renasce{{end}}
+              </span>
+            </li>
+            {{end}}
+          </ul>
+        {{else}}
+          <span class="rot">Onde {{.Form.Mob}} nasce</span>
+          <p>
+            <strong>Nenhum gerador cria este monstro.</strong> Simular com ele
+            responde sobre um bicho que não está no mapa — confira se o que você quer
+            não é outro de nome parecido.
+          </p>
+        {{end}}
+      </div>
+      {{end}}
 
       <div class="grade-campos">
         <label>
