@@ -55,7 +55,11 @@ int LojaRedeCofreQtd();
 const LojaItemCofre* LojaRedeCofreItem(int i);
 
 // Manda montar a barraca. Sem título: o servidor usa o nome do personagem.
-void LojaRedeAbre(const LojaPrateleira* prateleiras, int quantas);
+void LojaRedeAbre(const char* titulo, const LojaPrateleira* prateleiras, int quantas);
+
+// 1 quando o servidor avisou que o jogador clicou numa barraca na cidade e a
+// vitrine deve abrir. Consome o aviso.
+int LojaRedePedidoMercado();
 
 // Id da barraca que subiu, 0 enquanto nenhuma subiu nesta sessão.
 int LojaRedeBarracaAberta();

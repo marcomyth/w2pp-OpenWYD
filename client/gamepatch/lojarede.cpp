@@ -29,6 +29,7 @@ constexpr WORD kMsgCofre = 0x0F05;
 constexpr WORD kMsgCofreLista = 0x0F06;
 constexpr WORD kMsgAbrir = 0x0F07;
 constexpr WORD kMsgAbriu = 0x0F08;
+constexpr WORD kMsgMercado = 0x0F09;
 
 constexpr int kMaxCofre = 128;
 constexpr int kMaxPrateleiras = 12;
@@ -50,6 +51,7 @@ int g_saldo[3] = {0, 0, 0};
 LojaItemCofre g_cofre[kMaxCofre];
 int g_cofreQtd = 0;
 int g_barracaAberta = 0;
+int g_pedidoMercado = 0;
 bool g_respondeu = false;
 
 } // namespace
@@ -108,10 +110,17 @@ int LojaRedeBarracaAberta() {
     return g_barracaAberta;
 }
 
-void LojaRedeAbre(const LojaPrateleira* prateleiras, int quantas) {
+void LojaRedeAbre(const char* titulo, const LojaPrateleira* prateleiras, int quantas) {
     BYTE corpo[kTamTitulo + kMaxPrateleiras * kTamPrateleira];
     memset(corpo, 0, sizeof(corpo));
     // Titulo vazio: o servidor poe o nome do personagem.
+    if (titulo != nullptr) {
+        size_t n = strlen(titulo);
+        if (n > kTamTitulo - 1) {
+            n = kTamTitulo - 1;
+        }
+        memcpy(corpo, titulo, n);
+    }
     for (int i = 0; i < kMaxPrateleiras; ++i) {
         BYTE* p = corpo + kTamTitulo + i * kTamPrateleira;
         const bool tem = (i < quantas && prateleiras[i].cargoPos >= 0);
@@ -173,6 +182,13 @@ extern "C" int __cdecl LojaRedeRecebe(const unsigned char* pacote) {
         }
         return 1;
     }
+    if (tipo == kMsgMercado) {
+        // O jogador clicou numa barraca na cidade. A janela antiga do cliente
+        // nao existe mais; o gesto leva a vitrine.
+        g_pedidoMercado = 1;
+        CamadaLog("=== loja: clique numa barraca, indo para o mercado");
+        return 1;
+    }
     if (tipo == kMsgAbriu) {
         g_barracaAberta = *reinterpret_cast<const int*>(corpo + 0);
         CamadaLog("=== loja: a barraca subiu");
@@ -213,4 +229,12 @@ extern "C" int __cdecl LojaRedeRecebe(const unsigned char* pacote) {
         CamadaLog("=== loja: primeira lista recebida do servidor");
     }
     return 1;
+}
+
+// O servidor pediu que a vitrine abrisse - alguem clicou numa barraca. A
+// resposta e consumida uma vez so.
+int LojaRedePedidoMercado() {
+    const int tinha = g_pedidoMercado;
+    g_pedidoMercado = 0;
+    return tinha;
 }

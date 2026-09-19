@@ -15,6 +15,7 @@
 // Roubar o clique resolveu as duas coisas de uma vez.
 
 #include "camadas.h"
+#include "dica.h"
 #include "icones.h"
 #include "lojarede.h"
 #include "pincel.h"
@@ -128,6 +129,10 @@ int g_versao = 0;
 // cada numero e um atalho do jogo -, entao o preco entra por botoes e o titulo
 // e o nome do personagem, posto pelo servidor.
 bool g_montando = false;
+// O nome da barraca, digitado na tela de montagem. Vazio: o servidor poe o nome
+// do personagem, como a lojinha do jogo faz.
+char g_nomeBarraca[24] = {0};
+int g_nomeTam = 0;
 int g_cofrePagina = 0;
 int g_cofreEscolhido = -1;    // indice na lista do cofre
 int g_precoEdicao = 0;
@@ -524,14 +529,18 @@ void PintaSlotCofre(HDC hdc, const RECT& r, const LojaItemCofre* it, bool escolh
         RECT rq = {r.left + 2, r.top + 1, r.left + kSlot - 3, r.top + 12};
         DrawTextA(hdc, qtd, -1, &rq, DT_RIGHT | DT_TOP | DT_SINGLELINE | DT_NOPREFIX);
     }
-    // Embaixo so aparece preco, e so depois de o item entrar numa prateleira. O
-    // numero do item era coisa de depuracao: quem olha a barraca quer ver o
-    // desenho e a quantidade, como em qualquer janela do jogo.
-    if (naBarraca) {
+    // Embaixo so aparece preco: o da prateleira, se o item ja entrou, ou o que
+    // esta sendo digitado nos botoes, no quadrado escolhido. O numero do item
+    // era coisa de depuracao - quem olha a barraca quer o desenho e a
+    // quantidade, como em qualquer janela do jogo.
+    const bool mostraEdicao = escolhido && !naBarraca && g_precoEdicao > 0;
+    if (naBarraca || mostraEdicao) {
         char rodape[16];
-        Curto(g_prateleiras[prateleira].preco, rodape, sizeof(rodape));
+        Curto(naBarraca ? g_prateleiras[prateleira].preco : g_precoEdicao, rodape,
+              sizeof(rodape));
         SelectObject(hdc, g_miudo);
-        SetTextColor(hdc, kCorMoeda[g_prateleiras[prateleira].moeda % 3]);
+        SetTextColor(hdc, kCorMoeda[(naBarraca ? g_prateleiras[prateleira].moeda
+                                               : g_moedaEdicao) % 3]);
         RECT rp = {r.left + 1, r.top + kSlot - 14, r.right - 1, r.bottom - 2};
         DrawTextA(hdc, rodape, -1, &rp, DT_CENTER | DT_BOTTOM | DT_SINGLELINE | DT_NOPREFIX);
     }
@@ -568,49 +577,25 @@ void PintaGrade(HDC hdc) {
     }
 }
 
+// A linha de detalhe so existe na vitrine, onde ela diz o estado da busca
+// ("nenhuma barraca aberta na cidade") e o que o comprador escolheu. Na tela de
+// montagem ela foi embora: o preco em edicao aparece no proprio quadrado, e o
+// resto era numero de depuracao.
 void PintaDetalhe(HDC hdc) {
+    if (g_montando) {
+        return;
+    }
     const int x = kMargem;
     const int y = kTopoDetalhe;
     const int l = kUtil;
     Barra(hdc, x, y, l, 1, RGB(58, 48, 36));
 
     char texto[160];
-    if (g_montando) {
-        const LojaItemCofre* it = LojaRedeCofreItem(g_cofreEscolhido);
-        char valor[40];
-        Pontuado(g_precoEdicao, valor, sizeof(valor));
-        if (it == nullptr) {
-            sprintf_s(texto, "escolha um item do cofre   %d/%d prateleiras",
-                      g_prateleirasUsadas, kMaxPrateleiras);
-            SelectObject(hdc, g_fonte);
-            SetTextColor(hdc, kTextoFraco);
-        } else {
-            char item[48];
-            if (it->refino > 0) {
-                sprintf_s(item, "item %d +%d", it->indice, it->refino);
-            } else {
-                sprintf_s(item, "item %d", it->indice);
-            }
-            sprintf_s(texto, "%s   %s %s   %d/%d prateleiras", item, valor,
-                      kNomeMoeda[g_moedaEdicao % 3], g_prateleirasUsadas, kMaxPrateleiras);
-            SelectObject(hdc, g_negrito);
-            SetTextColor(hdc, kCorMoeda[g_moedaEdicao % 3]);
-        }
-        RECT rm = {x + 4, y + 2, x + l - 4, y + kAltDetalhe};
-        DrawTextA(hdc, texto, -1, &rm, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-        return;
-    }
     const LojaOferta* esc = LojaRedeOferta(g_escolhido);
     if (esc != nullptr) {
         char valor[40];
         Pontuado(esc->preco, valor, sizeof(valor));
-        char item[48];
-        if (esc->refino > 0) {
-            sprintf_s(item, "item %d +%d", esc->indice, esc->refino);
-        } else {
-            sprintf_s(item, "item %d", esc->indice);
-        }
-        sprintf_s(texto, "%s   %s %s   %s%s", item, valor, kNomeMoeda[esc->moeda % 3], esc->nome,
+        sprintf_s(texto, "%s %s   %s%s", valor, kNomeMoeda[esc->moeda % 3], esc->nome,
                   esc->perto ? "" : "   (longe)");
         SelectObject(hdc, g_negrito);
         SetTextColor(hdc, esc->perto ? kCorMoeda[esc->moeda % 3] : kTextoFraco);
@@ -628,6 +613,35 @@ void PintaDetalhe(HDC hdc) {
         SetTextColor(hdc, kTextoFraco);
     }
     RECT rt = {x + 4, y + 2, x + l - 4, y + kAltDetalhe};
+    DrawTextA(hdc, texto, -1, &rt, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+}
+
+// O campo do nome, na faixa que a linha de detalhe deixou livre. Nao ha cursor
+// piscando: a barra no fim do texto ja diz onde a proxima letra entra.
+void PintaNome(HDC hdc) {
+    if (!g_montando) {
+        return;
+    }
+    const int x = kMargem;
+    const int y = kTopoDetalhe - 2;
+    const int l = kUtil;
+    Degrade(hdc, x, y, l, kAltDetalhe + 4, RGB(30, 23, 16), RGB(16, 12, 8));
+    Contorno(hdc, x, y, l, kAltDetalhe + 4, RGB(58, 48, 36));
+
+    SelectObject(hdc, g_miudo);
+    SetTextColor(hdc, kTextoFraco);
+    RECT rr = {x + 5, y, x + 46, y + kAltDetalhe + 4};
+    DrawTextA(hdc, "Nome:", -1, &rr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+
+    char texto[40];
+    if (g_nomeTam > 0) {
+        sprintf_s(texto, "%s|", g_nomeBarraca);
+    } else {
+        sprintf_s(texto, "digite o nome da barraca");
+    }
+    SelectObject(hdc, g_nomeTam > 0 ? g_negrito : g_miudo);
+    SetTextColor(hdc, g_nomeTam > 0 ? kTexto : kTextoFraco);
+    RECT rt = {x + 48, y, x + l - 5, y + kAltDetalhe + 4};
     DrawTextA(hdc, texto, -1, &rt, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 }
 
@@ -708,6 +722,7 @@ void Pinta(HDC hdc) {
     PintaMenu(hdc);
     PintaGrade(hdc);
     PintaDetalhe(hdc);
+    PintaNome(hdc);
     PintaRodape(hdc);
 }
 
@@ -854,8 +869,34 @@ void IncluiNaBarraca() {
     g_prateleiras[onde].preco = g_precoEdicao;
 }
 
+// O teclado enquanto a tela de montagem esta aberta: cada caractere vai para o
+// nome da barraca. Devolve 1 quando consumiu - e ai o jogo nao ve a tecla, que
+// senao viraria atalho de magia ou linha de chat.
+extern "C" int __cdecl LojaDigita(int c) {
+    if (!g_aberta || !g_montando) {
+        return 0;
+    }
+    if (c == 8) {   // apagar
+        if (g_nomeTam > 0) {
+            g_nomeBarraca[--g_nomeTam] = 0;
+        }
+        return 1;
+    }
+    if (c < 32 || c > 126) {
+        return 1;   // Enter e companhia: engolidos, mas nao entram no nome
+    }
+    if (g_nomeTam < static_cast<int>(sizeof(g_nomeBarraca)) - 1) {
+        g_nomeBarraca[g_nomeTam++] = static_cast<char>(c);
+        g_nomeBarraca[g_nomeTam] = 0;
+    }
+    return 1;
+}
+
 void EntraNaMontagem() {
     g_montando = true;
+    g_nomeBarraca[0] = 0;
+    g_nomeTam = 0;
+    TeclaTexto(LojaDigita);
     g_cofrePagina = 0;
     g_cofreEscolhido = -1;
     g_precoEdicao = 0;
@@ -871,6 +912,7 @@ void EntraNaMontagem() {
 
 void SaiDaMontagem() {
     g_montando = false;
+    TeclaTexto(nullptr);
     g_escolhido = -1;
     PedeAoServidor();
 }
@@ -930,7 +972,7 @@ void CliqueMontagem(int x, int y) {
         }
         const RECT abrir = AreaBotaoFechar();
         if (x >= abrir.left && x < abrir.right && g_prateleirasUsadas > 0) {
-            LojaRedeAbre(g_prateleiras, g_prateleirasUsadas);
+            LojaRedeAbre(g_nomeBarraca, g_prateleiras, g_prateleirasUsadas);
             SaiDaMontagem();
         }
     }
@@ -1011,6 +1053,163 @@ void CliqueJanela(int x, int y) {
     }
 }
 
+void JanelaMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura);
+
+// --- a dica do item --------------------------------------------------------
+//
+// O mesmo que o jogo faz quando o mouse para sobre um item: uma caixa com o
+// nome e a descricao. O texto sai das tabelas que o cliente ja carregou (ver
+// dica.h); aqui fica so a caixa, no desenho da loja, ao lado do painel.
+Tela g_telaDica;
+int g_dicaItem = 0;
+int g_dicaVersao = 0;
+int g_dicaDesenhado = -1;
+int g_dicaL = 0;
+int g_dicaA = 0;
+
+constexpr int kDicaPad = 8;
+constexpr int kDicaLinha = 15;
+
+// Uma DC so para medir texto: a medida acontece antes de haver onde pintar.
+HDC MedidorDC() {
+    static HDC dc = nullptr;
+    if (dc == nullptr) {
+        dc = CreateCompatibleDC(nullptr);
+    }
+    return dc;
+}
+
+void MedeDica(int item, int* larg, int* alt) {
+    const int linhas = DicaLinhas(item);
+    *larg = 0;
+    *alt = 0;
+    if (linhas <= 0) {
+        return;
+    }
+    CriaFontes();
+    HDC dc = MedidorDC();
+    if (dc == nullptr) {
+        return;
+    }
+    int maior = 0;
+    for (int i = 0; i < linhas; ++i) {
+        const char* t = DicaLinha(item, i);
+        if (t == nullptr) {
+            continue;
+        }
+        SelectObject(dc, i == 0 ? g_negrito : g_fonte);
+        SIZE sz;
+        if (GetTextExtentPoint32A(dc, t, static_cast<int>(strlen(t)), &sz) && sz.cx > maior) {
+            maior = sz.cx;
+        }
+    }
+    *larg = maior + kDicaPad * 2 + 6;
+    *alt = linhas * kDicaLinha + kDicaPad * 2;
+}
+
+// Qual item esta sob o cursor. Roda todo quadro, junto com a camada da janela.
+void AtualizaDica() {
+    const int antes = g_dicaItem;
+    g_dicaItem = 0;
+    int cx = 0;
+    int cy = 0;
+    if (g_aberta && CamadaCursor(&cx, &cy)) {
+        int px = 0;
+        int py = 0;
+        int pl = 0;
+        int pa = 0;
+        JanelaMedida(CamadaTelaL(), CamadaTelaA(), &px, &py, &pl, &pa);
+        const int x = cx - px;
+        const int y = cy - py;
+        for (int i = 0; i < kPorPagina && g_dicaItem == 0; ++i) {
+            const RECT r = AreaSlot(i);
+            if (x < r.left || x >= r.right || y < r.top || y >= r.bottom) {
+                continue;
+            }
+            if (g_montando) {
+                const LojaItemCofre* it = LojaRedeCofreItem(g_cofrePagina * kPorPagina + i);
+                if (it != nullptr) {
+                    g_dicaItem = it->indice;
+                }
+            } else {
+                const LojaOferta* o = LojaRedeOferta(i);
+                if (o != nullptr) {
+                    g_dicaItem = o->indice;
+                }
+            }
+        }
+    }
+    if (g_dicaItem != antes) {
+        ++g_dicaVersao;
+    }
+}
+
+int DicaVisivel() {
+    return (g_dicaItem > 0 && DicaLinhas(g_dicaItem) > 0) ? 1 : 0;
+}
+
+void DicaMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura) {
+    MedeDica(g_dicaItem, &g_dicaL, &g_dicaA);
+    *largura = g_dicaL;
+    *altura = g_dicaA;
+    if (g_dicaL <= 0 || g_dicaA <= 0) {
+        return;
+    }
+    int px = 0;
+    int py = 0;
+    int pl = 0;
+    int pa = 0;
+    JanelaMedida(telaL, telaA, &px, &py, &pl, &pa);
+    // Ao lado do painel, nunca embaixo do cursor - senao a caixa roubaria o
+    // clique de quem esta escolhendo o item.
+    *x = px + pl + 4;
+    if (*x + g_dicaL > telaL) {
+        *x = px - g_dicaL - 4;
+    }
+    if (*x < 0) {
+        *x = 0;
+    }
+    int cx = 0;
+    int cy = 0;
+    *y = CamadaCursor(&cx, &cy) ? cy - g_dicaA / 2 : py;
+    if (*y < 0) {
+        *y = 0;
+    }
+    if (*y + g_dicaA > telaA) {
+        *y = telaA - g_dicaA;
+    }
+}
+
+const void* DicaPixels(int* versao) {
+    if (g_dicaL <= 0 || g_dicaA <= 0 || !TelaGarante(&g_telaDica, g_dicaL, g_dicaA)) {
+        return nullptr;
+    }
+    if (g_dicaDesenhado != g_dicaVersao) {
+        g_dicaDesenhado = g_dicaVersao;
+        HDC hdc = g_telaDica.dc;
+        SetBkMode(hdc, TRANSPARENT);
+        Moldura(hdc, g_dicaL, g_dicaA);
+        const int linhas = DicaLinhas(g_dicaItem);
+        for (int i = 0; i < linhas; ++i) {
+            const char* t = DicaLinha(g_dicaItem, i);
+            if (t == nullptr) {
+                continue;
+            }
+            SelectObject(hdc, i == 0 ? g_negrito : g_fonte);
+            SetTextColor(hdc, i == 0 ? RGB(255, 255, 255)
+                                     : (DicaLinhaRotulo(g_dicaItem, i) ? kCanto : kTexto));
+            RECT rt = {kDicaPad, kDicaPad + i * kDicaLinha, g_dicaL - kDicaPad,
+                       kDicaPad + (i + 1) * kDicaLinha};
+            DrawTextA(hdc, t, -1, &rt, DT_LEFT | DT_TOP | DT_SINGLELINE | DT_NOPREFIX);
+        }
+        TelaFecha(&g_telaDica, 235);
+    }
+    *versao = g_dicaVersao;
+    return g_telaDica.pixels;
+}
+
+void DicaClique(int, int) {}
+
 // --- as tres camadas -------------------------------------------------------
 // A lojinha antiga esta aposentada: se a janela dela aparecer por qualquer
 // caminho, e fechada na hora. Ela NAO abre a nossa - abrir a nossa e so pelo
@@ -1045,11 +1244,23 @@ int LojaEsc() {
     // descartado, como acontece ao fechar qualquer janela do jogo pela metade.
     g_montando = false;
     g_aberta = false;
+    TeclaTexto(nullptr);
     return 1;
 }
 
 int JanelaVisivel() {
     DiagJanelaAtiva();
+    // Clicar numa barraca na cidade abre a vitrine: quem avisa e o servidor,
+    // respondendo ao mesmo pacote que abria a janela antiga.
+    if (LojaRedePedidoMercado() != 0 && !g_aberta) {
+        g_aberta = true;
+        g_montando = false;
+        g_escolhido = -1;
+        g_filtro = kMenuTodos;
+        g_pagina = 0;
+        PedeAoServidor();
+    }
+    AtualizaDica();
     FechaLojinhaAntiga();   // roda todo quadro: a lojinha antiga nao volta
     RenovaSePreciso();
     return g_aberta ? 1 : 0;
@@ -1132,6 +1343,7 @@ extern "C" void __cdecl LojaMostraIcone(int roubar) {
 namespace {
 
 const Camada kCamadaJanela = {30, JanelaVisivel, JanelaMedida, JanelaPixels, JanelaClique};
+const Camada kCamadaDica = {40, DicaVisivel, DicaMedida, DicaPixels, DicaClique};
 
 __declspec(naked) void AppendNodeHook() {
     __asm {
@@ -1262,6 +1474,7 @@ struct Registro {
                       reinterpret_cast<void*>(&IconeLeHook), "leitura do icone");
         CamadaRegistra(&kCamadaBotao);
         CamadaRegistra(&kCamadaJanela);
+        CamadaRegistra(&kCamadaDica);
     }
 };
 

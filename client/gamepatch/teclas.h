@@ -23,4 +23,10 @@
 // trata devolve 1 quando consumiu a tecla - e entao o jogo nao a ve.
 void TeclaRegistra(int vk, int ordem, int (*trata)());
 
+// Enquanto houver um recebedor de texto, TODA tecla e nossa: os caracteres vao
+// para ele e o resto e engolido, senao o jogo trataria cada numero como atalho
+// de magia e cada letra como comando. O Esc escapa dessa regra - e por ele que
+// se desiste do campo. Passar nulo devolve o teclado ao jogo.
+void TeclaTexto(int (*trata)(int caractere));
+
 #endif

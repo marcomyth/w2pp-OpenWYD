@@ -19,6 +19,7 @@ struct Dono {
     int (*trata)();
 };
 
+int (*g_texto)(int caractere) = nullptr;
 Dono g_donos[kMaxDonos];
 int g_nDonos = 0;
 bool g_engolindo[256] = {false};
@@ -44,6 +45,13 @@ void TeclaRegistra(int vk, int ordem, int (*trata)()) {
     Instala();
 }
 
+void TeclaTexto(int (*trata)(int caractere)) {
+    g_texto = trata;
+    if (trata != nullptr) {
+        Instala();
+    }
+}
+
 namespace {
 
 // A descida: pergunta aos donos, de cima para baixo.
@@ -57,11 +65,21 @@ extern "C" int __cdecl TeclaDesce(int vk) {
             return 1;
         }
     }
+    // Com um campo de texto aberto o teclado inteiro e nosso, menos o Esc, que
+    // ja passou pelos donos acima.
+    if (g_texto != nullptr && vk != VK_ESCAPE) {
+        g_engolindo[vk] = true;
+        return 1;
+    }
     return 0;
 }
 
 // O caractere que o TranslateMessage gerou da descida que engolimos.
 extern "C" int __cdecl TeclaCaractere(int c) {
+    // O campo de texto vem antes da marca: e ele quem recebe o caractere.
+    if (g_texto != nullptr && g_texto(c) != 0) {
+        return 1;
+    }
     return (c >= 0 && c <= 255 && g_engolindo[c]) ? 1 : 0;
 }
 

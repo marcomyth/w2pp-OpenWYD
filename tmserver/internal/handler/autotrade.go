@@ -225,7 +225,10 @@ func (d *Dispatcher) reqTradeList(w *world.World, s *world.Session, _ protocol.H
 		d.log.Info("autotrade list too far", "conn", s.Conn, "stall", autoID, "seller", seller.Conn)
 		return
 	}
-	d.sendShopList(w, s, seller.Conn)
+	// A janela antiga do cliente nao entra mais em cena: ela só sabe de ouro, e
+	// o que existe hoje é uma vitrine só, com as três moedas. Clicar numa
+	// barraca leva para lá — é o mesmo gesto, com outro destino.
+	w.SendTo(s, protocol.Header{Type: protocol.MsgLojaMercado, ID: protocol.IDScene}, nil)
 }
 
 // reqBuy handles _MSG_ReqBuy (0x0398): buy one item from a shop. The whole
