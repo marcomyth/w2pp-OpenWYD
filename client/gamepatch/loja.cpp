@@ -24,27 +24,47 @@
 namespace {
 
 // --- medidas da janela -----------------------------------------------------
+//
+// A loja tem a medida exata da janela do Banco do cliente e fica encostada nela
+// pela esquerda. Os numeros nao sao chute nem medida de captura de tela: o
+// desvio do AppendNode anotou o retangulo que o proprio cliente desenha - Banco
+// em x=367 y=44, 290x538, e o inventario colado a direita dele, em x=657 -,
+// numa tela de 1024x768.
+//
+// A janela e em pe, entao a planta mudou de forma junto: os botoes que viviam
+// numa coluna a esquerda viraram duas fileiras em cima, e os saldos desceram
+// para o rodape, logo acima dos botoes de acao.
 constexpr int kBorda = 5;            // as tres linhas da borda dupla
 constexpr int kPad = 6;
+constexpr int kMargem = kBorda + kPad;
+constexpr int kLargura = 290;
+constexpr int kAltura = 538;
+constexpr int kBancoX = 367;         // canto esquerdo da janela do Banco
+constexpr int kBancoY = 44;
+
 constexpr int kAltCabecalho = 17;
 constexpr int kAltSaldos = 20;
-constexpr int kLargMenu = 104;       // coluna de botoes da esquerda
 constexpr int kAltBotao = 22;
 constexpr int kEspacoBotao = 4;
-constexpr int kSlot = 44;            // quadrado de um item
+constexpr int kMenuLinha1 = 4;       // quantos botoes cabem na fileira de cima
+constexpr int kSlot = 48;            // quadrado de um item
 constexpr int kEspacoSlot = 4;
-constexpr int kColunas = 8;
-constexpr int kLinhas = 4;
+constexpr int kColunas = 5;
+constexpr int kLinhas = 7;
 constexpr int kPorPagina = kColunas * kLinhas;
 constexpr int kMaxPrateleiras = 12;   // MAX_AUTOTRADE, as prateleiras da barraca
 constexpr int kAltDetalhe = 16;
 constexpr int kAltRodape = 22;
 
-constexpr int kLargura = kBorda * 2 + kPad * 2 + kLargMenu + 8 + kColunas * kSlot +
-                         (kColunas - 1) * kEspacoSlot;
-constexpr int kTopoConteudo = kBorda + kPad + kAltCabecalho + 6 + kAltSaldos + 6;
+constexpr int kUtil = kLargura - kMargem * 2;
+constexpr int kTopoMenu = kMargem + kAltCabecalho + 6;
+constexpr int kTopoMenu2 = kTopoMenu + kAltBotao + kEspacoBotao;
+constexpr int kTopoConteudo = kTopoMenu2 + kAltBotao + 8;
 constexpr int kAltGrade = kLinhas * kSlot + (kLinhas - 1) * kEspacoSlot;
-constexpr int kAltura = kTopoConteudo + kAltGrade + 6 + kAltDetalhe + 4 + kAltRodape + kPad + kBorda;
+constexpr int kLargGrade = kColunas * kSlot + (kColunas - 1) * kEspacoSlot;
+constexpr int kEsqGrade = (kLargura - kLargGrade) / 2;
+constexpr int kTopoDetalhe = kTopoConteudo + kAltGrade + 6;
+constexpr int kTopoSaldos = kTopoDetalhe + kAltDetalhe + 6;
 
 // --- cores das moedas ------------------------------------------------------
 constexpr int kOuro = 0;
@@ -114,6 +134,15 @@ LojaPrateleira g_prateleiras[kMaxPrateleiras];
 int g_prateleirasUsadas = 0;
 
 bool g_roubaClique = true;   // desligado durante investigacoes no botao original
+
+// --- diagnostico -----------------------------------------------------------
+//
+// Ligado por diagnostico=1 no loja.txt, e so entao: anota no alvos.log o
+// retangulo das janelas grandes que o cliente desenha, a troca da janela ativa
+// e cada caractere que chega ao OnChar. E assim que se descobre a medida exata
+// de uma janela do jogo - a do Banco, por exemplo - sem chutar em cima de uma
+// captura de tela, e por onde uma tecla realmente passa.
+int g_diag = 0;
 
 // Em jogo, ou ainda na tela de servidor/personagem? A cena do cliente
 // (0x6F0AB0) so existe depois de entrar com o personagem, e o +0x4C guarda a
@@ -205,6 +234,8 @@ void CarregaConfig() {
             g_iconeL = valor;
         } else if (strcmp(linha, "icone_alt") == 0) {
             g_iconeA = valor;
+        } else if (strcmp(linha, "diagnostico") == 0) {
+            g_diag = valor;
         }
     }
     fclose(f);
@@ -284,40 +315,50 @@ int Paginas() {
 
 // --- areas clicaveis -------------------------------------------------------
 RECT AreaFechar() {
-    RECT r = {kLargura - kBorda - kPad - 16, kBorda + kPad + 2, kLargura - kBorda - kPad,
-              kBorda + kPad + 15};
+    RECT r = {kLargura - kMargem - 16, kMargem + 2, kLargura - kMargem, kMargem + 15};
     return r;
 }
 
+// Os botoes em duas fileiras: quatro em cima, tres embaixo. A de cima leva os
+// nomes curtos (os filtros, e os degraus de preco na montagem) justamente
+// porque e a estreita.
 RECT AreaMenu(int i) {
-    const int x = kBorda + kPad;
-    const int y = kTopoConteudo + i * (kAltBotao + kEspacoBotao);
-    RECT r = {x, y, x + kLargMenu, y + kAltBotao};
+    const bool cima = i < kMenuLinha1;
+    const int quantos = cima ? kMenuLinha1 : kMenuTotal - kMenuLinha1;
+    const int coluna = cima ? i : i - kMenuLinha1;
+    const int largura = (kUtil - (quantos - 1) * kEspacoBotao) / quantos;
+    const int x = kMargem + coluna * (largura + kEspacoBotao);
+    const int y = cima ? kTopoMenu : kTopoMenu2;
+    // O ultimo da fileira come a sobra da divisao, para a fileira fechar certo
+    // na margem direita.
+    const int fim = coluna + 1 == quantos ? kLargura - kMargem : x + largura;
+    RECT r = {x, y, fim, y + kAltBotao};
     return r;
 }
 
 RECT AreaSlot(int i) {
     const int col = i % kColunas;
     const int lin = i / kColunas;
-    const int x = kBorda + kPad + kLargMenu + 8 + col * (kSlot + kEspacoSlot);
+    const int x = kEsqGrade + col * (kSlot + kEspacoSlot);
     const int y = kTopoConteudo + lin * (kSlot + kEspacoSlot);
     RECT r = {x, y, x + kSlot, y + kSlot};
     return r;
 }
 
 int TopoRodape() {
-    return kTopoConteudo + kAltGrade + 6 + kAltDetalhe + 4;
+    return kTopoSaldos + kAltSaldos + 6;
 }
 
+// O rodape e uma fileira so: paginacao a esquerda, Comprar e Fechar a direita.
 RECT AreaSeta(bool direita) {
-    const int meio = kLargura / 2;
     const int y = TopoRodape();
-    RECT r = {direita ? meio + 26 : meio - 44, y, direita ? meio + 44 : meio - 26, y + kAltRodape};
+    const int x = direita ? kMargem + 64 : kMargem;
+    RECT r = {x, y, x + 18, y + kAltRodape};
     return r;
 }
 
 RECT AreaBotaoFechar() {
-    RECT r = {kLargura - kBorda - kPad - 76, TopoRodape(), kLargura - kBorda - kPad,
+    RECT r = {kLargura - kMargem - 76, TopoRodape(), kLargura - kMargem,
               TopoRodape() + kAltRodape};
     return r;
 }
@@ -330,9 +371,9 @@ RECT AreaBotaoComprar() {
 
 // --- pintura ---------------------------------------------------------------
 void PintaCabecalho(HDC hdc) {
-    const int x = kBorda + kPad;
-    const int y = kBorda + kPad;
-    const int l = kLargura - (kBorda + kPad) * 2;
+    const int x = kMargem;
+    const int y = kMargem;
+    const int l = kUtil;
 
     Degrade(hdc, x, y, l, kAltCabecalho, kCabTopo, kCabBaixo);
     Contorno(hdc, x, y, l, kAltCabecalho, kCabBorda);
@@ -351,10 +392,13 @@ void PintaCabecalho(HDC hdc) {
     DrawTextA(hdc, "X", -1, &rx, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 }
 
+// Os saldos moraram no alto enquanto a janela era deitada; agora ficam no
+// rodape, logo acima de Comprar e Fechar. Em 268 pixels os tres nao cabem por
+// extenso, entao o valor vem curto - 1,2M no lugar de 1.257.100.
 void PintaSaldos(HDC hdc) {
-    const int x = kBorda + kPad;
-    const int y = kBorda + kPad + kAltCabecalho + 6;
-    const int l = kLargura - (kBorda + kPad) * 2;
+    const int x = kMargem;
+    const int y = kTopoSaldos;
+    const int l = kUtil;
 
     Degrade(hdc, x, y, l, kAltSaldos, RGB(30, 23, 16), RGB(16, 12, 8));
     Contorno(hdc, x, y, l, kAltSaldos, RGB(58, 48, 36));
@@ -362,14 +406,14 @@ void PintaSaldos(HDC hdc) {
     const int largura = l / 3;
     for (int i = 0; i < 3; ++i) {
         const int cx = x + i * largura;
-        Losango(hdc, cx + 14, y + kAltSaldos / 2, 4, kCorMoeda[i]);
+        Losango(hdc, cx + 9, y + kAltSaldos / 2, 4, kCorMoeda[i]);
         char valor[40];
-        Pontuado(LojaRedeSaldo(i), valor, sizeof(valor));
+        Curto(LojaRedeSaldo(i), valor, sizeof(valor));
         char texto[64];
-        sprintf_s(texto, "%s  %s", kNomeMoeda[i], valor);
-        SelectObject(hdc, g_fonte);
+        sprintf_s(texto, "%s %s", kNomeMoeda[i], valor);
+        SelectObject(hdc, g_miudo);
         SetTextColor(hdc, kCorMoeda[i]);
-        RECT rt = {cx + 24, y, cx + largura - 6, y + kAltSaldos};
+        RECT rt = {cx + 17, y, cx + largura - 2, y + kAltSaldos};
         DrawTextA(hdc, texto, -1, &rt, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
     }
 }
@@ -390,10 +434,13 @@ void PintaMenu(HDC hdc) {
             sprintf_s(texto, "%s", kMenu[i]);
             ativo = (i == g_filtro) && i <= kMenuMeus;
         }
-        LinhaBotao(hdc, r.left, r.top, kLargMenu, kAltBotao, ativo);
-        SelectObject(hdc, ativo ? g_negrito : g_fonte);
+        LinhaBotao(hdc, r.left, r.top, r.right - r.left, kAltBotao, ativo);
+        // A fileira de baixo carrega os nomes compridos - "Realizar saque",
+        // "Moeda: Ouro" -, que so cabem na fonte miuda.
+        const bool comprido = i >= kMenuLinha1;
+        SelectObject(hdc, ativo ? (comprido ? g_fonte : g_negrito) : (comprido ? g_miudo : g_fonte));
         SetTextColor(hdc, ativo ? kTextoAtivo : kTexto);
-        RECT rt = {r.left + 8, r.top, r.right - 8, r.bottom};
+        RECT rt = {r.left + 3, r.top, r.right - 3, r.bottom};
         DrawTextA(hdc, texto, -1, &rt, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
     }
 }
@@ -508,9 +555,9 @@ void PintaGrade(HDC hdc) {
 }
 
 void PintaDetalhe(HDC hdc) {
-    const int x = kBorda + kPad;
-    const int y = kTopoConteudo + kAltGrade + 6;
-    const int l = kLargura - (kBorda + kPad) * 2;
+    const int x = kMargem;
+    const int y = kTopoDetalhe;
+    const int l = kUtil;
     Barra(hdc, x, y, l, 1, RGB(58, 48, 36));
 
     char texto[160];
@@ -684,6 +731,8 @@ void IconeCanto(int telaL, int telaA, int* x, int* y) {
 // ali um no do tamanho da faixa de icones, cobrindo a celula da Loja Pessoal, a
 // barra esta aberta.
 
+void DiagNo(float x, float y, float l, float a);
+
 constexpr DWORD kAppendNode = 0x0040C43D;
 const BYTE kAppendNodeBytes[7] = {0x55, 0x8B, 0xEC, 0x83, 0x7D, 0x10, 0x1E};
 constexpr DWORD kNoRetangulo = 0x04;
@@ -699,6 +748,7 @@ extern "C" void __cdecl LojaAnotaNo(DWORD no) {
     const float y = r[1];
     const float l = r[2];
     const float a = r[3];
+    DiagNo(x, y, l, a);
     if (a < 30.0f || a > 48.0f || l < 120.0f || l > 600.0f) {
         return;
     }
@@ -711,6 +761,59 @@ extern "C" void __cdecl LojaAnotaNo(DWORD no) {
     if (x <= esq && x + l >= dir && y <= topo + 2.0f && y + a >= topo + 2.0f) {
         g_faixaVistaEm = GetTickCount();
     }
+}
+
+// Anota, uma vez cada, o retangulo das janelas grandes que passam pelo desenho.
+void DiagNo(float x, float y, float l, float a) {
+    if (g_diag == 0 || l < 200.0f || a < 200.0f) {
+        return;
+    }
+    struct Visto {
+        int x;
+        int y;
+        int l;
+        int a;
+    };
+    static Visto vistos[24];
+    static int nVistos = 0;
+    const int ix = static_cast<int>(x);
+    const int iy = static_cast<int>(y);
+    const int il = static_cast<int>(l);
+    const int ia = static_cast<int>(a);
+    for (int i = 0; i < nVistos; ++i) {
+        if (vistos[i].x == ix && vistos[i].y == iy && vistos[i].l == il && vistos[i].a == ia) {
+            return;
+        }
+    }
+    if (nVistos < 24) {
+        vistos[nVistos].x = ix;
+        vistos[nVistos].y = iy;
+        vistos[nVistos].l = il;
+        vistos[nVistos].a = ia;
+        ++nVistos;
+    }
+    char buf[140];
+    sprintf_s(buf, "=== diag janela: x=%d y=%d larg=%d alt=%d  (ativa=%04X, tela %dx%d)", ix, iy,
+              il, ia, *reinterpret_cast<volatile WORD*>(kIdJanelaAtiva), CamadaTelaL(),
+              CamadaTelaA());
+    Log(buf);
+}
+
+// Toda troca da janela ativa do cliente, para descobrir o id de uma janela - a
+// da engrenagem, por exemplo.
+void DiagJanelaAtiva() {
+    if (g_diag == 0 || !EmJogo()) {
+        return;
+    }
+    static WORD ultima = 0;
+    const WORD agora = *reinterpret_cast<volatile WORD*>(kIdJanelaAtiva);
+    if (agora == ultima) {
+        return;
+    }
+    ultima = agora;
+    char buf[80];
+    sprintf_s(buf, "=== diag ativa: %04X", agora);
+    Log(buf);
 }
 
 bool BarraAberta() {
@@ -918,14 +1021,24 @@ void FechaLojinhaAntiga() {
 // --- a tecla Esc -----------------------------------------------------------
 //
 // Com a loja aberta, Esc fecha a loja e NAO chega ao jogo - sem isto ele abria o
-// menu da engrenagem por cima. Quem entrega a tecla e o OnChar do cliente
-// (0x4B0AE6), um metodo virtual que recebe o caractere em [ebp+8] e trata ali
-// mesmo o Tab (9), o Enter (0x0D) e o Esc (0x1B). Engolir a tecla na entrada
-// dele e o ponto mais barato: o jogo nunca soube que ela foi apertada.
+// menu da engrenagem por cima.
+//
+// A primeira tentativa entrou no OnChar do cliente (0x4B0AE6), que trata Tab,
+// Enter e Esc; o diagnostico mostrou que ele recebe as letras digitadas mas
+// nunca o Esc. O caminho de verdade e outro: a WndProc (0x54BFBD) despacha
+// WM_KEYDOWN por tabela de salto para 0x54C62F, e la, em 0x54C875, o codigo da
+// tecla e entregue a 0x4B5803 - que marca a tecla no vetor em +0x34 e chama o
+// tratador. Engolir na entrada dessa funcao e o ponto certo: o jogo nao chega a
+// marcar a tecla, entao nao fica tecla presa.
 //
 // Devolve 1 quando a tecla era nossa.
-extern "C" int __cdecl LojaTeclaChar(int c) {
-    if (c != 0x1B || !g_aberta) {
+extern "C" int __cdecl LojaTecla(int vk) {
+    if (g_diag != 0) {
+        char buf[96];
+        sprintf_s(buf, "=== diag tecla: %02X, loja %s", vk & 0xFF, g_aberta ? "aberta" : "fechada");
+        Log(buf);
+    }
+    if (vk != VK_ESCAPE || !g_aberta) {
         return 0;
     }
     // Um Esc fecha tudo, inclusive a tela de montagem: o que estava montado e
@@ -936,6 +1049,7 @@ extern "C" int __cdecl LojaTeclaChar(int c) {
 }
 
 int JanelaVisivel() {
+    DiagJanelaAtiva();
     FechaLojinhaAntiga();   // roda todo quadro: a lojinha antiga nao volta
     RenovaSePreciso();
     return g_aberta ? 1 : 0;
@@ -944,10 +1058,15 @@ int JanelaVisivel() {
 void JanelaMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura) {
     *largura = kLargura;
     *altura = kAltura;
-    *x = (telaL - kLargura) / 2;
-    *y = (telaA - kAltura) / 2 - 20;   // um pouco acima do centro, como no jogo
-    if (*y < 0) {
-        *y = 0;
+    // Encostada na janela do Banco pela esquerda, no mesmo topo que ela. Se a
+    // tela for estreita demais para isso, a loja encosta na margem.
+    *x = kBancoX - kLargura;
+    *y = kBancoY;
+    if (*x < 0 || kBancoX > telaL) {
+        *x = 0;
+    }
+    if (*y + kAltura > telaA) {
+        *y = telaA > kAltura ? telaA - kAltura : 0;
     }
 }
 
@@ -1054,60 +1173,63 @@ void DesviaAppendNode() {
                           sizeof(salto));
 }
 
-constexpr DWORD kOnChar = 0x004B0AE6;
-const BYTE kOnCharBytes[6] = {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C};
+constexpr DWORD kTeclaBaixo = 0x004B5803;
+constexpr BYTE kTeclaBaixoBytes[7] = {0x55, 0x8B, 0xEC, 0x51, 0x89, 0x4D, 0xFC};
 
 int g_engoliu = 0;
 
-__declspec(naked) void OnCharHook() {
+__declspec(naked) void TeclaBaixoHook() {
     __asm {
         pushad
         pushfd
-        movzx eax, byte ptr [esp + 0x28]   // o caractere, argumento da chamada
+        mov eax, [esp + 0x28]             // o codigo da tecla, argumento da chamada
         push eax
-        call LojaTeclaChar
+        call LojaTecla
         add esp, 4
         mov g_engoliu, eax
         popfd
         popad
         cmp g_engoliu, 0
         je segue
-        ret 8                             // era nossa: o cliente nao a ve
+        ret 4                             // era nossa: o cliente nao a ve
     segue:
         push ebp                          // instrucoes originais
         mov ebp, esp
-        sub esp, 0x0C
-        push 0x004B0AEC              // kOnCharVolta
+        push ecx
+        mov dword ptr [ebp - 4], ecx
+        push 0x004B580A                   // volta depois delas
         ret
     }
 }
 
-void DesviaOnChar() {
-    if (memcmp(reinterpret_cast<void*>(kOnChar), kOnCharBytes, sizeof(kOnCharBytes)) != 0) {
-        Log("=== loja: OnChar com bytes diferentes, Esc nao sera tratado");
+void DesviaTecla() {
+    if (memcmp(reinterpret_cast<void*>(kTeclaBaixo), kTeclaBaixoBytes,
+               sizeof(kTeclaBaixoBytes)) != 0) {
+        Log("=== loja: tecla com bytes diferentes, Esc nao sera tratado");
         return;
     }
-    BYTE salto[sizeof(kOnCharBytes)];
+    BYTE salto[sizeof(kTeclaBaixoBytes)];
     memset(salto, 0x90, sizeof(salto));
     salto[0] = 0xE9;
-    const DWORD rel = reinterpret_cast<DWORD>(&OnCharHook) - (kOnChar + 5);
+    const DWORD rel = reinterpret_cast<DWORD>(&TeclaBaixoHook) - (kTeclaBaixo + 5);
     memcpy(salto + 1, &rel, sizeof(rel));
     DWORD antes = 0;
-    if (!VirtualProtect(reinterpret_cast<void*>(kOnChar), sizeof(salto), PAGE_EXECUTE_READWRITE,
-                        &antes)) {
+    if (!VirtualProtect(reinterpret_cast<void*>(kTeclaBaixo), sizeof(salto),
+                        PAGE_EXECUTE_READWRITE, &antes)) {
         return;
     }
-    memcpy(reinterpret_cast<void*>(kOnChar), salto, sizeof(salto));
-    VirtualProtect(reinterpret_cast<void*>(kOnChar), sizeof(salto), antes, &antes);
-    FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(kOnChar), sizeof(salto));
-    Log("=== loja: Esc desviado em 0x4B0AE6");
+    memcpy(reinterpret_cast<void*>(kTeclaBaixo), salto, sizeof(salto));
+    VirtualProtect(reinterpret_cast<void*>(kTeclaBaixo), sizeof(salto), antes, &antes);
+    FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(kTeclaBaixo),
+                          sizeof(salto));
+    Log("=== loja: Esc desviado em 0x4B5803");
 }
 
 struct Registro {
     Registro() {
         CarregaConfig();
         DesviaAppendNode();
-        DesviaOnChar();
+        DesviaTecla();
         CamadaRegistra(&kCamadaBotao);
         CamadaRegistra(&kCamadaJanela);
     }
