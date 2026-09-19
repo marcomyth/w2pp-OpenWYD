@@ -242,6 +242,10 @@ message AdminNpcShopItem {
   // quantity is the stack amount sold by this slot. 0 is accepted as 1 for
   // older callers; values >1 are materialized as EF_AMOUNT in the legacy item.
   int32 quantity = 9;
+  // price_points sells this slot for shop points (0060) instead of gold.
+  // Optional, and absent is the ordinary case: leaving it out keeps the item on
+  // sale for the catalog's gold price. Zero means free to anyone with a wallet.
+  optional int32 price_points = 10;
 }
 
 message AdminNpc {

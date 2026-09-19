@@ -15,6 +15,10 @@ type ShopItem struct {
 	Index    uint16
 	Quantity uint8
 	Eff      [3][2]uint8
+	// PricePoints switches this slot to the shop-points wallet (0060). nil is
+	// gold, the ordinary case. A pointer because zero is a real price and an int
+	// would make every gold item cost zero points.
+	PricePoints *int32
 }
 
 // Definition is a fully resolved NPC ready to materialize: the raw 816-byte

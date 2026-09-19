@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -99,6 +101,62 @@ func TestCreditShopPointsPagaSoJanelaInteira(t *testing.T) {
 	d.creditShopPoints(w, s)
 	if at.PaidUntil != before {
 		t.Fatalf("PaidUntil mudou para %d numa segunda chamada sem avanço do relógio", at.PaidUntil)
+	}
+}
+
+// pontosGravados capta o que a lojinha realmente credita na conta. Sem isso
+// nenhum teste chega ao número: creditShopPoints paga fora do laço (GoDetached),
+// e os outros testes rodam sobre NopPersistence, que engole o valor. Eles provam
+// QUANDO se paga; este prova QUANTO.
+type pontosGravados struct {
+	world.NopPersistence
+	creditos chan int32
+}
+
+func (p *pontosGravados) AddShopPoints(_ context.Context, _ int64, delta int32, _, _ string) (int32, error) {
+	p.creditos <- delta
+	return delta, nil
+}
+
+// TestCreditShopPointsCreditaTresPorJanela fixa a tabela de pontos da lojinha:
+// 3 pontos por quarto de hora inteiro, pagos de uma vez pelas janelas acumuladas.
+// É o número que um NPC de troca por pontos vai precificar contra.
+func TestCreditShopPointsCreditaTresPorJanela(t *testing.T) {
+	casos := []struct {
+		nome    string
+		minutos uint32
+		quer    int32
+	}{
+		// Literais de propósito: escrever shopPointsBase aqui faria o teste
+		// concordar com qualquer taxa que alguém pusesse na constante.
+		{"um quarto de hora", 15, 3},
+		{"uma hora seguida", 60, 12},
+		// 44 min fecham duas janelas; os 14 min restantes ficam para a próxima.
+		{"44 min pagam só as janelas fechadas", 44, 6},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			var clock atomic.Uint32
+			log := slog.New(slog.NewTextHandler(io.Discard, nil))
+			d := New(Config{Log: log})
+			db := &pontosGravados{creditos: make(chan int32, 1)}
+			w := world.New(world.Config{GridDim: 16, Now: clock.Load}, log, db, d.Handle)
+			s := &world.Session{Conn: 1, AccountID: 7, Mode: world.UserPlay}
+			s.AutoTrade = stockedShop()
+			s.TradeMode = 1
+
+			clock.Store(c.minutos * 60 * 1000)
+			d.creditShopPoints(w, s)
+
+			select {
+			case got := <-db.creditos:
+				if got != c.quer {
+					t.Fatalf("crédito = %d pontos depois de %d min, quer %d", got, c.minutos, c.quer)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatalf("nada foi creditado depois de %d min (quer %d pontos)", c.minutos, c.quer)
+			}
+		})
 	}
 }
 

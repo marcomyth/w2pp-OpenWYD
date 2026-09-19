@@ -1,8 +1,13 @@
 # Inventário dos generators com `Merchant != 0`
 
 Fonte reproduzível: `dbserver import-npcs -content ./Release` usa o mesmo parser e
-codec do seed de produção. O catálogo atual contém **548 blocos** em 6099 slots;
+codec do seed de produção. O catálogo atual contém **549 blocos** em 6100 slots;
 produção possuía apenas 84 antes da migration do catálogo integral.
+
+> 549 desde 19/09/2026: a **Loja de Pontos** (`Loja_de_Pontos`, Armia 2139,2104, ao
+> lado da Kibita) foi acrescentada como bloco novo **no fim** do arquivo — nunca no
+> meio, porque o `generator_index` é a posição do bloco e inserir no meio desloca
+> todos os seguintes junto com os slugs que o banco guarda.
 
 O byte `Merchant` é sobrecarregado pelo legado: além de lojas, identifica quests,
 montarias e atores de eventos. Por isso cada registro preserva a receita completa

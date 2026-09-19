@@ -49,6 +49,10 @@ type Item struct {
 	Grade   int32     `json:"grade,omitempty"`
 	IconKey string    `json:"iconKey,omitempty"`
 	Effects [3][2]int `json:"effects,omitempty"`
+	// PricePoints é o preço em PONTOS DE LOJINHA deste slot (0060). Ausente
+	// significa vendido por ouro, que é o caso de toda loja do jogo hoje.
+	// Ponteiro, não int: zero é um preço de verdade.
+	PricePoints *int32 `json:"pricePoints,omitempty"`
 }
 
 // NPC is one spawn block: a template placed somewhere in the world.

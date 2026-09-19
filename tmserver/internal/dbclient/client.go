@@ -1029,3 +1029,19 @@ func (c *Client) ClaimNewbieKit(ctx context.Context, accountID int64, characterN
 	}
 	return resp.GetGranted(), nil
 }
+
+// SpendShopPoints debits a shop-points purchase (0060_shop_points). The second
+// result is false when the wallet does not cover the cost — a refusal, not a
+// failure, so err stays nil and the caller can tell the two apart.
+func (c *Client) SpendShopPoints(ctx context.Context, accountID int64, cost int32, characterName, reason string) (int32, bool, error) {
+	resp, err := c.api.SpendShopPoints(ctx, &dbv1.SpendShopPointsRequest{
+		AccountId:     accountID,
+		Cost:          cost,
+		CharacterName: characterName,
+		Reason:        reason,
+	})
+	if err != nil {
+		return 0, false, fmt.Errorf("dbclient: gastar pontos de lojinha: %w", err)
+	}
+	return resp.GetBalance(), resp.GetPaid(), nil
+}

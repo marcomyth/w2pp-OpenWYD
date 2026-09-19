@@ -1610,7 +1610,11 @@ type AdminNpcShopItem struct {
 	Effv3     int32                  `protobuf:"varint,8,opt,name=effv3,proto3" json:"effv3,omitempty"`
 	// quantity is the stack amount sold by this slot. 0 is accepted as 1 for
 	// older callers; values >1 are materialized as EF_AMOUNT in the legacy item.
-	Quantity      int32 `protobuf:"varint,9,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	Quantity int32 `protobuf:"varint,9,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	// price_points sells this slot for shop points (0060) instead of gold.
+	// Optional, and absent is the ordinary case: leaving it out keeps the item on
+	// sale for the catalog's gold price. Zero means free to anyone with a wallet.
+	PricePoints   *int32 `protobuf:"varint,10,opt,name=price_points,json=pricePoints,proto3,oneof" json:"price_points,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1704,6 +1708,13 @@ func (x *AdminNpcShopItem) GetEffv3() int32 {
 func (x *AdminNpcShopItem) GetQuantity() int32 {
 	if x != nil {
 		return x.Quantity
+	}
+	return 0
+}
+
+func (x *AdminNpcShopItem) GetPricePoints() int32 {
+	if x != nil && x.PricePoints != nil {
+		return *x.PricePoints
 	}
 	return 0
 }
@@ -11153,7 +11164,7 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\x0fcatalog_version\x18\x02 \x01(\tR\x0ecatalogVersion\x12*\n" +
 	"\x11icon_pack_version\x18\x03 \x01(\tR\x0ficonPackVersion\"7\n" +
 	"\bAdminAck\x12+\n" +
-	"\x06result\x18\x01 \x01(\x0e2\x13.web.v1.AdminResultR\x06result\"\xdf\x01\n" +
+	"\x06result\x18\x01 \x01(\x0e2\x13.web.v1.AdminResultR\x06result\"\x98\x02\n" +
 	"\x10AdminNpcShopItem\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x1d\n" +
 	"\n" +
@@ -11164,7 +11175,10 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\x05effv2\x18\x06 \x01(\x05R\x05effv2\x12\x12\n" +
 	"\x04eff3\x18\a \x01(\x05R\x04eff3\x12\x14\n" +
 	"\x05effv3\x18\b \x01(\x05R\x05effv3\x12\x1a\n" +
-	"\bquantity\x18\t \x01(\x05R\bquantity\"\xfb\x02\n" +
+	"\bquantity\x18\t \x01(\x05R\bquantity\x12&\n" +
+	"\fprice_points\x18\n" +
+	" \x01(\x05H\x00R\vpricePoints\x88\x01\x01B\x0f\n" +
+	"\r_price_points\"\xfb\x02\n" +
 	"\bAdminNpc\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\x03R\x02id\x12\x12\n" +
 	"\x04slug\x18\x02 \x01(\tR\x04slug\x12#\n" +
@@ -12513,6 +12527,7 @@ func file_api_web_v1_web_proto_init() {
 	if File_api_web_v1_web_proto != nil {
 		return
 	}
+	file_api_web_v1_web_proto_msgTypes[16].OneofWrappers = []any{}
 	file_api_web_v1_web_proto_msgTypes[91].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

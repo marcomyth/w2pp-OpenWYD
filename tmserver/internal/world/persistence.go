@@ -431,6 +431,10 @@ type Persistence interface {
 	// the same time and a read-modify-write would lose one of them.
 	AddShopPoints(ctx context.Context, accountID int64, delta int32, characterName, reason string) (int32, error)
 	ShopPoints(ctx context.Context, accountID int64) (int32, error)
+	// SpendShopPoints debits a purchase. paid=false is "the wallet does not cover
+	// it", which is NOT an error — the caller must tell that apart from a failed
+	// call, because only one of the two may hand over the item.
+	SpendShopPoints(ctx context.Context, accountID int64, cost int32, characterName, reason string) (int32, bool, error)
 
 	// ClaimNewbieKit takes the once-per-account /novato kit (0062_newbie_kit) and
 	// reports whether THIS call took it. Called off the loop via World.Go.
@@ -587,6 +591,12 @@ func (NopPersistence) AddShopPoints(context.Context, int64, int32, string, strin
 
 // ShopPoints reports an empty wallet.
 func (NopPersistence) ShopPoints(context.Context, int64) (int32, error) { return 0, nil }
+
+// SpendShopPoints without a wallet never pays: reporting paid would hand out the
+// item for free on a server booted with no dbServer.
+func (NopPersistence) SpendShopPoints(context.Context, int64, int32, string, string) (int32, bool, error) {
+	return 0, false, nil
+}
 
 // ClaimNewbieKit refuses without a backend. A server booted with no -dbserver has
 // nowhere to write the claim, and granting the kit anyway would make it

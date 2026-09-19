@@ -157,7 +157,31 @@ carteira própria (`shop_points`), separada do saldo de doação.
 
 Vender a última peça para o relógio na hora; reabastecer não paga o tempo em que a
 prateleira ficou vazia. O saldo aparece com `/pontos` no jogo e na página da conta no
-painel. **Gastar** os pontos ainda não existe — só o acúmulo.
+painel.
+
+Em números: uma barraca que fique de pé o dia inteiro rende **288 pontos por dia**
+(672 com Fada Azul). É essa a régua para precificar qualquer coisa vendida em pontos.
+
+### Gastar: lojas que cobram em pontos
+
+Qualquer slot de loja de NPC pode ser vendido em **pontos** em vez de ouro — basta
+pôr um preço na coluna "pontos" da loja, no painel de NPCs. Slot sem preço em pontos
+continua sendo vendido por ouro, normalmente; preço **0** é de graça, e é diferente
+de deixar em branco.
+
+O débito é atômico no banco: quem não tem saldo não leva o item, e se a bolsa mudar
+entre a cobrança e a entrega os pontos voltam sozinhos. Comprar em pontos **não
+encosta no ouro** do personagem.
+
+A **Loja de Pontos** fica em Armia (2139, 2104), ao lado da Kibita. Ela nasce sem
+estoque: o que ela vende e por quanto se define no painel de NPCs.
+
+> O cliente não sabe dessa moeda. A janela de loja desenha o preço em **ouro** que
+> está no `ItemList.bin` dele, que não tem nada a ver com o custo em pontos — por
+> isso o servidor anuncia a tabela no chat ao abrir a loja. (O cliente aceita a
+> compra mesmo sem o ouro: a desmontagem do `wyd.exe` mostra que o caminho até
+> montar o `MSG_Buy` não consulta o ouro nem o preço — o mesmo achado que já
+> sustenta a loja de Emblema Orc do Unicórnio Puro.)
 
 > Divergência deliberada: no legado só a Fada Azul de 3 dias (3901) dá bônus de drop;
 > as de 5 e 7 dias dão XP (`CMob.cpp:716` vs `731`). Aqui as três valem os 7 pontos,

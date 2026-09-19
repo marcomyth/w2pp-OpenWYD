@@ -360,13 +360,24 @@ func applyShop(e *world.Entity, shop []npccfg.ShopItem) {
 	for i := range e.Carry {
 		e.Carry[i] = world.Item{}
 	}
+	// Rebuilt from scratch, not merged: a slot whose price_points was cleared in
+	// the panel has to go back to gold, and a leftover entry would keep charging
+	// points for it.
+	e.ShopPointPrice = nil
 	for _, it := range shop {
 		if it.Slot < 0 || it.Slot >= maxShopSlots {
 			continue
 		}
-		e.Carry[protocol.ShopSlot(it.Slot)] = world.Item{
+		pos := protocol.ShopSlot(it.Slot)
+		e.Carry[pos] = world.Item{
 			Index:   int16(it.Index),
 			Effects: shopEffects(it),
+		}
+		if it.PricePoints != nil {
+			if e.ShopPointPrice == nil {
+				e.ShopPointPrice = make(map[int]int32, len(shop))
+			}
+			e.ShopPointPrice[pos] = *it.PricePoints
 		}
 	}
 }

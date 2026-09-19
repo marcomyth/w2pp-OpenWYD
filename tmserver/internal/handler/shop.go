@@ -74,6 +74,7 @@ func (d *Dispatcher) reqShopList(w *world.World, s *world.Session, _ protocol.He
 	// line is the only record of what it was handed.
 	d.log.Info("shop opened", "conn", s.Conn, "npc", target, "merchant", npc.Merchant,
 		"dropped", dropped, "items", contents.String())
+	d.anunciarPrecoEmPontos(w, s, npc)
 }
 
 // buy handles _MSG_Buy (0x0379): purchase a shop item from an NPC. Price =
@@ -107,6 +108,13 @@ func (d *Dispatcher) buy(w *world.World, s *world.Session, _ protocol.Header, pa
 	if e.Carry[myPos].Index != 0 {
 		d.log.Info("buy resync (dest occupied)", "conn", s.Conn, "npcPos", npcPos, "wantItem", item.Index, "myPos", myPos, "destItem", e.Carry[myPos].Index)
 		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, myPos, itemToSel(e.Carry[myPos])))
+		return
+	}
+	// Um slot precificado em pontos de lojinha é outra transação: a carteira vive
+	// no Postgres, então não dá para liquidá-la aqui, no laço. Vem antes da loja
+	// de emblema porque resolve com return próprio e deixa aquela intocada.
+	if pontos, emPontos := npc.ShopPointPrice[npcPos]; emPontos {
+		d.comprarComPontos(w, s, e, npcPos, myPos, item, pontos, payload)
 		return
 	}
 	price, ok := d.itemPrices[int(item.Index)]

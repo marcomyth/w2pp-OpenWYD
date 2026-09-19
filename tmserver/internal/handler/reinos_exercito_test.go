@@ -222,8 +222,11 @@ func TestReinosBlocosDoNPCGener(t *testing.T) {
 			t.Errorf("Lenda %s: bloco %s em (%d,%d)", cls, g.Leader, g.SegX[0], g.SegY[0])
 		}
 	}
-	if len(gens) != world.EscoltaDoTronoGenLast+5 {
-		t.Errorf("%d blocos, want %d: bloco novo entra no fim, depois das Lendas", len(gens), world.EscoltaDoTronoGenLast+5)
+	// +6, não +5, desde 19/09/2026: a Loja de Pontos entrou depois das Lendas.
+	// As Lendas continuam onde estavam — são lidas por índice absoluto logo
+	// acima —, e é justamente por isso que bloco novo vai sempre no FIM.
+	if len(gens) != world.EscoltaDoTronoGenLast+6 {
+		t.Errorf("%d blocos, want %d: bloco novo entra no fim, depois das Lendas", len(gens), world.EscoltaDoTronoGenLast+6)
 	}
 }
 

@@ -68,6 +68,10 @@ linters:
         # the migration, the handler and the client generator alike. misspell
         # reads it as a typo for "variants".
         - variantes
+        # Portuguese for "they", opening a sentence in the shop-points test
+        # comment. misspell reads it as a typo for "eels". It is the plainest
+        # possible collision: a Portuguese pronoun against an English fish.
+        - eles
   exclusions:
     generated: lax
     presets:

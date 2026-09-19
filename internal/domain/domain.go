@@ -273,12 +273,17 @@ type NPCShopItem struct {
 	Slot      int16
 	ItemIndex int32
 	Quantity  int16 // stack amount; 1 means a single item
-	Eff1      uint8
-	EffV1     uint8
-	Eff2      uint8
-	EffV2     uint8
-	Eff3      uint8
-	EffV3     uint8
+	// PricePoints troca a moeda deste slot: nil = ouro (preço do catálogo ou do
+	// item_price), não-nil = pontos de lojinha (0060). Ponteiro porque zero é um
+	// preço legítimo — item de graça para quem tem a carteira aberta — e um int
+	// simples não distingue "de graça" de "não configurado".
+	PricePoints *int32
+	Eff1        uint8
+	EffV1       uint8
+	Eff2        uint8
+	EffV2       uint8
+	Eff3        uint8
+	EffV3       uint8
 }
 
 // ItemPriceOverride is a global per-item price set by a moderator. It overlays

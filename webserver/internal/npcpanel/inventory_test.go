@@ -58,8 +58,8 @@ func TestLoadReal(t *testing.T) {
 	// The merchant count is the figure npc-generator-inventory.md documents; a
 	// drift here means the content tree or the decoder changed under us. 552 = the
 	// documented 548 plus the four Lendas of the Praça (Reinos, blocks 6140-6143).
-	if data.Stats.Merchants != 552 {
-		t.Errorf("merchant blocks = %d, want 552 (npc-generator-inventory.md + 4 Lendas)", data.Stats.Merchants)
+	if data.Stats.Merchants != 553 {
+		t.Errorf("merchant blocks = %d, want 553 (npc-generator-inventory.md + 4 Lendas)", data.Stats.Merchants)
 	}
 	if len(data.NPCs) == 0 {
 		t.Fatal("no NPCs loaded")
@@ -170,8 +170,10 @@ func TestOnlyShopsReal(t *testing.T) {
 		t.Fatalf("Load: %v", err)
 	}
 	shops := data.OnlyShops()
-	if len(shops.NPCs) != 96 {
-		t.Errorf("shop scope has %d NPCs, want 96 (88 Merchant 1 + 8 Merchant 19)", len(shops.NPCs))
+	// 97 desde 19/09/2026: a Loja de Pontos (Merchant 1, Armia) entrou no
+	// NPCGener. Ver npc-generator-inventory.md.
+	if len(shops.NPCs) != 97 {
+		t.Errorf("shop scope has %d NPCs, want 97 (89 Merchant 1 + 8 Merchant 19)", len(shops.NPCs))
 	}
 	var m1, m19 int
 	for _, n := range shops.NPCs {
@@ -184,8 +186,8 @@ func TestOnlyShopsReal(t *testing.T) {
 			t.Fatalf("%s has merchant %d in shop scope", n.Slug, n.Merchant)
 		}
 	}
-	if m1 != 88 || m19 != 8 {
-		t.Errorf("merchant split = %d/%d, want 88/8", m1, m19)
+	if m1 != 89 || m19 != 8 {
+		t.Errorf("merchant split = %d/%d, want 89/8", m1, m19)
 	}
 
 	// Eight shopkeepers ship with an entirely zero Carry[] — verified against the

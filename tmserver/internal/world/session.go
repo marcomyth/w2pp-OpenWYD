@@ -74,6 +74,7 @@ type Session struct {
 	Trade             TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
 	AutoTrade         *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1
 	NovatoEmCurso     bool            // um /novato já está esperando a resposta do banco
+	CompraEmPontos    bool            // uma compra paga em pontos de lojinha espera o banco
 	LastAttackTick    uint32          // ClientTick of the last accepted attack (cadence gate)
 	PotionTick        uint32          // CUser.PotionTime: server clock of the last accepted potion
 	LastAttack        int             // SkillIndex of the last attack
@@ -253,8 +254,17 @@ type Entity struct {
 	// legacy routes quest NPCs by (_MSG_Quest.cpp:33). The Treinadores are 36/40/41
 	// here and 100/104/105 in Merchant above; see internal/campotreino.
 	MobMerchant  uint8
-	NonCombatNPC bool  // true for town/service NPCs protected from player damage
-	Grade        uint8 // NPC sub-type for Merchant==100 quest NPCs (EF_GRADE0 of Equip[0])
+	NonCombatNPC bool // true for town/service NPCs protected from player damage
+	// ShopPointPrice is the shop-points price of this merchant's stock, keyed by
+	// Carry index (0060_shop_points, npc_shop_item.price_points). A Carry slot
+	// present here is paid for in POINTS; anything absent is paid for in gold, so
+	// nil — the value every other entity in the world has — means "gold only".
+	//
+	// It lives on the entity rather than in a Dispatcher-side map so it dies with
+	// the NPC: ids are recycled, and a stale price surviving a reload would sell
+	// whatever moved in next at the old shop's rate.
+	ShopPointPrice map[int]int32
+	Grade          uint8 // NPC sub-type for Merchant==100 quest NPCs (EF_GRADE0 of Equip[0])
 
 	Class       uint8    // character class (0=TK 1=FM 2=BM 3=HT); drives the visual model
 	AttackRun   uint8    // CurrentScore.AttackRun speed byte — mobs: template value (set at spawn); players: derived live (handler attackRunOf)

@@ -53,6 +53,7 @@ const (
 	AccountService_ClearAllPresence_FullMethodName        = "/db.v1.AccountService/ClearAllPresence"
 	AccountService_AddShopPoints_FullMethodName           = "/db.v1.AccountService/AddShopPoints"
 	AccountService_ShopPoints_FullMethodName              = "/db.v1.AccountService/ShopPoints"
+	AccountService_SpendShopPoints_FullMethodName         = "/db.v1.AccountService/SpendShopPoints"
 	AccountService_ClaimNewbieKit_FullMethodName          = "/db.v1.AccountService/ClaimNewbieKit"
 	AccountService_CreateGuild_FullMethodName             = "/db.v1.AccountService/CreateGuild"
 	AccountService_SetGuildMember_FullMethodName          = "/db.v1.AccountService/SetGuildMember"
@@ -191,6 +192,13 @@ type AccountServiceClient interface {
 	// ShopPoints reads one account's shop-points balance, for the in-game /pontos
 	// command. A missing wallet row is zero, not an error.
 	ShopPoints(ctx context.Context, in *ShopPointsRequest, opts ...grpc.CallOption) (*ShopPointsResponse, error)
+	// SpendShopPoints debits a purchase from the wallet. It is NOT AddShopPoints
+	// with a negative delta: that one leans on the table's CHECK to refuse an
+	// overdraft, which reaches the caller as an error indistinguishable from a
+	// connection failure. Here "you don't have the points" comes back as paid=false
+	// with no error, because the shop must tell that apart from "try again" — one
+	// of the two hands over the item and the other must not.
+	SpendShopPoints(ctx context.Context, in *SpendShopPointsRequest, opts ...grpc.CallOption) (*SpendShopPointsResponse, error)
 	// ClaimNewbieKit takes the once-per-account newbie kit (0062_newbie_kit) for
 	// the in-game /novato command. granted is true only for the call that actually
 	// took it: the gate is an INSERT ... ON CONFLICT DO NOTHING, so two characters
@@ -486,6 +494,16 @@ func (c *accountServiceClient) ShopPoints(ctx context.Context, in *ShopPointsReq
 	return out, nil
 }
 
+func (c *accountServiceClient) SpendShopPoints(ctx context.Context, in *SpendShopPointsRequest, opts ...grpc.CallOption) (*SpendShopPointsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SpendShopPointsResponse)
+	err := c.cc.Invoke(ctx, AccountService_SpendShopPoints_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accountServiceClient) ClaimNewbieKit(ctx context.Context, in *ClaimNewbieKitRequest, opts ...grpc.CallOption) (*ClaimNewbieKitResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ClaimNewbieKitResponse)
@@ -766,6 +784,13 @@ type AccountServiceServer interface {
 	// ShopPoints reads one account's shop-points balance, for the in-game /pontos
 	// command. A missing wallet row is zero, not an error.
 	ShopPoints(context.Context, *ShopPointsRequest) (*ShopPointsResponse, error)
+	// SpendShopPoints debits a purchase from the wallet. It is NOT AddShopPoints
+	// with a negative delta: that one leans on the table's CHECK to refuse an
+	// overdraft, which reaches the caller as an error indistinguishable from a
+	// connection failure. Here "you don't have the points" comes back as paid=false
+	// with no error, because the shop must tell that apart from "try again" — one
+	// of the two hands over the item and the other must not.
+	SpendShopPoints(context.Context, *SpendShopPointsRequest) (*SpendShopPointsResponse, error)
 	// ClaimNewbieKit takes the once-per-account newbie kit (0062_newbie_kit) for
 	// the in-game /novato command. granted is true only for the call that actually
 	// took it: the gate is an INSERT ... ON CONFLICT DO NOTHING, so two characters
@@ -878,6 +903,9 @@ func (UnimplementedAccountServiceServer) AddShopPoints(context.Context, *AddShop
 }
 func (UnimplementedAccountServiceServer) ShopPoints(context.Context, *ShopPointsRequest) (*ShopPointsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ShopPoints not implemented")
+}
+func (UnimplementedAccountServiceServer) SpendShopPoints(context.Context, *SpendShopPointsRequest) (*SpendShopPointsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SpendShopPoints not implemented")
 }
 func (UnimplementedAccountServiceServer) ClaimNewbieKit(context.Context, *ClaimNewbieKitRequest) (*ClaimNewbieKitResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ClaimNewbieKit not implemented")
@@ -1416,6 +1444,24 @@ func _AccountService_ShopPoints_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_SpendShopPoints_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SpendShopPointsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).SpendShopPoints(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_SpendShopPoints_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).SpendShopPoints(ctx, req.(*SpendShopPointsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_ClaimNewbieKit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ClaimNewbieKitRequest)
 	if err := dec(in); err != nil {
@@ -1814,6 +1860,10 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ShopPoints",
 			Handler:    _AccountService_ShopPoints_Handler,
+		},
+		{
+			MethodName: "SpendShopPoints",
+			Handler:    _AccountService_SpendShopPoints_Handler,
 		},
 		{
 			MethodName: "ClaimNewbieKit",
