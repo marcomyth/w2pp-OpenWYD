@@ -15,7 +15,8 @@
 // Roubar o clique resolveu as duas coisas de uma vez.
 
 #include "camadas.h"
-#include "dica.h"
+
+extern "C" void __cdecl D3DDesenhaAntesDaInterface();
 #include "icones.h"
 #include "lojarede.h"
 #include "pincel.h"
@@ -849,24 +850,16 @@ DWORD g_faixaVistaEm = 0;
 
 // A faixa de icones, como o cliente a desenhou neste quadro. Guardada para o
 // diagnostico do icone poder dizer onde o clique caiu DENTRO dela.
-// O retangulo que a dica REALMENTE pinta. A janela dela tem o tamanho maximo,
-// nao o do desenho - por isso o vao no painel saia maior que a caixa e o mundo
-// aparecia no meio da loja. Aqui fica o maior no desenhado a partir do canto da
-// janela da dica, que e o fundo dela.
-float g_caixaX = 0.0f;
-float g_caixaY = 0.0f;
-float g_caixaL = 0.0f;
-float g_caixaA = 0.0f;
-DWORD g_caixaVistaEm = 0;
 
 float g_faixaX = 0.0f;
 float g_faixaY = 0.0f;
 float g_faixaL = 0.0f;
 float g_faixaA = 0.0f;
 
-void AnotaCaixaDaDica(float x, float y, float l, float a);
-
 extern "C" void __cdecl LojaAnotaNo(DWORD no) {
+    // A primeira peca da interface do quadro e a deixa para o painel sair -
+    // antes de tudo o que e do cliente, e depois do mundo.
+    D3DDesenhaAntesDaInterface();
     if (no < 0x10000) {
         return;
     }
@@ -875,7 +868,6 @@ extern "C" void __cdecl LojaAnotaNo(DWORD no) {
     const float y = r[1];
     const float l = r[2];
     const float a = r[3];
-    AnotaCaixaDaDica(x, y, l, a);
     if (a < 30.0f || a > 48.0f || l < 120.0f || l > 600.0f) {
         return;
     }
@@ -1213,59 +1205,13 @@ void BotaoMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura
 // O mesmo que o jogo faz quando o mouse para sobre um item: uma caixa com o
 // nome e a descricao. O texto sai das tabelas que o cliente ja carregou (ver
 // dica.h); aqui fica so a caixa, no desenho da loja, ao lado do painel.
-Tela g_telaDica;
 int g_dicaItem = 0;
 int g_dicaRefino = 0;
-int g_dicaVersao = 0;
-int g_dicaDesenhado = -1;
-int g_dicaL = 0;
-int g_dicaA = 0;
 RECT g_dicaSlot = {0, 0, 0, 0};   // o quadrado sob o cursor, em tela
-
-constexpr int kDicaPad = 8;
-constexpr int kDicaLinha = 15;
-
-// Uma DC so para medir texto: a medida acontece antes de haver onde pintar.
-HDC MedidorDC() {
-    static HDC dc = nullptr;
-    if (dc == nullptr) {
-        dc = CreateCompatibleDC(nullptr);
-    }
-    return dc;
-}
-
-void MedeDica(int item, int* larg, int* alt) {
-    *larg = 0;
-    *alt = 0;
-    const int linhas = DicaLinhas(item);
-    if (linhas <= 0) {
-        return;
-    }
-    CriaFontes();
-    HDC dc = MedidorDC();
-    if (dc == nullptr) {
-        return;
-    }
-    int maior = 0;
-    for (int i = 0; i < linhas; ++i) {
-        const char* t = DicaLinha(item, i);
-        if (t == nullptr) {
-            continue;
-        }
-        SelectObject(dc, i == 0 ? g_negrito : g_fonte);
-        SIZE sz;
-        if (GetTextExtentPoint32A(dc, t, static_cast<int>(strlen(t)), &sz) && sz.cx > maior) {
-            maior = sz.cx;
-        }
-    }
-    *larg = maior + kDicaPad * 2;
-    *alt = linhas * kDicaLinha + kDicaPad * 2;
-}
 
 // Qual item esta sob o cursor, e onde esta o quadrado dele. Roda todo quadro,
 // junto com a camada da janela.
 void AtualizaDica() {
-    const int antes = g_dicaItem;
     g_dicaItem = 0;
     g_dicaRefino = 0;
     int cx = 0;
@@ -1308,79 +1254,7 @@ void AtualizaDica() {
             }
         }
     }
-    if (g_dicaItem != antes) {
-        ++g_dicaVersao;
-    }
 }
-
-int DicaVisivel() {
-    return (g_dicaItem > 0 && DicaLinhas(g_dicaItem) > 0) ? 1 : 0;
-}
-
-// Ao lado do painel e na altura do item, como o jogo poe a dele ao lado da
-// janela do banco. Nunca embaixo do cursor: a caixa e uma camada, e camada
-// embaixo do cursor fica com o clique de quem esta escolhendo o item.
-void DicaMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura) {
-    MedeDica(g_dicaItem, &g_dicaL, &g_dicaA);
-    *largura = g_dicaL;
-    *altura = g_dicaA;
-    if (g_dicaL <= 0 || g_dicaA <= 0) {
-        return;
-    }
-    int px = 0;
-    int py = 0;
-    int pl = 0;
-    int pa = 0;
-    JanelaMedida(telaL, telaA, &px, &py, &pl, &pa);
-    *x = px - g_dicaL - 4;          // a esquerda do painel
-    if (*x < 0) {
-        *x = px + pl + 4;           // sem espaco la, vai para a direita
-    }
-    if (*x + g_dicaL > telaL) {
-        *x = telaL - g_dicaL;
-    }
-    if (*x < 0) {
-        *x = 0;
-    }
-    *y = (g_dicaSlot.top + g_dicaSlot.bottom) / 2 - g_dicaA / 2;
-    if (*y < 0) {
-        *y = 0;
-    }
-    if (*y + g_dicaA > telaA) {
-        *y = telaA - g_dicaA;
-    }
-}
-
-const void* DicaPixels(int* versao) {
-    if (g_dicaL <= 0 || g_dicaA <= 0 || !TelaGarante(&g_telaDica, g_dicaL, g_dicaA)) {
-        return nullptr;
-    }
-    if (g_dicaDesenhado != g_dicaVersao) {
-        g_dicaDesenhado = g_dicaVersao;
-        HDC hdc = g_telaDica.dc;
-        SetBkMode(hdc, TRANSPARENT);
-        Moldura(hdc, g_dicaL, g_dicaA);
-        const int linhas = DicaLinhas(g_dicaItem);
-        for (int i = 0; i < linhas; ++i) {
-            const char* t = DicaLinha(g_dicaItem, i);
-            if (t == nullptr) {
-                continue;
-            }
-            SelectObject(hdc, i == 0 ? g_negrito : g_fonte);
-            SetTextColor(hdc, i == 0 ? RGB(255, 255, 255) : DicaLinhaCor(g_dicaItem, i));
-            RECT rt = {kDicaPad, kDicaPad + i * kDicaLinha, g_dicaL - kDicaPad,
-                       kDicaPad + (i + 1) * kDicaLinha};
-            DrawTextA(hdc, t, -1, &rt,
-                      i == 0 ? (DT_CENTER | DT_TOP | DT_SINGLELINE | DT_NOPREFIX)
-                             : (DT_LEFT | DT_TOP | DT_SINGLELINE | DT_NOPREFIX));
-        }
-        TelaFecha(&g_telaDica, 240);
-    }
-    *versao = g_dicaVersao;
-    return g_telaDica.pixels;
-}
-
-void DicaClique(int, int) {}
 
 // --- a dica do jogo, com o nosso item --------------------------------------
 //
@@ -1449,36 +1323,6 @@ extern "C" int __cdecl LojaQuerDicaDoJogo() {
 constexpr DWORD kDicaEntrada = 0x00416A80;
 constexpr DWORD kDicaEntradaVolta = 0x00416A88;
 const BYTE kDicaEntradaBytes[8] = {0x55, 0x8B, 0xEC, 0xB8, 0x98, 0x14, 0x00, 0x00};
-
-// Guarda o fundo da caixa da dica: o no desenhado no canto da janela dela.
-void AnotaCaixaDaDica(float x, float y, float l, float a) {
-    if (!g_aberta || g_dicaItem <= 0 || !EmJogo()) {
-        return;
-    }
-    const DWORD cena = *reinterpret_cast<const DWORD*>(kCena);
-    if (cena < 0x10000) {
-        return;
-    }
-    const DWORD janela = *reinterpret_cast<const DWORD*>(cena + 0x58);
-    if (janela < 0x10000) {
-        return;
-    }
-    const float* r = reinterpret_cast<const float*>(janela + 0x4C);
-    const float dx = x - r[0];
-    const float dy = y - r[1];
-    if (dx < -8.0f || dx > 8.0f || dy < -8.0f || dy > 8.0f || l < 40.0f || a < 20.0f) {
-        return;
-    }
-    // O maior no que comeca no canto da janela e o fundo dela.
-    const DWORD agora = GetTickCount();
-    if (agora - g_caixaVistaEm > 200 || l * a > g_caixaL * g_caixaA) {
-        g_caixaX = x;
-        g_caixaY = y;
-        g_caixaL = l;
-        g_caixaA = a;
-    }
-    g_caixaVistaEm = agora;
-}
 
 __declspec(naked) void DicaEntradaHook() {
     __asm {
@@ -1554,57 +1398,6 @@ void DesviaDicaDoJogo() {
         Log("=== loja: a entrada da dica mudou de bytes");
     }
     Log("=== loja: a dica do jogo passa a descrever o item do painel");
-}
-
-// O retangulo da dica na tela, para o painel nao passar por cima dela.
-//
-// A dica e desenhada pelo cliente ANTES do nosso quadro, entao o painel a
-// cobria. Em vez de redesenha-la (que seria refazer o que ele faz), o painel
-// abre um vao: quem desenha as camadas pula esse pedaco, e o que aparece ali e
-// a caixa do jogo, que ja esta na tela.
-//
-// A janela da dica e o campo +0x58 da cena, e a posicao e o tamanho dela ficam
-// em +0x4C, +0x50, +0x54 e +0x58, em ponto flutuante - e de +0x4C e +0x50 que o
-// proprio cliente tira a posicao, em 0x40C2E0.
-extern "C" int __cdecl LojaVaoDaDica(int* x, int* y, int* largura, int* altura) {
-    if (!g_aberta || g_dicaItem <= 0 || !EmJogo()) {
-        return 0;
-    }
-    const DWORD cena = *reinterpret_cast<const DWORD*>(kCena);
-    if (cena < 0x10000) {
-        return 0;
-    }
-    const DWORD janela = *reinterpret_cast<const DWORD*>(cena + 0x58);
-    if (janela < 0x10000) {
-        return 0;
-    }
-    const float* r = reinterpret_cast<const float*>(janela + 0x4C);
-    float px = r[0];
-    float py = r[1];
-    float pl = r[2];
-    float pa = r[3];
-    // Preferimos a medida do desenho, quando ela foi vista neste quadro: a da
-    // janela e o espaco maximo dela, e abrir o vao por ele deixava o mundo
-    // aparecendo em volta da caixa.
-    if (GetTickCount() - g_caixaVistaEm < 200 && g_caixaL > 0.0f && g_caixaA > 0.0f) {
-        px = g_caixaX;
-        py = g_caixaY;
-        pl = g_caixaL;
-        pa = g_caixaA;
-    }
-    // So aceita medida que faz sentido na tela: qualquer outra coisa quer dizer
-    // que o campo nao e o que eu penso, e ai e melhor desenhar o painel inteiro
-    // do que abrir um buraco no lugar errado.
-    if (pl < 20.0f || pa < 20.0f || pl > 800.0f || pa > 700.0f || px < -100.0f ||
-        py < -100.0f || px > static_cast<float>(CamadaTelaL()) ||
-        py > static_cast<float>(CamadaTelaA())) {
-        return 0;
-    }
-    *x = static_cast<int>(px);
-    *y = static_cast<int>(py);
-    *largura = static_cast<int>(pl);
-    *altura = static_cast<int>(pa);
-    return 1;
 }
 
 // --- as tres camadas -------------------------------------------------------

@@ -25,7 +25,9 @@
 
 #include "camadas.h"
 
-extern "C" int __cdecl LojaVaoDaDica(int* x, int* y, int* largura, int* altura);
+namespace {
+bool g_okDoDesenho = true;
+}
 
 namespace {
 
@@ -276,36 +278,8 @@ void DesenhaPedaco(IDirect3DDevice9* dev, int cx, int cy, int cl, int ca, int px
         {x0, y1, 0.0f, 1.0f, u0, v1},
         {x1, y1, 0.0f, 1.0f, u1, v1},
     };
-    dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, v, sizeof(Vertice));
-}
-
-// A camada inteira, menos o pedaco onde a dica do jogo esta. O painel e
-// desenhado depois da interface do cliente, entao sem este vao ele passaria por
-// cima da caixa de informacao do item - que e dele, nao nossa.
-void DesenhaComVao(IDirect3DDevice9* dev, int x, int y, int l, int a) {
-    int vx = 0;
-    int vy = 0;
-    int vl = 0;
-    int va = 0;
-    const bool temVao = LojaVaoDaDica(&vx, &vy, &vl, &va) != 0;
-    const int vx1 = vx + vl;
-    const int vy1 = vy + va;
-    if (!temVao || vx1 <= x || vy1 <= y || vx >= x + l || vy >= y + a) {
-        DesenhaPedaco(dev, x, y, l, a, x, y, l, a);
-        return;
-    }
-    // Quatro tiras em volta do vao: em cima, embaixo, e as duas laterais do que
-    // sobra no meio.
-    const int cimaAte = vy > y ? vy : y;
-    const int baixoDe = vy1 < y + a ? vy1 : y + a;
-    DesenhaPedaco(dev, x, y, l, a, x, y, l, cimaAte - y);
-    DesenhaPedaco(dev, x, y, l, a, x, baixoDe, l, y + a - baixoDe);
-    const int meioA = baixoDe - cimaAte;
-    if (vx > x) {
-        DesenhaPedaco(dev, x, y, l, a, x, cimaAte, vx - x, meioA);
-    }
-    if (vx1 < x + l) {
-        DesenhaPedaco(dev, x, y, l, a, vx1, cimaAte, x + l - vx1, meioA);
+    if (FAILED(dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, v, sizeof(Vertice)))) {
+        g_okDoDesenho = false;
     }
 }
 
@@ -331,7 +305,7 @@ void DesenhaCamada(IDirect3DDevice9* dev, const Camada* c, Tex* t, int telaL, in
         t->versao = versao;
     }
     dev->SetTexture(0, t->tex);
-    DesenhaComVao(dev, x, y, l, a);
+    DesenhaPedaco(dev, x, y, l, a, x, y, l, a);
 }
 
 void Desenha(IDirect3DDevice9* dev) {
@@ -459,11 +433,54 @@ void LeAmostras(IDirect3DDevice9* dev) {
     quadro->Release();
 }
 
+// --- quando desenhar -------------------------------------------------------
+//
+// Desenhar no EndScene poe as nossas camadas na frente de TUDO, inclusive da
+// caixa de informacao do item, que e do cliente e sai antes. Tentar abrir um
+// vao no painel no lugar dela foi um remendo, e um que nunca ficou do tamanho
+// certo.
+//
+// O lugar certo e antes da interface do cliente: o jogo desenha o mundo, depois
+// monta a interface (e e ai que o AppendNode e chamado, para cada peca dela),
+// depois termina o quadro. Desenhando na PRIMEIRA peca da interface, as nossas
+// camadas ficam sobre o mundo e sob tudo o que e dele - janelas, barra e a
+// caixa de informacao.
+//
+// Se a tentativa falhar - a interface pode ser montada fora da cena, e fora da
+// cena o D3D recusa o desenho -, voltamos para o EndScene e ficamos nele. A
+// primeira vez decide, e decide sozinha.
+IDirect3DDevice9* g_devDoQuadro = nullptr;
+bool g_desenhadoNoQuadro = false;
+bool g_cedoFunciona = true;
+
+void DesenhaCedo() {
+    if (!g_cedoFunciona || g_desenhadoNoQuadro || g_devDoQuadro == nullptr) {
+        return;
+    }
+    g_desenhadoNoQuadro = true;
+    g_okDoDesenho = true;
+    Desenha(g_devDoQuadro);
+    if (!g_okDoDesenho) {
+        // Nao deu: o quadro sai pelo EndScene, hoje e sempre.
+        g_cedoFunciona = false;
+        g_desenhadoNoQuadro = false;
+    }
+}
+
 HRESULT WINAPI MeuEndScene(IDirect3DDevice9* dev) {
-    Desenha(dev);
+    g_devDoQuadro = dev;
+    if (!g_desenhadoNoQuadro) {
+        Desenha(dev);
+    }
+    g_desenhadoNoQuadro = false;
     const HRESULT hr = g_endSceneTramp(dev);
     LeAmostras(dev);
     return hr;
+}
+
+// Chamada pelo desvio do AppendNode, na primeira peca da interface do quadro.
+extern "C" void __cdecl D3DDesenhaAntesDaInterface() {
+    DesenhaCedo();
 }
 
 bool DesviaCodigo(void* alvo) {
