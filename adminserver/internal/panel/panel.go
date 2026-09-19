@@ -1828,15 +1828,31 @@ func (h *Handler) reiniciar(w http.ResponseWriter, r *http.Request) {
 		destino = "/servidor"
 	}
 
-	// LatestAny, não Latest: Latest filtra por deployment bem-sucedido, e o
-	// estado que a página mostra vem do LatestAny. Com os dois discordando, uma
-	// tela que diz "parado" mandava o reinício procurar um deployment
-	// bem-sucedido que, justamente por estar parado, não existe.
-	dep, err := h.cfg.Platform.LatestAny(r.Context())
+	// Latest, não LatestAny: o reinício é IN PLACE (deploymentRestart reusa o
+	// artefato que já está rodando), então o alvo tem de ser a publicação NO AR —
+	// a mais recente bem-sucedida. LatestAny devolvia o registro do TOPO, e quando
+	// o CI do main fica vermelho o topo é um PULADO (SKIPPED) sem artefato: a
+	// hospedagem recusava com "Deployment is not restartable" e o botão parecia
+	// não fazer nada. É o mesmo alvo que o reinício seguro já usa.
+	dep, err := h.cfg.Platform.Latest(r.Context())
 	if err != nil {
-		h.cfg.Logger.Error("restart: could not find the deployment", "err", err)
-		h.voltaComAviso(w, r, destino, "Não reiniciei: "+explicaPlataforma(err))
+		h.cfg.Logger.Error("restart: no running deployment", "err", err)
+		h.voltaComAviso(w, r, destino,
+			"Não reiniciei: não achei uma publicação no ar para reiniciar. "+
+				"O deploy mais recente deste serviço pode ter sido pulado (um commit que não o "+
+				"tocou, ou teste vermelho no main). Rode um deploy deste serviço ou use Ligar. "+
+				"Detalhe: "+explicaPlataforma(err))
 		return
+	}
+	// Se o topo da pilha não é o que está no ar, reiniciamos o que está rodando —
+	// mas a pessoa tem de saber que não foi o registro mais novo, senão o botão faz
+	// coisa diferente do que aparenta. O registro do topo fica PULADO tanto por um
+	// commit que não tocou este serviço quanto por teste vermelho no main; os dois
+	// são indistinguíveis daqui, então a nota não afirma qual foi. A checagem é
+	// cosmética: se ela falhar, o reinício segue sem a nota.
+	notaPulado := ""
+	if topo, terr := h.cfg.Platform.LatestAny(r.Context()); terr == nil && topo.ID != dep.ID {
+		notaPulado = " O deploy mais recente não subiu para este serviço; reiniciei o que está no ar."
 	}
 
 	// Drained first whenever the game can be reached, exactly like the safe
@@ -1894,7 +1910,7 @@ func (h *Handler) reiniciar(w http.ResponseWriter, r *http.Request) {
 	// the operator out. Only the two known paths are honoured — the field comes
 	// from the form, and an open redirect is not worth the convenience.
 	h.voltaComAviso(w, r, destino,
-		"Reinício pedido. O servidor salva quem está online antes de sair e volta em cerca de um minuto.")
+		"Reinício pedido. O servidor salva quem está online antes de sair e volta em cerca de um minuto."+notaPulado)
 }
 
 // voltaComAviso manda a pessoa de volta para a página do botão, com o recado.
