@@ -100,18 +100,25 @@ const char* const kMenu[kMenuTotal] = {"Todos",      "Ouro",         "Cash",
 
 // Em modo montagem a mesma coluna vira os controles de preco: cada degrau soma,
 // "Zerar" recomeca e "Moeda" gira entre ouro, cash e RMT.
+// A fileira de cima sao os comandos; a de baixo, atalhos de preco. O preco
+// mesmo e digitado: em ouro os numeros sao grandes demais para somar de mil em
+// mil, e em cash e RMT sao pequenos demais para o degrau de milhao fazer
+// sentido.
 enum {
     kMontaVoltar = 0,
+    kMontaBarraca,
+    kMontaZerar,
     kMontaMil,
-    kMontaDezMil,
     kMontaCemMil,
     kMontaMilhao,
-    kMontaZerar,
     kMontaMoeda,
 };
-const char* const kMenuMonta[kMenuTotal] = {"Voltar", "+1 mil", "+10 mil", "+100 mil",
-                                            "+1 milhao", "Zerar", "Moeda"};
-const int kDegrau[kMenuTotal] = {0, 1000, 10000, 100000, 1000000, 0, 0};
+// A moeda fica na fileira de baixo porque o nome dela e comprido: "Moeda: Ouro"
+// nao cabe nos 64 pixels da de cima.
+const char* const kMenuMonta[kMenuTotal] = {"Voltar",    "Barraca",   "Zerar",  "+1 mil",
+                                            "+100 mil",  "+1 milhao", "Moeda"};
+const int kDegrau[kMenuTotal] = {0, 0, 0, 1000, 100000, 1000000, 0};
+constexpr int kPrecoMax = 1999999999;
 
 // --- estado ----------------------------------------------------------------
 Tela g_tela;
@@ -133,6 +140,8 @@ bool g_montando = false;
 // do personagem, como a lojinha do jogo faz.
 char g_nomeBarraca[24] = {0};
 int g_nomeTam = 0;
+int g_campo = 0;            // 0 = nome, 1 = preco
+bool g_vendoBarraca = false;   // a grade mostra as prateleiras, nao o cofre
 int g_cofrePagina = 0;
 int g_cofreEscolhido = -1;    // indice na lista do cofre
 int g_precoEdicao = 0;
@@ -434,6 +443,9 @@ void PintaMenu(HDC hdc) {
             if (i == kMontaMoeda) {
                 sprintf_s(texto, "Moeda: %s", kNomeMoeda[g_moedaEdicao % 3]);
                 ativo = true;
+            } else if (i == kMontaBarraca) {
+                sprintf_s(texto, "Barraca %d", g_prateleirasUsadas);
+                ativo = g_vendoBarraca;
             } else {
                 sprintf_s(texto, "%s", kMenuMonta[i]);
             }
@@ -444,7 +456,7 @@ void PintaMenu(HDC hdc) {
         LinhaBotao(hdc, r.left, r.top, r.right - r.left, kAltBotao, ativo);
         // A fileira de baixo carrega os nomes compridos - "Realizar saque",
         // "Moeda: Ouro" -, que so cabem na fonte miuda.
-        const bool comprido = i >= kMenuLinha1;
+        const bool comprido = i >= kMenuLinha1 || (g_montando && i == kMontaBarraca);
         SelectObject(hdc, ativo ? (comprido ? g_fonte : g_negrito) : (comprido ? g_miudo : g_fonte));
         SetTextColor(hdc, ativo ? kTextoAtivo : kTexto);
         RECT rt = {r.left + 3, r.top, r.right - 3, r.bottom};
@@ -562,7 +574,39 @@ int CofrePaginas() {
     return p < 1 ? 1 : p;
 }
 
+// O item do cofre que ocupa esta posicao - e assim que a prateleira acha o
+// desenho e a quantidade do que ela vende.
+const LojaItemCofre* ItemDoSlot(int cargoPos) {
+    for (int i = 0; i < LojaRedeCofreQtd(); ++i) {
+        const LojaItemCofre* it = LojaRedeCofreItem(i);
+        if (it != nullptr && it->slot == cargoPos) {
+            return it;
+        }
+    }
+    return nullptr;
+}
+
+// A previa: as prateleiras ja montadas, com desenho, preco e moeda, antes de a
+// barraca subir. Sem isto so dava para conferir o que entrou item a item, e os
+// itens de outra pagina do cofre nem apareciam.
+void PintaPrateleiras(HDC hdc) {
+    for (int i = 0; i < kPorPagina; ++i) {
+        const RECT r = AreaSlot(i);
+        if (i >= kMaxPrateleiras) {
+            Degrade(hdc, r.left, r.top, kSlot, kSlot, RGB(20, 16, 12), RGB(12, 9, 7));
+            continue;
+        }
+        const bool tem = i < g_prateleirasUsadas && g_prateleiras[i].cargoPos >= 0;
+        const LojaItemCofre* it = tem ? ItemDoSlot(g_prateleiras[i].cargoPos) : nullptr;
+        PintaSlotCofre(hdc, r, it, false, tem ? i : -1);
+    }
+}
+
 void PintaGrade(HDC hdc) {
+    if (g_montando && g_vendoBarraca) {
+        PintaPrateleiras(hdc);
+        return;
+    }
     for (int i = 0; i < kPorPagina; ++i) {
         const RECT r = AreaSlot(i);
         if (g_montando) {
@@ -618,31 +662,54 @@ void PintaDetalhe(HDC hdc) {
 
 // O campo do nome, na faixa que a linha de detalhe deixou livre. Nao ha cursor
 // piscando: a barra no fim do texto ja diz onde a proxima letra entra.
+// Os dois campos que se digita na montagem, lado a lado: o nome da barraca e o
+// preco do item escolhido. Um clique escolhe qual recebe o teclado; a barra no
+// fim do texto diz qual e.
+RECT AreaCampo(int qual) {
+    const int y = kTopoDetalhe - 2;
+    const int meio = kMargem + (kUtil * 3) / 5;
+    RECT r = {qual == 0 ? kMargem : meio + 2, y, qual == 0 ? meio - 2 : kMargem + kUtil,
+              y + kAltDetalhe + 4};
+    return r;
+}
+
+void PintaCampo(HDC hdc, int qual) {
+    const RECT r = AreaCampo(qual);
+    const int l = r.right - r.left;
+    const int a = r.bottom - r.top;
+    const bool comFoco = g_campo == qual;
+    Degrade(hdc, r.left, r.top, l, a, RGB(30, 23, 16), RGB(16, 12, 8));
+    Contorno(hdc, r.left, r.top, l, a, comFoco ? kCanto : RGB(58, 48, 36));
+
+    const char* rotulo = qual == 0 ? "Nome" : "Preco";
+    SelectObject(hdc, g_miudo);
+    SetTextColor(hdc, kTextoFraco);
+    RECT rr = {r.left + 4, r.top, r.left + 36, r.bottom};
+    DrawTextA(hdc, rotulo, -1, &rr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+
+    char texto[48];
+    bool cheio = false;
+    if (qual == 0) {
+        cheio = g_nomeTam > 0;
+        sprintf_s(texto, "%s%s", cheio ? g_nomeBarraca : "a barraca", comFoco && cheio ? "|" : "");
+    } else {
+        cheio = g_precoEdicao > 0;
+        char valor[32];
+        Pontuado(g_precoEdicao, valor, sizeof(valor));
+        sprintf_s(texto, "%s%s", cheio ? valor : "0", comFoco && cheio ? "|" : "");
+    }
+    SelectObject(hdc, cheio ? g_negrito : g_miudo);
+    SetTextColor(hdc, cheio ? (qual == 0 ? kTexto : kCorMoeda[g_moedaEdicao % 3]) : kTextoFraco);
+    RECT rt = {r.left + 38, r.top, r.right - 4, r.bottom};
+    DrawTextA(hdc, texto, -1, &rt, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+}
+
 void PintaNome(HDC hdc) {
     if (!g_montando) {
         return;
     }
-    const int x = kMargem;
-    const int y = kTopoDetalhe - 2;
-    const int l = kUtil;
-    Degrade(hdc, x, y, l, kAltDetalhe + 4, RGB(30, 23, 16), RGB(16, 12, 8));
-    Contorno(hdc, x, y, l, kAltDetalhe + 4, RGB(58, 48, 36));
-
-    SelectObject(hdc, g_miudo);
-    SetTextColor(hdc, kTextoFraco);
-    RECT rr = {x + 5, y, x + 46, y + kAltDetalhe + 4};
-    DrawTextA(hdc, "Nome:", -1, &rr, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-
-    char texto[40];
-    if (g_nomeTam > 0) {
-        sprintf_s(texto, "%s|", g_nomeBarraca);
-    } else {
-        sprintf_s(texto, "digite o nome da barraca");
-    }
-    SelectObject(hdc, g_nomeTam > 0 ? g_negrito : g_miudo);
-    SetTextColor(hdc, g_nomeTam > 0 ? kTexto : kTextoFraco);
-    RECT rt = {x + 48, y, x + l - 5, y + kAltDetalhe + 4};
-    DrawTextA(hdc, texto, -1, &rt, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    PintaCampo(hdc, 0);
+    PintaCampo(hdc, 1);
 }
 
 void PintaRodape(HDC hdc) {
@@ -852,7 +919,7 @@ bool BarraAberta() {
 
 // --- cliques ---------------------------------------------------------------
 // Guarda o item escolhido numa prateleira, ou atualiza a que ele ja ocupa.
-void IncluiNaBarraca() {
+void IncluiNaBarraca() {   // "Incluir" no rodape
     const LojaItemCofre* it = LojaRedeCofreItem(g_cofreEscolhido);
     if (it == nullptr || g_precoEdicao <= 0) {
         return;
@@ -876,6 +943,21 @@ extern "C" int __cdecl LojaDigita(int c) {
     if (!g_aberta || !g_montando) {
         return 0;
     }
+    if (g_campo == 1) {
+        // Preco: so numero, digitado da esquerda para a direita como em
+        // qualquer campo de valor.
+        if (c == 8) {
+            g_precoEdicao /= 10;
+            return 1;
+        }
+        if (c >= '0' && c <= '9') {
+            const long long novo = static_cast<long long>(g_precoEdicao) * 10 + (c - '0');
+            if (novo <= kPrecoMax) {
+                g_precoEdicao = static_cast<int>(novo);
+            }
+        }
+        return 1;
+    }
     if (c == 8) {   // apagar
         if (g_nomeTam > 0) {
             g_nomeBarraca[--g_nomeTam] = 0;
@@ -896,6 +978,8 @@ void EntraNaMontagem() {
     g_montando = true;
     g_nomeBarraca[0] = 0;
     g_nomeTam = 0;
+    g_campo = 0;
+    g_vendoBarraca = false;
     g_cofrePagina = 0;
     g_cofreEscolhido = -1;
     g_precoEdicao = 0;
@@ -923,15 +1007,49 @@ void CliqueMontagem(int x, int y) {
         if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) {
             if (i == kMontaVoltar) {
                 SaiDaMontagem();
+            } else if (i == kMontaBarraca) {
+                g_vendoBarraca = !g_vendoBarraca;
+                g_cofreEscolhido = -1;
             } else if (i == kMontaZerar) {
                 g_precoEdicao = 0;
             } else if (i == kMontaMoeda) {
                 g_moedaEdicao = (g_moedaEdicao + 1) % 3;
-            } else {
-                g_precoEdicao += kDegrau[i];
+            } else if (kDegrau[i] > 0) {
+                const long long novo =
+                    static_cast<long long>(g_precoEdicao) + kDegrau[i];
+                g_precoEdicao = novo > kPrecoMax ? kPrecoMax : static_cast<int>(novo);
             }
             return;
         }
+    }
+    for (int i = 0; i < 2; ++i) {
+        const RECT r = AreaCampo(i);
+        if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) {
+            g_campo = i;
+            return;
+        }
+    }
+    // Na previa, o clique tira o item da prateleira - e a unica forma de
+    // desfazer um "Incluir".
+    if (g_vendoBarraca) {
+        for (int i = 0; i < kPorPagina && i < kMaxPrateleiras; ++i) {
+            const RECT r = AreaSlot(i);
+            if (x < r.left || x >= r.right || y < r.top || y >= r.bottom) {
+                continue;
+            }
+            if (i >= g_prateleirasUsadas) {
+                return;
+            }
+            for (int k = i; k + 1 < g_prateleirasUsadas; ++k) {
+                g_prateleiras[k] = g_prateleiras[k + 1];
+            }
+            --g_prateleirasUsadas;
+            g_prateleiras[g_prateleirasUsadas].cargoPos = -1;
+            g_prateleiras[g_prateleirasUsadas].moeda = 0;
+            g_prateleiras[g_prateleirasUsadas].preco = 0;
+            return;
+        }
+        return;
     }
     for (int i = 0; i < kPorPagina; ++i) {
         const RECT r = AreaSlot(i);
@@ -1125,7 +1243,11 @@ void AtualizaDica() {
                 continue;
             }
             if (g_montando) {
-                const LojaItemCofre* it = LojaRedeCofreItem(g_cofrePagina * kPorPagina + i);
+                const LojaItemCofre* it =
+                    g_vendoBarraca
+                        ? (i < g_prateleirasUsadas ? ItemDoSlot(g_prateleiras[i].cargoPos)
+                                                   : nullptr)
+                        : LojaRedeCofreItem(g_cofrePagina * kPorPagina + i);
                 if (it != nullptr) {
                     g_dicaItem = it->indice;
                 }
