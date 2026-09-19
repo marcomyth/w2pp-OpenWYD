@@ -922,6 +922,12 @@ bool BarraAberta() {
 void IncluiNaBarraca() {   // "Incluir" no rodape
     const LojaItemCofre* it = LojaRedeCofreItem(g_cofreEscolhido);
     if (it == nullptr || g_precoEdicao <= 0) {
+        if (g_diag != 0) {
+            char buf[140];
+            sprintf_s(buf, "=== diag incluir: recusado (item %s, preco %d)",
+                      it == nullptr ? "nao escolhido" : "ok", g_precoEdicao);
+            Log(buf);
+        }
         return;
     }
     int onde = PrateleiraDoSlot(it->slot);
@@ -934,6 +940,12 @@ void IncluiNaBarraca() {   // "Incluir" no rodape
     g_prateleiras[onde].cargoPos = static_cast<signed char>(it->slot);
     g_prateleiras[onde].moeda = static_cast<unsigned char>(g_moedaEdicao);
     g_prateleiras[onde].preco = g_precoEdicao;
+    if (g_diag != 0) {
+        char buf[140];
+        sprintf_s(buf, "=== diag incluir: prateleira %d, item %d, preco %d, moeda %d", onde,
+                  it->indice, g_precoEdicao, g_moedaEdicao);
+        Log(buf);
+    }
 }
 
 // O teclado enquanto a tela de montagem esta aberta: cada caractere vai para o
@@ -1029,8 +1041,10 @@ void CliqueMontagem(int x, int y) {
             return;
         }
     }
-    // Na previa, o clique tira o item da prateleira - e a unica forma de
-    // desfazer um "Incluir".
+    // A grade: na previa o clique tira o item da prateleira - e a unica forma de
+    // desfazer um "Incluir" -, e no cofre ele escolhe o item. Fora da grade o
+    // clique segue adiante, para o rodape: engolir tudo aqui deixava "Abrir
+    // loja" sem resposta enquanto a previa estivesse aberta.
     if (g_vendoBarraca) {
         for (int i = 0; i < kPorPagina && i < kMaxPrateleiras; ++i) {
             const RECT r = AreaSlot(i);
@@ -1049,9 +1063,8 @@ void CliqueMontagem(int x, int y) {
             g_prateleiras[g_prateleirasUsadas].preco = 0;
             return;
         }
-        return;
     }
-    for (int i = 0; i < kPorPagina; ++i) {
+    for (int i = 0; i < kPorPagina && !g_vendoBarraca; ++i) {
         const RECT r = AreaSlot(i);
         if (x >= r.left && x < r.right && y >= r.top && y < r.bottom) {
             const int qual = g_cofrePagina * kPorPagina + i;
@@ -1087,9 +1100,17 @@ void CliqueMontagem(int x, int y) {
             return;
         }
         const RECT abrir = AreaBotaoFechar();
-        if (x >= abrir.left && x < abrir.right && g_prateleirasUsadas > 0) {
-            LojaRedeAbre(g_nomeBarraca, g_prateleiras, g_prateleirasUsadas);
-            SaiDaMontagem();
+        if (x >= abrir.left && x < abrir.right) {
+            if (g_diag != 0) {
+                char buf[140];
+                sprintf_s(buf, "=== diag abrir: clique com %d prateleiras, nome \"%s\"",
+                          g_prateleirasUsadas, g_nomeBarraca);
+                Log(buf);
+            }
+            if (g_prateleirasUsadas > 0) {
+                LojaRedeAbre(g_nomeBarraca, g_prateleiras, g_prateleirasUsadas);
+                SaiDaMontagem();
+            }
         }
     }
 }
