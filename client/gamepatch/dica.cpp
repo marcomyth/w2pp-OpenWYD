@@ -2,6 +2,8 @@
 
 #include "dica.h"
 
+#include <windows.h>
+
 #include <cstring>
 
 namespace {
@@ -75,7 +77,20 @@ const char* DicaLinha(int item, int i) {
     return c != nullptr ? Limpa(c) : nullptr;
 }
 
-int DicaLinhaRotulo(int item, int i) {
-    const char* t = DicaLinha(item, i);
-    return (t != nullptr && t[0] == '[') ? 1 : 0;
+COLORREF DicaLinhaCor(int item, int i) {
+    // A linha 0 e o nome, que o jogo escreve em branco; as outras trazem a cor
+    // do arquivo. No bloco do item as palavras de cor vem antes do texto, uma
+    // por linha - e o cliente as le assim em 0x416F0E.
+    if (i <= 0 || item <= 0 || item >= kMaxItens || i > kMaxLinhas) {
+        return RGB(255, 255, 255);
+    }
+    const WORD c = *reinterpret_cast<const WORD*>(kAjuda + item * kPassoAjuda + (i - 1) * 2);
+    if (c == 0) {
+        return RGB(255, 255, 255);
+    }
+    // R5G6B5: cinco bits de vermelho, seis de verde, cinco de azul.
+    const int r = ((c >> 11) & 0x1F) * 255 / 31;
+    const int g = ((c >> 5) & 0x3F) * 255 / 63;
+    const int b = (c & 0x1F) * 255 / 31;
+    return RGB(r, g, b);
 }

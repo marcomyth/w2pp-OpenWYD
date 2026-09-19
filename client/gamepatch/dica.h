@@ -25,8 +25,9 @@ int DicaLinhas(int item);
 // linha nao existe.
 const char* DicaLinha(int item, int i);
 
-// 1 quando a linha e um rotulo entre colchetes, como "[Item Composto]" - o jogo
-// pinta essas em outra cor.
-int DicaLinhaRotulo(int item, int i);
+// A cor da linha, como o cliente a guarda junto do texto: uma palavra de 16
+// bits em R5G6B5, uma por linha, a partir do inicio do bloco do item. E ela que
+// deixa o "[Item Composto]" amarelo e a descricao branca.
+COLORREF DicaLinhaCor(int item, int i);
 
 #endif

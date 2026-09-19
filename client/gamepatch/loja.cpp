@@ -1208,8 +1208,8 @@ int g_dicaL = 0;
 int g_dicaA = 0;
 RECT g_dicaSlot = {0, 0, 0, 0};   // o quadrado sob o cursor, em tela
 
-constexpr int kDicaPad = 7;
-constexpr int kDicaAlt = 19;
+constexpr int kDicaPad = 8;
+constexpr int kDicaLinha = 15;
 
 // Uma DC so para medir texto: a medida acontece antes de haver onde pintar.
 HDC MedidorDC() {
@@ -1223,8 +1223,8 @@ HDC MedidorDC() {
 void MedeDica(int item, int* larg, int* alt) {
     *larg = 0;
     *alt = 0;
-    const char* nome = DicaLinha(item, 0);
-    if (nome == nullptr || nome[0] == 0) {
+    const int linhas = DicaLinhas(item);
+    if (linhas <= 0) {
         return;
     }
     CriaFontes();
@@ -1232,13 +1232,20 @@ void MedeDica(int item, int* larg, int* alt) {
     if (dc == nullptr) {
         return;
     }
-    SelectObject(dc, g_negrito);
-    SIZE sz;
-    if (!GetTextExtentPoint32A(dc, nome, static_cast<int>(strlen(nome)), &sz)) {
-        return;
+    int maior = 0;
+    for (int i = 0; i < linhas; ++i) {
+        const char* t = DicaLinha(item, i);
+        if (t == nullptr) {
+            continue;
+        }
+        SelectObject(dc, i == 0 ? g_negrito : g_fonte);
+        SIZE sz;
+        if (GetTextExtentPoint32A(dc, t, static_cast<int>(strlen(t)), &sz) && sz.cx > maior) {
+            maior = sz.cx;
+        }
     }
-    *larg = sz.cx + kDicaPad * 2;
-    *alt = kDicaAlt;
+    *larg = maior + kDicaPad * 2;
+    *alt = linhas * kDicaLinha + kDicaPad * 2;
 }
 
 // Qual item esta sob o cursor, e onde esta o quadrado dele. Roda todo quadro,
@@ -1290,16 +1297,12 @@ void AtualizaDica() {
 }
 
 int DicaVisivel() {
-    if (g_dicaItem <= 0) {
-        return 0;
-    }
-    const char* nome = DicaLinha(g_dicaItem, 0);
-    return (nome != nullptr && nome[0] != 0) ? 1 : 0;
+    return (g_dicaItem > 0 && DicaLinhas(g_dicaItem) > 0) ? 1 : 0;
 }
 
-// Em cima do quadrado, encostada nele. Nao ha caixa de descricao: o que o jogo
-// mostra ali e o nome, e uma janela grande ao lado do painel tapava a vitrine
-// inteira enquanto o mouse passeava.
+// Ao lado do painel e na altura do item, como o jogo poe a dele ao lado da
+// janela do banco. Nunca embaixo do cursor: a caixa e uma camada, e camada
+// embaixo do cursor fica com o clique de quem esta escolhendo o item.
 void DicaMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura) {
     MedeDica(g_dicaItem, &g_dicaL, &g_dicaA);
     *largura = g_dicaL;
@@ -1307,19 +1310,24 @@ void DicaMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura)
     if (g_dicaL <= 0 || g_dicaA <= 0) {
         return;
     }
-    const int meio = (g_dicaSlot.left + g_dicaSlot.right) / 2;
-    *x = meio - g_dicaL / 2;
-    *y = g_dicaSlot.top - g_dicaA - 2;
+    int px = 0;
+    int py = 0;
+    int pl = 0;
+    int pa = 0;
+    JanelaMedida(telaL, telaA, &px, &py, &pl, &pa);
+    *x = px - g_dicaL - 4;          // a esquerda do painel
     if (*x < 0) {
-        *x = 0;
+        *x = px + pl + 4;           // sem espaco la, vai para a direita
     }
     if (*x + g_dicaL > telaL) {
         *x = telaL - g_dicaL;
     }
-    // Sem espaco em cima (primeira fileira colada no topo da tela), desce para
-    // baixo do quadrado - nunca por cima dele, que e onde o cursor esta.
+    if (*x < 0) {
+        *x = 0;
+    }
+    *y = (g_dicaSlot.top + g_dicaSlot.bottom) / 2 - g_dicaA / 2;
     if (*y < 0) {
-        *y = g_dicaSlot.bottom + 2;
+        *y = 0;
     }
     if (*y + g_dicaA > telaA) {
         *y = telaA - g_dicaA;
@@ -1334,14 +1342,21 @@ const void* DicaPixels(int* versao) {
         g_dicaDesenhado = g_dicaVersao;
         HDC hdc = g_telaDica.dc;
         SetBkMode(hdc, TRANSPARENT);
-        Degrade(hdc, 0, 0, g_dicaL, g_dicaA, RGB(30, 23, 16), RGB(14, 11, 8));
-        Contorno(hdc, 0, 0, g_dicaL, g_dicaA, kCabBorda);
-        const char* nome = DicaLinha(g_dicaItem, 0);
-        SelectObject(hdc, g_negrito);
-        SetTextColor(hdc, RGB(255, 255, 255));
-        RECT rt = {kDicaPad, 0, g_dicaL - kDicaPad, g_dicaA};
-        DrawTextA(hdc, nome != nullptr ? nome : "", -1, &rt,
-                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        Moldura(hdc, g_dicaL, g_dicaA);
+        const int linhas = DicaLinhas(g_dicaItem);
+        for (int i = 0; i < linhas; ++i) {
+            const char* t = DicaLinha(g_dicaItem, i);
+            if (t == nullptr) {
+                continue;
+            }
+            SelectObject(hdc, i == 0 ? g_negrito : g_fonte);
+            SetTextColor(hdc, i == 0 ? RGB(255, 255, 255) : DicaLinhaCor(g_dicaItem, i));
+            RECT rt = {kDicaPad, kDicaPad + i * kDicaLinha, g_dicaL - kDicaPad,
+                       kDicaPad + (i + 1) * kDicaLinha};
+            DrawTextA(hdc, t, -1, &rt,
+                      i == 0 ? (DT_CENTER | DT_TOP | DT_SINGLELINE | DT_NOPREFIX)
+                             : (DT_LEFT | DT_TOP | DT_SINGLELINE | DT_NOPREFIX));
+        }
         TelaFecha(&g_telaDica, 240);
     }
     *versao = g_dicaVersao;
