@@ -1202,6 +1202,7 @@ void BotaoMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura
 // dica.h); aqui fica so a caixa, no desenho da loja, ao lado do painel.
 Tela g_telaDica;
 int g_dicaItem = 0;
+int g_dicaRefino = 0;
 int g_dicaVersao = 0;
 int g_dicaDesenhado = -1;
 int g_dicaL = 0;
@@ -1253,6 +1254,7 @@ void MedeDica(int item, int* larg, int* alt) {
 void AtualizaDica() {
     const int antes = g_dicaItem;
     g_dicaItem = 0;
+    g_dicaRefino = 0;
     int cx = 0;
     int cy = 0;
     if (g_aberta && CamadaCursor(&cx, &cy)) {
@@ -1276,11 +1278,13 @@ void AtualizaDica() {
                         : LojaRedeCofreItem(g_cofrePagina * kPorPagina + i);
                 if (it != nullptr) {
                     g_dicaItem = it->indice;
+                    g_dicaRefino = it->refino;
                 }
             } else {
                 const LojaOferta* o = LojaRedeOferta(i);
                 if (o != nullptr) {
                     g_dicaItem = o->indice;
+                    g_dicaRefino = o->refino;
                 }
             }
             if (g_dicaItem != 0) {
@@ -1364,6 +1368,97 @@ const void* DicaPixels(int* versao) {
 }
 
 void DicaClique(int, int) {}
+
+// --- a dica do jogo, com o nosso item --------------------------------------
+//
+// A caixa de informacao do item nao e desenhada por nos: e a do cliente. Ele a
+// monta em 0x416A80, a cada movimento do mouse, assim: pergunta a interface
+// quem esta sob o ponto (a chamada virtual +0xB8, em 0x416B48), e se o que
+// voltou for um controle com item em +0x670, descreve esse item.
+//
+// A nossa loja nao existe para essa interface - o desenho e nosso, em cima do
+// quadro -, entao a pergunta volta vazia e nenhuma dica aparece. O desvio entra
+// depois da pergunta: quando o cursor esta sobre um item do painel, a resposta
+// passa a ser um controle nosso, que nao tem nada dentro alem do ponteiro do
+// item no lugar certo. De 248 usos do controle naquela funcao, 244 sao para
+// pegar esse ponteiro - o resto e guardar o proprio controle num global.
+//
+// Assim a caixa que aparece e a do jogo, com o texto, as cores e a posicao
+// dele. Nada de uma janela parecida feita por nos.
+constexpr DWORD kPerguntaQuemEsta = 0x00416B48;
+constexpr DWORD kPerguntaVolta = 0x00416B4E;
+const BYTE kPerguntaBytes[6] = {0xFF, 0x92, 0xB8, 0x00, 0x00, 0x00};
+
+constexpr int kItemNoControle = 0x670;
+constexpr int kEfSanc = 43;   // EF_SANC: o refino, o "+N" do nome
+
+#pragma pack(push, 1)
+struct ItemDoCliente {
+    short indice;
+    struct {
+        BYTE efeito;
+        BYTE valor;
+    } efeitos[3];
+};
+#pragma pack(pop)
+
+ItemDoCliente g_itemDaDica;
+BYTE g_controleDaDica[kItemNoControle + 8];
+
+// Devolve o controle que o cliente deve descrever: o nosso quando o cursor esta
+// sobre um item do painel, ou o que ele mesmo achou.
+extern "C" DWORD __cdecl LojaControleDaDica(DWORD achado) {
+    if (!g_aberta || g_dicaItem <= 0) {
+        return achado;
+    }
+    memset(&g_itemDaDica, 0, sizeof(g_itemDaDica));
+    g_itemDaDica.indice = static_cast<short>(g_dicaItem);
+    if (g_dicaRefino > 0) {
+        g_itemDaDica.efeitos[0].efeito = kEfSanc;
+        g_itemDaDica.efeitos[0].valor = static_cast<BYTE>(g_dicaRefino);
+    }
+    memset(g_controleDaDica, 0, sizeof(g_controleDaDica));
+    *reinterpret_cast<ItemDoCliente**>(g_controleDaDica + kItemNoControle) = &g_itemDaDica;
+    return reinterpret_cast<DWORD>(g_controleDaDica);
+}
+
+__declspec(naked) void PerguntaHook() {
+    __asm {
+        call dword ptr [edx + 0xB8]   // a pergunta original, com os argumentos ja na pilha
+        push ecx
+        push edx
+        push eax
+        call LojaControleDaDica
+        add esp, 4
+        pop edx
+        pop ecx
+        push kPerguntaVolta
+        ret
+    }
+}
+
+void DesviaDicaDoJogo() {
+    if (memcmp(reinterpret_cast<void*>(kPerguntaQuemEsta), kPerguntaBytes,
+               sizeof(kPerguntaBytes)) != 0) {
+        Log("=== loja: a pergunta da dica mudou de bytes, dica do jogo nao instalada");
+        return;
+    }
+    BYTE salto[sizeof(kPerguntaBytes)];
+    memset(salto, 0x90, sizeof(salto));
+    salto[0] = 0xE9;
+    const DWORD rel = reinterpret_cast<DWORD>(&PerguntaHook) - (kPerguntaQuemEsta + 5);
+    memcpy(salto + 1, &rel, sizeof(rel));
+    DWORD antes = 0;
+    if (!VirtualProtect(reinterpret_cast<void*>(kPerguntaQuemEsta), sizeof(salto),
+                        PAGE_EXECUTE_READWRITE, &antes)) {
+        return;
+    }
+    memcpy(reinterpret_cast<void*>(kPerguntaQuemEsta), salto, sizeof(salto));
+    VirtualProtect(reinterpret_cast<void*>(kPerguntaQuemEsta), sizeof(salto), antes, &antes);
+    FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(kPerguntaQuemEsta),
+                          sizeof(salto));
+    Log("=== loja: a dica do jogo passa a descrever o item do painel");
+}
 
 // --- as tres camadas -------------------------------------------------------
 // A lojinha antiga esta aposentada: se a janela dela aparecer por qualquer
@@ -1576,7 +1671,6 @@ extern "C" void __cdecl LojaMostraIcone(int roubar) {
 namespace {
 
 const Camada kCamadaJanela = {30, JanelaVisivel, JanelaMedida, JanelaPixels, JanelaClique};
-const Camada kCamadaDica = {40, DicaVisivel, DicaMedida, DicaPixels, DicaClique};
 
 __declspec(naked) void AppendNodeHook() {
     __asm {
@@ -1703,11 +1797,11 @@ struct Registro {
         CarregaConfig();
         DesviaAppendNode();
         TeclaRegistra(VK_ESCAPE, 30, LojaEsc);
+        DesviaDicaDoJogo();
         DesviaSimples(kIconeLe, kIconeLeBytes, sizeof(kIconeLeBytes),
                       reinterpret_cast<void*>(&IconeLeHook), "leitura do icone");
         CamadaRegistra(&kCamadaBotao);
         CamadaRegistra(&kCamadaJanela);
-        CamadaRegistra(&kCamadaDica);
     }
 };
 
