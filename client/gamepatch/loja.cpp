@@ -958,6 +958,10 @@ extern "C" int __cdecl LojaDigita(int c) {
     if (g_campo == 1) {
         // Preco: so numero, digitado da esquerda para a direita como em
         // qualquer campo de valor.
+        if (c == 13) {
+            IncluiNaBarraca();   // o Enter e o "Confirmar" da caixa antiga
+            return 1;
+        }
         if (c == 8) {
             g_precoEdicao /= 10;
             return 1;
@@ -1073,12 +1077,19 @@ void CliqueMontagem(int x, int y) {
                 return;
             }
             g_cofreEscolhido = qual;
-            // Item que ja esta na barraca volta com o preco e a moeda dele, para
-            // dar para corrigir sem comecar de novo.
+            // Escolher o item ja pede o valor, como a janela antiga fazia: la o
+            // item entrava na barraca e a caixa "Insira o valor dos seus
+            // produtos" aparecia na hora. Aqui o teclado vai para o campo do
+            // preco no mesmo clique, e o Enter conclui.
+            g_campo = 1;
             const int onde = PrateleiraDoSlot(it->slot);
             if (onde >= 0) {
+                // Item que ja esta na barraca volta com o preco e a moeda dele,
+                // para dar para corrigir sem comecar de novo.
                 g_precoEdicao = g_prateleiras[onde].preco;
                 g_moedaEdicao = g_prateleiras[onde].moeda;
+            } else {
+                g_precoEdicao = 0;
             }
             return;
         }

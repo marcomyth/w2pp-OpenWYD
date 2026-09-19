@@ -306,10 +306,17 @@ void Desenha(IDirect3DDevice9* dev) {
     const int telaA = static_cast<int>(vp.Height);
     CamadaTela(telaL, telaA);
 
+    // Pergunta a TODAS, sem parar na primeira que responder que sim: visivel()
+    // nao e so uma pergunta - e nela que as camadas acertam o estado do quadro
+    // (a loja fecha a janela da lojinha antiga, decide de quem e o teclado e
+    // descobre o item sob o cursor). Parar no meio deixava as de cima sem rodar
+    // justamente quando uma de baixo estava aberta.
     const int total = CamadaTotal();
     bool algumaVisivel = false;
-    for (int i = 0; i < total && !algumaVisivel; ++i) {
-        algumaVisivel = CamadaEm(i)->visivel() != 0;
+    for (int i = 0; i < total; ++i) {
+        if (CamadaEm(i)->visivel() != 0) {
+            algumaVisivel = true;
+        }
     }
     if (!algumaVisivel) {
         return;
