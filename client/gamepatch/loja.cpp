@@ -1461,10 +1461,36 @@ int BotaoVisivel() {
     return BarraAberta() ? 1 : 0;
 }
 
+// A celula inteira, e nao um retangulo do nosso tamanho dentro dela.
+//
+// O loja.txt guarda um PONTO dentro da celula da Loja Pessoal, nao a medida
+// dela. A medida vem da propria faixa que o cliente desenhou: as celulas sao
+// quadradas (a altura da faixa e o lado), entao quantas cabem e a largura
+// dividida pela altura, e a nossa e a que contem o ponto. Com o retangulo fixo
+// de 30 pixels sobrava uma tira da celula de fora - e era por essa tira que o
+// clique passava para o jogo e abria a lojinha antiga.
 void BotaoMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura) {
     IconeCanto(telaL, telaA, x, y);
     *largura = g_iconeL;
     *altura = g_iconeA;
+    if (!BarraAberta() || g_faixaA <= 0.0f || g_faixaL <= 0.0f) {
+        return;
+    }
+    const int lado = static_cast<int>(g_faixaA + 0.5f);
+    const int quantas = static_cast<int>(g_faixaL / g_faixaA + 0.5f);
+    if (lado <= 0 || quantas <= 0) {
+        return;
+    }
+    const int largCelula = static_cast<int>(g_faixaL) / quantas;
+    const int esquerda = static_cast<int>(g_faixaX);
+    const int qual = (*x - esquerda) / (largCelula > 0 ? largCelula : 1);
+    if (qual < 0 || qual >= quantas) {
+        return;
+    }
+    *x = esquerda + qual * largCelula;
+    *y = static_cast<int>(g_faixaY);
+    *largura = largCelula;
+    *altura = lado;
 }
 
 const void* BotaoPixels(int* versao) {
