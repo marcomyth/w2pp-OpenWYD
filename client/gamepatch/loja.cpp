@@ -16,7 +16,6 @@
 
 #include "camadas.h"
 
-extern "C" void __cdecl D3DDesenhaAntesDaInterface();
 #include "icones.h"
 #include "lojarede.h"
 #include "pincel.h"
@@ -151,6 +150,11 @@ LojaPrateleira g_prateleiras[kMaxPrateleiras];
 int g_prateleirasUsadas = 0;
 
 bool g_roubaClique = true;   // desligado durante investigacoes no botao original
+
+// O item sob o cursor, que e o que a dica do jogo descreve.
+int g_dicaItem = 0;
+int g_dicaRefino = 0;
+RECT g_dicaSlot = {0, 0, 0, 0};
 
 // --- diagnostico -----------------------------------------------------------
 //
@@ -856,10 +860,40 @@ float g_faixaY = 0.0f;
 float g_faixaL = 0.0f;
 float g_faixaA = 0.0f;
 
+// Sonda da caixa de informacao: com diagnostico=1 e o cursor sobre um item do
+// painel, anota o retangulo da janela da dica e o de cada peca desenhada, uma
+// vez cada. E o que falta para o painel abrir um vao do tamanho da caixa - as
+// duas medidas que eu tentei (o retangulo da janela) sao o espaco maximo dela,
+// nao o do desenho.
+void DiagCaixaDaDica(float x, float y, float l, float a) {
+    if (g_diag == 0 || !g_aberta || g_dicaItem <= 0 || !EmJogo()) {
+        return;
+    }
+    static int anotados = 0;
+    if (anotados >= 12) {
+        return;
+    }
+    const DWORD cena = *reinterpret_cast<const DWORD*>(kCena);
+    if (cena < 0x10000) {
+        return;
+    }
+    const DWORD janela = *reinterpret_cast<const DWORD*>(cena + 0x58);
+    if (janela < 0x10000) {
+        return;
+    }
+    const float* r = reinterpret_cast<const float*>(janela + 0x4C);
+    if (l < 40.0f || a < 20.0f) {
+        return;
+    }
+    ++anotados;
+    char buf[220];
+    sprintf_s(buf,
+              "=== diag caixa: no (%.0f,%.0f %.0fx%.0f) | janela da dica (%.0f,%.0f %.0fx%.0f)",
+              x, y, l, a, r[0], r[1], r[2], r[3]);
+    Log(buf);
+}
+
 extern "C" void __cdecl LojaAnotaNo(DWORD no) {
-    // A primeira peca da interface do quadro e a deixa para o painel sair -
-    // antes de tudo o que e do cliente, e depois do mundo.
-    D3DDesenhaAntesDaInterface();
     if (no < 0x10000) {
         return;
     }
@@ -868,6 +902,7 @@ extern "C" void __cdecl LojaAnotaNo(DWORD no) {
     const float y = r[1];
     const float l = r[2];
     const float a = r[3];
+    DiagCaixaDaDica(x, y, l, a);
     if (a < 30.0f || a > 48.0f || l < 120.0f || l > 600.0f) {
         return;
     }
@@ -1205,10 +1240,6 @@ void BotaoMedida(int telaL, int telaA, int* x, int* y, int* largura, int* altura
 // O mesmo que o jogo faz quando o mouse para sobre um item: uma caixa com o
 // nome e a descricao. O texto sai das tabelas que o cliente ja carregou (ver
 // dica.h); aqui fica so a caixa, no desenho da loja, ao lado do painel.
-int g_dicaItem = 0;
-int g_dicaRefino = 0;
-RECT g_dicaSlot = {0, 0, 0, 0};   // o quadrado sob o cursor, em tela
-
 // Qual item esta sob o cursor, e onde esta o quadrado dele. Roda todo quadro,
 // junto com a camada da janela.
 void AtualizaDica() {

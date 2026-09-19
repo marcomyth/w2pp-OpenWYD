@@ -433,54 +433,18 @@ void LeAmostras(IDirect3DDevice9* dev) {
     quadro->Release();
 }
 
-// --- quando desenhar -------------------------------------------------------
+// O desenho sai no fim do quadro, no EndScene.
 //
-// Desenhar no EndScene poe as nossas camadas na frente de TUDO, inclusive da
-// caixa de informacao do item, que e do cliente e sai antes. Tentar abrir um
-// vao no painel no lugar dela foi um remendo, e um que nunca ficou do tamanho
-// certo.
-//
-// O lugar certo e antes da interface do cliente: o jogo desenha o mundo, depois
-// monta a interface (e e ai que o AppendNode e chamado, para cada peca dela),
-// depois termina o quadro. Desenhando na PRIMEIRA peca da interface, as nossas
-// camadas ficam sobre o mundo e sob tudo o que e dele - janelas, barra e a
-// caixa de informacao.
-//
-// Se a tentativa falhar - a interface pode ser montada fora da cena, e fora da
-// cena o D3D recusa o desenho -, voltamos para o EndScene e ficamos nele. A
-// primeira vez decide, e decide sozinha.
-IDirect3DDevice9* g_devDoQuadro = nullptr;
-bool g_desenhadoNoQuadro = false;
-bool g_cedoFunciona = true;
-
-void DesenhaCedo() {
-    if (!g_cedoFunciona || g_desenhadoNoQuadro || g_devDoQuadro == nullptr) {
-        return;
-    }
-    g_desenhadoNoQuadro = true;
-    g_okDoDesenho = true;
-    Desenha(g_devDoQuadro);
-    if (!g_okDoDesenho) {
-        // Nao deu: o quadro sai pelo EndScene, hoje e sempre.
-        g_cedoFunciona = false;
-        g_desenhadoNoQuadro = false;
-    }
-}
-
+// Ja tentei sair antes, na primeira peca da interface (o AppendNode), para
+// ficar sob as janelas do cliente e deixar a caixa de informacao do item por
+// cima. Nao funciona: naquele ponto o mundo ainda nao foi desenhado, e ele
+// passa por cima do painel - a loja simplesmente sumia. A ordem do cliente e
+// montar a interface primeiro e desenhar tudo depois.
 HRESULT WINAPI MeuEndScene(IDirect3DDevice9* dev) {
-    g_devDoQuadro = dev;
-    if (!g_desenhadoNoQuadro) {
-        Desenha(dev);
-    }
-    g_desenhadoNoQuadro = false;
+    Desenha(dev);
     const HRESULT hr = g_endSceneTramp(dev);
     LeAmostras(dev);
     return hr;
-}
-
-// Chamada pelo desvio do AppendNode, na primeira peca da interface do quadro.
-extern "C" void __cdecl D3DDesenhaAntesDaInterface() {
-    DesenhaCedo();
 }
 
 bool DesviaCodigo(void* alvo) {
