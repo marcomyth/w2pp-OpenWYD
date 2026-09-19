@@ -12,6 +12,7 @@
 
 #include <windows.h>
 
+#include <cstdio>
 #include <cstring>
 
 void CamadaLog(const char* texto);
@@ -59,9 +60,17 @@ bool g_respondeu = false;
 // Monta o cabecalho de 12 bytes e manda pela funcao do proprio cliente, que
 // cuida da embaralhada e do checksum.
 void Envia(WORD tipo, const void* corpo, int tamCorpo) {
-    BYTE pacote[64];
+    // 256 e folga para o maior que temos: o pedido de abrir a barraca leva 24
+    // bytes de titulo mais 12 prateleiras de 8, e com o cabecalho da 132. Com os
+    // 64 de antes ele nao cabia - e a saida era um return mudo, que gastou uma
+    // rodada de teste inteira: o painel dizia que tinha mandado e o servidor
+    // nunca via o pacote.
+    BYTE pacote[256];
     const int total = kCabecalho + tamCorpo;
     if (total > static_cast<int>(sizeof(pacote))) {
+        char buf[120];
+        sprintf_s(buf, "=== loja: pacote %04X grande demais (%d bytes), nao enviado", tipo, total);
+        CamadaLog(buf);
         return;
     }
     memset(pacote, 0, sizeof(pacote));
