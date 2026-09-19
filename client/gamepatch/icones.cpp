@@ -292,3 +292,104 @@ int IconeDesenha(void* pixels, int telaL, int telaA, int x, int y, int item) {
     }
     return 1;
 }
+
+// --- diagnostico -----------------------------------------------------------
+//
+// O cliente guarda os conjuntos de sprites no proprio objeto que carregou o
+// UITextureSetList.txt: em +0x328 + conjunto*8 esta quantos itens o conjunto
+// tem, e em +0x32C + conjunto*8 o vetor deles, de 28 bytes cada
+// (textura, x, y, largura, altura, ...). O objeto nao tem nenhum ponteiro
+// global obvio, mas tem uma marca: o arquivo UITextureListN.bin inteiro fica em
+// +0x15E8, e ele comeca com "UI\cursor.wyt". Entao achamos o objeto pelo
+// conteudo, varrendo a memoria do processo uma vez so.
+
+namespace {
+
+constexpr int kConjuntoIcone = 526;   // [ItemIcon], SetIndex 526
+constexpr DWORD kListaNoObjeto = 0x15E8;
+constexpr DWORD kContagem = 0x328;
+constexpr DWORD kVetor = 0x32C;
+constexpr int kEntrada = 28;
+
+const BYTE kMarca[] = {'U', 'I', 92, 92, 'c', 'u', 'r', 's', 'o', 'r', '.', 'w',
+                       'y', 't', 0,   0xCD, 0xCD};
+
+BYTE* g_objeto = nullptr;
+bool g_procurado = false;
+
+BYTE* AchaObjeto() {
+    if (g_procurado) {
+        return g_objeto;
+    }
+    g_procurado = true;
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    BYTE* p = static_cast<BYTE*>(si.lpMinimumApplicationAddress);
+    BYTE* fim = static_cast<BYTE*>(si.lpMaximumApplicationAddress);
+    while (p < fim) {
+        MEMORY_BASIC_INFORMATION mbi;
+        if (VirtualQuery(p, &mbi, sizeof(mbi)) == 0) {
+            break;
+        }
+        const bool legivel = mbi.State == MEM_COMMIT &&
+                             (mbi.Protect == PAGE_READWRITE || mbi.Protect == PAGE_READONLY);
+        if (legivel && mbi.RegionSize < 0x4000000) {
+            BYTE* ini = static_cast<BYTE*>(mbi.BaseAddress);
+            const size_t n = mbi.RegionSize;
+            for (size_t i = 0; i + sizeof(kMarca) < n; ++i) {
+                if (ini[i] != 'U' || memcmp(ini + i, kMarca, sizeof(kMarca)) != 0) {
+                    continue;
+                }
+                BYTE* obj = ini + i - kListaNoObjeto;
+                if (IsBadReadPtr(obj + kContagem + kConjuntoIcone * 8, 8)) {
+                    continue;
+                }
+                const int qtd = *reinterpret_cast<int*>(obj + kContagem + kConjuntoIcone * 8);
+                if (qtd > 0 && qtd <= 4000) {
+                    g_objeto = obj;
+                    return g_objeto;
+                }
+            }
+        }
+        p = static_cast<BYTE*>(mbi.BaseAddress) + mbi.RegionSize;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+void IconeConfere(int item) {
+    Prepara();
+    char buf[220];
+    if (!g_pronto || item < 0 || item >= kMaxItens) {
+        return;
+    }
+    const int numero = g_doItem[item] - 1;
+    if (numero < 0 || numero >= g_nSprites) {
+        sprintf_s(buf, "=== confere item %d: sem icone (tabela %d)", item, g_doItem[item]);
+        CamadaLog(buf);
+        return;
+    }
+    const Sprite& sp = g_sprites[numero];
+    BYTE* obj = AchaObjeto();
+    if (obj == nullptr) {
+        sprintf_s(buf, "=== confere item %d: sprite %d, nossa folha %d em (%d,%d) - nao achei a "
+                       "tabela do cliente",
+                  item, numero, g_folhas[sp.folha].numero, sp.x, sp.y);
+        CamadaLog(buf);
+        return;
+    }
+    const int qtd = *reinterpret_cast<int*>(obj + kContagem + kConjuntoIcone * 8);
+    BYTE* vetor = *reinterpret_cast<BYTE**>(obj + kVetor + kConjuntoIcone * 8);
+    if (vetor == nullptr || numero >= qtd) {
+        sprintf_s(buf, "=== confere item %d: o conjunto do cliente tem %d entradas", item, qtd);
+        CamadaLog(buf);
+        return;
+    }
+    const int* e = reinterpret_cast<const int*>(vetor + numero * kEntrada);
+    sprintf_s(buf,
+              "=== confere item %d sprite %d: nosso=(tex %d, %d,%d)  cliente=(tex %d, %d,%d "
+              "%dx%d)",
+              item, numero, g_folhas[sp.folha].numero, sp.x, sp.y, e[0], e[1], e[2], e[3], e[4]);
+    CamadaLog(buf);
+}

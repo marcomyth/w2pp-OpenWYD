@@ -31,4 +31,10 @@ int IconeDesenha(void* pixels, int telaL, int telaA, int x, int y, int item);
 // O lado do icone, em pixels. E a medida do proprio jogo.
 int IconeLado();
 
+// Diagnostico: compara, para um item, o retangulo que ESTA loja escolheu com o
+// que o cliente tem na tabela dele, achada na memoria do processo. Serve para
+// saber de que lado esta um icone trocado - da nossa leitura dos arquivos ou da
+// folha .wyt em si.
+void IconeConfere(int item);
+
 #endif

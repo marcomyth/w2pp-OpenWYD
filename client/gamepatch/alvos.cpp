@@ -34,6 +34,8 @@
 //   modo=ambos | monstros | players
 //   max=10
 
+#include "teclas.h"
+
 #include <windows.h>
 
 #include <cstdio>
