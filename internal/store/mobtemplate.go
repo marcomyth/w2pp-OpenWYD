@@ -101,6 +101,13 @@ func (s *Store) GetMobTemplateStat(ctx context.Context, templateName string) (do
 // SetMobTemplateEquip, which remains available for equip-only edits from the
 // dedicated equipment grid). Bumps the config version and writes an audit row
 // in one transaction.
+//
+// AVISO PARA QUEM FOR MEXER NESTA TABELA POR SQL À MÃO: a linha é a ficha INTEIRA
+// e mobstat.Apply é autoritativa sobre ela. Um INSERT parcial (só template_name e
+// exp, por exemplo) deixa as outras colunas no default e produz um monstro nível
+// 0, sem vida — que não nasce. Use UPDATE de linha existente, ou preencha todas as
+// colunas. O painel nunca cai nisso porque carrega a ficha, troca só os campos do
+// formulário e regrava tudo (panel.setMonstro).
 func (s *Store) UpsertMobTemplateStat(ctx context.Context, st domain.MobTemplateStat, moderatorID int64) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		before, _ := fetchMobTemplateStatJSON(ctx, tx, st.TemplateName)
