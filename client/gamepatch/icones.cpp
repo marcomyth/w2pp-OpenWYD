@@ -250,7 +250,10 @@ int IconeDesenha(void* pixels, int telaL, int telaA, int x, int y, int item) {
     if (!g_pronto || pixels == nullptr || item < 0 || item >= kMaxItens) {
         return 0;
     }
-    const int numero = g_doItem[item];
+    // O cliente le esta tabela e tira 1 - esta no codigo dele, em 0x40D6D5:
+    // "mov eax,[edx*4+0x6EA518]; sub eax,1". Entao o valor 0 quer dizer "sem
+    // icone", e nao "o primeiro icone".
+    const int numero = g_doItem[item] - 1;
     if (numero < 0 || numero >= g_nSprites) {
         return 0;
     }

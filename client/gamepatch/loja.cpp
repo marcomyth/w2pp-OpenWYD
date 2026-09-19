@@ -1047,6 +1047,29 @@ void FechaLojinhaAntiga() {
 // marcar a tecla, entao nao fica tecla presa.
 //
 // Devolve 1 quando a tecla era nossa.
+// A tecla que engolimos na descida precisa ser engolida na subida tambem. O
+// ramo de WM_KEYUP (0x54C88F) termina no mesmo 0x54D334, que repassa a mensagem
+// ao segundo tratador - e com a loja ja fechada pela descida, a subida passava
+// direto e abria a engrenagem.
+bool g_engolindo[256] = {false};
+
+// O terceiro caminho da mesma tecla: o TranslateMessage do laco de mensagens
+// transforma o WM_KEYDOWN do Esc num WM_CHAR 0x1B, que ja esta na fila quando a
+// WndProc devolve. Esse ramo (0x54C966) tambem termina no repasse de 0x54D334 -
+// e era ele que abria a engrenagem depois de a loja ja ter fechado. O caractere
+// nao limpa a marca; quem limpa e a subida da tecla.
+extern "C" int __cdecl LojaTeclaCaractere(int c) {
+    return (c >= 0 && c <= 255 && g_engolindo[c]) ? 1 : 0;
+}
+
+extern "C" int __cdecl LojaTeclaSobe(int vk) {
+    if (vk < 0 || vk > 255 || !g_engolindo[vk]) {
+        return 0;
+    }
+    g_engolindo[vk] = false;
+    return 1;
+}
+
 extern "C" int __cdecl LojaTecla(int vk) {
     if (g_diag != 0) {
         char buf[96];
@@ -1060,6 +1083,9 @@ extern "C" int __cdecl LojaTecla(int vk) {
     // descartado, como acontece ao fechar qualquer janela do jogo pela metade.
     g_montando = false;
     g_aberta = false;
+    if (vk >= 0 && vk <= 255) {
+        g_engolindo[vk] = true;
+    }
     return 1;
 }
 
@@ -1226,6 +1252,132 @@ __declspec(naked) void RamoTeclaHook() {
     }
 }
 
+constexpr DWORD kRamoTeclaSobe = 0x0054C88F;
+constexpr BYTE kRamoTeclaSobeBytes[6] = {0x8B, 0x95, 0x70, 0xFE, 0xFF, 0xFF};
+
+int g_engoliuSobe = 0;
+
+__declspec(naked) void RamoTeclaSobeHook() {
+    __asm {
+        pushad
+        pushfd
+        mov eax, [ebp + 0x10]
+        push eax
+        call LojaTeclaSobe
+        add esp, 4
+        mov g_engoliuSobe, eax
+        popfd
+        popad
+        cmp g_engoliuSobe, 0
+        je segue
+        xor eax, eax
+        push 0x0054D3AB
+        ret
+    segue:
+        mov edx, dword ptr [ebp - 0x190]
+        push 0x0054C895
+        ret
+    }
+}
+
+// --- diagnostico dos icones ------------------------------------------------
+//
+// O cliente monta o icone de um item em 0x40D6D5: ele le itemicon.bin (carregado
+// em 0x6EA518) com o indice do item e tira 1. Anotar par a par o que ELE usa e o
+// jeito de descobrir por que a nossa tabela desenha outro desenho.
+constexpr DWORD kIconeLe = 0x0040D6D5;
+constexpr BYTE kIconeLeBytes[7] = {0x8B, 0x04, 0x95, 0x18, 0xA5, 0x6E, 0x00};
+
+extern "C" void __cdecl LojaAnotaIcone(int item, int valor) {
+    if (g_diag == 0) {
+        return;
+    }
+    static int vistos[32];
+    static int nVistos = 0;
+    for (int i = 0; i < nVistos; ++i) {
+        if (vistos[i] == item) {
+            return;
+        }
+    }
+    if (nVistos < 32) {
+        vistos[nVistos++] = item;
+    }
+    char buf[120];
+    sprintf_s(buf, "=== diag icone: item %d -> tabela %d (o cliente usa %d)", item, valor,
+              valor - 1);
+    Log(buf);
+}
+
+__declspec(naked) void IconeLeHook() {
+    __asm {
+        mov eax, dword ptr [edx * 4 + 0x006EA518]   // instrucao original
+        pushad
+        pushfd
+        push eax
+        push edx
+        call LojaAnotaIcone
+        add esp, 8
+        popfd
+        popad
+        push 0x0040D6DC
+        ret
+    }
+}
+
+// Instala um desvio simples de N bytes: salto e o resto em nop.
+void DesviaSimples(DWORD onde, const BYTE* esperado, int quantos, void* destino,
+                   const char* nome) {
+    if (memcmp(reinterpret_cast<void*>(onde), esperado, quantos) != 0) {
+        char buf[120];
+        sprintf_s(buf, "=== loja: %s com bytes diferentes, nao instalado", nome);
+        Log(buf);
+        return;
+    }
+    BYTE salto[8];
+    memset(salto, 0x90, sizeof(salto));
+    salto[0] = 0xE9;
+    const DWORD rel = reinterpret_cast<DWORD>(destino) - (onde + 5);
+    memcpy(salto + 1, &rel, sizeof(rel));
+    DWORD antes = 0;
+    if (!VirtualProtect(reinterpret_cast<void*>(onde), quantos, PAGE_EXECUTE_READWRITE, &antes)) {
+        return;
+    }
+    memcpy(reinterpret_cast<void*>(onde), salto, quantos);
+    VirtualProtect(reinterpret_cast<void*>(onde), quantos, antes, &antes);
+    FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(onde), quantos);
+    char buf[120];
+    sprintf_s(buf, "=== loja: %s desviado em 0x%06X", nome, onde);
+    Log(buf);
+}
+
+constexpr DWORD kRamoCaractere = 0x0054C966;
+constexpr BYTE kRamoCaractereBytes[6] = {0x8B, 0x8D, 0x70, 0xFE, 0xFF, 0xFF};
+
+int g_engoliuChar = 0;
+
+__declspec(naked) void RamoCaractereHook() {
+    __asm {
+        pushad
+        pushfd
+        movzx eax, byte ptr [ebp + 0x10]   // wParam do WM_CHAR
+        push eax
+        call LojaTeclaCaractere
+        add esp, 4
+        mov g_engoliuChar, eax
+        popfd
+        popad
+        cmp g_engoliuChar, 0
+        je segue
+        xor eax, eax
+        push 0x0054D3AB
+        ret
+    segue:
+        mov ecx, dword ptr [ebp - 0x190]
+        push 0x0054C96C
+        ret
+    }
+}
+
 void DesviaTecla() {
     if (memcmp(reinterpret_cast<void*>(kRamoTecla), kRamoTeclaBytes,
                sizeof(kRamoTeclaBytes)) != 0) {
@@ -1254,6 +1406,12 @@ struct Registro {
         CarregaConfig();
         DesviaAppendNode();
         DesviaTecla();
+        DesviaSimples(kRamoTeclaSobe, kRamoTeclaSobeBytes, sizeof(kRamoTeclaSobeBytes),
+                      reinterpret_cast<void*>(&RamoTeclaSobeHook), "Esc na subida");
+        DesviaSimples(kRamoCaractere, kRamoCaractereBytes, sizeof(kRamoCaractereBytes),
+                      reinterpret_cast<void*>(&RamoCaractereHook), "Esc como caractere");
+        DesviaSimples(kIconeLe, kIconeLeBytes, sizeof(kIconeLeBytes),
+                      reinterpret_cast<void*>(&IconeLeHook), "leitura do icone");
         CamadaRegistra(&kCamadaBotao);
         CamadaRegistra(&kCamadaJanela);
     }
