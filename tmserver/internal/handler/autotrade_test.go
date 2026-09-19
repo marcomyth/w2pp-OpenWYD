@@ -118,27 +118,17 @@ func TestAutoTradeOpenBrowseBuy(t *testing.T) {
 	buyer := enterWorldAs(t, addr, "tradeb") // conn 2
 	defer buyer.Close()
 
-	// O vendedor monta a barraca pelo painel; para conferir a lista como o
-	// cliente antigo a vê, ele navega a própria barraca.
+	// O vendedor monta a barraca pelo painel e clica na própria barraca. Clicar
+	// numa barraca não abre mais a janela antiga: a resposta é o convite para a
+	// vitrine. Título, item e preço são conferidos onde eles aparecem hoje, que
+	// é a vitrine (lojaservidor_test.go).
 	stallID := abreBarraca(t, seller, "Minha Loja", 0, price, protocol.LojaMoedaOuro)
 	send(t, seller, protocol.MsgReqTradeList, protocol.EncodeStandardParm(stallID))
-	list, _ := readUntil(t, seller, protocol.MsgSendAutoTrade)
-	if got := cstr(list[0:24]); got != "Minha Loja" {
-		t.Errorf("own list title = %q, want Minha Loja", got)
-	}
-	if got := int16(binary.LittleEndian.Uint16(list[24:26])); got != sellItem {
-		t.Errorf("own list item = %d, want %d", got, sellItem)
-	}
+	readUntil(t, seller, protocol.MsgLojaMercado)
 
-	// Buyer browses the seller's shop (Parm = seller conn 1).
+	// O comprador clica na barraca do vendedor (Parm = conn 1 do vendedor).
 	send(t, buyer, protocol.MsgReqTradeList, protocol.EncodeStandardParm(1))
-	blist, _ := readUntil(t, buyer, protocol.MsgSendAutoTrade)
-	if got := int16(binary.LittleEndian.Uint16(blist[24:26])); got != sellItem {
-		t.Errorf("browsed list item = %d, want %d", got, sellItem)
-	}
-	if got := int32(binary.LittleEndian.Uint32(blist[132:136])); got != price {
-		t.Errorf("browsed list price = %d, want %d", got, price)
-	}
+	readUntil(t, buyer, protocol.MsgLojaMercado)
 
 	// Buyer buys slot 0.
 	send(t, buyer, protocol.MsgReqBuy, reqBuyPayload(1, 0, sellItem, price, tax))

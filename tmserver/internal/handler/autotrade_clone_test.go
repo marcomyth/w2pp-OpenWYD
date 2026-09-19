@@ -83,16 +83,14 @@ func TestAutoTradeCloneVendeComODonoLonge(t *testing.T) {
 			stallID, world.MaxUser)
 	}
 
-	// The buyer browses by the clone's id — the id the old code refused outright,
-	// because it demanded autoID < MaxUser.
+	// O comprador clica na barraca pelo id do clone — o id que o código antigo
+	// recusava de saída, porque exigia autoID < MaxUser. A resposta hoje é o
+	// convite para a vitrine, e não a lista da janela velha; o que ela prova
+	// continua sendo o mesmo: o servidor achou a barraca por esse id. O título
+	// e o item aparecem na vitrine, e é lá que estão conferidos
+	// (lojaservidor_test.go).
 	send(t, buyer, protocol.MsgReqTradeList, protocol.EncodeStandardParm(int32(stallID)))
-	blist, _ := readUntil(t, buyer, protocol.MsgSendAutoTrade)
-	if got := cstr(blist[0:24]); got != "Loja Solta" {
-		t.Fatalf("título visto pelo comprador = %q, quer Loja Solta", got)
-	}
-	if got := int16(binary.LittleEndian.Uint16(blist[24:26])); got != sellItem {
-		t.Fatalf("item na lista = %d, quer %d", got, sellItem)
-	}
+	readUntil(t, buyer, protocol.MsgLojaMercado)
 
 	// And the purchase itself, addressed at the clone (MSG_SendItem: place@0,
 	// slot@2, item.Index@4).
@@ -140,7 +138,7 @@ func TestCloneSomeQuandoODonoDesconecta(t *testing.T) {
 	// The stall answers while the owner is connected, so its later absence means
 	// it was taken down and not that it never worked.
 	send(t, buyer, protocol.MsgReqTradeList, protocol.EncodeStandardParm(int32(stallID)))
-	readUntil(t, buyer, protocol.MsgSendAutoTrade)
+	readUntil(t, buyer, protocol.MsgLojaMercado)
 
 	seller.Close() // queda de conexão, não logout limpo
 	esperarSemLoja(t, buyer, stallID)
@@ -271,7 +269,7 @@ func TestCloneDaLojaTamanhoJanelaEFechar(t *testing.T) {
 		t.Fatalf("UpdateScore do clone a quem chega: Con %d (enviado=%v), quer %d", con, ok, shopCloneCon)
 	}
 	send(t, buyer, protocol.MsgReqTradeList, protocol.EncodeStandardParm(int32(id)))
-	if _, ok := readUntilType(t, buyer, protocol.MsgSendAutoTrade); !ok {
+	if _, ok := readUntilType(t, buyer, protocol.MsgLojaMercado); !ok {
 		t.Fatal("a barraca não respondeu depois do QuitTrade do dono")
 	}
 

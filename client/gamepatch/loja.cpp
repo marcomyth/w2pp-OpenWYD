@@ -896,7 +896,6 @@ void EntraNaMontagem() {
     g_montando = true;
     g_nomeBarraca[0] = 0;
     g_nomeTam = 0;
-    TeclaTexto(LojaDigita);
     g_cofrePagina = 0;
     g_cofreEscolhido = -1;
     g_precoEdicao = 0;
@@ -912,7 +911,6 @@ void EntraNaMontagem() {
 
 void SaiDaMontagem() {
     g_montando = false;
-    TeclaTexto(nullptr);
     g_escolhido = -1;
     PedeAoServidor();
 }
@@ -1244,12 +1242,15 @@ int LojaEsc() {
     // descartado, como acontece ao fechar qualquer janela do jogo pela metade.
     g_montando = false;
     g_aberta = false;
-    TeclaTexto(nullptr);
     return 1;
 }
 
 int JanelaVisivel() {
     DiagJanelaAtiva();
+    // O teclado e decidido a cada quadro, e nao em cada caminho que abre ou
+    // fecha o painel: o X, o icone, o Esc e o botao Fechar sao quatro saidas, e
+    // esquecer uma delas deixaria o teclado preso conosco.
+    TeclaTexto((g_aberta && g_montando) ? LojaDigita : nullptr);
     // Clicar numa barraca na cidade abre a vitrine: quem avisa e o servidor,
     // respondendo ao mesmo pacote que abria a janela antiga.
     if (LojaRedePedidoMercado() != 0 && !g_aberta) {
