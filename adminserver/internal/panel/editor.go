@@ -740,7 +740,7 @@ func (h *Handler) ajustarDonate(w http.ResponseWriter, r *http.Request) {
 		h.auditoriaFalhou(w, err)
 		return
 	}
-	h.redirectDonate(w, r, nome, fmt.Sprintf("Saldo ajustado. Agora: %d.", saldo))
+	h.redirectDonate(w, r, nome, fmt.Sprintf("Saldo ajustado. Agora: %d Rcoins.", saldo))
 }
 
 func (h *Handler) redirectDonate(w http.ResponseWriter, r *http.Request, nome, msg string) {
