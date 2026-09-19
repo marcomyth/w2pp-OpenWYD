@@ -4,6 +4,14 @@
 <title>{{if .Exibido}}{{.Exibido}}{{else}}{{.Nome}}{{end}} — Painel OpenWYD</title>
 {{template "head" .}}
 <style>
+  /* Marca o campo que a recarga ao vivo NAO aplica. Fica NO campo, nao numa nota
+     de rodape: quem edita merchant precisa ver ali que aquilo espera reinicio. */
+  .so-reinicio {
+    display: inline-block; margin-left: 6px; padding: 1px 5px; border-radius: 3px;
+    font-size: 10px; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--ink-3); border: 1px solid var(--rule); background: var(--chip-bg);
+    text-transform: none; letter-spacing: 0;
+  }
   .grupo { margin-bottom: 30px; }
   .grupo h2 {
     font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
@@ -147,10 +155,16 @@
   </div>
   {{end}}
 
-  {{template "quando-vale" "reiniciar"}}
+  {{template "quando-vale" "segundos"}}
   <p class="dica" style="margin-bottom:18px">
-    Os números do monstro são lidos uma vez só, quando o jogo sobe. Os que já
-    estão no mapa seguem com os valores antigos até o reinício.
+    <strong>Vale para os que nascerem daqui em diante.</strong> Os monstros que já
+    estão no mapa ficam com o valor antigo até morrerem — cada um leva uma cópia
+    da ficha quando nasce, e o jogo não reescreve bicho que já está de pé.
+    <br>
+    Os campos marcados com <span class="so-reinicio">só no reinício</span> são a
+    exceção: eles alimentam listas que o jogo monta uma vez, ao ligar, e por isso
+    continuam esperando um reinício. Todo o resto — EXP, vida, mana, dano, defesa,
+    nível, atributos — entra em até 15 segundos.
   </p>
 
   {{/* Tabs are links, not a click handler: the panel serves default-src 'none'
@@ -223,7 +237,8 @@
     </p>
 
     <div class="nome-exibido">
-      <label for="display_name">Nome exibido no jogo</label>
+      <label for="display_name">Nome exibido no jogo
+        <span class="so-reinicio">só no reinício</span></label>
       <input id="display_name" name="display_name" value="{{.Exibido}}"
              placeholder="deixe vazio para usar o nome do arquivo" maxlength="64">
     </div>
@@ -236,7 +251,8 @@
         <div class="numeros">
           {{range .Campos}}
           <div class="numero{{if .Alterado}} alterado{{end}}">
-            <label for="c-{{.Nome}}">{{.Rotulo}}</label>
+            <label for="c-{{.Nome}}">{{.Rotulo}}{{if soNoReinicio .Nome}}
+              <span class="so-reinicio">só no reinício</span>{{end}}</label>
             {{/* Deliberately NOT type="number": that input posts an empty string
                  whenever the browser considers what was typed invalid, so "12.000"
                  (with the thousands separator everybody writes) reaches the server

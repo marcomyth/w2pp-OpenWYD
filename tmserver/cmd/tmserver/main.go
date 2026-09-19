@@ -349,18 +349,39 @@ func run(logger *slog.Logger) error {
 	// hot-reload for this feature, matching EDITAPPMOB's own restart-to-apply
 	// behavior (it wrote the file; the server only read it at boot too).
 	var mobStatOverrides map[string]mobstat.Override
+	// Declarados como INTERFACE e preenchidos só dentro do if: guardar um
+	// *MobStatSource nil numa interface daria uma interface NÃO nil (o nil tipado),
+	// e o poll, que decide por `== nil`, chamaria método em ponteiro nil.
+	var mobStats handler.MobStatSource
+	var mobTemplate handler.MobTemplateLoader
+	var mobStatBootVersion int64
 	if *mobStatEditing {
 		if dbConn == nil || *contentDir == "" {
 			return fmt.Errorf("-mob-stat-editing requires both -dbserver (config source) and -content (mob templates)")
 		}
+		mobStatSource := dbclient.NewMobStatSource(dbConn)
+		mobStats = mobStatSource
+		mobTemplate = func(name string) ([]byte, error) {
+			return content.LoadNPCTemplate(*contentDir, name)
+		}
 		fetchCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		overrides, ferr := dbclient.NewMobStatSource(dbConn).Fetch(fetchCtx)
+		overrides, ferr := mobStatSource.Fetch(fetchCtx)
+		// A versão é lida no MESMO instante do fetch, para o primeiro poll não
+		// achar que mudou e reconstruir tudo sem motivo no primeiro minuto de vida.
+		// Uma falha aqui NÃO derruba o boot: sem versão o poll trata como 0 e a
+		// primeira recarga acontece, que é o lado seguro de errar.
+		versao, verr := mobStatSource.Version(fetchCtx)
 		cancel()
 		if ferr != nil {
 			return fmt.Errorf("fetch mob template stat overrides: %w", ferr)
 		}
+		if verr != nil {
+			logger.Warn("mob stat version unreadable at boot; the first poll will reload once", "err", verr)
+		}
 		mobStatOverrides = overrides
-		logger.Info("mob template stat overlay enabled (moderator editing)", "overrides", len(mobStatOverrides))
+		mobStatBootVersion = versao
+		logger.Info("mob template stat overlay enabled (moderator editing)",
+			"overrides", len(mobStatOverrides), "version", versao)
 	}
 
 	// Moderator item base stat overlay (0023_item_stats), the item-side sibling
@@ -626,6 +647,15 @@ func run(logger *slog.Logger) error {
 			MinTicks: handler.AffectTicksFromSeconds(*affectMinSeconds),
 			MaxTicks: handler.AffectTicksFromMinutes(*affectMaxMinutes),
 		},
+
+		// A ficha de monstro recarrega ao vivo (handler/mobstatconfig.go): a fonte,
+		// o conjunto e a versão que o boot já resolveu, e o leitor de molde que a
+		// recarga usa para refazer a ficha do ARQUIVO mais a exceção — que é o que
+		// faz APAGAR uma exceção voltar ao valor do arquivo.
+		MobStats:         mobStats,
+		MobStatOverrides: mobStatOverrides,
+		MobStatVersion:   mobStatBootVersion,
+		MobTemplate:      mobTemplate,
 	})
 	w := world.New(world.Config{
 		RejectChecksum: *rejectChecksum,

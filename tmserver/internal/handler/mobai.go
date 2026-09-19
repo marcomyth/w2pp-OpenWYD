@@ -142,6 +142,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.pollDungeonGates(w)
 	d.pollSpawnRates(w)
 	d.pollXPConfig(w)
+	d.pollMobStats(w)
 	d.pollCombineRates(w)
 	d.pollCombatRules(w)
 	d.pollDropRules(w)

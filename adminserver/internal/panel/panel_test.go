@@ -2321,10 +2321,12 @@ func TestMonstrosListaEFiltra(t *testing.T) {
 	}
 }
 
-func TestMonstroMostraOsNumerosEOAvisoDeReinicio(t *testing.T) {
-	// The warning is the whole reason this screen differs from itens and npcs:
-	// there an edit lands within ~15s, here it waits for a boot. A moderator who
-	// does not read that will report the panel as broken.
+func TestMonstroMostraOsNumerosEQuandoVale(t *testing.T) {
+	// O aviso é a razão desta tela dizer algo que itens e npcs não dizem. Ele
+	// MUDOU quando a ficha passou a recarregar ao vivo (tmserver
+	// handler.pollMobStats): o número entra em ~15 s, mas só nos monstros que
+	// NASCEREM daí em diante, e cinco campos continuam esperando reinício. Uma
+	// tela que dissesse só "vale na hora" mentiria nos três pontos.
 	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
 	body := get("/monstros/Kentania").Body.String()
 
@@ -2338,11 +2340,17 @@ func TestMonstroMostraOsNumerosEOAvisoDeReinicio(t *testing.T) {
 		"Kentania Velha",
 		// A frase é a do bloco compartilhado, não uma redação própria desta
 		// página: eram oito jeitos de dizer três coisas.
-		"Só vale depois de reiniciar o servidor.",
+		"Vale em até 15 segundos.",
+		// E as duas ressalvas que o bloco compartilhado não cobre.
+		"Vale para os que nascerem daqui em diante",
+		"só no reinício",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("a página do monstro não traz %q", want)
 		}
+	}
+	if strings.Contains(body, "Só vale depois de reiniciar o servidor.") {
+		t.Error("a página ainda diz que TUDO espera reinício; a ficha recarrega ao vivo desde o pollMobStats")
 	}
 }
 
