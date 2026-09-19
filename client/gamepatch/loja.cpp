@@ -827,8 +827,6 @@ void IconeCanto(int telaL, int telaA, int* x, int* y) {
 // ali um no do tamanho da faixa de icones, cobrindo a celula da Loja Pessoal, a
 // barra esta aberta.
 
-void DiagNo(float x, float y, float l, float a);
-
 constexpr DWORD kAppendNode = 0x0040C43D;
 const BYTE kAppendNodeBytes[7] = {0x55, 0x8B, 0xEC, 0x83, 0x7D, 0x10, 0x1E};
 constexpr DWORD kNoRetangulo = 0x04;
@@ -844,7 +842,6 @@ extern "C" void __cdecl LojaAnotaNo(DWORD no) {
     const float y = r[1];
     const float l = r[2];
     const float a = r[3];
-    DiagNo(x, y, l, a);
     if (a < 30.0f || a > 48.0f || l < 120.0f || l > 600.0f) {
         return;
     }
@@ -857,42 +854,6 @@ extern "C" void __cdecl LojaAnotaNo(DWORD no) {
     if (x <= esq && x + l >= dir && y <= topo + 2.0f && y + a >= topo + 2.0f) {
         g_faixaVistaEm = GetTickCount();
     }
-}
-
-// Anota, uma vez cada, o retangulo das janelas grandes que passam pelo desenho.
-void DiagNo(float x, float y, float l, float a) {
-    if (g_diag == 0 || l < 200.0f || a < 200.0f) {
-        return;
-    }
-    struct Visto {
-        int x;
-        int y;
-        int l;
-        int a;
-    };
-    static Visto vistos[24];
-    static int nVistos = 0;
-    const int ix = static_cast<int>(x);
-    const int iy = static_cast<int>(y);
-    const int il = static_cast<int>(l);
-    const int ia = static_cast<int>(a);
-    for (int i = 0; i < nVistos; ++i) {
-        if (vistos[i].x == ix && vistos[i].y == iy && vistos[i].l == il && vistos[i].a == ia) {
-            return;
-        }
-    }
-    if (nVistos < 24) {
-        vistos[nVistos].x = ix;
-        vistos[nVistos].y = iy;
-        vistos[nVistos].l = il;
-        vistos[nVistos].a = ia;
-        ++nVistos;
-    }
-    char buf[140];
-    sprintf_s(buf, "=== diag janela: x=%d y=%d larg=%d alt=%d  (ativa=%04X, tela %dx%d)", ix, iy,
-              il, ia, *reinterpret_cast<volatile WORD*>(kIdJanelaAtiva), CamadaTelaL(),
-              CamadaTelaA());
-    Log(buf);
 }
 
 // Toda troca da janela ativa do cliente, para descobrir o id de uma janela - a
@@ -913,8 +874,12 @@ void DiagJanelaAtiva() {
 }
 
 bool BarraAberta() {
+    // Meio segundo, e nao 200 ms: a janela e contada em tempo de relogio, e um
+    // quadro lento (o jogo carregando alguma coisa, ou nos escrevendo no disco)
+    // fazia a barra "fechar" sozinha - e ai o clique no icone caia no jogo, que
+    // abria a lojinha antiga.
     const DWORD agora = GetTickCount();
-    return g_faixaVistaEm != 0 && agora - g_faixaVistaEm < 200;
+    return g_faixaVistaEm != 0 && agora - g_faixaVistaEm < 500;
 }
 
 // --- cliques ---------------------------------------------------------------
