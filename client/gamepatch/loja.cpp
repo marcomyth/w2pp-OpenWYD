@@ -656,7 +656,11 @@ void Repinta() {
         return;
     }
     Pinta(g_tela.dc);
-    TelaFecha(&g_tela, 179);   // os mesmos ~70% do painel de alvos
+    // Opaca de proposito: a loja e uma janela do jogo, nao uma sobreposicao.
+    // O painel de alvos e translucido porque fica sobre a cena e precisa
+    // deixar ver o que esta atras; aqui o que esta atras nao deve aparecer
+    // nem ser clicavel.
+    TelaFecha(&g_tela, 255);
     ++g_versao;
 }
 
@@ -911,6 +915,26 @@ void FechaLojinhaAntiga() {
     }
 }
 
+// --- a tecla Esc -----------------------------------------------------------
+//
+// Com a loja aberta, Esc fecha a loja e NAO chega ao jogo - sem isto ele abria o
+// menu da engrenagem por cima. Quem entrega a tecla e o OnChar do cliente
+// (0x4B0AE6), um metodo virtual que recebe o caractere em [ebp+8] e trata ali
+// mesmo o Tab (9), o Enter (0x0D) e o Esc (0x1B). Engolir a tecla na entrada
+// dele e o ponto mais barato: o jogo nunca soube que ela foi apertada.
+//
+// Devolve 1 quando a tecla era nossa.
+extern "C" int __cdecl LojaTeclaChar(int c) {
+    if (c != 0x1B || !g_aberta) {
+        return 0;
+    }
+    // Um Esc fecha tudo, inclusive a tela de montagem: o que estava montado e
+    // descartado, como acontece ao fechar qualquer janela do jogo pela metade.
+    g_montando = false;
+    g_aberta = false;
+    return 1;
+}
+
 int JanelaVisivel() {
     FechaLojinhaAntiga();   // roda todo quadro: a lojinha antiga nao volta
     RenovaSePreciso();
@@ -1030,10 +1054,60 @@ void DesviaAppendNode() {
                           sizeof(salto));
 }
 
+constexpr DWORD kOnChar = 0x004B0AE6;
+const BYTE kOnCharBytes[6] = {0x55, 0x8B, 0xEC, 0x83, 0xEC, 0x0C};
+
+int g_engoliu = 0;
+
+__declspec(naked) void OnCharHook() {
+    __asm {
+        pushad
+        pushfd
+        movzx eax, byte ptr [esp + 0x28]   // o caractere, argumento da chamada
+        push eax
+        call LojaTeclaChar
+        add esp, 4
+        mov g_engoliu, eax
+        popfd
+        popad
+        cmp g_engoliu, 0
+        je segue
+        ret 8                             // era nossa: o cliente nao a ve
+    segue:
+        push ebp                          // instrucoes originais
+        mov ebp, esp
+        sub esp, 0x0C
+        push 0x004B0AEC              // kOnCharVolta
+        ret
+    }
+}
+
+void DesviaOnChar() {
+    if (memcmp(reinterpret_cast<void*>(kOnChar), kOnCharBytes, sizeof(kOnCharBytes)) != 0) {
+        Log("=== loja: OnChar com bytes diferentes, Esc nao sera tratado");
+        return;
+    }
+    BYTE salto[sizeof(kOnCharBytes)];
+    memset(salto, 0x90, sizeof(salto));
+    salto[0] = 0xE9;
+    const DWORD rel = reinterpret_cast<DWORD>(&OnCharHook) - (kOnChar + 5);
+    memcpy(salto + 1, &rel, sizeof(rel));
+    DWORD antes = 0;
+    if (!VirtualProtect(reinterpret_cast<void*>(kOnChar), sizeof(salto), PAGE_EXECUTE_READWRITE,
+                        &antes)) {
+        return;
+    }
+    memcpy(reinterpret_cast<void*>(kOnChar), salto, sizeof(salto));
+    VirtualProtect(reinterpret_cast<void*>(kOnChar), sizeof(salto), antes, &antes);
+    FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(kOnChar), sizeof(salto));
+    Log("=== loja: Esc desviado em 0x4B0AE6");
+}
+
 struct Registro {
     Registro() {
         CarregaConfig();
         DesviaAppendNode();
+        DesviaOnChar();
         CamadaRegistra(&kCamadaBotao);
         CamadaRegistra(&kCamadaJanela);
     }

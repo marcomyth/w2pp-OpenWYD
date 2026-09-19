@@ -24,6 +24,7 @@ int g_nCamadas = 0;
 int g_telaL = 0;
 int g_telaA = 0;
 bool g_botaoAntes = false;
+bool g_apertoNosso = false;   // o aperto em curso comecou numa camada
 HWND g_jogo = nullptr;
 
 } // namespace
@@ -179,39 +180,69 @@ int CamadaTelaA() {
     return g_telaA;
 }
 
+namespace {
+
+// A camada de cima sob o cursor, com o canto dela. Nulo quando o cursor esta no
+// mundo.
+const Camada* SobCursor(int cx, int cy, int* cantoX, int* cantoY) {
+    for (int i = g_nCamadas - 1; i >= 0; --i) {
+        const Camada* c = g_camadas[i];
+        if (c->visivel() == 0) {
+            continue;
+        }
+        int x = 0;
+        int y = 0;
+        int l = 0;
+        int a = 0;
+        c->medida(g_telaL, g_telaA, &x, &y, &l, &a);
+        if (cx < x || cy < y || cx >= x + l || cy >= y + a) {
+            continue;
+        }
+        *cantoX = x;
+        *cantoY = y;
+        return c;
+    }
+    return nullptr;
+}
+
+} // namespace
+
 // Devolve 1 quando o clique pertence a alguma camada - e entao o jogo nao o ve.
+//
+// O dono e decidido UMA VEZ, na borda do aperto, e vale ate o botao soltar. Sem
+// isto o personagem caminhava ao clicar em algumas partes da loja: o botao
+// Fechar (e o icone) fazem o painel desaparecer no mesmo quadro do clique, e do
+// quadro seguinte em diante o botao - ainda apertado - caia no mundo, que anda
+// para o ponto clicado enquanto o botao estiver em pe. Agora o aperto inteiro
+// pertence a quem o comecou. A regra vale para os dois lados: um aperto que
+// comecou no mundo continua do mundo mesmo que o cursor passe por cima do
+// painel, para nao cortar um arrasto pela metade.
 extern "C" int __cdecl CamadaMouse(int botao) {
     int cx = 0;
     int cy = 0;
     const bool apertado = (botao & 0x80) != 0;
-    bool dentro = false;
-    if (CursorNaTela(&cx, &cy)) {
-        for (int i = g_nCamadas - 1; i >= 0 && !dentro; --i) {
-            const Camada* c = g_camadas[i];
-            if (c->visivel() == 0) {
-                continue;
-            }
-            int x = 0;
-            int y = 0;
-            int l = 0;
-            int a = 0;
-            c->medida(g_telaL, g_telaA, &x, &y, &l, &a);
-            if (cx < x || cy < y || cx >= x + l || cy >= y + a) {
-                continue;
-            }
-            dentro = true;
-            if (apertado && !g_botaoAntes) {
-                c->clique(cx - x, cy - y);
-            }
-        }
-    }
+    const bool temCursor = CursorNaTela(&cx, &cy);
+
+    int cantoX = 0;
+    int cantoY = 0;
+    const Camada* sob = temCursor ? SobCursor(cx, cy, &cantoX, &cantoY) : nullptr;
+
     if (apertado && !g_botaoAntes) {
+        g_apertoNosso = sob != nullptr;
+        if (g_apertoNosso) {
+            sob->clique(cx - cantoX, cy - cantoY);
+        }
         // Pode ter sido o MENU abrindo ou fechando a barra: le o quadro ja no
         // proximo EndScene, em vez de esperar o intervalo normal.
         AmostraUrgente();
+    } else if (!apertado) {
+        g_apertoNosso = false;
     }
     g_botaoAntes = apertado;
-    return dentro ? 1 : 0;
+
+    // Com o botao em pe manda o dono do aperto; em repouso, a camada sob o
+    // cursor - e assim o botao direito e o do meio tambem nao atravessam.
+    return (apertado ? g_apertoNosso : sob != nullptr) ? 1 : 0;
 }
 
 namespace {
