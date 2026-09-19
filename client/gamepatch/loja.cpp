@@ -860,6 +860,110 @@ float g_faixaY = 0.0f;
 float g_faixaL = 0.0f;
 float g_faixaA = 0.0f;
 
+// --- o pedaco que a dica pinta ---------------------------------------------
+//
+// A janela da dica e sempre 307x346, mas ela so pinta onde ha texto: o resto e
+// transparente. Abrir o vao do painel pelo tamanho da janela deixava o mundo
+// aparecendo em volta da caixa - foi o que aconteceu nas duas tentativas.
+//
+// O tamanho de verdade sai do desenho: enquanto a dica esta de pe, toda peca
+// que cai dentro da janela dela e somada num retangulo so. E esse retangulo, e
+// nao a janela, que o painel evita.
+float g_caixaX = 0.0f;
+float g_caixaY = 0.0f;
+float g_caixaX2 = 0.0f;
+float g_caixaY2 = 0.0f;
+float g_caixaJanelaX = -1.0f;
+float g_caixaJanelaY = -1.0f;
+DWORD g_caixaVistaEm = 0;
+
+// A janela da dica, em coordenadas de tela. Devolve 0 quando nao ha.
+bool JanelaDaDica(float* x, float* y, float* l, float* a) {
+    if (!g_aberta || g_dicaItem <= 0 || !EmJogo()) {
+        return false;
+    }
+    const DWORD cena = *reinterpret_cast<const DWORD*>(kCena);
+    if (cena < 0x10000) {
+        return false;
+    }
+    const DWORD janela = *reinterpret_cast<const DWORD*>(cena + 0x58);
+    if (janela < 0x10000) {
+        return false;
+    }
+    const float* r = reinterpret_cast<const float*>(janela + 0x4C);
+    if (r[2] < 20.0f || r[3] < 20.0f) {
+        return false;
+    }
+    *x = r[0];
+    *y = r[1];
+    *l = r[2];
+    *a = r[3];
+    return true;
+}
+
+void SomaNaCaixa(float x, float y, float l, float a) {
+    float jx = 0.0f;
+    float jy = 0.0f;
+    float jl = 0.0f;
+    float ja = 0.0f;
+    if (!JanelaDaDica(&jx, &jy, &jl, &ja)) {
+        return;
+    }
+    // Peca de fora da janela nao conta; a propria janela tambem nao, que e o
+    // retangulo grande e transparente.
+    if (x < jx - 2.0f || y < jy - 2.0f || x + l > jx + jl + 2.0f || y + a > jy + ja + 2.0f) {
+        return;
+    }
+    if (l >= jl - 2.0f && a >= ja - 2.0f) {
+        return;
+    }
+    const DWORD agora = GetTickCount();
+    const bool mudou = jx != g_caixaJanelaX || jy != g_caixaJanelaY;
+    if (mudou || agora - g_caixaVistaEm > 300) {
+        g_caixaJanelaX = jx;
+        g_caixaJanelaY = jy;
+        g_caixaX = x;
+        g_caixaY = y;
+        g_caixaX2 = x + l;
+        g_caixaY2 = y + a;
+    } else {
+        if (x < g_caixaX) {
+            g_caixaX = x;
+        }
+        if (y < g_caixaY) {
+            g_caixaY = y;
+        }
+        if (x + l > g_caixaX2) {
+            g_caixaX2 = x + l;
+        }
+        if (y + a > g_caixaY2) {
+            g_caixaY2 = y + a;
+        }
+    }
+    g_caixaVistaEm = agora;
+}
+
+// O vao que o painel deve evitar: o que a dica pintou, com uma folga de dois
+// pixels para a borda dela nao ficar cortada.
+extern "C" int __cdecl LojaVaoDaDica(int* x, int* y, int* largura, int* altura) {
+    float jx = 0.0f;
+    float jy = 0.0f;
+    float jl = 0.0f;
+    float ja = 0.0f;
+    if (!JanelaDaDica(&jx, &jy, &jl, &ja)) {
+        return 0;
+    }
+    if (GetTickCount() - g_caixaVistaEm > 300 || g_caixaX2 <= g_caixaX ||
+        g_caixaY2 <= g_caixaY) {
+        return 0;
+    }
+    *x = static_cast<int>(g_caixaX) - 2;
+    *y = static_cast<int>(g_caixaY) - 2;
+    *largura = static_cast<int>(g_caixaX2 - g_caixaX) + 4;
+    *altura = static_cast<int>(g_caixaY2 - g_caixaY) + 4;
+    return 1;
+}
+
 // Sonda da caixa de informacao: com diagnostico=1 e o cursor sobre um item do
 // painel, anota o retangulo da janela da dica e o de cada peca desenhada, uma
 // vez cada. E o que falta para o painel abrir um vao do tamanho da caixa - as
@@ -870,7 +974,7 @@ void DiagCaixaDaDica(float x, float y, float l, float a) {
         return;
     }
     static int anotados = 0;
-    if (anotados >= 12) {
+    if (anotados >= 10) {
         return;
     }
     const DWORD cena = *reinterpret_cast<const DWORD*>(kCena);
@@ -882,7 +986,10 @@ void DiagCaixaDaDica(float x, float y, float l, float a) {
         return;
     }
     const float* r = reinterpret_cast<const float*>(janela + 0x4C);
-    if (l < 40.0f || a < 20.0f) {
+    // So pecas grandes: as linhas de texto sao 164x20 e enchiam o registro
+    // antes de o fundo da caixa aparecer. O que interessa e o desenho que cobre
+    // a caixa, e ele e largo.
+    if (l < 150.0f || a < 60.0f) {
         return;
     }
     ++anotados;
@@ -902,6 +1009,7 @@ extern "C" void __cdecl LojaAnotaNo(DWORD no) {
     const float y = r[1];
     const float l = r[2];
     const float a = r[3];
+    SomaNaCaixa(x, y, l, a);
     DiagCaixaDaDica(x, y, l, a);
     if (a < 30.0f || a > 48.0f || l < 120.0f || l > 600.0f) {
         return;

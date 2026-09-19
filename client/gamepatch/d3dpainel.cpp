@@ -25,6 +25,8 @@
 
 #include "camadas.h"
 
+extern "C" int __cdecl LojaVaoDaDica(int* x, int* y, int* largura, int* altura);
+
 namespace {
 bool g_okDoDesenho = true;
 }
@@ -283,6 +285,34 @@ void DesenhaPedaco(IDirect3DDevice9* dev, int cx, int cy, int cl, int ca, int px
     }
 }
 
+// A camada inteira, menos o pedaco onde a dica do jogo pintou. O painel sai no
+// fim do quadro, entao sem este vao ele passaria por cima da caixa de
+// informacao do item - que e do cliente, nao nossa.
+void DesenhaComVao(IDirect3DDevice9* dev, int x, int y, int l, int a) {
+    int vx = 0;
+    int vy = 0;
+    int vl = 0;
+    int va = 0;
+    const bool temVao = LojaVaoDaDica(&vx, &vy, &vl, &va) != 0;
+    const int vx1 = vx + vl;
+    const int vy1 = vy + va;
+    if (!temVao || vx1 <= x || vy1 <= y || vx >= x + l || vy >= y + a) {
+        DesenhaPedaco(dev, x, y, l, a, x, y, l, a);
+        return;
+    }
+    const int cimaAte = vy > y ? vy : y;
+    const int baixoDe = vy1 < y + a ? vy1 : y + a;
+    DesenhaPedaco(dev, x, y, l, a, x, y, l, cimaAte - y);
+    DesenhaPedaco(dev, x, y, l, a, x, baixoDe, l, y + a - baixoDe);
+    const int meioA = baixoDe - cimaAte;
+    if (vx > x) {
+        DesenhaPedaco(dev, x, y, l, a, x, cimaAte, vx - x, meioA);
+    }
+    if (vx1 < x + l) {
+        DesenhaPedaco(dev, x, y, l, a, vx1, cimaAte, x + l - vx1, meioA);
+    }
+}
+
 void DesenhaCamada(IDirect3DDevice9* dev, const Camada* c, Tex* t, int telaL, int telaA) {
     int x = 0;
     int y = 0;
@@ -305,7 +335,7 @@ void DesenhaCamada(IDirect3DDevice9* dev, const Camada* c, Tex* t, int telaL, in
         t->versao = versao;
     }
     dev->SetTexture(0, t->tex);
-    DesenhaPedaco(dev, x, y, l, a, x, y, l, a);
+    DesenhaComVao(dev, x, y, l, a);
 }
 
 void Desenha(IDirect3DDevice9* dev) {
