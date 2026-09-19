@@ -337,7 +337,11 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 		// (_MSG_Attack.cpp "PK - War - Miss": pointPK<=10 && SummonerPointPK>10 ⇒
 		// dam=0 + _DN_CantKillUser). Compares the raw PKPoint byte, not the -75
 		// display value. No geography here either, for the same reason as above.
-		if pvpHit && combatHit && !d.dueling(s.Conn, tid) && int(e.PKPoint) <= 10 && int(target.PKPoint) > 10 {
+		// A evocação responde pelo DONO nesta conta, como no legado
+		// (arvore_evocacao.go): bater no bicho é bater em quem o evocou.
+		pkHit := golpeContaComoPvP(w, s.Conn, tid, target)
+		responsavel := donoDaEvocacao(w, target)
+		if pkHit && combatHit && !d.dueling(s.Conn, responsavel.ID) && int(e.PKPoint) <= 10 && int(responsavel.PKPoint) > 10 {
 			d.sendChatText(w, s, fmt.Sprintf("Voce nao pode atacar este jogador (Pontos Caos: %d)", int(e.PKPoint)-75))
 			writeDamage(payload, i, 0)
 			continue
@@ -511,6 +515,10 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			// The legacy PvP block (pvp.go): every blow on a player or a summon keeps
 			// a quarter ("Perfuração"), and the panel's PvP share rides on top.
 			dmg = perfuracao(target, tid, dmg, airBlade)
+			// O ajuste fino do PvP contra evocação (arvore_evocacao.go). Só aqui,
+			// no caminho do jogador: o golpe de monstro em pet não passa por esta
+			// função, e a resistência dela em PvE fica intacta.
+			dmg = danoEmEvocacao(target, dmg)
 			if pvpHit {
 				dmg = d.applyPvPRule(dmg, skillHit)
 				// Armadura Crítica: extra damage on a Huntress only (arvore_trans.go).
@@ -575,14 +583,24 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			if skillHit && tid != s.Conn && fmMagiaNegra(e) && skillDeDanoDaMagiaNegra(skillnum) {
 				manaRoubada += d.reporMana(w, s, e, rouboDeMana(w.Rand(), e, dmg, tetoDoRouboDeMana(e)-manaRoubada))
 			}
+			// BM Elemental: a ARMA escolhe a barra — lança rouba vida, cajado de
+			// duas mãos rouba mana, nunca as duas (arvore_elemental.go).
+			if skillHit && tid != s.Conn && skillDeDanoDaElemental(skillnum) {
+				vida, mana := d.rouboDaElemental(w.Rand(), e, dmg, tetoDoRouboDeMana(e)-manaRoubada)
+				d.curarPeloRoubo(w, s, e, vida)
+				manaRoubada += d.reporMana(w, s, e, mana)
+			}
 			// Landing a PvP hit against a comparatively clean target (PKPoint>10)
 			// marks BOTH sides Guilty (_MSG_Attack.cpp: SetGuilty(conn,8);
 			// SetGuilty(idx,8)) — re-broadcasting whichever side's nick wasn't
 			// already red. A duel hit must never mark PK (issue #118 acceptance
 			// criteria).
-			if pvpHit && combatHit && !d.dueling(s.Conn, tid) && int(target.PKPoint) > 10 {
+			// Ferir a evocação marca o agressor igual: o legado roda este bloco com
+			// o dono no lugar do alvo (arvore_evocacao.go), e sem isso o bando
+			// viraria um escudo que absorve consequência.
+			if pkHit && combatHit && !d.dueling(s.Conn, responsavel.ID) && int(responsavel.PKPoint) > 10 {
 				d.markGuilty(w, s, e)
-				d.markGuilty(w, w.Session(tid), target)
+				d.markGuilty(w, w.Session(responsavel.ID), responsavel)
 			}
 		} else if dmg < 0 && cast.isSkill && cast.spell.InstanceType == 6 {
 			// Heal: a negative Dam is the healed amount; clamp to the target's max.
@@ -616,6 +634,16 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			// as a chaos-relevant PvP kill — a duel death must not grant/cost PKPoint
 			// or EXP (same exclusion as the Guilty-set gate above).
 			d.pvpKilled(w, e, target)
+		} else if pvpHit {
+			// O REVIDE DO LEGADO, agora também em PvP (_MSG_Attack.cpp:1699 e
+			// :1721). São os dois lados, e os dois importam:
+			//
+			//   - as evocações de QUEM BATE entram contra o alvo, porque elas nunca
+			//     escolhem um jogador sozinhas (validTarget, mobai.go);
+			//   - as evocações de QUEM APANHA entram contra o agressor, que é o que
+			//     faz o bando defender o dono em vez de assistir.
+			d.commandSummons(w, s.Conn, target)
+			d.commandSummons(w, tid, e)
 		}
 		writeDamage(payload, i, int32(dmg))
 	}
@@ -1135,6 +1163,10 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 	} else if fmMagiaNegra(e) && skillDeDanoDaMagiaNegra(skillnum) {
 		// O cajado da FM Magia Negra (arvore_magia_negra.go).
 		caster.ArmaPct = armaPctMagiaNegra(e, d.itemAbility)
+	} else if bmElemental(e) && skillDeDanoDaElemental(skillnum) {
+		// A lança (120%) e o cajado de duas mãos (140%) do BM Elemental
+		// (arvore_elemental.go).
+		caster.ArmaPct = armaPctElemental(e, d.itemAbility)
 	}
 	// CurrentWeather scales InstanceType 2/3/5 output (_MSG_Attack.cpp:520,594,972
 	// → BASE_GetSkillDamage). Weather 0 is neutral, so this is a no-op until a

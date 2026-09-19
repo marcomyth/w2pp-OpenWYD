@@ -149,7 +149,7 @@ func (d *Dispatcher) applyThunderTick(w *world.World, s *world.Session, e *world
 	if !ok {
 		return false
 	}
-	targets := d.thunderTargets(w, e)
+	targets := d.thunderTargets(w, e, varreduraDoTrovao)
 	if len(targets) == 0 {
 		return false
 	}
@@ -226,7 +226,7 @@ func (d *Dispatcher) applyBeastAuraTick(w *world.World, s *world.Session, e *wor
 	if !ok {
 		return false
 	}
-	targets := d.thunderTargets(w, e) // Same 2x2 + 5x5 scan shape as the legacy Type-23 block.
+	targets := d.thunderTargets(w, e, varreduraDaForcaElemental)
 	if len(targets) == 0 {
 		return false
 	}
@@ -257,7 +257,13 @@ func (d *Dispatcher) applyBeastAuraTick(w *world.World, s *world.Session, e *wor
 			if miss := combat.ResolveParry(w.Rand(), 52, d.parryRate(e, target), target.Rsv&world.RsvBlock != 0); miss != 0 {
 				dmg = miss
 			}
+			// Em jogador o tique passa pelo MESMO bloco de PvP do golpe comum
+			// (arvore_elemental.go). Sem ele a Força Elemental entregaria o dano
+			// cheio — sem o ÷4 e sem o percentual do painel — a cada 8 s, em até
+			// seis alvos.
+			dmg = d.aplicarBlocoPvP(w, e, target, dmg, true)
 			dmg = d.applyManaControl(w, e, target, target.ID, dmg)
+			dmg = d.absorbBlow(w, target, dmg, true)
 			target.HP -= int32(dmg)
 			if target.HP < 0 {
 				target.HP = 0
@@ -269,6 +275,13 @@ func (d *Dispatcher) applyBeastAuraTick(w *world.World, s *world.Session, e *wor
 					setGroupBattle(w, target.ID, target, e)
 					d.commandSummons(w, s.Conn, target)
 				}
+			} else if dmg > 0 {
+				// Ferir um jogador é entrar na briga com ele: marca o PvP dos dois
+				// lados e chama as evocações, como o golpe comum faz (combat.go).
+				marcarPvP(e, target, w.Now())
+				d.revelarInvisivel(w, target)
+				d.commandSummons(w, s.Conn, target)
+				d.commandSummons(w, target.ID, e)
 			}
 		}
 		body.Dam = append(body.Dam, protocol.DamEntry{TargetID: int32(target.ID), Damage: int32(dmg)})
@@ -301,10 +314,30 @@ func thunderTargetLimit(calc int) int {
 	return limit
 }
 
-func (d *Dispatcher) thunderTargets(w *world.World, caster *world.Entity) []*world.Entity {
+// alvoDeTique diz a forma da varredura e que alvos um tique de área aceita.
+//
+// O Trovão (33) e a Força Elemental (54) dividem esta função, mas NÃO dividem as
+// regras: o Trovão fica só em monstro, como estava, e quem abriu para jogador foi
+// a Força Elemental. Passar a trava por PARÂMETRO, em vez de tirá-la, é o que
+// impede a decisão tomada para uma skill de vazar para a outra.
+type alvoDeTique struct {
+	quadrados [][3]int // {deslocamento em x, deslocamento em y, lado}
+	emJogador bool
+	maxAlvos  int
+}
+
+// varreduraDoTrovao é a forma do legado: o 2x2 colado no lançador e o 5x5 em volta.
+var varreduraDoTrovao = alvoDeTique{quadrados: [][3]int{{-1, -1, 2}, {-4, -4, 5}}, maxAlvos: 6}
+
+// varreduraDaForcaElemental é o 3x3 que o tooltip do cliente promete — "numa
+// área de 3m x 3m". Ela usava a varredura do Trovão, bem maior: o jogador lia
+// uma coisa e o servidor fazia outra.
+var varreduraDaForcaElemental = alvoDeTique{quadrados: [][3]int{{-1, -1, 3}}, emJogador: true, maxAlvos: 6}
+
+func (d *Dispatcher) thunderTargets(w *world.World, caster *world.Entity, forma alvoDeTique) []*world.Entity {
 	var targets []*world.Entity
 	add := func(id int) {
-		if len(targets) >= 6 || id <= 0 || id == caster.ID {
+		if len(targets) >= forma.maxAlvos || id <= 0 || id == caster.ID {
 			return
 		}
 		for _, t := range targets {
@@ -313,34 +346,36 @@ func (d *Dispatcher) thunderTargets(w *world.World, caster *world.Entity) []*wor
 			}
 		}
 		target := w.Entity(id)
-		if !validThunderTarget(w, caster, target) {
+		if !d.validThunderTarget(w, caster, target, forma.emJogador) {
 			return
 		}
 		targets = append(targets, target)
 	}
-	scan := func(startX, startY, size int) {
-		for yy := startY; yy < startY+size; yy++ {
-			for xx := startX; xx < startX+size; xx++ {
-				id, ok := w.EntityAt(int16(xx), int16(yy))
-				if !ok {
-					continue
+	x, y := int(caster.X), int(caster.Y)
+	for _, q := range forma.quadrados {
+		for yy := y + q[1]; yy < y+q[1]+q[2]; yy++ {
+			for xx := x + q[0]; xx < x+q[0]+q[2]; xx++ {
+				if id, ok := w.EntityAt(int16(xx), int16(yy)); ok {
+					add(id)
 				}
-				add(id)
 			}
 		}
 	}
-	x, y := int(caster.X), int(caster.Y)
-	scan(x-1, y-1, 2)
-	scan(x-4, y-4, 5)
 	return targets
 }
 
-func validThunderTarget(w *world.World, caster, target *world.Entity) bool {
+func (d *Dispatcher) validThunderTarget(w *world.World, caster, target *world.Entity, emJogador bool) bool {
 	if target == nil || target.Mode == world.MobEmpty || target.HP <= 0 {
 		return false
 	}
 	if world.IsPlayer(target.ID) {
-		return false // PK-mode/arena attributes are not modeled; avoid implicit PvP ticks.
+		// O Trovão continua fora do PvP: as condições de PK-mode e arena não
+		// estavam modeladas quando ele foi portado, e abrir os dois de uma vez
+		// mudaria o balanço da Black sem ninguém ter pedido.
+		if !emJogador {
+			return false
+		}
+		return d.tiqueAlcancaJogador(w, caster, target)
 	}
 	if target.NonCombatNPC || target.Rsv&world.RsvHide != 0 || target.Clan == 4 || target.Clan == 6 {
 		return false

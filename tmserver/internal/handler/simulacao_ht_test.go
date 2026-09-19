@@ -166,6 +166,7 @@ func (sm *simulador) aplicar(l *lado, alvo *world.Entity, dmg, airBlade int, ski
 	}
 	pvp := world.IsPlayer(alvo.ID)
 	dmg = perfuracao(alvo, alvo.ID, dmg, airBlade)
+	dmg = danoEmEvocacao(alvo, dmg)
 	if pvp {
 		dmg = sm.d.applyPvPRule(dmg, skill)
 		dmg = danoDoTransContraHT(l.e, alvo, dmg)
@@ -342,7 +343,7 @@ func (sm *simulador) lutaPvE(vida int32, danoX10, defesaX10 int) luta {
 			if dmg > 0 {
 				ht.e.HP = max(0, ht.e.HP-int32(dmg))
 			}
-			proxMob += int64(cadenciaDoGolpe(mob))
+			proxMob += int64(cadenciaDoGolpe(mob, nil))
 		}
 		agora += simPasso
 		if agora%(simTickAfetoS*1000) < simPasso {

@@ -703,11 +703,20 @@ func (d *Dispatcher) passoPresoPelaLentidao(id int, e *world.Entity) bool {
 // velocidade de ataque que a lentidão tira (AffAttackSpeed −30 →
 // 1000 × 100/70 ≈ 1428 ms). Pelo mesmo motivo do passo: sem isso a lentidão não
 // mudava nada no golpe.
-func cadenciaDoGolpe(e *world.Entity) uint32 {
-	if e.AffAttackSpeed < 0 && e.AffAttackSpeed > -100 {
-		return uint32(mobAttackCadence * 100 / (100 + int(e.AffAttackSpeed)))
+//
+// A evocação contra JOGADOR tem cadência própria, bem mais lenta
+// (arvore_evocacao.go): ela bate com muitas cabeças ao mesmo tempo, e no ritmo
+// de monstro o bando sozinho passava a melhor classe do jogo. Contra monstro ela
+// segue o ritmo normal — o PvE dela está calibrado nele.
+func cadenciaDoGolpe(e *world.Entity, alvo *world.Entity) uint32 {
+	base := uint32(mobAttackCadence)
+	if e.Summoner != 0 && alvo != nil && world.IsPlayer(alvo.ID) {
+		base = evocacaoCadenciaMs
 	}
-	return mobAttackCadence
+	if e.AffAttackSpeed < 0 && e.AffAttackSpeed > -100 {
+		return uint32(int(base) * 100 / (100 + int(e.AffAttackSpeed)))
+	}
+	return base
 }
 
 func mobReach(e *world.Entity) int {
@@ -770,16 +779,43 @@ func validTarget(w *world.World, e, target *world.Entity) bool {
 		}
 		return world.ClanHostile(e.Clan, target.Clan)
 	}
-	if e.Summoner != 0 {
-		return false // pets never attack players (clan 4 is friendly, clan.go)
-	}
 	if m, ok := w.SessionMode(target.ID); !ok || m != world.UserPlay {
 		return false
 	}
 	if world.Village(target.X, target.Y) >= 0 {
 		return false // target stepped into a safe city — break off (no chasing into town)
 	}
+	if e.Summoner != 0 {
+		// A evocação SÓ encosta em jogador por REVIDE, como no legado: quem entra
+		// na lista dela é o alvo do dono e quem feriu o dono ou ela
+		// (commandSummons, summon.go, que porta os SetBattle de
+		// _MSG_Attack.cpp:1699/1721). Ela nunca escolhe um jogador sozinha, então
+		// um bando solto não sai caçando gente pelo mapa.
+		//
+		// O portão é a lista, não o alvo já escolhido: selectTargetFromEnemyList
+		// resolve a partir dela, mas qualquer caminho que fixe Target direto
+		// passaria por aqui, e é essa a garantia que se quer.
+		if !naEnemyList(e, target.ID) {
+			return false
+		}
+		// A trela dela é a distância ao DONO, não ao ponto de origem, e quem a
+		// cobra é summonTick antes do mobBattle rodar.
+		return true
+	}
 	return chebyshev(e.SegmentX, e.SegmentY, target.X, target.Y) <= leashRadius
+}
+
+// naEnemyList diz se target já está na lista de inimigos de e.
+func naEnemyList(e *world.Entity, targetID int) bool {
+	if e == nil || targetID <= 0 {
+		return false
+	}
+	for _, id := range e.EnemyList {
+		if id == targetID {
+			return true
+		}
+	}
+	return false
 }
 
 // mobAttack resolves a strike (melee or in-reach ranged — the original uses the
@@ -788,7 +824,7 @@ func validTarget(w *world.World, e, target *world.Entity) bool {
 // via the shared combat formula. Player HP bars update from the Dam entry.
 func (d *Dispatcher) mobAttack(w *world.World, id int, e, target *world.Entity) {
 	now := w.Now()
-	if now < e.AtkTick+cadenciaDoGolpe(e) {
+	if now < e.AtkTick+cadenciaDoGolpe(e, target) {
 		return
 	}
 	// Stagger the FIRST swing of a group across the cadence window. A room's
@@ -1020,6 +1056,18 @@ func (d *Dispatcher) danoDoGolpeDeMonstro(w *world.World, e, target *world.Entit
 		ParryRate:      d.monsterParryRate(e, target),
 		TargetRsvBlock: target.Rsv&world.RsvBlock != 0,
 	})
+	// A evocação contra JOGADOR não usa a conta acima: o golpe dela é o número da
+	// criatura, curvado pela defesa do alvo (arvore_evocacao.go). O motivo está lá
+	// — a subtração por unidade destrói dano pequeno batendo em muitas cabeças.
+	//
+	// A ESQUIVA continua valendo, e é por isso que o ResolveHit acima roda de
+	// qualquer jeito antes: ele já gastou o sorteio do parry na ordem certa, e o
+	// que se aproveita dele aqui é justamente o "errou". Trocar o número sem
+	// deixar o jogador desviar seria tirar dele a única defesa ativa contra o
+	// bando.
+	if dano, ok := d.golpeDaEvocacaoEmJogador(w.Entity(e.Summoner), e, target); ok && dmg > 0 {
+		dmg = dano
+	}
 	// The victim's mount eats its share before the HP comes off, the same place the
 	// legacy applies it on the monster side (Server.cpp:10024,
 	// ProcessSecMinTimer.cpp:2294). byPlayer is false — a pet counts as a monster
