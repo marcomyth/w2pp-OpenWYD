@@ -296,7 +296,9 @@ func TestJulgamentoDivinoNoGolpe(t *testing.T) {
 
 	acertos, menorAcerto := 0, 0
 	for i := range 40 {
-		w.Entity(1).HP = 20_000
+		// A vida é REPOSTA dentro do laço: escrever na ficha da goroutine do teste
+		// enquanto o laço serve é corrida de dados, e aqui era escrita, não leitura.
+		noLaco(t, w, func(w *world.World) { w.Entity(1).HP = 20_000 })
 		clock.Store(serverTime + uint32(i)*1000)
 		skillAttackFrame(t, c, serverTime+uint32(i)*1000, mid, skillJulgamento, -1)
 		for {
@@ -319,7 +321,9 @@ func TestJulgamentoDivinoNoGolpe(t *testing.T) {
 			}
 			break
 		}
-		if hp := w.Entity(1).HP; hp != 6000 {
+		var hp int32
+		noLaco(t, w, func(w *world.World) { hp = w.Entity(1).HP })
+		if hp != 6000 {
 			t.Fatalf("vida depois do Julgamento = %d, want 6000 (30%% de 20.000)", hp)
 		}
 	}

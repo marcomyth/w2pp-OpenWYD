@@ -237,7 +237,11 @@ func TestEspadaMagicaCritaERoubaVidaNoGolpe(t *testing.T) {
 	if criticos == 0 {
 		t.Error("nenhum crítico em 30 golpes (25% de chance cada)")
 	}
-	if hp := w.Entity(1).HP; hp < 4000 {
+	// Dentro do laço: o mundo é de dono único e ler a ficha da goroutine do teste
+	// corre com o desmonte da sessão. A asserção é a mesma.
+	var hp int32
+	noLaco(t, w, func(w *world.World) { hp = w.Entity(1).HP })
+	if hp < 4000 {
 		t.Errorf("HP do TK = %d, want o roubo de vida acima de 4.000 (começou em 1.000)", hp)
 	}
 }
