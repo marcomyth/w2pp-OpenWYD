@@ -1422,6 +1422,40 @@ extern "C" DWORD __cdecl LojaControleDaDica(DWORD achado) {
     return reinterpret_cast<DWORD>(g_controleDaDica);
 }
 
+// A funcao da dica desiste logo na entrada quando o terceiro argumento e zero
+// (0x416B00) - e e zero justamente quando o ponteiro nao esta sobre nenhuma
+// janela do cliente, que e o nosso caso: a loja nao existe para a interface
+// dele. Esse argumento nao e usado em nenhum outro lugar da funcao (conferido:
+// uma unica comparacao em 6 KB de codigo), entao forca-lo a um quando o cursor
+// esta sobre um item do painel nao muda mais nada - so deixa a funcao seguir
+// ate a pergunta de quem esta sob o ponto, onde o nosso item entra.
+extern "C" int __cdecl LojaQuerDicaDoJogo() {
+    return (g_aberta && g_dicaItem > 0) ? 1 : 0;
+}
+
+constexpr DWORD kDicaEntrada = 0x00416A80;
+constexpr DWORD kDicaEntradaVolta = 0x00416A88;
+const BYTE kDicaEntradaBytes[8] = {0x55, 0x8B, 0xEC, 0xB8, 0x98, 0x14, 0x00, 0x00};
+
+__declspec(naked) void DicaEntradaHook() {
+    __asm {
+        pushad
+        pushfd
+        call LojaQuerDicaDoJogo
+        test eax, eax
+        je segue
+        mov dword ptr [esp + 0x30], 1   // o terceiro argumento, na pilha de quem chamou
+    segue:
+        popfd
+        popad
+        push ebp                        // instrucoes originais
+        mov ebp, esp
+        mov eax, 0x1498
+        push kDicaEntradaVolta
+        ret
+    }
+}
+
 __declspec(naked) void PerguntaHook() {
     __asm {
         call dword ptr [edx + 0xB8]   // a pergunta original, com os argumentos ja na pilha
@@ -1457,6 +1491,25 @@ void DesviaDicaDoJogo() {
     VirtualProtect(reinterpret_cast<void*>(kPerguntaQuemEsta), sizeof(salto), antes, &antes);
     FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(kPerguntaQuemEsta),
                           sizeof(salto));
+    if (memcmp(reinterpret_cast<void*>(kDicaEntrada), kDicaEntradaBytes,
+               sizeof(kDicaEntradaBytes)) == 0) {
+        BYTE salto2[sizeof(kDicaEntradaBytes)];
+        memset(salto2, 0x90, sizeof(salto2));
+        salto2[0] = 0xE9;
+        const DWORD rel2 = reinterpret_cast<DWORD>(&DicaEntradaHook) - (kDicaEntrada + 5);
+        memcpy(salto2 + 1, &rel2, sizeof(rel2));
+        DWORD antes2 = 0;
+        if (VirtualProtect(reinterpret_cast<void*>(kDicaEntrada), sizeof(salto2),
+                           PAGE_EXECUTE_READWRITE, &antes2)) {
+            memcpy(reinterpret_cast<void*>(kDicaEntrada), salto2, sizeof(salto2));
+            VirtualProtect(reinterpret_cast<void*>(kDicaEntrada), sizeof(salto2), antes2,
+                           &antes2);
+            FlushInstructionCache(GetCurrentProcess(), reinterpret_cast<void*>(kDicaEntrada),
+                                  sizeof(salto2));
+        }
+    } else {
+        Log("=== loja: a entrada da dica mudou de bytes");
+    }
     Log("=== loja: a dica do jogo passa a descrever o item do painel");
 }
 
