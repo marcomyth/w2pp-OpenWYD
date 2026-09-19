@@ -1513,6 +1513,48 @@ void DesviaDicaDoJogo() {
     Log("=== loja: a dica do jogo passa a descrever o item do painel");
 }
 
+// O retangulo da dica na tela, para o painel nao passar por cima dela.
+//
+// A dica e desenhada pelo cliente ANTES do nosso quadro, entao o painel a
+// cobria. Em vez de redesenha-la (que seria refazer o que ele faz), o painel
+// abre um vao: quem desenha as camadas pula esse pedaco, e o que aparece ali e
+// a caixa do jogo, que ja esta na tela.
+//
+// A janela da dica e o campo +0x58 da cena, e a posicao e o tamanho dela ficam
+// em +0x4C, +0x50, +0x54 e +0x58, em ponto flutuante - e de +0x4C e +0x50 que o
+// proprio cliente tira a posicao, em 0x40C2E0.
+extern "C" int __cdecl LojaVaoDaDica(int* x, int* y, int* largura, int* altura) {
+    if (!g_aberta || g_dicaItem <= 0 || !EmJogo()) {
+        return 0;
+    }
+    const DWORD cena = *reinterpret_cast<const DWORD*>(kCena);
+    if (cena < 0x10000) {
+        return 0;
+    }
+    const DWORD janela = *reinterpret_cast<const DWORD*>(cena + 0x58);
+    if (janela < 0x10000) {
+        return 0;
+    }
+    const float* r = reinterpret_cast<const float*>(janela + 0x4C);
+    const float px = r[0];
+    const float py = r[1];
+    const float pl = r[2];
+    const float pa = r[3];
+    // So aceita medida que faz sentido na tela: qualquer outra coisa quer dizer
+    // que o campo nao e o que eu penso, e ai e melhor desenhar o painel inteiro
+    // do que abrir um buraco no lugar errado.
+    if (pl < 20.0f || pa < 20.0f || pl > 800.0f || pa > 700.0f || px < -100.0f ||
+        py < -100.0f || px > static_cast<float>(CamadaTelaL()) ||
+        py > static_cast<float>(CamadaTelaA())) {
+        return 0;
+    }
+    *x = static_cast<int>(px);
+    *y = static_cast<int>(py);
+    *largura = static_cast<int>(pl);
+    *altura = static_cast<int>(pa);
+    return 1;
+}
+
 // --- as tres camadas -------------------------------------------------------
 // A lojinha antiga esta aposentada: se a janela dela aparecer por qualquer
 // caminho, e fechada na hora. Ela NAO abre a nossa - abrir a nossa e so pelo

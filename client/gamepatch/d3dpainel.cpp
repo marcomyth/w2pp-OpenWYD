@@ -25,6 +25,8 @@
 
 #include "camadas.h"
 
+extern "C" int __cdecl LojaVaoDaDica(int* x, int* y, int* largura, int* altura);
+
 namespace {
 
 typedef HRESULT(WINAPI* EndSceneFn)(IDirect3DDevice9*);
@@ -252,6 +254,61 @@ void AjustaEstado(IDirect3DDevice9* dev) {
     dev->SetSamplerState(0, D3DSAMP_SRGBTEXTURE, FALSE);
 }
 
+// Um pedaco da camada, com as coordenadas de textura tiradas de onde ele esta
+// dentro dela.
+void DesenhaPedaco(IDirect3DDevice9* dev, int cx, int cy, int cl, int ca, int px, int py,
+                   int pl, int pa) {
+    if (pl <= 0 || pa <= 0) {
+        return;
+    }
+    // -0.5 em cada eixo: e a regra do D3D9 para casar texel com pixel.
+    const float x0 = static_cast<float>(px) - 0.5f;
+    const float y0 = static_cast<float>(py) - 0.5f;
+    const float x1 = x0 + static_cast<float>(pl);
+    const float y1 = y0 + static_cast<float>(pa);
+    const float u0 = static_cast<float>(px - cx) / static_cast<float>(cl);
+    const float v0 = static_cast<float>(py - cy) / static_cast<float>(ca);
+    const float u1 = static_cast<float>(px - cx + pl) / static_cast<float>(cl);
+    const float v1 = static_cast<float>(py - cy + pa) / static_cast<float>(ca);
+    const Vertice v[4] = {
+        {x0, y0, 0.0f, 1.0f, u0, v0},
+        {x1, y0, 0.0f, 1.0f, u1, v0},
+        {x0, y1, 0.0f, 1.0f, u0, v1},
+        {x1, y1, 0.0f, 1.0f, u1, v1},
+    };
+    dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, v, sizeof(Vertice));
+}
+
+// A camada inteira, menos o pedaco onde a dica do jogo esta. O painel e
+// desenhado depois da interface do cliente, entao sem este vao ele passaria por
+// cima da caixa de informacao do item - que e dele, nao nossa.
+void DesenhaComVao(IDirect3DDevice9* dev, int x, int y, int l, int a) {
+    int vx = 0;
+    int vy = 0;
+    int vl = 0;
+    int va = 0;
+    const bool temVao = LojaVaoDaDica(&vx, &vy, &vl, &va) != 0;
+    const int vx1 = vx + vl;
+    const int vy1 = vy + va;
+    if (!temVao || vx1 <= x || vy1 <= y || vx >= x + l || vy >= y + a) {
+        DesenhaPedaco(dev, x, y, l, a, x, y, l, a);
+        return;
+    }
+    // Quatro tiras em volta do vao: em cima, embaixo, e as duas laterais do que
+    // sobra no meio.
+    const int cimaAte = vy > y ? vy : y;
+    const int baixoDe = vy1 < y + a ? vy1 : y + a;
+    DesenhaPedaco(dev, x, y, l, a, x, y, l, cimaAte - y);
+    DesenhaPedaco(dev, x, y, l, a, x, baixoDe, l, y + a - baixoDe);
+    const int meioA = baixoDe - cimaAte;
+    if (vx > x) {
+        DesenhaPedaco(dev, x, y, l, a, x, cimaAte, vx - x, meioA);
+    }
+    if (vx1 < x + l) {
+        DesenhaPedaco(dev, x, y, l, a, vx1, cimaAte, x + l - vx1, meioA);
+    }
+}
+
 void DesenhaCamada(IDirect3DDevice9* dev, const Camada* c, Tex* t, int telaL, int telaA) {
     int x = 0;
     int y = 0;
@@ -274,19 +331,7 @@ void DesenhaCamada(IDirect3DDevice9* dev, const Camada* c, Tex* t, int telaL, in
         t->versao = versao;
     }
     dev->SetTexture(0, t->tex);
-
-    // -0.5 em cada eixo: e a regra do D3D9 para casar texel com pixel.
-    const float x0 = static_cast<float>(x) - 0.5f;
-    const float y0 = static_cast<float>(y) - 0.5f;
-    const float x1 = x0 + static_cast<float>(l);
-    const float y1 = y0 + static_cast<float>(a);
-    const Vertice v[4] = {
-        {x0, y0, 0.0f, 1.0f, 0.0f, 0.0f},
-        {x1, y0, 0.0f, 1.0f, 1.0f, 0.0f},
-        {x0, y1, 0.0f, 1.0f, 0.0f, 1.0f},
-        {x1, y1, 0.0f, 1.0f, 1.0f, 1.0f},
-    };
-    dev->DrawPrimitiveUP(D3DPT_TRIANGLESTRIP, 2, v, sizeof(Vertice));
+    DesenhaComVao(dev, x, y, l, a);
 }
 
 void Desenha(IDirect3DDevice9* dev) {
