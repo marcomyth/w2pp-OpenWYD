@@ -59,6 +59,8 @@ func TestItensQueEmpilham(t *testing.T) {
 		"Água A (LV1..Neses)":    {3182, 3186, 3189, 3190},
 		"Barras de gold":         {4010, 4011, 4028, 4029},
 		"Classes A-E e (P)":      {4016, 4019, 4020, 4021, 4024, 4025},
+		"Moedas de Prata":        {4026, 4027},
+		"Moeda de cash":          {3393, 3394},
 	}
 	for nome, idxs := range empilham {
 		for _, idx := range idxs {
@@ -79,8 +81,12 @@ func TestItensQueEmpilham(t *testing.T) {
 		"logo antes da Água N":                   3172,
 		"logo depois da Água A":                  3191,
 		"logo antes das Classes (Capa)":          4015,
-		"logo depois das Classes (Moeda 1Mi)":    4026,
-		"uma espada":                             30,
+		"logo depois das Moedas de Prata":        4030,
+		"logo antes da moeda de cash":            3392,
+		// A Barra de Ouro (3000Cash) é da mesma família das duas acima; fica de
+		// fora porque ninguém pediu, e o teste avisa se ela entrar sem decisão.
+		"Barra de Ouro (3000Cash)": 3395,
+		"uma espada":               30,
 	}
 	for nome, idx := range naoEmpilham {
 		if isSplittable(idx) {
@@ -358,5 +364,31 @@ func TestPrecisaDeDezSoNosSlotsNomeados(t *testing.T) {
 	}
 	if got := umaUnidade(0); got != 1 {
 		t.Errorf("umaUnidade = %d, quero 1", got)
+	}
+}
+
+// TestMoedasDoBauJuntamNumaPilhaSo é o pedido de 20/09/2026, depois de o Marco
+// abrir 128 baús: a Moeda de Prata (5Mi) e a moeda de cash saíam uma por slot e
+// enchiam a bolsa. Com elas na lista de pilha, cada nova cópia cai na pilha que
+// já está lá — inclusive sobre as avulsas de antes, que não têm EF_AMOUNT.
+func TestMoedasDoBauJuntamNumaPilhaSo(t *testing.T) {
+	for _, item := range []int16{itemMoeda5KK, itemMoeda1KK, itemMoedaWYD200} {
+		d, w, e := fixturaPilha(t)
+		e.Equip[fairyEquipSlot] = world.Item{Index: 3902} // Vermelha, a que junta
+		e.Carry[0] = world.Item{Index: item}              // a avulsa que ele já tinha
+
+		for i := 0; i < 9; i++ {
+			if slot := d.putCarryItem(w, e, world.Item{Index: item}); slot != 0 {
+				t.Fatalf("item %d: cópia %d foi para o slot %d, queria a pilha do 0", item, i+1, slot)
+			}
+		}
+		if got := itemAmount(e.Carry[0]); got != 10 {
+			t.Errorf("item %d: pilha ficou com %d, queria 10", item, got)
+		}
+		for i := 1; i < 5; i++ {
+			if !e.Carry[i].Empty() {
+				t.Errorf("item %d: o slot %d foi ocupado à toa", item, i)
+			}
+		}
 	}
 }

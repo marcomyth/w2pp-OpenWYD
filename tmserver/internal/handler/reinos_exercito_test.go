@@ -406,7 +406,9 @@ func TestReinosAvisoDeReiSobAtaque(t *testing.T) {
 	}
 }
 
-// O pacote do Reino: empilhável numa pilha, Moeda em cópias, e nada fora do papel.
+// O pacote do Reino: empilhável numa pilha só, e nada fora do papel. A Moeda de
+// Prata saía em dez cópias soltas até 20/09/2026, quando entrou na lista de
+// pilha (internal/pilha) — agora ela segue a mesma regra dos outros.
 func TestReinosPacotes(t *testing.T) {
 	_, w := reinosFixture(t)
 	tropa := monstroReino(t, w, "Bruxa_", 8, 60000, 1706, 1766, 2674)
@@ -422,7 +424,7 @@ func TestReinosPacotes(t *testing.T) {
 		{"Classe C da tropa", tropa, reinoClasseC, 1, 5},
 		{"Poeira da tropa, sem pacote", tropa, jeffiPoeiraOri, 1, 1},
 		{"Poeira do Rei", rei, jeffiPoeiraOri, 1, 30},
-		{"Moeda do Rei", rei, reinoMoeda5Mi, 10, 1},
+		{"Moeda do Rei", rei, reinoMoeda5Mi, 1, 10},
 		{"Alma do Rei", rei, 1741, 1, 1},
 		{"a mesma Bruxa fora dos Reinos", fora, reinoAmagoAndaluzN, 1, 1},
 	}

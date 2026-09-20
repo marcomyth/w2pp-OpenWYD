@@ -24,6 +24,12 @@ import (
 // TODO prêmio, por baú. Um baú de topo que pague menos de alguma coisa que o baú
 // mais barato é um defeito, e é fácil de introduzir sem querer ao mexer numa
 // linha só — a soma tem de fechar 10.000, então subir um prêmio baixa outro.
+//
+// Ajuste de 20/09/2026, com 128 Supremos abertos em jogo: o âmago de Equipado
+// subiu metade nos dois baús pagos — Supremo 3,6% -> 5,4%, Apoiador 1,8% ->
+// 2,7%. O que desceu para pagar foi a Poeira no Supremo e o Pergaminho no
+// Apoiador, e não o contrário, porque são os dois pontos onde cada baú tinha
+// folga sobre o de baixo: mexer no outro quebraria o invariante logo acima.
 const (
 	itemBauBronze   = 3304
 	itemBauApoiador = 3305
@@ -83,13 +89,13 @@ var bauBronzeTable = []chestPrize{
 // não cai troco — e com o Baú de Experiência entre os principais.
 var bauApoiadorTable = []chestPrize{
 	stackPrize(2400, itemPoeiraLacto, 3),
-	stackPrize(4800, itemPergaAguaN1, 3),
-	stackPrize(6300, itemAmagoLeveN, 10),
-	stackPrize(7600, itemAmagoLeveB, 10),
-	stackPrize(8600, itemBauExp, 3),
-	plainPrize(9400, itemMoeda5KK),
-	plainPrize(9800, itemMoedaWYD200),
-	stackPrize(9920, itemAmagoEquipN, 10),
+	stackPrize(4710, itemPergaAguaN1, 3),
+	stackPrize(6210, itemAmagoLeveN, 10),
+	stackPrize(7510, itemAmagoLeveB, 10),
+	stackPrize(8510, itemBauExp, 3),
+	plainPrize(9310, itemMoeda5KK),
+	plainPrize(9710, itemMoedaWYD200),
+	stackPrize(9890, itemAmagoEquipN, 10),
 	stackPrize(9980, itemAmagoEquipB, 10),
 	plainPrize(9995, itemOvoEquipN),
 	plainPrize(10000, itemOvoEquipB),
@@ -99,13 +105,13 @@ var bauApoiadorTable = []chestPrize{
 // e o Lac só na pilha de 5.
 var bauSupremoTable = []chestPrize{
 	stackPrize(2400, itemPergaAguaN1, 3),
-	stackPrize(4600, itemPoeiraLacto, 5),
-	stackPrize(6100, itemAmagoLeveN, 12),
-	stackPrize(7400, itemAmagoLeveB, 12),
-	stackPrize(8400, itemBauExp, 3),
-	plainPrize(9200, itemMoeda5KK),
-	plainPrize(9600, itemMoedaWYD200),
-	stackPrize(9840, itemAmagoEquipN, 12),
+	stackPrize(4420, itemPoeiraLacto, 5),
+	stackPrize(5920, itemAmagoLeveN, 12),
+	stackPrize(7220, itemAmagoLeveB, 12),
+	stackPrize(8220, itemBauExp, 3),
+	plainPrize(9020, itemMoeda5KK),
+	plainPrize(9420, itemMoedaWYD200),
+	stackPrize(9780, itemAmagoEquipN, 12),
 	stackPrize(9960, itemAmagoEquipB, 12),
 	plainPrize(9990, itemOvoEquipN),
 	plainPrize(10000, itemOvoEquipB),
