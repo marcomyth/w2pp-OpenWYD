@@ -1088,7 +1088,9 @@ func TestEquipBonusHpAddPercent(t *testing.T) {
 }
 
 // TestCanEquipSlot verifies the nPos bitmask gate: an item fits a slot iff nPos has
-// that slot's bit; consumables (nPos 0) fit nowhere; unknown items are allowed.
+// that slot's bit; consumables (nPos 0) fit nowhere; an item the catalog does not
+// know is allowed everywhere EXCEPT the body slot, which decides the character's
+// look and made a chest turn its owner into a "Monster".
 func TestCanEquipSlot(t *testing.T) {
 	d := New(Config{ItemPos: map[int]int{
 		3381: 0,     // Poção Divina: fits nowhere
@@ -1104,7 +1106,9 @@ func TestCanEquipSlot(t *testing.T) {
 		{3381, 0, false}, {11, 0, true}, {11, 1, false},
 		{861, 6, true}, {861, 7, true}, {861, 0, false},
 		{342, 14, true}, {342, 7, false},
-		{0, 0, true}, {9999, 0, true}, // empty + unknown are allowed
+		{0, 0, true},
+		{9999, 1, true},  // unknown item: other slots still allowed
+		{9999, 0, false}, // unknown item: never the body
 	}
 	for _, c := range cases {
 		if got := d.canEquipSlot(c.idx, c.slot); got != c.want {
@@ -1135,6 +1139,29 @@ func TestRepairEquip(t *testing.T) {
 	}
 	if !found {
 		t.Error("displaced potion was not preserved in the inventory")
+	}
+}
+
+// TestRepairEquipCorpoForaDoCatalogo cobre o Baú do Apoiador: um índice que o
+// ItemList.csv do servidor não tem foi aceito no slot do corpo e o personagem
+// passou a aparecer como "Monster". O login tem de desfazer isso sozinho, sem
+// tocar no banco, e devolver o item ao jogador.
+func TestRepairEquipCorpoForaDoCatalogo(t *testing.T) {
+	d := New(Config{ItemPos: map[int]int{11: 1}}) // o catálogo não conhece o 3306
+	st := world.CharacterState{Class: 1}
+	st.Equip[0] = world.Item{Index: 3306} // Baú do Apoiador Supremo virou o corpo
+	d.repairEquip(&st)
+	if st.Equip[0].Index == 3306 {
+		t.Error("o baú continuou no corpo depois do reparo")
+	}
+	achou := false
+	for _, it := range st.Carry {
+		if it.Index == 3306 {
+			achou = true
+		}
+	}
+	if !achou {
+		t.Error("o baú deslocado não voltou para a bolsa")
 	}
 }
 

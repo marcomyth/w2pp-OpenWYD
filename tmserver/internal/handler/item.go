@@ -2103,6 +2103,19 @@ func (d *Dispatcher) canEquipSlot(idx int16, dst int) bool {
 	}
 	pos, ok := d.itemPos[int(idx)]
 	if !ok {
+		// Item fora do ItemList.csv do servidor: 3277 índices de 1 a 6499 estão
+		// nessa situação e 696 deles têm nome no cliente, então recusar em todo
+		// slot arriscaria travar equipamento que hoje funciona. O corpo é a
+		// exceção: quem entra nele vira a aparência do personagem, e um índice
+		// acima de 40 faz o cliente escrever "Monster" no lugar da classe. Sem
+		// nPos no catálogo nada prova que o item é um corpo, então ele não entra
+		// (um Baú do Apoiador entregou-se no slot 0 exatamente assim).
+		//
+		// Sem catálogo montado — tmserver sem -content, e os testes — não há o
+		// que conferir: nesse caso vale a regra antiga, ou ninguém teria corpo.
+		if dst == bodyEquipSlot && len(d.itemPos) > 0 {
+			return false
+		}
 		return true
 	}
 	return pos != 0 && pos&(1<<uint(dst)) != 0
@@ -2264,6 +2277,11 @@ const (
 	// derives WeaponDamage from these two slots' EF_DAMAGE.
 	weaponSlotR = 6
 	weaponSlotL = 7
+
+	// bodyEquipSlot é o corpo (STRUCT_MOB.Equip[0]): não é peça de equipamento,
+	// é a aparência do personagem. A janela C do cliente lê esse índice e, acima
+	// de 40, escreve "Monster" no lugar da classe (WYD.exe 0x4CBDE3).
+	bodyEquipSlot = 0
 )
 
 // itemSanc reads an item's refine ("anc") level from its instance effects, 0..15
