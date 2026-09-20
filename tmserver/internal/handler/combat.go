@@ -562,6 +562,10 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			// Drop the victim's heal target by the damage, or the regen tick heals
 			// it straight back (_MSG_Attack.cpp:1638-1642).
 			damageReqHp(ts, target, int32(dmg))
+			// O Escudo do Tormento devolve parte do golpe em quem bateu
+			// (arvore_natureza.go). Depois do HP sair, porque o que volta é o que
+			// ENTROU — já passado pela absorção, pela montaria e pelo bloco de PvP.
+			d.aplicarReflexaoDoTormento(target, e, dmg)
 			if ts != nil && target.HP != hpBefore {
 				seen := false
 				for _, syncID := range hpSyncTargets {
@@ -595,7 +599,7 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			// SetGuilty(idx,8)) — re-broadcasting whichever side's nick wasn't
 			// already red. A duel hit must never mark PK (issue #118 acceptance
 			// criteria).
-			// Ferir a evocação marca o agressor igual: o legado roda este bloco com
+			// Ferir a evocação marca o atacante igual: o legado roda este bloco com
 			// o dono no lugar do alvo (arvore_evocacao.go), e sem isso o bando
 			// viraria um escudo que absorve consequência.
 			if pkHit && combatHit && !d.dueling(s.Conn, responsavel.ID) && int(responsavel.PKPoint) > 10 {
@@ -640,7 +644,7 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			//
 			//   - as evocações de QUEM BATE entram contra o alvo, porque elas nunca
 			//     escolhem um jogador sozinhas (validTarget, mobai.go);
-			//   - as evocações de QUEM APANHA entram contra o agressor, que é o que
+			//   - as evocações de QUEM APANHA entram contra o atacante, que é o que
 			//     faz o bando defender o dono em vez de assistir.
 			d.commandSummons(w, s.Conn, target)
 			d.commandSummons(w, tid, e)

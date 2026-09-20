@@ -29,7 +29,7 @@ func TestEvocacaoNaoDesabaContraAlvoBlindado(t *testing.T) {
 	fraco := danoDaEvocacaoEmJogador(tigre, evocacaoMaestriaCheia, 1500)
 	medio := danoDaEvocacaoEmJogador(tigre, evocacaoMaestriaCheia, 2200)
 	forte := danoDaEvocacaoEmJogador(tigre, evocacaoMaestriaCheia, 3000)
-	if !(fraco > medio && medio > forte) {
+	if fraco <= medio || medio <= forte {
 		t.Fatalf("a defesa tem de pesar: %d / %d / %d", fraco, medio, forte)
 	}
 	// Teto de 2× entre as pontas. Com a subtração isto dava 6,6×, que é o que a

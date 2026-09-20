@@ -150,7 +150,7 @@ func (d *Dispatcher) tiqueAlcancaJogador(w *world.World, caster, target *world.E
 // Existe porque a Força Elemental fere por um TIQUE, fora do laço de dano do
 // _MSG_Attack, e sem isto ela entregaria o dano CHEIO em jogador — sem o ÷4 e
 // sem os 37%, o que a tornaria de longe a coisa mais forte do jogo.
-func (d *Dispatcher) aplicarBlocoPvP(w *world.World, e, target *world.Entity, dmg int, skill bool) int {
+func (d *Dispatcher) aplicarBlocoPvP(_ *world.World, e, target *world.Entity, dmg int, skill bool) int {
 	if dmg <= 0 || !world.IsPlayer(target.ID) {
 		return dmg
 	}

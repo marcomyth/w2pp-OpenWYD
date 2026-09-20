@@ -51,6 +51,8 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 		applyPassivasDoTrans(e, itemAbility) // TK: Noção de Combate, armas de 2 mãos (arvore_trans.go)
 		// FM Cancelamento: os buffs dela valem em dobro nela mesma (arvore_magia_especial.go).
 		applyPassivasDaEspecial(e, e.Class == 1 && e.LearnedSkill&0x80000 != 0, itemAbility)
+		// BM Natureza: a empunhadura decide o dano e o crítico (arvore_natureza.go).
+		applyPassivasDaNatureza(e, itemAbility)
 	}()
 	if !e.HasAnyAffect() {
 		return

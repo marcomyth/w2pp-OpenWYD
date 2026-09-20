@@ -1078,7 +1078,13 @@ func (d *Dispatcher) danoDoGolpeDeMonstro(w *world.World, e, target *world.Entit
 	// garnet.go has the rule. A pet swinging at a player is not a thing
 	// (validTarget), and absorverGarnet ignores any target that is not one.
 	dmg = d.absorverGarnet(e, target, dmg)
-	return d.absorbBlow(w, target, dmg, false)
+	dmg = d.absorbBlow(w, target, dmg, false)
+	// O Escudo do Tormento cobra também de MONSTRO que bate no BM
+	// (arvore_natureza.go): a tooltip diz "todos que atacarem o personagem", e
+	// não só jogadores. Contra monstro ela mata normalmente — o piso de vida
+	// existe para não frustrar um jogador, e aqui não há jogador nenhum.
+	d.aplicarReflexaoDoTormento(target, e, dmg)
+	return dmg
 }
 
 // concluirGolpeDeMonstro é o que vem depois do golpe no alvo principal: a magia e
