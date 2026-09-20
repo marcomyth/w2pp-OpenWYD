@@ -29,8 +29,9 @@ import (
 // abertas, então fechar a lojinha tira as ofertas do ar no mesmo instante.
 
 // LojaPorPagina é quantas ofertas cabem numa página — a grade do painel do
-// cliente tem 8 colunas por 4 linhas.
-const LojaPorPagina = 32
+// cliente tem 5 colunas por 7 linhas, e é ela quem manda: com 32 aqui, toda
+// página cheia chegava com três quadrados vazios no fim.
+const LojaPorPagina = 35
 
 // lojaNomeLen é o buffer do nome do vendedor, como em MAX_NAME.
 const lojaNomeLen = 16
@@ -368,5 +369,28 @@ func (m *LojaListaBody) Decode(b []byte) error {
 	for i := 0; i < LojaPorPagina; i++ {
 		m.Ofertas[i].decode(b[lojaCabecalhoLista+i*LojaOfertaSize:])
 	}
+	return nil
+}
+
+// LojaMudouBody é o bilhete que avisa o painel de que o mercado mudou. São
+// quatro bytes: a versão nova. O painel compara com a que ele tem e decide se
+// vale pedir a página de novo - quem guarda a vitrine é ele, não o servidor.
+type LojaMudouBody struct {
+	Versao int32
+}
+
+const LojaMudouBodySize = 4
+
+func (m LojaMudouBody) Encode() []byte {
+	b := make([]byte, LojaMudouBodySize)
+	binary.LittleEndian.PutUint32(b, uint32(m.Versao))
+	return b
+}
+
+func (m *LojaMudouBody) Decode(b []byte) error {
+	if len(b) < LojaMudouBodySize {
+		return fmt.Errorf("loja: bilhete de %d bytes, esperava %d", len(b), LojaMudouBodySize)
+	}
+	m.Versao = int32(binary.LittleEndian.Uint32(b))
 	return nil
 }

@@ -108,26 +108,27 @@ const (
 	// Loja do Servidor: a vitrine global das barracas abertas. Nao existem no
 	// cliente original - sao nossos, na faixa 0x0Fxx, que o WYD.exe nao usa. Ver
 	// protocol/lojaservidor.go.
-	MsgLojaPede  Type = 0x0F01 // C->S  pede uma pagina da vitrine
-	MsgLojaLista Type = 0x0F02 // S->C  uma pagina de ofertas
-	MsgLojaMoeda  Type = 0x0F03 // C->S  a moeda de um item da minha barraca
-	MsgLojaCompra      Type = 0x0F04 // C->S  comprar uma oferta da vitrine
-	MsgLojaCargo       Type = 0x0F05 // C->S  pede o cofre, para montar a barraca
-	MsgLojaCargoLista  Type = 0x0F06 // S->C  o cofre item a item
-	MsgLojaAbrir       Type = 0x0F07 // C->S  abre a barraca com precos e moedas
-	MsgLojaAbriu       Type = 0x0F08 // S->C  a barraca subiu, com o id dela
-	MsgLojaMercado     Type = 0x0F09 // S->C  clicou numa barraca: abre o mercado
-	MsgLojaFecha       Type = 0x0F0A // C->S  fechei o painel, pare de me avisar
-	MsgRestart             Type = 0x0289 // 649
-	MsgRemoveParty         Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)
-	MsgSendReqParty        Type = 0x037F // 895  invite to party
-	MsgAcceptParty         Type = 0x03AB // 939  accept invite
-	MsgInviteGuild         Type = 0x03D5 // 981  invite to guild (MSG_STANDARDPARM2)
-	MsgGuildAlly           Type = 0x0E12 // 3602 guild alliance
-	MsgWar                 Type = 0x0E0E // 3598 declare guild war (MSG_STANDARDPARM2)
-	MsgChallange           Type = 0x028E // 654  zone challenge / tax (MSG_STANDARDPARM)
-	MsgChallangeConfirm    Type = 0x028F // 655  confirm challenge (MSG_STANDARDPARM2)
-	MsgPing                Type = 0x03A0 // 928  keepalive — no-op on receive (§2)
+	MsgLojaPede         Type = 0x0F01 // C->S  pede uma pagina da vitrine
+	MsgLojaLista        Type = 0x0F02 // S->C  uma pagina de ofertas
+	MsgLojaMoeda        Type = 0x0F03 // C->S  a moeda de um item da minha barraca
+	MsgLojaCompra       Type = 0x0F04 // C->S  comprar uma oferta da vitrine
+	MsgLojaCargo        Type = 0x0F05 // C->S  pede o cofre, para montar a barraca
+	MsgLojaCargoLista   Type = 0x0F06 // S->C  o cofre item a item
+	MsgLojaAbrir        Type = 0x0F07 // C->S  abre a barraca com precos e moedas
+	MsgLojaAbriu        Type = 0x0F08 // S->C  a barraca subiu, com o id dela
+	MsgLojaMercado      Type = 0x0F09 // S->C  clicou numa barraca: abre o mercado
+	MsgLojaFecha        Type = 0x0F0A // C->S  fechei o painel, pare de me avisar
+	MsgLojaMudou        Type = 0x0F0B // S->C  o mercado mudou; peca a pagina se estiver olhando
+	MsgRestart          Type = 0x0289 // 649
+	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)
+	MsgSendReqParty     Type = 0x037F // 895  invite to party
+	MsgAcceptParty      Type = 0x03AB // 939  accept invite
+	MsgInviteGuild      Type = 0x03D5 // 981  invite to guild (MSG_STANDARDPARM2)
+	MsgGuildAlly        Type = 0x0E12 // 3602 guild alliance
+	MsgWar              Type = 0x0E0E // 3598 declare guild war (MSG_STANDARDPARM2)
+	MsgChallange        Type = 0x028E // 654  zone challenge / tax (MSG_STANDARDPARM)
+	MsgChallangeConfirm Type = 0x028F // 655  confirm challenge (MSG_STANDARDPARM2)
+	MsgPing             Type = 0x03A0 // 928  keepalive — no-op on receive (§2)
 
 	// Personal shop / autotrade (issue #115, Basedef.h:2165-2325). SendAutoTrade is
 	// bidirectional: C→S opens the shop, S→C (SendAutoTrade) lists it back.

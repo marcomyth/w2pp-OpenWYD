@@ -44,20 +44,9 @@ func pedeVitrine(t *testing.T, c net.Conn, pagina, filtro int16) protocol.LojaLi
 	t.Helper()
 	pede := protocol.LojaPedeBody{Pagina: pagina, Filtro: filtro}
 	send(t, c, protocol.MsgLojaPede, pede.Encode())
+	// A lista so chega como resposta a este pedido: o que o servidor empurra
+	// quando o mercado muda e um bilhete de quatro bytes, nao a pagina.
 	payload, _ := readUntil(t, c, protocol.MsgLojaLista)
-	// O servidor tambem EMPURRA a vitrine quando o mercado muda, entao pode
-	// haver mais de uma lista na fila. Vale a ultima, que e a regra do painel
-	// de verdade: lista nova substitui a anterior. Ler so a primeira faria o
-	// teste comprar por uma pagina velha - foi o que aconteceu.
-	for {
-		ty, corpo, ok := readMaybe(t, c)
-		if !ok {
-			break
-		}
-		if ty == protocol.MsgLojaLista {
-			payload = corpo
-		}
-	}
 	var lista protocol.LojaListaBody
 	if err := lista.Decode(payload); err != nil {
 		t.Fatalf("decodificando a vitrine: %v", err)
@@ -525,5 +514,47 @@ func TestJanelaAntigaDeBarracaNaoAbreMais(t *testing.T) {
 
 	if lista := pedeVitrine(t, vendedor, 0, protocol.LojaFiltroTodos); lista.Total != 0 {
 		t.Errorf("o fluxo antigo montou barraca: %d ofertas; queria 0", lista.Total)
+	}
+}
+
+// O servidor avisa quem está com o painel aberto, e para de avisar quando o
+// painel fecha. O aviso é um bilhete de quatro bytes: a página quem guarda é o
+// painel, na sessão de quem está jogando.
+func TestMercadoAvisaQuemEstaOlhando(t *testing.T) {
+	const item = int16(1030)
+	addr, stop, _ := startServerClock(t, autotradeDB(item))
+	defer stop()
+	vendedor := enterWorldAs(t, addr, "tester")
+	defer vendedor.Close()
+	comprador := enterWorldAs(t, addr, "tradeb")
+	defer comprador.Close()
+
+	// Pedir a vitrine é o que declara "estou olhando".
+	pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos)
+
+	abreBarraca(t, vendedor, "Minha Loja", 0, 1000, protocol.LojaMoedaOuro)
+
+	payload, _ := readUntil(t, comprador, protocol.MsgLojaMudou)
+	var bilhete protocol.LojaMudouBody
+	if err := bilhete.Decode(payload); err != nil {
+		t.Fatalf("decodificando o bilhete: %v", err)
+	}
+	if bilhete.Versao < 1 {
+		t.Fatalf("versão do mercado = %d; queria pelo menos 1", bilhete.Versao)
+	}
+
+	// Fechou o painel: o que mudar daqui para frente não é mais avisado.
+	send(t, comprador, protocol.MsgLojaFecha, nil)
+	pedeVitrine(t, vendedor, 0, protocol.LojaFiltroMeus) // ida e volta: o fecha já foi tratado
+	vendedor.Close()
+
+	for {
+		ty, _, ok := readMaybe(t, comprador)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgLojaMudou {
+			t.Fatal("chegou aviso depois de o painel fechar")
+		}
 	}
 }

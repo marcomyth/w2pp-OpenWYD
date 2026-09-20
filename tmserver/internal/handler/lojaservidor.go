@@ -116,42 +116,37 @@ func lojaPassaNoFiltro(filtro int16, moeda uint8) bool {
 }
 
 // lojaPede responde MsgLojaPede com uma página da vitrine.
-// --- o cache da vitrine -----------------------------------------------------
+// --- quem guarda a vitrine é o painel ---------------------------------------
 //
-// Montar a lista varrendo todas as sessões a cada pedido não escala: o painel
-// pergunta a cada poucos segundos, e o servidor cheio tem mil conexões com até
-// doze prateleiras cada. A lista agora é montada UMA VEZ e reaproveitada até
-// alguém mexer no mercado — abrir barraca, fechar, comprar ou trocar a moeda de
-// um item. Quem mexe chama mercadoMudou.
+// O servidor não guarda vitrine nenhuma. A lista é montada na hora de cada
+// pedido e jogada fora; o que fica guardado é o que o painel do jogador já tem
+// na tela, e esse cache vive na sessão dele: acabou a sessão, acabou o cache
+// (decisão da Josiel, 20/09/2026).
 //
-// O cache guarda a lista sem filtro; filtrar por moeda é uma passada barata
-// sobre ela. O que não entra no cache é o "meus itens", que depende de quem
-// pergunta — esse continua sendo montado na hora, e é curto por natureza.
-type mercadoCache struct {
-	ofertas []protocol.LojaOferta
-	valido  bool
-}
-
-// mercadoMudou invalida a vitrine e avisa quem esta com o painel aberto.
+// O painel também não pergunta de tempos em tempos. Quando o mercado muda -
+// abrir barraca, fechar, comprar, trocar a moeda de um item -, o servidor manda
+// um bilhete de quatro bytes com a versão nova, e o painel decide se vale pedir
+// de novo: só a página visível, e com freio de um segundo.
 //
-// É o contrário do que era: em vez de o cliente perguntar de poucos em poucos
-// segundos — pergunta que, com mil jogadores, vira mil varreduras por segundo
-// sem nada ter mudado —, o servidor manda a página nova no instante em que o
-// mercado muda. Quem não está olhando não recebe nada.
+// A conta que justifica o bilhete, medida num processo cheio (999 barracas de
+// doze prateleiras, doze mil ofertas): empurrar a página pronta custava 1,26 ms
+// e 2,4 MB POR OBSERVADOR, isto é 1,25 s de laço parado e 2,4 GB de lixo em cada
+// compra. O laço é de uma linha só - nesse tempo ninguém anda nem bate -, e a
+// fila de saída tem 512 quadros: enchendo, o servidor derruba a conexão.
 //
 // Chamado de onde o mercado muda de forma: lojaAbrir, closeAutoTrade,
 // lojaCompra e lojaMoeda.
 func (d *Dispatcher) mercadoMudou(w *world.World) {
-	d.mercado.valido = false
-	d.mercado.ofertas = nil
+	d.mercadoVersao++
 	if w == nil {
 		return
 	}
+	corpo := protocol.LojaMudouBody{Versao: d.mercadoVersao}.Encode()
 	w.ForEachSession(func(s *world.Session, e *world.Entity) {
 		if s == nil || e == nil || !s.LojaAberta {
 			return
 		}
-		d.mandaVitrine(w, s, e, s.LojaPagina, s.LojaFiltro)
+		w.SendTo(s, protocol.Header{Type: protocol.MsgLojaMudou, ID: protocol.IDScene}, corpo)
 	})
 }
 
@@ -159,17 +154,6 @@ func (d *Dispatcher) mercadoMudou(w *world.World) {
 // aquela sessão. Sem isto o aviso continuaria indo para quem nem está olhando.
 func (d *Dispatcher) lojaFecha(_ *world.World, s *world.Session, _ protocol.Header, _ []byte) {
 	s.LojaAberta = false
-}
-
-// mercadoOfertas devolve a lista do servidor inteiro, do cache quando ele ainda
-// vale.
-func (d *Dispatcher) mercadoOfertas(w *world.World) []protocol.LojaOferta {
-	if d.mercado.valido {
-		return d.mercado.ofertas
-	}
-	d.mercado.ofertas = lojaOfertasAbertas(w, nil, nil, protocol.LojaFiltroTodos)
-	d.mercado.valido = true
-	return d.mercado.ofertas
 }
 
 func (d *Dispatcher) lojaPede(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
@@ -194,18 +178,19 @@ func (d *Dispatcher) lojaPede(w *world.World, s *world.Session, _ protocol.Heade
 // ao aviso que o servidor manda quando o mercado muda.
 func (d *Dispatcher) mandaVitrine(w *world.World, s *world.Session, e *world.Entity,
 	qualPagina, filtro int16) {
-	var ofertas []protocol.LojaOferta
-	if filtro == protocol.LojaFiltroMeus {
-		// A minha barraca é curta e só interessa a mim: não vale cache.
-		ofertas = lojaOfertasAbertas(w, s, e, filtro)
-	} else {
-		for _, o := range d.mercadoOfertas(w) {
-			if lojaPassaNoFiltro(filtro, o.Moeda) {
-				ofertas = append(ofertas, o)
-			}
+	// Montada agora e jogada fora: o cache e do painel, na sessao dele.
+	ofertas := lojaOfertasAbertas(w, s, e, filtro)
+
+	// Duas passadas pela lista, sem copia-la: a primeira conta o que o filtro
+	// deixa entrar, a segunda recorta a pagina pedida. Copiar a lista filtrada
+	// para dela tirar 32 ofertas custava 1,26 ms e 2,4 MB por pedido; assim sao
+	// 28 us e dois quilos de bytes.
+	total := 0
+	for i := range ofertas {
+		if lojaPassaNoFiltro(filtro, ofertas[i].Moeda) {
+			total++
 		}
 	}
-	total := len(ofertas)
 	paginas := (total + protocol.LojaPorPagina - 1) / protocol.LojaPorPagina
 	if paginas < 1 {
 		paginas = 1
@@ -227,9 +212,16 @@ func (d *Dispatcher) mandaVitrine(w *world.World, s *world.Session, e *world.Ent
 		RMT:     s.Rmt,
 	}
 	inicio := pagina * protocol.LojaPorPagina
-	for i := 0; i < protocol.LojaPorPagina && inicio+i < total; i++ {
-		corpo.Ofertas[i] = ofertas[inicio+i]
-		corpo.Qtd++
+	vistas := 0
+	for i := range ofertas {
+		if !lojaPassaNoFiltro(filtro, ofertas[i].Moeda) {
+			continue
+		}
+		if vistas >= inicio && int(corpo.Qtd) < protocol.LojaPorPagina {
+			corpo.Ofertas[corpo.Qtd] = ofertas[i]
+			corpo.Qtd++
+		}
+		vistas++
 	}
 	w.SendTo(s, protocol.Header{Type: protocol.MsgLojaLista, ID: protocol.IDScene}, corpo.Encode())
 }
@@ -256,5 +248,5 @@ func (d *Dispatcher) lojaMoeda(w *world.World, s *world.Session, _ protocol.Head
 		return
 	}
 	s.AutoTrade.Moeda[corpo.Slot] = corpo.Moeda
-	d.mercadoMudou(w)   // a oferta mudou de moeda
+	d.mercadoMudou(w) // a oferta mudou de moeda
 }
