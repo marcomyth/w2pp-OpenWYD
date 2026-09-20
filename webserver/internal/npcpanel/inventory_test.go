@@ -190,13 +190,20 @@ func TestOnlyShopsReal(t *testing.T) {
 		t.Errorf("merchant split = %d/%d, want 89/8", m1, m19)
 	}
 
-	// Eight shopkeepers ship with an entirely zero Carry[] — verified against the
+	// Nine shopkeepers ship with an entirely zero Carry[] — verified against the
 	// raw 816-byte templates, so this is content, not a decoding failure. Pinning
 	// the exact set means a real decoding regression (which would empty many more)
 	// still fails here.
+	//
+	// Evento-6071 entrou nessa lista na limpeza de lançamento: a vitrine dele
+	// inteira era uma Bolsa da Sorte, e o item saiu de toda loja e de todo mob
+	// (migração 0085). O NPC em si é desativado pela 0083, mas este escopo lê a
+	// ÁRVORE DE CONTEÚDO, não o banco, então ele continua aparecendo aqui — agora
+	// de vitrine vazia.
 	wantEmpty := map[string]bool{
 		"Prona-22": true, "Prona-4232": true, "Irena_-289": true, "Lainy-286": true,
 		"RoPerion-288": true, "Balmers-271": true, "Naomi-273": true, "Rubyen-272": true,
+		"Evento-6071": true,
 	}
 	gotEmpty := map[string]bool{}
 	for _, n := range shops.NPCs {
