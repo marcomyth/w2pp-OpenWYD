@@ -31,6 +31,7 @@ constexpr WORD kMsgCofreLista = 0x0F06;
 constexpr WORD kMsgAbrir = 0x0F07;
 constexpr WORD kMsgAbriu = 0x0F08;
 constexpr WORD kMsgMercado = 0x0F09;
+constexpr WORD kMsgFecha = 0x0F0A;
 
 constexpr int kMaxCofre = 128;
 constexpr int kMaxPrateleiras = 12;
@@ -138,6 +139,10 @@ void LojaRedeAbre(const char* titulo, const LojaPrateleira* prateleiras, int qua
         *reinterpret_cast<int*>(p + 4) = tem ? prateleiras[i].preco : 0;
     }
     Envia(kMsgAbrir, corpo, sizeof(corpo));
+}
+
+void LojaRedeFecha() {
+    Envia(kMsgFecha, nullptr, 0);
 }
 
 bool LojaRedeRespondeu() {

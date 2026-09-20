@@ -343,13 +343,24 @@ void PedeAoServidor() {
 
 // Enquanto o painel esta aberto a lista e renovada de tempos em tempos: barraca
 // que abre ou fecha muda a vitrine, e ninguem avisa.
+// O painel nao pergunta mais de tempos em tempos.
+//
+// Perguntar de tres em tres segundos era varrer o mercado inteiro do servidor
+// por jogador com o painel aberto, quase sempre para receber a mesma lista.
+// Agora o servidor avisa: ele sabe quem esta olhando e manda a pagina nova no
+// instante em que o mercado muda (handler.mercadoMudou). O painel so pergunta
+// quando abre, quando troca de pagina ou de filtro, e depois das proprias
+// acoes - e avisa quando fecha, para o servidor tirar ele da lista.
 void RenovaSePreciso() {
-    if (!g_aberta) {
+    static bool estavaAberta = false;
+    if (g_aberta == estavaAberta) {
         return;
     }
-    const DWORD agora = GetTickCount();
-    if (agora - g_ultimoPedido > 3000) {
+    estavaAberta = g_aberta;
+    if (g_aberta) {
         PedeAoServidor();
+    } else {
+        LojaRedeFecha();
     }
 }
 

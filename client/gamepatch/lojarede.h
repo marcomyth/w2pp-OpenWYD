@@ -57,6 +57,10 @@ const LojaItemCofre* LojaRedeCofreItem(int i);
 // Manda montar a barraca. Sem título: o servidor usa o nome do personagem.
 void LojaRedeAbre(const char* titulo, const LojaPrateleira* prateleiras, int quantas);
 
+// Avisa o servidor de que o painel fechou: ele para de mandar a vitrine quando
+// o mercado mudar.
+void LojaRedeFecha();
+
 // 1 quando o servidor avisou que o jogador clicou numa barraca na cidade e a
 // vitrine deve abrir. Consome o aviso.
 int LojaRedePedidoMercado();
