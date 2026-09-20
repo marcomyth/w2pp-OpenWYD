@@ -4150,6 +4150,44 @@ func newTestPanelJogoPlat(t *testing.T, j Live, p Platform) http.Handler {
 	return h.Routes()
 }
 
+// TestAbaServidorDizDeQueHoraEALeitura: a página não se atualiza sozinha (é
+// deliberado — um refresh em laço atravessaria a fila do laço de dono único), e
+// por isso ela TEM de dizer de que hora é o número. Sem isso, um print do jogo
+// com nível 353 ao lado do painel com 352 parece o painel mentindo, que é
+// exatamente o que a Hanna reportou.
+func TestAbaServidorDizDeQueHoraEALeitura(t *testing.T) {
+	get := signedIn(t, newTestPanelJogoPlat(t, &fakeJogo{estado: estadoDeTeste()}, newFakePlatform()))
+	body := get("/servidor?ordem=nivel&dir=desc").Body.String()
+
+	if !strings.Contains(body, "Estado de ") {
+		t.Error("a aba Servidor não diz de que hora é a leitura")
+	}
+	if !strings.Contains(body, "não se atualiza sozinha") {
+		t.Error("a página não avisa que o número não se atualiza sozinho")
+	}
+	if !strings.Contains(body, "Atualizar agora") {
+		t.Error("a aba Servidor não oferece o botão de atualizar")
+	}
+	// O botão preserva a ordenação escolhida: atualizar não pode desfazer o
+	// clique na coluna.
+	if !strings.Contains(body, "ordem=nivel") {
+		t.Error("o botão de atualizar não preserva a ordenação")
+	}
+}
+
+// TestAtualizarNaoRepeteOAviso: o endereço do botão descarta o aviso, senão cada
+// atualização repetiria o recado de uma ação já feita e pareceria que ela
+// aconteceu de novo.
+func TestAtualizarNaoRepeteOAviso(t *testing.T) {
+	get := signedIn(t, newTestPanelJogoPlat(t, &fakeJogo{estado: estadoDeTeste()}, newFakePlatform()))
+	body := get("/servidor?aviso=Reinicio+pedido").Body.String()
+
+	if !strings.Contains(body, `href="/servidor"`) {
+		t.Errorf("o botão de atualizar carregou o aviso junto: %s",
+			body[max(0, strings.Index(body, "Atualizar agora")-160):])
+	}
+}
+
 func TestAbaServidorTrazOBotaoDeReiniciar(t *testing.T) {
 	// The only restart button used to live on Início. This tab is where anyone
 	// looks for a server control, and finding kick and broadcast but no restart

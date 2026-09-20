@@ -875,6 +875,40 @@ func TestSimuladorPuxaOsNumerosDoMonstro(t *testing.T) {
 	}
 }
 
+// TestSimuladorDizOndeOMonstroNasce é o conserto do erro que custou uma noite: a
+// planejadora escolheu Adamant_Tauron aqui para simular "o bicho do Pilar", e ele
+// vive no Deserto Lugefer. A página de ficha já mostrava a origem; esta tela, que é
+// onde o monstro é ESCOLHIDO, não mostrava nada.
+func TestSimuladorDizOndeOMonstroNasce(t *testing.T) {
+	h := newTestPanelMesaComJogo(t, roleAdmin, newFakeMesa(), newFakeAudit(), newFakeGameData())
+	corpo := abrirMesa(t, h, "?simular=1&zona=0&evolucao=2&mob=Kentania&nivel=10").Body.String()
+
+	for _, quero := range []string{
+		"Onde Kentania nasce",
+		"Água Místico",
+		"até 24 por vez",
+		// Se renasce é obrigatório: bloco que não renasce é bolo único, não lugar
+		// de farmar, e a conta de ritmo sai errada se alguém confundir.
+		"renasce a cada 3 min",
+	} {
+		if !strings.Contains(corpo, quero) {
+			t.Errorf("o simulador não diz %q", quero)
+		}
+	}
+}
+
+// TestSimuladorAvisaMonstroQueNaoNasce: dois terços dos moldes não nascem em lugar
+// nenhum. Simular com um deles responde sobre um bicho que não está no mapa, e a
+// tela tem de dizer isso em vez de mostrar uma conta com cara de válida.
+func TestSimuladorAvisaMonstroQueNaoNasce(t *testing.T) {
+	h := newTestPanelMesaComJogo(t, roleAdmin, newFakeMesa(), newFakeAudit(), newFakeGameData())
+	corpo := abrirMesa(t, h, "?simular=1&zona=0&evolucao=2&mob=Mercador&nivel=10").Body.String()
+
+	if !strings.Contains(corpo, "Nenhum gerador cria este monstro") {
+		t.Error("o simulador não avisou que o monstro não nasce em lugar nenhum")
+	}
+}
+
 // TestSemMonstroAindaDaParaDigitar keeps the hypothetical case working: with no
 // monster chosen the two numbers go back to being fields, which is how you
 // simulate a mob that does not exist yet.
