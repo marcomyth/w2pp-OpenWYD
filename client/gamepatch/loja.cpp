@@ -91,14 +91,14 @@ enum {
     kMenuCash,
     kMenuRmt,
     kMenuMeus,
-    kMenuCriar,
     kMenuSaque,
+    kMenuVoltar,
     kMenuTotal,
 };
 
-const char* const kMenu[kMenuTotal] = {"Todos",      "Ouro",         "Cash",
-                                       "RMT",        "Meus itens",   "Criar lojinha",
-                                       "Realizar saque"};
+const char* const kMenu[kMenuTotal] = {"Todos",      "Ouro",           "Cash",
+                                       "RMT",        "Meus itens",     "Realizar saque",
+                                       "Voltar"};
 
 // Em modo montagem a mesma coluna vira os controles de preco: cada degrau soma,
 // "Zerar" recomeca e "Moeda" gira entre ouro, cash e RMT.
@@ -137,7 +137,25 @@ int g_versao = 0;
 // sabia de ouro. Nao ha onde digitar - o cliente le o teclado por conta dele e
 // cada numero e um atalho do jogo -, entao o preco entra por botoes e o titulo
 // e o nome do personagem, posto pelo servidor.
-bool g_montando = false;
+// --- as tres telas do painel ------------------------------------------------
+//
+// Uma janela so com tudo dentro ficou dificil de ler: filtros de moeda, cofre,
+// preco, nome e barraca disputavam a mesma tela. Agora sao tres telas no mesmo
+// lugar, e a escolha de quem abre e do jogador:
+//
+//   Menu      duas portas, so isso: o Mercado Global e a Criar sua Lojinha.
+//   Mercado   a vitrine da cidade, com os filtros por moeda.
+//   Montagem  o cofre, o preco, a moeda e o nome - o caminho de abrir barraca.
+enum {
+    kTelaMenu = 0,
+    kTelaMercado,
+    kTelaMontagem,
+};
+int g_qualTela = kTelaMenu;
+
+bool Montando() {
+    return g_qualTela == kTelaMontagem;
+}
 // O nome da barraca, digitado na tela de montagem. Vazio: o servidor poe o nome
 // do personagem, como a lojinha do jogo faz.
 char g_nomeBarraca[24] = {0};
@@ -397,6 +415,42 @@ RECT AreaBotaoComprar() {
 }
 
 // --- pintura ---------------------------------------------------------------
+// --- o menu inicial ---------------------------------------------------------
+//
+// Duas portas, no meio do painel, do tamanho que se le de longe. Nada mais:
+// quem abre a loja escolhe primeiro o que veio fazer, e so entao ve os
+// controles daquilo. A janela e a mesma nas tres telas - o que muda e o que
+// esta dentro dela.
+constexpr int kPortaL = 200;
+constexpr int kPortaA = 46;
+constexpr int kPortaEspaco = 18;
+
+const char* const kPortas[2] = {"Mercado Global", "Criar sua Lojinha"};
+
+RECT AreaPorta(int qual) {
+    const int x = (kLargura - kPortaL) / 2;
+    const int meio = kTopoConteudo + kAltGrade / 2;
+    const int y = meio - (kPortaA * 2 + kPortaEspaco) / 2 + qual * (kPortaA + kPortaEspaco);
+    RECT r = {x, y, x + kPortaL, y + kPortaA};
+    return r;
+}
+
+void PintaMenuInicial(HDC hdc) {
+    for (int i = 0; i < 2; ++i) {
+        const RECT r = AreaPorta(i);
+        LinhaBotao(hdc, r.left, r.top, kPortaL, kPortaA, false);
+        SelectObject(hdc, g_negrito);
+        SetTextColor(hdc, kTexto);
+        RECT rt = {r.left, r.top, r.right, r.bottom};
+        DrawTextA(hdc, kPortas[i], -1, &rt, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+    }
+    SelectObject(hdc, g_miudo);
+    SetTextColor(hdc, kTextoFraco);
+    RECT rr = {kMargem, kTopoDetalhe, kMargem + kUtil, kTopoDetalhe + kAltDetalhe};
+    DrawTextA(hdc, "escolha o que voce veio fazer", -1, &rr,
+              DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+}
+
 void PintaCabecalho(HDC hdc) {
     const int x = kMargem;
     const int y = kMargem;
@@ -409,7 +463,10 @@ void PintaCabecalho(HDC hdc) {
     SelectObject(hdc, g_negrito);
     SetTextColor(hdc, RGB(255, 255, 255));
     RECT rt = {x + 18, y, x + l - 30, y + kAltCabecalho};
-    DrawTextA(hdc, g_montando ? "Montar a minha barraca" : "Loja do Servidor", -1, &rt,
+    const char* titulo = g_qualTela == kTelaMenu
+                             ? "Loja do Servidor"
+                             : (Montando() ? "Criar sua Lojinha" : "Mercado Global");
+    DrawTextA(hdc, titulo, -1, &rt,
               DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
     const RECT f = AreaFechar();
@@ -450,7 +507,7 @@ void PintaMenu(HDC hdc) {
         const RECT r = AreaMenu(i);
         bool ativo = false;
         char texto[32];
-        if (g_montando) {
+        if (Montando()) {
             if (i == kMontaMoeda) {
                 sprintf_s(texto, "Moeda: %s", kNomeMoeda[g_moedaEdicao % 3]);
                 ativo = true;
@@ -467,7 +524,7 @@ void PintaMenu(HDC hdc) {
         LinhaBotao(hdc, r.left, r.top, r.right - r.left, kAltBotao, ativo);
         // A fileira de baixo carrega os nomes compridos - "Realizar saque",
         // "Moeda: Ouro" -, que so cabem na fonte miuda.
-        const bool comprido = i >= kMenuLinha1 || (g_montando && i == kMontaBarraca);
+        const bool comprido = i >= kMenuLinha1 || (Montando() && i == kMontaBarraca);
         SelectObject(hdc, ativo ? (comprido ? g_fonte : g_negrito) : (comprido ? g_miudo : g_fonte));
         SetTextColor(hdc, ativo ? kTextoAtivo : kTexto);
         RECT rt = {r.left + 3, r.top, r.right - 3, r.bottom};
@@ -625,13 +682,13 @@ void PintaPrateleiras(HDC hdc) {
 }
 
 void PintaGrade(HDC hdc) {
-    if (g_montando && g_vendoBarraca) {
+    if (Montando() && g_vendoBarraca) {
         PintaPrateleiras(hdc);
         return;
     }
     for (int i = 0; i < kPorPagina; ++i) {
         const RECT r = AreaSlot(i);
-        if (g_montando) {
+        if (Montando()) {
             const int qual = g_cofrePagina * kPorPagina + i;
             const LojaItemCofre* it = LojaRedeCofreItem(qual);
             PintaSlotCofre(hdc, r, it, it != nullptr && qual == g_cofreEscolhido,
@@ -648,7 +705,7 @@ void PintaGrade(HDC hdc) {
 // montagem ela foi embora: o preco em edicao aparece no proprio quadrado, e o
 // resto era numero de depuracao.
 void PintaDetalhe(HDC hdc) {
-    if (g_montando) {
+    if (Montando()) {
         return;
     }
     const int x = kMargem;
@@ -727,7 +784,7 @@ void PintaCampo(HDC hdc, int qual) {
 }
 
 void PintaNome(HDC hdc) {
-    if (!g_montando) {
+    if (!Montando()) {
         return;
     }
     PintaCampo(hdc, 0);
@@ -749,7 +806,7 @@ void PintaRodape(HDC hdc) {
     DrawTextA(hdc, ">", -1, &rd, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
     char pag[16];
-    if (g_montando) {
+    if (Montando()) {
         sprintf_s(pag, "%d/%d", g_cofrePagina + 1, CofrePaginas());
     } else {
         sprintf_s(pag, "%d/%d", g_pagina + 1, Paginas());
@@ -760,7 +817,7 @@ void PintaRodape(HDC hdc) {
     DrawTextA(hdc, pag, -1, &rp, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
     // Na montagem os mesmos dois botoes viram "Incluir" e "Abrir loja".
-    if (g_montando) {
+    if (Montando()) {
         const LojaItemCofre* it = LojaRedeCofreItem(g_cofreEscolhido);
         const bool podeIncluir = it != nullptr && g_precoEdicao > 0 &&
                                  (PrateleiraDoSlot(it->slot) >= 0 ||
@@ -808,6 +865,10 @@ void Pinta(HDC hdc) {
     Moldura(hdc, kLargura, kAltura);
     PintaCabecalho(hdc);
     PintaSaldos(hdc);
+    if (g_qualTela == kTelaMenu) {
+        PintaMenuInicial(hdc);
+        return;
+    }
     PintaMenu(hdc);
     PintaGrade(hdc);
     PintaDetalhe(hdc);
@@ -1146,7 +1207,7 @@ void IncluiNaBarraca() {   // "Incluir" no rodape
 // nome da barraca. Devolve 1 quando consumiu - e ai o jogo nao ve a tecla, que
 // senao viraria atalho de magia ou linha de chat.
 extern "C" int __cdecl LojaDigita(int c) {
-    if (!g_aberta || !g_montando) {
+    if (!g_aberta || !Montando()) {
         return 0;
     }
     if (g_campo == 1) {
@@ -1185,7 +1246,7 @@ extern "C" int __cdecl LojaDigita(int c) {
 }
 
 void EntraNaMontagem() {
-    g_montando = true;
+    g_qualTela = kTelaMontagem;
     g_nomeBarraca[0] = 0;
     g_nomeTam = 0;
     g_campo = 0;
@@ -1204,7 +1265,7 @@ void EntraNaMontagem() {
 }
 
 void SaiDaMontagem() {
-    g_montando = false;
+    g_qualTela = kTelaMenu;
     g_escolhido = -1;
     PedeAoServidor();
 }
@@ -1324,10 +1385,29 @@ void CliqueJanela(int x, int y) {
     const RECT f = AreaFechar();
     if (x >= f.left - 4 && x <= f.right + 4 && y >= f.top - 4 && y <= f.bottom + 4) {
         g_aberta = false;
-        g_montando = false;
+        g_qualTela = kTelaMenu;
         return;
     }
-    if (g_montando) {
+    if (g_qualTela == kTelaMenu) {
+        for (int i = 0; i < 2; ++i) {
+            const RECT r = AreaPorta(i);
+            if (x < r.left || x >= r.right || y < r.top || y >= r.bottom) {
+                continue;
+            }
+            if (i == 0) {
+                g_qualTela = kTelaMercado;
+                g_filtro = kMenuTodos;
+                g_pagina = 0;
+                g_escolhido = -1;
+                PedeAoServidor();
+            } else {
+                EntraNaMontagem();
+            }
+            return;
+        }
+        return;
+    }
+    if (Montando()) {
         CliqueMontagem(x, y);
         return;
     }
@@ -1339,8 +1419,9 @@ void CliqueJanela(int x, int y) {
                 g_pagina = 0;
                 g_escolhido = -1;
                 PedeAoServidor();
-            } else if (i == kMenuCriar) {
-                EntraNaMontagem();
+            } else if (i == kMenuVoltar) {
+                g_qualTela = kTelaMenu;
+                g_escolhido = -1;
             } else {
                 // EMENDA PARA A HANNA: sacar o dinheiro de vendas em Cash/RMT
                 // mexe no saldo da CONTA, que vive no banco do site. Falta o
@@ -1424,7 +1505,7 @@ void AtualizaDica() {
             if (x < r.left || x >= r.right || y < r.top || y >= r.bottom) {
                 continue;
             }
-            if (g_montando) {
+            if (Montando()) {
                 const LojaItemCofre* it =
                     g_vendoBarraca
                         ? (i < g_prateleirasUsadas ? ItemDoSlot(g_prateleiras[i].cargoPos)
@@ -1627,7 +1708,7 @@ int LojaEsc() {
     }
     // Um Esc fecha tudo, inclusive a tela de montagem: o que estava montado e
     // descartado, como acontece ao fechar qualquer janela do jogo pela metade.
-    g_montando = false;
+    g_qualTela = kTelaMenu;
     g_aberta = false;
     return 1;
 }
@@ -1647,12 +1728,13 @@ int JanelaVisivel() {
     // O teclado e decidido a cada quadro, e nao em cada caminho que abre ou
     // fecha o painel: o X, o icone, o Esc e o botao Fechar sao quatro saidas, e
     // esquecer uma delas deixaria o teclado preso conosco.
-    TeclaTexto((g_aberta && g_montando) ? LojaDigita : nullptr);
+    TeclaTexto((g_aberta && Montando()) ? LojaDigita : nullptr);
     // Clicar numa barraca na cidade abre a vitrine: quem avisa e o servidor,
     // respondendo ao mesmo pacote que abria a janela antiga.
     if (LojaRedePedidoMercado() != 0 && !g_aberta) {
         g_aberta = true;
-        g_montando = false;
+        g_qualTela = kTelaMercado;   // clicou numa barraca: e o mercado que ele quer
+        g_qualTela = kTelaMenu;
         g_escolhido = -1;
         g_filtro = kMenuTodos;
         g_pagina = 0;
@@ -1786,6 +1868,7 @@ void DiagCliqueNaFaixa() {
 void BotaoClique(int, int) {
     g_aberta = !g_aberta;
     if (g_aberta) {
+        g_qualTela = kTelaMenu;   // a loja abre perguntando, nao mostrando
         g_escolhido = -1;
         PedeAoServidor();
         Repinta();
