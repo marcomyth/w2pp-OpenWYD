@@ -121,9 +121,9 @@ func TestRealCatalogTotals(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan: %v", err)
 	}
-	// 3222 = os 3220 históricos + as duas variantes do kit de novato (5760/5761),
-	// acrescentadas ao ItemList.csv em 12/09/2026.
-	if got, want := len(catalog.Items), 3222; got != want {
+	// 3225 = os 3220 históricos + as duas variantes do kit de novato (5760/5761,
+	// 12/09/2026) + os três Baús do Apoiador (3304-3306, 20/09/2026).
+	if got, want := len(catalog.Items), 3225; got != want {
 		t.Errorf("item count = %d, want %d", got, want)
 	}
 	// Spot-check a known row end to end.
