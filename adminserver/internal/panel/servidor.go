@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/jogo"
@@ -23,10 +24,28 @@ import (
 // people playing.
 func (h *Handler) servidor(w http.ResponseWriter, r *http.Request) {
 	estado, err := h.cfg.Jogo.Estado(r.Context())
+	// A HORA DA LEITURA, marcada aqui e não na hora de desenhar: esta página não
+	// se atualiza sozinha, e isso é deliberado — um refresh em laço atravessaria a
+	// fila do laço de dono único, que é drenada na frente da entrada dos
+	// jogadores. O que estava errado não era a decisão, era a tela não contar: ela
+	// mostrava número velho com cara de número novo, e um print do jogo com nível
+	// 353 ao lado do painel com 352 parece o painel mentindo. Com a hora da
+	// leitura e um botão explícito, quem olha sabe o que tem na mão.
+	lido := time.Now()
 	erro := ""
 	if err != nil {
 		h.cfg.Logger.Warn("live server state unavailable", "err", err)
 		erro = explicaJogo(err)
+	}
+
+	// O endereço do botão Atualizar preserva a ordenação escolhida e DESCARTA o
+	// aviso: repetir o aviso de uma ação já feita a cada atualização faria parecer
+	// que ela aconteceu de novo.
+	q := r.URL.Query()
+	q.Del("aviso")
+	atualizar := "/servidor"
+	if enc := q.Encode(); enc != "" {
+		atualizar += "?" + enc
 	}
 
 	// The restart card lives here as well as on the home page. This tab is where
@@ -60,8 +79,13 @@ func (h *Handler) servidor(w http.ResponseWriter, r *http.Request) {
 		Aviso    string
 		Ordem    ordem
 		Extras   url.Values
+		// Lido é a hora da leitura desta página, e AtualizarURL o botão que pede
+		// uma nova. A página NÃO se atualiza sozinha, de propósito.
+		Lido         string
+		AtualizarURL string
 	}{h.pageFor(r, "servidor"), estado, h.statusServidor(r), erro,
-		r.URL.Query().Get("aviso"), o, r.URL.Query()})
+		r.URL.Query().Get("aviso"), o, r.URL.Query(),
+		lido.Local().Format("15:04:05"), atualizar})
 }
 
 // derrubarConta ends every session of one account.
