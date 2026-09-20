@@ -32,6 +32,13 @@ constexpr WORD kMsgAbrir = 0x0F07;
 constexpr WORD kMsgAbriu = 0x0F08;
 constexpr WORD kMsgMercado = 0x0F09;
 constexpr WORD kMsgFecha = 0x0F0A;
+constexpr WORD kMsgMudou = 0x0F0B;
+
+// Este nao e nosso: e o MSG_QuitTrade do jogo (900), que o servidor manda ao
+// dono quando a barraca sai do ar - por /fecharloja, por andar, ou por recusa.
+// So olhamos de passagem, para saber que nao ha mais barraca de pe; o pacote
+// segue para o cliente como sempre.
+constexpr WORD kMsgSaiuDaTroca = 0x0384;
 
 constexpr int kMaxCofre = 128;
 constexpr int kMaxPrateleiras = 12;
@@ -54,6 +61,12 @@ LojaItemCofre g_cofre[kMaxCofre];
 int g_cofreQtd = 0;
 int g_barracaAberta = 0;
 int g_pedidoMercado = 0;
+
+// O que o painel tem na tela e o cache dele, e ele vive nesta sessao: LojaRedeEsquece
+// apaga tudo quando o jogador sai do mundo. g_vitrineVelha e levantada pelo
+// bilhete do servidor - a pagina que esta na tela envelheceu.
+int g_mercadoVersao = 0;
+int g_vitrineVelha = 0;
 bool g_respondeu = false;
 
 } // namespace
@@ -203,10 +216,29 @@ extern "C" int __cdecl LojaRedeRecebe(const unsigned char* pacote) {
         CamadaLog("=== loja: clique numa barraca, indo para o mercado");
         return 1;
     }
+    if (tipo == kMsgMudou) {
+        // Quatro bytes: a versao nova do mercado. Nao vem pagina - quem guarda a
+        // vitrine e este painel. So marcamos que o que esta na tela envelheceu, e
+        // quem decide pedir de novo e a loja, com freio de um segundo.
+        const int versao = *reinterpret_cast<const int*>(corpo + 0);
+        if (versao != g_mercadoVersao) {
+            g_mercadoVersao = versao;
+            g_vitrineVelha = 1;
+        }
+        return 1;
+    }
     if (tipo == kMsgAbriu) {
         g_barracaAberta = *reinterpret_cast<const int*>(corpo + 0);
         CamadaLog("=== loja: a barraca subiu");
         return 1;
+    }
+    if (tipo == kMsgSaiuDaTroca) {
+        // A barraca caiu. Devolvemos 0: o pacote e do jogo e ele precisa ve-lo.
+        if (g_barracaAberta != 0) {
+            g_barracaAberta = 0;
+            CamadaLog("=== loja: a barraca saiu do ar");
+        }
+        return 0;
     }
     if (tipo != kMsgLista) {
         return 0;
@@ -251,4 +283,27 @@ int LojaRedePedidoMercado() {
     const int tinha = g_pedidoMercado;
     g_pedidoMercado = 0;
     return tinha;
+}
+
+int LojaRedeVitrineVelha() {
+    return g_vitrineVelha;
+}
+
+void LojaRedeVitrineEmDia() {
+    g_vitrineVelha = 0;
+}
+
+// Acabou a sessao, acabou o cache: nada do mercado atravessa um logout.
+void LojaRedeEsquece() {
+    g_total = 0;
+    g_paginas = 1;
+    g_pagina = 0;
+    g_quantas = 0;
+    g_cofreQtd = 0;
+    g_barracaAberta = 0;
+    g_mercadoVersao = 0;
+    g_vitrineVelha = 0;
+    for (int i = 0; i < 3; ++i) {
+        g_saldo[i] = 0;
+    }
 }

@@ -282,7 +282,7 @@ void PintaRodape(HDC hdc) {
 
 void Pinta(HDC hdc) {
     SetBkMode(hdc, TRANSPARENT);
-    Moldura(hdc, g_tela.l, g_tela.a);
+    Moldura(&g_tela);
     PintaCabecalho(hdc);
     if (g_opcoesAbertas) {
         PintaOpcoes(hdc);

@@ -16,14 +16,61 @@ void Barra(HDC hdc, int x, int y, int l, int a, COLORREF cor) {
 
 // Degradê vertical linha a linha: sem isto o painel fica chapado, e o layout do
 // Marco vive de degradê.
+// A conta obvia - cortar cada linha para o inteiro mais proximo - deixa um risco
+// de ponta a ponta onde um valor troca pelo outro. E o que se via no fundo da
+// loja: 538 linhas entre 22 e 10 tem so doze valores para percorrer, entao o
+// degrade virava doze faixas chapadas com uma linha visivel entre elas, no
+// escuro, justamente onde nao ha desenho nenhum para disfarcar.
+//
+// A saida e espalhar a troca em vez de faze-la de uma vez: perto da fronteira as
+// linhas alternam entre os dois valores numa ordem fixa (Bayer), e uma faixa
+// dissolve na seguinte ao longo de varias linhas. Um degrau de 1/255 alternando
+// linha sim linha nao nao se enxerga; o risco reto se enxerga.
+namespace {
+
+// A ordem de Bayer em uma dimensao: o quanto de resto cada linha exige para
+// subir um nivel, espalhado para que linhas vizinhas nunca subam juntas.
+const int kOrdem[8] = {0, 4, 2, 6, 1, 5, 3, 7};
+
+// A mesma ideia em duas dimensoes: a matriz de Bayer 8x8, valores de 0 a 63.
+// Numa faixa larga o espalhamento so por linha nao basta - ele troca o risco
+// reto por listras de ponta a ponta, que se veem igual. Espalhando tambem em x,
+// a troca vira textura fina e some.
+const int kBayer[8][8] = {
+    { 0, 32,  8, 40,  2, 34, 10, 42},
+    {48, 16, 56, 24, 50, 18, 58, 26},
+    {12, 44,  4, 36, 14, 46,  6, 38},
+    {60, 28, 52, 20, 62, 30, 54, 22},
+    { 3, 35, 11, 43,  1, 33,  9, 41},
+    {51, 19, 59, 27, 49, 17, 57, 25},
+    {15, 47,  7, 39, 13, 45,  5, 37},
+    {63, 31, 55, 23, 61, 29, 53, 21},
+};
+
+int Nivel(int de, int para, int i, int a) {
+    const int passo = (para - de) * i;
+    int v = passo / a;
+    int resto = passo - v * a;
+    if (resto < 0) {   // em C a divisao corta na direcao do zero; aqui tem de ser para baixo
+        --v;
+        resto += a;
+    }
+    if (resto * 8 > kOrdem[i & 7] * a) {
+        ++v;
+    }
+    return de + v;
+}
+
+} // namespace
+
 void Degrade(HDC hdc, int x, int y, int l, int a, COLORREF topo, COLORREF baixo) {
     if (a <= 0) {
         return;
     }
     for (int i = 0; i < a; ++i) {
-        const int r = GetRValue(topo) + (GetRValue(baixo) - GetRValue(topo)) * i / a;
-        const int g = GetGValue(topo) + (GetGValue(baixo) - GetGValue(topo)) * i / a;
-        const int b = GetBValue(topo) + (GetBValue(baixo) - GetBValue(topo)) * i / a;
+        const int r = Nivel(GetRValue(topo), GetRValue(baixo), i, a);
+        const int g = Nivel(GetGValue(topo), GetGValue(baixo), i, a);
+        const int b = Nivel(GetBValue(topo), GetBValue(baixo), i, a);
         Barra(hdc, x, y + i, l, 1, RGB(r, g, b));
     }
 }
@@ -71,11 +118,60 @@ void LinhaBotao(HDC hdc, int x, int y, int l, int a, bool ativo) {
 
 // A moldura do painel de alvos virou funcao comum quando a loja apareceu: as
 // duas caixas tem a mesma borda tripla, o mesmo fundo e os mesmos cantos.
-void Moldura(HDC hdc, int L, int A) {
+// O fundo do painel escrito nos pixels, e nao pelo GDI.
+//
+// O GDI pinta uma linha inteira de uma cor so, entao o unico espalhamento
+// possivel por ele e de linha em linha - e isso troca o risco por listras. Aqui
+// cada pixel decide sozinho, com a matriz de Bayer, se sobe um nivel ou nao: a
+// faixa dissolve na seguinte como poeira, e nao ha linha nenhuma para o olho
+// achar. So vale a pena para a area grande do painel; nos degrades curtos (um
+// cabecalho, um quadrado de item) o do GDI basta.
+static void FundoDoPainel(Tela* t, int x, int y, int L, int A, COLORREF topo, COLORREF baixo) {
+    if (t->pixels == nullptr || A <= 0) {
+        return;
+    }
+    GdiFlush();
+    BYTE* tela = static_cast<BYTE*>(t->pixels);
+    const int canal[3] = {GetBValue(topo), GetGValue(topo), GetRValue(topo)};
+    const int fim[3] = {GetBValue(baixo), GetGValue(baixo), GetRValue(baixo)};
+    for (int i = 0; i < A; ++i) {
+        const int ty = y + i;
+        if (ty < 0 || ty >= t->a) {
+            continue;
+        }
+        BYTE* linha = tela + static_cast<size_t>(ty) * t->l * 4;
+        for (int j = 0; j < L; ++j) {
+            const int tx = x + j;
+            if (tx < 0 || tx >= t->l) {
+                continue;
+            }
+            BYTE* p = linha + static_cast<size_t>(tx) * 4;
+            const int limiar = kBayer[i & 7][j & 7];
+            for (int k = 0; k < 3; ++k) {
+                const int passo = (fim[k] - canal[k]) * i;
+                int v = passo / A;
+                int resto = passo - v * A;
+                if (resto < 0) {
+                    --v;
+                    resto += A;
+                }
+                if (resto * 64 > limiar * A) {
+                    ++v;
+                }
+                p[k] = static_cast<BYTE>(canal[k] + v);
+            }
+        }
+    }
+}
+
+void Moldura(Tela* t) {
+    HDC hdc = t->dc;
+    const int L = t->l;
+    const int A = t->a;
     Contorno(hdc, 0, 0, L, A, kBorda1);
     Contorno(hdc, 1, 1, L - 2, A - 2, kBorda2);
     Contorno(hdc, 2, 2, L - 4, A - 4, kBorda3);
-    Degrade(hdc, 3, 3, L - 6, A - 6, kFundoTopo, kFundoBaixo);
+    FundoDoPainel(t, 3, 3, L - 6, A - 6, kFundoTopo, kFundoBaixo);
     Contorno(hdc, 3, 3, L - 6, A - 6, kBordaInterna);
 
     const int c = 12;

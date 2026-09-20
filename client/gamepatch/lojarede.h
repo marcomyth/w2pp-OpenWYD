@@ -61,6 +61,13 @@ void LojaRedeAbre(const char* titulo, const LojaPrateleira* prateleiras, int qua
 // o mercado mudar.
 void LojaRedeFecha();
 
+// O bilhete do servidor avisou que o mercado mudou: a pagina na tela envelheceu.
+int LojaRedeVitrineVelha();
+void LojaRedeVitrineEmDia();
+
+// Apaga o que o painel guardou. Chamado quando o jogador sai do mundo.
+void LojaRedeEsquece();
+
 // 1 quando o servidor avisou que o jogador clicou numa barraca na cidade e a
 // vitrine deve abrir. Consome o aviso.
 int LojaRedePedidoMercado();

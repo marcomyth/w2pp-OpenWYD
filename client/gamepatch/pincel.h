@@ -47,8 +47,6 @@ void Losango(HDC hdc, int cx, int cy, int r, COLORREF cor);
 void TampaMetal(HDC hdc, int x, int y, int a, int larg);
 void LinhaBotao(HDC hdc, int x, int y, int l, int a, bool ativo);
 
-// Moldura completa: borda tripla, fundo em degrade e os cantos dourados.
-void Moldura(HDC hdc, int l, int a);
 
 // Um DIB de 32 bits, de cima para baixo, que e o formato da textura A8R8G8B8.
 // A camada pinta nele e o modulo de D3D o sobe como textura.
@@ -62,6 +60,11 @@ struct Tela {
 };
 
 bool TelaGarante(Tela* t, int l, int a);
+
+// Moldura completa: borda tripla, fundo em degrade e os cantos dourados. Recebe
+// a Tela, e nao um HDC, porque o fundo e pintado direto nos pixels - ver o
+// porque em pincel.cpp.
+void Moldura(Tela* t);
 
 // Fecha a pintura: o GDI nunca escreve o canal alfa, entao ele e posto aqui.
 void TelaFecha(Tela* t, BYTE alfa);
