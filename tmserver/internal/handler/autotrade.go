@@ -498,6 +498,7 @@ func (d *Dispatcher) closeAutoTrade(w *world.World, s *world.Session) {
 	// quarter-hour the stall actually completed, and closing is the one moment
 	// that number can still be read.
 	d.creditShopPoints(w, s)
+	d.mercadoMudou()   // uma barraca a menos na vitrine
 
 	clone := 0
 	if s.AutoTrade != nil {

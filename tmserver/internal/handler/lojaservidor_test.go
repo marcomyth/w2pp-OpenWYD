@@ -195,6 +195,10 @@ func TestVendedorEscolheAMoedaDoItem(t *testing.T) {
 
 	moeda := protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaCash}
 	send(t, vendedor, protocol.MsgLojaMoeda, moeda.Encode())
+	// A troca vai por um socket e a pergunta vem por outro, e o servidor nao
+	// promete ordem entre conexoes: uma ida e volta pelo socket do vendedor
+	// garante que a moeda ja foi aplicada quando o comprador perguntar.
+	pedeVitrine(t, vendedor, 0, protocol.LojaFiltroMeus)
 
 	lista := pedeVitrine(t, vendedor, 0, protocol.LojaFiltroCash)
 	if lista.Total != 1 {
@@ -296,6 +300,10 @@ func TestCompraEmCashRecusadaSemBanco(t *testing.T) {
 	abreBarraca(t, vendedor, "Minha Loja", 0, 300, protocol.LojaMoedaOuro)
 	moeda := protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaCash}
 	send(t, vendedor, protocol.MsgLojaMoeda, moeda.Encode())
+	// A troca vai por um socket e a pergunta vem por outro, e o servidor nao
+	// promete ordem entre conexoes: uma ida e volta pelo socket do vendedor
+	// garante que a moeda ja foi aplicada quando o comprador perguntar.
+	pedeVitrine(t, vendedor, 0, protocol.LojaFiltroMeus)
 
 	lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos)
 	o := lista.Ofertas[0]
@@ -340,6 +348,10 @@ func TestCompraEmCashComSaldoLigado(t *testing.T) {
 	abreBarraca(t, vendedor, "Minha Loja", 0, preco, protocol.LojaMoedaOuro)
 	moeda := protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaCash}
 	send(t, vendedor, protocol.MsgLojaMoeda, moeda.Encode())
+	// A troca vai por um socket e a pergunta vem por outro, e o servidor nao
+	// promete ordem entre conexoes: uma ida e volta pelo socket do vendedor
+	// garante que a moeda ja foi aplicada quando o comprador perguntar.
+	pedeVitrine(t, vendedor, 0, protocol.LojaFiltroMeus)
 
 	lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos)
 	o := lista.Ofertas[0]
@@ -393,6 +405,10 @@ func TestVitrineMostraSaldoDaContaEODesconta(t *testing.T) {
 	abreBarraca(t, vendedor, "Minha Loja", 0, preco, protocol.LojaMoedaOuro)
 	moeda := protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaCash}
 	send(t, vendedor, protocol.MsgLojaMoeda, moeda.Encode())
+	// A troca vai por um socket e a pergunta vem por outro, e o servidor nao
+	// promete ordem entre conexoes: uma ida e volta pelo socket do vendedor
+	// garante que a moeda ja foi aplicada quando o comprador perguntar.
+	pedeVitrine(t, vendedor, 0, protocol.LojaFiltroMeus)
 
 	lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos)
 	o := lista.Ofertas[0]

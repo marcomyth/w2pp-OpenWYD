@@ -57,24 +57,19 @@ func lojaQuantidade(it world.Item) uint8 {
 // embaralhar entre um pedido e outro.
 func lojaOfertasAbertas(w *world.World, quem *world.Session, eu *world.Entity,
 	filtro int16) []protocol.LojaOferta {
-	cidade := world.Village(eu.X, eu.Y)
 	var ofertas []protocol.LojaOferta
 	w.ForEachSession(func(s *world.Session, e *world.Entity) {
 		if s == nil || s.AutoTrade == nil || e == nil {
 			return
 		}
-		if filtro == protocol.LojaFiltroMeus && s.Conn != quem.Conn {
+		if filtro == protocol.LojaFiltroMeus && (quem == nil || s.Conn != quem.Conn) {
 			return
 		}
-		// Só a cidade de quem pergunta: a vitrine é o agrupamento das barracas
-		// abertas ali, não um mercado entre cidades.
-		if world.Village(e.X, e.Y) != cidade {
-			return
-		}
-		perto := uint8(0)
-		if autoTradeInRange(eu, e) {
-			perto = 1
-		}
+		// O mercado é do servidor inteiro: barraca de qualquer cidade entra na
+		// vitrine, e comprar não exige chegar perto (decisão da Josiel,
+		// 19/09/2026). O que a distância ainda decide é o imposto, que se
+		// reparte entre a cidade da barraca e a de quem compra — ver lojacompra.
+		perto := uint8(1)
 		barraca := int32(shopStallID(s))
 		for i := range s.AutoTrade.Slots {
 			sl := s.AutoTrade.Slots[i]
@@ -121,6 +116,40 @@ func lojaPassaNoFiltro(filtro int16, moeda uint8) bool {
 }
 
 // lojaPede responde MsgLojaPede com uma página da vitrine.
+// --- o cache da vitrine -----------------------------------------------------
+//
+// Montar a lista varrendo todas as sessões a cada pedido não escala: o painel
+// pergunta a cada poucos segundos, e o servidor cheio tem mil conexões com até
+// doze prateleiras cada. A lista agora é montada UMA VEZ e reaproveitada até
+// alguém mexer no mercado — abrir barraca, fechar, comprar ou trocar a moeda de
+// um item. Quem mexe chama mercadoMudou.
+//
+// O cache guarda a lista sem filtro; filtrar por moeda é uma passada barata
+// sobre ela. O que não entra no cache é o "meus itens", que depende de quem
+// pergunta — esse continua sendo montado na hora, e é curto por natureza.
+type mercadoCache struct {
+	ofertas []protocol.LojaOferta
+	valido  bool
+}
+
+// mercadoMudou invalida a vitrine. Chamado de onde o mercado muda de forma:
+// lojaAbrir, closeAutoTrade, lojaCompra e lojaMoeda.
+func (d *Dispatcher) mercadoMudou() {
+	d.mercado.valido = false
+	d.mercado.ofertas = nil
+}
+
+// mercadoOfertas devolve a lista do servidor inteiro, do cache quando ele ainda
+// vale.
+func (d *Dispatcher) mercadoOfertas(w *world.World) []protocol.LojaOferta {
+	if d.mercado.valido {
+		return d.mercado.ofertas
+	}
+	d.mercado.ofertas = lojaOfertasAbertas(w, nil, nil, protocol.LojaFiltroTodos)
+	d.mercado.valido = true
+	return d.mercado.ofertas
+}
+
 func (d *Dispatcher) lojaPede(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
 	e := w.Entity(s.Conn)
 	if e == nil || e.HP <= 0 || s.Mode != world.UserPlay {
@@ -131,7 +160,17 @@ func (d *Dispatcher) lojaPede(w *world.World, s *world.Session, _ protocol.Heade
 		return
 	}
 
-	ofertas := lojaOfertasAbertas(w, s, e, pede.Filtro)
+	var ofertas []protocol.LojaOferta
+	if pede.Filtro == protocol.LojaFiltroMeus {
+		// A minha barraca é curta e só interessa a mim: não vale cache.
+		ofertas = lojaOfertasAbertas(w, s, e, pede.Filtro)
+	} else {
+		for _, o := range d.mercadoOfertas(w) {
+			if lojaPassaNoFiltro(pede.Filtro, o.Moeda) {
+				ofertas = append(ofertas, o)
+			}
+		}
+	}
 	total := len(ofertas)
 	paginas := (total + protocol.LojaPorPagina - 1) / protocol.LojaPorPagina
 	if paginas < 1 {
@@ -183,4 +222,5 @@ func (d *Dispatcher) lojaMoeda(w *world.World, s *world.Session, _ protocol.Head
 		return
 	}
 	s.AutoTrade.Moeda[corpo.Slot] = corpo.Moeda
+	d.mercadoMudou()   // a oferta mudou de moeda
 }

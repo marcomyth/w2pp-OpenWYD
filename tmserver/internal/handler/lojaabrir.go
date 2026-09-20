@@ -128,6 +128,7 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 
 	s.AutoTrade = barraca
 	s.TradeMode = 1
+	d.mercadoMudou()   // uma barraca a mais na vitrine
 	barraca.OpenedAt = w.Now()
 	barraca.PaidUntil = barraca.OpenedAt
 	// A barraca sobe primeiro: é ela que dá o id pelo qual os outros compram.

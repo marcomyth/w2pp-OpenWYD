@@ -315,6 +315,7 @@ type Dispatcher struct {
 	affectDur         world.AffectDuration         // cast-affect duration tuning (issue #229)
 	serverIndex       int                          // legacy guild id high bits
 	guildZones        [5]world.GuildZone           // loop-owned city/guild-zone cache
+	mercado           mercadoCache                 // a vitrine da loja, montada sob demanda
 	taxChangedAt      [5]time.Time                 // day each zone's guildtax last changed (one change/day, lote2-chat.md)
 	guildWars         map[uint16]uint16            // directed guild -> current war target
 	guildAllies       map[uint16]uint16            // directed guild -> current ally target

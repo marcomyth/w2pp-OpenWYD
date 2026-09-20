@@ -20,6 +20,53 @@ import (
 // Ouro está inteiro. Cash e RMT passam por saldoContas, que hoje recusa — ver a
 // emenda em lojasaldo.go.
 
+// repartirImposto manda o imposto da venda para os cofres das cidades, em vez de
+// deixá-lo evaporar como antes.
+//
+// Com o mercado global uma venda tem duas cidades: a da barraca e a de quem
+// comprou. A divisão é 80% para a cidade onde a barraca está — é ela que
+// hospeda o vendedor e cobra a taxa anunciada — e 20% para a cidade de onde
+// partiu a compra. Fora de cidade não há cofre, e nesse caso a parte do
+// comprador segue junto com a do vendedor, em vez de sumir.
+//
+// O cofre é o TaxVault da zona, o mesmo que o líder da guilda dona da cidade
+// saca em guild.go. Até aqui NADA depositava nele: o imposto da lojinha era
+// descontado do vendedor e desaparecia no ar. Agora ele tem para onde ir.
+func (d *Dispatcher) repartirImposto(w *world.World, s *world.Session, imposto int32,
+	cidadeDaBarraca, cidadeDoComprador int) {
+	if imposto <= 0 {
+		return
+	}
+	valeComprador := cidadeDoComprador >= 0 && cidadeDoComprador < len(d.guildZones)
+	valeBarraca := cidadeDaBarraca >= 0 && cidadeDaBarraca < len(d.guildZones)
+	if !valeBarraca && !valeComprador {
+		return
+	}
+	doComprador := int64(imposto) * 20 / 100
+	daBarraca := int64(imposto) - doComprador
+	switch {
+	case !valeComprador:
+		daBarraca, doComprador = int64(imposto), 0
+	case !valeBarraca:
+		doComprador, daBarraca = int64(imposto), 0
+	case cidadeDoComprador == cidadeDaBarraca:
+		daBarraca, doComprador = int64(imposto), 0
+	}
+	if daBarraca > 0 {
+		z := &d.guildZones[cidadeDaBarraca]
+		z.TaxVault += daBarraca
+		d.persistGuildZone(w, s, *z)
+	}
+	if doComprador > 0 {
+		z := &d.guildZones[cidadeDoComprador]
+		z.TaxVault += doComprador
+		d.persistGuildZone(w, s, *z)
+	}
+	d.log.Info("loja: imposto repartido", "total", imposto, "cidade_barraca", cidadeDaBarraca,
+		"parte_barraca", daBarraca, "cidade_comprador", cidadeDoComprador,
+		"parte_comprador", doComprador)
+}
+
 // lojaCompra atende MsgLojaCompra.
 func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
 	e := w.Entity(s.Conn)
@@ -37,10 +84,6 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	vendedor, barraca := shopAt(w, int(pedido.Vendedor))
 	if vendedor == nil || vendedor.Conn == s.Conn {
 		return // barraca que não existe, ou a própria
-	}
-	if !autoTradeInRange(e, barraca) {
-		d.log.Info("loja: compra longe demais", "conn", s.Conn, "barraca", pedido.Vendedor)
-		return
 	}
 	pos := int(pedido.Slot)
 	if pos < 0 || pos >= world.MaxAutoTrade {
@@ -92,6 +135,8 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 		}
 		e.Coin -= preco
 		cargoVendedor.Coin += preco - imposto
+		d.repartirImposto(w, s, imposto, world.Village(barraca.X, barraca.Y),
+			world.Village(e.X, e.Y))
 	case protocol.LojaMoedaCash, protocol.LojaMoedaRMT:
 		// Aqui é a emenda: enquanto o saldo não estiver ligado ao banco, a compra
 		// é recusada e NADA se move. Ver lojasaldo.go.
@@ -118,6 +163,7 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	// na mochila do comprador, e a barraca perde o slot.
 	e.Carry[destino] = itemCargo
 	cargoVendedor.Items[cpos] = world.Item{}
+	d.mercadoMudou()   // um item a menos na vitrine
 	*slot = world.AutoTradeSlot{CargoPos: -1}
 	vendedor.AutoTrade.Moeda[pos] = protocol.LojaMoedaOuro
 
