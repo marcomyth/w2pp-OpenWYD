@@ -556,9 +556,14 @@ func TestCuraEmAlvoMarcadoNoGolpe(t *testing.T) {
 	ferido := enterWorld(t, ln.Addr().String())
 	defer ferido.Close()
 
+	// A ficha do ferido é tocada SÓ de dentro do laço. O mundo é de dono único, e
+	// este teste fazia as três coisas de fora: punha o HP em 1000, lia o HP depois
+	// da cura, e marcava o CuraReduzidaAte. O -race acusou o par contra
+	// world.removeSession, e as duas ESCRITAS eram o lado perigoso: além de
+	// corrida, nada garantia que o HP=1000 tivesse pousado antes do golpe sair.
+	// Pelo noLaco a ordem passa a ser a que o teste sempre quis.
 	cura := func() int32 {
-		alvo := w.Entity(2)
-		alvo.HP = 1000
+		noLaco(t, w, func(w *world.World) { w.Entity(2).HP = 1000 })
 		skillAttackFrame(t, branca, clock.Load(), 2, skillCura, -1)
 		for {
 			ty, _, ok := readMaybe(t, branca)
@@ -569,11 +574,15 @@ func TestCuraEmAlvoMarcadoNoGolpe(t *testing.T) {
 				break
 			}
 		}
-		return w.Entity(2).HP - 1000
+		var hp int32
+		noLaco(t, w, func(w *world.World) { hp = w.Entity(2).HP })
+		return hp - 1000
 	}
 	inteira := cura()
 	clock.Store(serverTime + 1000)
-	w.Entity(2).CuraReduzidaAte = clock.Load() + brancaDebuffMs
+	noLaco(t, w, func(w *world.World) {
+		w.Entity(2).CuraReduzidaAte = clock.Load() + brancaDebuffMs
+	})
 	cortada := cura()
 	if inteira <= 0 || cortada != inteira*75/100 {
 		t.Errorf("cura inteira %d, cortada %d; want a cortada em 75%%", inteira, cortada)

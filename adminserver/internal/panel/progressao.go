@@ -120,7 +120,9 @@ func (h *Handler) progressao(w http.ResponseWriter, r *http.Request) {
 		if p.Mob == "" {
 			continue
 		}
-		exp, nivel, err := h.mobExpNivel(r, p.Mob)
+		// A progressão não mostra onde o monstro nasce: ela compara ritmo por faixa,
+		// não escolhe monstro. O _ é deliberado.
+		exp, nivel, _, err := h.mobExpNivel(r, p.Mob)
 		switch {
 		case err != nil:
 			p.Aviso = fmt.Sprintf("não achei %q", p.Mob)
