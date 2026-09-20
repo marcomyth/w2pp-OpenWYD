@@ -72,6 +72,14 @@ func duasArmasDoCancelamento(e *world.Entity, itemAbility func(world.Item, uint8
 	return duas || garra
 }
 
+// arcoDoCancelamento: arco na mão direita. A mão esquerda não importa — um arco
+// ocupa as duas em jogo, e no catálogo ele é nPos 64, que só entra na direita.
+func arcoDoCancelamento(e *world.Entity, itemAbility func(world.Item, uint8) int) bool {
+	if itemAbility == nil || !fmCancelamento(e) {
+		return false
+	}
+	return itemAbility(e.Equip[weaponSlotR], efWType) == wtypeArco
+}
 func alvosDoCancelamento(e *world.Entity, itemAbility func(world.Item, uint8) int) int {
 	if itemAbility == nil {
 		return cancelAlvosPadrao
@@ -106,8 +114,14 @@ func applyPassivasDaEspecial(e *world.Entity, bitDaFoema bool, itemAbility func(
 	if !fmCancelamento(e) {
 		return
 	}
-	if cancelDanoDuasArmas > 0 && duasArmasDoCancelamento(e, itemAbility) {
+	// A empunhadura dá UM bônus de dano, nunca dois: duas armas valem mais que um
+	// arco, e somar os dois faria da combinação impossível de hoje a melhor de
+	// todas se algum dia o catálogo permitir.
+	switch {
+	case cancelDanoDuasArmas > 0 && duasArmasDoCancelamento(e, itemAbility):
 		e.AffDamageMultiPct += int32(cancelDanoDuasArmas)
+	case cancelDanoArco > 0 && arcoDoCancelamento(e, itemAbility):
+		e.AffDamageMultiPct += int32(cancelDanoArco)
 	}
 	for i := range e.Affect {
 		af := e.Affect[i]
@@ -165,6 +179,17 @@ var manaControlCustoPctCancel = 100
 var (
 	cancelPerfuracaoPct = 80  // % da defesa do alvo que ela ignora
 	cancelDanoDuasArmas = 100 // % a mais de dano com duas armas ou garra
+	// cancelDanoArco é o bônus do ARCO (20/09/2026). Ele não era penalizado: só
+	// não ganhava nada, e por isso valia o mesmo que uma espada sozinha — 4.690
+	// de ataque na janela contra 8.821 de duas espadas, o que não servia nem para
+	// caçar. Com 67% ele sobe para ~7.270, a faixa que o operador pediu, e
+	// continua claramente atrás das duas armas: essas ainda levam o dobro de
+	// multiplicador, a mão esquerda inteira, um alvo a mais no Cancelamento e a
+	// perfuração de armadura, que o arco não tem.
+	//
+	// Vale só para o ARCO (EF_WTYPE 101, 82 itens do catálogo). Dardo (102) e
+	// lança de arremesso (104) ficam de fora porque não foram pedidos.
+	cancelDanoArco = 67
 )
 
 // perfuracaoDoCancelamento entra na mesma conta da Lança de Ferro da Huntress
