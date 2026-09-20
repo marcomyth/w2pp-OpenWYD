@@ -117,6 +117,7 @@ const (
 	MsgLojaAbrir       Type = 0x0F07 // C->S  abre a barraca com precos e moedas
 	MsgLojaAbriu       Type = 0x0F08 // S->C  a barraca subiu, com o id dela
 	MsgLojaMercado     Type = 0x0F09 // S->C  clicou numa barraca: abre o mercado
+	MsgLojaFecha       Type = 0x0F0A // C->S  fechei o painel, pare de me avisar
 	MsgRestart             Type = 0x0289 // 649
 	MsgRemoveParty         Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)
 	MsgSendReqParty        Type = 0x037F // 895  invite to party

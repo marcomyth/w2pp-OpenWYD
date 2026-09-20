@@ -132,11 +132,33 @@ type mercadoCache struct {
 	valido  bool
 }
 
-// mercadoMudou invalida a vitrine. Chamado de onde o mercado muda de forma:
-// lojaAbrir, closeAutoTrade, lojaCompra e lojaMoeda.
-func (d *Dispatcher) mercadoMudou() {
+// mercadoMudou invalida a vitrine e avisa quem esta com o painel aberto.
+//
+// É o contrário do que era: em vez de o cliente perguntar de poucos em poucos
+// segundos — pergunta que, com mil jogadores, vira mil varreduras por segundo
+// sem nada ter mudado —, o servidor manda a página nova no instante em que o
+// mercado muda. Quem não está olhando não recebe nada.
+//
+// Chamado de onde o mercado muda de forma: lojaAbrir, closeAutoTrade,
+// lojaCompra e lojaMoeda.
+func (d *Dispatcher) mercadoMudou(w *world.World) {
 	d.mercado.valido = false
 	d.mercado.ofertas = nil
+	if w == nil {
+		return
+	}
+	w.ForEachSession(func(s *world.Session, e *world.Entity) {
+		if s == nil || e == nil || !s.LojaAberta {
+			return
+		}
+		d.mandaVitrine(w, s, e, s.LojaPagina, s.LojaFiltro)
+	})
+}
+
+// lojaFecha atende MsgLojaFecha: o painel fechou e o servidor para de avisar
+// aquela sessão. Sem isto o aviso continuaria indo para quem nem está olhando.
+func (d *Dispatcher) lojaFecha(_ *world.World, s *world.Session, _ protocol.Header, _ []byte) {
+	s.LojaAberta = false
 }
 
 // mercadoOfertas devolve a lista do servidor inteiro, do cache quando ele ainda
@@ -160,13 +182,25 @@ func (d *Dispatcher) lojaPede(w *world.World, s *world.Session, _ protocol.Heade
 		return
 	}
 
+	// Quem pede esta com o painel aberto: o servidor passa a avisa-lo quando o
+	// mercado mudar, e ele nao precisa mais perguntar de tempos em tempos.
+	s.LojaAberta = true
+	s.LojaPagina = pede.Pagina
+	s.LojaFiltro = pede.Filtro
+	d.mandaVitrine(w, s, e, pede.Pagina, pede.Filtro)
+}
+
+// mandaVitrine monta e envia uma pagina da vitrine. Serve ao pedido do painel e
+// ao aviso que o servidor manda quando o mercado muda.
+func (d *Dispatcher) mandaVitrine(w *world.World, s *world.Session, e *world.Entity,
+	qualPagina, filtro int16) {
 	var ofertas []protocol.LojaOferta
-	if pede.Filtro == protocol.LojaFiltroMeus {
+	if filtro == protocol.LojaFiltroMeus {
 		// A minha barraca é curta e só interessa a mim: não vale cache.
-		ofertas = lojaOfertasAbertas(w, s, e, pede.Filtro)
+		ofertas = lojaOfertasAbertas(w, s, e, filtro)
 	} else {
 		for _, o := range d.mercadoOfertas(w) {
-			if lojaPassaNoFiltro(pede.Filtro, o.Moeda) {
+			if lojaPassaNoFiltro(filtro, o.Moeda) {
 				ofertas = append(ofertas, o)
 			}
 		}
@@ -176,7 +210,7 @@ func (d *Dispatcher) lojaPede(w *world.World, s *world.Session, _ protocol.Heade
 	if paginas < 1 {
 		paginas = 1
 	}
-	pagina := int(pede.Pagina)
+	pagina := int(qualPagina)
 	if pagina < 0 {
 		pagina = 0
 	}
@@ -222,5 +256,5 @@ func (d *Dispatcher) lojaMoeda(w *world.World, s *world.Session, _ protocol.Head
 		return
 	}
 	s.AutoTrade.Moeda[corpo.Slot] = corpo.Moeda
-	d.mercadoMudou()   // a oferta mudou de moeda
+	d.mercadoMudou(w)   // a oferta mudou de moeda
 }

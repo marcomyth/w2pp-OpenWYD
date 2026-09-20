@@ -45,6 +45,19 @@ func pedeVitrine(t *testing.T, c net.Conn, pagina, filtro int16) protocol.LojaLi
 	pede := protocol.LojaPedeBody{Pagina: pagina, Filtro: filtro}
 	send(t, c, protocol.MsgLojaPede, pede.Encode())
 	payload, _ := readUntil(t, c, protocol.MsgLojaLista)
+	// O servidor tambem EMPURRA a vitrine quando o mercado muda, entao pode
+	// haver mais de uma lista na fila. Vale a ultima, que e a regra do painel
+	// de verdade: lista nova substitui a anterior. Ler so a primeira faria o
+	// teste comprar por uma pagina velha - foi o que aconteceu.
+	for {
+		ty, corpo, ok := readMaybe(t, c)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgLojaLista {
+			payload = corpo
+		}
+	}
 	var lista protocol.LojaListaBody
 	if err := lista.Decode(payload); err != nil {
 		t.Fatalf("decodificando a vitrine: %v", err)

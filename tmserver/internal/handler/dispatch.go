@@ -700,6 +700,7 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgReqTradeList] = d.reqTradeList
 	d.routes[protocol.MsgReqBuy] = d.reqBuy
 	d.routes[protocol.MsgLojaPede] = d.lojaPede
+	d.routes[protocol.MsgLojaFecha] = d.lojaFecha
 	d.routes[protocol.MsgLojaMoeda] = d.lojaMoeda
 	d.routes[protocol.MsgLojaCompra] = d.lojaCompra
 	d.routes[protocol.MsgLojaCargo] = d.lojaCargo

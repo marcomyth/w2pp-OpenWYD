@@ -498,7 +498,6 @@ func (d *Dispatcher) closeAutoTrade(w *world.World, s *world.Session) {
 	// quarter-hour the stall actually completed, and closing is the one moment
 	// that number can still be read.
 	d.creditShopPoints(w, s)
-	d.mercadoMudou()   // uma barraca a menos na vitrine
 
 	clone := 0
 	if s.AutoTrade != nil {
@@ -507,6 +506,10 @@ func (d *Dispatcher) closeAutoTrade(w *world.World, s *world.Session) {
 	s.AutoTrade = nil
 	s.TradeMode = 0
 	w.Send(s, protocol.MsgQuitTrade, nil)
+	// O aviso vai DEPOIS de a barraca sair do ar. Avisando antes, a pagina que
+	// os outros recebem ainda tem a barraca dentro - foi o que os testes
+	// pegaram, e seria um item fantasma na vitrine de todo mundo.
+	d.mercadoMudou(w)
 
 	if clone != 0 {
 		// The stall was its own body: take it down and leave the owner alone. He

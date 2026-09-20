@@ -128,7 +128,6 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 
 	s.AutoTrade = barraca
 	s.TradeMode = 1
-	d.mercadoMudou()   // uma barraca a mais na vitrine
 	barraca.OpenedAt = w.Now()
 	barraca.PaidUntil = barraca.OpenedAt
 	// A barraca sobe primeiro: é ela que dá o id pelo qual os outros compram.
@@ -142,6 +141,9 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 	}
 	// O painel espera este aviso para fechar a tela de montagem e já mostrar a
 	// barraca na vitrine. O id é o mesmo pelo qual os outros compram.
+	// O aviso aos outros sai depois de a barraca estar de pe e com id: antes
+	// disso a vitrine que eles receberiam nao teria as ofertas novas.
+	d.mercadoMudou(w)
 	aviso := protocol.LojaAbriuBody{Barraca: int32(shopStallID(s))}
 	w.SendTo(s, protocol.Header{Type: protocol.MsgLojaAbriu, ID: protocol.IDScene}, aviso.Encode())
 	d.log.Info("loja: barraca montada pelo painel", "conn", s.Conn, "titulo", barraca.Title,

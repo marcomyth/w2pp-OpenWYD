@@ -163,7 +163,6 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	// na mochila do comprador, e a barraca perde o slot.
 	e.Carry[destino] = itemCargo
 	cargoVendedor.Items[cpos] = world.Item{}
-	d.mercadoMudou()   // um item a menos na vitrine
 	*slot = world.AutoTradeSlot{CargoPos: -1}
 	vendedor.AutoTrade.Moeda[pos] = protocol.LojaMoedaOuro
 
@@ -179,4 +178,7 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	// Quem estiver olhando a barraca no jeito antigo vê o item sair da lista.
 	w.BroadcastInView(int(pedido.Vendedor), protocol.MsgItemSold,
 		protocol.EncodeStandardParm2(pedido.Vendedor, int32(pos)))
+	// O aviso aos outros sai no fim, com a prateleira ja vazia: avisar antes
+	// mandaria a todos uma vitrine com o item que acabou de ser vendido.
+	d.mercadoMudou(w)
 }

@@ -63,6 +63,12 @@ type Session struct {
 	// Loja do Servidor. É o que o painel mostra no rodapé.
 	Cash int32
 	Rmt  int32
+	// O painel da loja aberto, e em que página e filtro ele está. O servidor
+	// avisa quem está com ele aberto quando o mercado muda, em vez de deixar o
+	// cliente perguntar de tempos em tempos — ver handler.mercadoMudou.
+	LojaAberta bool
+	LojaPagina int16
+	LojaFiltro int16
 	Slot        int
 	Mode        Mode
 	IP          string
