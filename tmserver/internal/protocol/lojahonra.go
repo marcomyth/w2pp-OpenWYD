@@ -23,6 +23,7 @@ import (
 //                         do estoque do servidor.
 //   MsgHonraSaldo  (S→C): o saldo depois de uma compra.
 //   MsgHonraFecha  (C→S): fechei o painel.
+//   MsgHonraFechou (S→C): feche o painel — o NPC saiu de vista.
 //
 // Como a compra da vitrine (lojaservidor.go), o cliente não manda valor nenhum:
 // ele aponta a casa, o servidor lê o preço. Um cliente remendado não tem o que

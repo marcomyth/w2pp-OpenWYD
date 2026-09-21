@@ -62,6 +62,35 @@ func startServerHonra(t *testing.T, persist world.Persistence) (string, func()) 
 	}
 }
 
+// startServerHonraAndando é o arranque para os testes que ANDAM: mapa grande o
+// bastante para caber a caminhada e relógio na mão do teste, porque a trava
+// anti-speedhack compara o tique que o cliente manda com o relógio do servidor.
+func startServerHonraAndando(t *testing.T, persist world.Persistence) (string, func()) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	d := New(Config{Log: log})
+	relogio := func() uint32 { return serverTime }
+	w := world.New(world.Config{GridDim: 512, Now: relogio}, log, persist, d.Handle)
+	if id := w.SpawnMob(godOfWarTemplate(), 5, 5); id != shopNPCID {
+		t.Fatalf("o God of War nasceu como %d, esperado %d", id, shopNPCID)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = w.Serve(ctx, ln); close(done) }()
+	return ln.Addr().String(), func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Error("o servidor não parou")
+		}
+	}
+}
+
 // contaComPontos é uma conta com saldo de pontos e a mochila vazia, no lugar que
 // o teste pedir.
 func contaComPontos(pontos int32, x, y int16) *fakeDB {
@@ -340,6 +369,64 @@ func TestLojaDeHonraLongeDoNPCNaoVende(t *testing.T) {
 	}
 	if got := db.pontosLojinha0(); got != 500 {
 		t.Errorf("carteira mexeu numa compra de longe: %d, esperado 500", got)
+	}
+}
+
+// TestLojaDeHonraFechaQuandoOJogadorSeAfasta: andar com a loja aberta vale, e até
+// o NPC sair de vista a loja continua de pé — é o que o jogo faz com as lojas dele
+// (_MSG_Buy.cpp:60 responde com _MSG_CloseShop a uma compra fora da vista). Passou
+// disso, o servidor manda fechar e a compra para de valer.
+func TestLojaDeHonraFechaQuandoOJogadorSeAfasta(t *testing.T) {
+	db := contaComPontos(500, 5, 5)
+	addr, stop := startServerHonraAndando(t, db)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	clicaNoGodOfWar(t, c)
+	expect(t, c, protocol.MsgHonraAbre)
+
+	// Trinta tiles: longe, mas ainda na vista (VIEWGRID é 33). A loja fica.
+	actionFrame(t, c, serverTime, 35)
+	for i := 0; i < 6; i++ {
+		ty, _, ok := readMaybe(t, c)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgHonraFechou {
+			t.Fatal("a loja fechou com o NPC ainda na vista")
+		}
+	}
+
+	// Mais trinta: agora o NPC ficou para trás.
+	actionFrame(t, c, serverTime, 65)
+	fechou := false
+	for i := 0; i < 8 && !fechou; i++ {
+		ty, _, ok := readMaybe(t, c)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgHonraFechou {
+			fechou = true
+		}
+	}
+	if !fechou {
+		t.Fatal("o jogador saiu de vista e a loja não fechou")
+	}
+
+	// E a compra não vale mais: o servidor esqueceu o NPC.
+	compraDeHonra(t, c, 3)
+	for i := 0; i < 6; i++ {
+		ty, p, ok := readMaybe(t, c)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgSendItem && le16(p[4:6]) != 0 {
+			t.Fatal("comprou depois de a loja ter fechado por distância")
+		}
+	}
+	if got := db.pontosLojinha0(); got != 500 {
+		t.Errorf("carteira mexeu depois do fechamento: %d, esperado 500", got)
 	}
 }
 

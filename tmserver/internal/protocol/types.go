@@ -126,6 +126,7 @@ const (
 	MsgHonraCompra Type = 0x0F21 // C->S  quero a casa N do estoque
 	MsgHonraSaldo  Type = 0x0F22 // S->C  o saldo depois da compra
 	MsgHonraFecha  Type = 0x0F23 // C->S  fechei o painel da loja de honra
+	MsgHonraFechou Type = 0x0F24 // S->C  feche o painel: o NPC saiu de vista
 
 	MsgRestart          Type = 0x0289 // 649
 	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)

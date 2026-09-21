@@ -176,6 +176,57 @@ func (d *Dispatcher) honraFecha(w *world.World, s *world.Session, _ protocol.Hea
 	s.LojaHonraNPC = 0
 }
 
+// naVistaDaLoja é o GetInView do legado (GetFunc.cpp:764): a caixa de VIEWGRID
+// tiles em volta, que é uma tela. É a regra que o próprio jogo usa para as lojas de
+// NPC — o _MSG_Buy responde a uma compra fora dela com _MSG_CloseShop
+// (_MSG_Buy.cpp:60) —, e a Loja de Honra segue a mesma.
+//
+// Não é o pertoDoMob (HALFGRID, 16): aquele é o alcance da experiência de grupo.
+// Usar dois limites diferentes deixaria uma faixa entre 16 e 33 tiles em que o
+// painel fica aberto e a compra é recusada sem o jogador entender por quê.
+func naVistaDaLoja(e, npc *world.Entity) bool {
+	if e == nil || npc == nil {
+		return false
+	}
+	dx := int(npc.X) - int(e.X)
+	dy := int(npc.Y) - int(e.Y)
+	if dx < 0 {
+		dx = -dx
+	}
+	if dy < 0 {
+		dy = -dy
+	}
+	return dx <= viewGridX && dy <= viewGridY
+}
+
+// fechaLojaDeHonra derruba o painel: esquece o NPC e manda o cliente fechar.
+func (d *Dispatcher) fechaLojaDeHonra(w *world.World, s *world.Session) {
+	if s.LojaHonraNPC == 0 {
+		return
+	}
+	s.LojaHonraNPC = 0
+	w.Send(s, protocol.MsgHonraFechou, nil)
+}
+
+// afastouDaLojaDeHonra fecha o painel quando o jogador anda para fora da vista do
+// NPC. Chamada a cada passo aceito (movement.go).
+//
+// Andar com a loja aberta é permitido de propósito: é o que o jogo faz com as
+// lojas de NPC dele. O que não pode é continuar comprando de longe, e o painel
+// aberto do outro lado do mapa seria isso — ou pareceria isso, que dá no mesmo
+// para quem está olhando a tela.
+func (d *Dispatcher) afastouDaLojaDeHonra(w *world.World, s *world.Session, e *world.Entity) {
+	if s.LojaHonraNPC == 0 {
+		return
+	}
+	npc := w.Entity(s.LojaHonraNPC)
+	if ehLojaDeHonra(npc) && naVistaDaLoja(e, npc) {
+		return
+	}
+	d.log.Info("loja de honra fechada: o NPC saiu de vista", "conn", s.Conn, "npc", s.LojaHonraNPC)
+	d.fechaLojaDeHonra(w, s)
+}
+
 // honraCompra atende MsgHonraCompra: troca pontos por um item do estoque.
 //
 // A ordem importa e é esta: confere tudo o que o laço sabe, DEBITA no banco, e
@@ -204,10 +255,12 @@ func (d *Dispatcher) honraCompra(w *world.World, s *world.Session, _ protocol.He
 	if !ehLojaDeHonra(npc) {
 		return // painel fechado, ou nunca esteve aberto
 	}
-	// Presença: a loja é do NPC, não do jogador. O mesmo alcance que a
-	// experiência de grupo usa para "estava perto do corpo".
-	if !pertoDoMob(e, npc) {
+	// Presença: a loja é do NPC, não do jogador. O limite é o mesmo do jogo — ver
+	// naVistaDaLoja —, e é o mesmo que fecha o painel, para não existir uma faixa
+	// em que ele está aberto e a compra é recusada.
+	if !naVistaDaLoja(e, npc) {
 		sendClientMessage(w, s, "Você está longe demais da loja.")
+		d.fechaLojaDeHonra(w, s)
 		return
 	}
 	pos := int(pedido.Slot)
