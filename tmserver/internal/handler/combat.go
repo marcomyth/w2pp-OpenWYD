@@ -1215,7 +1215,7 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 		for k := range resist {
 			resist[k] = effectiveResist(target, k)
 		}
-		return combat.SkillResistScale(dmg, sp.InstanceType, resist, world.IsPlayer(tid), int(d.combatRules.MobResistBase))
+		return combat.SkillResistScale(dmg, sp.InstanceType, resist, int(d.combatRules.MobResistBase))
 	case sp.InstanceType == 6:
 		if target.Clan == 4 {
 			return 0

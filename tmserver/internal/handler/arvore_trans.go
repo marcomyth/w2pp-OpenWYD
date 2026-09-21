@@ -85,14 +85,18 @@ var (
 //
 // São var, e não const, porque a simulação os varre (simulacao_torneio_test.go).
 var (
-	// 250 é grande de propósito, e foi varrido no torneio, não no dano por
-	// segundo: até 130 o placar dele não se movia UM ponto (30 vitórias em todos
-	// os valores), porque abaixo disso ele continuava sem vencer a poção de
-	// ninguém — contra o Paladino ele tirava 1.076 por segundo contra os 2.000
-	// que a poção levanta. Acima de 350 ele passa a ganhar de todo mundo (87
-	// vitórias em 500), o que é o outro extremo.
-	armaduraDanoForca       = 250 // pontos no multiplicador
-	armaduraPerfuracaoForca = 30  // % da defesa do alvo
+	// 31 sai do TETO DE ATAQUE, não do torneio. O valor anterior (250) foi
+	// varrido contra vitórias e pôs a janela do porradeiro em 15.921 de Ataque
+	// num personagem full +11 Mortal — o operador mediu em jogo em 21/09/2026 e
+	// cobrou: o teto do dano físico full é 9.000, e o bom é 7.500-8.000. Em 31 a
+	// janela fica em 8.031.
+	//
+	// A lição que fica: balancear por multiplicador de dano briga com o teto da
+	// janela, porque o multiplicador é justamente o que a janela mostra. Quem
+	// precisa de força e não cabe no teto tem de recebê-la por acerto,
+	// perfuração, crítico ou cadência — não por ataque.
+	armaduraDanoForca       = 31 // pontos no multiplicador
+	armaduraPerfuracaoForca = 30 // % da defesa do alvo
 )
 
 // danoDaArmadura é o multiplicador de dano que a Armadura Crítica paga.

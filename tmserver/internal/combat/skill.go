@@ -200,15 +200,25 @@ func SkillBaseDamage(skillnum int, sp SkillSpell, c SkillCaster, weather, weapon
 }
 
 // SkillResistScale applies the target's elemental resist after mitigation
-// (_MSG_Attack.cpp:569): dam = (150-resist)*dam/100. InstanceType 1 reads
-// Resist[0]; types 2-5 read Resist[InstanceType-2]. A mob's resist counts
-// half. Other InstanceTypes pass through unchanged.
+// (_MSG_Attack.cpp:569): dam = (base-resist/2)*dam/100. InstanceType 1 reads
+// Resist[0]; types 2-5 read Resist[InstanceType-2]. Other InstanceTypes pass
+// through unchanged.
 //
-// mobBase replaces the 150 against a MONSTER only (combatrule.MobResistBase):
-// the legacy 150 hands a low-resist monster +50% over the spell's own number,
-// which is the part of the hit the player never sees on the "Atq Mágico". A
-// player target always keeps the legacy 150. A mobBase of 0 means the legacy.
-func SkillResistScale(dam, instanceType int, resist [4]int16, targetIsPlayer bool, mobBase int) int {
+// mobBase replaces the legacy 150 (combatrule.MobResistBase), and since
+// 21/09/2026 it replaces it against a PLAYER too. The legacy 150 hands a
+// low-resist target +50% over the spell's own number — the part of the hit the
+// player never sees on the "Atq Mágico" — and against a player that surplus was
+// large enough to invert the pipeline: the damage LEFT after the target's
+// defence came out bigger than the raw damage that entered.
+//
+// The resist counts HALF for every target, not just for a monster. That is what
+// lets the base drop to 100 without turning the resist ceiling into immunity:
+// with the full resist, a target at the 100 cap would zero the blow. Halved, the
+// cap keeps meaning what it always meant — half damage — while a target with NO
+// resist finally takes the blow whole instead of 1.5 times it.
+//
+// A mobBase of 0 means the legacy 150.
+func SkillResistScale(dam, instanceType int, resist [4]int16, mobBase int) int {
 	var r int
 	switch {
 	case instanceType == 1:
@@ -219,11 +229,14 @@ func SkillResistScale(dam, instanceType int, resist [4]int16, targetIsPlayer boo
 		return dam
 	}
 	base := 150
-	if !targetIsPlayer {
-		r /= 2
-		if mobBase > 0 {
-			base = mobBase
-		}
+	if mobBase > 0 {
+		base = mobBase
 	}
+	// A resistência conta pela METADE em todo alvo, não só em monstro. É o que
+	// deixa a base descer de 150 para 100 sem virar imunidade: com base 100 e a
+	// resistência inteira, o teto de 100 de resist zerava o golpe. Pela metade, o
+	// teto continua valendo o que sempre valeu — metade do dano — e um alvo SEM
+	// resistência passa a tomar o golpe cheio em vez de 1,5 vezes ele.
+	r /= 2
 	return (base - r) * dam / 100
 }
