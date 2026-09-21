@@ -85,17 +85,19 @@ var (
 //
 // São var, e não const, porque a simulação os varre (simulacao_torneio_test.go).
 var (
-	// 31 sai do TETO DE ATAQUE, não do torneio. O valor anterior (250) foi
+	// 50 sai do TETO DE ATAQUE, não do torneio. O valor anterior (250) foi
 	// varrido contra vitórias e pôs a janela do porradeiro em 15.921 de Ataque
 	// num personagem full +11 Mortal — o operador mediu em jogo em 21/09/2026 e
 	// cobrou: o teto do dano físico full é 9.000, e o bom é 7.500-8.000. Em 31 a
-	// janela fica em 8.031.
+	// janela fica em 8.969 — e o TK com a espada Éden é justamente quem DEVE
+	// chegar ao teto de 9.000, porque é a arma de duas mãos que paga Força. Todo
+	// o resto do elenco fica abaixo dele.
 	//
 	// A lição que fica: balancear por multiplicador de dano briga com o teto da
 	// janela, porque o multiplicador é justamente o que a janela mostra. Quem
 	// precisa de força e não cabe no teto tem de recebê-la por acerto,
 	// perfuração, crítico ou cadência — não por ataque.
-	armaduraDanoForca       = 31 // pontos no multiplicador
+	armaduraDanoForca       = 50 // pontos no multiplicador
 	armaduraPerfuracaoForca = 30 // % da defesa do alvo
 )
 

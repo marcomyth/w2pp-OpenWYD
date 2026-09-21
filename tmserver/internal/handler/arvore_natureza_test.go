@@ -263,7 +263,7 @@ func TestAbsorcaoSegueAEmpunhadura(t *testing.T) {
 	}{
 		{"Caliburn sozinha", testCaliburn, 0, base},
 		{"duas Caliburn", testCaliburn, testCaliburn, base},
-		{"Hermai + escudo", testHermai, testEscudo, min(base+naturezaAbsEscudo, naturezaAbsTeto)},
+		{"Hermai + escudo", testHermai, testEscudo, min(base+naturezaAbsEscudoAtual, naturezaAbsTeto)},
 		{"garra", testGarra, 0, penalidadeDaEmpunhadura(base)},
 	} {
 		e := comArmas(bmDaNatureza(2800, 700, naturezaMaestriaCheia, learnedArmaduraElemental|learnedEden), c.dir, c.esquer)
@@ -313,7 +313,7 @@ func TestDanoSegueAEmpunhadura(t *testing.T) {
 		dir, esquer int16
 		want        int32
 	}{
-		{"duas Caliburn", testCaliburn, testCaliburn, 100 + naturezaDanoDuasArmas},
+		{"duas Caliburn", testCaliburn, testCaliburn, int32(100 + naturezaDanoDuasArmasAtual)},
 		{"Caliburn + escudo", testCaliburn, testEscudo, 100},
 		{"Caliburn sozinha", testCaliburn, 0, 100},
 		{"garra", testGarra, 0, 100 - naturezaPenalidadePct},
@@ -355,24 +355,45 @@ const (
 	formaEden
 )
 
+// moduloDe é o valor absoluto: a camada do dano é negativa, e o que se compara
+// entre as formas é o TAMANHO da fatia, não o sinal.
+func moduloDe(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
 // O ÉDEN recebe a camada inteira; as outras formas, a fatia do peso delas. É o
 // que faz a 8ª valer os 212 pontos sem precisar ser a melhor em nenhuma
 // estatística isolada.
 func TestMetamorfoseDaCamadaCheiaSoAoEden(t *testing.T) {
 	learned := int32(learnedMetamorfoseSuperior | learnedArmaduraElemental)
-	var anterior int
+	// A prova é sobre a FATIA, não sobre o sinal: desde 21/09/2026 a faixa do
+	// dano é negativa (a Metamorfose cobra em dano, como já cobrava em vida), e
+	// a regra "o Éden leva a camada inteira" tem de valer do mesmo jeito. Por
+	// isso a absorção — que é positiva — mede o crescimento, e o dano é medido
+	// em módulo.
+	var anteriorAbs, anteriorDano int
 	for _, forma := range []int{formaLobo, formaUrso, formaAstaroth, formaTita, formaEden} {
 		e := transformado(bmDaNatureza(2800, 700, naturezaMaestriaCheia, learned), forma)
-		got := camadaDaForma(e, forma, naturezaCamada.dano)
-		if got <= 0 {
-			t.Errorf("forma %d: camada de dano %d, tinha de ser positiva", forma, got)
+		absorcao := camadaDaForma(e, forma, naturezaCamada.abs)
+		dano := camadaDaForma(e, forma, naturezaCamada.dano)
+		if absorcao <= 0 {
+			t.Errorf("forma %d: camada de absorção %d, tinha de ser positiva", forma, absorcao)
 		}
-		if forma == formaEden && got <= anterior {
-			t.Errorf("o Éden (%d) tinha de receber mais que a forma anterior (%d)", got, anterior)
+		if forma == formaEden {
+			if absorcao <= anteriorAbs {
+				t.Errorf("o Éden (absorção %d) tinha de receber mais que a forma anterior (%d)", absorcao, anteriorAbs)
+			}
+			if moduloDe(dano) <= moduloDe(anteriorDano) {
+				t.Errorf("o Éden (dano %d) tinha de receber a camada mais cheia que a forma anterior (%d)", dano, anteriorDano)
+			}
 		}
-		anterior = got
+		anteriorAbs, anteriorDano = absorcao, dano
 	}
-	// O Éden com o eixo cheio recebe exatamente o topo da faixa.
+	// O Éden com o eixo cheio recebe exatamente o topo da faixa, qualquer que
+	// seja o sinal dela.
 	eden := transformado(bmDaNatureza(2800, 700, naturezaMaestriaCheia, learned), formaEden)
 	if got := camadaDaForma(eden, formaEden, naturezaCamada.dano); got != naturezaCamada.dano[1] {
 		t.Errorf("Éden com Força pura: dano %d, want %d", got, naturezaCamada.dano[1])
@@ -486,18 +507,23 @@ func TestMetamorfoseEntraNoScore(t *testing.T) {
 	sem.AC = 2000
 	applyAffectScoreWithItemAbility(sem, d.itemAbility)
 
-	if com.AffDamageMultiPct <= sem.AffDamageMultiPct {
-		t.Errorf("dano: com %d%%, sem %d%% — a Metamorfose tinha de somar",
+	// A Metamorfose COBRA em dano e em vida o que paga em defesa, absorção,
+	// velocidade, crítico e acerto. Desde 21/09/2026 o dano entrou na lista das
+	// cobranças, junto com a vida, por causa do teto de ataque da janela — um BM
+	// transformado em Éden já estourava os 9.000 com esta camada em zero.
+	//
+	// O que o teste prova é que a passiva CHEGA ao score pelos dois lados: ela
+	// tem de mover o dano e a vida para baixo e a defesa para cima. Uma passiva
+	// que não move nada é o modo silencioso de uma regra nova não existir.
+	if com.AffDamageMultiPct >= sem.AffDamageMultiPct {
+		t.Errorf("dano: com %d%%, sem %d%% — a camada tinha de COBRAR dano",
 			com.AffDamageMultiPct, sem.AffDamageMultiPct)
 	}
-	// A vida DESCE com a Metamorfose, de propósito (a camada é negativa nos dois
-	// lados do eixo). Provar que ela desce é tão importante quanto provar que o
-	// dano sobe: é a metade do preço que a passiva cobra.
 	if com.AffMaxHP >= sem.AffMaxHP {
 		t.Errorf("HP: com %d, sem %d — a camada tinha de TIRAR vida", com.AffMaxHP, sem.AffMaxHP)
 	}
 	if com.AffAC <= sem.AffAC {
-		t.Errorf("defesa: com %d, sem %d", com.AffAC, sem.AffAC)
+		t.Errorf("defesa: com %d, sem %d — e tinha de PAGAR defesa", com.AffAC, sem.AffAC)
 	}
 }
 
@@ -519,7 +545,7 @@ func TestAbsorcaoTotalEAsTresParcelas(t *testing.T) {
 		testHermai, testEscudo)
 
 	eixo := naturezaInterpola(e, armaduraAbsDestreza, armaduraAbsForca)
-	escudo := naturezaAbsEscudo * maestriaDaNatureza(e) / naturezaMaestriaCheia
+	escudo := naturezaAbsEscudoAtual * maestriaDaNatureza(e) / naturezaMaestriaCheia
 	forma := absorcaoDaMetamorfose(e)
 	bruta := eixo + escudo + forma
 

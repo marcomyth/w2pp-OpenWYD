@@ -182,10 +182,10 @@ var (
 	// física tirava 606 de dano por segundo na média do elenco, contra uma poção
 	// que levanta 2.000 — 15 vitórias e 79 derrotas no torneio. O ataque dela na
 	// ficha era 8.726, metade dos 17.037 do BM de Força e dos 15.747 da Xorimpas,
-	// e 250 a põe na faixa dos 11-12 mil: acima do Paladino e ainda claramente
-	// atrás dos dois porradeiros, que é onde uma classe de 12.432 de vida deve
-	// estar.
-	cancelDanoDuasArmas = 250 // % a mais de dano com duas armas ou garra
+	// e 250 a pôs na faixa dos 11-12 mil de ATAQUE, o que estourou o teto de
+	// 9.000 da janela quando ele foi fixado em 21/09. 102 a devolve para 8.799,
+	// logo abaixo do TK de Éden, que é quem chega ao teto.
+	cancelDanoDuasArmas = 102 // % a mais de dano com duas armas ou garra
 	// cancelDanoArco é o bônus do ARCO (20/09/2026). Ele não era penalizado: só
 	// não ganhava nada, e por isso valia o mesmo que uma espada sozinha — 4.690
 	// de ataque na janela contra 8.821 de duas espadas, o que não servia nem para
@@ -196,7 +196,7 @@ var (
 	//
 	// Vale só para o ARCO (EF_WTYPE 101, 82 itens do catálogo). Dardo (102) e
 	// lança de arremesso (104) ficam de fora porque não foram pedidos.
-	cancelDanoArco = 67
+	cancelDanoArco = 81
 )
 
 // 40 · A NÉVOA VENENOSA da FM Cancelamento (21/09/2026).

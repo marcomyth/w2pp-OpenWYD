@@ -161,7 +161,7 @@ func (d *Dispatcher) absorcaoDaArmaduraElementalDecimos(e *world.Entity) int {
 	case empunhaduraEscudo:
 		// O escudo soma, mas só na proporção da maestria, como todo o resto da
 		// árvore: um BM que não investiu nela não vira tanque por equipar.
-		abs += naturezaAbsEscudo * maestriaDaNatureza(e) / naturezaMaestriaCheia
+		abs += naturezaAbsEscudoAtual * maestriaDaNatureza(e) / naturezaMaestriaCheia
 	case empunhaduraPenalizada:
 		abs = penalidadeDaEmpunhadura(abs)
 	}
@@ -251,16 +251,22 @@ func empunhaduraDaNatureza(e *world.Entity, itemAbility func(world.Item, uint8) 
 	return empunhaduraDuasArmas
 }
 
-const (
-	// naturezaDanoDuasArmas é o prêmio de abrir mão do escudo. O dual wield já
-	// rende por si (o legado soma "arma maior + metade da menor"), e isto é o
+// Os dois que a simulação varre contra o teto de ataque da janela.
+var (
+	// naturezaDanoDuasArmasAtual é o prêmio de abrir mão do escudo. O dual wield
+	// já rende por si (o legado soma "arma maior + metade da menor"), e isto é o
 	// que o TK ganha com Mestre das Armas e a HT com Perícia do Caçador — o BM
 	// não tinha equivalente nenhum.
-	naturezaDanoDuasArmas = 20
+	// ZERADO em 21/09/2026 pelo teto de ataque: a build de Destreza chega a
+	// 8.787 de janela só com as duas armas na mão, antes de qualquer bônus, e o
+	// teto é 9.000. Não havia onde pôr este prêmio.
+	naturezaDanoDuasArmasAtual = 0
 
-	// naturezaAbsEscudo é o que o escudo soma à absorção, em décimos.
-	naturezaAbsEscudo = 100
+	// naturezaAbsEscudoAtual é o que o escudo soma à absorção, em décimos.
+	naturezaAbsEscudoAtual = 100
+)
 
+const (
 	// naturezaCriticoEscudo é o crítico da empunhadura de assinatura, no byte do
 	// personagem (≈ +10% na janela).
 	naturezaCriticoEscudo = 25
@@ -301,7 +307,7 @@ func applyPassivasDaNatureza(e *world.Entity, itemAbility func(world.Item, uint8
 	}
 	switch empunhaduraDaNatureza(e, itemAbility) {
 	case empunhaduraDuasArmas:
-		e.AffDamageMultiPct += int32(naturezaDanoDuasArmas * maestriaDaNatureza(e) / naturezaMaestriaCheia)
+		e.AffDamageMultiPct += int32(naturezaDanoDuasArmasAtual * maestriaDaNatureza(e) / naturezaMaestriaCheia)
 	case empunhaduraPenalizada:
 		e.AffDamageMultiPct -= naturezaPenalidadePct
 	}
@@ -352,15 +358,22 @@ var naturezaCamada = struct {
 	abs, dano, hp, ac, vel, crit, acerto faixaDoEixo
 }{
 	abs: faixaDoEixo{20, 100}, // décimos de percentual: 2% a 10%
-	// O dano da Força é o que compensa a DUPLA função da Destreza: ela esquiva
-	// quando defende E fura esquiva quando ataca (o -attackerDex do parry,
-	// combat/critical.go:106).
+	// O DANO DA CAMADA FICOU NEGATIVO em 21/09/2026, e isso é o desenho, não um
+	// remendo. A Metamorfose já COBRA em vida (hp, logo abaixo) o que paga em
+	// absorção, defesa, velocidade, crítico e acerto; agora cobra em dano também.
 	//
-	// Os dois números saem das fichas REAIS medidas em jogo (TestEfeitoDoAjuste*
-	// em simulacao_natureza_test.go), não de um empate teórico: 93 põe o DanoPRZ
-	// em +2.098 de ataque e 104 põe o olaola em +507, que foi o pedido. A Força
-	// segue na frente, e é isso que o eixo promete.
-	dano: faixaDoEixo{57, 104}, // pontos no multiplicador
+	// O motivo é o teto de ataque da janela, fixado pelo operador em 9.000 — e o
+	// teto é por causa do PvE, não do PvP: ataque inflado quebra a caçada antes
+	// de quebrar o duelo. Um BM Natureza transformado em Éden já chega a 9.936
+	// (Força) e 10.096 (Destreza) de janela com esta camada em ZERO, porque o
+	// próprio Éden do legado multiplica o dano por 1,29 (transBonus, transform.go)
+	// em cima de uma arma que já rende. Não havia onde somar; havia o que tirar.
+	//
+	// O eixo perde o dano como diferenciador — −18 e −19 são praticamente o mesmo
+	// número — e passa a separar a Força da Destreza pelas outras seis faixas:
+	// absorção, vida, defesa, velocidade, crítico e acerto. É uma perda real de
+	// desenho, registrada aqui para não ser redescoberta como bug.
+	dano: faixaDoEixo{-19, -18}, // pontos no multiplicador
 	// A vida CAI nos dois lados, e mais na Força: ver o bloco do topo. Calibrado
 	// para −5.077 no DanoPRZ e −12.047 no olaola.
 	hp:   faixaDoEixo{-38, -55}, // % sobre o HP pós-equipamento

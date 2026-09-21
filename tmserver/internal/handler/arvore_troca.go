@@ -284,12 +284,26 @@ var esquivaTetoAtual = esquivaTeto
 // para 10 s mudou 124. A alavanca é o FÍSICO, que é 47% do dano da Troca e 46%
 // do da Sobrevivência.
 //
-// E o multiplicador de dano é o botão certo para isso: na HT ele NÃO alcança as
-// skills da classe (elas não leem o Ataque — ver a Ligação Espectral acima), só
-// o golpe físico e a Tempestade. Então subir daqui não infla a Lâmina junto.
+// ZERADOS em 21/09/2026, e a lição vale para o servidor inteiro.
+//
+// O multiplicador de dano parecia o botão certo porque na HT ele não alcança as
+// skills da classe (elas não leem o Ataque), só o golpe físico e a Tempestade —
+// subir daqui não inflava a Lâmina junto. Só que ele alcança a JANELA: com 100 e
+// 80, a ficha de uma Xorimpas full +11 Mortal foi a 11.815 de Ataque, medida em
+// jogo pelo operador, contra um teto de 8.000. O piso da classe, sem botão
+// nenhum, já é 8.111 — exatamente a janela de referência da simulação.
+//
+// Ou seja: as árvores da HT não têm UM PONTO de folga de multiplicador. O que
+// elas podem ganhar é o que a janela não mostra — e, medido, nem acerto nem
+// perfuração movem o placar delas (+300 de acerto: 28 vitórias contra 33 sem
+// nada; Lânça de Ferro a 60%: 23). O que separa as três árvores é outra coisa:
+// as três usam a MESMA Lâmina das Sombras, e só a Captura tem o crítico próprio
+// dela. Por uso, a Lâmina vale 1.855 na Captura contra 916 na Troca e 904 na
+// Sobrevivência — é aí que está a diferença de 30% no dano por segundo, e é aí
+// que uma correção tem de entrar.
 var (
-	trocaDanoFisicoOitava         = 100
-	sobrevivenciaDanoFisicoOitava = 80
+	trocaDanoFisicoOitava         = 0
+	sobrevivenciaDanoFisicoOitava = 0
 )
 
 // applyPassivasDaTroca e applyPassivasDaSobrevivencia somam o dano físico das

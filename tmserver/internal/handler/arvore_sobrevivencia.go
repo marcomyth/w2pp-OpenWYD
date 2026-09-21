@@ -93,17 +93,18 @@ func danoMeditacaoPct(e *world.Entity, level, value int32) int32 {
 //
 // A Destreza pesa o dobro, mas a Força também soma. DES 2000 / FOR 500 → 15%;
 // FOR 2000 / DES 500 → 11%.
-const (
-	lancaDeFerroDivisor = 150
-	lancaDeFerroTeto    = 20
-)
+const lancaDeFerroDivisor = 150
+
+// lancaDeFerroTetoAtual é var porque a simulação o varre: é a alavanca da árvore
+// da Sobrevivência que NÃO passa pelo ataque da janela.
+var lancaDeFerroTetoAtual = 20
 
 func perfuracaoLancaDeFerro(e *world.Entity) int {
 	if e == nil || e.Class != 3 || e.LearnedSkill&learnedLancaDeFerro == 0 {
 		return 0
 	}
 	dex, str := max(0, int(effectiveDex(e))), max(0, int(effectiveStr(e)))
-	return min((dex+str/2)/lancaDeFerroDivisor, lancaDeFerroTeto)
+	return min((dex+str/2)/lancaDeFerroDivisor, lancaDeFerroTetoAtual)
 }
 
 // defesaPerfurada é a defesa do alvo que o golpe de attacker enfrenta.
