@@ -223,6 +223,12 @@ const (
 	// gives.
 	NoticeWaterLevelTooLow
 	NoticePesadeloLevelTooLow
+
+	// NoticeValeSemFada: o piso de Azran só leva ao Vale Escondido com a Fada do
+	// Vale no slot 13 (GetFunc.cpp:924-931, vale.go). Sem linha no Language.txt —
+	// no legado a recusa é o silêncio, e aqui ela fala, pelo motivo que vale.go
+	// explica. Acrescentada no fim pelo motivo que NoticeLevelLimit explica.
+	NoticeValeSemFada
 )
 
 // noticeKey maps a Notice to its key in the shipped client string table
@@ -343,6 +349,9 @@ var noticeText = map[Notice]string{
 	NoticeCantRefineMore: "Este item não pode ser mais refinado.",             // 75
 	NoticeFailToRefine:   "Refinação falhou.",                                 // 76
 	NoticeRefineSuccess:  "Obteve sucesso na refinação.",                      // 176
+
+	// Vale Escondido: a rota é do legado, o aviso é deste port (vale.go).
+	NoticeValeSemFada: "Sem a Fada do Vale equipada não se entra no Vale Escondido.",
 
 	// Paint. No Language.txt id: see the DELIBERATE DIVERGENCE note above.
 	NoticePaintSuccess: "Item pintado com sucesso.",

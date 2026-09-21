@@ -9,9 +9,11 @@ type teleRoute struct {
 
 // teleportTable maps a rounded origin tile (x&0xFFFC, y&0xFFFC) to its
 // destination + gold cost. It is GetTeleportPosition (GetFunc.cpp:782-1026) minus
-// its two CONDITIONAL routes, which a table lookup cannot express: the Kefra Hall
-// floor only moves a player who carries an entry (handler/kefra_hall.go), and the
-// desert route only opens once the Kefra has been DEFEATED (handler/kefra.go).
+// its three CONDITIONAL routes, which a table lookup cannot express: the Kefra
+// Hall floor only moves a player who carries an entry (handler/kefra_hall.go),
+// the desert route only opens once the Kefra has been DEFEATED (handler/kefra.go),
+// and the Azran floor only reaches the Hidden Valley for a player wearing the
+// Fada do Vale (handler/vale.go).
 //
 // Mind that legacy flag's name, which says the opposite of what it holds:
 // KefraLive == 0 is the boss ALIVE. On 0 the /kefra command answers that he still
@@ -84,9 +86,9 @@ var teleportTable = map[[2]int16]teleRoute{
 	{1516, 3996}: {1304, 3816, 0}, // Submundo 1º → 2º andar
 	{1304, 3816}: {1516, 3996, 0}, // Submundo 2º → 1º andar
 
-	// Guerra e vale.
-	{188, 188}:   {2548, 1740, 0}, // Área de guerra → Azran
-	{2548, 1740}: {2281, 3688, 0}, // Azran → vale
+	// Guerra. A rota de Azran para o Vale Escondido NÃO está aqui: é condicional
+	// (handler/vale.go), como as duas do Kefra.
+	{188, 188}: {2548, 1740, 0}, // Área de guerra → Azran
 
 	// As duas últimas rotas de GetFunc.cpp:1010-1024 não trazem comentário no
 	// original e o par não é simétrico: a ida sai de (1312,1900) e a volta chega em

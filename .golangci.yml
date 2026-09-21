@@ -81,6 +81,12 @@ linters:
         # against (10,000 hundredths of a percent). misspell reads the
         # Portuguese word as a typo for the English one it translates.
         - denominador
+        # Portuguese for "conditional", describing the three teleport routes that
+        # carry a condition and therefore live in the handler instead of the
+        # lookup table (vale.go, kefra.go, kefra_hall.go). misspell reads the
+        # Portuguese word as a typo for the English one it translates.
+        - condicional
+        - condicionais
   exclusions:
     generated: lax
     presets:
