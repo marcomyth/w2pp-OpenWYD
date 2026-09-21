@@ -247,7 +247,7 @@ func TestQuestItemRewardContaDizGoldTambem(t *testing.T) {
 			}
 		}
 	}
-	quero := "Troféu: 3 usado(s), +3000 de EXP e +6000 de gold."
+	quero := "Troféu: 3 usado(s), +3.000 de EXP e +6.000 de gold."
 	if linha != quero {
 		t.Errorf("conta = %q, quero %q", linha, quero)
 	}
@@ -277,8 +277,26 @@ func TestQuestItemRewardContaOmiteGoldNoTeto(t *testing.T) {
 			}
 		}
 	}
-	quero := "Troféu: 3 usado(s), +3000 de EXP."
+	quero := "Troféu: 3 usado(s), +3.000 de EXP."
 	if linha != quero {
 		t.Errorf("conta = %q, quero %q", linha, quero)
+	}
+}
+
+// milhares é o que torna a conta legível num clique de 120 troféus. Os casos de
+// borda são os grupos incompletos na frente e os zeros no meio.
+func TestMilhares(t *testing.T) {
+	casos := map[int64]string{
+		0: "0", 7: "7", 99: "99", 100: "100",
+		1000: "1.000", 3000: "3.000", 12345: "12.345",
+		100000: "100.000", 1000000: "1.000.000",
+		93600000: "93.600.000", 60000000: "60.000.000",
+		2000000000: "2.000.000.000",
+		-1234:      "-1.234",
+	}
+	for n, quero := range casos {
+		if got := milhares(n); got != quero {
+			t.Errorf("milhares(%d) = %q, quero %q", n, got, quero)
+		}
 	}
 }

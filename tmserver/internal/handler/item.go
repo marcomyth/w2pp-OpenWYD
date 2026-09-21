@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/itemeffect"
@@ -1315,9 +1316,9 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 	// que é a única vez em que dizer "+0 de gold" seria informação.
 	if usados > 1 {
 		if moedaTotal > 0 {
-			sendClientMessage(w, s, fmt.Sprintf(msgTrofeuLote, usados, expTotal, moedaTotal))
+			sendClientMessage(w, s, fmt.Sprintf(msgTrofeuLote, usados, milhares(expTotal), milhares(moedaTotal)))
 		} else {
-			sendClientMessage(w, s, fmt.Sprintf(msgTrofeuLoteSemGold, usados, expTotal))
+			sendClientMessage(w, s, fmt.Sprintf(msgTrofeuLoteSemGold, usados, milhares(expTotal)))
 		}
 	}
 	// O aviso de parada fica DEPOIS da conta: primeiro o que rendeu, depois por que
@@ -1336,14 +1337,41 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 		"saiuDaFaixa", saiuDaFaixa, "nivel", e.Level)
 }
 
+// milhares escreve um número com ponto a cada três casas, como se lê em
+// português: 93600000 vira "93.600.000".
+//
+// Existe por causa do clique na pilha inteira. Um troféu paga 30 mil; cento e
+// vinte da Pedra dos Elfos pagam noventa e três milhões, e "93600000" no meio de
+// uma frase não se lê — conta-se. Só a linha da conta usa isto; o painel "+N de
+// EXP" continua como o do abate, que é com quem ele tem de parecer.
+func milhares(n int64) string {
+	sinal := ""
+	if n < 0 {
+		sinal = "-"
+		n = -n
+	}
+	d := strconv.FormatInt(n, 10)
+	// A primeira quebra cai onde sobra o resto da divisão por três: 93600000 tem
+	// oito dígitos, então o primeiro grupo tem dois.
+	primeiro := len(d) % 3
+	if primeiro == 0 {
+		primeiro = 3
+	}
+	out := d[:primeiro]
+	for i := primeiro; i < len(d); i += 3 {
+		out += "." + d[i:i+3]
+	}
+	return sinal + out
+}
+
 // As duas linhas do clique único no troféu.
 const (
 	// msgTrofeuLote é a conta: quantos troféus o clique gastou, e quanta XP e quanto
-	// gold deram.
-	msgTrofeuLote = "Troféu: %d usado(s), +%d de EXP e +%d de gold."
+	// gold deram. Os dois números vêm por milhares (%s, não %d): ver milhares.
+	msgTrofeuLote = "Troféu: %d usado(s), +%s de EXP e +%s de gold."
 	// msgTrofeuLoteSemGold é a mesma conta quando o gold parou no teto: sem o
 	// pedaço que seria sempre zero.
-	msgTrofeuLoteSemGold = "Troféu: %d usado(s), +%d de EXP."
+	msgTrofeuLoteSemGold = "Troféu: %d usado(s), +%s de EXP."
 	// msgTrofeuNoTeto explica a pilha que sobrou quando não foi a faixa de nível:
 	// XP e moeda nos tetos ao mesmo tempo. Sem esta linha o clique parece morto com
 	// a pilha intacta na mão.
