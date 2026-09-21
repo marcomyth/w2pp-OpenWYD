@@ -11,14 +11,13 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobspawns"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplateadmin"
-	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplates"
 )
 
 // MobTemplateAdmin is the moderator mob-template-stat-editing surface the
 // server depends on (satisfied by *mobtemplateadmin.Service). Kept as an
 // interface so the server is unit-testable.
 type MobTemplateAdmin interface {
-	ListTemplates(ctx context.Context, moderatorID int64) (mobtemplateadmin.Result, []mobtemplates.File, error)
+	ListTemplates(ctx context.Context, moderatorID int64) (mobtemplateadmin.Result, []mobtemplateadmin.TemplateRow, error)
 	Get(ctx context.Context, moderatorID int64, templateName string) (mobtemplateadmin.Result, domain.MobTemplateStat, bool, error)
 	// FileStat is the template file's own values, for showing what an override changed.
 	FileStat(ctx context.Context, moderatorID int64, templateName string) (domain.MobTemplateStat, bool, error)
@@ -52,6 +51,7 @@ func (s *MobTemplateAdminServer) ListMobTemplates(ctx context.Context, req *webv
 	for _, t := range tmpls {
 		out = append(out, &webv1.MobTemplateFile{
 			TemplateName: t.TemplateName, DisplayName: t.DisplayName, Merchant: int32(t.Merchant),
+			Exp: t.Exp, Level: t.Level, Overridden: t.Overridden,
 		})
 	}
 	return &webv1.ListMobTemplatesResponse{Result: mobStatResultToProto(res), Templates: out}, nil

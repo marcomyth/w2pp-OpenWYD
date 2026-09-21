@@ -3736,10 +3736,26 @@ func (x *ListMapZonesResponse) GetZones() []*MapZone {
 // MobTemplateFile is one STRUCT_MOB template found under Release/TMsrv/run/npc/,
 // unfiltered (see ListMobTemplates).
 type MobTemplateFile struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	TemplateName  string                 `protobuf:"bytes,1,opt,name=template_name,json=templateName,proto3" json:"template_name,omitempty"` // exact value for Upsert/GetMobTemplateStat.template_name
-	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`    // the template's mob.Name, for the picker UI
-	Merchant      int32                  `protobuf:"varint,3,opt,name=merchant,proto3" json:"merchant,omitempty"`                            // CurrentScore.Merchant, informational
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	TemplateName string                 `protobuf:"bytes,1,opt,name=template_name,json=templateName,proto3" json:"template_name,omitempty"` // exact value for Upsert/GetMobTemplateStat.template_name
+	DisplayName  string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`    // the template's mob.Name, for the picker UI
+	Merchant     int32                  `protobuf:"varint,3,opt,name=merchant,proto3" json:"merchant,omitempty"`                            // CurrentScore.Merchant, informational
+	// exp e level são o VALOR VIVO: a exceção do painel quando existe, o arquivo
+	// de conteúdo quando não. Vêm na lista porque a pergunta "quanto este bicho
+	// paga" não se responde monstro a monstro — são 2.007 moldes, e abrir a ficha
+	// de cada um para comparar dois é o que torna a tela de hoje inútil para
+	// balancear.
+	//
+	// level anda colado em exp e não é enfeite: o prêmio é escalado pela razão
+	// entre o nível do matador e o do monstro (GetExpApply), e a mesma XP num
+	// nível diferente paga outra coisa — um bicho de nível 150 paga ZERO para
+	// quem está no 351. XP sem nível ao lado é número que engana.
+	Exp   int64 `protobuf:"varint,4,opt,name=exp,proto3" json:"exp,omitempty"`
+	Level int32 `protobuf:"varint,5,opt,name=level,proto3" json:"level,omitempty"`
+	// overridden diz se exp/level vieram de uma exceção gravada no painel em vez
+	// do arquivo. A tela marca essas linhas: é a diferença entre "o conteúdo é
+	// assim" e "alguém decidiu assim".
+	Overridden    bool `protobuf:"varint,6,opt,name=overridden,proto3" json:"overridden,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3793,6 +3809,27 @@ func (x *MobTemplateFile) GetMerchant() int32 {
 		return x.Merchant
 	}
 	return 0
+}
+
+func (x *MobTemplateFile) GetExp() int64 {
+	if x != nil {
+		return x.Exp
+	}
+	return 0
+}
+
+func (x *MobTemplateFile) GetLevel() int32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+func (x *MobTemplateFile) GetOverridden() bool {
+	if x != nil {
+		return x.Overridden
+	}
+	return false
 }
 
 type ListMobTemplatesRequest struct {
@@ -11330,11 +11367,16 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\fmoderator_id\x18\x01 \x01(\x03R\vmoderatorId\"j\n" +
 	"\x14ListMapZonesResponse\x12+\n" +
 	"\x06result\x18\x01 \x01(\x0e2\x13.web.v1.AdminResultR\x06result\x12%\n" +
-	"\x05zones\x18\x02 \x03(\v2\x0f.web.v1.MapZoneR\x05zones\"u\n" +
+	"\x05zones\x18\x02 \x03(\v2\x0f.web.v1.MapZoneR\x05zones\"\xbd\x01\n" +
 	"\x0fMobTemplateFile\x12#\n" +
 	"\rtemplate_name\x18\x01 \x01(\tR\ftemplateName\x12!\n" +
 	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1a\n" +
-	"\bmerchant\x18\x03 \x01(\x05R\bmerchant\"<\n" +
+	"\bmerchant\x18\x03 \x01(\x05R\bmerchant\x12\x10\n" +
+	"\x03exp\x18\x04 \x01(\x03R\x03exp\x12\x14\n" +
+	"\x05level\x18\x05 \x01(\x05R\x05level\x12\x1e\n" +
+	"\n" +
+	"overridden\x18\x06 \x01(\bR\n" +
+	"overridden\"<\n" +
 	"\x17ListMobTemplatesRequest\x12!\n" +
 	"\fmoderator_id\x18\x01 \x01(\x03R\vmoderatorId\"~\n" +
 	"\x18ListMobTemplatesResponse\x12+\n" +

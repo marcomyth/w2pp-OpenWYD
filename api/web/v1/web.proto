@@ -513,6 +513,23 @@ message MobTemplateFile {
   string template_name = 1; // exact value for Upsert/GetMobTemplateStat.template_name
   string display_name = 2;  // the template's mob.Name, for the picker UI
   int32 merchant = 3;       // CurrentScore.Merchant, informational
+
+  // exp e level são o VALOR VIVO: a exceção do painel quando existe, o arquivo
+  // de conteúdo quando não. Vêm na lista porque a pergunta "quanto este bicho
+  // paga" não se responde monstro a monstro — são 2.007 moldes, e abrir a ficha
+  // de cada um para comparar dois é o que torna a tela de hoje inútil para
+  // balancear.
+  //
+  // level anda colado em exp e não é enfeite: o prêmio é escalado pela razão
+  // entre o nível do matador e o do monstro (GetExpApply), e a mesma XP num
+  // nível diferente paga outra coisa — um bicho de nível 150 paga ZERO para
+  // quem está no 351. XP sem nível ao lado é número que engana.
+  int64 exp = 4;
+  int32 level = 5;
+  // overridden diz se exp/level vieram de uma exceção gravada no painel em vez
+  // do arquivo. A tela marca essas linhas: é a diferença entre "o conteúdo é
+  // assim" e "alguém decidiu assim".
+  bool overridden = 6;
 }
 
 message ListMobTemplatesRequest { int64 moderator_id = 1; }

@@ -14,6 +14,14 @@ type MobTemplate struct {
 	Name        string
 	DisplayName string
 	Merchant    int32
+	// Exp e Level são o valor VIVO do jogo: a exceção do painel quando existe, o
+	// arquivo de conteúdo quando não. Andam juntos porque a XP sozinha se lê
+	// errado — o prêmio é escalado pela razão entre o nível de quem mata e o do
+	// monstro, e um bicho muito abaixo paga zero.
+	Exp   int64
+	Level int32
+	// Overridden marca a linha em que alguém já mexeu.
+	Overridden bool
 }
 
 // MobStat is a template's editable numbers.
@@ -252,6 +260,7 @@ func (c *Client) MobTemplates(ctx context.Context, moderatorID int64, query stri
 		}
 		out = append(out, MobTemplate{
 			Name: t.GetTemplateName(), DisplayName: t.GetDisplayName(), Merchant: t.GetMerchant(),
+			Exp: t.GetExp(), Level: t.GetLevel(), Overridden: t.GetOverridden(),
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })

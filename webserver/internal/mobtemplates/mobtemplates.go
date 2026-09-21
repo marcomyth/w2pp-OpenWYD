@@ -28,6 +28,11 @@ type File struct {
 	TemplateName string
 	DisplayName  string
 	Merchant     uint8
+	// Exp e Level são os do ARQUIVO, sem exceção do painel aplicada. Quem lista
+	// junta a exceção por cima; aqui é o que o conteúdo diz, e é isso que
+	// "voltar ao valor do conteúdo" devolveria.
+	Exp   int64
+	Level int32
 }
 
 // Scan reads every file in <contentDir>/TMsrv/run/npc/ and decodes it as a
@@ -43,6 +48,8 @@ func Scan(contentDir string, logger *slog.Logger) ([]File, npctemplate.ScanStats
 			TemplateName: name,
 			DisplayName:  npctemplates.CString(mob.Name[:]),
 			Merchant:     mob.CurrentScore.Merchant,
+			Exp:          mob.Exp,
+			Level:        mob.CurrentScore.Level,
 		})
 	})
 	if err != nil {

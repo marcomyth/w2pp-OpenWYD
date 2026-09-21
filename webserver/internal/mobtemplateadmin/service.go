@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/savefmt"
@@ -63,6 +64,19 @@ type Service struct {
 	templates    []mobtemplates.File
 	readTemplate TemplateReader
 	origins      mobspawns.Index
+	// logger registra o que degrada sem derrubar. nil vale como slog.Default(),
+	// para nenhum chamador ser obrigado a montá-lo só por causa disto.
+	logger *slog.Logger
+}
+
+// SetLogger instala o logger das degradações. Wiring-time, antes do primeiro uso.
+func (s *Service) SetLogger(l *slog.Logger) { s.logger = l }
+
+func (s *Service) log() *slog.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return slog.Default()
 }
 
 // New builds the service over the given store.
@@ -102,14 +116,58 @@ func (s *Service) Origins(ctx context.Context, moderatorID int64, templateName s
 	return s.origins[templateName], true, nil
 }
 
+// TemplateRow is one template as a LIST needs it: the file's identity plus the
+// experience and level the game is actually paying.
+//
+// The pair travels together on purpose. Experience alone is read wrong: the
+// reward is scaled by the ratio between the killer's level and the mob's
+// (GetExpApply), so the same number at a different level is a different prize —
+// and far enough below the killer it is zero. A column of experience with no
+// level beside it invites exactly that mistake.
+type TemplateRow struct {
+	mobtemplates.File
+	// Exp e Level são os VIVOS: a exceção quando existe, o arquivo quando não.
+	// File.Exp e File.Level seguem sendo os do arquivo, para a tela poder dizer
+	// o que "voltar ao conteúdo" devolveria.
+	Exp        int64
+	Level      int32
+	Overridden bool
+}
+
 // ListTemplates returns every mob template file scanned from the content tree
 // at boot (mobtemplates.Scan), after authorizing the caller. Unlike
 // npcadmin's ListMerchantTemplates this is NOT filtered to merchants.
-func (s *Service) ListTemplates(ctx context.Context, moderatorID int64) (Result, []mobtemplates.File, error) {
+//
+// As exceções entram numa consulta só, não uma por molde: são 2.007 moldes, e
+// uma ida ao banco por linha transformaria abrir a lista em dois mil round
+// trips. Falha de leitura das exceções NÃO derruba a lista — ela volta com os
+// valores do arquivo e o chamador fica sabendo pelo erro, porque uma tela de
+// monstros sem XP ainda serve para achar monstro, e nenhuma tela não serve para
+// nada.
+func (s *Service) ListTemplates(ctx context.Context, moderatorID int64) (Result, []TemplateRow, error) {
 	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
 		return r, nil, err
 	}
-	return OK, s.templates, nil
+	excecoes := map[string]domain.MobTemplateStat{}
+	if s.store != nil {
+		if todas, err := s.store.ListMobTemplateStats(ctx); err == nil {
+			for _, st := range todas {
+				excecoes[st.TemplateName] = st
+			}
+		} else {
+			// Degrada em vez de falhar: a lista volta com os valores do arquivo.
+			s.log().Error("mob template list: sem as exceções, a XP mostrada é a do arquivo", "err", err)
+		}
+	}
+	out := make([]TemplateRow, 0, len(s.templates))
+	for _, f := range s.templates {
+		row := TemplateRow{File: f, Exp: f.Exp, Level: f.Level}
+		if st, ok := excecoes[f.TemplateName]; ok {
+			row.Exp, row.Level, row.Overridden = st.Exp, st.Level, true
+		}
+		out = append(out, row)
+	}
+	return OK, out, nil
 }
 
 // Get returns the stat override for a template if one exists; otherwise it
