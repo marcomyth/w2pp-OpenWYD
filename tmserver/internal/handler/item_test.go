@@ -676,6 +676,8 @@ const (
 	itemMagicBeanBlue    = 3407
 	itemMagicBeanLight   = 3416
 	itemMagicBeanRemover = 3417
+	itemWeaponPaintBlue  = 3480
+	itemWeaponPaintLight = 3489
 )
 
 func magicBeanDB(bean, equip world.Item) *fakeDB {
@@ -733,11 +735,10 @@ func TestUseMagicBeanPaintsEquippedSet(t *testing.T) {
 	}
 }
 
-// A arma pinta como qualquer outra peca: o gate que exigia moderador nos slots 6
-// e 7 saiu, e o legado nunca teve um (_MSG_UseItem.cpp:3781 recusa so o corpo e a
-// bolsa). O que o teste prende e que a cor entra SEM comer o refino — o +9 fica no
-// cValue do proprio efeito de cor, que e de onde refine.Level le.
-func TestUseMagicBeanPaintsWeaponForPlayers(t *testing.T) {
+// O feijao comum nao pinta arma desde que a Pintura de Arma existe: os dois
+// venderiam a mesma coisa. A recusa vai como texto, porque a divisao e nossa e
+// nao tem _NN_ no Language.txt.
+func TestMagicBeanRecusaArma(t *testing.T) {
 	weapon := world.Item{Index: 900, Effects: [3]world.Effect{{Effect: efSanc, Value: 9}}}
 	db := magicBeanDBAt(world.Item{Index: itemMagicBeanBlue}, weapon, weaponSlotR, "")
 	addr, stop := startServerClockVol(t, db, magicBeanVols(itemMagicBeanBlue))
@@ -747,31 +748,93 @@ func TestUseMagicBeanPaintsWeaponForPlayers(t *testing.T) {
 
 	useMagicBeanFrame(t, c, weaponSlotR)
 
+	if got := decodePanel(expect(t, c, protocol.MsgMessagePanel)); got != msgPaintNotWeapon {
+		t.Fatalf("mensagem = %q, want %q", got, msgPaintNotWeapon)
+	}
+	item := expect(t, c, protocol.MsgSendItem)
+	if got := le16(item[0:2]); got != world.ItemPlaceCarry {
+		t.Fatalf("devolveu em place %d, want carry", got)
+	}
+	if ty, _, ok := readMaybe(t, c); ok {
+		t.Fatalf("recusa gerou quadro extra %#x", ty)
+	}
+}
+
+// A Pintura de Arma e o caminho da arma: pinta, consome e guarda a cor sem comer
+// o refino — o +9 fica no cValue do proprio efeito de cor, que e de onde
+// refine.Level le.
+func TestPinturaDeArmaPintaArma(t *testing.T) {
+	weapon := world.Item{Index: 900, Effects: [3]world.Effect{{Effect: efSanc, Value: 9}}}
+	db := magicBeanDBAt(world.Item{Index: itemWeaponPaintBlue}, weapon, weaponSlotR, "")
+	addr, stop := startServerClockVol(t, db, magicBeanVols(itemWeaponPaintBlue))
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	useMagicBeanFrame(t, c, weaponSlotR)
+
 	if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticePaintSuccess {
-		t.Fatalf("notice = %d, want PaintSuccess — a arma pinta como as outras pecas", code)
+		t.Fatalf("notice = %d, want PaintSuccess", code)
 	}
 	expect(t, c, protocol.MsgUpdateScore)
 	item := expect(t, c, protocol.MsgSendItem)
 	if got := le16(item[2:4]); got != weaponSlotR {
-		t.Fatalf("send item slot = %d, want weapon slot", got)
+		t.Fatalf("slot = %d, want arma", got)
 	}
 	if item[6] != magicBeanPaintLo || item[7] != 9 {
-		t.Fatalf("effect0 = %d.%d, want paint %d preserving sanc value 9", item[6], item[7], magicBeanPaintLo)
+		t.Fatalf("effect0 = %d.%d, want %d preservando o sanc 9", item[6], item[7], magicBeanPaintLo)
 	}
 
 	send(t, c, protocol.MsgCharacterLogout, nil)
 	expect(t, c, protocol.MsgCNFCharacterLogout)
 	save, n := db.lastSavedChar()
 	if n == 0 {
-		t.Fatal("character was not saved on logout")
+		t.Fatal("personagem nao foi salvo")
 	}
-	carry0, ok := savedItemAt(save.Carry, 0)
-	if ok && carry0.Index == itemMagicBeanBlue {
-		t.Fatalf("saved carry0 = %+v, want the bean consumed", carry0)
+	if carry0, ok := savedItemAt(save.Carry, 0); ok && carry0.Index == itemWeaponPaintBlue {
+		t.Fatalf("carry0 = %+v, want a pintura consumida", carry0)
 	}
-	equip6, ok := savedItemAt(save.Equip, weaponSlotR)
-	if !ok || equip6.Index != 900 || equip6.Eff1 != magicBeanPaintLo || equip6.EffV1 != 9 {
-		t.Fatalf("saved weapon = %+v ok=%v, want painted +9 weapon", equip6, ok)
+	equip, ok := savedItemAt(save.Equip, weaponSlotR)
+	if !ok || equip.Index != 900 || equip.Eff1 != magicBeanPaintLo || equip.EffV1 != 9 {
+		t.Fatalf("arma salva = %+v ok=%v, want pintada e +9", equip, ok)
+	}
+}
+
+// E o inverso: a Pintura de Arma nao serve para o resto do equipamento.
+func TestPinturaDeArmaRecusaArmadura(t *testing.T) {
+	armor := world.Item{Index: itemArmor, Effects: [3]world.Effect{{Effect: efSanc, Value: 9}}}
+	db := magicBeanDBAt(world.Item{Index: itemWeaponPaintLight}, armor, 1, "")
+	addr, stop := startServerClockVol(t, db, magicBeanVols(itemWeaponPaintLight))
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	useMagicBeanFrame(t, c, 1)
+
+	if got := decodePanel(expect(t, c, protocol.MsgMessagePanel)); got != msgPaintOnlyWeapon {
+		t.Fatalf("mensagem = %q, want %q", got, msgPaintOnlyWeapon)
+	}
+	expect(t, c, protocol.MsgSendItem)
+}
+
+// O Removedor atende os dois lados: tirar cor nao e vender cor.
+func TestRemovedorLimpaArma(t *testing.T) {
+	weapon := world.Item{Index: 900, Effects: [3]world.Effect{{Effect: 119, Value: 6}}}
+	db := magicBeanDBAt(world.Item{Index: itemMagicBeanRemover}, weapon, weaponSlotR, "")
+	addr, stop := startServerClockVol(t, db, magicBeanVols(itemMagicBeanRemover))
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	useMagicBeanFrame(t, c, weaponSlotR)
+
+	if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticePaintRemoved {
+		t.Fatalf("notice = %d, want PaintRemoved", code)
+	}
+	expect(t, c, protocol.MsgUpdateScore)
+	item := expect(t, c, protocol.MsgSendItem)
+	if item[6] != efSanc || item[7] != 6 {
+		t.Fatalf("effect0 = %d.%d, want EF_SANC preservando 6", item[6], item[7])
 	}
 }
 
@@ -942,25 +1005,58 @@ func TestUseMagicBeanStackPersistsOneConsumed(t *testing.T) {
 	}
 }
 
+// A ordem em que a cor escolhe o slot é o que decide se a peça pinta na tela: o
+// cliente lê EF_SANC antes da cor, então cor e EF_SANC no mesmo item significam
+// peça sem cor — e a cor num slot vazio nasce com cValue 0, que apagaria o refino.
 func TestMagicBeanEffectSlotScan(t *testing.T) {
-	it := world.Item{Effects: [3]world.Effect{
+	tres := world.Item{Effects: [3]world.Effect{
 		{Effect: efDamage, Value: 1},
 		{Effect: efAc, Value: 2},
 		{Effect: efHp, Value: 3},
 	}}
-	if got := magicBeanEffectSlot(it, false); got != -1 {
-		t.Fatalf("paint slot = %d, want -1 for three real effects", got)
+	if got, _ := magicBeanEffectSlot(tres, false); got != -1 {
+		t.Fatalf("paint slot = %d, want -1 com três efeitos de verdade", got)
 	}
-	it.Effects[1] = world.Effect{Effect: efSanc, Value: 9}
-	if got := magicBeanEffectSlot(it, false); got != 1 {
-		t.Fatalf("paint slot = %d, want EF_SANC slot 1", got)
+
+	// O caso da arma: efeito real no 0, VAZIO no 1 e o refino no 2. A cor tem de
+	// ir para o 2, não para o vazio — no vazio ela sai com valor 0.
+	arma := world.Item{Effects: [3]world.Effect{
+		{Effect: efDamage, Value: 40},
+		{},
+		{Effect: efSanc, Value: 11},
+	}}
+	if got, limpar := magicBeanEffectSlot(arma, false); got != 2 || limpar != -1 {
+		t.Fatalf("paint slot = %d, limpar = %d; want slot 2 do EF_SANC", got, limpar)
 	}
-	if got := magicBeanEffectSlot(it, true); got != -1 {
-		t.Fatalf("remover slot = %d, want -1 when only EF_SANC is available", got)
+
+	// Repintar usa o slot que já é cor, preservando o nível que mora no cValue.
+	pintada := world.Item{Effects: [3]world.Effect{
+		{Effect: efDamage, Value: 40},
+		{Effect: magicBeanPaintLo + 3, Value: 11},
+		{},
+	}}
+	if got, limpar := magicBeanEffectSlot(pintada, false); got != 1 || limpar != -1 {
+		t.Fatalf("repintar = %d, limpar = %d; want o slot da cor", got, limpar)
 	}
-	it.Effects[2] = world.Effect{Effect: magicBeanPaintLo + 2, Value: 9}
-	if got := magicBeanEffectSlot(it, true); got != 2 {
-		t.Fatalf("remover slot = %d, want paint slot 2", got)
+
+	// Item que já veio torto — cor sem valor num slot, refino noutro: a cor volta
+	// para o slot do EF_SANC e a órfã é apagada.
+	torta := world.Item{Effects: [3]world.Effect{
+		{Effect: magicBeanPaintLo, Value: 0},
+		{Effect: efSanc, Value: 11},
+		{},
+	}}
+	if got, limpar := magicBeanEffectSlot(torta, false); got != 1 || limpar != 0 {
+		t.Fatalf("consolidar = %d, limpar = %d; want gravar no 1 e apagar o 0", got, limpar)
+	}
+
+	// O Removedor só mexe em peça pintada: sem cor não há o que tirar, e escrever
+	// EF_SANC num vazio deixaria os dois no item.
+	if got, _ := magicBeanEffectSlot(arma, true); got != -1 {
+		t.Fatalf("remover slot = %d, want -1 numa peça sem cor", got)
+	}
+	if got, _ := magicBeanEffectSlot(pintada, true); got != 1 {
+		t.Fatalf("remover slot = %d, want o slot da cor", got)
 	}
 }
 

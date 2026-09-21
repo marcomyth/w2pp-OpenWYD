@@ -1970,23 +1970,49 @@ const (
 	// 8..15) — a arma não é exceção lá.
 	magicBeanFirstSlot = 1
 	magicBeanLastSlot  = 7
+
+	// Pintura de Arma (3480-3489): os mesmos dez tons do Feijão Mágico, em item
+	// próprio que só entra na arma. É uma divisão de PRODUTO, não do desenho — o
+	// cliente pinta os dois com a mesma textura, então o item novo reaproveita o
+	// mesh do feijão (2782.x) e nada muda no cliente além do nome.
+	//
+	// Com ele no jogo, o feijão comum volta a recusar a arma: se os dois
+	// pintassem tudo, a Pintura de Arma não teria por que existir.
+	weaponPaintBase = 3480
+	weaponPaintHi   = 3489
 )
+
+// weaponPaint diz se o índice é uma Pintura de Arma. A cor sai da mesma ordem do
+// feijão, então weaponPaintBase+n e magicBeanBase+n são o mesmo tom.
+func weaponPaint(index int16) bool {
+	return index >= weaponPaintBase && index <= weaponPaintHi
+}
+
+func magicBeanWeaponSlot(slot int) bool {
+	return slot == weaponSlotR || slot == weaponSlotL
+}
 
 // useMagicBean consumes a Feijao Magico / Removedor de tintura (EF_VOLATILE 186)
 // by stamping only the destination effect id byte, preserving the cValue exactly
 // as _MSG_UseItem.cpp:3767-3861 does. Paint effects reuse the sanc effect slots:
 // 116..125 are colors, while EF_SANC (43) is the remover/neutral marker.
 //
-// A arma pinta como qualquer outra peça. Houve um gate que exigia moderador nos
-// slots 6 e 7 (9e9a0b00); ele saiu porque os dois riscos que o justificariam não
-// existem: o cliente já desenha arma pintada — o brilho do refino tem um terceiro
-// ponto de desenho, em WYD.exe 0x4D81E8, com a mesma fórmula dos outros dois — e
-// a cor não come o refino, porque refine.Level lê 116..125 antes de EF_SANC,
-// igual a BASE_GetItemSanc (Basedef.cpp:2141).
+// A arma pinta, e o cliente já sabe desenhá-la pintada: o brilho do refino tem um
+// terceiro ponto de desenho, em WYD.exe 0x4D81E8, com a mesma fórmula dos outros
+// dois. A cor também não come o refino, porque refine.Level lê 116..125 antes de
+// EF_SANC, igual a BASE_GetItemSanc (Basedef.cpp:2141). Quem separa armadura de
+// arma aqui é o ITEM, não o slot: o feijão pinta o set, a Pintura de Arma pinta a
+// arma, e o Removedor limpa os dois.
 func (d *Dispatcher) useMagicBean(w *world.World, s *world.Session, e *world.Entity, body protocol.MsgUseItemBody, src int) {
 	dstSlot := int(body.DestPos)
 	if int(body.DestType) != world.ItemPlaceEquip || dstSlot < magicBeanFirstSlot || dstSlot > magicBeanLastSlot {
 		d.magicBeanReject(w, s, e, src, NoticeOnlyToEquips)
+		return
+	}
+	index := e.Carry[src].Index
+	naArma := magicBeanWeaponSlot(dstSlot)
+	// O Removedor (3417) é o único que atende os dois lados; os de cor escolhem.
+	if !d.paintFitsSlot(w, s, e, src, index, naArma) {
 		return
 	}
 	dst := d.itemSlot(w, s, e, int(body.DestType), dstSlot)
@@ -2002,7 +2028,10 @@ func (d *Dispatcher) useMagicBean(w *world.World, s *world.Session, e *world.Ent
 		return
 	}
 
-	color := int(e.Carry[src].Index) - magicBeanBase
+	color := int(index) - magicBeanBase
+	if weaponPaint(index) {
+		color = int(index) - weaponPaintBase
+	}
 	if color < 0 || color > magicBeanRemover {
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
@@ -2014,7 +2043,7 @@ func (d *Dispatcher) useMagicBean(w *world.World, s *world.Session, e *world.Ent
 
 	removing := color == magicBeanRemover
 
-	i := magicBeanEffectSlot(*dst, removing)
+	i, limpar := magicBeanEffectSlot(*dst, removing)
 	if i < 0 {
 		// The legacy answers _NN_Cant_Refine_More here, which is refine wording on
 		// a paint action; and the two ways to get here are different problems —
@@ -2027,6 +2056,11 @@ func (d *Dispatcher) useMagicBean(w *world.World, s *world.Session, e *world.Ent
 		return
 	}
 	dst.Effects[i].Effect = effect
+	if limpar >= 0 {
+		// A cor órfã de um item que já veio torto: some inteira, efeito e valor,
+		// senão o cliente continuaria achando duas fontes de cor no mesmo item.
+		dst.Effects[limpar] = world.Effect{}
+	}
 
 	success := NoticePaintSuccess
 	if removing {
@@ -2048,23 +2082,95 @@ func (d *Dispatcher) magicBeanReject(w *world.World, s *world.Session, e *world.
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 }
 
-func magicBeanEffectSlot(it world.Item, remover bool) int {
-	for i, ef := range it.Effects {
-		if magicBeanSlotWritable(ef, remover) {
-			return i
-		}
+// As duas linhas que separam os produtos. Vão como texto e não como Notice porque
+// não existe _NN_ do legado para elas — a divisão é nossa — e um código sem
+// entrada na tabela de strings recusa em silêncio, que é o mesmo que um clique
+// morto para quem está jogando.
+const (
+	msgPaintOnlyWeapon = "A Pintura de Arma só vale na arma."
+	msgPaintNotWeapon  = "O Feijão Mágico não pinta arma. Use a Pintura de Arma."
+)
+
+// paintFitsSlot casa o item com o lado do equipamento: o feijão de cor fica no
+// set, a Pintura de Arma fica na arma e o Removedor de tintura atende os dois,
+// porque tirar cor não é vender cor. Devolve o item e diz o porquê quando recusa.
+func (d *Dispatcher) paintFitsSlot(w *world.World, s *world.Session, e *world.Entity, src int, index int16, naArma bool) bool {
+	if index == magicBeanBase+magicBeanRemover {
+		return true
 	}
-	return -1
+	switch {
+	case weaponPaint(index) && !naArma:
+		d.paintRefuse(w, s, e, src, msgPaintOnlyWeapon)
+		return false
+	case !weaponPaint(index) && naArma:
+		d.paintRefuse(w, s, e, src, msgPaintNotWeapon)
+		return false
+	}
+	return true
 }
 
-func magicBeanSlotWritable(ef world.Effect, remover bool) bool {
-	if ef.Effect == 0 || ef.Effect >= magicBeanPaintLo && ef.Effect <= magicBeanPaintHi {
-		return true
+func (d *Dispatcher) paintRefuse(w *world.World, s *world.Session, e *world.Entity, src int, texto string) {
+	sendClientMessage(w, s, texto)
+	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+}
+
+// magicBeanEffectSlot escolhe ONDE a cor é gravada, e a ordem importa muito mais
+// do que parece.
+//
+// O cliente lê a cor pela sua BASE_GetItemSanc (WYD.exe 0x538DDF), que varre os
+// três slots atrás de EF_SANC ANTES de olhar a faixa de cor. Um item que fique
+// com os dois — cor num slot e EF_SANC noutro — devolve o EF_SANC, e a peça sai
+// com o brilho padrão como se nada tivesse sido pintado. Foi o que aconteceu com
+// a arma em 21/09: o servidor gravou a cor, a tela não mudou.
+//
+// E o servidor faz o inverso: refine.Level lê a cor primeiro. Uma cor gravada em
+// slot vazio nasce com cValue 0, então o item também PERDERIA o refino inteiro —
+// o +11 de uma arma vira +0 no dano.
+//
+// Por isso a cor entra nesta ordem: no slot que já é cor, senão no slot do
+// EF_SANC, herdando o cValue que guarda o nível, e só então num vazio. O legado
+// varria 0→1→2 e pegava o primeiro slot que não fosse efeito de verdade
+// (_MSG_UseItem.cpp:3820): acerta quando o EF_SANC está no slot 0, que é o caso
+// comum numa peça de set, e erra em todo o resto.
+//
+// limpar é o slot da cor órfã de um item que já chegou torto — a cor num lugar e
+// o EF_SANC noutro. Consolidar os dois no mesmo slot conserta esse item na
+// próxima pintura, em vez de exigir que o jogador jogue a peça fora.
+func magicBeanEffectSlot(it world.Item, remover bool) (slot, limpar int) {
+	cor, sanc := -1, -1
+	vazio := -1
+	for i, ef := range it.Effects {
+		switch {
+		case ef.Effect >= magicBeanPaintLo && ef.Effect <= magicBeanPaintHi:
+			if cor < 0 {
+				cor = i
+			}
+		case ef.Effect == efSanc:
+			if sanc < 0 {
+				sanc = i
+			}
+		case ef.Effect == 0:
+			if vazio < 0 {
+				vazio = i
+			}
+		}
 	}
-	if !remover && ef.Effect == efSanc {
-		return true
+	if remover {
+		// Só há o que tirar de uma peça pintada, e o EF_SANC volta no lugar da
+		// cor. Escrevê-lo num slot vazio deixaria os dois no item — exatamente o
+		// estado que o parágrafo acima descreve.
+		return cor, -1
 	}
-	return false
+	switch {
+	case cor >= 0 && sanc >= 0:
+		return sanc, cor
+	case cor >= 0:
+		return cor, -1
+	case sanc >= 0:
+		return sanc, -1
+	default:
+		return vazio, -1
+	}
 }
 
 // sendAffect pushes MSG_SendAffect (0x03B9): the full 32-slot buff snapshot, so the
