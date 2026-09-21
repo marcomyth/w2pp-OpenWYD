@@ -16,6 +16,10 @@ const (
 	// Migração 0094: os dez da vitrine do Martin — as três poções de trinta
 	// dias, as três Esferas da Sorte (que nenhuma linha de código lê), a Poção
 	// Poderosa, as Ervas de Cura e as duas Caixas de Poção.
+	//
+	// As Ervas de Cura voltaram na 0095, só no Martin, a pedido: são a erva que
+	// o jogador usa contra a lentidão. Por isso NÃO estão em foraDeTodaVitrine —
+	// quem as afirma agora é TestVitrineDoMartin.
 	pocaoDivina30  = 3381
 	pocaoSephira30 = 3363
 	pocaoSaude30   = 3366
@@ -43,7 +47,6 @@ var foraDeTodaVitrine = map[int]string{
 	esferaDaSorteM: "a Esfera da Sorte(M)",
 	esferaDaSorteA: "a Esfera da Sorte(A)",
 	pocaoPoderosa:  "a Poção Poderosa",
-	ervasDeCura:    "as Ervas de Cura",
 	caixaPocaoCura: "a Caixa de Poção de Cura",
 	caixaPocaoMana: "a Caixa de Poção de Mana",
 }
@@ -200,5 +203,45 @@ func TestVitrineDaLucy(t *testing.T) {
 		if item != esperado[i] {
 			t.Errorf("vaga %d da Lucy tem %d, esperava %d", i, item, esperado[i])
 		}
+	}
+}
+
+// O Martin (Armia 2116,2150 e também 1317,346) teve a vitrine refeita na 0095:
+// os mesmos itens da Aki, vaga por vaga, mais as Ervas de Cura na vaga 0, que a
+// limpeza da 0094 tinha deixado livre nas duas lojas. Afirmar a vitrine inteira
+// é o que pega o item que alguém reponha no meio dela.
+//
+// A cópia é do conteúdo, não um espelho vivo: se a Aki mudar, este teste NÃO
+// acompanha, e é de propósito — são duas lojas independentes a partir daqui.
+func TestVitrineDoMartin(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join(release(t, "TMsrv", "run", "npc"), "Martin"))
+	if err != nil {
+		t.Skipf("Release content unavailable: %v", err)
+	}
+	vagas := vitrine(b)
+	if vagas == nil {
+		t.Fatal("o Martin deixou de ser mercador")
+	}
+	esperado := map[int]int{
+		0:  ervasDeCura, // a erva contra a lentidão, em pilha de dez
+		2:  699,         // Pergaminho do Teleporte
+		3:  410,         // Pergaminho Retorno
+		10: 4038,        // Vela do Coveiro
+		11: 4039,        // Colheita do Jardineiro
+		12: 4040,        // Cura do Batedor
+		13: 4041,        // Mana do Batedor
+		18: 501,         // Anel de Hercules
+		19: 503,         // Anel de Titã
+		20: 502,         // Anel de Athena
+		21: 506,         // Anel de Hecate
+		22: 505,         // Anel de Zeus
+	}
+	for i, item := range vagas {
+		if item != esperado[i] {
+			t.Errorf("vaga %d do Martin tem %d, esperava %d", i, item, esperado[i])
+		}
+	}
+	if q := quantidade(b, 0); q != pedidoMaximo {
+		t.Errorf("as Ervas de Cura saem em pilha de %d, esperava %d", q, pedidoMaximo)
 	}
 }
