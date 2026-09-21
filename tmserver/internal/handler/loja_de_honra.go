@@ -50,6 +50,15 @@ const (
 	// pelo painel (e virou "Honor Store" em 21/09/2026), o template não.
 	templateDaLojaDeHonra = "God_of_War"
 
+	// tilesDaLojaDeHonra é a distância em que a loja ainda está de pé: 20 tiles em
+	// cada eixo. O jogo usa 33 (VIEWGRID, uma tela) para as lojas dele; a Josiel
+	// achou solto demais e pediu 40% menos, em 21/09/2026 — 33 menos 40% é 19,8, e
+	// 20 é o inteiro ao lado.
+	//
+	// Divergir do jogo aqui é de propósito e só aqui: as lojas de NPC do cliente
+	// continuam com o 33 delas, que não passa por este código.
+	tilesDaLojaDeHonra = 20
+
 	// honraMotivo é o que aparece no extrato de shop_points_audit.
 	honraMotivo = "loja de honra"
 )
@@ -176,14 +185,17 @@ func (d *Dispatcher) honraFecha(w *world.World, s *world.Session, _ protocol.Hea
 	s.LojaHonraNPC = 0
 }
 
-// naVistaDaLoja é o GetInView do legado (GetFunc.cpp:764): a caixa de VIEWGRID
-// tiles em volta, que é uma tela. É a regra que o próprio jogo usa para as lojas de
-// NPC — o _MSG_Buy responde a uma compra fora dela com _MSG_CloseShop
-// (_MSG_Buy.cpp:60) —, e a Loja de Honra segue a mesma.
+// naVistaDaLoja diz se a loja continua de pé: a caixa de tilesDaLojaDeHonra em
+// volta do NPC, nos dois eixos.
 //
-// Não é o pertoDoMob (HALFGRID, 16): aquele é o alcance da experiência de grupo.
-// Usar dois limites diferentes deixaria uma faixa entre 16 e 33 tiles em que o
-// painel fica aberto e a compra é recusada sem o jogador entender por quê.
+// A FORMA é a do legado — GetInView (GetFunc.cpp:764) mede assim, por caixa e não
+// por raio, e é por ela que o _MSG_Buy responde a uma compra de longe com
+// _MSG_CloseShop (_MSG_Buy.cpp:60). O TAMANHO é nosso, e menor: ver
+// tilesDaLojaDeHonra.
+//
+// O mesmo número serve para fechar o painel e para recusar a compra, de propósito.
+// Com dois limites existiria uma faixa em que o painel fica aberto e a compra é
+// recusada sem o jogador entender por quê.
 func naVistaDaLoja(e, npc *world.Entity) bool {
 	if e == nil || npc == nil {
 		return false
@@ -196,7 +208,7 @@ func naVistaDaLoja(e, npc *world.Entity) bool {
 	if dy < 0 {
 		dy = -dy
 	}
-	return dx <= viewGridX && dy <= viewGridY
+	return dx <= tilesDaLojaDeHonra && dy <= tilesDaLojaDeHonra
 }
 
 // fechaLojaDeHonra derruba o painel: esquece o NPC e manda o cliente fechar.

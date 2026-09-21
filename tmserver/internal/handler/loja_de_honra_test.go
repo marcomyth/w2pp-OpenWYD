@@ -372,10 +372,15 @@ func TestLojaDeHonraLongeDoNPCNaoVende(t *testing.T) {
 	}
 }
 
-// TestLojaDeHonraFechaQuandoOJogadorSeAfasta: andar com a loja aberta vale, e até
-// o NPC sair de vista a loja continua de pé — é o que o jogo faz com as lojas dele
-// (_MSG_Buy.cpp:60 responde com _MSG_CloseShop a uma compra fora da vista). Passou
-// disso, o servidor manda fechar e a compra para de valer.
+// TestLojaDeHonraFechaQuandoOJogadorSeAfasta: andar com a loja aberta vale, e
+// dentro de tilesDaLojaDeHonra ela continua de pé — é o que o jogo faz com as
+// lojas dele (_MSG_Buy.cpp:60 responde com _MSG_CloseShop a uma compra de longe),
+// num limite mais curto. Passou disso, o servidor manda fechar e a compra para de
+// valer.
+//
+// Os passos são dados com o limite em mente e não com números soltos: o primeiro
+// para DENTRO dele, o segundo bem fora. Se alguém mudar tilesDaLojaDeHonra sem
+// olhar aqui, o teste avisa.
 func TestLojaDeHonraFechaQuandoOJogadorSeAfasta(t *testing.T) {
 	db := contaComPontos(500, 5, 5)
 	addr, stop := startServerHonraAndando(t, db)
@@ -386,20 +391,20 @@ func TestLojaDeHonraFechaQuandoOJogadorSeAfasta(t *testing.T) {
 	clicaNoGodOfWar(t, c)
 	expect(t, c, protocol.MsgHonraAbre)
 
-	// Trinta tiles: longe, mas ainda na vista (VIEWGRID é 33). A loja fica.
-	actionFrame(t, c, serverTime, 35)
+	// Quinze tiles: longe, mas ainda dentro do limite (20). A loja fica.
+	actionFrame(t, c, serverTime, 20)
 	for i := 0; i < 6; i++ {
 		ty, _, ok := readMaybe(t, c)
 		if !ok {
 			break
 		}
 		if ty == protocol.MsgHonraFechou {
-			t.Fatal("a loja fechou com o NPC ainda na vista")
+			t.Fatal("a loja fechou com o jogador ainda dentro do limite")
 		}
 	}
 
-	// Mais trinta: agora o NPC ficou para trás.
-	actionFrame(t, c, serverTime, 65)
+	// Mais vinte e cinco: agora são 40 tiles do NPC, o dobro do limite.
+	actionFrame(t, c, serverTime, 45)
 	fechou := false
 	for i := 0; i < 8 && !fechou; i++ {
 		ty, _, ok := readMaybe(t, c)
@@ -411,7 +416,7 @@ func TestLojaDeHonraFechaQuandoOJogadorSeAfasta(t *testing.T) {
 		}
 	}
 	if !fechou {
-		t.Fatal("o jogador saiu de vista e a loja não fechou")
+		t.Fatal("o jogador passou do limite e a loja não fechou")
 	}
 
 	// E a compra não vale mais: o servidor esqueceu o NPC.
