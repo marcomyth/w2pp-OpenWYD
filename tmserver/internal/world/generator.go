@@ -7,7 +7,10 @@ package world
 // decrements its population, so farmed areas repopulate in groups the way the
 // original world does. All of this is loop-only state.
 
-import "github.com/jeanluca/w2pp-openwyd/internal/mapaevento"
+import (
+	"github.com/jeanluca/w2pp-openwyd/internal/mapaevento"
+	"github.com/jeanluca/w2pp-openwyd/internal/npcgener"
+)
 
 // Generator is the runtime state of one NPCGener.txt block (NPCGENLIST,
 // CNPCGene.h:29-51): the spawn recipe plus the live population counter.
@@ -94,25 +97,39 @@ func (w *World) DBManagedGeneratorCount() int {
 	return n
 }
 
-// Water-dungeon generator bases (WATER_N/M/A_INITIAL, Basedef.h:361-363). Each
-// base owns 12 consecutive NPCGener blocks: +0..+7 are the eight numbered rooms
-// and +8..+11 the four boss candidates.
+// A CLASSIFICAÇÃO DOS BLOCOS MUDOU DE CASA (21/09/2026), sem mudar de regra.
+//
+// As perguntas "isto é da Água?", "isto é do Kefra?", "isto é de evento?" viraram
+// internal/npcgener: o painel precisa da MESMA resposta para dizer quais monstros
+// nascem de verdade, e a regra de pacote interno do Go impede o webServer de
+// importar daqui. Duas cópias da mesma pergunta é como a Sala Secreta entrou no
+// modelo de XP como campo aberto em 16/09.
+//
+// O que fica aqui são apelidos: mesmo nome, mesma resposta, um lugar só. Quem
+// chama não mudou. Para ver as faixas e o porquê de cada uma, npcgener/classe.go.
 const (
-	WaterGenBaseN = 171
-	WaterGenBaseM = 10
-	WaterGenBaseA = 183
+	WaterGenBaseN = npcgener.WaterGenBaseN
+	WaterGenBaseM = npcgener.WaterGenBaseM
+	WaterGenBaseA = npcgener.WaterGenBaseA
 
-	// waterGenSpan is how many blocks each dungeon owns.
-	waterGenSpan = 12
+	SecretRoomGenFirst = npcgener.SecretRoomGenFirst
+	SecretRoomGenLast  = npcgener.SecretRoomGenLast
+
+	CasteloOrcGenFirst = npcgener.CasteloOrcGenFirst
+	CasteloOrcGenLast  = npcgener.CasteloOrcGenLast
+
+	AcampamentoTrollGenFirst = npcgener.AcampamentoTrollGenFirst
+	AcampamentoTrollGenLast  = npcgener.AcampamentoTrollGenLast
+
+	SecretRoomStrayGenFirst = npcgener.SecretRoomStrayGenFirst
+	SecretRoomStrayGenLast  = npcgener.SecretRoomStrayGenLast
 )
 
 // IsKefraGenerator reports whether an NPCGener block is the Kefra (396) or one
 // of its guards (397-400). They come back weekly (handler/kefra.go), never
 // through the 15 s queue: a boss that returns fifteen seconds after dying is not
 // a weekly boss.
-func IsKefraGenerator(idx int) bool {
-	return idx >= KefraBossGenIndex && idx <= KefraGuardLast
-}
+func IsKefraGenerator(idx int) bool { return npcgener.IsKefraGenerator(idx) }
 
 // IsWaterDungeonGenerator reports whether an NPCGener block belongs to a
 // Pergaminho da Água room.
@@ -123,169 +140,21 @@ func IsKefraGenerator(idx int) bool {
 // block — would leave the rooms permanently occupied: entry refuses a non-empty
 // room, and the clear reward fires on the last mob dying, which would never
 // happen for monsters nobody was sent in to fight.
-func IsWaterDungeonGenerator(idx int) bool {
-	for _, base := range [...]int{WaterGenBaseN, WaterGenBaseM, WaterGenBaseA} {
-		if idx >= base && idx < base+waterGenSpan {
-			return true
-		}
-	}
-	return false
-}
-
-// eventOwnedGenerators are NPCGener blocks whose mobs are props of a scripted
-// war, not world population. The event spawns them when it starts and clears
-// them when it ends, so the boot populate must skip them and a death must not
-// enqueue the 15s respawn — otherwise the prop stands in the world permanently
-// and reappears fifteen seconds after anyone knocks it down.
-//
-// The indices are NPCGener block positions (npcgener.Load returns blocks in file
-// order, dropping the ones with no Leader), which is the same numbering
-// towerGenerator already uses.
-//
-//	1078 "Torre"      — the guild tower war. handler/towerwar.go already spawns it
-//	                    at TowerStart and clears it at TowerEnd; the boot populate
-//	                    was leaving a second one standing outside the war window.
-//	4236 "Torre_"     — Torre_RvR, inside the RvR box (1023-1280 × 1919-2179).
-//	4237 "Torre__"    — Torre_RvR, same box.
-//	4238/4239 "Torre_Real" — the royal towers on the kings' corridor.
-//	23-26 "Torre_de_Thor" — the towers of the Noatum castle war, TORRE_NOATUM1-3
-//	                    (Basedef.h:357-359). The legacy raises 23-25 when the
-//	                    castle opens (Server.cpp:6815-6819) and never 26; outside
-//	                    the war they stood in Noatum's square for everyone.
-//
-// The RvR war and the Noatum castle war are not modeled yet (handler/castle.go
-// is the Castle quest, not the war), so these have no owner to spawn them at
-// all: until one exists they simply stay out of the world, which is what the
-// original does with them outside the event.
-var eventOwnedGenerators = map[int]bool{
-	23:   true,
-	24:   true,
-	25:   true,
-	26:   true,
-	1078: true,
-	4236: true,
-	4237: true,
-	4238: true,
-	4239: true,
-}
-
-// SecretRoomGenFirst/Last bound the Sala Secreta blocks (Basedef.h:374-420): the
-// three card sets N, M and A, ten blocks each — eight sala blocks, then two boss
-// templates. handler/carta.go spawns the whole range when a Carta de Duelo is
-// used and the run's own sweep clears it.
-//
-// They must be event-owned for two separate reasons. Populated at boot the
-// dungeon stands permanently full, so a party walks into a room already cleared
-// by nobody; and on the 15s respawn queue a sala refills behind the party and can
-// never reach the "last mob down" that advances the run.
-const (
-	SecretRoomGenFirst = 2395
-	SecretRoomGenLast  = 2424
-)
+func IsWaterDungeonGenerator(idx int) bool { return npcgener.IsWaterDungeonGenerator(idx) }
 
 // IsSecretRoomGenerator reports whether a block belongs to the Sala Secreta.
-func IsSecretRoomGenerator(idx int) bool {
-	return idx >= SecretRoomGenFirst && idx <= SecretRoomGenLast
-}
-
-// SecretRoomStrayGenFirst/Last são os blocos 81-97 do NPCGener.txt: Krill e
-// ChaosOrc__ que começam dentro da caixa da Sala Secreta (767-896 × 3582-3711),
-// com MinuteGenerate -1. O legado nunca os gera. O relógio de minuto pula todo
-// bloco com MinuteGenerate <= 0 (ProcessSecMinTimer.cpp:2727); nenhuma faixa que
-// chama GenerateMob os cobre (a carta gera só 2395-2424, _MSG_UseItem.cpp:2939-2966);
-// e a carta limpa a caixa inteira ao começar (:2922-2933). Populados no nosso
-// boot, eles ficavam na sala até a primeira carta, que os removia.
-//
-// Só estes blocos. O boot que popula os blocos -1 no resto do mundo é divergência
-// deliberada (spawnNPCs, cmd/tmserver/main.go) e os chefes sozinhos dependem dela.
-const (
-	SecretRoomStrayGenFirst = 81
-	SecretRoomStrayGenLast  = 97
-)
-
-// isSecretRoomStrayGenerator diz se um bloco é um dos 81-97 da Sala Secreta.
-func isSecretRoomStrayGenerator(idx int) bool {
-	return idx >= SecretRoomStrayGenFirst && idx <= SecretRoomStrayGenLast
-}
-
-// coliseuGenerators são os 26 blocos de população da região Coliseu do
-// Regions.txt (2589-2681 × 1671-1785), todos com MinuteGenerate -1:
-//
-//	0, 1, 2       Ciclope_Forte, Ciclop_Selvagem, Ciclope_Wild — o Coliseu N, 100 cada
-//	5, 6, 7       Orc_Sniper_, Orc_Selvagem, Orc_Wild — o Coliseu N, 100 cada
-//	4854-4863     Espectro, 10 cada, com o primeiro ponto em 2615,1716
-//	4865-4874     Espectro, 10 cada, com o primeiro ponto em 2615,1735
-//
-// A regra é NOSSA, não uma porta do legado. No legado nenhum bloco -1 nasce fora
-// de um evento: o boot só gera o Kefra (Server.cpp:4093-4099) e o relógio de
-// minuto pula todo bloco com MinuteGenerate <= 0 e, à parte, os blocos 0, 1, 2, 5,
-// 6 e 7 do Coliseu N (ProcessSecMinTimer.cpp:2725-2728). Aqui o boot popula os
-// blocos -1 do mundo (divergência deliberada, spawnNPCs) e o evento do Coliseu não
-// existe, então esses 800 monstros ficavam de pé o tempo todo. Com a lista eles
-// ficam fora do mundo: não nascem no boot e não voltam pela fila de 15 s. Um GM
-// ainda os levanta com "gerar <bloco> aqui".
-//
-// Ficam de fora da lista, e seguem do mundo: os dez chefes sozinhos da região
-// (103-106, 4853, 4864, 4885-4888), que voltam em horas (handler/chefes.go); o
-// Guarda_Carga (974); e a Prona (4232). O 4864 fica no meio da faixa dos
-// Espectros e é o Barrack_, um desses chefes.
-//
-// Não é o retângulo de GenerateMob (Server.cpp:3505-3509), que desliga os blocos
-// com o primeiro ponto em 2440-2545 × 1845-1921 quando o líder não veste o item
-// 219: aquilo é outra área (Trolls e Caçadores de Troll) e segue sem porta.
-var coliseuGenerators = map[int]bool{
-	0: true, 1: true, 2: true, 5: true, 6: true, 7: true,
-	4854: true, 4855: true, 4856: true, 4857: true, 4858: true,
-	4859: true, 4860: true, 4861: true, 4862: true, 4863: true,
-	4865: true, 4866: true, 4867: true, 4868: true, 4869: true,
-	4870: true, 4871: true, 4872: true, 4873: true, 4874: true,
-}
-
-// isColiseuGenerator diz se um bloco é um dos 26 do Coliseu.
-func isColiseuGenerator(idx int) bool {
-	return coliseuGenerators[idx]
-}
-
-// CasteloOrcGenFirst/Last bound the Castelo Orc quest blocks, appended at the
-// end of NPCGener.txt (boss, followers, three gate guardians, and twelve troop
-// blocks of five on the legacy castle's own inner spawn points —
-// handler/castelo_orc.go). They are the quest's own monsters, sized for
-// Mortals 320-400: populated at boot they would stand in Erion's open castle
-// for everyone, and on the 15s respawn queue they would come back behind
-// anybody who cleared them. Until the quest spawns them itself, a GM raises
-// them with "gerar <bloco> aqui" or "criar <template>".
-const (
-	CasteloOrcGenFirst = 6099
-	CasteloOrcGenLast  = 6115
-)
+func IsSecretRoomGenerator(idx int) bool { return npcgener.IsSecretRoomGenerator(idx) }
 
 // IsCasteloOrcGenerator reports whether a block belongs to the Castelo Orc quest.
-func IsCasteloOrcGenerator(idx int) bool {
-	return idx >= CasteloOrcGenFirst && idx <= CasteloOrcGenLast
-}
-
-// AcampamentoTrollGenFirst/Last delimitam os blocos da quest do Acampamento Troll,
-// logo depois dos do Castelo Orc no fim do NPCGener.txt: o boss (6116), os
-// seguidores (6117), os dois guardiões e oito blocos de tropa de cinco
-// (handler/acampamento_troll.go). Pelo mesmo motivo do Orc são de evento: no boot
-// ocupariam o acampamento para todo mundo, e na fila de 15 s voltariam atrás de
-// quem os limpou. Quem os levanta é a corrida (handler/acampamento_troll_run.go).
-const (
-	AcampamentoTrollGenFirst = 6116
-	AcampamentoTrollGenLast  = 6127
-)
+func IsCasteloOrcGenerator(idx int) bool { return npcgener.IsCasteloOrcGenerator(idx) }
 
 // IsAcampamentoTrollGenerator diz se um bloco é da quest do Acampamento Troll.
-func IsAcampamentoTrollGenerator(idx int) bool {
-	return idx >= AcampamentoTrollGenFirst && idx <= AcampamentoTrollGenLast
-}
+func IsAcampamentoTrollGenerator(idx int) bool { return npcgener.IsAcampamentoTrollGenerator(idx) }
 
 // IsEventOwnedGenerator reports whether a block belongs to a scripted event
-// rather than to the world population.
-func IsEventOwnedGenerator(idx int) bool {
-	return eventOwnedGenerators[idx] || IsSecretRoomGenerator(idx) || isSecretRoomStrayGenerator(idx) ||
-		isColiseuGenerator(idx) || IsCasteloOrcGenerator(idx) || IsAcampamentoTrollGenerator(idx)
-}
+// rather than to the world population. O boot pula estes blocos e a morte não
+// enfileira o respawn de 15 s — senão o cenário do evento fica de pé para sempre.
+func IsEventOwnedGenerator(idx int) bool { return npcgener.IsEventOwnedGenerator(idx) }
 
 // ClearGenerator removes every live entity and queued respawn owned by one
 // generator slot before a DB snapshot replaces its recipe. Loop-only.

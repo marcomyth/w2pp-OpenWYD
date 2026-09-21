@@ -9,8 +9,11 @@ func TestColiseuSoOs26Blocos(t *testing.T) {
 	coliseu := []int{0, 1, 2, 5, 6, 7,
 		4854, 4855, 4856, 4857, 4858, 4859, 4860, 4861, 4862, 4863,
 		4865, 4866, 4867, 4868, 4869, 4870, 4871, 4872, 4873, 4874}
-	if len(coliseu) != 26 || len(coliseuGenerators) != 26 {
-		t.Fatalf("lista do teste %d, lista do código %d; want 26 e 26", len(coliseu), len(coliseuGenerators))
+	// A conferência do TAMANHO da lista mudou de casa junto com a lista, para
+	// npcgener (TestColiseuListaTem26Blocos): lá ela enxerga o mapa. Aqui ficou o
+	// que importa do lado do mundo — que estes 26 não nascem e não voltam.
+	if len(coliseu) != 26 {
+		t.Fatalf("lista do teste = %d, want 26", len(coliseu))
 	}
 	for _, idx := range coliseu {
 		if !IsEventOwnedGenerator(idx) {

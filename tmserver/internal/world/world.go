@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/npcgener"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/rng"
 )
@@ -55,10 +56,10 @@ const (
 
 	// KefraBossGenIndex is KEFRA_BOSS (Basedef.h:475), the NPCGener block with
 	// special fixed-range / fixed-position combat rules in CMob.cpp.
-	KefraBossGenIndex = 396
+	KefraBossGenIndex = npcgener.KefraBossGenIndex
 	// KefraGuardLast is KEFRA_MOB_END (Basedef.h:477): the Kefra's guards are
 	// blocks KefraBossGenIndex+1 .. KefraGuardLast (397-400).
-	KefraGuardLast = 400
+	KefraGuardLast = npcgener.KefraGuardLast
 
 	// GroundItemIDOffset is added to a ground item's index on the wire
 	// (_MSG_GetItem decodes ItemID-10000; handlers/_MSG_GetItem.md).
