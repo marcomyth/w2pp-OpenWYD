@@ -63,6 +63,12 @@ const (
 	AccountService_SetGuildRelation_FullMethodName        = "/db.v1.AccountService/SetGuildRelation"
 	AccountService_ListGuilds_FullMethodName              = "/db.v1.AccountService/ListGuilds"
 	AccountService_ListGuildRelations_FullMethodName      = "/db.v1.AccountService/ListGuildRelations"
+	AccountService_ListGuildMembers_FullMethodName        = "/db.v1.AccountService/ListGuildMembers"
+	AccountService_SaveGuildNotice_FullMethodName         = "/db.v1.AccountService/SaveGuildNotice"
+	AccountService_ListGuildSummaries_FullMethodName      = "/db.v1.AccountService/ListGuildSummaries"
+	AccountService_ListGuildBuffs_FullMethodName          = "/db.v1.AccountService/ListGuildBuffs"
+	AccountService_SaveGuildBuff_FullMethodName           = "/db.v1.AccountService/SaveGuildBuff"
+	AccountService_DeleteGuildBuff_FullMethodName         = "/db.v1.AccountService/DeleteGuildBuff"
 	AccountService_LoadGuildZones_FullMethodName          = "/db.v1.AccountService/LoadGuildZones"
 	AccountService_SaveGuildZone_FullMethodName           = "/db.v1.AccountService/SaveGuildZone"
 	AccountService_LoadGuildTowerState_FullMethodName     = "/db.v1.AccountService/LoadGuildTowerState"
@@ -214,6 +220,13 @@ type AccountServiceClient interface {
 	SetGuildRelation(ctx context.Context, in *SetGuildRelationRequest, opts ...grpc.CallOption) (*SetGuildRelationResponse, error)
 	ListGuilds(ctx context.Context, in *ListGuildsRequest, opts ...grpc.CallOption) (*ListGuildsResponse, error)
 	ListGuildRelations(ctx context.Context, in *ListGuildRelationsRequest, opts ...grpc.CallOption) (*ListGuildRelationsResponse, error)
+	// Painel de Guilda (0079).
+	ListGuildMembers(ctx context.Context, in *ListGuildMembersRequest, opts ...grpc.CallOption) (*ListGuildMembersResponse, error)
+	SaveGuildNotice(ctx context.Context, in *SaveGuildNoticeRequest, opts ...grpc.CallOption) (*SaveGuildNoticeResponse, error)
+	ListGuildSummaries(ctx context.Context, in *ListGuildSummariesRequest, opts ...grpc.CallOption) (*ListGuildSummariesResponse, error)
+	ListGuildBuffs(ctx context.Context, in *ListGuildBuffsRequest, opts ...grpc.CallOption) (*ListGuildBuffsResponse, error)
+	SaveGuildBuff(ctx context.Context, in *SaveGuildBuffRequest, opts ...grpc.CallOption) (*SaveGuildBuffResponse, error)
+	DeleteGuildBuff(ctx context.Context, in *DeleteGuildBuffRequest, opts ...grpc.CallOption) (*DeleteGuildBuffResponse, error)
 	LoadGuildZones(ctx context.Context, in *LoadGuildZonesRequest, opts ...grpc.CallOption) (*LoadGuildZonesResponse, error)
 	SaveGuildZone(ctx context.Context, in *SaveGuildZoneRequest, opts ...grpc.CallOption) (*SaveGuildZoneResponse, error)
 	LoadGuildTowerState(ctx context.Context, in *LoadGuildTowerStateRequest, opts ...grpc.CallOption) (*LoadGuildTowerStateResponse, error)
@@ -593,6 +606,66 @@ func (c *accountServiceClient) ListGuildRelations(ctx context.Context, in *ListG
 	return out, nil
 }
 
+func (c *accountServiceClient) ListGuildMembers(ctx context.Context, in *ListGuildMembersRequest, opts ...grpc.CallOption) (*ListGuildMembersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGuildMembersResponse)
+	err := c.cc.Invoke(ctx, AccountService_ListGuildMembers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) SaveGuildNotice(ctx context.Context, in *SaveGuildNoticeRequest, opts ...grpc.CallOption) (*SaveGuildNoticeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveGuildNoticeResponse)
+	err := c.cc.Invoke(ctx, AccountService_SaveGuildNotice_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) ListGuildSummaries(ctx context.Context, in *ListGuildSummariesRequest, opts ...grpc.CallOption) (*ListGuildSummariesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGuildSummariesResponse)
+	err := c.cc.Invoke(ctx, AccountService_ListGuildSummaries_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) ListGuildBuffs(ctx context.Context, in *ListGuildBuffsRequest, opts ...grpc.CallOption) (*ListGuildBuffsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGuildBuffsResponse)
+	err := c.cc.Invoke(ctx, AccountService_ListGuildBuffs_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) SaveGuildBuff(ctx context.Context, in *SaveGuildBuffRequest, opts ...grpc.CallOption) (*SaveGuildBuffResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveGuildBuffResponse)
+	err := c.cc.Invoke(ctx, AccountService_SaveGuildBuff_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) DeleteGuildBuff(ctx context.Context, in *DeleteGuildBuffRequest, opts ...grpc.CallOption) (*DeleteGuildBuffResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteGuildBuffResponse)
+	err := c.cc.Invoke(ctx, AccountService_DeleteGuildBuff_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accountServiceClient) LoadGuildZones(ctx context.Context, in *LoadGuildZonesRequest, opts ...grpc.CallOption) (*LoadGuildZonesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LoadGuildZonesResponse)
@@ -805,6 +878,13 @@ type AccountServiceServer interface {
 	SetGuildRelation(context.Context, *SetGuildRelationRequest) (*SetGuildRelationResponse, error)
 	ListGuilds(context.Context, *ListGuildsRequest) (*ListGuildsResponse, error)
 	ListGuildRelations(context.Context, *ListGuildRelationsRequest) (*ListGuildRelationsResponse, error)
+	// Painel de Guilda (0079).
+	ListGuildMembers(context.Context, *ListGuildMembersRequest) (*ListGuildMembersResponse, error)
+	SaveGuildNotice(context.Context, *SaveGuildNoticeRequest) (*SaveGuildNoticeResponse, error)
+	ListGuildSummaries(context.Context, *ListGuildSummariesRequest) (*ListGuildSummariesResponse, error)
+	ListGuildBuffs(context.Context, *ListGuildBuffsRequest) (*ListGuildBuffsResponse, error)
+	SaveGuildBuff(context.Context, *SaveGuildBuffRequest) (*SaveGuildBuffResponse, error)
+	DeleteGuildBuff(context.Context, *DeleteGuildBuffRequest) (*DeleteGuildBuffResponse, error)
 	LoadGuildZones(context.Context, *LoadGuildZonesRequest) (*LoadGuildZonesResponse, error)
 	SaveGuildZone(context.Context, *SaveGuildZoneRequest) (*SaveGuildZoneResponse, error)
 	LoadGuildTowerState(context.Context, *LoadGuildTowerStateRequest) (*LoadGuildTowerStateResponse, error)
@@ -931,6 +1011,24 @@ func (UnimplementedAccountServiceServer) ListGuilds(context.Context, *ListGuilds
 }
 func (UnimplementedAccountServiceServer) ListGuildRelations(context.Context, *ListGuildRelationsRequest) (*ListGuildRelationsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListGuildRelations not implemented")
+}
+func (UnimplementedAccountServiceServer) ListGuildMembers(context.Context, *ListGuildMembersRequest) (*ListGuildMembersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListGuildMembers not implemented")
+}
+func (UnimplementedAccountServiceServer) SaveGuildNotice(context.Context, *SaveGuildNoticeRequest) (*SaveGuildNoticeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SaveGuildNotice not implemented")
+}
+func (UnimplementedAccountServiceServer) ListGuildSummaries(context.Context, *ListGuildSummariesRequest) (*ListGuildSummariesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListGuildSummaries not implemented")
+}
+func (UnimplementedAccountServiceServer) ListGuildBuffs(context.Context, *ListGuildBuffsRequest) (*ListGuildBuffsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListGuildBuffs not implemented")
+}
+func (UnimplementedAccountServiceServer) SaveGuildBuff(context.Context, *SaveGuildBuffRequest) (*SaveGuildBuffResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SaveGuildBuff not implemented")
+}
+func (UnimplementedAccountServiceServer) DeleteGuildBuff(context.Context, *DeleteGuildBuffRequest) (*DeleteGuildBuffResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteGuildBuff not implemented")
 }
 func (UnimplementedAccountServiceServer) LoadGuildZones(context.Context, *LoadGuildZonesRequest) (*LoadGuildZonesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method LoadGuildZones not implemented")
@@ -1622,6 +1720,114 @@ func _AccountService_ListGuildRelations_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_ListGuildMembers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGuildMembersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ListGuildMembers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ListGuildMembers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ListGuildMembers(ctx, req.(*ListGuildMembersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_SaveGuildNotice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveGuildNoticeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).SaveGuildNotice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_SaveGuildNotice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).SaveGuildNotice(ctx, req.(*SaveGuildNoticeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_ListGuildSummaries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGuildSummariesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ListGuildSummaries(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ListGuildSummaries_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ListGuildSummaries(ctx, req.(*ListGuildSummariesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_ListGuildBuffs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGuildBuffsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ListGuildBuffs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ListGuildBuffs_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ListGuildBuffs(ctx, req.(*ListGuildBuffsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_SaveGuildBuff_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveGuildBuffRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).SaveGuildBuff(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_SaveGuildBuff_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).SaveGuildBuff(ctx, req.(*SaveGuildBuffRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_DeleteGuildBuff_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteGuildBuffRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).DeleteGuildBuff(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_DeleteGuildBuff_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).DeleteGuildBuff(ctx, req.(*DeleteGuildBuffRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_LoadGuildZones_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(LoadGuildZonesRequest)
 	if err := dec(in); err != nil {
@@ -1898,6 +2104,30 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListGuildRelations",
 			Handler:    _AccountService_ListGuildRelations_Handler,
+		},
+		{
+			MethodName: "ListGuildMembers",
+			Handler:    _AccountService_ListGuildMembers_Handler,
+		},
+		{
+			MethodName: "SaveGuildNotice",
+			Handler:    _AccountService_SaveGuildNotice_Handler,
+		},
+		{
+			MethodName: "ListGuildSummaries",
+			Handler:    _AccountService_ListGuildSummaries_Handler,
+		},
+		{
+			MethodName: "ListGuildBuffs",
+			Handler:    _AccountService_ListGuildBuffs_Handler,
+		},
+		{
+			MethodName: "SaveGuildBuff",
+			Handler:    _AccountService_SaveGuildBuff_Handler,
+		},
+		{
+			MethodName: "DeleteGuildBuff",
+			Handler:    _AccountService_DeleteGuildBuff_Handler,
 		},
 		{
 			MethodName: "LoadGuildZones",

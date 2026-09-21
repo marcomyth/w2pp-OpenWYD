@@ -267,6 +267,22 @@ func (f *fakeStore) ListGuildRelations(context.Context) ([]domain.GuildRelation,
 	return nil, nil
 }
 
+func (f *fakeStore) ListGuildSummaries(context.Context, int) ([]domain.GuildSummary, error) {
+	return nil, nil
+}
+
+func (f *fakeStore) ListGuildBuffs(context.Context) ([]domain.GuildBuff, error) { return nil, nil }
+
+func (f *fakeStore) SaveGuildBuff(context.Context, domain.GuildBuff) error { return nil }
+
+func (f *fakeStore) DeleteGuildBuff(context.Context, uint16, uint8) error { return nil }
+
+func (f *fakeStore) ListGuildMembers(context.Context, uint16) ([]domain.GuildMember, error) {
+	return nil, nil
+}
+
+func (f *fakeStore) SaveGuildNotice(context.Context, uint16, string, string) error { return nil }
+
 func (f *fakeStore) LoadGuildZones(context.Context) ([]domain.GuildZone, error) { return nil, nil }
 
 func (f *fakeStore) SaveGuildZone(context.Context, domain.GuildZone) error { return nil }

@@ -477,6 +477,88 @@ func (c *Client) ListGuildRelations(ctx context.Context) ([]world.GuildRelation,
 	return out, nil
 }
 
+// ListGuildMembers loads one guild's whole roster for the panel's Membros tab.
+func (c *Client) ListGuildMembers(ctx context.Context, guildID uint16) ([]world.GuildMemberRecord, error) {
+	resp, err := c.api.ListGuildMembers(ctx, &dbv1.ListGuildMembersRequest{GuildId: uint32(guildID)})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: list guild members of %d: %w", guildID, err)
+	}
+	out := make([]world.GuildMemberRecord, 0, len(resp.GetMembers()))
+	for _, m := range resp.GetMembers() {
+		out = append(out, guildMemberFromProto(m))
+	}
+	return out, nil
+}
+
+// SaveGuildNotice writes the guild's notice board.
+func (c *Client) SaveGuildNotice(ctx context.Context, guildID uint16, notice, by string) error {
+	_, err := c.api.SaveGuildNotice(ctx, &dbv1.SaveGuildNoticeRequest{
+		GuildId: uint32(guildID), Notice: notice, NoticeBy: by,
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: save guild notice of %d: %w", guildID, err)
+	}
+	return nil
+}
+
+// ListGuildSummaries loads the server's guilds for the panel's list screen.
+func (c *Client) ListGuildSummaries(ctx context.Context, limit int) ([]world.GuildSummaryRecord, error) {
+	resp, err := c.api.ListGuildSummaries(ctx, &dbv1.ListGuildSummariesRequest{Limit: int32(limit)})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: list guild summaries: %w", err)
+	}
+	out := make([]world.GuildSummaryRecord, 0, len(resp.GetGuilds()))
+	for _, g := range resp.GetGuilds() {
+		out = append(out, world.GuildSummaryRecord{
+			ID: uint16(g.GetId()), Name: g.GetName(), Leader: g.GetLeader(),
+			Members: int(g.GetMembers()), Fame: g.GetFame(),
+		})
+	}
+	return out, nil
+}
+
+// ListGuildBuffs loads the guild buffs still running.
+func (c *Client) ListGuildBuffs(ctx context.Context) ([]world.GuildBuffRecord, error) {
+	resp, err := c.api.ListGuildBuffs(ctx, &dbv1.ListGuildBuffsRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: list guild buffs: %w", err)
+	}
+	out := make([]world.GuildBuffRecord, 0, len(resp.GetBuffs()))
+	for _, b := range resp.GetBuffs() {
+		out = append(out, world.GuildBuffRecord{
+			GuildID:   uint16(b.GetGuildId()),
+			Type:      uint8(b.GetBuffType()),
+			ExpiresAt: timeFromUnix(b.GetExpiresAtUnix()),
+		})
+	}
+	return out, nil
+}
+
+// SaveGuildBuff writes one guild buff's expiry.
+func (c *Client) SaveGuildBuff(ctx context.Context, b world.GuildBuffRecord) error {
+	_, err := c.api.SaveGuildBuff(ctx, &dbv1.SaveGuildBuffRequest{
+		Buff: &dbv1.GuildBuff{
+			GuildId: uint32(b.GuildID), BuffType: int32(b.Type),
+			ExpiresAtUnix: b.ExpiresAt.Unix(),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: save guild buff %d/%d: %w", b.GuildID, b.Type, err)
+	}
+	return nil
+}
+
+// DeleteGuildBuff removes one guild buff that has run out.
+func (c *Client) DeleteGuildBuff(ctx context.Context, guildID uint16, buffType uint8) error {
+	_, err := c.api.DeleteGuildBuff(ctx, &dbv1.DeleteGuildBuffRequest{
+		GuildId: uint32(guildID), BuffType: int32(buffType),
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: delete guild buff %d/%d: %w", guildID, buffType, err)
+	}
+	return nil
+}
+
 // LoadGuildZones loads city/guild-zone state.
 func (c *Client) LoadGuildZones(ctx context.Context) ([]world.GuildZone, error) {
 	resp, err := c.api.LoadGuildZones(ctx, &dbv1.LoadGuildZonesRequest{})
@@ -578,11 +660,40 @@ func guildFromProto(g *dbv1.Guild) world.GuildRecord {
 		return world.GuildRecord{}
 	}
 	return world.GuildRecord{
-		ID:      uint16(g.GetId()),
-		Name:    g.GetName(),
-		Clan:    uint8(g.GetClan()),
-		Fame:    g.GetFame(),
-		Citizen: uint8(g.GetCitizen()),
+		ID:        uint16(g.GetId()),
+		Name:      g.GetName(),
+		Clan:      uint8(g.GetClan()),
+		Fame:      g.GetFame(),
+		Citizen:   uint8(g.GetCitizen()),
+		Notice:    g.GetNotice(),
+		NoticeBy:  g.GetNoticeBy(),
+		NoticeAt:  timeFromUnix(g.GetNoticeAtUnix()),
+		MemberCap: int(g.GetMemberCap()),
+	}
+}
+
+// timeFromUnix devolve o tempo zero para 0, e não 1970: o painel testa
+// IsZero() para saber se nunca houve recado, e uma data de 1970 passaria por
+// um recado antigo de verdade.
+func timeFromUnix(sec int64) time.Time {
+	if sec <= 0 {
+		return time.Time{}
+	}
+	return time.Unix(sec, 0)
+}
+
+func guildMemberFromProto(m *dbv1.GuildMember) world.GuildMemberRecord {
+	if m == nil {
+		return world.GuildMemberRecord{}
+	}
+	return world.GuildMemberRecord{
+		CharacterID: m.GetCharacterId(),
+		AccountID:   m.GetAccountId(),
+		Slot:        int(m.GetSlot()),
+		Name:        m.GetName(),
+		Level:       uint8(m.GetGuildLevel()),
+		Status:      m.GetStatus(),
+		LastSeen:    timeFromUnix(m.GetLastSeenUnix()),
 	}
 }
 

@@ -306,6 +306,44 @@ type GuildRecord struct {
 	Clan    uint8
 	Fame    int32
 	Citizen uint8
+
+	// O Painel de Guilda (0079_painel_de_guilda): o recado e o teto de membros.
+	// NoticeAt zero significa que nunca houve recado.
+	Notice    string
+	NoticeBy  string
+	NoticeAt  time.Time
+	MemberCap int
+}
+
+// GuildMemberRecord é uma linha da aba Membros do painel, e vem do banco
+// inteira: o tmServer só conhece de cabeça quem está conectado, e a aba mostra a
+// guilda toda.
+//
+// Level é o CARGO (0..9, 9 é o líder), não o nível do personagem.
+type GuildMemberRecord struct {
+	CharacterID int64
+	AccountID   int64
+	Slot        int
+	Name        string
+	Level       uint8
+	Status      string
+	LastSeen    time.Time
+}
+
+// GuildSummaryRecord é uma guilda como a tela "Guilds do Server" a mostra.
+type GuildSummaryRecord struct {
+	ID      uint16
+	Name    string
+	Leader  string
+	Members int
+	Fame    int32
+}
+
+// GuildBuffRecord é um buff de guilda correndo (0080_buffs_de_guilda).
+type GuildBuffRecord struct {
+	GuildID   uint16
+	Type      uint8 // 1..4
+	ExpiresAt time.Time
 }
 
 // GuildRelationKind identifies a directed guild relation.
@@ -464,6 +502,19 @@ type Persistence interface {
 	SetGuildRelation(ctx context.Context, guildID, targetGuildID uint16, kind GuildRelationKind) error
 	ListGuilds(ctx context.Context) ([]GuildRecord, error)
 	ListGuildRelations(ctx context.Context) ([]GuildRelation, error)
+	// ListGuildMembers lê a guilda inteira, inclusive quem está desconectado —
+	// a aba Membros do painel. Custa uma ida ao banco, então é chamada quando a
+	// aba abre, nunca no laço.
+	ListGuildMembers(ctx context.Context, guildID uint16) ([]GuildMemberRecord, error)
+	SaveGuildNotice(ctx context.Context, guildID uint16, notice, by string) error
+	// Os buffs de guilda (0080). Ficam no banco porque os itens que os acendem
+	// valem 15 e 30 dias: um restart não pode apagar o que foi comprado.
+	// ListGuildSummaries alimenta a tela "Guilds do Server". Vai ao banco, entao
+	// so quando a tela abre.
+	ListGuildSummaries(ctx context.Context, limit int) ([]GuildSummaryRecord, error)
+	ListGuildBuffs(ctx context.Context) ([]GuildBuffRecord, error)
+	SaveGuildBuff(ctx context.Context, buff GuildBuffRecord) error
+	DeleteGuildBuff(ctx context.Context, guildID uint16, buffType uint8) error
 	LoadGuildZones(ctx context.Context) ([]GuildZone, error)
 	SaveGuildZone(ctx context.Context, zone GuildZone) error
 	LoadGuildTowerState(ctx context.Context) (GuildTowerState, error)
@@ -643,6 +694,38 @@ func (NopPersistence) ListGuilds(context.Context) ([]GuildRecord, error) { retur
 // ListGuildRelations returns no relations without a backend.
 func (NopPersistence) ListGuildRelations(context.Context) ([]GuildRelation, error) {
 	return nil, nil
+}
+
+// ListGuildMembers returns an empty roster without a backend. The panel then
+// shows only the members this process can see for itself — the ones online.
+func (NopPersistence) ListGuildMembers(context.Context, uint16) ([]GuildMemberRecord, error) {
+	return nil, nil
+}
+
+// SaveGuildNotice cannot persist a notice without a backend.
+func (NopPersistence) SaveGuildNotice(context.Context, uint16, string, string) error {
+	return errNoPersistence
+}
+
+// ListGuildSummaries returns no guilds without a backend.
+func (NopPersistence) ListGuildSummaries(context.Context, int) ([]GuildSummaryRecord, error) {
+	return nil, nil
+}
+
+// ListGuildBuffs returns no running buffs without a backend.
+func (NopPersistence) ListGuildBuffs(context.Context) ([]GuildBuffRecord, error) {
+	return nil, nil
+}
+
+// SaveGuildBuff cannot persist a buff without a backend. The buff still runs in
+// memory for as long as this process lives — it just does not survive a restart.
+func (NopPersistence) SaveGuildBuff(context.Context, GuildBuffRecord) error {
+	return errNoPersistence
+}
+
+// DeleteGuildBuff cannot remove a persisted buff without a backend.
+func (NopPersistence) DeleteGuildBuff(context.Context, uint16, uint8) error {
+	return errNoPersistence
 }
 
 // LoadGuildZones returns no persisted zones without a backend.

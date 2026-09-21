@@ -131,6 +131,18 @@ const (
 	// Pontos em lote na janela de Personagem (protocol/pontos_em_lote.go).
 	MsgPontosEmLote Type = 0x0F30 // C->S  gastar N pontos de uma vez num campo
 
+	// Painel de Guilda (protocol/guildapainel.go). Os buffs não têm pacote de
+	// ativação: quem liga um buff é um item de cash, usado pelo caminho normal.
+	MsgGuildaPede    Type = 0x0F40 // C->S  me manda esta aba do painel
+	MsgGuildaAbre    Type = 0x0F41 // S->C  a aba Informações
+	MsgGuildaMembros Type = 0x0F42 // S->C  uma página do quadro de membros
+	MsgGuildaBuffs   Type = 0x0F43 // S->C  o estado dos buffs da guilda
+	MsgGuildaConvoca Type = 0x0F44 // C->S  convocar a guilda para uma cidade
+	MsgGuildaRecado  Type = 0x0F45 // C->S  escrever o recado da guilda
+	MsgGuildaStatus  Type = 0x0F46 // C->S  escrever a minha linha de status
+	MsgGuildaLista   Type = 0x0F47 // S->C  as guildas do servidor
+	MsgGuildaCria    Type = 0x0F48 // C->S  criar uma guilda com este nome
+
 	MsgRestart          Type = 0x0289 // 649
 	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)
 	MsgSendReqParty     Type = 0x037F // 895  invite to party

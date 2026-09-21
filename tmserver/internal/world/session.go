@@ -2,6 +2,7 @@ package world
 
 import (
 	"net"
+	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 )
@@ -87,6 +88,10 @@ type Session struct {
 	// (ProcessDBMessage.cpp:798) — it is never persisted.
 	Snd               string
 	GuildDisable      bool            // hide guild tag (guildon/guildoff)
+	// GuildaPedidoEm é quando este jogador pediu, pela última vez, uma aba do
+	// Painel de Guilda que vai ao banco. É o freio contra um cliente remendado
+	// pedir o quadro em laço (handler/guildapainel.go).
+	GuildaPedidoEm time.Time
 	TradeMode         int             // non-zero while in auto-trade (blocks attacks)
 	Trade             TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
 	AutoTrade         *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1

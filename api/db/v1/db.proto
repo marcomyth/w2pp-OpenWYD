@@ -158,6 +158,13 @@ service AccountService {
   rpc SetGuildRelation(SetGuildRelationRequest) returns (SetGuildRelationResponse);
   rpc ListGuilds(ListGuildsRequest) returns (ListGuildsResponse);
   rpc ListGuildRelations(ListGuildRelationsRequest) returns (ListGuildRelationsResponse);
+  // Painel de Guilda (0079).
+  rpc ListGuildMembers(ListGuildMembersRequest) returns (ListGuildMembersResponse);
+  rpc SaveGuildNotice(SaveGuildNoticeRequest) returns (SaveGuildNoticeResponse);
+  rpc ListGuildSummaries(ListGuildSummariesRequest) returns (ListGuildSummariesResponse);
+  rpc ListGuildBuffs(ListGuildBuffsRequest) returns (ListGuildBuffsResponse);
+  rpc SaveGuildBuff(SaveGuildBuffRequest) returns (SaveGuildBuffResponse);
+  rpc DeleteGuildBuff(DeleteGuildBuffRequest) returns (DeleteGuildBuffResponse);
   rpc LoadGuildZones(LoadGuildZonesRequest) returns (LoadGuildZonesResponse);
   rpc SaveGuildZone(SaveGuildZoneRequest) returns (SaveGuildZoneResponse);
   rpc LoadGuildTowerState(LoadGuildTowerStateRequest) returns (LoadGuildTowerStateResponse);
@@ -649,6 +656,24 @@ message Guild {
   int32 clan = 3;
   int32 fame = 4;
   int32 citizen = 5;
+  // O Painel de Guilda (0079). Nenhum destes tem equivalente no legado: o
+  // recado, quem o escreveu, quando, e o teto de membros da guilda.
+  string notice = 6;
+  string notice_by = 7;
+  int64 notice_at_unix = 8;   // 0 = nunca houve recado
+  int32 member_cap = 9;
+}
+
+// GuildMember é uma linha da aba Membros. O cargo é o guild_level 0..9, nao o
+// nível do personagem.
+message GuildMember {
+  int64 character_id = 1;
+  int64 account_id = 2;
+  int32 slot = 3;
+  string name = 4;
+  int32 guild_level = 5;
+  string status = 6;          // a linha que o próprio membro escreve
+  int64 last_seen_unix = 7;   // 0 = nunca visto desde que a coluna existe
 }
 
 enum GuildRelationKind {
@@ -725,6 +750,52 @@ message ListGuildsResponse { repeated Guild guilds = 1; }
 
 message ListGuildRelationsRequest {}
 message ListGuildRelationsResponse { repeated GuildRelation relations = 1; }
+
+// A aba Membros pede a guilda INTEIRA, inclusive quem está desconectado — é a
+// única coisa do painel que o tmServer não tem como responder de memória, que
+// só conhece quem está jogando agora.
+message ListGuildMembersRequest { uint32 guild_id = 1; }
+
+// Um buff de guilda correndo (0080_buffs_de_guilda). Os buffs valem 15 ou 30
+// dias, então precisam sobreviver a um restart: eles são comprados com cash.
+message GuildBuff {
+  uint32 guild_id = 1;
+  int32 buff_type = 2;        // 1..4
+  int64 expires_at_unix = 3;
+}
+
+// Só os que ainda valem: o boot não tem o que fazer com buff vencido.
+// Uma guilda como a tela "Guilds do Server" a mostra.
+message GuildSummary {
+  uint32 id = 1;
+  string name = 2;
+  string leader = 3;
+  int32 members = 4;
+  int32 fame = 5;
+}
+
+message ListGuildSummariesRequest { int32 limit = 1; }
+message ListGuildSummariesResponse { repeated GuildSummary guilds = 1; }
+
+message ListGuildBuffsRequest {}
+message ListGuildBuffsResponse { repeated GuildBuff buffs = 1; }
+
+message SaveGuildBuffRequest { GuildBuff buff = 1; }
+message SaveGuildBuffResponse { bool ok = 1; }
+
+message DeleteGuildBuffRequest {
+  uint32 guild_id = 1;
+  int32 buff_type = 2;
+}
+message DeleteGuildBuffResponse { bool ok = 1; }
+message ListGuildMembersResponse { repeated GuildMember members = 1; }
+
+message SaveGuildNoticeRequest {
+  uint32 guild_id = 1;
+  string notice = 2;
+  string notice_by = 3;
+}
+message SaveGuildNoticeResponse { bool ok = 1; }
 
 message GuildZone {
   int32 zone = 1;

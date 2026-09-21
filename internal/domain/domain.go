@@ -152,6 +152,41 @@ type Guild struct {
 	Clan    uint8
 	Fame    int32
 	Citizen uint8
+
+	// O Painel de Guilda (0079_painel_de_guilda). Nada disto existe no legado.
+	//
+	// NoticeAt é zero enquanto nunca houve recado, e é o carimbo do RECADO, não
+	// da linha: o painel escreve "Atualizado: ..." ao lado do texto, e os dois
+	// têm de ser apagados juntos.
+	Notice    string
+	NoticeBy  string
+	NoticeAt  time.Time
+	MemberCap int
+}
+
+// GuildSummary é uma guilda como a tela "Guilds do Server" a mostra: o que dá
+// para dizer dela de fora, sem abrir.
+//
+// Existe separada de Guild porque as duas respondem perguntas diferentes: Guild
+// é a linha da tabela, e esta traz o que só uma junção sabe — quantos membros e
+// quem lidera.
+type GuildSummary struct {
+	ID      uint16
+	Name    string
+	Leader  string
+	Members int
+	Fame    int32
+}
+
+// GuildBuff é um buff de guilda correndo (0080_buffs_de_guilda).
+//
+// Vive no banco, e não só na memória do tmServer, porque os itens que o acendem
+// valem 15 e 30 dias: um restart de manutenção no meio de um mês apagaria o que
+// alguém comprou com cash.
+type GuildBuff struct {
+	GuildID   uint16
+	Type      uint8 // 1..4
+	ExpiresAt time.Time
 }
 
 // GuildRelationKind identifies one directed guild relation row.
@@ -885,6 +920,13 @@ type GuildMember struct {
 	Name        string
 	// Level is the guild rank (0..9), not the character level: 9 is the leader.
 	Level uint8
+
+	// Status é a linha que o próprio membro escreve para a guilda, e LastSeen é
+	// quando ele esteve online pela última vez — as duas colunas do meio da aba
+	// Membros (0079_painel_de_guilda). LastSeen zero significa "nunca visto
+	// desde que a coluna passou a existir", não "nunca entrou".
+	Status   string
+	LastSeen time.Time
 }
 
 // Lider reports whether this member is the guild leader.

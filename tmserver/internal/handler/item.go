@@ -698,6 +698,12 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useRacao(w, s, e, body, src)
 	case vol == volChaveInferno:
 		d.useChaveInferno(w, s, e, src)
+	// O buff de guilda é reconhecido pelo ÍNDICE, não pelo volátil. O item é um
+	// Ticket de Serviço reaproveitado, e o volátil dele (197) é compartilhado com
+	// o outro Ticket, que continua sem função — casar pelo volátil acenderia os
+	// buffs com os dois.
+	case duracaoDoItemDeBuff(e.Carry[src].Index) > 0:
+		d.useBuffDeGuilda(w, s, e, src)
 	case vol == volAmago:
 		d.useAmago(w, s, e, body, src)
 	case vol == volCatalisador:
@@ -2895,6 +2901,11 @@ func (d *Dispatcher) refreshScore(e *world.Entity) {
 	e.EquipDropBonus = d.equipDropBonus(e)
 	e.EquipForceDamage = d.equipForceDamage(e)
 	e.EquipGarnet = d.equipGarnet(e)
+	// Os buffs de guilda entram por ÚLTIMO, e a posição é a regra: eles somam
+	// percentual sobre o que já foi calculado, e um deles soma em
+	// EquipDropBonus, que a linha acima ATRIBUI. Aplicá-los antes daqui apagaria
+	// o buff de drop no mesmo instante em que ele fosse somado.
+	aplicaBuffDeGuilda(e, d.bonusDeBuffDeGuilda(e))
 	if isPlayerMob(e) {
 		e.Damage += attributeDamageBonus(e, true)
 	}

@@ -319,6 +319,10 @@ type Dispatcher struct {
 	taxChangedAt      [5]time.Time                 // day each zone's guildtax last changed (one change/day, lote2-chat.md)
 	guildWars         map[uint16]uint16            // directed guild -> current war target
 	guildAllies       map[uint16]uint16            // directed guild -> current ally target
+	// O Painel de Guilda (guildapainel.go): o quadro de membros lido do banco,
+	// guardado por uma janela curta, e até quando cada buff de guilda vale.
+	guildaQuadro map[uint16]quadroDeGuilda
+	guildaBuffs  map[uint16]*buffsDaGuilda
 	towerState        world.GuildTowerState        // loop-owned GTorre ownership cache
 	castleState       world.CastleQuestState       // loop-owned Castle/Zakum state cache
 	castleQuests      []content.CastleQuest
@@ -606,6 +610,8 @@ func New(cfg Config) *Dispatcher {
 		serverIndex:       cfg.ServerIndex,
 		guildWars:         make(map[uint16]uint16),
 		guildAllies:       make(map[uint16]uint16),
+		guildaQuadro:      make(map[uint16]quadroDeGuilda),
+		guildaBuffs:       make(map[uint16]*buffsDaGuilda),
 		npcSource:         cfg.NpcConfig,
 		managedNPCs:       make(map[string]int),
 		worldEventSource:  cfg.WorldEvents,
@@ -736,6 +742,13 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgMessageWhisper] = d.messageWhisper
 	d.routes[protocol.MsgApplyBonus] = d.applyBonus
 	d.routes[protocol.MsgPontosEmLote] = d.pontosEmLote
+	// Painel de Guilda (guildapainel.go). Os buffs não têm rota de ativação: quem
+	// liga um buff é um item de cash, pelo caminho normal de usar item.
+	d.routes[protocol.MsgGuildaPede] = d.guildaPede
+	d.routes[protocol.MsgGuildaConvoca] = d.guildaConvoca
+	d.routes[protocol.MsgGuildaRecado] = d.guildaRecado
+	d.routes[protocol.MsgGuildaStatus] = d.guildaStatus
+	d.routes[protocol.MsgGuildaCria] = d.guildaCria
 	d.routes[protocol.MsgSetShortSkill] = d.setShortSkill
 	d.routes[protocol.MsgAccountSecure] = d.accountSecure
 	d.routes[protocol.MsgQuest] = d.quest

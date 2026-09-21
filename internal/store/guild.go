@@ -373,7 +373,8 @@ func (s *Store) SetGuildRelation(ctx context.Context, guildID, targetGuildID uin
 // ListGuilds returns every registered guild ordered by id.
 func (s *Store) ListGuilds(ctx context.Context) ([]domain.Guild, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, name, clan, fame, citizen FROM guild ORDER BY id`)
+		`SELECT id, name, clan, fame, citizen, notice, notice_by, notice_at, member_cap
+		   FROM guild ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list guilds: %w", err)
 	}
@@ -381,12 +382,34 @@ func (s *Store) ListGuilds(ctx context.Context) ([]domain.Guild, error) {
 	var out []domain.Guild
 	for rows.Next() {
 		var g domain.Guild
-		if err := rows.Scan(&g.ID, &g.Name, &g.Clan, &g.Fame, &g.Citizen); err != nil {
+		// notice_at é o único nulável da linha: ele fica nulo enquanto ninguém
+		// escreveu recado, e é assim que o painel sabe não desenhar a data.
+		var noticeAt *time.Time
+		if err := rows.Scan(&g.ID, &g.Name, &g.Clan, &g.Fame, &g.Citizen,
+			&g.Notice, &g.NoticeBy, &noticeAt, &g.MemberCap); err != nil {
 			return nil, fmt.Errorf("store: scan guild: %w", err)
+		}
+		if noticeAt != nil {
+			g.NoticeAt = *noticeAt
 		}
 		out = append(out, g)
 	}
 	return out, rows.Err()
+}
+
+// SaveGuildNotice grava o recado da guilda e carimba a hora e o autor.
+//
+// A hora é do BANCO (now()), não de quem chamou: o carimbo aparece para todo
+// mundo que abre o painel, e o relógio do tmServer não é o mesmo do banco.
+func (s *Store) SaveGuildNotice(ctx context.Context, guildID uint16, notice, by string) error {
+	_, err := s.pool.Exec(ctx, `
+		UPDATE guild
+		   SET notice = $2, notice_by = $3, notice_at = now(), updated_at = now()
+		 WHERE id = $1`, int32(guildID), notice, by)
+	if err != nil {
+		return fmt.Errorf("store: save guild notice of %d: %w", guildID, err)
+	}
+	return nil
 }
 
 // ListGuildRelations returns every directed guild relation ordered by guild id.
@@ -555,7 +578,7 @@ func (s *Store) SaveCastleQuestState(ctx context.Context, st domain.CastleQuestS
 func (s *Store) ListGuildMembers(ctx context.Context, guildID uint16) ([]domain.GuildMember, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT m.guild_id, m.character_id, m.account_id, coalesce(a.name, ''),
-		       m.slot, m.name, m.guild_level
+		       m.slot, m.name, m.guild_level, m.status, m.last_seen
 		  FROM guild_member m
 		  LEFT JOIN account a ON a.id = m.account_id
 		 WHERE m.guild_id = $1
@@ -569,11 +592,15 @@ func (s *Store) ListGuildMembers(ctx context.Context, guildID uint16) ([]domain.
 	for rows.Next() {
 		var m domain.GuildMember
 		var gid int32
+		var lastSeen *time.Time
 		if err := rows.Scan(&gid, &m.CharacterID, &m.AccountID, &m.AccountName,
-			&m.Slot, &m.Name, &m.Level); err != nil {
+			&m.Slot, &m.Name, &m.Level, &m.Status, &lastSeen); err != nil {
 			return nil, fmt.Errorf("store: scan guild member: %w", err)
 		}
 		m.GuildID = uint16(gid)
+		if lastSeen != nil {
+			m.LastSeen = *lastSeen
+		}
 		out = append(out, m)
 	}
 	if err := rows.Err(); err != nil {
@@ -609,4 +636,108 @@ func (s *Store) CountGuildMembers(ctx context.Context) (map[uint16]int, error) {
 		return nil, fmt.Errorf("store: iterate guild member counts: %w", err)
 	}
 	return out, nil
+}
+
+// ListGuildBuffs devolve os buffs de guilda que AINDA valem.
+//
+// O filtro é do banco (`expires_at > now()`) e não de quem chama: o relógio que
+// decidiu a validade tem de ser o mesmo que a gravou, senão um tmServer com o
+// relógio adiantado ressuscita buff vencido no boot.
+func (s *Store) ListGuildBuffs(ctx context.Context) ([]domain.GuildBuff, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT guild_id, buff_type, expires_at
+		  FROM guild_buff
+		 WHERE expires_at > now()
+		 ORDER BY guild_id, buff_type`)
+	if err != nil {
+		return nil, fmt.Errorf("store: list guild buffs: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.GuildBuff
+	for rows.Next() {
+		var b domain.GuildBuff
+		var gid int32
+		var tipo int16
+		if err := rows.Scan(&gid, &tipo, &b.ExpiresAt); err != nil {
+			return nil, fmt.Errorf("store: scan guild buff: %w", err)
+		}
+		b.GuildID, b.Type = uint16(gid), uint8(tipo)
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+// SaveGuildBuff grava até quando um buff vale, criando ou substituindo a linha.
+func (s *Store) SaveGuildBuff(ctx context.Context, b domain.GuildBuff) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO guild_buff (guild_id, buff_type, expires_at, updated_at)
+		VALUES ($1, $2, $3, now())
+		ON CONFLICT (guild_id, buff_type)
+		DO UPDATE SET expires_at = EXCLUDED.expires_at, updated_at = now()`,
+		int32(b.GuildID), int16(b.Type), b.ExpiresAt)
+	if err != nil {
+		return fmt.Errorf("store: save guild buff %d/%d: %w", b.GuildID, b.Type, err)
+	}
+	return nil
+}
+
+// DeleteGuildBuff apaga a linha de um buff que venceu.
+//
+// Apagar em vez de deixar vencer sozinho no banco é o que impede a tabela de
+// virar um histórico: ninguém pergunta quais buffs uma guilda já teve, e a
+// leitura do boot ficaria mais cara a cada mês que passa.
+func (s *Store) DeleteGuildBuff(ctx context.Context, guildID uint16, tipo uint8) error {
+	_, err := s.pool.Exec(ctx,
+		`DELETE FROM guild_buff WHERE guild_id = $1 AND buff_type = $2`,
+		int32(guildID), int16(tipo))
+	if err != nil {
+		return fmt.Errorf("store: delete guild buff %d/%d: %w", guildID, tipo, err)
+	}
+	return nil
+}
+
+// ListGuildSummaries devolve as guildas do servidor para a tela "Guilds do
+// Server", as de maior fama primeiro.
+//
+// UMA consulta para a lista inteira, e é esse o ponto. O caminho óbvio — listar
+// as guildas e, para cada uma, contar membros e achar o líder — são duas idas
+// ao banco POR LINHA, ou cento e vinte round trips para uma tela de sessenta.
+// A contagem vem de um agrupamento feito de uma vez, e o líder de um LATERAL
+// que pára na primeira linha de cargo 9.
+//
+// A guilda sem líder gravado aparece com o nome vazio em vez de sumir da lista:
+// ela existe, e esconder do jogador uma guilda que existe é pior do que mostrar
+// um campo em branco.
+func (s *Store) ListGuildSummaries(ctx context.Context, limite int) ([]domain.GuildSummary, error) {
+	if limite <= 0 {
+		limite = 60
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT g.id, g.name, g.fame,
+		       coalesce(c.n, 0),
+		       coalesce(l.name, '')
+		  FROM guild g
+		  LEFT JOIN (SELECT guild_id, count(*) AS n FROM guild_member GROUP BY guild_id) c
+		         ON c.guild_id = g.id
+		  LEFT JOIN LATERAL (
+		         SELECT name FROM guild_member
+		          WHERE guild_id = g.id AND guild_level = 9
+		          LIMIT 1) l ON true
+		 ORDER BY g.fame DESC, g.name
+		 LIMIT $1`, limite)
+	if err != nil {
+		return nil, fmt.Errorf("store: list guild summaries: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.GuildSummary
+	for rows.Next() {
+		var g domain.GuildSummary
+		var id int32
+		if err := rows.Scan(&id, &g.Name, &g.Fame, &g.Members, &g.Leader); err != nil {
+			return nil, fmt.Errorf("store: scan guild summary: %w", err)
+		}
+		g.ID = uint16(id)
+		out = append(out, g)
+	}
+	return out, rows.Err()
 }

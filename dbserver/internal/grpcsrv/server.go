@@ -61,6 +61,12 @@ type Store interface {
 	SetGuildRelation(ctx context.Context, guildID, targetGuildID uint16, kind domain.GuildRelationKind) error
 	ListGuilds(ctx context.Context) ([]domain.Guild, error)
 	ListGuildRelations(ctx context.Context) ([]domain.GuildRelation, error)
+	ListGuildMembers(ctx context.Context, guildID uint16) ([]domain.GuildMember, error)
+	SaveGuildNotice(ctx context.Context, guildID uint16, notice, by string) error
+	ListGuildSummaries(ctx context.Context, limit int) ([]domain.GuildSummary, error)
+	ListGuildBuffs(ctx context.Context) ([]domain.GuildBuff, error)
+	SaveGuildBuff(ctx context.Context, buff domain.GuildBuff) error
+	DeleteGuildBuff(ctx context.Context, guildID uint16, buffType uint8) error
 	LoadGuildZones(ctx context.Context) ([]domain.GuildZone, error)
 	SaveGuildZone(ctx context.Context, zone domain.GuildZone) error
 	LoadGuildTowerState(ctx context.Context) (domain.GuildTowerState, error)
@@ -413,6 +419,116 @@ func (s *Server) ListGuildRelations(ctx context.Context, _ *dbv1.ListGuildRelati
 		return nil, status.Errorf(codes.Internal, "list guild relations: %v", err)
 	}
 	return &dbv1.ListGuildRelationsResponse{Relations: relationsToProto(relations)}, nil
+}
+
+// ListGuildMembers returns one guild's whole roster, for the panel's Membros
+// tab. It is the only guild read that cannot be answered from tmServer memory,
+// which knows only who is connected.
+func (s *Server) ListGuildMembers(ctx context.Context, req *dbv1.ListGuildMembersRequest) (*dbv1.ListGuildMembersResponse, error) {
+	if req.GetGuildId() == 0 || req.GetGuildId() > 65535 {
+		return nil, status.Error(codes.InvalidArgument, "guild id out of range")
+	}
+	members, err := s.store.ListGuildMembers(ctx, uint16(req.GetGuildId()))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list guild members: %v", err)
+	}
+	return &dbv1.ListGuildMembersResponse{Members: guildMembersToProto(members)}, nil
+}
+
+// SaveGuildNotice writes the guild's notice board. The length is checked here
+// as well as by the table's CHECK: a refusal from the constraint would come back
+// as an opaque Internal, and the caller deserves to be told it was too long.
+func (s *Server) SaveGuildNotice(ctx context.Context, req *dbv1.SaveGuildNoticeRequest) (*dbv1.SaveGuildNoticeResponse, error) {
+	if req.GetGuildId() == 0 || req.GetGuildId() > 65535 {
+		return nil, status.Error(codes.InvalidArgument, "guild id out of range")
+	}
+	if len([]rune(req.GetNotice())) > guildNoticeMaxRunes {
+		return nil, status.Errorf(codes.InvalidArgument, "notice longer than %d characters", guildNoticeMaxRunes)
+	}
+	if err := s.store.SaveGuildNotice(ctx, uint16(req.GetGuildId()), req.GetNotice(), req.GetNoticeBy()); err != nil {
+		return nil, status.Errorf(codes.Internal, "save guild notice: %v", err)
+	}
+	return &dbv1.SaveGuildNoticeResponse{Ok: true}, nil
+}
+
+// ListGuildSummaries returns the server's guilds for the panel's list screen.
+func (s *Server) ListGuildSummaries(ctx context.Context, req *dbv1.ListGuildSummariesRequest) (*dbv1.ListGuildSummariesResponse, error) {
+	limite := int(req.GetLimit())
+	if limite <= 0 || limite > guildListaMax {
+		limite = guildListaMax
+	}
+	guildas, err := s.store.ListGuildSummaries(ctx, limite)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list guild summaries: %v", err)
+	}
+	out := make([]*dbv1.GuildSummary, 0, len(guildas))
+	for _, g := range guildas {
+		out = append(out, &dbv1.GuildSummary{
+			Id: uint32(g.ID), Name: g.Name, Leader: g.Leader,
+			Members: int32(g.Members), Fame: g.Fame,
+		})
+	}
+	return &dbv1.ListGuildSummariesResponse{Guilds: out}, nil
+}
+
+// ListGuildBuffs returns the guild buffs still running, for the tmServer's boot.
+func (s *Server) ListGuildBuffs(ctx context.Context, _ *dbv1.ListGuildBuffsRequest) (*dbv1.ListGuildBuffsResponse, error) {
+	buffs, err := s.store.ListGuildBuffs(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list guild buffs: %v", err)
+	}
+	out := make([]*dbv1.GuildBuff, 0, len(buffs))
+	for _, b := range buffs {
+		out = append(out, &dbv1.GuildBuff{
+			GuildId: uint32(b.GuildID), BuffType: int32(b.Type),
+			ExpiresAtUnix: unixOrZero(b.ExpiresAt),
+		})
+	}
+	return &dbv1.ListGuildBuffsResponse{Buffs: out}, nil
+}
+
+// SaveGuildBuff writes one buff's expiry.
+func (s *Server) SaveGuildBuff(ctx context.Context, req *dbv1.SaveGuildBuffRequest) (*dbv1.SaveGuildBuffResponse, error) {
+	b := req.GetBuff()
+	if err := guildBuffValido(b.GetGuildId(), b.GetBuffType()); err != nil {
+		return nil, err
+	}
+	// Uma expiração no passado não é um buff: ela chegaria como uma linha morta
+	// que a leitura do boot filtra e que ninguém apaga.
+	if b.GetExpiresAtUnix() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "expiry missing")
+	}
+	err := s.store.SaveGuildBuff(ctx, domain.GuildBuff{
+		GuildID: uint16(b.GetGuildId()), Type: uint8(b.GetBuffType()),
+		ExpiresAt: time.Unix(b.GetExpiresAtUnix(), 0),
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "save guild buff: %v", err)
+	}
+	return &dbv1.SaveGuildBuffResponse{Ok: true}, nil
+}
+
+// DeleteGuildBuff removes one buff that has run out.
+func (s *Server) DeleteGuildBuff(ctx context.Context, req *dbv1.DeleteGuildBuffRequest) (*dbv1.DeleteGuildBuffResponse, error) {
+	if err := guildBuffValido(req.GetGuildId(), req.GetBuffType()); err != nil {
+		return nil, err
+	}
+	if err := s.store.DeleteGuildBuff(ctx, uint16(req.GetGuildId()), uint8(req.GetBuffType())); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete guild buff: %v", err)
+	}
+	return &dbv1.DeleteGuildBuffResponse{Ok: true}, nil
+}
+
+// guildBuffValido barra o que a tabela barraria, mas com uma resposta que diz o
+// que está errado: a CHECK do banco voltaria como um Internal opaco.
+func guildBuffValido(guildID uint32, tipo int32) error {
+	if guildID == 0 || guildID > 65535 {
+		return status.Error(codes.InvalidArgument, "guild id out of range")
+	}
+	if tipo < 1 || tipo > guildBuffTipoMax {
+		return status.Errorf(codes.InvalidArgument, "buff type %d out of range 1..%d", tipo, guildBuffTipoMax)
+	}
+	return nil
 }
 
 // LoadGuildZones loads city/guild-zone state.

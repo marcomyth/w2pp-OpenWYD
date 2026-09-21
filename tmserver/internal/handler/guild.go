@@ -343,6 +343,7 @@ func (d *Dispatcher) leaveGuild(w *world.World, s *world.Session) {
 	if e == nil || e.Guild == 0 {
 		return
 	}
+	d.guildaEsqueceQuadro(e.Guild) // antes de zerar: depois não há mais id
 	e.Guild = 0
 	e.GuildLevel = 0
 	d.refreshGuildTag(w, s.Conn)
@@ -369,6 +370,7 @@ func (d *Dispatcher) kickGuild(w *world.World, s *world.Session, args []byte) {
 		return
 	}
 	guildName := guildDisplayName(w, target.Guild)
+	d.guildaEsqueceQuadro(target.Guild) // antes de zerar: depois não há mais id
 	target.Guild = 0
 	target.GuildLevel = 0
 	d.refreshGuildTag(w, target.ID)
@@ -551,6 +553,11 @@ func (d *Dispatcher) persistGuildMember(w *world.World, actor, member *world.Ses
 		return
 	}
 	accountID, slot, name, guildID, level := member.AccountID, member.Slot, e.Name, e.Guild, e.GuildLevel
+	// O quadro guardado pelo Painel de Guilda descreve uma guilda que acabou de
+	// mudar, então ele vai fora (guildapainel.go). Sem isto, um recém-entrado ou
+	// um recém-promovido demoraria até trinta segundos para aparecer certo — que
+	// é justamente o meio minuto em que alguém vai conferir.
+	d.guildaEsqueceQuadro(guildID)
 	p := w.Persistence()
 	w.Go(actor, func() func(*world.World, *world.Session) {
 		err := p.SetGuildMember(context.Background(), accountID, slot, name, guildID, level)
