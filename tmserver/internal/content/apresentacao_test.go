@@ -86,15 +86,18 @@ func montada(t *testing.T, nome string, b []byte, nivel int) {
 // nível 90. O corpo (Equip[0]) e a arma (6/7) NÃO se mexem: o corpo é a
 // identidade de cada um — o ferreiro continua ferreiro — e a arma do guarda é
 // dele.
+//
+// Os quatro mestres de skill saíram desta lista em 21/09: cada um passou a
+// vestir o set da própria classe (TestMestresDeSkillVestemOSetDaClasse).
 func TestArmiaVesteSetMortalMontado(t *testing.T) {
 	setMortalE := [5]int{1225, 1226, 1227, 1228, 1229}
 	// O Mestre Grifo monta um Grifo, que é o nome dele; ficou com o dele.
 	semCavalo := map[string]bool{"Mestre_Grifo": true}
 
 	for _, nome := range []string{
-		"Galford", "Aki", "Foema_Ancian", "Guarda_Carga", "Guard", "Guard_", "Ferreiro",
-		"Rapein", "Cap.Cavaleiros", "ForeLearner", "Rainy", "Mestre_Haby", "Balmus",
-		"Gate_Keeper", "Martin", "Arnod", "Mestre_Archi", "Kibita", "Mestre_Grifo",
+		"Galford", "Aki", "Guarda_Carga", "Guard", "Guard_", "Ferreiro",
+		"Rapein", "Rainy", "Mestre_Haby", "Balmus",
+		"Gate_Keeper", "Martin", "Arnod", "Kibita", "Mestre_Grifo",
 		"God_of_War", "Curandeiro",
 	} {
 		b := templateNPC(t, nome)
@@ -114,6 +117,60 @@ func TestArmiaVesteSetMortalMontado(t *testing.T) {
 		if !semCavalo[nome] {
 			montada(t, nome, b, nivelDaMontaria)
 		}
+	}
+}
+
+// OS QUATRO MESTRES DE SKILL (pedido de 21/09/2026) vestem, cada um, o set e a
+// arma da PRÓPRIA classe, em vez do Set Mortal E que o resto de Armia usa — o
+// set de TransKnight em todos os quatro fazia o mestre de cada classe anunciar
+// a classe errada. A classe de cada um é a que o handler já usa para saber que
+// skills vender (handler/misc.go: Class 1..4 = TK, FM, BM, HT).
+//
+// O que NÃO se mexe: o corpo, que é a identidade do NPC, e a montaria, que veio
+// da apresentação de Armia. A arma vai na vaga 6, que é onde 957 dos templates
+// do legado põem arma; a 7 fica vazia para o mestre não empunhar duas.
+//
+// Alcance, contado antes: os quatro têm dois blocos cada no NPCGener, e os oito
+// estão dentro de Armia — vestir o template não alcança nenhum outro mapa. E o
+// EF_RANGE da arma, que o spawn lê (world/api.go), é inerte aqui: os quatro são
+// Merchant, e Merchant != 0 já os faz NonCombatNPC (world/city.go).
+func TestMestresDeSkillVestemOSetDaClasse(t *testing.T) {
+	casos := []struct {
+		nome  string
+		set   [5]int
+		arma  int
+		corpo int
+	}{
+		{"Cap.Cavaleiros", [5]int{1225, 1226, 1227, 1228, 1229}, 912, 60}, // TK: Set Mortal + Thrasytes
+		{"Foema_Ancian", [5]int{1360, 1361, 1362, 1363, 1364}, 903, 61},   // FM: Templário + Eirenus
+		{"Mestre_Archi", [5]int{1510, 1511, 1512, 1513, 1514}, 856, 63},   // BM: do Corvo + Gleipnir
+		{"ForeLearner", [5]int{1660, 1661, 1662, 1663, 1664}, 826, 51},    // HT: Legionário + Skytalos
+	}
+
+	for _, c := range casos {
+		b := templateNPC(t, c.nome)
+
+		for i, quer := range c.set {
+			idx, ef := peca(b, i+1)
+			if idx != quer {
+				t.Errorf("%s: vaga %d tem %d, esperava %d", c.nome, i+1, idx, quer)
+				continue
+			}
+			if v, ok := efeito(ef, efSancVisual); !ok || v != sanc11 {
+				t.Errorf("%s: vaga %d com EF_SANC %d, esperava %d (+11)", c.nome, i+1, v, sanc11)
+			}
+		}
+		if idx, _ := peca(b, 6); idx != c.arma {
+			t.Errorf("%s: vaga 6 tem %d, esperava a arma %d da classe dele", c.nome, idx, c.arma)
+		}
+		if idx, _ := peca(b, 7); idx != 0 {
+			t.Errorf("%s: vaga 7 tem %d; com a arma na 6 o mestre empunha duas", c.nome, idx)
+		}
+		// O corpo é a identidade: trocá-lo é trocar o NPC, não vesti-lo.
+		if idx, _ := peca(b, 0); idx != c.corpo {
+			t.Errorf("%s: corpo virou %d, esperava %d", c.nome, idx, c.corpo)
+		}
+		montada(t, c.nome, b, nivelDaMontaria)
 	}
 }
 
