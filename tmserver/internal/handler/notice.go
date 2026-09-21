@@ -229,6 +229,12 @@ const (
 	// no legado a recusa é o silêncio, e aqui ela fala, pelo motivo que vale.go
 	// explica. Acrescentada no fim pelo motivo que NoticeLevelLimit explica.
 	NoticeValeSemFada
+
+	// NoticeErvaSemEfeito: as Ervas de Cura tiram lentidão e debuff básico, e
+	// quem as usa sem nada para tirar não perde a erva. Sem linha no
+	// Language.txt: no legado a 415 não fazia nada, então não há recusa a
+	// reaproveitar. Acrescentada no fim pelo motivo que NoticeLevelLimit explica.
+	NoticeErvaSemEfeito
 )
 
 // noticeKey maps a Notice to its key in the shipped client string table
@@ -352,6 +358,9 @@ var noticeText = map[Notice]string{
 
 	// Vale Escondido: a rota é do legado, o aviso é deste port (vale.go).
 	NoticeValeSemFada: "Sem a Fada do Vale equipada não se entra no Vale Escondido.",
+
+	// Ervas de Cura: o efeito é deste port (item.go).
+	NoticeErvaSemEfeito: "Não há nada para curar.",
 
 	// Paint. No Language.txt id: see the DELIBERATE DIVERGENCE note above.
 	NoticePaintSuccess: "Item pintado com sucesso.",

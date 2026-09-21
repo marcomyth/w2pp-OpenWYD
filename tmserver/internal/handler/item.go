@@ -1540,6 +1540,34 @@ var joiaPvPBit = map[int16]uint{
 // (3203) strips (_MSG_UseItem.cpp:4356).
 var joiaRecoveryCleanse = map[uint8]bool{1: true, 3: true, 5: true, 7: true, 10: true, 12: true, 20: true, 32: true}
 
+// Os dois itens de volátil 243 que limpam afeto, e o que cada um limpa.
+const (
+	joiaDaRecuperacao = 3203
+	ervasDeCura       = 415
+)
+
+// ervasDeCuraCleanse é o que as Ervas de Cura tiram: a lentidão e o debuff
+// básico, e NADA que se pareça com um cancelamento (decisão do Marco, 21/09).
+//
+// São os afetos que só pioram a ficha de quem os carrega, lidos do legado:
+//
+//	 1  Toque Sagrado — a lentidão: tira Run e Att (Basedef.cpp:3938)
+//	 3  Perseguição   — derruba a imunidade do alvo (:3955)
+//	10  Enfraquecer   — Damage -= Level/5 + Value (:4018)
+//	12  quebra de AC  — Ac * (100-Value)/100 (:4030)
+//	20  veneno        — o dano por tique (affect_tick.go:80)
+//
+// Os três primeiros são o mesmo trio que SetTick já trata em conjunto, cortando
+// a duração deles para 2 (world/affect.go) — o código do port já os enxergava
+// como uma família antes desta lista existir.
+//
+// Fora daqui fica todo buff, de propósito: tirar buff é cancelamento, e o
+// cancelamento é outra mecânica, com trava de poção de 20 s. A Jóia da
+// Recuperação continua com a lista dela, que mistura buff e debuff — a erva
+// NÃO é uma jóia barata. O 12 hoje não é aplicado por skill nenhuma; entra
+// aqui porque é um debuff de ficha pela conta do próprio legado.
+var ervasDeCuraCleanse = map[uint8]bool{1: true, 3: true, 10: true, 12: true, 20: true}
+
 // useJoiaPvP consumes a Vol-242 PvP jewel: it sets (or OR-refreshes) the shared
 // affect-8 slot with the jewel's Level bit for one hour, then recomputes and
 // pushes the score/affect snapshot. Stacking jewels accumulate their bits in the
@@ -1569,12 +1597,23 @@ func (d *Dispatcher) useJoiaPvP(w *world.World, s *world.Session, e *world.Entit
 	d.sendAffect(w, s, e)
 }
 
-// useJoiaRecovery consumes a Vol-243 jewel. The Jóia da Recuperação (3203)
+// useJoiaRecovery consumes a Vol-243 item. The Jóia da Recuperação (3203)
 // strips the player's skill buffs/debuffs (joiaRecoveryCleanse) before consuming;
 // the Jóia da Armazenagem (3207) has no server-side stat, so it is consumed only.
 // Mirrors the "Armazenagem - Recuperação" region of _MSG_UseItem.cpp.
+//
+// As Ervas de Cura (415) entram por aqui porque carregam o MESMO volátil 243,
+// e é por isso que até 21/09/2026 elas eram engolidas sem fazer nada: o legado
+// só trata a jóia nesta vizinhança. Agora a 415 limpa lentidão e debuff básico
+// (ervasDeCuraCleanse) e, DIVERGINDO da jóia, não se gasta quando não há o que
+// curar — mesma escolha que useClasseItem faz ao recusar em vez de destruir o
+// item. A divergência para na erva: a jóia continua se gastando como sempre.
 func (d *Dispatcher) useJoiaRecovery(w *world.World, s *world.Session, e *world.Entity, src int) {
-	if e.Carry[src].Index == 3203 {
+	if e.Carry[src].Index == ervasDeCura {
+		d.useErvasDeCura(w, s, e, src)
+		return
+	}
+	if e.Carry[src].Index == joiaDaRecuperacao {
 		cleared := false
 		for i := range e.Affect {
 			if joiaRecoveryCleanse[e.Affect[i].Type] {
@@ -1590,6 +1629,37 @@ func (d *Dispatcher) useJoiaRecovery(w *world.World, s *world.Session, e *world.
 	}
 	consumeOneItem(&e.Carry[src])
 	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, src, itemToSel(e.Carry[src])))
+}
+
+// useErvasDeCura tira do jogador a lentidão e o debuff básico
+// (ervasDeCuraCleanse), e nada mais.
+//
+// Sem nada para curar a erva NÃO se gasta, e o jogador ouve o porquê: um item
+// de 45.000 que some em silêncio é a forma mais cara de "cliquei e não
+// aconteceu nada". A jóia da mesma família continua se gastando de qualquer
+// jeito — a divergência é só desta erva.
+func (d *Dispatcher) useErvasDeCura(w *world.World, s *world.Session, e *world.Entity, src int) {
+	limpou := false
+	for i := range e.Affect {
+		if ervasDeCuraCleanse[e.Affect[i].Type] {
+			e.Affect[i] = world.Affect{}
+			limpou = true
+		}
+	}
+	if !limpou {
+		d.notify(w, s, NoticeErvaSemEfeito)
+		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+		return
+	}
+
+	// A ordem é a da jóia: o score primeiro, porque tirar o Enfraquecer e a
+	// quebra de AC muda Damage e Ac, e só depois o que o cliente desenha.
+	consumeOneItem(&e.Carry[src])
+	d.refreshScore(e)
+	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+	d.sendScore(w, s, e)
+	d.sendAffect(w, s, e)
+	d.log.Info("ervas de cura", "conn", s.Conn)
 }
 
 // useCoracaoDoce consumes Coração Doce (EF_VOLATILE 205): a short Velocidade
