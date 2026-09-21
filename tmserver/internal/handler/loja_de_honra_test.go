@@ -22,15 +22,16 @@ import (
 // abriu. Um item entregue sem cobrança é dinheiro do servidor indo embora, e é o
 // tipo de erro que só aparece no extrato semanas depois.
 
-// godOfWarTemplate é o God_of_War como o jogo o traz: Merchant 104 nos dois
-// bytes e Carry vazio (Release/TMsrv/run/npc/God_of_War tem 75 no byte 17 e 104
-// no 104; o que o roteamento lê é o segundo).
+// godOfWarTemplate é o God_of_War JÁ MARCADO como loja de honra, que é o estado
+// em que ele chega ao mundo: o arquivo traz 104 (Release/TMsrv/run/npc/God_of_War
+// tem 75 no byte 17 e 104 no 104), e marcaLojaDeHonra troca por 201 no
+// nascimento. Quem prova essa troca é TestSoOGodOfWarViraLojaDeHonra.
 func godOfWarTemplate() []byte {
 	tmpl := make([]byte, 816)
 	copy(tmpl[0:16], "God_of_War")
-	tmpl[17] = merchantGodOfWar
-	tmpl[56+12] = merchantGodOfWar
-	tmpl[92+12] = merchantGodOfWar
+	tmpl[17] = merchantLojaDeHonra
+	tmpl[56+12] = merchantLojaDeHonra
+	tmpl[92+12] = merchantLojaDeHonra
 	binary.LittleEndian.PutUint32(tmpl[92+16:], 19000)
 	binary.LittleEndian.PutUint32(tmpl[92+24:], 19000)
 	return tmpl
@@ -87,12 +88,42 @@ func compraDeHonra(t *testing.T, c net.Conn, slot int) {
 }
 
 // TestGodOfWarApareceComoLoja: o cliente decide pelo Merchant do CreateMob o que
-// o clique manda. O servidor vê 104 — que é como reconhece a loja —, e o cliente
-// tem de receber 1, senão o clique cai em _MSG_Quest e nada acontece.
+// o clique manda. O servidor vê o Merchant da loja, e o cliente tem de receber 1,
+// senão o clique cai em _MSG_Quest e nada acontece.
 func TestGodOfWarApareceComoLoja(t *testing.T) {
-	god := &world.Entity{ID: shopNPCID, Merchant: merchantGodOfWar}
+	god := &world.Entity{ID: shopNPCID, Merchant: merchantLojaDeHonra}
 	if got := createMobFrom(god, 0).Merchant; got != 1 {
 		t.Errorf("CreateMob do God of War com Merchant %d; o cliente só manda o clique com 1", got)
+	}
+}
+
+// TestSoOGodOfWarViraLojaDeHonra é o teste que faltava quando a loja foi escrita, e
+// a falta dele custou renomear dois NPCs no banco de teste: o Merchant 104 do
+// template do God_of_War é compartilhado com o Treinador2 e o Uxmal, então ele não
+// identifica loja nenhuma. Quem identifica é o template.
+func TestSoOGodOfWarViraLojaDeHonra(t *testing.T) {
+	casos := []struct {
+		template string
+		vira     bool
+	}{
+		{"God_of_War", true},
+		{"god_of_war", true}, // o painel não garante a caixa do nome
+		{" God_of_War ", true},
+		{"Treinador2", false},
+		{"Uxmal", false},
+		{"", false},
+	}
+	for _, c := range casos {
+		// Nasce como o arquivo dele traz: 104, o Merchant compartilhado.
+		e := &world.Entity{ID: shopNPCID, Merchant: 104}
+		marcaLojaDeHonra(e, c.template)
+		if ehLojaDeHonra(e) != c.vira {
+			t.Errorf("template %q: virou loja de honra = %v, esperado %v",
+				c.template, ehLojaDeHonra(e), c.vira)
+		}
+		if !c.vira && e.Merchant != 104 {
+			t.Errorf("template %q: o Merchant mudou para %d sem precisar", c.template, e.Merchant)
+		}
 	}
 }
 
@@ -115,6 +146,15 @@ func TestLojaDeHonraAbreComEstoqueESaldo(t *testing.T) {
 	if abre.Saldo != 500 {
 		t.Errorf("saldo na abertura = %d, esperado 500", abre.Saldo)
 	}
+	// O painel escreve "a cada 15 min com a lojinha aberta: +3 pontos" com estes
+	// dois números; sem eles ele teria de repetir a regra do servidor por conta
+	// própria, e mentiria no dia em que ela mudasse.
+	if abre.PorJanela != shopPointsBase {
+		t.Errorf("ganho por janela = %d, esperado %d", abre.PorJanela, shopPointsBase)
+	}
+	if abre.MinutosJanela != shopPointsWindowMs/60000 {
+		t.Errorf("janela de %d min, esperado %d", abre.MinutosJanela, shopPointsWindowMs/60000)
+	}
 	if len(abre.Itens) != len(estoqueDaLojaDeHonra) {
 		t.Fatalf("a loja abriu com %d itens, esperado %d", len(abre.Itens), len(estoqueDaLojaDeHonra))
 	}
@@ -123,6 +163,10 @@ func TestLojaDeHonraAbreComEstoqueESaldo(t *testing.T) {
 		if it.Slot != int16(i) || it.Indice != quer.Indice || it.Preco != quer.Preco {
 			t.Errorf("casa %d = slot %d item %d por %d; esperado slot %d item %d por %d",
 				i, it.Slot, it.Indice, it.Preco, i, quer.Indice, quer.Preco)
+		}
+		// A aba viaja com o item: o cliente não tem catálogo para deduzi-la.
+		if it.Categoria != quer.Cat {
+			t.Errorf("casa %d na categoria %d, esperado %d", i, it.Categoria, quer.Cat)
 		}
 	}
 	// A janela do cliente não pode abrir junto: seriam duas lojas na tela, e a
@@ -135,6 +179,48 @@ func TestLojaDeHonraAbreComEstoqueESaldo(t *testing.T) {
 		if ty == protocol.MsgShopList {
 			t.Fatal("o God of War mandou a janela de loja do cliente junto com o painel")
 		}
+	}
+}
+
+// TestEstoqueDeHonraTemCategoriaConhecida: a aba de cada item é escrita a mão na
+// tabela, e um número fora das quatro abas faria o item desaparecer de todas menos
+// a Todos. É o tipo de erro de digitação que não aparece na tela.
+func TestEstoqueDeHonraTemCategoriaConhecida(t *testing.T) {
+	for i, it := range estoqueDaLojaDeHonra {
+		switch it.Cat {
+		case protocol.HonraCatNenhuma, protocol.HonraCatArmas,
+			protocol.HonraCatSet, protocol.HonraCatConsumo:
+		default:
+			t.Errorf("casa %d (item %d) tem categoria %d, que não é aba nenhuma",
+				i, it.Indice, it.Cat)
+		}
+		if it.Preco <= 0 {
+			t.Errorf("casa %d (item %d) custa %d pontos", i, it.Indice, it.Preco)
+		}
+	}
+}
+
+// TestLojaDeHonraContaOGanhoDaFadaAzul: o número que o painel escreve é o DESTE
+// jogador. Quem está com uma Fada Azul ganha 7 por quinze minutos, e é 7 que tem
+// de aparecer — o cliente não tem como saber da fada sozinho.
+func TestLojaDeHonraContaOGanhoDaFadaAzul(t *testing.T) {
+	db := contaComPontos(0, 5, 5)
+	st := db.loadResult
+	st.Equip[fairyEquipSlot] = world.Item{Index: 3901} // Fada_Azul(3dias)
+	db.loadResult = st
+	addr, stop := startServerHonra(t, db)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	clicaNoGodOfWar(t, c)
+	var abre protocol.HonraAbreBody
+	if err := abre.Decode(expect(t, c, protocol.MsgHonraAbre)); err != nil {
+		t.Fatalf("abertura ilegível: %v", err)
+	}
+	if abre.PorJanela != shopPointsFairy {
+		t.Errorf("com Fada Azul o ganho por janela = %d, esperado %d",
+			abre.PorJanela, shopPointsFairy)
 	}
 }
 

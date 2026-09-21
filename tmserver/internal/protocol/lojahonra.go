@@ -29,22 +29,37 @@ import (
 // mentir.
 
 // HonraMaxItens é quanto o estoque pode ter. É a grade do painel que manda: 5
-// colunas por 6 linhas. Igual à vitrine, são números que TÊM de bater com o
-// cliente (kColunas/kLinhas em honra.cpp).
-const HonraMaxItens = 30
+// colunas por 7 linhas, a mesma da vitrine, porque a janela tem a medida fixa da
+// janela de inventário do jogo e é esse o tanto que cabe nela. São números que
+// TÊM de bater com o cliente (kColunas/kLinhas em honra.cpp e kMaxItens em
+// honrarede.cpp).
+const HonraMaxItens = 35
 
 // HonraItemSize é o tamanho de um item do estoque na linha: 12 bytes.
 const HonraItemSize = 12
+
+// Abas do painel, na ordem em que aparecem. A categoria viaja com o item porque
+// só o servidor sabe em que aba ele vai: o cliente não tem catálogo nenhum, ele
+// só desenha o ícone pelo índice. Zero é "sem categoria" e aparece apenas na aba
+// Todos — é o que um item novo, ainda não classificado, faz por conta própria, em
+// vez de cair na aba errada.
+const (
+	HonraCatNenhuma uint8 = 0
+	HonraCatArmas   uint8 = 1
+	HonraCatSet     uint8 = 2
+	HonraCatConsumo uint8 = 3
+)
 
 // HonraItem é uma troca oferecida: o item, e quantos pontos ele custa. Slot é a
 // casa dentro do estoque — é por ele, e só por ele, que a compra se refere ao
 // item.
 type HonraItem struct {
-	Slot   int16
-	Indice int16
-	Refino uint8
-	Qtd    uint8
-	Preco  int32
+	Slot      int16
+	Indice    int16
+	Refino    uint8
+	Qtd       uint8
+	Categoria uint8
+	Preco     int32
 }
 
 func (it *HonraItem) encode(b []byte) {
@@ -52,7 +67,8 @@ func (it *HonraItem) encode(b []byte) {
 	binary.LittleEndian.PutUint16(b[2:], uint16(it.Indice))
 	b[4] = it.Refino
 	b[5] = it.Qtd
-	// b[6:8] é enchimento, para o preço cair alinhado em 8
+	b[6] = it.Categoria
+	// b[7] é enchimento, para o preço cair alinhado em 8
 	binary.LittleEndian.PutUint32(b[8:], uint32(it.Preco))
 }
 
@@ -61,16 +77,27 @@ func (it *HonraItem) decode(b []byte) {
 	it.Indice = int16(binary.LittleEndian.Uint16(b[2:]))
 	it.Refino = b[4]
 	it.Qtd = b[5]
+	it.Categoria = b[6]
 	it.Preco = int32(binary.LittleEndian.Uint32(b[8:]))
 }
 
-// HonraAbreCabecalho é o que vem antes dos itens: saldo e quantos itens.
-const HonraAbreCabecalho = 8
+// HonraAbreCabecalho é o que vem antes dos itens: saldo, quantos itens, e quanto
+// a lojinha aberta rende.
+const HonraAbreCabecalho = 12
 
 // HonraAbreBody é o corpo de MsgHonraAbre.
+//
+// PorJanela e MinutosJanela existem para o painel escrever, em português, como se
+// ganham os pontos que ele cobra — "a cada 15 min com a loja aberta: +3 pontos".
+// Vão do servidor e não são escritos no cliente porque os dois números são regra
+// do servidor: a janela é shopPointsWindowMs, e o ganho é 3, ou 7 para quem está
+// com uma Fada Azul (shoppoints.go). Um cliente que escrevesse "3" fixo mentiria
+// para metade dos jogadores no dia em que a regra mudasse.
 type HonraAbreBody struct {
-	Saldo int32
-	Itens []HonraItem
+	Saldo         int32
+	PorJanela     int16 // pontos por janela, para ESTE jogador, agora
+	MinutosJanela int16
+	Itens         []HonraItem
 }
 
 func (m *HonraAbreBody) Encode() []byte {
@@ -81,7 +108,9 @@ func (m *HonraAbreBody) Encode() []byte {
 	b := make([]byte, HonraAbreCabecalho+n*HonraItemSize)
 	binary.LittleEndian.PutUint32(b[0:], uint32(m.Saldo))
 	binary.LittleEndian.PutUint16(b[4:], uint16(n))
-	// b[6:8] é enchimento
+	binary.LittleEndian.PutUint16(b[6:], uint16(m.PorJanela))
+	binary.LittleEndian.PutUint16(b[8:], uint16(m.MinutosJanela))
+	// b[10:12] é enchimento, para os itens caírem alinhados em 4
 	for i := 0; i < n; i++ {
 		m.Itens[i].encode(b[HonraAbreCabecalho+i*HonraItemSize:])
 	}
@@ -94,6 +123,8 @@ func (m *HonraAbreBody) Decode(b []byte) error {
 	}
 	m.Saldo = int32(binary.LittleEndian.Uint32(b[0:]))
 	n := int(binary.LittleEndian.Uint16(b[4:]))
+	m.PorJanela = int16(binary.LittleEndian.Uint16(b[6:]))
+	m.MinutosJanela = int16(binary.LittleEndian.Uint16(b[8:]))
 	if n > HonraMaxItens {
 		n = HonraMaxItens
 	}

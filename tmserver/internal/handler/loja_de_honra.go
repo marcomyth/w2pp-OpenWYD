@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
@@ -30,11 +31,24 @@ import (
 // ouro, e o que se paga aqui é ponto. Ver protocol/lojahonra.go.
 
 const (
-	// merchantGodOfWar é o Merchant do template God_of_War (byte 104 do
-	// STRUCT_MOB, CurrentScore.Merchant). Como no Unicórnio Puro, a loja é
-	// reconhecida pelo Merchant e não pelo nome: o painel de NPCs permite trocar
-	// o nome exibido.
-	merchantGodOfWar = 104
+	// merchantLojaDeHonra é o Merchant que SÓ esta loja tem, e ele é nosso: nenhum
+	// template do jogo usa 201.
+	//
+	// A primeira versão reconhecia a loja pelo 104 do template God_of_War, como a
+	// loja de emblema faz com o 110 do Unicórnio Puro. Não serve: medido em
+	// 21/09/2026, três NPCs carregam 104 — o God_of_War (#590), o Treinador2 (#457)
+	// e o Uxmal (#564) —, e os três viravam loja de honra. O 110 do Unicórnio é
+	// dele sozinho; o 104 não é de ninguém.
+	//
+	// Quem identifica a loja é o TEMPLATE, e a tradução de template para Merchant
+	// acontece uma vez, no nascimento do NPC (marcaLojaDeHonra, em npcconfig.go).
+	// Daí para frente tudo aqui olha só este número, como o resto do servidor faz.
+	merchantLojaDeHonra = 201
+
+	// templateDaLojaDeHonra é o arquivo de template do NPC que abre a loja. É por
+	// ele, e não pelo nome exibido, que a loja é reconhecida: o nome é editável
+	// pelo painel (e virou "Honor Store" em 21/09/2026), o template não.
+	templateDaLojaDeHonra = "God_of_War"
 
 	// honraMotivo é o que aparece no extrato de shop_points_audit.
 	honraMotivo = "loja de honra"
@@ -44,6 +58,7 @@ const (
 type itemDeHonra struct {
 	Indice int16
 	Preco  int32 // em pontos de lojinha
+	Cat    uint8 // a aba do painel: protocol.HonraCat*
 }
 
 // estoqueDaLojaDeHonra é o que o God of War oferece, na ordem em que aparece no
@@ -59,21 +74,44 @@ type itemDeHonra struct {
 // -npc-editing ligado o Carry do template não chega ao jogo. Se um dia a equipe
 // tiver de mexer nisto pelo site, o lugar é uma tabela nova ao lado de
 // npc_shop_item — o preço aqui é em pontos, e item_price só sabe de ouro.
+// A categoria é curada junto com o item, e não deduzida do ItemList.csv. O
+// servidor até saberia adivinhar pela casa de equipar, mas o estoque desta loja é
+// escolhido a dedo: quem escolhe o item escolhe a aba, e uma dedução errada
+// colocaria uma fada na aba de armas sem ninguém notar.
+//
+// Os nove de partida são materiais e itens de tempo, então caem todos em Consumo:
+// as abas Armas e Set existem no painel e ficam vazias até o estoque ganhar uma
+// arma e uma peça de set. Foi decidido em 21/09/2026 que os itens continuam sendo
+// só exemplos, então isto é para revisar depois, não um erro.
 var estoqueDaLojaDeHonra = []itemDeHonra{
-	{3901, 150}, // Fada_Azul(3dias) - a fada que dobra o próprio ganho
-	{3904, 240}, // Fada_Azul(5dias)
-	{3907, 320}, // Fada_Azul(7dias)
-	{412, 40},   // Poeira_de_Oriharucon
-	{413, 40},   // Poeira_de_Lactolerium
-	{414, 60},   // Poeira_de_Fada
-	{774, 80},   // Pedra_da_Troca_Maior
-	{775, 30},   // Pedra_da_Troca_Menor
-	{3909, 100}, // Mapa_Vale_Escondido(24h)
+	{3901, 150, protocol.HonraCatConsumo}, // Fada_Azul(3dias) - a fada que dobra o próprio ganho
+	{3904, 240, protocol.HonraCatConsumo}, // Fada_Azul(5dias)
+	{3907, 320, protocol.HonraCatConsumo}, // Fada_Azul(7dias)
+	{412, 40, protocol.HonraCatConsumo},   // Poeira_de_Oriharucon
+	{413, 40, protocol.HonraCatConsumo},   // Poeira_de_Lactolerium
+	{414, 60, protocol.HonraCatConsumo},   // Poeira_de_Fada
+	{774, 80, protocol.HonraCatConsumo},   // Pedra_da_Troca_Maior
+	{775, 30, protocol.HonraCatConsumo},   // Pedra_da_Troca_Menor
+	{3909, 100, protocol.HonraCatConsumo}, // Mapa_Vale_Escondido(24h)
 }
 
-// ehLojaDeHonra diz se npc é o God of War.
+// ehLojaDeHonra diz se npc é a loja de honra.
 func ehLojaDeHonra(npc *world.Entity) bool {
-	return npc != nil && npc.Merchant == merchantGodOfWar
+	return npc != nil && npc.Merchant == merchantLojaDeHonra
+}
+
+// marcaLojaDeHonra põe o Merchant da loja no NPC que nasceu do template dela.
+// Chamada no nascimento, das duas formas que um NPC do painel nasce
+// (npcconfig.go), e é o único lugar que liga o template ao Merchant.
+//
+// O template chega pelo npc_definition e não pela entidade: a entidade nasce sem
+// TemplateName quando o NPC é gerido pelo painel — o bloco vai de propósito sem
+// nome, para não herdar as regras de drop de outro monstro (ver npcconfig.go).
+func marcaLojaDeHonra(e *world.Entity, templateName string) {
+	if e == nil || !strings.EqualFold(strings.TrimSpace(templateName), templateDaLojaDeHonra) {
+		return
+	}
+	e.Merchant = merchantLojaDeHonra
 }
 
 // itensDeHonraParaOPainel monta o estoque na forma da linha.
@@ -86,9 +124,10 @@ func itensDeHonraParaOPainel() []protocol.HonraItem {
 	for i := 0; i < n; i++ {
 		it := estoqueDaLojaDeHonra[i]
 		itens = append(itens, protocol.HonraItem{
-			Slot:   int16(i),
-			Indice: it.Indice,
-			Preco:  it.Preco,
+			Slot:      int16(i),
+			Indice:    it.Indice,
+			Preco:     it.Preco,
+			Categoria: it.Cat,
 		})
 	}
 	return itens
@@ -105,6 +144,10 @@ func (d *Dispatcher) abrirLojaDeHonra(w *world.World, s *world.Session, npc *wor
 	// sem isto, um cliente remendado compraria de qualquer lugar do mundo.
 	s.LojaHonraNPC = npc.ID
 	itens := itensDeHonraParaOPainel()
+	// O quanto a lojinha rende vai junto, para o painel poder dizer de onde sai a
+	// moeda que ele cobra. É lido agora, e para ESTE jogador: quem está com uma
+	// Fada Azul ganha mais, e o painel não teria como saber disso sozinho.
+	porJanela := shopPointsPerWindow(w.Entity(s.Conn))
 	accountID := s.AccountID
 	p := w.Persistence()
 	d.log.Info("loja de honra aberta", "conn", s.Conn, "npc", npc.ID, "itens", len(itens))
@@ -116,7 +159,12 @@ func (d *Dispatcher) abrirLojaDeHonra(w *world.World, s *world.Session, npc *wor
 				sendClientMessage(w, s, "Não foi possível consultar seus pontos agora.")
 				return
 			}
-			corpo := (&protocol.HonraAbreBody{Saldo: saldo, Itens: itens}).Encode()
+			corpo := (&protocol.HonraAbreBody{
+				Saldo:         saldo,
+				PorJanela:     int16(porJanela),
+				MinutosJanela: shopPointsWindowMs / 60000,
+				Itens:         itens,
+			}).Encode()
 			w.Send(s, protocol.MsgHonraAbre, corpo)
 		}
 	})
@@ -159,7 +207,7 @@ func (d *Dispatcher) honraCompra(w *world.World, s *world.Session, _ protocol.He
 	// Presença: a loja é do NPC, não do jogador. O mesmo alcance que a
 	// experiência de grupo usa para "estava perto do corpo".
 	if !pertoDoMob(e, npc) {
-		sendClientMessage(w, s, "Você está longe demais do God of War.")
+		sendClientMessage(w, s, "Você está longe demais da loja.")
 		return
 	}
 	pos := int(pedido.Slot)

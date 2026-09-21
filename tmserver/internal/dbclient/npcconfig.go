@@ -70,9 +70,10 @@ func (c *NpcConfig) Snapshot(ctx context.Context) (npccfg.Snapshot, error) {
 			cache[d.GetTemplateName()] = tmpl
 		}
 		def := npccfg.Definition{
-			Slug:        d.GetSlug(),
-			Template:    tmpl,
-			DisplayName: d.GetDisplayName(),
+			Slug:         d.GetSlug(),
+			Template:     tmpl,
+			TemplateName: d.GetTemplateName(),
+			DisplayName:  d.GetDisplayName(),
 			Enabled:     d.GetEnabled(),
 			X:           int16(d.GetPosX()),
 			Y:           int16(d.GetPosY()),
