@@ -75781,7 +75781,7 @@
 // no3015 (0829�ʵ�E
 // ********************************************
 #	[2650]
-	MinuteGenerate:	20
+	MinuteGenerate:	40
 	MaxNumMob:	4
 	MinGroup:	2
 	MaxGroup:	3
@@ -75802,7 +75802,7 @@
 // no3016 (0829�ʵ�E
 // ********************************************
 #	[2651]
-	MinuteGenerate:	20
+	MinuteGenerate:	40
 	MaxNumMob:	4
 	MinGroup:	2
 	MaxGroup:	3
