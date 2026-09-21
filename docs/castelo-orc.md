@@ -125,19 +125,54 @@ quem não é do grupo não chega até ele enquanto uma corrida acontece.
 
 | Template | Nome no jogo | Nv | HP | Defesa | Dano | Resist. | Bloco |
 |---|---|---|---|---|---|---|---|
-| `COrc_GraoLorde` | Grão-Lorde Orc | 350 | 1.500.000 | 3.000 | 2.020 | 25 | 6099 |
-| `COrc_Guarda` | Guarda do Lorde | 320 | 105.000 | 2.200 | 1.520 | 15 | 6100 (grupo de 4) |
-| `COrc_Sentinela` | Sentinela Orc | 330 | 450.000 | 2.400 | 1.620 | 20 | 6101 |
-| `COrc_Capitao` | Capitão Orc | 330 | 450.000 | 2.400 | 1.620 | 20 | 6102 |
-| `COrc_Chefe` | Chefe Orc | 330 | 450.000 | 2.400 | 1.620 | 20 | 6103 |
-| `COrc_Cavaleiro` | Cavaleiro Orc | 300 | 18.000 | 1.800 | 1.220 | 10 | 6104, 6107, 6110, 6113 |
-| `COrc_Arqueiro` | Arqueiro Orc | 300 | 18.000 | 1.800 | 1.220 | 10 | 6105, 6108, 6111, 6114 |
-| `COrc_MeioOrc` | Meio Orc | 300 | 18.000 | 1.800 | 1.220 | 10 | 6106, 6112 |
-| `COrc_Mago` | Mago Orc | 300 | 18.000 | 1.800 | 1.220 | 10 | 6109, 6115 |
+| `COrc_GraoLorde` | Grão-Lorde Orc | 350 | 1.500.000 | 3.000 | 1.720 | 25 | 6099 |
+| `COrc_Guarda` | Guarda do Lorde | 320 | 105.000 | 2.200 | 1.140 | 15 | 6100 (grupo de 4) |
+| `COrc_Sentinela` | Sentinela Orc | 330 | 450.000 | 2.400 | 1.400 | 20 | 6101 |
+| `COrc_Capitao` | Capitão Orc | 330 | 450.000 | 2.400 | 1.400 | 20 | 6102 |
+| `COrc_Chefe` | Chefe Orc | 330 | 450.000 | 2.400 | 1.400 | 20 | 6103 |
+| `COrc_Cavaleiro` | Cavaleiro Orc | 300 | 18.000 | 1.800 | 1.020 | 10 | 6104, 6107, 6110, 6113 |
+| `COrc_Arqueiro` | Arqueiro Orc | 300 | 18.000 | 1.800 | 1.020 | 10 | 6105, 6108, 6111, 6114 |
+| `COrc_MeioOrc` | Meio Orc | 300 | 18.000 | 1.800 | 1.020 | 10 | 6106, 6112 |
+| `COrc_Mago` | Mago Orc | 300 | 18.000 | 1.800 | 1.020 | 10 | 6109, 6115 |
 
 **14/09/2026, pedido da equipe:** o Grão-Lorde caiu mais metade (3 mi → 1,5 mi), o
 Guarda do Lorde 30% (150 mil → 105 mil), e o Mago Orc entrou na tropa no lugar
 de metade dos Meio Orcs, com os números e o saque deles.
+
+### A régua do dano (21/09/2026)
+
+A equipe morreu nas duas quests, e a medida mostrou por quê: o golpe de monstro
+desconta **metade** da defesa do alvo (`combat.Damage`), então o dano cresce
+depressa quando a defesa do jogador é menor que o dobro do dano do bicho. Com a
+tropa do castelo em 1.220 de dano, um Mortal com set +6/+9 (defesa ~1.400)
+levava 413 por golpe de cada orc: **cinco orcs em cima já passavam a poção**,
+que repõe no máximo 2.000 por segundo (`applyCasting`, `handler/hpmp.go`).
+
+A régua escolhida pelo Marco: **jogador de defesa 1.400** e **oito monstros de
+tropa em cima sem estourar a poção**, e daí uma escada por papel — o que cada
+papel pode tirar por golpe desse jogador:
+
+| Papel | Quantos em campo | Dano por golpe | Quantos estouram a poção |
+|---|---|---|---|
+| Tropa | 40-60 | ~250 | 8 |
+| Seguidor | 4 | ~350 | 5 |
+| Guardião | 3-4 | ~550 | 3-4 |
+| Boss | 1 | ~800 | — (sobra metade da poção para a tropa em volta) |
+
+O dano de template que entrega cada degrau saiu de busca numérica sobre a
+própria função do servidor, em `handler/simulacao_quests_test.go`:
+
+```
+go test -tags simulacao -run TestSimulacaoQuests -v ./tmserver/internal/handler/
+```
+
+- `TestSimulacaoQuestsPorDefesa` — dano por golpe de cada monstro contra defesa
+  de 800 a 3.200, a tabela para conferir uma mudança;
+- `TestSimulacaoQuestsCalibragem` — o dano de template que atinge o alvo do papel.
+
+**O penhasco continua:** acima de defesa ~2.800 a tropa volta a tirar 1 de dano,
+porque a subtração de AC/2 zera o golpe. É uma propriedade da fórmula do legado,
+não da calibragem — quem tem set de topo atravessa as duas quests sem apanhar.
 
 **O que cada um veste** (só aparência, menos o alcance, que é o maior `EF_RANGE`
 entre o corpo e a arma):
@@ -183,10 +218,10 @@ equipamento de mob no score.
 **Por que esses números:**
 - O golpe de mob no jogador faz `Dano − Defesa/2`, com sorteio de 99–110% e ×0,75
   montado, contra o HP do jogador em dobro, como no legado (`65346fe8`). Com set
-  de +6 a +9, um Mortal 320 tem 1.150–1.600 de defesa. Com estes números, na
-  simulação de party (TK, FM, BM e HT montados), cada golpe tira do TK: boss
-  23–25% do HP, guardião 16–18%, seguidor 14–16%, tropa 8–11%. FM e BM levam
-  quase o dobro disso em porcentagem.
+  de +6 a +9, um Mortal 320 tem 1.150–1.600 de defesa. Contra a régua de 1.400,
+  os números de 21/09 tiram por golpe: boss 793, guardião 542–566, seguidor 361,
+  tropa 254 — a escada da régua acima. Com 1.200 de defesa sobe para 317–338 de
+  tropa e 909 do boss.
 - Até 11/09/2026 a defesa entrava ×3 também contra mob, e o Dano era 2.300–2.700.
   Na regra de hoje, aqueles números tiravam 35–73% do HP por golpe do boss.
 - As resistências são positivas de propósito. O servidor lê a resistência como

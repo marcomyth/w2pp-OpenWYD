@@ -326,6 +326,13 @@ func TestAcampamentoTrollChaveNoTicketDosElfos(t *testing.T) {
 // Recalibrado em 16/09/2026 (pedido do Marco): o Mago com metade do HP e do dano,
 // o Caos com o HP que era do Mago e o dano de antes, a tropa com metade do dano;
 // o Enigma fica para depois. Todos montados e com a arma +11, só no visual.
+//
+// 21/09/2026: o Caos desceu de 1.620 para 1.400, o único do acampamento acima da
+// régua de dano das duas quests (docs/castelo-orc.md, "A régua do dano"): quatro
+// deles em cima de um Mortal de 1.400 de defesa passavam os 2.000 por segundo da
+// poção. O resto já estava abaixo dela e ficou como estava — contra essa mesma
+// defesa a tropa tira 1 de dano por golpe, o que é folga demais, mas subir não
+// foi pedido.
 var acampamentoTrollDesign = map[string]struct {
 	name             string
 	lvl, hp, ac, dmg int32
@@ -334,7 +341,7 @@ var acampamentoTrollDesign = map[string]struct {
 	mount            int16
 }{
 	"ATroll_Enigma":  {"Troll Enigma", 350, 1500000, 3000, 1010, 25, 213, 2372}, // Cavalo Fantasma B
-	"ATroll_Caos":    {"Troll Caos", 330, 150000, 2400, 1620, 20, 213, 2366},    // Cavalo s/Sela N
+	"ATroll_Caos":    {"Troll Caos", 330, 150000, 2400, 1400, 20, 213, 2366},    // Cavalo s/Sela N
 	"ATroll_Mago":    {"Troll Mago", 320, 75000, 2200, 760, 15, 213, 2365},      // Dente de Sabre
 	"ATroll_Insano":  {"Troll Insano", 300, 36000, 1800, 610, 10, 212, 2363},    // Dragão Menor
 	"ATroll_Cacador": {"Caçador Troll", 300, 18000, 1800, 610, 10, 213, 2365},   // Dente de Sabre

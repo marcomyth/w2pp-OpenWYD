@@ -92,11 +92,24 @@ do tier correspondente do Castelo Orc e foram recalibradas em 16/09/2026, a pedi
 do Marco: o Mago com metade do HP e do dano, o Caos com o HP que era do Mago, a
 tropa com metade do dano. Depois do primeiro teste, o Insano dobrou de HP (18 mil para 36 mil). No segundo teste o Enigma caiu pela metade no HP e no dano (3 mi para 1,5 mi; 2.020 para 1.010).
 
+**21/09/2026, recalibragem do dano:** o Troll Caos caiu de 1.620 para 1.400 de
+dano. Ele era o único monstro do acampamento acima da régua: contra um Mortal
+com set +6/+9 (defesa 1.400) tirava 725 por golpe, e os **quatro juntos passam
+a poção**, que repõe no máximo 2.000 por segundo. Agora tira 571, e três deles
+cabem dentro da poção. A régua inteira, com a escada por papel e os testes de
+simulação que a medem, está em `docs/castelo-orc.md`.
+
+O resto do acampamento já estava **abaixo** da régua e não foi tocado, mas vale
+saber o tamanho da folga: contra os mesmos 1.400 de defesa a tropa tira **1** de
+dano por golpe, o Mago 47 e o Enigma 253 — o boss do acampamento bate menos que
+a tropa do Castelo Orc. Subir isso é uma decisão à parte, e não foi pedida.
+
+
 | Template | Nome no jogo | Veio de | Papel | Nv | HP | Defesa | Dano | Resist. | Montaria | Bloco |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `ATroll_Enigma` | Troll Enigma | `Troll_Enigma` | boss | 350 | 1.500.000 | 3.000 | 1.010 | 25 | Cavalo Fantasma B (2372) | 6116 |
 | `ATroll_Mago` | Troll Mago | `Troll_Mago` | seguidor | 320 | 75.000 | 2.200 | 760 | 15 | Dente de Sabre (2365) | 6117 (grupo de 4) |
-| `ATroll_Caos` | Troll Caos | `Troll_Caos` | guardião | 330 | 150.000 | 2.400 | 1.620 | 20 | Cavalo s/Sela N (2366) | 6118, 6119 (2 cada) |
+| `ATroll_Caos` | Troll Caos | `Troll_Caos` | guardião | 330 | 150.000 | 2.400 | 1.400 | 20 | Cavalo s/Sela N (2366) | 6118, 6119 (2 cada) |
 | `ATroll_Insano` | Troll Insano | `Troll_Insano` | tropa | 300 | 36.000 | 1.800 | 610 | 10 | Dragão Menor (2363) | 6120–6123 |
 | `ATroll_Cacador` | Caçador Troll | `Cacador_Troll` | tropa | 300 | 18.000 | 1.800 | 610 | 10 | Dente de Sabre (2365) | 6124–6127 |
 

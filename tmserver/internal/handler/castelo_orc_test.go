@@ -129,21 +129,30 @@ func TestCasteloOrcNaoMexeNoDropDeOutroMonstro(t *testing.T) {
 // Guarda do Lorde down 30%, no gate key on any guardian (the run ends by
 // teleport after the Grão-Lorde, so nothing inside needs opening), and the Mago
 // Orc added to the troop with the Meio Orc's numbers.
+//
+// 21/09/2026, the damage rule (docs/castelo-orc.md, "A régua do dano"): the team
+// died in here, so every Dano was fitted to one ruler — a Mortal at 1.400 armour,
+// and the potion's 2.000 per second as the ceiling a swarm may not cross. Per
+// role, against that player: troop 250 a blow (eight of them), follower 350
+// (five), guardian 550 (three), boss 800. The numbers came out of a numeric
+// search over the server's own swing in simulacao_quests_test.go — the swing
+// subtracts HALF the target's armour, so a Dano change moves the blow by much
+// more than itself, and eyeballing one is how the troop ended up at 1.220.
 var casteloOrcDesign = map[string]struct {
 	name             string
 	lvl, hp, ac, dmg int32
 	res              int8
 	key              int16
 }{
-	"COrc_GraoLorde": {"Grão-Lorde Orc", 350, 1500000, 3000, 2020, 25, 0},
-	"COrc_Guarda":    {"Guarda do Lorde", 320, 105000, 2200, 1520, 15, 0},
-	"COrc_Sentinela": {"Sentinela Orc", 330, 450000, 2400, 1620, 20, 0},
-	"COrc_Capitao":   {"Capitão Orc", 330, 450000, 2400, 1620, 20, 0},
-	"COrc_Chefe":     {"Chefe Orc", 330, 450000, 2400, 1620, 20, 0},
-	"COrc_Cavaleiro": {"Cavaleiro Orc", 300, 18000, 1800, 1220, 10, 0},
-	"COrc_Arqueiro":  {"Arqueiro Orc", 300, 18000, 1800, 1220, 10, 0},
-	"COrc_MeioOrc":   {"Meio Orc", 300, 18000, 1800, 1220, 10, 0},
-	"COrc_Mago":      {"Mago Orc", 300, 18000, 1800, 1220, 10, 0},
+	"COrc_GraoLorde": {"Grão-Lorde Orc", 350, 1500000, 3000, 1720, 25, 0},
+	"COrc_Guarda":    {"Guarda do Lorde", 320, 105000, 2200, 1140, 15, 0},
+	"COrc_Sentinela": {"Sentinela Orc", 330, 450000, 2400, 1400, 20, 0},
+	"COrc_Capitao":   {"Capitão Orc", 330, 450000, 2400, 1400, 20, 0},
+	"COrc_Chefe":     {"Chefe Orc", 330, 450000, 2400, 1400, 20, 0},
+	"COrc_Cavaleiro": {"Cavaleiro Orc", 300, 18000, 1800, 1020, 10, 0},
+	"COrc_Arqueiro":  {"Arqueiro Orc", 300, 18000, 1800, 1020, 10, 0},
+	"COrc_MeioOrc":   {"Meio Orc", 300, 18000, 1800, 1020, 10, 0},
+	"COrc_Mago":      {"Mago Orc", 300, 18000, 1800, 1020, 10, 0},
 }
 
 // casteloOrcVisual is what each quest monster wears (14/09/2026): Manto de Shiner
