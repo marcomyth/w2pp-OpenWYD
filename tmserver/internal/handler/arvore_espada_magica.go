@@ -25,9 +25,20 @@ const (
 	espadaMagicaMaestriaMax = 255
 	espadaMagicaIntTeto     = 2500
 
-	espadaMagicaLancaPct = 140
-	espadaMagicaArmaPct  = 100
+	espadaMagicaArmaPct = 100
 )
+
+// espadaMagicaLancaPct é a lança da árvore, e é var porque a simulação o varre.
+//
+// Subiu de 140 para 190 em 21/09/2026. Com 140 o TK-MAGO fazia 34 vitórias e 82
+// derrotas no torneio contra as 55 da Black, que é a referência da faixa mágica:
+// ele tirava 2.582 de dano por segundo contra os 3.603 dela, e levava 2.392 com
+// uma poção que só levanta 2.000 — morria devagar sem conseguir matar. Com 190 os
+// dois empatam em 55, e o duelo dele passa de 20 s para 58 s, dentro da meta.
+//
+// A curva é íngreme: 200 já o põe em 71 e 260 em 108, porque o bônus multiplica o
+// dano BRUTO da skill, antes de a defesa do alvo ser subtraída.
+var espadaMagicaLancaPct = 190
 
 // tkEspadaMagica diz se as regras da árvore valem para e.
 func tkEspadaMagica(e *world.Entity) bool {

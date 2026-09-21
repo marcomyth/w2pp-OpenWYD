@@ -177,8 +177,15 @@ var manaControlCustoPctCancel = 100
 // Xorimpas (1.275) e acima do próprio Trans (455). Recalibrar junto com o corte
 // de dano da HT e com a regra da poção em PvP.
 var (
-	cancelPerfuracaoPct = 80  // % da defesa do alvo que ela ignora
-	cancelDanoDuasArmas = 100 // % a mais de dano com duas armas ou garra
+	cancelPerfuracaoPct = 80 // % da defesa do alvo que ela ignora
+	// cancelDanoDuasArmas subiu de 100 para 250 em 21/09/2026. Com 100 a Foema
+	// física tirava 606 de dano por segundo na média do elenco, contra uma poção
+	// que levanta 2.000 — 15 vitórias e 79 derrotas no torneio. O ataque dela na
+	// ficha era 8.726, metade dos 17.037 do BM de Força e dos 15.747 da Xorimpas,
+	// e 250 a põe na faixa dos 11-12 mil: acima do Paladino e ainda claramente
+	// atrás dos dois porradeiros, que é onde uma classe de 12.432 de vida deve
+	// estar.
+	cancelDanoDuasArmas = 250 // % a mais de dano com duas armas ou garra
 	// cancelDanoArco é o bônus do ARCO (20/09/2026). Ele não era penalizado: só
 	// não ganhava nada, e por isso valia o mesmo que uma espada sozinha — 4.690
 	// de ataque na janela contra 8.821 de duas espadas, o que não servia nem para
@@ -191,6 +198,29 @@ var (
 	// lança de arremesso (104) ficam de fora porque não foram pedidos.
 	cancelDanoArco = 67
 )
+
+// 40 · A NÉVOA VENENOSA da FM Cancelamento (21/09/2026).
+//
+// A Névoa é a skill de dano da árvore, e media do elenco inteiro ela valia 301
+// por uso contra 610 do golpe normal dela: METADE de um soco. A Foema física
+// gastava um terço dos turnos numa skill pior do que bater, e era esse terço que
+// a deixava em 605 de dano por segundo contra uma poção de 2.000 — a Xorimpas,
+// com o mesmo ataque de ficha, tira 1.664 porque a Lâmina das Sombras sozinha lhe
+// dá 63% do dano.
+//
+// O bônus segue a empunhadura de assinatura da árvore, como o resto dela: duas
+// espadas, dois machados ou garra. De arma e escudo a Névoa continua como era, e
+// quem não tem a 8ª não é tocado — a skill 40 é a primeira da árvore e qualquer
+// Foema a lança.
+var cancelNevoaPct = 150 // % a mais no dano da Névoa Venenosa
+
+// danoDaNevoaVenenosa é o dano da Névoa depois do bônus da árvore.
+func danoDaNevoaVenenosa(e *world.Entity, itemAbility func(world.Item, uint8) int, dmg int) int {
+	if dmg <= 0 || cancelNevoaPct == 0 || !duasArmasDoCancelamento(e, itemAbility) {
+		return dmg
+	}
+	return dmg * (100 + cancelNevoaPct) / 100
+}
 
 // perfuracaoDoCancelamento entra na mesma conta da Lança de Ferro da Huntress
 // (arvore_sobrevivencia.go), em porcentagem da defesa do alvo. Só com duas

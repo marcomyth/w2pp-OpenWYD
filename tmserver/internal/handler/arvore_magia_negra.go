@@ -21,10 +21,18 @@ const (
 
 	wtypeCajadoDuasMaos = 32
 
-	magiaNegraCajado2MaosPct = 140
-	magiaNegraCajado1MaoPct  = 120
-	magiaNegraArmaPct        = 100
+	magiaNegraCajado1MaoPct = 120
+	magiaNegraArmaPct       = 100
 )
+
+// magiaNegraCajado2MaosPct é o multiplicador do cajado de duas mãos, e é um
+// BOTÃO de balanceamento (var, não const).
+//
+// A Black é de longe a mais forte do elenco: no torneio de 20/09/2026 ela fez
+// 64 vitórias e ZERO derrotas em 110 duelos, tirando 4.153/s — o dobro do
+// segundo colocado e mais que o dobro da poção. Este é o botão por onde ela
+// desce sem mexer no crítico de mago, que ela divide com o TK Espada Mágica.
+var magiaNegraCajado2MaosPct = 120
 
 // fmMagiaNegra diz se as regras da árvore valem para e.
 func fmMagiaNegra(e *world.Entity) bool {

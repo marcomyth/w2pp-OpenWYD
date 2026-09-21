@@ -108,7 +108,12 @@ func perfuracaoLancaDeFerro(e *world.Entity) int {
 
 // defesaPerfurada é a defesa do alvo que o golpe de attacker enfrenta.
 func (d *Dispatcher) defesaPerfurada(attacker *world.Entity, def int) int {
-	p := perfuracaoLancaDeFerro(attacker) + perfuracaoDoCancelamento(attacker, d.itemAbility)
+	p := perfuracaoLancaDeFerro(attacker) + perfuracaoDoCancelamento(attacker, d.itemAbility) +
+		perfuracaoDaArmadura(attacker)
+	// O teto de 100 é defensivo: as três perfurações são de classes diferentes e
+	// nunca se somam hoje, mas uma soma acima de 100 viraria defesa NEGATIVA, que
+	// multiplicaria o golpe em vez de deixá-lo passar.
+	p = min(p, 100)
 	if p == 0 || def <= 0 {
 		return def
 	}
@@ -130,11 +135,25 @@ func (d *Dispatcher) defesaPerfurada(attacker *world.Entity, def int) int {
 // reduzida a 30% (combat.ResolveParry) e os +200 de dano da passiva ficam.
 const (
 	tempestadeFlechas     = 5
-	tempestadeFlechaPct   = 40
-	tempestadeRecargaMs   = 40_000
 	tempestadeMultMaximo  = 5
 	tempestadeDefesaPvPx3 = 3
 )
+
+// tempestadeRecargaMs é a espera entre duas Tempestades de Flechas, e é um
+// BOTÃO de balanceamento (var, não const).
+//
+// O torneio de 20/09/2026 mostrou a Xorimpas de Sobrevivência com ZERO vitórias
+// em 110 duelos: ela tirava 1.135/s e levava 1.622/s. A 8ª dela é a Tempestade,
+// e com 40 s de espera a skill quase não saía — a árvore inteira dependia de um
+// golpe que o duelo mal via.
+var tempestadeRecargaMs uint32 = 40_000
+
+// tempestadeFlechaPct é quanto do ataque cada flecha carrega, e é um BOTÃO.
+//
+// A recarga sozinha quase não move o dano da Sobrevivência — de 40 s para 10 s
+// a árvore subiu 124/s —, porque a Tempestade é uma ação entre muitas. O peso
+// de cada flecha move.
+var tempestadeFlechaPct = 40
 
 var pesosFlecha = [tempestadeMultMaximo]int{40, 30, 17, 9, 4}
 

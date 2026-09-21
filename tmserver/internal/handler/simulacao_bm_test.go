@@ -125,7 +125,7 @@ func (sm *simulador) bmLutador(id int, urso bool, criatura int) *lutador {
 		// O bando bate em paralelo, na cadência dele, faça o dono o que fizer.
 		bando := 0
 		if agora >= proximoBando {
-			proximoBando = agora + evocacaoCadenciaMs
+			proximoBando = agora + int64(evocacaoCadenciaMs)
 			evo := int(effectiveSpecial(ld.e, 2))
 			n := summonCount(criatura+1, evo)
 			porCabeca := danoDaEvocacaoEmJogador(criatura, evo, int(effectiveAC(alvo)))

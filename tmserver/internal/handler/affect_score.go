@@ -53,6 +53,8 @@ func applyAffectScoreWithItemAbility(e *world.Entity, itemAbility func(world.Ite
 		applyPassivasDaEspecial(e, e.Class == 1 && e.LearnedSkill&0x80000 != 0, itemAbility)
 		// BM Natureza: a empunhadura decide o dano e o crítico (arvore_natureza.go).
 		applyPassivasDaNatureza(e, itemAbility)
+		// HT: o dano físico das oitavas de Troca e Sobrevivência (arvore_troca.go).
+		applyPassivasDaTroca(e)
 	}()
 	if !e.HasAnyAffect() {
 		return

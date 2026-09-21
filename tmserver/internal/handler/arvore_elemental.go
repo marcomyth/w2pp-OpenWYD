@@ -33,9 +33,30 @@ const (
 	// learnedEspiritoVingador é a 8ª da Elemental (skill 55, bit 55%24 = 7).
 	learnedEspiritoVingador = 1 << 7
 
-	elementalLancaPct       = 120
-	elementalCajado2MaosPct = 140
-	elementalArmaPct        = 100
+	elementalArmaPct = 100
+)
+
+// A lança e o cajado de duas mãos da árvore. São var porque a simulação os varre.
+//
+// Subiram de 120/140 para 210/250 em 21/09/2026. Com 140 o BM Elemental fazia 10
+// vitórias em 130 lutas no torneio — o penúltimo do elenco, à frente só de quem
+// não ganha nenhuma.
+//
+// A ficha dele é a MESMA da Black, item por item: ataque 1.323, defesa 2.357,
+// 15.258 de vida, o mesmo crítico de personagem. A diferença inteira é que a
+// Black tem o crítico de mago (×2 a ×4 nas skills da árvore) e o Elemental não,
+// por decisão de quem opera — o kit do BM são as evocações. Só que um personagem
+// aprende UMA 8ª: o Elemental é justamente o BM que abriu mão do bando, e ficava
+// sem o crítico E sem as criaturas. Ele tirava 2.234 de dano por segundo contra
+// os 3.603 dela, com a mesma vida de papel.
+//
+// O bônus de arma é o que compensa isso sem devolver o crítico. Em 250 ele faz
+// 53 vitórias contra as 57 da Black. A proporção entre as duas armas é a de
+// antes (a lança vale menos que o cajado, que é o preço de não poder levar
+// escudo), e a curva é íngreme: 360 já o põe em 81 vitórias e 450 em 124.
+var (
+	elementalLancaPct       = 210
+	elementalCajado2MaosPct = 250
 )
 
 // bmElemental diz se as regras da árvore valem para e: Beast Master, jogador,

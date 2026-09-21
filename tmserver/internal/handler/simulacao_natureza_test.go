@@ -406,3 +406,244 @@ func TestSimulacaoNaturezaVarreduraDoEixo(t *testing.T) {
 		}
 	}
 }
+
+// A FICHA REAL do BM full Destreza (DanoPRZ, prints do Marco em 20/09/2026),
+// transformado em Éden:
+//
+//	FOR 6, INT 6, DES 2569, CON 805, nível 400
+//	HP 16.002   Ataque 4.787   Defesa 3.735   Vel Ataque 665%   Crítico 56,8%
+//	Natureza 349, Elemental 294, Evocação 294
+//
+// O operador quer o HP uns 5.000 ABAIXO e o ataque uns 2.100 ACIMA: a build de
+// Destreza tem de ser frágil e rápida, e hoje ela é frágil e fraca.
+var danoPRZ = janela{
+	nome: "BM Natureza (DanoPRZ)", classe: 2,
+	str: 6, dex: 2569, con: 805, hp: 16_002,
+	ataque: 4787, defesa: 3735, criticoPct10: 568,
+	special: [4]int16{198, 294, 294, 349},
+	learned: simBMLearned | learnedEden,
+}
+
+// bmDanoPRZ monta a ficha real com o Éden JÁ DE PÉ.
+//
+// A janela do jogo mostra o personagem transformado, então os 16.002 de vida e
+// os 4.787 de ataque são o resultado DEPOIS da forma. Montar a base com esses
+// números e transformar por cima aplicaria a camada duas vezes — foi o que a
+// primeira versão fez, e ela saiu em 43.525 de vida.
+//
+// Por isso a ordem é: pôr a forma, deixar o score assentar, e só então resolver
+// a base para o TOTAL cair no número da janela. A vida precisa de iteração
+// porque o bônus da forma é percentual sobre ela mesma.
+func (sm *simulador) bmDanoPRZ() *world.Entity {
+	e := sm.montar(danoPRZ, 1, nil)
+	e.Equip[weaponSlotR] = world.Item{Index: simCaliburn,
+		Effects: [3]world.Effect{{Effect: simEfSanc, Value: simRefino11}}}
+	e.Equip[weaponSlotL] = world.Item{Index: simBalmung,
+		Effects: [3]world.Effect{{Effect: simEfSanc, Value: simRefino11}}}
+	// Afeto 16, Value 5 = Éden.
+	e.Affect[1] = world.Affect{Type: affectTransform, Value: 5,
+		Level: simBMNaturezaMaestria, Time: 5000}
+
+	for range 6 {
+		sm.d.applyAffectScore(e)
+		e.MaxHP = (danoPRZ.hp - e.AffMaxHP) / 2
+	}
+	sm.d.applyAffectScore(e)
+
+	lo, hi := int32(0), int32(200_000)
+	for lo < hi {
+		mid := (lo + hi) / 2
+		e.Damage = mid
+		if sm.d.effectiveDamage(e) < danoPRZ.ataque {
+			lo = mid + 1
+		} else {
+			hi = mid
+		}
+	}
+	e.Damage = lo
+	e.HP = effectiveMaxHP(e)
+	return e
+}
+
+// TestVarreduraDaDestrezaPura procura as faixas que põem a ficha real onde o
+// operador quer: HP uns 5.000 abaixo e ataque uns 2.100 acima.
+//
+// A CALIBRAGEM É FEITA UMA VEZ SÓ, com as faixas de hoje, e a base que ela
+// produz é reusada em todas as linhas. Recalibrar a cada linha resolveria a
+// base para o total voltar ao número da janela e a tabela inteira sairia
+// idêntica — foi o que aconteceu na primeira tentativa.
+//
+// Varre só as pontas de DESTREZA (índice 0). As de Força ficam onde estão: o
+// eixo já empatou contra o elenco, e mexer nas duas ao mesmo tempo desfaz esse
+// empate sem que se veja.
+func TestVarreduraDaDestrezaPura(t *testing.T) {
+	sm := novoSimulador(t, filepath.Join("..", "..", "..", "Release"))
+	original := naturezaCamada
+	defer func() { naturezaCamada = original }()
+
+	base := sm.bmDanoPRZ()
+	danoBase, hpBase := base.Damage, base.MaxHP
+	hpHoje, ataqueHoje := effectiveMaxHP(base), sm.d.effectiveDamage(base)
+	fmt.Printf("ficha de hoje: HP %d, ataque %d (janela: 16.002 e 4.787)\n", hpHoje, ataqueHoje)
+	fmt.Printf("alvo do operador: HP ~%d, ataque ~%d\n\n", hpHoje-5000, ataqueHoje+2100)
+
+	comFaixas := func(hp, dano int) (int32, int32) {
+		naturezaCamada = original
+		naturezaCamada.hp = faixaDoEixo{hp, original.hp[1]}
+		naturezaCamada.dano = faixaDoEixo{dano, original.dano[1]}
+		e := sm.montar(danoPRZ, 1, nil)
+		e.Equip[weaponSlotR] = world.Item{Index: simCaliburn,
+			Effects: [3]world.Effect{{Effect: simEfSanc, Value: simRefino11}}}
+		e.Equip[weaponSlotL] = world.Item{Index: simBalmung,
+			Effects: [3]world.Effect{{Effect: simEfSanc, Value: simRefino11}}}
+		e.Affect[1] = world.Affect{Type: affectTransform, Value: 5,
+			Level: simBMNaturezaMaestria, Time: 5000}
+		e.Damage, e.MaxHP = danoBase, hpBase
+		sm.d.applyAffectScore(e)
+		return effectiveMaxHP(e), sm.d.effectiveDamage(e)
+	}
+
+	fmt.Printf("%8s %10s | %10s %10s | %9s %9s\n",
+		"hp[DES]", "dano[DES]", "HP", "ataque", "ΔHP", "Δataque")
+	for _, hp := range []int{-28, -38, -48} {
+		for _, dano := range []int{83, 93, 103} {
+			gotHP, gotAtq := comFaixas(hp, dano)
+			fmt.Printf("%7d%% %9d%% | %10d %10d | %+9d %+9d\n",
+				hp, dano, gotHP, gotAtq, gotHP-hpHoje, gotAtq-ataqueHoje)
+		}
+	}
+}
+
+// TestMetamorfoseTrocaVidaPorDano guarda a escolha de 20/09/2026: a camada TIRA
+// vida dos dois lados do eixo, então comprar a Metamorfose Superior é uma TROCA
+// e não um ganho puro.
+//
+// Isso é deliberado — o operador cortou 5.000 de vida da build de Destreza e
+// 12.000 da de Força depois de testar em jogo —, e o que este teste protege é a
+// outra metade: se algum dia o dano cair ou a vida cair mais, a passiva vira um
+// castigo puro, e a mais cara da árvore não pode ser isso.
+func TestMetamorfoseTrocaVidaPorDano(t *testing.T) {
+	sm := novoSimulador(t, filepath.Join("..", "..", "..", "Release"))
+
+	monta := func(comPassiva bool) *world.Entity {
+		e := sm.montar(danoPRZ, 1, nil)
+		if !comPassiva {
+			e.LearnedSkill &^= learnedMetamorfoseSuperior
+		}
+		e.Equip[weaponSlotR] = world.Item{Index: simCaliburn,
+			Effects: [3]world.Effect{{Effect: simEfSanc, Value: simRefino11}}}
+		e.Equip[weaponSlotL] = world.Item{Index: simBalmung,
+			Effects: [3]world.Effect{{Effect: simEfSanc, Value: simRefino11}}}
+		e.Affect[1] = world.Affect{Type: affectTransform, Value: 5,
+			Level: simBMNaturezaMaestria, Time: 5000}
+		// A MESMA base nos dois casos: o que muda é só a passiva.
+		e.MaxHP, e.Damage = 7000, 3000
+		sm.d.applyAffectScore(e)
+		return e
+	}
+
+	sem, com := monta(false), monta(true)
+	hpSem, hpCom := effectiveMaxHP(sem), effectiveMaxHP(com)
+	atqSem, atqCom := sm.d.effectiveDamage(sem), sm.d.effectiveDamage(com)
+	fmt.Printf("Metamorfose Superior, mesma base — sem: %d de vida e %d de ataque | com: %d e %d\n",
+		hpSem, atqSem, hpCom, atqCom)
+	fmt.Printf("  a passiva custa %d de vida e paga %+d de ataque\n", hpSem-hpCom, atqCom-atqSem)
+
+	if hpCom >= hpSem {
+		t.Errorf("a camada tinha de TIRAR vida: sem %d, com %d", hpSem, hpCom)
+	}
+	if atqCom <= atqSem {
+		t.Errorf("a passiva ficou um castigo puro: vida de %d para %d e ataque de %d para %d",
+			hpSem, hpCom, atqSem, atqCom)
+	}
+	// O ganho de ataque tem de ser grande o bastante para a troca valer. A vida
+	// perdida aqui é da ordem de 30%; um ganho de ataque menor que isso faria da
+	// passiva mais cara da árvore uma armadilha.
+	perdaPct := int(int64(hpSem-hpCom) * 100 / int64(hpSem))
+	ganhoPct := int(int64(atqCom-atqSem) * 100 / int64(atqSem))
+	fmt.Printf("  em percentual: -%d%% de vida por +%d%% de ataque\n", perdaPct, ganhoPct)
+	if ganhoPct <= perdaPct {
+		t.Errorf("a troca não compensa: -%d%% de vida por +%d%% de ataque", perdaPct, ganhoPct)
+	}
+}
+
+// A FICHA REAL do BM full Força (olaola, print do Marco em 20/09/2026),
+// transformado:
+//
+//	FOR 2304, INT 12, DES 620, CON 450, nível 400
+//	HP 25.146   Ataque 7.709   Defesa 3.862   Vel Ataque 276%   Crítico 56,8%
+//	Natureza 294, Elemental 239, Evocação 182
+//
+// O operador quer +500 de ataque e uns 12.000 de vida A MENOS: a build de Força
+// ficou boa de dano e "ridícula de forte" em vida.
+var olaola = janela{
+	nome: "BM Natureza (olaola)", classe: 2,
+	str: 2304, dex: 620, con: 450, hp: 25_146,
+	ataque: 7709, defesa: 3862, criticoPct10: 568,
+	special: [4]int16{200, 239, 182, 294},
+	learned: simBMLearned | learnedEden,
+}
+
+// TestEfeitoDoAjusteDaForca faz pela ficha de Força o que o da Destreza faz pela
+// dela: calibra a base com as faixas dos PRINTS e mostra onde as faixas de hoje
+// põem o personagem.
+func TestEfeitoDoAjusteDaForca(t *testing.T) {
+	sm := novoSimulador(t, filepath.Join("..", "..", "..", "Release"))
+	atual := naturezaCamada
+	defer func() { naturezaCamada = atual }()
+
+	monta := func(danoBase, hpBase int32) *world.Entity {
+		e := sm.montar(olaola, 1, nil)
+		e.Equip[weaponSlotR] = world.Item{Index: simHermai,
+			Effects: [3]world.Effect{{Effect: simEfSanc, Value: simRefino11}}}
+		e.Equip[weaponSlotL] = world.Item{Index: simEscudo,
+			Effects: [3]world.Effect{{Effect: simEfSanc, Value: simRefino11}}}
+		e.Affect[1] = world.Affect{Type: affectTransform, Value: 5,
+			Level: simBMNaturezaMaestria, Time: 5000}
+		if danoBase > 0 {
+			e.Damage, e.MaxHP = danoBase, hpBase
+			sm.d.applyAffectScore(e)
+			return e
+		}
+		for range 6 {
+			sm.d.applyAffectScore(e)
+			e.MaxHP = (olaola.hp - e.AffMaxHP) / 2
+		}
+		sm.d.applyAffectScore(e)
+		lo, hi := int32(0), int32(200_000)
+		for lo < hi {
+			mid := (lo + hi) / 2
+			e.Damage = mid
+			if sm.d.effectiveDamage(e) < olaola.ataque {
+				lo = mid + 1
+			} else {
+				hi = mid
+			}
+		}
+		e.Damage = lo
+		return e
+	}
+
+	// A base que produzia a ficha do print (faixas de Força que estavam no ar).
+	naturezaCamada = atual
+	naturezaCamada.hp, naturezaCamada.dano = faixaDoEixo{atual.hp[0], 25}, faixaDoEixo{atual.dano[0], 85}
+	antes := monta(0, 0)
+	danoBase, hpBase := antes.Damage, antes.MaxHP
+	hpAntes, atqAntes := effectiveMaxHP(antes), sm.d.effectiveDamage(antes)
+	fmt.Printf("print do jogo: HP 25.146, ataque 7.709 | simulação: HP %d, ataque %d, eixo %d‰\n\n",
+		hpAntes, atqAntes, eixoForcaDestreza(antes))
+
+	fmt.Printf("%8s %10s | %10s %10s | %9s %9s\n",
+		"hp[FOR]", "dano[FOR]", "HP", "ataque", "ΔHP", "Δataque")
+	for _, hp := range []int{-45, -55, -65} {
+		for _, dano := range []int{94, 104, 114} {
+			naturezaCamada = atual
+			naturezaCamada.hp = faixaDoEixo{atual.hp[0], hp}
+			naturezaCamada.dano = faixaDoEixo{atual.dano[0], dano}
+			e := monta(danoBase, hpBase)
+			gotHP, gotAtq := effectiveMaxHP(e), sm.d.effectiveDamage(e)
+			fmt.Printf("%7d%% %9d%% | %10d %10d | %+9d %+9d\n",
+				hp, dano, gotHP, gotAtq, gotHP-hpAntes, gotAtq-atqAntes)
+		}
+	}
+}

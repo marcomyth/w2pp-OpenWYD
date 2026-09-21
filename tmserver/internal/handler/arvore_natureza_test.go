@@ -422,7 +422,9 @@ func TestCamadaSegueOEixo(t *testing.T) {
 		forcaMaior bool
 	}{
 		{"dano", naturezaCamada.dano, true},
-		{"HP", naturezaCamada.hp, true},
+		// A VIDA anda para o OUTRO lado desde 20/09/2026: a camada tira dos dois,
+		// e tira MAIS da Força. Ver o bloco do topo de arvore_natureza.go.
+		{"HP", naturezaCamada.hp, false},
 		{"defesa", naturezaCamada.ac, true},
 		{"absorção", naturezaCamada.abs, true},
 		{"velocidade", naturezaCamada.vel, false},
@@ -488,8 +490,11 @@ func TestMetamorfoseEntraNoScore(t *testing.T) {
 		t.Errorf("dano: com %d%%, sem %d%% — a Metamorfose tinha de somar",
 			com.AffDamageMultiPct, sem.AffDamageMultiPct)
 	}
-	if com.AffMaxHP <= sem.AffMaxHP {
-		t.Errorf("HP: com %d, sem %d", com.AffMaxHP, sem.AffMaxHP)
+	// A vida DESCE com a Metamorfose, de propósito (a camada é negativa nos dois
+	// lados do eixo). Provar que ela desce é tão importante quanto provar que o
+	// dano sobe: é a metade do preço que a passiva cobra.
+	if com.AffMaxHP >= sem.AffMaxHP {
+		t.Errorf("HP: com %d, sem %d — a camada tinha de TIRAR vida", com.AffMaxHP, sem.AffMaxHP)
 	}
 	if com.AffAC <= sem.AffAC {
 		t.Errorf("defesa: com %d, sem %d", com.AffAC, sem.AffAC)

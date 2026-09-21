@@ -380,7 +380,7 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			dmg = d.resolveSkillHit(w, e, target, tid, skillnum, cast)
 			// Golpe Felino rolls its own critical, x2.0-x3.0 (arvore_troca.go).
 			if skillnum == skillGolpeFelino && dmg > 0 {
-				if mult := rolarCriticoGolpeFelino(w.Rand(), int(effectiveStr(e)), int(effectiveDex(e))); mult > 0 {
+				if mult := rolarCriticoDoFelino(w.Rand(), e); mult > 0 {
 					dmg = dmg * mult / 10
 					body.DoubleCritical |= 2
 					writeDoubleCritical(payload, body.DoubleCritical)
@@ -1183,6 +1183,11 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 	// → BASE_GetSkillDamage). Weather 0 is neutral, so this is a no-op until a
 	// roll or a GM override moves it (weather.go).
 	raw := combat.SkillBaseDamage(skillnum, sp, caster, int(d.currentWeather()), int(d.weaponDamage(e)))
+	// Névoa Venenosa da FM Cancelamento: o bônus entra no dano BRUTO, antes da
+	// defesa do alvo, como o ArmaPct das outras árvores (arvore_magia_especial.go).
+	if skillnum == skillNevoaVenenosa {
+		raw = danoDaNevoaVenenosa(e, d.itemAbility, raw)
+	}
 
 	switch {
 	case sp.InstanceType >= 1 && sp.InstanceType <= 5:

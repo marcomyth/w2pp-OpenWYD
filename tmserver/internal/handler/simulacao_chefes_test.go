@@ -139,7 +139,7 @@ func (sm *simulador) raide(a alvoDeRaide, n int, limiteMs int64, semRevide bool)
 					}
 				}
 			}
-			proxMob += int64(cadenciaDoGolpe(chefe))
+			proxMob += int64(cadenciaDoGolpe(chefe, nil))
 		}
 		agora += simPasso
 		if agora%(simTickAfetoS*1000) < simPasso {

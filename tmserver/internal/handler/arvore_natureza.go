@@ -19,9 +19,17 @@ import (
 // passiva), e é por isso que aqui os bits são reusados em vez de redefinidos.
 //
 // O EIXO FORÇA↔DESTREZA é a regra central da árvore, e vale para tudo que vem
-// abaixo: quanto mais Força comparada à Destreza, mais ABSORÇÃO, dano, vida e
-// defesa; quanto mais Destreza, mais velocidade de ataque e crítico. O BM
-// escolhe entre aguentar e bater rápido, e não pode ter os dois.
+// abaixo: quanto mais Força comparada à Destreza, mais ABSORÇÃO, dano e defesa;
+// quanto mais Destreza, mais velocidade de ataque e crítico. O BM escolhe entre
+// aguentar e bater rápido, e não pode ter os dois.
+//
+// A VIDA saiu do eixo em 20/09/2026, depois do teste em jogo. As duas builds
+// estavam com vida demais, e o corte que o operador pediu (−5.000 na Destreza,
+// −12.000 na Força) é grande o bastante para não caber num eixo que também
+// deveria dizer "a Força é a que aguenta". Hoje a camada TIRA vida dos dois
+// lados, e tira mais da Força — o contrário do que o eixo diz do resto. É uma
+// escolha do operador, medida contra as fichas reais do DanoPRZ e do olaola
+// (simulacao_natureza_test.go), e não um acidente.
 //
 // A Força NÃO ganha crítico por este eixo — o dela vem da empunhadura de
 // assinatura (escudo + Hermai com o Éden), que é a etapa 2. Sem isso o crítico
@@ -341,19 +349,36 @@ type faixaDoEixo [2]int
 
 // naturezaCamada são as faixas da Metamorfose.
 var naturezaCamada = struct {
-	abs, dano, hp, ac, vel, crit faixaDoEixo
+	abs, dano, hp, ac, vel, crit, acerto faixaDoEixo
 }{
 	abs: faixaDoEixo{20, 100}, // décimos de percentual: 2% a 10%
 	// O dano da Força é o que compensa a DUPLA função da Destreza: ela esquiva
 	// quando defende E fura esquiva quando ataca (o -attackerDex do parry,
-	// combat/critical.go:106). Sem isto a Força perde nos dois lados. 85 é o
-	// ponto de empate MEDIDO, e é um piso: a simulação não modela velocidade de
-	// ataque, que em jogo joga mais a favor da Destreza.
-	dano: faixaDoEixo{10, 85}, // pontos no multiplicador
-	hp:   faixaDoEixo{5, 25},  // % sobre o HP pós-equipamento
-	ac:   faixaDoEixo{5, 25},  // % sobre a AC pós-equipamento
-	vel:  faixaDoEixo{40, 5},  // velocidade de ataque: a Destreza é que corre
-	crit: faixaDoEixo{25, 0},  // byte do crítico: o da Força vem da empunhadura
+	// combat/critical.go:106).
+	//
+	// Os dois números saem das fichas REAIS medidas em jogo (TestEfeitoDoAjuste*
+	// em simulacao_natureza_test.go), não de um empate teórico: 93 põe o DanoPRZ
+	// em +2.098 de ataque e 104 põe o olaola em +507, que foi o pedido. A Força
+	// segue na frente, e é isso que o eixo promete.
+	dano: faixaDoEixo{57, 104}, // pontos no multiplicador
+	// A vida CAI nos dois lados, e mais na Força: ver o bloco do topo. Calibrado
+	// para −5.077 no DanoPRZ e −12.047 no olaola.
+	hp:   faixaDoEixo{-38, -55}, // % sobre o HP pós-equipamento
+	ac:   faixaDoEixo{5, 25},    // % sobre a AC pós-equipamento
+	vel:  faixaDoEixo{40, 5},    // velocidade de ataque: a Destreza é que corre
+	crit: faixaDoEixo{25, 0},    // byte do crítico: o da Força vem da empunhadura
+	// O ACERTO é o espelho da velocidade, e fecha o eixo. A Destreza tinha DUAS
+	// funções de graça: esquivar quando defende e furar esquiva quando ataca (o
+	// −attackerDex de combat/critical.go:106). A ponta de Força era esquivada 33%
+	// das vezes contra 5% da de Destreza, com a melhor ficha do elenco na mão —
+	// bater mais forte não resolvia, porque o golpe não chegava. Isto tira da
+	// Destreza a metade ofensiva do presente, e entra em milésimos na precisão
+	// (precisaoDe, combat.go), que é a mesma unidade da esquiva do alvo.
+	// 140 é do torneio, não do dano por segundo: acima disso a ponta de Força
+	// passa o Paladino e o irmão de Destreza (150 deu 62 vitórias contra 45 do
+	// Destreza), e abaixo ela não vence a poção (100 deu 40). Em 140 as duas
+	// pontas do eixo empatam, 54 e 58, e as duas ficam atrás do Paladino.
+	acerto: faixaDoEixo{0, 140},
 }
 
 // eixoDaForma é o eixo do personagem deslocado pela afinidade da forma.
@@ -417,6 +442,7 @@ func aplicarMetamorfoseSuperior(e *world.Entity, forma int) {
 	e.AffAC += e.AC * int32(camadaDaForma(e, forma, naturezaCamada.ac)) / 100
 	e.AffAttackSpeed += int32(camadaDaForma(e, forma, naturezaCamada.vel))
 	e.AffCritical += int16(camadaDaForma(e, forma, naturezaCamada.crit))
+	e.AffAccuracy += int32(camadaDaForma(e, forma, naturezaCamada.acerto))
 }
 
 // ---------------------------------------------------------------------------

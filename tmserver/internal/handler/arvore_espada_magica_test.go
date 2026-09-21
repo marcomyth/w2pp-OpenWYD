@@ -67,7 +67,9 @@ func TestArmaDaEspadaMagica(t *testing.T) {
 		nome string
 		arma int16
 		want int
-	}{{"lança", lanca, 140}, {"espada de 2 mãos", espada, 100}, {"sem arma", 0, 100}} {
+		// O número da lança sai do botão: o torneio o move, e o que este teste
+		// prova é que a árvore paga a lança e mais nada.
+	}{{"lança", lanca, espadaMagicaLancaPct}, {"espada de 2 mãos", espada, 100}, {"sem arma", 0, 100}} {
 		e := tkDaEspadaMagica(2848, learnedTempestadeDeGelo, 255)
 		e.Equip[weaponSlotR] = world.Item{Index: c.arma}
 		if got := armaPctEspadaMagica(e, ability); got != c.want {
@@ -292,7 +294,10 @@ func TestLancaDaEspadaMagicaNoGolpe(t *testing.T) {
 		return total
 	}
 	com, sem := soma(lanca), soma(espada)
-	if razao := float64(com) / float64(sem); razao < 1.35 || razao > 1.45 {
-		t.Fatalf("lança/espada = %.3f (%d/%d), want perto de 1,40", razao, com, sem)
+	// A razão esperada sai do botão, que o torneio move; a margem é do sorteio de
+	// dano, que é o mesmo dos dois lados.
+	quer := float64(espadaMagicaLancaPct) / float64(espadaMagicaArmaPct)
+	if razao := float64(com) / float64(sem); razao < quer*0.95 || razao > quer*1.05 {
+		t.Fatalf("lança/espada = %.3f (%d/%d), want perto de %.2f", razao, com, sem, quer)
 	}
 }

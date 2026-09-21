@@ -83,8 +83,12 @@ func TestMeditacaoNoScoreComAOitava(t *testing.T) {
 	e.AC = 100
 	e.Affect[0] = world.Affect{Type: affectMeditacao, Value: 15, Level: 255}
 	applyAffectScore(e)
-	if e.AffAC != -(255/3+10) || e.AffDamageMultiPct != 155 {
-		t.Fatalf("AffAC/Multi = %d/%d, want %d/155", e.AffAC, e.AffDamageMultiPct, -(255/3 + 10))
+	// 155 é a Meditação; o resto é o BOTÃO de dano físico da 8ª, que entra no
+	// mesmo multiplicador (arvore_troca.go). Ler o botão em vez de um número
+	// fixo deixa o teste sobreviver ao próximo ajuste de balanceamento.
+	quer := int32(155 + sobrevivenciaDanoFisicoOitava)
+	if e.AffAC != -(255/3+10) || e.AffDamageMultiPct != quer {
+		t.Fatalf("AffAC/Multi = %d/%d, want %d/%d", e.AffAC, e.AffDamageMultiPct, -(255/3 + 10), quer)
 	}
 }
 

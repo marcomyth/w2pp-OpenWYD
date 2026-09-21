@@ -49,21 +49,34 @@ const evocacaoMaestriaCheia = 320
 // por segundo, resolvidos de trás para frente pela cabeça e pela curva, para a
 // coluna da direita crescer do começo ao fim da árvore.
 //
-// A Succubus é a 8ª e foi posta no DOBRO do bando de Tigres, a pedido — o que a
-// deixa valendo, sozinha, tanto quanto o TK-MAGO inteiro (3.302/s medido).
+// O TETO DO BANDO (21/09/2026). A Succubus era o DOBRO do bando de Tigres, a
+// pedido, e o Dragão Negro fora posto para caber entre os dois. Quando o BM
+// Evocador finalmente entrou no torneio, em 21/09, ele fez 117 vitórias em 130
+// lutas — quase o dobro do segundo colocado. Medido contra o elenco inteiro, o
+// bando respondia por 72% do dano dele e tirava 2.995/s SOZINHO, com o dono
+// parado, contra uma poção que levanta 2.000/s.
 //
-// O Dragão Negro custou 1.320 por cabeça para caber entre o Tigre e a Succubus.
-// Parece alto ao lado dos 650 do Tigre e é: ele sai em 5 cabeças contra 8, e o
-// que se equaliza aqui é sempre o bando, nunca o golpe.
+// O teto é essa poção. Um bando que passa dela sozinho decide a luta sem que o
+// dono jogue e sem que o alvo tenha resposta, porque o dano do bando é paralelo
+// ao do dono: ele não ocupa o turno de ninguém. Os dois últimos degraus foram
+// trazidos para baixo dela, e o Evocador passou de 117 para 59 vitórias — a
+// faixa da Black (58) e do BM Elemental (52).
+//
+// A progressão continua crescendo do começo ao fim, que é a regra da tabela, mas
+// os degraus do topo ficam apertados (1.832 → 1.840 → 1.853). É a saturação
+// esperada: com o Tigre já em 1.733 e o teto em ~1.850, as três últimas
+// criaturas dividem 120 pontos. Baixar o topo mais do que isso exigiria
+// reescalar a árvore inteira, e as seis primeiras não foram medidas como
+// problema — quem não tem a 8ª nem chega à maestria cheia em que a tabela vale.
 var evocacaoDano = [9]int{
-	300,  // 0 Condor         12 cabeças → 1.150/s
-	390,  // 1 Javali         10        → 1.250/s
-	425,  // 2 Lobo           10        → 1.350/s
-	505,  // 3 Urso            9        → 1.450/s
-	650,  // 4 Tigre           8        → 1.653/s  (número do operador)
-	785,  // 5 Gorila          7        → 1.750/s
-	1320, // 6 Dragão Negro    5        → 2.098/s
-	2600, // 7 Succubus        4        → 3.307/s  (o dobro do Tigre)
+	300,  // 0 Condor         12 cabeças → 1.200/s
+	390,  // 1 Javali         10        → 1.300/s
+	425,  // 2 Lobo           10        → 1.417/s
+	505,  // 3 Urso            9        → 1.515/s
+	650,  // 4 Tigre           8        → 1.733/s  (número do operador)
+	785,  // 5 Gorila          7        → 1.832/s
+	1104, // 6 Dragão Negro    5        → 1.840/s  (era 1.320 → 2.200/s)
+	1390, // 7 Succubus        4        → 1.853/s  (era 2.600 → 3.467/s)
 	0,    // 8 Invocação Final: sem regra própria, como em summonBonus
 }
 
@@ -77,7 +90,8 @@ var evocacaoDano = [9]int{
 // O legado deixa cada monstro agir a cada 2 s (ProcessSecMinTimer roda duas
 // vezes por segundo e varre um quarto do pMob por vez, :2024). Os 3 s são
 // escolha de quem opera, mais lentos que o original de propósito.
-const evocacaoCadenciaMs = 3000
+// É var porque a simulação o varre (simulacao_torneio_test.go).
+var evocacaoCadenciaMs = uint32(3000)
 
 // danoDaEvocacaoEmJogador é o golpe de uma cabeça num jogador: o número da
 // criatura, escalado pela Evocação do dono, curvado pela defesa do alvo.

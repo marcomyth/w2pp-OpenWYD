@@ -273,7 +273,7 @@ func (sm *simulador) acaoHT(l *lado, alvo *world.Entity, agora int64) golpe {
 		sp, _ := sm.d.spells.Get(sk)
 		espera := int64(sp.Delay) * 1000
 		if sk == skillTempestadeDeFlechas {
-			espera = tempestadeRecargaMs
+			espera = int64(tempestadeRecargaMs)
 		}
 		l.cd[sk] = agora + max(espera, simPasso)
 		return sm.skill(l, alvo, sk)
