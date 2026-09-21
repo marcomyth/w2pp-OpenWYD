@@ -765,16 +765,20 @@ func (d *Dispatcher) capaverdeTrade(w *world.World, s *world.Session, e *world.E
 	d.log.Info("capaverde trade complete", "conn", s.Conn, "name", e.Name)
 }
 
+// A faixa que o NPC anuncia na placa dele ("Level requerido [201 - 255]") e a
+// que o codigo usava (199..253) nunca bateram. Desde 21/09/2026 vale a placa no
+// minimo e um teto proprio: 201 a 351, decisao do Marco ao reformar a quest do
+// molar. Sao os dois limites INCLUSIVOS.
 const (
-	molarGargulaMinLevel = 199
-	molarGargulaMaxLevel = 254
+	molarGargulaMinLevel = 201
+	molarGargulaMaxLevel = 351
 )
 
 // molarGargula handles MOLARGARGULA (Merchant 100, EF_GRADE0 15):
 // _MSG_Quest.cpp:2236-2255. No item, no persisted flag, no confirm gate — a
 // pure level/class-gated teleport.
 func (d *Dispatcher) molarGargula(w *world.World, s *world.Session, e *world.Entity) {
-	if e.ClassMaster != classMasterMortal || e.Level < molarGargulaMinLevel || e.Level >= molarGargulaMaxLevel {
+	if e.ClassMaster != classMasterMortal || e.Level < molarGargulaMinLevel || e.Level > molarGargulaMaxLevel {
 		d.notify(w, s, NoticeReqNotMet)
 		return
 	}

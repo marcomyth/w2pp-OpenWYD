@@ -654,6 +654,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useLegacyBuffConsumable(w, s, e, src, vol)
 	case vol == volArchCrystal:
 		d.useArchCrystal(w, s, e, src)
+	case vol == volMolarGargula:
+		d.useMolarGargula(w, s, e, src)
 	case vol == volPedraIdeal:
 		d.useIdealStone(w, s, e, src)
 	case vol == volExpChest:

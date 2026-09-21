@@ -677,6 +677,7 @@ func characterStateFromProto(c *dbv1.Character) world.CharacterState {
 		CelCircle:            uint8(c.GetCelestialCircle()),
 		TerraMistica:         uint8(c.GetMortalTerraMistica()),
 		NewbieQuest:          uint8(c.GetMortalNewbie()),
+		MolarGargula:         uint8(c.GetMortalMolar()),
 		Soul:                 uint8(c.GetSoul()),
 		Fame:                 c.GetFame(),
 		PKPoint:              uint8(c.GetPkPoint()),
@@ -812,6 +813,7 @@ func characterSaveToProto(s world.CharacterSave) *dbv1.Character {
 		// column from whatever the request carries, so a field left out here is
 		// written back as zero and the quest starts over at every logout.
 		MortalNewbie:         int32(s.NewbieQuest),
+		MortalMolar:          int32(s.MolarGargula),
 		PkPoint:              int32(s.PKPoint),
 		Guilty:               int32(s.Guilty),
 		CurKill:              int32(s.CurKill),

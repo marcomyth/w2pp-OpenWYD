@@ -318,6 +318,11 @@ message Character {
   // Pergaminho_Selado for 100 and each passage through the Hall tile spends one
   // (migration 0068).
   int32 kefra_ticket = 55;
+  // MobExtra.QuestInfo.Mortal: o Molar de Gárgula já foi usado por este
+  // personagem (0093). O molar sobe o set vestido para +7 uma única vez, então a
+  // marca tem de sobreviver ao relog — é o que distingue esta quest do teleporte
+  // do mesmo NPC, que não guarda estado nenhum.
+  int32 mortal_molar = 56;
 }
 
 message Item {
