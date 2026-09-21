@@ -1960,10 +1960,14 @@ func celestialArchBand(level int32) uint8 {
 }
 
 const (
-	magicBeanBase      = 3407
-	magicBeanRemover   = 10
-	magicBeanPaintLo   = 116
-	magicBeanPaintHi   = 125
+	magicBeanBase    = 3407
+	magicBeanRemover = 10
+	magicBeanPaintLo = 116
+	magicBeanPaintHi = 125
+	// A faixa de slots que aceita tintura: do 1 ao 7, o que inclui as duas armas
+	// (weaponSlotR=6, weaponSlotL=7) e deixa de fora o corpo (slot 0) e a bolsa.
+	// É a mesma faixa do legado (_MSG_UseItem.cpp:3781, que recusa DestPos 0 e
+	// 8..15) — a arma não é exceção lá.
 	magicBeanFirstSlot = 1
 	magicBeanLastSlot  = 7
 )
@@ -1972,14 +1976,17 @@ const (
 // by stamping only the destination effect id byte, preserving the cValue exactly
 // as _MSG_UseItem.cpp:3767-3861 does. Paint effects reuse the sanc effect slots:
 // 116..125 are colors, while EF_SANC (43) is the remover/neutral marker.
+//
+// A arma pinta como qualquer outra peça. Houve um gate que exigia moderador nos
+// slots 6 e 7 (9e9a0b00); ele saiu porque os dois riscos que o justificariam não
+// existem: o cliente já desenha arma pintada — o brilho do refino tem um terceiro
+// ponto de desenho, em WYD.exe 0x4D81E8, com a mesma fórmula dos outros dois — e
+// a cor não come o refino, porque refine.Level lê 116..125 antes de EF_SANC,
+// igual a BASE_GetItemSanc (Basedef.cpp:2141).
 func (d *Dispatcher) useMagicBean(w *world.World, s *world.Session, e *world.Entity, body protocol.MsgUseItemBody, src int) {
 	dstSlot := int(body.DestPos)
 	if int(body.DestType) != world.ItemPlaceEquip || dstSlot < magicBeanFirstSlot || dstSlot > magicBeanLastSlot {
 		d.magicBeanReject(w, s, e, src, NoticeOnlyToEquips)
-		return
-	}
-	if magicBeanWeaponSlot(dstSlot) && s.AccessLevel < world.AccessModerator {
-		d.magicBeanReject(w, s, e, src, NoticeCantUseHere)
 		return
 	}
 	dst := d.itemSlot(w, s, e, int(body.DestType), dstSlot)
@@ -2039,10 +2046,6 @@ func (d *Dispatcher) useMagicBean(w *world.World, s *world.Session, e *world.Ent
 func (d *Dispatcher) magicBeanReject(w *world.World, s *world.Session, e *world.Entity, src int, n Notice) {
 	d.notify(w, s, n)
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
-}
-
-func magicBeanWeaponSlot(slot int) bool {
-	return slot == weaponSlotR || slot == weaponSlotL
 }
 
 func magicBeanEffectSlot(it world.Item, remover bool) int {
