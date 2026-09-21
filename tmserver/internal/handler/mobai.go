@@ -129,6 +129,9 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.tickPortoesDoCampo(w)
 	d.tickPesadelo(w)
 	d.tickFairies(w)
+	// Depois de tickFairies, de propósito: a fada que acabou de vencer some do
+	// slot ali, e quem estava no Vale com ela sai nesta mesma passagem (vale.go).
+	d.sweepVale(w)
 	d.respawnMobs(w)
 	d.generateMobs(w)
 	d.reporArenas(w)

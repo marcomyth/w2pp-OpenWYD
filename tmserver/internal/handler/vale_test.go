@@ -148,7 +148,7 @@ func TestValeComOutraFadaNaoLeva(t *testing.T) {
 // Com a Fada do Vale no slot 13 a rota funciona como no legado.
 func TestValeComFadaDoValeLeva(t *testing.T) {
 	db := newDB()
-	db.loadResult = fichaNoPisoDoVale(itemFadaDoVale)
+	db.loadResult = fichaNoPisoDoVale(fadaDoValeIndex)
 	addr, stop, w := startServerVale(t, db)
 	defer stop()
 	c := enterWorld(t, addr)
@@ -177,4 +177,128 @@ func esperarPosicao(t *testing.T, w *world.World, cond func(x, y int16) bool) (i
 	}
 	t.Fatal("o jogador não saiu do piso")
 	return 0, 0
+}
+
+// startServerValeComTique é o mesmo servidor, com o laço batendo: a varredura do
+// Vale mora no Tick, não no socket.
+func startServerValeComTique(t *testing.T, db world.Persistence) (string, func(), *world.World) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	d := New(Config{Log: log})
+	w := world.New(world.Config{GridDim: 4096}, log, db, d.Handle)
+	w.SetTickHandler(10*time.Millisecond, d.Tick)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = w.Serve(ctx, ln); close(done) }()
+	stop := func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Error("o servidor não parou")
+		}
+	}
+	return ln.Addr().String(), stop, w
+}
+
+// fichaDentroDoVale é a ficha de quem está no meio do Vale, com a fada que o
+// teste quiser. fada 0 = slot vazio.
+func fichaDentroDoVale(fada int16) world.CharacterState {
+	st := world.CharacterState{
+		Slot: 0, Name: "Heroi", Level: 330,
+		X: valeDestX, Y: valeDestY,
+		HP: 1000, MaxHP: 1000,
+	}
+	if fada != 0 {
+		st.Equip[fairyEquipSlot] = world.Item{Index: fada}
+	}
+	return st
+}
+
+// Quem está dentro do Vale sem a fada é mandado para Azran. É o que cobre quem
+// entrou enquanto a rota estava sem condição — a porta sozinha não os alcança.
+func TestValeExpulsaQuemNaoTemFada(t *testing.T) {
+	db := newDB()
+	db.loadResult = fichaDentroDoVale(0)
+	addr, stop, w := startServerValeComTique(t, db)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	if got, want := esperarMensagem(t, c, "Fada do Vale"), noticeText[NoticeValeSemFada]; got != want {
+		t.Errorf("aviso = %q, want %q", got, want)
+	}
+	x, y := esperarPosicao(t, w, func(x, y int16) bool { return !valeBox.contains(x, y) })
+	if x != valeSaidaX || y != valeSaidaY {
+		t.Errorf("saiu para (%d,%d), want a saída de Azran (%d,%d)", x, y, valeSaidaX, valeSaidaY)
+	}
+}
+
+// Com a fada, ninguém é tirado de lá: a varredura não pode virar uma expulsão
+// geral do Vale.
+func TestValeNaoExpulsaQuemTemFada(t *testing.T) {
+	db := newDB()
+	db.loadResult = fichaDentroDoVale(fadaDoValeIndex)
+	addr, stop, w := startServerValeComTique(t, db)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	// Tempo de sobra para várias voltas da varredura (10ms por tique, uma
+	// varredura a cada quatro).
+	time.Sleep(300 * time.Millisecond)
+
+	x, y := posicaoNoLaco(t, w)
+	if !valeBox.contains(x, y) {
+		t.Errorf("tiraram do Vale quem tem a fada: foi parar em (%d,%d)", x, y)
+	}
+}
+
+// A fada que vence dentro do Vale põe o dono para fora. tickFairies limpa o slot
+// e a varredura vem logo atrás, na mesma passagem do laço.
+func TestValeExpulsaQuandoAFadaSai(t *testing.T) {
+	db := newDB()
+	db.loadResult = fichaDentroDoVale(fadaDoValeIndex)
+	addr, stop, w := startServerValeComTique(t, db)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	time.Sleep(100 * time.Millisecond)
+	if x, y := posicaoNoLaco(t, w); !valeBox.contains(x, y) {
+		t.Fatalf("o jogador saiu do Vale antes de perder a fada, em (%d,%d)", x, y)
+	}
+	// A fada sai do slot — é o que tickFairies faz quando o prazo acaba e o que
+	// acontece quando o jogador a desequipa.
+	noLacoDoMundo(t, w, func(w *world.World) {
+		w.ForEachPlaying(-1, func(_ *world.Session, e *world.Entity) {
+			e.Equip[fairyEquipSlot] = world.Item{}
+		})
+	})
+
+	x, y := esperarPosicao(t, w, func(x, y int16) bool { return !valeBox.contains(x, y) })
+	if x != valeSaidaX || y != valeSaidaY {
+		t.Errorf("saiu para (%d,%d), want a saída de Azran (%d,%d)", x, y, valeSaidaX, valeSaidaY)
+	}
+}
+
+// A caixa da varredura é a do Regions.txt inteira, não o ponto de chegada: quem
+// anda para o canto do Vale continua dentro dele.
+func TestCaixaDoValeCobreARegiaoInteira(t *testing.T) {
+	dentro := [][2]int16{{2173, 3583}, {2307, 3711}, {valeDestX, valeDestY}, {2240, 3650}}
+	for _, p := range dentro {
+		if !valeBox.contains(p[0], p[1]) {
+			t.Errorf("(%d,%d) ficou fora da caixa e está dentro do Vale", p[0], p[1])
+		}
+	}
+	fora := [][2]int16{{2172, 3650}, {2308, 3650}, {2240, 3582}, {2240, 3712}, {valePisoX, valePisoY}}
+	for _, p := range fora {
+		if valeBox.contains(p[0], p[1]) {
+			t.Errorf("(%d,%d) entrou na caixa e está fora do Vale", p[0], p[1])
+		}
+	}
 }

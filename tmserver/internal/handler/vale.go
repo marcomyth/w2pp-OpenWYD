@@ -21,15 +21,29 @@ import (
 // tinha a rota na tabela SEM a condição, então qualquer um pisava e ia parar num
 // vale que é a casa de dois chefes de milhões de HP.
 const (
-	// itemFadaDoVale é o 3916 "Fada_do_Vale(7dias)" do ItemList.csv — a chave, e a
-	// única: nenhuma das outras fadas abre o Vale.
-	itemFadaDoVale = 3916
-
 	valePisoX = 2548
 	valePisoY = 1740
 	valeDestX = 2281
 	valeDestY = 3688
+
+	// valeSaidaX/Y é para onde a varredura manda quem está no Vale sem a fada: o
+	// mesmo ponto de Azran que o comando /azran usa (chat.go), dentro da cidade e
+	// longe de qualquer piso de teleporte — cair em cima de um mandaria o jogador
+	// para outro lugar no passo seguinte.
+	valeSaidaX = 2500
+	valeSaidaY = 1716
+
+	// valeSweepPeriod é de quantos em quantos tiques de 1 s a varredura roda.
+	// Quatro segundos é o bastante para que tirar a fada signifique sair, sem
+	// varrer a lista de jogadores a cada pulso.
+	valeSweepPeriod = 4
 )
+
+// valeBox é a caixa do Vale Escondido, a mesma do Regions.txt
+// ("2173, 3583, 2307, 3711 = Vale_Escondido"). A varredura usa a região inteira,
+// e não o ponto de chegada, porque o que se quer é "não há ninguém sem fada
+// dentro do Vale", não "ninguém aterrissou ali".
+var valeBox = areaBox{2173, 3583, 2307, 3711}
 
 // noPisoDoVale diz se a posição está no bloco 4x4 do piso de Azran. O legado
 // arredonda para múltiplo de 4 antes de comparar (GetFunc.cpp:784-785), então é
@@ -48,7 +62,7 @@ func destinoDoVale(intn func(int) int) (int16, int16) {
 // sIndex direto, sem olhar prazo nem efeito: a fada vencida já saiu do slot pelo
 // caminho normal dos itens com prazo.
 func temFadaDoVale(e *world.Entity) bool {
-	return e.Equip[fairyEquipSlot].Index == itemFadaDoVale
+	return e.Equip[fairyEquipSlot].Index == fadaDoValeIndex
 }
 
 // entraNoVale é o piso de Azran que leva ao Vale Escondido. Devolve true quando o
@@ -71,4 +85,32 @@ func (d *Dispatcher) entraNoVale(w *world.World, s *world.Session, e *world.Enti
 	x, y := destinoDoVale(w.Rand().Intn)
 	d.doTeleport(w, s, x, y)
 	return true
+}
+
+// sweepVale tira do Vale quem está lá dentro sem a Fada do Vale.
+//
+// Esta parte NÃO é do legado, que só condiciona a entrada: quem entrasse e
+// perdesse a fada ficava. É decisão desta operação (20/09/2026) — "só pode
+// entrar com fada, nunca sem fada" — e ela é o que cobre os três casos que a
+// porta sozinha deixa passar: quem entrou enquanto a rota estava sem condição,
+// quem tira a fada depois de chegar, e quem está lá quando os sete dias dela
+// acabam (tickFairies limpa o slot, ProcessSecMinTimer.cpp:612).
+//
+// Manda para Azran, de onde se entra, e avisa — um personagem que muda de mapa
+// sozinho e em silêncio parece um servidor com defeito.
+//
+// LOOP ONLY.
+func (d *Dispatcher) sweepVale(w *world.World) {
+	if d.tickCount%valeSweepPeriod != 0 {
+		return
+	}
+	w.ForEachPlaying(-1, func(s *world.Session, e *world.Entity) {
+		if !valeBox.contains(e.X, e.Y) || temFadaDoVale(e) {
+			return
+		}
+		d.notify(w, s, NoticeValeSemFada)
+		d.doTeleport(w, s, valeSaidaX, valeSaidaY)
+		d.log.Info("tirado do Vale sem a Fada do Vale",
+			"account", s.AccountName, "conn", s.Conn, "x", e.X, "y", e.Y)
+	})
 }
