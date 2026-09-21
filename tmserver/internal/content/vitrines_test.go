@@ -1,56 +1,113 @@
 package content
 
 import (
-	"encoding/binary"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/jeanluca/w2pp-openwyd/internal/savefmt"
 )
 
-// Itens que a limpeza de lojas do lançamento tirou de toda vitrine (migração
-// 0092). O Coral fechou a família das quatro pedras que a 0086 começou; o
-// Lactolerium 100 é o refino garantido, que a 0088 tirou do drop e deixou nas
-// lojas de propósito, para um pedido depois.
+// Itens que a limpeza de lojas do lançamento tirou de TODA vitrine.
 const (
-	coral           = 2443
-	lactolerium100  = 4141
+	coral          = 2443 // migração 0092: fechou a família que a 0086 começou
+	lactolerium100 = 4141 // migração 0092: o refino garantido, fora do drop na 0088
+
+	// Migração 0094: os dez da vitrine do Martin — as três poções de trinta
+	// dias, as três Esferas da Sorte (que nenhuma linha de código lê), a Poção
+	// Poderosa, as Ervas de Cura e as duas Caixas de Poção.
+	pocaoDivina30  = 3381
+	pocaoSephira30 = 3363
+	pocaoSaude30   = 3366
+	esferaDaSorteN = 4128
+	esferaDaSorteM = 4129
+	esferaDaSorteA = 4130
+	pocaoPoderosa  = 3431
+	ervasDeCura    = 415
+	caixaPocaoCura = 3322
+	caixaPocaoMana = 3323
+
 	pedidoDeCaca    = 3432 // 3432-3437: Armia, Dung, SubM, Kult, Kefra, Nipple
 	pedidoDeCacaFim = 3437
 	pedidoMaximo    = 10
 )
 
-// structMobMerchant é CurrentScore.Merchant, o byte que decide se o template
-// abre loja — 92 (CurrentScore) + 12 (savefmt/codec.go:54). Não confundir com
-// Mob.Merchant, no byte 17, que é outro campo: quem serve vitrine no port é
-// este (dbserver/cmd/dbserver/main.go:188).
-const structMobMerchant = 104
+// foraDeTodaVitrine é a lista inteira, com o nome que a falha vai imprimir.
+var foraDeTodaVitrine = map[int]string{
+	coral:          "o Coral",
+	lactolerium100: "o Lactolerium 100",
+	pocaoDivina30:  "a Poção Divina(30dias)",
+	pocaoSephira30: "a Poção Sephira(30dias)",
+	pocaoSaude30:   "a Poção de Saúde(30dias)",
+	esferaDaSorteN: "a Esfera da Sorte(N)",
+	esferaDaSorteM: "a Esfera da Sorte(M)",
+	esferaDaSorteA: "a Esfera da Sorte(A)",
+	pocaoPoderosa:  "a Poção Poderosa",
+	ervasDeCura:    "as Ervas de Cura",
+	caixaPocaoCura: "a Caixa de Poção de Cura",
+	caixaPocaoMana: "a Caixa de Poção de Mana",
+}
 
 // efAmount é o EF_AMOUNT do legado, o par de efeito que carrega o tamanho da
 // pilha vendida.
 const efAmount = 61
 
+// shopSlot mapeia a vaga da janela de loja para o índice no Carry: três abas de
+// nove, como protocol.ShopSlot.
+func shopSlot(i int) int { return (i % 9) + (i/9)*27 }
+
+// molde são os offsets de Carry e de Merchant de um layout de template.
+//
+// TRÊS tamanhos convivem em Release/TMsrv/run/npc/: 1.792 no canônico de 816,
+// 207 no legado de 756 e 15 no mesmo 756 com 164 bytes de lixo no fim
+// (savefmt.DetectMobVersion). Os offsets do legado são OUTROS, e uma varredura
+// que só aceita 816 deixa 222 arquivos sem olhar — foi exatamente assim que a
+// Fada do Vale continuou à venda no Utilidades depois do commit que dizia
+// tê-la tirado de todas as lojas, e que o Coral e o Lactolerium 100 sobraram
+// em quatro vitrines.
+type molde struct{ carry, merchant int }
+
+func moldeDe(b []byte) (molde, bool) {
+	switch len(b) {
+	case savefmt.MobSize:
+		// CurrentScore em 92, Merchant em +12 (savefmt/codec.go:54).
+		return molde{carry: 268, merchant: 104}, true
+	case savefmt.MobSizeLegacy756, savefmt.MobSizeLegacy756Padded:
+		// CurrentScore em 64, Merchant em +6 do score compacto de 28 bytes.
+		return molde{carry: 220, merchant: 70}, true
+	}
+	return molde{}, false
+}
+
 // vitrine devolve as 27 vagas de loja de um template de mercador, ou nil quando
-// o template não é mercador. Só 1 e 19 abrem loja (npcpanel.IsShop) — o Carry de
-// um monstro é tabela de drop, e varrer isso como se fosse loja acusa o Coral
-// que cai do Adamant Tauron.
+// o template não é mercador nem tem layout conhecido.
+//
+// Só Merchant 1 e 19 abrem loja (npcpanel.IsShop) — o Carry de quem tem
+// Merchant 0 é tabela de DROP, e varrer isso como vitrine acusa o Coral que cai
+// do Adamant Tauron.
 func vitrine(b []byte) []int {
-	if len(b) != BaseMobSize {
+	m, ok := moldeDe(b)
+	if !ok {
 		return nil
 	}
-	if m := b[structMobMerchant]; m != 1 && m != 19 {
+	if q := b[m.merchant]; q != 1 && q != 19 {
 		return nil
 	}
 	vagas := make([]int, 27)
 	for i := range vagas {
-		off := structMobCarry + shopSlot(i)*8
-		vagas[i] = int(binary.LittleEndian.Uint16(b[off : off+2]))
+		off := m.carry + shopSlot(i)*8
+		vagas[i] = int(b[off]) | int(b[off+1])<<8
 	}
 	return vagas
 }
 
 // quantidade lê o EF_AMOUNT da vaga i; sem o par, a loja vende a unidade.
 func quantidade(b []byte, i int) int {
-	off := structMobCarry + shopSlot(i)*8
+	m, ok := moldeDe(b)
+	if !ok {
+		return 1
+	}
+	off := m.carry + shopSlot(i)*8
 	for k := 0; k < 3; k++ {
 		if b[off+2+k*2] == efAmount {
 			return int(b[off+3+k*2])
@@ -59,10 +116,10 @@ func quantidade(b []byte, i int) int {
 	return 1
 }
 
-// cadaTemplate roda fn sobre todo template de Release/TMsrv/run/npc/ e cobra um
-// piso de leitura: sem ele o teste passa com um diretório vazio, que é o
-// resultado de qualquer erro de caminho — e passar por não ter olhado nada é o
-// modo de falha que estes testes existem para não ter.
+// cadaTemplate roda fn sobre todo template de Release/TMsrv/run/npc/ com layout
+// conhecido, e cobra um piso de leitura: sem ele o teste passa com um diretório
+// vazio, que é o resultado de qualquer erro de caminho — e passar por não ter
+// olhado nada é o modo de falha que estes testes existem para não ter.
 func cadaTemplate(t *testing.T, fn func(nome string, b []byte)) {
 	t.Helper()
 	dir := release(t, "TMsrv", "run", "npc")
@@ -76,25 +133,27 @@ func cadaTemplate(t *testing.T, fn func(nome string, b []byte)) {
 			continue
 		}
 		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil || len(b) != BaseMobSize {
+		if err != nil {
+			continue
+		}
+		if _, ok := moldeDe(b); !ok {
 			continue
 		}
 		vistos++
 		fn(e.Name(), b)
 	}
-	if vistos < 1000 {
+	// São 2.014 arquivos nos três layouts. O piso descarta o diretório vazio e,
+	// acima de 1.800, também a varredura que perdeu um layout inteiro.
+	if vistos < 1800 {
 		t.Fatalf("só %d templates lidos em %s; a varredura não olhou o conteúdo", vistos, dir)
 	}
 }
 
-func TestNenhumaVitrineVendeCoralNemLactolerium100(t *testing.T) {
+func TestNenhumaVitrineVendeOsItensRetirados(t *testing.T) {
 	cadaTemplate(t, func(nome string, b []byte) {
 		for i, item := range vitrine(b) {
-			switch item {
-			case coral:
-				t.Errorf("%s oferece o Coral na vaga %d", nome, i)
-			case lactolerium100:
-				t.Errorf("%s oferece o Lactolerium 100 na vaga %d", nome, i)
+			if oQue, fora := foraDeTodaVitrine[item]; fora {
+				t.Errorf("%s (%d bytes) oferece %s na vaga %d", nome, len(b), oQue, i)
 			}
 		}
 	})

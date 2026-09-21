@@ -200,10 +200,18 @@ func TestOnlyShopsReal(t *testing.T) {
 	// (migração 0085). O NPC em si é desativado pela 0083, mas este escopo lê a
 	// ÁRVORE DE CONTEÚDO, não o banco, então ele continua aparecendo aqui — agora
 	// de vitrine vazia.
+	//
+	// Os dois Martin e a Cap_Rowena entraram pela migração 0094, pelo mesmo
+	// motivo: tudo o que vendiam saiu de toda loja. O Martin era a vitrine que o
+	// pedido apontou — duas Caixas de Poção, a Poção Poderosa, as Ervas de Cura,
+	// as três poções de trinta dias e as três Esferas da Sorte, dez de dez — e a
+	// Cap_Rowena vendia só a Poção Poderosa. Os NPCs continuam no mundo; quem
+	// esvaziou foi a prateleira.
 	wantEmpty := map[string]bool{
 		"Prona-22": true, "Prona-4232": true, "Irena_-289": true, "Lainy-286": true,
 		"RoPerion-288": true, "Balmers-271": true, "Naomi-273": true, "Rubyen-272": true,
 		"Evento-6071": true,
+		"Martin-270":  true, "Martin-3425": true, "Cap_Rowena-6058": true,
 	}
 	gotEmpty := map[string]bool{}
 	for _, n := range shops.NPCs {
