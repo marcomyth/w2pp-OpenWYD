@@ -735,6 +735,7 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgMessageChat] = d.messageChat
 	d.routes[protocol.MsgMessageWhisper] = d.messageWhisper
 	d.routes[protocol.MsgApplyBonus] = d.applyBonus
+	d.routes[protocol.MsgPontosEmLote] = d.pontosEmLote
 	d.routes[protocol.MsgSetShortSkill] = d.setShortSkill
 	d.routes[protocol.MsgAccountSecure] = d.accountSecure
 	d.routes[protocol.MsgQuest] = d.quest

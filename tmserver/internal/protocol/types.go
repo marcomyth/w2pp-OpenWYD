@@ -128,6 +128,9 @@ const (
 	MsgHonraFecha  Type = 0x0F23 // C->S  fechei o painel da loja de honra
 	MsgHonraFechou Type = 0x0F24 // S->C  feche o painel: o NPC saiu de vista
 
+	// Pontos em lote na janela de Personagem (protocol/pontos_em_lote.go).
+	MsgPontosEmLote Type = 0x0F30 // C->S  gastar N pontos de uma vez num campo
+
 	MsgRestart          Type = 0x0289 // 649
 	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)
 	MsgSendReqParty     Type = 0x037F // 895  invite to party
