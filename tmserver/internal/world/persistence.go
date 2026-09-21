@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+// ErrPontosInsuficientes é o que AddShopPoints devolve quando o gasto pedido é
+// maior que o saldo de pontos da conta. É resposta prevista, não falha de banco:
+// quem cobra tem de dizer "você não tem pontos" e não "tente de novo".
+var ErrPontosInsuficientes = errors.New("pontos de lojinha insuficientes")
+
 // MobPerAccount is MOB_PER_ACCOUNT (Basedef.h:131): the number of character
 // slots per account.
 const MobPerAccount = 4
@@ -434,6 +439,10 @@ type Persistence interface {
 	// the database (balance = balance + delta), never by writing back a total the
 	// server computed, because two characters on the same account can be paid at
 	// the same time and a read-modify-write would lose one of them.
+	//
+	// Um delta NEGATIVO gasta pontos, e é assim que a Loja de Honra cobra. Um
+	// gasto maior que o saldo devolve ErrPontosInsuficientes e não move nada — nem
+	// saldo, nem extrato -, porque o banco desfaz a transação inteira.
 	AddShopPoints(ctx context.Context, accountID int64, delta int32, characterName, reason string) (int32, error)
 	ShopPoints(ctx context.Context, accountID int64) (int32, error)
 

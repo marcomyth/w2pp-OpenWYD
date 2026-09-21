@@ -119,6 +119,14 @@ const (
 	MsgLojaMercado      Type = 0x0F09 // S->C  clicou numa barraca: abre o mercado
 	MsgLojaFecha        Type = 0x0F0A // C->S  fechei o painel, pare de me avisar
 	MsgLojaMudou        Type = 0x0F0B // S->C  o mercado mudou; peca a pagina se estiver olhando
+
+	// Loja de Honra: o God of War trocando itens por pontos de lojinha. Tambem
+	// nossos, na mesma faixa. Ver protocol/lojahonra.go.
+	MsgHonraAbre   Type = 0x0F20 // S->C  o estoque e o saldo de quem clicou no NPC
+	MsgHonraCompra Type = 0x0F21 // C->S  quero a casa N do estoque
+	MsgHonraSaldo  Type = 0x0F22 // S->C  o saldo depois da compra
+	MsgHonraFecha  Type = 0x0F23 // C->S  fechei o painel da loja de honra
+
 	MsgRestart          Type = 0x0289 // 649
 	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)
 	MsgSendReqParty     Type = 0x037F // 895  invite to party

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	dbv1 "github.com/jeanluca/w2pp-openwyd/api/db/v1"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -1021,6 +1023,12 @@ func (c *Client) AddShopPoints(ctx context.Context, accountID int64, delta int32
 		CharacterName: characterName,
 		Reason:        reason,
 	})
+	// FailedPrecondition é o "não tem saldo" do dbServer (grpcsrv.AddShopPoints).
+	// Traduzido aqui de volta para a sentinela, para que quem cobra compare com
+	// errors.Is e não com texto de erro.
+	if status.Code(err) == codes.FailedPrecondition {
+		return 0, world.ErrPontosInsuficientes
+	}
 	if err != nil {
 		return 0, fmt.Errorf("dbclient: pontos de lojinha: %w", err)
 	}

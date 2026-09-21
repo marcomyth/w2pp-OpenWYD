@@ -2,8 +2,18 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// ErrPontosInsuficientes é resposta prevista, não falha: um gasto maior que o
+// saldo bate no CHECK (balance >= 0) da tabela e desfaz a transação inteira, o
+// extrato incluído. Quem gasta precisa distinguir isso de um banco fora do ar —
+// um é "você não tem pontos", o outro é "tente de novo" — então o código do
+// Postgres é traduzido aqui, no único lugar que o conhece.
+var ErrPontosInsuficientes = errors.New("store: pontos de lojinha insuficientes")
 
 // Shop-points wallet (0060_shop_points): the currency an open personal shop pays
 // its owner, 3 points per quarter-hour and 7 with a Fada Azul.
@@ -41,6 +51,10 @@ func (s *Store) AddShopPoints(ctx context.Context, accountID int64, delta int32,
 			SET balance = shop_points.balance + $2, updated_at = now()
 		RETURNING balance`, accountID, delta).Scan(&saldo)
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23514" { // check_violation
+			return 0, ErrPontosInsuficientes
+		}
 		return 0, fmt.Errorf("store: creditar pontos de lojinha: %w", err)
 	}
 

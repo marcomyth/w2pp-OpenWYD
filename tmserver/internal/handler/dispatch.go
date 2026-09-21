@@ -705,6 +705,10 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgLojaCompra] = d.lojaCompra
 	d.routes[protocol.MsgLojaCargo] = d.lojaCargo
 	d.routes[protocol.MsgLojaAbrir] = d.lojaAbrir
+	// Loja de Honra (loja_de_honra.go). Abrir nao tem rota: quem abre e o clique
+	// no NPC, que chega como MsgReqShopList.
+	d.routes[protocol.MsgHonraCompra] = d.honraCompra
+	d.routes[protocol.MsgHonraFecha] = d.honraFecha
 	// Batch 6 — combine/refine (one engine, all Item[]-based variants).
 	for _, ty := range combineItemTypes {
 		d.routes[ty] = d.combineItem

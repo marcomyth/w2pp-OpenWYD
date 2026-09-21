@@ -29,6 +29,14 @@ func (d *Dispatcher) reqShopList(w *world.World, s *world.Session, _ protocol.He
 		d.openCargo(w, s)
 		return
 	}
+	// A Loja de Honra nao usa a janela do cliente: ela cobra em pontos, e a janela
+	// so sabe escrever preco em ouro. O clique chega aqui porque o CreateMob
+	// anuncia Merchant 1 (merchantParaOCliente), mas a resposta e o nosso pacote, e
+	// quem desenha e o painel do GamePatch. Ver loja_de_honra.go.
+	if ehLojaDeHonra(npc) {
+		d.abrirLojaDeHonra(w, s, npc)
+		return
+	}
 	shopType := int32(1)
 	if npc.Merchant == 19 {
 		shopType = 3

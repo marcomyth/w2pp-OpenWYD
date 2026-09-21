@@ -24,12 +24,26 @@ import (
 // a primeira varredura pagaria de uma vez todos os quinze minutos que o SERVIDOR
 // está de pé — não é o tipo de erro que se percebe olhando a tela.
 
-// pontosCreditados conta o que foi para a carteira da conta. Sobrescreve o
-// NopPersistence que o fakeDB embute.
+// AddShopPoints é a carteira de pontos da conta. Sobrescreve o NopPersistence que
+// o fakeDB embute.
+//
+// O piso é copiado do banco de verdade (CHECK balance >= 0 em 0060_shop_points):
+// um gasto maior que o saldo não move nada e devolve a sentinela. Sem isso a Loja
+// de Honra passaria no teste vendendo a crédito.
 func (f *fakeDB) AddShopPoints(_ context.Context, _ int64, delta int32, _, _ string) (int32, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.pontosLojinha+delta < 0 {
+		return 0, world.ErrPontosInsuficientes
+	}
 	f.pontosLojinha += delta
+	return f.pontosLojinha, nil
+}
+
+// ShopPoints lê a carteira, como o /pontos e a abertura da Loja de Honra fazem.
+func (f *fakeDB) ShopPoints(_ context.Context, _ int64) (int32, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.pontosLojinha, nil
 }
 

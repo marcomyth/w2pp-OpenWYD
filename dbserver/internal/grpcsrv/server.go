@@ -764,6 +764,12 @@ func (s *Server) AddShopPoints(ctx context.Context, req *dbv1.AddShopPointsReque
 	}
 	saldo, err := s.store.AddShopPoints(ctx, req.GetAccountId(), req.GetDelta(),
 		req.GetCharacterName(), req.GetReason())
+	// Um gasto maior que o saldo é resposta, não falha. Vai como FailedPrecondition
+	// em vez de um campo novo na resposta: o código de status atravessa o gRPC sem
+	// mexer no .proto, e o tmServer o traduz de volta em world.ErrPontosInsuficientes.
+	if errors.Is(err, store.ErrPontosInsuficientes) {
+		return nil, status.Error(codes.FailedPrecondition, "pontos de lojinha insuficientes")
+	}
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "pontos de lojinha: %v", err)
 	}

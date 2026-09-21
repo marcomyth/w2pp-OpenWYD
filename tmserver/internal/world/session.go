@@ -69,6 +69,13 @@ type Session struct {
 	LojaAberta bool
 	LojaPagina int16
 	LojaFiltro int16
+	// A Loja de Honra aberta: qual God of War a abriu (0 = nenhuma) e se um
+	// debito de pontos esta no ar. O id do NPC e o que permite a compra exigir
+	// presenca, em vez de aceitar qualquer pedido de qualquer lugar do mundo; a
+	// trava e o que impede dois cliques rapidos de virarem dois debitos
+	// simultaneos. Ver handler/loja_de_honra.go.
+	LojaHonraNPC  int
+	HonraCobrando bool
 	Slot        int
 	Mode        Mode
 	IP          string
