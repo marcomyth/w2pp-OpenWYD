@@ -139,16 +139,38 @@ func TestTormentoRefleteNoGolpeDeJogador(t *testing.T) {
 
 	// O golpe TEM de ter entrado: um teste em que ninguém apanha passa com a
 	// reflexão desligada e com ela ligada, e não prova nada.
-	var vidaDaVitima, vidaFinal int32
-	noLaco(t, w, func(w *world.World) {
-		vidaDaVitima = w.Entity(vitimaID).HP
-		vidaFinal = w.Entity(atacanteID).HP
-	})
+	vidaDaVitima, vidaFinal := esperarReflexao(t, w, vitimaID, atacanteID, vidaInicial)
 	if vidaDaVitima >= 2_000_000 {
 		t.Fatalf("a vítima não apanhou (%d de 2000000): o teste não chegou a exercitar a reflexão", vidaDaVitima)
 	}
 	if vidaFinal >= vidaInicial {
 		t.Errorf("o atacante bateu 40 vezes num BM de escudo e não perdeu vida (%d de %d) — "+
 			"a reflexão não está ligada em combat.go", vidaFinal, vidaInicial)
+	}
+}
+
+// esperarReflexao espera os golpes escritos no socket chegarem ao laço, e
+// devolve as duas vidas lidas na MESMA passagem.
+//
+// attackFrame só escreve no socket e volta; noLaco entra no laço por outro
+// caminho (GoDetached) e não espera a goroutine da conexão consumir o que foi
+// escrito. Ler a vida uma vez só, logo depois dos 40 golpes, passa na máquina
+// rápida e falha na carregada: na CI de 21/09/2026 este teste morreu no próprio
+// guard, "a vítima não apanhou (2000000 de 2000000)", com o pacote levando 330 s
+// contra 200 s aqui. O prazo é generoso de propósito — quem falha por tempo é
+// só o caso em que a reflexão realmente não acontece.
+func esperarReflexao(t *testing.T, w *world.World, vitimaID, atacanteID int, vidaInicial int32) (int32, int32) {
+	t.Helper()
+	prazo := time.Now().Add(10 * time.Second)
+	for {
+		var vidaDaVitima, vidaFinal int32
+		noLaco(t, w, func(w *world.World) {
+			vidaDaVitima = w.Entity(vitimaID).HP
+			vidaFinal = w.Entity(atacanteID).HP
+		})
+		if vidaFinal < vidaInicial || time.Now().After(prazo) {
+			return vidaDaVitima, vidaFinal
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
