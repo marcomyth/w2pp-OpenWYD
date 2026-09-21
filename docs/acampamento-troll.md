@@ -17,6 +17,7 @@ em 14/09/2026; o design fica no artefato "Atlas de Quests W2PP".
 ✅ Recalibrada em 16/09: Enigma no centro depois de 100 abates, 4 Caos, todos montados com arma +11, escada nova de adds <br/>
 ✅ Troll Caos com menos arma e âmagos em pacote, Enigma com Pergaminho da Água (0069) <br/>
 ✅ Depois do primeiro teste: tropa renasce, Insano com 36 mil de HP, Restos de Ori e Lac (0071), relógio das arenas poupa o grupo <br/>
+✅ 21/09: o Caos com 1.100 de dano e o Enigma com 600 mil de vida e 2.400 de defesa <br/>
 ⏳ A descrição nova da Chave do Rei Orc no `itemhelp.dat` precisa ir pelo launcher <br/>
 ⏳ O contador gráfico: o `GamePatch.dll` com o campo (20,15) precisa ser compilado e ir pelo launcher <br/>
 ⏳ Prêmio de conclusão e trava de nível/evolução <br/>
@@ -92,24 +93,38 @@ do tier correspondente do Castelo Orc e foram recalibradas em 16/09/2026, a pedi
 do Marco: o Mago com metade do HP e do dano, o Caos com o HP que era do Mago, a
 tropa com metade do dano. Depois do primeiro teste, o Insano dobrou de HP (18 mil para 36 mil). No segundo teste o Enigma caiu pela metade no HP e no dano (3 mi para 1,5 mi; 2.020 para 1.010).
 
-**21/09/2026, recalibragem do dano:** o Troll Caos caiu de 1.620 para 1.400 de
-dano. Ele era o único monstro do acampamento acima da régua: contra um Mortal
-com set +6/+9 (defesa 1.400) tirava 725 por golpe, e os **quatro juntos passam
-a poção**, que repõe no máximo 2.000 por segundo. Agora tira 571, e três deles
-cabem dentro da poção. A régua inteira, com a escada por papel e os testes de
-simulação que a medem, está em `docs/castelo-orc.md`.
+**21/09/2026, recalibragem — o semi-boss e o boss.** A equipe levou mono aqui, e
+o relato do Marco apontou os dois culpados: o Troll Caos e o Enigma. Cada um
+pesava por um motivo diferente, e cada um foi tratado pelo seu:
+
+- **Troll Caos, 1.620 → 1.400 → 1.100 de dano.** Ele bate mais que o boss, e são
+  QUATRO. A régua das duas quests (`docs/castelo-orc.md`) dá 550 por golpe ao
+  papel de guardião, mas foi desenhada para três em campo: quatro a 550 passam a
+  poção, que repõe no máximo 2.000 por segundo. A 1.100 ele tira **327** de um
+  Mortal com set +6/+9 (defesa 1.400) e os quatro somam 1.308, com folga para a
+  tropa em volta. Contra defesa 1.200 são 400 cada, 1.600 nos quatro.
+- **Troll Enigma: a parede, não o dano.** Ele já era o monstro que menos batia da
+  quest (253 por golpe contra 1.400 de defesa, menos que a tropa do Castelo Orc),
+  e o dano ficou onde estava. O que cansava eram **1,5 milhão de vida e 3.000 de
+  defesa** — e a defesa do monstro desconta metade de cada golpe de quem bate
+  nele, então metade do ataque de um set +6/+9 sumia. Agora são **600 mil de vida
+  e 2.400 de defesa**: cai em ~45 s com um jogador desse perfil (eram ~2 min) e
+  em ~15 s com um grupo de quatro.
 
 O resto do acampamento já estava **abaixo** da régua e não foi tocado, mas vale
 saber o tamanho da folga: contra os mesmos 1.400 de defesa a tropa tira **1** de
-dano por golpe, o Mago 47 e o Enigma 253 — o boss do acampamento bate menos que
-a tropa do Castelo Orc. Subir isso é uma decisão à parte, e não foi pedida.
+dano por golpe e o Mago 47. Subir isso é uma decisão à parte, e não foi pedida.
+
+A medida dos dois lados — quanto o bicho tira e quanto tempo leva para cair, por
+perfil de personagem — está em `TestSimulacaoQuestsChefesDoTroll`
+(`handler/simulacao_quests_test.go`, tag `simulacao`).
 
 
 | Template | Nome no jogo | Veio de | Papel | Nv | HP | Defesa | Dano | Resist. | Montaria | Bloco |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `ATroll_Enigma` | Troll Enigma | `Troll_Enigma` | boss | 350 | 1.500.000 | 3.000 | 1.010 | 25 | Cavalo Fantasma B (2372) | 6116 |
+| `ATroll_Enigma` | Troll Enigma | `Troll_Enigma` | boss | 350 | 600.000 | 2.400 | 1.010 | 25 | Cavalo Fantasma B (2372) | 6116 |
 | `ATroll_Mago` | Troll Mago | `Troll_Mago` | seguidor | 320 | 75.000 | 2.200 | 760 | 15 | Dente de Sabre (2365) | 6117 (grupo de 4) |
-| `ATroll_Caos` | Troll Caos | `Troll_Caos` | guardião | 330 | 150.000 | 2.400 | 1.400 | 20 | Cavalo s/Sela N (2366) | 6118, 6119 (2 cada) |
+| `ATroll_Caos` | Troll Caos | `Troll_Caos` | guardião | 330 | 150.000 | 2.400 | 1.100 | 20 | Cavalo s/Sela N (2366) | 6118, 6119 (2 cada) |
 | `ATroll_Insano` | Troll Insano | `Troll_Insano` | tropa | 300 | 36.000 | 1.800 | 610 | 10 | Dragão Menor (2363) | 6120–6123 |
 | `ATroll_Cacador` | Caçador Troll | `Cacador_Troll` | tropa | 300 | 18.000 | 1.800 | 610 | 10 | Dente de Sabre (2365) | 6124–6127 |
 

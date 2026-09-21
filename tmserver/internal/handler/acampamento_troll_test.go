@@ -327,10 +327,20 @@ func TestAcampamentoTrollChaveNoTicketDosElfos(t *testing.T) {
 // o Caos com o HP que era do Mago e o dano de antes, a tropa com metade do dano;
 // o Enigma fica para depois. Todos montados e com a arma +11, só no visual.
 //
-// 21/09/2026: o Caos desceu de 1.620 para 1.400, o único do acampamento acima da
-// régua de dano das duas quests (docs/castelo-orc.md, "A régua do dano"): quatro
-// deles em cima de um Mortal de 1.400 de defesa passavam os 2.000 por segundo da
-// poção. O resto já estava abaixo dela e ficou como estava — contra essa mesma
+// 21/09/2026, em duas passadas. Primeiro o Caos desceu de 1.620 para 1.400, o
+// único do acampamento acima da régua de dano das duas quests
+// (docs/castelo-orc.md, "A régua do dano"). Depois do relato do Marco — "o semi
+// boss é o problema, e o Enigma está muito forte" — os dois culpados foram
+// tratados pelo lado que pesava em cada um:
+//
+//   - Caos: 1.400 -> 1.100 de dano. São QUATRO, e a régua de guardião (550 por
+//     golpe) foi desenhada para três: 4 × 550 passa a poção. A 1.100 ele tira 327
+//     de um Mortal de 1.400 de defesa, e os quatro somam 1.308 — dentro dos 2.000.
+//   - Enigma: nada de dano (ele já tirava só 253), e sim a PAREDE. 1,5 mi de vida
+//     e 3.000 de defesa (que engolia metade do ataque de quem batia) viraram 600
+//     mil e 2.400: cai em ~45 s com um jogador de set +6/+9 no lugar de ~2 min.
+//
+// O resto já estava abaixo da régua e ficou como estava — contra essa mesma
 // defesa a tropa tira 1 de dano por golpe, o que é folga demais, mas subir não
 // foi pedido.
 var acampamentoTrollDesign = map[string]struct {
@@ -340,11 +350,11 @@ var acampamentoTrollDesign = map[string]struct {
 	face             int16
 	mount            int16
 }{
-	"ATroll_Enigma":  {"Troll Enigma", 350, 1500000, 3000, 1010, 25, 213, 2372}, // Cavalo Fantasma B
-	"ATroll_Caos":    {"Troll Caos", 330, 150000, 2400, 1400, 20, 213, 2366},    // Cavalo s/Sela N
-	"ATroll_Mago":    {"Troll Mago", 320, 75000, 2200, 760, 15, 213, 2365},      // Dente de Sabre
-	"ATroll_Insano":  {"Troll Insano", 300, 36000, 1800, 610, 10, 212, 2363},    // Dragão Menor
-	"ATroll_Cacador": {"Caçador Troll", 300, 18000, 1800, 610, 10, 213, 2365},   // Dente de Sabre
+	"ATroll_Enigma":  {"Troll Enigma", 350, 600000, 2400, 1010, 25, 213, 2372}, // Cavalo Fantasma B
+	"ATroll_Caos":    {"Troll Caos", 330, 150000, 2400, 1100, 20, 213, 2366},   // Cavalo s/Sela N
+	"ATroll_Mago":    {"Troll Mago", 320, 75000, 2200, 760, 15, 213, 2365},     // Dente de Sabre
+	"ATroll_Insano":  {"Troll Insano", 300, 36000, 1800, 610, 10, 212, 2363},   // Dragão Menor
+	"ATroll_Cacador": {"Caçador Troll", 300, 18000, 1800, 610, 10, 213, 2365},  // Dente de Sabre
 }
 
 // Os templates entregues são o design, e nada vem junto: sem ouro, sem XP no

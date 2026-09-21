@@ -227,3 +227,113 @@ func TestSimulacaoQuestsCalibragem(t *testing.T) {
 		}
 	}
 }
+
+// raideDe é a raide dos chefes com o personagem calibrado: mesma luta, mas o
+// Ataque e a Defesa do jogador são os pedidos, para medir a quest com quem ela
+// foi feita (set +6/+9), não só com o Xorimpas de topo.
+func (sm *simulador) raideDe(a alvoDeRaide, n int, ataque, defesa int32, limiteMs int64) resultadoRaide {
+	chefe := sm.chefe(a)
+	lados := make([]*lado, n)
+	volta := make([]int64, n)
+	for i := range lados {
+		l := &lado{e: sm.montar(xorimpas, i+1, buffsHT()), cd: map[int]int64{}}
+		ajustarAtaque(sm, l.e, ataque)
+		l.e.AC, l.e.BaseAC = defesa-l.e.AffAC, defesa-l.e.AffAC
+		lados[i] = l
+	}
+	r := resultadoRaide{divisor: divisorDeGolpe(chefe)}
+	r.efetiva = int64(chefe.HP) * int64(r.divisor)
+	var agora, proxMob int64
+	for agora < limiteMs && chefe.HP > 0 {
+		for i, l := range lados {
+			if l.e.HP <= 0 {
+				if agora >= volta[i] {
+					l.e.HP = l.e.MaxHP
+				} else {
+					continue
+				}
+			}
+			if g := sm.acaoHT(l, chefe, agora); g.dano > 0 {
+				r.danoTotal += int64(g.dano)
+			}
+			r.golpes++
+			if chefe.HP <= 0 {
+				break
+			}
+		}
+		for proxMob <= agora && chefe.HP > 0 {
+			var alvo *lado
+			for _, l := range lados {
+				if l.e.HP > 0 {
+					alvo = l
+					break
+				}
+			}
+			if alvo == nil {
+				break
+			}
+			sm.d.tickCount = int(agora / 1000)
+			if dmg := sm.d.danoDoGolpeDeMonstro(sm.w, chefe, alvo.e); dmg > 0 {
+				r.golpesMob++
+				r.danoMobTotal += int64(dmg)
+				// A poção repõe até 2.000 por segundo: o golpe de monstro só encosta
+				// na vida no que passar dela.
+				sobra := int32(dmg) - int32(paredeDaPocao*cadenciaDoGolpe(chefe, nil)/1000)
+				if sobra > 0 {
+					alvo.e.HP = max(0, alvo.e.HP-sobra)
+				}
+				if alvo.e.HP == 0 {
+					r.mortes++
+					for i, l := range lados {
+						if l == alvo {
+							volta[i] = agora + simVoltaMs
+						}
+					}
+				}
+			}
+			proxMob += int64(cadenciaDoGolpe(chefe, nil))
+		}
+		agora += simPasso
+	}
+	r.ms, r.vidaRestant = agora, chefe.HP
+	sm.w.DespawnMob(chefe.ID, 1)
+	return r
+}
+
+// TestSimulacaoQuestsChefesDoTroll mede o Troll Caos (o semi-boss) e o Troll
+// Enigma pelos dois lados: quanto tempo um grupo leva para derrubá-los e quanto
+// dano leva enquanto isso, por perfil de personagem.
+func TestSimulacaoQuestsChefesDoTroll(t *testing.T) {
+	root := filepath.Join("..", "..", "..", "Release")
+	perfis := []struct {
+		nome                  string
+		ataque, defesa, grupo int32
+	}{
+		{"set +6/+9 (ataque 3.000, defesa 1.400)", 3000, 1400, 0},
+		{"set bom (ataque 5.000, defesa 1.800)", 5000, 1800, 0},
+		{"topo Xorimpas (ataque 8.111, defesa 2.348)", 8111, 2348, 0},
+	}
+	alvos := []struct {
+		rotulo string
+		a      alvoDeRaide
+	}{
+		{"Troll Caos (150 mil, def 2.400, dano 1.100)", alvoDeRaide{arquivo: "ATroll_Caos"}},
+		{"Troll Enigma (600 mil, def 2.400, dano 1.010)", alvoDeRaide{arquivo: "ATroll_Enigma"}},
+		{"Grão-Lorde Orc (1,5 mi, def 3.000, dano 1.720)", alvoDeRaide{arquivo: "COrc_GraoLorde"}},
+	}
+	for _, alvo := range alvos {
+		t.Log("— " + alvo.rotulo + " —")
+		for _, p := range perfis {
+			for _, n := range []int{1, 4} {
+				sm := novoSimulador(t, root)
+				r := sm.raideDe(alvo.a, n, p.ataque, p.defesa, 30*60*1000)
+				status := fmt.Sprintf("%5.1f min", float64(r.ms)/60000)
+				if r.vidaRestant > 0 {
+					status = fmt.Sprintf("NÃO caiu em 30 min (faltavam %d%%)", int(100*int64(r.vidaRestant)/max(r.efetiva/int64(max(r.divisor, 1)), 1)))
+				}
+				t.Logf("  %-44s %d jogador(es): %s, %d mortes, o bicho tirou %d por golpe",
+					p.nome, n, status, r.mortes, r.danoMobTotal/int64(max(r.golpesMob, 1)))
+			}
+		}
+	}
+}
