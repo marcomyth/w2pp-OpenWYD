@@ -287,7 +287,7 @@ type Entity struct {
 	// NewbieQuest is MobExtra.QuestInfo.Mortal.Newbie (_MSG_Quest.cpp:1896-2100):
 	// which of the four training-field trainer steps is done (0..4). Each step
 	// demands the previous one, so it is persisted.
-	NewbieQuest          uint8
+	NewbieQuest uint8
 	// MolarGargula marca que este personagem ja usou o Molar de Gargula (0093):
 	// o molar sobe o set vestido para +7 uma unica vez, entao a marca precisa
 	// sobreviver ao relog.
