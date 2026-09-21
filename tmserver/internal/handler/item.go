@@ -1248,6 +1248,7 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 	pilhaInteira := itemAmount(e.Carry[src])
 	usados := 0
 	expTotal := int64(0)
+	moedaTotal := int64(0)
 	saiuDaFaixa := false
 	for usados < pilhaInteira {
 		if e.Level < minLevel || e.Level >= maxLevel {
@@ -1275,6 +1276,7 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 		}
 
 		expTotal += expDaVez
+		moedaTotal += int64(moedaDaVez)
 		consumeOneItem(&e.Carry[src])
 		usados++
 		d.applyLevelUps(w, s, e)
@@ -1306,8 +1308,17 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 	}
 	// A linha da conta só sai quando o clique gastou mais de um: para uma unidade
 	// ela repetiria o que o painel de XP já disse.
+	//
+	// O gold entra aqui porque ele NÃO tem painel próprio: a XP aparece sozinha no
+	// "+N de EXP" e o gold só apareceria como um número diferente no canto da tela,
+	// sem dizer de onde veio. Some do texto quando é zero — teto de moeda batido —,
+	// que é a única vez em que dizer "+0 de gold" seria informação.
 	if usados > 1 {
-		sendClientMessage(w, s, fmt.Sprintf(msgTrofeuLote, usados, expTotal))
+		if moedaTotal > 0 {
+			sendClientMessage(w, s, fmt.Sprintf(msgTrofeuLote, usados, expTotal, moedaTotal))
+		} else {
+			sendClientMessage(w, s, fmt.Sprintf(msgTrofeuLoteSemGold, usados, expTotal))
+		}
 	}
 	// O aviso de parada fica DEPOIS da conta: primeiro o que rendeu, depois por que
 	// sobrou troféu na mão.
@@ -1321,14 +1332,18 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 	d.sendEtc(w, s, e) // coin changed even when EXP was already at its ceiling
 	d.log.Info("troféu da quest usado",
 		"conn", s.Conn, "account", s.AccountName, "item", itemQuestRewardBase+tier,
-		"pilha", pilhaInteira, "usados", usados, "exp", expTotal,
+		"pilha", pilhaInteira, "usados", usados, "exp", expTotal, "gold", moedaTotal,
 		"saiuDaFaixa", saiuDaFaixa, "nivel", e.Level)
 }
 
 // As duas linhas do clique único no troféu.
 const (
-	// msgTrofeuLote é a conta: quantos troféus o clique gastou e quanta XP deram.
-	msgTrofeuLote = "Troféu: %d usado(s), +%d de EXP."
+	// msgTrofeuLote é a conta: quantos troféus o clique gastou, e quanta XP e quanto
+	// gold deram.
+	msgTrofeuLote = "Troféu: %d usado(s), +%d de EXP e +%d de gold."
+	// msgTrofeuLoteSemGold é a mesma conta quando o gold parou no teto: sem o
+	// pedaço que seria sempre zero.
+	msgTrofeuLoteSemGold = "Troféu: %d usado(s), +%d de EXP."
 	// msgTrofeuNoTeto explica a pilha que sobrou quando não foi a faixa de nível:
 	// XP e moeda nos tetos ao mesmo tempo. Sem esta linha o clique parece morto com
 	// a pilha intacta na mão.

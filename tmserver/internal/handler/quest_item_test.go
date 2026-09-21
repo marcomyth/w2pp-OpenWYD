@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
@@ -221,5 +222,63 @@ func TestQuestItemRewardPartyMemberGetsTenPercent(t *testing.T) {
 	}
 	if memberExp != 100 || memberCoin != 0 || !panel {
 		t.Errorf("member reward = exp %d coin %d panel %v, want 100 0 true", memberExp, memberCoin, panel)
+	}
+}
+
+// A linha da conta diz a XP E o gold. O gold não tem painel próprio — a XP
+// aparece sozinha no "+N de EXP" —, então sem esta linha ele entrava calado.
+func TestQuestItemRewardContaDizGoldTambem(t *testing.T) {
+	const pilha = 3
+	addr, stop := startServerClockVol(t, questRewardDB(4117, 39, pilha), map[int]int{4117: volQuestReward})
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+	useQuestItem(t, c)
+
+	linha := ""
+	for range 20 {
+		ty, payload, ok := readMaybe(t, c)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgMessagePanel {
+			if texto := decodePanel(payload); strings.HasPrefix(texto, "Troféu:") {
+				linha = texto
+			}
+		}
+	}
+	quero := "Troféu: 3 usado(s), +3000 de EXP e +6000 de gold."
+	if linha != quero {
+		t.Errorf("conta = %q, quero %q", linha, quero)
+	}
+}
+
+// Com o gold no teto o pedaço do gold sai do texto: "+0 de gold" não é
+// informação, e a XP continua valendo.
+func TestQuestItemRewardContaOmiteGoldNoTeto(t *testing.T) {
+	const pilha = 3
+	db := questRewardDB(4117, 39, pilha)
+	db.loadResult.Coin = maxCoin
+	addr, stop := startServerClockVol(t, db, map[int]int{4117: volQuestReward})
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+	useQuestItem(t, c)
+
+	linha := ""
+	for range 20 {
+		ty, payload, ok := readMaybe(t, c)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgMessagePanel {
+			if texto := decodePanel(payload); strings.HasPrefix(texto, "Troféu:") {
+				linha = texto
+			}
+		}
+	}
+	quero := "Troféu: 3 usado(s), +3000 de EXP."
+	if linha != quero {
+		t.Errorf("conta = %q, quero %q", linha, quero)
 	}
 }
