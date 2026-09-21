@@ -360,3 +360,56 @@ func TestPrecisaDeDezSoNosSlotsNomeados(t *testing.T) {
 		t.Errorf("umaUnidade = %d, quero 1", got)
 	}
 }
+
+// O troféu da Quest 256 junta SEM FADA (juntaNaPilhaDaMochila): ele cai de todo
+// monstro e é gasto às centenas, e sem isto uma rodada de arena acaba com dez
+// espaços do mesmo troféu — e o clique único da pilha inteira não teria pilha
+// nenhuma para gastar.
+func TestTrofeuJuntaSemFada(t *testing.T) {
+	for _, idx := range []int16{4117, 4118, 4119, 4120, 4121} {
+		d, w, e := fixturaPilha(t)
+		e.Carry[0] = world.Item{Index: idx, Effects: [3]world.Effect{{Effect: efAmount, Value: 61}}}
+
+		if slot := d.putCarryItem(w, e, world.Item{Index: idx}); slot != 0 {
+			t.Errorf("troféu %d foi para o slot %d, quero o 0 (a pilha)", idx, slot)
+		}
+		if got := itemAmount(e.Carry[0]); got != 62 {
+			t.Errorf("troféu %d: pilha = %d, quero 62", idx, got)
+		}
+		if !e.Carry[1].Empty() {
+			t.Errorf("troféu %d gastou o slot 1", idx)
+		}
+	}
+}
+
+// O teto de 120 vale para o troféu como para qualquer pilha: sem fada nenhuma, o
+// que passa do teto vai para um espaço novo em vez de sumir.
+func TestTrofeuSemFadaRespeitaOTeto(t *testing.T) {
+	d, w, e := fixturaPilha(t)
+	e.Carry[0] = world.Item{Index: 4117, Effects: [3]world.Effect{{Effect: efAmount, Value: 119}}}
+
+	d.putCarryItem(w, e, world.Item{Index: 4117, Effects: [3]world.Effect{{Effect: efAmount, Value: 5}}})
+
+	if got := itemAmount(e.Carry[0]); got != maxStackAmount {
+		t.Errorf("pilha = %d, quero o teto %d", got, maxStackAmount)
+	}
+	if e.Carry[1].Index != 4117 || itemAmount(e.Carry[1]) != 4 {
+		t.Errorf("sobra = %v amount %d, quero 4 troféus no slot 1", e.Carry[1].Index, itemAmount(e.Carry[1]))
+	}
+}
+
+// A porta livre é SÓ dos cinco troféus: o resto continua dependendo da fada, que é
+// o que se paga por ela.
+func TestSoOTrofeuJuntaSemFada(t *testing.T) {
+	e := &world.Entity{}
+	for _, idx := range []int16{4117, 4121} {
+		if !juntaNaPilhaDaMochila(e, idx) {
+			t.Errorf("troféu %d não junta sem fada", idx)
+		}
+	}
+	for _, idx := range []int16{419, 412, 2390, 2441, 4116, 4122} {
+		if juntaNaPilhaDaMochila(e, idx) {
+			t.Errorf("item %d passou a juntar sem fada sem ninguém decidir", idx)
+		}
+	}
+}

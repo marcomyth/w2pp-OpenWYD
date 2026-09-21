@@ -116,12 +116,31 @@ func fadaJuntaPilhas(e *world.Entity) bool {
 	return false
 }
 
+// juntaNaPilhaDaMochila diz se um item que chega deve cair SOBRE a pilha dele em
+// vez de tomar um espaço novo. É o único lugar com essa decisão: putCarryItem a
+// executa e o baú (baus.go) a repete para saber que o espaço reservado não vai ser
+// usado, e as duas leituras têm de ser a mesma.
+//
+// Duas portas:
+//
+//   - A fada de juntar, que é a razão de ela existir.
+//   - O troféu da Quest 256 (4117-4121), SEM FADA, decidido em 21/09/2026. Ele cai
+//     de todo monstro e é gasto às centenas: sem juntar sozinho, uma rodada de
+//     arena acaba com dez espaços do mesmo troféu para arrastar à mão, e o clique
+//     único (useQuestReward) não serve para nada, porque cada espaço é uma pilha de
+//     um. É DIVERGÊNCIA NOSSA, e só para esses cinco índices.
+func juntaNaPilhaDaMochila(e *world.Entity, index int16) bool {
+	if !isSplittable(index) {
+		return false
+	}
+	return fadaJuntaPilhas(e) || ehTrofeuDeQuest(index)
+}
+
 // putCarryItem hands one item to a character's bag and reports the slot it
 // ended up in, or -1 when nothing could be placed.
 //
-// With a merging fairy equipped, a stackable item lands ON a stack of its own
-// kind (isSplittable decides which items those are) instead of claiming a new
-// slot — the point of the fairy, and the reason a farm run no longer ends with
+// When juntaNaPilhaDaMochila says so, a stackable item lands ON a stack of its own
+// kind instead of claiming a new slot — the point of the fairy, and the reason a farm run no longer ends with
 // eleven slots of Resto de Oriharucon to drag together by hand. The merge is
 // the same one the manual drag uses (tryMergeItemStacks), so the 120 ceiling,
 // the identity rules and the remainder behave identically; what is left over
@@ -136,7 +155,7 @@ func (d *Dispatcher) putCarryItem(w *world.World, e *world.Entity, it world.Item
 	estamparAmountDeEntrada(&it)
 	s := w.Session(e.ID)
 	ultimo := -1
-	if fadaJuntaPilhas(e) && isSplittable(it.Index) {
+	if juntaNaPilhaDaMochila(e, it.Index) {
 		limite := activeCarryLimit(e)
 		for i := 0; i < limite && !it.Empty(); i++ {
 			if e.Carry[i].Empty() || !tryMergeItemStacks(&it, &e.Carry[i]) {

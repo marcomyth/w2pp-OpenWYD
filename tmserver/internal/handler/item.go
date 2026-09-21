@@ -1220,31 +1220,120 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 	}
 	questExp := rate.MortalExp
 	minLevel, maxLevel := rate.MortalMin, rate.MortalMax
-	if e.Level < minLevel || e.Level >= maxLevel {
-		// _NN_Level_limit, the line the legacy sends here (_MSG_UseItem.cpp Vol
-		// 191). It used to be NoticeReqNotMet, which carries no text: a character
-		// past the band clicked its trophy and nothing happened at all, with no way
-		// to tell "outgrew this quest" from "the item is broken".
-		d.notify(w, s, NoticeLevelLimit)
+
+	// Uso livre: o troféu está fora do teto de XP por rodada desde 17/09/2026
+	// (tetorodada.go). Usar não recusa, não corta e não soma na rodada.
+	//
+	// DIVERGÊNCIA DELIBERADA, 21/09/2026: um clique gasta a PILHA INTEIRA, e não
+	// uma unidade. O legado paga um troféu por clique, e com a pilha de 120 que a
+	// fada-livre agora forma (juntaNaPilhaDaMochila) isso são 120 cliques com 120
+	// linhas iguais. Aqui o laço roda a pilha e a conta é reportada uma vez.
+	//
+	// O laço é por UNIDADE, e não uma multiplicação, de propósito: cada troféu tem
+	// de passar pelos dois limites que podem mudar no meio da pilha.
+	//
+	//   - A FAIXA DE NÍVEL, meia-aberta [min, max). Subir de nível dentro do laço
+	//     pode tirar o personagem da faixa do próprio troféu; quando tira, o laço
+	//     para ali e o RESTO FICA NA MÃO. Multiplicar por 120 pagaria XP que a faixa
+	//     não paga; consumir tudo e pagar até o topo comeria os troféus de graça.
+	//   - OS TETOS de XP (level.MaxExp) e de moeda (maxCoin). Um troféu que não
+	//     entrega nem XP nem moeda não é gasto: no teto dos dois, gastá-lo é perdê-lo,
+	//     e é exatamente o "perder exp no processo" que não pode acontecer. Enquanto
+	//     um dos dois ainda entrega algo, o troféu vale e é consumido.
+	//
+	// A XP entra à mão em vez de por grantDirectExp porque a subida de nível tem de
+	// acontecer A CADA unidade (é ela que mexe na faixa) enquanto o painel "+N de
+	// EXP" e a faísca saem UMA vez, com o total. applyLevelUps é o mesmo corpo que
+	// grantDirectExp chama, e só fala quando um nível é cruzado de verdade.
+	pilhaInteira := itemAmount(e.Carry[src])
+	usados := 0
+	expTotal := int64(0)
+	saiuDaFaixa := false
+	for usados < pilhaInteira {
+		if e.Level < minLevel || e.Level >= maxLevel {
+			saiuDaFaixa = true
+			break
+		}
+
+		expAntes := e.Exp
+		e.Exp += questExp
+		if e.Exp > level.MaxExp {
+			e.Exp = level.MaxExp
+		}
+		expDaVez := e.Exp - expAntes
+
+		moedaAntes := e.Coin
+		if int64(e.Coin)+int64(rate.Coin) > maxCoin {
+			e.Coin = maxCoin
+		} else {
+			e.Coin += rate.Coin
+		}
+		moedaDaVez := e.Coin - moedaAntes
+
+		if expDaVez <= 0 && moedaDaVez <= 0 {
+			break // nos dois tetos: este troféu não entregaria nada, então não é gasto
+		}
+
+		expTotal += expDaVez
+		consumeOneItem(&e.Carry[src])
+		usados++
+		d.applyLevelUps(w, s, e)
+	}
+
+	if usados == 0 {
+		if saiuDaFaixa {
+			// _NN_Level_limit, the line the legacy sends here (_MSG_UseItem.cpp Vol
+			// 191). It used to be NoticeReqNotMet, which carries no text: a character
+			// past the band clicked its trophy and nothing happened at all, with no way
+			// to tell "outgrew this quest" from "the item is broken".
+			d.notify(w, s, NoticeLevelLimit)
+		} else {
+			sendClientMessage(w, s, msgTrofeuNoTeto)
+		}
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}
-	// Uso livre: o troféu está fora do teto de XP por rodada desde 17/09/2026
-	// (tetorodada.go). Usar não recusa, não corta e não soma na rodada.
 
-	if int64(e.Coin)+int64(rate.Coin) > maxCoin {
-		e.Coin = maxCoin
-	} else {
-		e.Coin += rate.Coin
+	// A parte do grupo é do troféu, e o troféu está fora do teto: paga inteira,
+	// pelos troféus que realmente valeram.
+	d.grantQuestPartyExp(w, e, questExp*int64(usados)/10)
+
+	if expTotal > 0 && s != nil {
+		w.Send(s, protocol.MsgExpPanel, protocol.EncodeExpPanelBody(fmt.Sprintf("+%d de EXP", expTotal), expPanelDefaultColor))
+		motion := protocol.EncodeMotion(motionLevelUp, motionLevelUpParm)
+		w.Send(s, protocol.MsgMotion, motion)
+		w.BroadcastInView(e.ID, protocol.MsgMotion, motion)
 	}
-	d.grantDirectExp(w, s, e, questExp)
-	// A parte do grupo é do troféu, e o troféu está fora do teto: paga inteira.
-	d.grantQuestPartyExp(w, e, rate.MortalExp/10)
+	// A linha da conta só sai quando o clique gastou mais de um: para uma unidade
+	// ela repetiria o que o painel de XP já disse.
+	if usados > 1 {
+		sendClientMessage(w, s, fmt.Sprintf(msgTrofeuLote, usados, expTotal))
+	}
+	// O aviso de parada fica DEPOIS da conta: primeiro o que rendeu, depois por que
+	// sobrou troféu na mão.
+	if saiuDaFaixa {
+		d.notify(w, s, NoticeLevelLimit)
+	} else if usados < pilhaInteira {
+		sendClientMessage(w, s, msgTrofeuNoTeto)
+	}
 
-	consumeOneItem(&e.Carry[src])
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 	d.sendEtc(w, s, e) // coin changed even when EXP was already at its ceiling
+	d.log.Info("troféu da quest usado",
+		"conn", s.Conn, "account", s.AccountName, "item", itemQuestRewardBase+tier,
+		"pilha", pilhaInteira, "usados", usados, "exp", expTotal,
+		"saiuDaFaixa", saiuDaFaixa, "nivel", e.Level)
 }
+
+// As duas linhas do clique único no troféu.
+const (
+	// msgTrofeuLote é a conta: quantos troféus o clique gastou e quanta XP deram.
+	msgTrofeuLote = "Troféu: %d usado(s), +%d de EXP."
+	// msgTrofeuNoTeto explica a pilha que sobrou quando não foi a faixa de nível:
+	// XP e moeda nos tetos ao mesmo tempo. Sem esta linha o clique parece morto com
+	// a pilha intacta na mão.
+	msgTrofeuNoTeto = "Troféu: EXP e gold no máximo. Nenhum troféu foi gasto."
+)
 
 func (d *Dispatcher) grantQuestPartyExp(w *world.World, consumer *world.Entity, share int64) {
 	if share <= 0 {

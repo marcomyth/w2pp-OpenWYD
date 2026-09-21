@@ -153,7 +153,7 @@ func (d *Dispatcher) openChest(w *world.World, s *world.Session, e *world.Entity
 	// That placement is also why the chest's slot is pushed only AFTER the prize
 	// is written — when dst is src, the one SendItem for that slot has to carry
 	// the prize, not the emptied chest.
-	if fadaJuntaPilhas(e) && isSplittable(prize.Index) {
+	if juntaNaPilhaDaMochila(e, prize.Index) {
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		if d.putCarryItem(w, e, prize) < 0 {
 			sendClientMessage(w, s, msgFullCarry)
