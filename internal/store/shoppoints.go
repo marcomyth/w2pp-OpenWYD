@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5"
 )
 
-// ErrPontosInsuficientes é resposta prevista, não falha: um gasto maior que o
-// saldo bate no CHECK (balance >= 0) da tabela e desfaz a transação inteira, o
-// extrato incluído. Quem gasta precisa distinguir isso de um banco fora do ar —
-// um é "você não tem pontos", o outro é "tente de novo" — então o código do
-// Postgres é traduzido aqui, no único lugar que o conhece.
+// ErrPontosInsuficientes é resposta prevista, não falha: o gasto não cabe no saldo,
+// e nada se moveu. Quem gasta precisa distinguir isso de um banco fora do ar — um
+// é "você não tem pontos", o outro é "tente de novo" —, e essa distinção nasce
+// aqui, no único lugar que fala com a tabela.
 var ErrPontosInsuficientes = errors.New("store: pontos de lojinha insuficientes")
 
 // Shop-points wallet (0060_shop_points): the currency an open personal shop pays
@@ -30,9 +29,18 @@ var ErrPontosInsuficientes = errors.New("store: pontos de lojinha insuficientes"
 // quarter-hour in the same instant, and a read-modify-write would silently drop
 // one of the two credits.
 //
-// A negative delta that would take the wallet below zero fails the table's CHECK
-// and rolls the whole thing back, audit row included — a spend can never leave a
-// receipt for points that were not actually taken.
+// A SPEND (negative delta) takes a different statement, and the reason is a bug
+// the Loja de Honra hit on its first live purchase. The upsert below cannot spend:
+// PostgreSQL evaluates the table CHECK on the tuple it is about to INSERT
+// (balance = delta) BEFORE it discovers the conflict and switches to the UPDATE
+// path, so a delta of -30 raises check_violation whatever the balance is. The
+// comment that used to be here claimed the CHECK was the floor; the CHECK was the
+// wall, and no spend ever got through it.
+//
+// So a spend is a plain conditional UPDATE, and the floor is in the WHERE: no row,
+// or a row that cannot pay, matches nothing and the whole transaction rolls back,
+// audit row included — a spend can never leave a receipt for points that were not
+// actually taken.
 func (s *Store) AddShopPoints(ctx context.Context, accountID int64, delta int32, characterName, reason string) (int32, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -41,21 +49,33 @@ func (s *Store) AddShopPoints(ctx context.Context, accountID int64, delta int32,
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var saldo int32
-	// The wallet row is created on first credit: an account that never kept a
-	// shop open has no row, and requiring a seed would mean every account ever
-	// created carries one.
-	err = tx.QueryRow(ctx, `
-		INSERT INTO shop_points (account_id, balance, updated_at)
-		VALUES ($1, $2, now())
-		ON CONFLICT (account_id) DO UPDATE
-			SET balance = shop_points.balance + $2, updated_at = now()
-		RETURNING balance`, accountID, delta).Scan(&saldo)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23514" { // check_violation
+	if delta < 0 {
+		// Gasto: o piso mora no WHERE. Nada casou significa carteira que nao
+		// existe ou que nao alcanca o preco - as duas coisas sao "nao tem pontos".
+		err = tx.QueryRow(ctx, `
+			UPDATE shop_points
+			   SET balance = balance + $2, updated_at = now()
+			 WHERE account_id = $1 AND balance + $2 >= 0
+			RETURNING balance`, accountID, delta).Scan(&saldo)
+		if errors.Is(err, pgx.ErrNoRows) {
 			return 0, ErrPontosInsuficientes
 		}
-		return 0, fmt.Errorf("store: creditar pontos de lojinha: %w", err)
+		if err != nil {
+			return 0, fmt.Errorf("store: gastar pontos de lojinha: %w", err)
+		}
+	} else {
+		// The wallet row is created on first credit: an account that never kept a
+		// shop open has no row, and requiring a seed would mean every account ever
+		// created carries one.
+		err = tx.QueryRow(ctx, `
+			INSERT INTO shop_points (account_id, balance, updated_at)
+			VALUES ($1, $2, now())
+			ON CONFLICT (account_id) DO UPDATE
+				SET balance = shop_points.balance + $2, updated_at = now()
+			RETURNING balance`, accountID, delta).Scan(&saldo)
+		if err != nil {
+			return 0, fmt.Errorf("store: creditar pontos de lojinha: %w", err)
+		}
 	}
 
 	if _, err := tx.Exec(ctx, `
