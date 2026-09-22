@@ -230,3 +230,31 @@ func TestPerzenVesteCelestialSemPerderAQuest(t *testing.T) {
 		}
 	}
 }
+
+// O TAMANHO DE UM NPC É A CON (pedido de 22/09/2026). O cliente escala o corpo
+// de um mob por (CON/2000 + 1) * 0,9 (WYD.exe 0x50D43F), e é só isso que a CON de
+// um mob faz: o servidor não a lê para HP, dano ou defesa — esses são campos
+// próprios do template. O God_of_War é a referência do servidor, com 3000, e o
+// Guarda_Carga e o Dragão da praça dos Reinos passaram a acompanhá-lo.
+//
+// A CON é escrita nos DOIS scores. O que o cliente recebe é o CurrentScore
+// (protocol/mob.go escreve Con em cs+38); o BaseScore é o que world/api.go copia
+// para a entidade. Gravar só um deixa o tamanho dependendo de qual caminho leu.
+func TestTamanhoDosNPCsGrandes(t *testing.T) {
+	const (
+		conGrande = 3000
+		offBase   = 44 + 38 // BaseScore.Con
+		offAtual  = 92 + 38 // CurrentScore.Con
+	)
+	for _, nome := range []string{"God_of_War", "Guarda_Carga", "Dragao_Dourado"} {
+		b := templateNPC(t, nome)
+		base := int16(binary.LittleEndian.Uint16(b[offBase : offBase+2]))
+		atual := int16(binary.LittleEndian.Uint16(b[offAtual : offAtual+2]))
+		if base != conGrande {
+			t.Errorf("%s: CON do BaseScore = %d, esperava %d", nome, base, conGrande)
+		}
+		if atual != conGrande {
+			t.Errorf("%s: CON do CurrentScore = %d, esperava %d — é esta que o cliente lê", nome, atual, conGrande)
+		}
+	}
+}
