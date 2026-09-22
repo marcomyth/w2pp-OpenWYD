@@ -88,14 +88,16 @@ func montada(t *testing.T, nome string, b []byte, nivel int) {
 // dele.
 //
 // Os quatro mestres de skill saíram desta lista em 21/09: cada um passou a
-// vestir o set da própria classe (TestMestresDeSkillVestemOSetDaClasse).
+// vestir o set da própria classe (TestMestresDeSkillVestemOSetDaClasse), e o
+// Guarda Carga saiu em 22/09 para a aparência do Cav. Lugefer
+// (TestGuardaCargaVesteOLugefer).
 func TestArmiaVesteSetMortalMontado(t *testing.T) {
 	setMortalE := [5]int{1225, 1226, 1227, 1228, 1229}
 	// O Mestre Grifo monta um Grifo, que é o nome dele; ficou com o dele.
 	semCavalo := map[string]bool{"Mestre_Grifo": true}
 
 	for _, nome := range []string{
-		"Galford", "Aki", "Guarda_Carga", "Guard", "Guard_", "Ferreiro",
+		"Galford", "Aki", "Guard", "Guard_", "Ferreiro",
 		"Rapein", "Rainy", "Mestre_Haby", "Balmus",
 		"Gate_Keeper", "Martin", "Arnod", "Kibita", "Mestre_Grifo",
 		"God_of_War", "Curandeiro",
@@ -255,6 +257,79 @@ func TestTamanhoDosNPCsGrandes(t *testing.T) {
 		}
 		if atual != conGrande {
 			t.Errorf("%s: CON do CurrentScore = %d, esperava %d — é esta que o cliente lê", nome, atual, conGrande)
+		}
+	}
+}
+
+// O GUARDA CARGA VESTE O CAV. LUGEFER (pedido de 22/09/2026).
+//
+// A aparência do Cavaleiro Lugefer é UM item, o 175 (Cavaleiro_Negro_Lendário),
+// repetido nas seis primeiras vagas — é assim que o template dele monta o
+// visual, e a vaga 0 é o corpo, que é o que troca a malha do NPC. O manto 290
+// (Manto_Negro_Lendário) fecha o conjunto, com o mesmo EF_SANC 6 que ele carrega.
+//
+// A arma NÃO é a do Lugefer comum: ele empunha a Luna 910, e o pedido foi a
+// Luna ANCIENTE. As duas têm a mesma malha (897.0 no ItemList) — quem dá o
+// brilho de ancião é o índice, que o cliente conhece. 2890 é o grau que o
+// Lugefer_Maligno já usa, o único template do jogo com uma Luna(Anct).
+//
+// O cavalo é o mesmo Cavalo Equipado N de nível 90 da apresentação de Armia: o
+// de Armia já o montava e não foi reescrito, e o segundo ganhou um igual.
+//
+// As vagas 7 a 13 ficam vazias de propósito. O Lugefer carrega ali os itens
+// 786/1936 (os divisores de dano de mob, handler/combat.go), que são MECÂNICA e
+// não aparência — copiá-los junto com o visual poria um guarda de cidade
+// dividindo o dano que recebe.
+func TestGuardaCargaVesteOLugefer(t *testing.T) {
+	const (
+		corpoLugefer = 175  // Cavaleiro_Negro_Lendário, nas vagas 0 a 5
+		sancLugefer  = 3    // o EF_SANC que o Cav._Lugefer carrega no conjunto
+		lunaAnct     = 2890 // Luna(Anct), a mesma do Lugefer_Maligno
+		mantoNegro   = 290  // Manto_Negro_Lendário
+		sancDoManto  = 6
+		slotArma     = 6
+		slotManto    = 15
+	)
+
+	// Os dois que NASCEM. Guarda_Carga__ e ___ existem como arquivo e não têm
+	// bloco no NPCGener: vesti-los gravaria bytes que ninguém vê.
+	for _, nome := range []string{"Guarda_Carga", "Guarda_Carga_"} {
+		b := templateNPC(t, nome)
+
+		for i := 0; i <= 5; i++ {
+			idx, ef := peca(b, i)
+			if idx != corpoLugefer {
+				t.Errorf("%s: vaga %d tem %d, esperava %d (Cavaleiro Negro Lendário)", nome, i, idx, corpoLugefer)
+				continue
+			}
+			if v, ok := efeito(ef, efSancVisual); !ok || v != sancLugefer {
+				t.Errorf("%s: vaga %d com EF_SANC %d, esperava %d", nome, i, v, sancLugefer)
+			}
+		}
+
+		idx, ef := peca(b, slotArma)
+		if idx != lunaAnct {
+			t.Errorf("%s: arma = %d, esperava a Luna(Anct) %d", nome, idx, lunaAnct)
+		}
+		if v, ok := efeito(ef, efSancVisual); !ok || v != sanc11 {
+			t.Errorf("%s: Luna com EF_SANC %d, esperava %d (+11)", nome, v, sanc11)
+		}
+
+		idx, ef = peca(b, slotManto)
+		if idx != mantoNegro {
+			t.Errorf("%s: manto = %d, esperava %d", nome, idx, mantoNegro)
+		}
+		if v, ok := efeito(ef, efSancVisual); !ok || v != sancDoManto {
+			t.Errorf("%s: manto com EF_SANC %d, esperava %d", nome, v, sancDoManto)
+		}
+
+		montada(t, nome, b, nivelDaMontaria)
+
+		// Nada de mecânica de mob entre a arma e a montaria.
+		for i := 7; i <= 13; i++ {
+			if idx, _ := peca(b, i); idx != 0 {
+				t.Errorf("%s: vaga %d tem %d e devia estar vazia — o visual do Lugefer não leva os divisores de dano dele", nome, i, idx)
+			}
 		}
 	}
 }
