@@ -3100,6 +3100,7 @@ func (d *Dispatcher) computeScore(e *world.Entity) protocol.ScoreData {
 			Type: e.Affect[i].Type, Time: e.Affect[i].Time,
 		})
 	}
+	d.marcaBuffsDeGuildaNaBarra(e, &sc)
 	for i := range sc.Resist {
 		sc.Resist[i] = int8(effectiveResist(e, i))
 	}
