@@ -2219,6 +2219,11 @@ func (d *Dispatcher) sendAffect(w *world.World, s *world.Session, e *world.Entit
 			continue
 		}
 		ad := protocol.AffectData{Type: af.Type, Value: af.Value, Level: af.Level, Time: af.Time}
+		// Os buffs de guilda seguem a mesma regra da Divina: a sentinela no
+		// vetor é ignorada e o tempo sai do prazo de verdade (guildabuffs.go).
+		if t, nosso := d.tempoDoBuffNaBarra(e, af.Type); nosso {
+			ad.Time = t
+		}
 		if af.Type == world.AffectDivine && af.Time >= affectInfiniteTime {
 			ad.Time = 0
 			if remaining := e.DivineEnd - now; remaining > 0 {

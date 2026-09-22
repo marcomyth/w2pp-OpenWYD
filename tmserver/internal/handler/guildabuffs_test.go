@@ -490,3 +490,83 @@ func TestBuffDeVidaNaoMataOJogador(t *testing.T) {
 		t.Errorf("vida maxima efetiva = %d", m)
 	}
 }
+
+// A marca do buff entra no vetor de afetos quando ele acende e sai quando ele
+// apaga — é ela que faz o ícone aparecer na barra do jogo.
+func TestMarcaDoBuffEntraESaiDoVetorDeAfetos(t *testing.T) {
+	d, w := painelDeGuilda(t)
+	avanca := relogioFixo(d, time.Date(2026, 9, 21, 20, 0, 0, 0, time.UTC))
+	e := liderDaGuilda(guildaDeTeste)
+
+	// Sem buff, nada entra.
+	if d.sincronizaAfetosDeGuilda(e) {
+		t.Error("sincronizou sem buff nenhum")
+	}
+
+	d.ligaBuffDeGuilda(w, guildaDeTeste, buffGuildaDano, quinzeDias)
+	if !d.sincronizaAfetosDeGuilda(e) {
+		t.Fatal("a marca nao entrou")
+	}
+	achou := false
+	for _, a := range e.Affect {
+		if a.Type == tipoNaBarra[2] {
+			achou = true
+			if a.Time != buffDeGuildaSentinela {
+				t.Errorf("Time = %d, want a sentinela %d", a.Time, buffDeGuildaSentinela)
+			}
+		}
+	}
+	if !achou {
+		t.Errorf("a marca do buff de dano nao esta no vetor: %v", e.Affect[:6])
+	}
+	// Chamar de novo nao muda nada: sem isso o servidor mandaria o vetor de 268
+	// bytes a cada refresh, dizendo que nada aconteceu.
+	if d.sincronizaAfetosDeGuilda(e) {
+		t.Error("sincronizou duas vezes a mesma coisa")
+	}
+
+	// O tempo do pacote sai do prazo de verdade, nao da sentinela.
+	tk, nosso := d.tempoDoBuffNaBarra(e, tipoNaBarra[2])
+	if !nosso {
+		t.Fatal("o tipo nao foi reconhecido como nosso")
+	}
+	if querido := uint32(quinzeDias / (8 * time.Second)); tk != querido {
+		t.Errorf("tempo = %d ticks, want %d (15 dias em ticks de 8s)", tk, querido)
+	}
+
+	// Vencido, a marca sai. Neste teste a entidade nao esta numa sessao, entao
+	// quem a tira e a propria sincronizacao - dai ela devolver "mudou".
+	avanca(quinzeDias + time.Minute)
+	d.tickBuffsDeGuilda(w)
+	if !d.sincronizaAfetosDeGuilda(e) {
+		t.Error("a sincronizacao nao viu o buff vencido")
+	}
+	for _, a := range e.Affect {
+		if a.Type == tipoNaBarra[2] {
+			t.Error("a marca continua no vetor depois de vencer")
+		}
+	}
+}
+
+// Os tipos usados na barra nao podem ser nenhum dos que applyAffectScore trata:
+// o efeito entraria duas vezes, uma pelo bonus e outra pelo afeto.
+func TestTiposDaBarraNaoColidemComOsDoServidor(t *testing.T) {
+	tratados := map[uint8]bool{}
+	for _, v := range []uint8{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+		19, 25, 27, 28, 29, 34, 35, 36, 37, 42} {
+		tratados[v] = true
+	}
+	vistos := map[uint8]bool{}
+	for _, tipo := range tipoNaBarra {
+		if tratados[tipo] {
+			t.Errorf("o tipo %d e tratado por applyAffectScore: o efeito entraria duas vezes", tipo)
+		}
+		if tipo == 0 || tipo > 49 {
+			t.Errorf("o tipo %d esta fora da faixa 1..49 que o cliente aceita", tipo)
+		}
+		if vistos[tipo] {
+			t.Errorf("o tipo %d aparece duas vezes", tipo)
+		}
+		vistos[tipo] = true
+	}
+}

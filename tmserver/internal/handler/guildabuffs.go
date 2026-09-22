@@ -263,6 +263,12 @@ func (d *Dispatcher) refrescaGuilda(w *world.World, guilda uint16) {
 		}
 		d.refreshScore(te)
 		d.sendScore(w, ts, te)
+		// A marca na barra entra e sai junto com o buff. Só manda o vetor quando
+		// ele mudou: um MsgSendAffect por refresh seria um pacote de 268 bytes
+		// para dizer que nada aconteceu.
+		if d.sincronizaAfetosDeGuilda(te) {
+			d.sendAffect(w, ts, te)
+		}
 	})
 }
 
@@ -310,8 +316,14 @@ func (d *Dispatcher) tickBuffsDeGuilda(w *world.World) {
 // avisaBuffVencido conta aos conectados da guilda que um buff caiu.
 func (d *Dispatcher) avisaBuffVencido(w *world.World, guilda uint16) {
 	w.ForEachPlaying(-1, func(ts *world.Session, te *world.Entity) {
-		if te.Guild == guilda {
-			sendClientMessage(w, ts, msgGuildaBuffVenceu)
+		if te.Guild != guilda {
+			return
+		}
+		sendClientMessage(w, ts, msgGuildaBuffVenceu)
+		// Tira a marca da barra. O refrescaGuilda que roda junto ja costuma
+		// fazer isso; isto cobre qualquer caminho que o esqueca.
+		if d.sincronizaAfetosDeGuilda(te) {
+			d.sendAffect(w, ts, te)
 		}
 	})
 }
@@ -563,3 +575,108 @@ func (d *Dispatcher) guildaAtiva(w *world.World, s *world.Session, _ protocol.He
 // icones NOS, numa camada propria, ao lado da barra do jogo - do mesmo jeito que
 // o painel de alvos e a Loja de Honra desenham o que desenham. A tira de icones
 // do cliente (UI/mainparts.wyt) ja foi decifrada e serve de molde.
+
+// --- os buffs na barra do personagem ---------------------------------------
+//
+// PELO MESMO CAMINHO DA POÇÃO DIVINA, que é o que o jogo já usa para um buff de
+// 30 dias aparecer ali com o tempo certo. Rastreado em 22/09/2026:
+//
+//   O item põe um afeto no vetor do personagem com Time = 2.000.000.000, um
+//   valor sentinela que quer dizer "infinito" e não uma duração. O prazo de
+//   verdade mora FORA do afeto, num campo próprio (DivineEnd). Na hora de
+//   enviar, sendAffect vê a sentinela e manda (prazo − agora) / 8 no lugar.
+//
+// O afeto é só a MARCA; quem sabe a duração é outro lugar. Os nossos buffs já
+// têm esse outro lugar — a tabela guild_buff -, então falta só a marca.
+//
+// Por que não pelo vetor de ícones do pacote de score, que foi a primeira
+// tentativa: aquele campo tem UM BYTE de tempo, e o cliente nem o usa para a
+// barra. Quem alimenta a barra é o MSG_SendAffect (0x03B9), com 4 bytes de
+// tempo por casa — mais de mil anos de alcance.
+
+// tipoNaBarra é o tipo de afeto que representa cada buff de guilda na barra.
+//
+// Os quatro são o fim da faixa que o cliente aceita (1..49), escolhidos por
+// dois motivos: nenhum deles é tratado por applyAffectScore, então nenhum efeito
+// do legado se liga a eles; e são os últimos do catálogo do cliente, a parte
+// menos usada — o 49 nem nome tem na tabela de nomes dele (0x61E240).
+//
+// O NÚMERO IMPORTA, e isso custou uma rodada: cada tipo tem identidade no
+// cliente. A primeira tentativa usou o 16, que é o Tick Life, e o personagem
+// ficou com a aura verde de regeneração. Se algum destes quatro trouxer efeito
+// visual, o conserto é trocar o número — não o mecanismo.
+var tipoNaBarra = [protocol.GuildaBuffs]uint8{46, 47, 48, 49}
+
+// buffDeGuildaSentinela é o Time guardado no afeto: grande o bastante para a
+// varredura de afetos nunca o zerar, e é o sinal de que o tempo de verdade vem
+// de outro lugar. Mesmo papel do divineAffectTime da Poção Divina.
+const buffDeGuildaSentinela = 2000000000
+
+// tipoDeBuffDeGuilda diz qual buff um tipo de afeto representa, ou 0.
+func tipoDeBuffDeGuilda(tipo uint8) uint8 {
+	for i, t := range tipoNaBarra {
+		if t == tipo {
+			return receitasDeBuff[i].Tipo
+		}
+	}
+	return 0
+}
+
+// sincronizaAfetosDeGuilda põe (e tira) as marcas dos buffs no vetor de afetos.
+//
+// Chamada de onde o estado muda: ao acender um buff, quando um vence, e no
+// login. Não é chamada por quadro — ela mexe no vetor de afetos, e mexer nele à
+// toa faria o servidor mandar atualização de buff sem nada ter mudado.
+func (d *Dispatcher) sincronizaAfetosDeGuilda(e *world.Entity) bool {
+	if e == nil || !world.IsPlayer(e.ID) {
+		return false
+	}
+	b := d.guildaBuffs[e.Guild]
+	agora := d.now()
+	mudou := false
+	for i := range receitasDeBuff {
+		ligado := e.Guild != 0 && b != nil && b.ligado(i, agora)
+		tipo := tipoNaBarra[i]
+		casa := -1
+		for k := range e.Affect {
+			if e.Affect[k].Type == tipo {
+				casa = k
+				break
+			}
+		}
+		if ligado && casa < 0 {
+			livre := e.EmptyAffect(tipo)
+			if livre < 0 {
+				continue // o vetor encheu; os afetos do jogador vêm primeiro
+			}
+			e.Affect[livre] = world.Affect{Type: tipo, Level: 1, Time: buffDeGuildaSentinela}
+			mudou = true
+		} else if !ligado && casa >= 0 {
+			e.Affect[casa] = world.Affect{}
+			mudou = true
+		}
+	}
+	return mudou
+}
+
+// tempoDoBuffNaBarra devolve o tempo que deve ir no pacote para um afeto nosso,
+// em ticks de 8 segundos, ou false quando o tipo não é nosso.
+//
+// É o espelho exato do que sendAffect faz com a Poção Divina: a sentinela no
+// vetor é ignorada e o tempo sai do prazo de verdade.
+func (d *Dispatcher) tempoDoBuffNaBarra(e *world.Entity, tipo uint8) (uint32, bool) {
+	if e == nil || e.Guild == 0 {
+		return 0, false
+	}
+	for i, t := range tipoNaBarra {
+		if t != tipo {
+			continue
+		}
+		b := d.guildaBuffs[e.Guild]
+		if b == nil || !b.ligado(i, d.now()) {
+			return 0, true
+		}
+		return uint32(b.expira[i].Sub(d.now()) / (8 * time.Second)), true
+	}
+	return 0, false
+}
