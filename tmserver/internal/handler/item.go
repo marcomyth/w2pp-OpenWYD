@@ -1390,9 +1390,28 @@ func (d *Dispatcher) useVigor(w *world.World, s *world.Session, e *world.Entity,
 	d.sendAffect(w, s, e)
 }
 
+// Frango Assado (EF_VOLATILE 63), e o teto de acúmulo que o Marco pediu em
+// 22/09/2026. Um frango são 4h; comendo em sequência o tempo soma até 24h, do
+// mesmo jeito que o Baú de Experiência soma 2h por baú (useExpChest).
+const (
+	frangoAtaqueEmMob        = 2000
+	frangoDuracao     uint32 = affect1H * 4
+	frangoTeto        uint32 = affect1H * 24
+)
+
 // useFrangoAssado consumes a Frango Assado (EF_VOLATILE 63): Affect 30 adds a flat
-// +2000 ForceMobDamage for 4h (_MSG_UseItem.cpp:2308-2341, Basedef.cpp:4427). Unlike
+// +2000 ForceMobDamage (_MSG_UseItem.cpp:2308-2341, Basedef.cpp:4427). Unlike
 // the healing potions this is not a heal — it's a mob-damage buff read at score time.
+//
+// O tempo ACUMULA, como no Baú de Experiência: cada frango soma 4h ao que já
+// corre, até 24h. No teto o item é consumido assim mesmo, também como o Baú
+// (useExpChest) — escolha do Marco em 22/09/2026, com a regra do Baú valendo
+// dos dois lados em vez de meia cópia dela.
+//
+// O afeto 30 é compartilhado com o Remédio/Elixir da Coragem (+500). Acúmulo
+// só vale entre frangos: por cima de um bônus menor o frango sobe para 2000 e
+// fica com o MAIOR dos dois tempos, que é o que já acontecia antes daqui, sem
+// virar um jeito de estocar horas baratas para o bônus caro.
 func (d *Dispatcher) useFrangoAssado(w *world.World, s *world.Session, e *world.Entity, src int) {
 	slot := e.EmptyAffect(world.AffectForceMobDamage)
 	if slot < 0 {
@@ -1400,7 +1419,21 @@ func (d *Dispatcher) useFrangoAssado(w *world.World, s *world.Session, e *world.
 		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, src, itemToSel(e.Carry[src])))
 		return
 	}
-	e.Affect[slot] = world.Affect{Type: world.AffectForceMobDamage, Level: 2000, Time: affect1H * 4}
+	atual := e.Affect[slot]
+	if atual.Type != world.AffectForceMobDamage {
+		atual = world.Affect{}
+	}
+	novo := frangoDuracao
+	switch {
+	case atual.Level >= frangoAtaqueEmMob:
+		novo = atual.Time + frangoDuracao
+	case atual.Time > frangoDuracao:
+		novo = atual.Time
+	}
+	if novo > frangoTeto {
+		novo = frangoTeto
+	}
+	e.Affect[slot] = world.Affect{Type: world.AffectForceMobDamage, Level: frangoAtaqueEmMob, Time: novo}
 	consumeOneItem(&e.Carry[src])
 	d.refreshScore(e)
 	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, src, itemToSel(e.Carry[src])))
