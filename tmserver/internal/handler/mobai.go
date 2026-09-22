@@ -1085,6 +1085,11 @@ func (d *Dispatcher) danoDoGolpeDeMonstro(w *world.World, e, target *world.Entit
 	// (validTarget), and absorverGarnet ignores any target that is not one.
 	dmg = d.absorverGarnet(e, target, dmg)
 	dmg = d.absorbBlow(w, target, dmg, false)
+	// O Controle de Mana entra DEPOIS da montaria, que é onde o legado o põe do
+	// lado do monstro: Server.cpp:10030 dá a fatia da montaria e :10041 roda o
+	// afeto 18 sobre o que sobrou. A ordem importa para o DONO — o que a montaria
+	// já comeu não sai da mana dele.
+	dmg = d.aplicarControleDeManaDeMonstro(w, target, dmg)
 	// O Escudo do Tormento cobra também de MONSTRO que bate no BM
 	// (arvore_natureza.go): a tooltip diz "todos que atacarem o personagem", e
 	// não só jogadores. Contra monstro ela mata normalmente — o piso de vida

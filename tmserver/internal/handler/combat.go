@@ -1597,6 +1597,31 @@ func (d *Dispatcher) applyFoemaSummon(w *world.World, caster, target *world.Enti
 	return true
 }
 
+// aplicarControleDeManaDeMonstro é o afeto 18 no golpe de MONSTRO ou de PET
+// (Server.cpp:10041, ProcessSecMinTimer.cpp:2317).
+//
+// O legado tem o Controle de Mana em TRÊS lugares e só o do jogador tinha sido
+// portado, então contra monstro a skill 46 não fazia NADA: a mana ficava parada e
+// o golpe inteiro ia para a vida. Mesma classe de porte pela metade de sempre —
+// o consumidor existia, o caminho não chamava.
+func (d *Dispatcher) aplicarControleDeManaDeMonstro(w *world.World, target *world.Entity, dmg int) int {
+	if dmg <= 0 || target == nil || !world.IsPlayer(target.ID) || !target.HasAffect(18) {
+		return dmg
+	}
+	ts := w.Session(target.ID)
+	if ts == nil {
+		return dmg
+	}
+	reduced, spent, ok := manaControlDeMonstro(target, dmg)
+	if !ok {
+		return dmg
+	}
+	ts.ReqMp -= spent
+	setReqMp(ts, target)
+	d.sendSetHpMp(w, ts, target)
+	return reduced
+}
+
 func (d *Dispatcher) applyManaControl(w *world.World, caster, target *world.Entity, tid, dmg int) int {
 	if dmg <= 0 || target == nil || !target.HasAffect(18) {
 		return dmg
@@ -1647,29 +1672,55 @@ func hpAbsHeal(dmg int, absPct int32) int32 {
 	return rec
 }
 
+// manaControlDamage é o Controle de Mana (skill 46, afeto 18) no golpe de
+// JOGADOR: _MSG_Attack.cpp:1538. A mana paga o golpe INTEIRO e o divisor é 55,
+// ou 50 quando o ATACANTE tem o bit 23 aprendido — no legado é a skill de quem
+// BATE que escolhe o divisor, não a de quem apanha.
 func manaControlDamage(target *world.Entity, dmg int, enhanced bool) (int, int32, bool) {
+	divisor := int32(55)
+	if enhanced {
+		divisor = 50
+	}
+	custoPct := 100
+	if fmCancelamento(target) {
+		// Com o Cancelamento a mana rende mais e o escudo segura mais
+		// (arvore_magia_especial.go).
+		divisor = manaControlDivisorCancel
+		custoPct = manaControlCustoPctCancel
+	}
+	return manaControlAplicar(target, dmg, int32(dmg)*int32(custoPct)/100, divisor)
+}
+
+// manaControlDivisorMonstro é o divisor do lado do MONSTRO (Server.cpp:10046,
+// ProcessSecMinTimer.cpp:2322). O legado é mais generoso aqui do que no golpe de
+// jogador, de propósito: 80 deixa passar ~20,6% do golpe contra os 30% do
+// divisor 55, e a mana paga METADE do golpe em vez do golpe inteiro.
+const manaControlDivisorMonstro = int32(80)
+
+// manaControlDeMonstro é o mesmo afeto 18 quando quem bate é monstro ou pet.
+func manaControlDeMonstro(target *world.Entity, dmg int) (int, int32, bool) {
+	return manaControlAplicar(target, dmg, int32(dmg)/2, manaControlDivisorMonstro)
+}
+
+// manaControlAplicar é o núcleo do afeto 18, comum aos dois lados: cobra spent da
+// mana e devolve o que sobra do golpe.
+//
+// spent e dmg entram separados de propósito. O legado cobra o golpe inteiro de um
+// lado e metade do outro, mas calcula o que PASSA a partir do golpe nos dois.
+// Derivar um do outro amarraria o dano ao custo, e um botão que mexesse só no
+// preço da mana mexeria no dano junto, sem ninguém pedir.
+//
+// O piso de 10% da mana é o que desliga o escudo: abaixo dele o golpe volta a
+// entrar inteiro na vida.
+func manaControlAplicar(target *world.Entity, dmg int, spent, divisor int32) (int, int32, bool) {
 	if dmg <= 0 || target == nil || !target.HasAffect(18) || target.MP <= effectiveMaxMP(target)/10 {
 		return dmg, 0, false
-	}
-	spent := int32(dmg)
-	if fmCancelamento(target) {
-		// Com o Cancelamento a mana rende mais: o mesmo golpe custa menos barra
-		// (arvore_magia_especial.go).
-		spent = spent * int32(manaControlCustoPctCancel) / 100
 	}
 	target.MP -= spent
 	if target.MP < 0 {
 		target.MP = 0
 	}
-	divisor := int32(55)
-	if enhanced {
-		divisor = 50
-	}
-	if fmCancelamento(target) {
-		// Com o Cancelamento, o Controle de Mana segura mais (arvore_magia_especial.go).
-		divisor = manaControlDivisorCancel
-	}
-	reduced := ((spent >> 1) + (spent << 4)) / divisor
+	reduced := ((int32(dmg) >> 1) + (int32(dmg) << 4)) / divisor
 	if reduced < 0 {
 		return 0, spent, true
 	}
