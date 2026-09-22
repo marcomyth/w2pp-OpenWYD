@@ -39,6 +39,9 @@ const (
 	// Até 22/09/2026 NENHUMA das 2014 lojas do jogo vendia poção.
 	ultraCura = 404
 	ultraMana = 409
+	// Saem de 120 em 120, e são os DOIS únicos itens do jogo cuja compra paga por
+	// unidade (handler/shop.go, cobradasPorUnidade): a pilha custa 240.000.
+	pilhaDaPocao = 120
 )
 
 // foraDeTodaVitrine é a lista inteira, com o nome que a falha vai imprimir.
@@ -293,15 +296,15 @@ func TestVitrineDaAki(t *testing.T) {
 		}
 	}
 	for _, v := range []int{0, 1} {
-		if q := quantidade(b, v); q != 1 {
-			t.Errorf("a poção da vaga %d sai em pilha de %d; tem de ser 1, ou dez saem pelo preço de uma", v, q)
+		if q := quantidade(b, v); q != pilhaDaPocao {
+			t.Errorf("a poção da vaga %d sai em pilha de %d, esperava %d", v, q, pilhaDaPocao)
 		}
 	}
 }
 
-// As duas poções de 500 saem uma por compra nas DUAS lojas — o Martin é a cópia
-// da Aki, e o desconto acidental valeria igual nele.
-func TestPocoesDeQuinhentosSaemUmaPorCompra(t *testing.T) {
+// As duas poções de 500 saem na mesma pilha nas DUAS lojas — o Martin é a cópia
+// da Aki, e o preço por unidade vale igual nele (handler/shop.go).
+func TestPocoesDeQuinhentosSaemEmPilha(t *testing.T) {
 	for nome, vagas := range map[string][]int{"Aki": {0, 1}, "Martin": {1, 4}} {
 		b, err := os.ReadFile(filepath.Join(release(t, "TMsrv", "run", "npc"), nome))
 		if err != nil {
@@ -316,8 +319,8 @@ func TestPocoesDeQuinhentosSaemUmaPorCompra(t *testing.T) {
 				t.Errorf("%s: vaga %d tem %d, esperava uma das poções de 500", nome, v, loja[v])
 				continue
 			}
-			if q := quantidade(b, v); q != 1 {
-				t.Errorf("%s: a poção da vaga %d sai em pilha de %d, esperava 1", nome, v, q)
+			if q := quantidade(b, v); q != pilhaDaPocao {
+				t.Errorf("%s: a poção da vaga %d sai em pilha de %d, esperava %d", nome, v, q, pilhaDaPocao)
 			}
 		}
 	}
