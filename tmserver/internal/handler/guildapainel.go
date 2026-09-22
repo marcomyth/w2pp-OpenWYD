@@ -224,11 +224,11 @@ func guildaLider(quadro []world.GuildMemberRecord) string {
 // guildaCapacidade protege contra uma guilda gravada antes da 0079, cuja coluna
 // member_cap poderia chegar aqui como zero se alguém escrevesse na tabela à mão.
 // Zero na tela seria "249 / 0".
-func guildaCapacidade(cap int) int {
-	if cap <= 0 {
+func guildaCapacidade(teto int) int {
+	if teto <= 0 {
 		return guildaCapacidadePadrao
 	}
-	return cap
+	return teto
 }
 
 // guildaCapacidadePadrao espelha o DEFAULT 250 da coluna member_cap (0079).
@@ -610,8 +610,8 @@ func (d *Dispatcher) guildaDesigna(w *world.World, s *world.Session, _ protocol.
 		}
 		var nomes []string
 		for _, n := range pedidos {
-			if real, ok := daGuilda[strings.ToLower(n)]; ok && len(nomes) < protocol.GuildaEsquadraMax {
-				nomes = append(nomes, real)
+			if canonico, ok := daGuilda[strings.ToLower(n)]; ok && len(nomes) < protocol.GuildaEsquadraMax {
+				nomes = append(nomes, canonico)
 			}
 		}
 		p := w.Persistence()

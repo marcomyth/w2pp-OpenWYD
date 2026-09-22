@@ -181,7 +181,7 @@ func (d *Dispatcher) abrirLojaDeHonra(w *world.World, s *world.Session, npc *wor
 
 // honraFecha atende MsgHonraFecha: o painel fechou, então a loja não está mais
 // aberta e a compra volta a ser recusada.
-func (d *Dispatcher) honraFecha(w *world.World, s *world.Session, _ protocol.Header, _ []byte) {
+func (d *Dispatcher) honraFecha(_ *world.World, s *world.Session, _ protocol.Header, _ []byte) {
 	s.LojaHonraNPC = 0
 }
 

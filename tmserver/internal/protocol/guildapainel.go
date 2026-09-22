@@ -476,8 +476,8 @@ type GuildaTextoBody struct {
 }
 
 // Encode serializa o texto com o tamanho na frente.
-func (b *GuildaTextoBody) Encode(max int) []byte {
-	t := cortaBytes(b.Texto, max)
+func (b *GuildaTextoBody) Encode(limite int) []byte {
+	t := cortaBytes(b.Texto, limite)
 	out := make([]byte, 2+len(t))
 	binary.LittleEndian.PutUint16(out, uint16(len(t)))
 	copy(out[2:], t)
@@ -487,8 +487,8 @@ func (b *GuildaTextoBody) Encode(max int) []byte {
 // DecodeGuildaTexto lê o texto, recusando o que passar do limite em vez de
 // cortar: cortar o recado de alguém pela metade e gravar assim é pior do que
 // dizer não.
-func DecodeGuildaTexto(b []byte, max int) (GuildaTextoBody, error) {
-	t, _, err := leTexto(b, 0, max)
+func DecodeGuildaTexto(b []byte, limite int) (GuildaTextoBody, error) {
+	t, _, err := leTexto(b, 0, limite)
 	if err != nil {
 		return GuildaTextoBody{}, fmt.Errorf("protocol: guilda texto: %w", err)
 	}
@@ -497,14 +497,14 @@ func DecodeGuildaTexto(b []byte, max int) (GuildaTextoBody, error) {
 
 // leTexto lê um texto de tamanho variável em b a partir de p: dois bytes de
 // tamanho e os bytes do texto. Devolve o texto e onde o próximo campo começa.
-func leTexto(b []byte, p, max int) (string, int, error) {
+func leTexto(b []byte, p, limite int) (string, int, error) {
 	if p+2 > len(b) {
 		return "", p, fmt.Errorf("sem os 2 bytes de tamanho em %d", p)
 	}
 	n := int(binary.LittleEndian.Uint16(b[p:]))
 	p += 2
-	if n > max {
-		return "", p, fmt.Errorf("tamanho %d passa do limite %d", n, max)
+	if n > limite {
+		return "", p, fmt.Errorf("tamanho %d passa do limite %d", n, limite)
 	}
 	if p+n > len(b) {
 		return "", p, fmt.Errorf("texto de %d bytes não cabe no que sobrou (%d)", n, len(b)-p)
@@ -512,14 +512,14 @@ func leTexto(b []byte, p, max int) (string, int, error) {
 	return string(b[p : p+n]), p + n, nil
 }
 
-// cortaBytes corta um texto em no máximo max BYTES sem partir um caractere no
+// cortaBytes corta um texto em no máximo `limite` BYTES sem partir um caractere no
 // meio. Cortar por bytes cegamente deixaria meio "ç" no fim da linha, que o
 // cliente desenha como lixo.
-func cortaBytes(s string, max int) []byte {
-	if len(s) <= max {
+func cortaBytes(s string, limite int) []byte {
+	if len(s) <= limite {
 		return []byte(s)
 	}
-	corte := max
+	corte := limite
 	for corte > 0 && s[corte]&0xC0 == 0x80 {
 		corte--
 	}

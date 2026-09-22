@@ -612,16 +612,6 @@ var tipoNaBarra = [protocol.GuildaBuffs]uint8{46, 47, 48, 49}
 // de outro lugar. Mesmo papel do divineAffectTime da Poção Divina.
 const buffDeGuildaSentinela = 2000000000
 
-// tipoDeBuffDeGuilda diz qual buff um tipo de afeto representa, ou 0.
-func tipoDeBuffDeGuilda(tipo uint8) uint8 {
-	for i, t := range tipoNaBarra {
-		if t == tipo {
-			return receitasDeBuff[i].Tipo
-		}
-	}
-	return 0
-}
-
 // sincronizaAfetosDeGuilda põe (e tira) as marcas dos buffs no vetor de afetos.
 //
 // Chamada de onde o estado muda: ao acender um buff, quando um vence, e no
