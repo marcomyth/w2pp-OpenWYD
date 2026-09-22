@@ -343,18 +343,27 @@ func TestFanatismoPeloAtaque(t *testing.T) {
 	if !acertou {
 		t.Fatal("o Fanatismo não acertou em 20 tentativas")
 	}
-	alvo, tk := w.Entity(2), w.Entity(1)
+	// As fichas são lidas DENTRO do laço. O mundo é de dono único: ler a ficha da
+	// goroutine do teste corre com o desmonte da sessão (world.removeSession pelo
+	// disconnectEvent), e foi essa a corrida que o -race acusou aqui. Copiamos só
+	// o que as asserções usam; o que o teste prova não muda.
+	var afetosDoAlvo [world.MaxAffect]world.Affect
+	var tkPvP, alvoPvP uint32
+	noLaco(t, w, func(w *world.World) {
+		alvo, tk := w.Entity(2), w.Entity(1)
+		afetosDoAlvo, tkPvP, alvoPvP = alvo.Affect, tk.UltimoPvP, alvo.UltimoPvP
+	})
 	debuff := false
-	for _, af := range alvo.Affect {
+	for _, af := range afetosDoAlvo {
 		if af.Type == affectDefesaPct && af.Value == fanatismoDefesaPct {
 			debuff = true
 		}
 	}
 	if !debuff {
-		t.Fatalf("afetos do alvo = %+v, want o debuff de defesa do Fanatismo", alvo.Affect)
+		t.Fatalf("afetos do alvo = %+v, want o debuff de defesa do Fanatismo", afetosDoAlvo)
 	}
-	if tk.UltimoPvP == 0 || alvo.UltimoPvP == 0 {
-		t.Fatalf("UltimoPvP = %d/%d, want os dois marcados", tk.UltimoPvP, alvo.UltimoPvP)
+	if tkPvP == 0 || alvoPvP == 0 {
+		t.Fatalf("UltimoPvP = %d/%d, want os dois marcados", tkPvP, alvoPvP)
 	}
 }
 

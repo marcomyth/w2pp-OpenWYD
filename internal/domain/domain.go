@@ -98,6 +98,7 @@ type Character struct {
 	// grant formula. It was already read there and had nowhere to live.
 	CelestialReset uint8
 	NewbieQuest    uint8  // MobExtra.QuestInfo.Mortal.Newbie: training-field trainer step (0..4)
+	MolarGargula   uint8  // MobExtra.QuestInfo.Mortal: Molar de Gárgula já usado (0093)
 	Soul           uint8  // MobExtra.Soul
 	Fame           int32  // MobExtra.Fame
 	PKPoint        uint8  // GetFunc.cpp KILL_MARK slot: chaos/karma counter, 75 = neutral (issue #210)
@@ -315,12 +316,17 @@ type NPCShopItem struct {
 	Slot      int16
 	ItemIndex int32
 	Quantity  int16 // stack amount; 1 means a single item
-	Eff1      uint8
-	EffV1     uint8
-	Eff2      uint8
-	EffV2     uint8
-	Eff3      uint8
-	EffV3     uint8
+	// PricePoints troca a moeda deste slot: nil = ouro (preço do catálogo ou do
+	// item_price), não-nil = pontos de lojinha (0060). Ponteiro porque zero é um
+	// preço legítimo — item de graça para quem tem a carteira aberta — e um int
+	// simples não distingue "de graça" de "não configurado".
+	PricePoints *int32
+	Eff1        uint8
+	EffV1       uint8
+	Eff2        uint8
+	EffV2       uint8
+	Eff3        uint8
+	EffV3       uint8
 }
 
 // ItemPriceOverride is a global per-item price set by a moderator. It overlays
@@ -1108,12 +1114,30 @@ type ItemDup struct {
 // ChatTipo is which channel a line was said on.
 type ChatTipo string
 
-// The two channels stored. Public speech reaches whoever was in view; a whisper
-// reaches one person.
+// Os canais guardados, e quem cada um alcança: a fala pública alcança quem está
+// na tela, o sussurro alcança uma pessoa, a guilda a guilda (com a aliada, no
+// "--"), o grupo o grupo, o reino quem tem o mesmo Clan, e o cidadão o servidor
+// inteiro. O alcance é a razão de o tipo existir — é o que o atendimento precisa
+// saber para responder "quem ouviu isto?".
 const (
 	ChatPublico  ChatTipo = "publico"
 	ChatSussurro ChatTipo = "sussurro"
+	ChatGuilda   ChatTipo = "guilda"
+	ChatGrupo    ChatTipo = "grupo"
+	ChatReino    ChatTipo = "reino"
+	ChatCidadao  ChatTipo = "cidadao"
 )
+
+// ChatTipoValido reporta se t é um dos canais guardados. O store consulta esta
+// lista nas duas pontas (gravar e listar), e a migração 0097 repete a mesma
+// lista no CHECK da tabela — as três têm de andar juntas.
+func ChatTipoValido(t ChatTipo) bool {
+	switch t {
+	case ChatPublico, ChatSussurro, ChatGuilda, ChatGrupo, ChatReino, ChatCidadao:
+		return true
+	}
+	return false
+}
 
 // ChatRetencaoPadrao is how long a line is kept when nothing says otherwise.
 //

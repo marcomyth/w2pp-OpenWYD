@@ -117,26 +117,25 @@ func TestSkillBaseDamage(t *testing.T) {
 
 func TestSkillResistScale(t *testing.T) {
 	resist := [4]int16{20, 40, 60, 80}
+	// A conta não distingue mais o tipo de alvo: desde 21/09/2026 a resistência
+	// conta PELA METADE em jogador e em monstro. Antes o alvo humano levava a
+	// conta inteira sobre uma base que não descia, e a etapa multiplicava o golpe
+	// em vez de reduzi-lo. A base aqui é 0, isto é, o 150 do legado.
 	tests := []struct {
-		name         string
-		dam, itype   int
-		targetPlayer bool
-		want         int
+		name       string
+		dam, itype int
+		want       int
 	}{
-		{"type1 player uses full Resist[0]", 100, 1, true, 130}, // (150-20)*100/100
-		{"type1 mob halves", 100, 1, false, 140},                // (150-10)
-		{"type2 reads Resist[0]", 100, 2, true, 130},
-		{"type3 reads Resist[1]", 100, 3, true, 110}, // (150-40)
-		{"type3 mob halves", 100, 3, false, 130},     // (150-20)
-		{"type4 reads Resist[2]", 100, 4, true, 90},  // (150-60)
-		{"type4 mob halves", 100, 4, false, 120},     // (150-30)
-		{"type5 reads Resist[3]", 100, 5, true, 70},  // (150-80)
-		{"type5 mob halves", 100, 5, false, 110},     // (150-40)
-		{"other types pass through", 100, 6, true, 100},
+		{"type1 reads Resist[0]", 100, 1, 140}, // (150-20/2)*100/100
+		{"type2 reads Resist[0]", 100, 2, 140},
+		{"type3 reads Resist[1]", 100, 3, 130}, // (150-40/2)
+		{"type4 reads Resist[2]", 100, 4, 120}, // (150-60/2)
+		{"type5 reads Resist[3]", 100, 5, 110}, // (150-80/2)
+		{"other types pass through", 100, 6, 100},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := SkillResistScale(tt.dam, tt.itype, resist, tt.targetPlayer, 0)
+			got := SkillResistScale(tt.dam, tt.itype, resist, 0)
 			if got != tt.want {
 				t.Errorf("SkillResistScale(%d, type %d) = %d, want %d",
 					tt.dam, tt.itype, got, tt.want)
@@ -151,32 +150,39 @@ func TestSkillResistScale(t *testing.T) {
 	// resolveSkillHit). The 0..100 ceiling belongs to the caller, not here.
 	t.Run("resist raised by affect mitigates more", func(t *testing.T) {
 		const base, affResist = int16(40), int16(30)
-		boosted := [4]int16{0, base + affResist, 0, 0} // type 3 → index 1
-		// (150-70)*100/100 = 80, vs 110 with base 40 alone.
-		if got := SkillResistScale(100, 3, boosted, true, 0); got != 80 {
-			t.Errorf("boosted resist scale = %d, want 80", got)
+		plain := [4]int16{0, base, 0, 0}               // type 3 → index 1
+		boosted := [4]int16{0, base + affResist, 0, 0} //
+		semBuff := SkillResistScale(100, 3, plain, 0)
+		comBuff := SkillResistScale(100, 3, boosted, 0)
+		// O que se prova é a REGRA — mais resistência, menos dano — e não o número
+		// do dia: a escala mudou em 21/09/2026 e fixar o valor aqui só amarraria o
+		// teste à conta antiga.
+		if comBuff >= semBuff {
+			t.Errorf("com o buff = %d, sem = %d — mais resistência tem de mitigar mais", comBuff, semBuff)
 		}
 	})
 }
 
-// TestSkillResistScaleMobBase: a base configurada vale só contra monstro. Contra
-// jogador o 150 do legado fica, porque é a regra que o PvP inteiro supõe.
+// TestSkillResistScaleMobBase: a base configurada vale contra monstro E contra
+// jogador. Até 21/09/2026 o alvo humano ficava preso no 150 do legado, e era
+// esse 150 que entregava 50% a mais do que a janela do cliente promete.
 func TestSkillResistScaleMobBase(t *testing.T) {
 	resist := [4]int16{10, 0, 0, 0}
+	// A base vale para qualquer alvo. Até 21/09/2026 ela era só de monstro, e o
+	// jogador ficava preso no 150 com a resistência inteira: era esse 150 que lhe
+	// entregava 50% a mais do que a própria janela dele anuncia.
 	tests := []struct {
-		name   string
-		player bool
-		base   int
-		want   int
+		name string
+		base int
+		want int
 	}{
-		{"mob, legado", false, 150, 145},          // (150 − 10/2)
-		{"mob, sem o bônus", false, 100, 95},      // (100 − 5)
-		{"mob, 0 é o legado", false, 0, 145},      // base ausente
-		{"jogador ignora a base", true, 100, 140}, // (150 − 10)
+		{"legado", 150, 145},     // (150 − 10/2)
+		{"sem o bônus", 100, 95}, // (100 − 5)
+		{"0 é o legado", 0, 145}, // base ausente
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := SkillResistScale(100, 1, resist, tt.player, tt.base); got != tt.want {
+			if got := SkillResistScale(100, 1, resist, tt.base); got != tt.want {
 				t.Errorf("SkillResistScale = %d, want %d", got, tt.want)
 			}
 		})

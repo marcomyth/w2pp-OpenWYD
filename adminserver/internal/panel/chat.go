@@ -25,6 +25,28 @@ type chatLinha struct {
 // Sussurro reports whether this was a private message rather than public speech.
 func (c chatLinha) Sussurro() bool { return c.Tipo == domain.ChatSussurro }
 
+// canalRotulo nomeia cada canal na tela. Os quatro últimos chegaram com os
+// canais de chat (tmserver/internal/handler/canais.go), e o rótulo importa para
+// esta tela mais do que a cor: o que o atendimento precisa saber de uma linha é
+// quem podia ouvi-la.
+var canalRotulo = map[domain.ChatTipo]string{
+	domain.ChatPublico:  "público",
+	domain.ChatSussurro: "sussurro",
+	domain.ChatGuilda:   "guilda",
+	domain.ChatGrupo:    "grupo",
+	domain.ChatReino:    "reino",
+	domain.ChatCidadao:  "cidadão",
+}
+
+// Canal é o nome do canal desta linha. Um tipo que esta versão do painel não
+// conhece aparece cru em vez de sumir: uma linha sem rótulo ainda é prova.
+func (c chatLinha) Canal() string {
+	if r, ok := canalRotulo[c.Tipo]; ok {
+		return r
+	}
+	return string(c.Tipo)
+}
+
 // chat shows what was said (0034_chat_log).
 //
 // It exists for one question, and it is the one support gets every day:
@@ -44,7 +66,7 @@ func (h *Handler) chat(w http.ResponseWriter, r *http.Request) {
 	nome := strings.TrimSpace(q.Get("personagem"))
 	texto := strings.TrimSpace(q.Get("texto"))
 	tipo := domain.ChatTipo(strings.TrimSpace(q.Get("tipo")))
-	if tipo != domain.ChatPublico && tipo != domain.ChatSussurro {
+	if !domain.ChatTipoValido(tipo) {
 		tipo = ""
 	}
 	dias := 7

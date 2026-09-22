@@ -86,16 +86,31 @@ type Session struct {
 	// character (_MSG_MessageWhisper.cpp:591 sets it, :1640 shows it). Session
 	// scope is deliberate and matches the legacy, which clears Snd on every login
 	// (ProcessDBMessage.cpp:798) — it is never persisted.
-	Snd               string
-	GuildDisable      bool            // hide guild tag (guildon/guildoff)
+	Snd string
+	// Os três desligadores de canal do legado (_MSG_MessageChat.cpp:117-150),
+	// alternados por "partychat"/"kingdomchat"/"guildchat" e lidos na ENTREGA:
+	// true = este jogador não recebe mais aquele canal. Escopo de sessão, como o
+	// legado, que zera os três a cada login (ProcessDBMessage.cpp:414-416).
+	//
+	// O canal Cidadão não tem desligador: o SyncMulticast do legado não olha
+	// nada, e portar um seria inventar mecânica.
+	PartyChat bool
+	KingChat  bool
+	GuildChat bool
+	// UltimaMensagemCanal é o World.Now da última linha de Reino ou Cidadão desta
+	// sessão; 0 é nunca. Os dois canais alcançam gente fora da tela, então o
+	// legado põe 3 segundos entre uma linha e a outra (pUser.Message).
+	UltimaMensagemCanal uint32
+	GuildDisable        bool // hide guild tag (guildon/guildoff)
 	// GuildaPedidoEm é quando este jogador pediu, pela última vez, uma aba do
 	// Painel de Guilda que vai ao banco. É o freio contra um cliente remendado
 	// pedir o quadro em laço (handler/guildapainel.go).
-	GuildaPedidoEm time.Time
+	GuildaPedidoEm    time.Time
 	TradeMode         int             // non-zero while in auto-trade (blocks attacks)
 	Trade             TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
 	AutoTrade         *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1
 	NovatoEmCurso     bool            // um /novato já está esperando a resposta do banco
+	CompraEmPontos    bool            // uma compra paga em pontos de lojinha espera o banco
 	LastAttackTick    uint32          // ClientTick of the last accepted attack (cadence gate)
 	PotionTick        uint32          // CUser.PotionTime: server clock of the last accepted potion
 	LastAttack        int             // SkillIndex of the last attack
@@ -216,8 +231,13 @@ type Entity struct {
 	ID   int
 	Mode EntityMode
 	Name string
-	X    int16
-	Y    int16
+	// Tab é a linha que o jogador põe ACIMA do personagem com "/tab"
+	// (pMob.Tab, _MSG_MessageWhisper.cpp:548). Vive aqui, e não na Session,
+	// porque quem a desenha é o MSG_CreateMob da ENTIDADE — inclusive o que
+	// outro jogador recebe ao entrar na tela. Não é persistida, como no legado.
+	Tab []byte
+	X   int16
+	Y   int16
 	// SaveX/SaveY are the Gema Estelar warp save-point (STRUCT_MOB.SPX/SPY,
 	// _MSG_UseItem.cpp Vol 12/13) — distinct from X/Y, the player's live position.
 	// 0/0 means no point has ever been saved.
@@ -281,8 +301,17 @@ type Entity struct {
 	// legacy routes quest NPCs by (_MSG_Quest.cpp:33). The Treinadores are 36/40/41
 	// here and 100/104/105 in Merchant above; see internal/campotreino.
 	MobMerchant  uint8
-	NonCombatNPC bool  // true for town/service NPCs protected from player damage
-	Grade        uint8 // NPC sub-type for Merchant==100 quest NPCs (EF_GRADE0 of Equip[0])
+	NonCombatNPC bool // true for town/service NPCs protected from player damage
+	// ShopPointPrice is the shop-points price of this merchant's stock, keyed by
+	// Carry index (0060_shop_points, npc_shop_item.price_points). A Carry slot
+	// present here is paid for in POINTS; anything absent is paid for in gold, so
+	// nil — the value every other entity in the world has — means "gold only".
+	//
+	// It lives on the entity rather than in a Dispatcher-side map so it dies with
+	// the NPC: ids are recycled, and a stale price surviving a reload would sell
+	// whatever moved in next at the old shop's rate.
+	ShopPointPrice map[int]int32
+	Grade          uint8 // NPC sub-type for Merchant==100 quest NPCs (EF_GRADE0 of Equip[0])
 
 	Class       uint8    // character class (0=TK 1=FM 2=BM 3=HT); drives the visual model
 	AttackRun   uint8    // CurrentScore.AttackRun speed byte — mobs: template value (set at spawn); players: derived live (handler attackRunOf)
@@ -305,7 +334,11 @@ type Entity struct {
 	// NewbieQuest is MobExtra.QuestInfo.Mortal.Newbie (_MSG_Quest.cpp:1896-2100):
 	// which of the four training-field trainer steps is done (0..4). Each step
 	// demands the previous one, so it is persisted.
-	NewbieQuest          uint8
+	NewbieQuest uint8
+	// MolarGargula marca que este personagem ja usou o Molar de Gargula (0093):
+	// o molar sobe o set vestido para +7 uma unica vez, entao a marca precisa
+	// sobreviver ao relog.
+	MolarGargula         uint8
 	ArchLv355, ArchLv370 uint8
 	MortalLevel          uint16
 	CelestialArchLevel   uint8

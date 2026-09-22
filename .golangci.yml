@@ -59,6 +59,10 @@ linters:
         # Portuguese for "they", in a comment on the training-field Ajudante
         # (ajudante.go). misspell reads it as a typo for "eels"; it is the most
         # common pronoun in the language, so it will keep coming back.
+        #
+        # E voltou: o teste dos pontos de lojinha trouxe a mesma palavra e a main
+        # a acrescentou uma segunda vez. A entrada duplicada saiu na junção — uma
+        # linha aqui já cobre o idioma inteiro, não um arquivo de cada vez.
         - eles
         # Portuguese for "criticals", as in the critical hits of the TK Espada
         # Mágica and of the mage trees. misspell reads it as a typo for "critics".
@@ -92,6 +96,21 @@ linters:
         # as a typo for "simultaneous"; the accented spelling is "simultâneos"
         # and the comment drops the accent, as the rest of the file does.
         - simultaneos
+        # Portuguese for "definitive": the real catalog index of a supporter
+        # chest, as opposed to the borrowed one the in-game test runs on.
+        # misspell reads it as a typo for "definition", plural included.
+        - definitivo
+        - definitivos
+        # Portuguese for "denominator" — the scale a chest table is written
+        # against (10,000 hundredths of a percent). misspell reads the
+        # Portuguese word as a typo for the English one it translates.
+        - denominador
+        # Portuguese for "conditional", describing the three teleport routes that
+        # carry a condition and therefore live in the handler instead of the
+        # lookup table (vale.go, kefra.go, kefra_hall.go). misspell reads the
+        # Portuguese word as a typo for the English one it translates.
+        - condicional
+        - condicionais
   exclusions:
     generated: lax
     presets:

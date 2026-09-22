@@ -16,6 +16,12 @@ import "github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 // endless supply of entries. It is handed over on every path that fails, so a
 // party that cannot be moved is never left with nothing.
 //
+// A ride whose next room is TAKEN waits for it (2026-09-20). It used to hand the
+// scroll back once the cleared room's countdown ran out, which from the player's
+// chair was the fairy freezing in the middle of a run — and the scroll it handed
+// back walked into the same occupied room and was refused through a notice this
+// client never draws. See fadaEsperaSalaLivre.
+//
 // The Fada Azul (3901, 3904, 3907) is deliberately out — it was not asked for.
 
 const (
@@ -27,6 +33,22 @@ const (
 	// pause only has to read as a beat between rooms rather than a teleport in
 	// the middle of the fight.
 	fadaEsperaNaAgua = 3
+
+	// Waiting for a busy room only lasts if the party is not thrown out from
+	// under it: the room it is standing in was cut to 30s when it was cleared,
+	// and that countdown expiring teleports everyone to the dungeon entrance. So
+	// a waiting ride keeps its own room topped up.
+	//
+	// fadaPisoDaEspera is how low that countdown may fall before it is refilled
+	// to fadaRecargaDaEspera, both in the water's 2-second units. Refilling at a
+	// floor instead of every tick keeps it at one MSG_StartTime per 20 seconds
+	// rather than one per second.
+	fadaPisoDaEspera    = 5
+	fadaRecargaDaEspera = waterRoomClearTime
+
+	// fadaAvisoDeEspera is how often a waiting party is told it is still waiting,
+	// in 1s ticks. Silence is exactly what made the old give-up read as a freeze.
+	fadaAvisoDeEspera = 10
 )
 
 // fadaLevaNaAgua reports whether a fairy carries the party through the chain:
@@ -45,11 +67,11 @@ func fadaLevaNaAgua(idx int16) bool {
 
 // avancoDaFada is one party waiting to be moved on.
 type avancoDaFada struct {
-	variant int // which chain (N, M or A)
-	room    int // the room just cleared — also the room whose scroll is owed
-	leader  int // entity id of the party leader
-	espera  int // ticks left before the first attempt
-	prazo   int // ticks left to keep retrying while the next room is busy
+	variant   int // which chain (N, M or A)
+	room      int // the room just cleared — also the room whose scroll is owed
+	leader    int // entity id of the party leader
+	espera    int // ticks left before the first attempt
+	esperando int // ticks spent waiting for the next room to empty
 }
 
 // proximaSalaDaAgua is the room the chain moves to. The last numbered room (7,
@@ -115,15 +137,14 @@ func (d *Dispatcher) agendarAvancoDaFada(w *world.World, leader *world.Entity, v
 	if s == nil || s.Mode != world.UserPlay {
 		return false
 	}
-	// Retry for as long as the cleared room lasts. When its countdown runs out
-	// everyone standing in it is thrown out of the dungeon, and by then the scroll
-	// has to be in the bag — that is what lets the party walk back in.
+	// No deadline is carried: a ride that finds the next room taken waits for it
+	// (fadaEsperaSalaLivre), and the ways out are the leader leaving the Água,
+	// losing the lead or taking the fairy off.
 	return d.enfileirarAvancoDaFada(avancoDaFada{
 		variant: variant,
 		room:    room,
 		leader:  leader.ID,
 		espera:  fadaEsperaNaAgua,
-		prazo:   int(d.events.water[variant][room]) * waterTickPeriod,
 	})
 }
 
@@ -197,13 +218,13 @@ func (d *Dispatcher) tickFadaDaAgua(w *world.World) {
 			proxima, cobrar = sala, slot
 		}
 		if ocupante, ocupada := d.waterRoomBusy(w, a.variant, proxima); ocupada {
-			if a.prazo--; a.prazo > 0 {
-				restantes = append(restantes, a)
-				continue
-			}
-			d.log.Info("fairy advance gave up: next room busy",
-				"variant", a.variant, "room", proxima, "occupant", ocupante)
-			d.entregarPergaminhoDaFada(w, leader, a, motivoFadaSalaOcupada)
+			// The ride does NOT give up here. The room in front empties on its own —
+			// the party ahead moves on, or its countdown throws it out — so the only
+			// thing waiting costs is time, and giving up cost the run: the scroll
+			// went back to a bag whose owner then clicked it into the same occupied
+			// room, and the refusal there is one the client does not draw.
+			d.fadaEsperaSalaLivre(w, leader, &a, proxima, ocupante)
+			restantes = append(restantes, a)
 			continue
 		}
 		// Charged only now, with the room about to open: every path above leaves
@@ -221,6 +242,45 @@ func (d *Dispatcher) tickFadaDaAgua(w *world.World) {
 	d.events.aguaFada = restantes
 }
 
+// fadaEsperaSalaLivre holds a ride whose next room is taken, and keeps the party
+// in place until that room empties.
+//
+// Two things have to hold for a wait to actually last. The party must stay in
+// the dungeon: the room it is standing in is a CLEARED room, cut to 30 seconds
+// when the last monster died, and its expiry teleports everyone to the entrance
+// — which would end the wait by eviction, the very stop this is meant to remove.
+// So that room's countdown is refilled as it runs down. And the party must SEE
+// that it is waiting, or waiting is indistinguishable from the freeze it
+// replaces.
+//
+// The cost is deliberate: a waiting party holds its own room for as long as it
+// waits, so a party behind it waits too. That is the same room it would have
+// been sitting in anyway, and walking out of the Água still ends the ride and
+// hands the scroll back.
+func (d *Dispatcher) fadaEsperaSalaLivre(w *world.World, leader *world.Entity, a *avancoDaFada, proxima int, ocupante string) {
+	if d.events.water[a.variant][a.room] < fadaPisoDaEspera {
+		d.events.water[a.variant][a.room] = fadaRecargaDaEspera
+		d.broadcastWaterCountdown(w, leader, fadaRecargaDaEspera)
+		d.log.Info("fairy wait: holding the cleared room open",
+			"leader", leader.Name, "variant", a.variant, "room", a.room, "next", proxima)
+	}
+	if a.esperando%fadaAvisoDeEspera == 0 {
+		// Plain ASCII, like the motives below: the panel copies the bytes raw.
+		d.announceWaterRoom(w, leader, textoDaFadaEsperando(proxima, ocupante))
+		d.log.Info("fairy waiting for the next room",
+			"leader", leader.Name, "variant", a.variant, "next", proxima,
+			"occupant", ocupante, "waited_s", a.esperando)
+	}
+	a.esperando++
+}
+
+// textoDaFadaEsperando is the panel line while a ride waits for the room in
+// front to empty. Plain ASCII and short, for the same reason as
+// textoDaFadaQueParou: the panel copies the bytes raw and cuts at 96.
+func textoDaFadaEsperando(proxima int, ocupante string) string {
+	return waterRoomLabel(proxima) + " ocupada por " + ocupante + ": a fada espera liberar."
+}
+
 // Why a ride was given up. They go to the log AND to the player's panel: a
 // fairy that stopped used to look exactly like a fairy that never worked, and
 // telling the two apart took someone reading the server log.
@@ -228,11 +288,10 @@ func (d *Dispatcher) tickFadaDaAgua(w *world.World) {
 // Plain ASCII on purpose. The panel copies the bytes raw (EncodeExpPanelBody)
 // and the client reads CP1252, so an accent here reaches the screen as mojibake.
 const (
-	motivoFadaSaiuDoJogo  = "saiu do jogo"
-	motivoFadaNaoELider   = "nao e mais lider"
-	motivoFadaForaDoSlot  = "fada fora do slot"
-	motivoFadaForaDaAgua  = "fora da agua"
-	motivoFadaSalaOcupada = "proxima sala ocupada"
+	motivoFadaSaiuDoJogo = "saiu do jogo"
+	motivoFadaNaoELider  = "nao e mais lider"
+	motivoFadaForaDoSlot = "fada fora do slot"
+	motivoFadaForaDaAgua = "fora da agua"
 )
 
 // textoDaFadaQueParou is the panel line for a ride given up after room.

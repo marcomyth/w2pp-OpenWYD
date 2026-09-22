@@ -72,6 +72,14 @@ func duasArmasDoCancelamento(e *world.Entity, itemAbility func(world.Item, uint8
 	return duas || garra
 }
 
+// arcoDoCancelamento: arco na mão direita. A mão esquerda não importa — um arco
+// ocupa as duas em jogo, e no catálogo ele é nPos 64, que só entra na direita.
+func arcoDoCancelamento(e *world.Entity, itemAbility func(world.Item, uint8) int) bool {
+	if itemAbility == nil || !fmCancelamento(e) {
+		return false
+	}
+	return itemAbility(e.Equip[weaponSlotR], efWType) == wtypeArco
+}
 func alvosDoCancelamento(e *world.Entity, itemAbility func(world.Item, uint8) int) int {
 	if itemAbility == nil {
 		return cancelAlvosPadrao
@@ -106,8 +114,14 @@ func applyPassivasDaEspecial(e *world.Entity, bitDaFoema bool, itemAbility func(
 	if !fmCancelamento(e) {
 		return
 	}
-	if cancelDanoDuasArmas > 0 && duasArmasDoCancelamento(e, itemAbility) {
+	// A empunhadura dá UM bônus de dano, nunca dois: duas armas valem mais que um
+	// arco, e somar os dois faria da combinação impossível de hoje a melhor de
+	// todas se algum dia o catálogo permitir.
+	switch {
+	case cancelDanoDuasArmas > 0 && duasArmasDoCancelamento(e, itemAbility):
 		e.AffDamageMultiPct += int32(cancelDanoDuasArmas)
+	case cancelDanoArco > 0 && arcoDoCancelamento(e, itemAbility):
+		e.AffDamageMultiPct += int32(cancelDanoArco)
 	}
 	for i := range e.Affect {
 		af := e.Affect[i]
@@ -163,9 +177,50 @@ var manaControlCustoPctCancel = 100
 // Xorimpas (1.275) e acima do próprio Trans (455). Recalibrar junto com o corte
 // de dano da HT e com a regra da poção em PvP.
 var (
-	cancelPerfuracaoPct = 80  // % da defesa do alvo que ela ignora
-	cancelDanoDuasArmas = 100 // % a mais de dano com duas armas ou garra
+	cancelPerfuracaoPct = 80 // % da defesa do alvo que ela ignora
+	// cancelDanoDuasArmas subiu de 100 para 250 em 21/09/2026. Com 100 a Foema
+	// física tirava 606 de dano por segundo na média do elenco, contra uma poção
+	// que levanta 2.000 — 15 vitórias e 79 derrotas no torneio. O ataque dela na
+	// ficha era 8.726, metade dos 17.037 do BM de Força e dos 15.747 da Xorimpas,
+	// e 250 a pôs na faixa dos 11-12 mil de ATAQUE, o que estourou o teto de
+	// 9.000 da janela quando ele foi fixado em 21/09. 102 a devolve para 8.799,
+	// logo abaixo do TK de Éden, que é quem chega ao teto.
+	cancelDanoDuasArmas = 102 // % a mais de dano com duas armas ou garra
+	// cancelDanoArco é o bônus do ARCO (20/09/2026). Ele não era penalizado: só
+	// não ganhava nada, e por isso valia o mesmo que uma espada sozinha — 4.690
+	// de ataque na janela contra 8.821 de duas espadas, o que não servia nem para
+	// caçar. Com 67% ele sobe para ~7.270, a faixa que o operador pediu, e
+	// continua claramente atrás das duas armas: essas ainda levam o dobro de
+	// multiplicador, a mão esquerda inteira, um alvo a mais no Cancelamento e a
+	// perfuração de armadura, que o arco não tem.
+	//
+	// Vale só para o ARCO (EF_WTYPE 101, 82 itens do catálogo). Dardo (102) e
+	// lança de arremesso (104) ficam de fora porque não foram pedidos.
+	cancelDanoArco = 81
 )
+
+// 40 · A NÉVOA VENENOSA da FM Cancelamento (21/09/2026).
+//
+// A Névoa é a skill de dano da árvore, e media do elenco inteiro ela valia 301
+// por uso contra 610 do golpe normal dela: METADE de um soco. A Foema física
+// gastava um terço dos turnos numa skill pior do que bater, e era esse terço que
+// a deixava em 605 de dano por segundo contra uma poção de 2.000 — a Xorimpas,
+// com o mesmo ataque de ficha, tira 1.664 porque a Lâmina das Sombras sozinha lhe
+// dá 63% do dano.
+//
+// O bônus segue a empunhadura de assinatura da árvore, como o resto dela: duas
+// espadas, dois machados ou garra. De arma e escudo a Névoa continua como era, e
+// quem não tem a 8ª não é tocado — a skill 40 é a primeira da árvore e qualquer
+// Foema a lança.
+var cancelNevoaPct = 150 // % a mais no dano da Névoa Venenosa
+
+// danoDaNevoaVenenosa é o dano da Névoa depois do bônus da árvore.
+func danoDaNevoaVenenosa(e *world.Entity, itemAbility func(world.Item, uint8) int, dmg int) int {
+	if dmg <= 0 || cancelNevoaPct == 0 || !duasArmasDoCancelamento(e, itemAbility) {
+		return dmg
+	}
+	return dmg * (100 + cancelNevoaPct) / 100
+}
 
 // perfuracaoDoCancelamento entra na mesma conta da Lança de Ferro da Huntress
 // (arvore_sobrevivencia.go), em porcentagem da defesa do alvo. Só com duas

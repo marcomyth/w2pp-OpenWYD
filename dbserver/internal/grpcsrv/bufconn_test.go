@@ -123,6 +123,16 @@ func (f *fakeStore) ShopPoints(_ context.Context, accountID int64) (int32, error
 	return f.shopPoints[accountID], nil
 }
 
+// SpendShopPoints espelha o contrato do store real: saldo curto é uma RECUSA
+// (paid=false, err=nil), não um erro, e nesse caso a carteira não se mexe.
+func (f *fakeStore) SpendShopPoints(_ context.Context, accountID int64, cost int32, _, _ string) (int32, bool, error) {
+	if f.shopPoints == nil || f.shopPoints[accountID] < cost {
+		return 0, false, nil
+	}
+	f.shopPoints[accountID] -= cost
+	return f.shopPoints[accountID], true, nil
+}
+
 // ClaimNewbieKit: a primeira chamada de cada conta concede, as seguintes não —
 // o mesmo contrato do INSERT ... ON CONFLICT DO NOTHING do store real.
 func (f *fakeStore) ClaimNewbieKit(_ context.Context, accountID int64, _ string) (bool, error) {

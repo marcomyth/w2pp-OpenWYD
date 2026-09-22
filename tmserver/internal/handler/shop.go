@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -82,6 +83,39 @@ func (d *Dispatcher) reqShopList(w *world.World, s *world.Session, _ protocol.He
 	// line is the only record of what it was handed.
 	d.log.Info("shop opened", "conn", s.Conn, "npc", target, "merchant", npc.Merchant,
 		"dropped", dropped, "items", contents.String())
+	d.anunciarPrecoEmPontos(w, s, npc)
+}
+
+// As duas poções de 500 que a Aki e o Martin vendem em pilha (0100).
+const (
+	ultraPocaoCura = 404
+	ultraPocaoMana = 409
+)
+
+// cobradasPorUnidade são os itens cujo preço de vitrine vale POR UNIDADE.
+//
+// Em todo o resto do jogo o preço é por COMPRA: o legado lê
+// g_pItemList[índice].Price e não olha a quantidade (_MSG_Buy.cpp:104), então
+// uma pilha de dez sai pelo preço de uma. São 252 vagas em 46 lojas assim hoje
+// — rações de sessenta, pergaminhos de dez, Pedidos de Caça — e mudar isso de
+// uma vez reprecificaria o jogo inteiro sem ninguém pedir.
+//
+// DIVERGÊNCIA estreita, e o alcance foi contado antes: só estes dois índices.
+// Uma poção de 500 a dezesseis de ouro é outra coisa que um pergaminho barato
+// (decisão do Marco, 22/09/2026) — a pilha de 120 custa 240.000, que é o que o
+// jogador pagaria comprando uma a uma.
+var cobradasPorUnidade = map[int16]bool{ultraPocaoCura: true, ultraPocaoMana: true}
+
+// unidadesCobradas é por quantas unidades esta compra paga: a quantidade da
+// pilha para os itens acima, 1 para todo o resto.
+func unidadesCobradas(it world.Item) int {
+	if !cobradasPorUnidade[it.Index] {
+		return 1
+	}
+	if n := itemAmount(it); n > 1 {
+		return n
+	}
+	return 1
 }
 
 // buy handles _MSG_Buy (0x0379): purchase a shop item from an NPC. Price =
@@ -117,7 +151,26 @@ func (d *Dispatcher) buy(w *world.World, s *world.Session, _ protocol.Header, pa
 		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, myPos, itemToSel(e.Carry[myPos])))
 		return
 	}
+	// Um slot precificado em pontos de lojinha é outra transação: a carteira vive
+	// no Postgres, então não dá para liquidá-la aqui, no laço. Vem antes da loja
+	// de emblema porque resolve com return próprio e deixa aquela intocada.
+	if pontos, emPontos := npc.ShopPointPrice[npcPos]; emPontos {
+		d.comprarComPontos(w, s, e, npcPos, myPos, item, pontos, payload)
+		return
+	}
 	price, ok := d.itemPrices[int(item.Index)]
+	// A pilha das poções paga por unidade (unidadesCobradas). int64 no meio do
+	// caminho: o maior preço do catálogo é de 100 milhões e a maior pilha é 255,
+	// o que estoura o int32 do Coin — o teto abaixo recusa a compra em vez de
+	// deixar o produto dar a volta e virar um preço negativo.
+	if n := unidadesCobradas(item); n > 1 {
+		total := int64(price) * int64(n)
+		if total > math.MaxInt32 {
+			d.log.Info("buy denied (pilha cara demais)", "conn", s.Conn, "item", item.Index, "total", total)
+			return
+		}
+		price = int32(total)
+	}
 	if ehLojaDeEmblema(npc) {
 		// A loja do Unicórnio Puro cobra 1 Emblema Orc e nenhum gold
 		// (loja_de_emblema.go). O cliente não confere o gold antes de mandar a

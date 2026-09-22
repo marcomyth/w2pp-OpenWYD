@@ -25,8 +25,10 @@ func TestBuildNPCDefinitionsRealCatalog(t *testing.T) {
 	// 411 = 528 minus the 121 Reinos blocks whose leader is a kingdom monster by
 	// the legacy byte — the two kings and their merchant-byte army; see
 	// internal/reinos — plus the four Lendas of the Praça (6140-6143).
-	if len(defs) != 411 {
-		t.Fatalf("merchant generator definitions = %d, want 411", len(defs))
+	// 412 = os 411 acima mais a Loja de Pontos (Merchant 1, Armia), bloco novo
+	// no fim do NPCGener desde 19/09/2026.
+	if len(defs) != 412 {
+		t.Fatalf("merchant generator definitions = %d, want 412", len(defs))
 	}
 	want := map[string]struct {
 		index    int32

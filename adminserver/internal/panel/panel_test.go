@@ -1580,7 +1580,21 @@ func newFakePlatform() *fakePlatform {
 func (f *fakePlatform) Latest(context.Context) (plataforma.Deployment, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.dep, f.latestErr
+	if f.latestErr != nil {
+		return plataforma.Deployment{}, f.latestErr
+	}
+	// Como a hospedagem de verdade com successfulOnly: a mais recente NO AR. Com
+	// histórico, pula o topo PULADO e acha o SUCCESS abaixo; sem SUCCESS nenhum,
+	// devolve o mesmo erro que a hospedagem dá quando não há publicação no ar.
+	if len(f.historico) > 0 {
+		for _, d := range f.historico {
+			if d.Status == plataforma.EstadoNoAr {
+				return d, nil
+			}
+		}
+		return plataforma.Deployment{}, fmt.Errorf("plataforma: no successful deployment (fake)")
+	}
+	return f.dep, nil
 }
 
 // restartCount is read by fakeJogo to prove the drain ran BEFORE the restart.
@@ -1808,6 +1822,70 @@ func TestRestartCardIsHiddenWithoutTheHostingAPI(t *testing.T) {
 	}
 	if rec := get("/servidor/reiniciar"); rec.Code != http.StatusNotFound {
 		t.Errorf("route exists without the hosting API: status = %d", rec.Code)
+	}
+}
+
+// TestReiniciarMiraNoQueEstaNoArComTopoPulado prende o defeito que travou o
+// botão para a Hanna: o topo da pilha era um deploy PULADO (um commit que não
+// tocou este serviço, ou teste vermelho no main — daqui dá no mesmo) e o
+// reinício mirava nele, então a hospedagem recusava com "not restartable" e o
+// botão parecia não fazer nada. Agora mira o SUCCESS que está no ar e avisa que
+// o commit mais novo não subiu.
+func TestReiniciarMiraNoQueEstaNoArComTopoPulado(t *testing.T) {
+	plat := newFakePlatform()
+	plat.historico = []plataforma.Deployment{
+		{ID: "dep-pulado", Status: plataforma.EstadoPulado, CreatedAt: time.Now()},
+		{ID: "dep-no-ar", Status: plataforma.EstadoNoAr, CreatedAt: time.Now().Add(-time.Hour)},
+	}
+	h := newTestPanelPlat(t, newFakeAudit(), newFakeWriter(), plat)
+	post, token := signedInPost(t, h)
+
+	rec := post("/servidor/reiniciar", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(plat.restarts) != 1 || plat.restarts[0] != "dep-no-ar" {
+		t.Fatalf("restarts = %v, want um para dep-no-ar (o que está no ar), não o pulado", plat.restarts)
+	}
+	destino, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(destino, "não subiu") || !strings.Contains(destino, "reiniciei o que está no ar") {
+		t.Errorf("aviso = %q, não avisou que o deploy mais novo foi pulado", destino)
+	}
+}
+
+// TestReiniciarTopoNormalNaoAvisaPulado: com o SUCCESS no topo, reinicia esse e
+// NÃO inventa o aviso de deploy pulado.
+func TestReiniciarTopoNormalNaoAvisaPulado(t *testing.T) {
+	plat := newFakePlatform()
+	plat.historico = []plataforma.Deployment{
+		{ID: "dep-no-ar", Status: plataforma.EstadoNoAr, CreatedAt: time.Now()},
+	}
+	post, token := signedInPost(t, newTestPanelPlat(t, newFakeAudit(), newFakeWriter(), plat))
+	rec := post("/servidor/reiniciar", url.Values{"csrf": {token}})
+	if len(plat.restarts) != 1 || plat.restarts[0] != "dep-no-ar" {
+		t.Fatalf("restarts = %v, want um para dep-no-ar", plat.restarts)
+	}
+	destino, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if strings.Contains(destino, "não subiu") {
+		t.Errorf("aviso = %q, avisou de deploy pulado sem haver um", destino)
+	}
+}
+
+// TestReiniciarSemPublicacaoNoAr: nenhum SUCCESS na janela — não reinicia nada e
+// diz o que a pessoa faz a seguir, em vez de um erro cru da plataforma.
+func TestReiniciarSemPublicacaoNoAr(t *testing.T) {
+	plat := newFakePlatform()
+	plat.historico = []plataforma.Deployment{
+		{ID: "dep-pulado", Status: plataforma.EstadoPulado, CreatedAt: time.Now()},
+	}
+	post, token := signedInPost(t, newTestPanelPlat(t, newFakeAudit(), newFakeWriter(), plat))
+	rec := post("/servidor/reiniciar", url.Values{"csrf": {token}})
+	if len(plat.restarts) != 0 {
+		t.Fatalf("restarts = %v, não devia reiniciar sem publicação no ar", plat.restarts)
+	}
+	destino, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(destino, "não achei uma publicação no ar") || !strings.Contains(destino, "Ligar") {
+		t.Errorf("aviso = %q, não explicou o que fazer a seguir", destino)
 	}
 }
 
@@ -4055,6 +4133,44 @@ func newTestPanelJogoPlat(t *testing.T, j Live, p Platform) http.Handler {
 	return h.Routes()
 }
 
+// TestAbaServidorDizDeQueHoraEALeitura: a página não se atualiza sozinha (é
+// deliberado — um refresh em laço atravessaria a fila do laço de dono único), e
+// por isso ela TEM de dizer de que hora é o número. Sem isso, um print do jogo
+// com nível 353 ao lado do painel com 352 parece o painel mentindo, que é
+// exatamente o que a Hanna reportou.
+func TestAbaServidorDizDeQueHoraEALeitura(t *testing.T) {
+	get := signedIn(t, newTestPanelJogoPlat(t, &fakeJogo{estado: estadoDeTeste()}, newFakePlatform()))
+	body := get("/servidor?ordem=nivel&dir=desc").Body.String()
+
+	if !strings.Contains(body, "Estado de ") {
+		t.Error("a aba Servidor não diz de que hora é a leitura")
+	}
+	if !strings.Contains(body, "não se atualiza sozinha") {
+		t.Error("a página não avisa que o número não se atualiza sozinho")
+	}
+	if !strings.Contains(body, "Atualizar agora") {
+		t.Error("a aba Servidor não oferece o botão de atualizar")
+	}
+	// O botão preserva a ordenação escolhida: atualizar não pode desfazer o
+	// clique na coluna.
+	if !strings.Contains(body, "ordem=nivel") {
+		t.Error("o botão de atualizar não preserva a ordenação")
+	}
+}
+
+// TestAtualizarNaoRepeteOAviso: o endereço do botão descarta o aviso, senão cada
+// atualização repetiria o recado de uma ação já feita e pareceria que ela
+// aconteceu de novo.
+func TestAtualizarNaoRepeteOAviso(t *testing.T) {
+	get := signedIn(t, newTestPanelJogoPlat(t, &fakeJogo{estado: estadoDeTeste()}, newFakePlatform()))
+	body := get("/servidor?aviso=Reinicio+pedido").Body.String()
+
+	if !strings.Contains(body, `href="/servidor"`) {
+		t.Errorf("o botão de atualizar carregou o aviso junto: %s",
+			body[max(0, strings.Index(body, "Atualizar agora")-160):])
+	}
+}
+
 func TestAbaServidorTrazOBotaoDeReiniciar(t *testing.T) {
 	// The only restart button used to live on Início. This tab is where anyone
 	// looks for a server control, and finding kick and broadcast but no restart
@@ -4111,6 +4227,30 @@ func TestVoltarSoAceitaOsCaminhosConhecidos(t *testing.T) {
 }
 
 // --- reinicio seguro ---
+
+// TestReinicioSeguroComTopoPuladoAvisa: o reinício seguro também mira o que está
+// no ar quando o topo é um PULADO e avisa disso, do mesmo jeito que o comum.
+func TestReinicioSeguroComTopoPuladoAvisa(t *testing.T) {
+	j := &fakeJogo{derrubados: 2, avisados: 2}
+	plat := newFakePlatform()
+	plat.historico = []plataforma.Deployment{
+		{ID: "dep-pulado", Status: plataforma.EstadoPulado, CreatedAt: time.Now()},
+		{ID: "dep-no-ar", Status: plataforma.EstadoNoAr, CreatedAt: time.Now().Add(-time.Hour)},
+	}
+	post, token := signedInPost(t, newTestPanelJogoPlat(t, j, plat))
+
+	rec := post("/servidor/reiniciar-seguro", url.Values{"csrf": {token}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303 (body: %s)", rec.Code, rec.Body.String())
+	}
+	if len(plat.restarts) != 1 || plat.restarts[0] != "dep-no-ar" {
+		t.Fatalf("restarts = %v, want um para dep-no-ar", plat.restarts)
+	}
+	destino, _ := url.QueryUnescape(rec.Header().Get("Location"))
+	if !strings.Contains(destino, "não subiu") {
+		t.Errorf("aviso = %q, não avisou que o deploy mais novo foi pulado", destino)
+	}
+}
 
 func TestReinicioSeguroEsvaziaAntesDeReiniciar(t *testing.T) {
 	// The order is the feature. Restarting first and saving during shutdown puts

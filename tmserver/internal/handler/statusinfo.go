@@ -66,6 +66,13 @@ type estadoStatus struct {
 
 	AbsHp     int32 // AffHpAbs: the Jóia da Absorção lifesteal, in percent
 	DropBonus int32 // EquipDropBonus
+
+	// ForçaEmMob é o afeto 30 (Frango Assado, Remédio/Elixir da Coragem): dano
+	// plano que só vale CONTRA MONSTRO. Relatado aqui porque é o único lugar
+	// onde dá para lê-lo: o cliente recebe só Time&0xFF do ícone (PackAffect),
+	// então o relógio dele não serve para um bônus que agora acumula até 24h.
+	ForcaEmMob      int32
+	ForcaEmMobTicks uint32
 }
 
 // showStatus backs /status.
@@ -91,6 +98,9 @@ func (d *Dispatcher) showStatus(w *world.World, s *world.Session) {
 		Tier:           e.ClassMaster,
 		AbsHp:          e.AffHpAbs,
 		DropBonus:      e.EquipDropBonus,
+
+		ForcaEmMob:      e.AffForceMobDamage,
+		ForcaEmMobTicks: afetoRestante(e, world.AffectForceMobDamage),
 	}
 	// The same conditions absorbBlow checks, in the same order: an adult
 	// lineage, still standing, and then its configured pair.
@@ -125,6 +135,12 @@ func textoStatus(st estadoStatus) []string {
 
 	if partes := partesGolpe(st); len(partes) > 0 {
 		linhas = append(linhas, juntarPartes("Contra jogador: ", partes, linhaPainelMax)...)
+	}
+
+	if st.ForcaEmMob > 0 && st.ForcaEmMobTicks > 0 {
+		linhas = append(linhas, fmt.Sprintf(
+			"Contra monstro: +%d por golpe, %s restantes.",
+			st.ForcaEmMob, tempoAfeto(st.ForcaEmMobTicks)))
 	}
 
 	if st.Garnet > 0 {

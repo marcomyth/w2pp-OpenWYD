@@ -197,6 +197,45 @@ func TestSetShop(t *testing.T) {
 	}
 }
 
+// TestSetShopPrecoEmPontos cobre os três estados do campo, que não são dois:
+// ausente é ouro, um número é pontos, e zero é de graça para quem tem carteira.
+// Achatar "ausente" e "zero" no mesmo valor poria toda loja do jogo à venda por
+// zero ponto.
+func TestSetShopPrecoEmPontos(t *testing.T) {
+	for _, tc := range []struct {
+		nome string
+		json string
+		quer *int32
+	}{
+		{"sem o campo vende por ouro", `{"slot":0,"itemIndex":1234,"quantity":1}`, nil},
+		{"com preço cobra em pontos", `{"slot":0,"itemIndex":1234,"quantity":1,"pricePoints":40}`, ptr(int32(40))},
+		{"zero é de graça, não é ouro", `{"slot":0,"itemIndex":1234,"quantity":1,"pricePoints":0}`, ptr(int32(0))},
+	} {
+		t.Run(tc.nome, func(t *testing.T) {
+			admin := &fakeAdmin{}
+			h := Handler(Config{Data: Data{}, Admin: admin, ModeratorID: 1})
+			rec := post(t, h, "/api/npc/shop", `{"npcId":5,"items":[`+tc.json+`]}`)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("status = %d, quer 200; corpo %s", rec.Code, rec.Body)
+			}
+			if len(admin.gotShop) != 1 {
+				t.Fatalf("SetShop recebeu %d itens, quer 1", len(admin.gotShop))
+			}
+			got := admin.gotShop[0].PricePoints
+			switch {
+			case tc.quer == nil && got != nil:
+				t.Fatalf("PricePoints = %d, quer nil (venda em ouro)", *got)
+			case tc.quer != nil && got == nil:
+				t.Fatalf("PricePoints = nil, quer %d", *tc.quer)
+			case tc.quer != nil && *got != *tc.quer:
+				t.Fatalf("PricePoints = %d, quer %d", *got, *tc.quer)
+			}
+		})
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
 // Business results ride in the body, not as transport errors, so each one has to
 // reach the browser as the right status with a message a moderator can act on.
 func TestResultMapping(t *testing.T) {

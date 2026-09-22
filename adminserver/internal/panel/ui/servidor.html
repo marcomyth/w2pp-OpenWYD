@@ -4,6 +4,15 @@
 <title>Servidor — Painel OpenWYD</title>
 {{template "head" .}}
 <style>
+  /* A hora da leitura fica junto do título, não no pé: quem compara o painel com
+     o jogo precisa ver isso ANTES de acreditar no número. */
+  p.lido { font-size: 13px; color: var(--ink-3); margin: -2px 0 14px; }
+  p.lido strong { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  p.lido .atualizar {
+    margin-left: 8px; padding: 3px 9px; font-size: 12.5px; text-decoration: none;
+    color: var(--ink-2); border: 1px solid var(--rule); border-radius: 3px;
+  }
+  p.lido .atualizar:hover { color: var(--ink); border-color: var(--ink-3); }
   td.acao { white-space: nowrap; }
   td.acao .acoes { display: flex; gap: 7px; justify-content: flex-end; }
   /* As caixas de destino ficam coladas no botão que as usa, para não parecerem
@@ -40,6 +49,17 @@
 <main>
   <h1>Servidor</h1>
   <p class="sub">Quem o servidor está segurando agora.</p>
+
+  {{if not .Erro}}
+  {{/* A hora da leitura, porque esta página não se atualiza sozinha: sem isto ela
+       mostra número velho com cara de número novo, e o jogo ao lado parece
+       desmentir o painel. */}}
+  <p class="lido">
+    Estado de <strong>{{.Lido}}</strong>. Esta página não se atualiza sozinha —
+    o número só muda quando você pedir.
+    <a class="atualizar" href="{{.AtualizarURL}}">Atualizar agora</a>
+  </p>
+  {{end}}
 
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
   {{if .Erro}}<div class="nota perigo">{{.Erro}}</div>{{end}}

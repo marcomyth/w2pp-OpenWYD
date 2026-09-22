@@ -214,10 +214,12 @@ func TestBaseEffects(t *testing.T) {
 	for _, e := range eff {
 		got[e.Eff] = e.Val
 	}
-	// Score-relevant effects plus EF_ITEMLEVEL (used by combine matching) and
-	// EF_RUNSPEED (issue #64: boots' move-speed bonus).
-	if len(got) != 4 || got[3] != 96 || got[2] != 24 || got[87] != 5 || got[29] != 2 {
-		t.Errorf("BaseEffects = %v, want AC(3):96, DAMAGE(2):24, ITEMLEVEL(87):5, RUNSPEED(29):2", got)
+	// Score-relevant effects plus EF_ITEMLEVEL (used by combine matching),
+	// EF_RUNSPEED (issue #64: boots' move-speed bonus) e, desde 21/09/2026,
+	// EF_REGENMP — que era descartado aqui e por isso não chegava ao MOB.RegenMP
+	// nem ao termo de resistência a debuff, em 163 itens do catálogo.
+	if len(got) != 5 || got[3] != 96 || got[2] != 24 || got[87] != 5 || got[29] != 2 || got[48] != 40 {
+		t.Errorf("BaseEffects = %v, want AC(3):96, DAMAGE(2):24, ITEMLEVEL(87):5, RUNSPEED(29):2, REGENMP(48):40", got)
 	}
 }
 

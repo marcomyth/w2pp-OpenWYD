@@ -48,12 +48,75 @@ func parcelaDoTrans(e *world.Entity) int {
 // Defesa: +10% da defesa plana (o legado) mais até +10% × m.
 //
 // HP: até +15% × f.
-const (
-	armaduraCriticoMax    = 25  // byte do crítico
-	armaduraDefesaBase    = 100 // ‰ da defesa plana
-	armaduraDefesaMaestri = 100 // ‰ × m
+const armaduraCriticoMax = 25 // byte do crítico
+
+// A defesa e o HP da Armadura Crítica são var, e não const, porque a simulação os
+// varre: o placar do porradeiro no torneio não se move com ataque nenhum — de 0 a
+// 130 pontos de multiplicador ele fica em 30 vitórias e 60 derrotas, só vencendo
+// mais rápido as mesmas lutas — e o que decide é quanto ele AGUENTA.
+var (
+	armaduraDefesaBase = 100 // ‰ da defesa plana
+	// 600 é do torneio (21/09/2026): o porradeiro perdia 60 das 110 lutas e
+	// ganhava 30, e sempre as MESMAS — as três Huntress, as únicas cuja esquiva
+	// ele ignora. Ele não perdia por bater pouco, perdia por morrer em 126 s
+	// contra um Paladino que ele levaria 200 s para matar. Com 600 as derrotas
+	// caem de 60 para 26.
+	armaduraDefesaMaestri = 600 // ‰ × m
 	armaduraHPForca       = 150 // ‰ × f
 )
+
+// O SOCO DO PORRADEIRO (21/09/2026).
+//
+// A árvore pagava crítico, defesa e HP, e nenhum ponto de ataque. Medido contra
+// o elenco inteiro, o Trans tirava 857 de dano por segundo contra uma poção que
+// levanta 2.000: ele não matava ninguém, por mais que a luta durasse. O ataque
+// dele na ficha era 6.501 contra os 17.037 do BM de Força — um quarto — e todo
+// o dano dele sai do golpe normal, sem nenhuma skill, enquanto a Lâmina das
+// Sombras sozinha dá 63% do dano da Huntress.
+//
+// A correção é ofensiva e sai toda da FORÇA, que é a régua da build:
+//
+//	dano ........ até +250 pontos de multiplicador × m × f
+//	perfuração .. até 30% da defesa do alvo × m × f
+//
+// A perfuração é o que o porradeiro sempre prometeu sem ter: ele não desvia da
+// armadura, ele passa por ela. Entra na mesma conta da Lança de Ferro da
+// Huntress e do Cancelamento da Foema (defesaPerfurada, arvore_sobrevivencia.go).
+//
+// São var, e não const, porque a simulação os varre (simulacao_torneio_test.go).
+var (
+	// 50 sai do TETO DE ATAQUE, não do torneio. O valor anterior (250) foi
+	// varrido contra vitórias e pôs a janela do porradeiro em 15.921 de Ataque
+	// num personagem full +11 Mortal — o operador mediu em jogo em 21/09/2026 e
+	// cobrou: o teto do dano físico full é 9.000, e o bom é 7.500-8.000. Em 31 a
+	// janela fica em 8.969 — e o TK com a espada Éden é justamente quem DEVE
+	// chegar ao teto de 9.000, porque é a arma de duas mãos que paga Força. Todo
+	// o resto do elenco fica abaixo dele.
+	//
+	// A lição que fica: balancear por multiplicador de dano briga com o teto da
+	// janela, porque o multiplicador é justamente o que a janela mostra. Quem
+	// precisa de força e não cabe no teto tem de recebê-la por acerto,
+	// perfuração, crítico ou cadência — não por ataque.
+	armaduraDanoForca       = 50 // pontos no multiplicador
+	armaduraPerfuracaoForca = 30 // % da defesa do alvo
+)
+
+// danoDaArmadura é o multiplicador de dano que a Armadura Crítica paga.
+func danoDaArmadura(e *world.Entity) int {
+	if !tkTrans(e) {
+		return 0
+	}
+	return armaduraDanoForca * maestriaTrans(e) * parcelaDoTrans(e) / (transMaestriaMax * 1000)
+}
+
+// perfuracaoDaArmadura é a fatia da defesa do alvo que o golpe do porradeiro
+// ignora — físico e skill, em PvP e em PvE, como as outras duas perfurações.
+func perfuracaoDaArmadura(e *world.Entity) int {
+	if !tkTrans(e) {
+		return 0
+	}
+	return armaduraPerfuracaoForca * maestriaTrans(e) * parcelaDoTrans(e) / (transMaestriaMax * 1000)
+}
 
 func criticoDaArmadura(e *world.Entity) int {
 	return armaduraCriticoMax * maestriaTrans(e) * parcelaDoTrans(e) / (transMaestriaMax * 1000)
@@ -89,10 +152,17 @@ const (
 //	acerto: tira até 30% × m da esquiva do alvo — rende mais contra quem tem
 //	  mais Destreza, que é quem esquiva mais
 const (
-	nocaoEsquivaPct   = 10
-	nocaoAcertoPermil = 300
-	nocaoPisoTeto     = 15
+	nocaoEsquivaPct = 10
+	nocaoPisoTeto   = 15
 )
+
+// nocaoAcertoPermil é var porque a simulação o varre: é o único botão que move o
+// placar do porradeiro. Com as três skills da árvore no turno ele passa a tirar
+// 2.660 por segundo na média do elenco, o segundo maior número do torneio, e
+// ainda assim ganha só das três Huntress — as únicas cuja esquiva ele ignora. De
+// todo o resto ele perde 10 de 10, porque o Paladino esquiva 60%, o BM de
+// Destreza 62% e um golpe esquivado não é um golpe fraco, é nenhum golpe.
+var nocaoAcertoPermil = 300
 
 func temNocaoDeCombate(e *world.Entity) bool {
 	return e != nil && e.Class == 0 && e.LearnedSkill&learnedNocaoDeCombate != 0
@@ -163,6 +233,7 @@ func applyPassivasDoTrans(e *world.Entity, itemAbility func(world.Item, uint8) i
 	if itemAbility != nil {
 		wtype = itemAbility(e.Equip[weaponSlotR], efWType)
 	}
+	e.AffDamageMultiPct += int32(danoDaArmadura(e))
 	m := maestriaTrans(e)
 	switch wtype {
 	case wtypeEspadaDuasMaos:

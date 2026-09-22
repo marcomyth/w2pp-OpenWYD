@@ -53,6 +53,14 @@ func Set(data []byte, item int, linhas []Linha) ([]byte, error) {
 	}
 	var novo bytes.Buffer
 	novo.Write(data[:inicio])
+	// O itemhelp.dat do cliente termina SEM quebra de linha. Um bloco inserido
+	// no fim — que é onde entra todo item de índice maior que os existentes —
+	// colava no texto do último item: "..._Xp/Ouro_[Eterno]9999". Isso estraga
+	// duas descrições de uma vez, a do vizinho e a do item novo, e só aparece
+	// no item mais alto do arquivo.
+	if len(linhas) > 0 && novo.Len() > 0 && !bytes.HasSuffix(novo.Bytes(), []byte("\n")) {
+		novo.WriteString("\r\n")
+	}
 	if len(linhas) > 0 {
 		novo.WriteString(strconv.Itoa(item))
 		novo.WriteString("\r\n")
@@ -62,6 +70,77 @@ func Set(data []byte, item int, linhas []Linha) ([]byte, error) {
 	}
 	novo.Write(data[fim:])
 	return novo.Bytes(), nil
+}
+
+// Get devolve a descrição que o item tem hoje, ou nil quando ele não tem bloco
+// nenhum. É o par do Set, que grava o bloco INTEIRO: sem ler antes, acrescentar
+// uma linha a um item apagaria o texto que ele já mostrava.
+//
+// O texto volta com espaços de verdade (o "_" do arquivo desfeito) e com os
+// bytes lidos como Latin-1, que é o mesmo caminho de volta do cp1252 — assim o
+// que sai do Get pode ser devolvido ao Set sem perder acento.
+func Get(data []byte, item int) ([]Linha, error) {
+	if item <= 0 {
+		return nil, fmt.Errorf("clientitemhelp: item %d inválido", item)
+	}
+	inicio, fim, err := bloco(data, item)
+	if err != nil {
+		return nil, err
+	}
+	if inicio == fim {
+		return nil, nil // o item não tem descrição
+	}
+	var out []Linha
+	corpo := data[inicio:fim]
+	for pos := 0; pos < len(corpo); {
+		fimLinha := bytes.IndexByte(corpo[pos:], '\n')
+		linha := corpo[pos:]
+		proxima := len(corpo)
+		if fimLinha >= 0 {
+			linha = corpo[pos : pos+fimLinha]
+			proxima = pos + fimLinha + 1
+		}
+		pos = proxima
+		if _, ok := indice(linha); ok {
+			continue // a linha do índice que abre o bloco
+		}
+		l, ok := parseLinha(linha)
+		if !ok {
+			continue
+		}
+		out = append(out, l)
+	}
+	return out, nil
+}
+
+// parseLinha lê "AARRGGBB texto_com_sublinhado". Uma linha que não tenha essa
+// forma é ignorada em vez de virar erro: o arquivo é editado à mão há anos e
+// uma linha torta num item que ninguém vai tocar não pode impedir a edição de
+// outro.
+func parseLinha(linha []byte) (Linha, bool) {
+	b := bytes.TrimRight(linha, "\r\n")
+	espaco := bytes.IndexByte(b, ' ')
+	if espaco != 8 {
+		return Linha{}, false
+	}
+	cor, err := strconv.ParseUint(string(b[:espaco]), 16, 32)
+	if err != nil {
+		return Linha{}, false
+	}
+	return Linha{Cor: uint32(cor), Texto: strings.ReplaceAll(deLatin1(b[espaco+1:]), "_", " ")}, true
+}
+
+// deLatin1 é o inverso exato do cp1252: cada byte é o code point de mesmo
+// valor. Tem de ser byte a byte, e não string(b), porque o arquivo NÃO é
+// UTF-8 — um "ç" lá é o byte 0xE7 sozinho, que como UTF-8 é inválido e vira
+// RuneError, e o cp1252 da volta o grava como "?". O acento sumiria da tela de
+// todo mundo, e só no item que alguém tivesse editado.
+func deLatin1(b []byte) string {
+	r := make([]rune, len(b))
+	for i, c := range b {
+		r[i] = rune(c)
+	}
+	return string(r)
 }
 
 // bloco acha onde começa e termina o bloco do item. Quando o item não tem

@@ -228,6 +228,8 @@ function itemList(items, kind) {
       (it.iconKey ? '<img src="icons/' + esc(it.iconKey) + '.png" alt="">' : "") +
       "<span>" + esc(it.name || ("item " + it.index)) + "</span>" +
       (it.grade ? '<span class="chip">G' + it.grade + "</span>" : "") +
+      (it.pricePoints != null
+        ? '<span class="chip">' + it.pricePoints + " pontos</span>" : "") +
       (kind === "equip" && it.mesh ? '<span class="chip">mesh ' + it.mesh + "</span>" : "") +
       "</li>";
   }
@@ -270,7 +272,10 @@ function detailRow(n) {
     h += '<div class="editbox">' +
       '<input type="number" data-fld="item" placeholder="índice" aria-label="Índice do item">' +
       '<input type="number" data-fld="qty" value="1" aria-label="Quantidade">' +
+      '<input type="number" data-fld="pts" min="0" placeholder="pontos" ' +
+        'title="Preço em pontos de lojinha. Vazio = vendido por ouro." aria-label="Preço em pontos">' +
       '<button data-act="additem" data-id="' + n.dbId + '">Adicionar</button>' +
+      '<button data-act="setpts" data-id="' + n.dbId + '">Preço em pontos do slot…</button>' +
       (n.shop && n.shop.length
         ? '<button data-act="delitem" data-id="' + n.dbId + '">Remover slot…</button>' : "") +
       "</div>";
@@ -338,8 +343,29 @@ function handleAction(btn) {
     var items = shopPayload(n);
     var slot = nextSlot(items);
     if (slot < 0) { showError("loja cheia (27 slots)"); return; }
-    items.push({ slot: slot, itemIndex: index, quantity: qty });
+    // Vazio é diferente de zero: vazio vende por ouro, zero é de graça para
+    // quem tem carteira de pontos.
+    var ptsRaw = box.querySelector('[data-fld="pts"]').value.trim();
+    var novo = { slot: slot, itemIndex: index, quantity: qty };
+    if (ptsRaw !== "") { novo.pricePoints = Number(ptsRaw); }
+    items.push(novo);
     post("api/npc/shop", { npcId: id, items: items }, reload);
+  } else if (btn.dataset.act === "setpts") {
+    var alvoStr = window.prompt("Mudar o preço em pontos de qual slot? " +
+      shopPayload(n).map(function (i) { return i.slot; }).join(", "));
+    if (alvoStr === null) return;
+    var alvoSlot = Number(alvoStr);
+    var precoStr = window.prompt(
+      "Preço em pontos do slot " + alvoSlot + ".\n\n" +
+      "Vazio = voltar a vender por OURO. 0 = de graça para quem tem pontos.");
+    if (precoStr === null) return;
+    var atualizados = shopPayload(n).map(function (i) {
+      if (i.slot !== alvoSlot) return i;
+      if (precoStr.trim() === "") { delete i.pricePoints; return i; }
+      i.pricePoints = Number(precoStr);
+      return i;
+    });
+    post("api/npc/shop", { npcId: id, items: atualizados }, reload);
   } else if (btn.dataset.act === "delitem") {
     var slotStr = window.prompt("Remover qual slot? " + shopPayload(n).map(function (i) {
       return i.slot;
@@ -358,7 +384,11 @@ function shopPayload(n) {
     for (var k = 0; k < (i.effects || []).length; k++) {
       if (i.effects[k][0] === 61) qty = i.effects[k][1] || 1;
     }
-    return { slot: i.slot, itemIndex: i.index, quantity: qty };
+    // pricePoints tem de voltar junto: SetShop grava a loja inteira, e um slot
+    // que reenviar sem ele volta a ser vendido por ouro sem ninguém pedir.
+    var out = { slot: i.slot, itemIndex: i.index, quantity: qty };
+    if (i.pricePoints != null) { out.pricePoints = i.pricePoints; }
+    return out;
   });
 }
 

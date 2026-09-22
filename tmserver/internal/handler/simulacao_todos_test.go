@@ -59,7 +59,24 @@ const (
 	cancelMaestria10 = 366 // Magia Especial na janela, com o buff
 )
 
+// Os valores de referência com que a janela da FM Cancelamento foi medida em jogo.
+const (
+	cancelDanoDuasArmasRef = 100
+	cancelDanoArcoRef      = 67
+)
+
 func (sm *simulador) montarCancel(id int) *world.Entity {
+	// A ficha é resolvida para o ataque bater a JANELA medida em jogo (cancelAtaque),
+	// e essa janela foi lida com os bônus de dano da árvore no valor de referência
+	// abaixo. Montar com outro valor faria a busca binária reabsorver a diferença e
+	// o botão inteiro sairia da varredura sem mover um número — a mesma armadilha
+	// que escondeu os bônus físicos da Huntress. Calibra no valor de referência e
+	// devolve o delta depois, que é o que o bônus vale de verdade.
+	danoDuasArmas, danoArco := cancelDanoDuasArmas, cancelDanoArco
+	cancelDanoDuasArmas, cancelDanoArco = cancelDanoDuasArmasRef, cancelDanoArcoRef
+	defer func() {
+		cancelDanoDuasArmas, cancelDanoArco = danoDuasArmas, danoArco
+	}()
 	e := &world.Entity{ID: id, Class: 1, ClassMaster: classMasterMortal, Level: 399,
 		Str: 12, BaseStr: 12, Int: 2147, BaseInt: 2147, Dex: 712, BaseDex: 712, Con: 512, BaseCon: 512,
 		LearnedSkill: 0xFF0000} // as oito da Magia Especial
@@ -124,10 +141,33 @@ func (sm *simulador) montarCancel(id int) *world.Entity {
 	return e
 }
 
+// deltaDoBotaoDaCancel devolve o que o bônus de dano vale ALÉM da referência com
+// que a ficha foi calibrada, pela arma que está na mão agora. Tem de ser chamada
+// depois do ÚLTIMO applyAffectScore da montagem: o score zera AffDamageMultiPct e
+// reconstrói, então um delta somado antes some sem deixar rastro.
+func deltaDoBotaoDaCancel(sm *simulador, e *world.Entity) {
+	switch {
+	case duasArmasDoCancelamento(e, sm.d.itemAbility):
+		e.AffDamageMultiPct += int32(cancelDanoDuasArmas - cancelDanoDuasArmasRef)
+	case arcoDoCancelamento(e, sm.d.itemAbility):
+		e.AffDamageMultiPct += int32(cancelDanoArco - cancelDanoArcoRef)
+	}
+}
+
 func (sm *simulador) cancelLutador(id int) *lutador {
 	e := sm.montarCancel(id)
+	deltaDoBotaoDaCancel(sm, e)
 	l := &lutador{lado: &lado{e: e, cd: map[int]int64{}}, nome: "FM Cancel", maxHP: e.HP}
-	l.acao = func(ld *lado, alvo *world.Entity, agora int64) golpe {
+	l.acao = sm.acaoDaCancel()
+	return l
+}
+
+// acaoDaCancel é o turno da FM Cancelamento: cancelar, a Névoa Venenosa e, entre
+// as duas, o golpe físico. É uma função à parte porque a variação de ARCO usa o
+// mesmo turno — trocar a arma não tira dela o Cancelamento nem a Névoa, e medi-la
+// só no físico subestimava a variação inteira.
+func (sm *simulador) acaoDaCancel() func(*lado, *world.Entity, int64) golpe {
+	return func(ld *lado, alvo *world.Entity, agora int64) golpe {
 		// O Cancelamento tranca a poção do alvo por 20 s. O Escudo de Habilidade
 		// (afeto 19) come o primeiro cancel e a trava não sai.
 		if agora >= ld.cd[skillCancelamento] {
@@ -154,7 +194,6 @@ func (sm *simulador) cancelLutador(id int) *lutador {
 		}
 		return sm.fisico(ld, alvo)
 	}
-	return l
 }
 
 // ---------------------------------------------------------------------------

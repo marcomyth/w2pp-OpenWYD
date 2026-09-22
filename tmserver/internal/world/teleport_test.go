@@ -113,11 +113,30 @@ func TestOnlyTheCityLegsCharge(t *testing.T) {
 	}
 }
 
-// The table is the complete GetTeleportPosition. It carried 18 of 37 and the
-// missing 19 were every dungeon stair; a count guards against the next subset.
+// The table is GetTeleportPosition minus its conditional routes. The legacy
+// tests 39 positions (GetFunc.cpp:782-1026) and three of them carry a condition
+// a pure lookup cannot express, so they live in the handler: the two Kefra floors
+// and the Azran floor, which only reaches the Hidden Valley for a player wearing
+// the Fada do Vale. A count guards against the next subset — the table once
+// carried 18 of them, and the ones missing were every dungeon stair.
+//
+// The 37 this test used to assert was never the legacy count: it was the size of
+// the table itself, so a route dropped from the table could pass unnoticed.
 func TestTableIsComplete(t *testing.T) {
-	const legacyRoutes = 37 // GetFunc.cpp:782-1026
-	if got := len(teleportTable); got != legacyRoutes {
-		t.Errorf("tabela com %d rotas, o legado tem %d", got, legacyRoutes)
+	const (
+		legacyRoutes = 39 // GetFunc.cpp:782-1026
+		conditional  = 3  // handler/{kefra_hall,kefra,vale}.go
+	)
+	if got, want := len(teleportTable), legacyRoutes-conditional; got != want {
+		t.Errorf("tabela com %d rotas, want %d (%d do legado menos %d condicionais)",
+			got, want, legacyRoutes, conditional)
+	}
+	// Uma rota condicional NA tabela é o bug que fechamos: a consulta é pura e
+	// responde antes de qualquer condição, então o piso de Azran levava ao Vale
+	// quem não tinha fada nenhuma.
+	for _, origem := range [][2]int16{{2364, 3892}, {2364, 3924}, {2548, 1740}} {
+		if _, achou := teleportTable[origem]; achou {
+			t.Errorf("a rota condicional (%d,%d) está na tabela", origem[0], origem[1])
+		}
 	}
 }

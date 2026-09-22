@@ -292,14 +292,12 @@ func shopStallID(s *world.Session) int {
 // is zeroed for parity either way. The clone's size is not set by that packet —
 // see shopCloneCon and sendStallScale.
 func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.Entity) {
-	tab := make([]byte, 26)
-
 	if id := w.SpawnShopClone(s.Conn, e.Name); id != 0 {
 		s.AutoTrade.CloneID = id
 		ce := w.Entity(id)
 		data := createMobFrom(ce, 0)
 		data.Con = 0
-		body := protocol.EncodeCreateMobTradeBody(data, tab, s.AutoTrade.Title)
+		body := protocol.EncodeCreateMobTradeBody(data, data.Tab, s.AutoTrade.Title)
 		// One broadcast reaches everyone INCLUDING the owner: BroadcastInView
 		// skips the session whose conn equals the source id, and the source here
 		// is the clone's mob id, which no session's conn can be. Sending the owner
@@ -317,7 +315,9 @@ func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.E
 	d.log.Info("autotrade sem clone, usando a pose do legado", "conn", s.Conn)
 	data := createMobFrom(e, 0)
 	data.Con = 0 // _MSG_SendAutoTrade.cpp:118
-	body := protocol.EncodeCreateMobTradeBody(data, tab, s.AutoTrade.Title)
+	// data.Tab, e não 26 zeros: nesta saída o vendedor É o próprio personagem, e
+	// zerar apagaria a linha que ele escreveu com "/tab" (chat.go).
+	body := protocol.EncodeCreateMobTradeBody(data, data.Tab, s.AutoTrade.Title)
 	w.SendTo(s, protocol.Header{Type: protocol.MsgCreateMobTrade, ID: protocol.IDScene}, body)
 	w.BroadcastInView(s.Conn, protocol.MsgCreateMobTrade, body)
 }

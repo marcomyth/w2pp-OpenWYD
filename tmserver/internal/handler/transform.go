@@ -139,4 +139,9 @@ func applyTransformScore(e *world.Entity, af world.Affect) {
 	e.AffAttackSpeed += b.attackSpeed + attAdd
 	e.AffRunSpeed += b.runSpeed
 	e.AffCritical += criticalAdd
+
+	// A Metamorfose Superior (arvore_natureza.go) soma a camada do eixo por
+	// cima do que a forma já dá. Fica no fim do bloco, depois de todos os
+	// planos, porque ela é um acréscimo à transformação e não parte dela.
+	aplicarMetamorfoseSuperior(e, value)
 }

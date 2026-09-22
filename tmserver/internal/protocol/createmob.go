@@ -10,6 +10,10 @@ package protocol
 const (
 	createMobSize = 232
 	removeMobSize = 16
+
+	// createMobTabLen is MSG_CreateMob.Tab[26] (Basedef.h:1937), the line drawn
+	// above a character by "/tab".
+	createMobTabLen = 26
 )
 
 // CreateMobData is the subset of MSG_CreateMob needed to render an entity in
@@ -42,6 +46,14 @@ type CreateMobData struct {
 	PKPoint uint8
 	CurKill uint8  // MobName[13]
 	TotKill uint16 // MobName[14..15]
+	// Tab is the free line a player puts ABOVE their character with "/tab"
+	// (_MSG_MessageWhisper.cpp:539). It has no packet of its own: the client only
+	// ever reads it here, which is why setting it re-sends the whole CreateMob.
+	//
+	// BYTES, not a Go string: this text was typed in the client and arrives
+	// already in CP1252. Putting it through ClientText would decode it as UTF-8
+	// first, and every accented letter would come back a "?".
+	Tab []byte
 }
 
 func writeCreateMobScore(b []byte, d CreateMobData) {
@@ -109,6 +121,10 @@ func EncodeCreateMobBody(d CreateMobData) []byte {
 	writeCreateMobScore(b[124:], d)     // Score @abs136 → body124
 	le.PutUint16(b[172:], d.CreateType) // CreateType @abs184 → body172
 	copy(b[174:190], d.AnctCode[:])     // AnctCode[16] @abs186 → body174
+	// Tab[26] @abs202 → body190. O espaço sempre esteve aqui e sempre saiu zerado:
+	// o campo existia na struct e nada o escrevia, então o texto do /tab não tinha
+	// onde cair nem depois de o comando existir. O último byte fica NUL.
+	copy(b[190:190+createMobTabLen-1], d.Tab)
 	return b
 }
 

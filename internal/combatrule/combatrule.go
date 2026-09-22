@@ -26,10 +26,16 @@ type Rules struct {
 	// applies DAMAGEMULTI to the melee Damage only (Basedef.cpp:4654); false is
 	// that, and it keeps the spell hit equal to the client's "Atq Mágico".
 	SpellDamageMulti bool
-	// MobResistBase is the constant in the spell's resist scale against a
-	// MONSTER, (base − resist/2)%. The legacy uses 150 (_MSG_Attack.cpp:576-587),
-	// which hands a low-resist monster +50%; 100 makes 0 resist a plain hit.
-	// Against a player the legacy 150 stays, whatever this says.
+	// MobResistBase is the constant in the spell's resist scale, (base −
+	// resist/2)%. The legacy uses 150 (_MSG_Attack.cpp:576-587), which hands a
+	// low-resist target +50%; 100 makes 0 resist a plain hit.
+	//
+	// Since 21/09/2026 it applies to a PLAYER target as well. It used to be
+	// monster-only, and the 150 left on the PvP path was enough to invert the
+	// pipeline there: a mage's spell reached a player with 50% more than his own
+	// "Atq Mágico" window announces, and the damage left after the target's
+	// defence was larger than the raw damage that entered it. The name stays for
+	// the panel's sake; it is the resist base for every target.
 	MobResistBase int32
 	// PvPSkillPct and PvPMeleePct scale a blow on a PLAYER after the legacy
 	// quarter (_MSG_Attack.cpp:1300-1307, "Perfuração"), spell and melee apart.

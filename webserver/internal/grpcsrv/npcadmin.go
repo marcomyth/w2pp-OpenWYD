@@ -317,6 +317,7 @@ func adminNpcToProto(d domain.NPCDefinition) *webv1.AdminNpc {
 			Eff1: int32(it.Eff1), Effv1: int32(it.EffV1),
 			Eff2: int32(it.Eff2), Effv2: int32(it.EffV2),
 			Eff3: int32(it.Eff3), Effv3: int32(it.EffV3),
+			PricePoints: it.PricePoints,
 		})
 	}
 	return &webv1.AdminNpc{
@@ -333,7 +334,22 @@ func protoToShopItem(it *webv1.AdminNpcShopItem) domain.NPCShopItem {
 		Eff1: uint8(it.GetEff1()), EffV1: uint8(it.GetEffv1()),
 		Eff2: uint8(it.GetEff2()), EffV2: uint8(it.GetEffv2()),
 		Eff3: uint8(it.GetEff3()), EffV3: uint8(it.GetEffv3()),
+		// Só passa adiante um preço válido. Um negativo chegando do painel seria
+		// recusado pelo CHECK da tabela e derrubaria a gravação da loja INTEIRA;
+		// tratá-lo como "sem preço em pontos" salva as outras prateleiras e deixa
+		// o slot errado visível no painel, em ouro.
+		PricePoints: precoEmPontosValido(it),
 	}
+}
+
+// precoEmPontosValido devolve o preço em pontos do slot, ou nil quando não há um
+// — que é o caso de quase toda loja do jogo.
+func precoEmPontosValido(it *webv1.AdminNpcShopItem) *int32 {
+	if it == nil || it.PricePoints == nil || it.GetPricePoints() < 0 {
+		return nil
+	}
+	v := it.GetPricePoints()
+	return &v
 }
 
 func protoQuantity(q int32) int16 {

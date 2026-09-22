@@ -227,7 +227,7 @@ func (sm *simulador) lutaContraLugefer(a *lutador, vida int32, danoX10, defesaX1
 			if dmg := sm.d.danoDoGolpeDeMonstro(sm.w, mob, a.e); dmg > 0 {
 				a.e.HP = max(0, a.e.HP-int32(dmg))
 			}
-			proxMob += int64(cadenciaDoGolpe(mob))
+			proxMob += int64(cadenciaDoGolpe(mob, nil))
 		}
 		agora += simPasso
 		if a.e.HP > 0 {

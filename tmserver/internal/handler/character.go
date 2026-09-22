@@ -361,6 +361,7 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		e.SubCelestialAtivo, e.CelestialReset = st.SubCelestialAtivo, st.CelestialReset
 		e.TerraMistica = st.TerraMistica
 		e.NewbieQuest = st.NewbieQuest
+		e.MolarGargula = st.MolarGargula
 		e.Str, e.Int, e.Dex, e.Con, e.ScoreBonus = st.Str, st.Int, st.Dex, st.Con, st.ScoreBonus
 		// Skill state: the learned mask, allocated mastery and the hotbar come
 		// straight from the DB; SkillBonus is re-derived from level + learned
@@ -716,6 +717,7 @@ func createMobFrom(e *world.Entity, createType uint16) protocol.CreateMobData {
 		PKPoint:  playerPKPoint(e),
 		CurKill:  e.CurKill,
 		TotKill:  e.TotKill,
+		Tab:      e.Tab,
 	}
 	for i := range e.Affect {
 		if e.Affect[i].Type == 0 {
@@ -736,7 +738,10 @@ func createMobViewPacket(w *world.World, e *world.Entity, createType uint16) (pr
 	data := createMobFrom(e, createType)
 	if s := shopSessionOf(w, e); s != nil {
 		data.Con = 0 // GetCreateMobTrade parity: shop pose hides the Con field.
-		return protocol.MsgCreateMobTrade, protocol.EncodeCreateMobTradeBody(data, nil, s.AutoTrade.Title)
+		// O Tab vai junto: quem abriu barraca e tinha escrito acima da cabeça com
+		// "/tab" continua com a linha lá, que é o que o legado faz ao escolher
+		// GetCreateMobTrade (ele copia pMob.Tab nos dois pacotes).
+		return protocol.MsgCreateMobTrade, protocol.EncodeCreateMobTradeBody(data, data.Tab, s.AutoTrade.Title)
 	}
 	return protocol.MsgCreateMob, protocol.EncodeCreateMobBody(data)
 }
