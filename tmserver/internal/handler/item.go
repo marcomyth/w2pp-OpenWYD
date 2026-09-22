@@ -474,6 +474,7 @@ const (
 	volBuffMental60      = 57
 	volVigor             = 58
 	volFrango            = 63
+	volCoragem           = 230 // Remédio e Elixir da Coragem (646, 647, 3378)
 	volDivine7           = 64
 	volDivine30          = 66
 	volGemDiamond        = 180
@@ -670,6 +671,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useVigor(w, s, e, src, int(e.Carry[src].Index))
 	case vol == volFrango:
 		d.useFrangoAssado(w, s, e, src)
+	case vol == volCoragem:
+		d.useRemedioDaCoragem(w, s, e, src)
 	case vol == volSilverBar:
 		d.useSilverBar(w, s, e, src)
 	case vol >= volGemDiamond && vol <= volGemGarnet:
@@ -1403,6 +1406,73 @@ func (d *Dispatcher) useFrangoAssado(w *world.World, s *world.Session, e *world.
 	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, src, itemToSel(e.Carry[src])))
 	d.sendScore(w, s, e)
 	d.sendAffect(w, s, e)
+}
+
+// Os três itens do EF_VOLATILE 230 e o que cada um paga. O Elixir custa o dobro
+// do Remédio no catálogo (3.000.000 contra 1.500.000) e por isso dura o dobro; o
+// de 30 dias é o mesmo Elixir, e o prazo do nome é do ITEM, não do bônus.
+const (
+	itemRemedioDaCoragem  int16 = 646
+	itemElixirDaCoragem   int16 = 647
+	itemElixirCoragem30   int16 = 3378
+	coragemAtaqueEmMob          = 500
+	coragemNivelMinimo    int32 = 255
+	coragemDuracaoRemedio       = affect1H * 4
+	coragemDuracaoElixir        = affect1H * 8
+)
+
+// useRemedioDaCoragem consome o Remédio/Elixir da Coragem (EF_VOLATILE 230): um
+// afeto que soma 500 ao golpe CONTRA MONSTRO e nada contra jogador.
+//
+// É o mesmo mecanismo do Frango Assado — world.AffectForceMobDamage, que
+// ResolveHit só aplica quando `!TargetIsPlayer` (combat.go) —, que é o que a
+// descrição do cliente promete em duas linhas: "o bônus é aplicado apenas em
+// monstros, e não em outros usuários durante o modo PvP".
+//
+// Até 22/09/2026 o volatile 230 não tinha caso nenhum: os três itens caíam no
+// default do switch e eram recusados. O Remédio cai no Cemitério e está à venda
+// no Aki por 1.500.000, então havia gente comprando e pegando um item morto.
+//
+// A guarda contra o rebaixamento é a parte que não se vê: EmptyAffect devolve o
+// slot que JÁ tem o tipo (GetEmptyAffect), então sem ela um Remédio tomado por
+// cima de um Frango ativo trocaria +2000 por +500 — o jogador usaria o item e
+// sairia batendo MENOS, sem nada na tela explicando.
+func (d *Dispatcher) useRemedioDaCoragem(w *world.World, s *world.Session, e *world.Entity, src int) {
+	if e.Level < coragemNivelMinimo {
+		// A descrição do cliente diz "Disponível a partir do level 255", e é a
+		// única promessa dela que o servidor pode quebrar em silêncio.
+		d.notify(w, s, NoticeLevelLimit)
+		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+		return
+	}
+
+	duracao := coragemDuracaoRemedio
+	if idx := e.Carry[src].Index; idx == itemElixirDaCoragem || idx == itemElixirCoragem30 {
+		duracao = coragemDuracaoElixir
+	}
+
+	slot := e.EmptyAffect(world.AffectForceMobDamage)
+	if slot < 0 {
+		d.notify(w, s, NoticeCantEatMore)
+		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+		return
+	}
+	// Não rebaixar: um bônus maior já ativo (o Frango são 2000) vale mais que
+	// este, e o item não é gasto à toa.
+	if atual := e.Affect[slot]; atual.Type == world.AffectForceMobDamage && int(atual.Level) > coragemAtaqueEmMob {
+		d.notify(w, s, NoticeCantEatMore)
+		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+		return
+	}
+
+	e.Affect[slot] = world.Affect{Type: world.AffectForceMobDamage, Level: coragemAtaqueEmMob, Time: uint32(duracao)}
+	consumeOneItem(&e.Carry[src])
+	d.refreshScore(e)
+	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+	d.sendScore(w, s, e)
+	d.sendAffect(w, s, e)
+	d.log.Info("remédio da coragem usado", "conn", s.Conn, "item", e.Carry[src].Index,
+		"nivel", e.Level, "bonus", coragemAtaqueEmMob, "tiques", duracao)
 }
 
 // silverBarGold returns the gold credited by Vol 185 "Barra de Prata" items
