@@ -177,7 +177,7 @@ func (sm *simulador) rodadaPvE(m montagem, teto int, vida int32, danoX10, defesa
 					somaMob += dmg
 					r.nMob++
 				}
-				proxMob += int64(cadenciaDoGolpe(mob))
+				proxMob += int64(cadenciaDoGolpe(mob, nil))
 			}
 			agora += simPasso
 			if agora%(simTickAfetoS*1000) < simPasso {

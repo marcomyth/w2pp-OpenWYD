@@ -116,7 +116,7 @@ func (d *Dispatcher) pvpCatalogAbility(e *world.Entity, eff uint8) int {
 }
 
 // reflectDamage is CMob's flat ReflectDamage (CMob.cpp:776-873) as far as this
-// server models it: the BM with Coração de Lobo reflects (Natureza+1)/6, and each
+// server models it: the BM with Coração de Lobo reflects (Elemental+1)/6, and each
 // worn item of Grade 8 twenty. The gem-socket share (itemGem 3, the Garnet) is
 // NOT added here: it has its own total and its own rule (garnet.go), and it
 // also applies to monsters, which this reflect never did in the port.

@@ -31,6 +31,22 @@ func TestTextoStatus(t *testing.T) {
 			},
 		},
 		{
+			// O Frango Assado acumulado até o teto. O /status é o único lugar onde
+			// esse relógio aparece: o ícone do cliente recebe só Time&0xFF.
+			name: "frango no teto",
+			st: estadoStatus{
+				Esquiva: 150, Precisao: 60, EsquivaEspelho: 90,
+				Tier:       classMasterMortal,
+				ForcaEmMob: 2000, ForcaEmMobTicks: affect1H * 24,
+			},
+			want: []string{
+				"Acerto 91.0% · Esquiva 9.0% — contra alguém igual a você.",
+				"Precisão 60 (tira da esquiva do alvo) · a sua esquiva 150 em 1000, teto 650.",
+				"Contra monstro: +2000 por golpe, 24h00m restantes.",
+				"Bônus de XP: digite /xp.",
+			},
+		},
+		{
 			// DEX 700 with a mount lending 20 evasion → dodge 370, accuracy 140,
 			// mirror 230. An Arch is only protected from Mortals.
 			name: "arch com bloco pvp",
@@ -142,6 +158,7 @@ func TestTextoStatusCabeNoPainel(t *testing.T) {
 		Tier:        classMasterCelestial,
 		TemMontaria: true, MontariaPvP: 100, MontariaPvE: 100,
 		AbsHp: 100, DropBonus: 999,
+		ForcaEmMob: 999999, ForcaEmMobTicks: 324000,
 	}
 	for i, linha := range textoStatus(st) {
 		if n := len(protocol.ClientText(linha)); n > linhaPainelMax {

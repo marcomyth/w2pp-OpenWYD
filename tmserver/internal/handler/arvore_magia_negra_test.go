@@ -56,7 +56,9 @@ func TestCajadoDaMagiaNegra(t *testing.T) {
 		dir, esquer int16
 		want        int
 	}{
-		{"cajado de 2 mãos", cajado2, 0, 140},
+		// Lê o BOTÃO, não um número: ele desce quando a Black precisa de nerf
+		// (foi de 140 para 120 em 20/09/2026) e o teste não pode quebrar por isso.
+		{"cajado de 2 mãos", cajado2, 0, magiaNegraCajado2MaosPct},
 		{"cajado de 1 mão e escudo", cajado1, escudo, 120},
 		{"escudo e cajado de 1 mão na esquerda", escudo, cajado1, 120},
 		{"cajado de 1 mão sozinho", cajado1, 0, 120},
@@ -136,8 +138,11 @@ func TestCajadoDaMagiaNegraNoGolpe(t *testing.T) {
 		return total
 	}
 	com, sem := soma(cajado), soma(lanca)
-	if razao := float64(com) / float64(sem); razao < 1.35 || razao > 1.45 {
-		t.Fatalf("cajado/lança = %.3f (%d/%d), want perto de 1,40", razao, com, sem)
+	// A razão esperada é o BOTÃO dividido por 100 (o multiplicador da lança),
+	// com folga para o sorteio do crítico de mago.
+	quer := float64(magiaNegraCajado2MaosPct) / 100
+	if razao := float64(com) / float64(sem); razao < quer-0.05 || razao > quer+0.05 {
+		t.Fatalf("cajado/lança = %.3f (%d/%d), want perto de %.2f", razao, com, sem, quer)
 	}
 }
 
@@ -178,7 +183,12 @@ func TestMagiaNegraCritaERoubaManaNoGolpe(t *testing.T) {
 	if criticos == 0 {
 		t.Error("nenhum crítico em 30 golpes (25% de chance cada)")
 	}
-	if mp := w.Entity(1).MP; mp < 3000 {
+	// Dentro do laço, pelo mesmo motivo do Fanatismo: o mundo é de dono único e
+	// ler a ficha daqui corre com o desmonte da sessão (corrida acusada pelo
+	// -race). A asserção é a mesma.
+	var mp int32
+	noLaco(t, w, func(w *world.World) { mp = w.Entity(1).MP })
+	if mp < 3000 {
 		t.Errorf("MP da black = %d, want o roubo de mana acima de 3.000 (começou em 1.000)", mp)
 	}
 }

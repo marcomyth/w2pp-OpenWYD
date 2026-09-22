@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -442,19 +443,33 @@ func TestDuracaoEmTexto(t *testing.T) {
 // porque o zero era gravado.
 //
 // O caso não é exótico: qualquer equipamento com EF_HPADD faz a mesma conta.
-func TestComPercentualNaoEstoura(t *testing.T) {
+//
+// A conta mudou de nome na junção com a main (22/09/2026): as duas linhas de
+// trabalho consertaram o mesmo estouro, e ficou a da main, escalaPorcentoDoPool.
+// O caso que matou o personagem continua idêntico; o que muda é ONDE ela satura.
+// A versão antiga parava no MaxInt32, que é o limite do tipo; esta para no teto
+// do jogo (MAX_HP, 1 bilhão), que é o limite que significa alguma coisa — vida
+// acima disso o legado não conhece.
+func TestEscalaPorcentoDoPoolNaoEstoura(t *testing.T) {
 	// O caso exato que matou o personagem.
 	const vidaEnorme = 50_000_100
-	if got := comPercentual(vidaEnorme, 15); got <= 0 {
-		t.Fatalf("comPercentual(%d, 15) = %d: a conta estourou e virou negativa", vidaEnorme, got)
+	if got := escalaPorcentoDoPool(vidaEnorme, 15); got <= 0 {
+		t.Fatalf("escalaPorcentoDoPool(%d, 15) = %d: a conta estourou e virou negativa", vidaEnorme, got)
 	}
-	if got := comPercentual(vidaEnorme, 15); got != 57_500_115 {
-		t.Errorf("comPercentual(%d, 15) = %d, want 57500115", vidaEnorme, got)
+	if got := escalaPorcentoDoPool(vidaEnorme, 15); got != 57_500_115 {
+		t.Errorf("escalaPorcentoDoPool(%d, 15) = %d, want 57500115", vidaEnorme, got)
 	}
 	// Bem acima do teto: satura em vez de dar a volta. Errar por um número é
 	// ruim; errar por um SINAL mata alguém.
-	if got := comPercentual(2_000_000_000, 100); got != math.MaxInt32 {
-		t.Errorf("comPercentual saturou em %d, want %d", got, int32(math.MaxInt32))
+	if got := escalaPorcentoDoPool(2_000_000_000, 100); got != level.MaxHPCap {
+		t.Errorf("escalaPorcentoDoPool saturou em %d, want %d", got, level.MaxHPCap)
+	}
+	// E o teto do JOGO não é o do tipo. Se alguém igualar os dois, o caso acima
+	// deixa de distinguir "parou onde o jogo manda" de "parou onde o int32
+	// acaba", que é justamente a diferença que esta função existe para fazer.
+	if int64(level.MaxHPCap) >= int64(math.MaxInt32) {
+		t.Fatalf("level.MaxHPCap (%d) alcançou o teto do int32: este teste parou de medir o que diz medir",
+			level.MaxHPCap)
 	}
 	// Os casos comuns continuam iguais.
 	for _, c := range []struct{ base, pct, quer int32 }{
@@ -463,8 +478,8 @@ func TestComPercentualNaoEstoura(t *testing.T) {
 		{1000, -50, 500},
 		{0, 15, 0},
 	} {
-		if got := comPercentual(c.base, c.pct); got != c.quer {
-			t.Errorf("comPercentual(%d, %d) = %d, want %d", c.base, c.pct, got, c.quer)
+		if got := escalaPorcentoDoPool(c.base, c.pct); got != c.quer {
+			t.Errorf("escalaPorcentoDoPool(%d, %d) = %d, want %d", c.base, c.pct, got, c.quer)
 		}
 	}
 }

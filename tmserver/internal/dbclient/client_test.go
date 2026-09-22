@@ -534,6 +534,14 @@ func (f *fakeAPI) AddShopPoints(_ context.Context, req *dbv1.AddShopPointsReques
 	return &dbv1.AddShopPointsResponse{Balance: f.shopPoints}, nil
 }
 
+func (f *fakeAPI) SpendShopPoints(_ context.Context, req *dbv1.SpendShopPointsRequest, _ ...grpc.CallOption) (*dbv1.SpendShopPointsResponse, error) {
+	if req.GetCost() > f.shopPoints {
+		return &dbv1.SpendShopPointsResponse{Paid: false}, nil
+	}
+	f.shopPoints -= req.GetCost()
+	return &dbv1.SpendShopPointsResponse{Paid: true, Balance: f.shopPoints}, nil
+}
+
 func (f *fakeAPI) ShopPoints(context.Context, *dbv1.ShopPointsRequest, ...grpc.CallOption) (*dbv1.ShopPointsResponse, error) {
 	return &dbv1.ShopPointsResponse{Balance: f.shopPoints}, nil
 }

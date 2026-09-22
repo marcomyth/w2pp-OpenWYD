@@ -57,11 +57,18 @@ func TestCriticoDaArmadura(t *testing.T) {
 }
 
 func TestDefesaDaArmadura(t *testing.T) {
-	if got := skillDerivedACBonus(tkDoTrans(2800, 712, learnedArmaduraCritica, 255), 1000); got != 200 {
-		t.Errorf("maestria cheia: bônus = %d, want 200 (10%% do legado + 10%%)", got)
+	// Os números saem dos botões, não de constantes repetidas aqui: o que o teste
+	// prova é a REGRA — base do legado sempre, maestria por cima em proporção — e
+	// não o valor do dia, que o torneio move.
+	cheio := armaduraDefesaBase + armaduraDefesaMaestri
+	if got := skillDerivedACBonus(tkDoTrans(2800, 712, learnedArmaduraCritica, 255), 1000); got != int32(cheio) {
+		t.Errorf("maestria cheia: bônus = %d, want %d (base + maestria sobre 1000 de AC)", got, cheio)
 	}
-	if got := skillDerivedACBonus(tkDoTrans(2800, 712, learnedArmaduraCritica, 0), 1000); got != 100 {
-		t.Errorf("sem maestria: bônus = %d, want 100 (o legado)", got)
+	if got := skillDerivedACBonus(tkDoTrans(2800, 712, learnedArmaduraCritica, transMaestriaMax/2), 1000); got <= int32(armaduraDefesaBase) || got >= int32(cheio) {
+		t.Errorf("meia maestria: bônus = %d, queria entre %d e %d", got, armaduraDefesaBase, cheio)
+	}
+	if got := skillDerivedACBonus(tkDoTrans(2800, 712, learnedArmaduraCritica, 0), 1000); got != int32(armaduraDefesaBase) {
+		t.Errorf("sem maestria: bônus = %d, want %d (só o do legado)", got, armaduraDefesaBase)
 	}
 	if got := skillDerivedACBonus(tkDoTrans(2800, 712, 0, 255), 1000); got != 0 {
 		t.Errorf("sem a Armadura: bônus = %d, want 0", got)
@@ -131,10 +138,14 @@ func TestPassivasDoTrans(t *testing.T) {
 		esquivaP int32
 	}{
 		// HP: 2 × 5000 = 10000; +15% pela Força e +15% com o martelo.
-		{"espada de 2 mãos", espada, learnedArmaduraCritica, 120, 0, 1500, 0},
-		{"martelo de 2 mãos", martelo, learnedArmaduraCritica, 100, 25, 3000, 0},
-		{"lança", lanca, learnedArmaduraCritica, 100, 0, 1500, 0},
-		{"espada com a Noção", espada, learnedArmaduraCritica | learnedNocaoDeCombate, 120, 0, 1500, 10},
+		//
+		// O multiplicador é 100 (a base) + o dano da Armadura Crítica, que sai da
+		// Força, + os 20 da espada de 2 mãos. Vem do botão porque o torneio o move.
+		{"espada de 2 mãos", espada, learnedArmaduraCritica, 100 + int32(armaduraDanoForca) + espadaDanoPct, 0, 1500, 0},
+		{"martelo de 2 mãos", martelo, learnedArmaduraCritica, 100 + int32(armaduraDanoForca), 25, 3000, 0},
+		{"lança", lanca, learnedArmaduraCritica, 100 + int32(armaduraDanoForca), 0, 1500, 0},
+		{"espada com a Noção", espada, learnedArmaduraCritica | learnedNocaoDeCombate, 100 + int32(armaduraDanoForca) + espadaDanoPct, 0, 1500, 10},
+		// Sem a Armadura Crítica não há dano da árvore: a Noção só dá esquiva.
 		{"só a Noção, sem a Armadura", espada, learnedNocaoDeCombate, 100, 0, 0, 10},
 	}
 	for _, tt := range tests {

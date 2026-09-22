@@ -19,6 +19,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
+	"github.com/jeanluca/w2pp-openwyd/internal/mountbonus"
 )
 
 type fakeMesa struct {
@@ -186,6 +187,64 @@ func TestMesaExplicaODescarteAntesDosCortes(t *testing.T) {
 	}
 	if strings.Contains(corpo, "não paga nada para um personagem deste nível") {
 		t.Error("deu o aviso genérico para um zero que nenhum corte resolve")
+	}
+}
+
+// TestMontariaEntraNoBonus prende o defeito que a Hanna achou: o simulador
+// somava baú, fada, peças grau 7 e gema, mas NÃO a montaria, enquanto o jogo
+// soma (exp_bonus.go lê mountbonus.TempExtra(Equip[14]).ExpPct). É o caso real
+// do Elemental: baú 100 + Fada Vermelha 32 + 3 grau 7 + 5 gema = 148, e a
+// montaria de +12 fecha em 160, que é o bônus com que o log de produção pagou
+// 60.682 no Cav._Lugefer (a planejadora confirmou esse ponto rodando o
+// ExpReward com a Mesa viva; aqui prendemos a soma do bônus, que é a parte que
+// mora no painel).
+func TestMontariaEntraNoBonus(t *testing.T) {
+	base := mesaForm{Bau: 100, Fada: 3905, Grau7: 3, Gemas: 5}
+	if got := base.entrada(level.Config{}).ExpBonus; got != 148 {
+		t.Fatalf("sem montaria o bônus deu %d, esperado 148 (mudou quem já usava)", got)
+	}
+	comDragao := base
+	comDragao.Montaria = 3991 // Dragão Vermelho, +12 no pacote mountbonus
+	if got := comDragao.entrada(level.Config{}).ExpBonus; got != 160 {
+		t.Errorf("com montaria +12 o bônus deu %d, esperado 160 (caso do Elemental)", got)
+	}
+}
+
+// TestBonusDaMontariaVemDoPacote garante que os números não estão escritos à mão
+// no painel: cada um é o ExpPct que o pacote mountbonus devolve, então se a
+// montaria mudar de valor a tela acompanha sozinha. "Sem montaria" e um índice
+// desconhecido dão 0.
+func TestBonusDaMontariaVemDoPacote(t *testing.T) {
+	for _, idx := range []int16{3980, 3981, 3982, 3990, 3991} {
+		e, ok := mountbonus.TempExtra(idx)
+		if !ok {
+			t.Fatalf("mountbonus não conhece a montaria %d", idx)
+		}
+		if got := bonusDaMontaria(idx); got != e.ExpPct {
+			t.Errorf("bonusDaMontaria(%d) = %d, o pacote diz %d", idx, got, e.ExpPct)
+		}
+	}
+	if got := bonusDaMontaria(0); got != 0 {
+		t.Errorf("sem montaria deu %d, esperado 0", got)
+	}
+	if got := bonusDaMontaria(2360); got != 0 { // montaria adulta, sem ExpPct
+		t.Errorf("montaria sem ExpPct deu %d, esperado 0", got)
+	}
+}
+
+// TestMesaMostraOCampoMontaria confirma que o formulário ganhou a lista, com a
+// opção padrão "sem montaria" e o Dragão Vermelho a +12%.
+func TestMesaMostraOCampoMontaria(t *testing.T) {
+	h := newTestPanelMesa(t, roleAdmin, newFakeMesa(), newFakeAudit())
+	corpo := abrirMesa(t, h, "?zona=0&evolucao=2").Body.String()
+	if !strings.Contains(corpo, `name="montaria"`) {
+		t.Error("o formulário não tem o campo de montaria")
+	}
+	if !strings.Contains(corpo, "sem montaria") {
+		t.Error("a lista de montaria não tem a opção padrão")
+	}
+	if !strings.Contains(corpo, "Dragão Vermelho (3991) — +12%") {
+		t.Error("a lista de montaria não mostra o Dragão Vermelho a +12%")
 	}
 }
 
@@ -813,6 +872,40 @@ func TestSimuladorPuxaOsNumerosDoMonstro(t *testing.T) {
 	// The simulation itself has to have used them.
 	if strings.Contains(corpo, "Escolha um monstro ou digite quanta XP ele dá") {
 		t.Error("simulou como se não houvesse monstro")
+	}
+}
+
+// TestSimuladorDizOndeOMonstroNasce é o conserto do erro que custou uma noite: a
+// planejadora escolheu Adamant_Tauron aqui para simular "o bicho do Pilar", e ele
+// vive no Deserto Lugefer. A página de ficha já mostrava a origem; esta tela, que é
+// onde o monstro é ESCOLHIDO, não mostrava nada.
+func TestSimuladorDizOndeOMonstroNasce(t *testing.T) {
+	h := newTestPanelMesaComJogo(t, roleAdmin, newFakeMesa(), newFakeAudit(), newFakeGameData())
+	corpo := abrirMesa(t, h, "?simular=1&zona=0&evolucao=2&mob=Kentania&nivel=10").Body.String()
+
+	for _, quero := range []string{
+		"Onde Kentania nasce",
+		"Água Místico",
+		"até 24 por vez",
+		// Se renasce é obrigatório: bloco que não renasce é bolo único, não lugar
+		// de farmar, e a conta de ritmo sai errada se alguém confundir.
+		"renasce a cada 3 min",
+	} {
+		if !strings.Contains(corpo, quero) {
+			t.Errorf("o simulador não diz %q", quero)
+		}
+	}
+}
+
+// TestSimuladorAvisaMonstroQueNaoNasce: dois terços dos moldes não nascem em lugar
+// nenhum. Simular com um deles responde sobre um bicho que não está no mapa, e a
+// tela tem de dizer isso em vez de mostrar uma conta com cara de válida.
+func TestSimuladorAvisaMonstroQueNaoNasce(t *testing.T) {
+	h := newTestPanelMesaComJogo(t, roleAdmin, newFakeMesa(), newFakeAudit(), newFakeGameData())
+	corpo := abrirMesa(t, h, "?simular=1&zona=0&evolucao=2&mob=Mercador&nivel=10").Body.String()
+
+	if !strings.Contains(corpo, "Nenhum gerador cria este monstro") {
+		t.Error("o simulador não avisou que o monstro não nasce em lugar nenhum")
 	}
 }
 

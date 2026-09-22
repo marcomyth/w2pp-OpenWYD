@@ -166,6 +166,7 @@ func (sm *simulador) aplicar(l *lado, alvo *world.Entity, dmg, airBlade int, ski
 	}
 	pvp := world.IsPlayer(alvo.ID)
 	dmg = perfuracao(alvo, alvo.ID, dmg, airBlade)
+	dmg = danoEmEvocacao(alvo, dmg)
 	if pvp {
 		dmg = sm.d.applyPvPRule(dmg, skill)
 		dmg = danoDoTransContraHT(l.e, alvo, dmg)
@@ -185,7 +186,9 @@ func (sm *simulador) aplicar(l *lado, alvo *world.Entity, dmg, airBlade int, ski
 		}
 	}
 	dmg = sm.d.absorbBlow(sm.w, alvo, dmg, true)
-	alvo.HP = max(0, alvo.HP-int32(dmg))
+	// O divisor do slot 13 do alvo, como no servidor (divisor_de_dano.go): sem ele
+	// a simulação de chefe mede um bicho que não existe.
+	alvo.HP = max(0, alvo.HP-int32(danoNoPortador(alvo, dmg)))
 	// O afeto que pega chama refreshScore, que remonta o score pelo equipamento — e
 	// estes personagens vêm da janela, sem equipamento. Os números da janela voltam
 	// depois; os afetos (lentidão, veneno) ficam.
@@ -270,7 +273,7 @@ func (sm *simulador) acaoHT(l *lado, alvo *world.Entity, agora int64) golpe {
 		sp, _ := sm.d.spells.Get(sk)
 		espera := int64(sp.Delay) * 1000
 		if sk == skillTempestadeDeFlechas {
-			espera = tempestadeRecargaMs
+			espera = int64(tempestadeRecargaMs)
 		}
 		l.cd[sk] = agora + max(espera, simPasso)
 		return sm.skill(l, alvo, sk)
@@ -342,7 +345,7 @@ func (sm *simulador) lutaPvE(vida int32, danoX10, defesaX10 int) luta {
 			if dmg > 0 {
 				ht.e.HP = max(0, ht.e.HP-int32(dmg))
 			}
-			proxMob += int64(cadenciaDoGolpe(mob))
+			proxMob += int64(cadenciaDoGolpe(mob, nil))
 		}
 		agora += simPasso
 		if agora%(simTickAfetoS*1000) < simPasso {

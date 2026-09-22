@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combat"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -63,11 +64,47 @@ func (sm *simulador) montarTrans(j janela, id int, arma int16) (*world.Entity, i
 	return e, hp
 }
 
+// As três skills de DANO da árvore Trans, na ordem em que o turno as tenta.
+//
+// O porradeiro lutava só no soco em toda simulação até 21/09/2026, e isso o
+// subestimava por uma ordem de grandeza: medidas contra o Paladino, a Carga dá
+// 26.230, o Golpe Mortal 23.424 e a Espada da Fênix 24.664, contra 805 do golpe
+// normal — a Fênix sozinha vale 30 socos e recarrega em 5 s. Era por isso que o
+// placar dele no torneio não se movia com ATAQUE nenhum: de 0 a 130 pontos de
+// multiplicador ele ficava nas mesmas 30 vitórias e 60 derrotas, porque o que
+// estava faltando não era um número, era o golpe.
+var skillsDeDanoDoTrans = []int{8, 10, 12} // Carga, Golpe Mortal, Espada da Fênix
+
+var nomeSkillDoTrans = map[int]string{8: "Carga", 10: "Golpe Mortal", 12: "Espada da Fênix"}
+
+// acaoDoTrans tenta as três skills pela recarga do SkillData e, entre elas, bate.
+// É o mesmo turno do Paladino (acaoConfianca).
+func (sm *simulador) acaoDoTrans(l *lado, alvo *world.Entity, agora int64) golpe {
+	for _, sk := range skillsDeDanoDoTrans {
+		if agora < l.cd[sk] {
+			continue
+		}
+		sp, ok := sm.d.spells.Get(sk)
+		if !ok {
+			continue
+		}
+		l.cd[sk] = agora + max(int64(sp.Delay)*1000, simPasso)
+		cast, _ := sm.cast(l, alvo, sk)
+		dmg := sm.d.resolveSkillHit(sm.w, l.e, alvo, alvo.ID, sk, cast)
+		if dmg > 0 {
+			miss := combat.ResolveParry(sm.w.Rand(), sk, sm.d.skillParryRate(l.e, alvo), alvo.Rsv&world.RsvBlock != 0)
+			if miss = capMissStreak(l.e, alvo.ID, miss, int(sm.d.combatRules.MaxMissStreak)); miss != 0 {
+				dmg = miss
+			}
+		}
+		return golpe{tipo: nomeSkillDoTrans[sk], dano: sm.aplicar(l, alvo, dmg, 0, true)}
+	}
+	return sm.fisico(l, alvo)
+}
+
 func (sm *simulador) transLutador(id int, arma int16) *lutador {
 	e, hp := sm.montarTrans(porradeiro, id, arma)
-	l := &lutador{lado: &lado{e: e, cd: map[int]int64{}}, nome: "TK", maxHP: hp}
-	l.acao = func(ld *lado, alvo *world.Entity, _ int64) golpe { return sm.fisico(ld, alvo) }
-	return l
+	return &lutador{lado: &lado{e: e, cd: map[int]int64{}}, nome: "TK", maxHP: hp, acao: sm.acaoDoTrans}
 }
 
 func TestSimulacaoTrans(t *testing.T) {

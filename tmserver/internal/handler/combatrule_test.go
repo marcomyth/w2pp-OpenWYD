@@ -62,10 +62,15 @@ func TestRegraMultiplicadorNaMagia(t *testing.T) {
 	}
 }
 
-// TestRegraResistenciaContraMob: o mesmo golpe, no mesmo sorteio, contra um mob
-// sem resistência. O legado dá ×1,5; a regra padrão, ×1,0. Contra jogador nada
-// muda.
-func TestRegraResistenciaContraMob(t *testing.T) {
+// TestRegraResistenciaValeParaOsDois: o mesmo golpe, no mesmo sorteio, contra um
+// alvo sem resistência. O legado dá ×1,5; a regra padrão, ×1,0 — e desde
+// 21/09/2026 isso vale para MOB e para JOGADOR.
+//
+// Até então o alvo humano ficava preso no 150 do legado, e a etapa chamada
+// "resistência" multiplicava o golpe por 1,5 em vez de reduzi-lo: o dano depois
+// de subtrair a defesa saía MAIOR que o dano bruto, e a skill de um mago chegava
+// ao jogador com 50% a mais do que a janela dele anuncia.
+func TestRegraResistenciaValeParaOsDois(t *testing.T) {
 	golpe := func(r combatrule.Rules, alvoID int) int {
 		d := New(Config{})
 		d.combatRules = r
@@ -85,8 +90,14 @@ func TestRegraResistenciaContraMob(t *testing.T) {
 		t.Errorf("mob sem resistência: legado %d, padrão %d — o legado devia ser 1,5× o padrão", legado, padrao)
 	}
 
-	if a, b := golpe(combatrule.Default(), 2), golpe(combatrule.Kersef(), 2); a != b {
-		t.Errorf("contra jogador a regra não pode mudar o golpe: padrão %d, Kersef %d", a, b)
+	// E contra JOGADOR a conta é a mesma. É o ponto da mudança: o número que sai
+	// aqui é o que a janela do cliente promete, não uma vez e meia ele.
+	pj, lj := golpe(combatrule.Default(), 2), golpe(combatrule.Kersef(), 2)
+	if pj <= 0 {
+		t.Fatalf("golpe no jogador = %d, o teste não provaria nada", pj)
+	}
+	if lj != pj*3/2 {
+		t.Errorf("jogador sem resistência: legado %d, padrão %d — o legado devia ser 1,5× o padrão", lj, pj)
 	}
 }
 

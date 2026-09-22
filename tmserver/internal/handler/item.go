@@ -475,6 +475,7 @@ const (
 	volBuffMental60      = 57
 	volVigor             = 58
 	volFrango            = 63
+	volCoragem           = 230 // Remédio e Elixir da Coragem (646, 647, 3378)
 	volDivine7           = 64
 	volDivine30          = 66
 	volGemDiamond        = 180
@@ -655,6 +656,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useLegacyBuffConsumable(w, s, e, src, vol)
 	case vol == volArchCrystal:
 		d.useArchCrystal(w, s, e, src)
+	case vol == volMolarGargula:
+		d.useMolarGargula(w, s, e, src)
 	case vol == volPedraIdeal:
 		d.useIdealStone(w, s, e, src)
 	case vol == volExpChest:
@@ -669,6 +672,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useVigor(w, s, e, src, int(e.Carry[src].Index))
 	case vol == volFrango:
 		d.useFrangoAssado(w, s, e, src)
+	case vol == volCoragem:
+		d.useRemedioDaCoragem(w, s, e, src)
 	case vol == volSilverBar:
 		d.useSilverBar(w, s, e, src)
 	case vol >= volGemDiamond && vol <= volGemGarnet:
@@ -1523,9 +1528,28 @@ func (d *Dispatcher) useVigor(w *world.World, s *world.Session, e *world.Entity,
 	d.sendAffect(w, s, e)
 }
 
+// Frango Assado (EF_VOLATILE 63), e o teto de acúmulo que o Marco pediu em
+// 22/09/2026. Um frango são 4h; comendo em sequência o tempo soma até 24h, do
+// mesmo jeito que o Baú de Experiência soma 2h por baú (useExpChest).
+const (
+	frangoAtaqueEmMob        = 2000
+	frangoDuracao     uint32 = affect1H * 4
+	frangoTeto        uint32 = affect1H * 24
+)
+
 // useFrangoAssado consumes a Frango Assado (EF_VOLATILE 63): Affect 30 adds a flat
-// +2000 ForceMobDamage for 4h (_MSG_UseItem.cpp:2308-2341, Basedef.cpp:4427). Unlike
+// +2000 ForceMobDamage (_MSG_UseItem.cpp:2308-2341, Basedef.cpp:4427). Unlike
 // the healing potions this is not a heal — it's a mob-damage buff read at score time.
+//
+// O tempo ACUMULA, como no Baú de Experiência: cada frango soma 4h ao que já
+// corre, até 24h. No teto o item é consumido assim mesmo, também como o Baú
+// (useExpChest) — escolha do Marco em 22/09/2026, com a regra do Baú valendo
+// dos dois lados em vez de meia cópia dela.
+//
+// O afeto 30 é compartilhado com o Remédio/Elixir da Coragem (+500). Acúmulo
+// só vale entre frangos: por cima de um bônus menor o frango sobe para 2000 e
+// fica com o MAIOR dos dois tempos, que é o que já acontecia antes daqui, sem
+// virar um jeito de estocar horas baratas para o bônus caro.
 func (d *Dispatcher) useFrangoAssado(w *world.World, s *world.Session, e *world.Entity, src int) {
 	slot := e.EmptyAffect(world.AffectForceMobDamage)
 	if slot < 0 {
@@ -1533,12 +1557,93 @@ func (d *Dispatcher) useFrangoAssado(w *world.World, s *world.Session, e *world.
 		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, src, itemToSel(e.Carry[src])))
 		return
 	}
-	e.Affect[slot] = world.Affect{Type: world.AffectForceMobDamage, Level: 2000, Time: affect1H * 4}
+	atual := e.Affect[slot]
+	if atual.Type != world.AffectForceMobDamage {
+		atual = world.Affect{}
+	}
+	novo := frangoDuracao
+	switch {
+	case atual.Level >= frangoAtaqueEmMob:
+		novo = atual.Time + frangoDuracao
+	case atual.Time > frangoDuracao:
+		novo = atual.Time
+	}
+	if novo > frangoTeto {
+		novo = frangoTeto
+	}
+	e.Affect[slot] = world.Affect{Type: world.AffectForceMobDamage, Level: frangoAtaqueEmMob, Time: novo}
 	consumeOneItem(&e.Carry[src])
 	d.refreshScore(e)
 	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, src, itemToSel(e.Carry[src])))
 	d.sendScore(w, s, e)
 	d.sendAffect(w, s, e)
+}
+
+// Os três itens do EF_VOLATILE 230 e o que cada um paga. O Elixir custa o dobro
+// do Remédio no catálogo (3.000.000 contra 1.500.000) e por isso dura o dobro; o
+// de 30 dias é o mesmo Elixir, e o prazo do nome é do ITEM, não do bônus.
+const (
+	itemRemedioDaCoragem  int16 = 646
+	itemElixirDaCoragem   int16 = 647
+	itemElixirCoragem30   int16 = 3378
+	coragemAtaqueEmMob          = 500
+	coragemNivelMinimo    int32 = 255
+	coragemDuracaoRemedio       = affect1H * 4
+	coragemDuracaoElixir        = affect1H * 8
+)
+
+// useRemedioDaCoragem consome o Remédio/Elixir da Coragem (EF_VOLATILE 230): um
+// afeto que soma 500 ao golpe CONTRA MONSTRO e nada contra jogador.
+//
+// É o mesmo mecanismo do Frango Assado — world.AffectForceMobDamage, que
+// ResolveHit só aplica quando `!TargetIsPlayer` (combat.go) —, que é o que a
+// descrição do cliente promete em duas linhas: "o bônus é aplicado apenas em
+// monstros, e não em outros usuários durante o modo PvP".
+//
+// Até 22/09/2026 o volatile 230 não tinha caso nenhum: os três itens caíam no
+// default do switch e eram recusados. O Remédio cai no Cemitério e está à venda
+// no Aki por 1.500.000, então havia gente comprando e pegando um item morto.
+//
+// A guarda contra o rebaixamento é a parte que não se vê: EmptyAffect devolve o
+// slot que JÁ tem o tipo (GetEmptyAffect), então sem ela um Remédio tomado por
+// cima de um Frango ativo trocaria +2000 por +500 — o jogador usaria o item e
+// sairia batendo MENOS, sem nada na tela explicando.
+func (d *Dispatcher) useRemedioDaCoragem(w *world.World, s *world.Session, e *world.Entity, src int) {
+	if e.Level < coragemNivelMinimo {
+		// A descrição do cliente diz "Disponível a partir do level 255", e é a
+		// única promessa dela que o servidor pode quebrar em silêncio.
+		d.notify(w, s, NoticeLevelLimit)
+		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+		return
+	}
+
+	duracao := coragemDuracaoRemedio
+	if idx := e.Carry[src].Index; idx == itemElixirDaCoragem || idx == itemElixirCoragem30 {
+		duracao = coragemDuracaoElixir
+	}
+
+	slot := e.EmptyAffect(world.AffectForceMobDamage)
+	if slot < 0 {
+		d.notify(w, s, NoticeCantEatMore)
+		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+		return
+	}
+	// Não rebaixar: um bônus maior já ativo (o Frango são 2000) vale mais que
+	// este, e o item não é gasto à toa.
+	if atual := e.Affect[slot]; atual.Type == world.AffectForceMobDamage && int(atual.Level) > coragemAtaqueEmMob {
+		d.notify(w, s, NoticeCantEatMore)
+		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+		return
+	}
+
+	e.Affect[slot] = world.Affect{Type: world.AffectForceMobDamage, Level: coragemAtaqueEmMob, Time: uint32(duracao)}
+	consumeOneItem(&e.Carry[src])
+	d.refreshScore(e)
+	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+	d.sendScore(w, s, e)
+	d.sendAffect(w, s, e)
+	d.log.Info("remédio da coragem usado", "conn", s.Conn, "item", e.Carry[src].Index,
+		"nivel", e.Level, "bonus", coragemAtaqueEmMob, "tiques", duracao)
 }
 
 // silverBarGold returns the gold credited by Vol 185 "Barra de Prata" items
@@ -1676,6 +1781,34 @@ var joiaPvPBit = map[int16]uint{
 // (3203) strips (_MSG_UseItem.cpp:4356).
 var joiaRecoveryCleanse = map[uint8]bool{1: true, 3: true, 5: true, 7: true, 10: true, 12: true, 20: true, 32: true}
 
+// Os dois itens de volátil 243 que limpam afeto, e o que cada um limpa.
+const (
+	joiaDaRecuperacao = 3203
+	ervasDeCura       = 415
+)
+
+// ervasDeCuraCleanse é o que as Ervas de Cura tiram: a lentidão e o debuff
+// básico, e NADA que se pareça com um cancelamento (decisão do Marco, 21/09).
+//
+// São os afetos que só pioram a ficha de quem os carrega, lidos do legado:
+//
+//	 1  Toque Sagrado — a lentidão: tira Run e Att (Basedef.cpp:3938)
+//	 3  Perseguição   — derruba a imunidade do alvo (:3955)
+//	10  Enfraquecer   — Damage -= Level/5 + Value (:4018)
+//	12  quebra de AC  — Ac * (100-Value)/100 (:4030)
+//	20  veneno        — o dano por tique (affect_tick.go:80)
+//
+// Os três primeiros são o mesmo trio que SetTick já trata em conjunto, cortando
+// a duração deles para 2 (world/affect.go) — o código do port já os enxergava
+// como uma família antes desta lista existir.
+//
+// Fora daqui fica todo buff, de propósito: tirar buff é cancelamento, e o
+// cancelamento é outra mecânica, com trava de poção de 20 s. A Jóia da
+// Recuperação continua com a lista dela, que mistura buff e debuff — a erva
+// NÃO é uma jóia barata. O 12 hoje não é aplicado por skill nenhuma; entra
+// aqui porque é um debuff de ficha pela conta do próprio legado.
+var ervasDeCuraCleanse = map[uint8]bool{1: true, 3: true, 10: true, 12: true, 20: true}
+
 // useJoiaPvP consumes a Vol-242 PvP jewel: it sets (or OR-refreshes) the shared
 // affect-8 slot with the jewel's Level bit for one hour, then recomputes and
 // pushes the score/affect snapshot. Stacking jewels accumulate their bits in the
@@ -1705,12 +1838,23 @@ func (d *Dispatcher) useJoiaPvP(w *world.World, s *world.Session, e *world.Entit
 	d.sendAffect(w, s, e)
 }
 
-// useJoiaRecovery consumes a Vol-243 jewel. The Jóia da Recuperação (3203)
+// useJoiaRecovery consumes a Vol-243 item. The Jóia da Recuperação (3203)
 // strips the player's skill buffs/debuffs (joiaRecoveryCleanse) before consuming;
 // the Jóia da Armazenagem (3207) has no server-side stat, so it is consumed only.
 // Mirrors the "Armazenagem - Recuperação" region of _MSG_UseItem.cpp.
+//
+// As Ervas de Cura (415) entram por aqui porque carregam o MESMO volátil 243,
+// e é por isso que até 21/09/2026 elas eram engolidas sem fazer nada: o legado
+// só trata a jóia nesta vizinhança. Agora a 415 limpa lentidão e debuff básico
+// (ervasDeCuraCleanse) e, DIVERGINDO da jóia, não se gasta quando não há o que
+// curar — mesma escolha que useClasseItem faz ao recusar em vez de destruir o
+// item. A divergência para na erva: a jóia continua se gastando como sempre.
 func (d *Dispatcher) useJoiaRecovery(w *world.World, s *world.Session, e *world.Entity, src int) {
-	if e.Carry[src].Index == 3203 {
+	if e.Carry[src].Index == ervasDeCura {
+		d.useErvasDeCura(w, s, e, src)
+		return
+	}
+	if e.Carry[src].Index == joiaDaRecuperacao {
 		cleared := false
 		for i := range e.Affect {
 			if joiaRecoveryCleanse[e.Affect[i].Type] {
@@ -1726,6 +1870,37 @@ func (d *Dispatcher) useJoiaRecovery(w *world.World, s *world.Session, e *world.
 	}
 	consumeOneItem(&e.Carry[src])
 	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, src, itemToSel(e.Carry[src])))
+}
+
+// useErvasDeCura tira do jogador a lentidão e o debuff básico
+// (ervasDeCuraCleanse), e nada mais.
+//
+// Sem nada para curar a erva NÃO se gasta, e o jogador ouve o porquê: um item
+// de 45.000 que some em silêncio é a forma mais cara de "cliquei e não
+// aconteceu nada". A jóia da mesma família continua se gastando de qualquer
+// jeito — a divergência é só desta erva.
+func (d *Dispatcher) useErvasDeCura(w *world.World, s *world.Session, e *world.Entity, src int) {
+	limpou := false
+	for i := range e.Affect {
+		if ervasDeCuraCleanse[e.Affect[i].Type] {
+			e.Affect[i] = world.Affect{}
+			limpou = true
+		}
+	}
+	if !limpou {
+		d.notify(w, s, NoticeErvaSemEfeito)
+		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+		return
+	}
+
+	// A ordem é a da jóia: o score primeiro, porque tirar o Enfraquecer e a
+	// quebra de AC muda Damage e Ac, e só depois o que o cliente desenha.
+	consumeOneItem(&e.Carry[src])
+	d.refreshScore(e)
+	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+	d.sendScore(w, s, e)
+	d.sendAffect(w, s, e)
+	d.log.Info("ervas de cura", "conn", s.Conn)
 }
 
 // useCoracaoDoce consumes Coração Doce (EF_VOLATILE 205): a short Velocidade
@@ -2098,26 +2273,59 @@ func celestialArchBand(level int32) uint8 {
 }
 
 const (
-	magicBeanBase      = 3407
-	magicBeanRemover   = 10
-	magicBeanPaintLo   = 116
-	magicBeanPaintHi   = 125
+	magicBeanBase    = 3407
+	magicBeanRemover = 10
+	magicBeanPaintLo = 116
+	magicBeanPaintHi = 125
+	// A faixa de slots que aceita tintura: do 1 ao 7, o que inclui as duas armas
+	// (weaponSlotR=6, weaponSlotL=7) e deixa de fora o corpo (slot 0) e a bolsa.
+	// É a mesma faixa do legado (_MSG_UseItem.cpp:3781, que recusa DestPos 0 e
+	// 8..15) — a arma não é exceção lá.
 	magicBeanFirstSlot = 1
 	magicBeanLastSlot  = 7
+
+	// Pintura de Arma (3480-3489): os mesmos dez tons do Feijão Mágico, em item
+	// próprio que só entra na arma. É uma divisão de PRODUTO, não do desenho — o
+	// cliente pinta os dois com a mesma textura, então o item novo reaproveita o
+	// mesh do feijão (2782.x) e nada muda no cliente além do nome.
+	//
+	// Com ele no jogo, o feijão comum volta a recusar a arma: se os dois
+	// pintassem tudo, a Pintura de Arma não teria por que existir.
+	weaponPaintBase = 3480
+	weaponPaintHi   = 3489
 )
+
+// weaponPaint diz se o índice é uma Pintura de Arma. A cor sai da mesma ordem do
+// feijão, então weaponPaintBase+n e magicBeanBase+n são o mesmo tom.
+func weaponPaint(index int16) bool {
+	return index >= weaponPaintBase && index <= weaponPaintHi
+}
+
+func magicBeanWeaponSlot(slot int) bool {
+	return slot == weaponSlotR || slot == weaponSlotL
+}
 
 // useMagicBean consumes a Feijao Magico / Removedor de tintura (EF_VOLATILE 186)
 // by stamping only the destination effect id byte, preserving the cValue exactly
 // as _MSG_UseItem.cpp:3767-3861 does. Paint effects reuse the sanc effect slots:
 // 116..125 are colors, while EF_SANC (43) is the remover/neutral marker.
+//
+// A arma pinta, e o cliente já sabe desenhá-la pintada: o brilho do refino tem um
+// terceiro ponto de desenho, em WYD.exe 0x4D81E8, com a mesma fórmula dos outros
+// dois. A cor também não come o refino, porque refine.Level lê 116..125 antes de
+// EF_SANC, igual a BASE_GetItemSanc (Basedef.cpp:2141). Quem separa armadura de
+// arma aqui é o ITEM, não o slot: o feijão pinta o set, a Pintura de Arma pinta a
+// arma, e o Removedor limpa os dois.
 func (d *Dispatcher) useMagicBean(w *world.World, s *world.Session, e *world.Entity, body protocol.MsgUseItemBody, src int) {
 	dstSlot := int(body.DestPos)
 	if int(body.DestType) != world.ItemPlaceEquip || dstSlot < magicBeanFirstSlot || dstSlot > magicBeanLastSlot {
 		d.magicBeanReject(w, s, e, src, NoticeOnlyToEquips)
 		return
 	}
-	if magicBeanWeaponSlot(dstSlot) && s.AccessLevel < world.AccessModerator {
-		d.magicBeanReject(w, s, e, src, NoticeCantUseHere)
+	index := e.Carry[src].Index
+	naArma := magicBeanWeaponSlot(dstSlot)
+	// O Removedor (3417) é o único que atende os dois lados; os de cor escolhem.
+	if !d.paintFitsSlot(w, s, e, src, index, naArma) {
 		return
 	}
 	dst := d.itemSlot(w, s, e, int(body.DestType), dstSlot)
@@ -2133,7 +2341,10 @@ func (d *Dispatcher) useMagicBean(w *world.World, s *world.Session, e *world.Ent
 		return
 	}
 
-	color := int(e.Carry[src].Index) - magicBeanBase
+	color := int(index) - magicBeanBase
+	if weaponPaint(index) {
+		color = int(index) - weaponPaintBase
+	}
 	if color < 0 || color > magicBeanRemover {
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
@@ -2145,7 +2356,7 @@ func (d *Dispatcher) useMagicBean(w *world.World, s *world.Session, e *world.Ent
 
 	removing := color == magicBeanRemover
 
-	i := magicBeanEffectSlot(*dst, removing)
+	i, limpar := magicBeanEffectSlot(*dst, removing)
 	if i < 0 {
 		// The legacy answers _NN_Cant_Refine_More here, which is refine wording on
 		// a paint action; and the two ways to get here are different problems —
@@ -2158,6 +2369,11 @@ func (d *Dispatcher) useMagicBean(w *world.World, s *world.Session, e *world.Ent
 		return
 	}
 	dst.Effects[i].Effect = effect
+	if limpar >= 0 {
+		// A cor órfã de um item que já veio torto: some inteira, efeito e valor,
+		// senão o cliente continuaria achando duas fontes de cor no mesmo item.
+		dst.Effects[limpar] = world.Effect{}
+	}
 
 	success := NoticePaintSuccess
 	if removing {
@@ -2179,27 +2395,95 @@ func (d *Dispatcher) magicBeanReject(w *world.World, s *world.Session, e *world.
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 }
 
-func magicBeanWeaponSlot(slot int) bool {
-	return slot == weaponSlotR || slot == weaponSlotL
+// As duas linhas que separam os produtos. Vão como texto e não como Notice porque
+// não existe _NN_ do legado para elas — a divisão é nossa — e um código sem
+// entrada na tabela de strings recusa em silêncio, que é o mesmo que um clique
+// morto para quem está jogando.
+const (
+	msgPaintOnlyWeapon = "A Pintura de Arma só vale na arma."
+	msgPaintNotWeapon  = "O Feijão Mágico não pinta arma. Use a Pintura de Arma."
+)
+
+// paintFitsSlot casa o item com o lado do equipamento: o feijão de cor fica no
+// set, a Pintura de Arma fica na arma e o Removedor de tintura atende os dois,
+// porque tirar cor não é vender cor. Devolve o item e diz o porquê quando recusa.
+func (d *Dispatcher) paintFitsSlot(w *world.World, s *world.Session, e *world.Entity, src int, index int16, naArma bool) bool {
+	if index == magicBeanBase+magicBeanRemover {
+		return true
+	}
+	switch {
+	case weaponPaint(index) && !naArma:
+		d.paintRefuse(w, s, e, src, msgPaintOnlyWeapon)
+		return false
+	case !weaponPaint(index) && naArma:
+		d.paintRefuse(w, s, e, src, msgPaintNotWeapon)
+		return false
+	}
+	return true
 }
 
-func magicBeanEffectSlot(it world.Item, remover bool) int {
+func (d *Dispatcher) paintRefuse(w *world.World, s *world.Session, e *world.Entity, src int, texto string) {
+	sendClientMessage(w, s, texto)
+	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+}
+
+// magicBeanEffectSlot escolhe ONDE a cor é gravada, e a ordem importa muito mais
+// do que parece.
+//
+// O cliente lê a cor pela sua BASE_GetItemSanc (WYD.exe 0x538DDF), que varre os
+// três slots atrás de EF_SANC ANTES de olhar a faixa de cor. Um item que fique
+// com os dois — cor num slot e EF_SANC noutro — devolve o EF_SANC, e a peça sai
+// com o brilho padrão como se nada tivesse sido pintado. Foi o que aconteceu com
+// a arma em 21/09: o servidor gravou a cor, a tela não mudou.
+//
+// E o servidor faz o inverso: refine.Level lê a cor primeiro. Uma cor gravada em
+// slot vazio nasce com cValue 0, então o item também PERDERIA o refino inteiro —
+// o +11 de uma arma vira +0 no dano.
+//
+// Por isso a cor entra nesta ordem: no slot que já é cor, senão no slot do
+// EF_SANC, herdando o cValue que guarda o nível, e só então num vazio. O legado
+// varria 0→1→2 e pegava o primeiro slot que não fosse efeito de verdade
+// (_MSG_UseItem.cpp:3820): acerta quando o EF_SANC está no slot 0, que é o caso
+// comum numa peça de set, e erra em todo o resto.
+//
+// limpar é o slot da cor órfã de um item que já chegou torto — a cor num lugar e
+// o EF_SANC noutro. Consolidar os dois no mesmo slot conserta esse item na
+// próxima pintura, em vez de exigir que o jogador jogue a peça fora.
+func magicBeanEffectSlot(it world.Item, remover bool) (slot, limpar int) {
+	cor, sanc := -1, -1
+	vazio := -1
 	for i, ef := range it.Effects {
-		if magicBeanSlotWritable(ef, remover) {
-			return i
+		switch {
+		case ef.Effect >= magicBeanPaintLo && ef.Effect <= magicBeanPaintHi:
+			if cor < 0 {
+				cor = i
+			}
+		case ef.Effect == efSanc:
+			if sanc < 0 {
+				sanc = i
+			}
+		case ef.Effect == 0:
+			if vazio < 0 {
+				vazio = i
+			}
 		}
 	}
-	return -1
-}
-
-func magicBeanSlotWritable(ef world.Effect, remover bool) bool {
-	if ef.Effect == 0 || ef.Effect >= magicBeanPaintLo && ef.Effect <= magicBeanPaintHi {
-		return true
+	if remover {
+		// Só há o que tirar de uma peça pintada, e o EF_SANC volta no lugar da
+		// cor. Escrevê-lo num slot vazio deixaria os dois no item — exatamente o
+		// estado que o parágrafo acima descreve.
+		return cor, -1
 	}
-	if !remover && ef.Effect == efSanc {
-		return true
+	switch {
+	case cor >= 0 && sanc >= 0:
+		return sanc, cor
+	case cor >= 0:
+		return cor, -1
+	case sanc >= 0:
+		return sanc, -1
+	default:
+		return vazio, -1
 	}
-	return false
 }
 
 // sendAffect pushes MSG_SendAffect (0x03B9): the full 32-slot buff snapshot, so the
@@ -2247,6 +2531,19 @@ func (d *Dispatcher) canEquipSlot(idx int16, dst int) bool {
 	}
 	pos, ok := d.itemPos[int(idx)]
 	if !ok {
+		// Item fora do ItemList.csv do servidor: 3277 índices de 1 a 6499 estão
+		// nessa situação e 696 deles têm nome no cliente, então recusar em todo
+		// slot arriscaria travar equipamento que hoje funciona. O corpo é a
+		// exceção: quem entra nele vira a aparência do personagem, e um índice
+		// acima de 40 faz o cliente escrever "Monster" no lugar da classe. Sem
+		// nPos no catálogo nada prova que o item é um corpo, então ele não entra
+		// (um Baú do Apoiador entregou-se no slot 0 exatamente assim).
+		//
+		// Sem catálogo montado — tmserver sem -content, e os testes — não há o
+		// que conferir: nesse caso vale a regra antiga, ou ninguém teria corpo.
+		if dst == bodyEquipSlot && len(d.itemPos) > 0 {
+			return false
+		}
 		return true
 	}
 	return pos != 0 && pos&(1<<uint(dst)) != 0
@@ -2408,6 +2705,11 @@ const (
 	// derives WeaponDamage from these two slots' EF_DAMAGE.
 	weaponSlotR = 6
 	weaponSlotL = 7
+
+	// bodyEquipSlot é o corpo (STRUCT_MOB.Equip[0]): não é peça de equipamento,
+	// é a aparência do personagem. A janela C do cliente lê esse índice e, acima
+	// de 40, escreve "Monster" no lugar da classe (WYD.exe 0x4CBDE3).
+	bodyEquipSlot = 0
 )
 
 // itemSanc reads an item's refine ("anc") level from its instance effects, 0..15
@@ -2948,13 +3250,32 @@ func buffScaleHpMp(e *world.Entity, v int32) int32 {
 // EF_HPADD% × buff. Applied at read time (display/combat/regen), never stored
 // (captura §C,E).
 func effectiveMaxHP(e *world.Entity) int32 {
-	return semNegativo(buffScaleHpMp(e, comPercentual(scoreMaxHP(e)+e.AffMaxHP, e.HpAddPct)))
+	return semNegativo(buffScaleHpMp(e, escalaPorcentoDoPool(scoreMaxHP(e)+e.AffMaxHP, e.HpAddPct)))
+}
+
+// escalaPorcentoDoPool faz `pool × (pct+100)/100` em 64 bits e para no teto do
+// legado (MAX_HP = 1 bilhão).
+//
+// A conta era em int32 e estourava a partir de 21.474.836 de pool, porque a
+// multiplicação por 100 já não cabe. Jogador nenhum chega perto disso, mas um
+// chefe de guilda chega: com 25 milhões de vida o resultado dava 0 — e como
+// refreshScore prende o HP ao máximo efetivo, o primeiro afeto que expirasse
+// zerava o chefe. Com 1,35 bilhão dava 18 milhões, e o chefe caía sozinho.
+func escalaPorcentoDoPool(pool, pct int32) int32 {
+	v := int64(pool) * int64(pct+100) / 100
+	if v > int64(level.MaxHPCap) {
+		return level.MaxHPCap
+	}
+	if v < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(v)
 }
 
 // effectiveMaxMP is the player's real max MP: (score MaxMP + affect deltas) ×
 // EF_MPADD% × buff.
 func effectiveMaxMP(e *world.Entity) int32 {
-	return semNegativo(buffScaleHpMp(e, comPercentual(scoreMaxMP(e)+e.AffMaxMP, e.MpAddPct)))
+	return semNegativo(buffScaleHpMp(e, escalaPorcentoDoPool(scoreMaxMP(e)+e.AffMaxMP, e.MpAddPct)))
 }
 
 // scoreMaxHP is the legacy CurrentScore.MaxHp as the affect pass finds it. For
@@ -2987,45 +3308,6 @@ func scoreMaxMP(e *world.Entity) int32 {
 	return 2*e.MaxMP + 2*int32(e.Int-e.BaseInt)
 }
 
-// semNegativo floors a computed MAXIMUM at ZERO.
-//
-// A maximum is a ceiling, and setReqMp clamps the live bar DOWN to it — so a
-// maximum that goes negative drags the live value negative with it. Debuffs
-// stack into AffInt, Int counts twice toward MaxMp, and enough of them at once
-// turn the ceiling negative: that is how mana bars reached -46911/13089 across
-// every class. The source of that particular flood is fixed (mobai.go), but a
-// ceiling below zero is nonsense on any path, so it is refused here too.
-//
-// Zero, not one: a maximum of 0 is legitimate — an entity with no mana at all —
-// and flooring at 1 hands it a sliver of bar that regen then tries to fill,
-// which shows up as stray SetHpMp frames on characters that should send none.
-// comPercentual soma pct por cento a base, fazendo a conta em 64 bits.
-//
-// A multiplicação era feita em int32 e ESTOUAVA. Medido em 21/09/2026: um
-// personagem de teste com 50.000.100 de vida máxima e +15% de HpAddPct dá
-// 50.000.100 × 115 = 5.750.011.500, muito acima do teto do int32
-// (2.147.483.647). O resultado virava negativo, o semNegativo o transformava em
-// zero, e a linha seguinte de refreshScore — `if e.HP > maxHP { e.HP = maxHP }`
-// — punha a vida do jogador em zero. O personagem morria de pé, e continuava
-// morto depois de relogar, porque o zero ia para o banco.
-//
-// O perigo não nasceu com os buffs de guilda: qualquer equipamento com EF_HPADD
-// faria o mesmo numa vida grande o bastante. Os buffs só o encontraram.
-//
-// O retorno continua em int32 porque é o tipo do resto do cálculo; o que muda é
-// que a conta do MEIO não cabe mais nele. Um resultado acima do teto satura em
-// vez de dar a volta — saturar é errado por um número, dar a volta é errado por
-// um sinal, e só o segundo mata alguém.
-func comPercentual(base, pct int32) int32 {
-	v := int64(base) * int64(pct+100) / 100
-	if v > math.MaxInt32 {
-		return math.MaxInt32
-	}
-	if v < math.MinInt32 {
-		return math.MinInt32
-	}
-	return int32(v)
-}
 
 func semNegativo(v int32) int32 {
 	if v < 0 {

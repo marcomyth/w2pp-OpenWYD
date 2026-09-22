@@ -311,3 +311,75 @@ func TestPocaoRecusadaComATranca(t *testing.T) {
 		t.Errorf("pilha = %d, want 10 (nada consumido)", got)
 	}
 }
+
+// O ARCO da FM Cancelamento (20/09/2026). Ele não era penalizado — só não
+// ganhava nada, e valia o mesmo que uma espada sozinha. Agora tem bônus próprio,
+// menor que o de duas armas.
+func TestArcoDoCancelamento(t *testing.T) {
+	const espada, arco, dardo, escudo = 201, 202, 203, 204
+	ability := armasNasMaos(map[int16]int{
+		espada: wtypeUmaMao, arco: wtypeArco, dardo: 102,
+	})
+	fm := func(dir, esq int16, learned int32) *world.Entity {
+		e := &world.Entity{ID: 1, Class: 1, Level: 399, LearnedSkill: learned, Int: 2147, Dex: 712}
+		e.Equip[weaponSlotR], e.Equip[weaponSlotL] = world.Item{Index: dir}, world.Item{Index: esq}
+		return e
+	}
+	for _, c := range []struct {
+		nome        string
+		dir, esquer int16
+		want        bool
+	}{
+		{"arco", arco, 0, true},
+		{"espada", espada, 0, false},
+		{"duas espadas", espada, espada, false},
+		{"dardo NÃO é arco", dardo, 0, false},
+		{"arma e escudo", espada, escudo, false},
+		{"sem arma", 0, 0, false},
+	} {
+		if got := arcoDoCancelamento(fm(c.dir, c.esquer, learnedCancelamento), ability); got != c.want {
+			t.Errorf("%s: %v, want %v", c.nome, got, c.want)
+		}
+	}
+	// Sem a 8ª a árvore não vale, e sem itemAbility o servidor não sabe a arma.
+	if arcoDoCancelamento(fm(arco, 0, 0), ability) {
+		t.Error("sem o Cancelamento a regra não pode valer")
+	}
+	if arcoDoCancelamento(fm(arco, 0, learnedCancelamento), nil) {
+		t.Error("sem itemAbility não se dá bônus de graça")
+	}
+	if arcoDoCancelamento(nil, ability) {
+		t.Error("nil não entra na árvore")
+	}
+}
+
+// O bônus entra no SCORE, e a empunhadura dá UM só: duas armas OU arco, nunca
+// os dois somados.
+func TestBonusDeDanoPorEmpunhaduraDaCancel(t *testing.T) {
+	const espada, arco = 201, 202
+	ability := armasNasMaos(map[int16]int{espada: wtypeUmaMao, arco: wtypeArco})
+	com := func(dir, esq int16) int32 {
+		e := &world.Entity{ID: 1, Class: 1, Level: 399, LearnedSkill: learnedCancelamento, Int: 2147, Dex: 712}
+		e.Equip[weaponSlotR], e.Equip[weaponSlotL] = world.Item{Index: dir}, world.Item{Index: esq}
+		applyAffectScoreWithItemAbility(e, ability)
+		return e.AffDamageMultiPct
+	}
+	if got := com(espada, espada); got != int32(100+cancelDanoDuasArmas) {
+		t.Errorf("duas espadas: %d%%, want %d%%", got, 100+cancelDanoDuasArmas)
+	}
+	if got := com(arco, 0); got != int32(100+cancelDanoArco) {
+		t.Errorf("arco: %d%%, want %d%%", got, 100+cancelDanoArco)
+	}
+	if got := com(espada, 0); got != 100 {
+		t.Errorf("uma espada só: %d%%, want 100%%", got)
+	}
+	// O arco tem de valer MENOS que duas armas: são elas que levam também o alvo
+	// a mais no Cancelamento e a perfuração de armadura.
+	if cancelDanoArco >= cancelDanoDuasArmas {
+		t.Errorf("o arco (%d) não pode alcançar as duas armas (%d)", cancelDanoArco, cancelDanoDuasArmas)
+	}
+	// E tem de valer mais que nada: era esse o problema.
+	if cancelDanoArco <= 0 {
+		t.Errorf("o arco precisa de bônus, veio %d", cancelDanoArco)
+	}
+}

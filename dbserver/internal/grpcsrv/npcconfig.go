@@ -79,6 +79,10 @@ func npcDefinitionsToProto(defs []domain.NPCDefinition) []*dbv1.NpcDefinition {
 				Eff1: int32(it.Eff1), Effv1: int32(it.EffV1),
 				Eff2: int32(it.Eff2), Effv2: int32(it.EffV2),
 				Eff3: int32(it.Eff3), Effv3: int32(it.EffV3),
+				// Passed through as the pointer it is: nil means "sold for gold",
+				// and flattening it to 0 here would put every shop item in the
+				// game on sale for zero shop points.
+				PricePoints: it.PricePoints,
 			})
 		}
 		out = append(out, &dbv1.NpcDefinition{

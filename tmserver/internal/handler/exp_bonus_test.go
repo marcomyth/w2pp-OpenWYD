@@ -19,6 +19,28 @@ func TestFairyExpBonus(t *testing.T) {
 	}
 }
 
+// TestEsferaExpBonus: a esfera (client/montarias) entra no /xp pelo mesmo
+// caminho das montarias da loja, mountbonus.TempExtra. É o único caminho que
+// ela tem: a tabela de bônus do cliente não tem coluna de XP e a faixa
+// 2969-2975 não desenha linha de atributo nenhuma, então o que não aparecer
+// aqui não aparece em lugar nenhum.
+func TestEsferaExpBonus(t *testing.T) {
+	d := New(Config{})
+	e := &world.Entity{}
+	for idx := int16(2969); idx <= 2975; idx++ {
+		e.Equip[mountEquipSlot] = world.Item{Index: idx}
+		p := d.equipExpBonusParcelas(e)
+		if p.Montaria != 12 || p.Total() != 12 {
+			t.Errorf("esfera %d = %d (total %d), want 12", idx, p.Montaria, p.Total())
+		}
+	}
+	// A montaria adulta continua sem coluna de XP: as esferas não a criaram.
+	e.Equip[mountEquipSlot] = world.Item{Index: 2379} // Tigre de Fogo adulto
+	if got := d.equipExpBonusParcelas(e).Montaria; got != 0 {
+		t.Errorf("adulta = %d, want 0", got)
+	}
+}
+
 func TestEquipGrade7ExpBonus(t *testing.T) {
 	d := New(Config{ItemGrades: map[int]int{900: 7}})
 	e := &world.Entity{}

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -123,7 +124,7 @@ func TestPergaDaBolsaParaRecomecar(t *testing.T) {
 // been put into.
 func TestFadaNaoEnfileiraDuasVezes(t *testing.T) {
 	d := &Dispatcher{}
-	a := avancoDaFada{variant: waterM, room: 2, leader: 7, espera: fadaEsperaNaAgua, prazo: 30}
+	a := avancoDaFada{variant: waterM, room: 2, leader: 7, espera: fadaEsperaNaAgua}
 
 	d.enfileirarAvancoDaFada(a)
 	d.enfileirarAvancoDaFada(a)
@@ -237,7 +238,7 @@ func TestACaronaValeNasTresCorrentes(t *testing.T) {
 func TestTextoDaFadaQueParou(t *testing.T) {
 	motivos := []string{
 		motivoFadaSaiuDoJogo, motivoFadaNaoELider, motivoFadaForaDoSlot,
-		motivoFadaForaDaAgua, motivoFadaSalaOcupada,
+		motivoFadaForaDaAgua,
 	}
 	for _, motivo := range motivos {
 		for _, room := range []int{0, waterDeadRoom - 1, waterBossRoom} {
@@ -265,6 +266,77 @@ func TestTextoDaFadaQueParou(t *testing.T) {
 			if room < waterDeadRoom && !manda {
 				t.Errorf("sala %d: %q não diz o que fazer com o pergaminho entregue", room, texto)
 			}
+		}
+	}
+}
+
+// A fada nao desiste mais de uma sala ocupada — e uma espera so dura se o
+// relogio da propria sala onde o grupo esta nao jogar todo mundo na entrada por
+// baixo dela. Este teste e o que separa "esperar" de "ser expulso esperando".
+func TestFadaEsperandoSeguraASalaAberta(t *testing.T) {
+	log := slog.New(slog.DiscardHandler)
+	d := New(Config{Log: log})
+	w := world.New(world.Config{}, log, nil, d.Handle)
+	leader := &world.Entity{ID: 4, Name: "Lider"}
+	a := avancoDaFada{variant: waterM, room: 3, leader: 4}
+
+	// Um tique antes de a sala limpa expirar e teleportar o grupo para fora.
+	d.events.water[waterM][3] = 1
+	d.fadaEsperaSalaLivre(w, leader, &a, 4, "Outro")
+
+	if got := d.events.water[waterM][3]; got != fadaRecargaDaEspera {
+		t.Errorf("a sala do grupo ficou com %d, want %d: a espera seria cortada pelo relogio",
+			got, fadaRecargaDaEspera)
+	}
+	if a.esperando != 1 {
+		t.Errorf("esperando = %d depois de um tique, want 1", a.esperando)
+	}
+
+	// Acima do piso o relogio NAO e tocado: recarregar todo tique mandaria um
+	// MSG_StartTime por segundo e o contador do jogador ficaria pulando.
+	d.events.water[waterM][3] = fadaPisoDaEspera + 1
+	d.fadaEsperaSalaLivre(w, leader, &a, 4, "Outro")
+	if got := d.events.water[waterM][3]; got != fadaPisoDaEspera+1 {
+		t.Errorf("a sala foi recarregada de %d para %d sem precisar", fadaPisoDaEspera+1, got)
+	}
+}
+
+// Os dois numeros da espera tem de fazer sentido juntos: o piso e menor que a
+// recarga (senao a sala nunca sobe), e a recarga nao passa da janela que uma
+// sala limpa recebe (senao a espera vale mais tempo de sala que limpar a sala).
+func TestNumerosDaEsperaDaFada(t *testing.T) {
+	if fadaPisoDaEspera <= 0 || fadaPisoDaEspera >= fadaRecargaDaEspera {
+		t.Fatalf("piso = %d e recarga = %d: a sala nunca seria segurada",
+			fadaPisoDaEspera, fadaRecargaDaEspera)
+	}
+	if fadaRecargaDaEspera > waterRoomClearTime {
+		t.Errorf("a recarga (%d) passa da janela da sala limpa (%d)",
+			fadaRecargaDaEspera, waterRoomClearTime)
+	}
+	// E a folga entre duas recargas tem de cobrir o aviso, ou o jogador veria o
+	// contador ser reposto antes de a tela dizer que ele esta esperando.
+	if folga := (fadaRecargaDaEspera - fadaPisoDaEspera) * waterTickPeriod; folga < fadaAvisoDeEspera {
+		t.Errorf("entre recargas cabem %ds, e o aviso sai a cada %ds", folga, fadaAvisoDeEspera)
+	}
+}
+
+// A linha da espera passa pelas mesmas duas regras do painel que a linha da
+// fada que parou: ASCII puro e cabendo em 96 bytes com um nome de 16 letras.
+func TestLinhaDaEsperaCabeNoPainel(t *testing.T) {
+	for _, sala := range []int{0, waterDeadRoom - 1, waterBossRoom} {
+		texto := textoDaFadaEsperando(sala, "NomeDeDezesseis!")
+		for i, r := range texto {
+			if r >= 0x80 {
+				t.Errorf("sala %d: %q tem %q fora de ASCII na posicao %d", sala, texto, r, i)
+				break
+			}
+		}
+		if len(texto) > protocol.MessageLength {
+			t.Errorf("sala %d: %q tem %d bytes, o painel corta em %d",
+				sala, texto, len(texto), protocol.MessageLength)
+		}
+		if !strings.Contains(texto, "NomeDeDezesseis!") {
+			t.Errorf("sala %d: %q nao diz quem esta segurando a sala", sala, texto)
 		}
 	}
 }

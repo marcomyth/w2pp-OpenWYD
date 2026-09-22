@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/combatrule"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combat"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/rng"
@@ -15,8 +16,13 @@ import (
 // personagem. Um campo esquecido faria o golpe cair calado no ramo antigo.
 //
 // O alvo não tem AC nem resistência e o mundo é novo (rng.New é determinístico),
-// então o golpe é o bruto da skill passado pelo mesmo sorteio e pelo ×1,5 da
+// então o golpe é o bruto da skill passado pelo mesmo sorteio e pela escala da
 // resistência zero — o esperado sai das mesmas funções, do mesmo ponto do sorteio.
+//
+// O alvo é um JOGADOR (ID 2 < MaxUser), e desde 21/09/2026 a base da resistência
+// vale para ele como vale para monstro: com a regra padrão (100), resistência
+// zero é o golpe INTEIRO. Até então o alvo humano levava 1,5× — e o teste passava
+// a base do legado à mão, o que escondia a diferença.
 func TestGolpeUsaAContaDaJanela(t *testing.T) {
 	fera := content.Spell{InstanceType: 2, InstanceValue: 25} // skill 48, Fera Flamejante
 	golpe := func(e *world.Entity) int {
@@ -28,7 +34,9 @@ func TestGolpeUsaAContaDaJanela(t *testing.T) {
 	}
 	esperado := func(bruto int) int {
 		dmg := combat.SkillDamage(rng.New(), bruto, 0, 0)
-		return combat.SkillResistScale(dmg, 2, [4]int16{}, false, 150)
+		// A mesma base que o Dispatcher usa (combatrule.Default), contra o mesmo
+		// tipo de alvo: jogador.
+		return combat.SkillResistScale(dmg, 2, [4]int16{}, int(combatrule.Default().MobResistBase))
 	}
 	bm := func(tier uint8, magic int16, learned int32) *world.Entity {
 		return &world.Entity{ID: 1, Class: 2, Level: 349, Int: 2377, Magic: magic,

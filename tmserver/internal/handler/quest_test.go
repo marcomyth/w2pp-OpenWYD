@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -735,36 +736,80 @@ func TestBlackOracleMissingSoulNoop(t *testing.T) {
 	}
 }
 
+// The four real COMP_SEPHI templates and the Sephirot each one owes. Their
+// MOB.Class runs 1..4, not 0..3, so the reward is 1759+Class — indexing from
+// 1760 gave every master the next class's Sephirot and the Huntress's master
+// the Poção Combatente (1764).
 func TestCompSephiCraftsSephirotForClass(t *testing.T) {
-	tmpl := questNPCTemplate("Composicao_Sephi", 19, 0, 0)
-	// The template's Class field (offset 39 per STRUCT_MOB, same as world.Entity.Class)
-	// selects which of the 4 Sephirot the NPC crafts; leave at 0 (TransKnight → 1760).
-	db := newDB()
-	st := baseMortalState(300)
-	st.Coin = 30_000_000
-	for j := 0; j < 8; j++ {
-		st.Carry[j] = world.Item{Index: int16(1744 + j)}
-	}
-	db.loadResult = st
-	addr, stop, npcID := startServerQuestNPC(t, db, tmpl)
-	defer stop()
-	c := enterWorld(t, addr)
-	defer c.Close()
+	for _, tc := range []struct {
+		name   string
+		class  uint8
+		reward int16
+	}{
+		{"Cap.Cavaleiros", 1, 1760}, // TransKnight
+		{"Foema_Anciã", 2, 1761},    // Foema
+		{"Mestre_Archi", 3, 1762},   // BeastMaster
+		{"ForeLearner", 4, 1763},    // Huntress
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpl := questNPCTemplate(tc.name, 19, 0, 0)
+			tmpl[20] = tc.class // STRUCT_MOB.Class @20 — what ParseMobBasics reads
+			db := newDB()
+			st := baseMortalState(300)
+			st.Coin = 30_000_000
+			for j := 0; j < 8; j++ {
+				st.Carry[j] = world.Item{Index: int16(1744 + j)}
+			}
+			db.loadResult = st
+			addr, stop, npcID := startServerQuestNPC(t, db, tmpl)
+			defer stop()
+			c := enterWorld(t, addr)
+			defer c.Close()
 
-	send(t, c, protocol.MsgQuest, protocol.EncodeStandardParm2(int32(npcID), 1))
-	expect(t, c, protocol.MsgUpdateEtc) // coin deducted
-	got := map[uint16]uint16{}
-	for i := 0; i < 9; i++ { // 8 consumed Pedras + 1 reward
-		item := expect(t, c, protocol.MsgSendItem)
-		got[le16(item[2:4])] = le16(item[4:6])
+			send(t, c, protocol.MsgQuest, protocol.EncodeStandardParm2(int32(npcID), 1))
+			expect(t, c, protocol.MsgUpdateEtc) // coin deducted
+			got := map[uint16]uint16{}
+			for i := 0; i < 9; i++ { // 8 consumed Pedras + 1 reward
+				item := expect(t, c, protocol.MsgSendItem)
+				got[le16(item[2:4])] = le16(item[4:6])
+			}
+			for j := 0; j < 8; j++ {
+				if idx, ok := got[uint16(j)]; !ok || idx != 0 {
+					t.Fatalf("pedra slot %d = idx %d ok=%v, quer limpo", j, idx, ok)
+				}
+			}
+			if idx, ok := got[8]; !ok || idx != uint16(tc.reward) {
+				t.Fatalf("recompensa no slot 8 = idx %d ok=%v, quer Sephirot %d", idx, ok, tc.reward)
+			}
+		})
 	}
-	for j := 0; j < 8; j++ {
-		if idx, ok := got[uint16(j)]; !ok || idx != 0 {
-			t.Fatalf("pedra slot %d = idx %d ok=%v, want cleared", j, idx, ok)
-		}
-	}
-	if idx, ok := got[8]; !ok || idx != archSephirotMin {
-		t.Fatalf("reward slot 8 = idx %d ok=%v, want Sephirot %d", idx, ok, archSephirotMin)
+}
+
+// A template whose Class falls outside 1..4 must refuse instead of handing out
+// whatever 1759+Class points at: Class 0 is a Pedra do Rei Demonlord and Class 5
+// a Poção Mental, both paid for with eight stones and 30M coin.
+func TestCompSephiRefusesClassOutsideRange(t *testing.T) {
+	for _, class := range []uint8{0, 5} {
+		t.Run(fmt.Sprintf("class%d", class), func(t *testing.T) {
+			tmpl := questNPCTemplate("Composicao_Sephi", 19, 0, 0)
+			tmpl[20] = class
+			db := newDB()
+			st := baseMortalState(300)
+			st.Coin = 30_000_000
+			for j := 0; j < 8; j++ {
+				st.Carry[j] = world.Item{Index: int16(1744 + j)}
+			}
+			db.loadResult = st
+			addr, stop, npcID := startServerQuestNPC(t, db, tmpl)
+			defer stop()
+			c := enterWorld(t, addr)
+			defer c.Close()
+
+			send(t, c, protocol.MsgQuest, protocol.EncodeStandardParm2(int32(npcID), 1))
+			if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticeReqNotMet {
+				t.Fatalf("aviso = %d, quer NoticeReqNotMet", code)
+			}
+		})
 	}
 }
 

@@ -25,6 +25,14 @@ func TestCheckDeZonaCobreTodasAsZonas(t *testing.T) {
 	}
 	// The effective bound is the one the LAST migration to touch it sets, so
 	// the files are read in name order and the final match wins.
+	//
+	// O casamento e por INSTRUCAO, e nao pelo arquivo inteiro, porque `zone` nao
+	// e nome exclusivo da mesa de XP: a 0012 chama assim a cidade da guilda
+	// (0..4) e a 0081 faz o mesmo na escalacao de cidade. Lendo o arquivo todo, o
+	// teto da mesa de XP passava a ser o da ultima migracao que tivesse QUALQUER
+	// coluna chamada zone — e como o nome ordena depois, uma tabela de guilda
+	// sequestrava a vigilancia da mesa de XP e este teste acusava um estouro que
+	// nao existia. Cada instrucao so conta se ela mesma falar de xp_rule.
 	re := regexp.MustCompile(`CHECK\s*\(\s*zone\s+BETWEEN\s+0\s+AND\s+(\d+)\s*\)`)
 	teto := -1
 	var origem string
@@ -37,12 +45,17 @@ func TestCheckDeZonaCobreTodasAsZonas(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, m := range re.FindAllStringSubmatch(string(b), -1) {
-			n, err := strconv.Atoi(m[1])
-			if err != nil {
-				t.Fatalf("%s: teto ilegível %q", nome, m[1])
+		for _, instrucao := range strings.Split(string(b), ";") {
+			if !strings.Contains(instrucao, "xp_rule") {
+				continue // o `zone` de outra tabela nao diz nada sobre a mesa de XP
 			}
-			teto, origem = n, nome
+			for _, m := range re.FindAllStringSubmatch(instrucao, -1) {
+				n, err := strconv.Atoi(m[1])
+				if err != nil {
+					t.Fatalf("%s: teto ilegível %q", nome, m[1])
+				}
+				teto, origem = n, nome
+			}
 		}
 	}
 	if teto < 0 {

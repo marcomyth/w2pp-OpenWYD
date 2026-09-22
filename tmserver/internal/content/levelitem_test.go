@@ -178,17 +178,22 @@ func TestLevelItemArquivoDoJogo(t *testing.T) {
 	if len(avisos) != 0 {
 		t.Errorf("o arquivo do jogo tem linha torta: %v", avisos)
 	}
-	if tab.Linhas != 318 {
-		t.Errorf("entradas = %d, o levantamento achou 318", tab.Linhas)
+	if tab.Linhas != 320 {
+		t.Errorf("entradas = %d, o levantamento achou 320", tab.Linhas)
 	}
-	// a montaria do 149 é a razão de a divergência do -1 existir
-	for b := 0; b < LevelItemBuilds; b++ {
-		if x := tab.Para(0, b, 149); x.Index != 2368 {
-			t.Errorf("a montaria do nível 149 não chega ao TK de construção %d (veio %d)", b, x.Index)
+	// A montaria do 149 alcança TODA construção — qual montaria é de cada classe
+	// fica em TestMontariaDoNivel149. O que importa aqui é que nenhuma ficha passa
+	// pelo 149 de mãos vazias, porque em três das quatro classes esta é a ÚNICA
+	// entrega que Destreza e Constituição recebem em 254 níveis.
+	for c := 0; c < LevelItemClasses; c++ {
+		for b := 0; b < LevelItemBuilds; b++ {
+			if x := tab.Para(c, b, 149); x.Empty() {
+				t.Errorf("classe %d de construção %d não recebe a montaria do nível 149", c, b)
+			}
 		}
 	}
 	if tab.ConstrucaoIndefinida != 0 {
-		t.Errorf("construções indefinidas = %d, queria 0: o -1 tem significado", tab.ConstrucaoIndefinida)
+		t.Errorf("construções indefinidas = %d, queria 0", tab.ConstrucaoIndefinida)
 	}
 
 	// A LEITURA ESCOLHIDA, presa aqui.
@@ -220,6 +225,88 @@ func TestLevelItemArquivoDoJogo(t *testing.T) {
 			}
 			if n != quer[c][b] {
 				t.Errorf("%s de %s recebe em %d níveis, esperado %d", nomes[c], cons[b], n, quer[c][b])
+			}
+		}
+	}
+}
+
+// A MONTARIA DO NÍVEL 149 (pedido de 21/09/2026). Era um Cavalo Leve N para
+// todo mundo; passou a ser uma montaria por par de classes: Dragão Menor para
+// TransKnight e BeastMaster, Lobo para Foema e Huntress.
+//
+// Os três pares de efeito de uma montaria não são (efeito, valor) como no resto
+// do catálogo — o código de montaria reinterpreta os seis bytes:
+//
+//	par 0  HP, como short (byte baixo, byte alto) — mountHP, handler/summon.go
+//	par 1  Effect = nível de treino, Value = VITALIDADE (EF_MOUNTLIFE)
+//	par 2  Effect = ração 0..100, Value = a marca de cria
+//
+// Duas coisas quebram calado se alguém mexer nos números. O par 0 precisa ser um
+// short POSITIVO: zerado, protocol.VisualEquip devolve 0 e o cliente não desenha
+// montaria nenhuma. E o índice precisa cair em 2360-2389, a faixa adulta — fora
+// dela o nível não escolhe modelo, e abaixo de 2360 o item é uma cria, que anda
+// ao lado do dono em vez de ser montada.
+func TestMontariaDoNivel149(t *testing.T) {
+	tab, avisos, err := LoadLevelItems(release(t, "TMsrv", "run", "LevelItem.txt"))
+	if err != nil {
+		t.Skipf("Release content unavailable: %v", err)
+	}
+	if len(avisos) != 0 {
+		t.Errorf("avisos ao ler o arquivo: %v", avisos)
+	}
+
+	const (
+		lobo         = 2362
+		dragaoMenor  = 2363
+		nivelMontada = 50
+		vitalidade   = 5
+		racaoCheia   = 100
+		// 20000 é o mesmo HP que uma alimentação restaura (handler/amago.go).
+		hpBaixo = 32
+		hpAlto  = 78
+	)
+	quer := [LevelItemClasses]int16{dragaoMenor, lobo, dragaoMenor, lobo}
+	nomes := [LevelItemClasses]string{"TK", "Foema", "BM", "Huntress"}
+
+	for c := 0; c < LevelItemClasses; c++ {
+		// Todas as quatro construções recebem: a linha vai com construção 0.
+		for b := 0; b < LevelItemBuilds; b++ {
+			it := tab.Para(c, b, 149)
+			if it.Index != quer[c] {
+				t.Errorf("%s constrói %d: montaria %d, esperava %d", nomes[c], b, it.Index, quer[c])
+				continue
+			}
+			if it.Effects[1][0] != nivelMontada {
+				t.Errorf("%s constrói %d: nível %d, esperava %d", nomes[c], b, it.Effects[1][0], nivelMontada)
+			}
+			if it.Effects[1][1] != vitalidade {
+				t.Errorf("%s constrói %d: vitalidade %d, esperava %d", nomes[c], b, it.Effects[1][1], vitalidade)
+			}
+			if it.Effects[2][0] != racaoCheia {
+				t.Errorf("%s constrói %d: ração %d, esperava %d", nomes[c], b, it.Effects[2][0], racaoCheia)
+			}
+			if it.Effects[0][0] != hpBaixo || it.Effects[0][1] != hpAlto {
+				t.Errorf("%s constrói %d: par 0 = %v, esperava {%d %d} (HP 20000)",
+					nomes[c], b, it.Effects[0], hpBaixo, hpAlto)
+			}
+			// Um par 0 que vira zero apaga a montaria na tela do cliente.
+			if int(it.Effects[0][0])|int(it.Effects[0][1])<<8 <= 0 {
+				t.Errorf("%s constrói %d: par 0 não é short positivo; o cliente não desenha montaria", nomes[c], b)
+			}
+			// Fora de 2360-2389 o nível não escolhe modelo, e abaixo de 2360 é cria.
+			if it.Index < 2360 || it.Index >= 2390 {
+				t.Errorf("%s constrói %d: montaria %d fora da faixa adulta 2360-2389", nomes[c], b, it.Index)
+			}
+		}
+	}
+
+	// O Cavalo Leve N saiu de vez: nenhum nível o entrega mais.
+	for c := 0; c < LevelItemClasses; c++ {
+		for b := 0; b < LevelItemBuilds; b++ {
+			for nv := int32(0); nv < 400; nv++ {
+				if tab.Para(c, b, nv).Index == 2368 {
+					t.Errorf("%s constrói %d ainda recebe o Cavalo Leve N no nível %d", nomes[c], b, nv)
+				}
 			}
 		}
 	}

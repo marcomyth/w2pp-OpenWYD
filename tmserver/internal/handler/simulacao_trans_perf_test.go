@@ -87,10 +87,25 @@ func TestSimulacaoTransAtaque(t *testing.T) {
 
 // A Xorimpas com UMA 8ª só (um personagem não aprende as três): a Tempestade
 // só sai com a 8ª da Sobrevivência.
+//
+// A ficha da janela (xorimpas) foi medida ANTES dos botões de dano físico das
+// oitavas de Troca e Sobrevivência, então a calibragem tem de rodar com eles
+// ZERADOS e aplicá-los por cima. Calibrar com eles ligados resolveria o Damage
+// base para o ataque voltar ao número do print, e o botão não valeria nada na
+// medida — foi o que aconteceu na primeira leitura, e o torneio mostrou as duas
+// árvores paradas onde estavam mesmo com +250%.
+//
+// Em jogo não existe calibragem: o personagem tem o Damage que tem, e o
+// multiplicador sobe o Ataque da janela de verdade.
 func (sm *simulador) htUmaOitava(id int, oitava int32) *lutador {
 	j := xorimpas
 	j.learned = 0xFFFFFF&^(learnedTempestade|1<<15|learnedInvisibilidade) | oitava
-	l := &lutador{lado: &lado{e: sm.montar(j, id, buffsHT()), cd: map[int]int64{}}, nome: "HT", maxHP: j.hp}
+	troca, sobrev := trocaDanoFisicoOitava, sobrevivenciaDanoFisicoOitava
+	trocaDanoFisicoOitava, sobrevivenciaDanoFisicoOitava = 0, 0
+	e := sm.montar(j, id, buffsHT())
+	trocaDanoFisicoOitava, sobrevivenciaDanoFisicoOitava = troca, sobrev
+	sm.d.applyAffectScore(e)
+	l := &lutador{lado: &lado{e: e, cd: map[int]int64{}}, nome: "HT", maxHP: j.hp}
 	l.acao = func(ld *lado, alvo *world.Entity, agora int64) golpe {
 		for _, sk := range []int{skillTempestadeDeFlechas, skillGolpeFelino, skillLaminaDasSombras} {
 			if sk == skillTempestadeDeFlechas && ld.e.LearnedSkill&learnedTempestade == 0 {
@@ -102,7 +117,7 @@ func (sm *simulador) htUmaOitava(id int, oitava int32) *lutador {
 			sp, _ := sm.d.spells.Get(sk)
 			espera := int64(sp.Delay) * 1000
 			if sk == skillTempestadeDeFlechas {
-				espera = tempestadeRecargaMs
+				espera = int64(tempestadeRecargaMs)
 			}
 			ld.cd[sk] = agora + max(espera, simPasso)
 			return sm.skill(ld, alvo, sk)

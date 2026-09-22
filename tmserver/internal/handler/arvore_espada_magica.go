@@ -25,9 +25,20 @@ const (
 	espadaMagicaMaestriaMax = 255
 	espadaMagicaIntTeto     = 2500
 
-	espadaMagicaLancaPct = 140
-	espadaMagicaArmaPct  = 100
+	espadaMagicaArmaPct = 100
 )
+
+// espadaMagicaLancaPct é a lança da árvore, e é var porque a simulação o varre.
+//
+// Subiu de 140 para 190 em 21/09/2026. Com 140 o TK-MAGO fazia 34 vitórias e 82
+// derrotas no torneio contra as 55 da Black, que é a referência da faixa mágica:
+// ele tirava 2.582 de dano por segundo contra os 3.603 dela, e levava 2.392 com
+// uma poção que só levanta 2.000 — morria devagar sem conseguir matar. Com 190 os
+// dois empatam em 55, e o duelo dele passa de 20 s para 58 s, dentro da meta.
+//
+// A curva é íngreme: 200 já o põe em 71 e 260 em 108, porque o bônus multiplica o
+// dano BRUTO da skill, antes de a defesa do alvo ser subtraída.
+var espadaMagicaLancaPct = 190
 
 // tkEspadaMagica diz se as regras da árvore valem para e.
 func tkEspadaMagica(e *world.Entity) bool {
@@ -63,21 +74,36 @@ func armaPctEspadaMagica(e *world.Entity, itemAbility func(world.Item, uint8) in
 // Magia Negra (arvore_magia_negra.go, magoCritico): chance 10% + 15% × i, multiplicador sorteado de
 // ×2,0 até ×(2 + 2 × i), em passos de 0,1. A INT sobe a chance e o teto; o
 // sorteio dentro da faixa é a sorte.
-const (
-	espadaCritChanceBase = 10
-	espadaCritChanceInt  = 15
-	espadaCritMultBase10 = 20
-	espadaCritMultInt10  = 20
+const espadaCritChanceBase = 10
+
+// O CRÍTICO DE MAGO, cortado de ×2,0-×4,0 para ×1,5-×2,5 em 21/09/2026.
+//
+// Ele era o que sobrava estourando o teto de ~2.000 por golpe depois que a
+// resistência foi corrigida: a 25% de chance de multiplicar por até 4, o
+// Exterminar chegava a 14.102 num golpe e a Fênix de Fogo a 8.554. Uma skill que
+// mata de um golpe obriga a inflar vida para compensar, e inflar vida é o que
+// não se quer.
+//
+// O corte foi no MULTIPLICADOR, não na chance, e isso foi medido: baixar a
+// chance de 25% para 10% quase não move o pico (13.540), porque o pico é o maior
+// sorteio e ele acontece de qualquer jeito — a chance mexe na frequência, e a
+// frequência aparece nas vitórias, não no pico. Com ×1,5-×2,5 o Exterminar cai
+// para 9.432 e a Fênix para 5.541, e as duas classes continuam de pé (TK-MAGO 47
+// vitórias, Black 56). Desligar de vez põe o TK-MAGO em 28 e o mata como classe.
+var (
+	espadaCritChanceIntAtual  = 15
+	espadaCritMultBase10Atual = 15
+	espadaCritMultIntAtual    = 10
 )
 
 // rolarCriticoDeMago devolve o multiplicador × 10 (20 a 40), ou 0 sem
 // crítico.
 func rolarCriticoDeMago(r combat.Rand, e *world.Entity) int {
 	i := reguaDeInt(e)
-	if r.Intn(100) >= espadaCritChanceBase+espadaCritChanceInt*i/1000 {
+	if r.Intn(100) >= espadaCritChanceBase+espadaCritChanceIntAtual*i/1000 {
 		return 0
 	}
-	return espadaCritMultBase10 + r.Intn(espadaCritMultInt10*i/1000+1)
+	return espadaCritMultBase10Atual + r.Intn(max(espadaCritMultIntAtual*i/1000, 0)+1)
 }
 
 // ---------------------------------------------------------------------------

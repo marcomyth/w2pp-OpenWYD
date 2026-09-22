@@ -9,8 +9,10 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
-// Every table is a partition of rand()%100: strictly rising thresholds that end
-// exactly at 100, and a real item on every line.
+// Every table is a partition of the roll: strictly rising thresholds and a real
+// item on every line. The scale is the table's own last threshold — 100 for the
+// legacy baús, 10000 for the apoiador ones, which need to express 0,05% — so
+// what is checked here is that the partition is whole, not which scale it uses.
 func TestChestTablesAreWellFormed(t *testing.T) {
 	for chest, table := range chestTables {
 		last := 0
@@ -23,8 +25,10 @@ func TestChestTablesAreWellFormed(t *testing.T) {
 			}
 			last = p.upTo
 		}
-		if last != 100 {
-			t.Errorf("baú %d: a tabela termina em %d, want 100", chest, last)
+		switch last {
+		case 100, bauApoiadorTotal:
+		default:
+			t.Errorf("baú %d: a tabela termina em %d, want 100 ou %d", chest, last, bauApoiadorTotal)
 		}
 	}
 }

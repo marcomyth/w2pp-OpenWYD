@@ -150,7 +150,7 @@ func TestThunderTargetsSkipProtectedAndDeduplicate(t *testing.T) {
 	w.Entity(clan4).Clan = 4
 	w.Entity(hidden).Rsv = world.RsvHide
 
-	targets := d.thunderTargets(w, caster)
+	targets := d.thunderTargets(w, caster, varreduraDoTrovao)
 
 	if len(targets) != 2 {
 		t.Fatalf("thunder targets len = %d, want 2 (%v)", len(targets), targets)

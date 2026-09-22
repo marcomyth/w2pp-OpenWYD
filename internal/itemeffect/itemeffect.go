@@ -71,6 +71,24 @@ var efName = map[string]uint8{
 	// gates the total ("double") critical. 136 ItemList rows carry it; while it
 	// was missing here they all read 0, the same bug class as the entries above.
 	"EF_ATTSPEED": 26,
+	// EF_HWORDGUILD/EF_LWORDGUILD são a MESMA classe de bug outra vez (21/09/2026),
+	// e a mais cara delas até agora. CMob.cpp:876-889 deriva o Ataque PvP e a
+	// Defesa PvP de BASE_GetMobAbility sobre esses dois ids, e o port já tinha o
+	// consumidor escrito — pvpAttackPct e pvpDefensePct, em pvp.go. Faltava só a
+	// linha aqui, e sem ela os 52 itens que dão ataque em PvP e os 141 que dão
+	// defesa liam ZERO: um Escudo Svalin com EF_LWORDGUILD,50 no catálogo entregava
+	// 0% ao dono, e o jogador não tinha como perceber.
+	//
+	// Os mesmos dois ids também carregam o CARIMBO de guilda quando aparecem nos
+	// slots de efeito do ITEM (serial.go), e isso continua separado: aqui é o
+	// CATÁLOGO, que é o que pvpCatalogAbility lê, de propósito — um item carimbado
+	// nunca vira "número da guilda ÷ 10" por cento de dano.
+	"EF_HWORDGUILD": 56, "EF_LWORDGUILD": 57,
+	// EF_REGENHP/EF_REGENMP: Basedef.cpp:3206 soma os dois no MOB.RegenHP/RegenMP,
+	// e o RegenMP ainda é o termo de resistência a debuff (_MSG_Attack.cpp:1194).
+	// item.go já tem o case para os dois; sem a linha aqui, os 42 itens com
+	// regeneração de vida e os 163 com regeneração de mana valiam nada.
+	"EF_REGENHP": 47, "EF_REGENMP": 48,
 	// EF_ITEMTYPE is not a score stat either: it is read only by the combine
 	// matchers (GetFunc.cpp:487 Agatha) as a recipe gate, exactly like EF_NOSANC
 	// gates the refine path. Without it in this whitelist those gates read 0 for

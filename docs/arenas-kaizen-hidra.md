@@ -68,3 +68,78 @@ Hidras ~346 antes e ~263 agora. Quem entra nas Hidras é 75 níveis acima e bate
 mais forte: com golpes de 2.500, as Hidras caem em ~200. A Hidra Dourada segue o
 monstro mais pesado das duas arenas, em vida e em dano (991). O Cav. Servo era o
 gargalo do Kaizen: tinha o dobro da vida do próprio líder.
+
+## Ajuste de 22/09/2026 — metade dos Restos e 30% do ouro
+
+Pedido do Marco, depois de ver a bolsa voltar da arena cheia de Restos: "os restos
+podemos diminuir 50% do drop e o gold em 70%, é muito gold", e "na quest dos kaizen tá
+caindo mais restos que coração e isso tá errado".
+
+Ele estava certo, e a conta de papel não bastava: a medição (`handler/arenas_quest256_saque_test.go`,
+2.000 mortes por template pelo caminho real de morte — slots do template, Mesa e pacote
+do líder) dá mais do que a aritmética sobre as tabelas, por causa do viés do sorteio
+descrito no fim desta seção.
+
+| Arena | Troféus | Restos antes | por troféu | Restos agora | por troféu |
+|---|---|---|---|---|---|
+| Cemitério (Coveiro) | 60,4 | 14,7 | 0,24 | 14,7 | 0,24 |
+| Jardim dos Deuses | 59,2 | 13,9 | 0,23 | 13,9 | 0,23 |
+| Coração do Kaizen | 26,5 | 36,9 | **1,36** | 19,5 | **0,74** |
+| Hidras | 33,0 | 45,5 | **1,36** | 24,0 | **0,73** |
+| Elfos | 31,0 | 44,4 | **1,45** | 23,6 | **0,76** |
+
+O salto veio da 0065/0075, não do legado: Cemitério e Jardim nunca passaram pela Mesa e
+o líder deles solta meio Resto (slots 8 e 9 do template, 25% cada, uma unidade). O Cav.
+Kaizen soltava 50% ×3 mais 30% ×2 — duas Restos e pouco contra um Coração.
+
+**Chances novas** (migração `0098_quest_mortal_restos_e_ouro`, a metade exata das da
+0065/0075; os Âmagos e a Chave do Rei Orc não foram tocados):
+
+| Item | Líder (Kaizen, Dourada, Mestre Elfo) | Cav. Servo | H. Imortal, Servo Elfo |
+|---|---|---|---|
+| Resto de Oriharucon 419 | 25%, pacote de 3 | 7,5% | 5% |
+| Resto de Lactolerium 420 | 15%, pacote de 2 | 4% | 2,5% |
+
+**Ouro dos troféus** a 30% do que `Common/Settings/QuestsRate.txt` pagava: 3.000 / 6.000 /
+30.000 / 75.000 / 150.000 por tier. A XP e as faixas de nível ficaram como estavam. A
+mesma migração é a primeira a gravar a tabela `quest_reward` (vazia desde a 0036), então
+a partir dela a recompensa vem do banco e o arquivo de conteúdo deixa de valer.
+
+**O que o Mortal tira das quests do nível 39 ao 320**, contando a XP dos monstros da arena
+até o teto da rodada:
+
+| | Antes | Depois |
+|---|---|---|
+| Troféus usados | ~3.000 | ~3.000 |
+| Ouro do troféu | 454 KK | **136 KK** |
+| Restos | 3.244 | **1.824** |
+| Ouro de vender os Restos no NPC | 236 KK | **133 KK** |
+| Ouro do resto do saque | 8 KK | 8 KK |
+| **Ouro total** | **698 KK** | **277 KK** |
+
+Vender Resto continua sendo quase metade do ouro do up: o Oriharucon vale 60.000 e o
+Lactolerium 100.000 na conta do `sell` (Price/4, depois /2 acima de 10.000). Duas coisas
+ficaram de fora deste ajuste, à espera de decisão: mexer nesse preço, e o fato de a venda
+limpar o slot inteiro pelo preço de UMA unidade — quem vende a pilha de 120 recebe 60.000,
+quem divide antes recebe 7,2 milhões.
+
+### O sorteio da Mesa paga mais do que o painel escreve
+
+Medido e **não** corrigido aqui (`internal/droprule/vies_test.go`): o sorteio é
+`rand()%10000` sobre um `rand()` do MSVC que só vai até 32.767. Isso reparte 32.768
+sorteios em 10.000 baldes — os 2.768 primeiros recebem quatro e os demais três — e toda
+chance abaixo de 27,68% sai **22,1% maior** do que o painel diz. Acima disso o excesso cai
+até zerar em 100%.
+
+| Painel | Jogo |
+|---|---|
+| 50% | 54,2% |
+| 30% | 35,9% |
+| 15% | 18,3% |
+| 6% | 7,3% |
+| 0,5% | 0,61% |
+
+Vale para as 619 regras da Mesa — Castelo Orc, Acampamento Troll, Reinos, campo de treino —
+e não só para estas arenas, por isso consertar é decisão à parte. É também por isso que
+cortar a chance pela metade cortou o drop real em ~47% e não em 50%: o viés é maior
+embaixo.

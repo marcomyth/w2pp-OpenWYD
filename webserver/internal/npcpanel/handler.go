@@ -173,6 +173,7 @@ func shopFromDefinition(items []domain.NPCShopItem, known []Item) []Item {
 			{int(it.Eff2), int(it.EffV2)},
 			{int(it.Eff3), int(it.EffV3)},
 		}
+		item.PricePoints = it.PricePoints
 		out = append(out, item)
 	}
 	return out
@@ -230,6 +231,11 @@ type shopRequest struct {
 		Slot      int16 `json:"slot"`
 		ItemIndex int32 `json:"itemIndex"`
 		Quantity  int16 `json:"quantity"`
+		// PricePoints ausente = ouro. A tela reenvia a loja inteira a cada
+		// mudança (SetShop é replace-all), então ela tem de devolver este campo
+		// para os slots que não está mexendo — senão adicionar um item zera o
+		// preço em pontos de todos os outros.
+		PricePoints *int32 `json:"pricePoints"`
 	} `json:"items"`
 }
 
@@ -245,6 +251,7 @@ func (h *handler) setShop(w http.ResponseWriter, r *http.Request) {
 	for _, it := range req.Items {
 		items = append(items, domain.NPCShopItem{
 			Slot: it.Slot, ItemIndex: it.ItemIndex, Quantity: it.Quantity,
+			PricePoints: it.PricePoints,
 		})
 	}
 	res, err := h.cfg.Admin.SetShop(r.Context(), h.cfg.ModeratorID, req.NpcID, items)
