@@ -583,15 +583,15 @@ func EncodeWhisperChannelBody(speaker string, text []byte, guild bool) []byte {
 	// The text always terminates before the marker byte, whether or not this line
 	// carries one: a 99-byte guild line would otherwise have its 97th byte quietly
 	// replaced by a 3 mid-word.
-	max := MessageWhisperLength - 1
+	limite := MessageWhisperLength - 1
 	if guild {
-		max = whisperGuildMarker - 1
+		limite = whisperGuildMarker - 1
 	}
 	if i := indexZero(text); i >= 0 {
 		text = text[:i]
 	}
-	if len(text) > max {
-		text = text[:max]
+	if len(text) > limite {
+		text = text[:limite]
 	}
 	copy(b[16:], text)
 	if guild {
