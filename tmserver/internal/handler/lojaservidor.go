@@ -55,8 +55,7 @@ func lojaQuantidade(it world.Item) uint8 {
 // lojaOfertasAbertas percorre as barracas abertas e devolve uma oferta por item
 // à venda, em ordem estável (barraca, depois posição) para a paginação não
 // embaralhar entre um pedido e outro.
-func lojaOfertasAbertas(w *world.World, quem *world.Session, eu *world.Entity,
-	filtro int16) []protocol.LojaOferta {
+func lojaOfertasAbertas(w *world.World, quem *world.Session, filtro int16) []protocol.LojaOferta {
 	var ofertas []protocol.LojaOferta
 	w.ForEachSession(func(s *world.Session, e *world.Entity) {
 		if s == nil || s.AutoTrade == nil || e == nil {
@@ -179,7 +178,7 @@ func (d *Dispatcher) lojaPede(w *world.World, s *world.Session, _ protocol.Heade
 func (d *Dispatcher) mandaVitrine(w *world.World, s *world.Session, e *world.Entity,
 	qualPagina, filtro int16) {
 	// Montada agora e jogada fora: o cache e do painel, na sessao dele.
-	ofertas := lojaOfertasAbertas(w, s, e, filtro)
+	ofertas := lojaOfertasAbertas(w, s, filtro)
 
 	// Duas passadas pela lista, sem copia-la: a primeira conta o que o filtro
 	// deixa entrar, a segunda recorta a pagina pedida. Copiar a lista filtrada

@@ -1,0 +1,32 @@
+# Fim de linha: decidido AQUI, e não pela configuração da máquina de quem commita.
+#
+# Sem este arquivo, cada pessoa grava o que o seu próprio git achar. Na máquina
+# em que isto foi escrito o `core.autocrlf` está ligado e tudo entra em LF por
+# acidente; numa com `core.autocrlf=false` um `.go` entra em CRLF, e aí o gofmt
+# da CI reprova no Linux enquanto na máquina de quem escreveu está impecável —
+# que é o pior formato de erro que existe, porque a pessoa não consegue
+# reproduzir o que a CI está vendo.
+#
+# NÃO usamos `* text=auto` de propósito, e a razão é esta árvore. Ela carrega
+# conteúdo do jogo legado que o servidor lê como está: `Release/**/*.txt`
+# (Language.txt, Comandos GM.txt, AniSound4.txt), `.bin`, `.dat`, além de
+# `.dll`, `.exe`, `.ico` e `.bmp`. A detecção automática acerta em quase tudo,
+# mas "quase" sobre arquivo de conteúdo que já funciona é risco sem prêmio:
+# nada aqui pede para mexer neles, então nada mexe.
+#
+# A regra cobre só o que É nosso e o que a CI compila, formata ou executa.
+
+# Código e configuração: LF sempre. O alvo é Linux (Docker e a CI), e um .sh
+# com CRLF nem chega a rodar lá — o shell tenta interpretar o \r como parte do
+# nome do interpretador.
+*.go     text eol=lf
+*.sh     text eol=lf
+*.sql    text eol=lf
+*.proto  text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+
+# Estes rodam no Windows, então vão ao contrário, e por escolha e não por
+# omissão: um .bat em LF funciona na maioria dos casos e falha em alguns
+# antigos, e não há por que descobrir qual é qual.
+*.bat    text eol=crlf

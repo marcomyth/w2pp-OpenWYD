@@ -49,9 +49,9 @@ func (w *World) SetGuildNotice(id uint16, notice, by string, at time.Time) {
 }
 
 // SetGuildMemberCap sets a guild's member ceiling. Loop-only.
-func (w *World) SetGuildMemberCap(id uint16, cap int) {
+func (w *World) SetGuildMemberCap(id uint16, teto int) {
 	gi := w.guilds[id]
-	gi.MemberCap = cap
+	gi.MemberCap = teto
 	w.guilds[id] = gi
 }
 

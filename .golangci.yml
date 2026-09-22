@@ -59,6 +59,10 @@ linters:
         # Portuguese for "they", in a comment on the training-field Ajudante
         # (ajudante.go). misspell reads it as a typo for "eels"; it is the most
         # common pronoun in the language, so it will keep coming back.
+        #
+        # E voltou: o teste dos pontos de lojinha trouxe a mesma palavra e a main
+        # a acrescentou uma segunda vez. A entrada duplicada saiu na junção — uma
+        # linha aqui já cobre o idioma inteiro, não um arquivo de cada vez.
         - eles
         # Portuguese for "criticals", as in the critical hits of the TK Espada
         # Mágica and of the mage trees. misspell reads it as a typo for "critics".
@@ -68,10 +72,30 @@ linters:
         # the migration, the handler and the client generator alike. misspell
         # reads it as a typo for "variants".
         - variantes
-        # Portuguese for "they", opening a sentence in the shop-points test
-        # comment. misspell reads it as a typo for "eels". It is the plainest
-        # possible collision: a Portuguese pronoun against an English fish.
-        - eles
+        # Portuguese for "to calculate", the verb in comments that explain a
+        # formula (the guild-buff scaling, the skill damage pass). misspell reads
+        # it as a typo for "calculator".
+        - calcular
+        # Portuguese for "author", the column and the field that record WHO made
+        # a guild-buff change, in the panel and in the audit row. misspell reads
+        # it as a typo for "author" — which is the English word for the same
+        # thing, and exactly why the collision keeps happening.
+        - autor
+        # Portuguese for "transfers" (third person of "transferir"), the name of
+        # the call that moves Cash or RMT between two accounts
+        # (store.TransferePlayerBalance, handler.SaldoDeConta.Transfere).
+        # misspell reads it as a typo for "transferred". Renaming it to English
+        # would be renaming an identifier to satisfy an English dictionary, which
+        # is not a reason to rename anything in a Portuguese codebase.
+        - transfere
+        # Portuguese for "expiry date", as in the validity of a guild buff.
+        # misspell reads it as a typo for "validated".
+        - validade
+        # Portuguese for "simultaneous", in the comment that bounds how many
+        # Honor Store windows a session may hold open at once. misspell reads it
+        # as a typo for "simultaneous"; the accented spelling is "simultâneos"
+        # and the comment drops the accent, as the rest of the file does.
+        - simultaneos
         # Portuguese for "definitive": the real catalog index of a supporter
         # chest, as opposed to the borrowed one the in-game test runs on.
         # misspell reads it as a typo for "definition", plural included.
