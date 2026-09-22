@@ -88,10 +88,12 @@ func (t *LevelItems) Para(classe, construcao int, nivel int32) LevelItem {
 // escreveu o conteúdo e quem escreveu o código.
 //
 // A SEGUNDA é o -1. O original não o trata: a linha cai no ramo final e escreve
-// em LevelItem[classe][-1][nivel] — FORA DO VETOR. O arquivo tem duas dessas, e
-// são justamente as que entregam a montaria do nível 149 (item 2368). O
-// cabeçalho diz que -1 significa "independe da classe", e é assim que se lê.
-// Reproduzir uma escrita em memória alheia não é fidelidade.
+// em LevelItem[classe][-1][nivel] — FORA DO VETOR. O cabeçalho diz que -1
+// significa "independe da classe", e é assim que se lê: reproduzir uma escrita em
+// memória alheia não é fidelidade. O arquivo de hoje NÃO usa mais o -1 — as duas
+// linhas que o usavam eram as do Cavalo Leve do nível 149, e a montaria de 149
+// passou a ser uma por classe (21/09/2026). O tratamento fica: é a defesa contra
+// uma linha futura, e o teste do arquivo cobre as duas leituras.
 func (t *LevelItems) aplicar(classe, construcao int, nivel int32, item LevelItem) {
 	if nivel < 0 || int(nivel) >= levelItemMaxLevel {
 		return

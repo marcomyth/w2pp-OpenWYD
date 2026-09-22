@@ -68,6 +68,25 @@ linters:
         # the migration, the handler and the client generator alike. misspell
         # reads it as a typo for "variants".
         - variantes
+        # Portuguese for "they", opening a sentence in the shop-points test
+        # comment. misspell reads it as a typo for "eels". It is the plainest
+        # possible collision: a Portuguese pronoun against an English fish.
+        - eles
+        # Portuguese for "definitive": the real catalog index of a supporter
+        # chest, as opposed to the borrowed one the in-game test runs on.
+        # misspell reads it as a typo for "definition", plural included.
+        - definitivo
+        - definitivos
+        # Portuguese for "denominator" — the scale a chest table is written
+        # against (10,000 hundredths of a percent). misspell reads the
+        # Portuguese word as a typo for the English one it translates.
+        - denominador
+        # Portuguese for "conditional", describing the three teleport routes that
+        # carry a condition and therefore live in the handler instead of the
+        # lookup table (vale.go, kefra.go, kefra_hall.go). misspell reads the
+        # Portuguese word as a typo for the English one it translates.
+        - condicional
+        - condicionais
   exclusions:
     generated: lax
     presets:

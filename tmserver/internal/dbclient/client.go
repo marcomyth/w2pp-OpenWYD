@@ -847,6 +847,7 @@ func characterStateFromProto(c *dbv1.Character) world.CharacterState {
 		CelCircle:            uint8(c.GetCelestialCircle()),
 		TerraMistica:         uint8(c.GetMortalTerraMistica()),
 		NewbieQuest:          uint8(c.GetMortalNewbie()),
+		MolarGargula:         uint8(c.GetMortalMolar()),
 		Soul:                 uint8(c.GetSoul()),
 		Fame:                 c.GetFame(),
 		PKPoint:              uint8(c.GetPkPoint()),
@@ -982,6 +983,7 @@ func characterSaveToProto(s world.CharacterSave) *dbv1.Character {
 		// column from whatever the request carries, so a field left out here is
 		// written back as zero and the quest starts over at every logout.
 		MortalNewbie:         int32(s.NewbieQuest),
+		MortalMolar:          int32(s.MolarGargula),
 		PkPoint:              int32(s.PKPoint),
 		Guilty:               int32(s.Guilty),
 		CurKill:              int32(s.CurKill),
@@ -1204,4 +1206,20 @@ func (c *Client) ClaimNewbieKit(ctx context.Context, accountID int64, characterN
 		return false, fmt.Errorf("dbclient: registrar kit de novato: %w", err)
 	}
 	return resp.GetGranted(), nil
+}
+
+// SpendShopPoints debits a shop-points purchase (0060_shop_points). The second
+// result is false when the wallet does not cover the cost — a refusal, not a
+// failure, so err stays nil and the caller can tell the two apart.
+func (c *Client) SpendShopPoints(ctx context.Context, accountID int64, cost int32, characterName, reason string) (int32, bool, error) {
+	resp, err := c.api.SpendShopPoints(ctx, &dbv1.SpendShopPointsRequest{
+		AccountId:     accountID,
+		Cost:          cost,
+		CharacterName: characterName,
+		Reason:        reason,
+	})
+	if err != nil {
+		return 0, false, fmt.Errorf("dbclient: gastar pontos de lojinha: %w", err)
+	}
+	return resp.GetBalance(), resp.GetPaid(), nil
 }

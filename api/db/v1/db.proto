@@ -140,6 +140,13 @@ service AccountService {
   // ShopPoints reads one account's shop-points balance, for the in-game /pontos
   // command. A missing wallet row is zero, not an error.
   rpc ShopPoints(ShopPointsRequest) returns (ShopPointsResponse);
+  // SpendShopPoints debits a purchase from the wallet. It is NOT AddShopPoints
+  // with a negative delta: that one leans on the table's CHECK to refuse an
+  // overdraft, which reaches the caller as an error indistinguishable from a
+  // connection failure. Here "you don't have the points" comes back as paid=false
+  // with no error, because the shop must tell that apart from "try again" — one
+  // of the two hands over the item and the other must not.
+  rpc SpendShopPoints(SpendShopPointsRequest) returns (SpendShopPointsResponse);
 
   // ClaimNewbieKit takes the once-per-account newbie kit (0062_newbie_kit) for
   // the in-game /novato command. granted is true only for the call that actually
@@ -332,6 +339,11 @@ message Character {
   // Pergaminho_Selado for 100 and each passage through the Hall tile spends one
   // (migration 0068).
   int32 kefra_ticket = 55;
+  // MobExtra.QuestInfo.Mortal: o Molar de Gárgula já foi usado por este
+  // personagem (0093). O molar sobe o set vestido para +7 uma única vez, então a
+  // marca tem de sobreviver ao relog — é o que distingue esta quest do teleporte
+  // do mesmo NPC, que não guarda estado nenhum.
+  int32 mortal_molar = 56;
 }
 
 message Item {
@@ -644,6 +656,22 @@ message AddShopPointsResponse { int32 balance = 1; }
 message ShopPointsRequest { int64 account_id = 1; }
 message ShopPointsResponse { int32 balance = 1; }
 
+message SpendShopPointsRequest {
+  int64 account_id = 1;
+  // cost is positive. A zero or negative cost is refused rather than quietly
+  // turned into a credit.
+  int32 cost = 2;
+  string character_name = 3;
+  string reason = 4;
+}
+message SpendShopPointsResponse {
+  // paid is false when the wallet does not cover the cost — including an account
+  // with no wallet row, which is just an account with zero points. balance is
+  // then meaningless and must not be shown.
+  bool paid = 1;
+  int32 balance = 2;
+}
+
 message ClaimNewbieKitRequest {
   int64 account_id = 1;
   string character_name = 2; // informativo: quem pediu, para o suporte
@@ -949,6 +977,10 @@ message NpcShopItem {
   // quantity is the stack amount sold by this slot. The tmServer converts
   // values >1 into EF_AMOUNT on the live STRUCT_ITEM.
   int32 quantity = 9;
+  // price_points switches this slot's currency to shop points (0060) instead of
+  // gold. Optional because zero is a legitimate price — a free item for anyone
+  // holding the wallet — and a bare int32 cannot tell "free" from "not set".
+  optional int32 price_points = 10;
 }
 
 message NpcDefinition {

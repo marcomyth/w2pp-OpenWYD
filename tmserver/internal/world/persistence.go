@@ -142,6 +142,7 @@ type CharacterState struct {
 	CelCircle          uint8 // QuestInfo.Circle (Arcana quest done)
 	TerraMistica       uint8 // QuestInfo.Mortal.TerraMistica gate (AMU_MISTICO, issue #139)
 	NewbieQuest        uint8 // QuestInfo.Mortal.Newbie: training-field trainer step (0..4)
+	MolarGargula       uint8 // QuestInfo.Mortal: Molar de Gargula ja usado (0093)
 	ArchLv355          uint8
 	ArchLv370          uint8
 	MortalLevel        uint16
@@ -258,6 +259,7 @@ type CharacterSave struct {
 	CelCircle          uint8
 	TerraMistica       uint8
 	NewbieQuest        uint8
+	MolarGargula       uint8
 	ArchLv355          uint8
 	ArchLv370          uint8
 	MortalLevel        uint16
@@ -489,6 +491,10 @@ type Persistence interface {
 	// saldo, nem extrato -, porque o banco desfaz a transação inteira.
 	AddShopPoints(ctx context.Context, accountID int64, delta int32, characterName, reason string) (int32, error)
 	ShopPoints(ctx context.Context, accountID int64) (int32, error)
+	// SpendShopPoints debits a purchase. paid=false is "the wallet does not cover
+	// it", which is NOT an error — the caller must tell that apart from a failed
+	// call, because only one of the two may hand over the item.
+	SpendShopPoints(ctx context.Context, accountID int64, cost int32, characterName, reason string) (int32, bool, error)
 
 	// ClaimNewbieKit takes the once-per-account /novato kit (0062_newbie_kit) and
 	// reports whether THIS call took it. Called off the loop via World.Go.
@@ -663,6 +669,12 @@ func (NopPersistence) AddShopPoints(context.Context, int64, int32, string, strin
 // ShopPoints reports an empty wallet.
 func (NopPersistence) ShopPoints(context.Context, int64) (int32, error) { return 0, nil }
 
+// SpendShopPoints without a wallet never pays: reporting paid would hand out the
+// item for free on a server booted with no dbServer.
+func (NopPersistence) SpendShopPoints(context.Context, int64, int32, string, string) (int32, bool, error) {
+	return 0, false, nil
+}
+
 // ClaimNewbieKit refuses without a backend. A server booted with no -dbserver has
 // nowhere to write the claim, and granting the kit anyway would make it
 // once-per-LOGIN instead of once-per-account — an item faucet.
@@ -794,13 +806,23 @@ const (
 	GroundPegou  = "pegou"
 )
 
-// ChatTipo is which channel a line was said on: public speech, or a whisper.
+// ChatTipo is which channel a line was said on.
 type ChatTipo string
 
-// The two channels the log keeps.
+// Os canais que o registro guarda.
+//
+// Os quatro últimos entraram com os canais (handler/canais.go). Não dá para
+// jogá-los em "publico": o registro existe para o atendimento responder "quem
+// ouviu isto?", e a resposta é diferente em cada um — a fala pública alcança
+// quem está na tela, a de guilda alcança a guilda, a de cidadão alcança o
+// servidor inteiro. Guardar o alcance errado é pior do que não guardar.
 const (
 	ChatPublico  ChatTipo = "publico"
 	ChatSussurro ChatTipo = "sussurro"
+	ChatGuilda   ChatTipo = "guilda"
+	ChatGrupo    ChatTipo = "grupo"
+	ChatReino    ChatTipo = "reino"
+	ChatCidadao  ChatTipo = "cidadao"
 )
 
 // ChatLinha is one thing somebody said, as the loop saw it (0034_chat_log).

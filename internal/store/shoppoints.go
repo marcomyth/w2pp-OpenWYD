@@ -103,3 +103,51 @@ func (s *Store) ShopPoints(ctx context.Context, accountID int64) (int32, error) 
 	}
 	return saldo, nil
 }
+
+// SpendShopPoints debits cost points from the account and records the movement,
+// atomically. ok is false when the wallet does not cover the cost — including the
+// account that has no wallet row at all, which is simply an account with zero
+// points.
+//
+// A conditional UPDATE rather than AddShopPoints with a negative delta: that one
+// leans on the table's CHECK to reject an overdraft, and a constraint violation
+// arrives here indistinguishable from a connection failure. The caller has to
+// tell the player "you don't have the points" apart from "try again", and one of
+// those must not consume the item.
+//
+// cost must be positive; a zero or negative cost is refused rather than quietly
+// turned into a credit.
+func (s *Store) SpendShopPoints(ctx context.Context, accountID int64, cost int32, characterName, reason string) (int32, bool, error) {
+	if cost <= 0 {
+		return 0, false, fmt.Errorf("store: gastar pontos de lojinha: custo %d não é positivo", cost)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, false, fmt.Errorf("store: abrir transação de gasto de pontos: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var saldo int32
+	err = tx.QueryRow(ctx, `
+		UPDATE shop_points SET balance = balance - $2, updated_at = now()
+		WHERE account_id = $1 AND balance >= $2
+		RETURNING balance`, accountID, cost).Scan(&saldo)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, false, nil // saldo insuficiente, ou conta sem carteira
+		}
+		return 0, false, fmt.Errorf("store: debitar pontos de lojinha: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO shop_points_audit (account_id, character_name, delta, balance_after, reason)
+		VALUES ($1, $2, $3, $4, $5)`,
+		accountID, characterName, -cost, saldo, reason); err != nil {
+		return 0, false, fmt.Errorf("store: gravar extrato de gasto de pontos: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, false, fmt.Errorf("store: confirmar gasto de pontos: %w", err)
+	}
+	return saldo, true, nil
+}

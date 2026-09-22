@@ -52,6 +52,7 @@ type Store interface {
 	ClearAllPresence(ctx context.Context) (int64, error)
 	AddShopPoints(ctx context.Context, accountID int64, delta int32, characterName, reason string) (int32, error)
 	ShopPoints(ctx context.Context, accountID int64) (int32, error)
+	SpendShopPoints(ctx context.Context, accountID int64, cost int32, characterName, reason string) (int32, bool, error)
 	ClaimNewbieKit(ctx context.Context, accountID int64, characterName string) (bool, error)
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
@@ -957,6 +958,24 @@ func (s *Server) ShopPoints(ctx context.Context, req *dbv1.ShopPointsRequest) (*
 		return nil, status.Errorf(codes.Internal, "ler pontos de lojinha: %v", err)
 	}
 	return &dbv1.ShopPointsResponse{Balance: saldo}, nil
+}
+
+// SpendShopPoints debits a purchase from the shop-points wallet. An insufficient
+// balance is NOT an error: it comes back as paid=false, because the caller has to
+// tell it apart from a failed call — one of the two hands the player an item.
+func (s *Server) SpendShopPoints(ctx context.Context, req *dbv1.SpendShopPointsRequest) (*dbv1.SpendShopPointsResponse, error) {
+	if req.GetAccountId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "account_id obrigatório")
+	}
+	if req.GetCost() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "cost tem de ser positivo")
+	}
+	saldo, pago, err := s.store.SpendShopPoints(ctx, req.GetAccountId(), req.GetCost(),
+		req.GetCharacterName(), req.GetReason())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "gastar pontos de lojinha: %v", err)
+	}
+	return &dbv1.SpendShopPointsResponse{Paid: pago, Balance: saldo}, nil
 }
 
 // ClaimNewbieKit takes the once-per-account newbie kit (0062_newbie_kit). The

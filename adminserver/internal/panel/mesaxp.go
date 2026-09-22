@@ -12,8 +12,10 @@ import (
 	"strings"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/gamedata"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
+	"github.com/jeanluca/w2pp-openwyd/internal/mountbonus"
 )
 
 // MesaXP is the Mesa de XP's configuration store, satisfied by *store.Store.
@@ -108,6 +110,7 @@ type mesaForm struct {
 	Nivel     int32
 	Bau       int32
 	Fada      int16
+	Montaria  int16
 	Grau7     int32
 	Gemas     int32
 	Segundos  int32
@@ -192,8 +195,9 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 	// somebody guessed.
 	var mobAviso string
 	var doMonstro bool
+	var mobOrigens []gamedata.MobOrigem
 	if form.Mob != "" {
-		exp, nivel, err := h.mobExpNivel(r, form.Mob)
+		exp, nivel, origens, err := h.mobExpNivel(r, form.Mob)
 		switch {
 		case errors.Is(err, errSemGameData):
 			mobAviso = "O editor de monstros não está ligado neste painel; digite a XP e o nível à mão."
@@ -205,6 +209,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 			// a picked monster read as "this mob is worth nothing", which is
 			// never what they meant — they meant "não carreguei ainda".
 			form.MobExp, form.MobNivel = exp, nivel
+			mobOrigens = origens
 			doMonstro = true
 		}
 	}
@@ -238,6 +243,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		Sim         mesaSimulacao
 		Historico   []audit.Entry
 		Fadas       []fadaOpcao
+		Montarias   []montariaOpcao
 		Monstros    []string
 		DoMonstro   bool
 		Aviso       string
@@ -253,6 +259,11 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		// TemCorteMorto o aviso de linha gravada abaixo do piso da evolução.
 		Celestial     bool
 		TemCorteMorto bool
+
+		// MobOrigens é onde o monstro escolhido nasce, com quantos blocos e se
+		// renasce. Vazio quando ele não nasce em lugar nenhum, que é o caso que
+		// mais precisa ser dito.
+		MobOrigens []gamedata.MobOrigem
 	}{
 		page:        h.pageFor(r, "rates"),
 		Aba:         "xp",
@@ -269,6 +280,7 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 		Sim:         sim,
 		Historico:   historico,
 		Fadas:       fadas,
+		Montarias:   montarias,
 		Monstros:    h.nomesDeMonstro(r),
 		DoMonstro:   doMonstro,
 		Aviso:       r.URL.Query().Get("aviso"),
@@ -283,6 +295,8 @@ func (h *Handler) mesaXP(w http.ResponseWriter, r *http.Request) {
 
 		Celestial:     level.IsCelestialTier(evo),
 		TemCorteMorto: temCorteMorto(cortes),
+
+		MobOrigens: mobOrigens,
 	})
 }
 
@@ -698,6 +712,7 @@ func lerMesaForm(q url.Values, xpInteiraNoJogo bool) mesaForm {
 		Gemas:    int32(intDe(q, "gemas", 0, 0, 16)),
 		Segundos: int32(intDe(q, "segundos", 6, 1, 3600)),
 		Fada:     int16(intDe(q, "fada", 0, 0, 4000)),
+		Montaria: int16(intDe(q, "montaria", 0, 0, 4000)),
 		Mob:      strings.TrimSpace(q.Get("mob")),
 	}
 	f.Evolucao = intDe(q, "evolucao", int(level.TierMortal), 1, 3)
@@ -775,6 +790,48 @@ func bonusDaFada(idx int16) int32 {
 	return 0
 }
 
+type montariaOpcao struct {
+	Index int16
+	Nome  string
+	Bonus int32
+}
+
+// montarias são as montarias que dão EXP enquanto montadas. O que o servidor
+// soma vem de mountbonus.TempExtra(Equip[14]).ExpPct (handler/exp_bonus.go), e
+// é DE LÁ que o bônus abaixo é lido: se um dia a montaria mudar de valor, esta
+// tela acompanha sozinha, como a fada. Aqui fica só o par índice→nome de tela,
+// um índice representando cada montaria (as variantes de duração compartilham o
+// mesmo ExpPct). O nível da montaria não entra: o ExpPct é fixo, não escala.
+var montarias = montariasDeTela()
+
+func montariasDeTela() []montariaOpcao {
+	tela := []struct {
+		idx  int16
+		nome string
+	}{
+		{0, "sem montaria"},
+		{3980, "Shire (3980)"},
+		{3981, "Puro-Sangue (3981)"},
+		{3982, "Klazedale (3982)"},
+		{3990, "Tigre de Fogo (3990)"},
+		{3991, "Dragão Vermelho (3991)"},
+	}
+	out := make([]montariaOpcao, 0, len(tela))
+	for _, m := range tela {
+		out = append(out, montariaOpcao{Index: m.idx, Nome: m.nome, Bonus: bonusDaMontaria(m.idx)})
+	}
+	return out
+}
+
+// bonusDaMontaria é o ExpPct que a montaria dá, lido do pacote mountbonus. Uma
+// montaria sem extras (ou "sem montaria") dá 0.
+func bonusDaMontaria(idx int16) int32 {
+	if e, ok := mountbonus.TempExtra(idx); ok {
+		return e.ExpPct
+	}
+	return 0
+}
+
 // entrada turns the form into the very call the game makes on a kill. This is
 // the whole point of moving internal/level to the repo root: the panel does not
 // model the reward, it runs it.
@@ -786,9 +843,9 @@ func (f mesaForm) entrada(cfg level.Config) level.ExpRewardInput {
 		tier.CelLv40, tier.CelLv90 = true, true
 	}
 	// The item bonus is the sum the game keeps in ExpBonus: the chest affect,
-	// the fairy, +2 per grade-7 piece and +2 per gem-2 piece
-	// (handler/exp_bonus.go, citing CMob.cpp:838 and :870).
-	bonus := f.Bau + bonusDaFada(f.Fada) + 2*f.Grau7 + 2*f.Gemas
+	// the fairy, the mount's ExpPct while ridden, +2 per grade-7 piece and +2 per
+	// gem-2 piece (handler/exp_bonus.go, citing CMob.cpp:838 and :870).
+	bonus := f.Bau + bonusDaFada(f.Fada) + bonusDaMontaria(f.Montaria) + 2*f.Grau7 + 2*f.Gemas
 	var fairyContent int32
 	if f.Fada == 3913 {
 		fairyContent = 30
@@ -937,14 +994,18 @@ var errSemGameData = errors.New("panel: sem editor de monstros configurado")
 
 // mobExpNivel reads a template's reward and level through the same editor that
 // changes them, so the Mesa always simulates the numbers /monstros would show.
-func (h *Handler) mobExpNivel(r *http.Request, nome string) (exp int64, nivel int32, err error) {
+// Devolve também ONDE o monstro nasce, porque é a informação que faltava aqui: a
+// planejadora escolheu Adamant_Tauron para simular "o bicho do Pilar" e ele vive no
+// Deserto Lugefer. A página de ficha já mostrava isso; esta, que é onde o monstro é
+// escolhido, não mostrava nada — e é aqui que a escolha errada acontece.
+func (h *Handler) mobExpNivel(r *http.Request, nome string) (exp int64, nivel int32, origens []gamedata.MobOrigem, err error) {
 	if h.cfg.GameData == nil {
-		return 0, 0, errSemGameData
+		return 0, 0, nil, errSemGameData
 	}
 	sess, _ := staffFrom(r.Context())
 	stat, err := h.cfg.GameData.MobStat(r.Context(), sess.AccountID, nome)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, nil, err
 	}
 	for _, f := range stat.Fields() {
 		switch f.Nome {
@@ -954,7 +1015,7 @@ func (h *Handler) mobExpNivel(r *http.Request, nome string) (exp int64, nivel in
 			nivel = int32(f.Valor)
 		}
 	}
-	return exp, nivel, nil
+	return exp, nivel, stat.Origens(), nil
 }
 
 func (h *Handler) mesaConfig(ctx context.Context) (level.Config, error) {

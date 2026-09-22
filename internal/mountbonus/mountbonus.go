@@ -17,7 +17,9 @@ package mountbonus
 // adult mount — the legacy scales them with the mount's level,
 // (level+20)*Attack/100 and (level+15)*Magic/100 — and flat values for a
 // temporary one. Evasion is in tenths of a percent (60 is the "6.0%" on the
-// tooltip) and Resist is applied to all four resistances alike.
+// tooltip) and Resist is applied to all four resistances alike. The EXP a
+// mount lends is not a column here but an Extra: the client has no tooltip line
+// for it, and only some mounts carry one.
 type Bonus struct {
 	Attack  int16
 	Magic   int16
@@ -48,11 +50,19 @@ func (b Bonus) Valid() bool {
 }
 
 // The item ranges the tables cover.
+//
+// Esfera is this server's band, the montarias built in client/montarias: the
+// client accepts these indices in Equip[14] and draws them, but its bonus
+// tooltip covers only 2362-2389 and 3980-3999, so it shows NO stat line for
+// them. That is silence, not a lie — the numbers are announced with the item.
+// A sphere that needs its stats on the tooltip belongs in the temporary band.
 const (
-	AdultLo = 2360 // Porco
-	AdultHi = 2389 // Pantera Negra
-	TempLo  = 3980 // Shire (3 dias)
-	TempHi  = 3994 // Dragão Hekalo
+	AdultLo  = 2360 // Porco
+	AdultHi  = 2389 // Pantera Negra
+	TempLo   = 3980 // Shire (3 dias)
+	TempHi   = 3994 // Dragão Hekalo
+	EsferaLo = 2969 // Tigre de Cristal
+	EsferaHi = 2975 // Dragão de Gelo
 )
 
 // IsAdult reports whether index is an adult mount — the only kind the panel
@@ -62,6 +72,9 @@ func IsAdult(index int16) bool { return index >= AdultLo && index <= AdultHi }
 // IsTemp reports whether index is a temporary/premium mount.
 func IsTemp(index int16) bool { return index >= TempLo && index <= TempHi }
 
+// IsEsfera reports whether index is one of this server's sphere mounts.
+func IsEsfera(index int16) bool { return index >= EsferaLo && index <= EsferaHi }
+
 // Default is the compiled bonus for a mount, and whether index is one.
 func Default(index int16) (Bonus, bool) {
 	switch {
@@ -69,6 +82,8 @@ func Default(index int16) (Bonus, bool) {
 		return adult[index-AdultLo], true
 	case IsTemp(index):
 		return temp[index-TempLo], true
+	case IsEsfera(index):
+		return esfera[index-EsferaLo], true
 	}
 	return Bonus{}, false
 }
@@ -151,6 +166,11 @@ var adult = [AdultHi - AdultLo + 1]Bonus{
 // own, not a different mount. The client file generator
 // (webserver/cmd/montariacliente) writes these rows into WYD.exe, so the tooltip
 // follows. Gullfaxi, Dragão Menor, Akelo and Hekalo are still the client's.
+//
+// The 3995 is left out on purpose, not by omission: it is the last slot whose
+// numbers the client can actually draw — its bonus tooltip covers 2362-2389 and
+// 3980-3999 and nothing else. A montaria that has to show its attributes goes
+// there. The Esferas, which announce theirs, do not spend it.
 var temp = [TempHi - TempLo + 1]Bonus{
 	{150, 15, 0, 0},    // Shire
 	{200, 30, 0, 0},    // Thoroughbred
@@ -169,9 +189,23 @@ var temp = [TempHi - TempLo + 1]Bonus{
 	{950, 145, 60, 20}, // Dragão Hekalo
 }
 
-// Extra is what a cash-shop mount adds beyond the attribute row: its own
-// absorption (the adult mounts take theirs from the panel, 0035_mount_absorb)
-// and an EXP bonus while ridden, in percent. Decided with the rows above.
+// esfera is this server's own table: items 2969-2975, indexed by sIndex-2969.
+// All seven carry the same row on purpose (decided 22/09/2026): the spheres are
+// told apart by how they look, not by what they lend, and 350 flat damage puts
+// them beside the shop's Thoroughbred rather than above it.
+var esfera = [EsferaHi - EsferaLo + 1]Bonus{
+	{350, 50, 0, 0}, // Tigre de Cristal
+	{350, 50, 0, 0}, // Tigre Negro
+	{350, 50, 0, 0}, // Rinoceronte Espectral
+	{350, 50, 0, 0}, // Unicórnio de Gelo
+	{350, 50, 0, 0}, // Tigre de Gelo
+	{350, 50, 0, 0}, // Fenrir
+	{350, 50, 0, 0}, // Dragão de Gelo
+}
+
+// Extra is what a mount adds beyond the attribute row: its own absorption (the
+// adult mounts take theirs from the panel, 0035_mount_absorb) and an EXP bonus
+// while ridden, in percent. Decided with the rows above.
 type Extra struct {
 	AbsorbPvP, AbsorbPvE int
 	ExpPct               int32
@@ -184,9 +218,14 @@ var tempExtra = map[int16]Extra{
 	3982: {AbsorbPvE: 20, ExpPct: 7}, 3985: {AbsorbPvE: 20, ExpPct: 7}, 3988: {AbsorbPvE: 20, ExpPct: 7}, // Klazedale
 	3990: {AbsorbPvE: 35, ExpPct: 12}, // Tigre de Fogo
 	3991: {AbsorbPvE: 35, ExpPct: 12}, // Dragão Vermelho
+
+	// The Esferas are here for the EXP alone — they lend no absorption — because
+	// this is the only place a mount's EXP can live: Bonus has no column for it.
+	2969: {ExpPct: 12}, 2970: {ExpPct: 12}, 2971: {ExpPct: 12}, 2972: {ExpPct: 12},
+	2973: {ExpPct: 12}, 2974: {ExpPct: 12}, 2975: {ExpPct: 12},
 }
 
-// TempExtra reports the extras of a temporary mount, and whether it has any.
+// TempExtra reports the extras of a mount, and whether it has any.
 func TempExtra(index int16) (Extra, bool) {
 	e, ok := tempExtra[index]
 	return e, ok

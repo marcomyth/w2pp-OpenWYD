@@ -33,6 +33,15 @@ func Empilha(index int16) bool {
 		return true
 	case 4010, 4011, 4028, 4029: // Barras de Prata
 		return true
+	// As Moedas de Prata (1Mi e 5Mi) são a mesma família das Barras acima e ficaram
+	// de fora só porque não estão na lista do legado. O Baú do Apoiador paga 5Mi, e
+	// 128 baús enchiam a bolsa de moedas avulsas (Marco, 20/09/2026).
+	case 4026, 4027:
+		return true
+	// A moeda de cash (Cosmo Energia 200 e 1000). Só empilha: usar continua sem
+	// efeito enquanto o EF_VOLATILE 184 não for portado.
+	case 3393, 3394:
+		return true
 	case 3224: // Fragmento de Alma, da Escolta do Trono dos Reinos (tmserver handler/reinos.go)
 		return true
 	}

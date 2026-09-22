@@ -52,8 +52,12 @@ func mountBonusFrom(t mountbonus.Table, it world.Item) (mountAttrBonus, bool) {
 			resist:   int32(b.Resist),
 		}, true
 
-	// Temporary/premium mounts: flat table values, no HP gate or level scaling.
-	case mountbonus.IsTemp(it.Index):
+	// Temporary/premium and sphere mounts: flat table values, no HP gate and no
+	// level scaling. The spheres (client/montarias) behave exactly like the
+	// premium ones here; what sets them apart is that the client draws no stat
+	// line for their band, so their numbers are announced with the item rather
+	// than read off the tooltip.
+	case mountbonus.IsTemp(it.Index), mountbonus.IsEsfera(it.Index):
 		b, _ := t.For(it.Index)
 		return mountAttrBonus{
 			damage:   int32(b.Attack),

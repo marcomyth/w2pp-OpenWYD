@@ -71,7 +71,7 @@ func (s *Store) ListNPCDefinitions(ctx context.Context) ([]domain.NPCDefinition,
 	}
 
 	shopRows, err := s.pool.Query(ctx, `
-		SELECT npc_id, slot, item_index, quantity, eff1, effv1, eff2, effv2, eff3, effv3
+		SELECT npc_id, slot, item_index, quantity, eff1, effv1, eff2, effv2, eff3, effv3, price_points
 		FROM npc_shop_item ORDER BY npc_id, slot`)
 	if err != nil {
 		return nil, fmt.Errorf("store: list npc shop items: %w", err)
@@ -81,7 +81,7 @@ func (s *Store) ListNPCDefinitions(ctx context.Context) ([]domain.NPCDefinition,
 		var npcID int64
 		var it domain.NPCShopItem
 		if err := shopRows.Scan(&npcID, &it.Slot, &it.ItemIndex, &it.Quantity,
-			&it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3); err != nil {
+			&it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3, &it.PricePoints); err != nil {
 			return nil, fmt.Errorf("store: scan npc shop item: %w", err)
 		}
 		normalizeShopQuantity(&it)
@@ -234,10 +234,10 @@ func (s *Store) SetNPCShop(ctx context.Context, npcID int64, items []domain.NPCS
 		for _, it := range items {
 			normalizeShopQuantity(&it)
 			if _, err := tx.Exec(ctx, `
-				INSERT INTO npc_shop_item (npc_id, slot, item_index, quantity, eff1, effv1, eff2, effv2, eff3, effv3)
-				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+				INSERT INTO npc_shop_item (npc_id, slot, item_index, quantity, eff1, effv1, eff2, effv2, eff3, effv3, price_points)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 				npcID, it.Slot, it.ItemIndex, normalizedQuantity(it.Quantity),
-				it.Eff1, it.EffV1, it.Eff2, it.EffV2, it.Eff3, it.EffV3,
+				it.Eff1, it.EffV1, it.Eff2, it.EffV2, it.Eff3, it.EffV3, it.PricePoints,
 			); err != nil {
 				return fmt.Errorf("store: insert npc shop item (npc %d slot %d): %w", npcID, it.Slot, err)
 			}

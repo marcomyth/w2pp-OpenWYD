@@ -168,8 +168,8 @@ func TestSimulacaoEspadaMagica(t *testing.T) {
 	fmt.Fprintf(&b, "## TK-MAGO montado\n\n- Magia calibrada: %d. Tempestade de Gelo: %d na conta do cliente, %d com a lança de 140%%.\n", com.Magic, cliente, servidor)
 	fmt.Fprintf(&b, "- HP %d sem buffs, %d com Possuído e Samaritano (CON %d → %d).\n", effectiveMaxHP(sem), effectiveMaxHP(com), sem.Con+sem.AffCon, com.Con+com.AffCon)
 	fmt.Fprintf(&b, "- Régua de INT: %d/1000 → crítico %d%%, ×2,0 a ×%.1f; roubo de vida %d%%.\n\n",
-		reguaDeInt(com), espadaCritChanceBase+espadaCritChanceInt*reguaDeInt(com)/1000,
-		float64(espadaCritMultBase10+espadaCritMultInt10*reguaDeInt(com)/1000)/10, rouboDeVidaChance*reguaDeInt(com)/1000)
+		reguaDeInt(com), espadaCritChanceBase+espadaCritChanceIntAtual*reguaDeInt(com)/1000,
+		float64(espadaCritMultBase10Atual+espadaCritMultIntAtual*reguaDeInt(com)/1000)/10, rouboDeVidaChance*reguaDeInt(com)/1000)
 
 	oponentes := []struct {
 		nome string

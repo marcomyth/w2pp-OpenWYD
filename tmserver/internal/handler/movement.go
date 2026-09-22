@@ -308,6 +308,11 @@ func (d *Dispatcher) reqTeleport(w *world.World, s *world.Session, _ protocol.He
 	if d.entraNoDesertoDoKefra(w, s, e) {
 		return
 	}
+	// E o piso de Azran para o Vale Escondido é a terceira: só anda com a Fada do
+	// Vale no slot 13 (vale.go).
+	if d.entraNoVale(w, s, e) {
+		return
+	}
 	destX, destY, cost, ok := world.TeleportDest(e.X, e.Y)
 	if !ok {
 		return // no teleport tile here

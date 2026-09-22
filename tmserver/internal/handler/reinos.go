@@ -257,8 +257,9 @@ const (
 
 // reinosFinish dá ao drop de um monstro do Reino o tamanho do pacote e devolve
 // quantas cópias entregar. Empilhável sai numa pilha só, com EF_AMOUNT; o que não
-// empilha (a Moeda de Prata) sai em cópias soltas, porque EF_AMOUNT num item que
-// não empilha vira uma pilha que o cliente não divide.
+// empilha sai em cópias soltas, porque EF_AMOUNT num item que não empilha vira uma
+// pilha que o cliente não divide. A Moeda de Prata era o caso solto aqui até
+// 20/09/2026; desde que ela entrou na lista de pilha, o Rei paga uma pilha de dez.
 func reinosFinish(mob *world.Entity, it *world.Item) int {
 	n := reinosPacotes[papelDoMonstro(mob)][it.Index]
 	if n <= 1 {

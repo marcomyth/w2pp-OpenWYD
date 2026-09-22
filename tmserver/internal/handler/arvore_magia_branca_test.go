@@ -296,7 +296,9 @@ func TestJulgamentoDivinoNoGolpe(t *testing.T) {
 
 	acertos, menorAcerto := 0, 0
 	for i := range 40 {
-		w.Entity(1).HP = 20_000
+		// A vida é REPOSTA dentro do laço: escrever na ficha da goroutine do teste
+		// enquanto o laço serve é corrida de dados, e aqui era escrita, não leitura.
+		noLaco(t, w, func(w *world.World) { w.Entity(1).HP = 20_000 })
 		clock.Store(serverTime + uint32(i)*1000)
 		skillAttackFrame(t, c, serverTime+uint32(i)*1000, mid, skillJulgamento, -1)
 		for {
@@ -319,7 +321,9 @@ func TestJulgamentoDivinoNoGolpe(t *testing.T) {
 			}
 			break
 		}
-		if hp := w.Entity(1).HP; hp != 6000 {
+		var hp int32
+		noLaco(t, w, func(w *world.World) { hp = w.Entity(1).HP })
+		if hp != 6000 {
 			t.Fatalf("vida depois do Julgamento = %d, want 6000 (30%% de 20.000)", hp)
 		}
 	}
@@ -552,9 +556,14 @@ func TestCuraEmAlvoMarcadoNoGolpe(t *testing.T) {
 	ferido := enterWorld(t, ln.Addr().String())
 	defer ferido.Close()
 
+	// A ficha do ferido é tocada SÓ de dentro do laço. O mundo é de dono único, e
+	// este teste fazia as três coisas de fora: punha o HP em 1000, lia o HP depois
+	// da cura, e marcava o CuraReduzidaAte. O -race acusou o par contra
+	// world.removeSession, e as duas ESCRITAS eram o lado perigoso: além de
+	// corrida, nada garantia que o HP=1000 tivesse pousado antes do golpe sair.
+	// Pelo noLaco a ordem passa a ser a que o teste sempre quis.
 	cura := func() int32 {
-		alvo := w.Entity(2)
-		alvo.HP = 1000
+		noLaco(t, w, func(w *world.World) { w.Entity(2).HP = 1000 })
 		skillAttackFrame(t, branca, clock.Load(), 2, skillCura, -1)
 		for {
 			ty, _, ok := readMaybe(t, branca)
@@ -565,11 +574,15 @@ func TestCuraEmAlvoMarcadoNoGolpe(t *testing.T) {
 				break
 			}
 		}
-		return w.Entity(2).HP - 1000
+		var hp int32
+		noLaco(t, w, func(w *world.World) { hp = w.Entity(2).HP })
+		return hp - 1000
 	}
 	inteira := cura()
 	clock.Store(serverTime + 1000)
-	w.Entity(2).CuraReduzidaAte = clock.Load() + brancaDebuffMs
+	noLaco(t, w, func(w *world.World) {
+		w.Entity(2).CuraReduzidaAte = clock.Load() + brancaDebuffMs
+	})
 	cortada := cura()
 	if inteira <= 0 || cortada != inteira*75/100 {
 		t.Errorf("cura inteira %d, cortada %d; want a cortada em 75%%", inteira, cortada)

@@ -19,6 +19,8 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
 // Confere a ficha da simulação contra a janela do jogo, campo a campo.
@@ -181,5 +183,77 @@ func TestDiagnosticoTrancaEPocao(t *testing.T) {
 			fmt.Printf("%-28s %2d vit, %2d der, %2d emp (média %3.0f s)\n",
 				o.nome, vit, der, emp, float64(soma)/float64(lutas)/1000)
 		}
+	}
+}
+
+// TestDiagnosticoCancelArco decompõe o ataque da FM Cancelamento por arma, para
+// saber POR QUE o arco fica tão atrás das duas espadas — e quanto é preciso
+// mover para chegar onde o operador quer.
+//
+//	go test -tags simulacao -run TestDiagnosticoCancelArco -v ./tmserver/internal/handler/
+func TestDiagnosticoCancelArco(t *testing.T) {
+	sm := novoSimulador(t, filepath.Join("..", "..", "..", "Release"))
+	const simArcoAsir = 1006 // Arco Ásir, EF_DAMAGE 597
+
+	com := func(dir, esq int16) *world.Entity {
+		e := sm.montarCancel(1)
+		refino := [3]world.Effect{{Effect: simEfSanc, Value: simRefino11}}
+		e.Equip[weaponSlotR] = world.Item{Index: dir, Effects: refino}
+		e.Equip[weaponSlotL] = world.Item{}
+		if esq != 0 {
+			e.Equip[weaponSlotL] = world.Item{Index: esq, Effects: refino}
+		}
+		sm.d.applyAffectScore(e)
+		return e
+	}
+
+	fmt.Printf("%-24s %8s %8s %8s %9s %8s %7s\n",
+		"empunhadura", "ATAQUE", "base", "buffs", "multi", "arma", "alvos")
+	for _, c := range []struct {
+		nome     string
+		dir, esq int16
+	}{
+		{"duas espadas", simEspadaUmaMao, simEspadaUmaMao},
+		{"arco Ásir", simArcoAsir, 0},
+		{"uma espada só", simEspadaUmaMao, 0},
+	} {
+		e := com(c.dir, c.esq)
+		fmt.Printf("%-24s %8d %8d %8d %8d%% %8d %7d\n", c.nome,
+			sm.d.effectiveDamage(e), e.Damage, e.AffDamage, e.AffDamageMultiPct,
+			sm.d.weaponDamage(e), alvosDoCancelamento(e, sm.d.itemAbility))
+	}
+}
+
+// TestVarreduraDanoDoArco procura o bônus que leva o arco da FM Cancelamento ao
+// alvo do operador, mantendo as duas espadas onde estão.
+//
+// A janela do jogo mostra números um pouco acima destes (8.821 e 4.690 contra
+// 8.726 e 4.489): o personagem real veste equipamento que esta ficha não tem. A
+// proporção é o que importa, e ela é a mesma.
+func TestVarreduraDanoDoArco(t *testing.T) {
+	sm := novoSimulador(t, filepath.Join("..", "..", "..", "Release"))
+	const simArcoAsir = 1006
+
+	comArco := func(bonus int32) int32 {
+		e := sm.montarCancel(1)
+		e.Equip[weaponSlotR] = world.Item{Index: simArcoAsir,
+			Effects: [3]world.Effect{{Effect: simEfSanc, Value: simRefino11}}}
+		e.Equip[weaponSlotL] = world.Item{}
+		sm.d.applyAffectScore(e)
+		e.AffDamageMultiPct += bonus // soma POR CIMA do cancelDanoArco já configurado
+		return sm.d.effectiveDamage(e)
+	}
+	duasEspadas := sm.d.effectiveDamage(sm.montarCancel(1))
+	// O alvo do operador é 7.200-7.300 na JANELA, contra 8.800 de duas espadas.
+	// Aqui a escala é outra, então o alvo é a mesma proporção.
+	alvoPct := 7250 * 100 / 8821
+	alvo := int32(int(duasEspadas) * alvoPct / 100)
+	fmt.Printf("duas espadas %d; alvo do arco %d (%d%% delas)\n\n", duasEspadas, alvo, alvoPct)
+	fmt.Printf("%8s %10s %12s %10s\n", "bônus", "ataque", "% das duas", "na janela")
+	for _, b := range []int32{-20, -10, 0, 10, 20} {
+		got := comArco(b)
+		// Regra de três com o número real da janela: 4.690 para 4.489.
+		janela := int(got) * 4690 / 4489
+		fmt.Printf("%7d%% %10d %11d%% %10d\n", b, got, int(got)*100/int(duasEspadas), janela)
 	}
 }
