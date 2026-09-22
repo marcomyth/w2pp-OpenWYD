@@ -272,6 +272,29 @@ func (d *Dispatcher) reqBuy(w *world.World, s *world.Session, _ protocol.Header,
 	if cpos < 0 || cpos >= world.MaxCargo || slot.Item.Empty() {
 		return // already sold / empty slot
 	}
+	// Esta porta só vende em OURO, e a recusa aqui é o que impede que ela venda o
+	// resto de graça.
+	//
+	// Este pacote é o da janela antiga do cliente, que nasceu quando ouro era a
+	// única moeda: ele traz preço e item e o servidor confere os dois. A vitrine
+	// nova pôs moeda POR PRATELEIRA (AutoTrade.Moeda, lojaservidor.go), e este
+	// caminho nunca aprendeu a olhar para ela — pagava sempre com e.Coin, pelo
+	// mesmo número. Uma prateleira anunciada em Cash saía pelo valor dela em ouro.
+	//
+	// As duas conferências anti-adulteração logo abaixo não pegam isso, e é por
+	// isso que a recusa precisa ser explícita: o preço e o item CONFEREM: o que
+	// não confere é a moeda, e ela não entra em nenhuma das duas comparações.
+	//
+	// Recusa por moeda, e não remoção da rota: a pose legada ainda depende deste
+	// pacote (quitTrade e closeAutoTrade a tratam), e ali a barraca é o próprio
+	// corpo do vendedor. Tirar a rota derrubaria essa barraca junto.
+	if seller.AutoTrade.Moeda[pos] != protocol.LojaMoedaOuro {
+		d.log.Info("autotrade buy recusada: a janela antiga so paga em ouro",
+			"conn", s.Conn, "stall", targetID, "slot", pos,
+			"moeda", seller.AutoTrade.Moeda[pos])
+		d.notify(w, s, NoticeCantAutoTrade)
+		return
+	}
 	// Anti-tamper: the offer (tax + price + item) must match exactly, AND the stored
 	// offer must still match the live Cargo item (two memcmp, _MSG_ReqBuy.cpp:72-88).
 	sellerCargo := w.Cargo(seller.AccountID)

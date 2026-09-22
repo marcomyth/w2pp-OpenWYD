@@ -237,3 +237,77 @@ func TestAutoTradeOpenRejectsBlacklist(t *testing.T) {
 		}
 	}
 }
+
+// TestReqBuyRecusaMoedaQueNaoEOuro: a janela antiga do cliente (MSG_ReqBuy) paga
+// sempre em ouro, e por isso uma prateleira anunciada em Cash ou em RMT saía por
+// esse MESMO número em ouro. As duas conferências anti-adulteração do reqBuy não
+// pegam isso: elas comparam preço e item, que conferem, e a moeda não entra em
+// nenhuma das duas.
+//
+// As três moedas passam pela mesma prateleira aqui, e a de ouro NO FIM é o que
+// dá valor às outras duas: ela prova que a recusa é por moeda e não uma recusa
+// geral. Um guard sabotado para recusar sempre passa nos dois primeiros casos e
+// quebra no terceiro.
+//
+// O item ser vendido no fim prova também o que mais importa numa recusa: as duas
+// tentativas negadas não consumiram nada — nem o item do Cargo, nem o ouro.
+func TestReqBuyRecusaMoedaQueNaoEOuro(t *testing.T) {
+	const sellItem = int16(1030)
+	const price, tax = int32(200_000), int32(5)
+	addr, stop, _ := startServerClock(t, autotradeDB(sellItem))
+	defer stop()
+	seller := enterWorldAs(t, addr, "tester") // conn 1
+	defer seller.Close()
+	buyer := enterWorldAs(t, addr, "tradeb") // conn 2
+	defer buyer.Close()
+
+	abreBarraca(t, seller, "Loja", 0, price, protocol.LojaMoedaCash)
+
+	tentaComprarERecusa := func(nome string) {
+		t.Helper()
+		drena(t, buyer)
+		send(t, buyer, protocol.MsgReqBuy, reqBuyPayload(1, 0, sellItem, price, tax))
+		avisado := false
+		for {
+			ty, payload, ok := readMaybe(t, buyer)
+			if !ok {
+				break
+			}
+			switch {
+			case ty == protocol.MsgSendItem:
+				t.Fatalf("%s: o comprador levou o item pagando em OURO uma prateleira em %s", nome, nome)
+			case ty == protocol.MsgUpdateEtc:
+				t.Fatalf("%s: o ouro do comprador mexeu numa compra que devia ser recusada", nome)
+			case ty == protocol.MsgMessageBoxOk && len(payload) >= 4 &&
+				Notice(binary.LittleEndian.Uint32(payload[0:4])) == NoticeCantAutoTrade:
+				avisado = true
+			}
+		}
+		if !avisado {
+			t.Fatalf("%s: a compra não saiu, mas o jogador não foi avisado do motivo", nome)
+		}
+	}
+
+	tentaComprarERecusa("Cash")
+
+	// A MESMA prateleira, agora anunciada em RMT.
+	send(t, seller, protocol.MsgLojaMoeda,
+		(&protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaRMT}).Encode())
+	tentaComprarERecusa("RMT")
+
+	// E em ouro a porta continua aberta: o item sai, e sai pelo preço certo.
+	send(t, seller, protocol.MsgLojaMoeda,
+		(&protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaOuro}).Encode())
+	drena(t, buyer)
+	send(t, buyer, protocol.MsgReqBuy, reqBuyPayload(1, 0, sellItem, price, tax))
+
+	si, _ := readUntil(t, buyer, protocol.MsgSendItem)
+	if got := int16(binary.LittleEndian.Uint16(si[4:6])); got != sellItem {
+		t.Errorf("item comprado = %d, esperado %d", got, sellItem)
+	}
+	etc, _ := readUntil(t, buyer, protocol.MsgUpdateEtc)
+	if coin := int32(binary.LittleEndian.Uint32(etc[28:32])); coin != 1_000_000-price {
+		t.Errorf("ouro do comprador = %d, esperado %d — as recusas não podiam ter cobrado nada",
+			coin, 1_000_000-price)
+	}
+}
