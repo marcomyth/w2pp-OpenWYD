@@ -66,10 +66,21 @@ func (d *Dispatcher) guildaPede(w *world.World, s *world.Session, _ protocol.Hea
 	if err != nil {
 		return
 	}
-	// A lista das guildas do servidor e a unica aba que nao exige estar em uma:
-	// quem esta de fora e justamente quem mais quer olhar a lista.
-	if e.Guild == 0 && corpo.Alvo != guildaAbaLista {
-		sendClientMessage(w, s, msgGuildaSemGuilda)
+	// Sem guilda, um PEDIDO DE DADOS não é um erro: o painel abre no menu e
+	// precisa perguntar "eu tenho guilda?" para saber se a segunda porta diz
+	// "Guild" ou "Criar sua Guild". A resposta é a aba Informações vazia, e o
+	// id zero nela é o que significa "nenhuma".
+	//
+	// Antes isto mandava uma linha de chat dizendo que o jogador não estava em
+	// guilda, e ela aparecia TODA vez que o painel abria — uma reclamação em
+	// resposta a uma pergunta. As recusas por falta de guilda ficam nas AÇÕES
+	// (convocar, recado, status, buff), onde há mesmo algo sendo negado.
+	if e.Guild == 0 {
+		if corpo.Alvo == guildaAbaLista {
+			d.guildaMandaLista(w, s, e)
+			return
+		}
+		w.Send(s, protocol.MsgGuildaAbre, (&protocol.GuildaAbreBody{}).Encode())
 		return
 	}
 	switch corpo.Alvo {
