@@ -540,66 +540,26 @@ func (d *Dispatcher) guildaAtiva(w *world.World, s *world.Session, _ protocol.He
 	d.acendeUmBuff(w, s, e, int(corpo.Slot), corpo.Tipo)
 }
 
-// --- os buffs na barra do personagem ---------------------------------------
+// --- os buffs na barra do personagem: POR QUE NAO PELO VETOR DE AFETOS ------
 //
-// O cliente desenha a barra de buffs a partir de um vetor de 32 posições que
-// viaja no pacote de score, cada uma empacotada como (tipo << 8) | tempo. Os
-// buffs de guilda entram AÍ, e não na lista de afetos do personagem.
+// TENTADO E DESFEITO em 22/09/2026, e a nota fica para ninguem tentar de novo.
 //
-// A diferença importa: a lista de afetos é varrida a cada tick, tem efeito
-// próprio no cálculo de score e é apagada quando o tempo acaba. Um buff de
-// guilda que entrasse nela seria aplicado DUAS vezes — uma por aqui e outra pelo
-// afeto — e ainda disputaria uma das poucas casas com os buffs de skill que o
-// jogador pagou de mana. Escrever só no vetor do pacote resolve o desenho sem
-// tocar em nada disso.
+// O cliente desenha a barra a partir de um vetor de 32 posicoes que viaja no
+// pacote de score, empacotado como (tipo << 8) | tempo. Escrever ali os buffs de
+// guilda parecia de graca: nao mexe na lista de afetos do personagem, nao
+// duplica efeito, nao gasta casa de buff de skill.
 //
-// OS TIPOS SÃO ESCOLHIDOS ENTRE OS QUE O SERVIDOR NÃO TRATA. applyAffectScore
-// age sobre 1-15, 19, 25, 27, 28, 29, 34, 35, 36, 37 e 42; estes quatro estão
-// fora dessa lista de propósito, para que nenhum efeito do legado se ligue a
-// eles por engano.
+// So que o TIPO do afeto nao e so um numero de icone para o cliente. Ele tambem
+// escolhe o efeito VISUAL que o personagem recebe. Os tipos 16, 17, 18 e 20
+// foram escolhidos por estarem fora da lista que applyAffectScore trata - livres
+// do lado do SERVIDOR -, e o resultado em tela foi o personagem inteiro pintado
+// de verde, como quem esta envenenado.
 //
-// Se o cliente não tiver ícone para um deles, a barra mostra um espaço vazio —
-// e aí a resposta é criar a arte na tira de estados do mainparts.wyt, cujo
-// formato já está decifrado.
-var tipoNaBarra = [protocol.GuildaBuffs]uint8{16, 17, 18, 20}
-
-// marcaBuffsDeGuildaNaBarra acrescenta os buffs ligados ao vetor de ícones.
+// A licao: "o servidor nao trata" nao quer dizer "o cliente nao trata". Achar um
+// tipo livre dos dois lados exige ler o cliente, e mesmo assim o icone seria o
+// que ele ja tem, nao o que a guilda quer mostrar.
 //
-// Escreve nas ÚLTIMAS casas livres, de trás para frente, para não empurrar os
-// afetos de verdade do jogador: os dele vêm primeiro na barra, que é onde ele
-// espera encontrá-los.
-func (d *Dispatcher) marcaBuffsDeGuildaNaBarra(e *world.Entity, sc *protocol.ScoreData) {
-	if e == nil || e.Guild == 0 || !world.IsPlayer(e.ID) {
-		return
-	}
-	b := d.guildaBuffs[e.Guild]
-	if b == nil {
-		return
-	}
-	agora := d.now()
-	casa := len(sc.Affect) - 1
-	for i := range receitasDeBuff {
-		if !b.ligado(i, agora) {
-			continue
-		}
-		for casa >= 0 && sc.Affect[casa] != 0 {
-			casa--
-		}
-		if casa < 0 {
-			return // a barra encheu; os afetos do jogador ficam
-		}
-		// O tempo do pacote é um byte, então ele satura em 255 — e é só o
-		// relógio do ícone, não a duração de verdade, que o painel mostra.
-		restam := b.expira[i].Sub(agora) / (8 * time.Second)
-		if restam > 255 {
-			restam = 255
-		}
-		if restam < 1 {
-			restam = 1
-		}
-		sc.Affect[casa] = protocol.PackAffect(protocol.AffectData{
-			Type: tipoNaBarra[i], Time: uint32(restam),
-		})
-		casa--
-	}
-}
+// O caminho que sobra, e que da controle total sobre a arte: desenhar os quatro
+// icones NOS, numa camada propria, ao lado da barra do jogo - do mesmo jeito que
+// o painel de alvos e a Loja de Honra desenham o que desenham. A tira de icones
+// do cliente (UI/mainparts.wyt) ja foi decifrada e serve de molde.
