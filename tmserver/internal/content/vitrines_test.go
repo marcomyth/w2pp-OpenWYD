@@ -34,6 +34,11 @@ const (
 	pedidoDeCaca    = 3432 // 3432-3437: Armia, Dung, SubM, Kult, Kefra, Nipple
 	pedidoDeCacaFim = 3437
 	pedidoMaximo    = 10
+
+	// As duas poções de 500, o teto do que existe (EF_HP/EF_MP 500 no ItemList).
+	// Até 22/09/2026 NENHUMA das 2014 lojas do jogo vendia poção.
+	ultraCura = 404
+	ultraMana = 409
 )
 
 // foraDeTodaVitrine é a lista inteira, com o nome que a falha vai imprimir.
@@ -224,8 +229,10 @@ func TestVitrineDoMartin(t *testing.T) {
 	}
 	esperado := map[int]int{
 		0:  ervasDeCura, // a erva contra a lentidão, em pilha de dez
+		1:  ultraCura,   // 500 de HP
 		2:  699,         // Pergaminho do Teleporte
 		3:  410,         // Pergaminho Retorno
+		4:  ultraMana,   // 500 de MP
 		10: 4038,        // Vela do Coveiro
 		11: 4039,        // Colheita do Jardineiro
 		12: 4040,        // Cura do Batedor
@@ -243,5 +250,75 @@ func TestVitrineDoMartin(t *testing.T) {
 	}
 	if q := quantidade(b, 0); q != pedidoMaximo {
 		t.Errorf("as Ervas de Cura saem em pilha de %d, esperava %d", q, pedidoMaximo)
+	}
+}
+
+// A VITRINE DA AKI (pedido de 22/09/2026): as duas poções de 500 entram, e a
+// Cura e a Mana do Batedor têm de continuar lá.
+//
+// As duas do Batedor já estavam no template E na seed (0006), e mesmo assim
+// sumiram da loja em jogo — por isso a 0099 as recoloca no banco e este teste
+// passa a guardá-las do lado do arquivo. As duas metades, como sempre.
+//
+// As poções saem UMA POR COMPRA, sem EF_AMOUNT, e isso é o que o teste checa
+// junto: o servidor cobra o preço do catálogo por compra e não por unidade
+// (handler/shop.go), então uma pilha de dez sairia por um décimo do preço.
+func TestVitrineDaAki(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join(release(t, "TMsrv", "run", "npc"), "Aki"))
+	if err != nil {
+		t.Skipf("Release content unavailable: %v", err)
+	}
+	vagas := vitrine(b)
+	if vagas == nil {
+		t.Fatal("a Aki deixou de ser mercadora")
+	}
+	esperado := map[int]int{
+		0:  ultraCura, // 500 de HP
+		1:  ultraMana, // 500 de MP
+		2:  699,       // Pergaminho do Teleporte
+		3:  410,       // Pergaminho Retorno
+		10: 4038,      // Vela do Coveiro
+		11: 4039,      // Colheita do Jardineiro
+		12: 4040,      // Cura do Batedor
+		13: 4041,      // Mana do Batedor
+		18: 501,       // Anel de Hercules
+		19: 503,       // Anel de Titã
+		20: 502,       // Anel de Athena
+		21: 506,       // Anel de Hecate
+		22: 505,       // Anel de Zeus
+	}
+	for i, item := range vagas {
+		if item != esperado[i] {
+			t.Errorf("vaga %d da Aki tem %d, esperava %d", i, item, esperado[i])
+		}
+	}
+	for _, v := range []int{0, 1} {
+		if q := quantidade(b, v); q != 1 {
+			t.Errorf("a poção da vaga %d sai em pilha de %d; tem de ser 1, ou dez saem pelo preço de uma", v, q)
+		}
+	}
+}
+
+// As duas poções de 500 saem uma por compra nas DUAS lojas — o Martin é a cópia
+// da Aki, e o desconto acidental valeria igual nele.
+func TestPocoesDeQuinhentosSaemUmaPorCompra(t *testing.T) {
+	for nome, vagas := range map[string][]int{"Aki": {0, 1}, "Martin": {1, 4}} {
+		b, err := os.ReadFile(filepath.Join(release(t, "TMsrv", "run", "npc"), nome))
+		if err != nil {
+			t.Skipf("Release content unavailable: %v", err)
+		}
+		loja := vitrine(b)
+		if loja == nil {
+			t.Fatalf("%s deixou de ser mercador", nome)
+		}
+		for _, v := range vagas {
+			if loja[v] != ultraCura && loja[v] != ultraMana {
+				t.Errorf("%s: vaga %d tem %d, esperava uma das poções de 500", nome, v, loja[v])
+				continue
+			}
+			if q := quantidade(b, v); q != 1 {
+				t.Errorf("%s: a poção da vaga %d sai em pilha de %d, esperava 1", nome, v, q)
+			}
+		}
 	}
 }
