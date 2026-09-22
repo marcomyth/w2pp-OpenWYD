@@ -570,3 +570,36 @@ func TestTiposDaBarraNaoColidemComOsDoServidor(t *testing.T) {
 		vistos[tipo] = true
 	}
 }
+
+// O caminho do LOGIN tem de pôr a marca. Este teste nasce de um erro de
+// processo: a edição que ligava sendLoginAffects à sincronização falhou em
+// silêncio, eu segui achando que tinha entrado, e o resultado foi um servidor
+// publicado onde nada aparecia na barra — sem nenhum sintoma no código.
+func TestSincronizaCobreOsTresCaminhos(t *testing.T) {
+	d, w := painelDeGuilda(t)
+	relogioFixo(d, time.Date(2026, 9, 21, 20, 0, 0, 0, time.UTC))
+	d.ligaBuffDeGuilda(w, guildaDeTeste, buffGuildaVida, quinzeDias)
+
+	// 1. Login: quem entra com a guilda buffada ja ve o icone.
+	e := liderDaGuilda(guildaDeTeste)
+	if !d.sincronizaAfetosDeGuilda(e) {
+		t.Error("login: a marca nao entrou")
+	}
+
+	// 2. Quem nao tem guilda nao ganha marca nenhuma.
+	solto := &world.Entity{ID: 2, Name: "Solto", HP: 100, Mode: world.MobUser}
+	if d.sincronizaAfetosDeGuilda(solto) {
+		t.Error("quem nao tem guilda ganhou marca")
+	}
+
+	// 3. Trocar de guilda tira a marca da antiga.
+	e.Guild = 99
+	if !d.sincronizaAfetosDeGuilda(e) {
+		t.Error("trocar de guilda nao tirou a marca")
+	}
+	for _, a := range e.Affect {
+		if a.Type == tipoNaBarra[0] {
+			t.Error("a marca da guilda antiga ficou")
+		}
+	}
+}
