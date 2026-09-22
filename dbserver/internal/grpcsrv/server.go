@@ -64,6 +64,8 @@ type Store interface {
 	ListGuildMembers(ctx context.Context, guildID uint16) ([]domain.GuildMember, error)
 	SaveGuildNotice(ctx context.Context, guildID uint16, notice, by string) error
 	ListGuildSummaries(ctx context.Context, limit int) ([]domain.GuildSummary, error)
+	ListGuildSquads(ctx context.Context, guildID uint16) ([]domain.GuildSquad, error)
+	SetGuildSquad(ctx context.Context, guildID uint16, zone int, names []string) error
 	ListGuildBuffs(ctx context.Context) ([]domain.GuildBuff, error)
 	SaveGuildBuff(ctx context.Context, buff domain.GuildBuff) error
 	DeleteGuildBuff(ctx context.Context, guildID uint16, buffType uint8) error
@@ -469,6 +471,44 @@ func (s *Server) ListGuildSummaries(ctx context.Context, req *dbv1.ListGuildSumm
 		})
 	}
 	return &dbv1.ListGuildSummariesResponse{Guilds: out}, nil
+}
+
+// ListGuildSquads returns one guild's city squads.
+func (s *Server) ListGuildSquads(ctx context.Context, req *dbv1.ListGuildSquadsRequest) (*dbv1.ListGuildSquadsResponse, error) {
+	if req.GetGuildId() == 0 || req.GetGuildId() > 65535 {
+		return nil, status.Error(codes.InvalidArgument, "guild id out of range")
+	}
+	squads, err := s.store.ListGuildSquads(ctx, uint16(req.GetGuildId()))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list guild squads: %v", err)
+	}
+	out := make([]*dbv1.GuildSquad, 0, len(squads))
+	for _, sq := range squads {
+		out = append(out, &dbv1.GuildSquad{Zone: int32(sq.Zone), Names: sq.Names})
+	}
+	return &dbv1.ListGuildSquadsResponse{Squads: out}, nil
+}
+
+// SetGuildSquad replaces one city's squad.
+//
+// The name count is capped here as well as by the panel: the list comes from a
+// client, and a forged one could name ten thousand people just to make the
+// server write ten thousand rows.
+func (s *Server) SetGuildSquad(ctx context.Context, req *dbv1.SetGuildSquadRequest) (*dbv1.SetGuildSquadResponse, error) {
+	if req.GetGuildId() == 0 || req.GetGuildId() > 65535 {
+		return nil, status.Error(codes.InvalidArgument, "guild id out of range")
+	}
+	if req.GetZone() < 0 || req.GetZone() > 4 {
+		return nil, status.Errorf(codes.InvalidArgument, "zone %d out of range 0..4", req.GetZone())
+	}
+	if len(req.GetNames()) > guildEsquadraMax {
+		return nil, status.Errorf(codes.InvalidArgument, "squad of %d, maximum %d",
+			len(req.GetNames()), guildEsquadraMax)
+	}
+	if err := s.store.SetGuildSquad(ctx, uint16(req.GetGuildId()), int(req.GetZone()), req.GetNames()); err != nil {
+		return nil, status.Errorf(codes.Internal, "set guild squad: %v", err)
+	}
+	return &dbv1.SetGuildSquadResponse{Ok: true}, nil
 }
 
 // ListGuildBuffs returns the guild buffs still running, for the tmServer's boot.

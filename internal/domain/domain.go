@@ -178,6 +178,13 @@ type GuildSummary struct {
 	Fame    int32
 }
 
+// GuildSquad é quem a guilda designou para uma cidade
+// (0081_convocacao_de_guilda). Names vem ordenado.
+type GuildSquad struct {
+	Zone  int
+	Names []string
+}
+
 // GuildBuff é um buff de guilda correndo (0080_buffs_de_guilda).
 //
 // Vive no banco, e não só na memória do tmServer, porque os itens que o acendem

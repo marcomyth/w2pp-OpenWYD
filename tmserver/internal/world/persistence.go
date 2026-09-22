@@ -339,6 +339,12 @@ type GuildSummaryRecord struct {
 	Fame    int32
 }
 
+// GuildSquadRecord é quem a guilda designou para uma cidade (0081).
+type GuildSquadRecord struct {
+	Zone  int
+	Names []string
+}
+
 // GuildBuffRecord é um buff de guilda correndo (0080_buffs_de_guilda).
 type GuildBuffRecord struct {
 	GuildID   uint16
@@ -512,6 +518,10 @@ type Persistence interface {
 	// ListGuildSummaries alimenta a tela "Guilds do Server". Vai ao banco, entao
 	// so quando a tela abre.
 	ListGuildSummaries(ctx context.Context, limit int) ([]GuildSummaryRecord, error)
+	// A escalacao de cidade da guilda (0081). Vai ao banco, entao so quando a
+	// aba Cidades abre ou quando alguem muda a lista.
+	ListGuildSquads(ctx context.Context, guildID uint16) ([]GuildSquadRecord, error)
+	SetGuildSquad(ctx context.Context, guildID uint16, zone int, names []string) error
 	ListGuildBuffs(ctx context.Context) ([]GuildBuffRecord, error)
 	SaveGuildBuff(ctx context.Context, buff GuildBuffRecord) error
 	DeleteGuildBuff(ctx context.Context, guildID uint16, buffType uint8) error
@@ -710,6 +720,16 @@ func (NopPersistence) SaveGuildNotice(context.Context, uint16, string, string) e
 // ListGuildSummaries returns no guilds without a backend.
 func (NopPersistence) ListGuildSummaries(context.Context, int) ([]GuildSummaryRecord, error) {
 	return nil, nil
+}
+
+// ListGuildSquads returns no squads without a backend.
+func (NopPersistence) ListGuildSquads(context.Context, uint16) ([]GuildSquadRecord, error) {
+	return nil, nil
+}
+
+// SetGuildSquad cannot persist a squad without a backend.
+func (NopPersistence) SetGuildSquad(context.Context, uint16, int, []string) error {
+	return errNoPersistence
 }
 
 // ListGuildBuffs returns no running buffs without a backend.

@@ -271,6 +271,12 @@ func (f *fakeStore) ListGuildSummaries(context.Context, int) ([]domain.GuildSumm
 	return nil, nil
 }
 
+func (f *fakeStore) ListGuildSquads(context.Context, uint16) ([]domain.GuildSquad, error) {
+	return nil, nil
+}
+
+func (f *fakeStore) SetGuildSquad(context.Context, uint16, int, []string) error { return nil }
+
 func (f *fakeStore) ListGuildBuffs(context.Context) ([]domain.GuildBuff, error) { return nil, nil }
 
 func (f *fakeStore) SaveGuildBuff(context.Context, domain.GuildBuff) error { return nil }

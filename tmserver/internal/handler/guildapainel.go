@@ -44,16 +44,21 @@ const (
 	guildaPedidoMinIntervalo = 500 * time.Millisecond
 
 	// As abas, como o cliente as numera em MsgGuildaPede.
-	guildaAbaInfo    = 0
-	guildaAbaMembros = 1
-	guildaAbaBuffs   = 2
-	guildaAbaLista   = 3
+	guildaAbaInfo     = 0
+	guildaAbaMembros  = 1
+	guildaAbaBuffs    = 2
+	guildaAbaLista    = 3
+	guildaAbaEsquadra = 4
 )
 
 // quadroDeGuilda é o quadro de membros lido do banco, com a hora da leitura.
 type quadroDeGuilda struct {
 	membros []world.GuildMemberRecord
-	lidoEm  time.Time
+	// A escalação das cinco cidades, indexada pela zona. Vem na MESMA ida ao
+	// banco que o quadro: as duas alimentam a mesma tela, e separá-las seria
+	// pagar dois round trips para desenhar um painel.
+	esquadras [protocol.GuildaCidades][]string
+	lidoEm    time.Time
 }
 
 // guildaPede atende MsgGuildaPede: o cliente quer uma aba do painel.
@@ -92,6 +97,10 @@ func (d *Dispatcher) guildaPede(w *world.World, s *world.Session, _ protocol.Hea
 		d.guildaMandaBuffs(w, s, e)
 	case guildaAbaLista:
 		d.guildaMandaLista(w, s, e)
+	case guildaAbaEsquadra:
+		// A pagina carrega a ZONA aqui: a escalacao e por cidade, e nao ha
+		// paginacao para ela - sessenta nomes cabem num pacote so.
+		d.guildaMandaEsquadra(w, s, e, corpo.Pagina)
 	}
 }
 
@@ -183,13 +192,17 @@ func (d *Dispatcher) montaInfoDaGuilda(w *world.World, e *world.Entity, quadro [
 		corpo.Membros = pres.online
 	}
 
+	// Convocados é quem está DESIGNADO para a cidade, e não quem está lá agora.
+	// Mudou em 21/09/2026, junto com a escalação: a pergunta que a aba responde
+	// deixou de ser "quanta gente tenho ali" e passou a ser "quem eu escalei".
+	guardado := d.guildaQuadro[e.Guild]
 	for i := range corpo.Cidades {
 		z := d.guildZones[i]
 		corpo.Cidades[i] = protocol.GuildaCidade{
 			Zona:       uint8(i),
 			Dona:       z.ChargeGuild == e.Guild,
 			Imposto:    z.CityTax,
-			Convocados: pres.porCidade[i],
+			Convocados: int16(len(guardado.esquadras[i])),
 		}
 	}
 	return corpo
@@ -295,7 +308,13 @@ func (d *Dispatcher) comQuadroDeGuilda(w *world.World, s *world.Session, guilda 
 		ctx, cancel := context.WithTimeout(context.Background(), guildStateFetchTimeout)
 		defer cancel()
 		quadro, err := p.ListGuildMembers(ctx, guilda)
+		esquadras, errEsq := p.ListGuildSquads(ctx, guilda)
 		return func(w *world.World, s *world.Session) {
+			if errEsq != nil {
+				// A escalação falhar não impede o painel: ela é uma coluna a
+				// menos, e o resto da aba continua valendo.
+				d.log.Warn("painel de guilda: escalações não vieram", "guilda", guilda, "err", errEsq)
+			}
 			if err != nil {
 				d.log.Warn("painel de guilda: leitura do quadro falhou", "guilda", guilda, "err", err)
 				// Segue com o que der: a aba Informações ainda sabe contar quem
@@ -312,7 +331,13 @@ func (d *Dispatcher) comQuadroDeGuilda(w *world.World, s *world.Session, guilda 
 				}
 				return strings.ToLower(quadro[i].Name) < strings.ToLower(quadro[j].Name)
 			})
-			d.guildaQuadro[guilda] = quadroDeGuilda{membros: quadro, lidoEm: d.now()}
+			guardado := quadroDeGuilda{membros: quadro, lidoEm: d.now()}
+			for _, sq := range esquadras {
+				if sq.Zone >= 0 && sq.Zone < protocol.GuildaCidades {
+					guardado.esquadras[sq.Zone] = sq.Names
+				}
+			}
+			d.guildaQuadro[guilda] = guardado
 			entao(w, s, quadro)
 		}
 	})
@@ -518,4 +543,99 @@ func (d *Dispatcher) guildaCria(w *world.World, s *world.Session, _ protocol.Hea
 		return
 	}
 	d.createGuild(w, s, []byte(nome))
+}
+
+// --- a escalação de cidade (0081_convocacao_de_guilda) ----------------------
+//
+// A aba Cidades deixou de ser só informação: o líder escolhe, de dentro da
+// guilda, quem defende cada cidade. A escalação vive no banco e é lida quando a
+// aba abre.
+
+// guildaMandaEsquadra envia quem está designado para uma cidade.
+func (d *Dispatcher) guildaMandaEsquadra(w *world.World, s *world.Session, e *world.Entity, zona uint8) {
+	if int(zona) >= protocol.GuildaCidades {
+		return
+	}
+	p := w.Persistence()
+	if p == nil {
+		w.Send(s, protocol.MsgGuildaEsquadra, (&protocol.GuildaEsquadraBody{Zona: zona}).Encode())
+		return
+	}
+	guilda := e.Guild
+	w.Go(s, func() func(*world.World, *world.Session) {
+		ctx, cancel := context.WithTimeout(context.Background(), guildStateFetchTimeout)
+		defer cancel()
+		esquadras, err := p.ListGuildSquads(ctx, guilda)
+		return func(w *world.World, s *world.Session) {
+			if err != nil {
+				d.log.Warn("painel de guilda: escalação falhou", "guilda", guilda, "err", err)
+				return
+			}
+			corpo := &protocol.GuildaEsquadraBody{Zona: zona}
+			for _, sq := range esquadras {
+				if sq.Zone == int(zona) {
+					corpo.Nomes = sq.Names
+					break
+				}
+			}
+			w.Send(s, protocol.MsgGuildaEsquadra, corpo.Encode())
+		}
+	})
+}
+
+// guildaDesigna atende MsgGuildaDesigna: trocar a escalação de uma cidade.
+//
+// Os nomes são conferidos contra o QUADRO da guilda antes de gravar, e é o ponto
+// do desenho: sem isso, um cliente remendado escalaria qualquer nome do servidor
+// — inclusive de outra guilda — para a cidade dele. Só entra quem é membro.
+func (d *Dispatcher) guildaDesigna(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
+	e := w.Entity(s.Conn)
+	if e == nil || s.Mode != world.UserPlay || e.Guild == 0 {
+		return
+	}
+	corpo, err := protocol.DecodeGuildaEsquadra(payload)
+	if err != nil {
+		return
+	}
+	if int(corpo.Zona) >= protocol.GuildaCidades {
+		return
+	}
+	guilda, zona := e.Guild, int(corpo.Zona)
+	pedidos := corpo.Nomes
+
+	d.comQuadroDeGuilda(w, s, guilda, func(w *world.World, s *world.Session, quadro []world.GuildMemberRecord) {
+		daGuilda := make(map[string]string, len(quadro))
+		for _, m := range quadro {
+			daGuilda[strings.ToLower(m.Name)] = m.Name
+		}
+		var nomes []string
+		for _, n := range pedidos {
+			if real, ok := daGuilda[strings.ToLower(n)]; ok && len(nomes) < protocol.GuildaEsquadraMax {
+				nomes = append(nomes, real)
+			}
+		}
+		p := w.Persistence()
+		if p == nil {
+			return
+		}
+		w.Go(s, func() func(*world.World, *world.Session) {
+			ctx, cancel := context.WithTimeout(context.Background(), guildStateFetchTimeout)
+			defer cancel()
+			err := p.SetGuildSquad(ctx, guilda, zona, nomes)
+			return func(w *world.World, s *world.Session) {
+				if err != nil {
+					d.log.Warn("painel de guilda: gravar escalação falhou",
+						"guilda", guilda, "zona", zona, "err", err)
+					sendClientMessage(w, s, msgGuildaEscalaFalhou)
+					return
+				}
+				d.log.Info("escalação de cidade gravada",
+					"guilda", guilda, "zona", zona, "nomes", len(nomes))
+				if e := w.Entity(s.Conn); e != nil {
+					d.guildaMandaEsquadra(w, s, e, uint8(zona))
+					d.guildaMandaInfo(w, s, e)
+				}
+			}
+		})
+	})
 }

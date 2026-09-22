@@ -147,6 +147,12 @@ func (f *fakeAPI) ListGuilds(_ context.Context, _ *dbv1.ListGuildsRequest, _ ...
 func (f *fakeAPI) ListGuildSummaries(_ context.Context, _ *dbv1.ListGuildSummariesRequest, _ ...grpc.CallOption) (*dbv1.ListGuildSummariesResponse, error) {
 	return &dbv1.ListGuildSummariesResponse{}, nil
 }
+func (f *fakeAPI) ListGuildSquads(_ context.Context, _ *dbv1.ListGuildSquadsRequest, _ ...grpc.CallOption) (*dbv1.ListGuildSquadsResponse, error) {
+	return &dbv1.ListGuildSquadsResponse{}, nil
+}
+func (f *fakeAPI) SetGuildSquad(_ context.Context, _ *dbv1.SetGuildSquadRequest, _ ...grpc.CallOption) (*dbv1.SetGuildSquadResponse, error) {
+	return &dbv1.SetGuildSquadResponse{Ok: true}, nil
+}
 func (f *fakeAPI) ListGuildBuffs(_ context.Context, _ *dbv1.ListGuildBuffsRequest, _ ...grpc.CallOption) (*dbv1.ListGuildBuffsResponse, error) {
 	return &dbv1.ListGuildBuffsResponse{}, nil
 }

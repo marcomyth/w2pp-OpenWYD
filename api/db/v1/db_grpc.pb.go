@@ -66,6 +66,8 @@ const (
 	AccountService_ListGuildMembers_FullMethodName        = "/db.v1.AccountService/ListGuildMembers"
 	AccountService_SaveGuildNotice_FullMethodName         = "/db.v1.AccountService/SaveGuildNotice"
 	AccountService_ListGuildSummaries_FullMethodName      = "/db.v1.AccountService/ListGuildSummaries"
+	AccountService_ListGuildSquads_FullMethodName         = "/db.v1.AccountService/ListGuildSquads"
+	AccountService_SetGuildSquad_FullMethodName           = "/db.v1.AccountService/SetGuildSquad"
 	AccountService_ListGuildBuffs_FullMethodName          = "/db.v1.AccountService/ListGuildBuffs"
 	AccountService_SaveGuildBuff_FullMethodName           = "/db.v1.AccountService/SaveGuildBuff"
 	AccountService_DeleteGuildBuff_FullMethodName         = "/db.v1.AccountService/DeleteGuildBuff"
@@ -224,6 +226,8 @@ type AccountServiceClient interface {
 	ListGuildMembers(ctx context.Context, in *ListGuildMembersRequest, opts ...grpc.CallOption) (*ListGuildMembersResponse, error)
 	SaveGuildNotice(ctx context.Context, in *SaveGuildNoticeRequest, opts ...grpc.CallOption) (*SaveGuildNoticeResponse, error)
 	ListGuildSummaries(ctx context.Context, in *ListGuildSummariesRequest, opts ...grpc.CallOption) (*ListGuildSummariesResponse, error)
+	ListGuildSquads(ctx context.Context, in *ListGuildSquadsRequest, opts ...grpc.CallOption) (*ListGuildSquadsResponse, error)
+	SetGuildSquad(ctx context.Context, in *SetGuildSquadRequest, opts ...grpc.CallOption) (*SetGuildSquadResponse, error)
 	ListGuildBuffs(ctx context.Context, in *ListGuildBuffsRequest, opts ...grpc.CallOption) (*ListGuildBuffsResponse, error)
 	SaveGuildBuff(ctx context.Context, in *SaveGuildBuffRequest, opts ...grpc.CallOption) (*SaveGuildBuffResponse, error)
 	DeleteGuildBuff(ctx context.Context, in *DeleteGuildBuffRequest, opts ...grpc.CallOption) (*DeleteGuildBuffResponse, error)
@@ -636,6 +640,26 @@ func (c *accountServiceClient) ListGuildSummaries(ctx context.Context, in *ListG
 	return out, nil
 }
 
+func (c *accountServiceClient) ListGuildSquads(ctx context.Context, in *ListGuildSquadsRequest, opts ...grpc.CallOption) (*ListGuildSquadsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListGuildSquadsResponse)
+	err := c.cc.Invoke(ctx, AccountService_ListGuildSquads_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) SetGuildSquad(ctx context.Context, in *SetGuildSquadRequest, opts ...grpc.CallOption) (*SetGuildSquadResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetGuildSquadResponse)
+	err := c.cc.Invoke(ctx, AccountService_SetGuildSquad_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accountServiceClient) ListGuildBuffs(ctx context.Context, in *ListGuildBuffsRequest, opts ...grpc.CallOption) (*ListGuildBuffsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListGuildBuffsResponse)
@@ -882,6 +906,8 @@ type AccountServiceServer interface {
 	ListGuildMembers(context.Context, *ListGuildMembersRequest) (*ListGuildMembersResponse, error)
 	SaveGuildNotice(context.Context, *SaveGuildNoticeRequest) (*SaveGuildNoticeResponse, error)
 	ListGuildSummaries(context.Context, *ListGuildSummariesRequest) (*ListGuildSummariesResponse, error)
+	ListGuildSquads(context.Context, *ListGuildSquadsRequest) (*ListGuildSquadsResponse, error)
+	SetGuildSquad(context.Context, *SetGuildSquadRequest) (*SetGuildSquadResponse, error)
 	ListGuildBuffs(context.Context, *ListGuildBuffsRequest) (*ListGuildBuffsResponse, error)
 	SaveGuildBuff(context.Context, *SaveGuildBuffRequest) (*SaveGuildBuffResponse, error)
 	DeleteGuildBuff(context.Context, *DeleteGuildBuffRequest) (*DeleteGuildBuffResponse, error)
@@ -1020,6 +1046,12 @@ func (UnimplementedAccountServiceServer) SaveGuildNotice(context.Context, *SaveG
 }
 func (UnimplementedAccountServiceServer) ListGuildSummaries(context.Context, *ListGuildSummariesRequest) (*ListGuildSummariesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListGuildSummaries not implemented")
+}
+func (UnimplementedAccountServiceServer) ListGuildSquads(context.Context, *ListGuildSquadsRequest) (*ListGuildSquadsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListGuildSquads not implemented")
+}
+func (UnimplementedAccountServiceServer) SetGuildSquad(context.Context, *SetGuildSquadRequest) (*SetGuildSquadResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetGuildSquad not implemented")
 }
 func (UnimplementedAccountServiceServer) ListGuildBuffs(context.Context, *ListGuildBuffsRequest) (*ListGuildBuffsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListGuildBuffs not implemented")
@@ -1774,6 +1806,42 @@ func _AccountService_ListGuildSummaries_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_ListGuildSquads_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListGuildSquadsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ListGuildSquads(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ListGuildSquads_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ListGuildSquads(ctx, req.(*ListGuildSquadsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_SetGuildSquad_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetGuildSquadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).SetGuildSquad(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_SetGuildSquad_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).SetGuildSquad(ctx, req.(*SetGuildSquadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_ListGuildBuffs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListGuildBuffsRequest)
 	if err := dec(in); err != nil {
@@ -2116,6 +2184,14 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListGuildSummaries",
 			Handler:    _AccountService_ListGuildSummaries_Handler,
+		},
+		{
+			MethodName: "ListGuildSquads",
+			Handler:    _AccountService_ListGuildSquads_Handler,
+		},
+		{
+			MethodName: "SetGuildSquad",
+			Handler:    _AccountService_SetGuildSquad_Handler,
 		},
 		{
 			MethodName: "ListGuildBuffs",

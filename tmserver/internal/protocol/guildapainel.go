@@ -609,3 +609,59 @@ func DecodeGuildaLista(b []byte) (GuildaListaBody, error) {
 // GuildaNomeMaxCriar é o limite do nome de uma guilda nova, o mesmo
 // guildNameMaxLen que o /create cobra.
 const GuildaNomeMaxCriar = 16
+
+// GuildaEsquadraMax é o teto de nomes numa escalação de cidade. Sessenta: mais
+// do que qualquer cidade precisa numa guerra, e pouco o bastante para o pacote
+// caber sem paginação.
+//
+// TEM de bater com o cliente (kEsquadraMax em guildarede.h) e com o dbServer.
+const GuildaEsquadraMax = 60
+
+// GuildaEsquadraBody é o corpo de MsgGuildaEsquadra e de MsgGuildaDesigna: uma
+// cidade e os nomes escalados para ela.
+//
+// O MESMO corpo nos dois sentidos porque a conversa é a mesma nos dois: "esta
+// cidade tem esta gente". O servidor manda para desenhar; o cliente manda para
+// trocar. Um corpo por sentido seria dois lugares para errar o mesmo campo.
+type GuildaEsquadraBody struct {
+	Zona  uint8
+	Nomes []string
+}
+
+// Encode serializa a escalação.
+func (b *GuildaEsquadraBody) Encode() []byte {
+	nomes := b.Nomes
+	if len(nomes) > GuildaEsquadraMax {
+		nomes = nomes[:GuildaEsquadraMax]
+	}
+	out := make([]byte, 2+len(nomes)*GuildaNomeMax)
+	out[0] = b.Zona
+	out[1] = uint8(len(nomes))
+	for i, n := range nomes {
+		escreveNome(out[2+i*GuildaNomeMax:], n)
+	}
+	return out
+}
+
+// DecodeGuildaEsquadra lê a escalação.
+func DecodeGuildaEsquadra(b []byte) (GuildaEsquadraBody, error) {
+	var out GuildaEsquadraBody
+	if len(b) < 2 {
+		return out, fmt.Errorf("protocol: guilda esquadra curta: %d", len(b))
+	}
+	out.Zona = b[0]
+	n := int(b[1])
+	if n > GuildaEsquadraMax {
+		return out, fmt.Errorf("protocol: guilda esquadra com %d nomes, máximo %d", n, GuildaEsquadraMax)
+	}
+	if 2+n*GuildaNomeMax > len(b) {
+		return out, fmt.Errorf("protocol: guilda esquadra truncada: %d nomes não cabem em %d bytes", n, len(b))
+	}
+	for i := 0; i < n; i++ {
+		p := 2 + i*GuildaNomeMax
+		if nome := cstr16(b[p : p+GuildaNomeMax]); nome != "" {
+			out.Nomes = append(out.Nomes, nome)
+		}
+	}
+	return out, nil
+}

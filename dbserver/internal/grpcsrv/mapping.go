@@ -28,6 +28,10 @@ const guildBuffTipoMax = 4
 // fora no banco.
 const guildListaMax = 60
 
+// guildEsquadraMax espelha protocol.GuildaEsquadraMax: o teto de nomes numa
+// escalacao de cidade.
+const guildEsquadraMax = 60
+
 // isUniqueViolation reports whether err is a PostgreSQL unique-constraint error
 // (e.g. a taken character slot or name on create).
 func isUniqueViolation(err error) bool {

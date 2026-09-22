@@ -449,6 +449,7 @@ const (
 	msgGuildaNomeVazio           = "Escolha um nome para a guilda."
 	msgGuildaSemItemDeBuff       = "Você não tem um Guild Buff na mochila."
 	msgGuildaUseOPainel          = "Abra o Painel de Guild (G), aba Buffs, e escolha qual ativar."
+	msgGuildaEscalaFalhou        = "Não foi possível gravar a escalação agora."
 )
 
 func msgGuildaRecadoNovo(autor string) string {

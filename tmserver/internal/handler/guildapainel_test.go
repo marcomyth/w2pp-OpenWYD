@@ -112,8 +112,14 @@ func TestGuildaInfoMontaAsCincoCidades(t *testing.T) {
 	d.guildZones[0].CityTax = 10
 	d.guildZones[4].ChargeGuild = 99
 
-	corpo := d.montaInfoDaGuilda(w, liderDaGuilda(guildaDeTeste), nil,
-		presenca(42, map[int]int16{0: 14, 4: 28}))
+	// A escalação é o que a coluna da direita conta agora, e ela vem do quadro
+	// guardado — não da presença.
+	guardado := quadroDeGuilda{lidoEm: time.Now()}
+	guardado.esquadras[0] = []string{"A", "B", "C"}
+	guardado.esquadras[4] = []string{"D"}
+	d.guildaQuadro[guildaDeTeste] = guardado
+
+	corpo := d.montaInfoDaGuilda(w, liderDaGuilda(guildaDeTeste), nil, presenca(42, nil))
 
 	if corpo.Online != 42 {
 		t.Errorf("online = %d, want 42", corpo.Online)
@@ -124,8 +130,8 @@ func TestGuildaInfoMontaAsCincoCidades(t *testing.T) {
 	if corpo.Cidades[4].Dona {
 		t.Error("Noatum saiu como nossa: ela é da guilda 99")
 	}
-	if corpo.Cidades[0].Convocados != 14 || corpo.Cidades[4].Convocados != 28 {
-		t.Errorf("convocados = %d em Armia, %d em Noatum",
+	if corpo.Cidades[0].Convocados != 3 || corpo.Cidades[4].Convocados != 1 {
+		t.Errorf("designados = %d em Armia, %d em Noatum, want 3 e 1",
 			corpo.Cidades[0].Convocados, corpo.Cidades[4].Convocados)
 	}
 	for i := range corpo.Cidades {

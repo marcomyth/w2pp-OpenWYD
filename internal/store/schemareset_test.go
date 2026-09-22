@@ -79,6 +79,7 @@ var tabelasDeTeste = []string{
 	"guild_relation",
 	"guild_member",
 	"guild_buff",
+	"guild_city_squad",
 	"guild",
 	"donate_topup_order",
 	"donate_payer_profile",

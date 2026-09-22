@@ -517,6 +517,30 @@ func (c *Client) ListGuildSummaries(ctx context.Context, limit int) ([]world.Gui
 	return out, nil
 }
 
+// ListGuildSquads loads one guild's city squads.
+func (c *Client) ListGuildSquads(ctx context.Context, guildID uint16) ([]world.GuildSquadRecord, error) {
+	resp, err := c.api.ListGuildSquads(ctx, &dbv1.ListGuildSquadsRequest{GuildId: uint32(guildID)})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: list guild squads of %d: %w", guildID, err)
+	}
+	out := make([]world.GuildSquadRecord, 0, len(resp.GetSquads()))
+	for _, sq := range resp.GetSquads() {
+		out = append(out, world.GuildSquadRecord{Zone: int(sq.GetZone()), Names: sq.GetNames()})
+	}
+	return out, nil
+}
+
+// SetGuildSquad replaces one city's squad.
+func (c *Client) SetGuildSquad(ctx context.Context, guildID uint16, zone int, names []string) error {
+	_, err := c.api.SetGuildSquad(ctx, &dbv1.SetGuildSquadRequest{
+		GuildId: uint32(guildID), Zone: int32(zone), Names: names,
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: set guild squad %d/%d: %w", guildID, zone, err)
+	}
+	return nil
+}
+
 // ListGuildBuffs loads the guild buffs still running.
 func (c *Client) ListGuildBuffs(ctx context.Context) ([]world.GuildBuffRecord, error) {
 	resp, err := c.api.ListGuildBuffs(ctx, &dbv1.ListGuildBuffsRequest{})

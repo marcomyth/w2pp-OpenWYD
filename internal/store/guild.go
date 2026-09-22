@@ -741,3 +741,73 @@ func (s *Store) ListGuildSummaries(ctx context.Context, limite int) ([]domain.Gu
 	}
 	return out, rows.Err()
 }
+
+// ListGuildSquads devolve a escalação das cinco cidades de uma guilda.
+//
+// Uma consulta para as cinco, e não uma por cidade: a aba desenha as cinco
+// juntas, e cinco idas ao banco para uma tela seriam quatro a mais.
+func (s *Store) ListGuildSquads(ctx context.Context, guildID uint16) ([]domain.GuildSquad, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT zone, name FROM guild_city_squad
+		 WHERE guild_id = $1
+		 ORDER BY zone, name`, int32(guildID))
+	if err != nil {
+		return nil, fmt.Errorf("store: list guild squads of %d: %w", guildID, err)
+	}
+	defer rows.Close()
+	porZona := map[int][]string{}
+	for rows.Next() {
+		var zona int16
+		var nome string
+		if err := rows.Scan(&zona, &nome); err != nil {
+			return nil, fmt.Errorf("store: scan guild squad: %w", err)
+		}
+		porZona[int(zona)] = append(porZona[int(zona)], nome)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate guild squads: %w", err)
+	}
+	out := make([]domain.GuildSquad, 0, len(porZona))
+	for z, nomes := range porZona {
+		out = append(out, domain.GuildSquad{Zone: z, Names: nomes})
+	}
+	return out, nil
+}
+
+// SetGuildSquad TROCA a escalação de uma cidade pela lista dada.
+//
+// Apaga e regrava dentro de uma transação, em vez de calcular a diferença: a
+// lista chega inteira da tela, é curta, e "a escalação é esta" é mais simples de
+// acertar do que "some fulano, tire sicrano". Uma lista vazia limpa a cidade.
+//
+// É aqui que as linhas órfãs de quem saiu da guilda desaparecem: a tela só
+// oferece membros atuais, então a regravação não os traz de volta.
+func (s *Store) SetGuildSquad(ctx context.Context, guildID uint16, zone int, names []string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("store: set guild squad: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM guild_city_squad WHERE guild_id = $1 AND zone = $2`,
+		int32(guildID), int16(zone)); err != nil {
+		return fmt.Errorf("store: clear guild squad %d/%d: %w", guildID, zone, err)
+	}
+	for _, n := range names {
+		if n == "" {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO guild_city_squad (guild_id, zone, name, updated_at)
+			VALUES ($1, $2, $3, now())
+			ON CONFLICT (guild_id, zone, name) DO NOTHING`,
+			int32(guildID), int16(zone), n); err != nil {
+			return fmt.Errorf("store: insert guild squad %d/%d: %w", guildID, zone, err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("store: commit guild squad: %w", err)
+	}
+	return nil
+}

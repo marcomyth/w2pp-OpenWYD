@@ -5811,6 +5811,251 @@ func (x *ListGuildSummariesResponse) GetGuilds() []*GuildSummary {
 	return nil
 }
 
+// A escalacao de uma cidade (0081_convocacao_de_guilda).
+type GuildSquad struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Zone          int32                  `protobuf:"varint,1,opt,name=zone,proto3" json:"zone,omitempty"`
+	Names         []string               `protobuf:"bytes,2,rep,name=names,proto3" json:"names,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GuildSquad) Reset() {
+	*x = GuildSquad{}
+	mi := &file_api_db_v1_db_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GuildSquad) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GuildSquad) ProtoMessage() {}
+
+func (x *GuildSquad) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GuildSquad.ProtoReflect.Descriptor instead.
+func (*GuildSquad) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *GuildSquad) GetZone() int32 {
+	if x != nil {
+		return x.Zone
+	}
+	return 0
+}
+
+func (x *GuildSquad) GetNames() []string {
+	if x != nil {
+		return x.Names
+	}
+	return nil
+}
+
+type ListGuildSquadsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GuildId       uint32                 `protobuf:"varint,1,opt,name=guild_id,json=guildId,proto3" json:"guild_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListGuildSquadsRequest) Reset() {
+	*x = ListGuildSquadsRequest{}
+	mi := &file_api_db_v1_db_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListGuildSquadsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListGuildSquadsRequest) ProtoMessage() {}
+
+func (x *ListGuildSquadsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListGuildSquadsRequest.ProtoReflect.Descriptor instead.
+func (*ListGuildSquadsRequest) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{85}
+}
+
+func (x *ListGuildSquadsRequest) GetGuildId() uint32 {
+	if x != nil {
+		return x.GuildId
+	}
+	return 0
+}
+
+type ListGuildSquadsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Squads        []*GuildSquad          `protobuf:"bytes,1,rep,name=squads,proto3" json:"squads,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListGuildSquadsResponse) Reset() {
+	*x = ListGuildSquadsResponse{}
+	mi := &file_api_db_v1_db_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListGuildSquadsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListGuildSquadsResponse) ProtoMessage() {}
+
+func (x *ListGuildSquadsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListGuildSquadsResponse.ProtoReflect.Descriptor instead.
+func (*ListGuildSquadsResponse) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *ListGuildSquadsResponse) GetSquads() []*GuildSquad {
+	if x != nil {
+		return x.Squads
+	}
+	return nil
+}
+
+type SetGuildSquadRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GuildId       uint32                 `protobuf:"varint,1,opt,name=guild_id,json=guildId,proto3" json:"guild_id,omitempty"`
+	Zone          int32                  `protobuf:"varint,2,opt,name=zone,proto3" json:"zone,omitempty"`
+	Names         []string               `protobuf:"bytes,3,rep,name=names,proto3" json:"names,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetGuildSquadRequest) Reset() {
+	*x = SetGuildSquadRequest{}
+	mi := &file_api_db_v1_db_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetGuildSquadRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetGuildSquadRequest) ProtoMessage() {}
+
+func (x *SetGuildSquadRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGuildSquadRequest.ProtoReflect.Descriptor instead.
+func (*SetGuildSquadRequest) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *SetGuildSquadRequest) GetGuildId() uint32 {
+	if x != nil {
+		return x.GuildId
+	}
+	return 0
+}
+
+func (x *SetGuildSquadRequest) GetZone() int32 {
+	if x != nil {
+		return x.Zone
+	}
+	return 0
+}
+
+func (x *SetGuildSquadRequest) GetNames() []string {
+	if x != nil {
+		return x.Names
+	}
+	return nil
+}
+
+type SetGuildSquadResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetGuildSquadResponse) Reset() {
+	*x = SetGuildSquadResponse{}
+	mi := &file_api_db_v1_db_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetGuildSquadResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetGuildSquadResponse) ProtoMessage() {}
+
+func (x *SetGuildSquadResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetGuildSquadResponse.ProtoReflect.Descriptor instead.
+func (*SetGuildSquadResponse) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *SetGuildSquadResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
 type ListGuildBuffsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -5819,7 +6064,7 @@ type ListGuildBuffsRequest struct {
 
 func (x *ListGuildBuffsRequest) Reset() {
 	*x = ListGuildBuffsRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[84]
+	mi := &file_api_db_v1_db_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5831,7 +6076,7 @@ func (x *ListGuildBuffsRequest) String() string {
 func (*ListGuildBuffsRequest) ProtoMessage() {}
 
 func (x *ListGuildBuffsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[84]
+	mi := &file_api_db_v1_db_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5844,7 +6089,7 @@ func (x *ListGuildBuffsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGuildBuffsRequest.ProtoReflect.Descriptor instead.
 func (*ListGuildBuffsRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{84}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{89}
 }
 
 type ListGuildBuffsResponse struct {
@@ -5856,7 +6101,7 @@ type ListGuildBuffsResponse struct {
 
 func (x *ListGuildBuffsResponse) Reset() {
 	*x = ListGuildBuffsResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[85]
+	mi := &file_api_db_v1_db_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5868,7 +6113,7 @@ func (x *ListGuildBuffsResponse) String() string {
 func (*ListGuildBuffsResponse) ProtoMessage() {}
 
 func (x *ListGuildBuffsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[85]
+	mi := &file_api_db_v1_db_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5881,7 +6126,7 @@ func (x *ListGuildBuffsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGuildBuffsResponse.ProtoReflect.Descriptor instead.
 func (*ListGuildBuffsResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{85}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{90}
 }
 
 func (x *ListGuildBuffsResponse) GetBuffs() []*GuildBuff {
@@ -5900,7 +6145,7 @@ type SaveGuildBuffRequest struct {
 
 func (x *SaveGuildBuffRequest) Reset() {
 	*x = SaveGuildBuffRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[86]
+	mi := &file_api_db_v1_db_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5912,7 +6157,7 @@ func (x *SaveGuildBuffRequest) String() string {
 func (*SaveGuildBuffRequest) ProtoMessage() {}
 
 func (x *SaveGuildBuffRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[86]
+	mi := &file_api_db_v1_db_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5925,7 +6170,7 @@ func (x *SaveGuildBuffRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveGuildBuffRequest.ProtoReflect.Descriptor instead.
 func (*SaveGuildBuffRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{86}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{91}
 }
 
 func (x *SaveGuildBuffRequest) GetBuff() *GuildBuff {
@@ -5944,7 +6189,7 @@ type SaveGuildBuffResponse struct {
 
 func (x *SaveGuildBuffResponse) Reset() {
 	*x = SaveGuildBuffResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[87]
+	mi := &file_api_db_v1_db_proto_msgTypes[92]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5956,7 +6201,7 @@ func (x *SaveGuildBuffResponse) String() string {
 func (*SaveGuildBuffResponse) ProtoMessage() {}
 
 func (x *SaveGuildBuffResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[87]
+	mi := &file_api_db_v1_db_proto_msgTypes[92]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5969,7 +6214,7 @@ func (x *SaveGuildBuffResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveGuildBuffResponse.ProtoReflect.Descriptor instead.
 func (*SaveGuildBuffResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{87}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{92}
 }
 
 func (x *SaveGuildBuffResponse) GetOk() bool {
@@ -5989,7 +6234,7 @@ type DeleteGuildBuffRequest struct {
 
 func (x *DeleteGuildBuffRequest) Reset() {
 	*x = DeleteGuildBuffRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[88]
+	mi := &file_api_db_v1_db_proto_msgTypes[93]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6001,7 +6246,7 @@ func (x *DeleteGuildBuffRequest) String() string {
 func (*DeleteGuildBuffRequest) ProtoMessage() {}
 
 func (x *DeleteGuildBuffRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[88]
+	mi := &file_api_db_v1_db_proto_msgTypes[93]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6014,7 +6259,7 @@ func (x *DeleteGuildBuffRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteGuildBuffRequest.ProtoReflect.Descriptor instead.
 func (*DeleteGuildBuffRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{88}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{93}
 }
 
 func (x *DeleteGuildBuffRequest) GetGuildId() uint32 {
@@ -6040,7 +6285,7 @@ type DeleteGuildBuffResponse struct {
 
 func (x *DeleteGuildBuffResponse) Reset() {
 	*x = DeleteGuildBuffResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[89]
+	mi := &file_api_db_v1_db_proto_msgTypes[94]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6052,7 +6297,7 @@ func (x *DeleteGuildBuffResponse) String() string {
 func (*DeleteGuildBuffResponse) ProtoMessage() {}
 
 func (x *DeleteGuildBuffResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[89]
+	mi := &file_api_db_v1_db_proto_msgTypes[94]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6065,7 +6310,7 @@ func (x *DeleteGuildBuffResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteGuildBuffResponse.ProtoReflect.Descriptor instead.
 func (*DeleteGuildBuffResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{89}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{94}
 }
 
 func (x *DeleteGuildBuffResponse) GetOk() bool {
@@ -6084,7 +6329,7 @@ type ListGuildMembersResponse struct {
 
 func (x *ListGuildMembersResponse) Reset() {
 	*x = ListGuildMembersResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[90]
+	mi := &file_api_db_v1_db_proto_msgTypes[95]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6096,7 +6341,7 @@ func (x *ListGuildMembersResponse) String() string {
 func (*ListGuildMembersResponse) ProtoMessage() {}
 
 func (x *ListGuildMembersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[90]
+	mi := &file_api_db_v1_db_proto_msgTypes[95]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6109,7 +6354,7 @@ func (x *ListGuildMembersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListGuildMembersResponse.ProtoReflect.Descriptor instead.
 func (*ListGuildMembersResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{90}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{95}
 }
 
 func (x *ListGuildMembersResponse) GetMembers() []*GuildMember {
@@ -6130,7 +6375,7 @@ type SaveGuildNoticeRequest struct {
 
 func (x *SaveGuildNoticeRequest) Reset() {
 	*x = SaveGuildNoticeRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[91]
+	mi := &file_api_db_v1_db_proto_msgTypes[96]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6142,7 +6387,7 @@ func (x *SaveGuildNoticeRequest) String() string {
 func (*SaveGuildNoticeRequest) ProtoMessage() {}
 
 func (x *SaveGuildNoticeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[91]
+	mi := &file_api_db_v1_db_proto_msgTypes[96]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6155,7 +6400,7 @@ func (x *SaveGuildNoticeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveGuildNoticeRequest.ProtoReflect.Descriptor instead.
 func (*SaveGuildNoticeRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{91}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{96}
 }
 
 func (x *SaveGuildNoticeRequest) GetGuildId() uint32 {
@@ -6188,7 +6433,7 @@ type SaveGuildNoticeResponse struct {
 
 func (x *SaveGuildNoticeResponse) Reset() {
 	*x = SaveGuildNoticeResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[92]
+	mi := &file_api_db_v1_db_proto_msgTypes[97]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6200,7 +6445,7 @@ func (x *SaveGuildNoticeResponse) String() string {
 func (*SaveGuildNoticeResponse) ProtoMessage() {}
 
 func (x *SaveGuildNoticeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[92]
+	mi := &file_api_db_v1_db_proto_msgTypes[97]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6213,7 +6458,7 @@ func (x *SaveGuildNoticeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveGuildNoticeResponse.ProtoReflect.Descriptor instead.
 func (*SaveGuildNoticeResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{92}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{97}
 }
 
 func (x *SaveGuildNoticeResponse) GetOk() bool {
@@ -6247,7 +6492,7 @@ type GuildZone struct {
 
 func (x *GuildZone) Reset() {
 	*x = GuildZone{}
-	mi := &file_api_db_v1_db_proto_msgTypes[93]
+	mi := &file_api_db_v1_db_proto_msgTypes[98]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6259,7 +6504,7 @@ func (x *GuildZone) String() string {
 func (*GuildZone) ProtoMessage() {}
 
 func (x *GuildZone) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[93]
+	mi := &file_api_db_v1_db_proto_msgTypes[98]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6272,7 +6517,7 @@ func (x *GuildZone) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GuildZone.ProtoReflect.Descriptor instead.
 func (*GuildZone) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{93}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{98}
 }
 
 func (x *GuildZone) GetZone() int32 {
@@ -6353,7 +6598,7 @@ type LoadGuildZonesRequest struct {
 
 func (x *LoadGuildZonesRequest) Reset() {
 	*x = LoadGuildZonesRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[94]
+	mi := &file_api_db_v1_db_proto_msgTypes[99]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6365,7 +6610,7 @@ func (x *LoadGuildZonesRequest) String() string {
 func (*LoadGuildZonesRequest) ProtoMessage() {}
 
 func (x *LoadGuildZonesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[94]
+	mi := &file_api_db_v1_db_proto_msgTypes[99]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6378,7 +6623,7 @@ func (x *LoadGuildZonesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadGuildZonesRequest.ProtoReflect.Descriptor instead.
 func (*LoadGuildZonesRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{94}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{99}
 }
 
 type LoadGuildZonesResponse struct {
@@ -6390,7 +6635,7 @@ type LoadGuildZonesResponse struct {
 
 func (x *LoadGuildZonesResponse) Reset() {
 	*x = LoadGuildZonesResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[95]
+	mi := &file_api_db_v1_db_proto_msgTypes[100]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6402,7 +6647,7 @@ func (x *LoadGuildZonesResponse) String() string {
 func (*LoadGuildZonesResponse) ProtoMessage() {}
 
 func (x *LoadGuildZonesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[95]
+	mi := &file_api_db_v1_db_proto_msgTypes[100]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6415,7 +6660,7 @@ func (x *LoadGuildZonesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadGuildZonesResponse.ProtoReflect.Descriptor instead.
 func (*LoadGuildZonesResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{95}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{100}
 }
 
 func (x *LoadGuildZonesResponse) GetZones() []*GuildZone {
@@ -6434,7 +6679,7 @@ type SaveGuildZoneRequest struct {
 
 func (x *SaveGuildZoneRequest) Reset() {
 	*x = SaveGuildZoneRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[96]
+	mi := &file_api_db_v1_db_proto_msgTypes[101]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6446,7 +6691,7 @@ func (x *SaveGuildZoneRequest) String() string {
 func (*SaveGuildZoneRequest) ProtoMessage() {}
 
 func (x *SaveGuildZoneRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[96]
+	mi := &file_api_db_v1_db_proto_msgTypes[101]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6459,7 +6704,7 @@ func (x *SaveGuildZoneRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveGuildZoneRequest.ProtoReflect.Descriptor instead.
 func (*SaveGuildZoneRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{96}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{101}
 }
 
 func (x *SaveGuildZoneRequest) GetZone() *GuildZone {
@@ -6478,7 +6723,7 @@ type SaveGuildZoneResponse struct {
 
 func (x *SaveGuildZoneResponse) Reset() {
 	*x = SaveGuildZoneResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[97]
+	mi := &file_api_db_v1_db_proto_msgTypes[102]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6490,7 +6735,7 @@ func (x *SaveGuildZoneResponse) String() string {
 func (*SaveGuildZoneResponse) ProtoMessage() {}
 
 func (x *SaveGuildZoneResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[97]
+	mi := &file_api_db_v1_db_proto_msgTypes[102]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6503,7 +6748,7 @@ func (x *SaveGuildZoneResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveGuildZoneResponse.ProtoReflect.Descriptor instead.
 func (*SaveGuildZoneResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{97}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{102}
 }
 
 func (x *SaveGuildZoneResponse) GetOk() bool {
@@ -6523,7 +6768,7 @@ type GuildTowerState struct {
 
 func (x *GuildTowerState) Reset() {
 	*x = GuildTowerState{}
-	mi := &file_api_db_v1_db_proto_msgTypes[98]
+	mi := &file_api_db_v1_db_proto_msgTypes[103]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6535,7 +6780,7 @@ func (x *GuildTowerState) String() string {
 func (*GuildTowerState) ProtoMessage() {}
 
 func (x *GuildTowerState) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[98]
+	mi := &file_api_db_v1_db_proto_msgTypes[103]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6548,7 +6793,7 @@ func (x *GuildTowerState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GuildTowerState.ProtoReflect.Descriptor instead.
 func (*GuildTowerState) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{98}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{103}
 }
 
 func (x *GuildTowerState) GetOwnerGuild() uint32 {
@@ -6573,7 +6818,7 @@ type LoadGuildTowerStateRequest struct {
 
 func (x *LoadGuildTowerStateRequest) Reset() {
 	*x = LoadGuildTowerStateRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[99]
+	mi := &file_api_db_v1_db_proto_msgTypes[104]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6585,7 +6830,7 @@ func (x *LoadGuildTowerStateRequest) String() string {
 func (*LoadGuildTowerStateRequest) ProtoMessage() {}
 
 func (x *LoadGuildTowerStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[99]
+	mi := &file_api_db_v1_db_proto_msgTypes[104]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6598,7 +6843,7 @@ func (x *LoadGuildTowerStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadGuildTowerStateRequest.ProtoReflect.Descriptor instead.
 func (*LoadGuildTowerStateRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{99}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{104}
 }
 
 type LoadGuildTowerStateResponse struct {
@@ -6610,7 +6855,7 @@ type LoadGuildTowerStateResponse struct {
 
 func (x *LoadGuildTowerStateResponse) Reset() {
 	*x = LoadGuildTowerStateResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[100]
+	mi := &file_api_db_v1_db_proto_msgTypes[105]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6622,7 +6867,7 @@ func (x *LoadGuildTowerStateResponse) String() string {
 func (*LoadGuildTowerStateResponse) ProtoMessage() {}
 
 func (x *LoadGuildTowerStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[100]
+	mi := &file_api_db_v1_db_proto_msgTypes[105]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6635,7 +6880,7 @@ func (x *LoadGuildTowerStateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadGuildTowerStateResponse.ProtoReflect.Descriptor instead.
 func (*LoadGuildTowerStateResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{100}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{105}
 }
 
 func (x *LoadGuildTowerStateResponse) GetState() *GuildTowerState {
@@ -6654,7 +6899,7 @@ type SaveGuildTowerStateRequest struct {
 
 func (x *SaveGuildTowerStateRequest) Reset() {
 	*x = SaveGuildTowerStateRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[101]
+	mi := &file_api_db_v1_db_proto_msgTypes[106]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6666,7 +6911,7 @@ func (x *SaveGuildTowerStateRequest) String() string {
 func (*SaveGuildTowerStateRequest) ProtoMessage() {}
 
 func (x *SaveGuildTowerStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[101]
+	mi := &file_api_db_v1_db_proto_msgTypes[106]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6679,7 +6924,7 @@ func (x *SaveGuildTowerStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveGuildTowerStateRequest.ProtoReflect.Descriptor instead.
 func (*SaveGuildTowerStateRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{101}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{106}
 }
 
 func (x *SaveGuildTowerStateRequest) GetState() *GuildTowerState {
@@ -6698,7 +6943,7 @@ type SaveGuildTowerStateResponse struct {
 
 func (x *SaveGuildTowerStateResponse) Reset() {
 	*x = SaveGuildTowerStateResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[102]
+	mi := &file_api_db_v1_db_proto_msgTypes[107]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6710,7 +6955,7 @@ func (x *SaveGuildTowerStateResponse) String() string {
 func (*SaveGuildTowerStateResponse) ProtoMessage() {}
 
 func (x *SaveGuildTowerStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[102]
+	mi := &file_api_db_v1_db_proto_msgTypes[107]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6723,7 +6968,7 @@ func (x *SaveGuildTowerStateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveGuildTowerStateResponse.ProtoReflect.Descriptor instead.
 func (*SaveGuildTowerStateResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{102}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{107}
 }
 
 func (x *SaveGuildTowerStateResponse) GetOk() bool {
@@ -6743,7 +6988,7 @@ type SaveGuildFameRequest struct {
 
 func (x *SaveGuildFameRequest) Reset() {
 	*x = SaveGuildFameRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[103]
+	mi := &file_api_db_v1_db_proto_msgTypes[108]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6755,7 +7000,7 @@ func (x *SaveGuildFameRequest) String() string {
 func (*SaveGuildFameRequest) ProtoMessage() {}
 
 func (x *SaveGuildFameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[103]
+	mi := &file_api_db_v1_db_proto_msgTypes[108]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6768,7 +7013,7 @@ func (x *SaveGuildFameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveGuildFameRequest.ProtoReflect.Descriptor instead.
 func (*SaveGuildFameRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{103}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{108}
 }
 
 func (x *SaveGuildFameRequest) GetGuildId() uint32 {
@@ -6794,7 +7039,7 @@ type SaveGuildFameResponse struct {
 
 func (x *SaveGuildFameResponse) Reset() {
 	*x = SaveGuildFameResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[104]
+	mi := &file_api_db_v1_db_proto_msgTypes[109]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6806,7 +7051,7 @@ func (x *SaveGuildFameResponse) String() string {
 func (*SaveGuildFameResponse) ProtoMessage() {}
 
 func (x *SaveGuildFameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[104]
+	mi := &file_api_db_v1_db_proto_msgTypes[109]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6819,7 +7064,7 @@ func (x *SaveGuildFameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveGuildFameResponse.ProtoReflect.Descriptor instead.
 func (*SaveGuildFameResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{104}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{109}
 }
 
 func (x *SaveGuildFameResponse) GetOk() bool {
@@ -6841,7 +7086,7 @@ type CastleQuestState struct {
 
 func (x *CastleQuestState) Reset() {
 	*x = CastleQuestState{}
-	mi := &file_api_db_v1_db_proto_msgTypes[105]
+	mi := &file_api_db_v1_db_proto_msgTypes[110]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6853,7 +7098,7 @@ func (x *CastleQuestState) String() string {
 func (*CastleQuestState) ProtoMessage() {}
 
 func (x *CastleQuestState) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[105]
+	mi := &file_api_db_v1_db_proto_msgTypes[110]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6866,7 +7111,7 @@ func (x *CastleQuestState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CastleQuestState.ProtoReflect.Descriptor instead.
 func (*CastleQuestState) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{105}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{110}
 }
 
 func (x *CastleQuestState) GetLevel() int32 {
@@ -6905,7 +7150,7 @@ type LoadCastleQuestStateRequest struct {
 
 func (x *LoadCastleQuestStateRequest) Reset() {
 	*x = LoadCastleQuestStateRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[106]
+	mi := &file_api_db_v1_db_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6917,7 +7162,7 @@ func (x *LoadCastleQuestStateRequest) String() string {
 func (*LoadCastleQuestStateRequest) ProtoMessage() {}
 
 func (x *LoadCastleQuestStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[106]
+	mi := &file_api_db_v1_db_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6930,7 +7175,7 @@ func (x *LoadCastleQuestStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadCastleQuestStateRequest.ProtoReflect.Descriptor instead.
 func (*LoadCastleQuestStateRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{106}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{111}
 }
 
 type LoadCastleQuestStateResponse struct {
@@ -6942,7 +7187,7 @@ type LoadCastleQuestStateResponse struct {
 
 func (x *LoadCastleQuestStateResponse) Reset() {
 	*x = LoadCastleQuestStateResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[107]
+	mi := &file_api_db_v1_db_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6954,7 +7199,7 @@ func (x *LoadCastleQuestStateResponse) String() string {
 func (*LoadCastleQuestStateResponse) ProtoMessage() {}
 
 func (x *LoadCastleQuestStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[107]
+	mi := &file_api_db_v1_db_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6967,7 +7212,7 @@ func (x *LoadCastleQuestStateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoadCastleQuestStateResponse.ProtoReflect.Descriptor instead.
 func (*LoadCastleQuestStateResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{107}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *LoadCastleQuestStateResponse) GetState() *CastleQuestState {
@@ -6986,7 +7231,7 @@ type SaveCastleQuestStateRequest struct {
 
 func (x *SaveCastleQuestStateRequest) Reset() {
 	*x = SaveCastleQuestStateRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[108]
+	mi := &file_api_db_v1_db_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6998,7 +7243,7 @@ func (x *SaveCastleQuestStateRequest) String() string {
 func (*SaveCastleQuestStateRequest) ProtoMessage() {}
 
 func (x *SaveCastleQuestStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[108]
+	mi := &file_api_db_v1_db_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7011,7 +7256,7 @@ func (x *SaveCastleQuestStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveCastleQuestStateRequest.ProtoReflect.Descriptor instead.
 func (*SaveCastleQuestStateRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{108}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *SaveCastleQuestStateRequest) GetState() *CastleQuestState {
@@ -7030,7 +7275,7 @@ type SaveCastleQuestStateResponse struct {
 
 func (x *SaveCastleQuestStateResponse) Reset() {
 	*x = SaveCastleQuestStateResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[109]
+	mi := &file_api_db_v1_db_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7042,7 +7287,7 @@ func (x *SaveCastleQuestStateResponse) String() string {
 func (*SaveCastleQuestStateResponse) ProtoMessage() {}
 
 func (x *SaveCastleQuestStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[109]
+	mi := &file_api_db_v1_db_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7055,7 +7300,7 @@ func (x *SaveCastleQuestStateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SaveCastleQuestStateResponse.ProtoReflect.Descriptor instead.
 func (*SaveCastleQuestStateResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{109}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *SaveCastleQuestStateResponse) GetOk() bool {
@@ -7073,7 +7318,7 @@ type NpcConfigVersionRequest struct {
 
 func (x *NpcConfigVersionRequest) Reset() {
 	*x = NpcConfigVersionRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[110]
+	mi := &file_api_db_v1_db_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7085,7 +7330,7 @@ func (x *NpcConfigVersionRequest) String() string {
 func (*NpcConfigVersionRequest) ProtoMessage() {}
 
 func (x *NpcConfigVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[110]
+	mi := &file_api_db_v1_db_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7098,7 +7343,7 @@ func (x *NpcConfigVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NpcConfigVersionRequest.ProtoReflect.Descriptor instead.
 func (*NpcConfigVersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{110}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{115}
 }
 
 type NpcConfigVersionResponse struct {
@@ -7110,7 +7355,7 @@ type NpcConfigVersionResponse struct {
 
 func (x *NpcConfigVersionResponse) Reset() {
 	*x = NpcConfigVersionResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[111]
+	mi := &file_api_db_v1_db_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7122,7 +7367,7 @@ func (x *NpcConfigVersionResponse) String() string {
 func (*NpcConfigVersionResponse) ProtoMessage() {}
 
 func (x *NpcConfigVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[111]
+	mi := &file_api_db_v1_db_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7135,7 +7380,7 @@ func (x *NpcConfigVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NpcConfigVersionResponse.ProtoReflect.Descriptor instead.
 func (*NpcConfigVersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{111}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *NpcConfigVersionResponse) GetVersion() int64 {
@@ -7153,7 +7398,7 @@ type ListNpcDefinitionsRequest struct {
 
 func (x *ListNpcDefinitionsRequest) Reset() {
 	*x = ListNpcDefinitionsRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[112]
+	mi := &file_api_db_v1_db_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7165,7 +7410,7 @@ func (x *ListNpcDefinitionsRequest) String() string {
 func (*ListNpcDefinitionsRequest) ProtoMessage() {}
 
 func (x *ListNpcDefinitionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[112]
+	mi := &file_api_db_v1_db_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7178,7 +7423,7 @@ func (x *ListNpcDefinitionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNpcDefinitionsRequest.ProtoReflect.Descriptor instead.
 func (*ListNpcDefinitionsRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{112}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{117}
 }
 
 type ListNpcDefinitionsResponse struct {
@@ -7192,7 +7437,7 @@ type ListNpcDefinitionsResponse struct {
 
 func (x *ListNpcDefinitionsResponse) Reset() {
 	*x = ListNpcDefinitionsResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[113]
+	mi := &file_api_db_v1_db_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7204,7 +7449,7 @@ func (x *ListNpcDefinitionsResponse) String() string {
 func (*ListNpcDefinitionsResponse) ProtoMessage() {}
 
 func (x *ListNpcDefinitionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[113]
+	mi := &file_api_db_v1_db_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7217,7 +7462,7 @@ func (x *ListNpcDefinitionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListNpcDefinitionsResponse.ProtoReflect.Descriptor instead.
 func (*ListNpcDefinitionsResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{113}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *ListNpcDefinitionsResponse) GetVersion() int64 {
@@ -7262,7 +7507,7 @@ type NpcShopItem struct {
 
 func (x *NpcShopItem) Reset() {
 	*x = NpcShopItem{}
-	mi := &file_api_db_v1_db_proto_msgTypes[114]
+	mi := &file_api_db_v1_db_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7274,7 +7519,7 @@ func (x *NpcShopItem) String() string {
 func (*NpcShopItem) ProtoMessage() {}
 
 func (x *NpcShopItem) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[114]
+	mi := &file_api_db_v1_db_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7287,7 +7532,7 @@ func (x *NpcShopItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NpcShopItem.ProtoReflect.Descriptor instead.
 func (*NpcShopItem) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{114}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *NpcShopItem) GetSlot() int32 {
@@ -7386,7 +7631,7 @@ type NpcDefinition struct {
 
 func (x *NpcDefinition) Reset() {
 	*x = NpcDefinition{}
-	mi := &file_api_db_v1_db_proto_msgTypes[115]
+	mi := &file_api_db_v1_db_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7398,7 +7643,7 @@ func (x *NpcDefinition) String() string {
 func (*NpcDefinition) ProtoMessage() {}
 
 func (x *NpcDefinition) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[115]
+	mi := &file_api_db_v1_db_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7411,7 +7656,7 @@ func (x *NpcDefinition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NpcDefinition.ProtoReflect.Descriptor instead.
 func (*NpcDefinition) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{115}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *NpcDefinition) GetId() int64 {
@@ -7599,7 +7844,7 @@ type ItemPrice struct {
 
 func (x *ItemPrice) Reset() {
 	*x = ItemPrice{}
-	mi := &file_api_db_v1_db_proto_msgTypes[116]
+	mi := &file_api_db_v1_db_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7611,7 +7856,7 @@ func (x *ItemPrice) String() string {
 func (*ItemPrice) ProtoMessage() {}
 
 func (x *ItemPrice) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[116]
+	mi := &file_api_db_v1_db_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7624,7 +7869,7 @@ func (x *ItemPrice) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ItemPrice.ProtoReflect.Descriptor instead.
 func (*ItemPrice) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{116}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *ItemPrice) GetItemIndex() int32 {
@@ -7649,7 +7894,7 @@ type WorldEventConfigVersionRequest struct {
 
 func (x *WorldEventConfigVersionRequest) Reset() {
 	*x = WorldEventConfigVersionRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[117]
+	mi := &file_api_db_v1_db_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7661,7 +7906,7 @@ func (x *WorldEventConfigVersionRequest) String() string {
 func (*WorldEventConfigVersionRequest) ProtoMessage() {}
 
 func (x *WorldEventConfigVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[117]
+	mi := &file_api_db_v1_db_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7674,7 +7919,7 @@ func (x *WorldEventConfigVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorldEventConfigVersionRequest.ProtoReflect.Descriptor instead.
 func (*WorldEventConfigVersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{117}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{122}
 }
 
 type WorldEventConfigVersionResponse struct {
@@ -7686,7 +7931,7 @@ type WorldEventConfigVersionResponse struct {
 
 func (x *WorldEventConfigVersionResponse) Reset() {
 	*x = WorldEventConfigVersionResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[118]
+	mi := &file_api_db_v1_db_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7698,7 +7943,7 @@ func (x *WorldEventConfigVersionResponse) String() string {
 func (*WorldEventConfigVersionResponse) ProtoMessage() {}
 
 func (x *WorldEventConfigVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[118]
+	mi := &file_api_db_v1_db_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7711,7 +7956,7 @@ func (x *WorldEventConfigVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorldEventConfigVersionResponse.ProtoReflect.Descriptor instead.
 func (*WorldEventConfigVersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{118}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *WorldEventConfigVersionResponse) GetVersion() int64 {
@@ -7729,7 +7974,7 @@ type GetWorldEventConfigRequest struct {
 
 func (x *GetWorldEventConfigRequest) Reset() {
 	*x = GetWorldEventConfigRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[119]
+	mi := &file_api_db_v1_db_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7741,7 +7986,7 @@ func (x *GetWorldEventConfigRequest) String() string {
 func (*GetWorldEventConfigRequest) ProtoMessage() {}
 
 func (x *GetWorldEventConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[119]
+	mi := &file_api_db_v1_db_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7754,7 +7999,7 @@ func (x *GetWorldEventConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorldEventConfigRequest.ProtoReflect.Descriptor instead.
 func (*GetWorldEventConfigRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{119}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{124}
 }
 
 type GetWorldEventConfigResponse struct {
@@ -7767,7 +8012,7 @@ type GetWorldEventConfigResponse struct {
 
 func (x *GetWorldEventConfigResponse) Reset() {
 	*x = GetWorldEventConfigResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[120]
+	mi := &file_api_db_v1_db_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7779,7 +8024,7 @@ func (x *GetWorldEventConfigResponse) String() string {
 func (*GetWorldEventConfigResponse) ProtoMessage() {}
 
 func (x *GetWorldEventConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[120]
+	mi := &file_api_db_v1_db_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7792,7 +8037,7 @@ func (x *GetWorldEventConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWorldEventConfigResponse.ProtoReflect.Descriptor instead.
 func (*GetWorldEventConfigResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{120}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *GetWorldEventConfigResponse) GetVersion() int64 {
@@ -7819,7 +8064,7 @@ type UpdateWorldEventProgressRequest struct {
 
 func (x *UpdateWorldEventProgressRequest) Reset() {
 	*x = UpdateWorldEventProgressRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[121]
+	mi := &file_api_db_v1_db_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7831,7 +8076,7 @@ func (x *UpdateWorldEventProgressRequest) String() string {
 func (*UpdateWorldEventProgressRequest) ProtoMessage() {}
 
 func (x *UpdateWorldEventProgressRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[121]
+	mi := &file_api_db_v1_db_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7844,7 +8089,7 @@ func (x *UpdateWorldEventProgressRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateWorldEventProgressRequest.ProtoReflect.Descriptor instead.
 func (*UpdateWorldEventProgressRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{121}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *UpdateWorldEventProgressRequest) GetExpectedVersion() int64 {
@@ -7870,7 +8115,7 @@ type UpdateWorldEventProgressResponse struct {
 
 func (x *UpdateWorldEventProgressResponse) Reset() {
 	*x = UpdateWorldEventProgressResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[122]
+	mi := &file_api_db_v1_db_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7882,7 +8127,7 @@ func (x *UpdateWorldEventProgressResponse) String() string {
 func (*UpdateWorldEventProgressResponse) ProtoMessage() {}
 
 func (x *UpdateWorldEventProgressResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[122]
+	mi := &file_api_db_v1_db_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7895,7 +8140,7 @@ func (x *UpdateWorldEventProgressResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateWorldEventProgressResponse.ProtoReflect.Descriptor instead.
 func (*UpdateWorldEventProgressResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{122}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *UpdateWorldEventProgressResponse) GetApplied() bool {
@@ -7917,7 +8162,7 @@ type SetKefraStateRequest struct {
 
 func (x *SetKefraStateRequest) Reset() {
 	*x = SetKefraStateRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[123]
+	mi := &file_api_db_v1_db_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7929,7 +8174,7 @@ func (x *SetKefraStateRequest) String() string {
 func (*SetKefraStateRequest) ProtoMessage() {}
 
 func (x *SetKefraStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[123]
+	mi := &file_api_db_v1_db_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7942,7 +8187,7 @@ func (x *SetKefraStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetKefraStateRequest.ProtoReflect.Descriptor instead.
 func (*SetKefraStateRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{123}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *SetKefraStateRequest) GetLive() bool {
@@ -7968,7 +8213,7 @@ type SetKefraStateResponse struct {
 
 func (x *SetKefraStateResponse) Reset() {
 	*x = SetKefraStateResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[124]
+	mi := &file_api_db_v1_db_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7980,7 +8225,7 @@ func (x *SetKefraStateResponse) String() string {
 func (*SetKefraStateResponse) ProtoMessage() {}
 
 func (x *SetKefraStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[124]
+	mi := &file_api_db_v1_db_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7993,7 +8238,7 @@ func (x *SetKefraStateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetKefraStateResponse.ProtoReflect.Descriptor instead.
 func (*SetKefraStateResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{124}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *SetKefraStateResponse) GetVersion() int64 {
@@ -8043,7 +8288,7 @@ type WorldEventConfig struct {
 
 func (x *WorldEventConfig) Reset() {
 	*x = WorldEventConfig{}
-	mi := &file_api_db_v1_db_proto_msgTypes[125]
+	mi := &file_api_db_v1_db_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8055,7 +8300,7 @@ func (x *WorldEventConfig) String() string {
 func (*WorldEventConfig) ProtoMessage() {}
 
 func (x *WorldEventConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[125]
+	mi := &file_api_db_v1_db_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8068,7 +8313,7 @@ func (x *WorldEventConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WorldEventConfig.ProtoReflect.Descriptor instead.
 func (*WorldEventConfig) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{125}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *WorldEventConfig) GetEnabled() bool {
@@ -8198,7 +8443,7 @@ type ListMobTemplateStatsRequest struct {
 
 func (x *ListMobTemplateStatsRequest) Reset() {
 	*x = ListMobTemplateStatsRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[126]
+	mi := &file_api_db_v1_db_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8210,7 +8455,7 @@ func (x *ListMobTemplateStatsRequest) String() string {
 func (*ListMobTemplateStatsRequest) ProtoMessage() {}
 
 func (x *ListMobTemplateStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[126]
+	mi := &file_api_db_v1_db_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8223,7 +8468,7 @@ func (x *ListMobTemplateStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMobTemplateStatsRequest.ProtoReflect.Descriptor instead.
 func (*ListMobTemplateStatsRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{126}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{131}
 }
 
 type ListMobTemplateStatsResponse struct {
@@ -8235,7 +8480,7 @@ type ListMobTemplateStatsResponse struct {
 
 func (x *ListMobTemplateStatsResponse) Reset() {
 	*x = ListMobTemplateStatsResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[127]
+	mi := &file_api_db_v1_db_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8247,7 +8492,7 @@ func (x *ListMobTemplateStatsResponse) String() string {
 func (*ListMobTemplateStatsResponse) ProtoMessage() {}
 
 func (x *ListMobTemplateStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[127]
+	mi := &file_api_db_v1_db_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8260,7 +8505,7 @@ func (x *ListMobTemplateStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMobTemplateStatsResponse.ProtoReflect.Descriptor instead.
 func (*ListMobTemplateStatsResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{127}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *ListMobTemplateStatsResponse) GetOverrides() []*MobTemplateStat {
@@ -8289,7 +8534,7 @@ type MobTemplateEquipItem struct {
 
 func (x *MobTemplateEquipItem) Reset() {
 	*x = MobTemplateEquipItem{}
-	mi := &file_api_db_v1_db_proto_msgTypes[128]
+	mi := &file_api_db_v1_db_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8301,7 +8546,7 @@ func (x *MobTemplateEquipItem) String() string {
 func (*MobTemplateEquipItem) ProtoMessage() {}
 
 func (x *MobTemplateEquipItem) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[128]
+	mi := &file_api_db_v1_db_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8314,7 +8559,7 @@ func (x *MobTemplateEquipItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MobTemplateEquipItem.ProtoReflect.Descriptor instead.
 func (*MobTemplateEquipItem) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{128}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{133}
 }
 
 func (x *MobTemplateEquipItem) GetSlot() int32 {
@@ -8427,7 +8672,7 @@ type MobTemplateStat struct {
 
 func (x *MobTemplateStat) Reset() {
 	*x = MobTemplateStat{}
-	mi := &file_api_db_v1_db_proto_msgTypes[129]
+	mi := &file_api_db_v1_db_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8439,7 +8684,7 @@ func (x *MobTemplateStat) String() string {
 func (*MobTemplateStat) ProtoMessage() {}
 
 func (x *MobTemplateStat) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[129]
+	mi := &file_api_db_v1_db_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8452,7 +8697,7 @@ func (x *MobTemplateStat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MobTemplateStat.ProtoReflect.Descriptor instead.
 func (*MobTemplateStat) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{129}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *MobTemplateStat) GetTemplateName() string {
@@ -8743,7 +8988,7 @@ type ListItemStatsRequest struct {
 
 func (x *ListItemStatsRequest) Reset() {
 	*x = ListItemStatsRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[130]
+	mi := &file_api_db_v1_db_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8755,7 +9000,7 @@ func (x *ListItemStatsRequest) String() string {
 func (*ListItemStatsRequest) ProtoMessage() {}
 
 func (x *ListItemStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[130]
+	mi := &file_api_db_v1_db_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8768,7 +9013,7 @@ func (x *ListItemStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListItemStatsRequest.ProtoReflect.Descriptor instead.
 func (*ListItemStatsRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{130}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{135}
 }
 
 type ListItemStatsResponse struct {
@@ -8780,7 +9025,7 @@ type ListItemStatsResponse struct {
 
 func (x *ListItemStatsResponse) Reset() {
 	*x = ListItemStatsResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[131]
+	mi := &file_api_db_v1_db_proto_msgTypes[136]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8792,7 +9037,7 @@ func (x *ListItemStatsResponse) String() string {
 func (*ListItemStatsResponse) ProtoMessage() {}
 
 func (x *ListItemStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[131]
+	mi := &file_api_db_v1_db_proto_msgTypes[136]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8805,7 +9050,7 @@ func (x *ListItemStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListItemStatsResponse.ProtoReflect.Descriptor instead.
 func (*ListItemStatsResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{131}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{136}
 }
 
 func (x *ListItemStatsResponse) GetOverrides() []*ItemStat {
@@ -8884,7 +9129,7 @@ type ItemStat struct {
 
 func (x *ItemStat) Reset() {
 	*x = ItemStat{}
-	mi := &file_api_db_v1_db_proto_msgTypes[132]
+	mi := &file_api_db_v1_db_proto_msgTypes[137]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8896,7 +9141,7 @@ func (x *ItemStat) String() string {
 func (*ItemStat) ProtoMessage() {}
 
 func (x *ItemStat) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[132]
+	mi := &file_api_db_v1_db_proto_msgTypes[137]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8909,7 +9154,7 @@ func (x *ItemStat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ItemStat.ProtoReflect.Descriptor instead.
 func (*ItemStat) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{132}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{137}
 }
 
 func (x *ItemStat) GetItemIndex() int32 {
@@ -9242,7 +9487,7 @@ type ListMountGrowthRatesRequest struct {
 
 func (x *ListMountGrowthRatesRequest) Reset() {
 	*x = ListMountGrowthRatesRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[133]
+	mi := &file_api_db_v1_db_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9254,7 +9499,7 @@ func (x *ListMountGrowthRatesRequest) String() string {
 func (*ListMountGrowthRatesRequest) ProtoMessage() {}
 
 func (x *ListMountGrowthRatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[133]
+	mi := &file_api_db_v1_db_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9267,7 +9512,7 @@ func (x *ListMountGrowthRatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMountGrowthRatesRequest.ProtoReflect.Descriptor instead.
 func (*ListMountGrowthRatesRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{133}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{138}
 }
 
 type ListMountGrowthRatesResponse struct {
@@ -9279,7 +9524,7 @@ type ListMountGrowthRatesResponse struct {
 
 func (x *ListMountGrowthRatesResponse) Reset() {
 	*x = ListMountGrowthRatesResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[134]
+	mi := &file_api_db_v1_db_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9291,7 +9536,7 @@ func (x *ListMountGrowthRatesResponse) String() string {
 func (*ListMountGrowthRatesResponse) ProtoMessage() {}
 
 func (x *ListMountGrowthRatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[134]
+	mi := &file_api_db_v1_db_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9304,7 +9549,7 @@ func (x *ListMountGrowthRatesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMountGrowthRatesResponse.ProtoReflect.Descriptor instead.
 func (*ListMountGrowthRatesResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{134}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{139}
 }
 
 func (x *ListMountGrowthRatesResponse) GetRates() []*MountGrowthRate {
@@ -9331,7 +9576,7 @@ type MountGrowthRate struct {
 
 func (x *MountGrowthRate) Reset() {
 	*x = MountGrowthRate{}
-	mi := &file_api_db_v1_db_proto_msgTypes[135]
+	mi := &file_api_db_v1_db_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9343,7 +9588,7 @@ func (x *MountGrowthRate) String() string {
 func (*MountGrowthRate) ProtoMessage() {}
 
 func (x *MountGrowthRate) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[135]
+	mi := &file_api_db_v1_db_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9356,7 +9601,7 @@ func (x *MountGrowthRate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MountGrowthRate.ProtoReflect.Descriptor instead.
 func (*MountGrowthRate) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{135}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{140}
 }
 
 func (x *MountGrowthRate) GetMountIndex() int32 {
@@ -9388,7 +9633,7 @@ type MountConfigVersionRequest struct {
 
 func (x *MountConfigVersionRequest) Reset() {
 	*x = MountConfigVersionRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[136]
+	mi := &file_api_db_v1_db_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9400,7 +9645,7 @@ func (x *MountConfigVersionRequest) String() string {
 func (*MountConfigVersionRequest) ProtoMessage() {}
 
 func (x *MountConfigVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[136]
+	mi := &file_api_db_v1_db_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9413,7 +9658,7 @@ func (x *MountConfigVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MountConfigVersionRequest.ProtoReflect.Descriptor instead.
 func (*MountConfigVersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{136}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{141}
 }
 
 type MountConfigVersionResponse struct {
@@ -9425,7 +9670,7 @@ type MountConfigVersionResponse struct {
 
 func (x *MountConfigVersionResponse) Reset() {
 	*x = MountConfigVersionResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[137]
+	mi := &file_api_db_v1_db_proto_msgTypes[142]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9437,7 +9682,7 @@ func (x *MountConfigVersionResponse) String() string {
 func (*MountConfigVersionResponse) ProtoMessage() {}
 
 func (x *MountConfigVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[137]
+	mi := &file_api_db_v1_db_proto_msgTypes[142]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9450,7 +9695,7 @@ func (x *MountConfigVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MountConfigVersionResponse.ProtoReflect.Descriptor instead.
 func (*MountConfigVersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{137}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{142}
 }
 
 func (x *MountConfigVersionResponse) GetVersion() int64 {
@@ -9468,7 +9713,7 @@ type ListMountAbsorbRequest struct {
 
 func (x *ListMountAbsorbRequest) Reset() {
 	*x = ListMountAbsorbRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[138]
+	mi := &file_api_db_v1_db_proto_msgTypes[143]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9480,7 +9725,7 @@ func (x *ListMountAbsorbRequest) String() string {
 func (*ListMountAbsorbRequest) ProtoMessage() {}
 
 func (x *ListMountAbsorbRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[138]
+	mi := &file_api_db_v1_db_proto_msgTypes[143]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9493,7 +9738,7 @@ func (x *ListMountAbsorbRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMountAbsorbRequest.ProtoReflect.Descriptor instead.
 func (*ListMountAbsorbRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{138}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{143}
 }
 
 type ListMountAbsorbResponse struct {
@@ -9505,7 +9750,7 @@ type ListMountAbsorbResponse struct {
 
 func (x *ListMountAbsorbResponse) Reset() {
 	*x = ListMountAbsorbResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[139]
+	mi := &file_api_db_v1_db_proto_msgTypes[144]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9517,7 +9762,7 @@ func (x *ListMountAbsorbResponse) String() string {
 func (*ListMountAbsorbResponse) ProtoMessage() {}
 
 func (x *ListMountAbsorbResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[139]
+	mi := &file_api_db_v1_db_proto_msgTypes[144]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9530,7 +9775,7 @@ func (x *ListMountAbsorbResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMountAbsorbResponse.ProtoReflect.Descriptor instead.
 func (*ListMountAbsorbResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{139}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{144}
 }
 
 func (x *ListMountAbsorbResponse) GetAbsorb() []*MountAbsorb {
@@ -9556,7 +9801,7 @@ type MountAbsorb struct {
 
 func (x *MountAbsorb) Reset() {
 	*x = MountAbsorb{}
-	mi := &file_api_db_v1_db_proto_msgTypes[140]
+	mi := &file_api_db_v1_db_proto_msgTypes[145]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9568,7 +9813,7 @@ func (x *MountAbsorb) String() string {
 func (*MountAbsorb) ProtoMessage() {}
 
 func (x *MountAbsorb) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[140]
+	mi := &file_api_db_v1_db_proto_msgTypes[145]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9581,7 +9826,7 @@ func (x *MountAbsorb) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MountAbsorb.ProtoReflect.Descriptor instead.
 func (*MountAbsorb) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{140}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{145}
 }
 
 func (x *MountAbsorb) GetMountIndex() int32 {
@@ -9613,7 +9858,7 @@ type ListMountBonusRequest struct {
 
 func (x *ListMountBonusRequest) Reset() {
 	*x = ListMountBonusRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[141]
+	mi := &file_api_db_v1_db_proto_msgTypes[146]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9625,7 +9870,7 @@ func (x *ListMountBonusRequest) String() string {
 func (*ListMountBonusRequest) ProtoMessage() {}
 
 func (x *ListMountBonusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[141]
+	mi := &file_api_db_v1_db_proto_msgTypes[146]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9638,7 +9883,7 @@ func (x *ListMountBonusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMountBonusRequest.ProtoReflect.Descriptor instead.
 func (*ListMountBonusRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{141}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{146}
 }
 
 type ListMountBonusResponse struct {
@@ -9650,7 +9895,7 @@ type ListMountBonusResponse struct {
 
 func (x *ListMountBonusResponse) Reset() {
 	*x = ListMountBonusResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[142]
+	mi := &file_api_db_v1_db_proto_msgTypes[147]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9662,7 +9907,7 @@ func (x *ListMountBonusResponse) String() string {
 func (*ListMountBonusResponse) ProtoMessage() {}
 
 func (x *ListMountBonusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[142]
+	mi := &file_api_db_v1_db_proto_msgTypes[147]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9675,7 +9920,7 @@ func (x *ListMountBonusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMountBonusResponse.ProtoReflect.Descriptor instead.
 func (*ListMountBonusResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{142}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{147}
 }
 
 func (x *ListMountBonusResponse) GetBonus() []*MountBonus {
@@ -9701,7 +9946,7 @@ type MountBonus struct {
 
 func (x *MountBonus) Reset() {
 	*x = MountBonus{}
-	mi := &file_api_db_v1_db_proto_msgTypes[143]
+	mi := &file_api_db_v1_db_proto_msgTypes[148]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9713,7 +9958,7 @@ func (x *MountBonus) String() string {
 func (*MountBonus) ProtoMessage() {}
 
 func (x *MountBonus) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[143]
+	mi := &file_api_db_v1_db_proto_msgTypes[148]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9726,7 +9971,7 @@ func (x *MountBonus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MountBonus.ProtoReflect.Descriptor instead.
 func (*MountBonus) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{143}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{148}
 }
 
 func (x *MountBonus) GetMountIndex() int32 {
@@ -9772,7 +10017,7 @@ type XPConfigVersionRequest struct {
 
 func (x *XPConfigVersionRequest) Reset() {
 	*x = XPConfigVersionRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[144]
+	mi := &file_api_db_v1_db_proto_msgTypes[149]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9784,7 +10029,7 @@ func (x *XPConfigVersionRequest) String() string {
 func (*XPConfigVersionRequest) ProtoMessage() {}
 
 func (x *XPConfigVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[144]
+	mi := &file_api_db_v1_db_proto_msgTypes[149]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9797,7 +10042,7 @@ func (x *XPConfigVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use XPConfigVersionRequest.ProtoReflect.Descriptor instead.
 func (*XPConfigVersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{144}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{149}
 }
 
 type XPConfigVersionResponse struct {
@@ -9809,7 +10054,7 @@ type XPConfigVersionResponse struct {
 
 func (x *XPConfigVersionResponse) Reset() {
 	*x = XPConfigVersionResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[145]
+	mi := &file_api_db_v1_db_proto_msgTypes[150]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9821,7 +10066,7 @@ func (x *XPConfigVersionResponse) String() string {
 func (*XPConfigVersionResponse) ProtoMessage() {}
 
 func (x *XPConfigVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[145]
+	mi := &file_api_db_v1_db_proto_msgTypes[150]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9834,7 +10079,7 @@ func (x *XPConfigVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use XPConfigVersionResponse.ProtoReflect.Descriptor instead.
 func (*XPConfigVersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{145}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{150}
 }
 
 func (x *XPConfigVersionResponse) GetVersion() int64 {
@@ -9852,7 +10097,7 @@ type GetXPConfigRequest struct {
 
 func (x *GetXPConfigRequest) Reset() {
 	*x = GetXPConfigRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[146]
+	mi := &file_api_db_v1_db_proto_msgTypes[151]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9864,7 +10109,7 @@ func (x *GetXPConfigRequest) String() string {
 func (*GetXPConfigRequest) ProtoMessage() {}
 
 func (x *GetXPConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[146]
+	mi := &file_api_db_v1_db_proto_msgTypes[151]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9877,7 +10122,7 @@ func (x *GetXPConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetXPConfigRequest.ProtoReflect.Descriptor instead.
 func (*GetXPConfigRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{146}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{151}
 }
 
 type GetXPConfigResponse struct {
@@ -9890,7 +10135,7 @@ type GetXPConfigResponse struct {
 
 func (x *GetXPConfigResponse) Reset() {
 	*x = GetXPConfigResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[147]
+	mi := &file_api_db_v1_db_proto_msgTypes[152]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9902,7 +10147,7 @@ func (x *GetXPConfigResponse) String() string {
 func (*GetXPConfigResponse) ProtoMessage() {}
 
 func (x *GetXPConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[147]
+	mi := &file_api_db_v1_db_proto_msgTypes[152]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9915,7 +10160,7 @@ func (x *GetXPConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetXPConfigResponse.ProtoReflect.Descriptor instead.
 func (*GetXPConfigResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{147}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{152}
 }
 
 func (x *GetXPConfigResponse) GetVersion() int64 {
@@ -9944,7 +10189,7 @@ type XPCut struct {
 
 func (x *XPCut) Reset() {
 	*x = XPCut{}
-	mi := &file_api_db_v1_db_proto_msgTypes[148]
+	mi := &file_api_db_v1_db_proto_msgTypes[153]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9956,7 +10201,7 @@ func (x *XPCut) String() string {
 func (*XPCut) ProtoMessage() {}
 
 func (x *XPCut) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[148]
+	mi := &file_api_db_v1_db_proto_msgTypes[153]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9969,7 +10214,7 @@ func (x *XPCut) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use XPCut.ProtoReflect.Descriptor instead.
 func (*XPCut) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{148}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{153}
 }
 
 func (x *XPCut) GetUpTo() int32 {
@@ -10006,7 +10251,7 @@ type XPRule struct {
 
 func (x *XPRule) Reset() {
 	*x = XPRule{}
-	mi := &file_api_db_v1_db_proto_msgTypes[149]
+	mi := &file_api_db_v1_db_proto_msgTypes[154]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10018,7 +10263,7 @@ func (x *XPRule) String() string {
 func (*XPRule) ProtoMessage() {}
 
 func (x *XPRule) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[149]
+	mi := &file_api_db_v1_db_proto_msgTypes[154]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10031,7 +10276,7 @@ func (x *XPRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use XPRule.ProtoReflect.Descriptor instead.
 func (*XPRule) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{149}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{154}
 }
 
 func (x *XPRule) GetZone() int32 {
@@ -10077,7 +10322,7 @@ type DungeonGateVersionRequest struct {
 
 func (x *DungeonGateVersionRequest) Reset() {
 	*x = DungeonGateVersionRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[150]
+	mi := &file_api_db_v1_db_proto_msgTypes[155]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10089,7 +10334,7 @@ func (x *DungeonGateVersionRequest) String() string {
 func (*DungeonGateVersionRequest) ProtoMessage() {}
 
 func (x *DungeonGateVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[150]
+	mi := &file_api_db_v1_db_proto_msgTypes[155]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10102,7 +10347,7 @@ func (x *DungeonGateVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DungeonGateVersionRequest.ProtoReflect.Descriptor instead.
 func (*DungeonGateVersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{150}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{155}
 }
 
 type DungeonGateVersionResponse struct {
@@ -10114,7 +10359,7 @@ type DungeonGateVersionResponse struct {
 
 func (x *DungeonGateVersionResponse) Reset() {
 	*x = DungeonGateVersionResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[151]
+	mi := &file_api_db_v1_db_proto_msgTypes[156]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10126,7 +10371,7 @@ func (x *DungeonGateVersionResponse) String() string {
 func (*DungeonGateVersionResponse) ProtoMessage() {}
 
 func (x *DungeonGateVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[151]
+	mi := &file_api_db_v1_db_proto_msgTypes[156]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10139,7 +10384,7 @@ func (x *DungeonGateVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DungeonGateVersionResponse.ProtoReflect.Descriptor instead.
 func (*DungeonGateVersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{151}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{156}
 }
 
 func (x *DungeonGateVersionResponse) GetVersion() int64 {
@@ -10157,7 +10402,7 @@ type GetDungeonGatesRequest struct {
 
 func (x *GetDungeonGatesRequest) Reset() {
 	*x = GetDungeonGatesRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[152]
+	mi := &file_api_db_v1_db_proto_msgTypes[157]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10169,7 +10414,7 @@ func (x *GetDungeonGatesRequest) String() string {
 func (*GetDungeonGatesRequest) ProtoMessage() {}
 
 func (x *GetDungeonGatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[152]
+	mi := &file_api_db_v1_db_proto_msgTypes[157]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10182,7 +10427,7 @@ func (x *GetDungeonGatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDungeonGatesRequest.ProtoReflect.Descriptor instead.
 func (*GetDungeonGatesRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{152}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{157}
 }
 
 type GetDungeonGatesResponse struct {
@@ -10195,7 +10440,7 @@ type GetDungeonGatesResponse struct {
 
 func (x *GetDungeonGatesResponse) Reset() {
 	*x = GetDungeonGatesResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[153]
+	mi := &file_api_db_v1_db_proto_msgTypes[158]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10207,7 +10452,7 @@ func (x *GetDungeonGatesResponse) String() string {
 func (*GetDungeonGatesResponse) ProtoMessage() {}
 
 func (x *GetDungeonGatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[153]
+	mi := &file_api_db_v1_db_proto_msgTypes[158]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10220,7 +10465,7 @@ func (x *GetDungeonGatesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDungeonGatesResponse.ProtoReflect.Descriptor instead.
 func (*GetDungeonGatesResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{153}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{158}
 }
 
 func (x *GetDungeonGatesResponse) GetVersion() int64 {
@@ -10250,7 +10495,7 @@ type DungeonGate struct {
 
 func (x *DungeonGate) Reset() {
 	*x = DungeonGate{}
-	mi := &file_api_db_v1_db_proto_msgTypes[154]
+	mi := &file_api_db_v1_db_proto_msgTypes[159]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10262,7 +10507,7 @@ func (x *DungeonGate) String() string {
 func (*DungeonGate) ProtoMessage() {}
 
 func (x *DungeonGate) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[154]
+	mi := &file_api_db_v1_db_proto_msgTypes[159]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10275,7 +10520,7 @@ func (x *DungeonGate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DungeonGate.ProtoReflect.Descriptor instead.
 func (*DungeonGate) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{154}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{159}
 }
 
 func (x *DungeonGate) GetGate() int32 {
@@ -10307,7 +10552,7 @@ type GetQuestRewardsRequest struct {
 
 func (x *GetQuestRewardsRequest) Reset() {
 	*x = GetQuestRewardsRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[155]
+	mi := &file_api_db_v1_db_proto_msgTypes[160]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10319,7 +10564,7 @@ func (x *GetQuestRewardsRequest) String() string {
 func (*GetQuestRewardsRequest) ProtoMessage() {}
 
 func (x *GetQuestRewardsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[155]
+	mi := &file_api_db_v1_db_proto_msgTypes[160]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10332,7 +10577,7 @@ func (x *GetQuestRewardsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetQuestRewardsRequest.ProtoReflect.Descriptor instead.
 func (*GetQuestRewardsRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{155}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{160}
 }
 
 type GetQuestRewardsResponse struct {
@@ -10345,7 +10590,7 @@ type GetQuestRewardsResponse struct {
 
 func (x *GetQuestRewardsResponse) Reset() {
 	*x = GetQuestRewardsResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[156]
+	mi := &file_api_db_v1_db_proto_msgTypes[161]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10357,7 +10602,7 @@ func (x *GetQuestRewardsResponse) String() string {
 func (*GetQuestRewardsResponse) ProtoMessage() {}
 
 func (x *GetQuestRewardsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[156]
+	mi := &file_api_db_v1_db_proto_msgTypes[161]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10370,7 +10615,7 @@ func (x *GetQuestRewardsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetQuestRewardsResponse.ProtoReflect.Descriptor instead.
 func (*GetQuestRewardsResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{156}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{161}
 }
 
 func (x *GetQuestRewardsResponse) GetVersion() int64 {
@@ -10406,7 +10651,7 @@ type QuestReward struct {
 
 func (x *QuestReward) Reset() {
 	*x = QuestReward{}
-	mi := &file_api_db_v1_db_proto_msgTypes[157]
+	mi := &file_api_db_v1_db_proto_msgTypes[162]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10418,7 +10663,7 @@ func (x *QuestReward) String() string {
 func (*QuestReward) ProtoMessage() {}
 
 func (x *QuestReward) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[157]
+	mi := &file_api_db_v1_db_proto_msgTypes[162]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10431,7 +10676,7 @@ func (x *QuestReward) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestReward.ProtoReflect.Descriptor instead.
 func (*QuestReward) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{157}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{162}
 }
 
 func (x *QuestReward) GetTier() int32 {
@@ -10498,7 +10743,7 @@ type GetDropBonusRequest struct {
 
 func (x *GetDropBonusRequest) Reset() {
 	*x = GetDropBonusRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[158]
+	mi := &file_api_db_v1_db_proto_msgTypes[163]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10510,7 +10755,7 @@ func (x *GetDropBonusRequest) String() string {
 func (*GetDropBonusRequest) ProtoMessage() {}
 
 func (x *GetDropBonusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[158]
+	mi := &file_api_db_v1_db_proto_msgTypes[163]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10523,7 +10768,7 @@ func (x *GetDropBonusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDropBonusRequest.ProtoReflect.Descriptor instead.
 func (*GetDropBonusRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{158}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{163}
 }
 
 type GetDropBonusResponse struct {
@@ -10540,7 +10785,7 @@ type GetDropBonusResponse struct {
 
 func (x *GetDropBonusResponse) Reset() {
 	*x = GetDropBonusResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[159]
+	mi := &file_api_db_v1_db_proto_msgTypes[164]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10552,7 +10797,7 @@ func (x *GetDropBonusResponse) String() string {
 func (*GetDropBonusResponse) ProtoMessage() {}
 
 func (x *GetDropBonusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[159]
+	mi := &file_api_db_v1_db_proto_msgTypes[164]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10565,7 +10810,7 @@ func (x *GetDropBonusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetDropBonusResponse.ProtoReflect.Descriptor instead.
 func (*GetDropBonusResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{159}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{164}
 }
 
 func (x *GetDropBonusResponse) GetVersion() int64 {
@@ -10610,7 +10855,7 @@ type DropBonusBand struct {
 
 func (x *DropBonusBand) Reset() {
 	*x = DropBonusBand{}
-	mi := &file_api_db_v1_db_proto_msgTypes[160]
+	mi := &file_api_db_v1_db_proto_msgTypes[165]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10622,7 +10867,7 @@ func (x *DropBonusBand) String() string {
 func (*DropBonusBand) ProtoMessage() {}
 
 func (x *DropBonusBand) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[160]
+	mi := &file_api_db_v1_db_proto_msgTypes[165]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10635,7 +10880,7 @@ func (x *DropBonusBand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DropBonusBand.ProtoReflect.Descriptor instead.
 func (*DropBonusBand) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{160}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{165}
 }
 
 func (x *DropBonusBand) GetDistancia() int32 {
@@ -10674,7 +10919,7 @@ type SpawnRateVersionRequest struct {
 
 func (x *SpawnRateVersionRequest) Reset() {
 	*x = SpawnRateVersionRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[161]
+	mi := &file_api_db_v1_db_proto_msgTypes[166]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10686,7 +10931,7 @@ func (x *SpawnRateVersionRequest) String() string {
 func (*SpawnRateVersionRequest) ProtoMessage() {}
 
 func (x *SpawnRateVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[161]
+	mi := &file_api_db_v1_db_proto_msgTypes[166]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10699,7 +10944,7 @@ func (x *SpawnRateVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SpawnRateVersionRequest.ProtoReflect.Descriptor instead.
 func (*SpawnRateVersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{161}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{166}
 }
 
 type SpawnRateVersionResponse struct {
@@ -10711,7 +10956,7 @@ type SpawnRateVersionResponse struct {
 
 func (x *SpawnRateVersionResponse) Reset() {
 	*x = SpawnRateVersionResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[162]
+	mi := &file_api_db_v1_db_proto_msgTypes[167]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10723,7 +10968,7 @@ func (x *SpawnRateVersionResponse) String() string {
 func (*SpawnRateVersionResponse) ProtoMessage() {}
 
 func (x *SpawnRateVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[162]
+	mi := &file_api_db_v1_db_proto_msgTypes[167]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10736,7 +10981,7 @@ func (x *SpawnRateVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SpawnRateVersionResponse.ProtoReflect.Descriptor instead.
 func (*SpawnRateVersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{162}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{167}
 }
 
 func (x *SpawnRateVersionResponse) GetVersion() int64 {
@@ -10754,7 +10999,7 @@ type GetSpawnRatesRequest struct {
 
 func (x *GetSpawnRatesRequest) Reset() {
 	*x = GetSpawnRatesRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[163]
+	mi := &file_api_db_v1_db_proto_msgTypes[168]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10766,7 +11011,7 @@ func (x *GetSpawnRatesRequest) String() string {
 func (*GetSpawnRatesRequest) ProtoMessage() {}
 
 func (x *GetSpawnRatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[163]
+	mi := &file_api_db_v1_db_proto_msgTypes[168]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10779,7 +11024,7 @@ func (x *GetSpawnRatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSpawnRatesRequest.ProtoReflect.Descriptor instead.
 func (*GetSpawnRatesRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{163}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{168}
 }
 
 type GetSpawnRatesResponse struct {
@@ -10792,7 +11037,7 @@ type GetSpawnRatesResponse struct {
 
 func (x *GetSpawnRatesResponse) Reset() {
 	*x = GetSpawnRatesResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[164]
+	mi := &file_api_db_v1_db_proto_msgTypes[169]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10804,7 +11049,7 @@ func (x *GetSpawnRatesResponse) String() string {
 func (*GetSpawnRatesResponse) ProtoMessage() {}
 
 func (x *GetSpawnRatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[164]
+	mi := &file_api_db_v1_db_proto_msgTypes[169]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10817,7 +11062,7 @@ func (x *GetSpawnRatesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetSpawnRatesResponse.ProtoReflect.Descriptor instead.
 func (*GetSpawnRatesResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{164}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{169}
 }
 
 func (x *GetSpawnRatesResponse) GetVersion() int64 {
@@ -10847,7 +11092,7 @@ type SpawnRate struct {
 
 func (x *SpawnRate) Reset() {
 	*x = SpawnRate{}
-	mi := &file_api_db_v1_db_proto_msgTypes[165]
+	mi := &file_api_db_v1_db_proto_msgTypes[170]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10859,7 +11104,7 @@ func (x *SpawnRate) String() string {
 func (*SpawnRate) ProtoMessage() {}
 
 func (x *SpawnRate) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[165]
+	mi := &file_api_db_v1_db_proto_msgTypes[170]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10872,7 +11117,7 @@ func (x *SpawnRate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SpawnRate.ProtoReflect.Descriptor instead.
 func (*SpawnRate) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{165}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{170}
 }
 
 func (x *SpawnRate) GetArea() int32 {
@@ -10897,7 +11142,7 @@ type CombineRateVersionRequest struct {
 
 func (x *CombineRateVersionRequest) Reset() {
 	*x = CombineRateVersionRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[166]
+	mi := &file_api_db_v1_db_proto_msgTypes[171]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10909,7 +11154,7 @@ func (x *CombineRateVersionRequest) String() string {
 func (*CombineRateVersionRequest) ProtoMessage() {}
 
 func (x *CombineRateVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[166]
+	mi := &file_api_db_v1_db_proto_msgTypes[171]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10922,7 +11167,7 @@ func (x *CombineRateVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CombineRateVersionRequest.ProtoReflect.Descriptor instead.
 func (*CombineRateVersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{166}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{171}
 }
 
 type CombineRateVersionResponse struct {
@@ -10934,7 +11179,7 @@ type CombineRateVersionResponse struct {
 
 func (x *CombineRateVersionResponse) Reset() {
 	*x = CombineRateVersionResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[167]
+	mi := &file_api_db_v1_db_proto_msgTypes[172]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10946,7 +11191,7 @@ func (x *CombineRateVersionResponse) String() string {
 func (*CombineRateVersionResponse) ProtoMessage() {}
 
 func (x *CombineRateVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[167]
+	mi := &file_api_db_v1_db_proto_msgTypes[172]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10959,7 +11204,7 @@ func (x *CombineRateVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CombineRateVersionResponse.ProtoReflect.Descriptor instead.
 func (*CombineRateVersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{167}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{172}
 }
 
 func (x *CombineRateVersionResponse) GetVersion() int64 {
@@ -10977,7 +11222,7 @@ type GetCombineRatesRequest struct {
 
 func (x *GetCombineRatesRequest) Reset() {
 	*x = GetCombineRatesRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[168]
+	mi := &file_api_db_v1_db_proto_msgTypes[173]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10989,7 +11234,7 @@ func (x *GetCombineRatesRequest) String() string {
 func (*GetCombineRatesRequest) ProtoMessage() {}
 
 func (x *GetCombineRatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[168]
+	mi := &file_api_db_v1_db_proto_msgTypes[173]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11002,7 +11247,7 @@ func (x *GetCombineRatesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCombineRatesRequest.ProtoReflect.Descriptor instead.
 func (*GetCombineRatesRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{168}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{173}
 }
 
 type GetCombineRatesResponse struct {
@@ -11016,7 +11261,7 @@ type GetCombineRatesResponse struct {
 
 func (x *GetCombineRatesResponse) Reset() {
 	*x = GetCombineRatesResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[169]
+	mi := &file_api_db_v1_db_proto_msgTypes[174]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11028,7 +11273,7 @@ func (x *GetCombineRatesResponse) String() string {
 func (*GetCombineRatesResponse) ProtoMessage() {}
 
 func (x *GetCombineRatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[169]
+	mi := &file_api_db_v1_db_proto_msgTypes[174]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11041,7 +11286,7 @@ func (x *GetCombineRatesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCombineRatesResponse.ProtoReflect.Descriptor instead.
 func (*GetCombineRatesResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{169}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{174}
 }
 
 func (x *GetCombineRatesResponse) GetVersion() int64 {
@@ -11079,7 +11324,7 @@ type CombineRate struct {
 
 func (x *CombineRate) Reset() {
 	*x = CombineRate{}
-	mi := &file_api_db_v1_db_proto_msgTypes[170]
+	mi := &file_api_db_v1_db_proto_msgTypes[175]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11091,7 +11336,7 @@ func (x *CombineRate) String() string {
 func (*CombineRate) ProtoMessage() {}
 
 func (x *CombineRate) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[170]
+	mi := &file_api_db_v1_db_proto_msgTypes[175]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11104,7 +11349,7 @@ func (x *CombineRate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CombineRate.ProtoReflect.Descriptor instead.
 func (*CombineRate) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{170}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{175}
 }
 
 func (x *CombineRate) GetFamily() string {
@@ -11153,7 +11398,7 @@ type CombineBand struct {
 
 func (x *CombineBand) Reset() {
 	*x = CombineBand{}
-	mi := &file_api_db_v1_db_proto_msgTypes[171]
+	mi := &file_api_db_v1_db_proto_msgTypes[176]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11165,7 +11410,7 @@ func (x *CombineBand) String() string {
 func (*CombineBand) ProtoMessage() {}
 
 func (x *CombineBand) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[171]
+	mi := &file_api_db_v1_db_proto_msgTypes[176]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11178,7 +11423,7 @@ func (x *CombineBand) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CombineBand.ProtoReflect.Descriptor instead.
 func (*CombineBand) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{171}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{176}
 }
 
 func (x *CombineBand) GetSlotKind() int32 {
@@ -11224,7 +11469,7 @@ type CombatRuleVersionRequest struct {
 
 func (x *CombatRuleVersionRequest) Reset() {
 	*x = CombatRuleVersionRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[172]
+	mi := &file_api_db_v1_db_proto_msgTypes[177]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11236,7 +11481,7 @@ func (x *CombatRuleVersionRequest) String() string {
 func (*CombatRuleVersionRequest) ProtoMessage() {}
 
 func (x *CombatRuleVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[172]
+	mi := &file_api_db_v1_db_proto_msgTypes[177]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11249,7 +11494,7 @@ func (x *CombatRuleVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CombatRuleVersionRequest.ProtoReflect.Descriptor instead.
 func (*CombatRuleVersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{172}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{177}
 }
 
 type CombatRuleVersionResponse struct {
@@ -11261,7 +11506,7 @@ type CombatRuleVersionResponse struct {
 
 func (x *CombatRuleVersionResponse) Reset() {
 	*x = CombatRuleVersionResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[173]
+	mi := &file_api_db_v1_db_proto_msgTypes[178]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11273,7 +11518,7 @@ func (x *CombatRuleVersionResponse) String() string {
 func (*CombatRuleVersionResponse) ProtoMessage() {}
 
 func (x *CombatRuleVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[173]
+	mi := &file_api_db_v1_db_proto_msgTypes[178]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11286,7 +11531,7 @@ func (x *CombatRuleVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CombatRuleVersionResponse.ProtoReflect.Descriptor instead.
 func (*CombatRuleVersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{173}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{178}
 }
 
 func (x *CombatRuleVersionResponse) GetVersion() int64 {
@@ -11304,7 +11549,7 @@ type GetCombatRuleRequest struct {
 
 func (x *GetCombatRuleRequest) Reset() {
 	*x = GetCombatRuleRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[174]
+	mi := &file_api_db_v1_db_proto_msgTypes[179]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11316,7 +11561,7 @@ func (x *GetCombatRuleRequest) String() string {
 func (*GetCombatRuleRequest) ProtoMessage() {}
 
 func (x *GetCombatRuleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[174]
+	mi := &file_api_db_v1_db_proto_msgTypes[179]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11329,7 +11574,7 @@ func (x *GetCombatRuleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCombatRuleRequest.ProtoReflect.Descriptor instead.
 func (*GetCombatRuleRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{174}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{179}
 }
 
 // GetCombatRuleResponse is the one rule row. configured=false means nobody has
@@ -11390,7 +11635,7 @@ type GetCombatRuleResponse struct {
 
 func (x *GetCombatRuleResponse) Reset() {
 	*x = GetCombatRuleResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[175]
+	mi := &file_api_db_v1_db_proto_msgTypes[180]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11402,7 +11647,7 @@ func (x *GetCombatRuleResponse) String() string {
 func (*GetCombatRuleResponse) ProtoMessage() {}
 
 func (x *GetCombatRuleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[175]
+	mi := &file_api_db_v1_db_proto_msgTypes[180]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11415,7 +11660,7 @@ func (x *GetCombatRuleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCombatRuleResponse.ProtoReflect.Descriptor instead.
 func (*GetCombatRuleResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{175}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{180}
 }
 
 func (x *GetCombatRuleResponse) GetVersion() int64 {
@@ -11517,7 +11762,7 @@ type GeneratorOffVersionRequest struct {
 
 func (x *GeneratorOffVersionRequest) Reset() {
 	*x = GeneratorOffVersionRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[176]
+	mi := &file_api_db_v1_db_proto_msgTypes[181]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11529,7 +11774,7 @@ func (x *GeneratorOffVersionRequest) String() string {
 func (*GeneratorOffVersionRequest) ProtoMessage() {}
 
 func (x *GeneratorOffVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[176]
+	mi := &file_api_db_v1_db_proto_msgTypes[181]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11542,7 +11787,7 @@ func (x *GeneratorOffVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GeneratorOffVersionRequest.ProtoReflect.Descriptor instead.
 func (*GeneratorOffVersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{176}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{181}
 }
 
 type GeneratorOffVersionResponse struct {
@@ -11554,7 +11799,7 @@ type GeneratorOffVersionResponse struct {
 
 func (x *GeneratorOffVersionResponse) Reset() {
 	*x = GeneratorOffVersionResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[177]
+	mi := &file_api_db_v1_db_proto_msgTypes[182]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11566,7 +11811,7 @@ func (x *GeneratorOffVersionResponse) String() string {
 func (*GeneratorOffVersionResponse) ProtoMessage() {}
 
 func (x *GeneratorOffVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[177]
+	mi := &file_api_db_v1_db_proto_msgTypes[182]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11579,7 +11824,7 @@ func (x *GeneratorOffVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GeneratorOffVersionResponse.ProtoReflect.Descriptor instead.
 func (*GeneratorOffVersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{177}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{182}
 }
 
 func (x *GeneratorOffVersionResponse) GetVersion() int64 {
@@ -11597,7 +11842,7 @@ type GetGeneratorsOffRequest struct {
 
 func (x *GetGeneratorsOffRequest) Reset() {
 	*x = GetGeneratorsOffRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[178]
+	mi := &file_api_db_v1_db_proto_msgTypes[183]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11609,7 +11854,7 @@ func (x *GetGeneratorsOffRequest) String() string {
 func (*GetGeneratorsOffRequest) ProtoMessage() {}
 
 func (x *GetGeneratorsOffRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[178]
+	mi := &file_api_db_v1_db_proto_msgTypes[183]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11622,7 +11867,7 @@ func (x *GetGeneratorsOffRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGeneratorsOffRequest.ProtoReflect.Descriptor instead.
 func (*GetGeneratorsOffRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{178}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{183}
 }
 
 type GetGeneratorsOffResponse struct {
@@ -11635,7 +11880,7 @@ type GetGeneratorsOffResponse struct {
 
 func (x *GetGeneratorsOffResponse) Reset() {
 	*x = GetGeneratorsOffResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[179]
+	mi := &file_api_db_v1_db_proto_msgTypes[184]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11647,7 +11892,7 @@ func (x *GetGeneratorsOffResponse) String() string {
 func (*GetGeneratorsOffResponse) ProtoMessage() {}
 
 func (x *GetGeneratorsOffResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[179]
+	mi := &file_api_db_v1_db_proto_msgTypes[184]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11660,7 +11905,7 @@ func (x *GetGeneratorsOffResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetGeneratorsOffResponse.ProtoReflect.Descriptor instead.
 func (*GetGeneratorsOffResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{179}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{184}
 }
 
 func (x *GetGeneratorsOffResponse) GetVersion() int64 {
@@ -11689,7 +11934,7 @@ type GeneratorOff struct {
 
 func (x *GeneratorOff) Reset() {
 	*x = GeneratorOff{}
-	mi := &file_api_db_v1_db_proto_msgTypes[180]
+	mi := &file_api_db_v1_db_proto_msgTypes[185]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11701,7 +11946,7 @@ func (x *GeneratorOff) String() string {
 func (*GeneratorOff) ProtoMessage() {}
 
 func (x *GeneratorOff) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[180]
+	mi := &file_api_db_v1_db_proto_msgTypes[185]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11714,7 +11959,7 @@ func (x *GeneratorOff) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GeneratorOff.ProtoReflect.Descriptor instead.
 func (*GeneratorOff) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{180}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{185}
 }
 
 func (x *GeneratorOff) GetIndex() int32 {
@@ -11743,7 +11988,7 @@ type SetGeneratorOffRequest struct {
 
 func (x *SetGeneratorOffRequest) Reset() {
 	*x = SetGeneratorOffRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[181]
+	mi := &file_api_db_v1_db_proto_msgTypes[186]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11755,7 +12000,7 @@ func (x *SetGeneratorOffRequest) String() string {
 func (*SetGeneratorOffRequest) ProtoMessage() {}
 
 func (x *SetGeneratorOffRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[181]
+	mi := &file_api_db_v1_db_proto_msgTypes[186]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11768,7 +12013,7 @@ func (x *SetGeneratorOffRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetGeneratorOffRequest.ProtoReflect.Descriptor instead.
 func (*SetGeneratorOffRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{181}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{186}
 }
 
 func (x *SetGeneratorOffRequest) GetIndex() int32 {
@@ -11800,7 +12045,7 @@ type SetGeneratorOffResponse struct {
 
 func (x *SetGeneratorOffResponse) Reset() {
 	*x = SetGeneratorOffResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[182]
+	mi := &file_api_db_v1_db_proto_msgTypes[187]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11812,7 +12057,7 @@ func (x *SetGeneratorOffResponse) String() string {
 func (*SetGeneratorOffResponse) ProtoMessage() {}
 
 func (x *SetGeneratorOffResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[182]
+	mi := &file_api_db_v1_db_proto_msgTypes[187]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11825,7 +12070,7 @@ func (x *SetGeneratorOffResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetGeneratorOffResponse.ProtoReflect.Descriptor instead.
 func (*SetGeneratorOffResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{182}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{187}
 }
 
 type DropRuleVersionRequest struct {
@@ -11836,7 +12081,7 @@ type DropRuleVersionRequest struct {
 
 func (x *DropRuleVersionRequest) Reset() {
 	*x = DropRuleVersionRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[183]
+	mi := &file_api_db_v1_db_proto_msgTypes[188]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11848,7 +12093,7 @@ func (x *DropRuleVersionRequest) String() string {
 func (*DropRuleVersionRequest) ProtoMessage() {}
 
 func (x *DropRuleVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[183]
+	mi := &file_api_db_v1_db_proto_msgTypes[188]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11861,7 +12106,7 @@ func (x *DropRuleVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DropRuleVersionRequest.ProtoReflect.Descriptor instead.
 func (*DropRuleVersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{183}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{188}
 }
 
 type DropRuleVersionResponse struct {
@@ -11873,7 +12118,7 @@ type DropRuleVersionResponse struct {
 
 func (x *DropRuleVersionResponse) Reset() {
 	*x = DropRuleVersionResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[184]
+	mi := &file_api_db_v1_db_proto_msgTypes[189]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11885,7 +12130,7 @@ func (x *DropRuleVersionResponse) String() string {
 func (*DropRuleVersionResponse) ProtoMessage() {}
 
 func (x *DropRuleVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[184]
+	mi := &file_api_db_v1_db_proto_msgTypes[189]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11898,7 +12143,7 @@ func (x *DropRuleVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DropRuleVersionResponse.ProtoReflect.Descriptor instead.
 func (*DropRuleVersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{184}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{189}
 }
 
 func (x *DropRuleVersionResponse) GetVersion() int64 {
@@ -11916,7 +12161,7 @@ type ListDropRulesRequest struct {
 
 func (x *ListDropRulesRequest) Reset() {
 	*x = ListDropRulesRequest{}
-	mi := &file_api_db_v1_db_proto_msgTypes[185]
+	mi := &file_api_db_v1_db_proto_msgTypes[190]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11928,7 +12173,7 @@ func (x *ListDropRulesRequest) String() string {
 func (*ListDropRulesRequest) ProtoMessage() {}
 
 func (x *ListDropRulesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[185]
+	mi := &file_api_db_v1_db_proto_msgTypes[190]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11941,7 +12186,7 @@ func (x *ListDropRulesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDropRulesRequest.ProtoReflect.Descriptor instead.
 func (*ListDropRulesRequest) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{185}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{190}
 }
 
 type DropRule struct {
@@ -11957,7 +12202,7 @@ type DropRule struct {
 
 func (x *DropRule) Reset() {
 	*x = DropRule{}
-	mi := &file_api_db_v1_db_proto_msgTypes[186]
+	mi := &file_api_db_v1_db_proto_msgTypes[191]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11969,7 +12214,7 @@ func (x *DropRule) String() string {
 func (*DropRule) ProtoMessage() {}
 
 func (x *DropRule) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[186]
+	mi := &file_api_db_v1_db_proto_msgTypes[191]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11982,7 +12227,7 @@ func (x *DropRule) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DropRule.ProtoReflect.Descriptor instead.
 func (*DropRule) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{186}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{191}
 }
 
 func (x *DropRule) GetMob() string {
@@ -12016,7 +12261,7 @@ type ListDropRulesResponse struct {
 
 func (x *ListDropRulesResponse) Reset() {
 	*x = ListDropRulesResponse{}
-	mi := &file_api_db_v1_db_proto_msgTypes[187]
+	mi := &file_api_db_v1_db_proto_msgTypes[192]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12028,7 +12273,7 @@ func (x *ListDropRulesResponse) String() string {
 func (*ListDropRulesResponse) ProtoMessage() {}
 
 func (x *ListDropRulesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_db_v1_db_proto_msgTypes[187]
+	mi := &file_api_db_v1_db_proto_msgTypes[192]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12041,7 +12286,7 @@ func (x *ListDropRulesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDropRulesResponse.ProtoReflect.Descriptor instead.
 func (*ListDropRulesResponse) Descriptor() ([]byte, []int) {
-	return file_api_db_v1_db_proto_rawDescGZIP(), []int{187}
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{192}
 }
 
 func (x *ListDropRulesResponse) GetVersion() int64 {
@@ -12498,7 +12743,21 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x19ListGuildSummariesRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\"I\n" +
 	"\x1aListGuildSummariesResponse\x12+\n" +
-	"\x06guilds\x18\x01 \x03(\v2\x13.db.v1.GuildSummaryR\x06guilds\"\x17\n" +
+	"\x06guilds\x18\x01 \x03(\v2\x13.db.v1.GuildSummaryR\x06guilds\"6\n" +
+	"\n" +
+	"GuildSquad\x12\x12\n" +
+	"\x04zone\x18\x01 \x01(\x05R\x04zone\x12\x14\n" +
+	"\x05names\x18\x02 \x03(\tR\x05names\"3\n" +
+	"\x16ListGuildSquadsRequest\x12\x19\n" +
+	"\bguild_id\x18\x01 \x01(\rR\aguildId\"D\n" +
+	"\x17ListGuildSquadsResponse\x12)\n" +
+	"\x06squads\x18\x01 \x03(\v2\x11.db.v1.GuildSquadR\x06squads\"[\n" +
+	"\x14SetGuildSquadRequest\x12\x19\n" +
+	"\bguild_id\x18\x01 \x01(\rR\aguildId\x12\x12\n" +
+	"\x04zone\x18\x02 \x01(\x05R\x04zone\x12\x14\n" +
+	"\x05names\x18\x03 \x03(\tR\x05names\"'\n" +
+	"\x15SetGuildSquadResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"\x17\n" +
 	"\x15ListGuildBuffsRequest\"@\n" +
 	"\x16ListGuildBuffsResponse\x12&\n" +
 	"\x05buffs\x18\x01 \x03(\v2\x10.db.v1.GuildBuffR\x05buffs\"<\n" +
@@ -12971,7 +13230,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x11GuildRelationKind\x12\x1c\n" +
 	"\x18GUILD_RELATION_KIND_NONE\x10\x00\x12\x1c\n" +
 	"\x18GUILD_RELATION_KIND_ALLY\x10\x01\x12\x1b\n" +
-	"\x17GUILD_RELATION_KIND_WAR\x10\x022\x92\x1f\n" +
+	"\x17GUILD_RELATION_KIND_WAR\x10\x022\xb0 \n" +
 	"\x0eAccountService\x12G\n" +
 	"\fAccountLogin\x12\x1a.db.v1.AccountLoginRequest\x1a\x1b.db.v1.AccountLoginResponse\x12M\n" +
 	"\x0eListCharacters\x12\x1c.db.v1.ListCharactersRequest\x1a\x1d.db.v1.ListCharactersResponse\x12J\n" +
@@ -13015,7 +13274,9 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x12ListGuildRelations\x12 .db.v1.ListGuildRelationsRequest\x1a!.db.v1.ListGuildRelationsResponse\x12S\n" +
 	"\x10ListGuildMembers\x12\x1e.db.v1.ListGuildMembersRequest\x1a\x1f.db.v1.ListGuildMembersResponse\x12P\n" +
 	"\x0fSaveGuildNotice\x12\x1d.db.v1.SaveGuildNoticeRequest\x1a\x1e.db.v1.SaveGuildNoticeResponse\x12Y\n" +
-	"\x12ListGuildSummaries\x12 .db.v1.ListGuildSummariesRequest\x1a!.db.v1.ListGuildSummariesResponse\x12M\n" +
+	"\x12ListGuildSummaries\x12 .db.v1.ListGuildSummariesRequest\x1a!.db.v1.ListGuildSummariesResponse\x12P\n" +
+	"\x0fListGuildSquads\x12\x1d.db.v1.ListGuildSquadsRequest\x1a\x1e.db.v1.ListGuildSquadsResponse\x12J\n" +
+	"\rSetGuildSquad\x12\x1b.db.v1.SetGuildSquadRequest\x1a\x1c.db.v1.SetGuildSquadResponse\x12M\n" +
 	"\x0eListGuildBuffs\x12\x1c.db.v1.ListGuildBuffsRequest\x1a\x1d.db.v1.ListGuildBuffsResponse\x12J\n" +
 	"\rSaveGuildBuff\x12\x1b.db.v1.SaveGuildBuffRequest\x1a\x1c.db.v1.SaveGuildBuffResponse\x12P\n" +
 	"\x0fDeleteGuildBuff\x12\x1d.db.v1.DeleteGuildBuffRequest\x1a\x1e.db.v1.DeleteGuildBuffResponse\x12M\n" +
@@ -13080,7 +13341,7 @@ func file_api_db_v1_db_proto_rawDescGZIP() []byte {
 }
 
 var file_api_db_v1_db_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_api_db_v1_db_proto_msgTypes = make([]protoimpl.MessageInfo, 188)
+var file_api_db_v1_db_proto_msgTypes = make([]protoimpl.MessageInfo, 193)
 var file_api_db_v1_db_proto_goTypes = []any{
 	(LoginResult)(0),                         // 0: db.v1.LoginResult
 	(PlayerCurrency)(0),                      // 1: db.v1.PlayerCurrency
@@ -13171,110 +13432,115 @@ var file_api_db_v1_db_proto_goTypes = []any{
 	(*GuildSummary)(nil),                     // 86: db.v1.GuildSummary
 	(*ListGuildSummariesRequest)(nil),        // 87: db.v1.ListGuildSummariesRequest
 	(*ListGuildSummariesResponse)(nil),       // 88: db.v1.ListGuildSummariesResponse
-	(*ListGuildBuffsRequest)(nil),            // 89: db.v1.ListGuildBuffsRequest
-	(*ListGuildBuffsResponse)(nil),           // 90: db.v1.ListGuildBuffsResponse
-	(*SaveGuildBuffRequest)(nil),             // 91: db.v1.SaveGuildBuffRequest
-	(*SaveGuildBuffResponse)(nil),            // 92: db.v1.SaveGuildBuffResponse
-	(*DeleteGuildBuffRequest)(nil),           // 93: db.v1.DeleteGuildBuffRequest
-	(*DeleteGuildBuffResponse)(nil),          // 94: db.v1.DeleteGuildBuffResponse
-	(*ListGuildMembersResponse)(nil),         // 95: db.v1.ListGuildMembersResponse
-	(*SaveGuildNoticeRequest)(nil),           // 96: db.v1.SaveGuildNoticeRequest
-	(*SaveGuildNoticeResponse)(nil),          // 97: db.v1.SaveGuildNoticeResponse
-	(*GuildZone)(nil),                        // 98: db.v1.GuildZone
-	(*LoadGuildZonesRequest)(nil),            // 99: db.v1.LoadGuildZonesRequest
-	(*LoadGuildZonesResponse)(nil),           // 100: db.v1.LoadGuildZonesResponse
-	(*SaveGuildZoneRequest)(nil),             // 101: db.v1.SaveGuildZoneRequest
-	(*SaveGuildZoneResponse)(nil),            // 102: db.v1.SaveGuildZoneResponse
-	(*GuildTowerState)(nil),                  // 103: db.v1.GuildTowerState
-	(*LoadGuildTowerStateRequest)(nil),       // 104: db.v1.LoadGuildTowerStateRequest
-	(*LoadGuildTowerStateResponse)(nil),      // 105: db.v1.LoadGuildTowerStateResponse
-	(*SaveGuildTowerStateRequest)(nil),       // 106: db.v1.SaveGuildTowerStateRequest
-	(*SaveGuildTowerStateResponse)(nil),      // 107: db.v1.SaveGuildTowerStateResponse
-	(*SaveGuildFameRequest)(nil),             // 108: db.v1.SaveGuildFameRequest
-	(*SaveGuildFameResponse)(nil),            // 109: db.v1.SaveGuildFameResponse
-	(*CastleQuestState)(nil),                 // 110: db.v1.CastleQuestState
-	(*LoadCastleQuestStateRequest)(nil),      // 111: db.v1.LoadCastleQuestStateRequest
-	(*LoadCastleQuestStateResponse)(nil),     // 112: db.v1.LoadCastleQuestStateResponse
-	(*SaveCastleQuestStateRequest)(nil),      // 113: db.v1.SaveCastleQuestStateRequest
-	(*SaveCastleQuestStateResponse)(nil),     // 114: db.v1.SaveCastleQuestStateResponse
-	(*NpcConfigVersionRequest)(nil),          // 115: db.v1.NpcConfigVersionRequest
-	(*NpcConfigVersionResponse)(nil),         // 116: db.v1.NpcConfigVersionResponse
-	(*ListNpcDefinitionsRequest)(nil),        // 117: db.v1.ListNpcDefinitionsRequest
-	(*ListNpcDefinitionsResponse)(nil),       // 118: db.v1.ListNpcDefinitionsResponse
-	(*NpcShopItem)(nil),                      // 119: db.v1.NpcShopItem
-	(*NpcDefinition)(nil),                    // 120: db.v1.NpcDefinition
-	(*ItemPrice)(nil),                        // 121: db.v1.ItemPrice
-	(*WorldEventConfigVersionRequest)(nil),   // 122: db.v1.WorldEventConfigVersionRequest
-	(*WorldEventConfigVersionResponse)(nil),  // 123: db.v1.WorldEventConfigVersionResponse
-	(*GetWorldEventConfigRequest)(nil),       // 124: db.v1.GetWorldEventConfigRequest
-	(*GetWorldEventConfigResponse)(nil),      // 125: db.v1.GetWorldEventConfigResponse
-	(*UpdateWorldEventProgressRequest)(nil),  // 126: db.v1.UpdateWorldEventProgressRequest
-	(*UpdateWorldEventProgressResponse)(nil), // 127: db.v1.UpdateWorldEventProgressResponse
-	(*SetKefraStateRequest)(nil),             // 128: db.v1.SetKefraStateRequest
-	(*SetKefraStateResponse)(nil),            // 129: db.v1.SetKefraStateResponse
-	(*WorldEventConfig)(nil),                 // 130: db.v1.WorldEventConfig
-	(*ListMobTemplateStatsRequest)(nil),      // 131: db.v1.ListMobTemplateStatsRequest
-	(*ListMobTemplateStatsResponse)(nil),     // 132: db.v1.ListMobTemplateStatsResponse
-	(*MobTemplateEquipItem)(nil),             // 133: db.v1.MobTemplateEquipItem
-	(*MobTemplateStat)(nil),                  // 134: db.v1.MobTemplateStat
-	(*ListItemStatsRequest)(nil),             // 135: db.v1.ListItemStatsRequest
-	(*ListItemStatsResponse)(nil),            // 136: db.v1.ListItemStatsResponse
-	(*ItemStat)(nil),                         // 137: db.v1.ItemStat
-	(*ListMountGrowthRatesRequest)(nil),      // 138: db.v1.ListMountGrowthRatesRequest
-	(*ListMountGrowthRatesResponse)(nil),     // 139: db.v1.ListMountGrowthRatesResponse
-	(*MountGrowthRate)(nil),                  // 140: db.v1.MountGrowthRate
-	(*MountConfigVersionRequest)(nil),        // 141: db.v1.MountConfigVersionRequest
-	(*MountConfigVersionResponse)(nil),       // 142: db.v1.MountConfigVersionResponse
-	(*ListMountAbsorbRequest)(nil),           // 143: db.v1.ListMountAbsorbRequest
-	(*ListMountAbsorbResponse)(nil),          // 144: db.v1.ListMountAbsorbResponse
-	(*MountAbsorb)(nil),                      // 145: db.v1.MountAbsorb
-	(*ListMountBonusRequest)(nil),            // 146: db.v1.ListMountBonusRequest
-	(*ListMountBonusResponse)(nil),           // 147: db.v1.ListMountBonusResponse
-	(*MountBonus)(nil),                       // 148: db.v1.MountBonus
-	(*XPConfigVersionRequest)(nil),           // 149: db.v1.XPConfigVersionRequest
-	(*XPConfigVersionResponse)(nil),          // 150: db.v1.XPConfigVersionResponse
-	(*GetXPConfigRequest)(nil),               // 151: db.v1.GetXPConfigRequest
-	(*GetXPConfigResponse)(nil),              // 152: db.v1.GetXPConfigResponse
-	(*XPCut)(nil),                            // 153: db.v1.XPCut
-	(*XPRule)(nil),                           // 154: db.v1.XPRule
-	(*DungeonGateVersionRequest)(nil),        // 155: db.v1.DungeonGateVersionRequest
-	(*DungeonGateVersionResponse)(nil),       // 156: db.v1.DungeonGateVersionResponse
-	(*GetDungeonGatesRequest)(nil),           // 157: db.v1.GetDungeonGatesRequest
-	(*GetDungeonGatesResponse)(nil),          // 158: db.v1.GetDungeonGatesResponse
-	(*DungeonGate)(nil),                      // 159: db.v1.DungeonGate
-	(*GetQuestRewardsRequest)(nil),           // 160: db.v1.GetQuestRewardsRequest
-	(*GetQuestRewardsResponse)(nil),          // 161: db.v1.GetQuestRewardsResponse
-	(*QuestReward)(nil),                      // 162: db.v1.QuestReward
-	(*GetDropBonusRequest)(nil),              // 163: db.v1.GetDropBonusRequest
-	(*GetDropBonusResponse)(nil),             // 164: db.v1.GetDropBonusResponse
-	(*DropBonusBand)(nil),                    // 165: db.v1.DropBonusBand
-	(*SpawnRateVersionRequest)(nil),          // 166: db.v1.SpawnRateVersionRequest
-	(*SpawnRateVersionResponse)(nil),         // 167: db.v1.SpawnRateVersionResponse
-	(*GetSpawnRatesRequest)(nil),             // 168: db.v1.GetSpawnRatesRequest
-	(*GetSpawnRatesResponse)(nil),            // 169: db.v1.GetSpawnRatesResponse
-	(*SpawnRate)(nil),                        // 170: db.v1.SpawnRate
-	(*CombineRateVersionRequest)(nil),        // 171: db.v1.CombineRateVersionRequest
-	(*CombineRateVersionResponse)(nil),       // 172: db.v1.CombineRateVersionResponse
-	(*GetCombineRatesRequest)(nil),           // 173: db.v1.GetCombineRatesRequest
-	(*GetCombineRatesResponse)(nil),          // 174: db.v1.GetCombineRatesResponse
-	(*CombineRate)(nil),                      // 175: db.v1.CombineRate
-	(*CombineBand)(nil),                      // 176: db.v1.CombineBand
-	(*CombatRuleVersionRequest)(nil),         // 177: db.v1.CombatRuleVersionRequest
-	(*CombatRuleVersionResponse)(nil),        // 178: db.v1.CombatRuleVersionResponse
-	(*GetCombatRuleRequest)(nil),             // 179: db.v1.GetCombatRuleRequest
-	(*GetCombatRuleResponse)(nil),            // 180: db.v1.GetCombatRuleResponse
-	(*GeneratorOffVersionRequest)(nil),       // 181: db.v1.GeneratorOffVersionRequest
-	(*GeneratorOffVersionResponse)(nil),      // 182: db.v1.GeneratorOffVersionResponse
-	(*GetGeneratorsOffRequest)(nil),          // 183: db.v1.GetGeneratorsOffRequest
-	(*GetGeneratorsOffResponse)(nil),         // 184: db.v1.GetGeneratorsOffResponse
-	(*GeneratorOff)(nil),                     // 185: db.v1.GeneratorOff
-	(*SetGeneratorOffRequest)(nil),           // 186: db.v1.SetGeneratorOffRequest
-	(*SetGeneratorOffResponse)(nil),          // 187: db.v1.SetGeneratorOffResponse
-	(*DropRuleVersionRequest)(nil),           // 188: db.v1.DropRuleVersionRequest
-	(*DropRuleVersionResponse)(nil),          // 189: db.v1.DropRuleVersionResponse
-	(*ListDropRulesRequest)(nil),             // 190: db.v1.ListDropRulesRequest
-	(*DropRule)(nil),                         // 191: db.v1.DropRule
-	(*ListDropRulesResponse)(nil),            // 192: db.v1.ListDropRulesResponse
+	(*GuildSquad)(nil),                       // 89: db.v1.GuildSquad
+	(*ListGuildSquadsRequest)(nil),           // 90: db.v1.ListGuildSquadsRequest
+	(*ListGuildSquadsResponse)(nil),          // 91: db.v1.ListGuildSquadsResponse
+	(*SetGuildSquadRequest)(nil),             // 92: db.v1.SetGuildSquadRequest
+	(*SetGuildSquadResponse)(nil),            // 93: db.v1.SetGuildSquadResponse
+	(*ListGuildBuffsRequest)(nil),            // 94: db.v1.ListGuildBuffsRequest
+	(*ListGuildBuffsResponse)(nil),           // 95: db.v1.ListGuildBuffsResponse
+	(*SaveGuildBuffRequest)(nil),             // 96: db.v1.SaveGuildBuffRequest
+	(*SaveGuildBuffResponse)(nil),            // 97: db.v1.SaveGuildBuffResponse
+	(*DeleteGuildBuffRequest)(nil),           // 98: db.v1.DeleteGuildBuffRequest
+	(*DeleteGuildBuffResponse)(nil),          // 99: db.v1.DeleteGuildBuffResponse
+	(*ListGuildMembersResponse)(nil),         // 100: db.v1.ListGuildMembersResponse
+	(*SaveGuildNoticeRequest)(nil),           // 101: db.v1.SaveGuildNoticeRequest
+	(*SaveGuildNoticeResponse)(nil),          // 102: db.v1.SaveGuildNoticeResponse
+	(*GuildZone)(nil),                        // 103: db.v1.GuildZone
+	(*LoadGuildZonesRequest)(nil),            // 104: db.v1.LoadGuildZonesRequest
+	(*LoadGuildZonesResponse)(nil),           // 105: db.v1.LoadGuildZonesResponse
+	(*SaveGuildZoneRequest)(nil),             // 106: db.v1.SaveGuildZoneRequest
+	(*SaveGuildZoneResponse)(nil),            // 107: db.v1.SaveGuildZoneResponse
+	(*GuildTowerState)(nil),                  // 108: db.v1.GuildTowerState
+	(*LoadGuildTowerStateRequest)(nil),       // 109: db.v1.LoadGuildTowerStateRequest
+	(*LoadGuildTowerStateResponse)(nil),      // 110: db.v1.LoadGuildTowerStateResponse
+	(*SaveGuildTowerStateRequest)(nil),       // 111: db.v1.SaveGuildTowerStateRequest
+	(*SaveGuildTowerStateResponse)(nil),      // 112: db.v1.SaveGuildTowerStateResponse
+	(*SaveGuildFameRequest)(nil),             // 113: db.v1.SaveGuildFameRequest
+	(*SaveGuildFameResponse)(nil),            // 114: db.v1.SaveGuildFameResponse
+	(*CastleQuestState)(nil),                 // 115: db.v1.CastleQuestState
+	(*LoadCastleQuestStateRequest)(nil),      // 116: db.v1.LoadCastleQuestStateRequest
+	(*LoadCastleQuestStateResponse)(nil),     // 117: db.v1.LoadCastleQuestStateResponse
+	(*SaveCastleQuestStateRequest)(nil),      // 118: db.v1.SaveCastleQuestStateRequest
+	(*SaveCastleQuestStateResponse)(nil),     // 119: db.v1.SaveCastleQuestStateResponse
+	(*NpcConfigVersionRequest)(nil),          // 120: db.v1.NpcConfigVersionRequest
+	(*NpcConfigVersionResponse)(nil),         // 121: db.v1.NpcConfigVersionResponse
+	(*ListNpcDefinitionsRequest)(nil),        // 122: db.v1.ListNpcDefinitionsRequest
+	(*ListNpcDefinitionsResponse)(nil),       // 123: db.v1.ListNpcDefinitionsResponse
+	(*NpcShopItem)(nil),                      // 124: db.v1.NpcShopItem
+	(*NpcDefinition)(nil),                    // 125: db.v1.NpcDefinition
+	(*ItemPrice)(nil),                        // 126: db.v1.ItemPrice
+	(*WorldEventConfigVersionRequest)(nil),   // 127: db.v1.WorldEventConfigVersionRequest
+	(*WorldEventConfigVersionResponse)(nil),  // 128: db.v1.WorldEventConfigVersionResponse
+	(*GetWorldEventConfigRequest)(nil),       // 129: db.v1.GetWorldEventConfigRequest
+	(*GetWorldEventConfigResponse)(nil),      // 130: db.v1.GetWorldEventConfigResponse
+	(*UpdateWorldEventProgressRequest)(nil),  // 131: db.v1.UpdateWorldEventProgressRequest
+	(*UpdateWorldEventProgressResponse)(nil), // 132: db.v1.UpdateWorldEventProgressResponse
+	(*SetKefraStateRequest)(nil),             // 133: db.v1.SetKefraStateRequest
+	(*SetKefraStateResponse)(nil),            // 134: db.v1.SetKefraStateResponse
+	(*WorldEventConfig)(nil),                 // 135: db.v1.WorldEventConfig
+	(*ListMobTemplateStatsRequest)(nil),      // 136: db.v1.ListMobTemplateStatsRequest
+	(*ListMobTemplateStatsResponse)(nil),     // 137: db.v1.ListMobTemplateStatsResponse
+	(*MobTemplateEquipItem)(nil),             // 138: db.v1.MobTemplateEquipItem
+	(*MobTemplateStat)(nil),                  // 139: db.v1.MobTemplateStat
+	(*ListItemStatsRequest)(nil),             // 140: db.v1.ListItemStatsRequest
+	(*ListItemStatsResponse)(nil),            // 141: db.v1.ListItemStatsResponse
+	(*ItemStat)(nil),                         // 142: db.v1.ItemStat
+	(*ListMountGrowthRatesRequest)(nil),      // 143: db.v1.ListMountGrowthRatesRequest
+	(*ListMountGrowthRatesResponse)(nil),     // 144: db.v1.ListMountGrowthRatesResponse
+	(*MountGrowthRate)(nil),                  // 145: db.v1.MountGrowthRate
+	(*MountConfigVersionRequest)(nil),        // 146: db.v1.MountConfigVersionRequest
+	(*MountConfigVersionResponse)(nil),       // 147: db.v1.MountConfigVersionResponse
+	(*ListMountAbsorbRequest)(nil),           // 148: db.v1.ListMountAbsorbRequest
+	(*ListMountAbsorbResponse)(nil),          // 149: db.v1.ListMountAbsorbResponse
+	(*MountAbsorb)(nil),                      // 150: db.v1.MountAbsorb
+	(*ListMountBonusRequest)(nil),            // 151: db.v1.ListMountBonusRequest
+	(*ListMountBonusResponse)(nil),           // 152: db.v1.ListMountBonusResponse
+	(*MountBonus)(nil),                       // 153: db.v1.MountBonus
+	(*XPConfigVersionRequest)(nil),           // 154: db.v1.XPConfigVersionRequest
+	(*XPConfigVersionResponse)(nil),          // 155: db.v1.XPConfigVersionResponse
+	(*GetXPConfigRequest)(nil),               // 156: db.v1.GetXPConfigRequest
+	(*GetXPConfigResponse)(nil),              // 157: db.v1.GetXPConfigResponse
+	(*XPCut)(nil),                            // 158: db.v1.XPCut
+	(*XPRule)(nil),                           // 159: db.v1.XPRule
+	(*DungeonGateVersionRequest)(nil),        // 160: db.v1.DungeonGateVersionRequest
+	(*DungeonGateVersionResponse)(nil),       // 161: db.v1.DungeonGateVersionResponse
+	(*GetDungeonGatesRequest)(nil),           // 162: db.v1.GetDungeonGatesRequest
+	(*GetDungeonGatesResponse)(nil),          // 163: db.v1.GetDungeonGatesResponse
+	(*DungeonGate)(nil),                      // 164: db.v1.DungeonGate
+	(*GetQuestRewardsRequest)(nil),           // 165: db.v1.GetQuestRewardsRequest
+	(*GetQuestRewardsResponse)(nil),          // 166: db.v1.GetQuestRewardsResponse
+	(*QuestReward)(nil),                      // 167: db.v1.QuestReward
+	(*GetDropBonusRequest)(nil),              // 168: db.v1.GetDropBonusRequest
+	(*GetDropBonusResponse)(nil),             // 169: db.v1.GetDropBonusResponse
+	(*DropBonusBand)(nil),                    // 170: db.v1.DropBonusBand
+	(*SpawnRateVersionRequest)(nil),          // 171: db.v1.SpawnRateVersionRequest
+	(*SpawnRateVersionResponse)(nil),         // 172: db.v1.SpawnRateVersionResponse
+	(*GetSpawnRatesRequest)(nil),             // 173: db.v1.GetSpawnRatesRequest
+	(*GetSpawnRatesResponse)(nil),            // 174: db.v1.GetSpawnRatesResponse
+	(*SpawnRate)(nil),                        // 175: db.v1.SpawnRate
+	(*CombineRateVersionRequest)(nil),        // 176: db.v1.CombineRateVersionRequest
+	(*CombineRateVersionResponse)(nil),       // 177: db.v1.CombineRateVersionResponse
+	(*GetCombineRatesRequest)(nil),           // 178: db.v1.GetCombineRatesRequest
+	(*GetCombineRatesResponse)(nil),          // 179: db.v1.GetCombineRatesResponse
+	(*CombineRate)(nil),                      // 180: db.v1.CombineRate
+	(*CombineBand)(nil),                      // 181: db.v1.CombineBand
+	(*CombatRuleVersionRequest)(nil),         // 182: db.v1.CombatRuleVersionRequest
+	(*CombatRuleVersionResponse)(nil),        // 183: db.v1.CombatRuleVersionResponse
+	(*GetCombatRuleRequest)(nil),             // 184: db.v1.GetCombatRuleRequest
+	(*GetCombatRuleResponse)(nil),            // 185: db.v1.GetCombatRuleResponse
+	(*GeneratorOffVersionRequest)(nil),       // 186: db.v1.GeneratorOffVersionRequest
+	(*GeneratorOffVersionResponse)(nil),      // 187: db.v1.GeneratorOffVersionResponse
+	(*GetGeneratorsOffRequest)(nil),          // 188: db.v1.GetGeneratorsOffRequest
+	(*GetGeneratorsOffResponse)(nil),         // 189: db.v1.GetGeneratorsOffResponse
+	(*GeneratorOff)(nil),                     // 190: db.v1.GeneratorOff
+	(*SetGeneratorOffRequest)(nil),           // 191: db.v1.SetGeneratorOffRequest
+	(*SetGeneratorOffResponse)(nil),          // 192: db.v1.SetGeneratorOffResponse
+	(*DropRuleVersionRequest)(nil),           // 193: db.v1.DropRuleVersionRequest
+	(*DropRuleVersionResponse)(nil),          // 194: db.v1.DropRuleVersionResponse
+	(*ListDropRulesRequest)(nil),             // 195: db.v1.ListDropRulesRequest
+	(*DropRule)(nil),                         // 196: db.v1.DropRule
+	(*ListDropRulesResponse)(nil),            // 197: db.v1.ListDropRulesResponse
 }
 var file_api_db_v1_db_proto_depIdxs = []int32{
 	0,   // 0: db.v1.AccountLoginResponse.result:type_name -> db.v1.LoginResult
@@ -13304,196 +13570,201 @@ var file_api_db_v1_db_proto_depIdxs = []int32{
 	67,  // 24: db.v1.ListGuildsResponse.guilds:type_name -> db.v1.Guild
 	69,  // 25: db.v1.ListGuildRelationsResponse.relations:type_name -> db.v1.GuildRelation
 	86,  // 26: db.v1.ListGuildSummariesResponse.guilds:type_name -> db.v1.GuildSummary
-	85,  // 27: db.v1.ListGuildBuffsResponse.buffs:type_name -> db.v1.GuildBuff
-	85,  // 28: db.v1.SaveGuildBuffRequest.buff:type_name -> db.v1.GuildBuff
-	68,  // 29: db.v1.ListGuildMembersResponse.members:type_name -> db.v1.GuildMember
-	98,  // 30: db.v1.LoadGuildZonesResponse.zones:type_name -> db.v1.GuildZone
-	98,  // 31: db.v1.SaveGuildZoneRequest.zone:type_name -> db.v1.GuildZone
-	103, // 32: db.v1.LoadGuildTowerStateResponse.state:type_name -> db.v1.GuildTowerState
-	103, // 33: db.v1.SaveGuildTowerStateRequest.state:type_name -> db.v1.GuildTowerState
-	110, // 34: db.v1.LoadCastleQuestStateResponse.state:type_name -> db.v1.CastleQuestState
-	110, // 35: db.v1.SaveCastleQuestStateRequest.state:type_name -> db.v1.CastleQuestState
-	120, // 36: db.v1.ListNpcDefinitionsResponse.definitions:type_name -> db.v1.NpcDefinition
-	121, // 37: db.v1.ListNpcDefinitionsResponse.price_overrides:type_name -> db.v1.ItemPrice
-	119, // 38: db.v1.NpcDefinition.shop:type_name -> db.v1.NpcShopItem
-	130, // 39: db.v1.GetWorldEventConfigResponse.config:type_name -> db.v1.WorldEventConfig
-	134, // 40: db.v1.ListMobTemplateStatsResponse.overrides:type_name -> db.v1.MobTemplateStat
-	133, // 41: db.v1.MobTemplateStat.equip:type_name -> db.v1.MobTemplateEquipItem
-	137, // 42: db.v1.ListItemStatsResponse.overrides:type_name -> db.v1.ItemStat
-	140, // 43: db.v1.ListMountGrowthRatesResponse.rates:type_name -> db.v1.MountGrowthRate
-	145, // 44: db.v1.ListMountAbsorbResponse.absorb:type_name -> db.v1.MountAbsorb
-	148, // 45: db.v1.ListMountBonusResponse.bonus:type_name -> db.v1.MountBonus
-	154, // 46: db.v1.GetXPConfigResponse.rules:type_name -> db.v1.XPRule
-	153, // 47: db.v1.XPRule.cuts:type_name -> db.v1.XPCut
-	159, // 48: db.v1.GetDungeonGatesResponse.gates:type_name -> db.v1.DungeonGate
-	162, // 49: db.v1.GetQuestRewardsResponse.tiers:type_name -> db.v1.QuestReward
-	165, // 50: db.v1.GetDropBonusResponse.faixas:type_name -> db.v1.DropBonusBand
-	170, // 51: db.v1.GetSpawnRatesResponse.areas:type_name -> db.v1.SpawnRate
-	175, // 52: db.v1.GetCombineRatesResponse.rates:type_name -> db.v1.CombineRate
-	176, // 53: db.v1.GetCombineRatesResponse.bands:type_name -> db.v1.CombineBand
-	185, // 54: db.v1.GetGeneratorsOffResponse.off:type_name -> db.v1.GeneratorOff
-	191, // 55: db.v1.ListDropRulesResponse.rules:type_name -> db.v1.DropRule
-	5,   // 56: db.v1.AccountService.AccountLogin:input_type -> db.v1.AccountLoginRequest
-	7,   // 57: db.v1.AccountService.ListCharacters:input_type -> db.v1.ListCharactersRequest
-	10,  // 58: db.v1.AccountService.LoadCharacter:input_type -> db.v1.LoadCharacterRequest
-	15,  // 59: db.v1.AccountService.SaveCharacter:input_type -> db.v1.SaveCharacterRequest
-	17,  // 60: db.v1.AccountService.QuoteKingdomCape:input_type -> db.v1.QuoteKingdomCapeRequest
-	19,  // 61: db.v1.AccountService.PurchaseKingdomCape:input_type -> db.v1.PurchaseKingdomCapeRequest
-	21,  // 62: db.v1.AccountService.TransferPlayerBalance:input_type -> db.v1.TransferPlayerBalanceRequest
-	23,  // 63: db.v1.AccountService.CreateCharacter:input_type -> db.v1.CreateCharacterRequest
-	25,  // 64: db.v1.AccountService.CreateArchCharacter:input_type -> db.v1.CreateArchCharacterRequest
-	27,  // 65: db.v1.AccountService.DeleteCharacter:input_type -> db.v1.DeleteCharacterRequest
-	29,  // 66: db.v1.AccountService.SetPin:input_type -> db.v1.SetPinRequest
-	31,  // 67: db.v1.AccountService.VerifyPin:input_type -> db.v1.VerifyPinRequest
-	33,  // 68: db.v1.AccountService.LoadCargo:input_type -> db.v1.LoadCargoRequest
-	35,  // 69: db.v1.AccountService.SaveCargo:input_type -> db.v1.SaveCargoRequest
-	38,  // 70: db.v1.AccountService.ListPendingDeliveries:input_type -> db.v1.ListPendingDeliveriesRequest
-	40,  // 71: db.v1.AccountService.SaveCargoWithDeliveries:input_type -> db.v1.SaveCargoWithDeliveriesRequest
-	41,  // 72: db.v1.AccountService.SetAccountBlocked:input_type -> db.v1.SetAccountBlockedRequest
-	43,  // 73: db.v1.AccountService.RecordDuelResult:input_type -> db.v1.RecordDuelResultRequest
-	46,  // 74: db.v1.AccountService.RecordTrade:input_type -> db.v1.RecordTradeRequest
-	55,  // 75: db.v1.AccountService.RecordReport:input_type -> db.v1.RecordReportRequest
-	53,  // 76: db.v1.AccountService.RecordGround:input_type -> db.v1.RecordGroundRequest
-	48,  // 77: db.v1.AccountService.ReserveSerials:input_type -> db.v1.ReserveSerialsRequest
-	51,  // 78: db.v1.AccountService.RecordChat:input_type -> db.v1.RecordChatRequest
-	57,  // 79: db.v1.AccountService.SetCharacterPresence:input_type -> db.v1.SetCharacterPresenceRequest
-	59,  // 80: db.v1.AccountService.ClearAllPresence:input_type -> db.v1.ClearAllPresenceRequest
-	61,  // 81: db.v1.AccountService.AddShopPoints:input_type -> db.v1.AddShopPointsRequest
-	63,  // 82: db.v1.AccountService.ShopPoints:input_type -> db.v1.ShopPointsRequest
-	65,  // 83: db.v1.AccountService.ClaimNewbieKit:input_type -> db.v1.ClaimNewbieKitRequest
-	70,  // 84: db.v1.AccountService.CreateGuild:input_type -> db.v1.CreateGuildRequest
-	72,  // 85: db.v1.AccountService.SetGuildMember:input_type -> db.v1.SetGuildMemberRequest
-	74,  // 86: db.v1.AccountService.LeaveGuild:input_type -> db.v1.LeaveGuildRequest
-	75,  // 87: db.v1.AccountService.PromoteGuildMember:input_type -> db.v1.PromoteGuildMemberRequest
-	77,  // 88: db.v1.AccountService.TransferGuildLeader:input_type -> db.v1.TransferGuildLeaderRequest
-	78,  // 89: db.v1.AccountService.SetGuildRelation:input_type -> db.v1.SetGuildRelationRequest
-	80,  // 90: db.v1.AccountService.ListGuilds:input_type -> db.v1.ListGuildsRequest
-	82,  // 91: db.v1.AccountService.ListGuildRelations:input_type -> db.v1.ListGuildRelationsRequest
-	84,  // 92: db.v1.AccountService.ListGuildMembers:input_type -> db.v1.ListGuildMembersRequest
-	96,  // 93: db.v1.AccountService.SaveGuildNotice:input_type -> db.v1.SaveGuildNoticeRequest
-	87,  // 94: db.v1.AccountService.ListGuildSummaries:input_type -> db.v1.ListGuildSummariesRequest
-	89,  // 95: db.v1.AccountService.ListGuildBuffs:input_type -> db.v1.ListGuildBuffsRequest
-	91,  // 96: db.v1.AccountService.SaveGuildBuff:input_type -> db.v1.SaveGuildBuffRequest
-	93,  // 97: db.v1.AccountService.DeleteGuildBuff:input_type -> db.v1.DeleteGuildBuffRequest
-	99,  // 98: db.v1.AccountService.LoadGuildZones:input_type -> db.v1.LoadGuildZonesRequest
-	101, // 99: db.v1.AccountService.SaveGuildZone:input_type -> db.v1.SaveGuildZoneRequest
-	104, // 100: db.v1.AccountService.LoadGuildTowerState:input_type -> db.v1.LoadGuildTowerStateRequest
-	106, // 101: db.v1.AccountService.SaveGuildTowerState:input_type -> db.v1.SaveGuildTowerStateRequest
-	108, // 102: db.v1.AccountService.SaveGuildFame:input_type -> db.v1.SaveGuildFameRequest
-	111, // 103: db.v1.AccountService.LoadCastleQuestState:input_type -> db.v1.LoadCastleQuestStateRequest
-	113, // 104: db.v1.AccountService.SaveCastleQuestState:input_type -> db.v1.SaveCastleQuestStateRequest
-	115, // 105: db.v1.NpcConfigService.NpcConfigVersion:input_type -> db.v1.NpcConfigVersionRequest
-	117, // 106: db.v1.NpcConfigService.ListNpcDefinitions:input_type -> db.v1.ListNpcDefinitionsRequest
-	131, // 107: db.v1.NpcConfigService.ListMobTemplateStats:input_type -> db.v1.ListMobTemplateStatsRequest
-	135, // 108: db.v1.NpcConfigService.ListItemStats:input_type -> db.v1.ListItemStatsRequest
-	138, // 109: db.v1.NpcConfigService.ListMountGrowthRates:input_type -> db.v1.ListMountGrowthRatesRequest
-	143, // 110: db.v1.NpcConfigService.ListMountAbsorb:input_type -> db.v1.ListMountAbsorbRequest
-	146, // 111: db.v1.NpcConfigService.ListMountBonus:input_type -> db.v1.ListMountBonusRequest
-	141, // 112: db.v1.NpcConfigService.MountConfigVersion:input_type -> db.v1.MountConfigVersionRequest
-	122, // 113: db.v1.WorldEventConfigService.WorldEventConfigVersion:input_type -> db.v1.WorldEventConfigVersionRequest
-	124, // 114: db.v1.WorldEventConfigService.GetWorldEventConfig:input_type -> db.v1.GetWorldEventConfigRequest
-	126, // 115: db.v1.WorldEventConfigService.UpdateWorldEventProgress:input_type -> db.v1.UpdateWorldEventProgressRequest
-	128, // 116: db.v1.WorldEventConfigService.SetKefraState:input_type -> db.v1.SetKefraStateRequest
-	149, // 117: db.v1.XPConfigService.XPConfigVersion:input_type -> db.v1.XPConfigVersionRequest
-	151, // 118: db.v1.XPConfigService.GetXPConfig:input_type -> db.v1.GetXPConfigRequest
-	155, // 119: db.v1.DungeonGateService.DungeonGateVersion:input_type -> db.v1.DungeonGateVersionRequest
-	157, // 120: db.v1.DungeonGateService.GetDungeonGates:input_type -> db.v1.GetDungeonGatesRequest
-	160, // 121: db.v1.QuestRewardService.GetQuestRewards:input_type -> db.v1.GetQuestRewardsRequest
-	163, // 122: db.v1.DropBonusService.GetDropBonus:input_type -> db.v1.GetDropBonusRequest
-	166, // 123: db.v1.SpawnRateService.SpawnRateVersion:input_type -> db.v1.SpawnRateVersionRequest
-	168, // 124: db.v1.SpawnRateService.GetSpawnRates:input_type -> db.v1.GetSpawnRatesRequest
-	171, // 125: db.v1.CombineRateService.CombineRateVersion:input_type -> db.v1.CombineRateVersionRequest
-	173, // 126: db.v1.CombineRateService.GetCombineRates:input_type -> db.v1.GetCombineRatesRequest
-	177, // 127: db.v1.CombatRuleService.CombatRuleVersion:input_type -> db.v1.CombatRuleVersionRequest
-	179, // 128: db.v1.CombatRuleService.GetCombatRule:input_type -> db.v1.GetCombatRuleRequest
-	181, // 129: db.v1.NpcGeneratorService.GeneratorOffVersion:input_type -> db.v1.GeneratorOffVersionRequest
-	183, // 130: db.v1.NpcGeneratorService.GetGeneratorsOff:input_type -> db.v1.GetGeneratorsOffRequest
-	186, // 131: db.v1.NpcGeneratorService.SetGeneratorOff:input_type -> db.v1.SetGeneratorOffRequest
-	188, // 132: db.v1.DropRuleService.DropRuleVersion:input_type -> db.v1.DropRuleVersionRequest
-	190, // 133: db.v1.DropRuleService.ListDropRules:input_type -> db.v1.ListDropRulesRequest
-	6,   // 134: db.v1.AccountService.AccountLogin:output_type -> db.v1.AccountLoginResponse
-	9,   // 135: db.v1.AccountService.ListCharacters:output_type -> db.v1.ListCharactersResponse
-	14,  // 136: db.v1.AccountService.LoadCharacter:output_type -> db.v1.LoadCharacterResponse
-	16,  // 137: db.v1.AccountService.SaveCharacter:output_type -> db.v1.SaveCharacterResponse
-	18,  // 138: db.v1.AccountService.QuoteKingdomCape:output_type -> db.v1.QuoteKingdomCapeResponse
-	20,  // 139: db.v1.AccountService.PurchaseKingdomCape:output_type -> db.v1.PurchaseKingdomCapeResponse
-	22,  // 140: db.v1.AccountService.TransferPlayerBalance:output_type -> db.v1.TransferPlayerBalanceResponse
-	24,  // 141: db.v1.AccountService.CreateCharacter:output_type -> db.v1.CreateCharacterResponse
-	26,  // 142: db.v1.AccountService.CreateArchCharacter:output_type -> db.v1.CreateArchCharacterResponse
-	28,  // 143: db.v1.AccountService.DeleteCharacter:output_type -> db.v1.DeleteCharacterResponse
-	30,  // 144: db.v1.AccountService.SetPin:output_type -> db.v1.SetPinResponse
-	32,  // 145: db.v1.AccountService.VerifyPin:output_type -> db.v1.VerifyPinResponse
-	34,  // 146: db.v1.AccountService.LoadCargo:output_type -> db.v1.LoadCargoResponse
-	36,  // 147: db.v1.AccountService.SaveCargo:output_type -> db.v1.SaveCargoResponse
-	39,  // 148: db.v1.AccountService.ListPendingDeliveries:output_type -> db.v1.ListPendingDeliveriesResponse
-	36,  // 149: db.v1.AccountService.SaveCargoWithDeliveries:output_type -> db.v1.SaveCargoResponse
-	42,  // 150: db.v1.AccountService.SetAccountBlocked:output_type -> db.v1.SetAccountBlockedResponse
-	44,  // 151: db.v1.AccountService.RecordDuelResult:output_type -> db.v1.RecordDuelResultResponse
-	47,  // 152: db.v1.AccountService.RecordTrade:output_type -> db.v1.RecordTradeResponse
-	56,  // 153: db.v1.AccountService.RecordReport:output_type -> db.v1.RecordReportResponse
-	54,  // 154: db.v1.AccountService.RecordGround:output_type -> db.v1.RecordGroundResponse
-	49,  // 155: db.v1.AccountService.ReserveSerials:output_type -> db.v1.ReserveSerialsResponse
-	52,  // 156: db.v1.AccountService.RecordChat:output_type -> db.v1.RecordChatResponse
-	58,  // 157: db.v1.AccountService.SetCharacterPresence:output_type -> db.v1.SetCharacterPresenceResponse
-	60,  // 158: db.v1.AccountService.ClearAllPresence:output_type -> db.v1.ClearAllPresenceResponse
-	62,  // 159: db.v1.AccountService.AddShopPoints:output_type -> db.v1.AddShopPointsResponse
-	64,  // 160: db.v1.AccountService.ShopPoints:output_type -> db.v1.ShopPointsResponse
-	66,  // 161: db.v1.AccountService.ClaimNewbieKit:output_type -> db.v1.ClaimNewbieKitResponse
-	71,  // 162: db.v1.AccountService.CreateGuild:output_type -> db.v1.CreateGuildResponse
-	73,  // 163: db.v1.AccountService.SetGuildMember:output_type -> db.v1.SetGuildMemberResponse
-	73,  // 164: db.v1.AccountService.LeaveGuild:output_type -> db.v1.SetGuildMemberResponse
-	76,  // 165: db.v1.AccountService.PromoteGuildMember:output_type -> db.v1.PromoteGuildMemberResponse
-	73,  // 166: db.v1.AccountService.TransferGuildLeader:output_type -> db.v1.SetGuildMemberResponse
-	79,  // 167: db.v1.AccountService.SetGuildRelation:output_type -> db.v1.SetGuildRelationResponse
-	81,  // 168: db.v1.AccountService.ListGuilds:output_type -> db.v1.ListGuildsResponse
-	83,  // 169: db.v1.AccountService.ListGuildRelations:output_type -> db.v1.ListGuildRelationsResponse
-	95,  // 170: db.v1.AccountService.ListGuildMembers:output_type -> db.v1.ListGuildMembersResponse
-	97,  // 171: db.v1.AccountService.SaveGuildNotice:output_type -> db.v1.SaveGuildNoticeResponse
-	88,  // 172: db.v1.AccountService.ListGuildSummaries:output_type -> db.v1.ListGuildSummariesResponse
-	90,  // 173: db.v1.AccountService.ListGuildBuffs:output_type -> db.v1.ListGuildBuffsResponse
-	92,  // 174: db.v1.AccountService.SaveGuildBuff:output_type -> db.v1.SaveGuildBuffResponse
-	94,  // 175: db.v1.AccountService.DeleteGuildBuff:output_type -> db.v1.DeleteGuildBuffResponse
-	100, // 176: db.v1.AccountService.LoadGuildZones:output_type -> db.v1.LoadGuildZonesResponse
-	102, // 177: db.v1.AccountService.SaveGuildZone:output_type -> db.v1.SaveGuildZoneResponse
-	105, // 178: db.v1.AccountService.LoadGuildTowerState:output_type -> db.v1.LoadGuildTowerStateResponse
-	107, // 179: db.v1.AccountService.SaveGuildTowerState:output_type -> db.v1.SaveGuildTowerStateResponse
-	109, // 180: db.v1.AccountService.SaveGuildFame:output_type -> db.v1.SaveGuildFameResponse
-	112, // 181: db.v1.AccountService.LoadCastleQuestState:output_type -> db.v1.LoadCastleQuestStateResponse
-	114, // 182: db.v1.AccountService.SaveCastleQuestState:output_type -> db.v1.SaveCastleQuestStateResponse
-	116, // 183: db.v1.NpcConfigService.NpcConfigVersion:output_type -> db.v1.NpcConfigVersionResponse
-	118, // 184: db.v1.NpcConfigService.ListNpcDefinitions:output_type -> db.v1.ListNpcDefinitionsResponse
-	132, // 185: db.v1.NpcConfigService.ListMobTemplateStats:output_type -> db.v1.ListMobTemplateStatsResponse
-	136, // 186: db.v1.NpcConfigService.ListItemStats:output_type -> db.v1.ListItemStatsResponse
-	139, // 187: db.v1.NpcConfigService.ListMountGrowthRates:output_type -> db.v1.ListMountGrowthRatesResponse
-	144, // 188: db.v1.NpcConfigService.ListMountAbsorb:output_type -> db.v1.ListMountAbsorbResponse
-	147, // 189: db.v1.NpcConfigService.ListMountBonus:output_type -> db.v1.ListMountBonusResponse
-	142, // 190: db.v1.NpcConfigService.MountConfigVersion:output_type -> db.v1.MountConfigVersionResponse
-	123, // 191: db.v1.WorldEventConfigService.WorldEventConfigVersion:output_type -> db.v1.WorldEventConfigVersionResponse
-	125, // 192: db.v1.WorldEventConfigService.GetWorldEventConfig:output_type -> db.v1.GetWorldEventConfigResponse
-	127, // 193: db.v1.WorldEventConfigService.UpdateWorldEventProgress:output_type -> db.v1.UpdateWorldEventProgressResponse
-	129, // 194: db.v1.WorldEventConfigService.SetKefraState:output_type -> db.v1.SetKefraStateResponse
-	150, // 195: db.v1.XPConfigService.XPConfigVersion:output_type -> db.v1.XPConfigVersionResponse
-	152, // 196: db.v1.XPConfigService.GetXPConfig:output_type -> db.v1.GetXPConfigResponse
-	156, // 197: db.v1.DungeonGateService.DungeonGateVersion:output_type -> db.v1.DungeonGateVersionResponse
-	158, // 198: db.v1.DungeonGateService.GetDungeonGates:output_type -> db.v1.GetDungeonGatesResponse
-	161, // 199: db.v1.QuestRewardService.GetQuestRewards:output_type -> db.v1.GetQuestRewardsResponse
-	164, // 200: db.v1.DropBonusService.GetDropBonus:output_type -> db.v1.GetDropBonusResponse
-	167, // 201: db.v1.SpawnRateService.SpawnRateVersion:output_type -> db.v1.SpawnRateVersionResponse
-	169, // 202: db.v1.SpawnRateService.GetSpawnRates:output_type -> db.v1.GetSpawnRatesResponse
-	172, // 203: db.v1.CombineRateService.CombineRateVersion:output_type -> db.v1.CombineRateVersionResponse
-	174, // 204: db.v1.CombineRateService.GetCombineRates:output_type -> db.v1.GetCombineRatesResponse
-	178, // 205: db.v1.CombatRuleService.CombatRuleVersion:output_type -> db.v1.CombatRuleVersionResponse
-	180, // 206: db.v1.CombatRuleService.GetCombatRule:output_type -> db.v1.GetCombatRuleResponse
-	182, // 207: db.v1.NpcGeneratorService.GeneratorOffVersion:output_type -> db.v1.GeneratorOffVersionResponse
-	184, // 208: db.v1.NpcGeneratorService.GetGeneratorsOff:output_type -> db.v1.GetGeneratorsOffResponse
-	187, // 209: db.v1.NpcGeneratorService.SetGeneratorOff:output_type -> db.v1.SetGeneratorOffResponse
-	189, // 210: db.v1.DropRuleService.DropRuleVersion:output_type -> db.v1.DropRuleVersionResponse
-	192, // 211: db.v1.DropRuleService.ListDropRules:output_type -> db.v1.ListDropRulesResponse
-	134, // [134:212] is the sub-list for method output_type
-	56,  // [56:134] is the sub-list for method input_type
-	56,  // [56:56] is the sub-list for extension type_name
-	56,  // [56:56] is the sub-list for extension extendee
-	0,   // [0:56] is the sub-list for field type_name
+	89,  // 27: db.v1.ListGuildSquadsResponse.squads:type_name -> db.v1.GuildSquad
+	85,  // 28: db.v1.ListGuildBuffsResponse.buffs:type_name -> db.v1.GuildBuff
+	85,  // 29: db.v1.SaveGuildBuffRequest.buff:type_name -> db.v1.GuildBuff
+	68,  // 30: db.v1.ListGuildMembersResponse.members:type_name -> db.v1.GuildMember
+	103, // 31: db.v1.LoadGuildZonesResponse.zones:type_name -> db.v1.GuildZone
+	103, // 32: db.v1.SaveGuildZoneRequest.zone:type_name -> db.v1.GuildZone
+	108, // 33: db.v1.LoadGuildTowerStateResponse.state:type_name -> db.v1.GuildTowerState
+	108, // 34: db.v1.SaveGuildTowerStateRequest.state:type_name -> db.v1.GuildTowerState
+	115, // 35: db.v1.LoadCastleQuestStateResponse.state:type_name -> db.v1.CastleQuestState
+	115, // 36: db.v1.SaveCastleQuestStateRequest.state:type_name -> db.v1.CastleQuestState
+	125, // 37: db.v1.ListNpcDefinitionsResponse.definitions:type_name -> db.v1.NpcDefinition
+	126, // 38: db.v1.ListNpcDefinitionsResponse.price_overrides:type_name -> db.v1.ItemPrice
+	124, // 39: db.v1.NpcDefinition.shop:type_name -> db.v1.NpcShopItem
+	135, // 40: db.v1.GetWorldEventConfigResponse.config:type_name -> db.v1.WorldEventConfig
+	139, // 41: db.v1.ListMobTemplateStatsResponse.overrides:type_name -> db.v1.MobTemplateStat
+	138, // 42: db.v1.MobTemplateStat.equip:type_name -> db.v1.MobTemplateEquipItem
+	142, // 43: db.v1.ListItemStatsResponse.overrides:type_name -> db.v1.ItemStat
+	145, // 44: db.v1.ListMountGrowthRatesResponse.rates:type_name -> db.v1.MountGrowthRate
+	150, // 45: db.v1.ListMountAbsorbResponse.absorb:type_name -> db.v1.MountAbsorb
+	153, // 46: db.v1.ListMountBonusResponse.bonus:type_name -> db.v1.MountBonus
+	159, // 47: db.v1.GetXPConfigResponse.rules:type_name -> db.v1.XPRule
+	158, // 48: db.v1.XPRule.cuts:type_name -> db.v1.XPCut
+	164, // 49: db.v1.GetDungeonGatesResponse.gates:type_name -> db.v1.DungeonGate
+	167, // 50: db.v1.GetQuestRewardsResponse.tiers:type_name -> db.v1.QuestReward
+	170, // 51: db.v1.GetDropBonusResponse.faixas:type_name -> db.v1.DropBonusBand
+	175, // 52: db.v1.GetSpawnRatesResponse.areas:type_name -> db.v1.SpawnRate
+	180, // 53: db.v1.GetCombineRatesResponse.rates:type_name -> db.v1.CombineRate
+	181, // 54: db.v1.GetCombineRatesResponse.bands:type_name -> db.v1.CombineBand
+	190, // 55: db.v1.GetGeneratorsOffResponse.off:type_name -> db.v1.GeneratorOff
+	196, // 56: db.v1.ListDropRulesResponse.rules:type_name -> db.v1.DropRule
+	5,   // 57: db.v1.AccountService.AccountLogin:input_type -> db.v1.AccountLoginRequest
+	7,   // 58: db.v1.AccountService.ListCharacters:input_type -> db.v1.ListCharactersRequest
+	10,  // 59: db.v1.AccountService.LoadCharacter:input_type -> db.v1.LoadCharacterRequest
+	15,  // 60: db.v1.AccountService.SaveCharacter:input_type -> db.v1.SaveCharacterRequest
+	17,  // 61: db.v1.AccountService.QuoteKingdomCape:input_type -> db.v1.QuoteKingdomCapeRequest
+	19,  // 62: db.v1.AccountService.PurchaseKingdomCape:input_type -> db.v1.PurchaseKingdomCapeRequest
+	21,  // 63: db.v1.AccountService.TransferPlayerBalance:input_type -> db.v1.TransferPlayerBalanceRequest
+	23,  // 64: db.v1.AccountService.CreateCharacter:input_type -> db.v1.CreateCharacterRequest
+	25,  // 65: db.v1.AccountService.CreateArchCharacter:input_type -> db.v1.CreateArchCharacterRequest
+	27,  // 66: db.v1.AccountService.DeleteCharacter:input_type -> db.v1.DeleteCharacterRequest
+	29,  // 67: db.v1.AccountService.SetPin:input_type -> db.v1.SetPinRequest
+	31,  // 68: db.v1.AccountService.VerifyPin:input_type -> db.v1.VerifyPinRequest
+	33,  // 69: db.v1.AccountService.LoadCargo:input_type -> db.v1.LoadCargoRequest
+	35,  // 70: db.v1.AccountService.SaveCargo:input_type -> db.v1.SaveCargoRequest
+	38,  // 71: db.v1.AccountService.ListPendingDeliveries:input_type -> db.v1.ListPendingDeliveriesRequest
+	40,  // 72: db.v1.AccountService.SaveCargoWithDeliveries:input_type -> db.v1.SaveCargoWithDeliveriesRequest
+	41,  // 73: db.v1.AccountService.SetAccountBlocked:input_type -> db.v1.SetAccountBlockedRequest
+	43,  // 74: db.v1.AccountService.RecordDuelResult:input_type -> db.v1.RecordDuelResultRequest
+	46,  // 75: db.v1.AccountService.RecordTrade:input_type -> db.v1.RecordTradeRequest
+	55,  // 76: db.v1.AccountService.RecordReport:input_type -> db.v1.RecordReportRequest
+	53,  // 77: db.v1.AccountService.RecordGround:input_type -> db.v1.RecordGroundRequest
+	48,  // 78: db.v1.AccountService.ReserveSerials:input_type -> db.v1.ReserveSerialsRequest
+	51,  // 79: db.v1.AccountService.RecordChat:input_type -> db.v1.RecordChatRequest
+	57,  // 80: db.v1.AccountService.SetCharacterPresence:input_type -> db.v1.SetCharacterPresenceRequest
+	59,  // 81: db.v1.AccountService.ClearAllPresence:input_type -> db.v1.ClearAllPresenceRequest
+	61,  // 82: db.v1.AccountService.AddShopPoints:input_type -> db.v1.AddShopPointsRequest
+	63,  // 83: db.v1.AccountService.ShopPoints:input_type -> db.v1.ShopPointsRequest
+	65,  // 84: db.v1.AccountService.ClaimNewbieKit:input_type -> db.v1.ClaimNewbieKitRequest
+	70,  // 85: db.v1.AccountService.CreateGuild:input_type -> db.v1.CreateGuildRequest
+	72,  // 86: db.v1.AccountService.SetGuildMember:input_type -> db.v1.SetGuildMemberRequest
+	74,  // 87: db.v1.AccountService.LeaveGuild:input_type -> db.v1.LeaveGuildRequest
+	75,  // 88: db.v1.AccountService.PromoteGuildMember:input_type -> db.v1.PromoteGuildMemberRequest
+	77,  // 89: db.v1.AccountService.TransferGuildLeader:input_type -> db.v1.TransferGuildLeaderRequest
+	78,  // 90: db.v1.AccountService.SetGuildRelation:input_type -> db.v1.SetGuildRelationRequest
+	80,  // 91: db.v1.AccountService.ListGuilds:input_type -> db.v1.ListGuildsRequest
+	82,  // 92: db.v1.AccountService.ListGuildRelations:input_type -> db.v1.ListGuildRelationsRequest
+	84,  // 93: db.v1.AccountService.ListGuildMembers:input_type -> db.v1.ListGuildMembersRequest
+	101, // 94: db.v1.AccountService.SaveGuildNotice:input_type -> db.v1.SaveGuildNoticeRequest
+	87,  // 95: db.v1.AccountService.ListGuildSummaries:input_type -> db.v1.ListGuildSummariesRequest
+	90,  // 96: db.v1.AccountService.ListGuildSquads:input_type -> db.v1.ListGuildSquadsRequest
+	92,  // 97: db.v1.AccountService.SetGuildSquad:input_type -> db.v1.SetGuildSquadRequest
+	94,  // 98: db.v1.AccountService.ListGuildBuffs:input_type -> db.v1.ListGuildBuffsRequest
+	96,  // 99: db.v1.AccountService.SaveGuildBuff:input_type -> db.v1.SaveGuildBuffRequest
+	98,  // 100: db.v1.AccountService.DeleteGuildBuff:input_type -> db.v1.DeleteGuildBuffRequest
+	104, // 101: db.v1.AccountService.LoadGuildZones:input_type -> db.v1.LoadGuildZonesRequest
+	106, // 102: db.v1.AccountService.SaveGuildZone:input_type -> db.v1.SaveGuildZoneRequest
+	109, // 103: db.v1.AccountService.LoadGuildTowerState:input_type -> db.v1.LoadGuildTowerStateRequest
+	111, // 104: db.v1.AccountService.SaveGuildTowerState:input_type -> db.v1.SaveGuildTowerStateRequest
+	113, // 105: db.v1.AccountService.SaveGuildFame:input_type -> db.v1.SaveGuildFameRequest
+	116, // 106: db.v1.AccountService.LoadCastleQuestState:input_type -> db.v1.LoadCastleQuestStateRequest
+	118, // 107: db.v1.AccountService.SaveCastleQuestState:input_type -> db.v1.SaveCastleQuestStateRequest
+	120, // 108: db.v1.NpcConfigService.NpcConfigVersion:input_type -> db.v1.NpcConfigVersionRequest
+	122, // 109: db.v1.NpcConfigService.ListNpcDefinitions:input_type -> db.v1.ListNpcDefinitionsRequest
+	136, // 110: db.v1.NpcConfigService.ListMobTemplateStats:input_type -> db.v1.ListMobTemplateStatsRequest
+	140, // 111: db.v1.NpcConfigService.ListItemStats:input_type -> db.v1.ListItemStatsRequest
+	143, // 112: db.v1.NpcConfigService.ListMountGrowthRates:input_type -> db.v1.ListMountGrowthRatesRequest
+	148, // 113: db.v1.NpcConfigService.ListMountAbsorb:input_type -> db.v1.ListMountAbsorbRequest
+	151, // 114: db.v1.NpcConfigService.ListMountBonus:input_type -> db.v1.ListMountBonusRequest
+	146, // 115: db.v1.NpcConfigService.MountConfigVersion:input_type -> db.v1.MountConfigVersionRequest
+	127, // 116: db.v1.WorldEventConfigService.WorldEventConfigVersion:input_type -> db.v1.WorldEventConfigVersionRequest
+	129, // 117: db.v1.WorldEventConfigService.GetWorldEventConfig:input_type -> db.v1.GetWorldEventConfigRequest
+	131, // 118: db.v1.WorldEventConfigService.UpdateWorldEventProgress:input_type -> db.v1.UpdateWorldEventProgressRequest
+	133, // 119: db.v1.WorldEventConfigService.SetKefraState:input_type -> db.v1.SetKefraStateRequest
+	154, // 120: db.v1.XPConfigService.XPConfigVersion:input_type -> db.v1.XPConfigVersionRequest
+	156, // 121: db.v1.XPConfigService.GetXPConfig:input_type -> db.v1.GetXPConfigRequest
+	160, // 122: db.v1.DungeonGateService.DungeonGateVersion:input_type -> db.v1.DungeonGateVersionRequest
+	162, // 123: db.v1.DungeonGateService.GetDungeonGates:input_type -> db.v1.GetDungeonGatesRequest
+	165, // 124: db.v1.QuestRewardService.GetQuestRewards:input_type -> db.v1.GetQuestRewardsRequest
+	168, // 125: db.v1.DropBonusService.GetDropBonus:input_type -> db.v1.GetDropBonusRequest
+	171, // 126: db.v1.SpawnRateService.SpawnRateVersion:input_type -> db.v1.SpawnRateVersionRequest
+	173, // 127: db.v1.SpawnRateService.GetSpawnRates:input_type -> db.v1.GetSpawnRatesRequest
+	176, // 128: db.v1.CombineRateService.CombineRateVersion:input_type -> db.v1.CombineRateVersionRequest
+	178, // 129: db.v1.CombineRateService.GetCombineRates:input_type -> db.v1.GetCombineRatesRequest
+	182, // 130: db.v1.CombatRuleService.CombatRuleVersion:input_type -> db.v1.CombatRuleVersionRequest
+	184, // 131: db.v1.CombatRuleService.GetCombatRule:input_type -> db.v1.GetCombatRuleRequest
+	186, // 132: db.v1.NpcGeneratorService.GeneratorOffVersion:input_type -> db.v1.GeneratorOffVersionRequest
+	188, // 133: db.v1.NpcGeneratorService.GetGeneratorsOff:input_type -> db.v1.GetGeneratorsOffRequest
+	191, // 134: db.v1.NpcGeneratorService.SetGeneratorOff:input_type -> db.v1.SetGeneratorOffRequest
+	193, // 135: db.v1.DropRuleService.DropRuleVersion:input_type -> db.v1.DropRuleVersionRequest
+	195, // 136: db.v1.DropRuleService.ListDropRules:input_type -> db.v1.ListDropRulesRequest
+	6,   // 137: db.v1.AccountService.AccountLogin:output_type -> db.v1.AccountLoginResponse
+	9,   // 138: db.v1.AccountService.ListCharacters:output_type -> db.v1.ListCharactersResponse
+	14,  // 139: db.v1.AccountService.LoadCharacter:output_type -> db.v1.LoadCharacterResponse
+	16,  // 140: db.v1.AccountService.SaveCharacter:output_type -> db.v1.SaveCharacterResponse
+	18,  // 141: db.v1.AccountService.QuoteKingdomCape:output_type -> db.v1.QuoteKingdomCapeResponse
+	20,  // 142: db.v1.AccountService.PurchaseKingdomCape:output_type -> db.v1.PurchaseKingdomCapeResponse
+	22,  // 143: db.v1.AccountService.TransferPlayerBalance:output_type -> db.v1.TransferPlayerBalanceResponse
+	24,  // 144: db.v1.AccountService.CreateCharacter:output_type -> db.v1.CreateCharacterResponse
+	26,  // 145: db.v1.AccountService.CreateArchCharacter:output_type -> db.v1.CreateArchCharacterResponse
+	28,  // 146: db.v1.AccountService.DeleteCharacter:output_type -> db.v1.DeleteCharacterResponse
+	30,  // 147: db.v1.AccountService.SetPin:output_type -> db.v1.SetPinResponse
+	32,  // 148: db.v1.AccountService.VerifyPin:output_type -> db.v1.VerifyPinResponse
+	34,  // 149: db.v1.AccountService.LoadCargo:output_type -> db.v1.LoadCargoResponse
+	36,  // 150: db.v1.AccountService.SaveCargo:output_type -> db.v1.SaveCargoResponse
+	39,  // 151: db.v1.AccountService.ListPendingDeliveries:output_type -> db.v1.ListPendingDeliveriesResponse
+	36,  // 152: db.v1.AccountService.SaveCargoWithDeliveries:output_type -> db.v1.SaveCargoResponse
+	42,  // 153: db.v1.AccountService.SetAccountBlocked:output_type -> db.v1.SetAccountBlockedResponse
+	44,  // 154: db.v1.AccountService.RecordDuelResult:output_type -> db.v1.RecordDuelResultResponse
+	47,  // 155: db.v1.AccountService.RecordTrade:output_type -> db.v1.RecordTradeResponse
+	56,  // 156: db.v1.AccountService.RecordReport:output_type -> db.v1.RecordReportResponse
+	54,  // 157: db.v1.AccountService.RecordGround:output_type -> db.v1.RecordGroundResponse
+	49,  // 158: db.v1.AccountService.ReserveSerials:output_type -> db.v1.ReserveSerialsResponse
+	52,  // 159: db.v1.AccountService.RecordChat:output_type -> db.v1.RecordChatResponse
+	58,  // 160: db.v1.AccountService.SetCharacterPresence:output_type -> db.v1.SetCharacterPresenceResponse
+	60,  // 161: db.v1.AccountService.ClearAllPresence:output_type -> db.v1.ClearAllPresenceResponse
+	62,  // 162: db.v1.AccountService.AddShopPoints:output_type -> db.v1.AddShopPointsResponse
+	64,  // 163: db.v1.AccountService.ShopPoints:output_type -> db.v1.ShopPointsResponse
+	66,  // 164: db.v1.AccountService.ClaimNewbieKit:output_type -> db.v1.ClaimNewbieKitResponse
+	71,  // 165: db.v1.AccountService.CreateGuild:output_type -> db.v1.CreateGuildResponse
+	73,  // 166: db.v1.AccountService.SetGuildMember:output_type -> db.v1.SetGuildMemberResponse
+	73,  // 167: db.v1.AccountService.LeaveGuild:output_type -> db.v1.SetGuildMemberResponse
+	76,  // 168: db.v1.AccountService.PromoteGuildMember:output_type -> db.v1.PromoteGuildMemberResponse
+	73,  // 169: db.v1.AccountService.TransferGuildLeader:output_type -> db.v1.SetGuildMemberResponse
+	79,  // 170: db.v1.AccountService.SetGuildRelation:output_type -> db.v1.SetGuildRelationResponse
+	81,  // 171: db.v1.AccountService.ListGuilds:output_type -> db.v1.ListGuildsResponse
+	83,  // 172: db.v1.AccountService.ListGuildRelations:output_type -> db.v1.ListGuildRelationsResponse
+	100, // 173: db.v1.AccountService.ListGuildMembers:output_type -> db.v1.ListGuildMembersResponse
+	102, // 174: db.v1.AccountService.SaveGuildNotice:output_type -> db.v1.SaveGuildNoticeResponse
+	88,  // 175: db.v1.AccountService.ListGuildSummaries:output_type -> db.v1.ListGuildSummariesResponse
+	91,  // 176: db.v1.AccountService.ListGuildSquads:output_type -> db.v1.ListGuildSquadsResponse
+	93,  // 177: db.v1.AccountService.SetGuildSquad:output_type -> db.v1.SetGuildSquadResponse
+	95,  // 178: db.v1.AccountService.ListGuildBuffs:output_type -> db.v1.ListGuildBuffsResponse
+	97,  // 179: db.v1.AccountService.SaveGuildBuff:output_type -> db.v1.SaveGuildBuffResponse
+	99,  // 180: db.v1.AccountService.DeleteGuildBuff:output_type -> db.v1.DeleteGuildBuffResponse
+	105, // 181: db.v1.AccountService.LoadGuildZones:output_type -> db.v1.LoadGuildZonesResponse
+	107, // 182: db.v1.AccountService.SaveGuildZone:output_type -> db.v1.SaveGuildZoneResponse
+	110, // 183: db.v1.AccountService.LoadGuildTowerState:output_type -> db.v1.LoadGuildTowerStateResponse
+	112, // 184: db.v1.AccountService.SaveGuildTowerState:output_type -> db.v1.SaveGuildTowerStateResponse
+	114, // 185: db.v1.AccountService.SaveGuildFame:output_type -> db.v1.SaveGuildFameResponse
+	117, // 186: db.v1.AccountService.LoadCastleQuestState:output_type -> db.v1.LoadCastleQuestStateResponse
+	119, // 187: db.v1.AccountService.SaveCastleQuestState:output_type -> db.v1.SaveCastleQuestStateResponse
+	121, // 188: db.v1.NpcConfigService.NpcConfigVersion:output_type -> db.v1.NpcConfigVersionResponse
+	123, // 189: db.v1.NpcConfigService.ListNpcDefinitions:output_type -> db.v1.ListNpcDefinitionsResponse
+	137, // 190: db.v1.NpcConfigService.ListMobTemplateStats:output_type -> db.v1.ListMobTemplateStatsResponse
+	141, // 191: db.v1.NpcConfigService.ListItemStats:output_type -> db.v1.ListItemStatsResponse
+	144, // 192: db.v1.NpcConfigService.ListMountGrowthRates:output_type -> db.v1.ListMountGrowthRatesResponse
+	149, // 193: db.v1.NpcConfigService.ListMountAbsorb:output_type -> db.v1.ListMountAbsorbResponse
+	152, // 194: db.v1.NpcConfigService.ListMountBonus:output_type -> db.v1.ListMountBonusResponse
+	147, // 195: db.v1.NpcConfigService.MountConfigVersion:output_type -> db.v1.MountConfigVersionResponse
+	128, // 196: db.v1.WorldEventConfigService.WorldEventConfigVersion:output_type -> db.v1.WorldEventConfigVersionResponse
+	130, // 197: db.v1.WorldEventConfigService.GetWorldEventConfig:output_type -> db.v1.GetWorldEventConfigResponse
+	132, // 198: db.v1.WorldEventConfigService.UpdateWorldEventProgress:output_type -> db.v1.UpdateWorldEventProgressResponse
+	134, // 199: db.v1.WorldEventConfigService.SetKefraState:output_type -> db.v1.SetKefraStateResponse
+	155, // 200: db.v1.XPConfigService.XPConfigVersion:output_type -> db.v1.XPConfigVersionResponse
+	157, // 201: db.v1.XPConfigService.GetXPConfig:output_type -> db.v1.GetXPConfigResponse
+	161, // 202: db.v1.DungeonGateService.DungeonGateVersion:output_type -> db.v1.DungeonGateVersionResponse
+	163, // 203: db.v1.DungeonGateService.GetDungeonGates:output_type -> db.v1.GetDungeonGatesResponse
+	166, // 204: db.v1.QuestRewardService.GetQuestRewards:output_type -> db.v1.GetQuestRewardsResponse
+	169, // 205: db.v1.DropBonusService.GetDropBonus:output_type -> db.v1.GetDropBonusResponse
+	172, // 206: db.v1.SpawnRateService.SpawnRateVersion:output_type -> db.v1.SpawnRateVersionResponse
+	174, // 207: db.v1.SpawnRateService.GetSpawnRates:output_type -> db.v1.GetSpawnRatesResponse
+	177, // 208: db.v1.CombineRateService.CombineRateVersion:output_type -> db.v1.CombineRateVersionResponse
+	179, // 209: db.v1.CombineRateService.GetCombineRates:output_type -> db.v1.GetCombineRatesResponse
+	183, // 210: db.v1.CombatRuleService.CombatRuleVersion:output_type -> db.v1.CombatRuleVersionResponse
+	185, // 211: db.v1.CombatRuleService.GetCombatRule:output_type -> db.v1.GetCombatRuleResponse
+	187, // 212: db.v1.NpcGeneratorService.GeneratorOffVersion:output_type -> db.v1.GeneratorOffVersionResponse
+	189, // 213: db.v1.NpcGeneratorService.GetGeneratorsOff:output_type -> db.v1.GetGeneratorsOffResponse
+	192, // 214: db.v1.NpcGeneratorService.SetGeneratorOff:output_type -> db.v1.SetGeneratorOffResponse
+	194, // 215: db.v1.DropRuleService.DropRuleVersion:output_type -> db.v1.DropRuleVersionResponse
+	197, // 216: db.v1.DropRuleService.ListDropRules:output_type -> db.v1.ListDropRulesResponse
+	137, // [137:217] is the sub-list for method output_type
+	57,  // [57:137] is the sub-list for method input_type
+	57,  // [57:57] is the sub-list for extension type_name
+	57,  // [57:57] is the sub-list for extension extendee
+	0,   // [0:57] is the sub-list for field type_name
 }
 
 func init() { file_api_db_v1_db_proto_init() }
@@ -13501,15 +13772,15 @@ func file_api_db_v1_db_proto_init() {
 	if File_api_db_v1_db_proto != nil {
 		return
 	}
-	file_api_db_v1_db_proto_msgTypes[125].OneofWrappers = []any{}
-	file_api_db_v1_db_proto_msgTypes[175].OneofWrappers = []any{}
+	file_api_db_v1_db_proto_msgTypes[130].OneofWrappers = []any{}
+	file_api_db_v1_db_proto_msgTypes[180].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_db_v1_db_proto_rawDesc), len(file_api_db_v1_db_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   188,
+			NumMessages:   193,
 			NumExtensions: 0,
 			NumServices:   12,
 		},
