@@ -142,6 +142,7 @@ const (
 	MsgGuildaStatus  Type = 0x0F46 // C->S  escrever a minha linha de status
 	MsgGuildaLista   Type = 0x0F47 // S->C  as guildas do servidor
 	MsgGuildaCria    Type = 0x0F48 // C->S  criar uma guilda com este nome
+	MsgGuildaAtiva   Type = 0x0F49 // C->S  usar um Guild Buff da mochila
 
 	MsgRestart          Type = 0x0289 // 649
 	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)

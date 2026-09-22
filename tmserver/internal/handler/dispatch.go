@@ -749,6 +749,7 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgGuildaRecado] = d.guildaRecado
 	d.routes[protocol.MsgGuildaStatus] = d.guildaStatus
 	d.routes[protocol.MsgGuildaCria] = d.guildaCria
+	d.routes[protocol.MsgGuildaAtiva] = d.guildaAtiva
 	d.routes[protocol.MsgSetShortSkill] = d.setShortSkill
 	d.routes[protocol.MsgAccountSecure] = d.accountSecure
 	d.routes[protocol.MsgQuest] = d.quest

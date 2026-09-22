@@ -429,6 +429,7 @@ const (
 	msgGuildaBuffVenceu          = "Um buff da guilda terminou."
 	msgGuildaListaFalhou         = "Não foi possível listar as guildas agora."
 	msgGuildaNomeVazio           = "Escolha um nome para a guilda."
+	msgGuildaSemItemDeBuff       = "Você não tem um Guild Buff na mochila."
 )
 
 func msgGuildaRecadoNovo(autor string) string {
@@ -499,4 +500,39 @@ func aplicaBuffDeGuilda(e *world.Entity, b bonusDeGuilda) {
 // distinguir 15 dias de 30.
 func duracaoDoItemDeBuff(index int16) time.Duration {
 	return itensDeBuffDeGuilda[index]
+}
+
+// guildaAtiva atende MsgGuildaAtiva: o botao "Ativar" da aba Buffs.
+//
+// ELE NAO DA BUFF. Ele procura um Guild Buff NA MOCHILA do jogador e o usa, pelo
+// mesmo caminho de quem clica no item — o servidor confere que o item existe e o
+// gasta. Um cliente remendado que mande este pacote sem ter o item nao ganha
+// nada, que era a razao de eu nao ter posto botao nenhum no comeco.
+//
+// Prefere o item de MENOR duracao: quem tem os dois e aperta o botao quase nunca
+// quer queimar o de 30 dias primeiro.
+func (d *Dispatcher) guildaAtiva(w *world.World, s *world.Session, _ protocol.Header, _ []byte) {
+	e := w.Entity(s.Conn)
+	if e == nil || s.Mode != world.UserPlay {
+		return
+	}
+	if e.Guild == 0 {
+		sendClientMessage(w, s, msgGuildaSemGuilda)
+		return
+	}
+	melhor, menor := -1, time.Duration(0)
+	for i := range e.Carry {
+		dura := duracaoDoItemDeBuff(e.Carry[i].Index)
+		if dura <= 0 {
+			continue
+		}
+		if melhor < 0 || dura < menor {
+			melhor, menor = i, dura
+		}
+	}
+	if melhor < 0 {
+		sendClientMessage(w, s, msgGuildaSemItemDeBuff)
+		return
+	}
+	d.useBuffDeGuilda(w, s, e, melhor)
 }
