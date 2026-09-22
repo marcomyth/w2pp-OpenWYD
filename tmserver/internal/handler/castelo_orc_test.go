@@ -130,29 +130,32 @@ func TestCasteloOrcNaoMexeNoDropDeOutroMonstro(t *testing.T) {
 // teleport after the Grão-Lorde, so nothing inside needs opening), and the Mago
 // Orc added to the troop with the Meio Orc's numbers.
 //
-// 21/09/2026, the damage rule (docs/castelo-orc.md, "A régua do dano"): the team
-// died in here, so every Dano was fitted to one ruler — a Mortal at 1.400 armour,
-// and the potion's 2.000 per second as the ceiling a swarm may not cross. Per
-// role, against that player: troop 250 a blow (eight of them), follower 350
-// (five), guardian 550 (three), boss 800. The numbers came out of a numeric
-// search over the server's own swing in simulacao_quests_test.go — the swing
-// subtracts HALF the target's armour, so a Dano change moves the blow by much
-// more than itself, and eyeballing one is how the troop ended up at 1.220.
+// 21/09/2026, from the Marco: every Dano in both quests cut by 40%, life and
+// armour untouched (docs/castelo-orc.md, "O dano"). The team died in here, and
+// this is the whole of the fix — 1.220 × 0,6 = 732, and so on down the table.
+//
+// Cutting 40% of the Dano takes MUCH more than 40% of the blow, and that is the
+// formula, not the choice: the swing subtracts HALF the target's armour, a fixed
+// toll that eats a growing share of what is left. Against a Mortal at 1.400
+// armour the troop went from 413 a blow to 36, and the boss from 1.026 to 398.
+// Anyone eyeballing the next change here should run
+// TestSimulacaoQuestsPorDefesa first — a number that looks small in this table
+// is not small in the fight, and the reverse.
 var casteloOrcDesign = map[string]struct {
 	name             string
 	lvl, hp, ac, dmg int32
 	res              int8
 	key              int16
 }{
-	"COrc_GraoLorde": {"Grão-Lorde Orc", 350, 1500000, 3000, 1720, 25, 0},
-	"COrc_Guarda":    {"Guarda do Lorde", 320, 105000, 2200, 1140, 15, 0},
-	"COrc_Sentinela": {"Sentinela Orc", 330, 450000, 2400, 1400, 20, 0},
-	"COrc_Capitao":   {"Capitão Orc", 330, 450000, 2400, 1400, 20, 0},
-	"COrc_Chefe":     {"Chefe Orc", 330, 450000, 2400, 1400, 20, 0},
-	"COrc_Cavaleiro": {"Cavaleiro Orc", 300, 18000, 1800, 1020, 10, 0},
-	"COrc_Arqueiro":  {"Arqueiro Orc", 300, 18000, 1800, 1020, 10, 0},
-	"COrc_MeioOrc":   {"Meio Orc", 300, 18000, 1800, 1020, 10, 0},
-	"COrc_Mago":      {"Mago Orc", 300, 18000, 1800, 1020, 10, 0},
+	"COrc_GraoLorde": {"Grão-Lorde Orc", 350, 1500000, 3000, 1212, 25, 0},
+	"COrc_Guarda":    {"Guarda do Lorde", 320, 105000, 2200, 912, 15, 0},
+	"COrc_Sentinela": {"Sentinela Orc", 330, 450000, 2400, 972, 20, 0},
+	"COrc_Capitao":   {"Capitão Orc", 330, 450000, 2400, 972, 20, 0},
+	"COrc_Chefe":     {"Chefe Orc", 330, 450000, 2400, 972, 20, 0},
+	"COrc_Cavaleiro": {"Cavaleiro Orc", 300, 18000, 1800, 732, 10, 0},
+	"COrc_Arqueiro":  {"Arqueiro Orc", 300, 18000, 1800, 732, 10, 0},
+	"COrc_MeioOrc":   {"Meio Orc", 300, 18000, 1800, 732, 10, 0},
+	"COrc_Mago":      {"Mago Orc", 300, 18000, 1800, 732, 10, 0},
 }
 
 // casteloOrcVisual is what each quest monster wears (14/09/2026): Manto de Shiner

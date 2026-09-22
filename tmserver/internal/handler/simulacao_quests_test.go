@@ -317,9 +317,9 @@ func TestSimulacaoQuestsChefesDoTroll(t *testing.T) {
 		rotulo string
 		a      alvoDeRaide
 	}{
-		{"Troll Caos (150 mil, def 2.400, dano 1.100)", alvoDeRaide{arquivo: "ATroll_Caos"}},
-		{"Troll Enigma (600 mil, def 2.400, dano 1.010)", alvoDeRaide{arquivo: "ATroll_Enigma"}},
-		{"Grão-Lorde Orc (1,5 mi, def 3.000, dano 1.720)", alvoDeRaide{arquivo: "COrc_GraoLorde"}},
+		{"Troll Caos (150 mil, def 2.400, dano 972)", alvoDeRaide{arquivo: "ATroll_Caos"}},
+		{"Troll Enigma (600 mil, def 2.400, dano 606)", alvoDeRaide{arquivo: "ATroll_Enigma"}},
+		{"Grão-Lorde Orc (1,5 mi, def 3.000, dano 1.212)", alvoDeRaide{arquivo: "COrc_GraoLorde"}},
 	}
 	for _, alvo := range alvos {
 		t.Log("— " + alvo.rotulo + " —")
