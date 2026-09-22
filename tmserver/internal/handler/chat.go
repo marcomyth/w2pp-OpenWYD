@@ -309,6 +309,10 @@ func (d *Dispatcher) runCommand(w *world.World, s *world.Session, name string, a
 		d.setSnd(w, s, cstr(args))
 		return true
 	}
+	if cmd == "tab" {
+		d.setTab(w, s, args)
+		return true
+	}
 	return false
 }
 
@@ -545,6 +549,61 @@ func (d *Dispatcher) setSnd(w *world.World, s *world.Session, text string) {
 
 // sndLine is _NN_SND_MESSAGE (Language.txt:385, "Mensagem:") plus the text.
 func sndLine(text string) string { return "Mensagem: " + text }
+
+// tabNivelMinimo é o nível que o legado exige de um Mortal para escrever acima
+// da cabeça. Arch e Celestial passam em qualquer nível.
+//
+// O legado testa "Level < 69" e a recusa DELE diz 70 (:541) — um a menos do que
+// anuncia. Aqui vale o número que o jogador lê.
+const tabNivelMinimo = 70
+
+// setTab backs "/tab <texto>": a linha livre que fica ACIMA do personagem,
+// visível para quem está na tela (_MSG_MessageWhisper.cpp:539-587).
+//
+// Não existe pacote de "mudou o tab": o cliente só lê esse campo no
+// MSG_CreateMob, então mudá-lo é redesenhar o personagem para todo mundo em
+// volta. É o que o legado faz — e junto vai o PKInfo, porque o CreateMob
+// refeito também recarrega a cor do nick.
+//
+// "/tab" sem texto apaga a linha, que é o que o strncpy de uma string vazia
+// faz lá. O valor é de sessão, como o Snd: o legado nunca o persistiu.
+func (d *Dispatcher) setTab(w *world.World, s *world.Session, texto []byte) {
+	e := w.Entity(s.Conn)
+	if e == nil {
+		return
+	}
+	if e.Level < tabNivelMinimo && e.ClassMaster == classMasterMortal {
+		d.notify(w, s, NoticeLevelLimit)
+		return
+	}
+	// Os bytes seguem como vieram do cliente (CP1252); ver CreateMobData.Tab.
+	// O tamanho do campo é do ENCODER, que é quem o conhece (createmob.go corta
+	// em 25 + NUL): repetir o corte aqui seria um segundo guard para a mesma
+	// regra, e o segundo some sem ninguém notar.
+	if i := indexByte(texto, 0); i >= 0 {
+		texto = texto[:i]
+	}
+	e.Tab = append([]byte(nil), texto...)
+	d.redesenhaComOTab(w, s, e)
+	d.log.Info("tab", "conn", s.Conn, "bytes", len(e.Tab))
+}
+
+// redesenhaComOTab reenvia o personagem a si e a quem o vê.
+//
+// Por createMobViewPacket, e não pelo EncodeCreateMobBody direto: quem está com
+// a barraca aberta tem de ser redesenhado com o pacote da BARRACA, ou o
+// vendedor volta a ser um avatar comum na tela dos outros. É a mesma escolha
+// que o legado faz entre GetCreateMob e GetCreateMobTrade aqui (:549-561).
+func (d *Dispatcher) redesenhaComOTab(w *world.World, s *world.Session, e *world.Entity) {
+	ty, body := createMobViewPacket(w, e, 0)
+	info := protocol.EncodeStandardParm(pkInfoParm(e))
+	envia := func(vs *world.Session) {
+		w.SendTo(vs, protocol.Header{Type: ty, ID: protocol.IDScene}, body)
+		w.SendTo(vs, protocol.Header{Type: protocol.MsgPKInfo, ID: uint16(s.Conn)}, info)
+	}
+	envia(s)
+	w.ForEachInView(s.Conn, func(vs *world.Session, _ *world.Entity) { envia(vs) })
+}
 
 // userInfoLine renders _NN_Check_User_Info (Language.txt:435, "Cidadania: %d /
 // Fama: %d") the way the legacy composes it: the character's name, then the

@@ -203,8 +203,13 @@ type Entity struct {
 	ID   int
 	Mode EntityMode
 	Name string
-	X    int16
-	Y    int16
+	// Tab é a linha que o jogador põe ACIMA do personagem com "/tab"
+	// (pMob.Tab, _MSG_MessageWhisper.cpp:548). Vive aqui, e não na Session,
+	// porque quem a desenha é o MSG_CreateMob da ENTIDADE — inclusive o que
+	// outro jogador recebe ao entrar na tela. Não é persistida, como no legado.
+	Tab []byte
+	X   int16
+	Y   int16
 	// SaveX/SaveY are the Gema Estelar warp save-point (STRUCT_MOB.SPX/SPY,
 	// _MSG_UseItem.cpp Vol 12/13) — distinct from X/Y, the player's live position.
 	// 0/0 means no point has ever been saved.
