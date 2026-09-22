@@ -68,25 +68,39 @@ type Session struct {
 	// character (_MSG_MessageWhisper.cpp:591 sets it, :1640 shows it). Session
 	// scope is deliberate and matches the legacy, which clears Snd on every login
 	// (ProcessDBMessage.cpp:798) — it is never persisted.
-	Snd               string
-	GuildDisable      bool            // hide guild tag (guildon/guildoff)
-	TradeMode         int             // non-zero while in auto-trade (blocks attacks)
-	Trade             TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
-	AutoTrade         *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1
-	NovatoEmCurso     bool            // um /novato já está esperando a resposta do banco
-	CompraEmPontos    bool            // uma compra paga em pontos de lojinha espera o banco
-	LastAttackTick    uint32          // ClientTick of the last accepted attack (cadence gate)
-	PotionTick        uint32          // CUser.PotionTime: server clock of the last accepted potion
-	LastAttack        int             // SkillIndex of the last attack
-	LastIllusionTick  uint32          // ClientTick of the last Huntress Ilusao movement
-	ReqHp             int32           // CUser.ReqHp: server-owned HP target for regen/potions
-	ReqMp             int32           // CUser.ReqMp: server-owned MP target for regen/potions
-	CriticalProgress  uint16          // CUser.cProgress used by BASE_GetDoubleCritical
-	ShortSkill        [16]uint8       // client hotbar layout (CUser.CharShortSkill, _MSG_SetShortSkill)
-	LoginSpawnX       int16           // last server-injected login spawn, for movement diagnostics
-	LoginSpawnY       int16
-	LoginTick         uint32
-	LoggedFirstAction bool // first post-login _MSG_Action diagnostic was emitted
+	Snd string
+	// Os três desligadores de canal do legado (_MSG_MessageChat.cpp:117-150),
+	// alternados por "partychat"/"kingdomchat"/"guildchat" e lidos na ENTREGA:
+	// true = este jogador não recebe mais aquele canal. Escopo de sessão, como o
+	// legado, que zera os três a cada login (ProcessDBMessage.cpp:414-416).
+	//
+	// O canal Cidadão não tem desligador: o SyncMulticast do legado não olha
+	// nada, e portar um seria inventar mecânica.
+	PartyChat bool
+	KingChat  bool
+	GuildChat bool
+	// UltimaMensagemCanal é o World.Now da última linha de Reino ou Cidadão desta
+	// sessão; 0 é nunca. Os dois canais alcançam gente fora da tela, então o
+	// legado põe 3 segundos entre uma linha e a outra (pUser.Message).
+	UltimaMensagemCanal uint32
+	GuildDisable        bool            // hide guild tag (guildon/guildoff)
+	TradeMode           int             // non-zero while in auto-trade (blocks attacks)
+	Trade               TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
+	AutoTrade           *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1
+	NovatoEmCurso       bool            // um /novato já está esperando a resposta do banco
+	CompraEmPontos      bool            // uma compra paga em pontos de lojinha espera o banco
+	LastAttackTick      uint32          // ClientTick of the last accepted attack (cadence gate)
+	PotionTick          uint32          // CUser.PotionTime: server clock of the last accepted potion
+	LastAttack          int             // SkillIndex of the last attack
+	LastIllusionTick    uint32          // ClientTick of the last Huntress Ilusao movement
+	ReqHp               int32           // CUser.ReqHp: server-owned HP target for regen/potions
+	ReqMp               int32           // CUser.ReqMp: server-owned MP target for regen/potions
+	CriticalProgress    uint16          // CUser.cProgress used by BASE_GetDoubleCritical
+	ShortSkill          [16]uint8       // client hotbar layout (CUser.CharShortSkill, _MSG_SetShortSkill)
+	LoginSpawnX         int16           // last server-injected login spawn, for movement diagnostics
+	LoginSpawnY         int16
+	LoginTick           uint32
+	LoggedFirstAction   bool // first post-login _MSG_Action diagnostic was emitted
 
 	// AttackRefusals counts, per anti-cheat gate restored from the legacy
 	// attack handler, the attacks this session had refused (keyed by the gate's

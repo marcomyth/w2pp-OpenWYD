@@ -235,6 +235,11 @@ const (
 	// Language.txt: no legado a 415 não fazia nada, então não há recusa a
 	// reaproveitar. Acrescentada no fim pelo motivo que NoticeLevelLimit explica.
 	NoticeErvaSemEfeito
+
+	// NoticeOnlyGuildMember is _NN_Only_Guild_Member_Can: falar no canal de
+	// guilda sem ter guilda (_MSG_MessageWhisper.cpp:1439). Acrescentada no fim
+	// pelo motivo que NoticeLevelLimit explica.
+	NoticeOnlyGuildMember
 )
 
 // noticeKey maps a Notice to its key in the shipped client string table
@@ -279,8 +284,9 @@ var noticeKey = map[Notice]string{
 	NoticeAlreadyDone:   "_NN_Youve_Done_It_Already", // 71
 
 	// Chat / whisper.
-	NoticeNotConnected: "_NN_Not_Connected", // 91
-	NoticeDenyWhisper:  "_NN_Deny_Whisper",  // 165
+	NoticeNotConnected:    "_NN_Not_Connected",         // 91
+	NoticeDenyWhisper:     "_NN_Deny_Whisper",          // 165
+	NoticeOnlyGuildMember: "_NN_Only_Guild_Member_Can", // 104
 
 	// Skills.
 	NoticeOtherClassSkill:     "_NN_Cant_Learn_Other_Class_Skill", // 107

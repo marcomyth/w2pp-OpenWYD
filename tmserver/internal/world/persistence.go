@@ -689,13 +689,23 @@ const (
 	GroundPegou  = "pegou"
 )
 
-// ChatTipo is which channel a line was said on: public speech, or a whisper.
+// ChatTipo is which channel a line was said on.
 type ChatTipo string
 
-// The two channels the log keeps.
+// Os canais que o registro guarda.
+//
+// Os quatro últimos entraram com os canais (handler/canais.go). Não dá para
+// jogá-los em "publico": o registro existe para o atendimento responder "quem
+// ouviu isto?", e a resposta é diferente em cada um — a fala pública alcança
+// quem está na tela, a de guilda alcança a guilda, a de cidadão alcança o
+// servidor inteiro. Guardar o alcance errado é pior do que não guardar.
 const (
 	ChatPublico  ChatTipo = "publico"
 	ChatSussurro ChatTipo = "sussurro"
+	ChatGuilda   ChatTipo = "guilda"
+	ChatGrupo    ChatTipo = "grupo"
+	ChatReino    ChatTipo = "reino"
+	ChatCidadao  ChatTipo = "cidadao"
 )
 
 // ChatLinha is one thing somebody said, as the loop saw it (0034_chat_log).

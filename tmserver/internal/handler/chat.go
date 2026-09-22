@@ -12,10 +12,13 @@ import (
 // messageChat handles _MSG_MessageChat (0x0333): public chat plus a few slash
 // commands (lote2-chat.md). A non-command line is multicast to players in view.
 //
-// UNVERIFIED: the full command list (partychat/kingdomchat/guildchat/chatting
-// routing) is not reproduced — only the toggles and guildtax below; everything
-// else is treated as public speech. Recommended migration: split a command-bus
-// from the chat transport.
+// Os comandos daqui são só TOGGLES: nenhum canal sai por este pacote. O texto
+// dos quatro canais viaja no _MSG_MessageWhisper (canais.go) — o que estes
+// alternam é o recebimento de três deles.
+//
+// "chatting" fica de fora de propósito: o legado grava pUser.Chatting e NENHUMA
+// linha do servidor o lê depois (é o único dos quatro sem leitor). Portar o
+// campo seria portar um botão que nunca fez nada.
 func (d *Dispatcher) messageChat(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
 	if s.Mode != world.UserPlay {
 		return
@@ -30,6 +33,18 @@ func (d *Dispatcher) messageChat(w *world.World, s *world.Session, _ protocol.He
 		s.GuildDisable = true
 	case "guildtax":
 		d.guildTax(w, s, text)
+	// Os desligadores dos canais (canais.go). O legado responde a cada um com o
+	// estado novo, e é a única confirmação que o jogador recebe: o botão do
+	// cliente não muda sozinho.
+	case "partychat":
+		s.PartyChat = !s.PartyChat
+		sendClientMessage(w, s, estadoDoCanal("Chat de grupo", s.PartyChat))
+	case "kingdomchat":
+		s.KingChat = !s.KingChat
+		sendClientMessage(w, s, estadoDoCanal("Chat de reino", s.KingChat))
+	case "guildchat":
+		s.GuildChat = !s.GuildChat
+		sendClientMessage(w, s, estadoDoCanal("Chat de guilda", s.GuildChat))
 	default:
 		// Public speech → everyone in view (HEADER.ID = speaker).
 		w.BroadcastInView(s.Conn, protocol.MsgMessageChat, payload)
@@ -53,6 +68,14 @@ func (d *Dispatcher) messageWhisper(w *world.World, s *world.Session, _ protocol
 		return
 	}
 	name := cstr(body.MobName[:])
+	// MobName vazio nunca foi sussurro: é um dos quatro canais (guilda, grupo,
+	// reino, cidadão), escolhidos pelo prefixo do texto — canais.go. Sem este
+	// desvio o pacote seguia para SessionByName(""), não achava ninguém e
+	// respondia "O jogador não está conectado." a quem falou no chat global.
+	if name == "" {
+		d.chatDeCanal(w, s, body)
+		return
+	}
 	if d.runCommand(w, s, name, body.String) {
 		// Freeze investigation: commands were invisible in the logs (the recv
 		// packet line only shows 0x0334), so incident timelines could not tell a

@@ -1065,12 +1065,30 @@ type ItemDup struct {
 // ChatTipo is which channel a line was said on.
 type ChatTipo string
 
-// The two channels stored. Public speech reaches whoever was in view; a whisper
-// reaches one person.
+// Os canais guardados, e quem cada um alcança: a fala pública alcança quem está
+// na tela, o sussurro alcança uma pessoa, a guilda a guilda (com a aliada, no
+// "--"), o grupo o grupo, o reino quem tem o mesmo Clan, e o cidadão o servidor
+// inteiro. O alcance é a razão de o tipo existir — é o que o atendimento precisa
+// saber para responder "quem ouviu isto?".
 const (
 	ChatPublico  ChatTipo = "publico"
 	ChatSussurro ChatTipo = "sussurro"
+	ChatGuilda   ChatTipo = "guilda"
+	ChatGrupo    ChatTipo = "grupo"
+	ChatReino    ChatTipo = "reino"
+	ChatCidadao  ChatTipo = "cidadao"
 )
+
+// ChatTipoValido reporta se t é um dos canais guardados. O store consulta esta
+// lista nas duas pontas (gravar e listar), e a migração 0097 repete a mesma
+// lista no CHECK da tabela — as três têm de andar juntas.
+func ChatTipoValido(t ChatTipo) bool {
+	switch t {
+	case ChatPublico, ChatSussurro, ChatGuilda, ChatGrupo, ChatReino, ChatCidadao:
+		return true
+	}
+	return false
+}
 
 // ChatRetencaoPadrao is how long a line is kept when nothing says otherwise.
 //

@@ -544,6 +544,72 @@ func (m *MsgWhisperBody) Encode() []byte {
 	return b
 }
 
+// MessageWhisperLength is MSG_MessageWhisper.String (Basedef.h:190) — four bytes
+// longer than MessageLength, and the gap is load-bearing: the legacy stamps
+// String[MESSAGE_LENGTH] with a channel marker that lives in those spare bytes.
+const MessageWhisperLength = 100
+
+// whisperGuildMarker is String[MESSAGE_LENGTH] = 96, the byte the legacy sets to
+// 3 on a guild line (_MSG_MessageWhisper.cpp:1429, `m->String[MESSAGE_LENGTH] = 3`)
+// and on no other channel. UNVERIFIED what the client draws from it; it is
+// reproduced because the legacy sends it and the client has read it for years.
+const (
+	whisperGuildMarker = MessageLength
+	whisperGuildMark   = 3
+)
+
+// WhisperChannelBodySize is a FULL MSG_MessageWhisper body: MobName[16] +
+// String[100]. The channels always send this size, never the (shorter) frame the
+// speaker's client happened to send.
+//
+// The legacy is sloppy here — guild chat forwards with the client's own m->Size
+// and then writes String[96] anyway, which simply does not travel when the client
+// sent a shorter frame. A client that reads the marker unconditionally would be
+// reading past the frame, which is the crash shape this port already knows.
+const WhisperChannelBodySize = 16 + MessageWhisperLength
+
+// EncodeWhisperChannelBody builds the MSG_MessageWhisper body for a CHANNEL line
+// (guild/party/kingdom/citizen): the legacy overwrites MobName with the SPEAKER's
+// name and forwards the text untouched, prefix and all — the client picks the
+// channel from that prefix, so stripping it would silently change how the line is
+// drawn (_MSG_MessageWhisper.cpp:1425-1566).
+//
+// text is the raw bytes as they arrived from the speaker's client (already
+// CP1252): re-encoding here would mangle accents that are already correct.
+func EncodeWhisperChannelBody(speaker string, text []byte, guild bool) []byte {
+	b := make([]byte, WhisperChannelBodySize)
+	copy(b[0:16], ClientText(speaker))
+
+	// The text always terminates before the marker byte, whether or not this line
+	// carries one: a 99-byte guild line would otherwise have its 97th byte quietly
+	// replaced by a 3 mid-word.
+	max := MessageWhisperLength - 1
+	if guild {
+		max = whisperGuildMarker - 1
+	}
+	if i := indexZero(text); i >= 0 {
+		text = text[:i]
+	}
+	if len(text) > max {
+		text = text[:max]
+	}
+	copy(b[16:], text)
+	if guild {
+		b[16+whisperGuildMarker] = whisperGuildMark
+	}
+	return b
+}
+
+// indexZero returns the offset of the first NUL in b, or -1.
+func indexZero(b []byte) int {
+	for i := range b {
+		if b[i] == 0 {
+			return i
+		}
+	}
+	return -1
+}
+
 // MagicTrumpetBodySize is MSG_MagicTrumpet minus the header (Basedef.h:1739-1745):
 // char String[MESSAGE_LENGTH] followed by int Color — 100 bytes, so the frame on
 // the wire is 112.

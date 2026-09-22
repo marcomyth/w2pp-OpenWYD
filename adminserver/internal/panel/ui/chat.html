@@ -75,11 +75,19 @@
     <span style="width:14px"></span>
     <span class="rot">Canal</span>
     <a href="/chat?dias={{$d}}{{if $n}}&amp;personagem={{$n}}{{end}}{{if $t}}&amp;texto={{$t}}{{end}}"
-       {{if not $tp}}class="on"{{end}}>Os dois</a>
+       {{if not $tp}}class="on"{{end}}>Todos</a>
     <a href="/chat?dias={{$d}}&amp;tipo=publico{{if $n}}&amp;personagem={{$n}}{{end}}{{if $t}}&amp;texto={{$t}}{{end}}"
        {{if eq $tp "publico"}}class="on"{{end}}>Só público</a>
     <a href="/chat?dias={{$d}}&amp;tipo=sussurro{{if $n}}&amp;personagem={{$n}}{{end}}{{if $t}}&amp;texto={{$t}}{{end}}"
        {{if eq $tp "sussurro"}}class="on"{{end}}>Só sussurro</a>
+    <a href="/chat?dias={{$d}}&amp;tipo=guilda{{if $n}}&amp;personagem={{$n}}{{end}}{{if $t}}&amp;texto={{$t}}{{end}}"
+       {{if eq $tp "guilda"}}class="on"{{end}}>Só guilda</a>
+    <a href="/chat?dias={{$d}}&amp;tipo=grupo{{if $n}}&amp;personagem={{$n}}{{end}}{{if $t}}&amp;texto={{$t}}{{end}}"
+       {{if eq $tp "grupo"}}class="on"{{end}}>Só grupo</a>
+    <a href="/chat?dias={{$d}}&amp;tipo=reino{{if $n}}&amp;personagem={{$n}}{{end}}{{if $t}}&amp;texto={{$t}}{{end}}"
+       {{if eq $tp "reino"}}class="on"{{end}}>Só reino</a>
+    <a href="/chat?dias={{$d}}&amp;tipo=cidadao{{if $n}}&amp;personagem={{$n}}{{end}}{{if $t}}&amp;texto={{$t}}{{end}}"
+       {{if eq $tp "cidadao"}}class="on"{{end}}>Só cidadão</a>
   </div>
 
   {{if not .Buscou}}
@@ -109,7 +117,7 @@
               {{.At.Local.Format "02/01 15:04:05"}}
               {{if .Idade}}<span class="idade">há {{.Idade}}</span>{{end}}
             </td>
-            <td><span class="canal {{if .Sussurro}}priv{{end}}">{{if .Sussurro}}sussurro{{else}}público{{end}}</span></td>
+            <td><span class="canal {{if .Sussurro}}priv{{end}}">{{.Canal}}</span></td>
             <td>
               {{.Character}}
               {{if .Alvo}}<br><span class="para">para {{.Alvo}}</span>{{end}}
