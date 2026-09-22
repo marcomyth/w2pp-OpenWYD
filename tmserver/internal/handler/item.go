@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -2942,13 +2943,13 @@ func buffScaleHpMp(e *world.Entity, v int32) int32 {
 // EF_HPADD% × buff. Applied at read time (display/combat/regen), never stored
 // (captura §C,E).
 func effectiveMaxHP(e *world.Entity) int32 {
-	return semNegativo(buffScaleHpMp(e, (scoreMaxHP(e)+e.AffMaxHP)*(e.HpAddPct+100)/100))
+	return semNegativo(buffScaleHpMp(e, comPercentual(scoreMaxHP(e)+e.AffMaxHP, e.HpAddPct)))
 }
 
 // effectiveMaxMP is the player's real max MP: (score MaxMP + affect deltas) ×
 // EF_MPADD% × buff.
 func effectiveMaxMP(e *world.Entity) int32 {
-	return semNegativo(buffScaleHpMp(e, (scoreMaxMP(e)+e.AffMaxMP)*(e.MpAddPct+100)/100))
+	return semNegativo(buffScaleHpMp(e, comPercentual(scoreMaxMP(e)+e.AffMaxMP, e.MpAddPct)))
 }
 
 // scoreMaxHP is the legacy CurrentScore.MaxHp as the affect pass finds it. For
@@ -2993,6 +2994,34 @@ func scoreMaxMP(e *world.Entity) int32 {
 // Zero, not one: a maximum of 0 is legitimate — an entity with no mana at all —
 // and flooring at 1 hands it a sliver of bar that regen then tries to fill,
 // which shows up as stray SetHpMp frames on characters that should send none.
+// comPercentual soma pct por cento a base, fazendo a conta em 64 bits.
+//
+// A multiplicação era feita em int32 e ESTOUAVA. Medido em 21/09/2026: um
+// personagem de teste com 50.000.100 de vida máxima e +15% de HpAddPct dá
+// 50.000.100 × 115 = 5.750.011.500, muito acima do teto do int32
+// (2.147.483.647). O resultado virava negativo, o semNegativo o transformava em
+// zero, e a linha seguinte de refreshScore — `if e.HP > maxHP { e.HP = maxHP }`
+// — punha a vida do jogador em zero. O personagem morria de pé, e continuava
+// morto depois de relogar, porque o zero ia para o banco.
+//
+// O perigo não nasceu com os buffs de guilda: qualquer equipamento com EF_HPADD
+// faria o mesmo numa vida grande o bastante. Os buffs só o encontraram.
+//
+// O retorno continua em int32 porque é o tipo do resto do cálculo; o que muda é
+// que a conta do MEIO não cabe mais nele. Um resultado acima do teto satura em
+// vez de dar a volta — saturar é errado por um número, dar a volta é errado por
+// um sinal, e só o segundo mata alguém.
+func comPercentual(base, pct int32) int32 {
+	v := int64(base) * int64(pct+100) / 100
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	if v < math.MinInt32 {
+		return math.MinInt32
+	}
+	return int32(v)
+}
+
 func semNegativo(v int32) int32 {
 	if v < 0 {
 		return 0

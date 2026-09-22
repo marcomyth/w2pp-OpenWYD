@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -379,5 +380,64 @@ func TestDuracaoEmTexto(t *testing.T) {
 		if got := duracaoEmTexto(c.d); got != c.quer {
 			t.Errorf("duracaoEmTexto(%v) = %q, want %q", c.d, got, c.quer)
 		}
+	}
+}
+
+// A conta do percentual de vida NÃO pode estourar o int32.
+//
+// Este teste nasce de um personagem morto de verdade, em 21/09/2026: nível 350
+// com 50.000.100 de vida máxima, um buff de guilda de +15%, e a multiplicação
+// 50.000.100 × 115 passando do teto do int32. O resultado virava negativo, o
+// corte de negativos o transformava em zero, e refreshScore então baixava a vida
+// do jogador para zero — ele morria de pé e continuava morto depois de relogar,
+// porque o zero era gravado.
+//
+// O caso não é exótico: qualquer equipamento com EF_HPADD faz a mesma conta.
+func TestComPercentualNaoEstoura(t *testing.T) {
+	// O caso exato que matou o personagem.
+	const vidaEnorme = 50_000_100
+	if got := comPercentual(vidaEnorme, 15); got <= 0 {
+		t.Fatalf("comPercentual(%d, 15) = %d: a conta estourou e virou negativa", vidaEnorme, got)
+	}
+	if got := comPercentual(vidaEnorme, 15); got != 57_500_115 {
+		t.Errorf("comPercentual(%d, 15) = %d, want 57500115", vidaEnorme, got)
+	}
+	// Bem acima do teto: satura em vez de dar a volta. Errar por um número é
+	// ruim; errar por um SINAL mata alguém.
+	if got := comPercentual(2_000_000_000, 100); got != math.MaxInt32 {
+		t.Errorf("comPercentual saturou em %d, want %d", got, int32(math.MaxInt32))
+	}
+	// Os casos comuns continuam iguais.
+	for _, c := range []struct{ base, pct, quer int32 }{
+		{1000, 0, 1000},
+		{1000, 15, 1150},
+		{1000, -50, 500},
+		{0, 15, 0},
+	} {
+		if got := comPercentual(c.base, c.pct); got != c.quer {
+			t.Errorf("comPercentual(%d, %d) = %d, want %d", c.base, c.pct, got, c.quer)
+		}
+	}
+}
+
+// E a vida do jogador nunca pode ser zerada por um buff. Este e o teste que
+// fecha o caminho inteiro: refreshScore com o buff ligado, numa vida grande.
+func TestBuffDeVidaNaoMataOJogador(t *testing.T) {
+	d, w := painelDeGuilda(t)
+	relogioFixo(d, time.Date(2026, 9, 21, 20, 0, 0, 0, time.UTC))
+	d.ligaBuffDeGuilda(w, guildaDeTeste, buffGuildaVida, quinzeDias)
+
+	e := liderDaGuilda(guildaDeTeste)
+	e.BaseMaxHP = 50_000_100
+	e.MaxHP = 50_000_100
+	e.HP = 50_000_100
+
+	d.refreshScore(e)
+
+	if e.HP <= 0 {
+		t.Fatalf("o buff de vida matou o jogador: HP = %d", e.HP)
+	}
+	if m := effectiveMaxHP(e); m <= 0 {
+		t.Errorf("vida maxima efetiva = %d", m)
 	}
 }
