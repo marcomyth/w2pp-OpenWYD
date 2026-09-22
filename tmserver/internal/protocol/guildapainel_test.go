@@ -147,13 +147,41 @@ func TestGuildaBuffsIdaEVolta(t *testing.T) {
 	origem.Buffs[1] = GuildaBuff{Tipo: 2}
 	origem.Buffs[2] = GuildaBuff{Tipo: 3, Ativo: true, Restam: 7200}
 	origem.Buffs[3] = GuildaBuff{Tipo: 4}
+	origem.Itens = []GuildaItemDeBuff{
+		{Slot: 3, Indice: 3439, Dias: 15},
+		{Slot: 17, Indice: 3440, Dias: 30},
+	}
 
 	volta, err := DecodeGuildaBuffs(origem.Encode())
 	if err != nil {
 		t.Fatalf("decode: %v", err)
 	}
+	if volta.Buffs != origem.Buffs {
+		t.Errorf("ida e volta mudou os buffs: %+v vs %+v", origem.Buffs, volta.Buffs)
+	}
+	if len(volta.Itens) != len(origem.Itens) {
+		t.Fatalf("voltaram %d itens, want %d", len(volta.Itens), len(origem.Itens))
+	}
+	for i := range origem.Itens {
+		if volta.Itens[i] != origem.Itens[i] {
+			t.Errorf("item %d = %+v, want %+v", i, volta.Itens[i], origem.Itens[i])
+		}
+	}
+}
+
+// O pedido de ativacao carrega QUAL buff e COM QUAL item: o servidor confere os
+// dois, e e isso que impede um cliente remendado de pedir buff sem ter item.
+func TestGuildaAtivaIdaEVolta(t *testing.T) {
+	origem := GuildaAtivaBody{Tipo: 3, Slot: 17}
+	volta, err := DecodeGuildaAtiva(origem.Encode())
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
 	if volta != origem {
-		t.Errorf("ida e volta mudou os buffs:\n ida:   %+v\n volta: %+v", origem, volta)
+		t.Errorf("volta = %+v, want %+v", volta, origem)
+	}
+	if _, err := DecodeGuildaAtiva([]byte{1, 0}); err == nil {
+		t.Error("corpo curto foi aceito")
 	}
 }
 

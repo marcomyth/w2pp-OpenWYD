@@ -271,8 +271,11 @@ func TestOsDoisItensTemDuracoesDiferentes(t *testing.T) {
 	}
 }
 
-// Um item acende os QUATRO, e todos passam a valer de uma vez.
-func TestUmItemAcendeOsQuatroBuffs(t *testing.T) {
+// Um item acende UM buff, o que o jogador escolheu — e só ele.
+//
+// Começou diferente: um item acendia os quatro. A Josiel trocou em 21/09/2026 ao
+// ver o resultado, e este teste é o que trava a regra nova.
+func TestUmItemAcendeApenasOBuffEscolhido(t *testing.T) {
 	d, w := painelDeGuilda(t)
 	relogioFixo(d, time.Date(2026, 9, 21, 20, 0, 0, 0, time.UTC))
 
@@ -280,14 +283,60 @@ func TestUmItemAcendeOsQuatroBuffs(t *testing.T) {
 	e := liderDaGuilda(guildaDeTeste)
 	e.Carry[0] = world.Item{Index: 3440}
 
-	d.useBuffDeGuilda(w, s, e, 0)
+	d.acendeUmBuff(w, s, e, 0, buffGuildaDrop)
 
 	b := d.bonusDeBuffDeGuilda(e)
-	if b.vidaPc != 15 || b.acPc != 18 || b.danoPc != 15 || b.drop != 20 {
-		t.Errorf("um item não acendeu os quatro: %+v", b)
+	if b.drop != 20 {
+		t.Errorf("o buff escolhido nao acendeu: %+v", b)
+	}
+	if b.vidaPc != 0 || b.acPc != 0 || b.danoPc != 0 {
+		t.Errorf("acendeu buff que ninguem pediu: %+v", b)
 	}
 	if e.Carry[0].Index != 0 {
-		t.Errorf("o item não foi gasto: sobrou %d", e.Carry[0].Index)
+		t.Errorf("o item nao foi gasto: sobrou %d", e.Carry[0].Index)
+	}
+}
+
+// Uma casa vazia, ou uma casa sem Guild Buff, nao acende nada e nao gasta nada.
+// E o pedido que vem do cliente, entao e por aqui que um cliente remendado
+// tentaria ganhar buff de graca.
+func TestAcenderComCasaErradaNaoDaBuff(t *testing.T) {
+	d, w := painelDeGuilda(t)
+	relogioFixo(d, time.Date(2026, 9, 21, 20, 0, 0, 0, time.UTC))
+
+	s := &world.Session{Conn: 1, Mode: world.UserPlay}
+	e := liderDaGuilda(guildaDeTeste)
+	e.Carry[5] = world.Item{Index: 2340} // uma cria de montaria, nao um buff
+
+	d.acendeUmBuff(w, s, e, 5, buffGuildaVida)  // casa com outro item
+	d.acendeUmBuff(w, s, e, 9, buffGuildaVida)  // casa vazia
+	d.acendeUmBuff(w, s, e, -1, buffGuildaVida) // casa invalida
+	d.acendeUmBuff(w, s, e, 9999, buffGuildaVida)
+
+	if b := d.bonusDeBuffDeGuilda(e); !b.vazio() {
+		t.Errorf("acendeu buff sem item: %+v", b)
+	}
+	if e.Carry[5].Index != 2340 {
+		t.Error("gastou o item errado")
+	}
+}
+
+// A lista que a aba Buffs manda e a mochila filtrada, com os dias de cada item.
+func TestItensDeBuffNaMochila(t *testing.T) {
+	e := liderDaGuilda(guildaDeTeste)
+	e.Carry[2] = world.Item{Index: 3439}
+	e.Carry[7] = world.Item{Index: 1030} // qualquer outra coisa
+	e.Carry[9] = world.Item{Index: 3440}
+
+	itens := itensDeBuffNaMochila(e)
+	if len(itens) != 2 {
+		t.Fatalf("achou %d itens, want 2", len(itens))
+	}
+	if itens[0].Slot != 2 || itens[0].Indice != 3439 || itens[0].Dias != 15 {
+		t.Errorf("primeiro item = %+v", itens[0])
+	}
+	if itens[1].Slot != 9 || itens[1].Indice != 3440 || itens[1].Dias != 30 {
+		t.Errorf("segundo item = %+v", itens[1])
 	}
 }
 
@@ -301,7 +350,7 @@ func TestItemDeBuffNaoEGastoSemGuilda(t *testing.T) {
 	e := &world.Entity{ID: 1, Name: "Solto", HP: 100, Mode: world.MobUser}
 	e.Carry[0] = world.Item{Index: 3439}
 
-	d.useBuffDeGuilda(w, s, e, 0)
+	d.acendeUmBuff(w, s, e, 0, buffGuildaVida)
 
 	if e.Carry[0].Index != 3439 {
 		t.Error("o item foi gasto por quem não tem guilda")

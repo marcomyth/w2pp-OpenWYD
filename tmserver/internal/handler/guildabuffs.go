@@ -316,9 +316,31 @@ func (d *Dispatcher) avisaBuffVencido(w *world.World, guilda uint16) {
 	})
 }
 
-// guildaMandaBuffs envia a aba Buffs: o estado dos quatro.
+// guildaMandaBuffs envia a aba Buffs: o estado dos quatro e os itens da mochila.
 func (d *Dispatcher) guildaMandaBuffs(w *world.World, s *world.Session, e *world.Entity) {
-	w.Send(s, protocol.MsgGuildaBuffs, d.corpoDeBuffs(e.Guild).Encode())
+	corpo := d.corpoDeBuffs(e.Guild)
+	corpo.Itens = itensDeBuffNaMochila(e)
+	w.Send(s, protocol.MsgGuildaBuffs, corpo.Encode())
+}
+
+// itensDeBuffNaMochila lista os Guild Buff que o jogador carrega.
+func itensDeBuffNaMochila(e *world.Entity) []protocol.GuildaItemDeBuff {
+	var out []protocol.GuildaItemDeBuff
+	for i := range e.Carry {
+		dura := duracaoDoItemDeBuff(e.Carry[i].Index)
+		if dura <= 0 {
+			continue
+		}
+		if len(out) >= protocol.GuildaItensDeBuffMax {
+			break
+		}
+		out = append(out, protocol.GuildaItemDeBuff{
+			Slot:   int16(i),
+			Indice: e.Carry[i].Index,
+			Dias:   int16(dura / (24 * time.Hour)),
+		})
+	}
+	return out
 }
 
 // corpoDeBuffs monta a aba Buffs. Separada do envio para ter teste sem rede.
@@ -362,63 +384,59 @@ var itensDeBuffDeGuilda = map[int16]time.Duration{
 	3440: 30 * 24 * time.Hour,
 }
 
-// useBuffDeGuilda atende o uso do item de buff: um item acende os QUATRO.
+// acendeUmBuff usa o item da casa dada para acender UM buff.
 //
-// Um item para os quatro, e não um item por buff, foi decisão da Josiel em
-// 21/09/2026. Tem uma consequência de desenho que vale dizer: o painel continua
-// mostrando quatro linhas com quatro relógios, porque os quatro têm durações
-// próprias na receita e podem ser acesos separadamente um dia — o que mudou foi
-// só quem os acende hoje.
+// Um item, um buff, escolhido pelo jogador. Começou diferente - um item acendia
+// os quatro -, e a Josiel trocou em 21/09/2026 ao ver o resultado: acender tudo
+// de uma vez tira a escolha, e a escolha é o que faz o item valer a pena guardar.
 //
-// Recusa e devolve o item quando não há guilda: gastar um item de cash sem
-// entregar nada é o pior resultado possível, e é exatamente o que aconteceria se
-// este caminho simplesmente não fizesse nada.
-func (d *Dispatcher) useBuffDeGuilda(w *world.World, s *world.Session, e *world.Entity, src int) {
-	dura := duracaoDoItemDeBuff(e.Carry[src].Index)
-	if dura <= 0 {
-		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
-		return
-	}
+// A conferência é dupla e é o ponto do desenho: o TIPO tem de existir e a CASA
+// tem de ter mesmo um Guild Buff. Um cliente remendado que mande uma casa vazia,
+// ou um tipo inventado, não acende nada.
+func (d *Dispatcher) acendeUmBuff(w *world.World, s *world.Session, e *world.Entity, src int, tipo uint8) {
 	if e.Guild == 0 {
 		sendClientMessage(w, s, msgGuildaSemGuilda)
-		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}
-
-	// Os quatro são acesos ANTES de o item sair da mochila, e o menor dos quatro
-	// relógios é o que a linha do chat anuncia. Se nenhum acender — o que só
-	// acontece se a tabela de receitas estiver vazia -, o item não é gasto.
-	menor := time.Duration(0)
-	acesos := 0
-	for _, r := range receitasDeBuff {
-		fim, ok := d.ligaBuffDeGuilda(w, e.Guild, r.Tipo, dura)
-		if !ok {
-			continue
-		}
-		acesos++
-		if falta := fim.Sub(d.now()); menor == 0 || falta < menor {
-			menor = falta
-		}
-	}
-	if acesos == 0 {
-		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+	if src < 0 || src >= len(e.Carry) {
 		return
 	}
-
+	dura := duracaoDoItemDeBuff(e.Carry[src].Index)
+	if dura <= 0 {
+		sendClientMessage(w, s, msgGuildaSemItemDeBuff)
+		return
+	}
+	r, ok := receitaDoBuff(tipo)
+	if !ok {
+		return
+	}
+	fim, ok := d.ligaBuffDeGuilda(w, e.Guild, tipo, dura)
+	if !ok {
+		return
+	}
 	consumeOneItem(&e.Carry[src])
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 
 	// O aviso vai para a guilda inteira, e não só para quem gastou: o item é
 	// caro e o efeito é de todos, então quem pagou merece que os outros saibam.
-	linha := msgGuildaBuffsLigados(e.Name, acesos, menor)
+	linha := msgGuildaBuffLigado(r.Nome, e.Name, fim.Sub(d.now()))
 	w.ForEachPlaying(-1, func(ts *world.Session, te *world.Entity) {
 		if te.Guild == e.Guild {
 			sendClientMessage(w, ts, linha)
 		}
 	})
-	d.log.Info("buffs de guilda ligados",
-		"conn", s.Conn, "guilda", e.Guild, "item", e.Carry[src].Index,
-		"buffs", acesos, "resta", menor.String())
+	d.log.Info("buff de guilda ligado",
+		"conn", s.Conn, "guilda", e.Guild, "buff", r.Nome, "resta", fim.Sub(d.now()).String())
+}
+
+// useBuffDeGuilda atende o uso do item DIRETO da mochila.
+//
+// Ele não acende nada, e isso é deliberado: desde que cada item acende UM buff
+// escolhido, usar o item no inventário não diz qual. Escolher um por conta
+// própria gastaria o item do jogador numa decisão que não foi dele.
+func (d *Dispatcher) useBuffDeGuilda(w *world.World, s *world.Session, e *world.Entity, src int) {
+	sendClientMessage(w, s, msgGuildaUseOPainel)
+	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 }
 
 // As linhas que o painel e o chat mostram.
@@ -430,14 +448,15 @@ const (
 	msgGuildaListaFalhou         = "Não foi possível listar as guildas agora."
 	msgGuildaNomeVazio           = "Escolha um nome para a guilda."
 	msgGuildaSemItemDeBuff       = "Você não tem um Guild Buff na mochila."
+	msgGuildaUseOPainel          = "Abra o Painel de Guild (G), aba Buffs, e escolha qual ativar."
 )
 
 func msgGuildaRecadoNovo(autor string) string {
 	return fmt.Sprintf("%s escreveu um novo recado da guilda.", autor)
 }
 
-func msgGuildaBuffsLigados(autor string, quantos int, resta time.Duration) string {
-	return fmt.Sprintf("%s ativou %d buff(s) da guilda: %s.", autor, quantos, duracaoEmTexto(resta))
+func msgGuildaBuffLigado(buff, autor string, resta time.Duration) string {
+	return fmt.Sprintf("%s ativou o %s: %s.", autor, buff, duracaoEmTexto(resta))
 }
 
 // duracaoEmTexto escreve um tempo do jeito que um jogador o leria.
@@ -504,35 +523,18 @@ func duracaoDoItemDeBuff(index int16) time.Duration {
 
 // guildaAtiva atende MsgGuildaAtiva: o botao "Ativar" da aba Buffs.
 //
-// ELE NAO DA BUFF. Ele procura um Guild Buff NA MOCHILA do jogador e o usa, pelo
-// mesmo caminho de quem clica no item — o servidor confere que o item existe e o
-// gasta. Um cliente remendado que mande este pacote sem ter o item nao ganha
-// nada, que era a razao de eu nao ter posto botao nenhum no comeco.
-//
-// Prefere o item de MENOR duracao: quem tem os dois e aperta o botao quase nunca
-// quer queimar o de 30 dias primeiro.
-func (d *Dispatcher) guildaAtiva(w *world.World, s *world.Session, _ protocol.Header, _ []byte) {
+// ELE NAO DA BUFF. O pacote diz QUAL buff e COM QUAL item da mochila, e o
+// servidor confere as duas coisas antes de gastar. Quem nao tem o item nao ganha
+// nada - era a razao de eu nao ter posto botao nenhum no comeco, e e o que
+// permite ter um agora.
+func (d *Dispatcher) guildaAtiva(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
 	e := w.Entity(s.Conn)
 	if e == nil || s.Mode != world.UserPlay {
 		return
 	}
-	if e.Guild == 0 {
-		sendClientMessage(w, s, msgGuildaSemGuilda)
+	corpo, err := protocol.DecodeGuildaAtiva(payload)
+	if err != nil {
 		return
 	}
-	melhor, menor := -1, time.Duration(0)
-	for i := range e.Carry {
-		dura := duracaoDoItemDeBuff(e.Carry[i].Index)
-		if dura <= 0 {
-			continue
-		}
-		if melhor < 0 || dura < menor {
-			melhor, menor = i, dura
-		}
-	}
-	if melhor < 0 {
-		sendClientMessage(w, s, msgGuildaSemItemDeBuff)
-		return
-	}
-	d.useBuffDeGuilda(w, s, e, melhor)
+	d.acendeUmBuff(w, s, e, int(corpo.Slot), corpo.Tipo)
 }

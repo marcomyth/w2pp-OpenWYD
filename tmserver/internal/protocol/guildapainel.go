@@ -315,16 +315,43 @@ type GuildaBuff struct {
 	Restam int32
 }
 
-// GuildaBuffsBody é o corpo de MsgGuildaBuffs.
-type GuildaBuffsBody struct {
-	Buffs [GuildaBuffs]GuildaBuff
+// GuildaItemDeBuff é um Guild Buff que o jogador tem na mochila.
+//
+// A lista vem do SERVIDOR junto com o estado dos buffs, e não é o cliente que a
+// monta: ele não sabe ler o inventário — nem precisa aprender. O servidor já tem
+// a mochila na mão, e mandá-la aqui evita um desvio novo no cliente só para ler
+// uma coisa que o outro lado já sabe.
+//
+// Slot é a casa na mochila, e é por ela que a ativação se refere ao item; Dias é
+// só para a caixa de escolha poder dizer "15 dias" sem ter tabela.
+type GuildaItemDeBuff struct {
+	Slot   int16
+	Indice int16
+	Dias   int16
 }
 
-const guildaBuffsSize = GuildaBuffs * 8
+// GuildaItensDeBuffMax é quantos itens a caixa de escolha mostra.
+const GuildaItensDeBuffMax = 12
 
-// Encode serializa o estado dos buffs.
+// GuildaBuffsBody é o corpo de MsgGuildaBuffs: o estado dos quatro e o que o
+// jogador tem na mochila para acendê-los.
+type GuildaBuffsBody struct {
+	Buffs [GuildaBuffs]GuildaBuff
+	Itens []GuildaItemDeBuff
+}
+
+const (
+	guildaBuffsSize = GuildaBuffs * 8
+	guildaItemSize  = 6
+)
+
+// Encode serializa o estado dos buffs e a lista de itens.
 func (b *GuildaBuffsBody) Encode() []byte {
-	out := make([]byte, guildaBuffsSize)
+	itens := b.Itens
+	if len(itens) > GuildaItensDeBuffMax {
+		itens = itens[:GuildaItensDeBuffMax]
+	}
+	out := make([]byte, guildaBuffsSize+2+len(itens)*guildaItemSize)
 	for i, bf := range b.Buffs {
 		p := i * 8
 		out[p] = bf.Tipo
@@ -334,10 +361,19 @@ func (b *GuildaBuffsBody) Encode() []byte {
 		// p+2 e p+3 são enchimento
 		binary.LittleEndian.PutUint32(out[p+4:], uint32(bf.Restam))
 	}
+	p := guildaBuffsSize
+	binary.LittleEndian.PutUint16(out[p:], uint16(len(itens)))
+	p += 2
+	for _, it := range itens {
+		binary.LittleEndian.PutUint16(out[p:], uint16(it.Slot))
+		binary.LittleEndian.PutUint16(out[p+2:], uint16(it.Indice))
+		binary.LittleEndian.PutUint16(out[p+4:], uint16(it.Dias))
+		p += guildaItemSize
+	}
 	return out
 }
 
-// DecodeGuildaBuffs lê o estado dos buffs.
+// DecodeGuildaBuffs lê o estado dos buffs e a lista de itens.
 func DecodeGuildaBuffs(b []byte) (GuildaBuffsBody, error) {
 	var out GuildaBuffsBody
 	if len(b) < guildaBuffsSize {
@@ -351,7 +387,59 @@ func DecodeGuildaBuffs(b []byte) (GuildaBuffsBody, error) {
 			Restam: int32(binary.LittleEndian.Uint32(b[p+4:])),
 		}
 	}
+	p := guildaBuffsSize
+	if p+2 > len(b) {
+		return out, nil // corpo antigo, sem a lista: os buffs já valem
+	}
+	n := int(binary.LittleEndian.Uint16(b[p:]))
+	p += 2
+	if n > GuildaItensDeBuffMax {
+		return out, fmt.Errorf("protocol: guilda buffs com %d itens, máximo %d", n, GuildaItensDeBuffMax)
+	}
+	for i := 0; i < n; i++ {
+		if p+guildaItemSize > len(b) {
+			return out, fmt.Errorf("protocol: guilda buffs, item %d truncado", i)
+		}
+		out.Itens = append(out.Itens, GuildaItemDeBuff{
+			Slot:   int16(binary.LittleEndian.Uint16(b[p:])),
+			Indice: int16(binary.LittleEndian.Uint16(b[p+2:])),
+			Dias:   int16(binary.LittleEndian.Uint16(b[p+4:])),
+		})
+		p += guildaItemSize
+	}
 	return out, nil
+}
+
+// GuildaAtivaBody é o corpo de MsgGuildaAtiva: QUAL buff acender, e com QUAL
+// item da mochila.
+//
+// Os dois viajam juntos porque o servidor confere os dois: que o tipo existe, e
+// que a casa da mochila tem mesmo um Guild Buff. Um cliente remendado que mande
+// uma casa vazia não acende nada.
+type GuildaAtivaBody struct {
+	Tipo uint8
+	Slot int16
+}
+
+const guildaAtivaSize = 4
+
+// Encode serializa o pedido de ativação.
+func (b *GuildaAtivaBody) Encode() []byte {
+	out := make([]byte, guildaAtivaSize)
+	out[0] = b.Tipo
+	binary.LittleEndian.PutUint16(out[2:], uint16(b.Slot))
+	return out
+}
+
+// DecodeGuildaAtiva lê o pedido de ativação.
+func DecodeGuildaAtiva(b []byte) (GuildaAtivaBody, error) {
+	if len(b) < guildaAtivaSize {
+		return GuildaAtivaBody{}, fmt.Errorf("protocol: guilda ativa curto: %d", len(b))
+	}
+	return GuildaAtivaBody{
+		Tipo: b[0],
+		Slot: int16(binary.LittleEndian.Uint16(b[2:])),
+	}, nil
 }
 
 // GuildaPedeBody é o corpo dos pedidos do cliente: MsgGuildaPede e
