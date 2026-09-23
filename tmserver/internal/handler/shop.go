@@ -151,6 +151,24 @@ func (d *Dispatcher) buy(w *world.World, s *world.Session, _ protocol.Header, pa
 		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, myPos, itemToSel(e.Carry[myPos])))
 		return
 	}
+	// Uma RCoin não se compra em NPC: ela vem de doação, e o site é quem a entrega.
+	// O seed de 0006 põe as cinco na loja do DonatesBars com preço ZERO no
+	// catálogo, e o caminho do ouro abaixo aceita preço zero de propósito (o legado
+	// tem itens de graça). Com o EF_VOLATILE 184 ligado isso seria donate infinito
+	// a um clique — e em pontos ou emblema seria trocar outra moeda por dinheiro.
+	//
+	// A recusa fica aqui, antes de todo ramo de moeda, e não nos dados, porque os
+	// dados voltam: o seed repõe a vaga do template a cada boot, e o painel pode
+	// recriá-la sem querer.
+	if d.itemDonates[int(item.Index)] > 0 {
+		d.log.Warn("compra recusada: RCoin não se vende em loja",
+			"conn", s.Conn, "npc", npc.Name, "item", item.Index)
+		// Dizer por quê: o NPC continua exibindo as moedas, e clicar sem resposta
+		// parece servidor quebrado.
+		sendClientMessage(w, s, "As RCoin não são vendidas aqui: elas vêm de doação, pelo site.")
+		d.sendSlot(w, s, world.ItemPlaceCarry, myPos, e.Carry[myPos])
+		return
+	}
 	// Um slot precificado em pontos de lojinha é outra transação: a carteira vive
 	// no Postgres, então não dá para liquidá-la aqui, no laço. Vem antes da loja
 	// de emblema porque resolve com return próprio e deixa aquela intocada.

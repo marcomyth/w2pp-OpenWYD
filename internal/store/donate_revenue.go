@@ -54,6 +54,12 @@ const (
 const (
 	LedgerActionPurchase = "purchase"
 	LedgerActionCredit   = "credit_balance"
+	// LedgerActionItem is a player cashing in an RCoin in game. It moves the
+	// same wallet as LedgerActionCredit but is NOT revenue and NOT a staff
+	// grant, so the report totals below leave it out on purpose; the account
+	// statement shows it, because "where did this donate come from" is exactly
+	// what support needs to answer.
+	LedgerActionItem = "credit_item"
 )
 
 // The status discriminators below are written as SQL literals (1 = PENDING,

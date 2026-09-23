@@ -12552,6 +12552,210 @@ func (x *ListDropRulesResponse) GetRules() []*DropRule {
 	return nil
 }
 
+type CreditDonateRequest struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	AccountId int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	// amount is positive. A zero or negative amount is refused rather than
+	// quietly turned into a debit: nothing in game takes donate away.
+	Amount int32 `protobuf:"varint,2,opt,name=amount,proto3" json:"amount,omitempty"`
+	// character_name records who used the coin. Informative only: the wallet
+	// belongs to the account, and character names are not unique here.
+	CharacterName string `protobuf:"bytes,3,opt,name=character_name,json=characterName,proto3" json:"character_name,omitempty"`
+	Reason        string `protobuf:"bytes,4,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreditDonateRequest) Reset() {
+	*x = CreditDonateRequest{}
+	mi := &file_api_db_v1_db_proto_msgTypes[197]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreditDonateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreditDonateRequest) ProtoMessage() {}
+
+func (x *CreditDonateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[197]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreditDonateRequest.ProtoReflect.Descriptor instead.
+func (*CreditDonateRequest) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{197}
+}
+
+func (x *CreditDonateRequest) GetAccountId() int64 {
+	if x != nil {
+		return x.AccountId
+	}
+	return 0
+}
+
+func (x *CreditDonateRequest) GetAmount() int32 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *CreditDonateRequest) GetCharacterName() string {
+	if x != nil {
+		return x.CharacterName
+	}
+	return ""
+}
+
+func (x *CreditDonateRequest) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type CreditDonateResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Balance       int32                  `protobuf:"varint,1,opt,name=balance,proto3" json:"balance,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreditDonateResponse) Reset() {
+	*x = CreditDonateResponse{}
+	mi := &file_api_db_v1_db_proto_msgTypes[198]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreditDonateResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreditDonateResponse) ProtoMessage() {}
+
+func (x *CreditDonateResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[198]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreditDonateResponse.ProtoReflect.Descriptor instead.
+func (*CreditDonateResponse) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{198}
+}
+
+func (x *CreditDonateResponse) GetBalance() int32 {
+	if x != nil {
+		return x.Balance
+	}
+	return 0
+}
+
+type DonateBalanceRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DonateBalanceRequest) Reset() {
+	*x = DonateBalanceRequest{}
+	mi := &file_api_db_v1_db_proto_msgTypes[199]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DonateBalanceRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DonateBalanceRequest) ProtoMessage() {}
+
+func (x *DonateBalanceRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[199]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DonateBalanceRequest.ProtoReflect.Descriptor instead.
+func (*DonateBalanceRequest) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{199}
+}
+
+func (x *DonateBalanceRequest) GetAccountId() int64 {
+	if x != nil {
+		return x.AccountId
+	}
+	return 0
+}
+
+type DonateBalanceResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Balance       int32                  `protobuf:"varint,1,opt,name=balance,proto3" json:"balance,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DonateBalanceResponse) Reset() {
+	*x = DonateBalanceResponse{}
+	mi := &file_api_db_v1_db_proto_msgTypes[200]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DonateBalanceResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DonateBalanceResponse) ProtoMessage() {}
+
+func (x *DonateBalanceResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_db_v1_db_proto_msgTypes[200]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DonateBalanceResponse.ProtoReflect.Descriptor instead.
+func (*DonateBalanceResponse) Descriptor() ([]byte, []int) {
+	return file_api_db_v1_db_proto_rawDescGZIP(), []int{200}
+}
+
+func (x *DonateBalanceResponse) GetBalance() int32 {
+	if x != nil {
+		return x.Balance
+	}
+	return 0
+}
+
 var File_api_db_v1_db_proto protoreflect.FileDescriptor
 
 const file_api_db_v1_db_proto_rawDesc = "" +
@@ -13474,7 +13678,20 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x06chance\x18\x03 \x01(\x05R\x06chance\"X\n" +
 	"\x15ListDropRulesResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\x12%\n" +
-	"\x05rules\x18\x02 \x03(\v2\x0f.db.v1.DropRuleR\x05rules*\xb8\x01\n" +
+	"\x05rules\x18\x02 \x03(\v2\x0f.db.v1.DropRuleR\x05rules\"\x8b\x01\n" +
+	"\x13CreditDonateRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\x03R\taccountId\x12\x16\n" +
+	"\x06amount\x18\x02 \x01(\x05R\x06amount\x12%\n" +
+	"\x0echaracter_name\x18\x03 \x01(\tR\rcharacterName\x12\x16\n" +
+	"\x06reason\x18\x04 \x01(\tR\x06reason\"0\n" +
+	"\x14CreditDonateResponse\x12\x18\n" +
+	"\abalance\x18\x01 \x01(\x05R\abalance\"5\n" +
+	"\x14DonateBalanceRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\x03R\taccountId\"1\n" +
+	"\x15DonateBalanceResponse\x12\x18\n" +
+	"\abalance\x18\x01 \x01(\x05R\abalance*\xb8\x01\n" +
 	"\vLoginResult\x12\x1c\n" +
 	"\x18LOGIN_RESULT_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLOGIN_RESULT_OK\x10\x01\x12\x1b\n" +
@@ -13500,7 +13717,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x11GuildRelationKind\x12\x1c\n" +
 	"\x18GUILD_RELATION_KIND_NONE\x10\x00\x12\x1c\n" +
 	"\x18GUILD_RELATION_KIND_ALLY\x10\x01\x12\x1b\n" +
-	"\x17GUILD_RELATION_KIND_WAR\x10\x022\xe0!\n" +
+	"\x17GUILD_RELATION_KIND_WAR\x10\x022\xf5\"\n" +
 	"\x0eAccountService\x12G\n" +
 	"\fAccountLogin\x12\x1a.db.v1.AccountLoginRequest\x1a\x1b.db.v1.AccountLoginResponse\x12M\n" +
 	"\x0eListCharacters\x12\x1c.db.v1.ListCharactersRequest\x1a\x1d.db.v1.ListCharactersResponse\x12J\n" +
@@ -13533,7 +13750,9 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\n" +
 	"ShopPoints\x12\x18.db.v1.ShopPointsRequest\x1a\x19.db.v1.ShopPointsResponse\x12P\n" +
 	"\x0fSpendShopPoints\x12\x1d.db.v1.SpendShopPointsRequest\x1a\x1e.db.v1.SpendShopPointsResponse\x12M\n" +
-	"\x0eClaimNewbieKit\x12\x1c.db.v1.ClaimNewbieKitRequest\x1a\x1d.db.v1.ClaimNewbieKitResponse\x12D\n" +
+	"\x0eClaimNewbieKit\x12\x1c.db.v1.ClaimNewbieKitRequest\x1a\x1d.db.v1.ClaimNewbieKitResponse\x12G\n" +
+	"\fCreditDonate\x12\x1a.db.v1.CreditDonateRequest\x1a\x1b.db.v1.CreditDonateResponse\x12J\n" +
+	"\rDonateBalance\x12\x1b.db.v1.DonateBalanceRequest\x1a\x1c.db.v1.DonateBalanceResponse\x12D\n" +
 	"\vCreateGuild\x12\x19.db.v1.CreateGuildRequest\x1a\x1a.db.v1.CreateGuildResponse\x12M\n" +
 	"\x0eSetGuildMember\x12\x1c.db.v1.SetGuildMemberRequest\x1a\x1d.db.v1.SetGuildMemberResponse\x12E\n" +
 	"\n" +
@@ -13613,7 +13832,7 @@ func file_api_db_v1_db_proto_rawDescGZIP() []byte {
 }
 
 var file_api_db_v1_db_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_api_db_v1_db_proto_msgTypes = make([]protoimpl.MessageInfo, 197)
+var file_api_db_v1_db_proto_msgTypes = make([]protoimpl.MessageInfo, 201)
 var file_api_db_v1_db_proto_goTypes = []any{
 	(LoginResult)(0),                         // 0: db.v1.LoginResult
 	(PlayerCurrency)(0),                      // 1: db.v1.PlayerCurrency
@@ -13817,6 +14036,10 @@ var file_api_db_v1_db_proto_goTypes = []any{
 	(*ListDropRulesRequest)(nil),             // 199: db.v1.ListDropRulesRequest
 	(*DropRule)(nil),                         // 200: db.v1.DropRule
 	(*ListDropRulesResponse)(nil),            // 201: db.v1.ListDropRulesResponse
+	(*CreditDonateRequest)(nil),              // 202: db.v1.CreditDonateRequest
+	(*CreditDonateResponse)(nil),             // 203: db.v1.CreditDonateResponse
+	(*DonateBalanceRequest)(nil),             // 204: db.v1.DonateBalanceRequest
+	(*DonateBalanceResponse)(nil),            // 205: db.v1.DonateBalanceResponse
 }
 var file_api_db_v1_db_proto_depIdxs = []int32{
 	0,   // 0: db.v1.AccountLoginResponse.result:type_name -> db.v1.LoginResult
@@ -13906,142 +14129,146 @@ var file_api_db_v1_db_proto_depIdxs = []int32{
 	65,  // 84: db.v1.AccountService.ShopPoints:input_type -> db.v1.ShopPointsRequest
 	67,  // 85: db.v1.AccountService.SpendShopPoints:input_type -> db.v1.SpendShopPointsRequest
 	69,  // 86: db.v1.AccountService.ClaimNewbieKit:input_type -> db.v1.ClaimNewbieKitRequest
-	74,  // 87: db.v1.AccountService.CreateGuild:input_type -> db.v1.CreateGuildRequest
-	76,  // 88: db.v1.AccountService.SetGuildMember:input_type -> db.v1.SetGuildMemberRequest
-	78,  // 89: db.v1.AccountService.LeaveGuild:input_type -> db.v1.LeaveGuildRequest
-	79,  // 90: db.v1.AccountService.PromoteGuildMember:input_type -> db.v1.PromoteGuildMemberRequest
-	81,  // 91: db.v1.AccountService.TransferGuildLeader:input_type -> db.v1.TransferGuildLeaderRequest
-	82,  // 92: db.v1.AccountService.SetGuildRelation:input_type -> db.v1.SetGuildRelationRequest
-	84,  // 93: db.v1.AccountService.ListGuilds:input_type -> db.v1.ListGuildsRequest
-	86,  // 94: db.v1.AccountService.ListGuildRelations:input_type -> db.v1.ListGuildRelationsRequest
-	88,  // 95: db.v1.AccountService.ListGuildMembers:input_type -> db.v1.ListGuildMembersRequest
-	105, // 96: db.v1.AccountService.SaveGuildNotice:input_type -> db.v1.SaveGuildNoticeRequest
-	91,  // 97: db.v1.AccountService.ListGuildSummaries:input_type -> db.v1.ListGuildSummariesRequest
-	94,  // 98: db.v1.AccountService.ListGuildSquads:input_type -> db.v1.ListGuildSquadsRequest
-	96,  // 99: db.v1.AccountService.SetGuildSquad:input_type -> db.v1.SetGuildSquadRequest
-	98,  // 100: db.v1.AccountService.ListGuildBuffs:input_type -> db.v1.ListGuildBuffsRequest
-	100, // 101: db.v1.AccountService.SaveGuildBuff:input_type -> db.v1.SaveGuildBuffRequest
-	102, // 102: db.v1.AccountService.DeleteGuildBuff:input_type -> db.v1.DeleteGuildBuffRequest
-	108, // 103: db.v1.AccountService.LoadGuildZones:input_type -> db.v1.LoadGuildZonesRequest
-	110, // 104: db.v1.AccountService.SaveGuildZone:input_type -> db.v1.SaveGuildZoneRequest
-	113, // 105: db.v1.AccountService.LoadGuildTowerState:input_type -> db.v1.LoadGuildTowerStateRequest
-	115, // 106: db.v1.AccountService.SaveGuildTowerState:input_type -> db.v1.SaveGuildTowerStateRequest
-	117, // 107: db.v1.AccountService.SaveGuildFame:input_type -> db.v1.SaveGuildFameRequest
-	120, // 108: db.v1.AccountService.LoadCastleQuestState:input_type -> db.v1.LoadCastleQuestStateRequest
-	122, // 109: db.v1.AccountService.SaveCastleQuestState:input_type -> db.v1.SaveCastleQuestStateRequest
-	124, // 110: db.v1.NpcConfigService.NpcConfigVersion:input_type -> db.v1.NpcConfigVersionRequest
-	126, // 111: db.v1.NpcConfigService.ListNpcDefinitions:input_type -> db.v1.ListNpcDefinitionsRequest
-	140, // 112: db.v1.NpcConfigService.ListMobTemplateStats:input_type -> db.v1.ListMobTemplateStatsRequest
-	144, // 113: db.v1.NpcConfigService.ListItemStats:input_type -> db.v1.ListItemStatsRequest
-	147, // 114: db.v1.NpcConfigService.ListMountGrowthRates:input_type -> db.v1.ListMountGrowthRatesRequest
-	152, // 115: db.v1.NpcConfigService.ListMountAbsorb:input_type -> db.v1.ListMountAbsorbRequest
-	155, // 116: db.v1.NpcConfigService.ListMountBonus:input_type -> db.v1.ListMountBonusRequest
-	150, // 117: db.v1.NpcConfigService.MountConfigVersion:input_type -> db.v1.MountConfigVersionRequest
-	131, // 118: db.v1.WorldEventConfigService.WorldEventConfigVersion:input_type -> db.v1.WorldEventConfigVersionRequest
-	133, // 119: db.v1.WorldEventConfigService.GetWorldEventConfig:input_type -> db.v1.GetWorldEventConfigRequest
-	135, // 120: db.v1.WorldEventConfigService.UpdateWorldEventProgress:input_type -> db.v1.UpdateWorldEventProgressRequest
-	137, // 121: db.v1.WorldEventConfigService.SetKefraState:input_type -> db.v1.SetKefraStateRequest
-	158, // 122: db.v1.XPConfigService.XPConfigVersion:input_type -> db.v1.XPConfigVersionRequest
-	160, // 123: db.v1.XPConfigService.GetXPConfig:input_type -> db.v1.GetXPConfigRequest
-	164, // 124: db.v1.DungeonGateService.DungeonGateVersion:input_type -> db.v1.DungeonGateVersionRequest
-	166, // 125: db.v1.DungeonGateService.GetDungeonGates:input_type -> db.v1.GetDungeonGatesRequest
-	169, // 126: db.v1.QuestRewardService.GetQuestRewards:input_type -> db.v1.GetQuestRewardsRequest
-	172, // 127: db.v1.DropBonusService.GetDropBonus:input_type -> db.v1.GetDropBonusRequest
-	175, // 128: db.v1.SpawnRateService.SpawnRateVersion:input_type -> db.v1.SpawnRateVersionRequest
-	177, // 129: db.v1.SpawnRateService.GetSpawnRates:input_type -> db.v1.GetSpawnRatesRequest
-	180, // 130: db.v1.CombineRateService.CombineRateVersion:input_type -> db.v1.CombineRateVersionRequest
-	182, // 131: db.v1.CombineRateService.GetCombineRates:input_type -> db.v1.GetCombineRatesRequest
-	186, // 132: db.v1.CombatRuleService.CombatRuleVersion:input_type -> db.v1.CombatRuleVersionRequest
-	188, // 133: db.v1.CombatRuleService.GetCombatRule:input_type -> db.v1.GetCombatRuleRequest
-	190, // 134: db.v1.NpcGeneratorService.GeneratorOffVersion:input_type -> db.v1.GeneratorOffVersionRequest
-	192, // 135: db.v1.NpcGeneratorService.GetGeneratorsOff:input_type -> db.v1.GetGeneratorsOffRequest
-	195, // 136: db.v1.NpcGeneratorService.SetGeneratorOff:input_type -> db.v1.SetGeneratorOffRequest
-	197, // 137: db.v1.DropRuleService.DropRuleVersion:input_type -> db.v1.DropRuleVersionRequest
-	199, // 138: db.v1.DropRuleService.ListDropRules:input_type -> db.v1.ListDropRulesRequest
-	6,   // 139: db.v1.AccountService.AccountLogin:output_type -> db.v1.AccountLoginResponse
-	9,   // 140: db.v1.AccountService.ListCharacters:output_type -> db.v1.ListCharactersResponse
-	14,  // 141: db.v1.AccountService.LoadCharacter:output_type -> db.v1.LoadCharacterResponse
-	16,  // 142: db.v1.AccountService.SaveCharacter:output_type -> db.v1.SaveCharacterResponse
-	18,  // 143: db.v1.AccountService.QuoteKingdomCape:output_type -> db.v1.QuoteKingdomCapeResponse
-	20,  // 144: db.v1.AccountService.PurchaseKingdomCape:output_type -> db.v1.PurchaseKingdomCapeResponse
-	22,  // 145: db.v1.AccountService.TransferPlayerBalance:output_type -> db.v1.TransferPlayerBalanceResponse
-	24,  // 146: db.v1.AccountService.CreateCharacter:output_type -> db.v1.CreateCharacterResponse
-	26,  // 147: db.v1.AccountService.CreateArchCharacter:output_type -> db.v1.CreateArchCharacterResponse
-	28,  // 148: db.v1.AccountService.DeleteCharacter:output_type -> db.v1.DeleteCharacterResponse
-	30,  // 149: db.v1.AccountService.SetPin:output_type -> db.v1.SetPinResponse
-	32,  // 150: db.v1.AccountService.VerifyPin:output_type -> db.v1.VerifyPinResponse
-	34,  // 151: db.v1.AccountService.LoadCargo:output_type -> db.v1.LoadCargoResponse
-	36,  // 152: db.v1.AccountService.SaveCargo:output_type -> db.v1.SaveCargoResponse
-	39,  // 153: db.v1.AccountService.ListPendingDeliveries:output_type -> db.v1.ListPendingDeliveriesResponse
-	41,  // 154: db.v1.AccountService.ListSoldEscrowSlots:output_type -> db.v1.ListSoldEscrowSlotsResponse
-	36,  // 155: db.v1.AccountService.SaveCargoWithDeliveries:output_type -> db.v1.SaveCargoResponse
-	44,  // 156: db.v1.AccountService.SetAccountBlocked:output_type -> db.v1.SetAccountBlockedResponse
-	46,  // 157: db.v1.AccountService.RecordDuelResult:output_type -> db.v1.RecordDuelResultResponse
-	49,  // 158: db.v1.AccountService.RecordTrade:output_type -> db.v1.RecordTradeResponse
-	58,  // 159: db.v1.AccountService.RecordReport:output_type -> db.v1.RecordReportResponse
-	56,  // 160: db.v1.AccountService.RecordGround:output_type -> db.v1.RecordGroundResponse
-	51,  // 161: db.v1.AccountService.ReserveSerials:output_type -> db.v1.ReserveSerialsResponse
-	54,  // 162: db.v1.AccountService.RecordChat:output_type -> db.v1.RecordChatResponse
-	60,  // 163: db.v1.AccountService.SetCharacterPresence:output_type -> db.v1.SetCharacterPresenceResponse
-	62,  // 164: db.v1.AccountService.ClearAllPresence:output_type -> db.v1.ClearAllPresenceResponse
-	64,  // 165: db.v1.AccountService.AddShopPoints:output_type -> db.v1.AddShopPointsResponse
-	66,  // 166: db.v1.AccountService.ShopPoints:output_type -> db.v1.ShopPointsResponse
-	68,  // 167: db.v1.AccountService.SpendShopPoints:output_type -> db.v1.SpendShopPointsResponse
-	70,  // 168: db.v1.AccountService.ClaimNewbieKit:output_type -> db.v1.ClaimNewbieKitResponse
-	75,  // 169: db.v1.AccountService.CreateGuild:output_type -> db.v1.CreateGuildResponse
-	77,  // 170: db.v1.AccountService.SetGuildMember:output_type -> db.v1.SetGuildMemberResponse
-	77,  // 171: db.v1.AccountService.LeaveGuild:output_type -> db.v1.SetGuildMemberResponse
-	80,  // 172: db.v1.AccountService.PromoteGuildMember:output_type -> db.v1.PromoteGuildMemberResponse
-	77,  // 173: db.v1.AccountService.TransferGuildLeader:output_type -> db.v1.SetGuildMemberResponse
-	83,  // 174: db.v1.AccountService.SetGuildRelation:output_type -> db.v1.SetGuildRelationResponse
-	85,  // 175: db.v1.AccountService.ListGuilds:output_type -> db.v1.ListGuildsResponse
-	87,  // 176: db.v1.AccountService.ListGuildRelations:output_type -> db.v1.ListGuildRelationsResponse
-	104, // 177: db.v1.AccountService.ListGuildMembers:output_type -> db.v1.ListGuildMembersResponse
-	106, // 178: db.v1.AccountService.SaveGuildNotice:output_type -> db.v1.SaveGuildNoticeResponse
-	92,  // 179: db.v1.AccountService.ListGuildSummaries:output_type -> db.v1.ListGuildSummariesResponse
-	95,  // 180: db.v1.AccountService.ListGuildSquads:output_type -> db.v1.ListGuildSquadsResponse
-	97,  // 181: db.v1.AccountService.SetGuildSquad:output_type -> db.v1.SetGuildSquadResponse
-	99,  // 182: db.v1.AccountService.ListGuildBuffs:output_type -> db.v1.ListGuildBuffsResponse
-	101, // 183: db.v1.AccountService.SaveGuildBuff:output_type -> db.v1.SaveGuildBuffResponse
-	103, // 184: db.v1.AccountService.DeleteGuildBuff:output_type -> db.v1.DeleteGuildBuffResponse
-	109, // 185: db.v1.AccountService.LoadGuildZones:output_type -> db.v1.LoadGuildZonesResponse
-	111, // 186: db.v1.AccountService.SaveGuildZone:output_type -> db.v1.SaveGuildZoneResponse
-	114, // 187: db.v1.AccountService.LoadGuildTowerState:output_type -> db.v1.LoadGuildTowerStateResponse
-	116, // 188: db.v1.AccountService.SaveGuildTowerState:output_type -> db.v1.SaveGuildTowerStateResponse
-	118, // 189: db.v1.AccountService.SaveGuildFame:output_type -> db.v1.SaveGuildFameResponse
-	121, // 190: db.v1.AccountService.LoadCastleQuestState:output_type -> db.v1.LoadCastleQuestStateResponse
-	123, // 191: db.v1.AccountService.SaveCastleQuestState:output_type -> db.v1.SaveCastleQuestStateResponse
-	125, // 192: db.v1.NpcConfigService.NpcConfigVersion:output_type -> db.v1.NpcConfigVersionResponse
-	127, // 193: db.v1.NpcConfigService.ListNpcDefinitions:output_type -> db.v1.ListNpcDefinitionsResponse
-	141, // 194: db.v1.NpcConfigService.ListMobTemplateStats:output_type -> db.v1.ListMobTemplateStatsResponse
-	145, // 195: db.v1.NpcConfigService.ListItemStats:output_type -> db.v1.ListItemStatsResponse
-	148, // 196: db.v1.NpcConfigService.ListMountGrowthRates:output_type -> db.v1.ListMountGrowthRatesResponse
-	153, // 197: db.v1.NpcConfigService.ListMountAbsorb:output_type -> db.v1.ListMountAbsorbResponse
-	156, // 198: db.v1.NpcConfigService.ListMountBonus:output_type -> db.v1.ListMountBonusResponse
-	151, // 199: db.v1.NpcConfigService.MountConfigVersion:output_type -> db.v1.MountConfigVersionResponse
-	132, // 200: db.v1.WorldEventConfigService.WorldEventConfigVersion:output_type -> db.v1.WorldEventConfigVersionResponse
-	134, // 201: db.v1.WorldEventConfigService.GetWorldEventConfig:output_type -> db.v1.GetWorldEventConfigResponse
-	136, // 202: db.v1.WorldEventConfigService.UpdateWorldEventProgress:output_type -> db.v1.UpdateWorldEventProgressResponse
-	138, // 203: db.v1.WorldEventConfigService.SetKefraState:output_type -> db.v1.SetKefraStateResponse
-	159, // 204: db.v1.XPConfigService.XPConfigVersion:output_type -> db.v1.XPConfigVersionResponse
-	161, // 205: db.v1.XPConfigService.GetXPConfig:output_type -> db.v1.GetXPConfigResponse
-	165, // 206: db.v1.DungeonGateService.DungeonGateVersion:output_type -> db.v1.DungeonGateVersionResponse
-	167, // 207: db.v1.DungeonGateService.GetDungeonGates:output_type -> db.v1.GetDungeonGatesResponse
-	170, // 208: db.v1.QuestRewardService.GetQuestRewards:output_type -> db.v1.GetQuestRewardsResponse
-	173, // 209: db.v1.DropBonusService.GetDropBonus:output_type -> db.v1.GetDropBonusResponse
-	176, // 210: db.v1.SpawnRateService.SpawnRateVersion:output_type -> db.v1.SpawnRateVersionResponse
-	178, // 211: db.v1.SpawnRateService.GetSpawnRates:output_type -> db.v1.GetSpawnRatesResponse
-	181, // 212: db.v1.CombineRateService.CombineRateVersion:output_type -> db.v1.CombineRateVersionResponse
-	183, // 213: db.v1.CombineRateService.GetCombineRates:output_type -> db.v1.GetCombineRatesResponse
-	187, // 214: db.v1.CombatRuleService.CombatRuleVersion:output_type -> db.v1.CombatRuleVersionResponse
-	189, // 215: db.v1.CombatRuleService.GetCombatRule:output_type -> db.v1.GetCombatRuleResponse
-	191, // 216: db.v1.NpcGeneratorService.GeneratorOffVersion:output_type -> db.v1.GeneratorOffVersionResponse
-	193, // 217: db.v1.NpcGeneratorService.GetGeneratorsOff:output_type -> db.v1.GetGeneratorsOffResponse
-	196, // 218: db.v1.NpcGeneratorService.SetGeneratorOff:output_type -> db.v1.SetGeneratorOffResponse
-	198, // 219: db.v1.DropRuleService.DropRuleVersion:output_type -> db.v1.DropRuleVersionResponse
-	201, // 220: db.v1.DropRuleService.ListDropRules:output_type -> db.v1.ListDropRulesResponse
-	139, // [139:221] is the sub-list for method output_type
-	57,  // [57:139] is the sub-list for method input_type
+	202, // 87: db.v1.AccountService.CreditDonate:input_type -> db.v1.CreditDonateRequest
+	204, // 88: db.v1.AccountService.DonateBalance:input_type -> db.v1.DonateBalanceRequest
+	74,  // 89: db.v1.AccountService.CreateGuild:input_type -> db.v1.CreateGuildRequest
+	76,  // 90: db.v1.AccountService.SetGuildMember:input_type -> db.v1.SetGuildMemberRequest
+	78,  // 91: db.v1.AccountService.LeaveGuild:input_type -> db.v1.LeaveGuildRequest
+	79,  // 92: db.v1.AccountService.PromoteGuildMember:input_type -> db.v1.PromoteGuildMemberRequest
+	81,  // 93: db.v1.AccountService.TransferGuildLeader:input_type -> db.v1.TransferGuildLeaderRequest
+	82,  // 94: db.v1.AccountService.SetGuildRelation:input_type -> db.v1.SetGuildRelationRequest
+	84,  // 95: db.v1.AccountService.ListGuilds:input_type -> db.v1.ListGuildsRequest
+	86,  // 96: db.v1.AccountService.ListGuildRelations:input_type -> db.v1.ListGuildRelationsRequest
+	88,  // 97: db.v1.AccountService.ListGuildMembers:input_type -> db.v1.ListGuildMembersRequest
+	105, // 98: db.v1.AccountService.SaveGuildNotice:input_type -> db.v1.SaveGuildNoticeRequest
+	91,  // 99: db.v1.AccountService.ListGuildSummaries:input_type -> db.v1.ListGuildSummariesRequest
+	94,  // 100: db.v1.AccountService.ListGuildSquads:input_type -> db.v1.ListGuildSquadsRequest
+	96,  // 101: db.v1.AccountService.SetGuildSquad:input_type -> db.v1.SetGuildSquadRequest
+	98,  // 102: db.v1.AccountService.ListGuildBuffs:input_type -> db.v1.ListGuildBuffsRequest
+	100, // 103: db.v1.AccountService.SaveGuildBuff:input_type -> db.v1.SaveGuildBuffRequest
+	102, // 104: db.v1.AccountService.DeleteGuildBuff:input_type -> db.v1.DeleteGuildBuffRequest
+	108, // 105: db.v1.AccountService.LoadGuildZones:input_type -> db.v1.LoadGuildZonesRequest
+	110, // 106: db.v1.AccountService.SaveGuildZone:input_type -> db.v1.SaveGuildZoneRequest
+	113, // 107: db.v1.AccountService.LoadGuildTowerState:input_type -> db.v1.LoadGuildTowerStateRequest
+	115, // 108: db.v1.AccountService.SaveGuildTowerState:input_type -> db.v1.SaveGuildTowerStateRequest
+	117, // 109: db.v1.AccountService.SaveGuildFame:input_type -> db.v1.SaveGuildFameRequest
+	120, // 110: db.v1.AccountService.LoadCastleQuestState:input_type -> db.v1.LoadCastleQuestStateRequest
+	122, // 111: db.v1.AccountService.SaveCastleQuestState:input_type -> db.v1.SaveCastleQuestStateRequest
+	124, // 112: db.v1.NpcConfigService.NpcConfigVersion:input_type -> db.v1.NpcConfigVersionRequest
+	126, // 113: db.v1.NpcConfigService.ListNpcDefinitions:input_type -> db.v1.ListNpcDefinitionsRequest
+	140, // 114: db.v1.NpcConfigService.ListMobTemplateStats:input_type -> db.v1.ListMobTemplateStatsRequest
+	144, // 115: db.v1.NpcConfigService.ListItemStats:input_type -> db.v1.ListItemStatsRequest
+	147, // 116: db.v1.NpcConfigService.ListMountGrowthRates:input_type -> db.v1.ListMountGrowthRatesRequest
+	152, // 117: db.v1.NpcConfigService.ListMountAbsorb:input_type -> db.v1.ListMountAbsorbRequest
+	155, // 118: db.v1.NpcConfigService.ListMountBonus:input_type -> db.v1.ListMountBonusRequest
+	150, // 119: db.v1.NpcConfigService.MountConfigVersion:input_type -> db.v1.MountConfigVersionRequest
+	131, // 120: db.v1.WorldEventConfigService.WorldEventConfigVersion:input_type -> db.v1.WorldEventConfigVersionRequest
+	133, // 121: db.v1.WorldEventConfigService.GetWorldEventConfig:input_type -> db.v1.GetWorldEventConfigRequest
+	135, // 122: db.v1.WorldEventConfigService.UpdateWorldEventProgress:input_type -> db.v1.UpdateWorldEventProgressRequest
+	137, // 123: db.v1.WorldEventConfigService.SetKefraState:input_type -> db.v1.SetKefraStateRequest
+	158, // 124: db.v1.XPConfigService.XPConfigVersion:input_type -> db.v1.XPConfigVersionRequest
+	160, // 125: db.v1.XPConfigService.GetXPConfig:input_type -> db.v1.GetXPConfigRequest
+	164, // 126: db.v1.DungeonGateService.DungeonGateVersion:input_type -> db.v1.DungeonGateVersionRequest
+	166, // 127: db.v1.DungeonGateService.GetDungeonGates:input_type -> db.v1.GetDungeonGatesRequest
+	169, // 128: db.v1.QuestRewardService.GetQuestRewards:input_type -> db.v1.GetQuestRewardsRequest
+	172, // 129: db.v1.DropBonusService.GetDropBonus:input_type -> db.v1.GetDropBonusRequest
+	175, // 130: db.v1.SpawnRateService.SpawnRateVersion:input_type -> db.v1.SpawnRateVersionRequest
+	177, // 131: db.v1.SpawnRateService.GetSpawnRates:input_type -> db.v1.GetSpawnRatesRequest
+	180, // 132: db.v1.CombineRateService.CombineRateVersion:input_type -> db.v1.CombineRateVersionRequest
+	182, // 133: db.v1.CombineRateService.GetCombineRates:input_type -> db.v1.GetCombineRatesRequest
+	186, // 134: db.v1.CombatRuleService.CombatRuleVersion:input_type -> db.v1.CombatRuleVersionRequest
+	188, // 135: db.v1.CombatRuleService.GetCombatRule:input_type -> db.v1.GetCombatRuleRequest
+	190, // 136: db.v1.NpcGeneratorService.GeneratorOffVersion:input_type -> db.v1.GeneratorOffVersionRequest
+	192, // 137: db.v1.NpcGeneratorService.GetGeneratorsOff:input_type -> db.v1.GetGeneratorsOffRequest
+	195, // 138: db.v1.NpcGeneratorService.SetGeneratorOff:input_type -> db.v1.SetGeneratorOffRequest
+	197, // 139: db.v1.DropRuleService.DropRuleVersion:input_type -> db.v1.DropRuleVersionRequest
+	199, // 140: db.v1.DropRuleService.ListDropRules:input_type -> db.v1.ListDropRulesRequest
+	6,   // 141: db.v1.AccountService.AccountLogin:output_type -> db.v1.AccountLoginResponse
+	9,   // 142: db.v1.AccountService.ListCharacters:output_type -> db.v1.ListCharactersResponse
+	14,  // 143: db.v1.AccountService.LoadCharacter:output_type -> db.v1.LoadCharacterResponse
+	16,  // 144: db.v1.AccountService.SaveCharacter:output_type -> db.v1.SaveCharacterResponse
+	18,  // 145: db.v1.AccountService.QuoteKingdomCape:output_type -> db.v1.QuoteKingdomCapeResponse
+	20,  // 146: db.v1.AccountService.PurchaseKingdomCape:output_type -> db.v1.PurchaseKingdomCapeResponse
+	22,  // 147: db.v1.AccountService.TransferPlayerBalance:output_type -> db.v1.TransferPlayerBalanceResponse
+	24,  // 148: db.v1.AccountService.CreateCharacter:output_type -> db.v1.CreateCharacterResponse
+	26,  // 149: db.v1.AccountService.CreateArchCharacter:output_type -> db.v1.CreateArchCharacterResponse
+	28,  // 150: db.v1.AccountService.DeleteCharacter:output_type -> db.v1.DeleteCharacterResponse
+	30,  // 151: db.v1.AccountService.SetPin:output_type -> db.v1.SetPinResponse
+	32,  // 152: db.v1.AccountService.VerifyPin:output_type -> db.v1.VerifyPinResponse
+	34,  // 153: db.v1.AccountService.LoadCargo:output_type -> db.v1.LoadCargoResponse
+	36,  // 154: db.v1.AccountService.SaveCargo:output_type -> db.v1.SaveCargoResponse
+	39,  // 155: db.v1.AccountService.ListPendingDeliveries:output_type -> db.v1.ListPendingDeliveriesResponse
+	41,  // 156: db.v1.AccountService.ListSoldEscrowSlots:output_type -> db.v1.ListSoldEscrowSlotsResponse
+	36,  // 157: db.v1.AccountService.SaveCargoWithDeliveries:output_type -> db.v1.SaveCargoResponse
+	44,  // 158: db.v1.AccountService.SetAccountBlocked:output_type -> db.v1.SetAccountBlockedResponse
+	46,  // 159: db.v1.AccountService.RecordDuelResult:output_type -> db.v1.RecordDuelResultResponse
+	49,  // 160: db.v1.AccountService.RecordTrade:output_type -> db.v1.RecordTradeResponse
+	58,  // 161: db.v1.AccountService.RecordReport:output_type -> db.v1.RecordReportResponse
+	56,  // 162: db.v1.AccountService.RecordGround:output_type -> db.v1.RecordGroundResponse
+	51,  // 163: db.v1.AccountService.ReserveSerials:output_type -> db.v1.ReserveSerialsResponse
+	54,  // 164: db.v1.AccountService.RecordChat:output_type -> db.v1.RecordChatResponse
+	60,  // 165: db.v1.AccountService.SetCharacterPresence:output_type -> db.v1.SetCharacterPresenceResponse
+	62,  // 166: db.v1.AccountService.ClearAllPresence:output_type -> db.v1.ClearAllPresenceResponse
+	64,  // 167: db.v1.AccountService.AddShopPoints:output_type -> db.v1.AddShopPointsResponse
+	66,  // 168: db.v1.AccountService.ShopPoints:output_type -> db.v1.ShopPointsResponse
+	68,  // 169: db.v1.AccountService.SpendShopPoints:output_type -> db.v1.SpendShopPointsResponse
+	70,  // 170: db.v1.AccountService.ClaimNewbieKit:output_type -> db.v1.ClaimNewbieKitResponse
+	203, // 171: db.v1.AccountService.CreditDonate:output_type -> db.v1.CreditDonateResponse
+	205, // 172: db.v1.AccountService.DonateBalance:output_type -> db.v1.DonateBalanceResponse
+	75,  // 173: db.v1.AccountService.CreateGuild:output_type -> db.v1.CreateGuildResponse
+	77,  // 174: db.v1.AccountService.SetGuildMember:output_type -> db.v1.SetGuildMemberResponse
+	77,  // 175: db.v1.AccountService.LeaveGuild:output_type -> db.v1.SetGuildMemberResponse
+	80,  // 176: db.v1.AccountService.PromoteGuildMember:output_type -> db.v1.PromoteGuildMemberResponse
+	77,  // 177: db.v1.AccountService.TransferGuildLeader:output_type -> db.v1.SetGuildMemberResponse
+	83,  // 178: db.v1.AccountService.SetGuildRelation:output_type -> db.v1.SetGuildRelationResponse
+	85,  // 179: db.v1.AccountService.ListGuilds:output_type -> db.v1.ListGuildsResponse
+	87,  // 180: db.v1.AccountService.ListGuildRelations:output_type -> db.v1.ListGuildRelationsResponse
+	104, // 181: db.v1.AccountService.ListGuildMembers:output_type -> db.v1.ListGuildMembersResponse
+	106, // 182: db.v1.AccountService.SaveGuildNotice:output_type -> db.v1.SaveGuildNoticeResponse
+	92,  // 183: db.v1.AccountService.ListGuildSummaries:output_type -> db.v1.ListGuildSummariesResponse
+	95,  // 184: db.v1.AccountService.ListGuildSquads:output_type -> db.v1.ListGuildSquadsResponse
+	97,  // 185: db.v1.AccountService.SetGuildSquad:output_type -> db.v1.SetGuildSquadResponse
+	99,  // 186: db.v1.AccountService.ListGuildBuffs:output_type -> db.v1.ListGuildBuffsResponse
+	101, // 187: db.v1.AccountService.SaveGuildBuff:output_type -> db.v1.SaveGuildBuffResponse
+	103, // 188: db.v1.AccountService.DeleteGuildBuff:output_type -> db.v1.DeleteGuildBuffResponse
+	109, // 189: db.v1.AccountService.LoadGuildZones:output_type -> db.v1.LoadGuildZonesResponse
+	111, // 190: db.v1.AccountService.SaveGuildZone:output_type -> db.v1.SaveGuildZoneResponse
+	114, // 191: db.v1.AccountService.LoadGuildTowerState:output_type -> db.v1.LoadGuildTowerStateResponse
+	116, // 192: db.v1.AccountService.SaveGuildTowerState:output_type -> db.v1.SaveGuildTowerStateResponse
+	118, // 193: db.v1.AccountService.SaveGuildFame:output_type -> db.v1.SaveGuildFameResponse
+	121, // 194: db.v1.AccountService.LoadCastleQuestState:output_type -> db.v1.LoadCastleQuestStateResponse
+	123, // 195: db.v1.AccountService.SaveCastleQuestState:output_type -> db.v1.SaveCastleQuestStateResponse
+	125, // 196: db.v1.NpcConfigService.NpcConfigVersion:output_type -> db.v1.NpcConfigVersionResponse
+	127, // 197: db.v1.NpcConfigService.ListNpcDefinitions:output_type -> db.v1.ListNpcDefinitionsResponse
+	141, // 198: db.v1.NpcConfigService.ListMobTemplateStats:output_type -> db.v1.ListMobTemplateStatsResponse
+	145, // 199: db.v1.NpcConfigService.ListItemStats:output_type -> db.v1.ListItemStatsResponse
+	148, // 200: db.v1.NpcConfigService.ListMountGrowthRates:output_type -> db.v1.ListMountGrowthRatesResponse
+	153, // 201: db.v1.NpcConfigService.ListMountAbsorb:output_type -> db.v1.ListMountAbsorbResponse
+	156, // 202: db.v1.NpcConfigService.ListMountBonus:output_type -> db.v1.ListMountBonusResponse
+	151, // 203: db.v1.NpcConfigService.MountConfigVersion:output_type -> db.v1.MountConfigVersionResponse
+	132, // 204: db.v1.WorldEventConfigService.WorldEventConfigVersion:output_type -> db.v1.WorldEventConfigVersionResponse
+	134, // 205: db.v1.WorldEventConfigService.GetWorldEventConfig:output_type -> db.v1.GetWorldEventConfigResponse
+	136, // 206: db.v1.WorldEventConfigService.UpdateWorldEventProgress:output_type -> db.v1.UpdateWorldEventProgressResponse
+	138, // 207: db.v1.WorldEventConfigService.SetKefraState:output_type -> db.v1.SetKefraStateResponse
+	159, // 208: db.v1.XPConfigService.XPConfigVersion:output_type -> db.v1.XPConfigVersionResponse
+	161, // 209: db.v1.XPConfigService.GetXPConfig:output_type -> db.v1.GetXPConfigResponse
+	165, // 210: db.v1.DungeonGateService.DungeonGateVersion:output_type -> db.v1.DungeonGateVersionResponse
+	167, // 211: db.v1.DungeonGateService.GetDungeonGates:output_type -> db.v1.GetDungeonGatesResponse
+	170, // 212: db.v1.QuestRewardService.GetQuestRewards:output_type -> db.v1.GetQuestRewardsResponse
+	173, // 213: db.v1.DropBonusService.GetDropBonus:output_type -> db.v1.GetDropBonusResponse
+	176, // 214: db.v1.SpawnRateService.SpawnRateVersion:output_type -> db.v1.SpawnRateVersionResponse
+	178, // 215: db.v1.SpawnRateService.GetSpawnRates:output_type -> db.v1.GetSpawnRatesResponse
+	181, // 216: db.v1.CombineRateService.CombineRateVersion:output_type -> db.v1.CombineRateVersionResponse
+	183, // 217: db.v1.CombineRateService.GetCombineRates:output_type -> db.v1.GetCombineRatesResponse
+	187, // 218: db.v1.CombatRuleService.CombatRuleVersion:output_type -> db.v1.CombatRuleVersionResponse
+	189, // 219: db.v1.CombatRuleService.GetCombatRule:output_type -> db.v1.GetCombatRuleResponse
+	191, // 220: db.v1.NpcGeneratorService.GeneratorOffVersion:output_type -> db.v1.GeneratorOffVersionResponse
+	193, // 221: db.v1.NpcGeneratorService.GetGeneratorsOff:output_type -> db.v1.GetGeneratorsOffResponse
+	196, // 222: db.v1.NpcGeneratorService.SetGeneratorOff:output_type -> db.v1.SetGeneratorOffResponse
+	198, // 223: db.v1.DropRuleService.DropRuleVersion:output_type -> db.v1.DropRuleVersionResponse
+	201, // 224: db.v1.DropRuleService.ListDropRules:output_type -> db.v1.ListDropRulesResponse
+	141, // [141:225] is the sub-list for method output_type
+	57,  // [57:141] is the sub-list for method input_type
 	57,  // [57:57] is the sub-list for extension type_name
 	57,  // [57:57] is the sub-list for extension extendee
 	0,   // [0:57] is the sub-list for field type_name
@@ -14061,7 +14288,7 @@ func file_api_db_v1_db_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_db_v1_db_proto_rawDesc), len(file_api_db_v1_db_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   197,
+			NumMessages:   201,
 			NumExtensions: 0,
 			NumServices:   12,
 		},

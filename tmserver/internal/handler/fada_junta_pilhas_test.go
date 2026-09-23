@@ -60,7 +60,7 @@ func TestItensQueEmpilham(t *testing.T) {
 		"Barras de gold":         {4010, 4011, 4028, 4029},
 		"Classes A-E e (P)":      {4016, 4019, 4020, 4021, 4024, 4025},
 		"Moedas de Prata":        {4026, 4027},
-		"Moeda de cash":          {3393, 3394},
+		"RCoin (as cinco)":       {3393, 3394, 3395, 3396, 3441},
 	}
 	for nome, idxs := range empilham {
 		for _, idx := range idxs {
@@ -82,11 +82,11 @@ func TestItensQueEmpilham(t *testing.T) {
 		"logo depois da Água A":                  3191,
 		"logo antes das Classes (Capa)":          4015,
 		"logo depois das Moedas de Prata":        4030,
-		"logo antes da moeda de cash":            3392,
-		// A Barra de Ouro (3000Cash) é da mesma família das duas acima; fica de
-		// fora porque ninguém pediu, e o teste avisa se ela entrar sem decisão.
-		"Barra de Ouro (3000Cash)": 3395,
-		"uma espada":               30,
+		"logo antes da RCoin 100":                3392,
+		"logo depois da RCoin 5K":                3397,
+		"logo antes da RCoin 10K":                3440,
+		"logo depois da RCoin 10K":               3442,
+		"uma espada":                             30,
 	}
 	for nome, idx := range naoEmpilham {
 		if isSplittable(idx) {
@@ -421,7 +421,7 @@ func TestSemFadaNadaJunta(t *testing.T) {
 // enchiam a bolsa. Com elas na lista de pilha, cada nova cópia cai na pilha que
 // já está lá — inclusive sobre as avulsas de antes, que não têm EF_AMOUNT.
 func TestMoedasDoBauJuntamNumaPilhaSo(t *testing.T) {
-	for _, item := range []int16{itemMoeda5KK, itemMoeda1KK, itemMoedaWYD200} {
+	for _, item := range []int16{itemMoeda5KK, itemMoeda1KK, itemRCoin100} {
 		d, w, e := fixturaPilha(t)
 		e.Equip[fairyEquipSlot] = world.Item{Index: 3902} // Vermelha, a que junta
 		e.Carry[0] = world.Item{Index: item}              // a avulsa que ele já tinha

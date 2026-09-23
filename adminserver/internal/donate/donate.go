@@ -51,6 +51,7 @@ const (
 	TipoPendente Tipo = "pendente" // donate_topup_order, never confirmed
 	TipoCompra   Tipo = "compra"   // donate_shop_audit, purchase
 	TipoAjuste   Tipo = "ajuste"   // donate_shop_audit, credit_balance
+	TipoMoeda    Tipo = "moeda"    // donate_shop_audit, credit_item: RCoin usada em jogo
 )
 
 // Evento is one line of the wallet timeline.
@@ -186,7 +187,7 @@ func (s *Store) auditoria(ctx context.Context, accountID int64, limite int) ([]E
 		  LEFT JOIN account m ON m.id = a.account_id
 		  LEFT JOIN donate_shop_item i ON i.id = a.shop_item_id
 		 WHERE (a.action = 'purchase'       AND a.account_id = $1)
-		    OR (a.action = 'credit_balance' AND (a.after->>'account_id')::bigint = $1)
+		    OR (a.action IN ('credit_balance', 'credit_item') AND (a.after->>'account_id')::bigint = $1)
 		 ORDER BY a.created_at DESC
 		 LIMIT $2`, accountID, limite)
 	if err != nil {
@@ -231,6 +232,13 @@ func (s *Store) auditoria(ctx context.Context, accountID int64, limite int) ([]E
 			ev.Tipo = TipoAjuste
 			ev.Creditos = int64(campos["amount"])
 			ev.Titulo = "Ajuste manual" + porQuem(ator)
+			ev.Detalhe = motivo(depois)
+		case "credit_item":
+			// O ator aqui é a própria conta do jogador, e não um moderador:
+			// ninguém concedeu isto, ele gastou uma moeda que já tinha.
+			ev.Tipo = TipoMoeda
+			ev.Creditos = int64(campos["amount"])
+			ev.Titulo = "RCoin usada em jogo"
 			ev.Detalhe = motivo(depois)
 		}
 		out = append(out, ev)

@@ -66,8 +66,6 @@ const (
 	itemMoeda1KK    = 4026 // Moeda de Prata (1Mi)
 	itemMoeda5KK    = 4027 // Moeda de Prata (5Mi)
 	itemBauExp      = 4140 // Baú de Experiência
-	itemMoedaWYD100 = 3999 // Moeda WYD (100), a criar; ver a nota abaixo
-	itemMoedaWYD200 = 3393 // Moeda WYD (200), a menor que existe hoje
 )
 
 // bauApoiadorTotal é o denominador das três tabelas.
@@ -82,7 +80,7 @@ var bauBronzeTable = []chestPrize{
 	stackPrize(8400, itemAmagoLeveB, 10),
 	plainPrize(9400, itemMoeda1KK),
 	plainPrize(9800, itemMoeda5KK),
-	plainPrize(10000, itemMoedaWYD200),
+	plainPrize(10000, itemRCoin100),
 }
 
 // bauApoiadorTable atende do Prata ao Lenda. Sem a moeda de 1KK — no baú pago
@@ -94,7 +92,7 @@ var bauApoiadorTable = []chestPrize{
 	stackPrize(7510, itemAmagoLeveB, 10),
 	stackPrize(8510, itemBauExp, 3),
 	plainPrize(9310, itemMoeda5KK),
-	plainPrize(9710, itemMoedaWYD200),
+	plainPrize(9710, itemRCoin100),
 	stackPrize(9890, itemAmagoEquipN, 10),
 	stackPrize(9980, itemAmagoEquipB, 10),
 	plainPrize(9995, itemOvoEquipN),
@@ -110,7 +108,7 @@ var bauSupremoTable = []chestPrize{
 	stackPrize(7220, itemAmagoLeveB, 12),
 	stackPrize(8220, itemBauExp, 3),
 	plainPrize(9020, itemMoeda5KK),
-	plainPrize(9420, itemMoedaWYD200),
+	plainPrize(9420, itemRCoin100),
 	stackPrize(9780, itemAmagoEquipN, 12),
 	stackPrize(9960, itemAmagoEquipB, 12),
 	plainPrize(9990, itemOvoEquipN),
@@ -135,15 +133,8 @@ func registerBausApoiador() {
 
 func init() { registerBausApoiador() }
 
-// O prêmio de donate paga a Moeda WYD (200) porque é a menor que o catálogo
-// tem; a de 100 (itemMoedaWYD100) ainda é item a criar, e trocar a constante nas
-// três linhas é a mudança inteira quando ela nascer.
-//
-// AVISO: hoje nenhuma das duas faz nada ao ser usada. O legado credita o saldo
-// no EF_VOLATILE 184 (_MSG_UseItem.cpp:5867) e esse volátil não foi portado —
-// o item cai na bolsa e o duplo-clique não responde. Enquanto não for, este
-// prêmio é decorativo.
-var _ = itemMoedaWYD100
+// O prêmio de donate é a RCoin 100 (itemRCoin100, rcoin.go): usar credita 100
+// na carteira de donate da conta.
 
 // Os ovos de Cavalo Leve saíram das tabelas quando o Bronze perdeu o degrau 5
 // (Marco, 18/09). Ficam nomeados porque a decisão de reintroduzi-los no Apoiador,

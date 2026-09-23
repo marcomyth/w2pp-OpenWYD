@@ -20,6 +20,7 @@ type fakeAPI struct {
 	presenceReq     *dbv1.SetCharacterPresenceRequest
 	presenceCleared int64
 	shopPoints      int32 // running personal-shop balance, as the real wallet accumulates
+	donate          int32 // carteira de donate, que a RCoin enche
 
 	newbieKitAccount int64 // conta do último ClaimNewbieKit
 	newbieKitGranted bool  // resposta que o dbServer devolveria
@@ -555,4 +556,34 @@ func (f *fakeAPI) ShopPoints(context.Context, *dbv1.ShopPointsRequest, ...grpc.C
 func (f *fakeAPI) ClaimNewbieKit(_ context.Context, req *dbv1.ClaimNewbieKitRequest, _ ...grpc.CallOption) (*dbv1.ClaimNewbieKitResponse, error) {
 	f.newbieKitAccount = req.GetAccountId()
 	return &dbv1.ClaimNewbieKitResponse{Granted: f.newbieKitGranted}, nil
+}
+
+// A carteira de DONATE, que a RCoin enche: dinheiro, e não tempo de lojinha.
+func (f *fakeAPI) CreditDonate(_ context.Context, req *dbv1.CreditDonateRequest, _ ...grpc.CallOption) (*dbv1.CreditDonateResponse, error) {
+	f.donate += req.GetAmount()
+	return &dbv1.CreditDonateResponse{Balance: f.donate}, nil
+}
+
+func (f *fakeAPI) DonateBalance(context.Context, *dbv1.DonateBalanceRequest, ...grpc.CallOption) (*dbv1.DonateBalanceResponse, error) {
+	return &dbv1.DonateBalanceResponse{Balance: f.donate}, nil
+}
+
+// TestCreditDonate confere que o saldo que volta é o que o dbServer calculou, e
+// que o /donate lê a mesma carteira.
+func TestCreditDonate(t *testing.T) {
+	api := &fakeAPI{}
+	c := newClient(api)
+	ctx := context.Background()
+	for i, quer := range []int32{100, 1100} {
+		saldo, err := c.CreditDonate(ctx, 7, []int32{100, 1000}[i], "Hero", "teste")
+		if err != nil {
+			t.Fatalf("CreditDonate #%d: %v", i+1, err)
+		}
+		if saldo != quer {
+			t.Errorf("saldo depois do crédito #%d = %d, quer %d", i+1, saldo, quer)
+		}
+	}
+	if saldo, err := c.DonateBalance(ctx, 7); err != nil || saldo != 1100 {
+		t.Errorf("DonateBalance = %d, %v; quer 1100, nil", saldo, err)
+	}
 }

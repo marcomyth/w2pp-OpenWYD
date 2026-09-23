@@ -126,6 +126,27 @@ func (l *ItemList) KeyIDs() map[int]int {
 	return out
 }
 
+// Donates returns item index → its EF_DONATE value: how much an RCoin is worth
+// in the account donate wallet. The catalog is the single source, so changing
+// the CSV changes what the coin pays and what the panel shows at once.
+//
+// Like EF_RANGE, EF_DONATE is deliberately NOT in efName/BaseEffects: it is not
+// a score stat, and folding it in would add it to the player CurrentScore.
+func (l *ItemList) Donates() map[int]int32 {
+	out := make(map[int]int32)
+	for idx, e := range l.items {
+		for i := 0; i+1 < len(e.Fields); i++ {
+			if strings.TrimSpace(e.Fields[i]) == "EF_DONATE" {
+				if v, err := strconv.Atoi(strings.TrimSpace(e.Fields[i+1])); err == nil && v > 0 {
+					out[idx] = int32(v)
+				}
+				break
+			}
+		}
+	}
+	return out
+}
+
 // Ranges returns item index → its EF_RANGE value (the attack reach an equipped
 // item grants). A mob's reach is the max EF_RANGE over its template's 16 equips
 // (BASE_GetMobAbility → BASE_GetMaxAbility, Basedef.cpp:2415/2523); EF_RANGE is

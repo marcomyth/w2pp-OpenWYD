@@ -55,6 +55,9 @@ type Store interface {
 	ShopPoints(ctx context.Context, accountID int64) (int32, error)
 	SpendShopPoints(ctx context.Context, accountID int64, cost int32, characterName, reason string) (int32, bool, error)
 	ClaimNewbieKit(ctx context.Context, accountID int64, characterName string) (bool, error)
+	// O donate é a OUTRA carteira: dinheiro, e não tempo de lojinha.
+	CreditDonateInGame(ctx context.Context, accountID int64, amount int32, characterName, reason string) (int32, error)
+	DonateBalance(ctx context.Context, accountID int64) (int32, error)
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
 	LeaveGuild(ctx context.Context, accountID int64, slot int) error
@@ -1008,4 +1011,44 @@ func (s *Server) ClaimNewbieKit(ctx context.Context, req *dbv1.ClaimNewbieKitReq
 		return nil, status.Errorf(codes.Internal, "registrar kit de novato: %v", err)
 	}
 	return &dbv1.ClaimNewbieKitResponse{Granted: granted}, nil
+}
+
+// CreditDonate adds to the account DONATE wallet because a player used an RCoin
+// in game. It is a different currency from the shop points above: this one is
+// the money wallet the web shop spends.
+//
+// A non-positive amount is refused rather than quietly turned into a debit:
+// nothing in game takes donate away, so an amount that arrived wrong is a bug
+// upstream and must not be written.
+func (s *Server) CreditDonate(ctx context.Context, req *dbv1.CreditDonateRequest) (*dbv1.CreditDonateResponse, error) {
+	if req.GetAccountId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "account_id obrigatório")
+	}
+	if req.GetAmount() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "amount tem de ser positivo")
+	}
+	saldo, err := s.store.CreditDonateInGame(ctx, req.GetAccountId(), req.GetAmount(),
+		req.GetCharacterName(), req.GetReason())
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, status.Error(codes.NotFound, "conta não encontrada")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "creditar donate: %v", err)
+	}
+	return &dbv1.CreditDonateResponse{Balance: saldo}, nil
+}
+
+// DonateBalance reads one account donate wallet, for the in-game /donate command.
+func (s *Server) DonateBalance(ctx context.Context, req *dbv1.DonateBalanceRequest) (*dbv1.DonateBalanceResponse, error) {
+	if req.GetAccountId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "account_id obrigatório")
+	}
+	saldo, err := s.store.DonateBalance(ctx, req.GetAccountId())
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, status.Error(codes.NotFound, "conta não encontrada")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "ler saldo de donate: %v", err)
+	}
+	return &dbv1.DonateBalanceResponse{Balance: saldo}, nil
 }

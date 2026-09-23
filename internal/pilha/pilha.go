@@ -38,9 +38,9 @@ func Empilha(index int16) bool {
 	// 128 baús enchiam a bolsa de moedas avulsas (Marco, 20/09/2026).
 	case 4026, 4027:
 		return true
-	// A moeda de cash (Cosmo Energia 200 e 1000). Só empilha: usar continua sem
-	// efeito enquanto o EF_VOLATILE 184 não for portado.
-	case 3393, 3394:
+	// As cinco RCoin, a moeda de donate: o jogador as compra no site e as negocia,
+	// e usar uma credita o EF_DONATE dela na conta (tmserver handler/rcoin.go).
+	case 3393, 3394, 3395, 3396, 3441: // RCoin 100/1K/3K/5K/10K, a moeda de donate negociável
 		return true
 	case 3224: // Fragmento de Alma, da Escolta do Trono dos Reinos (tmserver handler/reinos.go)
 		return true

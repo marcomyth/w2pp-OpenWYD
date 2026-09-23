@@ -188,11 +188,43 @@ func (s *Store) DonateBalance(ctx context.Context, accountID int64) (int32, erro
 	return bal, nil
 }
 
+// CreditDonateInGame adds amount to an account's donate wallet because a player
+// used an RCoin in game, and returns the new balance.
+//
+// It writes LedgerActionItem and not LedgerActionCredit, although the money
+// lands in the same column, because the revenue panel sums 'credit_balance' as
+// "staff handed out donate". A player cashing in a coin they already own is not
+// a staff grant and not new revenue: counting it there would inflate the report
+// by every coin opened.
+//
+// The acting account is the player's own, like a purchase — nobody granted this.
+func (s *Store) CreditDonateInGame(ctx context.Context, accountID int64, amount int32, characterName, reason string) (int32, error) {
+	if amount <= 0 {
+		return 0, fmt.Errorf("store: credit donate in game a=%d: amount %d não é positivo", accountID, amount)
+	}
+	return s.creditDonate(ctx, accountID, amount, accountID, LedgerActionItem, map[string]any{
+		"account_id": accountID, "amount": amount, "character": characterName, "reason": reason,
+	})
+}
+
 // CreditDonateBalance adds amount to an account's donate wallet (the manual/admin
 // credit path the future payment webhook reuses) and returns the new balance. It
 // is a partial UPDATE — never a full-row write — so it is safe against tmServer
 // saves. Returns ErrNotFound if the account is absent.
 func (s *Store) CreditDonateBalance(ctx context.Context, accountID int64, amount int32, moderatorID int64, reason string) (int32, error) {
+	return s.creditDonate(ctx, accountID, amount, moderatorID, LedgerActionCredit, map[string]any{
+		"account_id": accountID, "amount": amount, "reason": reason,
+	})
+}
+
+// creditDonate is the one write that moves the donate wallet up. The balance is
+// computed by the database (balance + amount) and never written back as a total
+// the caller worked out: the four characters of an account can cash a coin in
+// the same instant, and a read-modify-write would silently drop one of them.
+//
+// after is the audit payload; the resulting balance is added to it here, because
+// only this function knows it.
+func (s *Store) creditDonate(ctx context.Context, accountID int64, amount int32, actingAccountID int64, action string, after map[string]any) (int32, error) {
 	var newBal int32
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx,
@@ -204,10 +236,9 @@ func (s *Store) CreditDonateBalance(ctx context.Context, accountID int64, amount
 		if err != nil {
 			return fmt.Errorf("store: credit donate a=%d: %w", accountID, err)
 		}
-		after, _ := json.Marshal(map[string]any{
-			"account_id": accountID, "amount": amount, "balance": newBal, "reason": reason,
-		})
-		return donateAudit(ctx, tx, nil, moderatorID, "credit_balance", nil, after)
+		after["balance"] = newBal
+		js, _ := json.Marshal(after)
+		return donateAudit(ctx, tx, nil, actingAccountID, action, nil, js)
 	})
 	return newBal, err
 }

@@ -145,3 +145,79 @@ func (f *fakeStore) ClaimNewbieKit(_ context.Context, accountID int64, _ string)
 	f.newbieKit[accountID] = true
 	return true, nil
 }
+
+// A carteira de DONATE é outra: os pontos de lojinha acima são tempo, esta é
+// dinheiro, e a RCoin é o que a enche pelo jogo.
+func (f *fakeStore) CreditDonateInGame(_ context.Context, accountID int64, amount int32, _, _ string) (int32, error) {
+	if f.donate == nil {
+		f.donate = map[int64]int32{}
+	}
+	f.donate[accountID] += amount
+	return f.donate[accountID], nil
+}
+
+func (f *fakeStore) DonateBalance(_ context.Context, accountID int64) (int32, error) {
+	return f.donate[accountID], nil
+}
+
+// TestCreditDonateOverWire cobre o caminho que a RCoin percorre: o tmServer pede
+// o crédito, o dbServer soma na carteira de donate e devolve o saldo.
+//
+// O valor não positivo é recusado no servidor, e não no chamador: nada em jogo
+// tira donate, então um amount errado é defeito de quem chamou e não pode virar
+// um débito silencioso na carteira de um jogador.
+func TestCreditDonateOverWire(t *testing.T) {
+	fs := &fakeStore{}
+	lis := bufconn.Listen(1 << 20)
+	srv := grpc.NewServer()
+	dbv1.RegisterAccountServiceServer(srv, New(fs))
+	go func() { _ = srv.Serve(lis) }()
+	t.Cleanup(srv.Stop)
+
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return lis.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	client := dbv1.NewAccountServiceClient(conn)
+	ctx := context.Background()
+
+	// Duas moedas seguidas somam: a carteira acumula, não é sobrescrita.
+	for i, quer := range []int32{100, 1100} {
+		resp, err := client.CreditDonate(ctx, &dbv1.CreditDonateRequest{
+			AccountId: 7, Amount: []int32{100, 1000}[i], CharacterName: "Hero", Reason: "teste",
+		})
+		if err != nil {
+			t.Fatalf("CreditDonate #%d: %v", i+1, err)
+		}
+		if resp.GetBalance() != quer {
+			t.Fatalf("saldo depois do crédito #%d = %d, quer %d", i+1, resp.GetBalance(), quer)
+		}
+	}
+
+	saldo, err := client.DonateBalance(ctx, &dbv1.DonateBalanceRequest{AccountId: 7})
+	if err != nil {
+		t.Fatalf("DonateBalance: %v", err)
+	}
+	if saldo.GetBalance() != 1100 {
+		t.Errorf("DonateBalance = %d, quer 1100", saldo.GetBalance())
+	}
+
+	for _, amount := range []int32{0, -100} {
+		if _, err := client.CreditDonate(ctx, &dbv1.CreditDonateRequest{AccountId: 7, Amount: amount}); err == nil {
+			t.Errorf("CreditDonate aceitou amount %d, queria recusa", amount)
+		}
+	}
+	// A recusa não pode ter mexido na carteira.
+	saldo, err = client.DonateBalance(ctx, &dbv1.DonateBalanceRequest{AccountId: 7})
+	if err != nil {
+		t.Fatalf("DonateBalance: %v", err)
+	}
+	if saldo.GetBalance() != 1100 {
+		t.Errorf("a recusa mexeu na carteira: saldo = %d, quer 1100", saldo.GetBalance())
+	}
+}

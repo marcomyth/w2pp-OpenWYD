@@ -674,6 +674,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useFrangoAssado(w, s, e, src)
 	case vol == volCoragem:
 		d.useRemedioDaCoragem(w, s, e, src)
+	case vol == volDonate:
+		d.useRCoin(w, s, e, src)
 	case vol == volSilverBar:
 		d.useSilverBar(w, s, e, src)
 	case vol >= volGemDiamond && vol <= volGemGarnet:

@@ -28,10 +28,9 @@ func nasceuNoGelo(mob *world.Entity) bool {
 // O template de cada um continua soltando o que a 0110 deixou nele; isto vem a
 // mais. E não passa pela Mesa de Drops: o "*" a 0% da 0074 tira as Almas do
 // mundo para segurar o Arch nos Reis, e a Alma daqui é a exceção pedida.
-// As Almas e o Fragmento são as constantes da Praça dos Reinos (reinos_praca.go).
+// As Almas e o Fragmento são as constantes da Praça dos Reinos (reinos_praca.go);
+// a RCoin (itemRCoin100) mora em rcoin.go, com as outras quatro.
 const (
-	itemRCoin100 int16 = 3393
-
 	// geloChefeBase é a base do sorteio. 32768 % 500 = 268: os valores de 0 a 267
 	// saem uma vez a mais que os outros. A Alma fica no FIM da faixa, onde cada
 	// valor sai 65 vezes, e paga 0,99% — nunca mais que o 1% pedido.

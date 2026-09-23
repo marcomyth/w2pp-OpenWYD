@@ -17,7 +17,7 @@ func TestAListaDePilhaBateComAsConstantesDoJogo(t *testing.T) {
 		classeALo, classeLast, itemQuestRewardBase, itemQuestRewardLast,
 		// Desde 20/09/2026, depois do teste de 128 baús: as duas Moedas de Prata
 		// e a moeda de cash que o Baú do Apoiador paga.
-		itemMoeda1KK, itemMoeda5KK, itemMoedaWYD200,
+		itemMoeda1KK, itemMoeda5KK, itemRCoin100,
 	}
 	for _, idx := range dentro {
 		if !pilha.Empilha(idx) {

@@ -169,6 +169,20 @@ service AccountService {
   // of the same account asking at the same instant cannot both be served.
   rpc ClaimNewbieKit(ClaimNewbieKitRequest) returns (ClaimNewbieKitResponse);
 
+  // CreditDonate adds to the account DONATE wallet (account.donate_balance) —
+  // the money wallet the web shop spends and the revenue panel sums, which is a
+  // different currency from the shop points above. It is the path an RCoin takes
+  // when a player uses one in game.
+  //
+  // Like AddShopPoints, the amount is applied BY THE DATABASE (balance + amount)
+  // and never written back as a total the caller worked out: the four characters
+  // of one account can each use a coin at the same instant, and a
+  // read-modify-write would drop credits the player paid for.
+  rpc CreditDonate(CreditDonateRequest) returns (CreditDonateResponse);
+  // DonateBalance reads one account donate wallet, for the in-game /donate
+  // command.
+  rpc DonateBalance(DonateBalanceRequest) returns (DonateBalanceResponse);
+
   // Guild lifecycle and war/city state (issue #114). These RPCs are modern
   // tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
   // GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -1678,3 +1692,18 @@ message ListDropRulesResponse {
   int64 version = 1;
   repeated DropRule rules = 2;
 }
+
+message CreditDonateRequest {
+  int64 account_id = 1;
+  // amount is positive. A zero or negative amount is refused rather than
+  // quietly turned into a debit: nothing in game takes donate away.
+  int32 amount = 2;
+  // character_name records who used the coin. Informative only: the wallet
+  // belongs to the account, and character names are not unique here.
+  string character_name = 3;
+  string reason = 4;
+}
+message CreditDonateResponse { int32 balance = 1; }
+
+message DonateBalanceRequest { int64 account_id = 1; }
+message DonateBalanceResponse { int32 balance = 1; }

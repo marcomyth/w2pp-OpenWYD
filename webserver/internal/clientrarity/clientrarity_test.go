@@ -155,6 +155,7 @@ func TestClassifyAcessoriosEConsumiveis(t *testing.T) {
 		// Crédito de cash: Épico, e a Moeda WYD não cai no grupo das moedas.
 		{"Barra de Ouro", Item{Index: 3394, Name: "Barra de Ouro(1000Cash)"}, Epico},
 		{"Moeda WYD", Item{Index: 3393, Name: "Moeda WYD(200)"}, Epico},
+		{"RCoin", Item{Index: 3441, Name: "RCoin 10K"}, Epico},
 		{"Moeda de Prata segue Incomum", Item{Index: 4026, Name: "Moeda de Prata(1Mi)"}, Incomum},
 	} {
 		if got := Classify(tc.it); got != tc.want {

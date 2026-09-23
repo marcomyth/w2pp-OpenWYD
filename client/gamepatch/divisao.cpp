@@ -38,7 +38,7 @@ int __cdecl Divide(int index) {
     case 3224:                         // Fragmento de Alma (Reinos)
     case 4010: case 4011: case 4028: case 4029: // Barras de Prata
     case 4026: case 4027:              // Moedas de Prata (1Mi, 5Mi)
-    case 3393: case 3394:              // moeda de cash (Cosmo Energia)
+    case 3393: case 3394: case 3395: case 3396: case 3441: // RCoin (donate)
     case 4049:
         return 1;
     }

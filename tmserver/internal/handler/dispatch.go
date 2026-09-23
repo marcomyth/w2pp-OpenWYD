@@ -116,6 +116,10 @@ type Config struct {
 	// use (64-66 Divine, 58 Vigor; content.ItemList.Volatiles). 0/absent = equippable.
 	ItemVolatiles map[int]int
 
+	// ItemDonates maps item index → EF_DONATE: what one RCoin pays into the
+	// account donate wallet when the player uses it.
+	ItemDonates map[int]int32
+
 	// ItemDurations maps item index → lifetime in days for temporary items, read
 	// from the "(30dias)" the catalog puts in their name (content.ItemList.Durations).
 	// The clock starts when the item is first equipped, not here — see startTimedItem.
@@ -293,6 +297,7 @@ type Dispatcher struct {
 	itemKeyIDs        map[int]int                  // item index → EF_KEYID (gate and key pairing)
 	itemReqs          map[int]content.ItemReq      // item index → equip requirement (level/attrs)
 	itemVolatiles     map[int]int                  // item index → EF_VOLATILE (consumable class)
+	itemDonates       map[int]int32                // item index → EF_DONATE (o que a RCoin paga)
 	itemDurations     map[int]int                  // item index → lifetime in days (timed items)
 	itemPos           map[int]int                  // item index → nPos (refine threshold)
 	itemUnique        map[int]int                  // item index → nUnique (EF_DAMAGEADD gate)
@@ -588,6 +593,7 @@ func New(cfg Config) *Dispatcher {
 		itemKeyIDs:        cfg.ItemKeyIDs,
 		itemReqs:          cfg.ItemReqs,
 		itemVolatiles:     cfg.ItemVolatiles,
+		itemDonates:       cfg.ItemDonates,
 		itemDurations:     cfg.ItemDurations,
 		itemPos:           cfg.ItemPos,
 		itemUnique:        cfg.ItemUnique,

@@ -227,6 +227,12 @@ func (d *Dispatcher) runCommand(w *world.World, s *world.Session, name string, a
 		d.mostrarPontosDeLojinha(w, s)
 		return true
 	}
+	// /donate e /saldo dizem a mesma coisa: o jogador chama a moeda dos dois
+	// jeitos, e um comando que não responde parece servidor quebrado.
+	if cmd == "donate" || cmd == "saldo" {
+		d.mostrarSaldoDeDonate(w, s)
+		return true
+	}
 	if cmd == "novato" {
 		d.novatoKit(w, s)
 		return true

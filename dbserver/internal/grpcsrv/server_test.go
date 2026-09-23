@@ -20,6 +20,7 @@ type fakeStore struct {
 	fama map[uint16]int32
 	// shopPoints is the personal-shop wallet, accumulated like the real store.
 	shopPoints map[int64]int32
+	donate     map[int64]int32 // a carteira de DONATE: dinheiro, não tempo de lojinha
 	newbieKit  map[int64]bool  // contas que já tomaram o kit de novato (0062)
 	presence   map[string]bool // captured SetCharacterPresence calls
 	reports    []domain.PlayerReport

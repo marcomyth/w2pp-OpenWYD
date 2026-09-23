@@ -1246,3 +1246,28 @@ func (c *Client) SpendShopPoints(ctx context.Context, accountID int64, cost int3
 	}
 	return resp.GetBalance(), resp.GetPaid(), nil
 }
+
+// CreditDonate credita a carteira de DONATE da conta porque o jogador usou uma
+// RCoin. É a outra moeda: os pontos de lojinha são tempo, esta é dinheiro, e é a
+// que a loja do site gasta.
+func (c *Client) CreditDonate(ctx context.Context, accountID int64, amount int32, characterName, reason string) (int32, error) {
+	resp, err := c.api.CreditDonate(ctx, &dbv1.CreditDonateRequest{
+		AccountId:     accountID,
+		Amount:        amount,
+		CharacterName: characterName,
+		Reason:        reason,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("dbclient: creditar donate: %w", err)
+	}
+	return resp.GetBalance(), nil
+}
+
+// DonateBalance lê o saldo de donate da conta, para o /donate em jogo.
+func (c *Client) DonateBalance(ctx context.Context, accountID int64) (int32, error) {
+	resp, err := c.api.DonateBalance(ctx, &dbv1.DonateBalanceRequest{AccountId: accountID})
+	if err != nil {
+		return 0, fmt.Errorf("dbclient: ler saldo de donate: %w", err)
+	}
+	return resp.GetBalance(), nil
+}

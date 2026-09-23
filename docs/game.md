@@ -25,6 +25,7 @@
 ✅ /status: a ficha de combate que a janela de personagem não tem. Começa pelo que decide o duelo — **acerto e esquiva** em percentual contra um oponente igual, mais os dois números crus por trás deles (a precisão, que é descontada da esquiva do alvo, e a esquiva própria em milésimos, teto 650) —, depois **perfuração e absorção** e o resto do bloco de PvP do equipamento. Só então vem o contexto: Defesa de Evolução, o quanto a montaria absorve, a Jóia da Absorção e o bônus de drop. A Defesa **não** é repetida: a janela do personagem já a mostra. Cada linha só aparece se o personagem tiver aquilo. Não existe "taxa de acerto" absoluta: a rolagem é sempre a sua precisão MENOS a esquiva do outro, por isso o percentual é medido contra uma cópia do próprio personagem. Comando novo, não existe na fonte legada <br/>
 ✅ /fecharloja: fecha a lojinha do personagem e tira o coelho do mundo. É o único jeito de fechar a barraca de pé: a janela da loja fecha sozinha logo depois de abrir, e fechar janela não derruba mais a loja. Comando novo, não existe na fonte legada — ver "Lojinha" abaixo <br/>
 ✅ /pontos: mostra os pontos de lojinha da **conta** e, quando há uma barraca de pé, quanto ela rende por janela e quanto falta para o próximo crédito. Comando novo, não existe na fonte legada — ver "Lojinha" abaixo <br/>
+✅ /donate (ou /saldo): mostra o donate da **conta** — a carteira que a loja do site gasta, outra moeda que os pontos de lojinha. É a leitura do `account.donate_balance`, feita no banco e não em número guardado, porque os outros três personagens da conta e a própria loja do site mexem nela. Comando novo, não existe na fonte legada — ver "RCoin" abaixo <br/>
 ✅ /novato: entrega o kit de entrada — 5 Frangos Assados e 3 Baús de Experiência (as variantes 5760/5761, intransferíveis e sem preço, empilhados num espaço cada) e uma Shire de 3 dias (item 3980: +150 de dano, +15 de ataque mágico, 20% de absorção PvE e +3% de XP). **Uma vez por conta**, gravado em `newbie_kit_claim` (0062) — apagar o personagem não devolve o kit — e só para personagens **Mortais**. O que não couber na bolsa vai para o baú da conta, e a mensagem diz isso. O tempo da Shire vai nos efeitos de duração, então o relógio dela só começa quando o jogador montar. Comando novo, não existe na fonte legada. As duas variantes precisam do cliente publicado (`go run ./webserver/cmd/kitnovatocliente`), senão aparecem sem nome e sem ícone <br/>
 ✅ /cp: mostra os pontos de caos atuais do personagem (`PKPoint-75`; 0 = nick branco). Recuperam de duas formas: +1 por hora online (gate do `RegenMob` legado) e **+1 por nível subido**, ambas com teto no neutro 75 — o ganho por nível é um desvio consciente do legado, pedido na issue #279 <br/>
 ✅ /nt: mostra quantas entradas de Pesadelo Arcano o personagem tem (`extra.NT`). Persistido em `character.nightmare_tickets`; a Escritura do Pesadelo dá 13 e cada entrada no Arcano gasta 1 ([pesadelo-plan.md](./migration/pesadelo-plan.md)) <br/>
@@ -147,6 +148,55 @@ O que **não** mudou:
   apenas faz a próxima compra daquele slot falhar.
 - Sem `-content` (ou sem o template) a loja volta ao comportamento do legado: abre,
   prende o vendedor, e aí sim **andar fecha** — porque nessa forma ele *é* a barraca.
+
+## RCoin: a moeda de donate
+
+As cinco **RCoin** (3393 = 100, 3394 = 1K, 3395 = 3K, 3396 = 5K, 3441 = 10K) são a
+moeda de apoio. Usar uma soma o `EF_DONATE` dela à carteira de **donate da conta**
+(`account.donate_balance`) — a mesma que a loja do site gasta —, e o jogador
+confere com `/donate`. São o `EF_VOLATILE 184` do legado (`_MSG_UseItem.cpp:5867`),
+que até 23/09/2026 nunca tinha sido portado: o item existia, tinha nome e ícone, e
+clicar nele não fazia nada.
+
+Antes se chamavam Cosmo Energia, depois Moeda WYD e Barra de Ouro; viraram RCoin em
+23/09/2026. A de 3393 passou a valer **100** em vez de 200, para bater com o ícone —
+e é ela o prêmio de donate dos Baús do Apoiador, que até aqui era decorativo.
+
+A moeda **sai da bolsa antes** da ida ao banco. O laço é dono único do mundo, então
+tirá-la ali é atômico e nenhuma segunda chamada gasta a mesma; consumir só na volta
+deixaria uma janela para trocá-la, vendê-la ou largá-la no chão com o crédito já a
+caminho. Se o banco falhar, a moeda volta — para a própria pilha quando ela continua
+no espaço, para qualquer vaga livre quando o jogador mexeu na bolsa.
+
+O crédito é somado **pelo banco** (`balance + amount`), nunca escrito como total: os
+quatro personagens de uma conta podem gastar uma moeda cada no mesmo instante.
+
+> Na auditoria isso é `credit_item`, e não o `credit_balance` do ajuste manual. O
+> painel de receita soma o `credit_balance` como "staff distribuiu donate": contar a
+> RCoin ali inflaria o relatório a cada moeda aberta. O extrato da conta no painel
+> admin mostra as duas, porque "de onde veio este donate" é o que o suporte precisa
+> responder.
+
+### De onde a moeda vem, e para onde vai
+
+A RCoin é como o donate **muda de mão**. O jogador doa, recebe saldo, compra as
+moedas na loja do site e as **negocia com outro jogador** — por ouro, por item,
+pelo que combinarem. Quem recebe usa a moeda e o valor cai na carteira DELE. Elas
+não têm `EF_NOTRADE`, então trocam, vão para a lojinha, para o baú e para o chão
+como qualquer item.
+
+Por isso as cinco **empilham até 120** (`internal/pilha`). **Juntar funciona;
+dividir depende do GamePatch.dll** — o cliente só divide a lista do `divisao.cpp`,
+que já tem as cinco no código-fonte, mas só vale no cliente depois de uma DLL nova
+compilada e distribuída.
+
+> **Nenhum NPC vende RCoin, e o servidor recusa mesmo que alguém as ponha numa
+> loja** — em ouro, pontos ou emblema. O seed de `0006` põe as cinco na loja do
+> `DonatesBars` e o preço delas no catálogo é **zero**, e a compra aceita preço zero
+> de propósito, porque o legado tem itens de graça. Com o `EF_VOLATILE 184`
+> portado isso seria donate infinito a um clique. A recusa está no `buy`
+> (`shop.go`) e não nos dados, porque os dados voltam: o seed repõe a vaga do
+> template quando o painel não a esvaziou. Quem clicar recebe a explicação no chat.
 
 ## Pontos por tempo de lojinha
 

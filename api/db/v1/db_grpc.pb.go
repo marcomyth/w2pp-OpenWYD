@@ -57,6 +57,8 @@ const (
 	AccountService_ShopPoints_FullMethodName              = "/db.v1.AccountService/ShopPoints"
 	AccountService_SpendShopPoints_FullMethodName         = "/db.v1.AccountService/SpendShopPoints"
 	AccountService_ClaimNewbieKit_FullMethodName          = "/db.v1.AccountService/ClaimNewbieKit"
+	AccountService_CreditDonate_FullMethodName            = "/db.v1.AccountService/CreditDonate"
+	AccountService_DonateBalance_FullMethodName           = "/db.v1.AccountService/DonateBalance"
 	AccountService_CreateGuild_FullMethodName             = "/db.v1.AccountService/CreateGuild"
 	AccountService_SetGuildMember_FullMethodName          = "/db.v1.AccountService/SetGuildMember"
 	AccountService_LeaveGuild_FullMethodName              = "/db.v1.AccountService/LeaveGuild"
@@ -235,6 +237,19 @@ type AccountServiceClient interface {
 	// took it: the gate is an INSERT ... ON CONFLICT DO NOTHING, so two characters
 	// of the same account asking at the same instant cannot both be served.
 	ClaimNewbieKit(ctx context.Context, in *ClaimNewbieKitRequest, opts ...grpc.CallOption) (*ClaimNewbieKitResponse, error)
+	// CreditDonate adds to the account DONATE wallet (account.donate_balance) —
+	// the money wallet the web shop spends and the revenue panel sums, which is a
+	// different currency from the shop points above. It is the path an RCoin takes
+	// when a player uses one in game.
+	//
+	// Like AddShopPoints, the amount is applied BY THE DATABASE (balance + amount)
+	// and never written back as a total the caller worked out: the four characters
+	// of one account can each use a coin at the same instant, and a
+	// read-modify-write would drop credits the player paid for.
+	CreditDonate(ctx context.Context, in *CreditDonateRequest, opts ...grpc.CallOption) (*CreditDonateResponse, error)
+	// DonateBalance reads one account donate wallet, for the in-game /donate
+	// command.
+	DonateBalance(ctx context.Context, in *DonateBalanceRequest, opts ...grpc.CallOption) (*DonateBalanceResponse, error)
 	// Guild lifecycle and war/city state (issue #114). These RPCs are modern
 	// tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
 	// GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -568,6 +583,26 @@ func (c *accountServiceClient) ClaimNewbieKit(ctx context.Context, in *ClaimNewb
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ClaimNewbieKitResponse)
 	err := c.cc.Invoke(ctx, AccountService_ClaimNewbieKit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) CreditDonate(ctx context.Context, in *CreditDonateRequest, opts ...grpc.CallOption) (*CreditDonateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreditDonateResponse)
+	err := c.cc.Invoke(ctx, AccountService_CreditDonate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) DonateBalance(ctx context.Context, in *DonateBalanceRequest, opts ...grpc.CallOption) (*DonateBalanceResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DonateBalanceResponse)
+	err := c.cc.Invoke(ctx, AccountService_DonateBalance_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -957,6 +992,19 @@ type AccountServiceServer interface {
 	// took it: the gate is an INSERT ... ON CONFLICT DO NOTHING, so two characters
 	// of the same account asking at the same instant cannot both be served.
 	ClaimNewbieKit(context.Context, *ClaimNewbieKitRequest) (*ClaimNewbieKitResponse, error)
+	// CreditDonate adds to the account DONATE wallet (account.donate_balance) —
+	// the money wallet the web shop spends and the revenue panel sums, which is a
+	// different currency from the shop points above. It is the path an RCoin takes
+	// when a player uses one in game.
+	//
+	// Like AddShopPoints, the amount is applied BY THE DATABASE (balance + amount)
+	// and never written back as a total the caller worked out: the four characters
+	// of one account can each use a coin at the same instant, and a
+	// read-modify-write would drop credits the player paid for.
+	CreditDonate(context.Context, *CreditDonateRequest) (*CreditDonateResponse, error)
+	// DonateBalance reads one account donate wallet, for the in-game /donate
+	// command.
+	DonateBalance(context.Context, *DonateBalanceRequest) (*DonateBalanceResponse, error)
 	// Guild lifecycle and war/city state (issue #114). These RPCs are modern
 	// tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
 	// GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -1085,6 +1133,12 @@ func (UnimplementedAccountServiceServer) SpendShopPoints(context.Context, *Spend
 }
 func (UnimplementedAccountServiceServer) ClaimNewbieKit(context.Context, *ClaimNewbieKitRequest) (*ClaimNewbieKitResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ClaimNewbieKit not implemented")
+}
+func (UnimplementedAccountServiceServer) CreditDonate(context.Context, *CreditDonateRequest) (*CreditDonateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreditDonate not implemented")
+}
+func (UnimplementedAccountServiceServer) DonateBalance(context.Context, *DonateBalanceRequest) (*DonateBalanceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DonateBalance not implemented")
 }
 func (UnimplementedAccountServiceServer) CreateGuild(context.Context, *CreateGuildRequest) (*CreateGuildResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateGuild not implemented")
@@ -1716,6 +1770,42 @@ func _AccountService_ClaimNewbieKit_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_CreditDonate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreditDonateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).CreditDonate(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_CreditDonate_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).CreditDonate(ctx, req.(*CreditDonateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_DonateBalance_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DonateBalanceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).DonateBalance(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_DonateBalance_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).DonateBalance(ctx, req.(*DonateBalanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_CreateGuild_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateGuildRequest)
 	if err := dec(in); err != nil {
@@ -2256,6 +2346,14 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ClaimNewbieKit",
 			Handler:    _AccountService_ClaimNewbieKit_Handler,
+		},
+		{
+			MethodName: "CreditDonate",
+			Handler:    _AccountService_CreditDonate_Handler,
+		},
+		{
+			MethodName: "DonateBalance",
+			Handler:    _AccountService_DonateBalance_Handler,
 		},
 		{
 			MethodName: "CreateGuild",

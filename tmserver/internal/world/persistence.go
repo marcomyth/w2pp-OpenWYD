@@ -507,6 +507,12 @@ type Persistence interface {
 	// it", which is NOT an error — the caller must tell that apart from a failed
 	// call, because only one of the two may hand over the item.
 	SpendShopPoints(ctx context.Context, accountID int64, cost int32, characterName, reason string) (int32, bool, error)
+	// CreditDonate adds to the account DONATE wallet — the money wallet the web
+	// shop spends — because a player used an RCoin. A different currency from the
+	// shop points above, and the reason the two never share a call.
+	CreditDonate(ctx context.Context, accountID int64, amount int32, characterName, reason string) (int32, error)
+	// DonateBalance reads that wallet, for the in-game /donate command.
+	DonateBalance(ctx context.Context, accountID int64) (int32, error)
 
 	// ClaimNewbieKit takes the once-per-account /novato kit (0062_newbie_kit) and
 	// reports whether THIS call took it. Called off the loop via World.Go.
@@ -690,6 +696,21 @@ func (NopPersistence) ShopPoints(context.Context, int64) (int32, error) { return
 // item for free on a server booted with no dbServer.
 func (NopPersistence) SpendShopPoints(context.Context, int64, int32, string, string) (int32, bool, error) {
 	return 0, false, nil
+}
+
+// CreditDonate refuses without a backend: here the player is SPENDING
+// something. A server booted with no -dbserver has nowhere to write the credit,
+// and answering a balance anyway would let the coin be eaten and the donate
+// vanish.
+func (NopPersistence) CreditDonate(context.Context, int64, int32, string, string) (int32, error) {
+	return 0, errNoPersistence
+}
+
+// DonateBalance without a backend has nothing to read. It is an error and not a
+// zero: telling a player their wallet is empty when nobody looked is worse than
+// telling them the query failed.
+func (NopPersistence) DonateBalance(context.Context, int64) (int32, error) {
+	return 0, errNoPersistence
 }
 
 // ClaimNewbieKit refuses without a backend. A server booted with no -dbserver has

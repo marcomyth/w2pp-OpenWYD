@@ -110,6 +110,7 @@ type Session struct {
 	Trade             TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
 	AutoTrade         *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1
 	NovatoEmCurso     bool            // um /novato já está esperando a resposta do banco
+	DonateEmCurso     bool            // uma RCoin já espera o crédito do banco
 	CompraEmPontos    bool            // uma compra paga em pontos de lojinha espera o banco
 	LastAttackTick    uint32          // ClientTick of the last accepted attack (cadence gate)
 	PotionTick        uint32          // CUser.PotionTime: server clock of the last accepted potion

@@ -132,7 +132,7 @@ var consumableGroups = []struct {
 	{Epico, match(`Grande Baú|Raid Box|Money Cube`)}, // grandes baús
 	{Raro, match(`Baú|Bau\b|Caixa|Pacote|Bolsa|Presente|Envelope|Esfera da Sorte|Caça Níquel|TOTO`)},
 	{Incomum, match(`Cupom|Coupon`)},
-	{Epico, match(`^Moeda WYD|^Barra de Ouro`)}, // crédito de cash (EF_DONATE), antes do grupo das moedas
+	{Epico, match(`^RCoin|^Moeda WYD|^Barra de Ouro`)}, // crédito de donate (EF_DONATE), antes do grupo das moedas
 	{Incomum, match(`Moeda|Barra de Prata`)},
 	{Epico, match(`Traje Mont|Wooden horse`)},
 	{Epico, match(`Emblema|Medalha|Selo|Honor|Marca do`)},

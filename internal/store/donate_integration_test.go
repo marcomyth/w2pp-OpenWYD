@@ -174,3 +174,64 @@ func TestDonateCreditAndBuy(t *testing.T) {
 		t.Errorf("cargo after drain = %+v (err %v), want 1 item index 1234", items, err)
 	}
 }
+
+// TestCreditDonateInGameNaoContaComoReceita é a decisão de projeto do RCoin
+// escrita como teste: a moeda enche a MESMA carteira que o ajuste manual, mas
+// não pode aparecer no relatório de receita.
+//
+// O painel soma 'credit_balance' como "staff distribuiu donate". Um jogador
+// gastando uma moeda que já era dele não é uma distribuição nem dinheiro novo:
+// contá-la ali inflaria o relatório a cada moeda aberta. Por isso ela grava
+// 'credit_item', e por isso este teste existe — trocar a ação de volta passaria
+// em todo o resto.
+func TestCreditDonateInGameNaoContaComoReceita(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	if err := Migrate(ctx, pool); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	_, _ = pool.Exec(ctx, `DELETE FROM donate_shop_audit; DELETE FROM donate_shop_item; DELETE FROM delivery_queue`)
+	s := New(pool)
+
+	var accID int64
+	if err := pool.QueryRow(ctx,
+		`INSERT INTO account (name, pass_hash, donate_balance) VALUES ('rcoin_test','x',0) RETURNING id`).
+		Scan(&accID); err != nil {
+		t.Fatalf("seed account: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM account WHERE id = $1`, accID) })
+
+	// Duas moedas: a carteira acumula.
+	if bal, err := s.CreditDonateInGame(ctx, accID, 100, "Hero", "rcoin 3393"); err != nil || bal != 100 {
+		t.Fatalf("primeira moeda = (%d, %v), quer (100, nil)", bal, err)
+	}
+	if bal, err := s.CreditDonateInGame(ctx, accID, 1000, "Hero", "rcoin 3394"); err != nil || bal != 1100 {
+		t.Fatalf("segunda moeda = (%d, %v), quer (1100, nil)", bal, err)
+	}
+	if bal, err := s.DonateBalance(ctx, accID); err != nil || bal != 1100 {
+		t.Fatalf("saldo = (%d, %v), quer (1100, nil)", bal, err)
+	}
+
+	// Um valor não positivo é recusado e não encosta na carteira.
+	for _, amount := range []int32{0, -50} {
+		if _, err := s.CreditDonateInGame(ctx, accID, amount, "Hero", "erro"); err == nil {
+			t.Errorf("CreditDonateInGame aceitou %d, queria recusa", amount)
+		}
+	}
+	if bal, _ := s.DonateBalance(ctx, accID); bal != 1100 {
+		t.Errorf("a recusa mexeu na carteira: %d, quer 1100", bal)
+	}
+
+	// A auditoria grava credit_item, e NÃO o credit_balance do ajuste manual.
+	var item, manual int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FILTER (WHERE action = $2), count(*) FILTER (WHERE action = $3)
+		  FROM donate_shop_audit WHERE (after->>'account_id')::bigint = $1`,
+		accID, LedgerActionItem, LedgerActionCredit).Scan(&item, &manual); err != nil {
+		t.Fatalf("contar auditoria: %v", err)
+	}
+	if item != 2 || manual != 0 {
+		t.Fatalf("auditoria: %d de '%s' e %d de '%s', quer 2 e 0",
+			item, LedgerActionItem, manual, LedgerActionCredit)
+	}
+}
