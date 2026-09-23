@@ -256,8 +256,25 @@ func (f *fakeDB) cancelados() []int64 {
 }
 
 // slotsVendidos é o que o banco responderia sobre slots de anúncio já vendido.
+//
+// Sob o mutex porque a retirada imediata pergunta isto FORA do laço, na goroutine
+// do RPC de controle, enquanto o teste escreve na dele.
 func (f *fakeDB) ListSoldEscrowSlots(_ context.Context, accountID int64) ([]int16, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	return f.slotsVendidos[accountID], nil
+}
+
+// defineSlotsVendidos muda o que o banco responde DEPOIS de o jogador já estar em
+// jogo. É o que separa a retirada imediata da retirada do login: sem isto o item
+// sairia no login e não haveria o que retirar.
+func (f *fakeDB) defineSlotsVendidos(accountID int64, slots []int16) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.slotsVendidos == nil {
+		f.slotsVendidos = map[int64][]int16{}
+	}
+	f.slotsVendidos[accountID] = slots
 }
 
 // SetAccountBlocked records the GM ban/unban write (overrides the NopPersistence
