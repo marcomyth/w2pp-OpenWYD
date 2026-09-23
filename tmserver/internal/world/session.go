@@ -77,11 +77,11 @@ type Session struct {
 	// simultaneos. Ver handler/loja_de_honra.go.
 	LojaHonraNPC  int
 	HonraCobrando bool
-	Slot        int
-	Mode        Mode
-	IP          string
-	CrackError  int  // anti-cheat violation count (CUser.NumError)
-	Whisper     bool // true blocks incoming whispers
+	Slot          int
+	Mode          Mode
+	IP            string
+	CrackError    int  // anti-cheat violation count (CUser.NumError)
+	Whisper       bool // true blocks incoming whispers
 	// Snd is the status line "/snd" sets, shown to anyone who inspects this
 	// character (_MSG_MessageWhisper.cpp:591 sets it, :1640 shows it). Session
 	// scope is deliberate and matches the legacy, which clears Snd on every login

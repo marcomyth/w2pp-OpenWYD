@@ -321,15 +321,15 @@ type Dispatcher struct {
 	guildAllies       map[uint16]uint16            // directed guild -> current ally target
 	// O Painel de Guilda (guildapainel.go): o quadro de membros lido do banco,
 	// guardado por uma janela curta, e até quando cada buff de guilda vale.
-	guildaQuadro map[uint16]quadroDeGuilda
-	guildaBuffs  map[uint16]*buffsDaGuilda
-	towerState        world.GuildTowerState        // loop-owned GTorre ownership cache
-	castleState       world.CastleQuestState       // loop-owned Castle/Zakum state cache
-	castleQuests      []content.CastleQuest
-	levelItems        *content.LevelItems
-	castleParty       [world.MaxParty + 1]int
-	guildStateLoad    bool // guild persistence boot snapshot has been applied
-	guildStateBusy    bool // one guild-state load in flight
+	guildaQuadro   map[uint16]quadroDeGuilda
+	guildaBuffs    map[uint16]*buffsDaGuilda
+	towerState     world.GuildTowerState  // loop-owned GTorre ownership cache
+	castleState    world.CastleQuestState // loop-owned Castle/Zakum state cache
+	castleQuests   []content.CastleQuest
+	levelItems     *content.LevelItems
+	castleParty    [world.MaxParty + 1]int
+	guildStateLoad bool // guild persistence boot snapshot has been applied
+	guildStateBusy bool // one guild-state load in flight
 
 	// NPC-config overlay (npc-editing-plan.md). All loop-only. baseItemPrices is the
 	// immutable content catalog; itemPrices is the effective map (base + global
