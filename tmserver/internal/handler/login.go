@@ -163,11 +163,25 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 // um aviso sobre uma trava que ele nunca viu seria conversa sobre encanamento.
 func (d *Dispatcher) reconciliaEscrow(w *world.World, s *world.Session, accountID int64) {
 	p := w.Persistence()
+	// A TRAVA SOBE ANTES DA IDA, e desce na volta, dê no que der.
+	//
+	// A reconciliação cancela TODO anúncio ativo da conta, supondo que quem
+	// acabou de entrar não tem barraca de pé. A suposição vale quando a pergunta
+	// é feita e pode deixar de valer antes de a resposta chegar: com o banco
+	// lento — o tempo limite aqui é de dez segundos — o vendedor tem tempo de
+	// chegar na cidade e montar uma barraca em dinheiro real, e o anúncio
+	// recém-nascido seria cancelado com a barraca nova de pé.
+	//
+	// É o mesmo defeito do login duplicado, por outra porta: venda desfeita em
+	// silêncio. E a trava é no lojaAbrir e não numa estimativa de quanto tempo o
+	// jogador leva para andar até a cidade; tempo não é garantia.
+	s.ReconciliandoEscrow = true
 	w.Go(s, func() func(*world.World, *world.Session) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		slots, err := p.ReconcileRmtEscrow(ctx, accountID)
 		return func(w *world.World, s *world.Session) {
+			s.ReconciliandoEscrow = false
 			if err != nil {
 				// Os itens continuam presos e intocáveis, que é o erro barato. A
 				// próxima entrada tenta de novo.

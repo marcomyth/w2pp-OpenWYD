@@ -340,3 +340,63 @@ func esperaReconciliacao(t *testing.T, db *fakeDB, n int) {
 	}
 	t.Fatalf("a reconciliacao nao rodou %d vez(es)", n)
 }
+
+// BARRACA EM DINHEIRO REAL NÃO SOBE COM A RECONCILIAÇÃO AINDA NO BANCO.
+//
+// A reconciliação cancela todo anúncio ativo da conta, supondo que quem acabou de
+// entrar não tem barraca de pé. Com o banco lento — o tempo limite é de dez
+// segundos — o vendedor chega na cidade e monta antes de a volta chegar, e o
+// anúncio recém-nascido seria cancelado com a barraca nova de pé.
+//
+// É o mesmo defeito do login duplicado por outra porta, e igual de silencioso.
+func TestBarracaRMTNaoSobeComReconciliacaoEmVoo(t *testing.T) {
+	db := bancoDeAnuncio()
+	db.portaoReconcilia = make(chan struct{})
+	addr, stop, w := startServerNovato(t, db)
+	defer stop()
+	c := enterWorldAs(t, addr, "tester")
+	defer c.Close()
+	drena(t, c)
+
+	mandaAbrirBarraca(t, c, "Loja", 0, 5000, protocol.LojaMoedaRMT)
+
+	if !recebeu(t, c, msgEscrowSincronizando) {
+		t.Error("deixou montar, ou recusou em silencio")
+	}
+	if n := len(db.abertos()); n != 0 {
+		t.Errorf("criou %d anuncio(s) que a reconciliacao em voo cancelaria", n)
+	}
+	if bau := bauDoVendedor(t, w); bau.Items[0].AnuncioRMT != 0 {
+		t.Error("marcou o item antes de a reconciliacao voltar")
+	}
+
+	// Soltando o portão, a trava desce e a barraca sobe. Sem esta metade, um
+	// guard que recusasse SEMPRE passaria no teste de cima.
+	close(db.portaoReconcilia)
+	esperaReconciliacao(t, db, 1)
+	drena(t, c)
+	abreBarraca(t, c, "Loja", 0, 5000, protocol.LojaMoedaRMT)
+	if !esperaMarcaPosta(t, w, 7, 0) {
+		t.Error("depois da reconciliacao a barraca em dinheiro real continuou recusada")
+	}
+}
+
+// E a de OURO sobe no meio da janela. Barraca de ouro não cria anúncio, então a
+// reconciliação não tem o que desfazer nela — travar as duas seria cobrar de
+// todo mundo o preço de uma trava que serve a poucos.
+func TestBarracaDeOuroSobeComReconciliacaoEmVoo(t *testing.T) {
+	db := bancoDeAnuncio()
+	db.portaoReconcilia = make(chan struct{})
+	defer close(db.portaoReconcilia)
+	addr, stop, _ := startServerNovato(t, db)
+	defer stop()
+	c := enterWorldAs(t, addr, "tester")
+	defer c.Close()
+	drena(t, c)
+
+	abreBarraca(t, c, "Loja", 0, 1000, protocol.LojaMoedaOuro)
+
+	if v := pedeVitrine(t, c, 0, protocol.LojaFiltroTodos); v.Qtd != 1 {
+		t.Errorf("a vitrine tem %d oferta(s), quero 1: ouro nao depende da reconciliacao", v.Qtd)
+	}
+}

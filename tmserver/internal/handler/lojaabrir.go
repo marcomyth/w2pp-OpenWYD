@@ -123,6 +123,23 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 			sendClientMessage(w, s, msgPilhaNaoVaiRMT)
 			return
 		}
+		// A RECONCILIAÇÃO DO LOGIN AINDA ESTÁ NO BANCO.
+		//
+		// Ela cancela todo anúncio ativo da conta, supondo que quem acabou de
+		// entrar não tem barraca de pé. Deixar montar agora criaria um anúncio que
+		// a volta dela cancelaria — barraca nova de pé e venda desfeita em
+		// silêncio, o mesmo defeito do login duplicado por outra porta.
+		//
+		// A trava é aqui e não numa espera: o tempo que o jogador leva para andar
+		// até a cidade não é garantia de nada, e com o banco lento a janela é de
+		// até dez segundos.
+		//
+		// Só o dinheiro real é recusado. Barraca de ouro não cria anúncio, então a
+		// reconciliação não tem o que desfazer nela.
+		if p.Moeda == protocol.LojaMoedaRMT && s.ReconciliandoEscrow {
+			sendClientMessage(w, s, msgEscrowSincronizando)
+			return
+		}
 		// ITEM JÁ PRESO NUM ANÚNCIO NÃO VOLTA PARA A PRATELEIRA.
 		//
 		// A marca do escrow diz que existe um anúncio em dinheiro real vivo sobre
@@ -365,6 +382,11 @@ const msgSemChavePix = "Cadastre sua chave Pix no site antes de vender por dinhe
 // banco: o banco recusou, ou o mundo mudou enquanto a resposta vinha. Uma
 // mensagem só porque, para quem está na frente da tela, as duas pedem a mesma
 // coisa — tentar de novo.
+// msgEscrowSincronizando é o que o vendedor lê quando monta uma barraca em
+// dinheiro real antes de a reconciliação do login voltar do banco. É espera de
+// segundos, e o pedido não se perde — ele monta de novo.
+const msgEscrowSincronizando = "Aguarde um instante e tente de novo."
+
 // msgItemJaAnunciado é a recusa de quem tenta pôr de novo à venda um item que
 // já está preso num anúncio em dinheiro real — quase sempre porque a barraca
 // anterior caiu e o anúncio dela continua de pé.

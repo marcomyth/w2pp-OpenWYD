@@ -43,18 +43,21 @@ type fakeDB struct {
 	anunciosEncerrados    []int64
 	compradoresCancelados []int64
 	reconciliadas         []int64
-	encerrados            []world.AnuncioEncerrado // destino forçado pelo teste
-	erroEncerrar          error
-	slotDoAnuncio         map[int64]int16 // id do anúncio → slot, para o destino padrão
-	slotsSoltos           map[int64][]int16
-	slotsVendidos         map[int64][]int16
-	accounts              map[string]*fakeAccount
-	created               int
-	archCreated           int
-	archSlot              int
-	archOK                bool
-	archErr               error
-	archReq               struct {
+	// portaoReconcilia segura a reconciliação no banco até o teste soltar, que é
+	// o único jeito de agir DENTRO da janela em que a trava existe.
+	portaoReconcilia chan struct{}
+	encerrados       []world.AnuncioEncerrado // destino forçado pelo teste
+	erroEncerrar     error
+	slotDoAnuncio    map[int64]int16 // id do anúncio → slot, para o destino padrão
+	slotsSoltos      map[int64][]int16
+	slotsVendidos    map[int64][]int16
+	accounts         map[string]*fakeAccount
+	created          int
+	archCreated      int
+	archSlot         int
+	archOK           bool
+	archErr          error
+	archReq          struct {
 		accountID                            int64
 		name                                 string
 		class, face, mortalSlot, mortalLevel int
@@ -215,6 +218,9 @@ func (f *fakeDB) cancelouComprador() []int64 {
 // ReconcileRmtEscrow é a reconciliação do login. Conta as chamadas, porque o que
 // alguns testes precisam provar é que ela NÃO foi chamada.
 func (f *fakeDB) ReconcileRmtEscrow(_ context.Context, accountID int64) ([]int16, error) {
+	if f.portaoReconcilia != nil {
+		<-f.portaoReconcilia
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.reconciliadas = append(f.reconciliadas, accountID)

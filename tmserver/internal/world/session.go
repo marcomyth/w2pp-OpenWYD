@@ -70,6 +70,20 @@ type Session struct {
 	LojaAberta bool
 	LojaPagina int16
 	LojaFiltro int16
+	// ReconciliandoEscrow está ligada enquanto a reconciliação do escrow em
+	// dinheiro real está no banco, logo depois do login.
+	//
+	// Ela existe porque a reconciliação cancela TODO anúncio ativo da conta, e
+	// faz isso sob a suposição de que quem acabou de entrar não tem barraca de
+	// pé. A suposição vale no instante em que a pergunta é feita e pode deixar de
+	// valer antes de a resposta chegar: o banco lento e o vendedor rápido, e um
+	// anúncio recém-nascido é cancelado com a barraca nova de pé.
+	//
+	// Enquanto ligada, o lojaAbrir recusa prateleira em dinheiro real. É a mesma
+	// natureza do HonraCobrando logo abaixo: trava de curta duração contra uma
+	// ação do jogador que atravessa uma ida ao banco. Session-only, como todo o
+	// resto daqui.
+	ReconciliandoEscrow bool
 	// A Loja de Honra aberta: qual God of War a abriu (0 = nenhuma) e se um
 	// debito de pontos esta no ar. O id do NPC e o que permite a compra exigir
 	// presenca, em vez de aceitar qualquer pedido de qualquer lugar do mundo; a
