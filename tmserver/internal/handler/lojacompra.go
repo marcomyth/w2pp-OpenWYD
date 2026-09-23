@@ -151,24 +151,40 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 		cargoVendedor.Coin += preco - imposto
 		d.repartirImposto(w, s, imposto, world.Village(barraca.X, barraca.Y),
 			world.Village(e.X, e.Y))
-	case protocol.LojaMoedaCash, protocol.LojaMoedaRMT:
-		// Aqui é a emenda: enquanto o saldo não estiver ligado ao banco, a compra
-		// é recusada e NADA se move. Ver lojasaldo.go.
+	case protocol.LojaMoedaRMT:
+		// NÃO EXISTE CARTEIRA DE DINHEIRO REAL, e este caminho existia como se
+		// existisse.
+		//
+		// A carteira do jogo é a das Rcoins (Cash), que a recarga por Pix credita.
+		// Prateleira em dinheiro real é dinheiro que sai de UM jogador e vai para
+		// OUTRO, e isso se paga por Pix, entre as duas pessoas — não por um saldo
+		// interno que o servidor movia de uma conta para a outra.
+		//
+		// O caminho antigo transferia `account.rmt_balance`, uma carteira que
+		// ninguém nunca alimentou: medido em produção em 23/09/2026, as 16 contas
+		// têm saldo ZERO (a mesma consulta mostra 900 em donate_balance, então ela
+		// lê valores de verdade). Tirar isto não move dinheiro de ninguém.
+		//
+		// A recusa fica até a cobrança por Pix estar ligada de ponta a ponta. Ela
+		// é EXPLÍCITA e não "saldo insuficiente": o jogador não tem saldo nenhum
+		// para juntar, e mandá-lo procurar seria mentira. Duas portas para pagar a
+		// mesma prateleira é o que isto impede.
+		sendClientMessage(w, s, msgRMTSoPorPix)
+		d.log.Info("loja: compra em dinheiro real recusada, o Pix ainda nao esta ligado",
+			"conn", s.Conn, "vendedor", vendedor.Conn, "preco_centavos", preco)
+		return
+	case protocol.LojaMoedaCash:
+		// Cash é a carteira de verdade: `account.donate_balance`, que a recarga
+		// credita. Ver lojasaldo.go.
 		if err := saldoContas.Transfere(s.AccountID, vendedor.AccountID, moeda, preco); err != nil {
-			d.log.Info("loja: compra em cash/rmt recusada", "conn", s.Conn, "moeda", moeda,
-				"erro", err)
+			d.log.Info("loja: compra em cash recusada", "conn", s.Conn, "erro", err)
 			d.notify(w, s, NoticeNotEnoughMoney)
 			return
 		}
 		// O banco é a verdade, mas quem mostra o saldo no painel é a sessão: ela
 		// acompanha a transferência que acabou de dar certo, dos dois lados.
-		if moeda == protocol.LojaMoedaCash {
-			s.Cash -= preco
-			vendedor.Cash += preco
-		} else {
-			s.Rmt -= preco
-			vendedor.Rmt += preco
-		}
+		s.Cash -= preco
+		vendedor.Cash += preco
 	default:
 		return
 	}
@@ -196,3 +212,7 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	// mandaria a todos uma vitrine com o item que acabou de ser vendido.
 	d.mercadoMudou(w)
 }
+
+// msgRMTSoPorPix é a recusa da compra em dinheiro real enquanto a cobrança por
+// Pix não está ligada. Diz o que é: não está aberto, e não "falta saldo".
+const msgRMTSoPorPix = "Venda por dinheiro real ainda não está aberta."
