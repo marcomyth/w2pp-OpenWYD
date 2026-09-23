@@ -167,6 +167,7 @@ func run(logger *slog.Logger) error {
 	var itemRanges map[int]int16
 	var itemDonates map[int]int32
 	var itemKeyIDs map[int]int
+	var itemClasses map[int]int
 	var combineFamilies map[protocol.Type]handler.CombineFamily
 	var odinCatalog combine.Catalog
 	var spells *content.SkillData
@@ -194,6 +195,7 @@ func run(logger *slog.Logger) error {
 		// Quanto cada RCoin paga na carteira de donate (EF_DONATE).
 		itemDonates = items.Donates()
 		itemKeyIDs = items.KeyIDs()
+		itemClasses = items.Classes()
 		odinCatalog = handler.NewCombineCatalog(items, c.comp)
 		combineFamilies = handler.DefaultCombineFamilies(odinCatalog)
 		spells = c.skills
@@ -604,7 +606,7 @@ func run(logger *slog.Logger) error {
 		eventSeed = 1
 	}
 	dispatch := handler.New(handler.Config{
-		Log: logger, ClientVersion: int32(*clientVersion), BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, CasteloOrcNPC: casteloOrcNPC, AcampamentoTrollNPC: acampamentoTrollNPC, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemKeyIDs: itemKeyIDs, ItemReqs: itemReqs,
+		Log: logger, ClientVersion: int32(*clientVersion), BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, CasteloOrcNPC: casteloOrcNPC, AcampamentoTrollNPC: acampamentoTrollNPC, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemKeyIDs: itemKeyIDs, ItemClasses: itemClasses, ItemReqs: itemReqs,
 		ItemVolatiles: itemVolatiles, ItemDonates: itemDonates, ItemDurations: itemDurations, MountRates: mountRates, MountAbsorb: mountAbsorb, MountBonus: mountBonus, ItemPos: itemPos, ItemUnique: itemUnique, ItemGrades: itemGrades, ItemExtra: itemExtra, Spells: spells, Heights: heights, Attributes: attributes,
 		SancRate:        sancRate,
 		ExpEvents:       level.ExpEvents{DoubleMode: *doubleExp, NewbieEvent: *newbieEvent, KefraLive: *kefraLive},

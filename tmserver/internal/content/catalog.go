@@ -147,6 +147,20 @@ func (l *ItemList) Donates() map[int]int32 {
 	return out
 }
 
+// Classes returns item index → its EF_CLASS bitmask (TK 1, FM 2, BM 4, HT 8, all
+// 255): who may wear the item (BASE_CanEquip, Basedef.cpp:4995). Like KeyIDs it
+// stays out of efName/BaseEffects on purpose — it is not a score stat. Rows
+// without the pair are absent from the map.
+func (l *ItemList) Classes() map[int]int {
+	out := make(map[int]int)
+	for idx, e := range l.items {
+		if v, ok := itemeffect.PairValue(e.Fields, "EF_CLASS"); ok {
+			out[idx] = int(v)
+		}
+	}
+	return out
+}
+
 // Ranges returns item index → its EF_RANGE value (the attack reach an equipped
 // item grants). A mob's reach is the max EF_RANGE over its template's 16 equips
 // (BASE_GetMobAbility → BASE_GetMaxAbility, Basedef.cpp:2415/2523); EF_RANGE is

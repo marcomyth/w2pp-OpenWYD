@@ -188,8 +188,10 @@ func TestBinMagicRebalanceMatchesClientCatalog(t *testing.T) {
 		index int
 		want  int16
 	}{
-		{3582, 55},
-		{3725, 70}, {3726, 70}, {3727, 70}, {3728, 70},
+		// Legacy 55 and the issue #281 Anct 70, each +25% in the Reforja do Topo
+		// (23/09/2026). Both files carry it, like every other catalog number.
+		{3582, 69},
+		{3725, 88}, {3726, 88}, {3727, 88}, {3728, 88},
 	} {
 		got, ok := binEffectValue(t, binPath, tc.index, 60) // EF_MAGIC
 		if !ok || got != tc.want {

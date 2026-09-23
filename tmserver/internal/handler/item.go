@@ -1006,6 +1006,13 @@ func (d *Dispatcher) equipItem(w *world.World, s *world.Session, e *world.Entity
 	if !d.canEquipSlot(e.Carry[src].Index, dst) {
 		return // wrong slot for this item (e.g. a consumable into the body slot)
 	}
+	if !d.canWearItem(e, e.Carry[src]) {
+		d.log.Warn("equip refused: tier or class",
+			"conn", s.Conn, "item", e.Carry[src].Index,
+			"classMaster", e.ClassMaster, "class", e.Class)
+		d.notify(w, s, NoticeReqNotMet)
+		return
+	}
 	if !d.meetsEquipReq(e, e.Carry[src]) {
 		// NoticeReqNotMet carries no text, so this refusal reaches the player as
 		// a dead click. Log what was compared: players report having the points
@@ -2579,6 +2586,60 @@ func (d *Dispatcher) meetsEquipReq(e *world.Entity, it world.Item) bool {
 		e.Str >= r.Str && e.Int >= r.Int && e.Dex >= r.Dex && e.Con >= r.Con
 }
 
+// The evolution tier an item's EF_MOBTYPE restricts it to (Basedef.h:238-240,
+// the same numbers as ClassMaster). Zero, the common case, is "any tier".
+const (
+	mobTypeArch      = classMasterArch
+	mobTypeMortal    = classMasterMortal
+	mobTypeCelestial = classMasterCelestial
+)
+
+// canWearItem is the half of BASE_CanEquip (Basedef.cpp:4995-5019) that asks WHO
+// may wear an item, where canEquipSlot asks where it fits and meetsEquipReq asks
+// whether the character is strong enough. Until the Reforja do Topo (23/09/2026)
+// the port had neither of these checks and relied on the client alone to stop a
+// Mortal from wearing Arch gear or a TK from wearing a FM set, which a patched
+// client simply skips.
+//
+// EF_MOBTYPE is checked for every tier, exactly as the legacy does: an Arch item
+// refuses a Mortal, a Mortal item refuses everyone else, a Celestial item refuses
+// Mortal and Arch.
+//
+// EF_CLASS is checked for Mortals only. The legacy tests a non-Mortal against
+// the class of the MORTAL it came from (MOBEXTRA.MortalFace/10, Basedef.cpp:4996),
+// because an Arch's own class is the Sephirot the player picked, and the port
+// does not persist MortalFace. Guessing it would lock Arch players out of gear
+// they legitimately wear; leaving it open keeps today's behavior for them.
+//
+// An item the class catalog does not list passes, like the other two checks.
+// That differs from the legacy only for the 33 equippable rows with no EF_CLASS
+// at all (mount cores and quest oddities), which the client refuses anyway.
+func (d *Dispatcher) canWearItem(e *world.Entity, it world.Item) bool {
+	mortal := e.ClassMaster == classMasterMortal
+	switch d.itemAbility(it, efMobType) {
+	case mobTypeArch:
+		if mortal {
+			return false
+		}
+	case mobTypeMortal:
+		if !mortal {
+			return false
+		}
+	case mobTypeCelestial:
+		if mortal || e.ClassMaster == classMasterArch {
+			return false
+		}
+	}
+	if !mortal {
+		return true
+	}
+	cls, ok := d.itemClasses[int(it.Index)]
+	if !ok {
+		return true
+	}
+	return e.Class < 8 && cls>>e.Class&1 != 0
+}
+
 // equipVisual derives the 16 visible equipment codes and refine/ancient overlay
 // bytes from the entity's equipped items, matching BASE_VisualItemCode and
 // BASE_VisualAnctCode.
@@ -3569,10 +3630,10 @@ func (d *Dispatcher) tradingItem(w *world.World, s *world.Session, _ protocol.He
 		return
 	}
 	// Equip rules: the item that would land in an equip slot must fit that slot (nPos)
-	// AND meet the level/attribute requirement. On a swap the src item moves into the
+	// AND meet the level/attribute requirement, and be wearable by this tier and class. On a swap the src item moves into the
 	// dst slot (and vice-versa).
-	if dstPlace == world.ItemPlaceEquip && !src.Empty() && (!d.canEquipSlot(src.Index, dstSlot) || !d.meetsEquipReq(e, *src)) ||
-		srcPlace == world.ItemPlaceEquip && !dst.Empty() && (!d.canEquipSlot(dst.Index, srcSlot) || !d.meetsEquipReq(e, *dst)) {
+	if dstPlace == world.ItemPlaceEquip && !src.Empty() && (!d.canEquipSlot(src.Index, dstSlot) || !d.meetsEquipReq(e, *src) || !d.canWearItem(e, *src)) ||
+		srcPlace == world.ItemPlaceEquip && !dst.Empty() && (!d.canEquipSlot(dst.Index, srcSlot) || !d.meetsEquipReq(e, *dst) || !d.canWearItem(e, *dst)) {
 		d.notify(w, s, NoticeReqNotMet)
 		return
 	}

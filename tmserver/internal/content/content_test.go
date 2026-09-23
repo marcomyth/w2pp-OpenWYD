@@ -388,8 +388,9 @@ func TestBaseEffectsMagic(t *testing.T) {
 		idx  int
 		want int16
 	}{
-		{3582, 55},                                     // The common Cajado Caotico keeps its legacy value.
-		{3725, 70}, {3726, 70}, {3727, 70}, {3728, 70}, // Issue #281: rebalanced Anct variants.
+		{3582, 69}, // Cajado Caotico: legacy 55, +25% in the Reforja do Topo (23/09/2026).
+		// Issue #281 rebalanced the Anct variants to 70; the Reforja took them to 88.
+		{3725, 88}, {3726, 88}, {3727, 88}, {3728, 88},
 	} {
 		var got int16
 		for _, e := range realEffects[tc.idx] {
@@ -670,5 +671,29 @@ func TestLoadMaps(t *testing.T) {
 	}
 	if hm.Dim != HeightMapDim || len(hm.Data) != HeightMapDim*HeightMapDim {
 		t.Errorf("height map dim %d size %d", hm.Dim, len(hm.Data))
+	}
+}
+
+// TestClasses reads EF_CLASS off real catalog rows: the bitmask the equip gate
+// tests the Mortal's class against (Basedef.cpp:4995).
+func TestClasses(t *testing.T) {
+	l, err := LoadItemList(release(t, "Common", "ItemList.csv"))
+	if err != nil {
+		t.Skipf("ItemList.csv unavailable: %v", err)
+	}
+	cls := l.Classes()
+	for idx, want := range map[int]int{
+		871:  255, // Caliburn: every class
+		2207: 2,   // Túnica de Mytril(Le): FM
+		3802: 1,   // Armadura Mortal(Le): TK
+		3862: 8,   // Peitoral Legionário(Le): HT
+	} {
+		if got, ok := cls[idx]; !ok || got != want {
+			t.Errorf("Classes()[%d] = %d,%v, want %d", idx, got, ok, want)
+		}
+	}
+	// A mount core carries no EF_CLASS at all, so it is absent, not zero.
+	if got, ok := cls[2390]; ok {
+		t.Errorf("Classes()[2390] = %d, want absent", got)
 	}
 }

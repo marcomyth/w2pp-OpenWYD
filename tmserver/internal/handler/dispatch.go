@@ -108,6 +108,14 @@ type Config struct {
 	// item list. When nil, a gate or key carries only its instance effects.
 	ItemKeyIDs map[int]int
 
+	// ItemClasses maps item index → its EF_CLASS bitmask (content.ItemList.Classes):
+	// TK 1, FM 2, BM 4, HT 8. Kept out of ItemEffects for the same reason as
+	// ItemKeyIDs, and also because a panel stat override replaces an item's whole
+	// effect list and has no class column: carried there, a moderator edit would
+	// silently strip the class and lock every Mortal out of the item. When nil,
+	// no class is enforced.
+	ItemClasses map[int]int
+
 	// ItemReqs maps item index → its equip requirement (level/attributes,
 	// content.ItemList.Requirements). When nil, no equip is gated.
 	ItemReqs map[int]content.ItemReq
@@ -295,6 +303,7 @@ type Dispatcher struct {
 	itemNames         map[int]string               // item index → catalog name (NPC dialogue)
 	itemEffects       map[int][]content.BaseEffect // item index → static base effects (equip score)
 	itemKeyIDs        map[int]int                  // item index → EF_KEYID (gate and key pairing)
+	itemClasses       map[int]int                  // item index → EF_CLASS bitmask (who may wear it)
 	itemReqs          map[int]content.ItemReq      // item index → equip requirement (level/attrs)
 	itemVolatiles     map[int]int                  // item index → EF_VOLATILE (consumable class)
 	itemDonates       map[int]int32                // item index → EF_DONATE (o que a RCoin paga)
@@ -591,6 +600,7 @@ func New(cfg Config) *Dispatcher {
 		itemNames:         cfg.ItemNames,
 		itemEffects:       cfg.ItemEffects,
 		itemKeyIDs:        cfg.ItemKeyIDs,
+		itemClasses:       cfg.ItemClasses,
 		itemReqs:          cfg.ItemReqs,
 		itemVolatiles:     cfg.ItemVolatiles,
 		itemDonates:       cfg.ItemDonates,

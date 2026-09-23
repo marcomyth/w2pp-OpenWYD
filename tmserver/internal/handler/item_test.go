@@ -65,6 +65,52 @@ func TestMeetsEquipReqClasseD(t *testing.T) {
 	}
 }
 
+// TestCanWearItem pins the EF_MOBTYPE and EF_CLASS gates of BASE_CanEquip
+// (Basedef.cpp:4995-5019) on real catalog rows: Caliburn is Arch-only, the
+// Armadura Mortal (Le) is Mortal-only and TK-only, and the Túnica de Mytril (Le)
+// is FM-only with no tier restriction.
+func TestCanWearItem(t *testing.T) {
+	mobType := func(v int16) []content.BaseEffect { return []content.BaseEffect{{Eff: efMobType, Val: v}} }
+	d := New(Config{
+		ItemEffects: map[int][]content.BaseEffect{
+			871:  mobType(mobTypeArch),      // Caliburn
+			3802: mobType(mobTypeMortal),    // Armadura Mortal(Le)
+			5000: mobType(mobTypeCelestial), // hypothetical celestial piece
+		},
+		ItemClasses: map[int]int{871: 255, 3802: 1, 2207: 2, 5000: 255},
+	})
+	const tk, fm = 0, 1
+	who := func(cm, class uint8) *world.Entity { return &world.Entity{ClassMaster: cm, Class: class} }
+	cases := []struct {
+		name string
+		e    *world.Entity
+		item int16
+		want bool
+	}{
+		{"mortal cannot wear an arch weapon", who(classMasterMortal, tk), 871, false},
+		{"arch wears an arch weapon", who(classMasterArch, tk), 871, true},
+		{"celestial wears an arch weapon", who(classMasterCelestial, tk), 871, true},
+		{"mortal TK wears the mortal TK set", who(classMasterMortal, tk), 3802, true},
+		{"mortal FM cannot wear the TK set", who(classMasterMortal, fm), 3802, false},
+		{"arch cannot wear a mortal-only piece", who(classMasterArch, tk), 3802, false},
+		{"celestial cannot wear a mortal-only piece", who(classMasterCelestialCS, tk), 3802, false},
+		{"mortal FM wears the FM Mytril", who(classMasterMortal, fm), 2207, true},
+		{"mortal TK cannot wear the FM Mytril", who(classMasterMortal, tk), 2207, false},
+		// The legacy judges a non-Mortal's class by MortalFace, which the port
+		// does not persist, so the class gate stays open for them.
+		{"arch keeps wearing any class", who(classMasterArch, tk), 2207, true},
+		{"mortal cannot wear a celestial piece", who(classMasterMortal, tk), 5000, false},
+		{"arch cannot wear a celestial piece", who(classMasterArch, tk), 5000, false},
+		{"celestial wears a celestial piece", who(classMasterSCelestial, tk), 5000, true},
+		{"an item outside the catalog passes", who(classMasterMortal, fm), 1, true},
+	}
+	for _, c := range cases {
+		if got := d.canWearItem(c.e, world.Item{Index: c.item}); got != c.want {
+			t.Errorf("%s: canWearItem = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
 func itemDB(carry0 int16) *fakeDB {
 	db := newDB()
 	st := world.CharacterState{Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000}

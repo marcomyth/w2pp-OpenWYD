@@ -447,3 +447,33 @@ CustomShop). O Anel de Gaia ficou de fora por falta de vaga.
 da árvore de cura) e está com o Amuleto dos Amantes equipado cura **30% a mais** com Cura e
 Recuperar. O bônus entra antes do teto de 1100 (Mortal e Arch) e 2200 (Celestial): quem já
 cura no teto não ganha nada. Não existe no legado.
+
+# Equipamento de topo
+
+**Reforja do Topo** (decidida em 23/09/2026, simulação no artefato "Reforja do Topo"). Dano,
+Defesa, Defesa extra e Atq. Mágico subiram **25%** na base, e o refino multiplica por cima como
+sempre (×1,9 no +9, ×2,2 no +11). Caliburn: 255 → 319, e no +11 561 → 701.
+
+| Grupo | Códigos | Nível mínimo |
+|---|---|---|
+| Armas Arch e as Anct delas | 811-937, 2491-2938, 997-1000 | sem mudança |
+| Sets Arch e o Hophlon | 1221-1224, 1356-1359, 1506-1509, 1656-1659, 1711 | sem mudança |
+| Armas Mortais | 3551-3596 | **370** |
+| Armas Mortais (Anct) | 3601-3784 | **390** |
+| Sets Mortais | 1225-1229, 1360-1364, 1510-1514, 1660-1664 | **370** |
+| Sets Mortais (Le) | 3801-3805, 3821-3825, 3841-3845, 3861-3865 | **390** |
+| Mytril (Le) e os irmãos: Embutido (TK), Elemental (BM), Teia (HT) | 2206-2210, 2186-2190, 2226-2230, 2246-2250 | **370** |
+
+- **O nível só trava Mortal.** Arch e Celestial ignoram nível e atributos ao equipar (legado,
+  `Basedef.cpp:5024`); por isso o nível dos itens Arch não mudou.
+- **Quem pode vestir** passou a ser conferido pelo servidor, não só pelo cliente: item de Arch
+  (`EF_MOBTYPE 1`) recusa Mortal, item de Mortal (`EF_MOBTYPE 2`) recusa os demais, e o Mortal
+  só veste a própria classe (`EF_CLASS`). Para Arch e Celestial a classe continua livre: o legado
+  decide pela face do Mortal de origem, que o port não guarda.
+- Quem já estava vestido com um item abaixo do nível novo continua vestido; a trava só age ao
+  equipar.
+- O **bônus de drop** mede a distância entre o nível do monstro e o do item, então esses itens
+  caem com adicionais menores do que antes.
+- Os mesmos números estão no `ItemList.bin` do cliente; sem ele o tooltip mostra o valor antigo
+  e o cliente deixa arrastar peça que o servidor recusa.
+- **Sets celestiais** entram na mesma regra quando existirem no catálogo.
