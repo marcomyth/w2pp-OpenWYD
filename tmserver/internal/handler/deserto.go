@@ -7,33 +7,62 @@ import (
 
 // Os dois Agmo do Deserto (Tauron_Agmo e Verme_Agmo) são monstros de evento: os
 // blocos deles (3451, 3452) nascem desligados desde a migração 0108, e a equipe
-// os cria à mão num evento. Cada morte paga um pacote de âmagos N: 40 Sem Sela,
-// 30 Fantasma, 20 Cavalo Leve e 10 Cavalo Equipado. A Mesa de Drops diz que
-// cada um cai sempre; ela não guarda quantidade, então o tamanho do pacote mora
-// aqui, como o das arenas da Quest 256.
+// os cria à mão num evento. Cada morte solta UM âmago N, um ou outro, sorteado
+// com os pesos que a equipe deu (23/09/2026): Sem Sela 40, Fantasma 30, Cavalo
+// Leve 20, Cavalo Equipado 10.
 //
-// A chave é o nome do ARQUIVO do template, como na Mesa, para que o
-// "/gm criar Tauron_Agmo" do evento siga a regra.
-var desertoPacotes = map[string]map[int16]int{
-	droprule.Canonical("Tauron_Agmo"): desertoPacoteAgmo,
-	droprule.Canonical("Verme_Agmo"):  desertoPacoteAgmo,
+// Isto mora no código e não na Mesa de Drops porque a Mesa rola cada item por
+// conta própria: quatro regras somando 100% dariam zero âmago numa morte e três
+// na outra, e o pedido é exatamente um.
+var agmoAmagos = []struct {
+	item int16
+	peso int
+}{
+	{2396, 40}, // Âmago de Cav s/Sela N
+	{2397, 30}, // Âmago de Cav Fantasm N
+	{2398, 20}, // Âmago de Cavalo Leve N
+	{2399, 10}, // Âmago de Cavalo Equip N
 }
 
-var desertoPacoteAgmo = map[int16]int{
-	2396: 40, // Âmago de Cav s/Sela N
-	2397: 30, // Âmago de Cav Fantasm N
-	2398: 20, // Âmago de Cavalo Leve N
-	2399: 10, // Âmago de Cavalo Equip N
+// agmoPesoTotal é a base do sorteio. Base 100 gasta uma chamada de rand(), com o
+// viés do legado desprezível (32768 % 100 = 68).
+const agmoPesoTotal = 100
+
+// isAgmo diz se o monstro é um dos dois Agmo, pelo nome do ARQUIVO do template,
+// como a Mesa: o "/gm criar Tauron_Agmo" do evento é reconhecido.
+func isAgmo(mob *world.Entity) bool {
+	switch droprule.Canonical(mob.TemplateName) {
+	case droprule.Canonical("Tauron_Agmo"), droprule.Canonical("Verme_Agmo"):
+		return true
+	}
+	return false
 }
 
-// desertoFinish dá ao item que um Agmo soltou o tamanho do pacote. Só empilhável
-// ganha quantidade: EF_AMOUNT em outro item é uma pilha que o cliente não divide
-// e gasta inteira. Os âmagos empilham até 120 (internal/pilha).
-func desertoFinish(mob *world.Entity, it *world.Item) {
-	if mob == nil || mob.TemplateName == "" {
+// agmoSorteia devolve o âmago que um sorteio r em [0, agmoPesoTotal) escolhe.
+func agmoSorteia(r int) int16 {
+	for _, a := range agmoAmagos {
+		if r < a.peso {
+			return a.item
+		}
+		r -= a.peso
+	}
+	return agmoAmagos[len(agmoAmagos)-1].item
+}
+
+// agmoAmago entrega o âmago da morte de um Agmo na bolsa de quem mata, pela
+// mesma porta do resto do saque. Se a Mesa de Drops tem regra para o âmago
+// sorteado neste monstro (ou um "*" a 0% que o tire do mundo), vale a Mesa.
+func (d *Dispatcher) agmoAmago(w *world.World, reward, mob *world.Entity) {
+	if !isAgmo(mob) {
 		return
 	}
-	if n := desertoPacotes[droprule.Canonical(mob.TemplateName)][it.Index]; n > 1 && isSplittable(it.Index) {
-		setItemAmount(it, n)
+	item := agmoSorteia(w.Rand().Intn(agmoPesoTotal))
+	if d.dropRules.Governs(mob.TemplateName, item) {
+		return
 	}
+	it := world.Item{Index: item}
+	if isSplittable(it.Index) {
+		setItemAmount(&it, 1)
+	}
+	d.putMobDrop(w, reward, it)
 }

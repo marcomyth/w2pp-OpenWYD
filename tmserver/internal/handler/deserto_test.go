@@ -9,6 +9,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/droprule"
 	"github.com/jeanluca/w2pp-openwyd/internal/migrations"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
+	"github.com/jeanluca/w2pp-openwyd/internal/savefmt"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -101,20 +102,21 @@ func TestDesertoPedraDoLugeferUmEmCem(t *testing.T) {
 	}
 }
 
-// O Cavalo Equipado N (âmago e ovo) cai só dos Lugefer — pedido da equipe — e
-// dos Agmo, que o dão no pacote de evento.
-func TestDesertoEquipadoSoDosLugefer(t *testing.T) {
-	permitidos := map[string]bool{"Lugefer": true, "Cav._Lugefer": true, "Tauron_Agmo": true, "Verme_Agmo": true}
+// O Cavalo Equipado N: o ovo cai só dos Lugefer, e o âmago também do Ladrão e
+// do Assassino, no lugar do Fenrir (pedidos da equipe de 23/09).
+func TestDesertoCavaloEquipado(t *testing.T) {
+	quemDa := map[int16]map[string]bool{
+		itemOvoEquipadoN:   {"Lugefer": true, "Cav._Lugefer": true},
+		itemAmagoEquipadoN: {"Lugefer": true, "Cav._Lugefer": true, "Ladrao_Tauron": true, "Taron_Assassino": true},
+	}
 	linhas := linhasDoDeserto(t)
-	for mob, l := range linhas {
-		for _, item := range []int16{itemAmagoEquipadoN, itemOvoEquipadoN} {
-			if l[item] > 0 && !permitidos[mob] {
-				t.Errorf("%s solta o item %d; o Cavalo Equipado N é só dos Lugefer", mob, item)
+	for item, pode := range quemDa {
+		for mob, l := range linhas {
+			if l[item] > 0 && !pode[mob] {
+				t.Errorf("%s solta o item %d, e ele não é dele", mob, item)
 			}
 		}
-	}
-	for _, mob := range []string{"Lugefer", "Cav._Lugefer"} {
-		for _, item := range []int16{itemAmagoEquipadoN, itemOvoEquipadoN} {
+		for mob := range pode {
 			if linhas[mob][item] == 0 {
 				t.Errorf("%s não solta o item %d", mob, item)
 			}
@@ -122,73 +124,91 @@ func TestDesertoEquipadoSoDosLugefer(t *testing.T) {
 	}
 }
 
-// Os dois Agmo soltam os quatro âmagos N sempre, e cada um tem pacote no código:
-// uma regra a 100% sem pacote entregaria um âmago só.
-func TestDesertoAgmoSempreSoltaOPacote(t *testing.T) {
+// Sem Fenrir no Deserto ("Fenrir ainda não precisamos"): nenhuma linha da 0108
+// dá Fenrir, e todo monstro da 0108 cujo TEMPLATE solta Fenrir tem a linha a 0%
+// que o tira — senão o template continua soltando por baixo da Mesa.
+func TestDesertoSemFenrir(t *testing.T) {
+	fenrir := map[int16]bool{2406: true, 2316: true, 2408: true, 2318: true} // âmagos e ovos, normal e das Sombras
+	root := releaseDir(t)
+	for mob, l := range linhasDoDeserto(t) {
+		for item, c := range l {
+			if fenrir[item] && c > 0 {
+				t.Errorf("%s solta Fenrir (%d) a %d", mob, item, c)
+			}
+		}
+		b, _, err := npctemplate.Load(root, mob)
+		if err != nil {
+			t.Fatalf("%s: %v", mob, err)
+		}
+		m, _, err := savefmt.DecodeMobAny(b)
+		if err != nil {
+			t.Fatalf("%s: %v", mob, err)
+		}
+		for _, it := range m.Carry {
+			if !fenrir[it.Index] {
+				continue
+			}
+			if c, ok := l[it.Index]; !ok || c != 0 {
+				t.Errorf("o template de %s solta o Fenrir %d e a 0108 não o zera", mob, it.Index)
+			}
+		}
+	}
+}
+
+// Os Agmo não têm linha na Mesa: o âmago deles sai do código, exatamente um.
+func TestDesertoAgmoForaDaMesa(t *testing.T) {
 	linhas := linhasDoDeserto(t)
 	for _, mob := range []string{"Tauron_Agmo", "Verme_Agmo"} {
-		pacote := desertoPacotes[droprule.Canonical(mob)]
-		if len(pacote) != 4 {
-			t.Errorf("%s: pacote com %d itens, want 4", mob, len(pacote))
-		}
-		for item := range pacote {
-			if linhas[mob][item] != droprule.MaxChance {
-				t.Errorf("%s item %d a %d na 0108, want %d", mob, item, linhas[mob][item], droprule.MaxChance)
-			}
-		}
-		for item := range linhas[mob] {
-			if pacote[item] == 0 {
-				t.Errorf("%s item %d está na 0108 sem pacote no código", mob, item)
-			}
+		if len(linhas[mob]) > 0 {
+			t.Errorf("%s tem %d linhas na 0108; a Mesa rola cada item sozinho e daria 0 ou vários âmagos", mob, len(linhas[mob]))
 		}
 	}
 }
 
-// O pacote: 40 Sem Sela, 30 Fantasma, 20 Leve e 10 Equipado, só nos Agmo.
-func TestDesertoPacoteDosAgmo(t *testing.T) {
-	for _, tc := range []struct {
-		mob  string
-		item int16
-		want int
-	}{
-		{"Tauron_Agmo", 2396, 40},
-		{"Tauron_Agmo", 2397, 30},
-		{"Tauron_Agmo", 2398, 20},
-		{"Tauron_Agmo", 2399, 10},
-		{"Verme_Agmo", 2396, 40},
-		{"Verme_Agmo", 2399, 10},
-		{"Tauron", 2398, 1},
-		{"Lugefer", 2399, 1},
-		{"Cav._Lugefer", 2399, 1},
-		{"Tauron_Agmo", 1774, 1}, // a Pedra do Sábio do template não entra no pacote
-	} {
-		it := world.Item{Index: tc.item}
-		setItemAmount(&it, 1)
-		desertoFinish(&world.Entity{TemplateName: tc.mob}, &it)
-		if got := itemAmount(it); got != tc.want {
-			t.Errorf("%s soltou %d com %d unidades, want %d", tc.mob, tc.item, got, tc.want)
+// Os pesos do sorteio do Agmo, contados sobre a base inteira: 40 Sem Sela, 30
+// Fantasma, 20 Cavalo Leve e 10 Cavalo Equipado.
+func TestDesertoAgmoPesos(t *testing.T) {
+	got := map[int16]int{}
+	for r := range agmoPesoTotal {
+		got[agmoSorteia(r)]++
+	}
+	want := map[int16]int{2396: 40, 2397: 30, 2398: 20, 2399: 10}
+	for item, n := range want {
+		if got[item] != n {
+			t.Errorf("âmago %d sai em %d de %d, want %d", item, got[item], agmoPesoTotal, n)
 		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("o sorteio escolhe %d itens, want %d", len(got), len(want))
 	}
 }
 
-// Pelo abate de verdade: com as regras a 100%, os quatro pacotes chegam na
-// bolsa de quem mata o Tauron Agmo, cada um com a sua quantidade.
-func TestDesertoPacoteChegaNaBolsa(t *testing.T) {
+// Pelo abate de verdade: cada morte de um Agmo põe exatamente um âmago N, com
+// uma unidade, na bolsa de quem mata; um Tauron comum não ganha nada disso.
+func TestDesertoAgmoSoltaUmAmago(t *testing.T) {
+	amagoNaBolsa := func(e *world.Entity) (n, unidades int) {
+		for _, a := range agmoAmagos {
+			for _, it := range e.Carry {
+				if it.Index == a.item {
+					n++
+					unidades += itemAmount(it)
+				}
+			}
+		}
+		return n, unidades
+	}
+	for _, mob := range []string{"Tauron_Agmo", "Verme_Agmo"} {
+		for range 5 {
+			d, w, killer := mobKilledWorld(t)
+			d.mobKilled(w, killer, spawnNamed(t, w, expMobTemplate(200, 0, 0), mob))
+			if n, u := amagoNaBolsa(killer); n != 1 || u != 1 {
+				t.Fatalf("%s: %d âmagos N na bolsa, %d unidades; want 1 e 1", mob, n, u)
+			}
+		}
+	}
 	d, w, killer := mobKilledWorld(t)
-	var rules []droprule.Rule
-	for item := range desertoPacoteAgmo {
-		rules = append(rules, droprule.Rule{Mob: "Tauron_Agmo", Item: item, Chance: droprule.MaxChance})
-	}
-	d.setDropRules(droprule.Config{Version: 1, Rules: rules})
-	d.mobKilled(w, killer, spawnNamed(t, w, expMobTemplate(200, 0, 0), "Tauron_Agmo"))
-	for item, want := range desertoPacoteAgmo {
-		it, ok := carryHas(killer, item)
-		if !ok {
-			t.Errorf("âmago %d não chegou na bolsa", item)
-			continue
-		}
-		if got := itemAmount(it); got != want {
-			t.Errorf("âmago %d com %d unidades, want %d", item, got, want)
-		}
+	d.mobKilled(w, killer, spawnNamed(t, w, expMobTemplate(351, 0, 0), "Tauron"))
+	if n, _ := amagoNaBolsa(killer); n != 0 {
+		t.Errorf("um Tauron comum deixou %d âmagos do sorteio do Agmo", n)
 	}
 }
