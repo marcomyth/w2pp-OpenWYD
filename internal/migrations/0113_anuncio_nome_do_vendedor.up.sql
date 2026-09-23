@@ -1,0 +1,23 @@
+-- 0113_anuncio_nome_do_vendedor — o nome do personagem que montou a barraca, na
+-- fotografia do anúncio.
+--
+-- A página do comprador mostra de quem ele está comprando, e sem esta coluna a
+-- única saída era procurar um personagem da conta do vendedor — o de menor slot,
+-- por exemplo. Isso erra de duas formas ao mesmo tempo:
+--
+--   1. mostra um personagem que pode não ser o da barraca, então o comprador vê
+--      um nome que não é o que ele viu na cidade;
+--   2. expõe o nome de OUTRO personagem da conta, que não tem nada a ver com a
+--      venda.
+--
+-- A coluna vai no ANÚNCIO e não numa consulta porque ela é parte da FOTOGRAFIA:
+-- responde "quem me vendeu isto" depois de a barraca ter descido, depois de o
+-- personagem ter sido renomeado, e depois de ele ter sido apagado. O resto da
+-- fotografia existe pela mesma razão.
+--
+-- NULL nos anúncios antigos, e isso é fato e não descuido: não existe nenhum
+-- anúncio em produção hoje (a tela de cadastro da chave Pix não estreou, então
+-- ninguém tem chave, então ninguém anunciou). Fazer isto agora custa uma coluna;
+-- fazer depois custa migração de dado com o dado perdido.
+ALTER TABLE rmt_anuncio
+    ADD COLUMN IF NOT EXISTS vendedor_personagem TEXT;

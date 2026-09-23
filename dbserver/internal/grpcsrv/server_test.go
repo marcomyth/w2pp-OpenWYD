@@ -17,6 +17,7 @@ type fakeStore struct {
 	anunciosAbertos     []store.ItemAnunciado
 	anunciosCancelados  []int64
 	anunciosEncerrados  []int64
+	personagemDoAnuncio string
 	compradorCancelado  int64
 	anunciosDoComprador []int64
 	encerrados          []store.AnuncioEncerrado
@@ -211,7 +212,10 @@ func (f *fakeStore) SaveCargo(_ context.Context, accountID int64, coin int32, it
 }
 
 // slotsVendidos é o que ListSoldEscrowSlots devolve; vazio é a resposta normal.
-func (f *fakeStore) AbrirAnunciosRMT(_ context.Context, _ int64, itens []store.ItemAnunciado) ([]int64, error) {
+func (f *fakeStore) AbrirAnunciosRMT(_ context.Context, _ int64, personagem string,
+	itens []store.ItemAnunciado,
+) ([]int64, error) {
+	f.personagemDoAnuncio = personagem
 	if f.erroAbrirAnuncios != nil {
 		return nil, f.erroAbrirAnuncios
 	}

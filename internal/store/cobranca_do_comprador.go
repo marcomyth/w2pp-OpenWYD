@@ -97,16 +97,14 @@ func (s *Store) CobrancaAtualDoComprador(ctx context.Context, compradorConta int
 	var nomeVendedor *string
 	var eff [6]int16
 
-	// O nome do vendedor vem do PERSONAGEM e o anúncio é da CONTA, então o join é
-	// por conta e pode trazer vários. Pega um e o mesmo sempre (o de menor slot),
-	// porque o comprador precisa reconhecer de quem está comprando, e um nome que
-	// muda entre duas leituras da mesma página é pior do que nenhum.
+	// O nome do vendedor vem da FOTOGRAFIA (0113) e não de uma busca por
+	// personagem da conta. Buscar erraria de duas formas ao mesmo tempo: mostraria
+	// um personagem que pode não ser o da barraca, e exporia o nome de outro
+	// personagem da conta, que não tem nada a ver com a venda.
 	err := s.pool.QueryRow(ctx, `
 		SELECT c.codigo_pix, c.valor_centavos, c.expira_em, c.status,
 		       a.item_index, a.eff1, a.effv1, a.eff2, a.effv2, a.eff3, a.effv3,
-		       (SELECT ch.name FROM character ch
-		         WHERE ch.account_id = a.vendedor_conta
-		         ORDER BY ch.slot LIMIT 1)
+		       a.vendedor_personagem
 		  FROM rmt_cobranca c
 		  JOIN rmt_anuncio a ON a.id = c.anuncio_id
 		 WHERE c.comprador_conta = $1

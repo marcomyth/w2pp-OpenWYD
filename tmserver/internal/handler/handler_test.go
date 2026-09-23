@@ -43,6 +43,7 @@ type fakeDB struct {
 	anunciosEncerrados    []int64
 	compradoresCancelados []int64
 	reconciliadas         []int64
+	personagemDoAnuncio   string
 	// portaoReconcilia segura a reconciliação no banco até o teste soltar, que é
 	// o único jeito de agir DENTRO da janela em que a trava existe.
 	portaoReconcilia chan struct{}
@@ -148,7 +149,9 @@ func (f *fakeDB) ListPendingDeliveries(_ context.Context, accountID int64) ([]wo
 
 // OpenRmtListings finge o banco: devolve ids previsíveis, ou a recusa de quem
 // não tem chave Pix.
-func (f *fakeDB) OpenRmtListings(_ context.Context, vendedor int64, itens []world.AnuncioRMT) ([]int64, bool, error) {
+func (f *fakeDB) OpenRmtListings(_ context.Context, vendedor int64, personagem string,
+	itens []world.AnuncioRMT,
+) ([]int64, bool, error) {
 	if f.portaoAnuncio != nil {
 		<-f.portaoAnuncio
 	}
@@ -163,6 +166,7 @@ func (f *fakeDB) OpenRmtListings(_ context.Context, vendedor int64, itens []worl
 	// isso, e esta máquina não roda -race (precisa de cgo).
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.personagemDoAnuncio = personagem
 	f.anunciosAbertos = append(f.anunciosAbertos, itens...)
 	ids := make([]int64, len(itens))
 	for i := range ids {

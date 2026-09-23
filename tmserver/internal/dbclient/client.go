@@ -92,8 +92,10 @@ func (c *Client) AccountLogin(ctx context.Context, name, password string) (world
 }
 
 // OpenRmtListings cria os anúncios de uma barraca em dinheiro real.
-func (c *Client) OpenRmtListings(ctx context.Context, vendedor int64, itens []world.AnuncioRMT) ([]int64, bool, error) {
-	req := &dbv1.OpenRmtListingsRequest{SellerAccountId: vendedor}
+func (c *Client) OpenRmtListings(ctx context.Context, vendedor int64, personagem string,
+	itens []world.AnuncioRMT,
+) ([]int64, bool, error) {
+	req := &dbv1.OpenRmtListingsRequest{SellerAccountId: vendedor, SellerCharacterName: personagem}
 	for _, a := range itens {
 		req.Listings = append(req.Listings, &dbv1.RmtListing{
 			CargoSlot: int32(a.CargoSlot), ItemIndex: int32(a.Item.Index),

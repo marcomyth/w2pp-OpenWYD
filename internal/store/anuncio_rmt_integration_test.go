@@ -24,7 +24,7 @@ func TestAbrirAnunciosRecusaSemChavePix(t *testing.T) {
 	s, ctx := freshStore(t)
 	conta := contaPix(ctx, t, s, "sem_chave")
 
-	_, err := s.AbrirAnunciosRMT(ctx, conta, doisItens())
+	_, err := s.AbrirAnunciosRMT(ctx, conta, "Vendedor", doisItens())
 
 	if !errors.Is(err, ErrSemChavePix) {
 		t.Fatalf("erro = %v, quero ErrSemChavePix", err)
@@ -43,7 +43,7 @@ func TestAbrirAnunciosGravaAFotografia(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ids, err := s.AbrirAnunciosRMT(ctx, conta, doisItens())
+	ids, err := s.AbrirAnunciosRMT(ctx, conta, "Vendedor", doisItens())
 	if err != nil {
 		t.Fatalf("abrindo: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestAbrirAnunciosENenhumSeUmFalhar(t *testing.T) {
 	itens := doisItens()
 	itens[1].PrecoCentavos = 0 // o CHECK da 0105 exige > 0
 
-	if _, err := s.AbrirAnunciosRMT(ctx, conta, itens); err == nil {
+	if _, err := s.AbrirAnunciosRMT(ctx, conta, "Vendedor", itens); err == nil {
 		t.Fatal("aceitou preco zero")
 	}
 	if n := anunciosDaConta(ctx, t, s, conta); n != 0 {
@@ -108,7 +108,7 @@ func TestCancelarSoFechaOQueEstaAtivo(t *testing.T) {
 	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF); err != nil {
 		t.Fatal(err)
 	}
-	ids, err := s.AbrirAnunciosRMT(ctx, conta, doisItens())
+	ids, err := s.AbrirAnunciosRMT(ctx, conta, "Vendedor", doisItens())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,11 +145,11 @@ func TestDoisAtivosNoMesmoSlotNaoEntram(t *testing.T) {
 	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.AbrirAnunciosRMT(ctx, conta, doisItens()[:1]); err != nil {
+	if _, err := s.AbrirAnunciosRMT(ctx, conta, "Vendedor", doisItens()[:1]); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := s.AbrirAnunciosRMT(ctx, conta, doisItens()[:1]); err == nil {
+	if _, err := s.AbrirAnunciosRMT(ctx, conta, "Vendedor", doisItens()[:1]); err == nil {
 		t.Fatal("o banco aceitou dois anuncios ativos no mesmo slot")
 	}
 	if n := anunciosDaConta(ctx, t, s, conta); n != 1 {

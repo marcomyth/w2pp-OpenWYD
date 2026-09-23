@@ -41,7 +41,8 @@ type Store interface {
 	SaveCargo(ctx context.Context, accountID int64, coin int32, items []domain.Item) error
 	PendingItemDeliveries(ctx context.Context, accountID int64) ([]domain.Delivery, error)
 	SlotsVendidosPendentes(ctx context.Context, accountID int64) ([]int16, error)
-	AbrirAnunciosRMT(ctx context.Context, vendedorConta int64, itens []store.ItemAnunciado) ([]int64, error)
+	AbrirAnunciosRMT(ctx context.Context, vendedorConta int64, personagem string,
+		itens []store.ItemAnunciado) ([]int64, error)
 	CancelarAnunciosRMT(ctx context.Context, ids []int64) error
 	EncerrarAnunciosRMT(ctx context.Context, ids []int64) ([]store.AnuncioEncerrado, error)
 	ReconciliarEscrowRMT(ctx context.Context, accountID int64) ([]int16, error)
@@ -330,7 +331,8 @@ func (s *Server) OpenRmtListings(ctx context.Context, req *dbv1.OpenRmtListingsR
 			PrecoCentavos: l.GetPriceCents(),
 		})
 	}
-	ids, err := s.store.AbrirAnunciosRMT(ctx, req.GetSellerAccountId(), itens)
+	ids, err := s.store.AbrirAnunciosRMT(ctx, req.GetSellerAccountId(),
+		req.GetSellerCharacterName(), itens)
 	if errors.Is(err, store.ErrSemChavePix) {
 		return &dbv1.OpenRmtListingsResponse{NoPixKey: true}, nil
 	}

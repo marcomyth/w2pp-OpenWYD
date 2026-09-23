@@ -25,15 +25,15 @@ func personagemDe(ctx context.Context, t *testing.T, s *Store, conta int64, slot
 // anuncioComFoto cria um anúncio com refino e quantidade na fotografia, que é o
 // que a página mostra ao lado do item.
 func anuncioComFoto(ctx context.Context, t *testing.T, s *Store, vendedor int64,
-	slot int16, refino, qtd int,
+	personagem string, slot int16, refino, qtd int,
 ) int64 {
 	t.Helper()
 	var id int64
 	if err := s.pool.QueryRow(ctx, `
-		INSERT INTO rmt_anuncio (vendedor_conta, cargo_slot, item_index,
+		INSERT INTO rmt_anuncio (vendedor_conta, vendedor_personagem, cargo_slot, item_index,
 			eff1, effv1, eff2, effv2, preco_centavos, status)
-		VALUES ($1, $2, 1030, $3, $4, $5, $6, 12345, 1) RETURNING id`,
-		vendedor, slot, efeitoRefino, refino, efeitoQuantidade, qtd).Scan(&id); err != nil {
+		VALUES ($1, $2, $3, 1030, $4, $5, $6, $7, 12345, 1) RETURNING id`,
+		vendedor, personagem, slot, efeitoRefino, refino, efeitoQuantidade, qtd).Scan(&id); err != nil {
 		t.Fatalf("criando o anuncio: %v", err)
 	}
 	return id
@@ -52,7 +52,7 @@ func TestCobrancaAbertaChegaComAFotografia(t *testing.T) {
 		t.Fatal(err)
 	}
 	personagemDe(ctx, t, s, vendedor, 0, "Mercador")
-	anuncio := anuncioComFoto(ctx, t, s, vendedor, 0, 9, 3)
+	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 9, 3)
 	itemMarcado(ctx, t, s, vendedor, 0, anuncio)
 	if _, _, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-leitura-1", 0); err != nil {
 		t.Fatal(err)
@@ -92,6 +92,47 @@ func TestCobrancaAbertaChegaComAFotografia(t *testing.T) {
 	}
 }
 
+// O NOME VEM DA FOTOGRAFIA, E NÃO DE UM PERSONAGEM QUALQUER DA CONTA.
+//
+// O vendedor tem dois personagens e quem montou a barraca foi o SEGUNDO. Procurar
+// um personagem da conta — o de menor slot, por exemplo — erraria de duas formas
+// ao mesmo tempo: mostraria ao comprador um nome que ele nunca viu na cidade, e
+// exporia o nome de outro personagem, que não tem nada a ver com a venda.
+//
+// É o caso que a busca por conta passaria em silêncio: ela devolveria um nome, só
+// que o errado.
+func TestONomeEODoPersonagemQueMontouABarraca(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor := contaPix(ctx, t, s, "vendedor_dois_chars")
+	comprador := contaPix(ctx, t, s, "comprador_dois_chars")
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+		t.Fatal(err)
+	}
+	personagemDe(ctx, t, s, vendedor, 0, "PrimeiroSlot")
+	personagemDe(ctx, t, s, vendedor, 1, "QuemVendeu")
+
+	// A barraca é do SEGUNDO, e é esse nome que entra na fotografia.
+	ids, err := s.AbrirAnunciosRMT(ctx, vendedor, "QuemVendeu",
+		[]ItemAnunciado{{CargoSlot: 0, ItemIndex: 1030, PrecoCentavos: 5000}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	itemMarcado(ctx, t, s, vendedor, 0, ids[0])
+	if _, _, err := s.AbrirCobrancaRMT(ctx, ids[0], comprador, "ref-dois-chars", 0); err != nil {
+		t.Fatal(err)
+	}
+
+	_, cob, err := s.CobrancaAtualDoComprador(ctx, comprador, 0)
+	if err != nil {
+		t.Fatalf("lendo: %v", err)
+	}
+
+	if cob.VendedorNome != "QuemVendeu" {
+		t.Errorf("vendedor = %q, quero QuemVendeu — PrimeiroSlot nao montou barraca "+
+			"nenhuma e o nome dele nao tem por que aparecer", cob.VendedorNome)
+	}
+}
+
 // Conta sem cobrança nenhuma: nada, e sem erro.
 func TestSemCobrancaNaoAchaENaoFalha(t *testing.T) {
 	s, ctx := freshStore(t)
@@ -117,7 +158,7 @@ func TestNaoVeACobrancaDeOutroComprador(t *testing.T) {
 	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
 		t.Fatal(err)
 	}
-	anuncio := anuncioComFoto(ctx, t, s, vendedor, 0, 0, 1)
+	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
 	itemMarcado(ctx, t, s, vendedor, 0, anuncio)
 	if _, _, err := s.AbrirCobrancaRMT(ctx, anuncio, dono, "ref-privada-1", 0); err != nil {
 		t.Fatal(err)
@@ -145,7 +186,7 @@ func TestPrazoVencidoJaViraExpiradaEEsconderCodigo(t *testing.T) {
 	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
 		t.Fatal(err)
 	}
-	anuncio := anuncioComFoto(ctx, t, s, vendedor, 0, 0, 1)
+	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
 	itemMarcado(ctx, t, s, vendedor, 0, anuncio)
 	if _, _, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-vencida-1", 0); err != nil {
 		t.Fatal(err)
@@ -188,7 +229,7 @@ func TestCobrancaRecemFechadaAparecePorAlgunsMinutos(t *testing.T) {
 	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
 		t.Fatal(err)
 	}
-	anuncio := anuncioComFoto(ctx, t, s, vendedor, 0, 0, 1)
+	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
 	itemMarcado(ctx, t, s, vendedor, 0, anuncio)
 	if _, _, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-recente-1", 0); err != nil {
 		t.Fatal(err)
@@ -236,7 +277,7 @@ func TestEntreDuasFechadasGanhaAMaisNova(t *testing.T) {
 	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
 		t.Fatal(err)
 	}
-	anuncio := anuncioComFoto(ctx, t, s, vendedor, 0, 0, 1)
+	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
 	itemMarcado(ctx, t, s, vendedor, 0, anuncio)
 
 	// Primeira: cancelada há pouco, criada antes.
@@ -268,19 +309,19 @@ func TestEntreDuasFechadasGanhaAMaisNova(t *testing.T) {
 	}
 }
 
-// Vendedor sem personagem nenhum não derruba a leitura.
+// Anúncio sem nome na fotografia não derruba a leitura.
 //
-// Acontece de verdade: conta criada pelo site, item posto à venda por outro
-// personagem que foi apagado. O nome vem vazio e a página mostra o resto — melhor
-// do que a página não abrir.
-func TestVendedorSemPersonagemNaoDerrubaALeitura(t *testing.T) {
+// A coluna é NULL nos anúncios criados antes da 0113. Não existe nenhum em
+// produção hoje, mas a leitura não pode explodir por isso: o nome vem vazio e a
+// página mostra o resto — melhor do que a página não abrir.
+func TestAnuncioSemNomeNaFotografiaNaoDerrubaALeitura(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_sem_char")
 	comprador := contaPix(ctx, t, s, "comprador_sem_char")
 	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
 		t.Fatal(err)
 	}
-	anuncio := anuncioComFoto(ctx, t, s, vendedor, 0, 0, 1)
+	anuncio := anuncioComFoto(ctx, t, s, vendedor, "", 0, 0, 1)
 	itemMarcado(ctx, t, s, vendedor, 0, anuncio)
 	if _, _, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-sem-char", 0); err != nil {
 		t.Fatal(err)
