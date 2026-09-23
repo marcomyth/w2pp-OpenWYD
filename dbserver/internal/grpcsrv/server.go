@@ -44,7 +44,8 @@ type Store interface {
 	AbrirAnunciosRMT(ctx context.Context, vendedorConta int64, itens []store.ItemAnunciado) ([]int64, error)
 	CancelarAnunciosRMT(ctx context.Context, ids []int64) error
 	EncerrarAnunciosRMT(ctx context.Context, ids []int64) ([]store.AnuncioEncerrado, error)
-	SlotsDeEscrowMorto(ctx context.Context, accountID int64) ([]int16, error)
+	ReconciliarEscrowRMT(ctx context.Context, accountID int64) ([]int16, error)
+	CancelarCobrancasDoComprador(ctx context.Context, compradorConta int64) ([]int64, error)
 	SaveCargoWithDeliveries(ctx context.Context, accountID int64, coin int32, items []domain.Item, deliveredIDs, lostIDs []int64) error
 	SetBlockedByName(ctx context.Context, name string, blocked bool) error
 	RecordDuelResult(ctx context.Context, winnerName, loserName string) error
@@ -367,17 +368,27 @@ func (s *Server) CloseRmtListings(ctx context.Context, req *dbv1.CloseRmtListing
 	return &dbv1.CloseRmtListingsResponse{Closed: out}, nil
 }
 
-// ListDeadEscrowSlots devolve os slots cuja marca já não segura nada.
-func (s *Server) ListDeadEscrowSlots(ctx context.Context, req *dbv1.ListDeadEscrowSlotsRequest) (*dbv1.ListDeadEscrowSlotsResponse, error) {
-	slots, err := s.store.SlotsDeEscrowMorto(ctx, req.GetAccountId())
+// ReconcileRmtEscrow põe em dia o escrow da conta e devolve os cadeados que
+// podem sair.
+func (s *Server) ReconcileRmtEscrow(ctx context.Context, req *dbv1.ReconcileRmtEscrowRequest) (*dbv1.ReconcileRmtEscrowResponse, error) {
+	slots, err := s.store.ReconciliarEscrowRMT(ctx, req.GetAccountId())
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "list dead escrow slots: %v", err)
+		return nil, status.Errorf(codes.Internal, "reconcile rmt escrow: %v", err)
 	}
 	out := make([]int32, 0, len(slots))
 	for _, slot := range slots {
 		out = append(out, int32(slot))
 	}
-	return &dbv1.ListDeadEscrowSlotsResponse{CargoSlots: out}, nil
+	return &dbv1.ReconcileRmtEscrowResponse{CargoSlots: out}, nil
+}
+
+// CancelBuyerRmtCharges fecha as cobranças abertas de um comprador que saiu.
+func (s *Server) CancelBuyerRmtCharges(ctx context.Context, req *dbv1.CancelBuyerRmtChargesRequest) (*dbv1.CancelBuyerRmtChargesResponse, error) {
+	anuncios, err := s.store.CancelarCobrancasDoComprador(ctx, req.GetBuyerAccountId())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "cancel buyer rmt charges: %v", err)
+	}
+	return &dbv1.CancelBuyerRmtChargesResponse{ListingIds: anuncios}, nil
 }
 
 // SaveCargoWithDeliveries persists the cargo and marks the drained mailbox rows

@@ -130,12 +130,19 @@ func TestEncerrarNaoMexeNoQueJaSaiu(t *testing.T) {
 	}
 }
 
-// A FAXINA: o que ela solta e o que ela deixa preso.
+// A RECONCILIAÇÃO: o que ela solta e o que ela deixa preso.
 //
-// Um teste só com os quatro casos lado a lado, porque o valor está na DIFERENÇA
-// entre eles. Separados, cada um passaria com uma função que sempre responde a
-// mesma coisa.
-func TestFaxinaSoltaOCadeadoMortoEDeixaOVivo(t *testing.T) {
+// Um teste só com os casos lado a lado, porque o valor está na DIFERENÇA entre
+// eles. Separados, cada um passaria com uma função que sempre responde a mesma
+// coisa.
+//
+// NÃO EXISTE AQUI O CASO "anúncio ativo numa barraca de pé", e a ausência é o
+// desenho: esta função roda no LOGIN do vendedor, e quem está entrando não tem
+// barraca. Um anúncio ativo dele é, neste instante, um anúncio sem vitrine — e o
+// único motivo de ele ainda estar ativo é uma cobrança em jogo. Chamar esta
+// função com o vendedor em jogo e barraca de pé CANCELARIA a venda dele; é por
+// isso que o único chamador é o login.
+func TestReconciliarSoltaOCadeadoMortoEDeixaOVivo(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_faxina")
 	comprador := contaPix(ctx, t, s, "comprador_faxina")
@@ -147,11 +154,6 @@ func TestFaxinaSoltaOCadeadoMortoEDeixaOVivo(t *testing.T) {
 		t.Fatal(err)
 	}
 	itemMarcado(ctx, t, s, vendedor, 0, cancelado)
-
-	// slot 1: anúncio ATIVO numa barraca de pé — o cadeado é o que impede de
-	// vender o mesmo item duas vezes. Fica.
-	vivo := anuncioAtivoSimples(ctx, t, s, vendedor, 1)
-	itemMarcado(ctx, t, s, vendedor, 1, vivo)
 
 	// slot 2: anúncio ativo, barraca caída, cobrança ainda aberta — alguém pode
 	// estar com o QR na mão. Fica.
@@ -175,9 +177,9 @@ func TestFaxinaSoltaOCadeadoMortoEDeixaOVivo(t *testing.T) {
 	}
 	itemMarcado(ctx, t, s, vendedor, 3, expirou)
 
-	slots, err := s.SlotsDeEscrowMorto(ctx, vendedor)
+	slots, err := s.ReconciliarEscrowRMT(ctx, vendedor)
 	if err != nil {
-		t.Fatalf("faxina: %v", err)
+		t.Fatalf("reconciliando: %v", err)
 	}
 
 	if len(slots) != 2 || slots[0] != 0 || slots[1] != 3 {
@@ -201,9 +203,9 @@ func TestFaxinaNaoDevolveOQueFoiVendido(t *testing.T) {
 	}
 	itemMarcado(ctx, t, s, vendedor, 0, id)
 
-	solta, err := s.SlotsDeEscrowMorto(ctx, vendedor)
+	solta, err := s.ReconciliarEscrowRMT(ctx, vendedor)
 	if err != nil {
-		t.Fatalf("faxina: %v", err)
+		t.Fatalf("reconciliando: %v", err)
 	}
 	retira, err := s.SlotsVendidosPendentes(ctx, vendedor)
 	if err != nil {
@@ -226,9 +228,9 @@ func TestFaxinaSoltaMarcaOrfa(t *testing.T) {
 	vendedor := contaPix(ctx, t, s, "vendedor_orfao")
 	itemMarcado(ctx, t, s, vendedor, 7, 999999) // anúncio que nunca existiu
 
-	slots, err := s.SlotsDeEscrowMorto(ctx, vendedor)
+	slots, err := s.ReconciliarEscrowRMT(ctx, vendedor)
 	if err != nil {
-		t.Fatalf("faxina: %v", err)
+		t.Fatalf("reconciliando: %v", err)
 	}
 
 	if len(slots) != 1 || slots[0] != 7 {

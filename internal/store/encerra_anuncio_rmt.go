@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"fmt"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // O FIM DO ANÚNCIO, que é a metade que faltava do escrow.
@@ -53,92 +55,120 @@ func (s *Store) EncerrarAnunciosRMT(ctx context.Context, ids []int64) ([]Anuncio
 	if len(ids) == 0 {
 		return nil, nil
 	}
-	rows, err := s.pool.Query(ctx, `
-		WITH alvo AS (
-			SELECT a.id, a.cargo_slot,
-			       EXISTS(SELECT 1 FROM rmt_cobranca c
-			               WHERE c.anuncio_id = a.id AND c.status = $3) AS tem_cobranca
-			  FROM rmt_anuncio a
-			 WHERE a.id = ANY($1) AND a.status = $4
-			 ORDER BY a.id
-			   FOR UPDATE
-		), fechados AS (
-			UPDATE rmt_anuncio SET status = $2, encerrado_em = now()
-			 WHERE id IN (SELECT id FROM alvo WHERE NOT tem_cobranca)
-		), esperando AS (
-			-- Com cobrança aberta o anúncio FICA ativo, para o Pix atrasado ainda
-			-- encontrar o que entregar. A marca de que a barraca caiu é o que
-			-- permite soltar o cadeado depois, quando a cobrança fechar.
-			UPDATE rmt_anuncio SET barraca_caiu = TRUE
-			 WHERE id IN (SELECT id FROM alvo WHERE tem_cobranca)
-		)
-		SELECT id, cargo_slot, tem_cobranca FROM alvo ORDER BY id`,
-		ids, anuncioCancelado, cobrancaAberta, anuncioAtivo)
-	if err != nil {
-		return nil, fmt.Errorf("store: encerrar anuncios %v: %w", ids, err)
-	}
-	defer rows.Close()
 	var fim []AnuncioEncerrado
-	for rows.Next() {
-		var a AnuncioEncerrado
-		if err := rows.Scan(&a.AnuncioID, &a.CargoSlot, &a.CobrancaAberta); err != nil {
-			return nil, fmt.Errorf("store: encerrar anuncios: %w", err)
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		// TRÊS COMANDOS E NÃO UM, e a separação é o conserto de uma corrida que
+		// custa dinheiro.
+		//
+		// Em READ COMMITTED cada COMANDO pega um snapshot. Um comando só que
+		// travasse o anúncio e perguntasse por EXISTS se há cobrança responderia a
+		// segunda pergunta com o snapshot VELHO: o Postgres reavalia a LINHA
+		// TRAVADA contra a versão nova (EvaluatePlanQual), mas não reavalia o que
+		// a subconsulta leu em outra tabela.
+		//
+		// O caso: a cobrança é commitada enquanto o encerramento espera o lock. O
+		// anúncio viraria CANCELADO com uma cobrança aberta pendurada, e o Pix
+		// desse comprador cairia em PAGA_SEM_ITEM — dívida com quem pagou direito.
+		// Está provado em TestEncerrarNaoCancelaAnuncioQueGanhouCobrancaNoMeio: com
+		// um comando só, o teste fica vermelho.
+		//
+		// Primeiro comando: TRAVA. Depois dele, ninguém mais abre cobrança contra
+		// estes anúncios — a abertura também trava o anúncio com FOR UPDATE.
+		travados, err := travaAnunciosAtivos(ctx, tx, ids)
+		if err != nil || len(travados) == 0 {
+			return err
 		}
-		fim = append(fim, a)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: encerrar anuncios %v: %w", ids, err)
+		// Segundo comando: LÊ as cobranças, com snapshot NOVO, que já enxerga o
+		// que foi commitado enquanto esperávamos o lock.
+		comCobranca, err := anunciosComCobrancaAberta(ctx, tx, travados)
+		if err != nil {
+			return err
+		}
+		var cancelar, esperar []int64
+		for _, a := range travados {
+			if comCobranca[a.AnuncioID] {
+				a.CobrancaAberta = true
+				esperar = append(esperar, a.AnuncioID)
+			} else {
+				cancelar = append(cancelar, a.AnuncioID)
+			}
+			fim = append(fim, a)
+		}
+		// Terceiro: escreve. Os sem cobrança saem; os com cobrança ficam ativos e
+		// só ganham a marca de que a barraca caiu, para o Pix atrasado ainda
+		// encontrar o que entregar.
+		if len(cancelar) > 0 {
+			if _, err := tx.Exec(ctx, `
+				UPDATE rmt_anuncio SET status = $2, encerrado_em = now()
+				 WHERE id = ANY($1)`, cancelar, anuncioCancelado); err != nil {
+				return fmt.Errorf("store: encerrar anuncios: cancelando %v: %w", cancelar, err)
+			}
+		}
+		if len(esperar) > 0 {
+			if _, err := tx.Exec(ctx, `
+				UPDATE rmt_anuncio SET barraca_caiu = TRUE WHERE id = ANY($1)`, esperar); err != nil {
+				return fmt.Errorf("store: encerrar anuncios: marcando %v: %w", esperar, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 	return fim, nil
 }
 
-// SlotsDeEscrowMorto devolve os slots desta conta cuja marca não segura mais
-// nada: o anúncio não está ativo, não vendeu, e não há cobrança aberta.
-//
-// É a faxina, e ela existe porque a retirada da marca é PREGUIÇOSA por desenho.
-// Três buracos caem aqui, e nenhum deles tem outro conserto:
-//
-//  1. O anúncio foi cancelado com o vendedor fora do jogo. Ninguém estava no laço
-//     para apagar a marca do baú vivo, porque não havia baú vivo.
-//  2. A cobrança expirou ou foi cancelada depois de a barraca já ter descido. O
-//     anúncio ficou ATIVO esperando o pagamento — de propósito, para o Pix
-//     atrasado ainda poder chegar — e é a coluna `barraca_caiu` (0111) que conta
-//     essa história. Ativo com barraca de pé: o cadeado fica. Ativo sem barraca e
-//     sem cobrança: o cadeado sai.
-//  3. O servidor caiu entre criar o anúncio e gravar a marca — ou entre cancelar
-//     e salvar. Sobra marca sem anúncio vivo, ou anúncio vivo sem marca.
-//
-// NÃO inclui o anúncio VENDIDO: aquele slot também precisa ser limpo, mas o item
-// vai embora e não volta para o dono, e misturar as duas listas seria confundir
-// "solte" com "entregue". Quem cuida do vendido é o SlotsVendidosPendentes.
-//
-// Marca apontando para anúncio que NÃO EXISTE também entra: é lixo de qualquer
-// jeito, e deixá-lo de fora significaria um item preso sem nada que o explique.
-func (s *Store) SlotsDeEscrowMorto(ctx context.Context, accountID int64) ([]int16, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT i.slot
-		  FROM item i
-		  LEFT JOIN rmt_anuncio a ON a.id = i.rmt_anuncio
-		 WHERE i.owner_kind = 'account_cargo' AND i.account_id = $1
-		   AND i.rmt_anuncio <> 0
-		   AND (a.id IS NULL OR a.status = $2 OR (a.status = $4 AND a.barraca_caiu))
-		   AND NOT EXISTS (SELECT 1 FROM rmt_cobranca c
-		                    WHERE c.anuncio_id = i.rmt_anuncio AND c.status = $3)
-		 ORDER BY i.slot`, accountID, anuncioCancelado, cobrancaAberta, anuncioAtivo)
+// travaAnunciosAtivos trava e devolve, em ordem de id, os anúncios da lista que
+// ainda estão ativos. A ordem é fixa de propósito: dois encerramentos com listas
+// que se cruzam travam na mesma sequência e não se abraçam.
+func travaAnunciosAtivos(ctx context.Context, tx pgx.Tx, ids []int64) ([]AnuncioEncerrado, error) {
+	rows, err := tx.Query(ctx, `
+		SELECT id, cargo_slot FROM rmt_anuncio
+		 WHERE id = ANY($1) AND status = $2
+		 ORDER BY id FOR UPDATE`, ids, anuncioAtivo)
 	if err != nil {
-		return nil, fmt.Errorf("store: slots de escrow morto a=%d: %w", accountID, err)
+		return nil, fmt.Errorf("store: encerrar anuncios: travando %v: %w", ids, err)
 	}
 	defer rows.Close()
-	var slots []int16
+	var out []AnuncioEncerrado
 	for rows.Next() {
-		var slot int16
-		if err := rows.Scan(&slot); err != nil {
-			return nil, fmt.Errorf("store: slots de escrow morto: %w", err)
+		var a AnuncioEncerrado
+		if err := rows.Scan(&a.AnuncioID, &a.CargoSlot); err != nil {
+			return nil, fmt.Errorf("store: encerrar anuncios: %w", err)
 		}
-		slots = append(slots, slot)
+		out = append(out, a)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: slots de escrow morto a=%d: %w", accountID, err)
+		return nil, fmt.Errorf("store: encerrar anuncios: travando %v: %w", ids, err)
 	}
-	return slots, nil
+	return out, nil
+}
+
+// anunciosComCobrancaAberta pergunta, num comando PRÓPRIO, quais dos anúncios
+// travados têm dinheiro em jogo. O comando próprio é o ponto: é o snapshot novo
+// dele que enxerga a cobrança commitada enquanto o lock era esperado.
+func anunciosComCobrancaAberta(ctx context.Context, tx pgx.Tx, travados []AnuncioEncerrado) (map[int64]bool, error) {
+	ids := make([]int64, 0, len(travados))
+	for _, a := range travados {
+		ids = append(ids, a.AnuncioID)
+	}
+	rows, err := tx.Query(ctx, `
+		SELECT DISTINCT anuncio_id FROM rmt_cobranca
+		 WHERE anuncio_id = ANY($1) AND status = $2`, ids, cobrancaAberta)
+	if err != nil {
+		return nil, fmt.Errorf("store: encerrar anuncios: lendo as cobrancas de %v: %w", ids, err)
+	}
+	defer rows.Close()
+	com := make(map[int64]bool)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("store: encerrar anuncios: %w", err)
+		}
+		com[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: encerrar anuncios: lendo as cobrancas: %w", err)
+	}
+	return com, nil
 }

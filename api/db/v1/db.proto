@@ -99,18 +99,33 @@ service AccountService {
   // a person who paid correctly. Those are flagged instead, so the lock can be
   // released once the charge closes.
   rpc CloseRmtListings(CloseRmtListingsRequest) returns (CloseRmtListingsResponse);
-  // ListDeadEscrowSlots returns the cargo slots whose escrow mark no longer
-  // holds anything: the listing is cancelled, or gone, or active-but-stall-down
-  // with no open charge.
+  // ReconcileRmtEscrow brings one account's real-money escrow up to date and
+  // returns the cargo slots whose lock no longer holds anything.
   //
-  // It is the lazy half of releasing the lock. Removing the mark is the loop's
-  // job — it owns the live warehouse — and the loop is not always there when the
-  // listing ends. This is what it asks when the seller shows up.
+  // It runs at the seller's login, and the hook is the whole argument: somebody
+  // logging in HAS NO STALL UP, by definition. So every active listing of
+  // theirs is, at that instant, a listing with no window — and a listing with
+  // no window either ends, or is waiting for a payment. There is no third case.
+  //
+  // It both WRITES and READS, which is why it is not called "list": ending the
+  // listing and releasing the lock have to happen in that order, in one
+  // transaction. Listing first would miss exactly the ones that just died.
   //
   // It deliberately EXCLUDES sold listings: that slot also has to be cleared,
-  // but the item leaves and never comes back to the owner. Mixing the two lists
-  // would confuse "release" with "delivered". See ListSoldEscrowSlots.
-  rpc ListDeadEscrowSlots(ListDeadEscrowSlotsRequest) returns (ListDeadEscrowSlotsResponse);
+  // but the item leaves and never comes back to the owner. See
+  // ListSoldEscrowSlots.
+  rpc ReconcileRmtEscrow(ReconcileRmtEscrowRequest) returns (ReconcileRmtEscrowResponse);
+  // CancelBuyerRmtCharges closes every open real-money charge of one buyer.
+  //
+  // It runs when the buyer LEAVES THE GAME. They are not coming back to that QR
+  // code, and every charge left open holds somebody else's item hostage until
+  // the window runs out.
+  //
+  // Cancelling does NOT stop a late payment from being delivered: the
+  // confirmation finds the row by its external reference, sees CANCELLED, and
+  // delivers anyway flagging pago_com_atraso. Whoever paid correctly receives,
+  // even having paid late.
+  rpc CancelBuyerRmtCharges(CancelBuyerRmtChargesRequest) returns (CancelBuyerRmtChargesResponse);
   // SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
   // marks the drained mailbox rows delivered/lost in the SAME transaction — the
   // anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -638,8 +653,14 @@ message ClosedRmtListing {
 
 message CloseRmtListingsResponse { repeated ClosedRmtListing closed = 1; }
 
-message ListDeadEscrowSlotsRequest  { int64 account_id = 1; }
-message ListDeadEscrowSlotsResponse { repeated int32 cargo_slots = 1; }
+message ReconcileRmtEscrowRequest  { int64 account_id = 1; }
+message ReconcileRmtEscrowResponse { repeated int32 cargo_slots = 1; }
+
+message CancelBuyerRmtChargesRequest  { int64 buyer_account_id = 1; }
+// listing_ids are the listings whose charge just closed — the seller's lock can
+// come off those, and the seller is a DIFFERENT account, which is why the ids
+// travel back instead of being resolved here.
+message CancelBuyerRmtChargesResponse { repeated int64 listing_ids = 1; }
 
 message SaveCargoWithDeliveriesRequest {
   int64 account_id = 1;
