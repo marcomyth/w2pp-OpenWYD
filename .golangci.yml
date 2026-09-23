@@ -116,6 +116,12 @@ linters:
         # typo for "collateral" — que é a mesma palavra em inglês, e é por isso
         # que a colisão acontece.
         - colateral
+        # Portuguese for "clients", in the note about the creation packet already
+        # sent to the players nearby. misspell reads it as a typo for "clients" —
+        # e é, em inglês; em português está certo.
+        #
+        # É a 26ª palavra desta lista, e um PR ficou três dias parado por ela.
+        - clientes
   exclusions:
     generated: lax
     presets:
