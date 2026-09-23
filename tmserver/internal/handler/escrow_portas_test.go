@@ -196,7 +196,7 @@ func esperaConn(t *testing.T, w *world.World, conn int, vazia bool) {
 func esperaCancelamento(t *testing.T, db *fakeDB) {
 	t.Helper()
 	for i := 0; i < 200; i++ {
-		if len(db.anunciosCancelados) > 0 {
+		if len(db.cancelados()) > 0 {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)

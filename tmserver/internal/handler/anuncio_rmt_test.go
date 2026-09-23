@@ -42,8 +42,8 @@ func TestSemChavePixNaoAnuncia(t *testing.T) {
 	if !recebeu(t, c, msgSemChavePix) {
 		t.Error("recusou em silencio, ou nao recusou")
 	}
-	if len(db.anunciosAbertos) != 0 {
-		t.Errorf("criou %d anuncio(s) para quem nao tem onde receber", len(db.anunciosAbertos))
+	if n := len(db.abertos()); n != 0 {
+		t.Errorf("criou %d anuncio(s) para quem nao tem onde receber", n)
 	}
 	// E a barraca NÃO subiu: uma vitrine com oferta em dinheiro real sem anúncio
 	// atrás é o que este caminho inteiro existe para impedir.
@@ -71,10 +71,11 @@ func TestAnuncioNasceComAFotografiaEAMarca(t *testing.T) {
 
 	abreBarraca(t, c, "Loja", 0, 5000, protocol.LojaMoedaRMT)
 
-	if len(db.anunciosAbertos) != 1 {
-		t.Fatalf("anuncios criados = %d, quero 1", len(db.anunciosAbertos))
+	abertos := db.abertos()
+	if len(abertos) != 1 {
+		t.Fatalf("anuncios criados = %d, quero 1", len(abertos))
 	}
-	a := db.anunciosAbertos[0]
+	a := abertos[0]
 	if a.CargoSlot != 0 {
 		t.Errorf("slot do anuncio = %d, quero 0", a.CargoSlot)
 	}
@@ -108,8 +109,8 @@ func TestBarracaDeOuroNaoAbreAnuncio(t *testing.T) {
 
 	abreBarraca(t, c, "Loja", 0, 1000, protocol.LojaMoedaOuro)
 
-	if len(db.anunciosAbertos) != 0 {
-		t.Errorf("uma barraca de ouro criou %d anuncio(s)", len(db.anunciosAbertos))
+	if n := len(db.abertos()); n != 0 {
+		t.Errorf("uma barraca de ouro criou %d anuncio(s)", n)
 	}
 	if bau := bauDoVendedor(t, w); bau.Items[0].AnuncioRMT != 0 {
 		t.Error("marcou o item de uma venda em ouro")
