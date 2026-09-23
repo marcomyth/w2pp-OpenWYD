@@ -74,6 +74,18 @@ service RmtWebService {
   // almost every account almost all of the time, and the page that asks this is
   // the account page — which people open to look at other things.
   //
+  // WHICH ONE IS "CURRENT", when more than one could be:
+  //
+  //  1. An OPEN charge always wins. It is the only one the person can act on.
+  //  2. Otherwise a PAID_LATE whose refund has not finished — and that one does
+  //     NOT age out of the page. Somebody's money is sitting still; a page that
+  //     forgets it after ten minutes leaves them with nothing to look at and
+  //     nobody to ask.
+  //  3. Otherwise the most recent charge that closed inside the recent window.
+  //
+  // A PAID_LATE that is waiting behind an open charge comes back on its own once
+  // the open one closes. Nothing is lost, only queued.
+  //
   // AT MOST ONE, and that is an invariant of the database rather than a choice
   // made here: one charge open per listing, and a buyer with two open charges
   // could pay twice for one item.
@@ -266,6 +278,38 @@ message GetMyCurrentPixChargeResponse {
   // from. Never the seller's account name, and never their Pix key: the key is
   // inside the pix_code and nowhere else in this answer.
   string seller_name = 9;
+  // When the refund was ASKED FOR. Unix seconds, UTC; 0 when nothing was asked.
+  //
+  // The date and not "how long is left", for the same reason as expires_at — and
+  // here it matters more, because the wait is long: the processor reserves the
+  // amount immediately and the review takes UP TO TWO BUSINESS DAYS (measured on
+  // their panel on 23/09/2026; it is not in the API docs). The page counts from
+  // this date.
+  int64 refund_requested_at = 10;
+  RefundState refund_state = 11;
+}
+
+// RefundState is how far the money that arrived late has got on its way back.
+//
+// It is its own field and not another PixChargeState because the two move on
+// different clocks: the charge closed in seconds, and the refund can take days.
+// Folding them together would mean a state for every pair.
+enum RefundState {
+  REFUND_STATE_UNSPECIFIED = 0;
+  // PENDING: we owe the refund and have not asked the processor yet.
+  REFUND_STATE_PENDING = 1;
+  // REQUESTED: the processor accepted the request and is reviewing it. This is
+  // the state that lasts up to two business days.
+  REFUND_STATE_REQUESTED = 2;
+  // REFUNDED: done. The money went back.
+  REFUND_STATE_REFUNDED = 3;
+  // FAILED: the processor refused the request.
+  //
+  // It does NOT retry in a loop and it does NOT age out of the page: it waits
+  // for a person. The processor's error code is not in this contract — it goes
+  // to the log and to the staff screen, because it is an operational detail and
+  // the buyer can do nothing with it.
+  REFUND_STATE_FAILED = 4;
 }
 
 message ListExpRankingRequest {

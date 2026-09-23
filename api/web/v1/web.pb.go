@@ -295,6 +295,76 @@ func (PixChargeState) EnumDescriptor() ([]byte, []int) {
 	return file_api_web_v1_web_proto_rawDescGZIP(), []int{3}
 }
 
+// RefundState is how far the money that arrived late has got on its way back.
+//
+// It is its own field and not another PixChargeState because the two move on
+// different clocks: the charge closed in seconds, and the refund can take days.
+// Folding them together would mean a state for every pair.
+type RefundState int32
+
+const (
+	RefundState_REFUND_STATE_UNSPECIFIED RefundState = 0
+	// PENDING: we owe the refund and have not asked the processor yet.
+	RefundState_REFUND_STATE_PENDING RefundState = 1
+	// REQUESTED: the processor accepted the request and is reviewing it. This is
+	// the state that lasts up to two business days.
+	RefundState_REFUND_STATE_REQUESTED RefundState = 2
+	// REFUNDED: done. The money went back.
+	RefundState_REFUND_STATE_REFUNDED RefundState = 3
+	// FAILED: the processor refused the request.
+	//
+	// It does NOT retry in a loop and it does NOT age out of the page: it waits
+	// for a person. The processor's error code is not in this contract — it goes
+	// to the log and to the staff screen, because it is an operational detail and
+	// the buyer can do nothing with it.
+	RefundState_REFUND_STATE_FAILED RefundState = 4
+)
+
+// Enum value maps for RefundState.
+var (
+	RefundState_name = map[int32]string{
+		0: "REFUND_STATE_UNSPECIFIED",
+		1: "REFUND_STATE_PENDING",
+		2: "REFUND_STATE_REQUESTED",
+		3: "REFUND_STATE_REFUNDED",
+		4: "REFUND_STATE_FAILED",
+	}
+	RefundState_value = map[string]int32{
+		"REFUND_STATE_UNSPECIFIED": 0,
+		"REFUND_STATE_PENDING":     1,
+		"REFUND_STATE_REQUESTED":   2,
+		"REFUND_STATE_REFUNDED":    3,
+		"REFUND_STATE_FAILED":      4,
+	}
+)
+
+func (x RefundState) Enum() *RefundState {
+	p := new(RefundState)
+	*p = x
+	return p
+}
+
+func (x RefundState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RefundState) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_web_v1_web_proto_enumTypes[4].Descriptor()
+}
+
+func (RefundState) Type() protoreflect.EnumType {
+	return &file_api_web_v1_web_proto_enumTypes[4]
+}
+
+func (x RefundState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RefundState.Descriptor instead.
+func (RefundState) EnumDescriptor() ([]byte, []int) {
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{4}
+}
+
 // AdminResult carries the business outcome of an admin write (authorization,
 // validation, missing target) in the body — only infra failures become gRPC errors.
 type AdminResult int32
@@ -339,11 +409,11 @@ func (x AdminResult) String() string {
 }
 
 func (AdminResult) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_web_v1_web_proto_enumTypes[4].Descriptor()
+	return file_api_web_v1_web_proto_enumTypes[5].Descriptor()
 }
 
 func (AdminResult) Type() protoreflect.EnumType {
-	return &file_api_web_v1_web_proto_enumTypes[4]
+	return &file_api_web_v1_web_proto_enumTypes[5]
 }
 
 func (x AdminResult) Number() protoreflect.EnumNumber {
@@ -352,7 +422,7 @@ func (x AdminResult) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AdminResult.Descriptor instead.
 func (AdminResult) EnumDescriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{4}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{5}
 }
 
 type AttributeMapTransformOperation int32
@@ -399,11 +469,11 @@ func (x AttributeMapTransformOperation) String() string {
 }
 
 func (AttributeMapTransformOperation) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_web_v1_web_proto_enumTypes[5].Descriptor()
+	return file_api_web_v1_web_proto_enumTypes[6].Descriptor()
 }
 
 func (AttributeMapTransformOperation) Type() protoreflect.EnumType {
-	return &file_api_web_v1_web_proto_enumTypes[5]
+	return &file_api_web_v1_web_proto_enumTypes[6]
 }
 
 func (x AttributeMapTransformOperation) Number() protoreflect.EnumNumber {
@@ -412,7 +482,7 @@ func (x AttributeMapTransformOperation) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AttributeMapTransformOperation.Descriptor instead.
 func (AttributeMapTransformOperation) EnumDescriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{5}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{6}
 }
 
 // BuyResult carries the purchase outcome in the body; only infra failures become
@@ -456,11 +526,11 @@ func (x BuyResult) String() string {
 }
 
 func (BuyResult) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_web_v1_web_proto_enumTypes[6].Descriptor()
+	return file_api_web_v1_web_proto_enumTypes[7].Descriptor()
 }
 
 func (BuyResult) Type() protoreflect.EnumType {
-	return &file_api_web_v1_web_proto_enumTypes[6]
+	return &file_api_web_v1_web_proto_enumTypes[7]
 }
 
 func (x BuyResult) Number() protoreflect.EnumNumber {
@@ -469,7 +539,7 @@ func (x BuyResult) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use BuyResult.Descriptor instead.
 func (BuyResult) EnumDescriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{6}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{7}
 }
 
 // ClaimResult carries the claim outcome in the body; only infra failures
@@ -513,11 +583,11 @@ func (x ClaimResult) String() string {
 }
 
 func (ClaimResult) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_web_v1_web_proto_enumTypes[7].Descriptor()
+	return file_api_web_v1_web_proto_enumTypes[8].Descriptor()
 }
 
 func (ClaimResult) Type() protoreflect.EnumType {
-	return &file_api_web_v1_web_proto_enumTypes[7]
+	return &file_api_web_v1_web_proto_enumTypes[8]
 }
 
 func (x ClaimResult) Number() protoreflect.EnumNumber {
@@ -526,7 +596,7 @@ func (x ClaimResult) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ClaimResult.Descriptor instead.
 func (ClaimResult) EnumDescriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{7}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{8}
 }
 
 // PaymentMethod is the gateway a top-up is paid through. Extensible without
@@ -564,11 +634,11 @@ func (x PaymentMethod) String() string {
 }
 
 func (PaymentMethod) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_web_v1_web_proto_enumTypes[8].Descriptor()
+	return file_api_web_v1_web_proto_enumTypes[9].Descriptor()
 }
 
 func (PaymentMethod) Type() protoreflect.EnumType {
-	return &file_api_web_v1_web_proto_enumTypes[8]
+	return &file_api_web_v1_web_proto_enumTypes[9]
 }
 
 func (x PaymentMethod) Number() protoreflect.EnumNumber {
@@ -577,7 +647,7 @@ func (x PaymentMethod) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PaymentMethod.Descriptor instead.
 func (PaymentMethod) EnumDescriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{8}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{9}
 }
 
 // TopupResult is the outcome of ConfirmTopupOrder.
@@ -617,11 +687,11 @@ func (x TopupResult) String() string {
 }
 
 func (TopupResult) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_web_v1_web_proto_enumTypes[9].Descriptor()
+	return file_api_web_v1_web_proto_enumTypes[10].Descriptor()
 }
 
 func (TopupResult) Type() protoreflect.EnumType {
-	return &file_api_web_v1_web_proto_enumTypes[9]
+	return &file_api_web_v1_web_proto_enumTypes[10]
 }
 
 func (x TopupResult) Number() protoreflect.EnumNumber {
@@ -630,7 +700,7 @@ func (x TopupResult) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TopupResult.Descriptor instead.
 func (TopupResult) EnumDescriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{9}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{10}
 }
 
 // TopupStatus is the durable state of an order.
@@ -667,11 +737,11 @@ func (x TopupStatus) String() string {
 }
 
 func (TopupStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_web_v1_web_proto_enumTypes[10].Descriptor()
+	return file_api_web_v1_web_proto_enumTypes[11].Descriptor()
 }
 
 func (TopupStatus) Type() protoreflect.EnumType {
-	return &file_api_web_v1_web_proto_enumTypes[10]
+	return &file_api_web_v1_web_proto_enumTypes[11]
 }
 
 func (x TopupStatus) Number() protoreflect.EnumNumber {
@@ -680,7 +750,7 @@ func (x TopupStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TopupStatus.Descriptor instead.
 func (TopupStatus) EnumDescriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{10}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{11}
 }
 
 // RevenueBucket is the time-series granularity. UNSPECIFIED skips the series
@@ -723,11 +793,11 @@ func (x RevenueBucket) String() string {
 }
 
 func (RevenueBucket) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_web_v1_web_proto_enumTypes[11].Descriptor()
+	return file_api_web_v1_web_proto_enumTypes[12].Descriptor()
 }
 
 func (RevenueBucket) Type() protoreflect.EnumType {
-	return &file_api_web_v1_web_proto_enumTypes[11]
+	return &file_api_web_v1_web_proto_enumTypes[12]
 }
 
 func (x RevenueBucket) Number() protoreflect.EnumNumber {
@@ -736,7 +806,7 @@ func (x RevenueBucket) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RevenueBucket.Descriptor instead.
 func (RevenueBucket) EnumDescriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{11}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{12}
 }
 
 // DonateLedgerAction filters the donate_shop_audit read. UNSPECIFIED returns both
@@ -775,11 +845,11 @@ func (x DonateLedgerAction) String() string {
 }
 
 func (DonateLedgerAction) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_web_v1_web_proto_enumTypes[12].Descriptor()
+	return file_api_web_v1_web_proto_enumTypes[13].Descriptor()
 }
 
 func (DonateLedgerAction) Type() protoreflect.EnumType {
-	return &file_api_web_v1_web_proto_enumTypes[12]
+	return &file_api_web_v1_web_proto_enumTypes[13]
 }
 
 func (x DonateLedgerAction) Number() protoreflect.EnumNumber {
@@ -788,7 +858,7 @@ func (x DonateLedgerAction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DonateLedgerAction.Descriptor instead.
 func (DonateLedgerAction) EnumDescriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{12}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{13}
 }
 
 type CreateAccountRequest struct {
@@ -1334,9 +1404,18 @@ type GetMyCurrentPixChargeResponse struct {
 	// The seller's character name, for the buyer to recognize whom they are buying
 	// from. Never the seller's account name, and never their Pix key: the key is
 	// inside the pix_code and nowhere else in this answer.
-	SellerName    string `protobuf:"bytes,9,opt,name=seller_name,json=sellerName,proto3" json:"seller_name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SellerName string `protobuf:"bytes,9,opt,name=seller_name,json=sellerName,proto3" json:"seller_name,omitempty"`
+	// When the refund was ASKED FOR. Unix seconds, UTC; 0 when nothing was asked.
+	//
+	// The date and not "how long is left", for the same reason as expires_at — and
+	// here it matters more, because the wait is long: the processor reserves the
+	// amount immediately and the review takes UP TO TWO BUSINESS DAYS (measured on
+	// their panel on 23/09/2026; it is not in the API docs). The page counts from
+	// this date.
+	RefundRequestedAt int64       `protobuf:"varint,10,opt,name=refund_requested_at,json=refundRequestedAt,proto3" json:"refund_requested_at,omitempty"`
+	RefundState       RefundState `protobuf:"varint,11,opt,name=refund_state,json=refundState,proto3,enum=web.v1.RefundState" json:"refund_state,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *GetMyCurrentPixChargeResponse) Reset() {
@@ -1430,6 +1509,20 @@ func (x *GetMyCurrentPixChargeResponse) GetSellerName() string {
 		return x.SellerName
 	}
 	return ""
+}
+
+func (x *GetMyCurrentPixChargeResponse) GetRefundRequestedAt() int64 {
+	if x != nil {
+		return x.RefundRequestedAt
+	}
+	return 0
+}
+
+func (x *GetMyCurrentPixChargeResponse) GetRefundState() RefundState {
+	if x != nil {
+		return x.RefundState
+	}
+	return RefundState_REFUND_STATE_UNSPECIFIED
 }
 
 type ListExpRankingRequest struct {
@@ -11737,7 +11830,7 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\bverified\x18\x04 \x01(\bR\bverified\"=\n" +
 	"\x1cGetMyCurrentPixChargeRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\x03R\taccountId\"\xcb\x02\n" +
+	"account_id\x18\x01 \x01(\x03R\taccountId\"\xb3\x03\n" +
 	"\x1dGetMyCurrentPixChargeResponse\x12\x1d\n" +
 	"\n" +
 	"has_charge\x18\x01 \x01(\bR\thasCharge\x12\x19\n" +
@@ -11752,7 +11845,10 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\n" +
 	"stack_size\x18\b \x01(\x05R\tstackSize\x12\x1f\n" +
 	"\vseller_name\x18\t \x01(\tR\n" +
-	"sellerName\"E\n" +
+	"sellerName\x12.\n" +
+	"\x13refund_requested_at\x18\n" +
+	" \x01(\x03R\x11refundRequestedAt\x126\n" +
+	"\frefund_state\x18\v \x01(\x0e2\x13.web.v1.RefundStateR\vrefundState\"E\n" +
 	"\x15ListExpRankingRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x05R\x06offset\"\xc6\x01\n" +
@@ -12641,7 +12737,13 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\x18PIX_CHARGE_STATE_EXPIRED\x10\x02\x12\x19\n" +
 	"\x15PIX_CHARGE_STATE_PAID\x10\x03\x12\x1d\n" +
 	"\x19PIX_CHARGE_STATE_CANCELED\x10\x04\x12\x1e\n" +
-	"\x1aPIX_CHARGE_STATE_PAID_LATE\x10\x05*\xb2\x01\n" +
+	"\x1aPIX_CHARGE_STATE_PAID_LATE\x10\x05*\x95\x01\n" +
+	"\vRefundState\x12\x1c\n" +
+	"\x18REFUND_STATE_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14REFUND_STATE_PENDING\x10\x01\x12\x1a\n" +
+	"\x16REFUND_STATE_REQUESTED\x10\x02\x12\x19\n" +
+	"\x15REFUND_STATE_REFUNDED\x10\x03\x12\x17\n" +
+	"\x13REFUND_STATE_FAILED\x10\x04*\xb2\x01\n" +
 	"\vAdminResult\x12\x1c\n" +
 	"\x18ADMIN_RESULT_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fADMIN_RESULT_OK\x10\x01\x12\x1a\n" +
@@ -12792,179 +12894,180 @@ func file_api_web_v1_web_proto_rawDescGZIP() []byte {
 	return file_api_web_v1_web_proto_rawDescData
 }
 
-var file_api_web_v1_web_proto_enumTypes = make([]protoimpl.EnumInfo, 13)
+var file_api_web_v1_web_proto_enumTypes = make([]protoimpl.EnumInfo, 14)
 var file_api_web_v1_web_proto_msgTypes = make([]protoimpl.MessageInfo, 157)
 var file_api_web_v1_web_proto_goTypes = []any{
 	(CreateResult)(0),                     // 0: web.v1.CreateResult
 	(PixKeyType)(0),                       // 1: web.v1.PixKeyType
 	(PixKeyResult)(0),                     // 2: web.v1.PixKeyResult
 	(PixChargeState)(0),                   // 3: web.v1.PixChargeState
-	(AdminResult)(0),                      // 4: web.v1.AdminResult
-	(AttributeMapTransformOperation)(0),   // 5: web.v1.AttributeMapTransformOperation
-	(BuyResult)(0),                        // 6: web.v1.BuyResult
-	(ClaimResult)(0),                      // 7: web.v1.ClaimResult
-	(PaymentMethod)(0),                    // 8: web.v1.PaymentMethod
-	(TopupResult)(0),                      // 9: web.v1.TopupResult
-	(TopupStatus)(0),                      // 10: web.v1.TopupStatus
-	(RevenueBucket)(0),                    // 11: web.v1.RevenueBucket
-	(DonateLedgerAction)(0),               // 12: web.v1.DonateLedgerAction
-	(*CreateAccountRequest)(nil),          // 13: web.v1.CreateAccountRequest
-	(*CreateAccountResponse)(nil),         // 14: web.v1.CreateAccountResponse
-	(*VerifyCredentialsRequest)(nil),      // 15: web.v1.VerifyCredentialsRequest
-	(*VerifyCredentialsResponse)(nil),     // 16: web.v1.VerifyCredentialsResponse
-	(*SavePixKeyRequest)(nil),             // 17: web.v1.SavePixKeyRequest
-	(*SavePixKeyResponse)(nil),            // 18: web.v1.SavePixKeyResponse
-	(*GetPixKeyRequest)(nil),              // 19: web.v1.GetPixKeyRequest
-	(*GetPixKeyResponse)(nil),             // 20: web.v1.GetPixKeyResponse
-	(*GetMyCurrentPixChargeRequest)(nil),  // 21: web.v1.GetMyCurrentPixChargeRequest
-	(*GetMyCurrentPixChargeResponse)(nil), // 22: web.v1.GetMyCurrentPixChargeResponse
-	(*ListExpRankingRequest)(nil),         // 23: web.v1.ListExpRankingRequest
-	(*RankingEntry)(nil),                  // 24: web.v1.RankingEntry
-	(*ListExpRankingResponse)(nil),        // 25: web.v1.ListExpRankingResponse
-	(*ListDuelRankingRequest)(nil),        // 26: web.v1.ListDuelRankingRequest
-	(*DuelRankingEntry)(nil),              // 27: web.v1.DuelRankingEntry
-	(*ListDuelRankingResponse)(nil),       // 28: web.v1.ListDuelRankingResponse
-	(*ListMyCharactersRequest)(nil),       // 29: web.v1.ListMyCharactersRequest
-	(*WebCharacterSummary)(nil),           // 30: web.v1.WebCharacterSummary
-	(*ListMyCharactersResponse)(nil),      // 31: web.v1.ListMyCharactersResponse
-	(*ListItemsRequest)(nil),              // 32: web.v1.ListItemsRequest
-	(*ListItemsResponse)(nil),             // 33: web.v1.ListItemsResponse
-	(*AdminAck)(nil),                      // 34: web.v1.AdminAck
-	(*AdminNpcShopItem)(nil),              // 35: web.v1.AdminNpcShopItem
-	(*AdminNpc)(nil),                      // 36: web.v1.AdminNpc
-	(*ListNpcsRequest)(nil),               // 37: web.v1.ListNpcsRequest
-	(*ListNpcsResponse)(nil),              // 38: web.v1.ListNpcsResponse
-	(*GetNpcRequest)(nil),                 // 39: web.v1.GetNpcRequest
-	(*GetNpcResponse)(nil),                // 40: web.v1.GetNpcResponse
-	(*UpsertNpcRequest)(nil),              // 41: web.v1.UpsertNpcRequest
-	(*UpsertNpcResponse)(nil),             // 42: web.v1.UpsertNpcResponse
-	(*SetNpcVisibilityRequest)(nil),       // 43: web.v1.SetNpcVisibilityRequest
-	(*SetNpcShopRequest)(nil),             // 44: web.v1.SetNpcShopRequest
-	(*SetItemPriceRequest)(nil),           // 45: web.v1.SetItemPriceRequest
-	(*DeleteNpcRequest)(nil),              // 46: web.v1.DeleteNpcRequest
-	(*MerchantTemplate)(nil),              // 47: web.v1.MerchantTemplate
-	(*ListMerchantTemplatesRequest)(nil),  // 48: web.v1.ListMerchantTemplatesRequest
-	(*ListMerchantTemplatesResponse)(nil), // 49: web.v1.ListMerchantTemplatesResponse
-	(*ItemCatalogEntry)(nil),              // 50: web.v1.ItemCatalogEntry
-	(*ListItemCatalogRequest)(nil),        // 51: web.v1.ListItemCatalogRequest
-	(*ListItemCatalogResponse)(nil),       // 52: web.v1.ListItemCatalogResponse
-	(*DropItemMob)(nil),                   // 53: web.v1.DropItemMob
-	(*DropItemEntry)(nil),                 // 54: web.v1.DropItemEntry
-	(*ListDropItemsRequest)(nil),          // 55: web.v1.ListDropItemsRequest
-	(*ListDropItemsResponse)(nil),         // 56: web.v1.ListDropItemsResponse
-	(*MobDropItem)(nil),                   // 57: web.v1.MobDropItem
-	(*MobDropEntry)(nil),                  // 58: web.v1.MobDropEntry
-	(*ListMobDropsRequest)(nil),           // 59: web.v1.ListMobDropsRequest
-	(*ListMobDropsResponse)(nil),          // 60: web.v1.ListMobDropsResponse
-	(*ItemPrice)(nil),                     // 61: web.v1.ItemPrice
-	(*ListItemPricesRequest)(nil),         // 62: web.v1.ListItemPricesRequest
-	(*ListItemPricesResponse)(nil),        // 63: web.v1.ListItemPricesResponse
-	(*MapZone)(nil),                       // 64: web.v1.MapZone
-	(*ListMapZonesRequest)(nil),           // 65: web.v1.ListMapZonesRequest
-	(*ListMapZonesResponse)(nil),          // 66: web.v1.ListMapZonesResponse
-	(*MobTemplateFile)(nil),               // 67: web.v1.MobTemplateFile
-	(*ListMobTemplatesRequest)(nil),       // 68: web.v1.ListMobTemplatesRequest
-	(*ListMobTemplatesResponse)(nil),      // 69: web.v1.ListMobTemplatesResponse
-	(*AdminMobTemplateEquipItem)(nil),     // 70: web.v1.AdminMobTemplateEquipItem
-	(*AdminMobTemplateStat)(nil),          // 71: web.v1.AdminMobTemplateStat
-	(*GetMobTemplateStatRequest)(nil),     // 72: web.v1.GetMobTemplateStatRequest
-	(*GetMobTemplateStatResponse)(nil),    // 73: web.v1.GetMobTemplateStatResponse
-	(*AdminMobOrigin)(nil),                // 74: web.v1.AdminMobOrigin
-	(*UpsertMobTemplateStatRequest)(nil),  // 75: web.v1.UpsertMobTemplateStatRequest
-	(*UpsertMobTemplateStatResponse)(nil), // 76: web.v1.UpsertMobTemplateStatResponse
-	(*SetMobTemplateEquipRequest)(nil),    // 77: web.v1.SetMobTemplateEquipRequest
-	(*DeleteMobTemplateStatRequest)(nil),  // 78: web.v1.DeleteMobTemplateStatRequest
-	(*GetAttributeMapInfoRequest)(nil),    // 79: web.v1.GetAttributeMapInfoRequest
-	(*GetAttributeMapInfoResponse)(nil),   // 80: web.v1.GetAttributeMapInfoResponse
-	(*AttributeMapInfo)(nil),              // 81: web.v1.AttributeMapInfo
-	(*AttributeMapValueCount)(nil),        // 82: web.v1.AttributeMapValueCount
-	(*AttributeMapMeaning)(nil),           // 83: web.v1.AttributeMapMeaning
-	(*AttributeMapRect)(nil),              // 84: web.v1.AttributeMapRect
-	(*AttributeMapTransformFilter)(nil),   // 85: web.v1.AttributeMapTransformFilter
-	(*TransformAttributeMapRequest)(nil),  // 86: web.v1.TransformAttributeMapRequest
-	(*TransformAttributeMapResponse)(nil), // 87: web.v1.TransformAttributeMapResponse
-	(*DonateShopItem)(nil),                // 88: web.v1.DonateShopItem
-	(*ListShopItemsRequest)(nil),          // 89: web.v1.ListShopItemsRequest
-	(*ListShopItemsResponse)(nil),         // 90: web.v1.ListShopItemsResponse
-	(*UpsertShopItemRequest)(nil),         // 91: web.v1.UpsertShopItemRequest
-	(*UpsertShopItemResponse)(nil),        // 92: web.v1.UpsertShopItemResponse
-	(*SetShopItemEnabledRequest)(nil),     // 93: web.v1.SetShopItemEnabledRequest
-	(*DeleteShopItemRequest)(nil),         // 94: web.v1.DeleteShopItemRequest
-	(*CreditDonateBalanceRequest)(nil),    // 95: web.v1.CreditDonateBalanceRequest
-	(*CreditDonateBalanceResponse)(nil),   // 96: web.v1.CreditDonateBalanceResponse
-	(*ListStoreItemsRequest)(nil),         // 97: web.v1.ListStoreItemsRequest
-	(*ListStoreItemsResponse)(nil),        // 98: web.v1.ListStoreItemsResponse
-	(*GetBalanceRequest)(nil),             // 99: web.v1.GetBalanceRequest
-	(*GetBalanceResponse)(nil),            // 100: web.v1.GetBalanceResponse
-	(*BuyRequest)(nil),                    // 101: web.v1.BuyRequest
-	(*BuyResponse)(nil),                   // 102: web.v1.BuyResponse
-	(*DailyRewardItem)(nil),               // 103: web.v1.DailyRewardItem
-	(*ListRewardItemsRequest)(nil),        // 104: web.v1.ListRewardItemsRequest
-	(*ListRewardItemsResponse)(nil),       // 105: web.v1.ListRewardItemsResponse
-	(*UpsertRewardItemRequest)(nil),       // 106: web.v1.UpsertRewardItemRequest
-	(*UpsertRewardItemResponse)(nil),      // 107: web.v1.UpsertRewardItemResponse
-	(*SetRewardItemEnabledRequest)(nil),   // 108: web.v1.SetRewardItemEnabledRequest
-	(*DeleteRewardItemRequest)(nil),       // 109: web.v1.DeleteRewardItemRequest
-	(*WorldEventConfig)(nil),              // 110: web.v1.WorldEventConfig
-	(*GetWorldEventConfigRequest)(nil),    // 111: web.v1.GetWorldEventConfigRequest
-	(*GetWorldEventConfigResponse)(nil),   // 112: web.v1.GetWorldEventConfigResponse
-	(*SetWorldEventConfigRequest)(nil),    // 113: web.v1.SetWorldEventConfigRequest
-	(*ListRewardsRequest)(nil),            // 114: web.v1.ListRewardsRequest
-	(*ListRewardsResponse)(nil),           // 115: web.v1.ListRewardsResponse
-	(*GetClaimStatusRequest)(nil),         // 116: web.v1.GetClaimStatusRequest
-	(*GetClaimStatusResponse)(nil),        // 117: web.v1.GetClaimStatusResponse
-	(*ClaimRequest)(nil),                  // 118: web.v1.ClaimRequest
-	(*ClaimResponse)(nil),                 // 119: web.v1.ClaimResponse
-	(*GetPayerProfileRequest)(nil),        // 120: web.v1.GetPayerProfileRequest
-	(*GetPayerProfileResponse)(nil),       // 121: web.v1.GetPayerProfileResponse
-	(*SavePayerProfileRequest)(nil),       // 122: web.v1.SavePayerProfileRequest
-	(*SavePayerProfileResponse)(nil),      // 123: web.v1.SavePayerProfileResponse
-	(*CreateTopupOrderRequest)(nil),       // 124: web.v1.CreateTopupOrderRequest
-	(*CreateTopupOrderResponse)(nil),      // 125: web.v1.CreateTopupOrderResponse
-	(*ConfirmTopupOrderRequest)(nil),      // 126: web.v1.ConfirmTopupOrderRequest
-	(*ConfirmTopupOrderResponse)(nil),     // 127: web.v1.ConfirmTopupOrderResponse
-	(*GetTopupOrderRequest)(nil),          // 128: web.v1.GetTopupOrderRequest
-	(*GetTopupOrderResponse)(nil),         // 129: web.v1.GetTopupOrderResponse
-	(*RevenueWindow)(nil),                 // 130: web.v1.RevenueWindow
-	(*RevenueTotals)(nil),                 // 131: web.v1.RevenueTotals
-	(*RevenueByMethod)(nil),               // 132: web.v1.RevenueByMethod
-	(*RevenuePoint)(nil),                  // 133: web.v1.RevenuePoint
-	(*GetRevenueSummaryRequest)(nil),      // 134: web.v1.GetRevenueSummaryRequest
-	(*GetRevenueSummaryResponse)(nil),     // 135: web.v1.GetRevenueSummaryResponse
-	(*TopupOrderRow)(nil),                 // 136: web.v1.TopupOrderRow
-	(*ListTopupOrdersRequest)(nil),        // 137: web.v1.ListTopupOrdersRequest
-	(*ListTopupOrdersResponse)(nil),       // 138: web.v1.ListTopupOrdersResponse
-	(*TopBuyerRow)(nil),                   // 139: web.v1.TopBuyerRow
-	(*ListTopBuyersRequest)(nil),          // 140: web.v1.ListTopBuyersRequest
-	(*ListTopBuyersResponse)(nil),         // 141: web.v1.ListTopBuyersResponse
-	(*DonateLedgerRow)(nil),               // 142: web.v1.DonateLedgerRow
-	(*ListDonateSpendRequest)(nil),        // 143: web.v1.ListDonateSpendRequest
-	(*ListDonateSpendResponse)(nil),       // 144: web.v1.ListDonateSpendResponse
-	(*AccountSummary)(nil),                // 145: web.v1.AccountSummary
-	(*SearchAccountsRequest)(nil),         // 146: web.v1.SearchAccountsRequest
-	(*SearchAccountsResponse)(nil),        // 147: web.v1.SearchAccountsResponse
-	(*AdminItemStat)(nil),                 // 148: web.v1.AdminItemStat
-	(*GetItemStatRequest)(nil),            // 149: web.v1.GetItemStatRequest
-	(*GetItemStatResponse)(nil),           // 150: web.v1.GetItemStatResponse
-	(*UpsertItemStatRequest)(nil),         // 151: web.v1.UpsertItemStatRequest
-	(*DeleteItemStatRequest)(nil),         // 152: web.v1.DeleteItemStatRequest
-	(*AdminMountGrowthCurve)(nil),         // 153: web.v1.AdminMountGrowthCurve
-	(*ListMountGrowthCurvesRequest)(nil),  // 154: web.v1.ListMountGrowthCurvesRequest
-	(*ListMountGrowthCurvesResponse)(nil), // 155: web.v1.ListMountGrowthCurvesResponse
-	(*SetMountGrowthCurveRequest)(nil),    // 156: web.v1.SetMountGrowthCurveRequest
-	(*ClearMountGrowthCurveRequest)(nil),  // 157: web.v1.ClearMountGrowthCurveRequest
-	(*AdminMountAbsorb)(nil),              // 158: web.v1.AdminMountAbsorb
-	(*MountConfigVersionRequest)(nil),     // 159: web.v1.MountConfigVersionRequest
-	(*MountConfigVersionResponse)(nil),    // 160: web.v1.MountConfigVersionResponse
-	(*ListMountAbsorbRequest)(nil),        // 161: web.v1.ListMountAbsorbRequest
-	(*ListMountAbsorbResponse)(nil),       // 162: web.v1.ListMountAbsorbResponse
-	(*SetMountAbsorbRequest)(nil),         // 163: web.v1.SetMountAbsorbRequest
-	(*ClearMountAbsorbRequest)(nil),       // 164: web.v1.ClearMountAbsorbRequest
-	(*AdminMountBonus)(nil),               // 165: web.v1.AdminMountBonus
-	(*ListMountBonusRequest)(nil),         // 166: web.v1.ListMountBonusRequest
-	(*ListMountBonusResponse)(nil),        // 167: web.v1.ListMountBonusResponse
-	(*SetMountBonusRequest)(nil),          // 168: web.v1.SetMountBonusRequest
-	(*ClearMountBonusRequest)(nil),        // 169: web.v1.ClearMountBonusRequest
+	(RefundState)(0),                      // 4: web.v1.RefundState
+	(AdminResult)(0),                      // 5: web.v1.AdminResult
+	(AttributeMapTransformOperation)(0),   // 6: web.v1.AttributeMapTransformOperation
+	(BuyResult)(0),                        // 7: web.v1.BuyResult
+	(ClaimResult)(0),                      // 8: web.v1.ClaimResult
+	(PaymentMethod)(0),                    // 9: web.v1.PaymentMethod
+	(TopupResult)(0),                      // 10: web.v1.TopupResult
+	(TopupStatus)(0),                      // 11: web.v1.TopupStatus
+	(RevenueBucket)(0),                    // 12: web.v1.RevenueBucket
+	(DonateLedgerAction)(0),               // 13: web.v1.DonateLedgerAction
+	(*CreateAccountRequest)(nil),          // 14: web.v1.CreateAccountRequest
+	(*CreateAccountResponse)(nil),         // 15: web.v1.CreateAccountResponse
+	(*VerifyCredentialsRequest)(nil),      // 16: web.v1.VerifyCredentialsRequest
+	(*VerifyCredentialsResponse)(nil),     // 17: web.v1.VerifyCredentialsResponse
+	(*SavePixKeyRequest)(nil),             // 18: web.v1.SavePixKeyRequest
+	(*SavePixKeyResponse)(nil),            // 19: web.v1.SavePixKeyResponse
+	(*GetPixKeyRequest)(nil),              // 20: web.v1.GetPixKeyRequest
+	(*GetPixKeyResponse)(nil),             // 21: web.v1.GetPixKeyResponse
+	(*GetMyCurrentPixChargeRequest)(nil),  // 22: web.v1.GetMyCurrentPixChargeRequest
+	(*GetMyCurrentPixChargeResponse)(nil), // 23: web.v1.GetMyCurrentPixChargeResponse
+	(*ListExpRankingRequest)(nil),         // 24: web.v1.ListExpRankingRequest
+	(*RankingEntry)(nil),                  // 25: web.v1.RankingEntry
+	(*ListExpRankingResponse)(nil),        // 26: web.v1.ListExpRankingResponse
+	(*ListDuelRankingRequest)(nil),        // 27: web.v1.ListDuelRankingRequest
+	(*DuelRankingEntry)(nil),              // 28: web.v1.DuelRankingEntry
+	(*ListDuelRankingResponse)(nil),       // 29: web.v1.ListDuelRankingResponse
+	(*ListMyCharactersRequest)(nil),       // 30: web.v1.ListMyCharactersRequest
+	(*WebCharacterSummary)(nil),           // 31: web.v1.WebCharacterSummary
+	(*ListMyCharactersResponse)(nil),      // 32: web.v1.ListMyCharactersResponse
+	(*ListItemsRequest)(nil),              // 33: web.v1.ListItemsRequest
+	(*ListItemsResponse)(nil),             // 34: web.v1.ListItemsResponse
+	(*AdminAck)(nil),                      // 35: web.v1.AdminAck
+	(*AdminNpcShopItem)(nil),              // 36: web.v1.AdminNpcShopItem
+	(*AdminNpc)(nil),                      // 37: web.v1.AdminNpc
+	(*ListNpcsRequest)(nil),               // 38: web.v1.ListNpcsRequest
+	(*ListNpcsResponse)(nil),              // 39: web.v1.ListNpcsResponse
+	(*GetNpcRequest)(nil),                 // 40: web.v1.GetNpcRequest
+	(*GetNpcResponse)(nil),                // 41: web.v1.GetNpcResponse
+	(*UpsertNpcRequest)(nil),              // 42: web.v1.UpsertNpcRequest
+	(*UpsertNpcResponse)(nil),             // 43: web.v1.UpsertNpcResponse
+	(*SetNpcVisibilityRequest)(nil),       // 44: web.v1.SetNpcVisibilityRequest
+	(*SetNpcShopRequest)(nil),             // 45: web.v1.SetNpcShopRequest
+	(*SetItemPriceRequest)(nil),           // 46: web.v1.SetItemPriceRequest
+	(*DeleteNpcRequest)(nil),              // 47: web.v1.DeleteNpcRequest
+	(*MerchantTemplate)(nil),              // 48: web.v1.MerchantTemplate
+	(*ListMerchantTemplatesRequest)(nil),  // 49: web.v1.ListMerchantTemplatesRequest
+	(*ListMerchantTemplatesResponse)(nil), // 50: web.v1.ListMerchantTemplatesResponse
+	(*ItemCatalogEntry)(nil),              // 51: web.v1.ItemCatalogEntry
+	(*ListItemCatalogRequest)(nil),        // 52: web.v1.ListItemCatalogRequest
+	(*ListItemCatalogResponse)(nil),       // 53: web.v1.ListItemCatalogResponse
+	(*DropItemMob)(nil),                   // 54: web.v1.DropItemMob
+	(*DropItemEntry)(nil),                 // 55: web.v1.DropItemEntry
+	(*ListDropItemsRequest)(nil),          // 56: web.v1.ListDropItemsRequest
+	(*ListDropItemsResponse)(nil),         // 57: web.v1.ListDropItemsResponse
+	(*MobDropItem)(nil),                   // 58: web.v1.MobDropItem
+	(*MobDropEntry)(nil),                  // 59: web.v1.MobDropEntry
+	(*ListMobDropsRequest)(nil),           // 60: web.v1.ListMobDropsRequest
+	(*ListMobDropsResponse)(nil),          // 61: web.v1.ListMobDropsResponse
+	(*ItemPrice)(nil),                     // 62: web.v1.ItemPrice
+	(*ListItemPricesRequest)(nil),         // 63: web.v1.ListItemPricesRequest
+	(*ListItemPricesResponse)(nil),        // 64: web.v1.ListItemPricesResponse
+	(*MapZone)(nil),                       // 65: web.v1.MapZone
+	(*ListMapZonesRequest)(nil),           // 66: web.v1.ListMapZonesRequest
+	(*ListMapZonesResponse)(nil),          // 67: web.v1.ListMapZonesResponse
+	(*MobTemplateFile)(nil),               // 68: web.v1.MobTemplateFile
+	(*ListMobTemplatesRequest)(nil),       // 69: web.v1.ListMobTemplatesRequest
+	(*ListMobTemplatesResponse)(nil),      // 70: web.v1.ListMobTemplatesResponse
+	(*AdminMobTemplateEquipItem)(nil),     // 71: web.v1.AdminMobTemplateEquipItem
+	(*AdminMobTemplateStat)(nil),          // 72: web.v1.AdminMobTemplateStat
+	(*GetMobTemplateStatRequest)(nil),     // 73: web.v1.GetMobTemplateStatRequest
+	(*GetMobTemplateStatResponse)(nil),    // 74: web.v1.GetMobTemplateStatResponse
+	(*AdminMobOrigin)(nil),                // 75: web.v1.AdminMobOrigin
+	(*UpsertMobTemplateStatRequest)(nil),  // 76: web.v1.UpsertMobTemplateStatRequest
+	(*UpsertMobTemplateStatResponse)(nil), // 77: web.v1.UpsertMobTemplateStatResponse
+	(*SetMobTemplateEquipRequest)(nil),    // 78: web.v1.SetMobTemplateEquipRequest
+	(*DeleteMobTemplateStatRequest)(nil),  // 79: web.v1.DeleteMobTemplateStatRequest
+	(*GetAttributeMapInfoRequest)(nil),    // 80: web.v1.GetAttributeMapInfoRequest
+	(*GetAttributeMapInfoResponse)(nil),   // 81: web.v1.GetAttributeMapInfoResponse
+	(*AttributeMapInfo)(nil),              // 82: web.v1.AttributeMapInfo
+	(*AttributeMapValueCount)(nil),        // 83: web.v1.AttributeMapValueCount
+	(*AttributeMapMeaning)(nil),           // 84: web.v1.AttributeMapMeaning
+	(*AttributeMapRect)(nil),              // 85: web.v1.AttributeMapRect
+	(*AttributeMapTransformFilter)(nil),   // 86: web.v1.AttributeMapTransformFilter
+	(*TransformAttributeMapRequest)(nil),  // 87: web.v1.TransformAttributeMapRequest
+	(*TransformAttributeMapResponse)(nil), // 88: web.v1.TransformAttributeMapResponse
+	(*DonateShopItem)(nil),                // 89: web.v1.DonateShopItem
+	(*ListShopItemsRequest)(nil),          // 90: web.v1.ListShopItemsRequest
+	(*ListShopItemsResponse)(nil),         // 91: web.v1.ListShopItemsResponse
+	(*UpsertShopItemRequest)(nil),         // 92: web.v1.UpsertShopItemRequest
+	(*UpsertShopItemResponse)(nil),        // 93: web.v1.UpsertShopItemResponse
+	(*SetShopItemEnabledRequest)(nil),     // 94: web.v1.SetShopItemEnabledRequest
+	(*DeleteShopItemRequest)(nil),         // 95: web.v1.DeleteShopItemRequest
+	(*CreditDonateBalanceRequest)(nil),    // 96: web.v1.CreditDonateBalanceRequest
+	(*CreditDonateBalanceResponse)(nil),   // 97: web.v1.CreditDonateBalanceResponse
+	(*ListStoreItemsRequest)(nil),         // 98: web.v1.ListStoreItemsRequest
+	(*ListStoreItemsResponse)(nil),        // 99: web.v1.ListStoreItemsResponse
+	(*GetBalanceRequest)(nil),             // 100: web.v1.GetBalanceRequest
+	(*GetBalanceResponse)(nil),            // 101: web.v1.GetBalanceResponse
+	(*BuyRequest)(nil),                    // 102: web.v1.BuyRequest
+	(*BuyResponse)(nil),                   // 103: web.v1.BuyResponse
+	(*DailyRewardItem)(nil),               // 104: web.v1.DailyRewardItem
+	(*ListRewardItemsRequest)(nil),        // 105: web.v1.ListRewardItemsRequest
+	(*ListRewardItemsResponse)(nil),       // 106: web.v1.ListRewardItemsResponse
+	(*UpsertRewardItemRequest)(nil),       // 107: web.v1.UpsertRewardItemRequest
+	(*UpsertRewardItemResponse)(nil),      // 108: web.v1.UpsertRewardItemResponse
+	(*SetRewardItemEnabledRequest)(nil),   // 109: web.v1.SetRewardItemEnabledRequest
+	(*DeleteRewardItemRequest)(nil),       // 110: web.v1.DeleteRewardItemRequest
+	(*WorldEventConfig)(nil),              // 111: web.v1.WorldEventConfig
+	(*GetWorldEventConfigRequest)(nil),    // 112: web.v1.GetWorldEventConfigRequest
+	(*GetWorldEventConfigResponse)(nil),   // 113: web.v1.GetWorldEventConfigResponse
+	(*SetWorldEventConfigRequest)(nil),    // 114: web.v1.SetWorldEventConfigRequest
+	(*ListRewardsRequest)(nil),            // 115: web.v1.ListRewardsRequest
+	(*ListRewardsResponse)(nil),           // 116: web.v1.ListRewardsResponse
+	(*GetClaimStatusRequest)(nil),         // 117: web.v1.GetClaimStatusRequest
+	(*GetClaimStatusResponse)(nil),        // 118: web.v1.GetClaimStatusResponse
+	(*ClaimRequest)(nil),                  // 119: web.v1.ClaimRequest
+	(*ClaimResponse)(nil),                 // 120: web.v1.ClaimResponse
+	(*GetPayerProfileRequest)(nil),        // 121: web.v1.GetPayerProfileRequest
+	(*GetPayerProfileResponse)(nil),       // 122: web.v1.GetPayerProfileResponse
+	(*SavePayerProfileRequest)(nil),       // 123: web.v1.SavePayerProfileRequest
+	(*SavePayerProfileResponse)(nil),      // 124: web.v1.SavePayerProfileResponse
+	(*CreateTopupOrderRequest)(nil),       // 125: web.v1.CreateTopupOrderRequest
+	(*CreateTopupOrderResponse)(nil),      // 126: web.v1.CreateTopupOrderResponse
+	(*ConfirmTopupOrderRequest)(nil),      // 127: web.v1.ConfirmTopupOrderRequest
+	(*ConfirmTopupOrderResponse)(nil),     // 128: web.v1.ConfirmTopupOrderResponse
+	(*GetTopupOrderRequest)(nil),          // 129: web.v1.GetTopupOrderRequest
+	(*GetTopupOrderResponse)(nil),         // 130: web.v1.GetTopupOrderResponse
+	(*RevenueWindow)(nil),                 // 131: web.v1.RevenueWindow
+	(*RevenueTotals)(nil),                 // 132: web.v1.RevenueTotals
+	(*RevenueByMethod)(nil),               // 133: web.v1.RevenueByMethod
+	(*RevenuePoint)(nil),                  // 134: web.v1.RevenuePoint
+	(*GetRevenueSummaryRequest)(nil),      // 135: web.v1.GetRevenueSummaryRequest
+	(*GetRevenueSummaryResponse)(nil),     // 136: web.v1.GetRevenueSummaryResponse
+	(*TopupOrderRow)(nil),                 // 137: web.v1.TopupOrderRow
+	(*ListTopupOrdersRequest)(nil),        // 138: web.v1.ListTopupOrdersRequest
+	(*ListTopupOrdersResponse)(nil),       // 139: web.v1.ListTopupOrdersResponse
+	(*TopBuyerRow)(nil),                   // 140: web.v1.TopBuyerRow
+	(*ListTopBuyersRequest)(nil),          // 141: web.v1.ListTopBuyersRequest
+	(*ListTopBuyersResponse)(nil),         // 142: web.v1.ListTopBuyersResponse
+	(*DonateLedgerRow)(nil),               // 143: web.v1.DonateLedgerRow
+	(*ListDonateSpendRequest)(nil),        // 144: web.v1.ListDonateSpendRequest
+	(*ListDonateSpendResponse)(nil),       // 145: web.v1.ListDonateSpendResponse
+	(*AccountSummary)(nil),                // 146: web.v1.AccountSummary
+	(*SearchAccountsRequest)(nil),         // 147: web.v1.SearchAccountsRequest
+	(*SearchAccountsResponse)(nil),        // 148: web.v1.SearchAccountsResponse
+	(*AdminItemStat)(nil),                 // 149: web.v1.AdminItemStat
+	(*GetItemStatRequest)(nil),            // 150: web.v1.GetItemStatRequest
+	(*GetItemStatResponse)(nil),           // 151: web.v1.GetItemStatResponse
+	(*UpsertItemStatRequest)(nil),         // 152: web.v1.UpsertItemStatRequest
+	(*DeleteItemStatRequest)(nil),         // 153: web.v1.DeleteItemStatRequest
+	(*AdminMountGrowthCurve)(nil),         // 154: web.v1.AdminMountGrowthCurve
+	(*ListMountGrowthCurvesRequest)(nil),  // 155: web.v1.ListMountGrowthCurvesRequest
+	(*ListMountGrowthCurvesResponse)(nil), // 156: web.v1.ListMountGrowthCurvesResponse
+	(*SetMountGrowthCurveRequest)(nil),    // 157: web.v1.SetMountGrowthCurveRequest
+	(*ClearMountGrowthCurveRequest)(nil),  // 158: web.v1.ClearMountGrowthCurveRequest
+	(*AdminMountAbsorb)(nil),              // 159: web.v1.AdminMountAbsorb
+	(*MountConfigVersionRequest)(nil),     // 160: web.v1.MountConfigVersionRequest
+	(*MountConfigVersionResponse)(nil),    // 161: web.v1.MountConfigVersionResponse
+	(*ListMountAbsorbRequest)(nil),        // 162: web.v1.ListMountAbsorbRequest
+	(*ListMountAbsorbResponse)(nil),       // 163: web.v1.ListMountAbsorbResponse
+	(*SetMountAbsorbRequest)(nil),         // 164: web.v1.SetMountAbsorbRequest
+	(*ClearMountAbsorbRequest)(nil),       // 165: web.v1.ClearMountAbsorbRequest
+	(*AdminMountBonus)(nil),               // 166: web.v1.AdminMountBonus
+	(*ListMountBonusRequest)(nil),         // 167: web.v1.ListMountBonusRequest
+	(*ListMountBonusResponse)(nil),        // 168: web.v1.ListMountBonusResponse
+	(*SetMountBonusRequest)(nil),          // 169: web.v1.SetMountBonusRequest
+	(*ClearMountBonusRequest)(nil),        // 170: web.v1.ClearMountBonusRequest
 }
 var file_api_web_v1_web_proto_depIdxs = []int32{
 	0,   // 0: web.v1.CreateAccountResponse.result:type_name -> web.v1.CreateResult
@@ -12972,247 +13075,248 @@ var file_api_web_v1_web_proto_depIdxs = []int32{
 	2,   // 2: web.v1.SavePixKeyResponse.result:type_name -> web.v1.PixKeyResult
 	1,   // 3: web.v1.GetPixKeyResponse.type:type_name -> web.v1.PixKeyType
 	3,   // 4: web.v1.GetMyCurrentPixChargeResponse.state:type_name -> web.v1.PixChargeState
-	24,  // 5: web.v1.ListExpRankingResponse.entries:type_name -> web.v1.RankingEntry
-	27,  // 6: web.v1.ListDuelRankingResponse.entries:type_name -> web.v1.DuelRankingEntry
-	30,  // 7: web.v1.ListMyCharactersResponse.characters:type_name -> web.v1.WebCharacterSummary
-	50,  // 8: web.v1.ListItemsResponse.items:type_name -> web.v1.ItemCatalogEntry
-	4,   // 9: web.v1.AdminAck.result:type_name -> web.v1.AdminResult
-	35,  // 10: web.v1.AdminNpc.shop:type_name -> web.v1.AdminNpcShopItem
-	4,   // 11: web.v1.ListNpcsResponse.result:type_name -> web.v1.AdminResult
-	36,  // 12: web.v1.ListNpcsResponse.npcs:type_name -> web.v1.AdminNpc
-	4,   // 13: web.v1.GetNpcResponse.result:type_name -> web.v1.AdminResult
-	36,  // 14: web.v1.GetNpcResponse.npc:type_name -> web.v1.AdminNpc
-	4,   // 15: web.v1.UpsertNpcResponse.result:type_name -> web.v1.AdminResult
-	35,  // 16: web.v1.SetNpcShopRequest.items:type_name -> web.v1.AdminNpcShopItem
-	4,   // 17: web.v1.ListMerchantTemplatesResponse.result:type_name -> web.v1.AdminResult
-	47,  // 18: web.v1.ListMerchantTemplatesResponse.templates:type_name -> web.v1.MerchantTemplate
-	4,   // 19: web.v1.ListItemCatalogResponse.result:type_name -> web.v1.AdminResult
-	50,  // 20: web.v1.ListItemCatalogResponse.items:type_name -> web.v1.ItemCatalogEntry
-	74,  // 21: web.v1.DropItemMob.origins:type_name -> web.v1.AdminMobOrigin
-	53,  // 22: web.v1.DropItemEntry.mobs:type_name -> web.v1.DropItemMob
-	4,   // 23: web.v1.ListDropItemsResponse.result:type_name -> web.v1.AdminResult
-	54,  // 24: web.v1.ListDropItemsResponse.items:type_name -> web.v1.DropItemEntry
-	57,  // 25: web.v1.MobDropEntry.items:type_name -> web.v1.MobDropItem
-	4,   // 26: web.v1.ListMobDropsResponse.result:type_name -> web.v1.AdminResult
-	58,  // 27: web.v1.ListMobDropsResponse.mobs:type_name -> web.v1.MobDropEntry
-	4,   // 28: web.v1.ListItemPricesResponse.result:type_name -> web.v1.AdminResult
-	61,  // 29: web.v1.ListItemPricesResponse.prices:type_name -> web.v1.ItemPrice
-	4,   // 30: web.v1.ListMapZonesResponse.result:type_name -> web.v1.AdminResult
-	64,  // 31: web.v1.ListMapZonesResponse.zones:type_name -> web.v1.MapZone
-	4,   // 32: web.v1.ListMobTemplatesResponse.result:type_name -> web.v1.AdminResult
-	67,  // 33: web.v1.ListMobTemplatesResponse.templates:type_name -> web.v1.MobTemplateFile
-	70,  // 34: web.v1.AdminMobTemplateStat.equip:type_name -> web.v1.AdminMobTemplateEquipItem
-	4,   // 35: web.v1.GetMobTemplateStatResponse.result:type_name -> web.v1.AdminResult
-	71,  // 36: web.v1.GetMobTemplateStatResponse.stat:type_name -> web.v1.AdminMobTemplateStat
-	71,  // 37: web.v1.GetMobTemplateStatResponse.file_stat:type_name -> web.v1.AdminMobTemplateStat
-	74,  // 38: web.v1.GetMobTemplateStatResponse.origins:type_name -> web.v1.AdminMobOrigin
-	71,  // 39: web.v1.UpsertMobTemplateStatRequest.stat:type_name -> web.v1.AdminMobTemplateStat
-	4,   // 40: web.v1.UpsertMobTemplateStatResponse.result:type_name -> web.v1.AdminResult
-	70,  // 41: web.v1.SetMobTemplateEquipRequest.items:type_name -> web.v1.AdminMobTemplateEquipItem
-	4,   // 42: web.v1.GetAttributeMapInfoResponse.result:type_name -> web.v1.AdminResult
-	81,  // 43: web.v1.GetAttributeMapInfoResponse.info:type_name -> web.v1.AttributeMapInfo
-	82,  // 44: web.v1.AttributeMapInfo.histogram:type_name -> web.v1.AttributeMapValueCount
-	83,  // 45: web.v1.AttributeMapInfo.meanings:type_name -> web.v1.AttributeMapMeaning
-	5,   // 46: web.v1.TransformAttributeMapRequest.operation:type_name -> web.v1.AttributeMapTransformOperation
-	84,  // 47: web.v1.TransformAttributeMapRequest.rect:type_name -> web.v1.AttributeMapRect
-	85,  // 48: web.v1.TransformAttributeMapRequest.filter:type_name -> web.v1.AttributeMapTransformFilter
-	4,   // 49: web.v1.TransformAttributeMapResponse.result:type_name -> web.v1.AdminResult
-	82,  // 50: web.v1.TransformAttributeMapResponse.before_histogram:type_name -> web.v1.AttributeMapValueCount
-	82,  // 51: web.v1.TransformAttributeMapResponse.after_histogram:type_name -> web.v1.AttributeMapValueCount
-	4,   // 52: web.v1.ListShopItemsResponse.result:type_name -> web.v1.AdminResult
-	88,  // 53: web.v1.ListShopItemsResponse.items:type_name -> web.v1.DonateShopItem
-	88,  // 54: web.v1.UpsertShopItemRequest.item:type_name -> web.v1.DonateShopItem
-	4,   // 55: web.v1.UpsertShopItemResponse.result:type_name -> web.v1.AdminResult
-	4,   // 56: web.v1.CreditDonateBalanceResponse.result:type_name -> web.v1.AdminResult
-	88,  // 57: web.v1.ListStoreItemsResponse.items:type_name -> web.v1.DonateShopItem
-	6,   // 58: web.v1.BuyResponse.result:type_name -> web.v1.BuyResult
-	4,   // 59: web.v1.ListRewardItemsResponse.result:type_name -> web.v1.AdminResult
-	103, // 60: web.v1.ListRewardItemsResponse.items:type_name -> web.v1.DailyRewardItem
-	103, // 61: web.v1.UpsertRewardItemRequest.item:type_name -> web.v1.DailyRewardItem
-	4,   // 62: web.v1.UpsertRewardItemResponse.result:type_name -> web.v1.AdminResult
-	4,   // 63: web.v1.GetWorldEventConfigResponse.result:type_name -> web.v1.AdminResult
-	110, // 64: web.v1.GetWorldEventConfigResponse.config:type_name -> web.v1.WorldEventConfig
-	110, // 65: web.v1.SetWorldEventConfigRequest.config:type_name -> web.v1.WorldEventConfig
-	103, // 66: web.v1.ListRewardsResponse.items:type_name -> web.v1.DailyRewardItem
-	7,   // 67: web.v1.ClaimResponse.result:type_name -> web.v1.ClaimResult
-	4,   // 68: web.v1.SavePayerProfileResponse.result:type_name -> web.v1.AdminResult
-	8,   // 69: web.v1.CreateTopupOrderRequest.payment_method:type_name -> web.v1.PaymentMethod
-	4,   // 70: web.v1.CreateTopupOrderResponse.result:type_name -> web.v1.AdminResult
-	9,   // 71: web.v1.ConfirmTopupOrderResponse.result:type_name -> web.v1.TopupResult
-	10,  // 72: web.v1.GetTopupOrderResponse.status:type_name -> web.v1.TopupStatus
-	8,   // 73: web.v1.RevenueByMethod.payment_method:type_name -> web.v1.PaymentMethod
-	130, // 74: web.v1.GetRevenueSummaryRequest.window:type_name -> web.v1.RevenueWindow
-	11,  // 75: web.v1.GetRevenueSummaryRequest.bucket:type_name -> web.v1.RevenueBucket
-	4,   // 76: web.v1.GetRevenueSummaryResponse.result:type_name -> web.v1.AdminResult
-	131, // 77: web.v1.GetRevenueSummaryResponse.totals:type_name -> web.v1.RevenueTotals
-	132, // 78: web.v1.GetRevenueSummaryResponse.by_method:type_name -> web.v1.RevenueByMethod
-	133, // 79: web.v1.GetRevenueSummaryResponse.series:type_name -> web.v1.RevenuePoint
-	8,   // 80: web.v1.TopupOrderRow.payment_method:type_name -> web.v1.PaymentMethod
-	10,  // 81: web.v1.TopupOrderRow.status:type_name -> web.v1.TopupStatus
-	130, // 82: web.v1.ListTopupOrdersRequest.window:type_name -> web.v1.RevenueWindow
-	10,  // 83: web.v1.ListTopupOrdersRequest.status:type_name -> web.v1.TopupStatus
-	8,   // 84: web.v1.ListTopupOrdersRequest.payment_method:type_name -> web.v1.PaymentMethod
-	4,   // 85: web.v1.ListTopupOrdersResponse.result:type_name -> web.v1.AdminResult
-	136, // 86: web.v1.ListTopupOrdersResponse.orders:type_name -> web.v1.TopupOrderRow
-	130, // 87: web.v1.ListTopBuyersRequest.window:type_name -> web.v1.RevenueWindow
-	4,   // 88: web.v1.ListTopBuyersResponse.result:type_name -> web.v1.AdminResult
-	139, // 89: web.v1.ListTopBuyersResponse.buyers:type_name -> web.v1.TopBuyerRow
-	12,  // 90: web.v1.DonateLedgerRow.action:type_name -> web.v1.DonateLedgerAction
-	130, // 91: web.v1.ListDonateSpendRequest.window:type_name -> web.v1.RevenueWindow
-	12,  // 92: web.v1.ListDonateSpendRequest.action:type_name -> web.v1.DonateLedgerAction
-	4,   // 93: web.v1.ListDonateSpendResponse.result:type_name -> web.v1.AdminResult
-	142, // 94: web.v1.ListDonateSpendResponse.entries:type_name -> web.v1.DonateLedgerRow
-	4,   // 95: web.v1.SearchAccountsResponse.result:type_name -> web.v1.AdminResult
-	145, // 96: web.v1.SearchAccountsResponse.accounts:type_name -> web.v1.AccountSummary
-	4,   // 97: web.v1.GetItemStatResponse.result:type_name -> web.v1.AdminResult
-	148, // 98: web.v1.GetItemStatResponse.stat:type_name -> web.v1.AdminItemStat
-	148, // 99: web.v1.UpsertItemStatRequest.stat:type_name -> web.v1.AdminItemStat
-	153, // 100: web.v1.ListMountGrowthCurvesResponse.curves:type_name -> web.v1.AdminMountGrowthCurve
-	158, // 101: web.v1.ListMountAbsorbResponse.absorb:type_name -> web.v1.AdminMountAbsorb
-	165, // 102: web.v1.ListMountBonusResponse.bonus:type_name -> web.v1.AdminMountBonus
-	13,  // 103: web.v1.AccountWebService.CreateAccount:input_type -> web.v1.CreateAccountRequest
-	15,  // 104: web.v1.AccountWebService.VerifyCredentials:input_type -> web.v1.VerifyCredentialsRequest
-	17,  // 105: web.v1.RmtWebService.SavePixKey:input_type -> web.v1.SavePixKeyRequest
-	19,  // 106: web.v1.RmtWebService.GetPixKey:input_type -> web.v1.GetPixKeyRequest
-	21,  // 107: web.v1.RmtWebService.GetMyCurrentPixCharge:input_type -> web.v1.GetMyCurrentPixChargeRequest
-	23,  // 108: web.v1.RankingWebService.ListExpRanking:input_type -> web.v1.ListExpRankingRequest
-	26,  // 109: web.v1.RankingWebService.ListDuelRanking:input_type -> web.v1.ListDuelRankingRequest
-	29,  // 110: web.v1.CharacterWebService.ListMyCharacters:input_type -> web.v1.ListMyCharactersRequest
-	32,  // 111: web.v1.ItemCatalogService.ListItems:input_type -> web.v1.ListItemsRequest
-	37,  // 112: web.v1.NpcAdminService.ListNpcs:input_type -> web.v1.ListNpcsRequest
-	39,  // 113: web.v1.NpcAdminService.GetNpc:input_type -> web.v1.GetNpcRequest
-	41,  // 114: web.v1.NpcAdminService.UpsertNpc:input_type -> web.v1.UpsertNpcRequest
-	43,  // 115: web.v1.NpcAdminService.SetNpcVisibility:input_type -> web.v1.SetNpcVisibilityRequest
-	44,  // 116: web.v1.NpcAdminService.SetNpcShop:input_type -> web.v1.SetNpcShopRequest
-	45,  // 117: web.v1.NpcAdminService.SetItemPrice:input_type -> web.v1.SetItemPriceRequest
-	46,  // 118: web.v1.NpcAdminService.DeleteNpc:input_type -> web.v1.DeleteNpcRequest
-	48,  // 119: web.v1.NpcAdminService.ListMerchantTemplates:input_type -> web.v1.ListMerchantTemplatesRequest
-	51,  // 120: web.v1.NpcAdminService.ListItemCatalog:input_type -> web.v1.ListItemCatalogRequest
-	55,  // 121: web.v1.NpcAdminService.ListDropItems:input_type -> web.v1.ListDropItemsRequest
-	59,  // 122: web.v1.NpcAdminService.ListMobDrops:input_type -> web.v1.ListMobDropsRequest
-	62,  // 123: web.v1.NpcAdminService.ListItemPrices:input_type -> web.v1.ListItemPricesRequest
-	65,  // 124: web.v1.NpcAdminService.ListMapZones:input_type -> web.v1.ListMapZonesRequest
-	68,  // 125: web.v1.MobTemplateAdminService.ListMobTemplates:input_type -> web.v1.ListMobTemplatesRequest
-	72,  // 126: web.v1.MobTemplateAdminService.GetMobTemplateStat:input_type -> web.v1.GetMobTemplateStatRequest
-	75,  // 127: web.v1.MobTemplateAdminService.UpsertMobTemplateStat:input_type -> web.v1.UpsertMobTemplateStatRequest
-	77,  // 128: web.v1.MobTemplateAdminService.SetMobTemplateEquip:input_type -> web.v1.SetMobTemplateEquipRequest
-	78,  // 129: web.v1.MobTemplateAdminService.DeleteMobTemplateStat:input_type -> web.v1.DeleteMobTemplateStatRequest
-	79,  // 130: web.v1.AttributeMapAdminService.GetAttributeMapInfo:input_type -> web.v1.GetAttributeMapInfoRequest
-	86,  // 131: web.v1.AttributeMapAdminService.TransformAttributeMap:input_type -> web.v1.TransformAttributeMapRequest
-	89,  // 132: web.v1.DonateAdminService.ListShopItems:input_type -> web.v1.ListShopItemsRequest
-	91,  // 133: web.v1.DonateAdminService.UpsertShopItem:input_type -> web.v1.UpsertShopItemRequest
-	93,  // 134: web.v1.DonateAdminService.SetShopItemEnabled:input_type -> web.v1.SetShopItemEnabledRequest
-	94,  // 135: web.v1.DonateAdminService.DeleteShopItem:input_type -> web.v1.DeleteShopItemRequest
-	95,  // 136: web.v1.DonateAdminService.CreditDonateBalance:input_type -> web.v1.CreditDonateBalanceRequest
-	97,  // 137: web.v1.DonateShopService.ListShopItems:input_type -> web.v1.ListStoreItemsRequest
-	99,  // 138: web.v1.DonateShopService.GetBalance:input_type -> web.v1.GetBalanceRequest
-	101, // 139: web.v1.DonateShopService.Buy:input_type -> web.v1.BuyRequest
-	104, // 140: web.v1.DailyRewardAdminService.ListRewardItems:input_type -> web.v1.ListRewardItemsRequest
-	106, // 141: web.v1.DailyRewardAdminService.UpsertRewardItem:input_type -> web.v1.UpsertRewardItemRequest
-	108, // 142: web.v1.DailyRewardAdminService.SetRewardItemEnabled:input_type -> web.v1.SetRewardItemEnabledRequest
-	109, // 143: web.v1.DailyRewardAdminService.DeleteRewardItem:input_type -> web.v1.DeleteRewardItemRequest
-	111, // 144: web.v1.WorldEventAdminService.GetWorldEventConfig:input_type -> web.v1.GetWorldEventConfigRequest
-	113, // 145: web.v1.WorldEventAdminService.SetWorldEventConfig:input_type -> web.v1.SetWorldEventConfigRequest
-	114, // 146: web.v1.DailyRewardService.ListRewards:input_type -> web.v1.ListRewardsRequest
-	116, // 147: web.v1.DailyRewardService.GetClaimStatus:input_type -> web.v1.GetClaimStatusRequest
-	118, // 148: web.v1.DailyRewardService.Claim:input_type -> web.v1.ClaimRequest
-	120, // 149: web.v1.DonateTopupService.GetPayerProfile:input_type -> web.v1.GetPayerProfileRequest
-	122, // 150: web.v1.DonateTopupService.SavePayerProfile:input_type -> web.v1.SavePayerProfileRequest
-	124, // 151: web.v1.DonateTopupService.CreateTopupOrder:input_type -> web.v1.CreateTopupOrderRequest
-	126, // 152: web.v1.DonateTopupService.ConfirmTopupOrder:input_type -> web.v1.ConfirmTopupOrderRequest
-	128, // 153: web.v1.DonateTopupService.GetTopupOrder:input_type -> web.v1.GetTopupOrderRequest
-	134, // 154: web.v1.DonateRevenueAdminService.GetRevenueSummary:input_type -> web.v1.GetRevenueSummaryRequest
-	137, // 155: web.v1.DonateRevenueAdminService.ListTopupOrders:input_type -> web.v1.ListTopupOrdersRequest
-	140, // 156: web.v1.DonateRevenueAdminService.ListTopBuyers:input_type -> web.v1.ListTopBuyersRequest
-	143, // 157: web.v1.DonateRevenueAdminService.ListDonateSpend:input_type -> web.v1.ListDonateSpendRequest
-	146, // 158: web.v1.DonateRevenueAdminService.SearchAccounts:input_type -> web.v1.SearchAccountsRequest
-	149, // 159: web.v1.ItemStatAdminService.GetItemStat:input_type -> web.v1.GetItemStatRequest
-	151, // 160: web.v1.ItemStatAdminService.UpsertItemStat:input_type -> web.v1.UpsertItemStatRequest
-	152, // 161: web.v1.ItemStatAdminService.DeleteItemStat:input_type -> web.v1.DeleteItemStatRequest
-	154, // 162: web.v1.MountGrowthAdminService.ListMountGrowthCurves:input_type -> web.v1.ListMountGrowthCurvesRequest
-	156, // 163: web.v1.MountGrowthAdminService.SetMountGrowthCurve:input_type -> web.v1.SetMountGrowthCurveRequest
-	157, // 164: web.v1.MountGrowthAdminService.ClearMountGrowthCurve:input_type -> web.v1.ClearMountGrowthCurveRequest
-	161, // 165: web.v1.MountGrowthAdminService.ListMountAbsorb:input_type -> web.v1.ListMountAbsorbRequest
-	163, // 166: web.v1.MountGrowthAdminService.SetMountAbsorb:input_type -> web.v1.SetMountAbsorbRequest
-	164, // 167: web.v1.MountGrowthAdminService.ClearMountAbsorb:input_type -> web.v1.ClearMountAbsorbRequest
-	166, // 168: web.v1.MountGrowthAdminService.ListMountBonus:input_type -> web.v1.ListMountBonusRequest
-	168, // 169: web.v1.MountGrowthAdminService.SetMountBonus:input_type -> web.v1.SetMountBonusRequest
-	169, // 170: web.v1.MountGrowthAdminService.ClearMountBonus:input_type -> web.v1.ClearMountBonusRequest
-	159, // 171: web.v1.MountGrowthAdminService.MountConfigVersion:input_type -> web.v1.MountConfigVersionRequest
-	14,  // 172: web.v1.AccountWebService.CreateAccount:output_type -> web.v1.CreateAccountResponse
-	16,  // 173: web.v1.AccountWebService.VerifyCredentials:output_type -> web.v1.VerifyCredentialsResponse
-	18,  // 174: web.v1.RmtWebService.SavePixKey:output_type -> web.v1.SavePixKeyResponse
-	20,  // 175: web.v1.RmtWebService.GetPixKey:output_type -> web.v1.GetPixKeyResponse
-	22,  // 176: web.v1.RmtWebService.GetMyCurrentPixCharge:output_type -> web.v1.GetMyCurrentPixChargeResponse
-	25,  // 177: web.v1.RankingWebService.ListExpRanking:output_type -> web.v1.ListExpRankingResponse
-	28,  // 178: web.v1.RankingWebService.ListDuelRanking:output_type -> web.v1.ListDuelRankingResponse
-	31,  // 179: web.v1.CharacterWebService.ListMyCharacters:output_type -> web.v1.ListMyCharactersResponse
-	33,  // 180: web.v1.ItemCatalogService.ListItems:output_type -> web.v1.ListItemsResponse
-	38,  // 181: web.v1.NpcAdminService.ListNpcs:output_type -> web.v1.ListNpcsResponse
-	40,  // 182: web.v1.NpcAdminService.GetNpc:output_type -> web.v1.GetNpcResponse
-	42,  // 183: web.v1.NpcAdminService.UpsertNpc:output_type -> web.v1.UpsertNpcResponse
-	34,  // 184: web.v1.NpcAdminService.SetNpcVisibility:output_type -> web.v1.AdminAck
-	34,  // 185: web.v1.NpcAdminService.SetNpcShop:output_type -> web.v1.AdminAck
-	34,  // 186: web.v1.NpcAdminService.SetItemPrice:output_type -> web.v1.AdminAck
-	34,  // 187: web.v1.NpcAdminService.DeleteNpc:output_type -> web.v1.AdminAck
-	49,  // 188: web.v1.NpcAdminService.ListMerchantTemplates:output_type -> web.v1.ListMerchantTemplatesResponse
-	52,  // 189: web.v1.NpcAdminService.ListItemCatalog:output_type -> web.v1.ListItemCatalogResponse
-	56,  // 190: web.v1.NpcAdminService.ListDropItems:output_type -> web.v1.ListDropItemsResponse
-	60,  // 191: web.v1.NpcAdminService.ListMobDrops:output_type -> web.v1.ListMobDropsResponse
-	63,  // 192: web.v1.NpcAdminService.ListItemPrices:output_type -> web.v1.ListItemPricesResponse
-	66,  // 193: web.v1.NpcAdminService.ListMapZones:output_type -> web.v1.ListMapZonesResponse
-	69,  // 194: web.v1.MobTemplateAdminService.ListMobTemplates:output_type -> web.v1.ListMobTemplatesResponse
-	73,  // 195: web.v1.MobTemplateAdminService.GetMobTemplateStat:output_type -> web.v1.GetMobTemplateStatResponse
-	76,  // 196: web.v1.MobTemplateAdminService.UpsertMobTemplateStat:output_type -> web.v1.UpsertMobTemplateStatResponse
-	34,  // 197: web.v1.MobTemplateAdminService.SetMobTemplateEquip:output_type -> web.v1.AdminAck
-	34,  // 198: web.v1.MobTemplateAdminService.DeleteMobTemplateStat:output_type -> web.v1.AdminAck
-	80,  // 199: web.v1.AttributeMapAdminService.GetAttributeMapInfo:output_type -> web.v1.GetAttributeMapInfoResponse
-	87,  // 200: web.v1.AttributeMapAdminService.TransformAttributeMap:output_type -> web.v1.TransformAttributeMapResponse
-	90,  // 201: web.v1.DonateAdminService.ListShopItems:output_type -> web.v1.ListShopItemsResponse
-	92,  // 202: web.v1.DonateAdminService.UpsertShopItem:output_type -> web.v1.UpsertShopItemResponse
-	34,  // 203: web.v1.DonateAdminService.SetShopItemEnabled:output_type -> web.v1.AdminAck
-	34,  // 204: web.v1.DonateAdminService.DeleteShopItem:output_type -> web.v1.AdminAck
-	96,  // 205: web.v1.DonateAdminService.CreditDonateBalance:output_type -> web.v1.CreditDonateBalanceResponse
-	98,  // 206: web.v1.DonateShopService.ListShopItems:output_type -> web.v1.ListStoreItemsResponse
-	100, // 207: web.v1.DonateShopService.GetBalance:output_type -> web.v1.GetBalanceResponse
-	102, // 208: web.v1.DonateShopService.Buy:output_type -> web.v1.BuyResponse
-	105, // 209: web.v1.DailyRewardAdminService.ListRewardItems:output_type -> web.v1.ListRewardItemsResponse
-	107, // 210: web.v1.DailyRewardAdminService.UpsertRewardItem:output_type -> web.v1.UpsertRewardItemResponse
-	34,  // 211: web.v1.DailyRewardAdminService.SetRewardItemEnabled:output_type -> web.v1.AdminAck
-	34,  // 212: web.v1.DailyRewardAdminService.DeleteRewardItem:output_type -> web.v1.AdminAck
-	112, // 213: web.v1.WorldEventAdminService.GetWorldEventConfig:output_type -> web.v1.GetWorldEventConfigResponse
-	34,  // 214: web.v1.WorldEventAdminService.SetWorldEventConfig:output_type -> web.v1.AdminAck
-	115, // 215: web.v1.DailyRewardService.ListRewards:output_type -> web.v1.ListRewardsResponse
-	117, // 216: web.v1.DailyRewardService.GetClaimStatus:output_type -> web.v1.GetClaimStatusResponse
-	119, // 217: web.v1.DailyRewardService.Claim:output_type -> web.v1.ClaimResponse
-	121, // 218: web.v1.DonateTopupService.GetPayerProfile:output_type -> web.v1.GetPayerProfileResponse
-	123, // 219: web.v1.DonateTopupService.SavePayerProfile:output_type -> web.v1.SavePayerProfileResponse
-	125, // 220: web.v1.DonateTopupService.CreateTopupOrder:output_type -> web.v1.CreateTopupOrderResponse
-	127, // 221: web.v1.DonateTopupService.ConfirmTopupOrder:output_type -> web.v1.ConfirmTopupOrderResponse
-	129, // 222: web.v1.DonateTopupService.GetTopupOrder:output_type -> web.v1.GetTopupOrderResponse
-	135, // 223: web.v1.DonateRevenueAdminService.GetRevenueSummary:output_type -> web.v1.GetRevenueSummaryResponse
-	138, // 224: web.v1.DonateRevenueAdminService.ListTopupOrders:output_type -> web.v1.ListTopupOrdersResponse
-	141, // 225: web.v1.DonateRevenueAdminService.ListTopBuyers:output_type -> web.v1.ListTopBuyersResponse
-	144, // 226: web.v1.DonateRevenueAdminService.ListDonateSpend:output_type -> web.v1.ListDonateSpendResponse
-	147, // 227: web.v1.DonateRevenueAdminService.SearchAccounts:output_type -> web.v1.SearchAccountsResponse
-	150, // 228: web.v1.ItemStatAdminService.GetItemStat:output_type -> web.v1.GetItemStatResponse
-	34,  // 229: web.v1.ItemStatAdminService.UpsertItemStat:output_type -> web.v1.AdminAck
-	34,  // 230: web.v1.ItemStatAdminService.DeleteItemStat:output_type -> web.v1.AdminAck
-	155, // 231: web.v1.MountGrowthAdminService.ListMountGrowthCurves:output_type -> web.v1.ListMountGrowthCurvesResponse
-	34,  // 232: web.v1.MountGrowthAdminService.SetMountGrowthCurve:output_type -> web.v1.AdminAck
-	34,  // 233: web.v1.MountGrowthAdminService.ClearMountGrowthCurve:output_type -> web.v1.AdminAck
-	162, // 234: web.v1.MountGrowthAdminService.ListMountAbsorb:output_type -> web.v1.ListMountAbsorbResponse
-	34,  // 235: web.v1.MountGrowthAdminService.SetMountAbsorb:output_type -> web.v1.AdminAck
-	34,  // 236: web.v1.MountGrowthAdminService.ClearMountAbsorb:output_type -> web.v1.AdminAck
-	167, // 237: web.v1.MountGrowthAdminService.ListMountBonus:output_type -> web.v1.ListMountBonusResponse
-	34,  // 238: web.v1.MountGrowthAdminService.SetMountBonus:output_type -> web.v1.AdminAck
-	34,  // 239: web.v1.MountGrowthAdminService.ClearMountBonus:output_type -> web.v1.AdminAck
-	160, // 240: web.v1.MountGrowthAdminService.MountConfigVersion:output_type -> web.v1.MountConfigVersionResponse
-	172, // [172:241] is the sub-list for method output_type
-	103, // [103:172] is the sub-list for method input_type
-	103, // [103:103] is the sub-list for extension type_name
-	103, // [103:103] is the sub-list for extension extendee
-	0,   // [0:103] is the sub-list for field type_name
+	4,   // 5: web.v1.GetMyCurrentPixChargeResponse.refund_state:type_name -> web.v1.RefundState
+	25,  // 6: web.v1.ListExpRankingResponse.entries:type_name -> web.v1.RankingEntry
+	28,  // 7: web.v1.ListDuelRankingResponse.entries:type_name -> web.v1.DuelRankingEntry
+	31,  // 8: web.v1.ListMyCharactersResponse.characters:type_name -> web.v1.WebCharacterSummary
+	51,  // 9: web.v1.ListItemsResponse.items:type_name -> web.v1.ItemCatalogEntry
+	5,   // 10: web.v1.AdminAck.result:type_name -> web.v1.AdminResult
+	36,  // 11: web.v1.AdminNpc.shop:type_name -> web.v1.AdminNpcShopItem
+	5,   // 12: web.v1.ListNpcsResponse.result:type_name -> web.v1.AdminResult
+	37,  // 13: web.v1.ListNpcsResponse.npcs:type_name -> web.v1.AdminNpc
+	5,   // 14: web.v1.GetNpcResponse.result:type_name -> web.v1.AdminResult
+	37,  // 15: web.v1.GetNpcResponse.npc:type_name -> web.v1.AdminNpc
+	5,   // 16: web.v1.UpsertNpcResponse.result:type_name -> web.v1.AdminResult
+	36,  // 17: web.v1.SetNpcShopRequest.items:type_name -> web.v1.AdminNpcShopItem
+	5,   // 18: web.v1.ListMerchantTemplatesResponse.result:type_name -> web.v1.AdminResult
+	48,  // 19: web.v1.ListMerchantTemplatesResponse.templates:type_name -> web.v1.MerchantTemplate
+	5,   // 20: web.v1.ListItemCatalogResponse.result:type_name -> web.v1.AdminResult
+	51,  // 21: web.v1.ListItemCatalogResponse.items:type_name -> web.v1.ItemCatalogEntry
+	75,  // 22: web.v1.DropItemMob.origins:type_name -> web.v1.AdminMobOrigin
+	54,  // 23: web.v1.DropItemEntry.mobs:type_name -> web.v1.DropItemMob
+	5,   // 24: web.v1.ListDropItemsResponse.result:type_name -> web.v1.AdminResult
+	55,  // 25: web.v1.ListDropItemsResponse.items:type_name -> web.v1.DropItemEntry
+	58,  // 26: web.v1.MobDropEntry.items:type_name -> web.v1.MobDropItem
+	5,   // 27: web.v1.ListMobDropsResponse.result:type_name -> web.v1.AdminResult
+	59,  // 28: web.v1.ListMobDropsResponse.mobs:type_name -> web.v1.MobDropEntry
+	5,   // 29: web.v1.ListItemPricesResponse.result:type_name -> web.v1.AdminResult
+	62,  // 30: web.v1.ListItemPricesResponse.prices:type_name -> web.v1.ItemPrice
+	5,   // 31: web.v1.ListMapZonesResponse.result:type_name -> web.v1.AdminResult
+	65,  // 32: web.v1.ListMapZonesResponse.zones:type_name -> web.v1.MapZone
+	5,   // 33: web.v1.ListMobTemplatesResponse.result:type_name -> web.v1.AdminResult
+	68,  // 34: web.v1.ListMobTemplatesResponse.templates:type_name -> web.v1.MobTemplateFile
+	71,  // 35: web.v1.AdminMobTemplateStat.equip:type_name -> web.v1.AdminMobTemplateEquipItem
+	5,   // 36: web.v1.GetMobTemplateStatResponse.result:type_name -> web.v1.AdminResult
+	72,  // 37: web.v1.GetMobTemplateStatResponse.stat:type_name -> web.v1.AdminMobTemplateStat
+	72,  // 38: web.v1.GetMobTemplateStatResponse.file_stat:type_name -> web.v1.AdminMobTemplateStat
+	75,  // 39: web.v1.GetMobTemplateStatResponse.origins:type_name -> web.v1.AdminMobOrigin
+	72,  // 40: web.v1.UpsertMobTemplateStatRequest.stat:type_name -> web.v1.AdminMobTemplateStat
+	5,   // 41: web.v1.UpsertMobTemplateStatResponse.result:type_name -> web.v1.AdminResult
+	71,  // 42: web.v1.SetMobTemplateEquipRequest.items:type_name -> web.v1.AdminMobTemplateEquipItem
+	5,   // 43: web.v1.GetAttributeMapInfoResponse.result:type_name -> web.v1.AdminResult
+	82,  // 44: web.v1.GetAttributeMapInfoResponse.info:type_name -> web.v1.AttributeMapInfo
+	83,  // 45: web.v1.AttributeMapInfo.histogram:type_name -> web.v1.AttributeMapValueCount
+	84,  // 46: web.v1.AttributeMapInfo.meanings:type_name -> web.v1.AttributeMapMeaning
+	6,   // 47: web.v1.TransformAttributeMapRequest.operation:type_name -> web.v1.AttributeMapTransformOperation
+	85,  // 48: web.v1.TransformAttributeMapRequest.rect:type_name -> web.v1.AttributeMapRect
+	86,  // 49: web.v1.TransformAttributeMapRequest.filter:type_name -> web.v1.AttributeMapTransformFilter
+	5,   // 50: web.v1.TransformAttributeMapResponse.result:type_name -> web.v1.AdminResult
+	83,  // 51: web.v1.TransformAttributeMapResponse.before_histogram:type_name -> web.v1.AttributeMapValueCount
+	83,  // 52: web.v1.TransformAttributeMapResponse.after_histogram:type_name -> web.v1.AttributeMapValueCount
+	5,   // 53: web.v1.ListShopItemsResponse.result:type_name -> web.v1.AdminResult
+	89,  // 54: web.v1.ListShopItemsResponse.items:type_name -> web.v1.DonateShopItem
+	89,  // 55: web.v1.UpsertShopItemRequest.item:type_name -> web.v1.DonateShopItem
+	5,   // 56: web.v1.UpsertShopItemResponse.result:type_name -> web.v1.AdminResult
+	5,   // 57: web.v1.CreditDonateBalanceResponse.result:type_name -> web.v1.AdminResult
+	89,  // 58: web.v1.ListStoreItemsResponse.items:type_name -> web.v1.DonateShopItem
+	7,   // 59: web.v1.BuyResponse.result:type_name -> web.v1.BuyResult
+	5,   // 60: web.v1.ListRewardItemsResponse.result:type_name -> web.v1.AdminResult
+	104, // 61: web.v1.ListRewardItemsResponse.items:type_name -> web.v1.DailyRewardItem
+	104, // 62: web.v1.UpsertRewardItemRequest.item:type_name -> web.v1.DailyRewardItem
+	5,   // 63: web.v1.UpsertRewardItemResponse.result:type_name -> web.v1.AdminResult
+	5,   // 64: web.v1.GetWorldEventConfigResponse.result:type_name -> web.v1.AdminResult
+	111, // 65: web.v1.GetWorldEventConfigResponse.config:type_name -> web.v1.WorldEventConfig
+	111, // 66: web.v1.SetWorldEventConfigRequest.config:type_name -> web.v1.WorldEventConfig
+	104, // 67: web.v1.ListRewardsResponse.items:type_name -> web.v1.DailyRewardItem
+	8,   // 68: web.v1.ClaimResponse.result:type_name -> web.v1.ClaimResult
+	5,   // 69: web.v1.SavePayerProfileResponse.result:type_name -> web.v1.AdminResult
+	9,   // 70: web.v1.CreateTopupOrderRequest.payment_method:type_name -> web.v1.PaymentMethod
+	5,   // 71: web.v1.CreateTopupOrderResponse.result:type_name -> web.v1.AdminResult
+	10,  // 72: web.v1.ConfirmTopupOrderResponse.result:type_name -> web.v1.TopupResult
+	11,  // 73: web.v1.GetTopupOrderResponse.status:type_name -> web.v1.TopupStatus
+	9,   // 74: web.v1.RevenueByMethod.payment_method:type_name -> web.v1.PaymentMethod
+	131, // 75: web.v1.GetRevenueSummaryRequest.window:type_name -> web.v1.RevenueWindow
+	12,  // 76: web.v1.GetRevenueSummaryRequest.bucket:type_name -> web.v1.RevenueBucket
+	5,   // 77: web.v1.GetRevenueSummaryResponse.result:type_name -> web.v1.AdminResult
+	132, // 78: web.v1.GetRevenueSummaryResponse.totals:type_name -> web.v1.RevenueTotals
+	133, // 79: web.v1.GetRevenueSummaryResponse.by_method:type_name -> web.v1.RevenueByMethod
+	134, // 80: web.v1.GetRevenueSummaryResponse.series:type_name -> web.v1.RevenuePoint
+	9,   // 81: web.v1.TopupOrderRow.payment_method:type_name -> web.v1.PaymentMethod
+	11,  // 82: web.v1.TopupOrderRow.status:type_name -> web.v1.TopupStatus
+	131, // 83: web.v1.ListTopupOrdersRequest.window:type_name -> web.v1.RevenueWindow
+	11,  // 84: web.v1.ListTopupOrdersRequest.status:type_name -> web.v1.TopupStatus
+	9,   // 85: web.v1.ListTopupOrdersRequest.payment_method:type_name -> web.v1.PaymentMethod
+	5,   // 86: web.v1.ListTopupOrdersResponse.result:type_name -> web.v1.AdminResult
+	137, // 87: web.v1.ListTopupOrdersResponse.orders:type_name -> web.v1.TopupOrderRow
+	131, // 88: web.v1.ListTopBuyersRequest.window:type_name -> web.v1.RevenueWindow
+	5,   // 89: web.v1.ListTopBuyersResponse.result:type_name -> web.v1.AdminResult
+	140, // 90: web.v1.ListTopBuyersResponse.buyers:type_name -> web.v1.TopBuyerRow
+	13,  // 91: web.v1.DonateLedgerRow.action:type_name -> web.v1.DonateLedgerAction
+	131, // 92: web.v1.ListDonateSpendRequest.window:type_name -> web.v1.RevenueWindow
+	13,  // 93: web.v1.ListDonateSpendRequest.action:type_name -> web.v1.DonateLedgerAction
+	5,   // 94: web.v1.ListDonateSpendResponse.result:type_name -> web.v1.AdminResult
+	143, // 95: web.v1.ListDonateSpendResponse.entries:type_name -> web.v1.DonateLedgerRow
+	5,   // 96: web.v1.SearchAccountsResponse.result:type_name -> web.v1.AdminResult
+	146, // 97: web.v1.SearchAccountsResponse.accounts:type_name -> web.v1.AccountSummary
+	5,   // 98: web.v1.GetItemStatResponse.result:type_name -> web.v1.AdminResult
+	149, // 99: web.v1.GetItemStatResponse.stat:type_name -> web.v1.AdminItemStat
+	149, // 100: web.v1.UpsertItemStatRequest.stat:type_name -> web.v1.AdminItemStat
+	154, // 101: web.v1.ListMountGrowthCurvesResponse.curves:type_name -> web.v1.AdminMountGrowthCurve
+	159, // 102: web.v1.ListMountAbsorbResponse.absorb:type_name -> web.v1.AdminMountAbsorb
+	166, // 103: web.v1.ListMountBonusResponse.bonus:type_name -> web.v1.AdminMountBonus
+	14,  // 104: web.v1.AccountWebService.CreateAccount:input_type -> web.v1.CreateAccountRequest
+	16,  // 105: web.v1.AccountWebService.VerifyCredentials:input_type -> web.v1.VerifyCredentialsRequest
+	18,  // 106: web.v1.RmtWebService.SavePixKey:input_type -> web.v1.SavePixKeyRequest
+	20,  // 107: web.v1.RmtWebService.GetPixKey:input_type -> web.v1.GetPixKeyRequest
+	22,  // 108: web.v1.RmtWebService.GetMyCurrentPixCharge:input_type -> web.v1.GetMyCurrentPixChargeRequest
+	24,  // 109: web.v1.RankingWebService.ListExpRanking:input_type -> web.v1.ListExpRankingRequest
+	27,  // 110: web.v1.RankingWebService.ListDuelRanking:input_type -> web.v1.ListDuelRankingRequest
+	30,  // 111: web.v1.CharacterWebService.ListMyCharacters:input_type -> web.v1.ListMyCharactersRequest
+	33,  // 112: web.v1.ItemCatalogService.ListItems:input_type -> web.v1.ListItemsRequest
+	38,  // 113: web.v1.NpcAdminService.ListNpcs:input_type -> web.v1.ListNpcsRequest
+	40,  // 114: web.v1.NpcAdminService.GetNpc:input_type -> web.v1.GetNpcRequest
+	42,  // 115: web.v1.NpcAdminService.UpsertNpc:input_type -> web.v1.UpsertNpcRequest
+	44,  // 116: web.v1.NpcAdminService.SetNpcVisibility:input_type -> web.v1.SetNpcVisibilityRequest
+	45,  // 117: web.v1.NpcAdminService.SetNpcShop:input_type -> web.v1.SetNpcShopRequest
+	46,  // 118: web.v1.NpcAdminService.SetItemPrice:input_type -> web.v1.SetItemPriceRequest
+	47,  // 119: web.v1.NpcAdminService.DeleteNpc:input_type -> web.v1.DeleteNpcRequest
+	49,  // 120: web.v1.NpcAdminService.ListMerchantTemplates:input_type -> web.v1.ListMerchantTemplatesRequest
+	52,  // 121: web.v1.NpcAdminService.ListItemCatalog:input_type -> web.v1.ListItemCatalogRequest
+	56,  // 122: web.v1.NpcAdminService.ListDropItems:input_type -> web.v1.ListDropItemsRequest
+	60,  // 123: web.v1.NpcAdminService.ListMobDrops:input_type -> web.v1.ListMobDropsRequest
+	63,  // 124: web.v1.NpcAdminService.ListItemPrices:input_type -> web.v1.ListItemPricesRequest
+	66,  // 125: web.v1.NpcAdminService.ListMapZones:input_type -> web.v1.ListMapZonesRequest
+	69,  // 126: web.v1.MobTemplateAdminService.ListMobTemplates:input_type -> web.v1.ListMobTemplatesRequest
+	73,  // 127: web.v1.MobTemplateAdminService.GetMobTemplateStat:input_type -> web.v1.GetMobTemplateStatRequest
+	76,  // 128: web.v1.MobTemplateAdminService.UpsertMobTemplateStat:input_type -> web.v1.UpsertMobTemplateStatRequest
+	78,  // 129: web.v1.MobTemplateAdminService.SetMobTemplateEquip:input_type -> web.v1.SetMobTemplateEquipRequest
+	79,  // 130: web.v1.MobTemplateAdminService.DeleteMobTemplateStat:input_type -> web.v1.DeleteMobTemplateStatRequest
+	80,  // 131: web.v1.AttributeMapAdminService.GetAttributeMapInfo:input_type -> web.v1.GetAttributeMapInfoRequest
+	87,  // 132: web.v1.AttributeMapAdminService.TransformAttributeMap:input_type -> web.v1.TransformAttributeMapRequest
+	90,  // 133: web.v1.DonateAdminService.ListShopItems:input_type -> web.v1.ListShopItemsRequest
+	92,  // 134: web.v1.DonateAdminService.UpsertShopItem:input_type -> web.v1.UpsertShopItemRequest
+	94,  // 135: web.v1.DonateAdminService.SetShopItemEnabled:input_type -> web.v1.SetShopItemEnabledRequest
+	95,  // 136: web.v1.DonateAdminService.DeleteShopItem:input_type -> web.v1.DeleteShopItemRequest
+	96,  // 137: web.v1.DonateAdminService.CreditDonateBalance:input_type -> web.v1.CreditDonateBalanceRequest
+	98,  // 138: web.v1.DonateShopService.ListShopItems:input_type -> web.v1.ListStoreItemsRequest
+	100, // 139: web.v1.DonateShopService.GetBalance:input_type -> web.v1.GetBalanceRequest
+	102, // 140: web.v1.DonateShopService.Buy:input_type -> web.v1.BuyRequest
+	105, // 141: web.v1.DailyRewardAdminService.ListRewardItems:input_type -> web.v1.ListRewardItemsRequest
+	107, // 142: web.v1.DailyRewardAdminService.UpsertRewardItem:input_type -> web.v1.UpsertRewardItemRequest
+	109, // 143: web.v1.DailyRewardAdminService.SetRewardItemEnabled:input_type -> web.v1.SetRewardItemEnabledRequest
+	110, // 144: web.v1.DailyRewardAdminService.DeleteRewardItem:input_type -> web.v1.DeleteRewardItemRequest
+	112, // 145: web.v1.WorldEventAdminService.GetWorldEventConfig:input_type -> web.v1.GetWorldEventConfigRequest
+	114, // 146: web.v1.WorldEventAdminService.SetWorldEventConfig:input_type -> web.v1.SetWorldEventConfigRequest
+	115, // 147: web.v1.DailyRewardService.ListRewards:input_type -> web.v1.ListRewardsRequest
+	117, // 148: web.v1.DailyRewardService.GetClaimStatus:input_type -> web.v1.GetClaimStatusRequest
+	119, // 149: web.v1.DailyRewardService.Claim:input_type -> web.v1.ClaimRequest
+	121, // 150: web.v1.DonateTopupService.GetPayerProfile:input_type -> web.v1.GetPayerProfileRequest
+	123, // 151: web.v1.DonateTopupService.SavePayerProfile:input_type -> web.v1.SavePayerProfileRequest
+	125, // 152: web.v1.DonateTopupService.CreateTopupOrder:input_type -> web.v1.CreateTopupOrderRequest
+	127, // 153: web.v1.DonateTopupService.ConfirmTopupOrder:input_type -> web.v1.ConfirmTopupOrderRequest
+	129, // 154: web.v1.DonateTopupService.GetTopupOrder:input_type -> web.v1.GetTopupOrderRequest
+	135, // 155: web.v1.DonateRevenueAdminService.GetRevenueSummary:input_type -> web.v1.GetRevenueSummaryRequest
+	138, // 156: web.v1.DonateRevenueAdminService.ListTopupOrders:input_type -> web.v1.ListTopupOrdersRequest
+	141, // 157: web.v1.DonateRevenueAdminService.ListTopBuyers:input_type -> web.v1.ListTopBuyersRequest
+	144, // 158: web.v1.DonateRevenueAdminService.ListDonateSpend:input_type -> web.v1.ListDonateSpendRequest
+	147, // 159: web.v1.DonateRevenueAdminService.SearchAccounts:input_type -> web.v1.SearchAccountsRequest
+	150, // 160: web.v1.ItemStatAdminService.GetItemStat:input_type -> web.v1.GetItemStatRequest
+	152, // 161: web.v1.ItemStatAdminService.UpsertItemStat:input_type -> web.v1.UpsertItemStatRequest
+	153, // 162: web.v1.ItemStatAdminService.DeleteItemStat:input_type -> web.v1.DeleteItemStatRequest
+	155, // 163: web.v1.MountGrowthAdminService.ListMountGrowthCurves:input_type -> web.v1.ListMountGrowthCurvesRequest
+	157, // 164: web.v1.MountGrowthAdminService.SetMountGrowthCurve:input_type -> web.v1.SetMountGrowthCurveRequest
+	158, // 165: web.v1.MountGrowthAdminService.ClearMountGrowthCurve:input_type -> web.v1.ClearMountGrowthCurveRequest
+	162, // 166: web.v1.MountGrowthAdminService.ListMountAbsorb:input_type -> web.v1.ListMountAbsorbRequest
+	164, // 167: web.v1.MountGrowthAdminService.SetMountAbsorb:input_type -> web.v1.SetMountAbsorbRequest
+	165, // 168: web.v1.MountGrowthAdminService.ClearMountAbsorb:input_type -> web.v1.ClearMountAbsorbRequest
+	167, // 169: web.v1.MountGrowthAdminService.ListMountBonus:input_type -> web.v1.ListMountBonusRequest
+	169, // 170: web.v1.MountGrowthAdminService.SetMountBonus:input_type -> web.v1.SetMountBonusRequest
+	170, // 171: web.v1.MountGrowthAdminService.ClearMountBonus:input_type -> web.v1.ClearMountBonusRequest
+	160, // 172: web.v1.MountGrowthAdminService.MountConfigVersion:input_type -> web.v1.MountConfigVersionRequest
+	15,  // 173: web.v1.AccountWebService.CreateAccount:output_type -> web.v1.CreateAccountResponse
+	17,  // 174: web.v1.AccountWebService.VerifyCredentials:output_type -> web.v1.VerifyCredentialsResponse
+	19,  // 175: web.v1.RmtWebService.SavePixKey:output_type -> web.v1.SavePixKeyResponse
+	21,  // 176: web.v1.RmtWebService.GetPixKey:output_type -> web.v1.GetPixKeyResponse
+	23,  // 177: web.v1.RmtWebService.GetMyCurrentPixCharge:output_type -> web.v1.GetMyCurrentPixChargeResponse
+	26,  // 178: web.v1.RankingWebService.ListExpRanking:output_type -> web.v1.ListExpRankingResponse
+	29,  // 179: web.v1.RankingWebService.ListDuelRanking:output_type -> web.v1.ListDuelRankingResponse
+	32,  // 180: web.v1.CharacterWebService.ListMyCharacters:output_type -> web.v1.ListMyCharactersResponse
+	34,  // 181: web.v1.ItemCatalogService.ListItems:output_type -> web.v1.ListItemsResponse
+	39,  // 182: web.v1.NpcAdminService.ListNpcs:output_type -> web.v1.ListNpcsResponse
+	41,  // 183: web.v1.NpcAdminService.GetNpc:output_type -> web.v1.GetNpcResponse
+	43,  // 184: web.v1.NpcAdminService.UpsertNpc:output_type -> web.v1.UpsertNpcResponse
+	35,  // 185: web.v1.NpcAdminService.SetNpcVisibility:output_type -> web.v1.AdminAck
+	35,  // 186: web.v1.NpcAdminService.SetNpcShop:output_type -> web.v1.AdminAck
+	35,  // 187: web.v1.NpcAdminService.SetItemPrice:output_type -> web.v1.AdminAck
+	35,  // 188: web.v1.NpcAdminService.DeleteNpc:output_type -> web.v1.AdminAck
+	50,  // 189: web.v1.NpcAdminService.ListMerchantTemplates:output_type -> web.v1.ListMerchantTemplatesResponse
+	53,  // 190: web.v1.NpcAdminService.ListItemCatalog:output_type -> web.v1.ListItemCatalogResponse
+	57,  // 191: web.v1.NpcAdminService.ListDropItems:output_type -> web.v1.ListDropItemsResponse
+	61,  // 192: web.v1.NpcAdminService.ListMobDrops:output_type -> web.v1.ListMobDropsResponse
+	64,  // 193: web.v1.NpcAdminService.ListItemPrices:output_type -> web.v1.ListItemPricesResponse
+	67,  // 194: web.v1.NpcAdminService.ListMapZones:output_type -> web.v1.ListMapZonesResponse
+	70,  // 195: web.v1.MobTemplateAdminService.ListMobTemplates:output_type -> web.v1.ListMobTemplatesResponse
+	74,  // 196: web.v1.MobTemplateAdminService.GetMobTemplateStat:output_type -> web.v1.GetMobTemplateStatResponse
+	77,  // 197: web.v1.MobTemplateAdminService.UpsertMobTemplateStat:output_type -> web.v1.UpsertMobTemplateStatResponse
+	35,  // 198: web.v1.MobTemplateAdminService.SetMobTemplateEquip:output_type -> web.v1.AdminAck
+	35,  // 199: web.v1.MobTemplateAdminService.DeleteMobTemplateStat:output_type -> web.v1.AdminAck
+	81,  // 200: web.v1.AttributeMapAdminService.GetAttributeMapInfo:output_type -> web.v1.GetAttributeMapInfoResponse
+	88,  // 201: web.v1.AttributeMapAdminService.TransformAttributeMap:output_type -> web.v1.TransformAttributeMapResponse
+	91,  // 202: web.v1.DonateAdminService.ListShopItems:output_type -> web.v1.ListShopItemsResponse
+	93,  // 203: web.v1.DonateAdminService.UpsertShopItem:output_type -> web.v1.UpsertShopItemResponse
+	35,  // 204: web.v1.DonateAdminService.SetShopItemEnabled:output_type -> web.v1.AdminAck
+	35,  // 205: web.v1.DonateAdminService.DeleteShopItem:output_type -> web.v1.AdminAck
+	97,  // 206: web.v1.DonateAdminService.CreditDonateBalance:output_type -> web.v1.CreditDonateBalanceResponse
+	99,  // 207: web.v1.DonateShopService.ListShopItems:output_type -> web.v1.ListStoreItemsResponse
+	101, // 208: web.v1.DonateShopService.GetBalance:output_type -> web.v1.GetBalanceResponse
+	103, // 209: web.v1.DonateShopService.Buy:output_type -> web.v1.BuyResponse
+	106, // 210: web.v1.DailyRewardAdminService.ListRewardItems:output_type -> web.v1.ListRewardItemsResponse
+	108, // 211: web.v1.DailyRewardAdminService.UpsertRewardItem:output_type -> web.v1.UpsertRewardItemResponse
+	35,  // 212: web.v1.DailyRewardAdminService.SetRewardItemEnabled:output_type -> web.v1.AdminAck
+	35,  // 213: web.v1.DailyRewardAdminService.DeleteRewardItem:output_type -> web.v1.AdminAck
+	113, // 214: web.v1.WorldEventAdminService.GetWorldEventConfig:output_type -> web.v1.GetWorldEventConfigResponse
+	35,  // 215: web.v1.WorldEventAdminService.SetWorldEventConfig:output_type -> web.v1.AdminAck
+	116, // 216: web.v1.DailyRewardService.ListRewards:output_type -> web.v1.ListRewardsResponse
+	118, // 217: web.v1.DailyRewardService.GetClaimStatus:output_type -> web.v1.GetClaimStatusResponse
+	120, // 218: web.v1.DailyRewardService.Claim:output_type -> web.v1.ClaimResponse
+	122, // 219: web.v1.DonateTopupService.GetPayerProfile:output_type -> web.v1.GetPayerProfileResponse
+	124, // 220: web.v1.DonateTopupService.SavePayerProfile:output_type -> web.v1.SavePayerProfileResponse
+	126, // 221: web.v1.DonateTopupService.CreateTopupOrder:output_type -> web.v1.CreateTopupOrderResponse
+	128, // 222: web.v1.DonateTopupService.ConfirmTopupOrder:output_type -> web.v1.ConfirmTopupOrderResponse
+	130, // 223: web.v1.DonateTopupService.GetTopupOrder:output_type -> web.v1.GetTopupOrderResponse
+	136, // 224: web.v1.DonateRevenueAdminService.GetRevenueSummary:output_type -> web.v1.GetRevenueSummaryResponse
+	139, // 225: web.v1.DonateRevenueAdminService.ListTopupOrders:output_type -> web.v1.ListTopupOrdersResponse
+	142, // 226: web.v1.DonateRevenueAdminService.ListTopBuyers:output_type -> web.v1.ListTopBuyersResponse
+	145, // 227: web.v1.DonateRevenueAdminService.ListDonateSpend:output_type -> web.v1.ListDonateSpendResponse
+	148, // 228: web.v1.DonateRevenueAdminService.SearchAccounts:output_type -> web.v1.SearchAccountsResponse
+	151, // 229: web.v1.ItemStatAdminService.GetItemStat:output_type -> web.v1.GetItemStatResponse
+	35,  // 230: web.v1.ItemStatAdminService.UpsertItemStat:output_type -> web.v1.AdminAck
+	35,  // 231: web.v1.ItemStatAdminService.DeleteItemStat:output_type -> web.v1.AdminAck
+	156, // 232: web.v1.MountGrowthAdminService.ListMountGrowthCurves:output_type -> web.v1.ListMountGrowthCurvesResponse
+	35,  // 233: web.v1.MountGrowthAdminService.SetMountGrowthCurve:output_type -> web.v1.AdminAck
+	35,  // 234: web.v1.MountGrowthAdminService.ClearMountGrowthCurve:output_type -> web.v1.AdminAck
+	163, // 235: web.v1.MountGrowthAdminService.ListMountAbsorb:output_type -> web.v1.ListMountAbsorbResponse
+	35,  // 236: web.v1.MountGrowthAdminService.SetMountAbsorb:output_type -> web.v1.AdminAck
+	35,  // 237: web.v1.MountGrowthAdminService.ClearMountAbsorb:output_type -> web.v1.AdminAck
+	168, // 238: web.v1.MountGrowthAdminService.ListMountBonus:output_type -> web.v1.ListMountBonusResponse
+	35,  // 239: web.v1.MountGrowthAdminService.SetMountBonus:output_type -> web.v1.AdminAck
+	35,  // 240: web.v1.MountGrowthAdminService.ClearMountBonus:output_type -> web.v1.AdminAck
+	161, // 241: web.v1.MountGrowthAdminService.MountConfigVersion:output_type -> web.v1.MountConfigVersionResponse
+	173, // [173:242] is the sub-list for method output_type
+	104, // [104:173] is the sub-list for method input_type
+	104, // [104:104] is the sub-list for extension type_name
+	104, // [104:104] is the sub-list for extension extendee
+	0,   // [0:104] is the sub-list for field type_name
 }
 
 func init() { file_api_web_v1_web_proto_init() }
@@ -13227,7 +13331,7 @@ func file_api_web_v1_web_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_web_v1_web_proto_rawDesc), len(file_api_web_v1_web_proto_rawDesc)),
-			NumEnums:      13,
+			NumEnums:      14,
 			NumMessages:   157,
 			NumExtensions: 0,
 			NumServices:   17,

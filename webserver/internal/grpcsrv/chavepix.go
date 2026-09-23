@@ -143,6 +143,10 @@ func (s *ServerRmt) GetMyCurrentPixCharge(ctx context.Context, req *webv1.GetMyC
 		RefineLevel: int32(cob.Refino),
 		StackSize:   int32(cob.Quantidade),
 		SellerName:  cob.VendedorNome,
+		// Zero quando nada foi pedido, que é o caso de quase toda cobrança. A
+		// página conta os até dois dias úteis a partir desta data.
+		RefundRequestedAt: unixOuZero(cob.ReembolsoPedidoEm),
+		RefundState:       reembolsoParaProto(cob.Reembolso),
 	}, nil
 }
 
@@ -166,4 +170,29 @@ func estadoParaProto(e store.EstadoCobrancaComprador) webv1.PixChargeState {
 		return webv1.PixChargeState_PIX_CHARGE_STATE_PAID_LATE
 	}
 	return webv1.PixChargeState_PIX_CHARGE_STATE_UNSPECIFIED
+}
+
+// unixOuZero devolve 0 para uma data vazia em vez do unix de 1970, que é o que o
+// Time zero daria — e 1970 na tela seria uma data de verdade, errada.
+func unixOuZero(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.Unix()
+}
+
+// reembolsoParaProto mapeia o estado do reembolso no do contrato, explícito pelo
+// mesmo motivo do estadoParaProto: os dois enums mudam por motivos diferentes.
+func reembolsoParaProto(e store.EstadoReembolso) webv1.RefundState {
+	switch e {
+	case store.ReembolsoPendente:
+		return webv1.RefundState_REFUND_STATE_PENDING
+	case store.ReembolsoPedido:
+		return webv1.RefundState_REFUND_STATE_REQUESTED
+	case store.ReembolsoConcluido:
+		return webv1.RefundState_REFUND_STATE_REFUNDED
+	case store.ReembolsoRecusado:
+		return webv1.RefundState_REFUND_STATE_FAILED
+	}
+	return webv1.RefundState_REFUND_STATE_UNSPECIFIED
 }

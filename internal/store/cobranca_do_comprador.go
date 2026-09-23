@@ -61,6 +61,7 @@ const (
 // a fotografia é a resposta a "o que exatamente eu paguei" depois de o item sair
 // do baú, e é a única fonte que funciona com o vendedor fora do jogo.
 type CobrancaDoComprador struct {
+	CobrancaID    int64
 	CodigoPix     string
 	ValorCentavos int64
 	ExpiraEm      time.Time
@@ -69,7 +70,33 @@ type CobrancaDoComprador struct {
 	Refino        int
 	Quantidade    int
 	VendedorNome  string
+	// ReembolsoPedidoEm é quando o reembolso foi PEDIDO, zero quando não foi.
+	// A partir desta data a página conta os até dois dias úteis da análise.
+	ReembolsoPedidoEm time.Time
+	Reembolso         EstadoReembolso
 }
+
+// EstadoReembolso é o caminho de volta do dinheiro que chegou tarde.
+//
+// Campo próprio e não mais um estado da cobrança porque os dois andam em relógios
+// diferentes: a cobrança fecha em segundos, e o reembolso pode levar dias. Juntar
+// os dois seria precisar de um estado para cada par.
+type EstadoReembolso int
+
+const (
+	// ReembolsoNenhum: não há reembolso a fazer. É o caso de quase toda cobrança.
+	ReembolsoNenhum EstadoReembolso = iota
+	// ReembolsoPendente: devemos o reembolso e ainda não pedimos à processadora.
+	ReembolsoPendente
+	// ReembolsoPedido: a processadora aceitou e está analisando. É o estado que
+	// dura até dois dias úteis.
+	ReembolsoPedido
+	// ReembolsoConcluido: o dinheiro voltou.
+	ReembolsoConcluido
+	// ReembolsoRecusado: a processadora recusou. NÃO se tenta de novo em laço e
+	// NÃO sai da página sozinho — espera uma pessoa.
+	ReembolsoRecusado
+)
 
 // CobrancaAtualDoComprador devolve a cobrança desta conta como COMPRADORA: a
 // aberta, ou a que fechou há pouco.
@@ -96,23 +123,47 @@ func (s *Store) CobrancaAtualDoComprador(ctx context.Context, compradorConta int
 	var codigo *string
 	var nomeVendedor *string
 	var eff [6]int16
+	var reembolsoStatus *int16
+	var reembolsoEm *time.Time
 
 	// O nome do vendedor vem da FOTOGRAFIA (0113) e não de uma busca por
 	// personagem da conta. Buscar erraria de duas formas ao mesmo tempo: mostraria
 	// um personagem que pode não ser o da barraca, e exporia o nome de outro
 	// personagem da conta, que não tem nada a ver com a venda.
+	// A PRECEDÊNCIA, e ela é o desenho:
+	//
+	//  0. A ABERTA ganha sempre. É a única em que a pessoa pode fazer algo.
+	//  1. Senão, um pagamento atrasado cujo reembolso não terminou — e este NÃO
+	//     envelhece. O dinheiro de alguém está parado; uma página que o esquece
+	//     em dez minutos deixa a pessoa sem nada para olhar e sem a quem
+	//     perguntar.
+	//  2. Senão, a mais recente que fechou dentro da janela.
+	//
+	// Um atrasado que está atrás de uma aberta volta sozinho quando a aberta
+	// fechar. Nada se perde, só entra na fila.
 	err := s.pool.QueryRow(ctx, `
-		SELECT c.codigo_pix, c.valor_centavos, c.expira_em, c.status,
+		SELECT c.id, c.codigo_pix, c.valor_centavos, c.expira_em, c.status,
+		       c.reembolso_status, c.reembolso_pedido_em,
 		       a.item_index, a.eff1, a.effv1, a.eff2, a.effv2, a.eff3, a.effv3,
 		       a.vendedor_personagem
 		  FROM rmt_cobranca c
 		  JOIN rmt_anuncio a ON a.id = c.anuncio_id
 		 WHERE c.comprador_conta = $1
-		   AND (c.status = $2 OR c.encerrada_em > now() - $3::interval)
-		 ORDER BY c.criada_em DESC
+		   AND (c.status = $2
+		        OR (c.status = $4 AND (c.reembolso_status IS NULL OR c.reembolso_status <> $5))
+		        OR c.encerrada_em > now() - $3::interval)
+		 ORDER BY CASE
+		            WHEN c.status = $2 THEN 0
+		            WHEN c.status = $4 AND (c.reembolso_status IS NULL
+		                                    OR c.reembolso_status <> $5) THEN 1
+		            ELSE 2
+		          END,
+		          c.criada_em DESC
 		 LIMIT 1`,
-		compradorConta, cobrancaAberta, janelaRecente.String()).
-		Scan(&codigo, &cob.ValorCentavos, &cob.ExpiraEm, &status,
+		compradorConta, cobrancaAberta, janelaRecente.String(),
+		cobrancaPagaSemItem, reembolsoConcluido).
+		Scan(&cob.CobrancaID, &codigo, &cob.ValorCentavos, &cob.ExpiraEm, &status,
+			&reembolsoStatus, &reembolsoEm,
 			&cob.ItemIndex, &eff[0], &eff[1], &eff[2], &eff[3], &eff[4], &eff[5],
 			&nomeVendedor)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -129,6 +180,12 @@ func (s *Store) CobrancaAtualDoComprador(ctx context.Context, compradorConta int
 	}
 	if nomeVendedor != nil {
 		cob.VendedorNome = *nomeVendedor
+	}
+	if reembolsoStatus != nil {
+		cob.Reembolso = EstadoReembolso(*reembolsoStatus)
+	}
+	if reembolsoEm != nil {
+		cob.ReembolsoPedidoEm = *reembolsoEm
 	}
 	cob.Refino, cob.Quantidade = refinoEQuantidade(eff)
 	return true, cob, nil
@@ -189,3 +246,13 @@ func refinoEQuantidade(eff [6]int16) (refino, quantidade int) {
 	}
 	return refino, quantidade
 }
+
+// Estados do reembolso como o banco os guarda (0114). Os números são os mesmos
+// do EstadoReembolso, e a conversão continua explícita: eles vivem em lugares
+// diferentes e podem mudar por motivos diferentes.
+const (
+	reembolsoPendente  int16 = 1
+	reembolsoPedido    int16 = 2
+	reembolsoConcluido int16 = 3
+	reembolsoRecusado  int16 = 4
+)

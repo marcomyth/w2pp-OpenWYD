@@ -341,3 +341,170 @@ func TestAnuncioSemNomeNaFotografiaNaoDerrubaALeitura(t *testing.T) {
 		t.Error("perdeu o resto da cobranca por falta de um nome")
 	}
 }
+
+// cobrancaPagaSemItemDe monta o caso do pagamento atrasado: cobrança fechada como
+// PAGA_SEM_ITEM, com o reembolso no estado pedido.
+func cobrancaPagaSemItemDe(ctx context.Context, t *testing.T, s *Store,
+	vendedor, comprador int64, ref string, reembolso int16,
+) int64 {
+	t.Helper()
+	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
+	itemMarcado(ctx, t, s, vendedor, 0, anuncio)
+	if _, _, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, ref, 0); err != nil {
+		t.Fatal(err)
+	}
+	var id int64
+	if err := s.pool.QueryRow(ctx, `
+		UPDATE rmt_cobranca
+		   SET status = $2, encerrada_em = now() - interval '3 hours',
+		       paga_em = now() - interval '3 hours',
+		       reembolso_status = $3, reembolso_pedido_em = now() - interval '3 hours'
+		 WHERE referencia_externa = $1 RETURNING id`,
+		ref, cobrancaPagaSemItem, reembolso).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	// O anúncio sai do caminho para o próximo poder usar o mesmo slot.
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE rmt_anuncio SET status = $2 WHERE id = $1`, anuncio, anuncioVendido); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `
+		DELETE FROM item WHERE owner_kind = 'account_cargo' AND account_id = $1 AND slot = 0`,
+		vendedor); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// O PAGAMENTO ATRASADO NÃO ENVELHECE ENQUANTO O REEMBOLSO NÃO TERMINA.
+//
+// O dinheiro de alguém está parado. Uma página que o esquece depois de dez
+// minutos deixa a pessoa sem nada para olhar e sem a quem perguntar — e ela pagou
+// de verdade.
+//
+// A cobrança do teste fechou há TRÊS HORAS, muito além da janela recente.
+func TestPagamentoAtrasadoNaoEnvelheceEnquantoOReembolsoNaoTermina(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor := contaPix(ctx, t, s, "vendedor_atrasado")
+	comprador := contaPix(ctx, t, s, "comprador_atrasado")
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+		t.Fatal(err)
+	}
+	cobrancaPagaSemItemDe(ctx, t, s, vendedor, comprador, "ref-atrasado", reembolsoPedido)
+
+	tem, cob, err := s.CobrancaAtualDoComprador(ctx, comprador, 0)
+	if err != nil {
+		t.Fatalf("lendo: %v", err)
+	}
+
+	if !tem {
+		t.Fatal("esqueceu um pagamento atrasado de tres horas atras; o dinheiro esta parado")
+	}
+	if cob.Estado != EstadoCobrancaPagaSemItem {
+		t.Errorf("estado = %d, quero paga-sem-item(%d)", cob.Estado, EstadoCobrancaPagaSemItem)
+	}
+	if cob.Reembolso != ReembolsoPedido {
+		t.Errorf("reembolso = %d, quero pedido(%d)", cob.Reembolso, ReembolsoPedido)
+	}
+	if cob.ReembolsoPedidoEm.IsZero() {
+		t.Error("sem a data do pedido a pagina nao consegue contar os dois dias uteis")
+	}
+}
+
+// O RECUSADO TAMBÉM NÃO SAI DA PÁGINA. Ele espera uma pessoa, e enquanto espera a
+// pessoa que pagou merece ver que alguém sabe do dinheiro dela.
+func TestReembolsoRecusadoNaoSaiDaPagina(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor := contaPix(ctx, t, s, "vendedor_recusado")
+	comprador := contaPix(ctx, t, s, "comprador_recusado")
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+		t.Fatal(err)
+	}
+	cobrancaPagaSemItemDe(ctx, t, s, vendedor, comprador, "ref-recusado", reembolsoRecusado)
+
+	tem, cob, err := s.CobrancaAtualDoComprador(ctx, comprador, 0)
+	if err != nil {
+		t.Fatalf("lendo: %v", err)
+	}
+	if !tem || cob.Reembolso != ReembolsoRecusado {
+		t.Errorf("tem = %v reembolso = %d; quero o recusado ainda visivel", tem, cob.Reembolso)
+	}
+}
+
+// E O CONCLUÍDO ENVELHECE COMO QUALQUER OUTRO. Sem esta metade, um "atrasado nunca
+// sai" encheria a página para sempre depois de o dinheiro já ter voltado.
+func TestReembolsoConcluidoEnvelheceNormalmente(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor := contaPix(ctx, t, s, "vendedor_concluido")
+	comprador := contaPix(ctx, t, s, "comprador_concluido")
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+		t.Fatal(err)
+	}
+	cobrancaPagaSemItemDe(ctx, t, s, vendedor, comprador, "ref-concluido", reembolsoConcluido)
+
+	tem, _, err := s.CobrancaAtualDoComprador(ctx, comprador, 0)
+	if err != nil {
+		t.Fatalf("lendo: %v", err)
+	}
+	if tem {
+		t.Error("o reembolso concluido ha tres horas continua na pagina para sempre")
+	}
+}
+
+// A COBRANÇA ABERTA TEM PRECEDÊNCIA sobre o atrasado, e o atrasado VOLTA quando
+// ela fechar.
+//
+// As duas metades no mesmo teste porque a segunda é o que impede o conserto
+// preguiçoso: esconder o atrasado atrás da aberta seria perdê-lo, e o valor está
+// em ele estar só na fila.
+func TestAbertaTemPrecedenciaEOAtrasadoVolta(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor := contaPix(ctx, t, s, "vendedor_fila")
+	comprador := contaPix(ctx, t, s, "comprador_fila")
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+		t.Fatal(err)
+	}
+	// A ABERTA NASCE PRIMEIRO E O ATRASADO DEPOIS, de propósito: assim o atrasado
+	// é o MAIS NOVO, e uma ordenação só por data escolheria ele. É o que isola a
+	// regra de precedência — com a aberta sendo também a mais nova, os dois
+	// critérios dariam a mesma resposta e o teste não provaria nada.
+	aberto := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 5, 0, 1)
+	itemMarcado(ctx, t, s, vendedor, 5, aberto)
+	if _, _, err := s.AbrirCobrancaRMT(ctx, aberto, comprador, "ref-fila-nova", 0); err != nil {
+		t.Fatal(err)
+	}
+	atrasada := cobrancaPagaSemItemDe(ctx, t, s, vendedor, comprador, "ref-fila-velha", reembolsoPedido)
+	if _, err := s.pool.Exec(ctx, `
+		UPDATE rmt_cobranca SET criada_em = now() + interval '1 minute'
+		 WHERE referencia_externa = 'ref-fila-velha'`); err != nil {
+		t.Fatal(err)
+	}
+
+	_, cob, err := s.CobrancaAtualDoComprador(ctx, comprador, 0)
+	if err != nil {
+		t.Fatalf("lendo: %v", err)
+	}
+	if cob.Estado != EstadoCobrancaAberta {
+		t.Fatalf("estado = %d, quero aberta: e a unica em que a pessoa pode agir", cob.Estado)
+	}
+
+	// A aberta fecha, e o atrasado volta sozinho.
+	if _, err := s.CancelarCobrancaRMT(ctx, "ref-fila-nova"); err != nil {
+		t.Fatal(err)
+	}
+	// Empurra a cancelada para fora da janela recente, senão é ELA a mais nova.
+	if _, err := s.pool.Exec(ctx, `
+		UPDATE rmt_cobranca SET encerrada_em = now() - interval '3 hours'
+		 WHERE referencia_externa = 'ref-fila-nova'`); err != nil {
+		t.Fatal(err)
+	}
+
+	_, cob, err = s.CobrancaAtualDoComprador(ctx, comprador, 0)
+	if err != nil {
+		t.Fatalf("lendo: %v", err)
+	}
+	if cob.CobrancaID != atrasada {
+		t.Errorf("voltou a cobranca %d, quero a atrasada %d: ela estava so na fila",
+			cob.CobrancaID, atrasada)
+	}
+}

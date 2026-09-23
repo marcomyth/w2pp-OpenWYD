@@ -242,6 +242,18 @@ type RmtWebServiceClient interface {
 	// almost every account almost all of the time, and the page that asks this is
 	// the account page — which people open to look at other things.
 	//
+	// WHICH ONE IS "CURRENT", when more than one could be:
+	//
+	//  1. An OPEN charge always wins. It is the only one the person can act on.
+	//  2. Otherwise a PAID_LATE whose refund has not finished — and that one does
+	//     NOT age out of the page. Somebody's money is sitting still; a page that
+	//     forgets it after ten minutes leaves them with nothing to look at and
+	//     nobody to ask.
+	//  3. Otherwise the most recent charge that closed inside the recent window.
+	//
+	// A PAID_LATE that is waiting behind an open charge comes back on its own once
+	// the open one closes. Nothing is lost, only queued.
+	//
 	// AT MOST ONE, and that is an invariant of the database rather than a choice
 	// made here: one charge open per listing, and a buyer with two open charges
 	// could pay twice for one item.
@@ -340,6 +352,18 @@ type RmtWebServiceServer interface {
 	// NO CHARGE IS AN EMPTY ANSWER, NOT AN ERROR. It is the ordinary state of
 	// almost every account almost all of the time, and the page that asks this is
 	// the account page — which people open to look at other things.
+	//
+	// WHICH ONE IS "CURRENT", when more than one could be:
+	//
+	//  1. An OPEN charge always wins. It is the only one the person can act on.
+	//  2. Otherwise a PAID_LATE whose refund has not finished — and that one does
+	//     NOT age out of the page. Somebody's money is sitting still; a page that
+	//     forgets it after ten minutes leaves them with nothing to look at and
+	//     nobody to ask.
+	//  3. Otherwise the most recent charge that closed inside the recent window.
+	//
+	// A PAID_LATE that is waiting behind an open charge comes back on its own once
+	// the open one closes. Nothing is lost, only queued.
 	//
 	// AT MOST ONE, and that is an invariant of the database rather than a choice
 	// made here: one charge open per listing, and a buyer with two open charges
