@@ -2321,10 +2321,12 @@ func TestMonstrosListaEFiltra(t *testing.T) {
 	}
 }
 
-func TestMonstroMostraOsNumerosEOAvisoDeReinicio(t *testing.T) {
-	// The warning is the whole reason this screen differs from itens and npcs:
-	// there an edit lands within ~15s, here it waits for a boot. A moderator who
-	// does not read that will report the panel as broken.
+func TestMonstroMostraOsNumerosEQuandoVale(t *testing.T) {
+	// O aviso é a razão desta tela dizer algo que itens e npcs não dizem. Ele
+	// MUDOU quando a ficha passou a recarregar ao vivo (tmserver
+	// handler.pollMobStats): o número entra em ~15 s, mas só nos monstros que
+	// NASCEREM daí em diante, e cinco campos continuam esperando reinício. Uma
+	// tela que dissesse só "vale na hora" mentiria nos três pontos.
 	get := signedIn(t, newTestPanelGame(t, newFakeAudit(), newFakeGameData()))
 	body := get("/monstros/Kentania").Body.String()
 
@@ -2338,11 +2340,17 @@ func TestMonstroMostraOsNumerosEOAvisoDeReinicio(t *testing.T) {
 		"Kentania Velha",
 		// A frase é a do bloco compartilhado, não uma redação própria desta
 		// página: eram oito jeitos de dizer três coisas.
-		"Só vale depois de reiniciar o servidor.",
+		"Vale em até 15 segundos.",
+		// E as duas ressalvas que o bloco compartilhado não cobre.
+		"Vale para os que nascerem daqui em diante",
+		"só no reinício",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("a página do monstro não traz %q", want)
 		}
+	}
+	if strings.Contains(body, "Só vale depois de reiniciar o servidor.") {
+		t.Error("a página ainda diz que TUDO espera reinício; a ficha recarrega ao vivo desde o pollMobStats")
 	}
 }
 
@@ -2386,8 +2394,17 @@ func TestSetMonstroPreservaOsCamposQueOFormularioNaoCarrega(t *testing.T) {
 		t.Error("a edição do monstro não foi auditada")
 	}
 	loc, _ := url.QueryUnescape(rec.Header().Get("Location"))
-	if !strings.Contains(loc, "reiniciar") {
-		t.Errorf("o aviso não diz que falta reiniciar: %q", loc)
+	// A confirmação tem de dizer QUANDO entra, e isso mudou quando a ficha passou
+	// a recarregar ao vivo. Antes ela prometia um reinício; prometer isso agora
+	// mandaria alguém derrubar o servidor sem precisar.
+	if !strings.Contains(loc, "15 segundos") {
+		t.Errorf("o aviso não diz em quanto tempo entra: %q", loc)
+	}
+	if !strings.Contains(loc, "nascerem") {
+		t.Errorf("o aviso não diz que vale para os que nascerem daí em diante: %q", loc)
+	}
+	if strings.Contains(loc, "Só entra em jogo depois de reiniciar") {
+		t.Errorf("o aviso ainda promete reinício para a ficha inteira: %q", loc)
 	}
 }
 

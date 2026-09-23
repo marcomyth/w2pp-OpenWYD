@@ -14,8 +14,23 @@ import (
 // (mob-template-editing-plan.md) from the dbServer's NpcConfigService. It is
 // deliberately independent of NpcConfig/npccfg: a stat override applies to ANY
 // npc/<template_name> file, not just the DB-managed merchant subset NpcConfig
-// materializes, and is fetched once at boot (no version poll — no hot-reload
-// for this feature, matching EDITAPPMOB's own restart-to-apply behavior).
+// materializes.
+//
+// It used to be a boot-only read ("restart to apply", matching EDITAPPMOB). That
+// cost a real night: a moderator raised a monster's EXP at 21:18, the game kept
+// paying the old value, and it only took effect at 22:19 when an unrelated deploy
+// happened to restart production. Now Version() lets the tmServer poll and
+// reload, the same shape the Mesa de XP uses.
+//
+// THE VERSION IS SHARED, on purpose. Every mob-stat mutation already bumps
+// npc_config_meta — internal/store/mobtemplate.go routes both UpsertMobTemplateStat
+// and DeleteMobTemplateStat through auditAndBump, reusing npc_audit/npc_config_meta
+// instead of a parallel trail. So the version and the RPC to read it already
+// existed and were already exercised; adding a dedicated mob_template_stat_meta
+// would have meant a migration plus a proto change for no behaviour difference.
+// The cost of sharing is that NPC and shop edits bump it too, so a reload can
+// find nothing to rebuild. That is the NORMAL case of sharing, not a defect —
+// see the fichas=0 line in handler.pollMobStats.
 type MobStatSource struct {
 	api dbv1.NpcConfigServiceClient
 }
@@ -23,6 +38,16 @@ type MobStatSource struct {
 // NewMobStatSource wraps a gRPC connection as a MobStatSource.
 func NewMobStatSource(conn grpc.ClientConnInterface) *MobStatSource {
 	return &MobStatSource{api: dbv1.NewNpcConfigServiceClient(conn)}
+}
+
+// Version returns the config version the overrides live under (cheap poll). It
+// is npc_config_meta's, shared with the NPC/shop config — see the type doc.
+func (c *MobStatSource) Version(ctx context.Context) (int64, error) {
+	resp, err := c.api.NpcConfigVersion(ctx, &dbv1.NpcConfigVersionRequest{})
+	if err != nil {
+		return 0, fmt.Errorf("dbclient: mob stat version: %w", err)
+	}
+	return resp.GetVersion(), nil
 }
 
 // Fetch returns every template stat override, keyed by template_name, ready

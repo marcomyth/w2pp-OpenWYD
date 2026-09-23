@@ -24,6 +24,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/spawnrate"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/mobstat"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/mountrate"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/npccfg"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -177,6 +178,18 @@ type Config struct {
 	// boot value is final for the life of the process, which is what a tmServer
 	// without dbServer gets.
 	XPConfigs XPConfigSource
+
+	// MobStats re-reads the monster sheets while the server runs, and
+	// MobStatOverrides/MobTemplate are what the boot already resolved: the set in
+	// force and the loader that turns a template name into its raw file bytes.
+	// All three nil means the sheets are boot-only, as they were before — a
+	// tmServer without dbServer or without -content.
+	MobStats         MobStatSource
+	MobStatOverrides map[string]mobstat.Override
+	MobTemplate      MobTemplateLoader
+	// MobStatVersion é a versão em que o boot leu as fichas. Sem ela o primeiro
+	// poll acharia que mudou e reconstruiria tudo sem motivo.
+	MobStatVersion int64
 
 	// Spells is the SkillData.csv catalog (g_pSpell). When nil, skill casting is
 	// rejected and skill learning is refused (no costs are knowable without it).
@@ -439,6 +452,17 @@ type Dispatcher struct {
 	xpConfigPollTick int
 	xpConfigVersion  atomic.Int64
 
+	// A ficha de monstro, também lida LIVE (mobstatconfig.go). Tudo loop-owned.
+	// mobStatOverrides é o conjunto em vigor, guardado para a recarga poder
+	// comparar com o novo e descobrir o que saiu — é o que faz APAGAR uma exceção
+	// voltar ao valor do arquivo.
+	mobStatSource     MobStatSource
+	mobTemplateLoader MobTemplateLoader
+	mobStatOverrides  map[string]mobstat.Override
+	mobStatVersion    int64
+	mobStatPolling    bool
+	mobStatPollTick   int
+
 	// playersX/Y are per-tick scratch snapshots of in-play player positions
 	// (mob-AI dormancy gate, mobai.go). Loop-only, reused to avoid allocation.
 	playersX, playersY []int16
@@ -639,6 +663,10 @@ func New(cfg Config) *Dispatcher {
 		dropRuleSource:    cfg.DropRuleSrc,
 		combineRateSource: cfg.CombineRateSrc,
 		xpConfigSource:    cfg.XPConfigs,
+		mobStatSource:     cfg.MobStats,
+		mobTemplateLoader: cfg.MobTemplate,
+		mobStatOverrides:  cfg.MobStatOverrides,
+		mobStatVersion:    cfg.MobStatVersion,
 		castleQuests:      cfg.CastleQuests,
 		levelItems:        cfg.LevelItems,
 		eventRNG:          rng.NewSeeded(cfg.EventRNGSeed),

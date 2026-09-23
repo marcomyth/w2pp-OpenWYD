@@ -49,6 +49,35 @@ var tmplFuncs = template.FuncMap{
 		}
 		return m, nil
 	},
+	// soNoReinicio diz se um campo da ficha de monstro ainda precisa de reinício.
+	"soNoReinicio": func(campo string) bool { return camposSoNoReinicio[campo] },
+}
+
+// camposSoNoReinicio são os campos da ficha de monstro que a recarga ao vivo NÃO
+// aplica. Todo o resto — EXP, vida, mana, dano, defesa, nível, atributos,
+// resistências — passou a valer em até 15 segundos (tmserver handler.pollMobStats).
+//
+// POR QUE ESTES CINCO FICARAM DE FORA, e a razão é a mesma para todos: o BOOT usa
+// cada um deles para construir um índice que a recarga não refaz. Mudá-los ao vivo
+// deixaria a ficha dizendo uma coisa e o índice dizendo outra, o que é pior do que
+// precisar reiniciar.
+//
+//	merchant — o boot captura rawMerchant por molde e as guardas de contagem de
+//	  vendedor conferem no boot; um molde que virasse vendedor ao vivo não entraria
+//	  nessas contas.
+//	clan     — decide regra de recompensa (clan 4 não paga XP) e entra na
+//	  classificação dos blocos junto com os pontos de rota.
+//	class    — muda de que classe é o molde, que o boot usa ao montar os geradores.
+//	spx/spy  — é onde o molde nasce; os blocos de arena, castelo orc e acampamento
+//	  troll são classificados no boot pelos pontos de rota.
+//	display_name — o nome viaja em pacote de criação já enviado a quem está perto;
+//	  trocar ao vivo deixaria clientes com nomes diferentes para o mesmo bicho.
+//
+// Se alguém for "completar" esta lista um dia: o que falta não é vontade, é refazer
+// os índices do boot dentro da recarga.
+var camposSoNoReinicio = map[string]bool{
+	"merchant": true, "clan": true, "class": true,
+	"spx": true, "spy": true, "display_name": true,
 }
 
 // Audit actions. Spelled out rather than derived so a grep for what the panel
