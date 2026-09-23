@@ -290,9 +290,10 @@ func TestReqBuyRecusaMoedaQueNaoEOuro(t *testing.T) {
 
 	tentaComprarERecusa("Cash")
 
-	// A MESMA prateleira, agora anunciada em RMT.
-	send(t, seller, protocol.MsgLojaMoeda,
-		(&protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaRMT}).Encode())
+	// O MESMO item, agora anunciado em RMT — e remontando a barraca, porque a
+	// moeda de dinheiro real só se escolhe na montagem (ver msgMoedaRMTSoNaMontagem).
+	send(t, seller, protocol.MsgQuitTrade, nil)
+	abreBarraca(t, seller, "Loja", 0, price, protocol.LojaMoedaRMT)
 	tentaComprarERecusa("RMT")
 
 	// E em ouro a porta continua aberta: o item sai, e sai pelo preço certo.

@@ -242,6 +242,20 @@ func (d *Dispatcher) lojaMoeda(w *world.World, s *world.Session, _ protocol.Head
 	if corpo.Moeda > protocol.LojaMoedaRMT {
 		return
 	}
+	// DINHEIRO REAL NÃO SE ESCOLHE DEPOIS.
+	//
+	// Trocar a moeda aqui mexe só num campo da barraca viva. Virar uma prateleira
+	// de ouro em dinheiro real por este caminho pularia tudo o que a montagem faz
+	// por um anúncio de verdade: a fotografia do item, a marca do escrow no slot
+	// do baú, a conferência da chave Pix. O resultado seria uma oferta em reais
+	// sem anúncio nenhum atrás dela.
+	//
+	// Então a moeda de dinheiro real só se escolhe na montagem, que é onde aquilo
+	// tudo acontece. Para trocar, o vendedor remonta a barraca.
+	if corpo.Moeda == protocol.LojaMoedaRMT {
+		sendClientMessage(w, s, msgMoedaRMTSoNaMontagem)
+		return
+	}
 	sl := s.AutoTrade.Slots[corpo.Slot]
 	if sl.CargoPos < 0 || sl.Item.Empty() {
 		return
@@ -249,3 +263,7 @@ func (d *Dispatcher) lojaMoeda(w *world.World, s *world.Session, _ protocol.Head
 	s.AutoTrade.Moeda[corpo.Slot] = corpo.Moeda
 	d.mercadoMudou(w) // a oferta mudou de moeda
 }
+
+// msgMoedaRMTSoNaMontagem é o que o vendedor lê ao tentar virar uma prateleira
+// para dinheiro real com a barraca já de pé.
+const msgMoedaRMTSoNaMontagem = "Para vender por dinheiro real, monte a barraca de novo escolhendo essa moeda."
