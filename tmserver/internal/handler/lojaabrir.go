@@ -107,6 +107,20 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 		if p.Moeda > protocol.LojaMoedaRMT {
 			return
 		}
+		// PILHA NÃO VAI A DINHEIRO REAL.
+		//
+		// O anúncio guarda a fotografia de UM item e a marca do escrow guarda UM
+		// id no slot do baú (0104/0105). Uma pilha de dez é um slot só, então não
+		// há onde escrever "vendi três": ou sai a pilha inteira, ou a cobrança
+		// fica sem par. E a venda parcial é justamente o que o comprador espera
+		// de uma pilha, porque é assim que ela funciona em ouro.
+		//
+		// A recusa é aqui, na montagem, e não na compra: é o vendedor que pode
+		// consertar — separando a pilha — e ele está na frente da tela agora.
+		if p.Moeda == protocol.LojaMoedaRMT && itemAmount(item) > 1 {
+			sendClientMessage(w, s, msgPilhaNaoVaiRMT)
+			return
+		}
 		if autoTradeBlacklist[item.Index] {
 			d.notify(w, s, NoticeCantAutoTrade)
 			return
@@ -149,3 +163,7 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 	d.log.Info("loja: barraca montada pelo painel", "conn", s.Conn, "titulo", barraca.Title,
 		"imposto", barraca.Tax, "clone", barraca.CloneID)
 }
+
+// msgPilhaNaoVaiRMT é o que o vendedor lê quando põe uma pilha à venda por
+// dinheiro real. Diz o que fazer, e não só que não deu.
+const msgPilhaNaoVaiRMT = "Pilha não pode ser vendida por dinheiro real. Separe uma unidade e anuncie ela."
