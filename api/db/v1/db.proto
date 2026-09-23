@@ -363,6 +363,10 @@ message Item {
   // for an index and three effect pairs and nothing more, so this is the only
   // place an identity can live without costing the item an effect.
   int64 serial = 10;
+  // O anuncio em dinheiro real que TRAVA este item, ou 0 (migracao 0104).
+  // Mesma familia de expires_at e serial: campo que existe so deste lado do
+  // fio, porque o STRUCT_ITEM do jogo nao tem onde guardar mais nada.
+  int64 rmt_anuncio = 11;
 }
 
 message Affect {

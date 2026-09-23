@@ -120,10 +120,11 @@ func insertCharacter(ctx context.Context, tx pgx.Tx, accountID int64, ch domain.
 func insertItem(ctx context.Context, tx pgx.Tx, kind string, accountID, charID *int64, it domain.Item) error {
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO item
-			(owner_kind, account_id, character_id, slot, item_index, eff1, effv1, eff2, effv2, eff3, effv3, expires_at, serial)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+			(owner_kind, account_id, character_id, slot, item_index, eff1, effv1, eff2, effv2, eff3, effv3, expires_at, serial, rmt_anuncio)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
 		kind, accountID, charID, it.Slot, it.Index,
-		it.Eff1, it.EffV1, it.Eff2, it.EffV2, it.Eff3, it.EffV3, expiryTime(it.ExpiresAt), it.Serial); err != nil {
+		it.Eff1, it.EffV1, it.Eff2, it.EffV2, it.Eff3, it.EffV3, expiryTime(it.ExpiresAt), it.Serial,
+		it.AnuncioRMT); err != nil {
 		return fmt.Errorf("store: insert %s item slot %d: %w", kind, it.Slot, err)
 	}
 	return nil

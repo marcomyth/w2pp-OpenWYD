@@ -220,7 +220,7 @@ func (s *Store) LoadCharacter(ctx context.Context, accountID int64, slot int) (d
 
 func (s *Store) loadItems(ctx context.Context, charID int64, kind string) ([]domain.Item, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT slot, item_index, eff1, effv1, eff2, effv2, eff3, effv3, expires_at, serial
+		SELECT slot, item_index, eff1, effv1, eff2, effv2, eff3, effv3, expires_at, serial, rmt_anuncio
 		  FROM item WHERE character_id = $1 AND owner_kind = $2 ORDER BY slot`, charID, kind)
 	if err != nil {
 		return nil, fmt.Errorf("store: load %s: %w", kind, err)
@@ -230,7 +230,8 @@ func (s *Store) loadItems(ctx context.Context, charID int64, kind string) ([]dom
 	for rows.Next() {
 		var it domain.Item
 		var exp *time.Time
-		if err := rows.Scan(&it.Slot, &it.Index, &it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3, &exp, &it.Serial); err != nil {
+		if err := rows.Scan(&it.Slot, &it.Index, &it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3,
+			&exp, &it.Serial, &it.AnuncioRMT); err != nil {
 			return nil, fmt.Errorf("store: scan %s item: %w", kind, err)
 		}
 		it.ExpiresAt = expirySeconds(exp)
@@ -493,7 +494,7 @@ func (s *Store) LoadCargo(ctx context.Context, accountID int64) (int32, []domain
 // not character-scoped).
 func (s *Store) loadAccountItems(ctx context.Context, accountID int64, kind string) ([]domain.Item, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT slot, item_index, eff1, effv1, eff2, effv2, eff3, effv3, expires_at, serial
+		SELECT slot, item_index, eff1, effv1, eff2, effv2, eff3, effv3, expires_at, serial, rmt_anuncio
 		  FROM item WHERE account_id = $1 AND owner_kind = $2 ORDER BY slot`, accountID, kind)
 	if err != nil {
 		return nil, fmt.Errorf("store: load %s: %w", kind, err)
@@ -503,7 +504,8 @@ func (s *Store) loadAccountItems(ctx context.Context, accountID int64, kind stri
 	for rows.Next() {
 		var it domain.Item
 		var exp *time.Time
-		if err := rows.Scan(&it.Slot, &it.Index, &it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3, &exp, &it.Serial); err != nil {
+		if err := rows.Scan(&it.Slot, &it.Index, &it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3,
+			&exp, &it.Serial, &it.AnuncioRMT); err != nil {
 			return nil, fmt.Errorf("store: scan %s item: %w", kind, err)
 		}
 		it.ExpiresAt = expirySeconds(exp)

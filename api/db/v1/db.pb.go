@@ -1287,7 +1287,11 @@ type Item struct {
 	// exists only on this side of the wire: the game's own STRUCT_ITEM has room
 	// for an index and three effect pairs and nothing more, so this is the only
 	// place an identity can live without costing the item an effect.
-	Serial        int64 `protobuf:"varint,10,opt,name=serial,proto3" json:"serial,omitempty"`
+	Serial int64 `protobuf:"varint,10,opt,name=serial,proto3" json:"serial,omitempty"`
+	// O anuncio em dinheiro real que TRAVA este item, ou 0 (migracao 0104).
+	// Mesma familia de expires_at e serial: campo que existe so deste lado do
+	// fio, porque o STRUCT_ITEM do jogo nao tem onde guardar mais nada.
+	RmtAnuncio    int64 `protobuf:"varint,11,opt,name=rmt_anuncio,json=rmtAnuncio,proto3" json:"rmt_anuncio,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1388,6 +1392,13 @@ func (x *Item) GetExpiresAt() int64 {
 func (x *Item) GetSerial() int64 {
 	if x != nil {
 		return x.Serial
+	}
+	return 0
+}
+
+func (x *Item) GetRmtAnuncio() int64 {
+	if x != nil {
+		return x.RmtAnuncio
 	}
 	return 0
 }
@@ -12558,7 +12569,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x13sub_celestial_ativo\x185 \x01(\x05R\x11subCelestialAtivo\x12'\n" +
 	"\x0fcelestial_reset\x186 \x01(\x05R\x0ecelestialReset\x12!\n" +
 	"\fkefra_ticket\x187 \x01(\x05R\vkefraTicket\x12!\n" +
-	"\fmortal_molar\x188 \x01(\x05R\vmortalMolar\"\xe5\x01\n" +
+	"\fmortal_molar\x188 \x01(\x05R\vmortalMolar\"\x86\x02\n" +
 	"\x04Item\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x14\n" +
 	"\x05index\x18\x02 \x01(\x05R\x05index\x12\x12\n" +
@@ -12571,7 +12582,9 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\n" +
 	"expires_at\x18\t \x01(\x03R\texpiresAt\x12\x16\n" +
 	"\x06serial\x18\n" +
-	" \x01(\x03R\x06serial\"\\\n" +
+	" \x01(\x03R\x06serial\x12\x1f\n" +
+	"\vrmt_anuncio\x18\v \x01(\x03R\n" +
+	"rmtAnuncio\"\\\n" +
 	"\x06Affect\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\x05R\x04type\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x05R\x05value\x12\x14\n" +

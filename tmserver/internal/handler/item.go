@@ -3308,7 +3308,6 @@ func scoreMaxMP(e *world.Entity) int32 {
 	return 2*e.MaxMP + 2*int32(e.Int-e.BaseInt)
 }
 
-
 func semNegativo(v int32) int32 {
 	if v < 0 {
 		return 0
@@ -3635,6 +3634,30 @@ func (d *Dispatcher) shiftWeaponToRightHand(w *world.World, s *world.Session, e 
 // if the place is unknown or the slot is out of bounds. Carry moves are bounded by
 // the currently unlocked Carry range. The cargo slot is nil unless the account's
 // warehouse is loaded.
+//
+// É AQUI QUE O ESCROW DA VENDA EM DINHEIRO REAL TRAVA, e a escolha do lugar é o
+// que faz a trava valer. Este é o ÚNICO ponto do servidor que entrega um
+// ponteiro para dentro do baú — conferido: uma busca por `&cargo.Items` em toda
+// a árvore devolve esta linha e mais nenhuma. Duas funções recebem o baú como
+// FATIA, e nenhuma das duas escapa da trava: savedItems só lê, para gravar, e
+// addFirstEmpty procura slot vazio — e um slot marcado continua ocupado, porque
+// a marca não tira o item de lá. Travar aqui cobre de uma vez os
+// sete caminhos que chegam ao baú (mover, juntar pilha, refinar, gema base,
+// adamantita, feijão mágico, acelerador de ovo e troca de classe), e cobre
+// também o oitavo que alguém escrever amanhã sem saber que o escrow existe.
+//
+// A trava é "NÃO PODE SER ALTERADO", e não "não pode sair do slot". Metade
+// daqueles caminhos deixa o item exatamente onde está e muda o que ele é: um
+// refino no item anunciado faz a conferência da compra (itemsEqual) falhar
+// depois, e aí o comprador que já pagou o Pix não recebe nada.
+//
+// E ELA AVISA. Devolver nil calado seria o pior defeito possível de suporte: os
+// sete chamadores tratam nil como "esse slot não existe" e voltam sem dizer
+// nada, então o jogador arrasta a poeira no item e simplesmente NÃO ACONTECE
+// NADA. Ele não sabe descrever, e ninguém sabe reproduzir. O aviso vive dentro
+// deste acessor de propósito, apesar de ser efeito colateral numa função que só
+// deveria consultar: é o único lugar por onde todos os sete passam, e a
+// alternativa seria repetir a mesma recusa em sete chamadores e perder o oitavo.
 func (d *Dispatcher) itemSlot(w *world.World, s *world.Session, e *world.Entity, place, slot int) *world.Item {
 	switch place {
 	case world.ItemPlaceEquip:
@@ -3652,10 +3675,22 @@ func (d *Dispatcher) itemSlot(w *world.World, s *world.Session, e *world.Entity,
 		if cargo == nil || slot < 0 || slot >= world.MaxCargo {
 			return nil
 		}
+		if cargo.Items[slot].AnuncioRMT != 0 {
+			d.log.Info("escrow: recusado, o item esta a venda",
+				"conn", s.Conn, "conta", s.AccountID, "slot", slot,
+				"anuncio", cargo.Items[slot].AnuncioRMT, "item", cargo.Items[slot].Index)
+			sendClientMessage(w, s, msgItemAVenda)
+			return nil
+		}
 		return &cargo.Items[slot]
 	}
 	return nil
 }
+
+// msgItemAVenda é o que o dono lê quando tenta mexer no que ele mesmo pôs à
+// venda. Diz o que fazer, e não só que não deu: "está à venda" sozinho deixa a
+// pessoa procurando o defeito em vez de procurar o anúncio.
+const msgItemAVenda = "Este item está à venda por dinheiro real. Cancele o anúncio para mexer nele."
 
 // nearCargoGuard reports whether warpID is a cargo-guard NPC (Merchant==2) within
 // view of the player — the proximity gate for any cargo slot access.
