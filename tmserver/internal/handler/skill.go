@@ -232,39 +232,81 @@ func (d *Dispatcher) applySpecialBonus(w *world.World, s *world.Session, e *worl
 	if detail < 0 || detail > 3 {
 		return
 	}
-	maxSpecialLevel := 3 * (int(e.Level) + 1)
-	// The celestial tiers get a flat +1200 on the level allowance
-	// (_MSG_ApplyBonus.cpp:97-98). Without it a reborn Celestial is capped by its
-	// own level: at level 0 the allowance is 3, half of it is 1, and the second
-	// mastery point is refused — which is exactly how this surfaced.
-	if isCelestialTier(e.ClassMaster) {
-		maxSpecialLevel += 3 * 400
-	}
-	maxSpecial := int16(200)
-	if (detail == 1 && e.LearnedSkill&(1<<7) != 0) ||
-		(detail == 2 && e.LearnedSkill&(1<<15) != 0) ||
-		(detail == 3 && e.LearnedSkill&(1<<23) != 0) {
-		maxSpecial = 255
-	}
+	porNivel, absoluto := tetosDaAprendizagem(e, detail)
 	// The legacy answers these two refusals with DIFFERENT strings (:115,:118):
 	// the level allowance is "no more points for now" (it lifts as you level),
 	// while the flat 200/255 ceiling is its own message. Telling them apart
 	// matters — one is temporary and one is final.
-	if int(e.BaseSpecial[detail]) >= maxSpecialLevel>>1 {
+	if int(e.BaseSpecial[detail]) >= porNivel {
 		d.notify(w, s, NoticeMaxPoint)
 		sendClientMessage(w, s, msgMaxPointNow)
 		return
 	}
-	if e.BaseSpecial[detail] >= maxSpecial {
+	if int(e.BaseSpecial[detail]) >= absoluto {
 		d.notify(w, s, NoticeMaxPoint)
 		sendClientMessage(w, s, msgMaxPoint200)
 		return
 	}
-	e.SpecialBonus--
-	e.BaseSpecial[detail]++
+	somaUmaAprendizagem(e, detail)
 	d.refreshScore(e)
 	d.sendScore(w, s, e)
 	d.sendEtc(w, s, e)
+}
+
+// tetosDaAprendizagem devolve as duas paredes de um campo de maestria: a do
+// NÍVEL, que sobe sozinha conforme o personagem cresce, e a ABSOLUTA de 200 (255
+// quando a skill de maestria daquele campo já foi aprendida).
+//
+// Existe como função porque três lugares precisam dela e só um número pode
+// valer: o `+` de um clique, o lote (pontos_em_lote.go) e a conta de quanto
+// ainda cabe que o lote mostra ao jogador.
+//
+// O +1200 dos tiers celestiais é do legado (_MSG_ApplyBonus.cpp:97-98). Sem ele
+// um Celestial renascido fica preso ao próprio nível: no nível 0 a permissão é
+// 3, metade é 1, e o segundo ponto de maestria é recusado.
+func tetosDaAprendizagem(e *world.Entity, detail int) (porNivel, absoluto int) {
+	maxSpecialLevel := 3 * (int(e.Level) + 1)
+	if isCelestialTier(e.ClassMaster) {
+		maxSpecialLevel += 3 * 400
+	}
+	absoluto = 200
+	if (detail == 1 && e.LearnedSkill&(1<<7) != 0) ||
+		(detail == 2 && e.LearnedSkill&(1<<15) != 0) ||
+		(detail == 3 && e.LearnedSkill&(1<<23) != 0) {
+		absoluto = 255
+	}
+	return maxSpecialLevel >> 1, absoluto
+}
+
+// cabeNaAprendizagem é quantos pontos ainda entram no campo agora: a menor das
+// duas paredes, menos o que já está lá. Nunca negativo.
+func cabeNaAprendizagem(e *world.Entity, detail int) int {
+	if e == nil || detail < 0 || detail > 3 {
+		return 0
+	}
+	porNivel, absoluto := tetosDaAprendizagem(e, detail)
+	teto := porNivel
+	if absoluto < teto {
+		teto = absoluto
+	}
+	if falta := teto - int(e.BaseSpecial[detail]); falta > 0 {
+		return falta
+	}
+	return 0
+}
+
+// somaUmaAprendizagem põe UM ponto de maestria no campo e desconta um do monte.
+// Corpo do `+`, repetido pelo lote. Quem chama já conferiu as paredes.
+func somaUmaAprendizagem(e *world.Entity, detail int) bool {
+	if e == nil || detail < 0 || detail > 3 || e.SpecialBonus == 0 {
+		return false
+	}
+	if cabeNaAprendizagem(e, detail) <= 0 {
+		return false
+	}
+	e.SpecialBonus--
+	e.BaseSpecial[detail]++
+	return true
 }
 
 // setShortSkill handles _MSG_SetShortSkill (0x0378, 32-byte body): the client

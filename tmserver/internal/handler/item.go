@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/itemeffect"
@@ -703,6 +704,12 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useRacao(w, s, e, body, src)
 	case vol == volChaveInferno:
 		d.useChaveInferno(w, s, e, src)
+	// O buff de guilda é reconhecido pelo ÍNDICE, não pelo volátil. O item é um
+	// Ticket de Serviço reaproveitado, e o volátil dele (197) é compartilhado com
+	// o outro Ticket, que continua sem função — casar pelo volátil acenderia os
+	// buffs com os dois.
+	case duracaoDoItemDeBuff(e.Carry[src].Index) > 0:
+		d.useBuffDeGuilda(w, s, e, src)
 	case vol == volAmago:
 		d.useAmago(w, s, e, body, src)
 	case vol == volCatalisador:
@@ -1226,31 +1233,168 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 	}
 	questExp := rate.MortalExp
 	minLevel, maxLevel := rate.MortalMin, rate.MortalMax
-	if e.Level < minLevel || e.Level >= maxLevel {
-		// _NN_Level_limit, the line the legacy sends here (_MSG_UseItem.cpp Vol
-		// 191). It used to be NoticeReqNotMet, which carries no text: a character
-		// past the band clicked its trophy and nothing happened at all, with no way
-		// to tell "outgrew this quest" from "the item is broken".
-		d.notify(w, s, NoticeLevelLimit)
+
+	// Uso livre: o troféu está fora do teto de XP por rodada desde 17/09/2026
+	// (tetorodada.go). Usar não recusa, não corta e não soma na rodada.
+	//
+	// DIVERGÊNCIA DELIBERADA, 21/09/2026: um clique gasta a PILHA INTEIRA, e não
+	// uma unidade. O legado paga um troféu por clique, e numa pilha cheia isso são
+	// 120 cliques com 120 linhas iguais. Aqui o laço roda a pilha e a conta é
+	// reportada uma vez.
+	//
+	// Quem forma a pilha é a FADA equipada (juntaNaPilhaDaMochila). Sem fada os
+	// troféus caem em espaços separados, cada um uma pilha de um — e aí este laço
+	// roda uma vez só e o resultado é o do legado, um troféu por clique. Está
+	// certo assim: o laço é por unidade, e `itemAmount` devolve 1 para item sem
+	// pilha, então nada se perde e nenhuma conta muda.
+	//
+	// O laço é por UNIDADE, e não uma multiplicação, de propósito: cada troféu tem
+	// de passar pelos dois limites que podem mudar no meio da pilha.
+	//
+	//   - A FAIXA DE NÍVEL, meia-aberta [min, max). Subir de nível dentro do laço
+	//     pode tirar o personagem da faixa do próprio troféu; quando tira, o laço
+	//     para ali e o RESTO FICA NA MÃO. Multiplicar por 120 pagaria XP que a faixa
+	//     não paga; consumir tudo e pagar até o topo comeria os troféus de graça.
+	//   - OS TETOS de XP (level.MaxExp) e de moeda (maxCoin). Um troféu que não
+	//     entrega nem XP nem moeda não é gasto: no teto dos dois, gastá-lo é perdê-lo,
+	//     e é exatamente o "perder exp no processo" que não pode acontecer. Enquanto
+	//     um dos dois ainda entrega algo, o troféu vale e é consumido.
+	//
+	// A XP entra à mão em vez de por grantDirectExp porque a subida de nível tem de
+	// acontecer A CADA unidade (é ela que mexe na faixa) enquanto o painel "+N de
+	// EXP" e a faísca saem UMA vez, com o total. applyLevelUps é o mesmo corpo que
+	// grantDirectExp chama, e só fala quando um nível é cruzado de verdade.
+	pilhaInteira := itemAmount(e.Carry[src])
+	usados := 0
+	expTotal := int64(0)
+	moedaTotal := int64(0)
+	saiuDaFaixa := false
+	for usados < pilhaInteira {
+		if e.Level < minLevel || e.Level >= maxLevel {
+			saiuDaFaixa = true
+			break
+		}
+
+		expAntes := e.Exp
+		e.Exp += questExp
+		if e.Exp > level.MaxExp {
+			e.Exp = level.MaxExp
+		}
+		expDaVez := e.Exp - expAntes
+
+		moedaAntes := e.Coin
+		if int64(e.Coin)+int64(rate.Coin) > maxCoin {
+			e.Coin = maxCoin
+		} else {
+			e.Coin += rate.Coin
+		}
+		moedaDaVez := e.Coin - moedaAntes
+
+		if expDaVez <= 0 && moedaDaVez <= 0 {
+			break // nos dois tetos: este troféu não entregaria nada, então não é gasto
+		}
+
+		expTotal += expDaVez
+		moedaTotal += int64(moedaDaVez)
+		consumeOneItem(&e.Carry[src])
+		usados++
+		d.applyLevelUps(w, s, e)
+	}
+
+	if usados == 0 {
+		if saiuDaFaixa {
+			// _NN_Level_limit, the line the legacy sends here (_MSG_UseItem.cpp Vol
+			// 191). It used to be NoticeReqNotMet, which carries no text: a character
+			// past the band clicked its trophy and nothing happened at all, with no way
+			// to tell "outgrew this quest" from "the item is broken".
+			d.notify(w, s, NoticeLevelLimit)
+		} else {
+			sendClientMessage(w, s, msgTrofeuNoTeto)
+		}
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}
-	// Uso livre: o troféu está fora do teto de XP por rodada desde 17/09/2026
-	// (tetorodada.go). Usar não recusa, não corta e não soma na rodada.
 
-	if int64(e.Coin)+int64(rate.Coin) > maxCoin {
-		e.Coin = maxCoin
-	} else {
-		e.Coin += rate.Coin
+	// A parte do grupo é do troféu, e o troféu está fora do teto: paga inteira,
+	// pelos troféus que realmente valeram.
+	d.grantQuestPartyExp(w, e, questExp*int64(usados)/10)
+
+	if expTotal > 0 && s != nil {
+		w.Send(s, protocol.MsgExpPanel, protocol.EncodeExpPanelBody(fmt.Sprintf("+%d de EXP", expTotal), expPanelDefaultColor))
+		motion := protocol.EncodeMotion(motionLevelUp, motionLevelUpParm)
+		w.Send(s, protocol.MsgMotion, motion)
+		w.BroadcastInView(e.ID, protocol.MsgMotion, motion)
 	}
-	d.grantDirectExp(w, s, e, questExp)
-	// A parte do grupo é do troféu, e o troféu está fora do teto: paga inteira.
-	d.grantQuestPartyExp(w, e, rate.MortalExp/10)
+	// A linha da conta só sai quando o clique gastou mais de um: para uma unidade
+	// ela repetiria o que o painel de XP já disse.
+	//
+	// O gold entra aqui porque ele NÃO tem painel próprio: a XP aparece sozinha no
+	// "+N de EXP" e o gold só apareceria como um número diferente no canto da tela,
+	// sem dizer de onde veio. Some do texto quando é zero — teto de moeda batido —,
+	// que é a única vez em que dizer "+0 de gold" seria informação.
+	if usados > 1 {
+		if moedaTotal > 0 {
+			sendClientMessage(w, s, fmt.Sprintf(msgTrofeuLote, usados, milhares(expTotal), milhares(moedaTotal)))
+		} else {
+			sendClientMessage(w, s, fmt.Sprintf(msgTrofeuLoteSemGold, usados, milhares(expTotal)))
+		}
+	}
+	// O aviso de parada fica DEPOIS da conta: primeiro o que rendeu, depois por que
+	// sobrou troféu na mão.
+	if saiuDaFaixa {
+		d.notify(w, s, NoticeLevelLimit)
+	} else if usados < pilhaInteira {
+		sendClientMessage(w, s, msgTrofeuNoTeto)
+	}
 
-	consumeOneItem(&e.Carry[src])
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 	d.sendEtc(w, s, e) // coin changed even when EXP was already at its ceiling
+	d.log.Info("troféu da quest usado",
+		"conn", s.Conn, "account", s.AccountName, "item", itemQuestRewardBase+tier,
+		"pilha", pilhaInteira, "usados", usados, "exp", expTotal, "gold", moedaTotal,
+		"saiuDaFaixa", saiuDaFaixa, "nivel", e.Level)
 }
+
+// milhares escreve um número com ponto a cada três casas, como se lê em
+// português: 93600000 vira "93.600.000".
+//
+// Existe por causa do clique na pilha inteira. Um troféu paga 30 mil; cento e
+// vinte da Pedra dos Elfos pagam noventa e três milhões, e "93600000" no meio de
+// uma frase não se lê — conta-se. Só a linha da conta usa isto; o painel "+N de
+// EXP" continua como o do abate, que é com quem ele tem de parecer.
+func milhares(n int64) string {
+	sinal := ""
+	if n < 0 {
+		sinal = "-"
+		n = -n
+	}
+	d := strconv.FormatInt(n, 10)
+	// A primeira quebra cai onde sobra o resto da divisão por três: 93600000 tem
+	// oito dígitos, então o primeiro grupo tem dois.
+	primeiro := len(d) % 3
+	if primeiro == 0 {
+		primeiro = 3
+	}
+	out := d[:primeiro]
+	for i := primeiro; i < len(d); i += 3 {
+		out += "." + d[i:i+3]
+	}
+	return sinal + out
+}
+
+// As duas linhas do clique único no troféu.
+const (
+	// msgTrofeuLote é a conta: quantos troféus o clique gastou, e quanta XP e quanto
+	// gold deram. Os dois números vêm por milhares (%s, não %d): ver milhares.
+	msgTrofeuLote = "Troféu: %d usado(s), +%s de EXP e +%s de gold."
+	// msgTrofeuLoteSemGold é a mesma conta quando o gold parou no teto: sem o
+	// pedaço que seria sempre zero.
+	msgTrofeuLoteSemGold = "Troféu: %d usado(s), +%s de EXP."
+	// msgTrofeuNoTeto explica a pilha que sobrou quando não foi a faixa de nível:
+	// XP e moeda nos tetos ao mesmo tempo. Sem esta linha o clique parece morto com
+	// a pilha intacta na mão.
+	msgTrofeuNoTeto = "Troféu: EXP e gold no máximo. Nenhum troféu foi gasto."
+)
 
 func (d *Dispatcher) grantQuestPartyExp(w *world.World, consumer *world.Entity, share int64) {
 	if share <= 0 {
@@ -2365,6 +2509,11 @@ func (d *Dispatcher) sendAffect(w *world.World, s *world.Session, e *world.Entit
 			continue
 		}
 		ad := protocol.AffectData{Type: af.Type, Value: af.Value, Level: af.Level, Time: af.Time}
+		// Os buffs de guilda seguem a mesma regra da Divina: a sentinela no
+		// vetor é ignorada e o tempo sai do prazo de verdade (guildabuffs.go).
+		if t, nosso := d.tempoDoBuffNaBarra(e, af.Type); nosso {
+			ad.Time = t
+		}
 		if af.Type == world.AffectDivine && af.Time >= affectInfiniteTime {
 			ad.Time = 0
 			if remaining := e.DivineEnd - now; remaining > 0 {
@@ -3066,6 +3215,11 @@ func (d *Dispatcher) refreshScore(e *world.Entity) {
 	e.EquipDropBonus = d.equipDropBonus(e)
 	e.EquipForceDamage = d.equipForceDamage(e)
 	e.EquipGarnet = d.equipGarnet(e)
+	// Os buffs de guilda entram por ÚLTIMO, e a posição é a regra: eles somam
+	// percentual sobre o que já foi calculado, e um deles soma em
+	// EquipDropBonus, que a linha acima ATRIBUI. Aplicá-los antes daqui apagaria
+	// o buff de drop no mesmo instante em que ele fosse somado.
+	aplicaBuffDeGuilda(e, d.bonusDeBuffDeGuilda(e))
 	if isPlayerMob(e) {
 		e.Damage += attributeDamageBonus(e, true)
 	}
@@ -3160,18 +3314,6 @@ func scoreMaxMP(e *world.Entity) int32 {
 	return 2*e.MaxMP + 2*int32(e.Int-e.BaseInt)
 }
 
-// semNegativo floors a computed MAXIMUM at ZERO.
-//
-// A maximum is a ceiling, and setReqMp clamps the live bar DOWN to it — so a
-// maximum that goes negative drags the live value negative with it. Debuffs
-// stack into AffInt, Int counts twice toward MaxMp, and enough of them at once
-// turn the ceiling negative: that is how mana bars reached -46911/13089 across
-// every class. The source of that particular flood is fixed (mobai.go), but a
-// ceiling below zero is nonsense on any path, so it is refused here too.
-//
-// Zero, not one: a maximum of 0 is legitimate — an entity with no mana at all —
-// and flooring at 1 hands it a sliver of bar that regen then tries to fill,
-// which shows up as stray SetHpMp frames on characters that should send none.
 func semNegativo(v int32) int32 {
 	if v < 0 {
 		return 0
@@ -3498,6 +3640,30 @@ func (d *Dispatcher) shiftWeaponToRightHand(w *world.World, s *world.Session, e 
 // if the place is unknown or the slot is out of bounds. Carry moves are bounded by
 // the currently unlocked Carry range. The cargo slot is nil unless the account's
 // warehouse is loaded.
+//
+// É AQUI QUE O ESCROW DA VENDA EM DINHEIRO REAL TRAVA, e a escolha do lugar é o
+// que faz a trava valer. Este é o ÚNICO ponto do servidor que entrega um
+// ponteiro para dentro do baú — conferido: uma busca por `&cargo.Items` em toda
+// a árvore devolve esta linha e mais nenhuma. Duas funções recebem o baú como
+// FATIA, e nenhuma das duas escapa da trava: savedItems só lê, para gravar, e
+// addFirstEmpty procura slot vazio — e um slot marcado continua ocupado, porque
+// a marca não tira o item de lá. Travar aqui cobre de uma vez os
+// sete caminhos que chegam ao baú (mover, juntar pilha, refinar, gema base,
+// adamantita, feijão mágico, acelerador de ovo e troca de classe), e cobre
+// também o oitavo que alguém escrever amanhã sem saber que o escrow existe.
+//
+// A trava é "NÃO PODE SER ALTERADO", e não "não pode sair do slot". Metade
+// daqueles caminhos deixa o item exatamente onde está e muda o que ele é: um
+// refino no item anunciado faz a conferência da compra (itemsEqual) falhar
+// depois, e aí o comprador que já pagou o Pix não recebe nada.
+//
+// E ELA AVISA. Devolver nil calado seria o pior defeito possível de suporte: os
+// sete chamadores tratam nil como "esse slot não existe" e voltam sem dizer
+// nada, então o jogador arrasta a poeira no item e simplesmente NÃO ACONTECE
+// NADA. Ele não sabe descrever, e ninguém sabe reproduzir. O aviso vive dentro
+// deste acessor de propósito, apesar de ser efeito colateral numa função que só
+// deveria consultar: é o único lugar por onde todos os sete passam, e a
+// alternativa seria repetir a mesma recusa em sete chamadores e perder o oitavo.
 func (d *Dispatcher) itemSlot(w *world.World, s *world.Session, e *world.Entity, place, slot int) *world.Item {
 	switch place {
 	case world.ItemPlaceEquip:
@@ -3515,10 +3681,22 @@ func (d *Dispatcher) itemSlot(w *world.World, s *world.Session, e *world.Entity,
 		if cargo == nil || slot < 0 || slot >= world.MaxCargo {
 			return nil
 		}
+		if cargo.Items[slot].AnuncioRMT != 0 {
+			d.log.Info("escrow: recusado, o item esta a venda",
+				"conn", s.Conn, "conta", s.AccountID, "slot", slot,
+				"anuncio", cargo.Items[slot].AnuncioRMT, "item", cargo.Items[slot].Index)
+			sendClientMessage(w, s, msgItemAVenda)
+			return nil
+		}
 		return &cargo.Items[slot]
 	}
 	return nil
 }
+
+// msgItemAVenda é o que o dono lê quando tenta mexer no que ele mesmo pôs à
+// venda. Diz o que fazer, e não só que não deu: "está à venda" sozinho deixa a
+// pessoa procurando o defeito em vez de procurar o anúncio.
+const msgItemAVenda = "Este item está à venda por dinheiro real. Cancele o anúncio para mexer nele."
 
 // nearCargoGuard reports whether warpID is a cargo-guard NPC (Merchant==2) within
 // view of the player — the proximity gate for any cargo slot access.

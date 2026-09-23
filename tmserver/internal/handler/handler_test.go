@@ -28,6 +28,7 @@ type fakeAccount struct {
 	alreadyPlaying bool
 	chars          []world.CharSummary
 	cargo          world.CargoState // account-shared warehouse loaded on login
+	cash, rmt      int32            // as carteiras da conta, como o login as entrega
 }
 
 type fakeDB struct {
@@ -58,16 +59,17 @@ type fakeDB struct {
 	pinSetOK     bool            // SetPin ok flag
 	pinSets      []string        // captured SetPin plaintext (test-only; prod never stores plaintext)
 
-	mu           sync.Mutex
-	savedChars   []world.CharacterSave // captured SaveOnShutdown calls
-	saveErr      error                 // one-shot injected character-save failure
-	savedCargos  []world.CargoSave     // captured SaveCargo calls
-	drainSaves   []drainSave           // captured SaveCargoWithDeliveries calls
-	blockedNames map[string]bool       // captured SetAccountBlocked calls (GM ban/unban)
-	presence     map[string]bool       // captured SetCharacterPresence calls
-	duelResults  []duelResult          // captured RecordDuelResult calls (issue #118)
-	trades       []world.TradeRecord   // captured RecordTrade calls (0025_trade_log)
-	grounds      []world.GroundEvent   // captured RecordGround calls (0031_ground_log)
+	mu            sync.Mutex
+	pontosLojinha int32                 // carteira de pontos de lojinha (ver lojapontos_test.go)
+	savedChars    []world.CharacterSave // captured SaveOnShutdown calls
+	saveErr       error                 // one-shot injected character-save failure
+	savedCargos   []world.CargoSave     // captured SaveCargo calls
+	drainSaves    []drainSave           // captured SaveCargoWithDeliveries calls
+	blockedNames  map[string]bool       // captured SetAccountBlocked calls (GM ban/unban)
+	presence      map[string]bool       // captured SetCharacterPresence calls
+	duelResults   []duelResult          // captured RecordDuelResult calls (issue #118)
+	trades        []world.TradeRecord   // captured RecordTrade calls (0025_trade_log)
+	grounds       []world.GroundEvent   // captured RecordGround calls (0031_ground_log)
 
 	createdGuilds []world.GuildRecord
 	guildCosts    []int32
@@ -405,6 +407,8 @@ func (f *fakeDB) AccountLogin(_ context.Context, name, pass string) (world.Login
 		return world.LoginOutcome{
 			Result: world.LoginOK, AccountID: a.id, Role: a.role, Characters: a.chars, Cargo: cargo,
 			PendingDeliveries: f.pending[a.id],
+			Cash:              a.cash,
+			Rmt:               a.rmt,
 		}, nil
 	}
 }

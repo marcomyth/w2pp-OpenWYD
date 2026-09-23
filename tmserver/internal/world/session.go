@@ -2,6 +2,7 @@ package world
 
 import (
 	"net"
+	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 )
@@ -59,11 +60,28 @@ type Session struct {
 	AccountName string
 	AccountID   int64
 	AccessLevel AccessLevel // account.role tier; gates in-game GM commands (issue #122)
-	Slot        int
-	Mode        Mode
-	IP          string
-	CrackError  int  // anti-cheat violation count (CUser.NumError)
-	Whisper     bool // true blocks incoming whispers
+	// Cash e RMT da conta, como estavam no login e corrigidos a cada compra da
+	// Loja do Servidor. É o que o painel mostra no rodapé.
+	Cash int32
+	Rmt  int32
+	// O painel da loja aberto, e em que página e filtro ele está. O servidor
+	// avisa quem está com ele aberto quando o mercado muda, em vez de deixar o
+	// cliente perguntar de tempos em tempos — ver handler.mercadoMudou.
+	LojaAberta bool
+	LojaPagina int16
+	LojaFiltro int16
+	// A Loja de Honra aberta: qual God of War a abriu (0 = nenhuma) e se um
+	// debito de pontos esta no ar. O id do NPC e o que permite a compra exigir
+	// presenca, em vez de aceitar qualquer pedido de qualquer lugar do mundo; a
+	// trava e o que impede dois cliques rapidos de virarem dois debitos
+	// simultaneos. Ver handler/loja_de_honra.go.
+	LojaHonraNPC  int
+	HonraCobrando bool
+	Slot          int
+	Mode          Mode
+	IP            string
+	CrackError    int  // anti-cheat violation count (CUser.NumError)
+	Whisper       bool // true blocks incoming whispers
 	// Snd is the status line "/snd" sets, shown to anyone who inspects this
 	// character (_MSG_MessageWhisper.cpp:591 sets it, :1640 shows it). Session
 	// scope is deliberate and matches the legacy, which clears Snd on every login
@@ -83,24 +101,28 @@ type Session struct {
 	// sessão; 0 é nunca. Os dois canais alcançam gente fora da tela, então o
 	// legado põe 3 segundos entre uma linha e a outra (pUser.Message).
 	UltimaMensagemCanal uint32
-	GuildDisable        bool            // hide guild tag (guildon/guildoff)
-	TradeMode           int             // non-zero while in auto-trade (blocks attacks)
-	Trade               TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
-	AutoTrade           *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1
-	NovatoEmCurso       bool            // um /novato já está esperando a resposta do banco
-	CompraEmPontos      bool            // uma compra paga em pontos de lojinha espera o banco
-	LastAttackTick      uint32          // ClientTick of the last accepted attack (cadence gate)
-	PotionTick          uint32          // CUser.PotionTime: server clock of the last accepted potion
-	LastAttack          int             // SkillIndex of the last attack
-	LastIllusionTick    uint32          // ClientTick of the last Huntress Ilusao movement
-	ReqHp               int32           // CUser.ReqHp: server-owned HP target for regen/potions
-	ReqMp               int32           // CUser.ReqMp: server-owned MP target for regen/potions
-	CriticalProgress    uint16          // CUser.cProgress used by BASE_GetDoubleCritical
-	ShortSkill          [16]uint8       // client hotbar layout (CUser.CharShortSkill, _MSG_SetShortSkill)
-	LoginSpawnX         int16           // last server-injected login spawn, for movement diagnostics
-	LoginSpawnY         int16
-	LoginTick           uint32
-	LoggedFirstAction   bool // first post-login _MSG_Action diagnostic was emitted
+	GuildDisable        bool // hide guild tag (guildon/guildoff)
+	// GuildaPedidoEm é quando este jogador pediu, pela última vez, uma aba do
+	// Painel de Guilda que vai ao banco. É o freio contra um cliente remendado
+	// pedir o quadro em laço (handler/guildapainel.go).
+	GuildaPedidoEm    time.Time
+	TradeMode         int             // non-zero while in auto-trade (blocks attacks)
+	Trade             TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
+	AutoTrade         *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1
+	NovatoEmCurso     bool            // um /novato já está esperando a resposta do banco
+	CompraEmPontos    bool            // uma compra paga em pontos de lojinha espera o banco
+	LastAttackTick    uint32          // ClientTick of the last accepted attack (cadence gate)
+	PotionTick        uint32          // CUser.PotionTime: server clock of the last accepted potion
+	LastAttack        int             // SkillIndex of the last attack
+	LastIllusionTick  uint32          // ClientTick of the last Huntress Ilusao movement
+	ReqHp             int32           // CUser.ReqHp: server-owned HP target for regen/potions
+	ReqMp             int32           // CUser.ReqMp: server-owned MP target for regen/potions
+	CriticalProgress  uint16          // CUser.cProgress used by BASE_GetDoubleCritical
+	ShortSkill        [16]uint8       // client hotbar layout (CUser.CharShortSkill, _MSG_SetShortSkill)
+	LoginSpawnX       int16           // last server-injected login spawn, for movement diagnostics
+	LoginSpawnY       int16
+	LoginTick         uint32
+	LoggedFirstAction bool // first post-login _MSG_Action diagnostic was emitted
 
 	// AttackRefusals counts, per anti-cheat gate restored from the legacy
 	// attack handler, the attacks this session had refused (keyed by the gate's
@@ -171,6 +193,12 @@ type AutoTradeState struct {
 	Title string
 	Tax   int16
 	Slots [MaxAutoTrade]AutoTradeSlot
+
+	// Moeda de cada slot na vitrine (Loja do Servidor): 0 ouro, 1 cash, 2 RMT.
+	// A janela de barraca do cliente só sabe de ouro, então o vendedor escolhe a
+	// moeda depois, pelo nosso painel, e o preço digitado passa a ser cobrado
+	// nela. Slot sem escolha fica em ouro, que é o comportamento de sempre.
+	Moeda [MaxAutoTrade]uint8
 
 	// CloneID is the mob entity that stands in for the seller (Entity.ShopOwner
 	// points back). MaxUser or above when the stall is a separate body; 0 when

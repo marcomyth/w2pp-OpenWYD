@@ -24,6 +24,17 @@ type Item struct {
 	// stamped at save time (serial.go) and travels with the item after that,
 	// because every move — trade, floor, warehouse — copies the whole struct.
 	Serial int64
+	// AnuncioRMT é o ID do anúncio em dinheiro real que TRAVA este item, ou 0.
+	//
+	// Enquanto for diferente de zero o item não pode ser movido NEM ALTERADO —
+	// refino, gema, adamantita, feijão e troca de classe deixam o item no lugar
+	// e mudam o que ele é, e aí a conferência da compra derruba uma venda já
+	// paga. A trava mora no itemSlot (handler/item.go), o único ponto do
+	// servidor que entrega ponteiro para dentro do baú.
+	//
+	// Anda ao lado de ExpiresAt e Serial pela mesma razão e pelo mesmo caminho:
+	// o STRUCT_ITEM do fio não tem onde guardar isto (0104).
+	AnuncioRMT int64
 }
 
 // Empty reports whether the slot holds no item.

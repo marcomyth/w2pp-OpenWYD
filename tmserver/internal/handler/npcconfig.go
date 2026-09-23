@@ -205,6 +205,12 @@ func (d *Dispatcher) applyNPCConfig(w *world.World, snap npccfg.Snapshot, reveal
 			if def.Merchant != 0 {
 				applyShop(w.Entity(ids[0]), def.Shop)
 			}
+			// A loja de honra ganha o Merchant dela aqui: o 104 do template é
+			// compartilhado com outros dois NPCs e não identifica nada
+			// (loja_de_honra.go).
+			for _, id := range ids {
+				marcaLojaDeHonra(w.Entity(id), def.TemplateName)
+			}
 			d.managedNPCs[def.Slug] = ids[0]
 			if reveal {
 				d.revealSpawned(w, ids)
@@ -240,6 +246,7 @@ func (d *Dispatcher) applyNPCConfig(w *world.World, snap npccfg.Snapshot, reveal
 		if def.Merchant != 0 {
 			applyShop(w.Entity(id), def.Shop)
 		}
+		marcaLojaDeHonra(w.Entity(id), def.TemplateName)
 		d.managedNPCs[def.Slug] = id
 		if reveal {
 			d.revealSpawned(w, []int{id})

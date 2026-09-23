@@ -21,6 +21,12 @@ import (
 // order a courtesy rather than a requirement. schema_migrations is last and is
 // not created by a migration file; migrate.go makes it.
 var tabelasDeTeste = []string{
+	// As três da venda em dinheiro real vêm primeiro porque são as mais filhas
+	// que existem: rmt_cobranca aponta para rmt_anuncio E para delivery_queue,
+	// que está lá no fim desta lista.
+	"rmt_cobranca",
+	"rmt_anuncio",
+	"rmt_recebedor",
 	"newbie_kit_claim",
 	"shop_points_audit",
 	"shop_points",
@@ -78,6 +84,8 @@ var tabelasDeTeste = []string{
 	"guild_zone",
 	"guild_relation",
 	"guild_member",
+	"guild_buff",
+	"guild_city_squad",
 	"guild",
 	"donate_topup_order",
 	"donate_payer_profile",

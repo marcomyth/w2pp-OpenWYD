@@ -15,12 +15,14 @@ type guildStateSnapshot struct {
 	relations []world.GuildRelation
 	tower     world.GuildTowerState
 	castle    world.CastleQuestState
+	buffs     []world.GuildBuffRecord
 
 	guildsErr    error
 	zonesErr     error
 	relationsErr error
 	towerErr     error
 	castleErr    error
+	buffsErr     error
 }
 
 // ApplyGuildStateBoot synchronously loads persisted guild/city state before the
@@ -67,6 +69,7 @@ func loadGuildStateSnapshot(ctx context.Context, p world.Persistence) guildState
 	snap.relations, snap.relationsErr = p.ListGuildRelations(ctx)
 	snap.tower, snap.towerErr = p.LoadGuildTowerState(ctx)
 	snap.castle, snap.castleErr = p.LoadCastleQuestState(ctx)
+	snap.buffs, snap.buffsErr = p.ListGuildBuffs(ctx)
 	return snap
 }
 
@@ -80,6 +83,11 @@ func (d *Dispatcher) applyGuildStateSnapshot(w *world.World, snap guildStateSnap
 		for _, guild := range snap.guilds {
 			w.SetGuildName(guild.ID, guild.Name)
 			w.SetGuildFame(guild.ID, guild.Fame)
+			// O Painel de Guilda (0079): o recado e o teto entram na memória junto
+			// com o nome, porque o painel os lê em toda abertura e nenhum dos dois
+			// muda com frequência que justifique ir ao banco.
+			w.SetGuildNotice(guild.ID, guild.Notice, guild.NoticeBy, guild.NoticeAt)
+			w.SetGuildMemberCap(guild.ID, guild.MemberCap)
 		}
 	}
 	if snap.zonesErr != nil {
@@ -120,6 +128,18 @@ func (d *Dispatcher) applyGuildStateSnapshot(w *world.World, snap guildStateSnap
 		d.castleState = snap.castle
 		if snap.castle.TimeLeft > 0 || snap.castle.Clear || snap.castle.LeaderName != "" {
 			d.events.castle.Restore(int(snap.castle.Level), snap.castle.TimeLeft, snap.castle.Clear)
+		}
+	}
+	if snap.buffsErr != nil {
+		// Não derruba o guildStateLoad: sem os buffs o servidor funciona, só sem
+		// as vantagens que alguém pagou. Marcar o estado inteiro como não
+		// carregado faria o servidor repetir a leitura de TUDO em laço por causa
+		// de uma tabela.
+		d.log.Warn("buffs de guilda não carregados no boot", "err", snap.buffsErr)
+	} else {
+		d.restauraBuffsDeGuilda(snap.buffs)
+		if n := len(snap.buffs); n > 0 {
+			d.log.Info("buffs de guilda restaurados", "linhas", n)
 		}
 	}
 	d.guildStateLoad = ok

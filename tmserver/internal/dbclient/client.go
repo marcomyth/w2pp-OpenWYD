@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	dbv1 "github.com/jeanluca/w2pp-openwyd/api/db/v1"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -44,6 +46,8 @@ func (c *Client) AccountLogin(ctx context.Context, name, password string) (world
 		Result:    loginResultFromProto(resp.GetResult()),
 		AccountID: resp.GetAccountId(),
 		Role:      resp.GetRole(),
+		Cash:      resp.GetCash(),
+		Rmt:       resp.GetRmt(),
 	}
 	if out.Result != world.LoginOK {
 		return out, nil
@@ -219,6 +223,37 @@ func (c *Client) PurchaseKingdomCape(ctx context.Context, expectedRevision int64
 	}
 	q := resp.GetQuote()
 	return world.KingdomCapeQuote{Revision: q.GetRevision(), HekalotiaCost: int(q.GetHekalotiaCost()), AkeloniaCost: int(q.GetAkeloniaCost())}, resp.GetOk(), nil
+}
+
+// TransferePlayerBalance move Cash ou RMT entre duas contas — o pagamento de uma
+// venda na Loja do Servidor. Recusa prevista (saldo curto, conta que não existe,
+// valor inválido) volta como erro desta função, para quem chama traduzir em
+// recusa ao jogador; erro de gRPC é falha de infraestrutura.
+func (c *Client) TransferePlayerBalance(ctx context.Context, deConta, paraConta int64,
+	moeda uint8, valor int32, motivo string) error {
+	var qual dbv1.PlayerCurrency
+	switch moeda {
+	case 1: // protocol.LojaMoedaCash
+		qual = dbv1.PlayerCurrency_PLAYER_CURRENCY_CASH
+	case 2: // protocol.LojaMoedaRMT
+		qual = dbv1.PlayerCurrency_PLAYER_CURRENCY_RMT
+	default:
+		return fmt.Errorf("dbclient: transferencia com moeda %d", moeda)
+	}
+	resp, err := c.api.TransferPlayerBalance(ctx, &dbv1.TransferPlayerBalanceRequest{
+		FromAccountId: deConta,
+		ToAccountId:   paraConta,
+		Currency:      qual,
+		Amount:        valor,
+		Reason:        motivo,
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: transferencia de saldo: %w", err)
+	}
+	if !resp.GetOk() {
+		return fmt.Errorf("dbclient: transferencia recusada: %s", resp.GetReason())
+	}
+	return nil
 }
 
 // LoadCargo loads the account-shared warehouse (gold + items) for world
@@ -442,6 +477,112 @@ func (c *Client) ListGuildRelations(ctx context.Context) ([]world.GuildRelation,
 	return out, nil
 }
 
+// ListGuildMembers loads one guild's whole roster for the panel's Membros tab.
+func (c *Client) ListGuildMembers(ctx context.Context, guildID uint16) ([]world.GuildMemberRecord, error) {
+	resp, err := c.api.ListGuildMembers(ctx, &dbv1.ListGuildMembersRequest{GuildId: uint32(guildID)})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: list guild members of %d: %w", guildID, err)
+	}
+	out := make([]world.GuildMemberRecord, 0, len(resp.GetMembers()))
+	for _, m := range resp.GetMembers() {
+		out = append(out, guildMemberFromProto(m))
+	}
+	return out, nil
+}
+
+// SaveGuildNotice writes the guild's notice board.
+func (c *Client) SaveGuildNotice(ctx context.Context, guildID uint16, notice, by string) error {
+	_, err := c.api.SaveGuildNotice(ctx, &dbv1.SaveGuildNoticeRequest{
+		GuildId: uint32(guildID), Notice: notice, NoticeBy: by,
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: save guild notice of %d: %w", guildID, err)
+	}
+	return nil
+}
+
+// ListGuildSummaries loads the server's guilds for the panel's list screen.
+func (c *Client) ListGuildSummaries(ctx context.Context, limit int) ([]world.GuildSummaryRecord, error) {
+	resp, err := c.api.ListGuildSummaries(ctx, &dbv1.ListGuildSummariesRequest{Limit: int32(limit)})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: list guild summaries: %w", err)
+	}
+	out := make([]world.GuildSummaryRecord, 0, len(resp.GetGuilds()))
+	for _, g := range resp.GetGuilds() {
+		out = append(out, world.GuildSummaryRecord{
+			ID: uint16(g.GetId()), Name: g.GetName(), Leader: g.GetLeader(),
+			Members: int(g.GetMembers()), Fame: g.GetFame(),
+		})
+	}
+	return out, nil
+}
+
+// ListGuildSquads loads one guild's city squads.
+func (c *Client) ListGuildSquads(ctx context.Context, guildID uint16) ([]world.GuildSquadRecord, error) {
+	resp, err := c.api.ListGuildSquads(ctx, &dbv1.ListGuildSquadsRequest{GuildId: uint32(guildID)})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: list guild squads of %d: %w", guildID, err)
+	}
+	out := make([]world.GuildSquadRecord, 0, len(resp.GetSquads()))
+	for _, sq := range resp.GetSquads() {
+		out = append(out, world.GuildSquadRecord{Zone: int(sq.GetZone()), Names: sq.GetNames()})
+	}
+	return out, nil
+}
+
+// SetGuildSquad replaces one city's squad.
+func (c *Client) SetGuildSquad(ctx context.Context, guildID uint16, zone int, names []string) error {
+	_, err := c.api.SetGuildSquad(ctx, &dbv1.SetGuildSquadRequest{
+		GuildId: uint32(guildID), Zone: int32(zone), Names: names,
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: set guild squad %d/%d: %w", guildID, zone, err)
+	}
+	return nil
+}
+
+// ListGuildBuffs loads the guild buffs still running.
+func (c *Client) ListGuildBuffs(ctx context.Context) ([]world.GuildBuffRecord, error) {
+	resp, err := c.api.ListGuildBuffs(ctx, &dbv1.ListGuildBuffsRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: list guild buffs: %w", err)
+	}
+	out := make([]world.GuildBuffRecord, 0, len(resp.GetBuffs()))
+	for _, b := range resp.GetBuffs() {
+		out = append(out, world.GuildBuffRecord{
+			GuildID:   uint16(b.GetGuildId()),
+			Type:      uint8(b.GetBuffType()),
+			ExpiresAt: timeFromUnix(b.GetExpiresAtUnix()),
+		})
+	}
+	return out, nil
+}
+
+// SaveGuildBuff writes one guild buff's expiry.
+func (c *Client) SaveGuildBuff(ctx context.Context, b world.GuildBuffRecord) error {
+	_, err := c.api.SaveGuildBuff(ctx, &dbv1.SaveGuildBuffRequest{
+		Buff: &dbv1.GuildBuff{
+			GuildId: uint32(b.GuildID), BuffType: int32(b.Type),
+			ExpiresAtUnix: b.ExpiresAt.Unix(),
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: save guild buff %d/%d: %w", b.GuildID, b.Type, err)
+	}
+	return nil
+}
+
+// DeleteGuildBuff removes one guild buff that has run out.
+func (c *Client) DeleteGuildBuff(ctx context.Context, guildID uint16, buffType uint8) error {
+	_, err := c.api.DeleteGuildBuff(ctx, &dbv1.DeleteGuildBuffRequest{
+		GuildId: uint32(guildID), BuffType: int32(buffType),
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: delete guild buff %d/%d: %w", guildID, buffType, err)
+	}
+	return nil
+}
+
 // LoadGuildZones loads city/guild-zone state.
 func (c *Client) LoadGuildZones(ctx context.Context) ([]world.GuildZone, error) {
 	resp, err := c.api.LoadGuildZones(ctx, &dbv1.LoadGuildZonesRequest{})
@@ -543,11 +684,40 @@ func guildFromProto(g *dbv1.Guild) world.GuildRecord {
 		return world.GuildRecord{}
 	}
 	return world.GuildRecord{
-		ID:      uint16(g.GetId()),
-		Name:    g.GetName(),
-		Clan:    uint8(g.GetClan()),
-		Fame:    g.GetFame(),
-		Citizen: uint8(g.GetCitizen()),
+		ID:        uint16(g.GetId()),
+		Name:      g.GetName(),
+		Clan:      uint8(g.GetClan()),
+		Fame:      g.GetFame(),
+		Citizen:   uint8(g.GetCitizen()),
+		Notice:    g.GetNotice(),
+		NoticeBy:  g.GetNoticeBy(),
+		NoticeAt:  timeFromUnix(g.GetNoticeAtUnix()),
+		MemberCap: int(g.GetMemberCap()),
+	}
+}
+
+// timeFromUnix devolve o tempo zero para 0, e não 1970: o painel testa
+// IsZero() para saber se nunca houve recado, e uma data de 1970 passaria por
+// um recado antigo de verdade.
+func timeFromUnix(sec int64) time.Time {
+	if sec <= 0 {
+		return time.Time{}
+	}
+	return time.Unix(sec, 0)
+}
+
+func guildMemberFromProto(m *dbv1.GuildMember) world.GuildMemberRecord {
+	if m == nil {
+		return world.GuildMemberRecord{}
+	}
+	return world.GuildMemberRecord{
+		CharacterID: m.GetCharacterId(),
+		AccountID:   m.GetAccountId(),
+		Slot:        int(m.GetSlot()),
+		Name:        m.GetName(),
+		Level:       uint8(m.GetGuildLevel()),
+		Status:      m.GetStatus(),
+		LastSeen:    timeFromUnix(m.GetLastSeenUnix()),
 	}
 }
 
@@ -761,8 +931,9 @@ func itemFromProto(it *dbv1.Item) world.Item {
 			{Effect: uint8(it.GetEff2()), Value: uint8(it.GetEffv2())},
 			{Effect: uint8(it.GetEff3()), Value: uint8(it.GetEffv3())},
 		},
-		ExpiresAt: it.GetExpiresAt(),
-		Serial:    it.GetSerial(),
+		ExpiresAt:  it.GetExpiresAt(),
+		Serial:     it.GetSerial(),
+		AnuncioRMT: it.GetRmtAnuncio(),
 	}
 }
 
@@ -862,16 +1033,17 @@ func savedItemsToProto(items []world.SavedItem) []*dbv1.Item {
 	out := make([]*dbv1.Item, 0, len(items))
 	for _, it := range items {
 		out = append(out, &dbv1.Item{
-			Slot:      int32(it.Slot),
-			Index:     int32(it.Index),
-			Eff1:      int32(it.Eff1),
-			Effv1:     int32(it.EffV1),
-			Eff2:      int32(it.Eff2),
-			Effv2:     int32(it.EffV2),
-			Eff3:      int32(it.Eff3),
-			Effv3:     int32(it.EffV3),
-			ExpiresAt: it.ExpiresAt,
-			Serial:    it.Serial,
+			Slot:       int32(it.Slot),
+			Index:      int32(it.Index),
+			Eff1:       int32(it.Eff1),
+			Effv1:      int32(it.EffV1),
+			Eff2:       int32(it.Eff2),
+			Effv2:      int32(it.EffV2),
+			Eff3:       int32(it.Eff3),
+			Effv3:      int32(it.EffV3),
+			ExpiresAt:  it.ExpiresAt,
+			Serial:     it.Serial,
+			RmtAnuncio: it.AnuncioRMT,
 		})
 	}
 	return out
@@ -990,6 +1162,12 @@ func (c *Client) AddShopPoints(ctx context.Context, accountID int64, delta int32
 		CharacterName: characterName,
 		Reason:        reason,
 	})
+	// FailedPrecondition é o "não tem saldo" do dbServer (grpcsrv.AddShopPoints).
+	// Traduzido aqui de volta para a sentinela, para que quem cobra compare com
+	// errors.Is e não com texto de erro.
+	if status.Code(err) == codes.FailedPrecondition {
+		return 0, world.ErrPontosInsuficientes
+	}
 	if err != nil {
 		return 0, fmt.Errorf("dbclient: pontos de lojinha: %w", err)
 	}

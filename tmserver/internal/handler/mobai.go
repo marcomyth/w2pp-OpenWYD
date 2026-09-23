@@ -46,6 +46,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.tickCount++
 	d.ensureGuildStateLoaded(w)
 	d.tickShopPoints(w)
+	d.tickBuffsDeGuilda(w) // os buffs de guilda que venceram (guildabuffs.go)
 
 	// Dormancy gate: snapshot the (few) in-play player positions once, so the
 	// ~10k idle mobs far from any player skip the 81-cell aggro scan. The scratch

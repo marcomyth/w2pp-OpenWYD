@@ -181,6 +181,9 @@ func (d *Dispatcher) action(w *world.World, s *world.Session, h protocol.Header,
 	// GridMulticast: view create/remove deltas + raw frame (original Type) to
 	// everyone in the old or new view window.
 	d.moveMulticast(w, s.Conn, oldX, oldY, h.Type, payload)
+	// Andou: se a loja de honra estava aberta e o NPC dela ficou para trás, o
+	// painel cai. É o que o jogo faz com as lojas dele (loja_de_honra.go).
+	d.afastouDaLojaDeHonra(w, s, e)
 	if h.Type == protocol.MsgAction3 {
 		w.SendTo(s, protocol.Header{Type: protocol.MsgAction3, ID: uint16(s.Conn)}, payload)
 		d.sendSetHpMp(w, s, e)

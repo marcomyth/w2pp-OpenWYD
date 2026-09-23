@@ -34,6 +34,9 @@ type Store interface {
 	SaveCharacter(ctx context.Context, accountID int64, ch domain.Character) error
 	QuoteKingdomCape(ctx context.Context) (domain.KingdomCapeQuote, error)
 	PurchaseKingdomCape(ctx context.Context, accountID, expectedRevision int64, kingdom uint8, ch domain.Character) (domain.KingdomCapeQuote, bool, error)
+	// Pagamento de uma venda na Loja do Servidor: Cash ou RMT entre duas contas,
+	// numa transação só.
+	TransferePlayerBalance(ctx context.Context, deConta, paraConta int64, moeda store.MoedaDeConta, valor int32, motivo string) (int32, int32, error)
 	LoadCargo(ctx context.Context, accountID int64) (int32, []domain.Item, error)
 	SaveCargo(ctx context.Context, accountID int64, coin int32, items []domain.Item) error
 	PendingItemDeliveries(ctx context.Context, accountID int64) ([]domain.Delivery, error)
@@ -59,6 +62,14 @@ type Store interface {
 	SetGuildRelation(ctx context.Context, guildID, targetGuildID uint16, kind domain.GuildRelationKind) error
 	ListGuilds(ctx context.Context) ([]domain.Guild, error)
 	ListGuildRelations(ctx context.Context) ([]domain.GuildRelation, error)
+	ListGuildMembers(ctx context.Context, guildID uint16) ([]domain.GuildMember, error)
+	SaveGuildNotice(ctx context.Context, guildID uint16, notice, by string) error
+	ListGuildSummaries(ctx context.Context, limit int) ([]domain.GuildSummary, error)
+	ListGuildSquads(ctx context.Context, guildID uint16) ([]domain.GuildSquad, error)
+	SetGuildSquad(ctx context.Context, guildID uint16, zone int, names []string) error
+	ListGuildBuffs(ctx context.Context) ([]domain.GuildBuff, error)
+	SaveGuildBuff(ctx context.Context, buff domain.GuildBuff) error
+	DeleteGuildBuff(ctx context.Context, guildID uint16, buffType uint8) error
 	LoadGuildZones(ctx context.Context) ([]domain.GuildZone, error)
 	SaveGuildZone(ctx context.Context, zone domain.GuildZone) error
 	LoadGuildTowerState(ctx context.Context) (domain.GuildTowerState, error)
@@ -113,6 +124,10 @@ func (s *Server) AccountLogin(ctx context.Context, req *dbv1.AccountLoginRequest
 		Result:    dbv1.LoginResult_LOGIN_RESULT_OK,
 		AccountId: auth.ID,
 		Role:      auth.Role, // carried to tmServer for in-game GM authz (issue #122)
+		// As carteiras da conta vão no mesmo login: o tmServer não fala com o
+		// banco, e sem isto o painel da loja mostra Cash e RMT zerados.
+		Cash: auth.Cash,
+		Rmt:  auth.Rmt,
 	}, nil
 }
 
@@ -190,6 +205,44 @@ func (s *Server) PurchaseKingdomCape(ctx context.Context, req *dbv1.PurchaseKing
 		return nil, status.Errorf(codes.Internal, "purchase kingdom cape: %v", err)
 	}
 	return &dbv1.PurchaseKingdomCapeResponse{Ok: ok, Quote: kingdomCapeQuoteToProto(q)}, nil
+}
+
+// TransferPlayerBalance move Cash ou RMT entre duas contas, numa transação só —
+// é o pagamento de uma venda na Loja do Servidor. Recusa prevista (saldo curto,
+// conta que não existe, valor fora de faixa) volta no corpo, com ok=false; só
+// falha de infraestrutura vira erro de gRPC.
+func (s *Server) TransferPlayerBalance(ctx context.Context, req *dbv1.TransferPlayerBalanceRequest) (*dbv1.TransferPlayerBalanceResponse, error) {
+	var moeda store.MoedaDeConta
+	switch req.GetCurrency() {
+	case dbv1.PlayerCurrency_PLAYER_CURRENCY_CASH:
+		moeda = store.MoedaCash
+	case dbv1.PlayerCurrency_PLAYER_CURRENCY_RMT:
+		moeda = store.MoedaRMT
+	default:
+		return &dbv1.TransferPlayerBalanceResponse{
+			Reason: dbv1.TransferPlayerBalanceReason_TRANSFER_REASON_INVALID_AMOUNT,
+		}, nil
+	}
+
+	de, para, err := s.store.TransferePlayerBalance(ctx, req.GetFromAccountId(), req.GetToAccountId(),
+		moeda, req.GetAmount(), req.GetReason())
+	switch {
+	case errors.Is(err, store.ErrSaldoInsuficiente):
+		return &dbv1.TransferPlayerBalanceResponse{
+			Reason: dbv1.TransferPlayerBalanceReason_TRANSFER_REASON_INSUFFICIENT_FUNDS,
+		}, nil
+	case errors.Is(err, store.ErrNotFound):
+		return &dbv1.TransferPlayerBalanceResponse{
+			Reason: dbv1.TransferPlayerBalanceReason_TRANSFER_REASON_ACCOUNT_NOT_FOUND,
+		}, nil
+	case errors.Is(err, store.ErrValorInvalido), errors.Is(err, store.ErrMoedaInvalida):
+		return &dbv1.TransferPlayerBalanceResponse{
+			Reason: dbv1.TransferPlayerBalanceReason_TRANSFER_REASON_INVALID_AMOUNT,
+		}, nil
+	case err != nil:
+		return nil, status.Errorf(codes.Internal, "transfer player balance: %v", err)
+	}
+	return &dbv1.TransferPlayerBalanceResponse{Ok: true, FromBalance: de, ToBalance: para}, nil
 }
 
 func kingdomCapeQuoteToProto(q domain.KingdomCapeQuote) *dbv1.QuoteKingdomCapeResponse {
@@ -369,6 +422,154 @@ func (s *Server) ListGuildRelations(ctx context.Context, _ *dbv1.ListGuildRelati
 		return nil, status.Errorf(codes.Internal, "list guild relations: %v", err)
 	}
 	return &dbv1.ListGuildRelationsResponse{Relations: relationsToProto(relations)}, nil
+}
+
+// ListGuildMembers returns one guild's whole roster, for the panel's Membros
+// tab. It is the only guild read that cannot be answered from tmServer memory,
+// which knows only who is connected.
+func (s *Server) ListGuildMembers(ctx context.Context, req *dbv1.ListGuildMembersRequest) (*dbv1.ListGuildMembersResponse, error) {
+	if req.GetGuildId() == 0 || req.GetGuildId() > 65535 {
+		return nil, status.Error(codes.InvalidArgument, "guild id out of range")
+	}
+	members, err := s.store.ListGuildMembers(ctx, uint16(req.GetGuildId()))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list guild members: %v", err)
+	}
+	return &dbv1.ListGuildMembersResponse{Members: guildMembersToProto(members)}, nil
+}
+
+// SaveGuildNotice writes the guild's notice board. The length is checked here
+// as well as by the table's CHECK: a refusal from the constraint would come back
+// as an opaque Internal, and the caller deserves to be told it was too long.
+func (s *Server) SaveGuildNotice(ctx context.Context, req *dbv1.SaveGuildNoticeRequest) (*dbv1.SaveGuildNoticeResponse, error) {
+	if req.GetGuildId() == 0 || req.GetGuildId() > 65535 {
+		return nil, status.Error(codes.InvalidArgument, "guild id out of range")
+	}
+	if len([]rune(req.GetNotice())) > guildNoticeMaxRunes {
+		return nil, status.Errorf(codes.InvalidArgument, "notice longer than %d characters", guildNoticeMaxRunes)
+	}
+	if err := s.store.SaveGuildNotice(ctx, uint16(req.GetGuildId()), req.GetNotice(), req.GetNoticeBy()); err != nil {
+		return nil, status.Errorf(codes.Internal, "save guild notice: %v", err)
+	}
+	return &dbv1.SaveGuildNoticeResponse{Ok: true}, nil
+}
+
+// ListGuildSummaries returns the server's guilds for the panel's list screen.
+func (s *Server) ListGuildSummaries(ctx context.Context, req *dbv1.ListGuildSummariesRequest) (*dbv1.ListGuildSummariesResponse, error) {
+	limite := int(req.GetLimit())
+	if limite <= 0 || limite > guildListaMax {
+		limite = guildListaMax
+	}
+	guildas, err := s.store.ListGuildSummaries(ctx, limite)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list guild summaries: %v", err)
+	}
+	out := make([]*dbv1.GuildSummary, 0, len(guildas))
+	for _, g := range guildas {
+		out = append(out, &dbv1.GuildSummary{
+			Id: uint32(g.ID), Name: g.Name, Leader: g.Leader,
+			Members: int32(g.Members), Fame: g.Fame,
+		})
+	}
+	return &dbv1.ListGuildSummariesResponse{Guilds: out}, nil
+}
+
+// ListGuildSquads returns one guild's city squads.
+func (s *Server) ListGuildSquads(ctx context.Context, req *dbv1.ListGuildSquadsRequest) (*dbv1.ListGuildSquadsResponse, error) {
+	if req.GetGuildId() == 0 || req.GetGuildId() > 65535 {
+		return nil, status.Error(codes.InvalidArgument, "guild id out of range")
+	}
+	squads, err := s.store.ListGuildSquads(ctx, uint16(req.GetGuildId()))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list guild squads: %v", err)
+	}
+	out := make([]*dbv1.GuildSquad, 0, len(squads))
+	for _, sq := range squads {
+		out = append(out, &dbv1.GuildSquad{Zone: int32(sq.Zone), Names: sq.Names})
+	}
+	return &dbv1.ListGuildSquadsResponse{Squads: out}, nil
+}
+
+// SetGuildSquad replaces one city's squad.
+//
+// The name count is capped here as well as by the panel: the list comes from a
+// client, and a forged one could name ten thousand people just to make the
+// server write ten thousand rows.
+func (s *Server) SetGuildSquad(ctx context.Context, req *dbv1.SetGuildSquadRequest) (*dbv1.SetGuildSquadResponse, error) {
+	if req.GetGuildId() == 0 || req.GetGuildId() > 65535 {
+		return nil, status.Error(codes.InvalidArgument, "guild id out of range")
+	}
+	if req.GetZone() < 0 || req.GetZone() > 4 {
+		return nil, status.Errorf(codes.InvalidArgument, "zone %d out of range 0..4", req.GetZone())
+	}
+	if len(req.GetNames()) > guildEsquadraMax {
+		return nil, status.Errorf(codes.InvalidArgument, "squad of %d, maximum %d",
+			len(req.GetNames()), guildEsquadraMax)
+	}
+	if err := s.store.SetGuildSquad(ctx, uint16(req.GetGuildId()), int(req.GetZone()), req.GetNames()); err != nil {
+		return nil, status.Errorf(codes.Internal, "set guild squad: %v", err)
+	}
+	return &dbv1.SetGuildSquadResponse{Ok: true}, nil
+}
+
+// ListGuildBuffs returns the guild buffs still running, for the tmServer's boot.
+func (s *Server) ListGuildBuffs(ctx context.Context, _ *dbv1.ListGuildBuffsRequest) (*dbv1.ListGuildBuffsResponse, error) {
+	buffs, err := s.store.ListGuildBuffs(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list guild buffs: %v", err)
+	}
+	out := make([]*dbv1.GuildBuff, 0, len(buffs))
+	for _, b := range buffs {
+		out = append(out, &dbv1.GuildBuff{
+			GuildId: uint32(b.GuildID), BuffType: int32(b.Type),
+			ExpiresAtUnix: unixOrZero(b.ExpiresAt),
+		})
+	}
+	return &dbv1.ListGuildBuffsResponse{Buffs: out}, nil
+}
+
+// SaveGuildBuff writes one buff's expiry.
+func (s *Server) SaveGuildBuff(ctx context.Context, req *dbv1.SaveGuildBuffRequest) (*dbv1.SaveGuildBuffResponse, error) {
+	b := req.GetBuff()
+	if err := guildBuffValido(b.GetGuildId(), b.GetBuffType()); err != nil {
+		return nil, err
+	}
+	// Uma expiração no passado não é um buff: ela chegaria como uma linha morta
+	// que a leitura do boot filtra e que ninguém apaga.
+	if b.GetExpiresAtUnix() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "expiry missing")
+	}
+	err := s.store.SaveGuildBuff(ctx, domain.GuildBuff{
+		GuildID: uint16(b.GetGuildId()), Type: uint8(b.GetBuffType()),
+		ExpiresAt: time.Unix(b.GetExpiresAtUnix(), 0),
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "save guild buff: %v", err)
+	}
+	return &dbv1.SaveGuildBuffResponse{Ok: true}, nil
+}
+
+// DeleteGuildBuff removes one buff that has run out.
+func (s *Server) DeleteGuildBuff(ctx context.Context, req *dbv1.DeleteGuildBuffRequest) (*dbv1.DeleteGuildBuffResponse, error) {
+	if err := guildBuffValido(req.GetGuildId(), req.GetBuffType()); err != nil {
+		return nil, err
+	}
+	if err := s.store.DeleteGuildBuff(ctx, uint16(req.GetGuildId()), uint8(req.GetBuffType())); err != nil {
+		return nil, status.Errorf(codes.Internal, "delete guild buff: %v", err)
+	}
+	return &dbv1.DeleteGuildBuffResponse{Ok: true}, nil
+}
+
+// guildBuffValido barra o que a tabela barraria, mas com uma resposta que diz o
+// que está errado: a CHECK do banco voltaria como um Internal opaco.
+func guildBuffValido(guildID uint32, tipo int32) error {
+	if guildID == 0 || guildID > 65535 {
+		return status.Error(codes.InvalidArgument, "guild id out of range")
+	}
+	if tipo < 1 || tipo > guildBuffTipoMax {
+		return status.Errorf(codes.InvalidArgument, "buff type %d out of range 1..%d", tipo, guildBuffTipoMax)
+	}
+	return nil
 }
 
 // LoadGuildZones loads city/guild-zone state.
@@ -720,6 +921,12 @@ func (s *Server) AddShopPoints(ctx context.Context, req *dbv1.AddShopPointsReque
 	}
 	saldo, err := s.store.AddShopPoints(ctx, req.GetAccountId(), req.GetDelta(),
 		req.GetCharacterName(), req.GetReason())
+	// Um gasto maior que o saldo é resposta, não falha. Vai como FailedPrecondition
+	// em vez de um campo novo na resposta: o código de status atravessa o gRPC sem
+	// mexer no .proto, e o tmServer o traduz de volta em world.ErrPontosInsuficientes.
+	if errors.Is(err, store.ErrPontosInsuficientes) {
+		return nil, status.Error(codes.FailedPrecondition, "pontos de lojinha insuficientes")
+	}
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "pontos de lojinha: %v", err)
 	}

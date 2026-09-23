@@ -590,7 +590,15 @@ func carrySummary(items []world.Item) string {
 // entry, so persisted buffs show their icons without waiting for a cast/score
 // event (the CNFCharacterLogin blob carries no affect array).
 func (d *Dispatcher) sendLoginAffects(w *world.World, s *world.Session) {
-	if e := w.Entity(s.Conn); e != nil && e.HasAnyAffect() {
+	e := w.Entity(s.Conn)
+	if e == nil {
+		return
+	}
+	// A marca dos buffs da guilda entra ANTES do envio: quem entra no jogo com
+	// a guilda buffada tem de ver os ícones na barra sem esperar o próximo
+	// evento de score (guildabuffs.go).
+	d.sincronizaAfetosDeGuilda(e)
+	if e.HasAnyAffect() {
 		d.sendAffect(w, s, e)
 	}
 }

@@ -858,7 +858,7 @@ func TestSkillsAlcanceUmCausamDano(t *testing.T) {
 		if !d.validateSkillTarget(w, &world.Session{Conn: 1}, tt.caster, target, 0, cast, 1000) {
 			t.Fatalf("skill %d (%s) recusada antes de calcular dano", tt.idx, tt.nome)
 		}
-		dmg := d.resolveSkillHit(w, tt.caster, target, int(target.ID), tt.idx, cast)
+		dmg := d.resolveSkillHit(w, tt.caster, target, target.ID, tt.idx, cast)
 		if dmg <= 0 {
 			t.Errorf("skill %d (%s) resolveu %d de dano; esperado golpe positivo", tt.idx, tt.nome, dmg)
 			continue

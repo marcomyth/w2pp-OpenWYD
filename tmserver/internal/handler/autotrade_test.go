@@ -90,8 +90,7 @@ func TestAutoTradeShopPoseWhenBuyerEntersView(t *testing.T) {
 	drainRaw(t, seller)
 	drainRaw(t, buyer)
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload(title, sellItem, 0, 1000))
-	readUntil(t, seller, protocol.MsgSendAutoTrade)
+	abreBarraca(t, seller, title, 0, 1000, protocol.LojaMoedaOuro)
 	if ty, _, ok := readMaybeRaw(t, buyer); ok {
 		t.Fatalf("out-of-view buyer got %#x after shop opened, want no shop pose yet", ty)
 	}
@@ -119,25 +118,17 @@ func TestAutoTradeOpenBrowseBuy(t *testing.T) {
 	buyer := enterWorldAs(t, addr, "tradeb") // conn 2
 	defer buyer.Close()
 
-	// Seller opens the shop; the server echoes the owner its own list.
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Minha Loja", sellItem, 0, price))
-	list, _ := readUntil(t, seller, protocol.MsgSendAutoTrade)
-	if got := cstr(list[0:24]); got != "Minha Loja" {
-		t.Errorf("own list title = %q, want Minha Loja", got)
-	}
-	if got := int16(binary.LittleEndian.Uint16(list[24:26])); got != sellItem {
-		t.Errorf("own list item = %d, want %d", got, sellItem)
-	}
+	// O vendedor monta a barraca pelo painel e clica na própria barraca. Clicar
+	// numa barraca não abre mais a janela antiga: a resposta é o convite para a
+	// vitrine. Título, item e preço são conferidos onde eles aparecem hoje, que
+	// é a vitrine (lojaservidor_test.go).
+	stallID := abreBarraca(t, seller, "Minha Loja", 0, price, protocol.LojaMoedaOuro)
+	send(t, seller, protocol.MsgReqTradeList, protocol.EncodeStandardParm(stallID))
+	readUntil(t, seller, protocol.MsgLojaMercado)
 
-	// Buyer browses the seller's shop (Parm = seller conn 1).
+	// O comprador clica na barraca do vendedor (Parm = conn 1 do vendedor).
 	send(t, buyer, protocol.MsgReqTradeList, protocol.EncodeStandardParm(1))
-	blist, _ := readUntil(t, buyer, protocol.MsgSendAutoTrade)
-	if got := int16(binary.LittleEndian.Uint16(blist[24:26])); got != sellItem {
-		t.Errorf("browsed list item = %d, want %d", got, sellItem)
-	}
-	if got := int32(binary.LittleEndian.Uint32(blist[132:136])); got != price {
-		t.Errorf("browsed list price = %d, want %d", got, price)
-	}
+	readUntil(t, buyer, protocol.MsgLojaMercado)
 
 	// Buyer buys slot 0.
 	send(t, buyer, protocol.MsgReqBuy, reqBuyPayload(1, 0, sellItem, price, tax))
@@ -176,8 +167,7 @@ func TestAutoTradeBuyNoDup(t *testing.T) {
 	buyer := enterWorldAs(t, addr, "tradeb")
 	defer buyer.Close()
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Loja", sellItem, 0, price))
-	readUntil(t, seller, protocol.MsgSendAutoTrade)
+	abreBarraca(t, seller, "Loja", 0, price, protocol.LojaMoedaOuro)
 
 	// First buy succeeds → item delivered.
 	send(t, buyer, protocol.MsgReqBuy, reqBuyPayload(1, 0, sellItem, price, tax))
@@ -209,8 +199,7 @@ func TestAutoTradeCloseOnQuit(t *testing.T) {
 	buyer := enterWorldAs(t, addr, "tradeb")
 	defer buyer.Close()
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Loja", sellItem, 0, 1000))
-	readUntil(t, seller, protocol.MsgSendAutoTrade)
+	abreBarraca(t, seller, "Loja", 0, 1000, protocol.LojaMoedaOuro)
 	// The buyer, in view, received the stall-pose CreateMobTrade on open — drain it so
 	// the post-close assertion sees a clean socket.
 	readUntil(t, buyer, protocol.MsgCreateMobTrade)
@@ -235,8 +224,90 @@ func TestAutoTradeOpenRejectsBlacklist(t *testing.T) {
 	seller := enterWorldAs(t, addr, "tester")
 	defer seller.Close()
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Loja", blacklisted, 0, 1000))
-	if ty, _, ok := readMaybe(t, seller); ok {
-		t.Fatalf("blacklisted open produced a %#x frame, want none (shop refused)", ty)
+	// A barraca agora se monta pelo painel; o item proibido continua recusado, e
+	// o que prova isso é a barraca não subir.
+	mandaAbrirBarraca(t, seller, "Loja", 0, 1000, protocol.LojaMoedaOuro)
+	for {
+		ty, _, ok := readMaybe(t, seller)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgLojaAbriu {
+			t.Fatalf("a barraca subiu com item proibido")
+		}
+	}
+}
+
+// TestReqBuyRecusaMoedaQueNaoEOuro: a janela antiga do cliente (MSG_ReqBuy) paga
+// sempre em ouro, e por isso uma prateleira anunciada em Cash ou em RMT saía por
+// esse MESMO número em ouro. As duas conferências anti-adulteração do reqBuy não
+// pegam isso: elas comparam preço e item, que conferem, e a moeda não entra em
+// nenhuma das duas.
+//
+// As três moedas passam pela mesma prateleira aqui, e a de ouro NO FIM é o que
+// dá valor às outras duas: ela prova que a recusa é por moeda e não uma recusa
+// geral. Um guard sabotado para recusar sempre passa nos dois primeiros casos e
+// quebra no terceiro.
+//
+// O item ser vendido no fim prova também o que mais importa numa recusa: as duas
+// tentativas negadas não consumiram nada — nem o item do Cargo, nem o ouro.
+func TestReqBuyRecusaMoedaQueNaoEOuro(t *testing.T) {
+	const sellItem = int16(1030)
+	const price, tax = int32(200_000), int32(5)
+	addr, stop, _ := startServerClock(t, autotradeDB(sellItem))
+	defer stop()
+	seller := enterWorldAs(t, addr, "tester") // conn 1
+	defer seller.Close()
+	buyer := enterWorldAs(t, addr, "tradeb") // conn 2
+	defer buyer.Close()
+
+	abreBarraca(t, seller, "Loja", 0, price, protocol.LojaMoedaCash)
+
+	tentaComprarERecusa := func(nome string) {
+		t.Helper()
+		drena(t, buyer)
+		send(t, buyer, protocol.MsgReqBuy, reqBuyPayload(1, 0, sellItem, price, tax))
+		avisado := false
+		for {
+			ty, payload, ok := readMaybe(t, buyer)
+			if !ok {
+				break
+			}
+			switch {
+			case ty == protocol.MsgSendItem:
+				t.Fatalf("%s: o comprador levou o item pagando em OURO uma prateleira em %s", nome, nome)
+			case ty == protocol.MsgUpdateEtc:
+				t.Fatalf("%s: o ouro do comprador mexeu numa compra que devia ser recusada", nome)
+			case ty == protocol.MsgMessageBoxOk && len(payload) >= 4 &&
+				Notice(binary.LittleEndian.Uint32(payload[0:4])) == NoticeCantAutoTrade:
+				avisado = true
+			}
+		}
+		if !avisado {
+			t.Fatalf("%s: a compra não saiu, mas o jogador não foi avisado do motivo", nome)
+		}
+	}
+
+	tentaComprarERecusa("Cash")
+
+	// A MESMA prateleira, agora anunciada em RMT.
+	send(t, seller, protocol.MsgLojaMoeda,
+		(&protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaRMT}).Encode())
+	tentaComprarERecusa("RMT")
+
+	// E em ouro a porta continua aberta: o item sai, e sai pelo preço certo.
+	send(t, seller, protocol.MsgLojaMoeda,
+		(&protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaOuro}).Encode())
+	drena(t, buyer)
+	send(t, buyer, protocol.MsgReqBuy, reqBuyPayload(1, 0, sellItem, price, tax))
+
+	si, _ := readUntil(t, buyer, protocol.MsgSendItem)
+	if got := int16(binary.LittleEndian.Uint16(si[4:6])); got != sellItem {
+		t.Errorf("item comprado = %d, esperado %d", got, sellItem)
+	}
+	etc, _ := readUntil(t, buyer, protocol.MsgUpdateEtc)
+	if coin := int32(binary.LittleEndian.Uint32(etc[28:32])); coin != 1_000_000-price {
+		t.Errorf("ouro do comprador = %d, esperado %d — as recusas não podiam ter cobrado nada",
+			coin, 1_000_000-price)
 	}
 }

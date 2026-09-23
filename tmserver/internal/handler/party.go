@@ -220,6 +220,9 @@ func (d *Dispatcher) SessionEnd(w *world.World, s *world.Session) {
 	// open leaves the clone standing in the city forever, pointing at a conn that
 	// has been recycled to somebody else. It also settles the shop-points clock,
 	// so a seller who disconnects is still paid for the windows he completed.
+	// E antes disso: esta sessao nao esta mais olhando o painel, entao ela nao
+	// entra no aviso que o closeAutoTrade dispara logo abaixo.
+	s.LojaAberta = false
 	d.closeAutoTrade(w, s)
 
 	e := w.Entity(s.Conn)

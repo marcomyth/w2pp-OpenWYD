@@ -104,16 +104,58 @@ const (
 	MsgReqRanking          Type = 0x039F // 927  duel / PvP ranking (MSG_STANDARDPARM2)
 	MsgCapsuleInfo         Type = 0x02CD // 717  capsule/cash info (relay to DB)
 	MsgPutoutSeal          Type = 0x03CC // 972  seal
-	MsgRestart             Type = 0x0289 // 649
-	MsgRemoveParty         Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)
-	MsgSendReqParty        Type = 0x037F // 895  invite to party
-	MsgAcceptParty         Type = 0x03AB // 939  accept invite
-	MsgInviteGuild         Type = 0x03D5 // 981  invite to guild (MSG_STANDARDPARM2)
-	MsgGuildAlly           Type = 0x0E12 // 3602 guild alliance
-	MsgWar                 Type = 0x0E0E // 3598 declare guild war (MSG_STANDARDPARM2)
-	MsgChallange           Type = 0x028E // 654  zone challenge / tax (MSG_STANDARDPARM)
-	MsgChallangeConfirm    Type = 0x028F // 655  confirm challenge (MSG_STANDARDPARM2)
-	MsgPing                Type = 0x03A0 // 928  keepalive — no-op on receive (§2)
+
+	// Loja do Servidor: a vitrine global das barracas abertas. Nao existem no
+	// cliente original - sao nossos, na faixa 0x0Fxx, que o WYD.exe nao usa. Ver
+	// protocol/lojaservidor.go.
+	MsgLojaPede       Type = 0x0F01 // C->S  pede uma pagina da vitrine
+	MsgLojaLista      Type = 0x0F02 // S->C  uma pagina de ofertas
+	MsgLojaMoeda      Type = 0x0F03 // C->S  a moeda de um item da minha barraca
+	MsgLojaCompra     Type = 0x0F04 // C->S  comprar uma oferta da vitrine
+	MsgLojaCargo      Type = 0x0F05 // C->S  pede o cofre, para montar a barraca
+	MsgLojaCargoLista Type = 0x0F06 // S->C  o cofre item a item
+	MsgLojaAbrir      Type = 0x0F07 // C->S  abre a barraca com precos e moedas
+	MsgLojaAbriu      Type = 0x0F08 // S->C  a barraca subiu, com o id dela
+	MsgLojaMercado    Type = 0x0F09 // S->C  clicou numa barraca: abre o mercado
+	MsgLojaFecha      Type = 0x0F0A // C->S  fechei o painel, pare de me avisar
+	MsgLojaMudou      Type = 0x0F0B // S->C  o mercado mudou; peca a pagina se estiver olhando
+
+	// Loja de Honra: o God of War trocando itens por pontos de lojinha. Tambem
+	// nossos, na mesma faixa. Ver protocol/lojahonra.go.
+	MsgHonraAbre   Type = 0x0F20 // S->C  o estoque e o saldo de quem clicou no NPC
+	MsgHonraCompra Type = 0x0F21 // C->S  quero a casa N do estoque
+	MsgHonraSaldo  Type = 0x0F22 // S->C  o saldo depois da compra
+	MsgHonraFecha  Type = 0x0F23 // C->S  fechei o painel da loja de honra
+	MsgHonraFechou Type = 0x0F24 // S->C  feche o painel: o NPC saiu de vista
+
+	// Pontos em lote na janela de Personagem (protocol/pontos_em_lote.go).
+	MsgPontosEmLote Type = 0x0F30 // C->S  gastar N pontos de uma vez num campo
+
+	// Painel de Guilda (protocol/guildapainel.go). Os buffs não têm pacote de
+	// ativação: quem liga um buff é um item de cash, usado pelo caminho normal.
+	MsgGuildaPede     Type = 0x0F40 // C->S  me manda esta aba do painel
+	MsgGuildaAbre     Type = 0x0F41 // S->C  a aba Informações
+	MsgGuildaMembros  Type = 0x0F42 // S->C  uma página do quadro de membros
+	MsgGuildaBuffs    Type = 0x0F43 // S->C  o estado dos buffs da guilda
+	MsgGuildaConvoca  Type = 0x0F44 // C->S  convocar a guilda para uma cidade
+	MsgGuildaRecado   Type = 0x0F45 // C->S  escrever o recado da guilda
+	MsgGuildaStatus   Type = 0x0F46 // C->S  escrever a minha linha de status
+	MsgGuildaLista    Type = 0x0F47 // S->C  as guildas do servidor
+	MsgGuildaCria     Type = 0x0F48 // C->S  criar uma guilda com este nome
+	MsgGuildaAtiva    Type = 0x0F49 // C->S  usar um Guild Buff da mochila
+	MsgGuildaEsquadra Type = 0x0F4A // S->C  quem esta designado para uma cidade
+	MsgGuildaDesigna  Type = 0x0F4B // C->S  trocar a escalacao de uma cidade
+
+	MsgRestart          Type = 0x0289 // 649
+	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)
+	MsgSendReqParty     Type = 0x037F // 895  invite to party
+	MsgAcceptParty      Type = 0x03AB // 939  accept invite
+	MsgInviteGuild      Type = 0x03D5 // 981  invite to guild (MSG_STANDARDPARM2)
+	MsgGuildAlly        Type = 0x0E12 // 3602 guild alliance
+	MsgWar              Type = 0x0E0E // 3598 declare guild war (MSG_STANDARDPARM2)
+	MsgChallange        Type = 0x028E // 654  zone challenge / tax (MSG_STANDARDPARM)
+	MsgChallangeConfirm Type = 0x028F // 655  confirm challenge (MSG_STANDARDPARM2)
+	MsgPing             Type = 0x03A0 // 928  keepalive — no-op on receive (§2)
 
 	// Personal shop / autotrade (issue #115, Basedef.h:2165-2325). SendAutoTrade is
 	// bidirectional: C→S opens the shop, S→C (SendAutoTrade) lists it back.

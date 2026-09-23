@@ -14,6 +14,8 @@ import (
 // fakeAPI implements dbv1.AccountServiceClient, capturing requests and returning
 // canned responses, so the adapter's mapping is tested without a gRPC server.
 type fakeAPI struct {
+	transfPedida    *dbv1.TransferPlayerBalanceRequest
+	transfResp      *dbv1.TransferPlayerBalanceResponse
 	presenceReq     *dbv1.SetCharacterPresenceRequest
 	presenceCleared int64
 	shopPoints      int32 // running personal-shop balance, as the real wallet accumulates
@@ -71,6 +73,16 @@ func (f *fakeAPI) QuoteKingdomCape(_ context.Context, _ *dbv1.QuoteKingdomCapeRe
 }
 func (f *fakeAPI) PurchaseKingdomCape(_ context.Context, _ *dbv1.PurchaseKingdomCapeRequest, _ ...grpc.CallOption) (*dbv1.PurchaseKingdomCapeResponse, error) {
 	return &dbv1.PurchaseKingdomCapeResponse{Ok: true, Quote: &dbv1.QuoteKingdomCapeResponse{Revision: 2, HekalotiaCost: 9, AkeloniaCost: 7}}, nil
+}
+
+// transfPedida guarda a ultima transferencia de carteira (Loja do Servidor), e
+// transfResp o que o dbServer deve responder.
+func (f *fakeAPI) TransferPlayerBalance(_ context.Context, req *dbv1.TransferPlayerBalanceRequest, _ ...grpc.CallOption) (*dbv1.TransferPlayerBalanceResponse, error) {
+	f.transfPedida = req
+	if f.transfResp != nil {
+		return f.transfResp, nil
+	}
+	return &dbv1.TransferPlayerBalanceResponse{Ok: true, FromBalance: 10, ToBalance: 90}, nil
 }
 func (f *fakeAPI) CreateCharacter(_ context.Context, _ *dbv1.CreateCharacterRequest, _ ...grpc.CallOption) (*dbv1.CreateCharacterResponse, error) {
 	return &dbv1.CreateCharacterResponse{Ok: f.createOK, CharacterId: 7}, nil
@@ -132,6 +144,30 @@ func (f *fakeAPI) SetGuildRelation(_ context.Context, _ *dbv1.SetGuildRelationRe
 }
 func (f *fakeAPI) ListGuilds(_ context.Context, _ *dbv1.ListGuildsRequest, _ ...grpc.CallOption) (*dbv1.ListGuildsResponse, error) {
 	return &dbv1.ListGuildsResponse{}, nil
+}
+func (f *fakeAPI) ListGuildSummaries(_ context.Context, _ *dbv1.ListGuildSummariesRequest, _ ...grpc.CallOption) (*dbv1.ListGuildSummariesResponse, error) {
+	return &dbv1.ListGuildSummariesResponse{}, nil
+}
+func (f *fakeAPI) ListGuildSquads(_ context.Context, _ *dbv1.ListGuildSquadsRequest, _ ...grpc.CallOption) (*dbv1.ListGuildSquadsResponse, error) {
+	return &dbv1.ListGuildSquadsResponse{}, nil
+}
+func (f *fakeAPI) SetGuildSquad(_ context.Context, _ *dbv1.SetGuildSquadRequest, _ ...grpc.CallOption) (*dbv1.SetGuildSquadResponse, error) {
+	return &dbv1.SetGuildSquadResponse{Ok: true}, nil
+}
+func (f *fakeAPI) ListGuildBuffs(_ context.Context, _ *dbv1.ListGuildBuffsRequest, _ ...grpc.CallOption) (*dbv1.ListGuildBuffsResponse, error) {
+	return &dbv1.ListGuildBuffsResponse{}, nil
+}
+func (f *fakeAPI) SaveGuildBuff(_ context.Context, _ *dbv1.SaveGuildBuffRequest, _ ...grpc.CallOption) (*dbv1.SaveGuildBuffResponse, error) {
+	return &dbv1.SaveGuildBuffResponse{Ok: true}, nil
+}
+func (f *fakeAPI) DeleteGuildBuff(_ context.Context, _ *dbv1.DeleteGuildBuffRequest, _ ...grpc.CallOption) (*dbv1.DeleteGuildBuffResponse, error) {
+	return &dbv1.DeleteGuildBuffResponse{Ok: true}, nil
+}
+func (f *fakeAPI) ListGuildMembers(_ context.Context, _ *dbv1.ListGuildMembersRequest, _ ...grpc.CallOption) (*dbv1.ListGuildMembersResponse, error) {
+	return &dbv1.ListGuildMembersResponse{}, nil
+}
+func (f *fakeAPI) SaveGuildNotice(_ context.Context, _ *dbv1.SaveGuildNoticeRequest, _ ...grpc.CallOption) (*dbv1.SaveGuildNoticeResponse, error) {
+	return &dbv1.SaveGuildNoticeResponse{Ok: true}, nil
 }
 func (f *fakeAPI) ListGuildRelations(_ context.Context, _ *dbv1.ListGuildRelationsRequest, _ ...grpc.CallOption) (*dbv1.ListGuildRelationsResponse, error) {
 	return &dbv1.ListGuildRelationsResponse{}, nil

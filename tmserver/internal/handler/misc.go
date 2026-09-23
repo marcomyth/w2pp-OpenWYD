@@ -46,28 +46,54 @@ func (d *Dispatcher) applyScoreBonus(w *world.World, s *world.Session, e *world.
 		d.sendScore(w, s, e)
 		return
 	}
-	points := int16(1)
+	points := 1
 	if e.ScoreBonus >= 300 {
 		points = 100
 	}
-	switch detail {
-	case protocol.DetailStr:
-		e.BaseStr += points
-	case protocol.DetailInt:
-		e.BaseInt += points
-		e.BaseMaxMP += 2 * int32(points)
-	case protocol.DetailDex:
-		e.BaseDex += points
-	case protocol.DetailCon:
-		e.BaseCon += points
-		e.BaseMaxHP += 2 * int32(points)
-	default:
+	// O corpo de um ponto mora em somaUmAtributo, e não aqui: o lote
+	// (pontos_em_lote.go) usa a MESMA função, então o clique e o lote não podem
+	// divergir. O laço reproduz o "100 de uma vez" do legado.
+	aplicados := 0
+	for i := 0; i < points; i++ {
+		if !somaUmAtributo(e, detail) {
+			break
+		}
+		aplicados++
+	}
+	if aplicados == 0 {
 		return
 	}
-	e.ScoreBonus -= uint16(points)
 	d.refreshScore(e)
 	d.sendEtc(w, s, e) // remaining points live in UpdateEtc (B10)
 	d.sendScore(w, s, e)
+}
+
+// somaUmAtributo põe UM ponto num atributo e desconta um do monte. É o corpo do
+// `+` da janela de Personagem, e o lote o repete N vezes.
+//
+// Int e Con também somam 2 de MaxMP/MaxHP direto, como o legado
+// (_MSG_ApplyBonus.cpp:32-84). Devolve false quando não há ponto no monte ou o
+// campo não existe — e aí nada é gasto.
+func somaUmAtributo(e *world.Entity, detail int) bool {
+	if e == nil || e.ScoreBonus == 0 {
+		return false
+	}
+	switch detail {
+	case protocol.DetailStr:
+		e.BaseStr++
+	case protocol.DetailInt:
+		e.BaseInt++
+		e.BaseMaxMP += 2
+	case protocol.DetailDex:
+		e.BaseDex++
+	case protocol.DetailCon:
+		e.BaseCon++
+		e.BaseMaxHP += 2
+	default:
+		return false
+	}
+	e.ScoreBonus--
+	return true
 }
 
 // accountSecure handles _MSG_AccountSecure (0x0FDE): the numeric PIN
