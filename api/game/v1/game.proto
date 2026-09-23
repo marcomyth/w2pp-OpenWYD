@@ -44,6 +44,21 @@ service GameControlService {
   // Nothing new is granted here. It is the same mailbox and the same placement
   // the login path runs — only sooner.
   rpc DeliverNow(DeliverNowRequest) returns (DeliverNowResponse);
+  // SettleRmtSaleNow takes a sold real-money item out of a seller's warehouse
+  // while they are standing in the game, instead of at their next login.
+  //
+  // The escrow mark makes the item inert — it cannot be moved, changed, refined
+  // or sold — so removing it late is not a risk. It is a DISCOMFORT: the seller
+  // sees an item that is no longer theirs, already paid for and already
+  // delivered to the buyer, sitting in their warehouse. They count their items,
+  // conclude something is wrong, and open a ticket about a system that is
+  // working.
+  //
+  // Nothing new is decided here and no money moves. The sale was settled when
+  // the payment was confirmed; this only runs the removal that the login path
+  // already runs, sooner. An account that is not connected is not a failure:
+  // its next login does the same work.
+  rpc SettleRmtSaleNow(SettleRmtSaleNowRequest) returns (SettleRmtSaleNowResponse);
   // Overlays reports which moderator-editing overlays this server booted with.
   //
   // Each is a boot flag that defaults to OFF. While one is off, the panel's
@@ -195,6 +210,20 @@ message DeliverNowResponse {
   int32 delivered = 2;
   int32 lost = 3;
   string character_name = 4;
+}
+
+message SettleRmtSaleNowRequest {
+  string account_name = 1;
+}
+message SettleRmtSaleNowResponse {
+  // found is false when the seller is not connected. The mark stays on the
+  // slot, the item stays inert, and the next login removes it — so this is not
+  // a failure and the panel must not read it as one.
+  bool found = 1;
+  // removed counts the warehouse slots emptied. Zero with found=true is the
+  // ordinary case: nothing was pending.
+  int32 removed = 2;
+  string character_name = 3;
 }
 
 message OverlaysRequest {}

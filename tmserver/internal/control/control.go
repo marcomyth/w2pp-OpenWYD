@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -424,6 +425,103 @@ func (s *Server) DeliverNow(ctx context.Context, req *gamev1.DeliverNowRequest) 
 	}
 	s.log.Info("control: mailbox drained on request", "account", nome,
 		"delivered", out.GetDelivered(), "held", out.GetLost())
+	return out, nil
+}
+
+// SettleRmtSaleNow takes a sold real-money item out of a seller's warehouse while
+// they are standing in the game.
+//
+// The escrow mark makes the item inert, so removing it late is not a risk — it is
+// a DISCOMFORT, and the discomfort is the whole reason this exists. The seller
+// sees an item that is no longer theirs, already paid for and already delivered
+// to the buyer, sitting in their warehouse. They count their items, conclude
+// something is wrong, and open a ticket about a system that is working.
+//
+// Three steps, for the same reason DeliverNow has three: the middle one talks to
+// the database and must not run inside the loop.
+//
+//  1. in the loop, find the session and take its account id;
+//  2. off the loop, ask which slots hold a sold listing;
+//  3. in the loop, empty them.
+//
+// The session is looked up AGAIN in step 3 rather than carried across, as in
+// DeliverNow: between the read and the removal the seller can disconnect, and a
+// pointer held across that gap would be written to after the world dropped it.
+// Losing that race reports nothing removed, and the next login does the work.
+//
+// AND STEP 3 RE-CHECKS EACH SLOT against the mark before emptying it, inside
+// World.LimpaSlotsVendidos. The list comes from outside the loop and the
+// warehouse can have changed since; emptying a slot that is not the sold one
+// would take from the player something they never sold, which is the most
+// expensive mistake on this path because it is silent and cannot be undone.
+func (s *Server) SettleRmtSaleNow(ctx context.Context, req *gamev1.SettleRmtSaleNowRequest) (*gamev1.SettleRmtSaleNowResponse, error) {
+	nome := strings.TrimSpace(req.GetAccountName())
+	if nome == "" {
+		return nil, status.Error(codes.InvalidArgument, "account name is required")
+	}
+
+	type alvo struct {
+		accountID  int64
+		personagem string
+		persist    world.Persistence
+	}
+	quem, err := noLoop(ctx, s.world, func(w *world.World) alvo {
+		var a alvo
+		w.ForEachSession(func(sess *world.Session, e *world.Entity) {
+			if a.accountID != 0 || !strings.EqualFold(sess.AccountName, nome) {
+				return
+			}
+			a.accountID = sess.AccountID
+			if e != nil {
+				a.personagem = e.Name
+			}
+		})
+		a.persist = w.Persistence()
+		return a
+	})
+	if err != nil {
+		return nil, err
+	}
+	if quem.accountID == 0 {
+		// Vendedor fora do jogo. A marca fica, o item continua inerte, e o
+		// próximo login faz o mesmo trabalho. Não é falha, e o painel não pode
+		// ler isto como falha.
+		return &gamev1.SettleRmtSaleNowResponse{}, nil
+	}
+
+	slots, err := quem.persist.ListSoldEscrowSlots(ctx, quem.accountID)
+	if err != nil {
+		s.log.Warn("control: sold escrow read failed", "account", nome, "err", err)
+		return nil, status.Error(codes.Unavailable, "could not read the sold listings")
+	}
+	if len(slots) == 0 {
+		return &gamev1.SettleRmtSaleNowResponse{Found: true, CharacterName: quem.personagem}, nil
+	}
+
+	out, err := noLoop(ctx, s.world, func(w *world.World) *gamev1.SettleRmtSaleNowResponse {
+		resp := &gamev1.SettleRmtSaleNowResponse{CharacterName: quem.personagem}
+		w.ForEachSession(func(sess *world.Session, _ *world.Entity) {
+			if resp.Found || sess.AccountID != quem.accountID {
+				return
+			}
+			resp.Found = true
+			saiu := w.LimpaSlotsVendidos(sess, slots)
+			resp.Removed = int32(saiu)
+			if saiu > 0 {
+				// O MESMO AVISO DO LOGIN, e pela mesma razão: sem ele o vendedor
+				// vê um espaço a mais no baú, acha que sumiu um item, e abre
+				// chamado — e quem atender não vai ter o que olhar.
+				w.Send(sess, protocol.MsgMessagePanel, protocol.EncodeMessagePanelBody(
+					fmt.Sprintf("%d item(ns) que você vendeu por dinheiro real saíram do baú.", saiu)))
+			}
+		})
+		return resp
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("control: sold rmt items removed on request", "account", nome,
+		"removed", out.GetRemoved())
 	return out, nil
 }
 
