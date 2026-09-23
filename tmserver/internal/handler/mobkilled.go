@@ -133,6 +133,7 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 	d.repletionDoCampo(w, reward, mob)
 	d.agmoAmago(w, reward, mob)
 	d.bossManticoraSaque(w, reward, mob)
+	d.geloChefeSaque(w, reward, mob)
 
 	sendDieAction(w, mob)
 

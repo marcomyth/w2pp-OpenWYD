@@ -24,11 +24,18 @@ const (
 	desertoMatadoresMinim = 100 // a equipe: 1 Pedra do Lugefer a cada 100 mortes ou mais
 )
 
-// linhasDoDeserto lê as linhas (mob, item, chance) da 0109. Diferente de
-// linhasDaMigracao, aceita 0%: o Cav. Lugefer tem o Andaluz B zerado de propósito.
+// linhasDoDeserto lê as linhas (mob, item, chance) da 0109.
 func linhasDoDeserto(t *testing.T) map[string]map[int16]int32 {
 	t.Helper()
-	b, err := migrations.FS.ReadFile(desertoMigracao)
+	return linhasComZero(t, desertoMigracao)
+}
+
+// linhasComZero lê as linhas (mob, item, chance) de uma migração da Mesa.
+// Diferente de linhasDaMigracao, aceita 0%: as mesas de área tiram itens do
+// template com linhas a 0, e cobra que nenhum par se repita.
+func linhasComZero(t *testing.T, nome string) map[string]map[int16]int32 {
+	t.Helper()
+	b, err := migrations.FS.ReadFile(nome)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,12 +50,12 @@ func linhasDoDeserto(t *testing.T) map[string]map[int16]int32 {
 			out[r[1]] = map[int16]int32{}
 		}
 		if _, dup := out[r[1]][int16(item)]; dup {
-			t.Errorf("%s item %d aparece duas vezes na 0109", r[1], item)
+			t.Errorf("%s item %d aparece duas vezes na %s", r[1], item, nome)
 		}
 		out[r[1]][int16(item)] = int32(c)
 	}
 	if len(out) == 0 {
-		t.Fatal("0109: nenhuma linha")
+		t.Fatalf("%s: nenhuma linha", nome)
 	}
 	return out
 }
@@ -107,7 +114,7 @@ func TestDesertoPedraDoLugeferUmEmCem(t *testing.T) {
 // O Fragmento de Alma cai a 1 a cada 150-180 mortes (pedido da equipe de
 // 23/09), medido no que o jogo paga, em todo monstro do Deserto que o solte.
 func TestDesertoFragmentoUmEm150a180(t *testing.T) {
-	const itemFragmentoDeAlma = 3224
+
 	achou := 0
 	for mob, l := range linhasDoDeserto(t) {
 		c, ok := l[itemFragmentoDeAlma]
