@@ -286,3 +286,57 @@ func TestCompradorQueSaiFechaAsCobrancas(t *testing.T) {
 		t.Error("o comprador saiu e as cobrancas dele ficaram abertas, prendendo item de terceiro")
 	}
 }
+
+// LOGIN DUPLICADO NÃO CANCELA A VENDA DA BARRACA VIVA.
+//
+// A reconciliação só é segura porque "quem está entrando não tem barraca de pé".
+// Numa tentativa que vai ser RECUSADA — a conta já em jogo — essa frase é falsa:
+// quem tem a barraca é a sessão antiga, que continua viva.
+//
+// O buraco era de ordem. A reconciliação vinha de carona no mesmo pedido de login
+// (dbclient), e o `accountInUse` (handler/login.go) só derruba a conexão nova
+// DEPOIS de esse pedido voltar. Quando ele derrubava, o anúncio da barraca viva já
+// tinha sido cancelado — venda desfeita em silêncio, sem ninguém saber.
+//
+// O conserto é a reconciliação virar chamada própria, depois de esta conexão
+// ganhar a conta. Este teste é a prova: a segunda entrada não reconcilia nada.
+func TestLoginDuplicadoNaoReconciliaEscrow(t *testing.T) {
+	db := bancoDeAnuncio()
+	addr, stop, _ := startServerNovato(t, db)
+	defer stop()
+
+	primeira := enterWorldAs(t, addr, "tester")
+	defer primeira.Close()
+	drena(t, primeira)
+	abreBarraca(t, primeira, "Loja", 0, 5000, protocol.LojaMoedaRMT)
+	esperaReconciliacao(t, db, 1) // a primeira entrada reconcilia, e deve
+
+	// A segunda tentativa, com a senha certa e sem pedir para assumir a conta.
+	segunda := dial(t, addr)
+	defer segunda.Close()
+	send(t, segunda, protocol.MsgAccountLogin, loginBody("tester", "secret", protocol.AppVersion))
+
+	if h := readHeader(t, segunda); h.Type != protocol.MsgAlreadyPlaying {
+		t.Fatalf("resposta = %#x, quero AlreadyPlaying(%#x)", h.Type, protocol.MsgAlreadyPlaying)
+	}
+	// Dá tempo de uma reconciliação indevida chegar ao banco, se houver.
+	for i := 0; i < 20; i++ {
+		esperaUmPouco()
+	}
+	if n := len(db.reconciliou()); n != 1 {
+		t.Errorf("a reconciliacao rodou %d vez(es); a segunda cancelaria a venda da "+
+			"barraca que a primeira sessao tem de pe", n)
+	}
+}
+
+// esperaReconciliacao espera a reconciliação chegar ao banco n vezes.
+func esperaReconciliacao(t *testing.T, db *fakeDB, n int) {
+	t.Helper()
+	for i := 0; i < 200; i++ {
+		if len(db.reconciliou()) >= n {
+			return
+		}
+		esperaUmPouco()
+	}
+	t.Fatalf("a reconciliacao nao rodou %d vez(es)", n)
+}

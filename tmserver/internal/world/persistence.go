@@ -100,11 +100,6 @@ type LoginOutcome struct {
 	// slots — nunca devolve o item ao dono, que já foi pago e entregue a outra
 	// pessoa. Ver world.LimpaSlotsVendidos.
 	SlotsVendidos []int16
-	// SlotsSoltos são os slots cujo cadeado de escrow já não segura nada — o
-	// anúncio foi cancelado, sumiu, ou ficou ativo sem barraca e sem cobrança. O
-	// item VOLTA AO DONO, ao contrário do SlotsVendidos, que o tira. Ver
-	// world.SoltaMarcasMortas.
-	SlotsSoltos []int16
 	// As carteiras da conta, lidas no mesmo login. Cash e RMT são da CONTA e
 	// moram no banco; o laço do mundo não fala com ele, então guarda o número
 	// daqui e o mantém em dia por conta própria a cada venda.
