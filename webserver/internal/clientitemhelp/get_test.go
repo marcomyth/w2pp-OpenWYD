@@ -2,11 +2,12 @@ package clientitemhelp
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 )
 
-// itemhelpDeExemplo é um arquivo no formato real: CRLF, Windows-1252, blocos em
-// ordem crescente, espaços gravados como "_".
+// itemhelpDeExemplo é um arquivo no formato real: CRLF, Windows-1252, blocos de
+// nove linhas completados com "FFFFFFFF ", espaços gravados como "_".
 //
 // Os acentos vão como escapes de UM byte — \xe7 é o "ç" e \xe3 o "ã" —, e não
 // como literais acentuados, que o fonte Go grava em UTF-8. A diferença é o
@@ -14,14 +15,17 @@ import (
 // cliente escreveu um.
 func itemhelpDeExemplo() []byte {
 	return []byte("100\r\n" +
-		"FFFFFFFF Uma_po\xe7\xe3o_comum.\r\n" +
+		"FFFFFFFF Uma_po\xe7\xe3o_comum.\r\n" + vazias(8) +
 		"200\r\n" +
 		"FFFF00FF [Item_Premium]\r\n" +
 		"FFFFFFFF Recupera_500_de_HP.\r\n" +
-		"FFFF0000 N\xe3o_pode_ser_negociada.\r\n" +
+		"FFFF0000 N\xe3o_pode_ser_negociada.\r\n" + vazias(6) +
 		"400\r\n" +
-		"FFFFFFFF Fim.\r\n")
+		"FFFFFFFF Fim.\r\n" + vazias(8))
 }
+
+// vazias são as linhas de enchimento que completam um bloco até nove.
+func vazias(n int) string { return strings.Repeat("FFFFFFFF \r\n", n) }
 
 func TestGetLeAsLinhasComEspacosEAcentos(t *testing.T) {
 	linhas, err := Get(itemhelpDeExemplo(), 200)

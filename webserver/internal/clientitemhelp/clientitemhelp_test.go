@@ -91,6 +91,59 @@ func TestSetSemLinhasApagaODescricao(t *testing.T) {
 	}
 }
 
+// O WYD.exe lê o arquivo de dez em dez linhas, sem procurar o índice: todo
+// bloco escrito tem de ter o índice e nove linhas, ou os itens seguintes
+// desalinham e perdem a descrição.
+func TestSetCompletaNoveLinhas(t *testing.T) {
+	out, err := Set([]byte(arquivo), 3222, []Linha{{Premium, "[RCoin]"}, {Branco, "Moeda."}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(out)
+	i := strings.Index(got, "3222\r\n")
+	j := strings.Index(got, "3343\r\n")
+	if i < 0 || j < i {
+		t.Fatalf("bloco 3222 não está antes do 3343:\n%s", got)
+	}
+	bloco := strings.Split(strings.TrimSuffix(got[i:j], "\r\n"), "\r\n")
+	if len(bloco) != 1+LinhasPorBloco {
+		t.Fatalf("bloco com %d linhas, want %d:\n%q", len(bloco), 1+LinhasPorBloco, bloco)
+	}
+	for _, l := range bloco[3:] {
+		if l != "FFFFFFFF " {
+			t.Errorf("linha de enchimento %q, want %q", l, "FFFFFFFF ")
+		}
+	}
+
+	// Ida e volta: o enchimento não volta pelo Get, então somar uma linha
+	// ao que já existe continua cabendo.
+	lidas, err := Get(out, 3222)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lidas) != 2 {
+		t.Fatalf("Get devolveu %d linhas, want 2: %+v", len(lidas), lidas)
+	}
+	if _, err := Set(out, 3222, append(lidas, Linha{Branco, "Mais uma."})); err != nil {
+		t.Errorf("regravar com uma linha a mais falhou: %v", err)
+	}
+}
+
+func TestSetRecusaOQueOClienteNaoLe(t *testing.T) {
+	dez := make([]Linha, LinhasPorBloco+1)
+	if _, err := Set([]byte(arquivo), 3222, dez); err == nil {
+		t.Error("aceitou dez linhas; o cliente lê nove e desalinha o resto")
+	}
+	longa := []Linha{{Branco, strings.Repeat("a", MaxBytesPorLinha+1)}}
+	if _, err := Set([]byte(arquivo), 3222, longa); err == nil {
+		t.Error("aceitou linha maior que o buffer de 128 bytes do cliente")
+	}
+	cabe := []Linha{{Branco, strings.Repeat("a", MaxBytesPorLinha)}}
+	if _, err := Set([]byte(arquivo), 3222, cabe); err != nil {
+		t.Errorf("recusou linha de %d bytes: %v", MaxBytesPorLinha, err)
+	}
+}
+
 // TestSetGravaEmCP1252: o cliente lê Windows-1252, e o acento tem de chegar
 // como um byte só — em UTF-8 ele viraria dois e a tela mostraria lixo.
 func TestSetGravaEmCP1252(t *testing.T) {

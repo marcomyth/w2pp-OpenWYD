@@ -2,9 +2,15 @@
 // mostra abaixo do nome do item, na bolsa e na loja.
 //
 // O arquivo é texto puro em Windows-1252, com quebra CRLF e sem cabeçalho: cada
-// item é uma linha só com o índice, seguida das suas linhas de descrição, e os
-// índices vêm em ordem crescente. Cada linha de descrição começa com a cor em
-// oito dígitos hexadecimais (ARGB), um espaço, e o texto.
+// item é uma linha só com o índice, seguida de EXATAMENTE nove linhas de
+// descrição. Cada linha de descrição começa com a cor em oito dígitos
+// hexadecimais (ARGB), um espaço, e o texto.
+//
+// Os nove são do WYD.exe (0x54ABE1): ele lê o arquivo de dez em dez linhas, sem
+// procurar o índice seguinte, e guarda cada linha num buffer de 128 bytes. Um
+// bloco curto desalinha todo o resto do arquivo — em 23/09/2026 os blocos
+// 3222 e 3304-3306 tinham 4, 8, 8 e 7 linhas, e todo item depois deles (RCoin,
+// Fada Azul) mostrava o tooltip vazio.
 //
 //	3343
 //	FFFF00FF [Item_Premium]
@@ -20,6 +26,14 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+)
+
+const (
+	// LinhasPorBloco é quantas linhas de descrição todo bloco tem de ter.
+	LinhasPorBloco = 9
+	// MaxBytesPorLinha é o maior texto que cabe no buffer de 128 bytes do
+	// cliente, contado já em Windows-1252 e com o terminador.
+	MaxBytesPorLinha = 127
 )
 
 // As cores que os textos do cliente usam.
@@ -38,7 +52,8 @@ type Linha struct {
 
 // Set devolve o itemhelp.dat com a descrição do item trocada pela que vai em
 // linhas, inserindo o bloco na ordem certa quando o item ainda não tem texto.
-// Um bloco sem linhas remove a descrição.
+// Um bloco sem linhas remove a descrição; um com menos de nove é completado com
+// linhas em branco, e um com mais é recusado.
 //
 // O arquivo é reescrito byte a byte fora do bloco tocado: os outros itens saem
 // exatamente como entraram, porque um acento perdido ao decodificar e codificar
@@ -46,6 +61,22 @@ type Linha struct {
 func Set(data []byte, item int, linhas []Linha) ([]byte, error) {
 	if item <= 0 {
 		return nil, fmt.Errorf("clientitemhelp: item %d inválido", item)
+	}
+	if len(linhas) > LinhasPorBloco {
+		return nil, fmt.Errorf("clientitemhelp: item %d com %d linhas, o cliente lê %d", item, len(linhas), LinhasPorBloco)
+	}
+	for i, l := range linhas {
+		if n := len(cp1252(sublinhado(l.Texto))); n > MaxBytesPorLinha {
+			return nil, fmt.Errorf("clientitemhelp: item %d, linha %d com %d bytes, o cliente guarda %d", item, i+1, n, MaxBytesPorLinha)
+		}
+	}
+	if len(linhas) > 0 {
+		completo := make([]Linha, LinhasPorBloco)
+		copy(completo, linhas)
+		for i := len(linhas); i < LinhasPorBloco; i++ {
+			completo[i] = Linha{Cor: Branco}
+		}
+		linhas = completo
 	}
 	inicio, fim, err := bloco(data, item)
 	if err != nil {
@@ -109,6 +140,11 @@ func Get(data []byte, item int) ([]Linha, error) {
 			continue
 		}
 		out = append(out, l)
+	}
+	// As linhas em branco do fim são só o enchimento até nove: devolvê-las
+	// faria Get, acrescentar uma linha e Set passar do limite do bloco.
+	for len(out) > 0 && strings.TrimSpace(out[len(out)-1].Texto) == "" {
+		out = out[:len(out)-1]
 	}
 	return out, nil
 }
