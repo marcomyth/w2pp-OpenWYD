@@ -120,7 +120,10 @@ var consumableGroups = []struct {
 	{Epico, indexIn(5500, 5547)},                                                             // livros de skill
 	{None, func(it Item) bool { return between(it, 5000, 5102) || between(it, 5400, 5447) }}, // skills em forma de item
 	{Raro, func(it Item) bool { return between(it, 5110, 5133) || it.Name == "Runa" }},       // runas
-	{Raro, match(`\(\d+\s*dias\)`)},                                                          // poções com prazo
+	// A Divina, a Sephira e a de Saúde perderam os dias do nome em 23/09/2026 e
+	// continuam Raras pelo índice; a regra do nome segue valendo para as outras.
+	{Raro, func(it Item) bool { return between(it, 3361, 3366) || between(it, 3379, 3381) }},
+	{Raro, match(`\(\d+\s*dias\)`)}, // poções com prazo
 	{Comum, match(`Poção|Potion|Kit de (Cura|Mana)|Ervas|Antídoto|P[ií]lula|Pão|Salsicha|Carne|Comida|Frango|Bebida|Marmita|Panqueca|Chocolate|Coração Doce|Remédio|Elixir|Água das Fadas|Feijão|Batedor`)},
 	{Comum, match(`Ração|Curar Montaria|Retornar Cavalo|Acelerador|Mount Growth|Restaurador de Montaria`)},
 	{Epico, match(`^(Diamante|Esmeralda|Coral|Garnet)$|^Gema de `)}, // gemas de refino

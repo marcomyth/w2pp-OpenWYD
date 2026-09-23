@@ -1935,13 +1935,32 @@ func (d *Dispatcher) useCoracaoDoce(w *world.World, s *world.Session, e *world.E
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}
-	renovarAfeto(&e.Affect[defSlot], 11, -1, affect1H/5)
+	renovarAfeto(&e.Affect[defSlot], 11, defesaDoCoracaoDoce(e.Affect[defSlot]), affect1H/5)
 
 	consumeOneItem(&e.Carry[src])
 	d.refreshScore(e)
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 	d.sendScore(w, s, e)
 	d.sendAffect(w, s, e)
+}
+
+// coracaoDoceDefesa é a defesa que o Coração Doce dá por 12 minutos.
+//
+// O legado grava o afeto 11 só com tipo e tempo (_MSG_UseItem.cpp:6052-6059), e
+// a defesa dele é Level/3 + Value (affect_score.go): numa casa vazia, +0. O
+// item prometia defesa e não dava nenhuma. Regra nova, do Marco, 23/09/2026:
+// +150.
+const coracaoDoceDefesa = 150
+
+// defesaDoCoracaoDoce é o valor que o doce grava na casa de defesa: os +150, a
+// não ser que ela já traga um valor maior — o Escudo Mágico do Ajudante divide a
+// mesma casa (GetEmptyAffect devolve a do mesmo tipo), e comer um doce não pode
+// rebaixar o buff que o jogador já tinha.
+func defesaDoCoracaoDoce(atual world.Affect) int {
+	if atual.Type == 11 && int(atual.Value) > coracaoDoceDefesa {
+		return int(atual.Value)
+	}
+	return coracaoDoceDefesa
 }
 
 // renovarAfeto escreve um afeto de doce como o legado escreve: só o tipo, o

@@ -143,6 +143,8 @@ func TestClassifyAcessoriosEConsumiveis(t *testing.T) {
 		{"acessório fora da lista fica sem", Item{Index: 542, Pos: 3840, Name: "Pedra Lunar"}, None},
 		{"poção", Item{Index: 400, Name: "Poção de Cura"}, Comum},
 		{"poção com prazo", Item{Index: 3379, Name: "Poção Divina(7dias)"}, Raro},
+		{"poção com prazo sem os dias no nome", Item{Index: 3381, Name: "Poção Divina"}, Raro},
+		{"Poção Sephira sem os dias", Item{Index: 3361, Name: "Poção Sephira"}, Raro},
 		{"Garnet", Item{Index: 2444, Name: "Garnet"}, Epico},
 		{"Pedra Ideal", Item{Index: 5338, Name: "Pedra Ideal"}, Lendario},
 		{"livro de skill", Item{Index: 5501, Name: "Livro de Skill Bênção Divina"}, Epico},

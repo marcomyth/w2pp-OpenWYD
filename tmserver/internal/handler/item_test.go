@@ -2192,11 +2192,30 @@ func TestUseCoracaoDoce(t *testing.T) {
 	if got := binary.LittleEndian.Uint32(affect[4:8]); got != affect1H/5 {
 		t.Errorf("slot 0 affect time = %d, want %d", got, affect1H/5)
 	}
-	if affect[8] != 11 {
-		t.Errorf("slot 1 affect type = %d, want 11 (Defesa)", affect[8])
+	if affect[8] != 11 || affect[9] != coracaoDoceDefesa {
+		t.Errorf("slot 1 affect = type %d value %d, want type 11 value %d (Defesa)", affect[8], affect[9], coracaoDoceDefesa)
 	}
 	if got := binary.LittleEndian.Uint32(affect[12:16]); got != affect1H/5 {
 		t.Errorf("slot 1 affect time = %d, want %d", got, affect1H/5)
+	}
+}
+
+// TestCoracaoDoceDaDefesaDeVerdade: no legado a casa de defesa saía com Value 0
+// e o doce dava +0. Agora dá +150 numa casa vazia, e não rebaixa um buff de
+// defesa maior que já estivesse na casa.
+func TestCoracaoDoceDaDefesaDeVerdade(t *testing.T) {
+	e := &world.Entity{}
+	e.Affect[0] = world.Affect{Type: 11, Value: uint8(defesaDoCoracaoDoce(world.Affect{})), Time: affect1H / 5}
+	d := New(Config{})
+	d.refreshScore(e)
+	if e.AffAC != coracaoDoceDefesa {
+		t.Errorf("AffAC com o doce = %d, want %d", e.AffAC, coracaoDoceDefesa)
+	}
+	if got := defesaDoCoracaoDoce(world.Affect{Type: 11, Value: 200}); got != 200 {
+		t.Errorf("doce sobre defesa 200 grava %d, want 200 (não rebaixa)", got)
+	}
+	if got := defesaDoCoracaoDoce(world.Affect{Type: 11, Value: 40}); got != coracaoDoceDefesa {
+		t.Errorf("doce sobre defesa 40 grava %d, want %d", got, coracaoDoceDefesa)
 	}
 }
 
