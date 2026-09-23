@@ -524,8 +524,23 @@ func runServe(args []string, logger *slog.Logger) error {
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Serve(ln) }()
+	// ANTES DE ATENDER QUALQUER UM: põe o escrow em dia. Uma queda com barracas
+	// de pé deixa os anúncios ativos no banco e as barracas mortas com o
+	// processo — os slots ficariam presos e os donos só descobririam ao tentar
+	// montar de novo. É síncrono de propósito: um jogador que entre no meio da
+	// varredura veria o estado velho.
+	if cancelados, esperando, err := st.ReconciliarEscrowNoBoot(ctx); err != nil {
+		// Não impede o boot. O escrow em atraso trava itens; um dbserver que não
+		// sobe trava o jogo inteiro.
+		logger.Warn("escrow rmt: reconciliacao do boot falhou", "err", err)
+	} else if cancelados > 0 || esperando > 0 {
+		logger.Info("escrow rmt: anuncios reconciliados no boot",
+			"cancelados", cancelados, "esperando_pagamento", esperando)
+	}
+
 	go rodarCenso(ctx, st, logger)
 	go varrerChat(ctx, st, logger, chatRetencao(logger))
+	go varrerCobrancasRMT(ctx, st, logger)
 
 	select {
 	case <-ctx.Done():
@@ -618,6 +633,44 @@ func varrerChat(ctx context.Context, st *store.Store, logger *slog.Logger, dias 
 			logger.Warn("chat sweep failed", "err", err)
 		} else if n > 0 {
 			logger.Info("chat swept", "apagadas", n, "dias", dias)
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+	}
+}
+
+// intervaloCobrancaRMT é de quanto em quanto tempo as cobranças vencidas são
+// varridas.
+//
+// Um minuto contra uma janela de cinco: o atraso da varredura entra INTEIRO no
+// tempo que o item do vendedor fica preso além do combinado, então ele precisa
+// ser pequeno perto da janela. E a consulta é barata — o índice
+// `rmt_cobranca_abertas` é parcial, só sobre as abertas, que são poucas por
+// construção (uma por anúncio).
+const intervaloCobrancaRMT = time.Minute
+
+// varrerCobrancasRMT fecha as cobranças cujo prazo acabou.
+//
+// POR VARREDURA E NÃO POR TEMPORIZADOR, e não é preguiça: um temporizador por
+// cobrança morre com o processo, e o prazo tem de continuar valendo depois de um
+// reinício. A linha guarda `expira_em`; a varredura só lê o que o banco já sabe.
+//
+// Expirar NÃO impede o Pix atrasado de entregar. A confirmação encontra a linha
+// pela referência externa, vê o status EXPIRADA, e entrega assim mesmo marcando
+// `pago_com_atraso` — é regra da Hanna, e é a coluna que diz se a janela de
+// cinco minutos está curta demais.
+func varrerCobrancasRMT(ctx context.Context, st *store.Store, logger *slog.Logger) {
+	tick := time.NewTicker(intervaloCobrancaRMT)
+	defer tick.Stop()
+	for {
+		if anuncios, err := st.ExpirarCobrancasRMT(ctx); err != nil {
+			logger.Warn("cobranca rmt: varredura de vencidas falhou", "err", err)
+		} else if len(anuncios) > 0 {
+			logger.Info("cobranca rmt: cobrancas vencidas fechadas",
+				"quantas", len(anuncios), "anuncios", anuncios)
 		}
 		select {
 		case <-ctx.Done():

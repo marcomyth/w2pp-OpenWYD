@@ -457,9 +457,18 @@ func (d *Dispatcher) closeAutoTrade(w *world.World, s *world.Session) {
 // anúncio ativo para sempre — exatamente o que esta função existe para impedir.
 //
 // A volta trabalha por CONTA e não por sessão, pelo mesmo motivo: quando ela
-// chega, a sessão quase sempre já foi. Se o baú também já saiu da memória, não há
-// o que soltar aqui, e não é perda — a marca continua no banco e a faxina do
-// login a encontra.
+// chega, a sessão quase sempre já foi.
+//
+// E AÍ A MARCA NÃO SAI AGORA — SAI NO PRÓXIMO LOGIN. Não é descuido, é a ordem
+// do teardown: o `removeSession` chama o `onSessionEnd` (world/event.go:155) e
+// só DEPOIS o `ReleaseCargo` (linha 171). Como a ida ao banco é assíncrona, a
+// volta chega com o baú já fora da memória e o `SoltaMarcasDeEscrow` não acha
+// nada. O que o logout garante é o ANÚNCIO cancelado; o cadeado do item cai na
+// reconciliação do login.
+//
+// Não "conserte" isto trocando a ordem do `ReleaseCargo`: a volta é assíncrona
+// e chegaria depois de qualquer ordem que se escolha. Quem fecha o ciclo é a
+// reconciliação, de propósito.
 func (d *Dispatcher) encerraAnunciosDaBarraca(w *world.World, s *world.Session) {
 	if s == nil || s.AutoTrade == nil {
 		return

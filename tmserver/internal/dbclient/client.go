@@ -79,7 +79,7 @@ func (c *Client) AccountLogin(ctx context.Context, name, password string) (world
 	// porque os destinos são OPOSTOS — aquela esvazia o slot, esta devolve o
 	// item ao dono. Uma lista só faria o código de cima ter de adivinhar qual é
 	// qual, e errar aqui é apagar o item de quem não vendeu nada.
-	if slots, err := c.ListDeadEscrowSlots(ctx, out.AccountID); err == nil {
+	if slots, err := c.ReconcileRmtEscrow(ctx, out.AccountID); err == nil {
 		out.SlotsSoltos = slots
 	}
 	return out, nil
@@ -129,17 +129,28 @@ func (c *Client) CloseRmtListings(ctx context.Context, ids []int64) ([]world.Anu
 	return out, nil
 }
 
-// ListDeadEscrowSlots pergunta quais marcas de escrow já não seguram nada.
-func (c *Client) ListDeadEscrowSlots(ctx context.Context, accountID int64) ([]int16, error) {
-	resp, err := c.api.ListDeadEscrowSlots(ctx, &dbv1.ListDeadEscrowSlotsRequest{AccountId: accountID})
+// ReconcileRmtEscrow põe o escrow da conta em dia e pergunta quais cadeados
+// podem sair.
+func (c *Client) ReconcileRmtEscrow(ctx context.Context, accountID int64) ([]int16, error) {
+	resp, err := c.api.ReconcileRmtEscrow(ctx, &dbv1.ReconcileRmtEscrowRequest{AccountId: accountID})
 	if err != nil {
-		return nil, fmt.Errorf("dbclient: list dead escrow slots: %w", err)
+		return nil, fmt.Errorf("dbclient: reconcile rmt escrow: %w", err)
 	}
 	out := make([]int16, 0, len(resp.GetCargoSlots()))
 	for _, slot := range resp.GetCargoSlots() {
 		out = append(out, int16(slot))
 	}
 	return out, nil
+}
+
+// CancelBuyerRmtCharges fecha as cobranças abertas de um comprador que saiu.
+func (c *Client) CancelBuyerRmtCharges(ctx context.Context, compradorConta int64) ([]int64, error) {
+	resp, err := c.api.CancelBuyerRmtCharges(ctx,
+		&dbv1.CancelBuyerRmtChargesRequest{BuyerAccountId: compradorConta})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: cancel buyer rmt charges: %w", err)
+	}
+	return resp.GetListingIds(), nil
 }
 
 // ListSoldEscrowSlots pergunta quais slots do baú ainda seguram item de anúncio

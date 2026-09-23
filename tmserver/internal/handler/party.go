@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/hex"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
@@ -224,6 +225,7 @@ func (d *Dispatcher) SessionEnd(w *world.World, s *world.Session) {
 	// entra no aviso que o closeAutoTrade dispara logo abaixo.
 	s.LojaAberta = false
 	d.closeAutoTrade(w, s)
+	d.cancelaCobrancasDoComprador(w, s)
 
 	e := w.Entity(s.Conn)
 	if e == nil || !isInParty(e) {
@@ -236,6 +238,43 @@ func (d *Dispatcher) SessionEnd(w *world.World, s *world.Session) {
 	// Leaders (and solo pet holders) dissolve; leaderLeaveParty promotes the next
 	// member and resyncs, like the synthetic AcceptParty at Server.cpp:8246-8260.
 	d.leaderLeaveParty(w, s.Conn)
+}
+
+// cancelaCobrancasDoComprador fecha as cobranças abertas de quem está saindo.
+//
+// É a outra metade da regra do encerramento, vista do lado do comprador: ele não
+// vai voltar para aquele QR, e cada cobrança aberta prende o item de OUTRA pessoa
+// até o prazo acabar. O vendedor não fez nada de errado e está esperando.
+//
+// GoDetached, como todo o resto deste caminho: a sessão está acabando agora, e o
+// Go descartaria justamente esta volta.
+//
+// A VOLTA NÃO SOLTA CADEADO NENHUM, e não é esquecimento: os cadeados são do
+// VENDEDOR, que é outra conta e pode nem estar em jogo. Quem os solta é a
+// reconciliação do login dele. Tentar daqui seria mexer no baú de terceiros a
+// partir da saída de alguém.
+func (d *Dispatcher) cancelaCobrancasDoComprador(w *world.World, s *world.Session) {
+	if s == nil || s.AccountID == 0 {
+		return
+	}
+	conta := s.AccountID
+	persist := w.Persistence()
+	w.GoDetached(func() func(*world.World) {
+		anuncios, err := persist.CancelBuyerRmtCharges(context.Background(), conta)
+		return func(*world.World) {
+			if err != nil {
+				// A cobrança expira sozinha na varredura do prazo. Isto só encurta
+				// a espera de quem está do outro lado.
+				d.log.Warn("cobranca rmt: nao consegui cancelar as do comprador que saiu",
+					"conta", conta, "err", err)
+				return
+			}
+			if len(anuncios) > 0 {
+				d.log.Info("cobranca rmt: comprador saiu e as cobrancas dele fecharam",
+					"conta", conta, "anuncios", anuncios)
+			}
+		}
+	})
 }
 
 func (d *Dispatcher) reqPartyBody(e *world.Entity, partyID int) protocol.MsgSendReqPartyBody {

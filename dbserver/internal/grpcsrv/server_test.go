@@ -14,14 +14,16 @@ import (
 
 // fakeStore is an in-memory Store for unit tests (no PostgreSQL).
 type fakeStore struct {
-	anunciosAbertos    []store.ItemAnunciado
-	anunciosCancelados []int64
-	anunciosEncerrados []int64
-	encerrados         []store.AnuncioEncerrado
-	slotsSoltos        []int16
-	erroAbrirAnuncios  error
-	slotsVendidos      []int16
-	erroSlotsVendidos  error
+	anunciosAbertos     []store.ItemAnunciado
+	anunciosCancelados  []int64
+	anunciosEncerrados  []int64
+	compradorCancelado  int64
+	anunciosDoComprador []int64
+	encerrados          []store.AnuncioEncerrado
+	slotsSoltos         []int16
+	erroAbrirAnuncios   error
+	slotsVendidos       []int16
+	erroSlotsVendidos   error
 	// fama captures UpdateGuildFame calls.
 	fama map[uint16]int32
 	// shopPoints is the personal-shop wallet, accumulated like the real store.
@@ -231,7 +233,12 @@ func (f *fakeStore) EncerrarAnunciosRMT(_ context.Context, ids []int64) ([]store
 	return f.encerrados, nil
 }
 
-func (f *fakeStore) SlotsDeEscrowMorto(context.Context, int64) ([]int16, error) {
+func (f *fakeStore) CancelarCobrancasDoComprador(_ context.Context, comprador int64) ([]int64, error) {
+	f.compradorCancelado = comprador
+	return f.anunciosDoComprador, nil
+}
+
+func (f *fakeStore) ReconciliarEscrowRMT(context.Context, int64) ([]int16, error) {
 	return f.slotsSoltos, nil
 }
 

@@ -251,3 +251,38 @@ func TestPrateleiraComAnuncioVivoNaoViraOuro(t *testing.T) {
 			v.Qtd, v.Ofertas[0].Moeda)
 	}
 }
+
+// O COMPRADOR QUE SAI DO JOGO leva as cobranças dele junto.
+//
+// Ele não vai voltar para aquele QR, e cada cobrança aberta prende o item de
+// OUTRA pessoa até o prazo acabar. O vendedor não fez nada de errado e está
+// esperando.
+//
+// A volta NÃO solta cadeado nenhum, e isso é decisão e não esquecimento: os
+// cadeados são do VENDEDOR, que é outra conta e pode nem estar em jogo. Quem os
+// solta é a reconciliação do login dele.
+func TestCompradorQueSaiFechaAsCobrancas(t *testing.T) {
+	db := newDB()
+	addr, stop, _ := startServerNovato(t, db)
+	defer stop()
+	c := enterWorldAs(t, addr, "tester")
+	drena(t, c)
+
+	_ = c.Close()
+
+	pediu := false
+	for i := 0; i < 200; i++ {
+		for _, conta := range db.cancelouComprador() {
+			if conta == 7 {
+				pediu = true
+			}
+		}
+		if pediu {
+			break
+		}
+		esperaUmPouco()
+	}
+	if !pediu {
+		t.Error("o comprador saiu e as cobrancas dele ficaram abertas, prendendo item de terceiro")
+	}
+}

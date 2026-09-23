@@ -37,22 +37,23 @@ type fakeDB struct {
 	erroAnuncio error
 	// portaoAnuncio segura a ida ao banco até o teste mandar soltar, que é o
 	// único jeito de fazer alguma coisa acontecer ENTRE a ida e a volta.
-	portaoAnuncio      chan struct{}
-	anunciosAbertos    []world.AnuncioRMT
-	anunciosCancelados []int64
-	anunciosEncerrados []int64
-	encerrados         []world.AnuncioEncerrado // destino forçado pelo teste
-	erroEncerrar       error
-	slotDoAnuncio      map[int64]int16 // id do anúncio → slot, para o destino padrão
-	slotsSoltos        map[int64][]int16
-	slotsVendidos      map[int64][]int16
-	accounts           map[string]*fakeAccount
-	created            int
-	archCreated        int
-	archSlot           int
-	archOK             bool
-	archErr            error
-	archReq            struct {
+	portaoAnuncio         chan struct{}
+	anunciosAbertos       []world.AnuncioRMT
+	anunciosCancelados    []int64
+	anunciosEncerrados    []int64
+	compradoresCancelados []int64
+	encerrados            []world.AnuncioEncerrado // destino forçado pelo teste
+	erroEncerrar          error
+	slotDoAnuncio         map[int64]int16 // id do anúncio → slot, para o destino padrão
+	slotsSoltos           map[int64][]int16
+	slotsVendidos         map[int64][]int16
+	accounts              map[string]*fakeAccount
+	created               int
+	archCreated           int
+	archSlot              int
+	archOK                bool
+	archErr               error
+	archReq               struct {
 		accountID                            int64
 		name                                 string
 		class, face, mortalSlot, mortalLevel int
@@ -195,8 +196,23 @@ func (f *fakeDB) CloseRmtListings(_ context.Context, ids []int64) ([]world.Anunc
 	return out, nil
 }
 
-// ListDeadEscrowSlots é a faxina do login.
-func (f *fakeDB) ListDeadEscrowSlots(_ context.Context, accountID int64) ([]int16, error) {
+// CancelBuyerRmtCharges fecha as cobranças do comprador que saiu.
+func (f *fakeDB) CancelBuyerRmtCharges(_ context.Context, comprador int64) ([]int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.compradoresCancelados = append(f.compradoresCancelados, comprador)
+	return nil, nil
+}
+
+// cancelouComprador lê sob o mutex quem teve as cobranças fechadas.
+func (f *fakeDB) cancelouComprador() []int64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]int64(nil), f.compradoresCancelados...)
+}
+
+// ReconcileRmtEscrow é a reconciliação do login.
+func (f *fakeDB) ReconcileRmtEscrow(_ context.Context, accountID int64) ([]int16, error) {
 	return f.slotsSoltos[accountID], nil
 }
 
