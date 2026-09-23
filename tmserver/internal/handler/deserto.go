@@ -6,7 +6,7 @@ import (
 )
 
 // Os dois Agmo do Deserto (Tauron_Agmo e Verme_Agmo) são monstros de evento: os
-// blocos deles (3451, 3452) nascem desligados desde a migração 0108, e a equipe
+// blocos deles (3451, 3452) nascem desligados desde a migração 0109, e a equipe
 // os cria à mão num evento. Cada morte solta UM âmago N, um ou outro, sorteado
 // com os pesos que a equipe deu (23/09/2026): Sem Sela 40, Fantasma 30, Cavalo
 // Leve 20, Cavalo Equipado 10.
@@ -74,7 +74,7 @@ func (d *Dispatcher) agmoAmago(w *world.World, reward, mob *world.Entity) {
 // Cada morte solta UMA coisa, sorteada: a Pedra de Mantícora a 10%, ou, nos 90%
 // restantes, em partes iguais, a Barra de Prata de 50Mi ou um pacote de âmagos
 // (20 Cavalo Equipado, 40 Cavalo Leve ou 60 Fantasma), cada pacote N ou B em
-// metade das vezes. A pedra saiu da Mantícora comum na 0108: é deste chefe.
+// metade das vezes. A pedra saiu da Mantícora comum na 0109: é deste chefe.
 const (
 	bossManticoraTemplate = "Boss_Manticora"
 	// bossManticoraHoras é a espera entre a morte e a volta (esperaDoRenascimento).

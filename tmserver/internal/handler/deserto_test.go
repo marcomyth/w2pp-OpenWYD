@@ -20,11 +20,11 @@ const (
 	itemPedraDoLugefer    = 1758
 	itemAmagoEquipadoN    = 2399
 	itemOvoEquipadoN      = 2309
-	desertoMigracao       = "0108_deserto_saque.up.sql"
+	desertoMigracao       = "0109_deserto_saque.up.sql"
 	desertoMatadoresMinim = 100 // a equipe: 1 Pedra do Lugefer a cada 100 mortes ou mais
 )
 
-// linhasDoDeserto lê as linhas (mob, item, chance) da 0108. Diferente de
+// linhasDoDeserto lê as linhas (mob, item, chance) da 0109. Diferente de
 // linhasDaMigracao, aceita 0%: o Cav. Lugefer tem o Andaluz B zerado de propósito.
 func linhasDoDeserto(t *testing.T) map[string]map[int16]int32 {
 	t.Helper()
@@ -43,12 +43,12 @@ func linhasDoDeserto(t *testing.T) map[string]map[int16]int32 {
 			out[r[1]] = map[int16]int32{}
 		}
 		if _, dup := out[r[1]][int16(item)]; dup {
-			t.Errorf("%s item %d aparece duas vezes na 0108", r[1], item)
+			t.Errorf("%s item %d aparece duas vezes na 0109", r[1], item)
 		}
 		out[r[1]][int16(item)] = int32(c)
 	}
 	if len(out) == 0 {
-		t.Fatal("0108: nenhuma linha")
+		t.Fatal("0109: nenhuma linha")
 	}
 	return out
 }
@@ -65,7 +65,7 @@ func taxaPaga(chance int32) float64 {
 	return float64(acertos) / 32768
 }
 
-// Toda linha da 0108 aponta para um item do ItemList e para um template que
+// Toda linha da 0109 aponta para um item do ItemList e para um template que
 // existe, e o arquivo não repete par.
 func TestDesertoMigracaoApontaParaOQueExiste(t *testing.T) {
 	root := releaseDir(t)
@@ -91,7 +91,7 @@ func TestDesertoMigracaoApontaParaOQueExiste(t *testing.T) {
 func TestDesertoPedraDoLugeferUmEmCem(t *testing.T) {
 	c, ok := linhasDoDeserto(t)["Cav._Lugefer"][itemPedraDoLugefer]
 	if !ok {
-		t.Fatal("a 0108 não tem regra para a Pedra do Lugefer: o template a dá em 1 de cada 4 mortes")
+		t.Fatal("a 0109 não tem regra para a Pedra do Lugefer: o template a dá em 1 de cada 4 mortes")
 	}
 	paga := taxaPaga(c)
 	if paga <= 0 || 1/paga < desertoMatadoresMinim {
@@ -120,7 +120,7 @@ func TestDesertoFragmentoUmEm150a180(t *testing.T) {
 		}
 	}
 	if achou == 0 {
-		t.Error("nenhum monstro da 0108 solta o Fragmento de Alma")
+		t.Error("nenhum monstro da 0109 solta o Fragmento de Alma")
 	}
 }
 
@@ -147,7 +147,7 @@ func TestDesertoCavaloEquipado(t *testing.T) {
 }
 
 // semNoDeserto cobra que nenhum item de proibidos caia no Deserto: nenhuma linha
-// da 0108 o dá, todo monstro da 0108 cujo TEMPLATE o solta tem a linha a 0% que o
+// da 0109 o dá, todo monstro da 0109 cujo TEMPLATE o solta tem a linha a 0% que o
 // tira — senão o template continua soltando por baixo da Mesa —, e os sorteios
 // que moram no código (Agmo, Boss Mantícora) não o têm.
 func semNoDeserto(t *testing.T, oque string, proibidos map[int16]bool) {
@@ -172,7 +172,7 @@ func semNoDeserto(t *testing.T, oque string, proibidos map[int16]bool) {
 				continue
 			}
 			if c, ok := l[it.Index]; !ok || c != 0 {
-				t.Errorf("o template de %s solta %s (%d) e a 0108 não o zera", mob, oque, it.Index)
+				t.Errorf("o template de %s solta %s (%d) e a 0109 não o zera", mob, oque, it.Index)
 			}
 		}
 	}
@@ -204,7 +204,7 @@ func TestDesertoAgmoForaDaMesa(t *testing.T) {
 	linhas := linhasDoDeserto(t)
 	for _, mob := range []string{"Tauron_Agmo", "Verme_Agmo"} {
 		if len(linhas[mob]) > 0 {
-			t.Errorf("%s tem %d linhas na 0108; a Mesa rola cada item sozinho e daria 0 ou vários âmagos", mob, len(linhas[mob]))
+			t.Errorf("%s tem %d linhas na 0109; a Mesa rola cada item sozinho e daria 0 ou vários âmagos", mob, len(linhas[mob]))
 		}
 	}
 }
@@ -426,7 +426,7 @@ func TestBossManticoraTemplate(t *testing.T) {
 	}
 }
 
-// A Pedra de Mantícora saiu da tropa: nenhum monstro da 0108 a solta, e a
+// A Pedra de Mantícora saiu da tropa: nenhum monstro da 0109 a solta, e a
 // Mantícora comum, cujo template a tem, fica com a linha a 0%.
 func TestDesertoPedraDeManticoraSoDoChefe(t *testing.T) {
 	linhas := linhasDoDeserto(t)

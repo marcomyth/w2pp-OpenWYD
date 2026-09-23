@@ -159669,7 +159669,7 @@
 	DestWait:	0
 
 // Boss Manticora - chefe do Deserto_Manticora: renasce 5 h depois da morte
-// (handler/deserto.go), saque no codigo. Migracao 0108, 23/09/2026.
+// (handler/deserto.go), saque no codigo. Migracao 0109, 23/09/2026.
 // ********************************************
 
 #	[6145]

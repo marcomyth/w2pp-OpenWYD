@@ -12,6 +12,6 @@ DELETE FROM drop_rule WHERE mob IN (
 UPDATE drop_rule_meta SET version = version + 1 WHERE id = TRUE;
 
 DELETE FROM npc_generator_off
-WHERE generator_index IN (3451, 3452) AND turned_off_by = 'migração 0108';
+WHERE generator_index IN (3451, 3452) AND turned_off_by = 'migração 0109';
 
 UPDATE npc_generator_off_meta SET version = version + 1 WHERE id = TRUE;

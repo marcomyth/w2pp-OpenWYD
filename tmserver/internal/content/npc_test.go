@@ -132,7 +132,7 @@ func TestBlocosDesligadosPorIndice(t *testing.T) {
 		// Migration 0064: the world's Troll Enigma, whose cage the Acampamento
 		// Troll quest took over. Switched off in npc_generator_off.
 		3804: "Troll_Enigma",
-		// Migration 0108: the two Agmo of the Deserto are event-only now (every
+		// Migration 0109: the two Agmo of the Deserto are event-only now (every
 		// kill drops a guaranteed mount core, handler/deserto.go). Switched off in npc_generator_off.
 		3451: "Verme_Agmo", 3452: "Tauron_Agmo",
 		// The two the square keeps.
@@ -181,7 +181,7 @@ func TestCavLugeferSaoVinte(t *testing.T) {
 	}
 }
 
-// TestBossManticoraBloco pins the Deserto_Manticora boss (migration 0108): one
+// TestBossManticoraBloco pins the Deserto_Manticora boss (migration 0109): one
 // Boss_Manticora in block 6145, the last one, with no minute period — the 5 h
 // wait after its death is the individual queue's (handler/deserto.go), and a
 // positive MinuteGenerate would refill it on the generator clock instead.

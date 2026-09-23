@@ -1,4 +1,4 @@
--- 0108_deserto_saque — a mesa de saque do Deserto e os dois Agmo de evento.
+-- 0109_deserto_saque — a mesa de saque do Deserto e os dois Agmo de evento.
 --
 -- O Deserto são as cinco caixas Deserto_* do Regions.txt: 433 monstros comuns de
 -- onze templates, do nível 300 ao 380, e o Cav. Lugefer. Antes disto um comum
@@ -135,8 +135,8 @@ UPDATE drop_rule_meta SET version = version + 1 WHERE id = TRUE;
 -- num evento ("/gm criar Tauron_Agmo", que não renasce). TestBlocosDesligadosPorIndice prende os dois
 -- índices aos dois templates.
 INSERT INTO npc_generator_off (generator_index, turned_off_by) VALUES
-    (3451, 'migração 0108'),
-    (3452, 'migração 0108')
+    (3451, 'migração 0109'),
+    (3452, 'migração 0109')
 ON CONFLICT (generator_index) DO NOTHING;
 
 UPDATE npc_generator_off_meta SET version = version + 1 WHERE id = TRUE;
