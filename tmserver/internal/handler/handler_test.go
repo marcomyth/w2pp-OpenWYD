@@ -33,8 +33,11 @@ type fakeAccount struct {
 
 type fakeDB struct {
 	world.NopPersistence
-	semChavePix        bool
-	erroAnuncio        error
+	semChavePix bool
+	erroAnuncio error
+	// portaoAnuncio segura a ida ao banco até o teste mandar soltar, que é o
+	// único jeito de fazer alguma coisa acontecer ENTRE a ida e a volta.
+	portaoAnuncio      chan struct{}
 	anunciosAbertos    []world.AnuncioRMT
 	anunciosCancelados []int64
 	slotsVendidos      map[int64][]int16
@@ -136,6 +139,9 @@ func (f *fakeDB) ListPendingDeliveries(_ context.Context, accountID int64) ([]wo
 // OpenRmtListings finge o banco: devolve ids previsíveis, ou a recusa de quem
 // não tem chave Pix.
 func (f *fakeDB) OpenRmtListings(_ context.Context, vendedor int64, itens []world.AnuncioRMT) ([]int64, bool, error) {
+	if f.portaoAnuncio != nil {
+		<-f.portaoAnuncio
+	}
 	if f.erroAnuncio != nil {
 		return nil, false, f.erroAnuncio
 	}

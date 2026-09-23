@@ -208,7 +208,7 @@ func (d *Dispatcher) abreAnunciosESobe(w *world.World, s *world.Session,
 	w.GoDetached(func() func(*world.World) {
 		ids, semChave, err := persist.OpenRmtListings(context.Background(), conta, anuncios)
 		return func(w *world.World) {
-			sess := sessaoDaConexao(w, conn)
+			sess := sessaoDaConexao(w, conn, conta)
 			if err != nil {
 				d.log.Warn("loja: nao consegui abrir os anuncios", "conn", conn, "err", err)
 				if sess != nil {
@@ -302,10 +302,20 @@ func (d *Dispatcher) cancelaAnuncios(w *world.World, ids []int64) {
 // sessaoDaConexao acha a sessão de uma conexão dentro do laço. Ela é procurada de
 // novo, e não carregada de fora, porque entre a ida ao banco e a volta o jogador
 // pode ter caído — e um ponteiro guardado apontaria para o que o mundo já largou.
-func sessaoDaConexao(w *world.World, conn int) *world.Session {
+// A CONTA FAZ PARTE DA PERGUNTA, e não é zelo excessivo: o número da conexão é
+// REAPROVEITADO. Se o vendedor cai durante a ida ao banco e outra pessoa entra no
+// mesmo número, procurar só pelo conn devolve a sessão DELA. A volta então
+// conferiria o baú da conta errada e, se por azar o item batesse, marcaria o baú
+// do segundo com o anúncio do primeiro e subiria a barraca de um na sessão do
+// outro.
+//
+// Sessão de outra conta é tratada como sessão que sumiu, que é o que ela é para
+// este pedido: os anúncios são cancelados e ninguém é avisado, porque quem
+// pediu já não está aqui.
+func sessaoDaConexao(w *world.World, conn int, conta int64) *world.Session {
 	var achada *world.Session
 	w.ForEachSession(func(s *world.Session, _ *world.Entity) {
-		if s != nil && s.Conn == conn {
+		if s != nil && s.Conn == conn && s.AccountID == conta {
 			achada = s
 		}
 	})
