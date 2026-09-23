@@ -104,6 +104,23 @@ func TestVitrineEsvaziaQuandoALojinhaFecha(t *testing.T) {
 
 	vendedor.Close()
 
+	// Fechar o socket DO CLIENTE não é o servidor já ter tratado a queda. Ele
+	// ainda precisa notar o fim da conexão, levar o fim de sessão até o laço e
+	// rodar o closeAutoTrade. Perguntar a vitrine na linha seguinte é apostar que
+	// o pedido chega depois disso — e era uma aposta que esta máquina ganhava
+	// sempre e a CI perdeu na primeira vez que rodou com -race.
+	//
+	// A espera é pelo evento que o servidor JÁ PROMETE, e não por um tempinho:
+	// SessionEnd chama closeAutoTrade (party.go:226), que chama mercadoMudou
+	// DEPOIS de a barraca sair do ar — essa ordem está no comentário de lá e foi
+	// escolhida de propósito. Então, quando este bilhete chega, a vitrine já está
+	// vazia, e não "quase".
+	//
+	// De quebra o teste passa a provar uma coisa que ele não provava: que o
+	// servidor EMPURRA a mudança para quem está com o painel aberto. O comprador
+	// está registrado porque o pedeVitrine acima ligou o LojaAberta dele.
+	readUntil(t, comprador, protocol.MsgLojaMudou)
+
 	if lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos); lista.Total != 0 {
 		t.Fatalf("depois de fechar, total = %d; queria 0", lista.Total)
 	}
