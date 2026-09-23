@@ -1,0 +1,252 @@
+package store
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+
+	"github.com/jackc/pgx/v5"
+)
+
+// A confirmação do pagamento de uma venda em dinheiro real.
+//
+// É o ponto onde o dinheiro de fora encontra o jogo, e por isso é o ponto onde
+// tudo o que pode dar errado dá. As três coisas que este arquivo garante:
+//
+//  1. IDEMPOTÊNCIA sobre a referência externa. A processadora repete aviso por
+//     desenho — é assim que ela garante entrega —, e confirmação repetida não
+//     pode entregar duas vezes. A âncora é a mesma do donate_topup_order (0010).
+//  2. O DINHEIRO E A ENTREGA NA MESMA TRANSAÇÃO. Enfileirar a entrega fora da
+//     transação que marca PAGO abre a janela em que uma queda deixa o dinheiro
+//     registrado e o item não, ou o contrário.
+//  3. O QUE NÃO DÁ PARA ENTREGAR VIRA DÍVIDA VISÍVEL, e não silêncio. É o estado
+//     5, PAGA_SEM_ITEM, que a 0105 já previu.
+//
+// O QUE ESTE ARQUIVO NÃO FAZ, de propósito: tirar o item do vendedor. Enquanto a
+// marca do escrow (0104) está no slot, o item é intocável — não se move, não se
+// altera, não se refina, não se vende. Então não há pressa: retirar tarde é igual
+// a retirar cedo, porque nada pode acontecer com ele no meio. A retirada roda
+// dentro do laço do tmServer, que é o dono do baú vivo, e acontece quando der —
+// agora se o vendedor estiver em jogo, no login dele se não estiver. O comprador
+// nunca espera por isso.
+
+// ResultadoCobranca é o que a confirmação fez.
+type ResultadoCobranca int
+
+const (
+	// CobrancaNaoEncontrada: a referência externa não é de nenhuma cobrança
+	// nossa. Não é erro — é o aviso de um pagamento que não nos diz respeito, ou
+	// um aviso forjado.
+	CobrancaNaoEncontrada ResultadoCobranca = iota
+	// CobrancaConfirmada: o dinheiro entrou agora e a entrega foi enfileirada.
+	CobrancaConfirmada
+	// CobrancaJaConfirmada: já tinha sido confirmada antes. Nada mudou, e isso é
+	// o caminho normal do aviso repetido, não uma anomalia.
+	CobrancaJaConfirmada
+	// CobrancaPagaSemItem: o dinheiro entrou e NÃO havia item para entregar — o
+	// anúncio foi cancelado, ou a marca do escrow já tinha soltado. Vira dívida
+	// com uma pessoa, numa fila que alguém olha.
+	CobrancaPagaSemItem
+)
+
+// Status de rmt_cobranca (0105).
+const (
+	cobrancaAberta      int16 = 1
+	cobrancaPaga        int16 = 2
+	cobrancaCancelada   int16 = 3
+	cobrancaExpirada    int16 = 4
+	cobrancaPagaSemItem int16 = 5
+)
+
+// Status de rmt_anuncio (0105).
+const (
+	anuncioAtivo     int16 = 1
+	anuncioVendido   int16 = 2
+	anuncioCancelado int16 = 3
+)
+
+// VendaRMT é o que a confirmação devolve para quem for tirar o item do vendedor.
+//
+// Ela carrega o slot e o anúncio, e não o item: o tmServer confere a MARCA
+// daquele slot contra AnuncioID antes de mexer, que é a única pergunta que
+// importa lá — "este slot ainda é o deste anúncio?".
+type VendaRMT struct {
+	CobrancaID     int64
+	AnuncioID      int64
+	VendedorConta  int64
+	CompradorConta int64
+	CargoSlot      int16
+	// EntregaID é a linha da caixa postal do comprador. Zero quando não houve
+	// entrega (PAGA_SEM_ITEM).
+	EntregaID int64
+	// PagoComAtraso marca a confirmação que chegou DEPOIS do cancelamento ou da
+	// expiração. Se isso virar rotina, o prazo da cobrança está errado.
+	PagoComAtraso bool
+}
+
+// ConfirmarCobrancaRMT registra o pagamento e enfileira a entrega, numa
+// transação só.
+//
+// A ENTREGA VAI SEMPRE PELA CAIXA POSTAL, mesmo com o comprador em jogo. Entregar
+// direto no baú vivo economizaria um salto e custaria a prova: sem a linha da
+// caixa postal não há `entrega_id`, e sem `entrega_id` não dá para distinguir
+// "entreguei" de "ainda não entreguei" — que é exatamente a distinção que o
+// estado 5 existe para preservar. Para o comprador em jogo, quem encurta a espera
+// é o DeliverNow, chamado depois desta função, pelo mesmo caminho que a loja de
+// doação já usa.
+//
+// O QUE O COMPRADOR RECEBE VEM DA FOTOGRAFIA do anúncio, e não do item no baú do
+// vendedor. Os dois são iguais enquanto a marca está lá — é para isso que ela
+// serve —, e ler a fotografia significa que o comprador não espera o vendedor
+// estar em jogo para receber.
+func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna string) (ResultadoCobranca, VendaRMT, error) {
+	var res ResultadoCobranca
+	var venda VendaRMT
+
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var statusCobranca int16
+		var entregaAtual *int64
+		var atrasoAtual bool
+		err := tx.QueryRow(ctx, `
+			SELECT id, anuncio_id, comprador_conta, status, entrega_id, pago_com_atraso
+			  FROM rmt_cobranca WHERE referencia_externa = $1 FOR UPDATE`,
+			referenciaExterna).Scan(&venda.CobrancaID, &venda.AnuncioID, &venda.CompradorConta,
+			&statusCobranca, &entregaAtual, &atrasoAtual)
+		if errors.Is(err, pgx.ErrNoRows) {
+			res = CobrancaNaoEncontrada
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("store: confirmar cobranca ref=%q: %w", referenciaExterna, err)
+		}
+
+		// Já resolvida: o aviso repetido encontra a mesma linha e não faz nada.
+		// Este é o caminho NORMAL, e não uma anomalia — a processadora repete de
+		// propósito.
+		if statusCobranca == cobrancaPaga || statusCobranca == cobrancaPagaSemItem {
+			if entregaAtual != nil {
+				venda.EntregaID = *entregaAtual
+			}
+			venda.PagoComAtraso = atrasoAtual
+			if err := s.completaVenda(ctx, tx, &venda); err != nil {
+				return err
+			}
+			if statusCobranca == cobrancaPaga {
+				res = CobrancaJaConfirmada
+			} else {
+				res = CobrancaPagaSemItem
+			}
+			return nil
+		}
+
+		// A confirmação que chega depois do fim da cobrança é EXCEÇÃO e precisa
+		// ser contável. Sem a marca, a gente descobriria pelo volume de
+		// reclamação em vez de pela coluna.
+		venda.PagoComAtraso = statusCobranca == cobrancaCancelada || statusCobranca == cobrancaExpirada
+
+		var statusAnuncio int16
+		var it itemPayload
+		if err := tx.QueryRow(ctx, `
+			SELECT vendedor_conta, cargo_slot, status,
+			       item_index, eff1, effv1, eff2, effv2, eff3, effv3
+			  FROM rmt_anuncio WHERE id = $1 FOR UPDATE`, venda.AnuncioID).
+			Scan(&venda.VendedorConta, &venda.CargoSlot, &statusAnuncio,
+				&it.ItemIndex, &it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3); err != nil {
+			return fmt.Errorf("store: confirmar cobranca: lendo o anuncio %d: %w", venda.AnuncioID, err)
+		}
+
+		entregavel, err := temItemParaEntregar(ctx, tx, venda, statusAnuncio)
+		if err != nil {
+			return err
+		}
+		if !entregavel {
+			// O dinheiro entrou e não há item. Marcar PAGA com entrega_id nulo
+			// seria indistinguível de "ainda não entreguei", e a linha sumiria no
+			// meio das normais. Este estado existe para ela NÃO sumir.
+			if _, err := tx.Exec(ctx, `
+				UPDATE rmt_cobranca
+				   SET status = $2, paga_em = now(), encerrada_em = now(), pago_com_atraso = $3
+				 WHERE id = $1`, venda.CobrancaID, cobrancaPagaSemItem, venda.PagoComAtraso); err != nil {
+				return fmt.Errorf("store: confirmar cobranca: marcando sem item %d: %w", venda.CobrancaID, err)
+			}
+			res = CobrancaPagaSemItem
+			return nil
+		}
+
+		carga, err := json.Marshal(it)
+		if err != nil {
+			return fmt.Errorf("store: confirmar cobranca: montando a entrega: %w", err)
+		}
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO delivery_queue (account_id, kind, payload, source)
+			VALUES ($1, 'item', $2, $3) RETURNING id`,
+			venda.CompradorConta, carga, fmt.Sprintf("rmt_anuncio:%d", venda.AnuncioID)).
+			Scan(&venda.EntregaID); err != nil {
+			return fmt.Errorf("store: confirmar cobranca: enfileirando a entrega: %w", err)
+		}
+
+		if _, err := tx.Exec(ctx, `
+			UPDATE rmt_cobranca
+			   SET status = $2, paga_em = now(), encerrada_em = now(),
+			       entrega_id = $3, pago_com_atraso = $4
+			 WHERE id = $1`,
+			venda.CobrancaID, cobrancaPaga, venda.EntregaID, venda.PagoComAtraso); err != nil {
+			return fmt.Errorf("store: confirmar cobranca: marcando paga %d: %w", venda.CobrancaID, err)
+		}
+		// O anúncio sai da vitrine agora. A MARCA DO ESCROW FICA: ela é o que
+		// mantém o item do vendedor intocável até alguém tirá-lo, e tirar é
+		// trabalho do laço do tmServer.
+		if _, err := tx.Exec(ctx, `
+			UPDATE rmt_anuncio SET status = $2, encerrado_em = now() WHERE id = $1`,
+			venda.AnuncioID, anuncioVendido); err != nil {
+			return fmt.Errorf("store: confirmar cobranca: fechando o anuncio %d: %w", venda.AnuncioID, err)
+		}
+		res = CobrancaConfirmada
+		return nil
+	})
+	if err != nil {
+		return CobrancaNaoEncontrada, VendaRMT{}, err
+	}
+	return res, venda, nil
+}
+
+// temItemParaEntregar responde a única pergunta que decide entre entregar e
+// virar dívida.
+//
+// Duas perguntas e não uma, de propósito: o anúncio tem de estar ATIVO, e a marca
+// do escrow tem de continuar apontando para ELE. As duas dizem a mesma coisa
+// quando tudo está certo, e é justamente por isso que conferir as duas vale —
+// discordarem significa que uma invariante quebrou em algum lugar, e aí o certo
+// é NÃO entregar e deixar uma pessoa olhar.
+func temItemParaEntregar(ctx context.Context, tx pgx.Tx, venda VendaRMT, statusAnuncio int16) (bool, error) {
+	if statusAnuncio != anuncioAtivo {
+		return false, nil
+	}
+	var marcado bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM item
+			 WHERE owner_kind = 'account_cargo' AND account_id = $1
+			   AND slot = $2 AND rmt_anuncio = $3)`,
+		venda.VendedorConta, venda.CargoSlot, venda.AnuncioID).Scan(&marcado); err != nil {
+		return false, fmt.Errorf("store: confirmar cobranca: conferindo a marca do anuncio %d: %w",
+			venda.AnuncioID, err)
+	}
+	return marcado, nil
+}
+
+// completaVenda preenche o vendedor e o slot numa resposta de aviso repetido.
+//
+// Quem chama precisa deles mesmo quando nada mudou: é assim que a fila de
+// PAGA_SEM_ITEM vira fila de REtentar, e não só de reclamar. Um aviso que chega
+// de novo depois de o vendedor finalmente entrar em jogo é a chance de a retirada
+// acontecer.
+func (s *Store) completaVenda(ctx context.Context, tx pgx.Tx, venda *VendaRMT) error {
+	if err := tx.QueryRow(ctx,
+		`SELECT vendedor_conta, cargo_slot FROM rmt_anuncio WHERE id = $1`, venda.AnuncioID).
+		Scan(&venda.VendedorConta, &venda.CargoSlot); err != nil {
+		return fmt.Errorf("store: confirmar cobranca: relendo o anuncio %d: %w", venda.AnuncioID, err)
+	}
+	return nil
+}
