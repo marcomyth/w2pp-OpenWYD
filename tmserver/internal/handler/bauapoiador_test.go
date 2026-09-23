@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/rng"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
 // As três tabelas têm de somar exatamente 10.000. Uma que não fecha não falha:
@@ -241,5 +242,32 @@ func TestBauSupremoDistribuicaoBate(t *testing.T) {
 	ovos := float64(saiu[itemOvoEquipN]+saiu[itemOvoEquipB]) / rodadas
 	if ovos < 0.002 || ovos > 0.007 {
 		t.Errorf("ovos saíram em %.4f das vezes, quer ~0,004", ovos)
+	}
+}
+
+// O Baú do Apoiador paga o Baú de Experiência em pacote de 3: dois pacotes
+// arrastados um sobre o outro viram uma pilha só, e o baú avulso comprado antes
+// (sem EF_AMOUNT) entra nela como uma unidade.
+func TestBauDeExperienciaJuntaPilhas(t *testing.T) {
+	for _, c := range []struct {
+		nome     string
+		src, dst world.Item
+		total    int
+	}{
+		{"dois pacotes de 3", bauApoiadorItem(itemBauExp, 3), bauApoiadorItem(itemBauExp, 3), 6},
+		{"avulso sobre pacote", world.Item{Index: itemBauExp}, bauApoiadorItem(itemBauExp, 3), 4},
+		{"Novato", bauApoiadorItem(itemBauXPNovato, 2), bauApoiadorItem(itemBauXPNovato, 5), 7},
+	} {
+		src, dst := c.src, c.dst
+		if !tryMergeItemStacks(&src, &dst) {
+			t.Errorf("%s: os baús não se juntaram", c.nome)
+			continue
+		}
+		if got := itemAmount(dst); got != c.total {
+			t.Errorf("%s: pilha com %d, want %d", c.nome, got, c.total)
+		}
+		if !src.Empty() {
+			t.Errorf("%s: a origem ficou com %v, want vazia", c.nome, src)
+		}
 	}
 }

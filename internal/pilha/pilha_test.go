@@ -38,6 +38,16 @@ func TestMaxPorEnvioCabeNoBau(t *testing.T) {
 	}
 }
 
+// O Baú do Apoiador paga o Baú de Experiência em pacote de 3 e o kit do Novato
+// entrega o dele em pilha: fora da lista, os pacotes nunca se juntavam.
+func TestBauDeExperienciaEmpilha(t *testing.T) {
+	for _, idx := range []int16{4140, 4144, 5761} {
+		if !Empilha(idx) {
+			t.Errorf("Baú de Experiência (%d) não empilha", idx)
+		}
+	}
+}
+
 // O Fragmento de Alma sai em pacote da Escolta do Trono e se junta de dez em dez
 // no Dragão de Armia: tem de empilhar.
 func TestFragmentoDeAlmaEmpilha(t *testing.T) {

@@ -35,6 +35,7 @@ int __cdecl Divide(int index) {
     switch (index) {
     case 412: case 413: case 414: case 415: case 416: case 419: case 420:
     case 1774:                         // Pedra do Sábio
+    case 4140: case 4144: case 5761:   // Baús de Experiência
     case 3224:                         // Fragmento de Alma (Reinos)
     case 4010: case 4011: case 4028: case 4029: // Barras de Prata
     case 4026: case 4027:              // Moedas de Prata (1Mi, 5Mi)

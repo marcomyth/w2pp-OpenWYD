@@ -31,6 +31,12 @@ func Empilha(index int16) bool {
 		return true
 	case 1774: // Pedra do Sábio, vendida em pacote pela loja
 		return true
+	// Os Baús de Experiência (4140, a variante de preço zero 4144 e o do Novato
+	// 5761). O Baú do Apoiador paga o 4140 em pacote de 3 e o kit do Novato o 5761
+	// em pilha, mas fora desta lista cada pacote ficava num espaço, sem juntar com o
+	// seguinte (Marco, 23/09/2026). Usar já gasta uma unidade (useExpChest).
+	case 4140, 4144, 5761:
+		return true
 	case 4010, 4011, 4028, 4029: // Barras de Prata
 		return true
 	// As Moedas de Prata (1Mi e 5Mi) são a mesma família das Barras acima e ficaram
