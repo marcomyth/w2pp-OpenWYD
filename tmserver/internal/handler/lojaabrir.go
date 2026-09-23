@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -121,6 +123,19 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 			sendClientMessage(w, s, msgPilhaNaoVaiRMT)
 			return
 		}
+		// ITEM JÁ PRESO NUM ANÚNCIO NÃO VOLTA PARA A PRATELEIRA.
+		//
+		// A marca do escrow diz que existe um anúncio em dinheiro real vivo sobre
+		// este slot. Deixar montar de novo — em ouro, inclusive — venderia pela
+		// segunda vez o que já está prometido: quem pagasse o Pix pagaria por nada,
+		// e o servidor não teria de onde tirar o segundo item.
+		//
+		// A armadilha do `itemSlot` não cobre esta porta: a montagem lê o baú
+		// direto, como a compra do painel.
+		if item.AnuncioRMT != 0 {
+			sendClientMessage(w, s, msgItemJaAnunciado)
+			return
+		}
 		if autoTradeBlacklist[item.Index] {
 			d.notify(w, s, NoticeCantAutoTrade)
 			return
@@ -140,6 +155,170 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 		return
 	}
 
+	// As prateleiras em dinheiro real precisam de linha no banco ANTES de a
+	// barraca subir: é o anúncio que dá identidade ao que está à venda, e é o id
+	// dele que vira a marca do escrow no slot do baú. Subir a barraca antes
+	// abriria uma janela em que alguém compra uma oferta sem anúncio atrás.
+	if anuncios, posicoes := prateleirasEmRMT(barraca); len(anuncios) > 0 {
+		d.abreAnunciosESobe(w, s, barraca, anuncios, posicoes)
+		return
+	}
+	d.sobeBarraca(w, s, e, barraca)
+}
+
+// prateleirasEmRMT separa as prateleiras em dinheiro real, e devolve junto a
+// posição de cada uma na barraca — é por ela que o id que volta do banco acha o
+// slot do baú que vai marcar.
+func prateleirasEmRMT(barraca *world.AutoTradeState) ([]world.AnuncioRMT, []int) {
+	var anuncios []world.AnuncioRMT
+	var posicoes []int
+	for i := range barraca.Slots {
+		if barraca.Moeda[i] != protocol.LojaMoedaRMT || barraca.Slots[i].CargoPos < 0 {
+			continue
+		}
+		anuncios = append(anuncios, world.AnuncioRMT{
+			CargoSlot: int16(barraca.Slots[i].CargoPos),
+			Item:      barraca.Slots[i].Item,
+			// O preço em dinheiro real é em CENTAVOS. É o mesmo campo do preço em
+			// ouro no pedido do painel, e a moeda é quem diz como lê-lo — como no
+			// resto do sistema, onde o método é coluna e não nome de tabela.
+			PrecoCentavos: int64(barraca.Slots[i].Price),
+		})
+		posicoes = append(posicoes, i)
+	}
+	return anuncios, posicoes
+}
+
+// abreAnunciosESobe vai ao banco FORA do laço criar os anúncios, volta, marca os
+// slots do baú com os ids e sobe a barraca.
+//
+// Usa GoDetached e não Go de propósito. O Go descarta a volta quando a sessão
+// morre no meio, e aqui a volta não é só cosmética: se os anúncios nasceram e a
+// barraca não vai subir, ELES TÊM DE SER CANCELADOS. Um anúncio ativo esquecido
+// prende o slot para sempre, pelo índice de um ativo por slot.
+//
+// E revalida tudo na volta. Entre a ida e a volta o jogador pode ter morrido,
+// saído da cidade, aberto outra barraca, ou mexido no baú — e a validação da ida
+// não vale mais. Barato demais para não refazer.
+func (d *Dispatcher) abreAnunciosESobe(w *world.World, s *world.Session,
+	barraca *world.AutoTradeState, anuncios []world.AnuncioRMT, posicoes []int,
+) {
+	conta, conn := s.AccountID, s.Conn
+	persist := w.Persistence()
+	w.GoDetached(func() func(*world.World) {
+		ids, semChave, err := persist.OpenRmtListings(context.Background(), conta, anuncios)
+		return func(w *world.World) {
+			sess := sessaoDaConexao(w, conn)
+			if err != nil {
+				d.log.Warn("loja: nao consegui abrir os anuncios", "conn", conn, "err", err)
+				if sess != nil {
+					sendClientMessage(w, sess, msgAnuncioNaoSaiu)
+				}
+				return
+			}
+			if semChave {
+				if sess != nil {
+					sendClientMessage(w, sess, msgSemChavePix)
+				}
+				return
+			}
+			if !d.podeSubirAinda(w, sess, anuncios) {
+				// Nasceram e não vão valer: tira da vitrine, senão prendem os
+				// slots para sempre.
+				d.cancelaAnuncios(w, ids)
+				if sess != nil {
+					sendClientMessage(w, sess, msgAnuncioNaoSaiu)
+				}
+				return
+			}
+			cargo := w.Cargo(sess.AccountID)
+			for k, pos := range posicoes {
+				slot := barraca.Slots[pos].CargoPos
+				cargo.Items[slot].AnuncioRMT = ids[k]
+				barraca.Slots[pos].Item = cargo.Items[slot]
+			}
+			// Salva o baú agora, e não no próximo save: entre a criação do
+			// anúncio e a gravação da marca existe um instante em que o anúncio
+			// está ativo e o item não está preso. Encurtar esse instante é o que
+			// dá para fazer daqui.
+			w.SalvaCargo(sess.AccountID)
+			d.sobeBarraca(w, sess, w.Entity(sess.Conn), barraca)
+			d.log.Info("loja: anuncios em dinheiro real abertos",
+				"conn", conn, "conta", conta, "anuncios", len(ids))
+		}
+	})
+}
+
+// podeSubirAinda refaz, na volta do banco, as perguntas que a ida já tinha feito.
+//
+// A última é a que importa de verdade: o item de cada slot tem de ser o MESMO que
+// foi fotografado no anúncio. Se ele mudou, o anúncio promete uma coisa e o baú
+// tem outra — e o comprador pagaria pelo que está escrito.
+func (d *Dispatcher) podeSubirAinda(w *world.World, s *world.Session,
+	anuncios []world.AnuncioRMT,
+) bool {
+	if s == nil || s.Mode != world.UserPlay || s.AutoTrade != nil || s.TradeMode != 0 {
+		return false
+	}
+	e := w.Entity(s.Conn)
+	if e == nil || e.HP <= 0 {
+		return false
+	}
+	village := world.Village(e.X, e.Y)
+	if village < 0 || village > 4 || inAutoTradeForbiddenRect(e.X, e.Y) {
+		return false
+	}
+	cargo := w.Cargo(s.AccountID)
+	if cargo == nil {
+		return false
+	}
+	for _, a := range anuncios {
+		if a.CargoSlot < 0 || int(a.CargoSlot) >= world.MaxCargo {
+			return false
+		}
+		atual := cargo.Items[a.CargoSlot]
+		if atual.Index != a.Item.Index || atual.Effects != a.Item.Effects || atual.AnuncioRMT != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// cancelaAnuncios tira da vitrine os anúncios que não chegaram a valer. Roda fora
+// do laço porque fala com o banco, e não tem volta: se falhar, a linha fica ativa
+// e a reconciliação do órfão é quem resolve.
+func (d *Dispatcher) cancelaAnuncios(w *world.World, ids []int64) {
+	persist := w.Persistence()
+	w.GoDetached(func() func(*world.World) {
+		err := persist.CancelRmtListings(context.Background(), ids)
+		return func(*world.World) {
+			if err != nil {
+				d.log.Warn("loja: nao consegui cancelar os anuncios orfaos", "ids", ids, "err", err)
+			}
+		}
+	})
+}
+
+// sessaoDaConexao acha a sessão de uma conexão dentro do laço. Ela é procurada de
+// novo, e não carregada de fora, porque entre a ida ao banco e a volta o jogador
+// pode ter caído — e um ponteiro guardado apontaria para o que o mundo já largou.
+func sessaoDaConexao(w *world.World, conn int) *world.Session {
+	var achada *world.Session
+	w.ForEachSession(func(s *world.Session, _ *world.Entity) {
+		if s != nil && s.Conn == conn {
+			achada = s
+		}
+	})
+	return achada
+}
+
+// sobeBarraca é o fim comum dos dois caminhos: com e sem dinheiro real.
+func (d *Dispatcher) sobeBarraca(w *world.World, s *world.Session, e *world.Entity,
+	barraca *world.AutoTradeState,
+) {
+	if s == nil || e == nil {
+		return
+	}
 	s.AutoTrade = barraca
 	s.TradeMode = 1
 	barraca.OpenedAt = w.Now()
@@ -167,3 +346,18 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 // msgPilhaNaoVaiRMT é o que o vendedor lê quando põe uma pilha à venda por
 // dinheiro real. Diz o que fazer, e não só que não deu.
 const msgPilhaNaoVaiRMT = "Pilha não pode ser vendida por dinheiro real. Separe uma unidade e anuncie ela."
+
+// msgSemChavePix é a terceira recusa do dinheiro real, e a que o vendedor
+// resolve sozinho.
+const msgSemChavePix = "Cadastre sua chave Pix no site antes de vender por dinheiro real."
+
+// msgAnuncioNaoSaiu cobre os dois jeitos de a montagem falhar depois de ir ao
+// banco: o banco recusou, ou o mundo mudou enquanto a resposta vinha. Uma
+// mensagem só porque, para quem está na frente da tela, as duas pedem a mesma
+// coisa — tentar de novo.
+// msgItemJaAnunciado é a recusa de quem tenta pôr de novo à venda um item que
+// já está preso num anúncio em dinheiro real — quase sempre porque a barraca
+// anterior caiu e o anúncio dela continua de pé.
+const msgItemJaAnunciado = "Esse item já está anunciado por dinheiro real. Cancele o anúncio antes de vendê-lo de novo."
+
+const msgAnuncioNaoSaiu = "Não deu para montar a barraca em dinheiro real. Tente de novo."

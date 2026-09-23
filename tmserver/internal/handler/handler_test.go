@@ -33,14 +33,18 @@ type fakeAccount struct {
 
 type fakeDB struct {
 	world.NopPersistence
-	slotsVendidos map[int64][]int16
-	accounts      map[string]*fakeAccount
-	created       int
-	archCreated   int
-	archSlot      int
-	archOK        bool
-	archErr       error
-	archReq       struct {
+	semChavePix        bool
+	erroAnuncio        error
+	anunciosAbertos    []world.AnuncioRMT
+	anunciosCancelados []int64
+	slotsVendidos      map[int64][]int16
+	accounts           map[string]*fakeAccount
+	created            int
+	archCreated        int
+	archSlot           int
+	archOK             bool
+	archErr            error
+	archReq            struct {
 		accountID                            int64
 		name                                 string
 		class, face, mortalSlot, mortalLevel int
@@ -127,6 +131,31 @@ func (f *fakeDB) SaveCargo(_ context.Context, save world.CargoSave) error {
 
 func (f *fakeDB) ListPendingDeliveries(_ context.Context, accountID int64) ([]world.Delivery, error) {
 	return f.pending[accountID], nil
+}
+
+// OpenRmtListings finge o banco: devolve ids previsíveis, ou a recusa de quem
+// não tem chave Pix.
+func (f *fakeDB) OpenRmtListings(_ context.Context, vendedor int64, itens []world.AnuncioRMT) ([]int64, bool, error) {
+	if f.erroAnuncio != nil {
+		return nil, false, f.erroAnuncio
+	}
+	if f.semChavePix {
+		return nil, true, nil
+	}
+	f.anunciosAbertos = append(f.anunciosAbertos, itens...)
+	ids := make([]int64, len(itens))
+	for i := range ids {
+		ids[i] = int64(900 + len(f.anunciosAbertos) - len(itens) + i)
+	}
+	_ = vendedor
+	return ids, false, nil
+}
+
+// CancelRmtListings guarda o que foi cancelado, que é o que os testes de
+// compensação precisam ver.
+func (f *fakeDB) CancelRmtListings(_ context.Context, ids []int64) error {
+	f.anunciosCancelados = append(f.anunciosCancelados, ids...)
+	return nil
 }
 
 // slotsVendidos é o que o banco responderia sobre slots de anúncio já vendido.

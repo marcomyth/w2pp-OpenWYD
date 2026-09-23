@@ -43,6 +43,8 @@ const (
 	AccountService_SaveCargo_FullMethodName               = "/db.v1.AccountService/SaveCargo"
 	AccountService_ListPendingDeliveries_FullMethodName   = "/db.v1.AccountService/ListPendingDeliveries"
 	AccountService_ListSoldEscrowSlots_FullMethodName     = "/db.v1.AccountService/ListSoldEscrowSlots"
+	AccountService_OpenRmtListings_FullMethodName         = "/db.v1.AccountService/OpenRmtListings"
+	AccountService_CancelRmtListings_FullMethodName       = "/db.v1.AccountService/CancelRmtListings"
 	AccountService_SaveCargoWithDeliveries_FullMethodName = "/db.v1.AccountService/SaveCargoWithDeliveries"
 	AccountService_SetAccountBlocked_FullMethodName       = "/db.v1.AccountService/SetAccountBlocked"
 	AccountService_RecordDuelResult_FullMethodName        = "/db.v1.AccountService/RecordDuelResult"
@@ -144,6 +146,24 @@ type AccountServiceClient interface {
 	// to somebody else, and giving it back would mint the second copy the whole
 	// escrow exists to prevent.
 	ListSoldEscrowSlots(ctx context.Context, in *ListSoldEscrowSlotsRequest, opts ...grpc.CallOption) (*ListSoldEscrowSlotsResponse, error)
+	// OpenRmtListings creates the real-money listings of one stall, all or none,
+	// and returns their ids so the loop can stamp the escrow mark on each cargo
+	// slot.
+	//
+	// It REFUSES when the seller has no Pix receiving key, and the check happens
+	// inside the same transaction rather than in a call before it: two calls would
+	// leave a gap — the key deleted between the question and the creation — and
+	// would spread the rule over two places. The refusal rides in the response, not
+	// as an error, because the seller needs to be told what to do about it.
+	OpenRmtListings(ctx context.Context, in *OpenRmtListingsRequest, opts ...grpc.CallOption) (*OpenRmtListingsResponse, error)
+	// CancelRmtListings closes listings that never came into force.
+	//
+	// It is the compensating action for the gap between creating the listings and
+	// the stall going up: if the stall fails to rise after they are born — the
+	// session dropped, the warehouse changed while the loop was away — they must
+	// leave the window, or they hold the slot forever through the one-active-per-
+	// slot index.
+	CancelRmtListings(ctx context.Context, in *CancelRmtListingsRequest, opts ...grpc.CallOption) (*CancelRmtListingsResponse, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
 	// marks the drained mailbox rows delivered/lost in the SAME transaction — the
 	// anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -443,6 +463,26 @@ func (c *accountServiceClient) ListSoldEscrowSlots(ctx context.Context, in *List
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListSoldEscrowSlotsResponse)
 	err := c.cc.Invoke(ctx, AccountService_ListSoldEscrowSlots_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) OpenRmtListings(ctx context.Context, in *OpenRmtListingsRequest, opts ...grpc.CallOption) (*OpenRmtListingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OpenRmtListingsResponse)
+	err := c.cc.Invoke(ctx, AccountService_OpenRmtListings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) CancelRmtListings(ctx context.Context, in *CancelRmtListingsRequest, opts ...grpc.CallOption) (*CancelRmtListingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelRmtListingsResponse)
+	err := c.cc.Invoke(ctx, AccountService_CancelRmtListings_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -899,6 +939,24 @@ type AccountServiceServer interface {
 	// to somebody else, and giving it back would mint the second copy the whole
 	// escrow exists to prevent.
 	ListSoldEscrowSlots(context.Context, *ListSoldEscrowSlotsRequest) (*ListSoldEscrowSlotsResponse, error)
+	// OpenRmtListings creates the real-money listings of one stall, all or none,
+	// and returns their ids so the loop can stamp the escrow mark on each cargo
+	// slot.
+	//
+	// It REFUSES when the seller has no Pix receiving key, and the check happens
+	// inside the same transaction rather than in a call before it: two calls would
+	// leave a gap — the key deleted between the question and the creation — and
+	// would spread the rule over two places. The refusal rides in the response, not
+	// as an error, because the seller needs to be told what to do about it.
+	OpenRmtListings(context.Context, *OpenRmtListingsRequest) (*OpenRmtListingsResponse, error)
+	// CancelRmtListings closes listings that never came into force.
+	//
+	// It is the compensating action for the gap between creating the listings and
+	// the stall going up: if the stall fails to rise after they are born — the
+	// session dropped, the warehouse changed while the loop was away — they must
+	// leave the window, or they hold the slot forever through the one-active-per-
+	// slot index.
+	CancelRmtListings(context.Context, *CancelRmtListingsRequest) (*CancelRmtListingsResponse, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
 	// marks the drained mailbox rows delivered/lost in the SAME transaction — the
 	// anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -1091,6 +1149,12 @@ func (UnimplementedAccountServiceServer) ListPendingDeliveries(context.Context, 
 }
 func (UnimplementedAccountServiceServer) ListSoldEscrowSlots(context.Context, *ListSoldEscrowSlotsRequest) (*ListSoldEscrowSlotsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListSoldEscrowSlots not implemented")
+}
+func (UnimplementedAccountServiceServer) OpenRmtListings(context.Context, *OpenRmtListingsRequest) (*OpenRmtListingsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method OpenRmtListings not implemented")
+}
+func (UnimplementedAccountServiceServer) CancelRmtListings(context.Context, *CancelRmtListingsRequest) (*CancelRmtListingsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelRmtListings not implemented")
 }
 func (UnimplementedAccountServiceServer) SaveCargoWithDeliveries(context.Context, *SaveCargoWithDeliveriesRequest) (*SaveCargoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SaveCargoWithDeliveries not implemented")
@@ -1514,6 +1578,42 @@ func _AccountService_ListSoldEscrowSlots_Handler(srv interface{}, ctx context.Co
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccountServiceServer).ListSoldEscrowSlots(ctx, req.(*ListSoldEscrowSlotsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_OpenRmtListings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OpenRmtListingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).OpenRmtListings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_OpenRmtListings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).OpenRmtListings(ctx, req.(*OpenRmtListingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_CancelRmtListings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelRmtListingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).CancelRmtListings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_CancelRmtListings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).CancelRmtListings(ctx, req.(*CancelRmtListingsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2290,6 +2390,14 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListSoldEscrowSlots",
 			Handler:    _AccountService_ListSoldEscrowSlots_Handler,
+		},
+		{
+			MethodName: "OpenRmtListings",
+			Handler:    _AccountService_OpenRmtListings_Handler,
+		},
+		{
+			MethodName: "CancelRmtListings",
+			Handler:    _AccountService_CancelRmtListings_Handler,
 		},
 		{
 			MethodName: "SaveCargoWithDeliveries",

@@ -104,6 +104,20 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	if !itemsEqual(slot.Item, itemCargo) {
 		return
 	}
+	// ITEM PRESO NO ESCROW NÃO SAI POR AQUI.
+	//
+	// A partir do momento em que um anúncio em dinheiro real existe, o item tem
+	// dono decidido por outro caminho: a cobrança, o Pix e a confirmação. Deixar
+	// esta compra levá-lo tiraria o item de baixo de um anúncio ativo — sobraria
+	// uma oferta na vitrine sem nada atrás, e um comprador pagaria por ela.
+	//
+	// A recusa é aqui e não só no itemSlot porque esta função mexe no baú
+	// DIRETAMENTE, sem passar por lá. Armadilha que não cobre todos os caminhos
+	// não é armadilha.
+	if itemCargo.AnuncioRMT != 0 {
+		d.notify(w, s, NoticeCantAutoTrade)
+		return
+	}
 	preco := slot.Price
 	moeda := vendedor.AutoTrade.Moeda[pos]
 	// O painel manda a moeda que ele mostrou ao jogador; se o vendedor trocou

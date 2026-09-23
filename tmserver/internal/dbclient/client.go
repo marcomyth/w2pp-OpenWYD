@@ -78,6 +78,33 @@ func (c *Client) AccountLogin(ctx context.Context, name, password string) (world
 	return out, nil
 }
 
+// OpenRmtListings cria os anúncios de uma barraca em dinheiro real.
+func (c *Client) OpenRmtListings(ctx context.Context, vendedor int64, itens []world.AnuncioRMT) ([]int64, bool, error) {
+	req := &dbv1.OpenRmtListingsRequest{SellerAccountId: vendedor}
+	for _, a := range itens {
+		req.Listings = append(req.Listings, &dbv1.RmtListing{
+			CargoSlot: int32(a.CargoSlot), ItemIndex: int32(a.Item.Index),
+			Eff1: int32(a.Item.Effects[0].Effect), Effv1: int32(a.Item.Effects[0].Value),
+			Eff2: int32(a.Item.Effects[1].Effect), Effv2: int32(a.Item.Effects[1].Value),
+			Eff3: int32(a.Item.Effects[2].Effect), Effv3: int32(a.Item.Effects[2].Value),
+			PriceCents: a.PrecoCentavos,
+		})
+	}
+	resp, err := c.api.OpenRmtListings(ctx, req)
+	if err != nil {
+		return nil, false, fmt.Errorf("dbclient: open rmt listings: %w", err)
+	}
+	return resp.GetListingIds(), resp.GetNoPixKey(), nil
+}
+
+// CancelRmtListings fecha anúncios que não chegaram a valer.
+func (c *Client) CancelRmtListings(ctx context.Context, ids []int64) error {
+	if _, err := c.api.CancelRmtListings(ctx, &dbv1.CancelRmtListingsRequest{ListingIds: ids}); err != nil {
+		return fmt.Errorf("dbclient: cancel rmt listings: %w", err)
+	}
+	return nil
+}
+
 // ListSoldEscrowSlots pergunta quais slots do baú ainda seguram item de anúncio
 // já vendido.
 func (c *Client) ListSoldEscrowSlots(ctx context.Context, accountID int64) ([]int16, error) {

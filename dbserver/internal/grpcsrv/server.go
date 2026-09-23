@@ -41,6 +41,8 @@ type Store interface {
 	SaveCargo(ctx context.Context, accountID int64, coin int32, items []domain.Item) error
 	PendingItemDeliveries(ctx context.Context, accountID int64) ([]domain.Delivery, error)
 	SlotsVendidosPendentes(ctx context.Context, accountID int64) ([]int16, error)
+	AbrirAnunciosRMT(ctx context.Context, vendedorConta int64, itens []store.ItemAnunciado) ([]int64, error)
+	CancelarAnunciosRMT(ctx context.Context, ids []int64) error
 	SaveCargoWithDeliveries(ctx context.Context, accountID int64, coin int32, items []domain.Item, deliveredIDs, lostIDs []int64) error
 	SetBlockedByName(ctx context.Context, name string, blocked bool) error
 	RecordDuelResult(ctx context.Context, winnerName, loserName string) error
@@ -307,6 +309,40 @@ func (s *Server) ListSoldEscrowSlots(ctx context.Context, req *dbv1.ListSoldEscr
 		out = append(out, int32(slot))
 	}
 	return &dbv1.ListSoldEscrowSlotsResponse{CargoSlots: out}, nil
+}
+
+// OpenRmtListings cria os anúncios de uma barraca, todos ou nenhum.
+//
+// A falta de chave Pix volta no CAMPO e não como erro de transporte: é recusa
+// prevista, e o jogo precisa dizer ao vendedor o que fazer a respeito. Só falha de
+// infraestrutura vira erro.
+func (s *Server) OpenRmtListings(ctx context.Context, req *dbv1.OpenRmtListingsRequest) (*dbv1.OpenRmtListingsResponse, error) {
+	itens := make([]store.ItemAnunciado, 0, len(req.GetListings()))
+	for _, l := range req.GetListings() {
+		itens = append(itens, store.ItemAnunciado{
+			CargoSlot: int16(l.GetCargoSlot()), ItemIndex: int16(l.GetItemIndex()),
+			Eff1: uint8(l.GetEff1()), EffV1: uint8(l.GetEffv1()),
+			Eff2: uint8(l.GetEff2()), EffV2: uint8(l.GetEffv2()),
+			Eff3: uint8(l.GetEff3()), EffV3: uint8(l.GetEffv3()),
+			PrecoCentavos: l.GetPriceCents(),
+		})
+	}
+	ids, err := s.store.AbrirAnunciosRMT(ctx, req.GetSellerAccountId(), itens)
+	if errors.Is(err, store.ErrSemChavePix) {
+		return &dbv1.OpenRmtListingsResponse{NoPixKey: true}, nil
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "open rmt listings: %v", err)
+	}
+	return &dbv1.OpenRmtListingsResponse{ListingIds: ids}, nil
+}
+
+// CancelRmtListings fecha anúncios que não chegaram a valer.
+func (s *Server) CancelRmtListings(ctx context.Context, req *dbv1.CancelRmtListingsRequest) (*dbv1.CancelRmtListingsResponse, error) {
+	if err := s.store.CancelarAnunciosRMT(ctx, req.GetListingIds()); err != nil {
+		return nil, status.Errorf(codes.Internal, "cancel rmt listings: %v", err)
+	}
+	return &dbv1.CancelRmtListingsResponse{Ok: true}, nil
 }
 
 // SaveCargoWithDeliveries persists the cargo and marks the drained mailbox rows
