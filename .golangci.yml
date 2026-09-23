@@ -1,121 +1,57 @@
 # golangci-lint v2 config (guidelines §25). The v2 default set already enables
-# errcheck/govet/ineffassign/staticcheck/unused; we add revive/misspell/unconvert
+# errcheck/govet/ineffassign/staticcheck/unused; we add revive/unconvert
 # on top and run gofmt/goimports as formatters. CI gates only *new* issues
 # (only-new-issues) so pre-existing debt doesn't block; run `golangci-lint run`
 # locally for the full picture. Regenerate via `golangci-lint migrate` if bumping.
+#
+# O MISSPELL SAIU DAQUI EM 23/09/2026, e o número está escrito para quem pensar
+# em religá-lo.
+#
+# Ele é um verificador de ortografia INGLESA, e este repositório é escrito em
+# PORTUGUÊS — comentários, mensagens ao jogador, nomes de identificador, tudo.
+# Isso não é uma incompatibilidade ocasional, é estrutural: ele não tem
+# dicionário de português, então palavra portuguesa certa colide com palavra
+# inglesa parecida para sempre.
+#
+# A MEDIÇÃO, feita com a lista de ignorar esvaziada, sobre o repositório inteiro:
+#
+#   326 apontamentos, em 34 grafias distintas.
+#   34 das 34 estavam CERTAS.
+#
+# As campeãs: monstros (116), comando (42), eles (27), autor (13), criticos (10),
+# comandos (10), variantes (9), secretas (8), planetas (8), momento (7),
+# transfere (5+4), progresso (4), denominador (4), condicional (4), calcular (4).
+# A única não-portuguesa é `challange`, que é o nome literal do arquivo do legado
+# (_MSG_Challange.cpp) e está certa por paridade — também não era erro a corrigir.
+#
+# DO OUTRO LADO, ZERO. Uma varredura do histórico inteiro atrás de 33 grafias
+# inglesas erradas comuns (recieve, seperate, occured, neccessary, lenght, wich,
+# untill e outras) não achou um único commit que tenha corrigido grafia. Os dois
+# casos que apareceram eram falso-alarme da própria busca: `successfull` casando
+# dentro de "successfully" e `recomend` dentro de "recomendados".
+#
+# O CUSTO, esse sim contado: a lista de ignorar chegou a 26 palavras, acrescentadas
+# em 18 commits diferentes. Dezoito vezes alguém parou o que estava fazendo para
+# ensinar português a um dicionário de inglês. A última custou TRÊS DIAS de um PR
+# útil parado, por causa de `clientes` num comentário.
+#
+# E o `only-new-issues` piora em vez de aliviar: o falso positivo fica escondido
+# até alguém EDITAR aquela linha, e aí a falha cai em quem passou perto e não em
+# quem escreveu. Foi o que aconteceu com `independente`.
+#
+# A RESSALVA HONESTA, para a decisão poder ser revista com o que ela teve pela
+# frente: ausência de correção no histórico não prova que ele nunca evitou um erro
+# antes do commit — isso não deixa rastro. O que dava para medir foi medido, e o
+# custo é visível e recorrente enquanto o benefício não tem uma única evidência.
+#
+# PARA RELIGAR: `golangci-lint run -c` com um arquivo que habilite só o misspell e
+# nenhuma regra de ignorar reproduz a medição em um comando. Se o número tiver
+# mudado, a decisão muda com ele.
 version: "2"
 linters:
   enable:
-    - misspell
     - revive
     - unconvert
-  settings:
-    misspell:
-      ignore-rules:
-        # The legacy protocol really spells it this way (_MSG_Challange.cpp);
-        # handlers/comments mirror that name for parity.
-        - challange
-        # The legacy GM tool file is genuinely named "Comandos GM.txt" (Portuguese
-        # for "commands"), cited verbatim as an evidence source. The singular
-        # appears the same way, in player-facing text and in comments quoting it
-        # ("Cheque sua quantidade de entradas com o comando /nt").
-        - comandos
-        - comando
-        # Portuguese for "decorative", describing the town actors the NPC panel
-        # classifies. misspell reads it as a typo for "decoration".
-        - decorativo
-        # Portuguese for "monsters", in player-facing game text and in the admin
-        # panel's routes. misspell reads it as a typo for "monstrous"; this is a
-        # Portuguese-language server and the word is correct as written.
-        - monstros
-        # Portuguese for "gave" (past tense of "dar"), in a test failure message.
-        # misspell reads it as a typo for "dram". Same class as the entries above:
-        # the panel and its tests are written in Portuguese for the people who
-        # operate this server, and misspell has no Portuguese dictionary to check
-        # against — so ordinary words keep colliding with English ones.
-        - deram
-        # Portuguese for "progress", in a test message about a player losing
-        # theirs. misspell reads it as a typo for "progression".
-        - progresso
-        # Portuguese for "secret", as in the Pedras Secretas the King fuses into
-        # the Pedra Ideal. misspell reads it as a typo for "secrets"; the item
-        # names are cited verbatim from the shipped catalog.
-        - secretas
-        # Portuguese for "planets" -- Netuno, Urano, Venus and the other planet
-        # accessories (762-768) of the accessory reform. misspell reads it as a
-        # typo for "planets"; it is the name the players and the staff use.
-        - planetas
-        # Portuguese for "moment", inside a refusal copied verbatim from
-        # Language.txt. misspell reads it as a typo for "memento".
-        - momento
-        # Portuguese for "regardless", inside the Acelerador de Nascimento
-        # tooltip quoted verbatim from the shipped client ("Aumenta o valor da
-        # refinação em +1 independente da previsão do nascimento da montaria").
-        # misspell reads it as a typo for "independence". It is here rather than
-        # left alone because only-new-issues already let it through once: the
-        # words stay, unreported, until somebody edits those lines and the
-        # failure lands on them instead of on whoever wrote it.
-        - independente
-        # Portuguese for "they", in a comment on the training-field Ajudante
-        # (ajudante.go). misspell reads it as a typo for "eels"; it is the most
-        # common pronoun in the language, so it will keep coming back.
-        #
-        # E voltou: o teste dos pontos de lojinha trouxe a mesma palavra e a main
-        # a acrescentou uma segunda vez. A entrada duplicada saiu na junção — uma
-        # linha aqui já cobre o idioma inteiro, não um arquivo de cada vez.
-        - eles
-        # Portuguese for "criticals", as in the critical hits of the TK Espada
-        # Mágica and of the mage trees. misspell reads it as a typo for "critics".
-        - criticos
-        # Portuguese for "variants", as in the two catalog variants of the kit
-        # the /novato command hands out (5760/5761) — the word names the thing in
-        # the migration, the handler and the client generator alike. misspell
-        # reads it as a typo for "variants".
-        - variantes
-        # Portuguese for "to calculate", the verb in comments that explain a
-        # formula (the guild-buff scaling, the skill damage pass). misspell reads
-        # it as a typo for "calculator".
-        - calcular
-        # Portuguese for "author", the column and the field that record WHO made
-        # a guild-buff change, in the panel and in the audit row. misspell reads
-        # it as a typo for "author" — which is the English word for the same
-        # thing, and exactly why the collision keeps happening.
-        - autor
-        # Portuguese for "transfers" (third person of "transferir"), the name of
-        # the call that moves Cash or RMT between two accounts
-        # (store.TransferePlayerBalance, handler.SaldoDeConta.Transfere).
-        # misspell reads it as a typo for "transferred". Renaming it to English
-        # would be renaming an identifier to satisfy an English dictionary, which
-        # is not a reason to rename anything in a Portuguese codebase.
-        - transfere
-        # Portuguese for "expiry date", as in the validity of a guild buff.
-        # misspell reads it as a typo for "validated".
-        - validade
-        # Portuguese for "simultaneous", in the comment that bounds how many
-        # Honor Store windows a session may hold open at once. misspell reads it
-        # as a typo for "simultaneous"; the accented spelling is "simultâneos"
-        # and the comment drops the accent, as the rest of the file does.
-        - simultaneos
-        # Portuguese for "definitive": the real catalog index of a supporter
-        # chest, as opposed to the borrowed one the in-game test runs on.
-        # misspell reads it as a typo for "definition", plural included.
-        - definitivo
-        - definitivos
-        # Portuguese for "denominator" — the scale a chest table is written
-        # against (10,000 hundredths of a percent). misspell reads the
-        # Portuguese word as a typo for the English one it translates.
-        - denominador
-        # Portuguese for "conditional", describing the three teleport routes that
-        # carry a condition and therefore live in the handler instead of the
-        # lookup table (vale.go, kefra.go, kefra_hall.go). misspell reads the
-        # Portuguese word as a typo for the English one it translates.
-        - condicional
-        - condicionais
-        # Portuguese for "side effect" (efeito colateral), in the note that explains
-        # why o aviso do escrow vive dentro de um acessor. misspell reads it as a
-        # typo for "collateral" — que é a mesma palavra em inglês, e é por isso
-        # que a colisão acontece.
-        - colateral
   exclusions:
     generated: lax
     presets:
