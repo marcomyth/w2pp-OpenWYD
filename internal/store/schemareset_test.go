@@ -24,6 +24,7 @@ var tabelasDeTeste = []string{
 	// As três da venda em dinheiro real vêm primeiro porque são as mais filhas
 	// que existem: rmt_cobranca aponta para rmt_anuncio E para delivery_queue,
 	// que está lá no fim desta lista.
+	"rmt_recebedor_historico",
 	"rmt_cobranca",
 	"rmt_anuncio",
 	"rmt_recebedor",

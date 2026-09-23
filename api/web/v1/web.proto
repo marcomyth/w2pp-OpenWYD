@@ -23,6 +23,30 @@ service AccountWebService {
   rpc VerifyCredentials(VerifyCredentialsRequest) returns (VerifyCredentialsResponse);
 }
 
+// RmtWebService owns the player-to-player real-money trade surface: today the
+// seller's Pix receiving key, later the listing and the charge.
+//
+// A SERVICE OF ITS OWN, not two more RPCs on AccountWebService, because the two
+// carry different weight. AccountWebService is sign-up and login; this one points
+// at where real money lands. Keeping them apart means the RMT surface can be
+// gated, logged or withdrawn on its own, and it names the subject in the method
+// path (/web.v1.RmtWebService/SavePixKey) for anybody reading an access log.
+service RmtWebService {
+  // SavePixKey stores the account's Pix RECEIVING key — where the money goes
+  // when the player sells an item for real money.
+  //
+  // It REFUSES while a charge is open against any of the seller's listings, and
+  // the lock is here rather than in the form: otherwise the script is two clicks
+  // long — list an item, wait for the buyer to open the QR code, change the key,
+  // and take the payment in a different account. A defence that lives in the
+  // screen is not a defence.
+  rpc SavePixKey(SavePixKeyRequest) returns (SavePixKeyResponse);
+  // GetPixKey returns the key MASKED, never whole: the form only needs to show
+  // "you already registered ...1234", and a Pix key is personal payment data on a
+  // public site.
+  rpc GetPixKey(GetPixKeyRequest) returns (GetPixKeyResponse);
+}
+
 // RankingWebService exposes public ranking projections for the web front-end.
 // It reads persisted character state from Postgres; the browser calls the
 // Next.js BFF, and the BFF calls this service over gRPC + mTLS.
@@ -68,6 +92,54 @@ message VerifyCredentialsResponse {
   // authorization decision — NpcAdminService re-checks the role server-side on
   // every call, so a tampered session flag still gets ADMIN_RESULT_FORBIDDEN.
   string role = 4;
+}
+
+// PixKeyType is the shape of the key, which the player's bank needs in order to
+// resolve the destination.
+enum PixKeyType {
+  PIX_KEY_TYPE_UNSPECIFIED = 0;
+  PIX_KEY_TYPE_CPF = 1;
+  PIX_KEY_TYPE_EMAIL = 2;
+  PIX_KEY_TYPE_PHONE = 3;
+  PIX_KEY_TYPE_RANDOM = 4;
+}
+
+// PixKeyResult separates the ways it can fail so the form can say what to do
+// about each. A plain boolean would force the screen to invent the reason.
+enum PixKeyResult {
+  PIX_KEY_RESULT_UNSPECIFIED = 0;
+  PIX_KEY_RESULT_OK = 1;
+  // The key does not have the shape of the declared type (a CPF without eleven
+  // digits, an e-mail without an at sign, and so on).
+  PIX_KEY_RESULT_INVALID = 2;
+  // A charge is open against one of this seller's listings. Changing the key now
+  // would divert a payment already under way.
+  PIX_KEY_RESULT_SALE_IN_PROGRESS = 3;
+  // The account does not exist.
+  PIX_KEY_RESULT_NO_ACCOUNT = 4;
+}
+
+message SavePixKeyRequest {
+  int64 account_id = 1;
+  string key = 2;
+  PixKeyType type = 3;
+}
+
+message SavePixKeyResponse {
+  PixKeyResult result = 1;
+}
+
+message GetPixKeyRequest {
+  int64 account_id = 1;
+}
+
+message GetPixKeyResponse {
+  bool has_key = 1;
+  // Masked: only enough for the person to recognize their own key. Empty when
+  // there is no key.
+  string masked_key = 2;
+  PixKeyType type = 3;
+  bool verified = 4;
 }
 
 message ListExpRankingRequest {

@@ -1,6 +1,6 @@
 // Package authz decides who may call what on the web-api.
 //
-// The web-api carries sixteen services, and most of them administer the game:
+// The web-api carries seventeen services, and most of them administer the game:
 // create and delete NPCs, set item prices and item stats, move donate balances,
 // read revenue. Until this package existed it had one gate — mutual TLS — and
 // that gate answers the wrong question. It says "is the caller one of our
@@ -38,7 +38,8 @@ const TokenHeader = webv1.TokenHeader
 
 // servicosDoJogador are the services a player-facing site legitimately calls:
 // sign-up and login, its own characters, rankings, the item catalog it renders,
-// and the three that move a player's own donate balance.
+// the three that move a player's own donate balance, and the seller's own Pix
+// receiving key.
 //
 // This is an ALLOWLIST, and that is the point. Everything not named here needs
 // the panel's key, so a service somebody adds next year is closed from birth and
@@ -55,6 +56,13 @@ var servicosDoJogador = map[string]bool{
 	"DonateShopService":   true,
 	"DailyRewardService":  true,
 	"DonateTopupService":  true,
+	// RmtWebService: o vendedor cadastra a chave Pix DELE, na conta DELE, pelo
+	// site. É dado do próprio jogador, como o saldo de doação que já está nesta
+	// lista, e não há caminho por onde a chave de outra conta apareça — a leitura
+	// devolve sempre mascarada e a escrita recusa com cobrança aberta, as duas
+	// travas no servidor e não na tela. Exigir a chave do painel aqui obrigaria o
+	// site a passar pela staff para o jogador preencher o próprio formulário.
+	"RmtWebService": true,
 }
 
 // DoJogador reports whether a proto service name is one a player-facing caller
