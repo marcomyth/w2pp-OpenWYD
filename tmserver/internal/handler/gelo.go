@@ -95,3 +95,20 @@ func (d *Dispatcher) geloChefeSaque(w *world.World, reward, mob *world.Entity) {
 	}
 	d.putMobDrop(w, reward, it)
 }
+
+// geloChefeHoras é a espera entre a morte de um chefe do Gelo e a volta dele,
+// pedido da equipe em 23/09 (esperaDoRenascimento). No boot eles nascem como
+// todo bloco sem período.
+const geloChefeHoras = 4
+
+// geradorDeChefeDoGelo diz se o bloco idx é de um chefe do Gelo — Sombra Negra ou
+// Verid — com a partida dentro da caixa. O mesmo template fora dela (a Sombra de
+// outros mapas, o Verid do Coliseu) segue as horas de chefe do painel.
+func geradorDeChefeDoGelo(w *world.World, idx int) bool {
+	g := w.GeneratorAt(idx)
+	if g == nil || geloChefeAlma(&world.Entity{TemplateName: g.LeaderName}) == 0 {
+		return false
+	}
+	x, y := int(g.SegX[0]), int(g.SegY[0])
+	return x >= geloMinX && x <= geloMaxX && y >= geloMinY && y <= geloMaxY
+}

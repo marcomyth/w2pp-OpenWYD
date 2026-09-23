@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"io"
+	"log/slog"
 	"path/filepath"
 	"strconv"
 	"testing"
@@ -281,5 +283,61 @@ func TestGeloChefeSoltaUmPremio(t *testing.T) {
 	d.mobKilled(w, killer, m)
 	if n := conta(killer); n != 0 {
 		t.Errorf("a Sombra nascida fora do Gelo pagou %d prêmios do Gelo", n)
+	}
+}
+
+// A Sombra Negra e o Verid do Gelo voltam 4 h depois da morte; os mesmos
+// templates fora da caixa (a Sombra de outro mapa, o Verid do Coliseu) seguem as
+// horas de chefe do painel.
+func TestGeloChefeRenasceEm4Horas(t *testing.T) {
+	bloco := func(nome string, x, y int16) *world.Generator {
+		g := geradorSozinho(2_990_849, 10)
+		g.LeaderName = nome
+		g.SegX[0], g.SegY[0] = x, y
+		return g
+	}
+	w := world.New(world.Config{GridDim: 64}, slog.New(slog.NewTextHandler(io.Discard, nil)), world.NopPersistence{}, nil)
+	w.RegisterGenerators([]*world.Generator{
+		30: bloco("Verid", 3650, 2770),
+		31: bloco("Sombra_Negra_", 3817, 2880),
+		32: bloco("Sombra_Negra", 2635, 1725),
+		33: bloco("Verid", 2636, 1723),
+	})
+	d := dispatcherQuieto()
+	quatro := uint32(4 * msPorHora)
+	for _, idx := range []int{30, 31} {
+		if got := d.esperaDoRenascimento(w, idx); got != quatro {
+			t.Errorf("bloco %d volta em %d ms, want %d", idx, got, quatro)
+		}
+	}
+	for _, idx := range []int{32, 33} {
+		if d.esperaDoRenascimento(w, idx) == quatro {
+			t.Errorf("bloco %d, fora do Gelo, também ganhou as 4 h", idx)
+		}
+	}
+}
+
+// Os blocos dos chefes do Gelo não têm período de minuto: é a fila individual,
+// com a espera de esperaDoRenascimento, que os traz de volta. Um período positivo
+// os traria pelo relógio do gerador e ignoraria as 4 h.
+func TestGeloChefeBlocosSemPeriodo(t *testing.T) {
+	gens, err := content.LoadNPCGenerators(filepath.Join(releaseDir(t), "TMsrv", "run", "NPCGener.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for i, g := range gens {
+		x, y := int(g.SegX[0]), int(g.SegY[0])
+		if geloChefeAlma(&world.Entity{TemplateName: g.Leader}) == 0 ||
+			x < geloMinX || x > geloMaxX || y < geloMinY || y > geloMaxY {
+			continue
+		}
+		n++
+		if g.MinuteGenerate > 0 {
+			t.Errorf("bloco %d (%s) tem MinuteGenerate %d: voltaria pelo relógio, não em 4 h", i, g.Leader, g.MinuteGenerate)
+		}
+	}
+	if n != 5 {
+		t.Errorf("%d blocos de chefe no Gelo, want 5 (Verid ×2, Verid_, Sombra_Negra, Sombra_Negra_)", n)
 	}
 }
