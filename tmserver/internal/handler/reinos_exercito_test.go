@@ -223,10 +223,11 @@ func TestReinosBlocosDoNPCGener(t *testing.T) {
 		}
 	}
 	// +6, não +5, desde 19/09/2026: a Loja de Pontos entrou depois das Lendas.
+	// +7 desde 23/09/2026: o Boss Mantícora do Deserto (migração 0108), no 6145.
 	// As Lendas continuam onde estavam — são lidas por índice absoluto logo
 	// acima —, e é justamente por isso que bloco novo vai sempre no FIM.
-	if len(gens) != world.EscoltaDoTronoGenLast+6 {
-		t.Errorf("%d blocos, want %d: bloco novo entra no fim, depois das Lendas", len(gens), world.EscoltaDoTronoGenLast+6)
+	if len(gens) != world.EscoltaDoTronoGenLast+7 {
+		t.Errorf("%d blocos, want %d: bloco novo entra no fim, depois das Lendas", len(gens), world.EscoltaDoTronoGenLast+7)
 	}
 }
 

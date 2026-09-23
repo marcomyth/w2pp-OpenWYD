@@ -168,7 +168,7 @@ const MinTimerPass = 12 * time.Second
 // changed with a file on disk would be untestable. census_test.go re-counts the
 // real file and fails if these drift.
 var periods = [...][]Period{
-	Deserto: {{2, 106}, {3, 100}, {4, 36}, {0, 11}},
+	Deserto: {{2, 106}, {3, 100}, {4, 36}, {0, 12}},
 }
 
 // Periods is the area's period census, in descending block count order.

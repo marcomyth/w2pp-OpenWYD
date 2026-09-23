@@ -107,6 +107,9 @@ func (d *Dispatcher) esperaDoRenascimento(w *world.World, idx int) uint32 {
 	if tronoDoReino(idx) {
 		return horasDoTrono * msPorHora // os Reis e a Escolta do Trono (reinos.go)
 	}
+	if geradorDoBossManticora(w, idx) {
+		return bossManticoraHoras * msPorHora // o Boss Mantícora (deserto.go)
+	}
 	if d.chefeSozinho(w, idx) {
 		return uint32(d.horasDosChefes()) * msPorHora
 	}

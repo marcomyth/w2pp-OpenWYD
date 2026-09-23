@@ -33,8 +33,14 @@
 -- e Fantasma a 0,33%, Cavalo Equipado a 0,2%, somados ao Cavalo Leve da camada
 -- deles. O Fenrir dos Reinos e dos outros 24 templates fora do Deserto não muda
 -- aqui. Uma gema por monstro a 0,15%: Garnet no Treant, Coral no Adamant,
--- Diamante no Aeon e no Verme, Esmeralda na Mantícora. A Pedra de Mantícora
--- (Pedra de Arch) desce de 0,2% para 0,04%, 1 a cada 2.048 abates.
+-- Diamante no Aeon e no Verme, Esmeralda na Mantícora.
+--
+-- A Pedra de Mantícora (Pedra de Arch) sai da Mantícora comum, a única que a
+-- soltava (0,2% pelo template), e passa a ser do Boss Mantícora, pedido da equipe
+-- em 23/09: um chefe novo (template Boss_Manticora, bloco 6145 do NPCGener) com o
+-- nível e o divisor do Cav. Lugefer e o dobro da vida, que renasce 5 h depois da
+-- morte. O saque dele é código (handler/deserto.go), uma coisa por morte: a pedra a
+-- 10%, ou a Barra de 50Mi, ou um pacote de âmagos N ou B. Ele não tem linha aqui.
 --
 -- O Cav. Lugefer: a Pedra do Lugefer estava na vaga 8, que o código fixa em 1 a
 -- cada 4 mortes seja qual for o nível. A equipe pediu 1 pedra a cada 100 mortes
@@ -101,8 +107,8 @@ INSERT INTO drop_rule (mob, item, chance) VALUES
     ('Verme_',          2441,  15),       -- Diamante
     ('Manticora',       2442,  15),       -- Esmeralda
 
-    -- Pedra de Arch na tropa: 1 a cada 2.048 abates.
-    ('Manticora',       1756,   4),       -- Pedra de Mantícora
+    -- A Pedra de Mantícora é do chefe: sai da tropa.
+    ('Manticora',       1756,   0),       -- Pedra de Mantícora
 
     -- O Cav. Lugefer.
     ('Cav._Lugefer',    1758,   81),      -- Pedra do Lugefer: 1 a cada 101 mortes

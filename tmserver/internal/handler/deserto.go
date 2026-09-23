@@ -66,3 +66,88 @@ func (d *Dispatcher) agmoAmago(w *world.World, reward, mob *world.Entity) {
 	}
 	d.putMobDrop(w, reward, it)
 }
+
+// O Boss Mantícora (template Boss_Manticora, bloco 6145 do NPCGener) é o chefe
+// do Deserto_Manticora, pedido da equipe em 23/09/2026: o corpo da Mantícora com
+// o nível e o divisor de dano do Cav. Lugefer (÷250) e o dobro da vida dele.
+//
+// Cada morte solta UMA coisa, sorteada: a Pedra de Mantícora a 10%, ou, nos 90%
+// restantes, em partes iguais, a Barra de Prata de 50Mi ou um pacote de âmagos
+// (20 Cavalo Equipado, 40 Cavalo Leve ou 60 Fantasma), cada pacote N ou B em
+// metade das vezes. A pedra saiu da Mantícora comum na 0108: é deste chefe.
+const (
+	bossManticoraTemplate = "Boss_Manticora"
+	// bossManticoraHoras é a espera entre a morte e a volta (esperaDoRenascimento).
+	bossManticoraHoras = 5
+
+	itemPedraDeManticora = 1756
+
+	// bossManticoraBase é a base do sorteio. 32768 % 200 = 168: os valores de 0 a
+	// 167 saem uma vez a mais que os outros. A pedra fica no FIM da faixa, onde
+	// cada valor sai 163 vezes, e paga 9,95% — nunca mais que os 10% pedidos.
+	bossManticoraBase = 200
+)
+
+type bossManticoraPremio struct {
+	nome       string
+	peso       int
+	itemN      int16 // o item (ou o âmago N)
+	itemB      int16 // o âmago B; 0 quando não há versão B
+	quantidade int
+}
+
+// bossManticoraPremios soma bossManticoraBase, e a pedra vem por último.
+var bossManticoraPremios = []bossManticoraPremio{
+	{"Barra de Prata (50Mi)", 45, itemBarraPrata50Mi, 0, 1},
+	{"Pacote de Cavalo Equipado", 45, 2399, 2404, 20},
+	{"Pacote de Cavalo Leve", 45, 2398, 2403, 40},
+	{"Pacote de Cavalo Fantasma", 45, 2397, 2402, 60},
+	{"Pedra de Mantícora", 20, itemPedraDeManticora, 0, 1},
+}
+
+// isBossManticora diz se o monstro é o Boss Mantícora, pelo nome do arquivo do
+// template, como a Mesa: um "/gm criar Boss_Manticora" também paga.
+func isBossManticora(mob *world.Entity) bool {
+	return droprule.Canonical(mob.TemplateName) == droprule.Canonical(bossManticoraTemplate)
+}
+
+// geradorDoBossManticora diz se o bloco idx é o do Boss Mantícora.
+func geradorDoBossManticora(w *world.World, idx int) bool {
+	g := w.GeneratorAt(idx)
+	return g != nil && droprule.Canonical(g.LeaderName) == droprule.Canonical(bossManticoraTemplate)
+}
+
+// bossManticoraSorteia devolve o prêmio que um sorteio r em [0, bossManticoraBase)
+// escolhe.
+func bossManticoraSorteia(r int) bossManticoraPremio {
+	for _, p := range bossManticoraPremios {
+		if r < p.peso {
+			return p
+		}
+		r -= p.peso
+	}
+	return bossManticoraPremios[len(bossManticoraPremios)-1]
+}
+
+// bossManticoraSaque entrega o prêmio da morte do Boss Mantícora na bolsa de quem
+// mata. Dois sorteios, sempre na mesma ordem: o prêmio, e N ou B para o pacote.
+// Se a Mesa de Drops tem regra para o item sorteado neste monstro (ou um "*" a
+// 0% que o tire do mundo), vale a Mesa.
+func (d *Dispatcher) bossManticoraSaque(w *world.World, reward, mob *world.Entity) {
+	if !isBossManticora(mob) {
+		return
+	}
+	p := bossManticoraSorteia(w.Rand().Intn(bossManticoraBase))
+	item := p.itemN
+	if p.itemB != 0 && w.Rand().Intn(2) == 1 {
+		item = p.itemB
+	}
+	if d.dropRules.Governs(mob.TemplateName, item) {
+		return
+	}
+	it := world.Item{Index: item}
+	if isSplittable(it.Index) {
+		setItemAmount(&it, p.quantidade)
+	}
+	d.putMobDrop(w, reward, it)
+}

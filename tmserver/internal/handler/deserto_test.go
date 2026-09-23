@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"io"
+	"log/slog"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -230,5 +232,188 @@ func TestDesertoAgmoSoltaUmAmago(t *testing.T) {
 	d.mobKilled(w, killer, spawnNamed(t, w, expMobTemplate(351, 0, 0), "Tauron"))
 	if n, _ := amagoNaBolsa(killer); n != 0 {
 		t.Errorf("um Tauron comum deixou %d âmagos do sorteio do Agmo", n)
+	}
+}
+
+// O sorteio do Boss Mantícora, medido no que o jogo entrega: os 32.768 valores
+// do rand() do MSVC passados por Intn(bossManticoraBase). A pedra nunca passa dos
+// 10% pedidos, e os outros quatro prêmios dividem o resto em partes iguais.
+func TestBossManticoraSorteio(t *testing.T) {
+	vezes := map[string]int{}
+	for v := range 32768 {
+		vezes[bossManticoraSorteia(v%bossManticoraBase).nome]++
+	}
+	soma := 0
+	for _, p := range bossManticoraPremios {
+		soma += p.peso
+		taxa := float64(vezes[p.nome]) / 32768
+		if p.itemN == itemPedraDeManticora {
+			if taxa > 0.10 || taxa < 0.099 {
+				t.Errorf("Pedra de Mantícora sai a %.3f%%, want até 10%% (e perto disso)", taxa*100)
+			}
+			continue
+		}
+		if taxa < 0.224 || taxa > 0.227 {
+			t.Errorf("%s sai a %.3f%%, want 22,5%%", p.nome, taxa*100)
+		}
+	}
+	if soma != bossManticoraBase {
+		t.Errorf("os pesos somam %d, want %d", soma, bossManticoraBase)
+	}
+	if last := bossManticoraPremios[len(bossManticoraPremios)-1]; last.itemN != itemPedraDeManticora {
+		t.Errorf("a pedra precisa ser o último prêmio (o fim da base é onde o viés não a infla); o último é %s", last.nome)
+	}
+}
+
+// Os prêmios existem no catálogo, os pacotes cabem numa pilha, e N e B são os
+// âmagos pedidos: 20 Cavalo Equipado, 40 Cavalo Leve, 60 Fantasma.
+func TestBossManticoraPremios(t *testing.T) {
+	root := releaseDir(t)
+	items, err := content.LoadItemList(filepath.Join(root, "Common", "ItemList.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	pacotes := map[[2]int16]int{{2399, 2404}: 20, {2398, 2403}: 40, {2397, 2402}: 60}
+	for _, p := range bossManticoraPremios {
+		for _, item := range []int16{p.itemN, p.itemB} {
+			if item == 0 {
+				continue
+			}
+			if _, ok := items.Get(int(item)); !ok {
+				t.Errorf("%s: item %d não existe no ItemList", p.nome, item)
+			}
+		}
+		if p.itemB == 0 {
+			if p.quantidade != 1 {
+				t.Errorf("%s sai com %d unidades, want 1", p.nome, p.quantidade)
+			}
+			continue
+		}
+		if want := pacotes[[2]int16{p.itemN, p.itemB}]; p.quantidade != want {
+			t.Errorf("%s: pacote de %d, want %d", p.nome, p.quantidade, want)
+		}
+		if !isSplittable(p.itemN) || !isSplittable(p.itemB) || p.quantidade > 120 {
+			t.Errorf("%s: pacote de %d não cabe numa pilha", p.nome, p.quantidade)
+		}
+		delete(pacotes, [2]int16{p.itemN, p.itemB})
+	}
+	if len(pacotes) != 0 {
+		t.Errorf("pacotes pedidos que faltam: %v", pacotes)
+	}
+}
+
+// Pelo abate de verdade: cada morte do Boss Mantícora põe exatamente um prêmio na
+// bolsa de quem mata, com a quantidade do pacote.
+func TestBossManticoraSoltaUmPremio(t *testing.T) {
+	quantos := map[int16]int{}
+	for _, p := range bossManticoraPremios {
+		quantos[p.itemN] = p.quantidade
+		if p.itemB != 0 {
+			quantos[p.itemB] = p.quantidade
+		}
+	}
+	for range 20 {
+		d, w, killer := mobKilledWorld(t)
+		d.mobKilled(w, killer, spawnNamed(t, w, expMobTemplate(399, 0, 0), bossManticoraTemplate))
+		achou := 0
+		for _, it := range killer.Carry {
+			want, ok := quantos[it.Index]
+			if !ok {
+				continue
+			}
+			achou++
+			if got := itemAmount(it); got != want {
+				t.Errorf("item %d com %d unidades, want %d", it.Index, got, want)
+			}
+		}
+		if achou != 1 {
+			t.Fatalf("%d prêmios do Boss Mantícora na bolsa, want 1", achou)
+		}
+	}
+}
+
+// O bloco do Boss Mantícora volta 5 h depois da morte; um chefe sozinho qualquer
+// segue nas horas do painel.
+func TestBossManticoraRenasceEm5Horas(t *testing.T) {
+	boss := geradorSozinho(2_990_849, 10)
+	boss.LeaderName = bossManticoraTemplate
+	w := world.New(world.Config{GridDim: 64}, slog.New(slog.NewTextHandler(io.Discard, nil)), world.NopPersistence{}, nil)
+	w.RegisterGenerators([]*world.Generator{30: geradorSozinho(2_990_849, 12), 31: boss})
+	d := dispatcherQuieto()
+	if got, want := d.esperaDoRenascimento(w, 31), uint32(5*msPorHora); got != want {
+		t.Errorf("Boss Mantícora volta em %d ms, want %d", got, want)
+	}
+	if got := d.esperaDoRenascimento(w, 30); got == uint32(5*msPorHora) {
+		t.Error("um chefe sozinho qualquer também ganhou as 5 h")
+	}
+}
+
+// O template: o nível e o divisor do Cav. Lugefer, o dobro da vida real dele,
+// mais dano que ele e que a Mantícora, o corpo da Mantícora, e nada no Carry —
+// o saque é o sorteio do código, e um Carry cheio somaria o saque da Mantícora.
+func TestBossManticoraTemplate(t *testing.T) {
+	root := releaseDir(t)
+	ler := func(nome string) savefmt.Mob {
+		b, _, err := npctemplate.Load(root, nome)
+		if err != nil {
+			t.Fatalf("%s: %v", nome, err)
+		}
+		m, _, err := savefmt.DecodeMobAny(b)
+		if err != nil {
+			t.Fatalf("%s: %v", nome, err)
+		}
+		return m
+	}
+	boss, cav, mant := ler(bossManticoraTemplate), ler("Cav._Lugefer"), ler("Manticora")
+	vidaReal := func(m savefmt.Mob) int64 {
+		div := int64(1)
+		v := int64(m.Equip[13].Effects[0].Value)
+		if v == 0 {
+			v = 2
+		}
+		switch m.Equip[13].Index {
+		case 786:
+			div = v
+		case 1936:
+			div = v * 10
+		case 1937:
+			div = v * 1000
+		}
+		return int64(m.CurrentScore.MaxHp) * div
+	}
+	if boss.CurrentScore.Level != cav.CurrentScore.Level {
+		t.Errorf("nível %d, o Cav. Lugefer é %d", boss.CurrentScore.Level, cav.CurrentScore.Level)
+	}
+	if vidaReal(boss) < 2*vidaReal(cav) {
+		t.Errorf("vida real %d, want o dobro do Cav. Lugefer (%d) ou mais", vidaReal(boss), 2*vidaReal(cav))
+	}
+	if boss.CurrentScore.Damage <= cav.CurrentScore.Damage || boss.CurrentScore.Damage < 3*mant.CurrentScore.Damage {
+		t.Errorf("dano %d: want mais que o Cav. Lugefer (%d) e muito mais que a Mantícora (%d)",
+			boss.CurrentScore.Damage, cav.CurrentScore.Damage, mant.CurrentScore.Damage)
+	}
+	if boss.Equip[0].Index != mant.Equip[0].Index {
+		t.Errorf("corpo %d, a Mantícora é %d", boss.Equip[0].Index, mant.Equip[0].Index)
+	}
+	for i, it := range boss.Carry {
+		if it.Index != 0 {
+			t.Errorf("Carry[%d] = %d, want vazio", i, it.Index)
+		}
+	}
+	if boss.BaseScore.MaxHp != boss.CurrentScore.MaxHp {
+		t.Errorf("BaseScore e CurrentScore com vida diferente: %d e %d", boss.BaseScore.MaxHp, boss.CurrentScore.MaxHp)
+	}
+}
+
+// A Pedra de Mantícora saiu da tropa: nenhum monstro da 0108 a solta, e a
+// Mantícora comum, cujo template a tem, fica com a linha a 0%.
+func TestDesertoPedraDeManticoraSoDoChefe(t *testing.T) {
+	linhas := linhasDoDeserto(t)
+	for mob, l := range linhas {
+		if l[itemPedraDeManticora] > 0 {
+			t.Errorf("%s solta a Pedra de Mantícora a %d; ela é do Boss", mob, l[itemPedraDeManticora])
+		}
+	}
+	if c, ok := linhas["Manticora"][itemPedraDeManticora]; !ok || c != 0 {
+		t.Error("a Mantícora comum precisa da linha a 0% da pedra: o template dela a solta")
 	}
 }

@@ -159667,3 +159667,25 @@
 	DestY:		2104
 	DestRange:	1
 	DestWait:	0
+
+// Boss Manticora - chefe do Deserto_Manticora: renasce 5 h depois da morte
+// (handler/deserto.go), saque no codigo. Migracao 0108, 23/09/2026.
+// ********************************************
+
+#	[6145]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Boss_Manticora
+	Follower:	Boss_Manticora
+	RouteType:	0
+	Formation:	0
+	StartX:		1346
+	StartY:		1742
+	StartRange:	2
+	StartWait:	10
+	DestX:		1346
+	DestY:		1742
+	DestRange:	2
+	DestWait:	10

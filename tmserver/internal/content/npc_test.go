@@ -180,3 +180,39 @@ func TestCavLugeferSaoVinte(t *testing.T) {
 		t.Errorf("%d blocos com %d Cav._Lugefer, want 10 com 20", blocos, total)
 	}
 }
+
+// TestBossManticoraBloco pins the Deserto_Manticora boss (migration 0108): one
+// Boss_Manticora in block 6145, the last one, with no minute period — the 5 h
+// wait after its death is the individual queue's (handler/deserto.go), and a
+// positive MinuteGenerate would refill it on the generator clock instead.
+func TestBossManticoraBloco(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("NPCGener.txt unavailable: %v", err)
+	}
+	gens, err := LoadNPCGenerators(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const idx = 6145
+	if idx >= len(gens) {
+		t.Fatalf("NPCGener has %d blocks, want block %d", len(gens), idx)
+	}
+	g := gens[idx]
+	if g.Leader != "Boss_Manticora" || g.MinuteGenerate != -1 || g.MaxNumMob != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
+		t.Errorf("bloco %d = %+v, want one Boss_Manticora with MinuteGenerate -1", idx, g)
+	}
+	// Deserto_Manticora in Regions.txt: 1282,1664 - 1396,1785.
+	if x, y := g.SegX[0], g.SegY[0]; x < 1282 || x > 1396 || y < 1664 || y > 1785 {
+		t.Errorf("Boss_Manticora nasce em (%d,%d), fora do Deserto_Manticora", x, y)
+	}
+	n := 0
+	for _, g := range gens {
+		if g.Leader == "Boss_Manticora" || g.Follower == "Boss_Manticora" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("Boss_Manticora em %d blocos, want 1", n)
+	}
+}
