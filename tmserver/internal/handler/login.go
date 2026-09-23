@@ -110,15 +110,15 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 				"conn", s.Conn, "account", s.AccountName, "itens", saiu)
 			vendidos = saiu
 		}
-		// E a faxina, que é o contrário da retirada: aqui o item FICA e só o
-		// cadeado sai. São dois caminhos porque são dois destinos — confundi-los
-		// apagaria o item de quem não vendeu nada. O vendedor não é avisado desta:
-		// nada mudou no baú dele que ele pudesse notar, e um aviso sobre uma trava
-		// que ele nunca viu seria conversa sobre encanamento.
-		if soltos := w.SoltaMarcasMortas(out.AccountID, out.SlotsSoltos); soltos > 0 {
-			d.log.Info("escrow: faxina do login soltou cadeados mortos",
-				"conn", s.Conn, "account", s.AccountName, "itens", soltos)
-		}
+		// E a reconciliação do escrow, que é o contrário da retirada: aqui o item
+		// FICA e só o cadeado sai. São dois caminhos porque são dois destinos —
+		// confundi-los apagaria o item de quem não vendeu nada.
+		//
+		// DEPOIS do accountInUse, e em chamada própria. Ela ESCREVE no banco
+		// supondo que quem está entrando não tem barraca de pé; numa tentativa
+		// recusada — a conta já em jogo — a barraca é da sessão ANTIGA, que
+		// continua viva, e a reconciliação cancelaria a venda dela em silêncio.
+		d.reconciliaEscrow(w, s, out.AccountID)
 		s.Mode = world.UserSelChar
 		coin, cargoItems := d.cargoWire(w.Cargo(out.AccountID))
 		body := protocol.EncodeCNFAccountLoginBody(s.AccountName, d.selCharsFrom(out.Characters), coin, cargoItems)
@@ -153,6 +153,48 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		w.SendTo(s, protocol.Header{Type: protocol.MsgAlreadyPlaying, ID: protocol.IDSelChar}, nil)
 		w.Close(s)
 	}
+}
+
+// reconciliaEscrow põe o escrow em dia depois de esta conexão ganhar a conta.
+//
+// Fora do laço porque escreve no banco, e por `Go` e não `GoDetached`: se a
+// sessão morrer no meio, não há baú para soltar e a próxima entrada refaz a
+// pergunta. O vendedor não é avisado — nada mudou no baú que ele pudesse notar, e
+// um aviso sobre uma trava que ele nunca viu seria conversa sobre encanamento.
+func (d *Dispatcher) reconciliaEscrow(w *world.World, s *world.Session, accountID int64) {
+	p := w.Persistence()
+	// A TRAVA SOBE ANTES DA IDA, e desce na volta, dê no que der.
+	//
+	// A reconciliação cancela TODO anúncio ativo da conta, supondo que quem
+	// acabou de entrar não tem barraca de pé. A suposição vale quando a pergunta
+	// é feita e pode deixar de valer antes de a resposta chegar: com o banco
+	// lento — o tempo limite aqui é de dez segundos — o vendedor tem tempo de
+	// chegar na cidade e montar uma barraca em dinheiro real, e o anúncio
+	// recém-nascido seria cancelado com a barraca nova de pé.
+	//
+	// É o mesmo defeito do login duplicado, por outra porta: venda desfeita em
+	// silêncio. E a trava é no lojaAbrir e não numa estimativa de quanto tempo o
+	// jogador leva para andar até a cidade; tempo não é garantia.
+	s.ReconciliandoEscrow = true
+	w.Go(s, func() func(*world.World, *world.Session) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		slots, err := p.ReconcileRmtEscrow(ctx, accountID)
+		return func(w *world.World, s *world.Session) {
+			s.ReconciliandoEscrow = false
+			if err != nil {
+				// Os itens continuam presos e intocáveis, que é o erro barato. A
+				// próxima entrada tenta de novo.
+				d.log.Warn("escrow: reconciliacao do login falhou",
+					"conn", s.Conn, "account", accountID, "err", err)
+				return
+			}
+			if soltos := w.SoltaMarcasMortas(accountID, slots); soltos > 0 {
+				d.log.Info("escrow: reconciliacao do login soltou cadeados mortos",
+					"conn", s.Conn, "account", accountID, "itens", soltos)
+			}
+		}
+	})
 }
 
 // accountInUse keeps one account to one session, the check the legacy DBSrv

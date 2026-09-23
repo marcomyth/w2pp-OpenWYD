@@ -75,13 +75,19 @@ func (c *Client) AccountLogin(ctx context.Context, name, password string) (world
 	if slots, err := c.ListSoldEscrowSlots(ctx, out.AccountID); err == nil {
 		out.SlotsVendidos = slots
 	}
-	// E a faxina: cadeado que já não segura nada. Duas perguntas e não uma
-	// porque os destinos são OPOSTOS — aquela esvazia o slot, esta devolve o
-	// item ao dono. Uma lista só faria o código de cima ter de adivinhar qual é
-	// qual, e errar aqui é apagar o item de quem não vendeu nada.
-	if slots, err := c.ReconcileRmtEscrow(ctx, out.AccountID); err == nil {
-		out.SlotsSoltos = slots
-	}
+	// A RECONCILIAÇÃO DO ESCROW NÃO VEM DE CARONA AQUI, e a exceção é de
+	// propósito — é a única coisa do login que ESCREVE.
+	//
+	// Este login pode ainda ser RECUSADO: o `accountInUse` derruba a conexão nova
+	// quando a conta já está em jogo, e ele só roda depois desta chamada voltar.
+	// A reconciliação supõe "quem está entrando não tem barraca de pé"; numa
+	// tentativa que vai ser recusada essa suposição é FALSA, porque quem tem a
+	// barraca é a sessão antiga, que continua viva. Ela cancelaria a venda dela,
+	// calada.
+	//
+	// Então ela é pedida em chamada própria, DEPOIS de esta conexão ganhar a
+	// conta (handler/login.go). Custa uma ida a mais ao banco por login, fora do
+	// laço; é o preço de a suposição continuar verdadeira.
 	return out, nil
 }
 

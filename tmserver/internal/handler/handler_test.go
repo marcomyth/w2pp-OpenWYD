@@ -42,18 +42,22 @@ type fakeDB struct {
 	anunciosCancelados    []int64
 	anunciosEncerrados    []int64
 	compradoresCancelados []int64
-	encerrados            []world.AnuncioEncerrado // destino forçado pelo teste
-	erroEncerrar          error
-	slotDoAnuncio         map[int64]int16 // id do anúncio → slot, para o destino padrão
-	slotsSoltos           map[int64][]int16
-	slotsVendidos         map[int64][]int16
-	accounts              map[string]*fakeAccount
-	created               int
-	archCreated           int
-	archSlot              int
-	archOK                bool
-	archErr               error
-	archReq               struct {
+	reconciliadas         []int64
+	// portaoReconcilia segura a reconciliação no banco até o teste soltar, que é
+	// o único jeito de agir DENTRO da janela em que a trava existe.
+	portaoReconcilia chan struct{}
+	encerrados       []world.AnuncioEncerrado // destino forçado pelo teste
+	erroEncerrar     error
+	slotDoAnuncio    map[int64]int16 // id do anúncio → slot, para o destino padrão
+	slotsSoltos      map[int64][]int16
+	slotsVendidos    map[int64][]int16
+	accounts         map[string]*fakeAccount
+	created          int
+	archCreated      int
+	archSlot         int
+	archOK           bool
+	archErr          error
+	archReq          struct {
 		accountID                            int64
 		name                                 string
 		class, face, mortalSlot, mortalLevel int
@@ -211,9 +215,23 @@ func (f *fakeDB) cancelouComprador() []int64 {
 	return append([]int64(nil), f.compradoresCancelados...)
 }
 
-// ReconcileRmtEscrow é a reconciliação do login.
+// ReconcileRmtEscrow é a reconciliação do login. Conta as chamadas, porque o que
+// alguns testes precisam provar é que ela NÃO foi chamada.
 func (f *fakeDB) ReconcileRmtEscrow(_ context.Context, accountID int64) ([]int16, error) {
+	if f.portaoReconcilia != nil {
+		<-f.portaoReconcilia
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.reconciliadas = append(f.reconciliadas, accountID)
 	return f.slotsSoltos[accountID], nil
+}
+
+// reconciliou lê sob o mutex quais contas passaram pela reconciliação.
+func (f *fakeDB) reconciliou() []int64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]int64(nil), f.reconciliadas...)
 }
 
 // encerrouAnuncios lê sob o mutex o que a barraca mandou encerrar.
@@ -522,7 +540,6 @@ func (f *fakeDB) AccountLogin(_ context.Context, name, pass string) (world.Login
 			Result: world.LoginOK, AccountID: a.id, Role: a.role, Characters: a.chars, Cargo: cargo,
 			PendingDeliveries: f.pending[a.id],
 			SlotsVendidos:     f.slotsVendidos[a.id],
-			SlotsSoltos:       f.slotsSoltos[a.id],
 			Cash:              a.cash,
 			Rmt:               a.rmt,
 		}, nil
