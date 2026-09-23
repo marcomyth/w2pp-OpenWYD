@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/rng"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -105,7 +106,41 @@ var chestTables = map[int16][]chestPrize{
 	itemBauRunas3: runeTable,
 }
 
-// drawChest picks the prize for a roll in [0,100).
+// chestDenominator is the scale a table's thresholds are written in, read off
+// its own last line — every table's last upTo IS the total.
+//
+// The legacy baús are percentages out of 100, which is all rand()%100 could
+// express. The apoiador baús need finer: their rarest prize is 0,05%, and at a
+// hundredth's resolution the smallest possible prize is 1% — which, across the
+// 64 baús a Supremo opens, turns a "quase nunca" into "quase metade das compras".
+// Rather than rescale the legacy tables (and every golden test that pins them),
+// the scale travels with the data.
+func chestDenominator(table []chestPrize) int {
+	return table[len(table)-1].upTo
+}
+
+// chestRoll draws the number drawChest partitions, and it is where the finer
+// scale is paid for.
+//
+// MSVC rand() yields 0..32767, and the legacy's `rand()%n` idiom is biased
+// whenever n does not divide 32768 — a bias rng.Intn preserves on purpose. At
+// n=100 it is small (each of the first 68 values lands 328 times against 327);
+// at n=10000 it is ruinous: the values below 2768 come up FOUR times to
+// everyone else's three, so a prize written as 24% pays out 29,3%. Measured,
+// not reasoned: the distribution test caught it.
+//
+// So a table in the fine scale spends two rand() calls and builds a 30-bit
+// number, where the residual bias is about one part in a hundred thousand. The
+// legacy tables keep taking exactly one call, with their bias intact, because
+// their odds were captured from a server that had it.
+func chestRoll(r *rng.MSVC, denominator int) int {
+	if denominator <= 100 {
+		return r.Intn(denominator)
+	}
+	return (r.Rand()<<15 | r.Rand()) % denominator
+}
+
+// drawChest picks the prize for a roll in [0, chestDenominator(table)).
 func drawChest(table []chestPrize, roll int) world.Item {
 	for _, p := range table {
 		if roll < p.upTo {
@@ -138,7 +173,7 @@ func (d *Dispatcher) openChest(w *world.World, s *world.Session, e *world.Entity
 		}
 	}
 
-	prize := drawChest(table, w.Rand().Intn(100))
+	prize := drawChest(table, chestRoll(w.Rand(), chestDenominator(table)))
 	if prize.Index == itemSleipnir || prize.Index == itemSvadilfari {
 		prize.Effects[1].Value = rollAdultVitality(w)
 	}
@@ -153,7 +188,7 @@ func (d *Dispatcher) openChest(w *world.World, s *world.Session, e *world.Entity
 	// That placement is also why the chest's slot is pushed only AFTER the prize
 	// is written — when dst is src, the one SendItem for that slot has to carry
 	// the prize, not the emptied chest.
-	if fadaJuntaPilhas(e) && isSplittable(prize.Index) {
+	if juntaNaPilhaDaMochila(e, prize.Index) {
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		if d.putCarryItem(w, e, prize) < 0 {
 			sendClientMessage(w, s, msgFullCarry)

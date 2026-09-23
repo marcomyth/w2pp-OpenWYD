@@ -1,0 +1,11 @@
+// A marca do servidor entra no proprio DLL, e nao num arquivo ao lado dele: a
+// loja ja depende de uma instalacao certa do GamePatch.dll, e duplicar essa
+// dependencia numa imagem solta so daria painel sem fundo em metade das copias.
+//
+// O que esta em arte/fundo.bin nao e PNG nem BMP - e a arte ja recortada, ja no
+// tamanho do painel e ja com o fundo proprio descontado, pronta para ser somada
+// pixel a pixel. Quem a gera e arte/gera_fundo.py. Ver fundo.cpp.
+
+#define kFundoLoja 100
+
+kFundoLoja RCDATA "arte\fundo.bin"

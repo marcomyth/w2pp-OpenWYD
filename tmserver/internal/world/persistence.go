@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+// ErrPontosInsuficientes é o que AddShopPoints devolve quando o gasto pedido é
+// maior que o saldo de pontos da conta. É resposta prevista, não falha de banco:
+// quem cobra tem de dizer "você não tem pontos" e não "tente de novo".
+var ErrPontosInsuficientes = errors.New("pontos de lojinha insuficientes")
+
 // MobPerAccount is MOB_PER_ACCOUNT (Basedef.h:131): the number of character
 // slots per account.
 const MobPerAccount = 4
@@ -69,6 +74,11 @@ type LoginOutcome struct {
 	Characters        []CharSummary
 	Cargo             CargoState
 	PendingDeliveries []Delivery
+	// As carteiras da conta, lidas no mesmo login. Cash e RMT são da CONTA e
+	// moram no banco; o laço do mundo não fala com ele, então guarda o número
+	// daqui e o mantém em dia por conta própria a cada venda.
+	Cash int32
+	Rmt  int32
 }
 
 // CargoState is the account-shared warehouse (the legacy STRUCT_ACCOUNTFILE
@@ -132,6 +142,7 @@ type CharacterState struct {
 	CelCircle          uint8 // QuestInfo.Circle (Arcana quest done)
 	TerraMistica       uint8 // QuestInfo.Mortal.TerraMistica gate (AMU_MISTICO, issue #139)
 	NewbieQuest        uint8 // QuestInfo.Mortal.Newbie: training-field trainer step (0..4)
+	MolarGargula       uint8 // QuestInfo.Mortal: Molar de Gargula ja usado (0093)
 	ArchLv355          uint8
 	ArchLv370          uint8
 	MortalLevel        uint16
@@ -201,6 +212,9 @@ type SavedItem struct {
 	EffV3     uint8
 	ExpiresAt int64 // Unix-seconds expiry for timed items (0 = permanent)
 	Serial    int64 // item identity (0033_item_serial), 0 = unmarked
+	// AnuncioRMT trava o item enquanto há anúncio em dinheiro real contra ele;
+	// 0 = destravado (0104_escrow_do_anuncio_rmt).
+	AnuncioRMT int64
 }
 
 // CharacterSave is the snapshot the world hands to the persistence backend on
@@ -248,6 +262,7 @@ type CharacterSave struct {
 	CelCircle          uint8
 	TerraMistica       uint8
 	NewbieQuest        uint8
+	MolarGargula       uint8
 	ArchLv355          uint8
 	ArchLv370          uint8
 	MortalLevel        uint16
@@ -296,6 +311,50 @@ type GuildRecord struct {
 	Clan    uint8
 	Fame    int32
 	Citizen uint8
+
+	// O Painel de Guilda (0079_painel_de_guilda): o recado e o teto de membros.
+	// NoticeAt zero significa que nunca houve recado.
+	Notice    string
+	NoticeBy  string
+	NoticeAt  time.Time
+	MemberCap int
+}
+
+// GuildMemberRecord é uma linha da aba Membros do painel, e vem do banco
+// inteira: o tmServer só conhece de cabeça quem está conectado, e a aba mostra a
+// guilda toda.
+//
+// Level é o CARGO (0..9, 9 é o líder), não o nível do personagem.
+type GuildMemberRecord struct {
+	CharacterID int64
+	AccountID   int64
+	Slot        int
+	Name        string
+	Level       uint8
+	Status      string
+	LastSeen    time.Time
+}
+
+// GuildSummaryRecord é uma guilda como a tela "Guilds do Server" a mostra.
+type GuildSummaryRecord struct {
+	ID      uint16
+	Name    string
+	Leader  string
+	Members int
+	Fame    int32
+}
+
+// GuildSquadRecord é quem a guilda designou para uma cidade (0081).
+type GuildSquadRecord struct {
+	Zone  int
+	Names []string
+}
+
+// GuildBuffRecord é um buff de guilda correndo (0080_buffs_de_guilda).
+type GuildBuffRecord struct {
+	GuildID   uint16
+	Type      uint8 // 1..4
+	ExpiresAt time.Time
 }
 
 // GuildRelationKind identifies a directed guild relation.
@@ -429,6 +488,10 @@ type Persistence interface {
 	// the database (balance = balance + delta), never by writing back a total the
 	// server computed, because two characters on the same account can be paid at
 	// the same time and a read-modify-write would lose one of them.
+	//
+	// Um delta NEGATIVO gasta pontos, e é assim que a Loja de Honra cobra. Um
+	// gasto maior que o saldo devolve ErrPontosInsuficientes e não move nada — nem
+	// saldo, nem extrato -, porque o banco desfaz a transação inteira.
 	AddShopPoints(ctx context.Context, accountID int64, delta int32, characterName, reason string) (int32, error)
 	ShopPoints(ctx context.Context, accountID int64) (int32, error)
 	// SpendShopPoints debits a purchase. paid=false is "the wallet does not cover
@@ -454,6 +517,23 @@ type Persistence interface {
 	SetGuildRelation(ctx context.Context, guildID, targetGuildID uint16, kind GuildRelationKind) error
 	ListGuilds(ctx context.Context) ([]GuildRecord, error)
 	ListGuildRelations(ctx context.Context) ([]GuildRelation, error)
+	// ListGuildMembers lê a guilda inteira, inclusive quem está desconectado —
+	// a aba Membros do painel. Custa uma ida ao banco, então é chamada quando a
+	// aba abre, nunca no laço.
+	ListGuildMembers(ctx context.Context, guildID uint16) ([]GuildMemberRecord, error)
+	SaveGuildNotice(ctx context.Context, guildID uint16, notice, by string) error
+	// Os buffs de guilda (0080). Ficam no banco porque os itens que os acendem
+	// valem 15 e 30 dias: um restart não pode apagar o que foi comprado.
+	// ListGuildSummaries alimenta a tela "Guilds do Server". Vai ao banco, entao
+	// so quando a tela abre.
+	ListGuildSummaries(ctx context.Context, limit int) ([]GuildSummaryRecord, error)
+	// A escalacao de cidade da guilda (0081). Vai ao banco, entao so quando a
+	// aba Cidades abre ou quando alguem muda a lista.
+	ListGuildSquads(ctx context.Context, guildID uint16) ([]GuildSquadRecord, error)
+	SetGuildSquad(ctx context.Context, guildID uint16, zone int, names []string) error
+	ListGuildBuffs(ctx context.Context) ([]GuildBuffRecord, error)
+	SaveGuildBuff(ctx context.Context, buff GuildBuffRecord) error
+	DeleteGuildBuff(ctx context.Context, guildID uint16, buffType uint8) error
 	LoadGuildZones(ctx context.Context) ([]GuildZone, error)
 	SaveGuildZone(ctx context.Context, zone GuildZone) error
 	LoadGuildTowerState(ctx context.Context) (GuildTowerState, error)
@@ -641,6 +721,48 @@ func (NopPersistence) ListGuildRelations(context.Context) ([]GuildRelation, erro
 	return nil, nil
 }
 
+// ListGuildMembers returns an empty roster without a backend. The panel then
+// shows only the members this process can see for itself — the ones online.
+func (NopPersistence) ListGuildMembers(context.Context, uint16) ([]GuildMemberRecord, error) {
+	return nil, nil
+}
+
+// SaveGuildNotice cannot persist a notice without a backend.
+func (NopPersistence) SaveGuildNotice(context.Context, uint16, string, string) error {
+	return errNoPersistence
+}
+
+// ListGuildSummaries returns no guilds without a backend.
+func (NopPersistence) ListGuildSummaries(context.Context, int) ([]GuildSummaryRecord, error) {
+	return nil, nil
+}
+
+// ListGuildSquads returns no squads without a backend.
+func (NopPersistence) ListGuildSquads(context.Context, uint16) ([]GuildSquadRecord, error) {
+	return nil, nil
+}
+
+// SetGuildSquad cannot persist a squad without a backend.
+func (NopPersistence) SetGuildSquad(context.Context, uint16, int, []string) error {
+	return errNoPersistence
+}
+
+// ListGuildBuffs returns no running buffs without a backend.
+func (NopPersistence) ListGuildBuffs(context.Context) ([]GuildBuffRecord, error) {
+	return nil, nil
+}
+
+// SaveGuildBuff cannot persist a buff without a backend. The buff still runs in
+// memory for as long as this process lives — it just does not survive a restart.
+func (NopPersistence) SaveGuildBuff(context.Context, GuildBuffRecord) error {
+	return errNoPersistence
+}
+
+// DeleteGuildBuff cannot remove a persisted buff without a backend.
+func (NopPersistence) DeleteGuildBuff(context.Context, uint16, uint8) error {
+	return errNoPersistence
+}
+
 // LoadGuildZones returns no persisted zones without a backend.
 func (NopPersistence) LoadGuildZones(context.Context) ([]GuildZone, error) { return nil, nil }
 
@@ -687,13 +809,23 @@ const (
 	GroundPegou  = "pegou"
 )
 
-// ChatTipo is which channel a line was said on: public speech, or a whisper.
+// ChatTipo is which channel a line was said on.
 type ChatTipo string
 
-// The two channels the log keeps.
+// Os canais que o registro guarda.
+//
+// Os quatro últimos entraram com os canais (handler/canais.go). Não dá para
+// jogá-los em "publico": o registro existe para o atendimento responder "quem
+// ouviu isto?", e a resposta é diferente em cada um — a fala pública alcança
+// quem está na tela, a de guilda alcança a guilda, a de cidadão alcança o
+// servidor inteiro. Guardar o alcance errado é pior do que não guardar.
 const (
 	ChatPublico  ChatTipo = "publico"
 	ChatSussurro ChatTipo = "sussurro"
+	ChatGuilda   ChatTipo = "guilda"
+	ChatGrupo    ChatTipo = "grupo"
+	ChatReino    ChatTipo = "reino"
+	ChatCidadao  ChatTipo = "cidadao"
 )
 
 // ChatLinha is one thing somebody said, as the loop saw it (0034_chat_log).

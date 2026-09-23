@@ -46,7 +46,7 @@ func (s *Store) RecordChat(ctx context.Context, linhas []domain.ChatLinha) error
 	lote := &pgx.Batch{}
 	for _, l := range linhas {
 		tipo := strings.TrimSpace(string(l.Tipo))
-		if tipo != string(domain.ChatPublico) && tipo != string(domain.ChatSussurro) {
+		if !domain.ChatTipoValido(domain.ChatTipo(tipo)) {
 			return fmt.Errorf("store: record chat: unknown type %q", tipo)
 		}
 		var alvo *string
@@ -115,7 +115,7 @@ func (s *Store) ListChat(ctx context.Context, q ChatQuery) ([]domain.ChatLinha, 
 	nome := strings.TrimSpace(q.Char)
 	texto := strings.TrimSpace(q.Texto)
 	tipo := strings.TrimSpace(string(q.Tipo))
-	if tipo != "" && tipo != string(domain.ChatPublico) && tipo != string(domain.ChatSussurro) {
+	if tipo != "" && !domain.ChatTipoValido(domain.ChatTipo(tipo)) {
 		return nil, fmt.Errorf("store: list chat: unknown type %q", tipo)
 	}
 

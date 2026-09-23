@@ -67,7 +67,9 @@ func TestArmaDaEspadaMagica(t *testing.T) {
 		nome string
 		arma int16
 		want int
-	}{{"lança", lanca, 140}, {"espada de 2 mãos", espada, 100}, {"sem arma", 0, 100}} {
+		// O número da lança sai do botão: o torneio o move, e o que este teste
+		// prova é que a árvore paga a lança e mais nada.
+	}{{"lança", lanca, espadaMagicaLancaPct}, {"espada de 2 mãos", espada, 100}, {"sem arma", 0, 100}} {
 		e := tkDaEspadaMagica(2848, learnedTempestadeDeGelo, 255)
 		e.Equip[weaponSlotR] = world.Item{Index: c.arma}
 		if got := armaPctEspadaMagica(e, ability); got != c.want {
@@ -76,20 +78,32 @@ func TestArmaDaEspadaMagica(t *testing.T) {
 	}
 }
 
-// Chance 10% + 15% × i; multiplicador de ×2,0 até ×(2 + 2 × i).
+// Chance 10% + espadaCritChanceIntAtual × i; multiplicador do piso da faixa até
+// o piso + espadaCritMultIntAtual × i.
+//
+// Os números esperados saem dos BOTÕES, não de literais: a faixa foi cortada de
+// ×2,0-×4,0 para ×1,5-×2,5 em 21/09/2026 (era o que restava matando de um golpe
+// depois da correção da resistência), e um teste que fixasse os valores antigos
+// só amarraria a regra à calibragem do dia.
 func TestCriticoDaEspadaMagica(t *testing.T) {
+	var (
+		piso  = espadaCritMultBase10Atual                            // sorte mínima, qualquer INT
+		teto  = espadaCritMultBase10Atual + espadaCritMultIntAtual   // INT cheia, sorte máxima
+		meio  = espadaCritMultBase10Atual + espadaCritMultIntAtual/2 // INT 1250 (metade da régua)
+		sorte = espadaCritMultIntAtual                               // a maior rolagem que a INT cheia permite
+	)
 	cases := []struct {
 		name  string
 		intel int16
 		rolls rolagens
 		want  int
 	}{
-		{"INT cheia, pega (24 < 25), sorte máxima", 2848, rolagens{24, 20}, 40},
-		{"INT cheia, pega, sorte mínima", 2848, rolagens{0, 0}, 20},
+		{"INT cheia, pega (24 < 25), sorte máxima", 2848, rolagens{24, sorte}, teto},
+		{"INT cheia, pega, sorte mínima", 2848, rolagens{0, 0}, piso},
 		{"INT cheia, não pega (25)", 2848, rolagens{25}, 0},
-		{"INT 1250, pega (16 < 17), ×3,0", 1250, rolagens{16, 10}, 30},
+		{"INT 1250, pega (16 < 17), meio da faixa", 1250, rolagens{16, sorte / 2}, meio},
 		{"INT 1250, não pega (17)", 1250, rolagens{17}, 0},
-		{"sem INT, pega (9 < 10), só ×2,0", 0, rolagens{9, 0}, 20},
+		{"sem INT, pega (9 < 10), só o piso", 0, rolagens{9, 0}, piso},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -292,7 +306,10 @@ func TestLancaDaEspadaMagicaNoGolpe(t *testing.T) {
 		return total
 	}
 	com, sem := soma(lanca), soma(espada)
-	if razao := float64(com) / float64(sem); razao < 1.35 || razao > 1.45 {
-		t.Fatalf("lança/espada = %.3f (%d/%d), want perto de 1,40", razao, com, sem)
+	// A razão esperada sai do botão, que o torneio move; a margem é do sorteio de
+	// dano, que é o mesmo dos dois lados.
+	quer := float64(espadaMagicaLancaPct) / float64(espadaMagicaArmaPct)
+	if razao := float64(com) / float64(sem); razao < quer*0.95 || razao > quer*1.05 {
+		t.Fatalf("lança/espada = %.3f (%d/%d), want perto de %.2f", razao, com, sem, quer)
 	}
 }

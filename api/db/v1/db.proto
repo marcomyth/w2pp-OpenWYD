@@ -23,6 +23,12 @@ service AccountService {
   rpc SaveCharacter(SaveCharacterRequest) returns (SaveCharacterResponse);
   rpc QuoteKingdomCape(QuoteKingdomCapeRequest) returns (QuoteKingdomCapeResponse);
   rpc PurchaseKingdomCape(PurchaseKingdomCapeRequest) returns (PurchaseKingdomCapeResponse);
+  // TransferPlayerBalance moves Cash or RMT between two accounts in one
+  // transaction: it is what pays for a sale in the Loja do Servidor, where the
+  // seller prices an item in a currency that lives on the account, not on the
+  // character. Insufficient funds come back in the body (ok=false, reason), not
+  // as a gRPC error — the same shape BuyResult uses in the donate shop.
+  rpc TransferPlayerBalance(TransferPlayerBalanceRequest) returns (TransferPlayerBalanceResponse);
   // CreateCharacter creates a character in a free slot (_MSG_DBCreateCharacter).
   rpc CreateCharacter(CreateCharacterRequest) returns (CreateCharacterResponse);
   // CreateArchCharacter creates the ARCH twin in the first free account slot
@@ -159,6 +165,15 @@ service AccountService {
   rpc SetGuildRelation(SetGuildRelationRequest) returns (SetGuildRelationResponse);
   rpc ListGuilds(ListGuildsRequest) returns (ListGuildsResponse);
   rpc ListGuildRelations(ListGuildRelationsRequest) returns (ListGuildRelationsResponse);
+  // Painel de Guilda (0079).
+  rpc ListGuildMembers(ListGuildMembersRequest) returns (ListGuildMembersResponse);
+  rpc SaveGuildNotice(SaveGuildNoticeRequest) returns (SaveGuildNoticeResponse);
+  rpc ListGuildSummaries(ListGuildSummariesRequest) returns (ListGuildSummariesResponse);
+  rpc ListGuildSquads(ListGuildSquadsRequest) returns (ListGuildSquadsResponse);
+  rpc SetGuildSquad(SetGuildSquadRequest) returns (SetGuildSquadResponse);
+  rpc ListGuildBuffs(ListGuildBuffsRequest) returns (ListGuildBuffsResponse);
+  rpc SaveGuildBuff(SaveGuildBuffRequest) returns (SaveGuildBuffResponse);
+  rpc DeleteGuildBuff(DeleteGuildBuffRequest) returns (DeleteGuildBuffResponse);
   rpc LoadGuildZones(LoadGuildZonesRequest) returns (LoadGuildZonesResponse);
   rpc SaveGuildZone(SaveGuildZoneRequest) returns (SaveGuildZoneResponse);
   rpc LoadGuildTowerState(LoadGuildTowerStateRequest) returns (LoadGuildTowerStateResponse);
@@ -193,6 +208,12 @@ message AccountLoginResponse {
   // #122) — the explicit server-side authority that replaces the legacy fragile
   // "character Level >= 1000" backdoor.
   string role = 3;
+  // As duas carteiras da conta, lidas no mesmo login. O tmServer não fala com o
+  // banco e precisa delas para o painel da Loja do Servidor dizer quanto o
+  // jogador tem de Cash e de RMT — antes ele mostrava zero sempre, e o jogador
+  // achava que tinha comprado de graça quando na verdade tinha saldo.
+  int32 cash = 4;
+  int32 rmt = 5;
 }
 
 message ListCharactersRequest { int64 account_id = 1; }
@@ -318,6 +339,11 @@ message Character {
   // Pergaminho_Selado for 100 and each passage through the Hall tile spends one
   // (migration 0068).
   int32 kefra_ticket = 55;
+  // MobExtra.QuestInfo.Mortal: o Molar de Gárgula já foi usado por este
+  // personagem (0093). O molar sobe o set vestido para +7 uma única vez, então a
+  // marca tem de sobreviver ao relog — é o que distingue esta quest do teleporte
+  // do mesmo NPC, que não guarda estado nenhum.
+  int32 mortal_molar = 56;
 }
 
 message Item {
@@ -337,6 +363,10 @@ message Item {
   // for an index and three effect pairs and nothing more, so this is the only
   // place an identity can live without costing the item an effect.
   int64 serial = 10;
+  // O anuncio em dinheiro real que TRAVA este item, ou 0 (migracao 0104).
+  // Mesma familia de expires_at e serial: campo que existe so deste lado do
+  // fio, porque o STRUCT_ITEM do jogo nao tem onde guardar mais nada.
+  int64 rmt_anuncio = 11;
 }
 
 message Affect {
@@ -370,6 +400,41 @@ message PurchaseKingdomCapeRequest {
 message PurchaseKingdomCapeResponse {
   bool ok = 1;
   QuoteKingdomCapeResponse quote = 2;
+}
+
+// PlayerCurrency is a wallet that lives on the ACCOUNT, beside the gold the
+// character carries. Gold is not here on purpose: the tmServer moves gold by
+// itself, inside its own loop.
+enum PlayerCurrency {
+  PLAYER_CURRENCY_UNSPECIFIED = 0;
+  PLAYER_CURRENCY_CASH = 1;   // account.donate_balance, the donate/PIX wallet
+  PLAYER_CURRENCY_RMT = 2;    // account.rmt_balance
+}
+
+// TransferPlayerBalanceReason says why a transfer did not happen. Anything not
+// listed is an infra failure and travels as a gRPC error.
+enum TransferPlayerBalanceReason {
+  TRANSFER_REASON_UNSPECIFIED = 0;
+  TRANSFER_REASON_INSUFFICIENT_FUNDS = 1;
+  TRANSFER_REASON_ACCOUNT_NOT_FOUND = 2;
+  TRANSFER_REASON_INVALID_AMOUNT = 3;   // zero, negative, or over the ceiling
+}
+
+message TransferPlayerBalanceRequest {
+  int64 from_account_id = 1;
+  int64 to_account_id = 2;
+  PlayerCurrency currency = 3;
+  int32 amount = 4;
+  // reason is free text for the audit trail (e.g. "loja: item 1030 de Seller").
+  string reason = 5;
+}
+
+message TransferPlayerBalanceResponse {
+  bool ok = 1;
+  TransferPlayerBalanceReason reason = 2;
+  // Balances after the move, so the caller can refresh what it shows.
+  int32 from_balance = 3;
+  int32 to_balance = 4;
 }
 
 message CreateCharacterRequest {
@@ -625,6 +690,24 @@ message Guild {
   int32 clan = 3;
   int32 fame = 4;
   int32 citizen = 5;
+  // O Painel de Guilda (0079). Nenhum destes tem equivalente no legado: o
+  // recado, quem o escreveu, quando, e o teto de membros da guilda.
+  string notice = 6;
+  string notice_by = 7;
+  int64 notice_at_unix = 8;   // 0 = nunca houve recado
+  int32 member_cap = 9;
+}
+
+// GuildMember é uma linha da aba Membros. O cargo é o guild_level 0..9, nao o
+// nível do personagem.
+message GuildMember {
+  int64 character_id = 1;
+  int64 account_id = 2;
+  int32 slot = 3;
+  string name = 4;
+  int32 guild_level = 5;
+  string status = 6;          // a linha que o próprio membro escreve
+  int64 last_seen_unix = 7;   // 0 = nunca visto desde que a coluna existe
 }
 
 enum GuildRelationKind {
@@ -701,6 +784,68 @@ message ListGuildsResponse { repeated Guild guilds = 1; }
 
 message ListGuildRelationsRequest {}
 message ListGuildRelationsResponse { repeated GuildRelation relations = 1; }
+
+// A aba Membros pede a guilda INTEIRA, inclusive quem está desconectado — é a
+// única coisa do painel que o tmServer não tem como responder de memória, que
+// só conhece quem está jogando agora.
+message ListGuildMembersRequest { uint32 guild_id = 1; }
+
+// Um buff de guilda correndo (0080_buffs_de_guilda). Os buffs valem 15 ou 30
+// dias, então precisam sobreviver a um restart: eles são comprados com cash.
+message GuildBuff {
+  uint32 guild_id = 1;
+  int32 buff_type = 2;        // 1..4
+  int64 expires_at_unix = 3;
+}
+
+// Só os que ainda valem: o boot não tem o que fazer com buff vencido.
+// Uma guilda como a tela "Guilds do Server" a mostra.
+message GuildSummary {
+  uint32 id = 1;
+  string name = 2;
+  string leader = 3;
+  int32 members = 4;
+  int32 fame = 5;
+}
+
+message ListGuildSummariesRequest { int32 limit = 1; }
+message ListGuildSummariesResponse { repeated GuildSummary guilds = 1; }
+
+// A escalacao de uma cidade (0081_convocacao_de_guilda).
+message GuildSquad {
+  int32 zone = 1;
+  repeated string names = 2;
+}
+
+message ListGuildSquadsRequest { uint32 guild_id = 1; }
+message ListGuildSquadsResponse { repeated GuildSquad squads = 1; }
+
+message SetGuildSquadRequest {
+  uint32 guild_id = 1;
+  int32 zone = 2;
+  repeated string names = 3;
+}
+message SetGuildSquadResponse { bool ok = 1; }
+
+message ListGuildBuffsRequest {}
+message ListGuildBuffsResponse { repeated GuildBuff buffs = 1; }
+
+message SaveGuildBuffRequest { GuildBuff buff = 1; }
+message SaveGuildBuffResponse { bool ok = 1; }
+
+message DeleteGuildBuffRequest {
+  uint32 guild_id = 1;
+  int32 buff_type = 2;
+}
+message DeleteGuildBuffResponse { bool ok = 1; }
+message ListGuildMembersResponse { repeated GuildMember members = 1; }
+
+message SaveGuildNoticeRequest {
+  uint32 guild_id = 1;
+  string notice = 2;
+  string notice_by = 3;
+}
+message SaveGuildNoticeResponse { bool ok = 1; }
 
 message GuildZone {
   int32 zone = 1;

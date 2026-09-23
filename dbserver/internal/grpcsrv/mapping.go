@@ -2,6 +2,7 @@ package grpcsrv
 
 import (
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -11,6 +12,25 @@ import (
 
 // uniqueViolation is the PostgreSQL SQLSTATE for a unique-constraint conflict.
 const uniqueViolation = "23505"
+
+// guildNoticeMaxRunes is the guild notice board's limit, the same 240 the
+// guild_notice_len_check constraint enforces (0079_painel_de_guilda). It is
+// counted in RUNES here and in CHARACTERS by char_length(), which agree: both
+// count code points, not bytes, so an accented recado is not cut short.
+const guildNoticeMaxRunes = 240
+
+// guildBuffTipoMax espelha o CHECK (buff_type BETWEEN 1 AND 4) da tabela
+// guild_buff (0080_buffs_de_guilda) e o número de buffs que o painel mostra.
+const guildBuffTipoMax = 4
+
+// guildListaMax espelha protocol.GuildaListaMax: o teto de linhas que a tela
+// "Guilds do Server" mostra. Pedir mais do que cabe na tela e trabalho jogado
+// fora no banco.
+const guildListaMax = 60
+
+// guildEsquadraMax espelha protocol.GuildaEsquadraMax: o teto de nomes numa
+// escalacao de cidade.
+const guildEsquadraMax = 60
 
 // isUniqueViolation reports whether err is a PostgreSQL unique-constraint error
 // (e.g. a taken character slot or name on create).
@@ -183,17 +203,31 @@ func protoToByteArr(v []uint32, n int) []uint8 {
 	return out
 }
 
+// itemToProto e protoToItems são a fronteira do item entre o banco e o jogo, e
+// tudo que o item carrega tem de aparecer NAS DUAS. Um campo esquecido aqui não
+// dá erro em lugar nenhum: ele simplesmente chega zerado do outro lado, e o zero
+// é um valor legítimo em todos eles.
+//
+// Foi o que aconteceu com o serial. A 0033 o criou para que duas cópias do mesmo
+// item fossem PROVA de duplicação e não suspeita, mas ele nunca atravessou estas
+// duas funções — então o dbServer devolvia serial 0 em toda carga, e toda
+// gravação escrevia 0 por cima. O recurso estava no banco, no domínio e no fio,
+// e mesmo assim não existia. Não havia teste que cruzasse a fronteira; havia
+// teste do store (serial_integration_test.go), que passava, e teste do gRPC, que
+// não olhava o campo.
 func itemToProto(it domain.Item) *dbv1.Item {
 	return &dbv1.Item{
-		Slot:      int32(it.Slot),
-		Index:     int32(it.Index),
-		Eff1:      int32(it.Eff1),
-		Effv1:     int32(it.EffV1),
-		Eff2:      int32(it.Eff2),
-		Effv2:     int32(it.EffV2),
-		Eff3:      int32(it.Eff3),
-		Effv3:     int32(it.EffV3),
-		ExpiresAt: it.ExpiresAt,
+		Slot:       int32(it.Slot),
+		Index:      int32(it.Index),
+		Eff1:       int32(it.Eff1),
+		Effv1:      int32(it.EffV1),
+		Eff2:       int32(it.Eff2),
+		Effv2:      int32(it.EffV2),
+		Eff3:       int32(it.Eff3),
+		Effv3:      int32(it.EffV3),
+		ExpiresAt:  it.ExpiresAt,
+		Serial:     it.Serial,
+		RmtAnuncio: it.AnuncioRMT,
 	}
 }
 
@@ -215,15 +249,17 @@ func protoToItems(items []*dbv1.Item) []domain.Item {
 	out := make([]domain.Item, 0, len(items))
 	for _, it := range items {
 		out = append(out, domain.Item{
-			Slot:      int(it.GetSlot()),
-			Index:     int16(it.GetIndex()),
-			Eff1:      uint8(it.GetEff1()),
-			EffV1:     uint8(it.GetEffv1()),
-			Eff2:      uint8(it.GetEff2()),
-			EffV2:     uint8(it.GetEffv2()),
-			Eff3:      uint8(it.GetEff3()),
-			EffV3:     uint8(it.GetEffv3()),
-			ExpiresAt: it.GetExpiresAt(),
+			Slot:       int(it.GetSlot()),
+			Index:      int16(it.GetIndex()),
+			Eff1:       uint8(it.GetEff1()),
+			EffV1:      uint8(it.GetEffv1()),
+			Eff2:       uint8(it.GetEff2()),
+			EffV2:      uint8(it.GetEffv2()),
+			Eff3:       uint8(it.GetEff3()),
+			EffV3:      uint8(it.GetEffv3()),
+			ExpiresAt:  it.GetExpiresAt(),
+			Serial:     it.GetSerial(),
+			AnuncioRMT: it.GetRmtAnuncio(),
 		})
 	}
 	return out
@@ -263,12 +299,49 @@ func protoToAffects(affects []*dbv1.Affect) []domain.Affect {
 
 func guildToProto(g domain.Guild) *dbv1.Guild {
 	return &dbv1.Guild{
-		Id:      uint32(g.ID),
-		Name:    g.Name,
-		Clan:    int32(g.Clan),
-		Fame:    g.Fame,
-		Citizen: int32(g.Citizen),
+		Id:           uint32(g.ID),
+		Name:         g.Name,
+		Clan:         int32(g.Clan),
+		Fame:         g.Fame,
+		Citizen:      int32(g.Citizen),
+		Notice:       g.Notice,
+		NoticeBy:     g.NoticeBy,
+		NoticeAtUnix: unixOrZero(g.NoticeAt),
+		MemberCap:    int32(g.MemberCap),
 	}
+}
+
+// unixOrZero manda a hora zero como 0 em vez do -62135596800 que time.Time{}
+// vira em Unix(). O painel testa "== 0" para saber se nunca houve recado, e um
+// número negativo gigante passaria nesse teste como se fosse uma data de 1754.
+func unixOrZero(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.Unix()
+}
+
+func guildMemberToProto(m domain.GuildMember) *dbv1.GuildMember {
+	return &dbv1.GuildMember{
+		CharacterId:  m.CharacterID,
+		AccountId:    m.AccountID,
+		Slot:         int32(m.Slot),
+		Name:         m.Name,
+		GuildLevel:   int32(m.Level),
+		Status:       m.Status,
+		LastSeenUnix: unixOrZero(m.LastSeen),
+	}
+}
+
+func guildMembersToProto(members []domain.GuildMember) []*dbv1.GuildMember {
+	if len(members) == 0 {
+		return nil
+	}
+	out := make([]*dbv1.GuildMember, 0, len(members))
+	for _, m := range members {
+		out = append(out, guildMemberToProto(m))
+	}
+	return out
 }
 
 func guildsToProto(guilds []domain.Guild) []*dbv1.Guild {

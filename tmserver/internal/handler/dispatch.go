@@ -328,16 +328,21 @@ type Dispatcher struct {
 	affectDur         world.AffectDuration         // cast-affect duration tuning (issue #229)
 	serverIndex       int                          // legacy guild id high bits
 	guildZones        [5]world.GuildZone           // loop-owned city/guild-zone cache
+	mercadoVersao     int32                        // sobe a cada mudanca do mercado; vai no bilhete de aviso
 	taxChangedAt      [5]time.Time                 // day each zone's guildtax last changed (one change/day, lote2-chat.md)
 	guildWars         map[uint16]uint16            // directed guild -> current war target
 	guildAllies       map[uint16]uint16            // directed guild -> current ally target
-	towerState        world.GuildTowerState        // loop-owned GTorre ownership cache
-	castleState       world.CastleQuestState       // loop-owned Castle/Zakum state cache
-	castleQuests      []content.CastleQuest
-	levelItems        *content.LevelItems
-	castleParty       [world.MaxParty + 1]int
-	guildStateLoad    bool // guild persistence boot snapshot has been applied
-	guildStateBusy    bool // one guild-state load in flight
+	// O Painel de Guilda (guildapainel.go): o quadro de membros lido do banco,
+	// guardado por uma janela curta, e até quando cada buff de guilda vale.
+	guildaQuadro   map[uint16]quadroDeGuilda
+	guildaBuffs    map[uint16]*buffsDaGuilda
+	towerState     world.GuildTowerState  // loop-owned GTorre ownership cache
+	castleState    world.CastleQuestState // loop-owned Castle/Zakum state cache
+	castleQuests   []content.CastleQuest
+	levelItems     *content.LevelItems
+	castleParty    [world.MaxParty + 1]int
+	guildStateLoad bool // guild persistence boot snapshot has been applied
+	guildStateBusy bool // one guild-state load in flight
 
 	// NPC-config overlay (npc-editing-plan.md). All loop-only. baseItemPrices is the
 	// immutable content catalog; itemPrices is the effective map (base + global
@@ -629,6 +634,8 @@ func New(cfg Config) *Dispatcher {
 		serverIndex:       cfg.ServerIndex,
 		guildWars:         make(map[uint16]uint16),
 		guildAllies:       make(map[uint16]uint16),
+		guildaQuadro:      make(map[uint16]quadroDeGuilda),
+		guildaBuffs:       make(map[uint16]*buffsDaGuilda),
 		npcSource:         cfg.NpcConfig,
 		managedNPCs:       make(map[string]int),
 		worldEventSource:  cfg.WorldEvents,
@@ -726,6 +733,16 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgSendAutoTrade] = d.sendAutoTrade
 	d.routes[protocol.MsgReqTradeList] = d.reqTradeList
 	d.routes[protocol.MsgReqBuy] = d.reqBuy
+	d.routes[protocol.MsgLojaPede] = d.lojaPede
+	d.routes[protocol.MsgLojaFecha] = d.lojaFecha
+	d.routes[protocol.MsgLojaMoeda] = d.lojaMoeda
+	d.routes[protocol.MsgLojaCompra] = d.lojaCompra
+	d.routes[protocol.MsgLojaCargo] = d.lojaCargo
+	d.routes[protocol.MsgLojaAbrir] = d.lojaAbrir
+	// Loja de Honra (loja_de_honra.go). Abrir nao tem rota: quem abre e o clique
+	// no NPC, que chega como MsgReqShopList.
+	d.routes[protocol.MsgHonraCompra] = d.honraCompra
+	d.routes[protocol.MsgHonraFecha] = d.honraFecha
 	// Batch 6 — combine/refine (one engine, all Item[]-based variants).
 	for _, ty := range combineItemTypes {
 		d.routes[ty] = d.combineItem
@@ -752,6 +769,16 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgMessageChat] = d.messageChat
 	d.routes[protocol.MsgMessageWhisper] = d.messageWhisper
 	d.routes[protocol.MsgApplyBonus] = d.applyBonus
+	d.routes[protocol.MsgPontosEmLote] = d.pontosEmLote
+	// Painel de Guilda (guildapainel.go). Os buffs não têm rota de ativação: quem
+	// liga um buff é um item de cash, pelo caminho normal de usar item.
+	d.routes[protocol.MsgGuildaPede] = d.guildaPede
+	d.routes[protocol.MsgGuildaConvoca] = d.guildaConvoca
+	d.routes[protocol.MsgGuildaRecado] = d.guildaRecado
+	d.routes[protocol.MsgGuildaStatus] = d.guildaStatus
+	d.routes[protocol.MsgGuildaCria] = d.guildaCria
+	d.routes[protocol.MsgGuildaAtiva] = d.guildaAtiva
+	d.routes[protocol.MsgGuildaDesigna] = d.guildaDesigna
 	d.routes[protocol.MsgSetShortSkill] = d.setShortSkill
 	d.routes[protocol.MsgAccountSecure] = d.accountSecure
 	d.routes[protocol.MsgQuest] = d.quest

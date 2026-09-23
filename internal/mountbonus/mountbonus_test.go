@@ -18,13 +18,45 @@ func TestSvadilfariBateComOTooltip(t *testing.T) {
 	}
 }
 
+// TestEsferaEUmaLinhaSo pins this server's own product: the spheres
+// (client/montarias) are told apart by how they look, not by what they lend, so
+// every one of the seven carries the same numbers — 350/50 e os 12% de XP. A
+// row that drifts here makes one sphere quietly better than its siblings, which
+// nothing on the client's tooltip would ever reveal — that band has no stat
+// line at all.
+func TestEsferaEUmaLinhaSo(t *testing.T) {
+	want := Bonus{Attack: 350, Magic: 50}
+	for idx := int16(EsferaLo); idx <= EsferaHi; idx++ {
+		b, ok := Default(idx)
+		if !ok {
+			t.Errorf("esfera %d não está na tabela", idx)
+			continue
+		}
+		if b != want {
+			t.Errorf("esfera %d = %+v, want %+v", idx, b, want)
+		}
+		if e, ok := TempExtra(idx); !ok || e.ExpPct != 12 {
+			t.Errorf("esfera %d XP = %+v (achou=%v), want 12%%", idx, e, ok)
+		}
+	}
+}
+
+// TestVagaComTooltipFicaLivre: 3995 is the last slot whose stats the client can
+// draw. Filling it is a decision, not an accident — if this starts failing,
+// someone spent it.
+func TestVagaComTooltipFicaLivre(t *testing.T) {
+	if _, ok := Default(3995); ok {
+		t.Error("3995 deixou de estar livre; era a única vaga com tooltip")
+	}
+}
+
 func TestPadraoSoValeParaMontaria(t *testing.T) {
-	for _, idx := range []int16{2359, 2390, 3979, 3995, 0} {
+	for _, idx := range []int16{2359, 2390, 2968, 2976, 3979, 3995, 0} {
 		if _, ok := Default(idx); ok {
 			t.Errorf("Default(%d) = ok, e %d não é montaria", idx, idx)
 		}
 	}
-	for _, idx := range []int16{AdultLo, AdultHi, TempLo, TempHi} {
+	for _, idx := range []int16{AdultLo, AdultHi, TempLo, TempHi, EsferaLo, EsferaHi} {
 		if _, ok := Default(idx); !ok {
 			t.Errorf("Default(%d) = !ok, e %d é montaria", idx, idx)
 		}

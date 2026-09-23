@@ -40,14 +40,14 @@ func TestLancaDeGeloDeixaOMonstroLento(t *testing.T) {
 	mob, pet := w.Entity(mid), w.Entity(pid)
 	pet.Summoner = 7
 
-	if got := cadenciaDoGolpe(mob); got != mobAttackCadence {
+	if got := cadenciaDoGolpe(mob, nil); got != mobAttackCadence {
 		t.Fatalf("monstro sem afeto: cadência %d, esperado %d", got, mobAttackCadence)
 	}
 	d.applyMobSkill(w, pet, mob, mobSkill{index: 34})
 	if mob.AffRunSpeed >= 0 {
 		t.Fatalf("a Lança de Gelo não tirou corrida do monstro (AffRunSpeed %d)", mob.AffRunSpeed)
 	}
-	if got := cadenciaDoGolpe(mob); got <= mobAttackCadence {
+	if got := cadenciaDoGolpe(mob, nil); got <= mobAttackCadence {
 		t.Errorf("monstro lento: cadência %d, tinha de passar de %d", got, mobAttackCadence)
 	}
 	presos := 0

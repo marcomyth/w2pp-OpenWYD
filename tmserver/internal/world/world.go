@@ -591,6 +591,7 @@ func (w *World) CharacterSaveFor(s *Session, e *Entity) CharacterSave {
 	cs.SubCelestialAtivo, cs.CelestialReset = e.SubCelestialAtivo, e.CelestialReset
 	cs.TerraMistica = e.TerraMistica
 	cs.NewbieQuest = e.NewbieQuest
+	cs.MolarGargula = e.MolarGargula
 	cs.LastCity = e.LastCity
 	cs.SaveX, cs.SaveY = e.SaveX, e.SaveY
 	cs.Level, cs.Exp, cs.Coin = e.Level, e.Exp, e.Coin
@@ -643,8 +644,9 @@ func (w *World) savedItems(items []Item) []SavedItem {
 			Eff1:  it.Effects[0].Effect, EffV1: it.Effects[0].Value,
 			Eff2: it.Effects[1].Effect, EffV2: it.Effects[1].Value,
 			Eff3: it.Effects[2].Effect, EffV3: it.Effects[2].Value,
-			ExpiresAt: it.ExpiresAt,
-			Serial:    it.Serial,
+			ExpiresAt:  it.ExpiresAt,
+			Serial:     it.Serial,
+			AnuncioRMT: it.AnuncioRMT,
 		})
 	}
 	return out

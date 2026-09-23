@@ -17,6 +17,7 @@ em 14/09/2026; o design fica no artefato "Atlas de Quests W2PP".
 ✅ Recalibrada em 16/09: Enigma no centro depois de 100 abates, 4 Caos, todos montados com arma +11, escada nova de adds <br/>
 ✅ Troll Caos com menos arma e âmagos em pacote, Enigma com Pergaminho da Água (0069) <br/>
 ✅ Depois do primeiro teste: tropa renasce, Insano com 36 mil de HP, Restos de Ori e Lac (0071), relógio das arenas poupa o grupo <br/>
+✅ 21/09: dano de todos −40% e o Enigma com 600 mil de vida e 2.400 de defesa <br/>
 ⏳ A descrição nova da Chave do Rei Orc no `itemhelp.dat` precisa ir pelo launcher <br/>
 ⏳ O contador gráfico: o `GamePatch.dll` com o campo (20,15) precisa ser compilado e ir pelo launcher <br/>
 ⏳ Prêmio de conclusão e trava de nível/evolução <br/>
@@ -92,13 +93,40 @@ do tier correspondente do Castelo Orc e foram recalibradas em 16/09/2026, a pedi
 do Marco: o Mago com metade do HP e do dano, o Caos com o HP que era do Mago, a
 tropa com metade do dano. Depois do primeiro teste, o Insano dobrou de HP (18 mil para 36 mil). No segundo teste o Enigma caiu pela metade no HP e no dano (3 mi para 1,5 mi; 2.020 para 1.010).
 
+**21/09/2026, o dano −40% e a parede do Enigma.** A equipe levou mono aqui, e o
+relato apontou dois culpados: o Troll Caos e o Enigma. Os dois pesavam por
+motivos diferentes.
+
+- **O dano de todo monstro da quest caiu 40%** (decisão do Marco, a mesma das
+  duas quests — `docs/castelo-orc.md`), vida e defesa intactas: tropa 610 → 366,
+  Mago 760 → 456, Caos 1.620 → 972, Enigma 1.010 → 606.
+- **O Caos era o problema de dano**, e não o boss: ele batia 725 por golpe num
+  Mortal de 1.400 de defesa contra os 253 do Enigma, e são QUATRO — os quatro
+  juntos passavam os 2.000 por segundo da poção. Agora tira 222, e os quatro
+  somam 888.
+- **O Enigma era parede, não dano.** 1,5 milhão de vida e 3.000 de defesa viraram
+  **600 mil e 2.400**: a defesa do monstro desconta metade de cada golpe de quem
+  bate nele, então os 3.000 comiam metade do ataque de um set +6/+9. Ele cai em
+  ~45 s com um jogador desse perfil (eram ~2 min) e em ~15 s com um grupo de
+  quatro. **A vida ficou nesse patamar por decisão do Marco** — o ajuste de 40%
+  foi só no dano.
+
+O que sobra de dano depois do corte, contra os mesmos 1.400 de defesa: tropa
+**1**, Mago **1**, Caos **222**, Enigma **1**. O acampamento inteiro fora o Caos
+passou a não machucar quem tem set +6/+9 — o desconto de AC/2 zera golpe pequeno.
+Quem estiver com defesa 1.200 ainda sente o Caos (297) e pouco mais.
+
+A medida dos dois lados — quanto o bicho tira e quanto tempo leva para cair, por
+perfil de personagem — está em `TestSimulacaoQuestsChefesDoTroll`
+(`handler/simulacao_quests_test.go`, tag `simulacao`).
+
 | Template | Nome no jogo | Veio de | Papel | Nv | HP | Defesa | Dano | Resist. | Montaria | Bloco |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `ATroll_Enigma` | Troll Enigma | `Troll_Enigma` | boss | 350 | 1.500.000 | 3.000 | 1.010 | 25 | Cavalo Fantasma B (2372) | 6116 |
-| `ATroll_Mago` | Troll Mago | `Troll_Mago` | seguidor | 320 | 75.000 | 2.200 | 760 | 15 | Dente de Sabre (2365) | 6117 (grupo de 4) |
-| `ATroll_Caos` | Troll Caos | `Troll_Caos` | guardião | 330 | 150.000 | 2.400 | 1.620 | 20 | Cavalo s/Sela N (2366) | 6118, 6119 (2 cada) |
-| `ATroll_Insano` | Troll Insano | `Troll_Insano` | tropa | 300 | 36.000 | 1.800 | 610 | 10 | Dragão Menor (2363) | 6120–6123 |
-| `ATroll_Cacador` | Caçador Troll | `Cacador_Troll` | tropa | 300 | 18.000 | 1.800 | 610 | 10 | Dente de Sabre (2365) | 6124–6127 |
+| `ATroll_Enigma` | Troll Enigma | `Troll_Enigma` | boss | 350 | 600.000 | 2.400 | 606 | 25 | Cavalo Fantasma B (2372) | 6116 |
+| `ATroll_Mago` | Troll Mago | `Troll_Mago` | seguidor | 320 | 75.000 | 2.200 | 456 | 15 | Dente de Sabre (2365) | 6117 (grupo de 4) |
+| `ATroll_Caos` | Troll Caos | `Troll_Caos` | guardião | 330 | 150.000 | 2.400 | 972 | 20 | Cavalo s/Sela N (2366) | 6118, 6119 (2 cada) |
+| `ATroll_Insano` | Troll Insano | `Troll_Insano` | tropa | 300 | 36.000 | 1.800 | 366 | 10 | Dragão Menor (2363) | 6120–6123 |
+| `ATroll_Cacador` | Caçador Troll | `Cacador_Troll` | tropa | 300 | 18.000 | 1.800 | 366 | 10 | Dente de Sabre (2365) | 6124–6127 |
 
 - **Visual:** todos montados e com a arma do Troll original em +11 (EF_SANC 234).
   Só aparência, como nos guardiões do Castelo Orc: o Equip de monstro é visual e

@@ -35,6 +35,14 @@ const defaultMountAbsorb = domain.DefaultMountAbsorb
 func (d *Dispatcher) absorbBlow(w *world.World, victim *world.Entity, dam int, byPlayer bool) int {
 	// O Rei Azul dos Reinos absorve parte de todo golpe (reinos.go).
 	dam = absorcaoDoRei(victim, dam)
+	// A Proteção Elemental do BM com a 8ª (arvore_elemental.go). Aqui, junto das
+	// outras absorções, porque este é o ponto único por onde todo golpe passa —
+	// de jogador, de monstro e dos tiques de área.
+	dam = absorcaoDaProtecaoElemental(victim, dam)
+	// A Armadura Elemental do BM, a passiva da árvore Natureza (arvore_natureza.go).
+	// A fatia PERCENTUAL dela mora aqui; o desconto PLANO do legado continua em
+	// reflectDamage (pvp.go), que é outro ponto e outro papel.
+	dam = d.absorcaoDaArmaduraElemental(victim, dam)
 	if dam <= 0 || victim == nil || !world.IsPlayer(victim.ID) {
 		return dam
 	}

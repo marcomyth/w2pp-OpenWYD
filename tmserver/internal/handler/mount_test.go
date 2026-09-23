@@ -93,8 +93,11 @@ func TestMontariasNaoSaoMaisIguais(t *testing.T) {
 
 // TestMountBonusForNonMount: display/permanent mounts (315-346, e.g. Shire 342) and
 // baby mounts get nothing, matching legacy BASE_GetItemAbility coverage.
+//
+// 2968 and 2976 sit just outside the sphere band (client/montarias): the band
+// is exactly 2969-2975, and nothing around it lends anything.
 func TestMountBonusForNonMount(t *testing.T) {
-	for _, idx := range []int16{0, 342, 2330, 2361, 3995} {
+	for _, idx := range []int16{0, 342, 2330, 2361, 2968, 2976, 3995} {
 		if _, ok := mountBonusFrom(nil, world.Item{Index: idx}); ok {
 			t.Errorf("mountBonusFrom(%d) ok = true, want false", idx)
 		}
@@ -103,6 +106,38 @@ func TestMountBonusForNonMount(t *testing.T) {
 
 // TestMountEquipScore is the end-to-end score path: equipping a temp mount in Equip[14]
 // raises Attack (Damage), Magic, Evasion (Parry) and Resist; unequipping drops them back.
+// TestEsferaEquipScore is the sphere's end-to-end proof: the client draws no
+// stat line for the 2969-2975 band, so the ONLY way to know these mounts lend
+// anything is to read it off the score here.
+func TestEsferaEquipScore(t *testing.T) {
+	d := New(Config{})
+	e := &world.Entity{ID: 1, Level: 50, Damage: 205}
+	e.Equip[0] = world.Item{Index: 11}
+	d.deriveBaseScore(e)
+	d.refreshScore(e)
+	baseDamage, baseMagic := e.Damage, e.Magic
+
+	e.Equip[mountEquipSlot] = world.Item{Index: 2969} // Tigre de Cristal (Esfera)
+	d.refreshScore(e)
+	e.EquipExpBonus = d.equipExpBonus(e)
+	if e.Damage != baseDamage+350 {
+		t.Errorf("montado Damage = %d, want %d (+350)", e.Damage, baseDamage+350)
+	}
+	if e.Magic != baseMagic+12 { // (50+1)/4 = 12
+		t.Errorf("montado Magic = %d, want %d (+12)", e.Magic, baseMagic+12)
+	}
+	if d.expBonus(e) != 12 {
+		t.Errorf("bônus de XP = %d, want 12", d.expBonus(e))
+	}
+
+	e.Equip[mountEquipSlot] = world.Item{}
+	d.refreshScore(e)
+	e.EquipExpBonus = d.equipExpBonus(e)
+	if e.Damage != baseDamage || e.Magic != baseMagic || d.expBonus(e) != 0 {
+		t.Errorf("desmontado = %d/%d/%d, want %d/%d/0", e.Damage, e.Magic, d.expBonus(e), baseDamage, baseMagic)
+	}
+}
+
 func TestMountEquipScore(t *testing.T) {
 	d := New(Config{CombatRules: regraSemEscala()})
 	e := &world.Entity{ID: 1, Level: 50, Damage: 205}

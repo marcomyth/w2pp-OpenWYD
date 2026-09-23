@@ -52,7 +52,9 @@ func merchantParaOCliente(e *world.Entity) uint8 {
 	if e.ShopOwner != 0 {
 		return shopCloneMerchant // o clone da lojinha: plaquinha sempre à mostra
 	}
-	if ehLojaDeEmblema(e) {
+	// A Loja de Honra usa o mesmo truque, e pela mesma razao: o Merchant 104 do
+	// God of War cairia em _MSG_Quest, que ninguem trata. Ver loja_de_honra.go.
+	if ehLojaDeEmblema(e) || ehLojaDeHonra(e) {
 		return merchantDeLojaCli
 	}
 	return e.Merchant

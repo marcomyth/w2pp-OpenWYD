@@ -31,6 +31,10 @@ const efGrade0 = 100
 // equipped item grants its wearer.
 const efRange = 27
 
+// DividerEquipSlot é o slot da fada (Equip[13]), o único slot do equipamento de
+// monstro que este port carrega — ver SpawnMob.
+const DividerEquipSlot = 13
+
 // Send queues an "about you" S→C message: HEADER.ID is set to the session's own
 // conn and ClientTick is filled in.
 func (w *World) Send(s *Session, t protocol.Type, payload []byte) {
@@ -182,6 +186,22 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 	eq := protocol.MobEquip(template)
 	for i := range eq {
 		e.EquipVisual[i], e.EquipAnct[i] = protocol.VisualEquip(eq[i], i)
+	}
+	// O equipamento de monstro é aparência neste port, com UMA exceção: o item do
+	// slot da fada quando ele é um dos três divisores de dano do legado (786, 1936
+	// e 1937). Todo golpe, magia, veneno e cura em cima do portador é dividido por
+	// ele (_MSG_Attack.cpp:649,1570, Server.cpp:10066, ProcessSecMinTimer.cpp:2339),
+	// e é assim que o legado dá vida de chefe: não somando vida, dividindo o dano.
+	//
+	// Só esses três índices entram, e por dois motivos: nenhum deles carrega efeito
+	// de atributo no catálogo (só EF_CLASS 255), então o score do monstro não muda;
+	// e preencher o Equip inteiro é outra obra, que mexe em 204 templates que nascem.
+	if it := eq[DividerEquipSlot]; it.Index == 786 || it.Index == 1936 || it.Index == 1937 {
+		div := Item{Index: int16(it.Index)}
+		for k, ef := range it.Eff {
+			div.Effects[k] = Effect{Effect: ef[0], Value: ef[1]}
+		}
+		e.Equip[DividerEquipSlot] = div
 	}
 	// Attack reach = BASE_GetMobAbility(EF_RANGE) (Basedef.cpp:2415): the MAX over
 	// the equips of each item's EF_RANGE — catalog base effect plus the instance

@@ -224,6 +224,7 @@ func run(logger *slog.Logger) error {
 	}
 	webv1.RegisterAccountWebServiceServer(srv, grpcsrv.New(account.New(st)))
 	webv1.RegisterRankingWebServiceServer(srv, grpcsrv.NewRanking(ranking.New(st)))
+	webv1.RegisterRmtWebServiceServer(srv, grpcsrv.NewRmt(st))
 	webv1.RegisterCharacterWebServiceServer(srv, grpcsrv.NewCharacters(characters.New(st)))
 	webv1.RegisterItemCatalogServiceServer(srv, grpcsrv.NewItemCatalog(itemCatalog))
 	npcAdminSrv := grpcsrv.NewNpcAdmin(npcAdmin)

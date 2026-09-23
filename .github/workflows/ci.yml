@@ -3,8 +3,15 @@ name: CI
 on:
   push:
     branches: [main]
+  # Sem filtro de alvo, de proposito. Enquanto era `branches: [main]`, todo PR
+  # que nao apontasse para a main entrava com ZERO checagem — e ninguem via,
+  # porque "nenhum check" e silencio, nao vermelho. O trabalho longo do projeto
+  # acontece em branch de integracao (a loja-do-servidor recebeu dezenas de PRs
+  # assim), e era justamente ali que a rede nao existia.
+  #
+  # Nao e lista de branches: uma lista volta a morder na proxima branch que
+  # alguem criar, e quem a criar nao vai lembrar de vir aqui.
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read

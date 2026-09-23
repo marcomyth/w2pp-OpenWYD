@@ -223,6 +223,23 @@ const (
 	// gives.
 	NoticeWaterLevelTooLow
 	NoticePesadeloLevelTooLow
+
+	// NoticeValeSemFada: o piso de Azran só leva ao Vale Escondido com a Fada do
+	// Vale no slot 13 (GetFunc.cpp:924-931, vale.go). Sem linha no Language.txt —
+	// no legado a recusa é o silêncio, e aqui ela fala, pelo motivo que vale.go
+	// explica. Acrescentada no fim pelo motivo que NoticeLevelLimit explica.
+	NoticeValeSemFada
+
+	// NoticeErvaSemEfeito: as Ervas de Cura tiram lentidão e debuff básico, e
+	// quem as usa sem nada para tirar não perde a erva. Sem linha no
+	// Language.txt: no legado a 415 não fazia nada, então não há recusa a
+	// reaproveitar. Acrescentada no fim pelo motivo que NoticeLevelLimit explica.
+	NoticeErvaSemEfeito
+
+	// NoticeOnlyGuildMember is _NN_Only_Guild_Member_Can: falar no canal de
+	// guilda sem ter guilda (_MSG_MessageWhisper.cpp:1439). Acrescentada no fim
+	// pelo motivo que NoticeLevelLimit explica.
+	NoticeOnlyGuildMember
 )
 
 // noticeKey maps a Notice to its key in the shipped client string table
@@ -267,8 +284,9 @@ var noticeKey = map[Notice]string{
 	NoticeAlreadyDone:   "_NN_Youve_Done_It_Already", // 71
 
 	// Chat / whisper.
-	NoticeNotConnected: "_NN_Not_Connected", // 91
-	NoticeDenyWhisper:  "_NN_Deny_Whisper",  // 165
+	NoticeNotConnected:    "_NN_Not_Connected",         // 91
+	NoticeDenyWhisper:     "_NN_Deny_Whisper",          // 165
+	NoticeOnlyGuildMember: "_NN_Only_Guild_Member_Can", // 104
 
 	// Skills.
 	NoticeOtherClassSkill:     "_NN_Cant_Learn_Other_Class_Skill", // 107
@@ -343,6 +361,12 @@ var noticeText = map[Notice]string{
 	NoticeCantRefineMore: "Este item não pode ser mais refinado.",             // 75
 	NoticeFailToRefine:   "Refinação falhou.",                                 // 76
 	NoticeRefineSuccess:  "Obteve sucesso na refinação.",                      // 176
+
+	// Vale Escondido: a rota é do legado, o aviso é deste port (vale.go).
+	NoticeValeSemFada: "Sem a Fada do Vale equipada não se entra no Vale Escondido.",
+
+	// Ervas de Cura: o efeito é deste port (item.go).
+	NoticeErvaSemEfeito: "Não há nada para curar.",
 
 	// Paint. No Language.txt id: see the DELIBERATE DIVERGENCE note above.
 	NoticePaintSuccess: "Item pintado com sucesso.",

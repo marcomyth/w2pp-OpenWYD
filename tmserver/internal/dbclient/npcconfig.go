@@ -70,15 +70,16 @@ func (c *NpcConfig) Snapshot(ctx context.Context) (npccfg.Snapshot, error) {
 			cache[d.GetTemplateName()] = tmpl
 		}
 		def := npccfg.Definition{
-			Slug:        d.GetSlug(),
-			Template:    tmpl,
-			DisplayName: d.GetDisplayName(),
-			Enabled:     d.GetEnabled(),
-			X:           int16(d.GetPosX()),
-			Y:           int16(d.GetPosY()),
-			RouteType:   uint8(d.GetRouteType()),
-			Merchant:    uint8(d.GetMerchant()),
-			Origin:      d.GetOrigin(), GeneratorIndex: int(d.GetGeneratorIndex()),
+			Slug:         d.GetSlug(),
+			Template:     tmpl,
+			TemplateName: d.GetTemplateName(),
+			DisplayName:  d.GetDisplayName(),
+			Enabled:      d.GetEnabled(),
+			X:            int16(d.GetPosX()),
+			Y:            int16(d.GetPosY()),
+			RouteType:    uint8(d.GetRouteType()),
+			Merchant:     uint8(d.GetMerchant()),
+			Origin:       d.GetOrigin(), GeneratorIndex: int(d.GetGeneratorIndex()),
 			MinuteGenerate: int(d.GetMinuteGenerate()), MinGroup: int(d.GetMinGroup()),
 			MaxGroup: int(d.GetMaxGroup()), MaxNumMob: int(d.GetMaxNumMob()), Formation: int(d.GetFormation()),
 		}

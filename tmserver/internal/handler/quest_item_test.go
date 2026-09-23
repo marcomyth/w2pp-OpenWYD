@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
@@ -51,7 +52,11 @@ func collectQuestResult(t *testing.T, c net.Conn, limit int) (exp int64, coin in
 	return
 }
 
+// Um clique gasta a PILHA INTEIRA e paga por cada unidade: três troféus valem três
+// vezes a XP e o gold do degrau, e o espaço fica vazio. Era uma unidade por clique
+// até 21/09/2026 (useQuestReward).
 func TestQuestItemRewardAllTiersAndStackConsumption(t *testing.T) {
+	const pilha = 3
 	tiers := []struct {
 		item int16
 		lvl  int
@@ -60,19 +65,86 @@ func TestQuestItemRewardAllTiersAndStackConsumption(t *testing.T) {
 	}{{4117, 39, 1000, 2000}, {4118, 115, 2000, 4000}, {4119, 190, 3000, 6000}, {4120, 265, 4000, 8000}, {4121, 320, 5000, 10000}}
 	for _, tc := range tiers {
 		t.Run(fmt.Sprintf("item-%d", tc.item), func(t *testing.T) {
-			addr, stop := startServerClockVol(t, questRewardDB(tc.item, tc.lvl, 3), map[int]int{int(tc.item): volQuestReward})
+			addr, stop := startServerClockVol(t, questRewardDB(tc.item, tc.lvl, pilha), map[int]int{int(tc.item): volQuestReward})
 			defer stop()
 			c := enterWorld(t, addr)
 			defer c.Close()
 			useQuestItem(t, c)
-			exp, coin, item, panel := collectQuestResult(t, c, 10)
-			if exp != tc.exp || coin != tc.coin || !panel {
-				t.Errorf("reward = exp %d coin %d panel %v, want %d %d true", exp, coin, panel, tc.exp, tc.coin)
+			exp, coin, item, panel := collectQuestResult(t, c, 20)
+			wantExp, wantCoin := tc.exp*pilha, tc.coin*pilha
+			if exp != wantExp || coin != wantCoin || !panel {
+				t.Errorf("reward = exp %d coin %d panel %v, want %d %d true", exp, coin, panel, wantExp, wantCoin)
 			}
-			if len(item) < 8 || le16(item[4:6]) != uint16(tc.item) || item[6] != efAmount || item[7] != 2 {
-				t.Errorf("remaining stack = %v, want item %d amount 2", item, tc.item)
+			if len(item) < 6 || le16(item[4:6]) != 0 {
+				t.Errorf("a pilha não foi gasta inteira: %v", item)
 			}
 		})
+	}
+}
+
+// O clique único não pode pagar XP fora da faixa do troféu nem comer os troféus que
+// a faixa já não paga: quem cruza o topo no meio da pilha para ali, com o RESTO NA
+// MÃO e a linha de nível na tela.
+//
+// O nível 114 com a Caixa da Sabedoria é o caso de verdade: a faixa do degrau 0
+// acaba em 115 (meia-aberta), e uma pilha grande atravessa esse topo.
+func TestQuestItemRewardParaNoTopoDaFaixaComORestoNaMao(t *testing.T) {
+	const pilha = 120
+	db := questRewardDB(4117, 114, pilha)
+	// Um passo do 115: o primeiro troféu já sobe o nível e fecha a faixa.
+	db.loadResult.Exp = level.NextLevelExp(114) - 1
+	addr, stop := startServerClockVol(t, db, map[int]int{4117: volQuestReward})
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+	useQuestItem(t, c)
+
+	var item []byte
+	nivelBarrado := false
+	for range 40 {
+		ty, payload, ok := readMaybe(t, c)
+		if !ok {
+			break
+		}
+		switch ty {
+		case protocol.MsgSendItem:
+			item = payload
+		case protocol.MsgMessageBoxOk:
+			if noticeCode(t, payload) == NoticeLevelLimit {
+				nivelBarrado = true
+			}
+		}
+	}
+	if !nivelBarrado {
+		t.Error("a pilha parou no topo da faixa e o jogador não foi avisado")
+	}
+	if len(item) < 8 || le16(item[4:6]) != 4117 {
+		t.Fatalf("a pilha sumiu em vez de sobrar: %v", item)
+	}
+	// Um usado, 119 na mão: o que passou do topo não foi gasto.
+	if item[6] != efAmount || item[7] != pilha-1 {
+		t.Errorf("sobrou %v, quero %d troféus na mão", item, pilha-1)
+	}
+}
+
+// Nos dois tetos ao mesmo tempo o troféu não entrega nada, e nada é gasto: é o
+// "perder exp no processo" que o clique único não pode causar.
+func TestQuestItemRewardNaoGastaNadaNosDoisTetos(t *testing.T) {
+	const pilha = 120
+	db := questRewardDB(4117, 39, pilha)
+	db.loadResult.Exp = level.MaxExp
+	db.loadResult.Coin = maxCoin
+	addr, stop := startServerClockVol(t, db, map[int]int{4117: volQuestReward})
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+	useQuestItem(t, c)
+	_, _, item, panel := collectQuestResult(t, c, 20)
+	if panel {
+		t.Error("painel de XP com os dois tetos cheios")
+	}
+	if len(item) < 8 || le16(item[4:6]) != 4117 || item[6] != efAmount || item[7] != pilha {
+		t.Errorf("a pilha foi mexida: %v, quero %d troféus intactos", item, pilha)
 	}
 }
 
@@ -150,5 +222,81 @@ func TestQuestItemRewardPartyMemberGetsTenPercent(t *testing.T) {
 	}
 	if memberExp != 100 || memberCoin != 0 || !panel {
 		t.Errorf("member reward = exp %d coin %d panel %v, want 100 0 true", memberExp, memberCoin, panel)
+	}
+}
+
+// A linha da conta diz a XP E o gold. O gold não tem painel próprio — a XP
+// aparece sozinha no "+N de EXP" —, então sem esta linha ele entrava calado.
+func TestQuestItemRewardContaDizGoldTambem(t *testing.T) {
+	const pilha = 3
+	addr, stop := startServerClockVol(t, questRewardDB(4117, 39, pilha), map[int]int{4117: volQuestReward})
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+	useQuestItem(t, c)
+
+	linha := ""
+	for range 20 {
+		ty, payload, ok := readMaybe(t, c)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgMessagePanel {
+			if texto := decodePanel(payload); strings.HasPrefix(texto, "Troféu:") {
+				linha = texto
+			}
+		}
+	}
+	quero := "Troféu: 3 usado(s), +3.000 de EXP e +6.000 de gold."
+	if linha != quero {
+		t.Errorf("conta = %q, quero %q", linha, quero)
+	}
+}
+
+// Com o gold no teto o pedaço do gold sai do texto: "+0 de gold" não é
+// informação, e a XP continua valendo.
+func TestQuestItemRewardContaOmiteGoldNoTeto(t *testing.T) {
+	const pilha = 3
+	db := questRewardDB(4117, 39, pilha)
+	db.loadResult.Coin = maxCoin
+	addr, stop := startServerClockVol(t, db, map[int]int{4117: volQuestReward})
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+	useQuestItem(t, c)
+
+	linha := ""
+	for range 20 {
+		ty, payload, ok := readMaybe(t, c)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgMessagePanel {
+			if texto := decodePanel(payload); strings.HasPrefix(texto, "Troféu:") {
+				linha = texto
+			}
+		}
+	}
+	quero := "Troféu: 3 usado(s), +3.000 de EXP."
+	if linha != quero {
+		t.Errorf("conta = %q, quero %q", linha, quero)
+	}
+}
+
+// milhares é o que torna a conta legível num clique de 120 troféus. Os casos de
+// borda são os grupos incompletos na frente e os zeros no meio.
+func TestMilhares(t *testing.T) {
+	casos := map[int64]string{
+		0: "0", 7: "7", 99: "99", 100: "100",
+		1000: "1.000", 3000: "3.000", 12345: "12.345",
+		100000: "100.000", 1000000: "1.000.000",
+		93600000: "93.600.000", 60000000: "60.000.000",
+		2000000000: "2.000.000.000",
+		-1234:      "-1.234",
+	}
+	for n, quero := range casos {
+		if got := milhares(n); got != quero {
+			t.Errorf("milhares(%d) = %q, quero %q", n, got, quero)
+		}
 	}
 }

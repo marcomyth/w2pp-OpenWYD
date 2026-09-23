@@ -181,6 +181,9 @@ func (d *Dispatcher) action(w *world.World, s *world.Session, h protocol.Header,
 	// GridMulticast: view create/remove deltas + raw frame (original Type) to
 	// everyone in the old or new view window.
 	d.moveMulticast(w, s.Conn, oldX, oldY, h.Type, payload)
+	// Andou: se a loja de honra estava aberta e o NPC dela ficou para trás, o
+	// painel cai. É o que o jogo faz com as lojas dele (loja_de_honra.go).
+	d.afastouDaLojaDeHonra(w, s, e)
 	if h.Type == protocol.MsgAction3 {
 		w.SendTo(s, protocol.Header{Type: protocol.MsgAction3, ID: uint16(s.Conn)}, payload)
 		d.sendSetHpMp(w, s, e)
@@ -303,6 +306,11 @@ func (d *Dispatcher) reqTeleport(w *world.World, s *world.Session, _ protocol.He
 	// O piso do deserto é a outra rota com condição: só abre depois de o Kefra cair
 	// (kefra.go). Mesmo motivo do piso acima para ficar fora da teleportTable.
 	if d.entraNoDesertoDoKefra(w, s, e) {
+		return
+	}
+	// E o piso de Azran para o Vale Escondido é a terceira: só anda com a Fada do
+	// Vale no slot 13 (vale.go).
+	if d.entraNoVale(w, s, e) {
 		return
 	}
 	destX, destY, cost, ok := world.TeleportDest(e.X, e.Y)

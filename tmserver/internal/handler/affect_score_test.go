@@ -386,6 +386,57 @@ func TestPoisonTickKeepsReqHpAtFloor(t *testing.T) {
 	}
 }
 
+// TestAuraDaVidaCura fixes the healthy path so the guard below cannot pass by
+// breaking the heal: Level 100 / Value 50 on a player is +50 +50 per tick.
+func TestAuraDaVidaCura(t *testing.T) {
+	e := &world.Entity{ID: 1, HP: 100, MaxHP: 500}
+	af := &world.Affect{Type: 17, Level: 100, Value: 50, Time: 100}
+
+	delta, ok := applyLifeAuraTick(e, af)
+
+	if !ok {
+		t.Fatal("applyLifeAuraTick reported no change on a living player")
+	}
+	if delta != 100 || e.HP != 200 {
+		t.Fatalf("aura delta/HP = %d/%d, want 100/200", delta, e.HP)
+	}
+}
+
+// TestAuraDaVidaNaoRessuscita is the bug reported in game on 18/09/2026: a TK
+// died with the aura up and the 8s tick stood him back up, with no _MSG_Restart.
+// The old code added HP with no liveness check, and the `if hp < 1 { hp = 1 }`
+// floor made even a null result revive the corpse with 1 HP.
+func TestAuraDaVidaNaoRessuscita(t *testing.T) {
+	e := &world.Entity{ID: 1, HP: 0, MaxHP: 500}
+	af := &world.Affect{Type: 17, Level: 100, Value: 50, Time: 100}
+
+	delta, ok := applyLifeAuraTick(e, af)
+
+	if ok || delta != 0 {
+		t.Fatalf("aura on a corpse returned delta/ok = %d/%v, want 0/false", delta, ok)
+	}
+	if e.HP != 0 {
+		t.Fatalf("aura revived a dead player: HP = %d, want 0", e.HP)
+	}
+}
+
+// TestVenenoNaoRessuscita: the poison tick carries the same trap — on HP 0 the
+// math gives −1000 and the floor lifts it to 1. Nobody reported it, which is
+// exactly why it is pinned here.
+func TestVenenoNaoRessuscita(t *testing.T) {
+	s := &world.Session{Conn: 1, ReqHp: 0}
+	e := &world.Entity{ID: 1, HP: 0, MaxHP: 2000}
+
+	delta, ok := applyPoisonTick(s, e)
+
+	if ok || delta != 0 {
+		t.Fatalf("poison on a corpse returned delta/ok = %d/%v, want 0/false", delta, ok)
+	}
+	if e.HP != 0 {
+		t.Fatalf("poison revived a dead player: HP = %d, want 0", e.HP)
+	}
+}
+
 // TestElementalProtectionResists pins BM 53 (Proteção Elemental, affect 25) on
 // both axes issue #233 got wrong: the amount, and WHICH resists move. Index 2 is
 // holy (Orb_Sagrada = EF_RESIST3 → Resist[2], ItemList.csv:1019 + CMob.cpp:642)

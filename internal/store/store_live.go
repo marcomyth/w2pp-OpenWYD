@@ -32,6 +32,10 @@ type AccountAuth struct {
 	PassHash  string
 	IsBlocked bool
 	Role      string // account.role ('player'/'moderator'/'admin'); web-only UI gate
+	// As duas carteiras da conta. O login as leva junto porque o tmServer nao
+	// fala com o banco e precisa delas para mostrar saldo no painel da loja.
+	Cash int32
+	Rmt  int32
 }
 
 // AccountByName fetches the auth row for a canonical (lowercase) account name.
@@ -50,8 +54,8 @@ const BlockedNowSQL = `(is_blocked AND (blocked_until IS NULL OR blocked_until >
 func (s *Store) AccountByName(ctx context.Context, name string) (AccountAuth, error) {
 	var a AccountAuth
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, pass_hash, `+BlockedNowSQL+`, role FROM account WHERE name = $1`, name).
-		Scan(&a.ID, &a.PassHash, &a.IsBlocked, &a.Role)
+		`SELECT id, pass_hash, `+BlockedNowSQL+`, role, donate_balance, rmt_balance FROM account WHERE name = $1`, name).
+		Scan(&a.ID, &a.PassHash, &a.IsBlocked, &a.Role, &a.Cash, &a.Rmt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AccountAuth{}, ErrNotFound
 	}
@@ -174,7 +178,7 @@ func (s *Store) LoadCharacter(ctx context.Context, accountID int64, slot int) (d
 		       learned_skill, sec_learned_skill, magic, save_x, save_y, last_city, citizen, class_master, soul, fame,
 		       celestial_lv40, celestial_lv90, celestial_circle, terra_mistica, arch_lv355, arch_lv370,
 		       skill_bar, short_skill, special, pk_point, guilty, cur_kill, tot_kill, mortal_level, celestial_arch_level, arch_cristal,
-		       nightmare_tickets, newbie_quest, kefra_ticket,
+		       nightmare_tickets, newbie_quest, kefra_ticket, molar_gargula,
 		       -- A vida guardada do Sub Celestial (0061_sub_celestial). O jsonb e
 		       -- NULO ate o personagem criar um Sub, entao entra por COALESCE: o
 		       -- domain carrega string vazia, nao ponteiro, para nao espalhar
@@ -188,7 +192,7 @@ func (s *Store) LoadCharacter(ctx context.Context, accountID int64, slot int) (d
 			&ch.ResistMagic, &ch.LearnedSkill, &ch.SecLearnedSkill, &ch.Magic, &ch.SaveX, &ch.SaveY, &ch.LastCity, &ch.Citizen,
 			&ch.ClassMaster, &ch.Soul, &ch.Fame, &ch.CelLv40, &ch.CelLv90, &ch.CelCircle, &ch.TerraMistica, &ch.ArchLv355, &ch.ArchLv370, &skillBar, &shortSkill, &special,
 			&ch.PKPoint, &ch.Guilty, &ch.CurKill, &ch.TotKill, &ch.MortalLevel, &ch.CelestialArchLevel, &ch.ArchCristal,
-			&ch.NightmareTickets, &ch.NewbieQuest, &ch.KefraTicket,
+			&ch.NightmareTickets, &ch.NewbieQuest, &ch.KefraTicket, &ch.MolarGargula,
 			&ch.SubCelestialGuardada, &ch.SubCelestialLevel, &ch.SubCelestialAtivo, &ch.CelestialReset)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Character{}, ErrNotFound
@@ -216,7 +220,7 @@ func (s *Store) LoadCharacter(ctx context.Context, accountID int64, slot int) (d
 
 func (s *Store) loadItems(ctx context.Context, charID int64, kind string) ([]domain.Item, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT slot, item_index, eff1, effv1, eff2, effv2, eff3, effv3, expires_at, serial
+		SELECT slot, item_index, eff1, effv1, eff2, effv2, eff3, effv3, expires_at, serial, rmt_anuncio
 		  FROM item WHERE character_id = $1 AND owner_kind = $2 ORDER BY slot`, charID, kind)
 	if err != nil {
 		return nil, fmt.Errorf("store: load %s: %w", kind, err)
@@ -226,7 +230,8 @@ func (s *Store) loadItems(ctx context.Context, charID int64, kind string) ([]dom
 	for rows.Next() {
 		var it domain.Item
 		var exp *time.Time
-		if err := rows.Scan(&it.Slot, &it.Index, &it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3, &exp, &it.Serial); err != nil {
+		if err := rows.Scan(&it.Slot, &it.Index, &it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3,
+			&exp, &it.Serial, &it.AnuncioRMT); err != nil {
 			return nil, fmt.Errorf("store: scan %s item: %w", kind, err)
 		}
 		it.ExpiresAt = expirySeconds(exp)
@@ -406,7 +411,10 @@ func (s *Store) SaveCharacter(ctx context.Context, accountID int64, ch domain.Ch
 			sub_celestial_ativo=$47, celestial_reset=$48,
 			-- As entradas do Hall do Kefra (0068). Número novo no FIM: renumerar os
 			-- de cima trocaria coluna sem quebrar compilação.
-			kefra_ticket=$49
+			kefra_ticket=$49,
+			-- O Molar de Gargula ja usado (0092). Mesmo motivo do de cima: numero
+			-- novo no FIM, nunca renumerando os anteriores.
+			molar_gargula=$50
 		WHERE account_id=$1 AND slot=$2
 		RETURNING id`,
 		accountID, ch.Slot, ch.Clan, ch.GuildID, ch.GuildLevel, ch.Level, ch.Coin,
@@ -420,7 +428,7 @@ func (s *Store) SaveCharacter(ctx context.Context, accountID int64, ch domain.Ch
 		ch.PKPoint, ch.Guilty, ch.CurKill, ch.TotKill, ch.MortalLevel, ch.CelestialArchLevel, ch.ArchCristal,
 		ch.NightmareTickets, ch.NewbieQuest,
 		ch.SubCelestialGuardada, ch.SubCelestialLevel, ch.SubCelestialAtivo, ch.CelestialReset,
-		ch.KefraTicket,
+		ch.KefraTicket, ch.MolarGargula,
 	).Scan(&charID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
@@ -486,7 +494,7 @@ func (s *Store) LoadCargo(ctx context.Context, accountID int64) (int32, []domain
 // not character-scoped).
 func (s *Store) loadAccountItems(ctx context.Context, accountID int64, kind string) ([]domain.Item, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT slot, item_index, eff1, effv1, eff2, effv2, eff3, effv3, expires_at, serial
+		SELECT slot, item_index, eff1, effv1, eff2, effv2, eff3, effv3, expires_at, serial, rmt_anuncio
 		  FROM item WHERE account_id = $1 AND owner_kind = $2 ORDER BY slot`, accountID, kind)
 	if err != nil {
 		return nil, fmt.Errorf("store: load %s: %w", kind, err)
@@ -496,7 +504,8 @@ func (s *Store) loadAccountItems(ctx context.Context, accountID int64, kind stri
 	for rows.Next() {
 		var it domain.Item
 		var exp *time.Time
-		if err := rows.Scan(&it.Slot, &it.Index, &it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3, &exp, &it.Serial); err != nil {
+		if err := rows.Scan(&it.Slot, &it.Index, &it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3,
+			&exp, &it.Serial, &it.AnuncioRMT); err != nil {
 			return nil, fmt.Errorf("store: scan %s item: %w", kind, err)
 		}
 		it.ExpiresAt = expirySeconds(exp)

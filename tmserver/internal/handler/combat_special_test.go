@@ -150,7 +150,7 @@ func TestThunderTargetsSkipProtectedAndDeduplicate(t *testing.T) {
 	w.Entity(clan4).Clan = 4
 	w.Entity(hidden).Rsv = world.RsvHide
 
-	targets := d.thunderTargets(w, caster)
+	targets := d.thunderTargets(w, caster, varreduraDoTrovao)
 
 	if len(targets) != 2 {
 		t.Fatalf("thunder targets len = %d, want 2 (%v)", len(targets), targets)
@@ -179,6 +179,50 @@ func TestBeastAuraTickUsesSkill52(t *testing.T) {
 	}
 	if target.HP >= before {
 		t.Fatalf("target HP = %d, want below %d", target.HP, before)
+	}
+}
+
+// TestAuraBestialNaoAtacaMorto: o affect segue correndo depois da morte, então
+// sem a guarda o cadáver continuava batendo em quem passasse perto, de 8 em 8
+// segundos. Mesma família do revive da Aura da Vida, relatado em 18/09/2026.
+func TestAuraBestialNaoAtacaMorto(t *testing.T) {
+	d := New(Config{Spells: content.NewSkillData([]content.Spell{
+		{Index: 52, ManaSpent: 25, InstanceType: 4, InstanceValue: 220, MaxTarget: 5, Aggressive: 1},
+	})})
+	w := world.New(world.Config{GridDim: 16}, slog.Default(), nil, nil)
+	s := &world.Session{Conn: 1, ReqMp: 500}
+	morto := &world.Entity{ID: 1, Class: 2, X: 5, Y: 5, HP: 0, MP: 500, MaxMP: 500, Level: 50, Int: 100}
+	targetID := w.SpawnMobAt(world.MobSpawn{Template: plainMobTemplate("Target"), X: 4, Y: 4, GenIndex: -1})
+	target := w.Entity(targetID)
+	before := target.HP
+
+	if d.applyBeastAuraTick(w, s, morto, 160) {
+		t.Fatal("applyBeastAuraTick bateu partindo de um cadaver")
+	}
+	if target.HP != before || morto.MP != 500 {
+		t.Fatalf("HP do alvo / MP do morto = %d/%d, want %d/500 (nada gasto, nada atingido)",
+			target.HP, morto.MP, before)
+	}
+}
+
+// TestTrovaoNaoAtacaMorto: a mesma guarda no Trovão (tipo 22, skill 33 sintética).
+func TestTrovaoNaoAtacaMorto(t *testing.T) {
+	d := New(Config{Spells: content.NewSkillData([]content.Spell{
+		{Index: 33, ManaSpent: 25, InstanceType: 4, InstanceValue: 220, MaxTarget: 5, Aggressive: 1},
+	}), CombatRules: regraSemEscala()})
+	w := world.New(world.Config{GridDim: 16}, slog.Default(), nil, nil)
+	s := &world.Session{Conn: 1, ReqMp: 500}
+	morto := &world.Entity{ID: 1, X: 5, Y: 5, HP: 0, MP: 500, MaxMP: 500, Level: 50, Clan: 7}
+	targetID := w.SpawnMobAt(world.MobSpawn{Template: plainMobTemplate("Target"), X: 4, Y: 4, GenIndex: -1})
+	target := w.Entity(targetID)
+	before := target.HP
+
+	if d.applyThunderTick(w, s, morto, 160) {
+		t.Fatal("applyThunderTick bateu partindo de um cadaver")
+	}
+	if target.HP != before || morto.MP != 500 {
+		t.Fatalf("HP do alvo / MP do morto = %d/%d, want %d/500 (nada gasto, nada atingido)",
+			target.HP, morto.MP, before)
 	}
 }
 

@@ -2,6 +2,7 @@ package world
 
 import (
 	"net"
+	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 )
@@ -59,17 +60,52 @@ type Session struct {
 	AccountName string
 	AccountID   int64
 	AccessLevel AccessLevel // account.role tier; gates in-game GM commands (issue #122)
-	Slot        int
-	Mode        Mode
-	IP          string
-	CrackError  int  // anti-cheat violation count (CUser.NumError)
-	Whisper     bool // true blocks incoming whispers
+	// Cash e RMT da conta, como estavam no login e corrigidos a cada compra da
+	// Loja do Servidor. É o que o painel mostra no rodapé.
+	Cash int32
+	Rmt  int32
+	// O painel da loja aberto, e em que página e filtro ele está. O servidor
+	// avisa quem está com ele aberto quando o mercado muda, em vez de deixar o
+	// cliente perguntar de tempos em tempos — ver handler.mercadoMudou.
+	LojaAberta bool
+	LojaPagina int16
+	LojaFiltro int16
+	// A Loja de Honra aberta: qual God of War a abriu (0 = nenhuma) e se um
+	// debito de pontos esta no ar. O id do NPC e o que permite a compra exigir
+	// presenca, em vez de aceitar qualquer pedido de qualquer lugar do mundo; a
+	// trava e o que impede dois cliques rapidos de virarem dois debitos
+	// simultaneos. Ver handler/loja_de_honra.go.
+	LojaHonraNPC  int
+	HonraCobrando bool
+	Slot          int
+	Mode          Mode
+	IP            string
+	CrackError    int  // anti-cheat violation count (CUser.NumError)
+	Whisper       bool // true blocks incoming whispers
 	// Snd is the status line "/snd" sets, shown to anyone who inspects this
 	// character (_MSG_MessageWhisper.cpp:591 sets it, :1640 shows it). Session
 	// scope is deliberate and matches the legacy, which clears Snd on every login
 	// (ProcessDBMessage.cpp:798) — it is never persisted.
-	Snd               string
-	GuildDisable      bool            // hide guild tag (guildon/guildoff)
+	Snd string
+	// Os três desligadores de canal do legado (_MSG_MessageChat.cpp:117-150),
+	// alternados por "partychat"/"kingdomchat"/"guildchat" e lidos na ENTREGA:
+	// true = este jogador não recebe mais aquele canal. Escopo de sessão, como o
+	// legado, que zera os três a cada login (ProcessDBMessage.cpp:414-416).
+	//
+	// O canal Cidadão não tem desligador: o SyncMulticast do legado não olha
+	// nada, e portar um seria inventar mecânica.
+	PartyChat bool
+	KingChat  bool
+	GuildChat bool
+	// UltimaMensagemCanal é o World.Now da última linha de Reino ou Cidadão desta
+	// sessão; 0 é nunca. Os dois canais alcançam gente fora da tela, então o
+	// legado põe 3 segundos entre uma linha e a outra (pUser.Message).
+	UltimaMensagemCanal uint32
+	GuildDisable        bool // hide guild tag (guildon/guildoff)
+	// GuildaPedidoEm é quando este jogador pediu, pela última vez, uma aba do
+	// Painel de Guilda que vai ao banco. É o freio contra um cliente remendado
+	// pedir o quadro em laço (handler/guildapainel.go).
+	GuildaPedidoEm    time.Time
 	TradeMode         int             // non-zero while in auto-trade (blocks attacks)
 	Trade             TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
 	AutoTrade         *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1
@@ -158,6 +194,12 @@ type AutoTradeState struct {
 	Tax   int16
 	Slots [MaxAutoTrade]AutoTradeSlot
 
+	// Moeda de cada slot na vitrine (Loja do Servidor): 0 ouro, 1 cash, 2 RMT.
+	// A janela de barraca do cliente só sabe de ouro, então o vendedor escolhe a
+	// moeda depois, pelo nosso painel, e o preço digitado passa a ser cobrado
+	// nela. Slot sem escolha fica em ouro, que é o comportamento de sempre.
+	Moeda [MaxAutoTrade]uint8
+
 	// CloneID is the mob entity that stands in for the seller (Entity.ShopOwner
 	// points back). MaxUser or above when the stall is a separate body; 0 when
 	// the shop had to fall back to the legacy pose, which is what happens when no
@@ -189,8 +231,13 @@ type Entity struct {
 	ID   int
 	Mode EntityMode
 	Name string
-	X    int16
-	Y    int16
+	// Tab é a linha que o jogador põe ACIMA do personagem com "/tab"
+	// (pMob.Tab, _MSG_MessageWhisper.cpp:548). Vive aqui, e não na Session,
+	// porque quem a desenha é o MSG_CreateMob da ENTIDADE — inclusive o que
+	// outro jogador recebe ao entrar na tela. Não é persistida, como no legado.
+	Tab []byte
+	X   int16
+	Y   int16
 	// SaveX/SaveY are the Gema Estelar warp save-point (STRUCT_MOB.SPX/SPY,
 	// _MSG_UseItem.cpp Vol 12/13) — distinct from X/Y, the player's live position.
 	// 0/0 means no point has ever been saved.
@@ -287,7 +334,11 @@ type Entity struct {
 	// NewbieQuest is MobExtra.QuestInfo.Mortal.Newbie (_MSG_Quest.cpp:1896-2100):
 	// which of the four training-field trainer steps is done (0..4). Each step
 	// demands the previous one, so it is persisted.
-	NewbieQuest          uint8
+	NewbieQuest uint8
+	// MolarGargula marca que este personagem ja usou o Molar de Gargula (0093):
+	// o molar sobe o set vestido para +7 uma unica vez, entao a marca precisa
+	// sobreviver ao relog.
+	MolarGargula         uint8
 	ArchLv355, ArchLv370 uint8
 	MortalLevel          uint16
 	CelestialArchLevel   uint8

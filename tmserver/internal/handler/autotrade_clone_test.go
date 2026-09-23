@@ -74,27 +74,23 @@ func TestAutoTradeCloneVendeComODonoLonge(t *testing.T) {
 	buyer := enterWorldAs(t, addr, "tradeb") // conn 2
 	defer buyer.Close()
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Loja Solta", sellItem, 0, price))
-	list, _ := readUntil(t, seller, protocol.MsgSendAutoTrade)
-
-	// Index is the STALL, not the seller's conn: it is what the client echoes
-	// back as MSG_ReqBuy.TargetID, and the buy path measures distance against it.
-	stallID := int(int16(binary.LittleEndian.Uint16(list[180+2 : 180+4])))
+	// O id que volta ao montar a barraca é o do CLONE, não o conn do dono: é
+	// ele que o cliente devolve em MSG_ReqBuy.TargetID, e é contra ele que a
+	// compra mede distância.
+	stallID := int(abreBarraca(t, seller, "Loja Solta", 0, price, protocol.LojaMoedaOuro))
 	if stallID < world.MaxUser {
 		t.Fatalf("Index da lista = %d, quer o id do clone (>= %d) e não o conn do dono",
 			stallID, world.MaxUser)
 	}
 
-	// The buyer browses by the clone's id — the id the old code refused outright,
-	// because it demanded autoID < MaxUser.
+	// O comprador clica na barraca pelo id do clone — o id que o código antigo
+	// recusava de saída, porque exigia autoID < MaxUser. A resposta hoje é o
+	// convite para a vitrine, e não a lista da janela velha; o que ela prova
+	// continua sendo o mesmo: o servidor achou a barraca por esse id. O título
+	// e o item aparecem na vitrine, e é lá que estão conferidos
+	// (lojaservidor_test.go).
 	send(t, buyer, protocol.MsgReqTradeList, protocol.EncodeStandardParm(int32(stallID)))
-	blist, _ := readUntil(t, buyer, protocol.MsgSendAutoTrade)
-	if got := cstr(blist[0:24]); got != "Loja Solta" {
-		t.Fatalf("título visto pelo comprador = %q, quer Loja Solta", got)
-	}
-	if got := int16(binary.LittleEndian.Uint16(blist[24:26])); got != sellItem {
-		t.Fatalf("item na lista = %d, quer %d", got, sellItem)
-	}
+	readUntil(t, buyer, protocol.MsgLojaMercado)
 
 	// And the purchase itself, addressed at the clone (MSG_SendItem: place@0,
 	// slot@2, item.Index@4).
@@ -135,16 +131,14 @@ func TestCloneSomeQuandoODonoDesconecta(t *testing.T) {
 	buyer := enterWorldAs(t, addr, "tradeb")
 	defer buyer.Close()
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Some Comigo", sellItem, 0, 1000))
-	list, _ := readUntil(t, seller, protocol.MsgSendAutoTrade)
-	stallID := int(int16(binary.LittleEndian.Uint16(list[182:184])))
+	stallID := int(abreBarraca(t, seller, "Some Comigo", 0, 1000, protocol.LojaMoedaOuro))
 	if stallID < world.MaxUser {
 		t.Fatalf("a loja não subiu como clone (Index %d)", stallID)
 	}
 	// The stall answers while the owner is connected, so its later absence means
 	// it was taken down and not that it never worked.
 	send(t, buyer, protocol.MsgReqTradeList, protocol.EncodeStandardParm(int32(stallID)))
-	readUntil(t, buyer, protocol.MsgSendAutoTrade)
+	readUntil(t, buyer, protocol.MsgLojaMercado)
 
 	seller.Close() // queda de conexão, não logout limpo
 	esperarSemLoja(t, buyer, stallID)
@@ -240,7 +234,8 @@ func TestCloneDaLojaTamanhoJanelaEFechar(t *testing.T) {
 	seller := enterWorldAs(t, addr, "tester")
 	defer seller.Close()
 
-	send(t, seller, protocol.MsgSendAutoTrade, openShopPayload("Loja Solta", sellItem, 0, 1000))
+	// Sem esperar o aviso: quem lê os quadros da subida é o stallFrames.
+	mandaAbrirBarraca(t, seller, "Loja Solta", 0, 1000, protocol.LojaMoedaOuro)
 	stalls, cons, quit := stallFrames(t, seller)
 	if len(stalls) != 1 || stalls[0] < world.MaxUser {
 		t.Fatalf("barracas anunciadas ao dono = %v, quer um clone", stalls)
@@ -274,7 +269,7 @@ func TestCloneDaLojaTamanhoJanelaEFechar(t *testing.T) {
 		t.Fatalf("UpdateScore do clone a quem chega: Con %d (enviado=%v), quer %d", con, ok, shopCloneCon)
 	}
 	send(t, buyer, protocol.MsgReqTradeList, protocol.EncodeStandardParm(int32(id)))
-	if _, ok := readUntilType(t, buyer, protocol.MsgSendAutoTrade); !ok {
+	if _, ok := readUntilType(t, buyer, protocol.MsgLojaMercado); !ok {
 		t.Fatal("a barraca não respondeu depois do QuitTrade do dono")
 	}
 

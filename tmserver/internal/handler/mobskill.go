@@ -248,6 +248,9 @@ func (d *Dispatcher) processMobAffect(w *world.World, id int, e *world.Entity) {
 			if af.Value == toxinaMarca {
 				veneno = danoToxinaEmMonstro(e, int(af.Level)) // Toxina de Serpente (arvore_captura.go)
 			}
+			// O veneno também passa pelo divisor do slot 13, e no tique do relógio o
+			// legado DOBRA o do item 786 (ProcessSecMinTimer.cpp:2339).
+			veneno = tiqueNoPortador(e, veneno)
 			if hp := e.HP - veneno; hp != e.HP {
 				if hp < 1 {
 					hp = 1
