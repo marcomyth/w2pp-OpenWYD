@@ -40,7 +40,9 @@
 -- cada 4 mortes seja qual for o nível. A equipe pediu 1 pedra a cada 100 mortes
 -- ou mais, nunca menos: 81 aqui paga 0,989% (1 a cada 101); 82 já pagaria
 -- 1,001%. Andaluz N 2,5% pagos (Andaluz só de chefe, a 2-3%), Andaluz B fora,
--- Fragmento de Alma e Classe E de chefe, e Poeiras e Moeda em quantidade de chefe.
+-- o Fragmento de Alma a 1 a cada 150-180 mortes, também pedido da equipe (50
+-- aqui paga 0,610%, 1 a cada 164; a faixa cabe de 46 a 54), Classe E de chefe, e
+-- Poeiras e Moeda em quantidade de chefe.
 -- Os blocos dele passam de 10 para 20 monstros no NPCGener.txt, no mesmo commit,
 -- pedido da equipe para deixar a área mais dura: MaxNumMob 2 nos dez blocos, e o
 -- 3235 sai de MinuteGenerate -1 para 4, porque o boot levanta um grupo por bloco
@@ -108,7 +110,7 @@ INSERT INTO drop_rule (mob, item, chance) VALUES
     ('Cav._Lugefer',    2405,    0),      -- Âmago de Andaluz B: branca é do gelo
     ('Cav._Lugefer',    2399,  300),      -- Âmago de Cavalo Equipado N
     ('Cav._Lugefer',    2309,   40),      -- Ovo de Cavalo Equipado N
-    ('Cav._Lugefer',    3224,  500),      -- Fragmento de Alma
+    ('Cav._Lugefer',    3224,   50),      -- Fragmento de Alma: 1 a cada 164 mortes
     ('Cav._Lugefer',    4020,  300),      -- Classe E
     ('Cav._Lugefer',    4026, 1000),      -- Moeda de Prata (1Mi)
     ('Cav._Lugefer',    412,  2500),      -- Poeira de Oriharucon

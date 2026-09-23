@@ -102,6 +102,26 @@ func TestDesertoPedraDoLugeferUmEmCem(t *testing.T) {
 	}
 }
 
+// O Fragmento de Alma cai a 1 a cada 150-180 mortes (pedido da equipe de
+// 23/09), medido no que o jogo paga, em todo monstro do Deserto que o solte.
+func TestDesertoFragmentoUmEm150a180(t *testing.T) {
+	const itemFragmentoDeAlma = 3224
+	achou := 0
+	for mob, l := range linhasDoDeserto(t) {
+		c, ok := l[itemFragmentoDeAlma]
+		if !ok || c == 0 {
+			continue
+		}
+		achou++
+		if mortes := 1 / taxaPaga(c); mortes < 150 || mortes > 180 {
+			t.Errorf("%s: Fragmento de Alma a %d sai 1 a cada %.1f mortes, want 150 a 180", mob, c, mortes)
+		}
+	}
+	if achou == 0 {
+		t.Error("nenhum monstro da 0108 solta o Fragmento de Alma")
+	}
+}
+
 // O Cavalo Equipado N: o ovo cai só dos Lugefer, e o âmago também do Ladrão e
 // do Assassino, no lugar do Fenrir (pedidos da equipe de 23/09).
 func TestDesertoCavaloEquipado(t *testing.T) {
