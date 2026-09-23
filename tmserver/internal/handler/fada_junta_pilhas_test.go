@@ -367,55 +367,51 @@ func TestPrecisaDeDezSoNosSlotsNomeados(t *testing.T) {
 	}
 }
 
-// O troféu da Quest 256 junta SEM FADA (juntaNaPilhaDaMochila): ele cai de todo
-// monstro e é gasto às centenas, e sem isto uma rodada de arena acaba com dez
-// espaços do mesmo troféu — e o clique único da pilha inteira não teria pilha
-// nenhuma para gastar.
-func TestTrofeuJuntaSemFada(t *testing.T) {
+// O troféu da Quest 256 NÃO junta sem fada.
+//
+// Ele já juntou: uma porta livre para os cinco índices entrou em 21/09/2026 e foi
+// REVERTIDA a pedido da Hanna em 23/09. Estes testes existem para a porta não
+// voltar por acidente — quem reabri-la vai ter de apagá-los, e aí é decisão e não
+// descuido.
+func TestTrofeuNaoJuntaSemFada(t *testing.T) {
 	for _, idx := range []int16{4117, 4118, 4119, 4120, 4121} {
 		d, w, e := fixturaPilha(t)
 		e.Carry[0] = world.Item{Index: idx, Effects: [3]world.Effect{{Effect: efAmount, Value: 61}}}
 
+		if slot := d.putCarryItem(w, e, world.Item{Index: idx}); slot != 1 {
+			t.Errorf("troféu %d foi para o slot %d, quero o 1 (espaço novo, sem fada)", idx, slot)
+		}
+		if got := itemAmount(e.Carry[0]); got != 61 {
+			t.Errorf("troféu %d: a pilha existente mudou para %d, devia ficar em 61", idx, got)
+		}
+	}
+}
+
+// E COM fada junta, como qualquer outro empilhável. É este caso que dá valor ao de
+// cima: sem ele, quebrar o juntaNaPilhaDaMochila inteiro passaria no primeiro
+// teste, porque "não juntou" é o que ele pede.
+func TestTrofeuJuntaComFada(t *testing.T) {
+	for _, idx := range []int16{4117, 4121} {
+		d, w, e := fixturaPilha(t)
+		e.Equip[fairyEquipSlot] = world.Item{Index: 3902} // Vermelha, a que junta
+		e.Carry[0] = world.Item{Index: idx, Effects: [3]world.Effect{{Effect: efAmount, Value: 61}}}
+
 		if slot := d.putCarryItem(w, e, world.Item{Index: idx}); slot != 0 {
-			t.Errorf("troféu %d foi para o slot %d, quero o 0 (a pilha)", idx, slot)
+			t.Errorf("troféu %d com fada foi para o slot %d, quero o 0 (a pilha)", idx, slot)
 		}
 		if got := itemAmount(e.Carry[0]); got != 62 {
-			t.Errorf("troféu %d: pilha = %d, quero 62", idx, got)
-		}
-		if !e.Carry[1].Empty() {
-			t.Errorf("troféu %d gastou o slot 1", idx)
+			t.Errorf("troféu %d com fada: pilha = %d, quero 62", idx, got)
 		}
 	}
 }
 
-// O teto de 120 vale para o troféu como para qualquer pilha: sem fada nenhuma, o
-// que passa do teto vai para um espaço novo em vez de sumir.
-func TestTrofeuSemFadaRespeitaOTeto(t *testing.T) {
-	d, w, e := fixturaPilha(t)
-	e.Carry[0] = world.Item{Index: 4117, Effects: [3]world.Effect{{Effect: efAmount, Value: 119}}}
-
-	d.putCarryItem(w, e, world.Item{Index: 4117, Effects: [3]world.Effect{{Effect: efAmount, Value: 5}}})
-
-	if got := itemAmount(e.Carry[0]); got != maxStackAmount {
-		t.Errorf("pilha = %d, quero o teto %d", got, maxStackAmount)
-	}
-	if e.Carry[1].Index != 4117 || itemAmount(e.Carry[1]) != 4 {
-		t.Errorf("sobra = %v amount %d, quero 4 troféus no slot 1", e.Carry[1].Index, itemAmount(e.Carry[1]))
-	}
-}
-
-// A porta livre é SÓ dos cinco troféus: o resto continua dependendo da fada, que é
-// o que se paga por ela.
-func TestSoOTrofeuJuntaSemFada(t *testing.T) {
+// Sem fada, NADA junta — troféu ou não. A regra voltou a ser uma só, e este teste
+// é o que impede uma segunda exceção de entrar sem ninguém decidir.
+func TestSemFadaNadaJunta(t *testing.T) {
 	e := &world.Entity{}
-	for _, idx := range []int16{4117, 4121} {
-		if !juntaNaPilhaDaMochila(e, idx) {
-			t.Errorf("troféu %d não junta sem fada", idx)
-		}
-	}
-	for _, idx := range []int16{419, 412, 2390, 2441, 4116, 4122} {
+	for _, idx := range []int16{4117, 4121, 419, 412, 2390, 2441, 4116, 4122} {
 		if juntaNaPilhaDaMochila(e, idx) {
-			t.Errorf("item %d passou a juntar sem fada sem ninguém decidir", idx)
+			t.Errorf("item %d junta sem fada; a porta livre foi revertida em 23/09", idx)
 		}
 	}
 }
