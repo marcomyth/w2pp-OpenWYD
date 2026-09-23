@@ -250,3 +250,41 @@ func (s *Store) completaVenda(ctx context.Context, tx pgx.Tx, venda *VendaRMT) e
 	}
 	return nil
 }
+
+// SlotsVendidosPendentes devolve os slots do baú desta conta que ainda seguram
+// um item cujo anúncio JÁ FOI VENDIDO.
+//
+// É a outra ponta da preguiça. A confirmação do pagamento deixa a marca do
+// escrow de pé de propósito — enquanto ela está lá o item é intocável, então
+// tirá-lo pode esperar o vendedor aparecer. Esta consulta é o que o tmServer
+// pergunta quando ele aparece.
+//
+// REMOVER, e nunca devolver ao dono. É a diferença que importa entre esta marca e
+// a de um anúncio cancelado: aquele volta para as mãos do vendedor, este já foi
+// pago e entregue a outra pessoa. Devolver aqui seria criar a segunda cópia que o
+// escrow inteiro existe para impedir.
+func (s *Store) SlotsVendidosPendentes(ctx context.Context, accountID int64) ([]int16, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT i.slot
+		  FROM item i
+		  JOIN rmt_anuncio a ON a.id = i.rmt_anuncio
+		 WHERE i.owner_kind = 'account_cargo' AND i.account_id = $1
+		   AND i.rmt_anuncio <> 0 AND a.status = $2
+		 ORDER BY i.slot`, accountID, anuncioVendido)
+	if err != nil {
+		return nil, fmt.Errorf("store: slots vendidos a=%d: %w", accountID, err)
+	}
+	defer rows.Close()
+	var slots []int16
+	for rows.Next() {
+		var slot int16
+		if err := rows.Scan(&slot); err != nil {
+			return nil, fmt.Errorf("store: slots vendidos: %w", err)
+		}
+		slots = append(slots, slot)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: slots vendidos a=%d: %w", accountID, err)
+	}
+	return slots, nil
+}

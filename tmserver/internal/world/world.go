@@ -731,6 +731,54 @@ func (w *World) ApplyDeliveries(s *Session, pending []Delivery) (delivered, held
 	return len(deliveredIDs), held
 }
 
+// LimpaSlotsVendidos esvazia os slots do baú cujo anúncio em dinheiro real já foi
+// vendido, e devolve quantos saíram. Loop-only.
+//
+// É a outra ponta da preguiça do escrow. Quando o pagamento entra, o item NÃO sai
+// do baú na hora: a marca (migração 0104) fica, e item marcado é intocável — não
+// se move, não se altera, não se refina, não se vende. Então tirá-lo pode esperar
+// o vendedor aparecer, e é por isso que o comprador nunca espera pelo vendedor:
+// o que ele recebe vem da fotografia do anúncio.
+//
+// ESVAZIA, e nunca devolve. É a diferença entre esta marca e a de um anúncio
+// cancelado: aquele item volta para as mãos do dono, este já foi pago e entregue
+// a outra pessoa. Devolver aqui criaria a segunda cópia que o escrow inteiro
+// existe para impedir.
+//
+// A CONFERÊNCIA DA MARCA antes de apagar não é zelo: a lista foi lida FORA do
+// laço, e entre a leitura e esta passada o slot pode ter mudado de dono lógico.
+// Um slot vazio, ou com item sem marca, é deixado em paz — apagar um item que
+// não era o vendido seria tirar do jogador uma coisa que ele nunca vendeu.
+func (w *World) LimpaSlotsVendidos(s *Session, slots []int16) int {
+	if s == nil || s.AccountID == 0 || len(slots) == 0 {
+		return 0
+	}
+	cargo := w.cargo[s.AccountID]
+	if cargo == nil {
+		return 0
+	}
+	saiu := 0
+	for _, slot := range slots {
+		if slot < 0 || int(slot) >= MaxCargo {
+			continue
+		}
+		it := cargo.Items[slot]
+		if it.Empty() || it.AnuncioRMT == 0 {
+			// Já foi tirado numa passada anterior cujo save ainda não tinha
+			// chegado ao banco quando esta lista foi lida. Repetir é normal.
+			continue
+		}
+		w.log.Info("escrow: item vendido sai do bau", "account", s.AccountID,
+			"slot", slot, "anuncio", it.AnuncioRMT, "item", it.Index)
+		cargo.Items[slot] = Item{}
+		saiu++
+	}
+	if saiu > 0 {
+		w.saveCargoAcking(s.AccountID)
+	}
+	return saiu
+}
+
 // saveCargoAcking persists the account cargo together with every placed-but-
 // unacked delivery id, in one transaction, and forgets the ids once it commits.
 // A failed save keeps them, so the next cargo save of the account — another

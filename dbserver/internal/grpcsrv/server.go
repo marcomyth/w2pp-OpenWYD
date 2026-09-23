@@ -40,6 +40,7 @@ type Store interface {
 	LoadCargo(ctx context.Context, accountID int64) (int32, []domain.Item, error)
 	SaveCargo(ctx context.Context, accountID int64, coin int32, items []domain.Item) error
 	PendingItemDeliveries(ctx context.Context, accountID int64) ([]domain.Delivery, error)
+	SlotsVendidosPendentes(ctx context.Context, accountID int64) ([]int16, error)
 	SaveCargoWithDeliveries(ctx context.Context, accountID int64, coin int32, items []domain.Item, deliveredIDs, lostIDs []int64) error
 	SetBlockedByName(ctx context.Context, name string, blocked bool) error
 	RecordDuelResult(ctx context.Context, winnerName, loserName string) error
@@ -286,6 +287,23 @@ func (s *Server) ListPendingDeliveries(ctx context.Context, req *dbv1.ListPendin
 		out = append(out, &dbv1.Delivery{Id: d.ID, Item: itemToProto(d.Item)})
 	}
 	return &dbv1.ListPendingDeliveriesResponse{Deliveries: out}, nil
+}
+
+// ListSoldEscrowSlots names the warehouse slots whose real-money listing already
+// sold, so the loop can empty them.
+//
+// The empty answer is the normal one, which is why this costs nothing to call on
+// every login: almost nobody has sold an item for real money since their last.
+func (s *Server) ListSoldEscrowSlots(ctx context.Context, req *dbv1.ListSoldEscrowSlotsRequest) (*dbv1.ListSoldEscrowSlotsResponse, error) {
+	slots, err := s.store.SlotsVendidosPendentes(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list sold escrow slots: %v", err)
+	}
+	out := make([]int32, 0, len(slots))
+	for _, slot := range slots {
+		out = append(out, int32(slot))
+	}
+	return &dbv1.ListSoldEscrowSlotsResponse{CargoSlots: out}, nil
 }
 
 // SaveCargoWithDeliveries persists the cargo and marks the drained mailbox rows

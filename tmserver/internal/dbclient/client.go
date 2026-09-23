@@ -68,6 +68,27 @@ func (c *Client) AccountLogin(ctx context.Context, name, password string) (world
 	if pending, err := c.ListPendingDeliveries(ctx, out.AccountID); err == nil {
 		out.PendingDeliveries = pending
 	}
+	// E os slots que uma venda em dinheiro real deixou para trás, pela mesma
+	// razão de carona: é uma pergunta por login e a resposta quase sempre vem
+	// vazia. Falha aqui também não derruba o login — o item continua marcado e
+	// intocável, e o próximo login tenta de novo.
+	if slots, err := c.ListSoldEscrowSlots(ctx, out.AccountID); err == nil {
+		out.SlotsVendidos = slots
+	}
+	return out, nil
+}
+
+// ListSoldEscrowSlots pergunta quais slots do baú ainda seguram item de anúncio
+// já vendido.
+func (c *Client) ListSoldEscrowSlots(ctx context.Context, accountID int64) ([]int16, error) {
+	resp, err := c.api.ListSoldEscrowSlots(ctx, &dbv1.ListSoldEscrowSlotsRequest{AccountId: accountID})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: list sold escrow slots: %w", err)
+	}
+	out := make([]int16, 0, len(resp.GetCargoSlots()))
+	for _, slot := range resp.GetCargoSlots() {
+		out = append(out, int16(slot))
+	}
 	return out, nil
 }
 

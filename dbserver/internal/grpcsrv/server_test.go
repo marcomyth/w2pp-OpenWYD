@@ -14,6 +14,8 @@ import (
 
 // fakeStore is an in-memory Store for unit tests (no PostgreSQL).
 type fakeStore struct {
+	slotsVendidos     []int16
+	erroSlotsVendidos error
 	// fama captures UpdateGuildFame calls.
 	fama map[uint16]int32
 	// shopPoints is the personal-shop wallet, accumulated like the real store.
@@ -197,6 +199,11 @@ func (f *fakeStore) SaveCargo(_ context.Context, accountID int64, coin int32, it
 	f.savedCargo.coin = coin
 	f.savedCargo.items = items
 	return nil
+}
+
+// slotsVendidos é o que ListSoldEscrowSlots devolve; vazio é a resposta normal.
+func (f *fakeStore) SlotsVendidosPendentes(context.Context, int64) ([]int16, error) {
+	return f.slotsVendidos, f.erroSlotsVendidos
 }
 
 func (f *fakeStore) PendingItemDeliveries(_ context.Context, accountID int64) ([]domain.Delivery, error) {

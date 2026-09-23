@@ -74,6 +74,11 @@ type LoginOutcome struct {
 	Characters        []CharSummary
 	Cargo             CargoState
 	PendingDeliveries []Delivery
+	// SlotsVendidos são os slots do baú que ainda seguram um item cujo anúncio em
+	// dinheiro real JÁ FOI VENDIDO, lidos no mesmo login. O laço esvazia esses
+	// slots — nunca devolve o item ao dono, que já foi pago e entregue a outra
+	// pessoa. Ver world.LimpaSlotsVendidos.
+	SlotsVendidos []int16
 	// As carteiras da conta, lidas no mesmo login. Cash e RMT são da CONTA e
 	// moram no banco; o laço do mundo não fala com ele, então guarda o número
 	// daqui e o mantém em dia por conta própria a cada venda.
@@ -435,6 +440,10 @@ type Persistence interface {
 	// ListPendingDeliveries returns the account's pending item grants from the
 	// delivery_queue mailbox (issue #34). Called off the loop at login.
 	ListPendingDeliveries(ctx context.Context, accountID int64) ([]Delivery, error)
+	// ListSoldEscrowSlots returns the warehouse slots still holding an item whose
+	// real-money listing already sold. Called off the loop at login; the loop
+	// empties them.
+	ListSoldEscrowSlots(ctx context.Context, accountID int64) ([]int16, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all) and marks the
 	// drained mailbox rows delivered/lost in one backend transaction — the anti-dup
 	// boundary for the drain.
@@ -617,6 +626,11 @@ func (NopPersistence) SaveCargo(context.Context, CargoSave) error { return nil }
 
 // ListPendingDeliveries returns no grants: without a backend there is no mailbox.
 func (NopPersistence) ListPendingDeliveries(context.Context, int64) ([]Delivery, error) {
+	return nil, nil
+}
+
+// ListSoldEscrowSlots returns nothing: without a backend there are no listings.
+func (NopPersistence) ListSoldEscrowSlots(context.Context, int64) ([]int16, error) {
 	return nil, nil
 }
 

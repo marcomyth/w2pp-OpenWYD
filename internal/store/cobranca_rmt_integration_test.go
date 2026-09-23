@@ -375,3 +375,75 @@ func TestConfirmacaoNaoDependeDeNinguemEstarEmJogo(t *testing.T) {
 		t.Errorf("a marca soltou (%d) com o vendedor fora; o item ficaria solto sem dono decidido", marca)
 	}
 }
+
+// SlotsVendidosPendentes nomeia só o que o vendedor ainda segura de uma venda
+// FECHADA.
+//
+// Os três casos que importam estão aqui, e o valor está nos dois últimos: um
+// anúncio ATIVO não pode entrar (o item ainda é do vendedor e ele pode cancelar),
+// e um item sem marca também não (nunca foi anunciado). Uma consulta que só
+// olhasse a marca, ou só o status, passaria num dos dois e erraria no outro.
+func TestSlotsVendidosPendentesNomeiaSoOQueVendeu(t *testing.T) {
+	s, ctx := freshStore(t)
+	v := montaVenda(ctx, t, s, "listagem")
+
+	// Um segundo item, marcado por um anúncio que continua ATIVO.
+	var ativo int64
+	if err := s.pool.QueryRow(ctx, `
+		INSERT INTO rmt_anuncio (vendedor_conta, cargo_slot, item_index, preco_centavos, status)
+		VALUES ($1, 7, 1040, 3000, 1) RETURNING id`, v.vendedor).Scan(&ativo); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `
+		INSERT INTO item (owner_kind, account_id, slot, item_index, rmt_anuncio)
+		VALUES ('account_cargo', $1, 7, 1040, $2)`, v.vendedor, ativo); err != nil {
+		t.Fatal(err)
+	}
+	// E um terceiro sem marca nenhuma.
+	if _, err := s.pool.Exec(ctx, `
+		INSERT INTO item (owner_kind, account_id, slot, item_index, rmt_anuncio)
+		VALUES ('account_cargo', $1, 11, 1050, 0)`, v.vendedor); err != nil {
+		t.Fatal(err)
+	}
+
+	// Antes da venda, nada pendente: o anúncio do slot 3 ainda está ativo.
+	antes, err := s.SlotsVendidosPendentes(ctx, v.vendedor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(antes) != 0 {
+		t.Errorf("com tudo ativo veio %v, queria vazio", antes)
+	}
+
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref); err != nil {
+		t.Fatalf("confirmando: %v", err)
+	}
+
+	depois, err := s.SlotsVendidosPendentes(ctx, v.vendedor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(depois) != 1 || depois[0] != 3 {
+		t.Errorf("slots pendentes = %v, quero [3] — o 7 ainda está à venda e o 11 nunca foi anunciado", depois)
+	}
+}
+
+// E o vendedor de outra conta não entra na lista desta. É o erro de um WHERE
+// esquecido, e aqui ele apagaria item de quem não vendeu nada.
+func TestSlotsVendidosNaoVazamEntreContas(t *testing.T) {
+	s, ctx := freshStore(t)
+	v := montaVenda(ctx, t, s, "vazamento")
+	outro := contaPix(ctx, t, s, "outro_vendedor")
+
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref); err != nil {
+		t.Fatalf("confirmando: %v", err)
+	}
+
+	slots, err := s.SlotsVendidosPendentes(ctx, outro)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(slots) != 0 {
+		t.Errorf("a conta que nao vendeu nada recebeu %v", slots)
+	}
+}
