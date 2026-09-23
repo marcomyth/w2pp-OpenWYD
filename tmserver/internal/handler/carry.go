@@ -121,19 +121,13 @@ func fadaJuntaPilhas(e *world.Entity) bool {
 // executa e o baú (baus.go) a repete para saber que o espaço reservado não vai ser
 // usado, e as duas leituras têm de ser a mesma.
 //
-// Duas portas:
-//
-//   - A fada de juntar, que é a razão de ela existir.
-//   - O troféu da Quest 256 (4117-4121), SEM FADA, decidido em 21/09/2026. Ele cai
-//     de todo monstro e é gasto às centenas: sem juntar sozinho, uma rodada de
-//     arena acaba com dez espaços do mesmo troféu para arrastar à mão, e o clique
-//     único (useQuestReward) não serve para nada, porque cada espaço é uma pilha de
-//     um. É DIVERGÊNCIA NOSSA, e só para esses cinco índices.
+// Uma porta só: a fada de juntar, equipada. Sem ela, nada junta sozinho — e isso
+// vale para o troféu da Quest 256 como vale para qualquer outro empilhável.
 func juntaNaPilhaDaMochila(e *world.Entity, index int16) bool {
 	if !isSplittable(index) {
 		return false
 	}
-	return fadaJuntaPilhas(e) || ehTrofeuDeQuest(index)
+	return fadaJuntaPilhas(e)
 }
 
 // putCarryItem hands one item to a character's bag and reports the slot it

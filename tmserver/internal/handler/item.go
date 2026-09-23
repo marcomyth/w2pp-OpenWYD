@@ -1238,9 +1238,15 @@ func (d *Dispatcher) useQuestReward(w *world.World, s *world.Session, e *world.E
 	// (tetorodada.go). Usar não recusa, não corta e não soma na rodada.
 	//
 	// DIVERGÊNCIA DELIBERADA, 21/09/2026: um clique gasta a PILHA INTEIRA, e não
-	// uma unidade. O legado paga um troféu por clique, e com a pilha de 120 que a
-	// fada-livre agora forma (juntaNaPilhaDaMochila) isso são 120 cliques com 120
-	// linhas iguais. Aqui o laço roda a pilha e a conta é reportada uma vez.
+	// uma unidade. O legado paga um troféu por clique, e numa pilha cheia isso são
+	// 120 cliques com 120 linhas iguais. Aqui o laço roda a pilha e a conta é
+	// reportada uma vez.
+	//
+	// Quem forma a pilha é a FADA equipada (juntaNaPilhaDaMochila). Sem fada os
+	// troféus caem em espaços separados, cada um uma pilha de um — e aí este laço
+	// roda uma vez só e o resultado é o do legado, um troféu por clique. Está
+	// certo assim: o laço é por unidade, e `itemAmount` devolve 1 para item sem
+	// pilha, então nada se perde e nenhuma conta muda.
 	//
 	// O laço é por UNIDADE, e não uma multiplicação, de propósito: cada troféu tem
 	// de passar pelos dois limites que podem mudar no meio da pilha.
