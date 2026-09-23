@@ -8,8 +8,10 @@ import (
 )
 
 // TestAFadaAzulSoPagaDrop is the asymmetry that makes this table hand-written
-// rather than derived from the exp one: 3901 is the only fairy that pays drop
-// and nothing else, and the Vermelha pays both (CMob.cpp:713-724).
+// rather than derived from the exp one: the Azul (3901, 3904, 3907) is the only
+// fairy that pays drop and nothing else, and the Vermelha pays both
+// (CMob.cpp:713-724). The 5- and 7-day Azuis paid experience in the legacy;
+// since 23/09/2026 they pay drop like the 3-day one.
 func TestAFadaAzulSoPagaDrop(t *testing.T) {
 	d := New(Config{})
 	casos := []struct {
@@ -17,6 +19,8 @@ func TestAFadaAzulSoPagaDrop(t *testing.T) {
 		querDrop, querXP int32
 	}{
 		{3901, 32, 0},  // Fada Azul: só drop
+		{3904, 32, 0},  // Fada Azul 5 dias: só drop também
+		{3907, 32, 0},  // Fada Azul 7 dias
 		{3902, 16, 32}, // Fada Vermelha: os dois
 		{3905, 16, 32},
 		{3908, 16, 32},

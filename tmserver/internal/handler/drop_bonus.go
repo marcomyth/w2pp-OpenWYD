@@ -50,12 +50,16 @@ func (d *Dispatcher) equipDropBonus(e *world.Entity) int32 {
 // fairyDropBonus is the fairy half, and it does not line up with the exp half —
 // which is the reason it is written out rather than derived.
 //
-// The Fada Azul (3901) is the only fairy that pays drop and no experience, so it
-// is absent from fairyExpBonus; the Fada Vermelha pays both. Every other fairy
+// The Fada Azul (3901, 3904, 3907) is the only fairy that pays drop and no
+// experience, so it is absent from fairyExpBonus; the Fada Vermelha pays both. Every other fairy
 // pays experience alone (CMob.cpp:713-731).
 func fairyDropBonus(idx int16) int32 {
 	switch idx {
-	case 3901: // Fada Azul 3D
+	// All three Azuis. The legacy paid drop only on the 3-day one and gave the
+	// 5- and 7-day ones (3904, 3907) experience instead (CMob.cpp:716 vs 731),
+	// while all three tooltips promise drop. Marco, 23/09/2026: the Azul is the
+	// drop fairy, whatever its duration.
+	case 3901, 3904, 3907: // Fada Azul
 		return 32
 	case 3902, 3905, 3908: // Fada Vermelha
 		return 16

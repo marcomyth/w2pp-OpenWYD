@@ -67,8 +67,6 @@ func fairyExpBonus(idx int16) int32 {
 		return 32
 	case 3903, 3906, 3911, 3912, 3913:
 		return 16
-	case 3904, 3907:
-		return 32
 	default:
 		return 0
 	}

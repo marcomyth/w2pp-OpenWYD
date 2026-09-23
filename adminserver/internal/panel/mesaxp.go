@@ -777,8 +777,6 @@ var fadas = []fadaOpcao{
 	{3902, "Fada Vermelha (3902)", 32},
 	{3905, "Fada Vermelha (3905)", 32},
 	{3908, "Fada Vermelha (3908)", 32},
-	{3904, "Fada Verde-Azul (3904)", 32},
-	{3907, "Fada Verde-Azul (3907)", 32},
 }
 
 func bonusDaFada(idx int16) int32 {

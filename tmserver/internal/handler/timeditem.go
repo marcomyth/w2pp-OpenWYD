@@ -28,7 +28,7 @@ const (
 	// Fairy item range (BASE_CheckFairyDate bails outside it).
 	fairyFirstIndex = 3900
 	fairyLastIndex  = 3913
-	// fadaDoValeIndex is the Fada do Vale(7dias): a fairy by name, by slot and by
+	// fadaDoValeIndex is the Fada do Vale: a fairy by name, by slot and by
 	// the shop that sells it (the same Fadas stock as 3900-3908), but outside the
 	// legacy range. Left out, it never burned while worn and never showed its time.
 	fadaDoValeIndex = 3916
@@ -88,22 +88,45 @@ func (d *Dispatcher) itemLifetime(it world.Item) time.Duration {
 	if days := d.itemDurations[int(it.Index)]; days > 0 {
 		return time.Duration(days) * 24 * time.Hour
 	}
-	if days := shopMountDefaultDays[it.Index]; days > 0 {
+	if days := defaultLifetimeDays[it.Index]; days > 0 {
 		return time.Duration(days) * 24 * time.Hour
 	}
 	return 0
 }
 
-// shopMountDefaultDays is the lifetime of the three cash-shop mounts when the
-// item carries none. Their names lost the "(3dias)" on 2026-09-11 — the shop
-// sells each one for 24h, 3 or 5 days, written on the item it delivers — so the
-// catalog no longer knows a lifetime for them; without this, one handed out with
-// no duration (a GM, an old delivery) would never run out. Three days is what
-// they had before.
-var shopMountDefaultDays = map[int16]int{
+// defaultLifetimeDays is the lifetime of the items whose names lost their
+// "(Ndias)", for when the item carries none. Each number is what the old name
+// said, so nothing lives longer or shorter than before; without it the catalog
+// knows no lifetime for them.
+//
+// The three cash-shop mounts lost theirs on 2026-09-11 — the shop sells each one
+// for 24h, 3 or 5 days, written on the item it delivers — and one handed out
+// with no duration (a GM, an old delivery) would never run out.
+//
+// The fairies lost theirs on 2026-09-23, so that the duration is the one the
+// item carries (EF_WDAY) and the name is just the fairy. For them this table is
+// not optional: the shop sells fairies with no effects at all, and one that
+// reaches Equip[13] with no lifetime is deleted by tickFairies on the first
+// pulse. The 15- and 30-day Verdes keep 15 and 30 even though their catalog
+// rows say EF_WDAY 7: the name is what they ran on.
+var defaultLifetimeDays = map[int16]int{
 	3980: 3, // Shire
 	3981: 3, // Thoroughbred
 	3982: 3, // Klazedale
+
+	3900: 3,  // Fada Verde
+	3901: 3,  // Fada Azul
+	3902: 3,  // Fada Vermelha
+	3903: 5,  // Fada Verde
+	3904: 5,  // Fada Azul
+	3905: 5,  // Fada Vermelha
+	3906: 7,  // Fada Verde
+	3907: 7,  // Fada Azul
+	3908: 7,  // Fada Vermelha
+	3911: 7,  // Fada Verde
+	3912: 15, // Fada Verde
+	3913: 30, // Fada Suprema
+	3916: 7,  // Fada do Vale
 }
 
 // startTimedItem begins a temporary item's life the first time it is equipped,

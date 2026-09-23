@@ -30,17 +30,9 @@ const (
 // fadaAzul reports whether the fairy slot holds a Fada Azul — the fairy this
 // reward doubles for.
 //
-// All THREE of them, and that is a deliberate divergence worth stating. In the
-// legacy only the 3-day Azul (3901) carries DropBonus; the 5- and 7-day ones
-// (3904, 3907) pay ExpBonus instead and no drop at all (CMob.cpp:716 vs 731).
-// That reads as an oversight in the original — three durations of the same fairy
-// that do different things — and a player who buys "a fada azul" for seven days
-// does not expect to earn less than one who bought three.
-//
-// The divergence is contained to this reward on purpose. fairyDropBonus in
-// drop_bonus.go is untouched and still pays the legacy's way, so no drop chance
-// anywhere moves because of this: the only thing that changed is what a stall
-// earns per quarter-hour.
+// All three of them. The legacy treated the 5- and 7-day Azuis (3904, 3907) as
+// experience fairies (CMob.cpp:716 vs 731); since 23/09/2026 every Azul is the
+// drop fairy, in fairyDropBonus as well as here.
 func fadaAzul(e *world.Entity) bool {
 	if e == nil {
 		return false

@@ -53,8 +53,8 @@ const (
 
 // fadaLevaNaAgua reports whether a fairy carries the party through the chain:
 // the Verde family (which includes the Suprema, 3913) and the Vermelha. The
-// indices are the ones fairyExpBonus already pays experience for, minus the Azul
-// and the Verde-Azul.
+// indices are the ones fairyExpBonus already pays experience for, minus the Azul,
+// which pays drop only.
 func fadaLevaNaAgua(idx int16) bool {
 	switch idx {
 	case 3900, 3903, 3906, 3911, 3912, 3913: // Fada Verde, incl. a Suprema

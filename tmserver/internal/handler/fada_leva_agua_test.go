@@ -10,7 +10,7 @@ import (
 )
 
 // TestFadaLevaNaAgua pins which fairies carry the party: the Verde family (the
-// XP one, Suprema included) and the Vermelha. The Azul and the Verde-Azul pay
+// XP one, Suprema included) and the Vermelha. The three Azuis pay
 // their bonuses and nothing else — they were not asked for, and a fairy that
 // silently gained the ride would change a dungeon nobody touched.
 func TestFadaLevaNaAgua(t *testing.T) {
@@ -29,8 +29,8 @@ func TestFadaLevaNaAgua(t *testing.T) {
 		{"Fada Vermelha 5 dias", 3905, true},
 		{"Fada Vermelha 7 dias", 3908, true},
 		{"Fada Azul", 3901, false},
-		{"Fada Verde-Azul 5 dias", 3904, false},
-		{"Fada Verde-Azul 7 dias", 3907, false},
+		{"Fada Azul 5 dias", 3904, false},
+		{"Fada Azul 7 dias", 3907, false},
 		{"Fada Prateada", 3914, false},
 		{"Fada Dourada", 3915, false},
 		{"slot vazio", 0, false},
