@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -18,6 +19,11 @@ type fakePix struct {
 	erroLer   error
 	salvouKey string
 	salvouTip store.TipoChavePix
+
+	temCobranca  bool
+	cobranca     store.CobrancaDoComprador
+	erroCobranca error
+	janelaPedida time.Duration
 }
 
 func (f *fakePix) SalvarChavePix(_ context.Context, _ int64, chave string, tipo store.TipoChavePix) error {
@@ -27,6 +33,13 @@ func (f *fakePix) SalvarChavePix(_ context.Context, _ int64, chave string, tipo 
 
 func (f *fakePix) LerChavePix(context.Context, int64) (store.RecebedorPix, error) {
 	return f.leitura, f.erroLer
+}
+
+func (f *fakePix) CobrancaAtualDoComprador(_ context.Context, _ int64,
+	janela time.Duration,
+) (bool, store.CobrancaDoComprador, error) {
+	f.janelaPedida = janela
+	return f.temCobranca, f.cobranca, f.erroCobranca
 }
 
 // As recusas previstas viajam no ENUM e não como erro de transporte.

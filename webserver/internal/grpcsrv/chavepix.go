@@ -3,6 +3,7 @@ package grpcsrv
 import (
 	"context"
 	"errors"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -17,6 +18,10 @@ import (
 type ChavesPix interface {
 	SalvarChavePix(ctx context.Context, accountID int64, chave string, tipo store.TipoChavePix) error
 	LerChavePix(ctx context.Context, accountID int64) (store.RecebedorPix, error)
+	// CobrancaAtualDoComprador é a única leitura feita para quem PAGA: a cobrança
+	// aberta da conta, ou a que fechou há pouco. Ver store/cobranca_do_comprador.go.
+	CobrancaAtualDoComprador(ctx context.Context, compradorConta int64,
+		janelaRecente time.Duration) (bool, store.CobrancaDoComprador, error)
 }
 
 // ServerRmt implementa webv1.RmtWebServiceServer.
@@ -101,4 +106,64 @@ func tipoParaProto(t store.TipoChavePix) webv1.PixKeyType {
 		return webv1.PixKeyType_PIX_KEY_TYPE_RANDOM
 	}
 	return webv1.PixKeyType_PIX_KEY_TYPE_UNSPECIFIED
+}
+
+// GetMyCurrentPixCharge devolve a cobrança que o comprador tem de pagar — ou o que
+// aconteceu com ela.
+//
+// SEM COBRANÇA É RESPOSTA VAZIA E NÃO ERRO, e isto é o caso comum e não a
+// exceção: quem pergunta é a página da conta, que as pessoas abrem para ver outras
+// coisas. Devolver erro aqui poria vermelho na tela de quase todo mundo, quase
+// sempre.
+//
+// A CONTA VEM DO PEDIDO E NÃO HÁ PARÂMETRO DE "COBRANÇA DE QUEM": o id chega
+// resolvido pelo BFF, que é quem sabe quem entrou. Quem garante que uma conta não
+// lê a cobrança de outra é a autorização do serviço (authz.go, RmtWebService está
+// em servicosDoJogador), e não uma conferência aqui — a mesma divisão da chave
+// Pix.
+func (s *ServerRmt) GetMyCurrentPixCharge(ctx context.Context, req *webv1.GetMyCurrentPixChargeRequest) (*webv1.GetMyCurrentPixChargeResponse, error) {
+	tem, cob, err := s.pix.CobrancaAtualDoComprador(ctx, req.GetAccountId(), 0)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "get current pix charge: %v", err)
+	}
+	if !tem {
+		return &webv1.GetMyCurrentPixChargeResponse{}, nil
+	}
+	return &webv1.GetMyCurrentPixChargeResponse{
+		HasCharge: true,
+		// Vem como o banco guardou, que é como a processadora devolveu. E vem
+		// vazio em todo estado fechado, porque a camada de banco só o entrega no
+		// estado aberto — cobrança morta ao lado de um código vivo convida alguém
+		// a pagar.
+		PixCode:     cob.CodigoPix,
+		AmountCents: cob.ValorCentavos,
+		ExpiresAt:   cob.ExpiraEm.Unix(),
+		State:       estadoParaProto(cob.Estado),
+		ItemIndex:   int32(cob.ItemIndex),
+		RefineLevel: int32(cob.Refino),
+		StackSize:   int32(cob.Quantidade),
+		SellerName:  cob.VendedorNome,
+	}, nil
+}
+
+// estadoParaProto mapeia o estado do banco no do contrato.
+//
+// Explícito e não aritmético, mesmo com os números batendo hoje: os dois enums
+// vivem em arquivos diferentes e mudam por motivos diferentes, e uma conversão por
+// cast passaria a mentir em silêncio no dia em que um deles ganhasse um estado no
+// meio.
+func estadoParaProto(e store.EstadoCobrancaComprador) webv1.PixChargeState {
+	switch e {
+	case store.EstadoCobrancaAberta:
+		return webv1.PixChargeState_PIX_CHARGE_STATE_OPEN
+	case store.EstadoCobrancaExpirada:
+		return webv1.PixChargeState_PIX_CHARGE_STATE_EXPIRED
+	case store.EstadoCobrancaPaga:
+		return webv1.PixChargeState_PIX_CHARGE_STATE_PAID
+	case store.EstadoCobrancaCancelada:
+		return webv1.PixChargeState_PIX_CHARGE_STATE_CANCELED
+	case store.EstadoCobrancaPagaSemItem:
+		return webv1.PixChargeState_PIX_CHARGE_STATE_PAID_LATE
+	}
+	return webv1.PixChargeState_PIX_CHARGE_STATE_UNSPECIFIED
 }

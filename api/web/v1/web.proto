@@ -45,6 +45,39 @@ service RmtWebService {
   // "you already registered ...1234", and a Pix key is personal payment data on a
   // public site.
   rpc GetPixKey(GetPixKeyRequest) returns (GetPixKeyResponse);
+  // GetMyCurrentPixCharge returns the real-money charge this account has as a
+  // BUYER, so the site can show the Pix copy-and-paste code — and so it can say
+  // what happened once the charge closes.
+  //
+  // The buyer clicks buy IN THE GAME, is told to pay on the site, opens their
+  // account page and pays there. The game client is not touched: it cannot draw
+  // a QR code, open a link, or copy to the clipboard, so the payment screen was
+  // never going to live inside it.
+  //
+  // "CURRENT" AND NOT "OPEN": it also returns a charge that closed a few minutes
+  // ago, and that is the whole reason the name is not Open. A page that simply
+  // empties out is a page that, as far as the person is concerned, lost their
+  // money — and the worst moment for that is the second after they paid. The
+  // window is server configuration; past it, the answer is empty.
+  //
+  // READ ONLY. It creates nothing and cancels nothing. The charge is created by
+  // the game when the shelf is bought, and it closes by payment, by the buyer
+  // leaving the game, or by its deadline.
+  //
+  // THERE IS NO "GIVE UP" CALL, and leaving it out is a decision: cancelling on
+  // our side does NOT cancel the Pix at the processor, so a give-up button would
+  // manufacture the PAID_LATE case for anyone who clicks it and then pays anyway
+  // with the bank app already open. The deadline already closes the charge on its
+  // own.
+  //
+  // NO CHARGE IS AN EMPTY ANSWER, NOT AN ERROR. It is the ordinary state of
+  // almost every account almost all of the time, and the page that asks this is
+  // the account page — which people open to look at other things.
+  //
+  // AT MOST ONE, and that is an invariant of the database rather than a choice
+  // made here: one charge open per listing, and a buyer with two open charges
+  // could pay twice for one item.
+  rpc GetMyCurrentPixCharge(GetMyCurrentPixChargeRequest) returns (GetMyCurrentPixChargeResponse);
 }
 
 // RankingWebService exposes public ranking projections for the web front-end.
@@ -140,6 +173,99 @@ message GetPixKeyResponse {
   string masked_key = 2;
   PixKeyType type = 3;
   bool verified = 4;
+}
+
+// PixChargeState is where the buyer's charge stands.
+//
+// EVERY CLOSED STATE IS NAMED, and none of them is folded into an empty answer.
+// The reason is the same for all of them and it is not symmetry for its own sake:
+// each one is a different sentence the page has to be able to say to a person who
+// just sent money somewhere. "Your time ran out", "we got it, the item is on its
+// way", "it was cancelled because you left the game" and "it arrived late and is
+// being looked at" are four different situations, and a blank page says none of
+// them.
+enum PixChargeState {
+  PIX_CHARGE_STATE_UNSPECIFIED = 0;
+  // OPEN: the code is good and the deadline has not passed. Pay it.
+  PIX_CHARGE_STATE_OPEN = 1;
+  // EXPIRED: the deadline passed. The sweep may not have closed the row yet, and
+  // that does not change what the page says.
+  PIX_CHARGE_STATE_EXPIRED = 2;
+  // PAID: the money arrived and the item is on its way to the buyer's mailbox.
+  //
+  // The single most important state to NOT leave blank: the person has just sent
+  // money, and a screen that empties at that exact moment is the screen that
+  // makes them open a ticket.
+  PIX_CHARGE_STATE_PAID = 3;
+  // CANCELED: closed without payment, because the buyer LEFT THE GAME.
+  //
+  // This one will happen for real, and often: people leave the game to pay on
+  // their phone. Without a state for it the page empties with no explanation and
+  // the buyer has no idea what they did wrong.
+  PIX_CHARGE_STATE_CANCELED = 4;
+  // PAID_LATE: the money arrived AFTER the charge had closed, and the item was
+  // not delivered. The amount is under review.
+  //
+  // RESERVED ON PURPOSE, and the server does not produce it yet. The case is
+  // real and unavoidable: there is no known route to cancel a cash-in at the
+  // processor, so the copy-and-paste code stays payable after our row closes.
+  // What happens to that money — refund, credit, another item — is a money
+  // decision and not the server's to make.
+  //
+  // The slot exists now because a state invented later is another contract
+  // handshake with somebody's money sitting in the middle of it.
+  PIX_CHARGE_STATE_PAID_LATE = 5;
+}
+
+message GetMyCurrentPixChargeRequest {
+  // The logged-in account, as the site's BFF resolved it. The buyer can only ever
+  // see their own charge: there is no parameter for whose charge to read, on
+  // purpose.
+  int64 account_id = 1;
+}
+
+message GetMyCurrentPixChargeResponse {
+  // has_charge false means there is nothing to show. Every field below is then
+  // empty, and the page shows its ordinary state.
+  bool has_charge = 1;
+  // pix_code is the copy-and-paste string, exactly as the payment processor
+  // returned it. It is not re-encoded, reformatted or validated here: a Pix code
+  // is checksummed end to end, and a server that "tidies" it breaks payments in a
+  // way nobody can see until money fails to arrive.
+  //
+  // Empty while the charge exists and the processor has not answered yet, and
+  // empty in every closed state — a dead charge shown beside a live code invites
+  // somebody to pay it.
+  //
+  // The site does not draw a QR code from it (it has no renderer and does not
+  // need one) — it shows the string with a copy button.
+  string pix_code = 2;
+  // In CENTS, like everywhere else in this system. The name says cents so nobody
+  // has to remember.
+  int64 amount_cents = 3;
+  // When the code stops being good. Unix seconds, UTC.
+  //
+  // The DEADLINE and not the remaining seconds: a countdown computed here is
+  // already wrong when it arrives, and the page can count down from a deadline by
+  // itself.
+  int64 expires_at = 4;
+  PixChargeState state = 5;
+  // What is being bought, from the LISTING'S SNAPSHOT and not from the seller's
+  // live warehouse.
+  //
+  // The snapshot is the answer to "what exactly did I pay for" after the item has
+  // left the warehouse, and it is also the only source that works while the
+  // seller is offline. item_index is the catalog index; the site turns it into a
+  // name and an icon with the catalog it already has.
+  int32 item_index = 6;
+  // refine_level and stack_size are what the panel shows beside an item in the
+  // game, so the site can show the same thing rather than a bare index.
+  int32 refine_level = 7;
+  int32 stack_size = 8;
+  // The seller's character name, for the buyer to recognize whom they are buying
+  // from. Never the seller's account name, and never their Pix key: the key is
+  // inside the pix_code and nowhere else in this answer.
+  string seller_name = 9;
 }
 
 message ListExpRankingRequest {

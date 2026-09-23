@@ -182,8 +182,9 @@ var AccountWebService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	RmtWebService_SavePixKey_FullMethodName = "/web.v1.RmtWebService/SavePixKey"
-	RmtWebService_GetPixKey_FullMethodName  = "/web.v1.RmtWebService/GetPixKey"
+	RmtWebService_SavePixKey_FullMethodName            = "/web.v1.RmtWebService/SavePixKey"
+	RmtWebService_GetPixKey_FullMethodName             = "/web.v1.RmtWebService/GetPixKey"
+	RmtWebService_GetMyCurrentPixCharge_FullMethodName = "/web.v1.RmtWebService/GetMyCurrentPixCharge"
 )
 
 // RmtWebServiceClient is the client API for RmtWebService service.
@@ -212,6 +213,39 @@ type RmtWebServiceClient interface {
 	// "you already registered ...1234", and a Pix key is personal payment data on a
 	// public site.
 	GetPixKey(ctx context.Context, in *GetPixKeyRequest, opts ...grpc.CallOption) (*GetPixKeyResponse, error)
+	// GetMyCurrentPixCharge returns the real-money charge this account has as a
+	// BUYER, so the site can show the Pix copy-and-paste code — and so it can say
+	// what happened once the charge closes.
+	//
+	// The buyer clicks buy IN THE GAME, is told to pay on the site, opens their
+	// account page and pays there. The game client is not touched: it cannot draw
+	// a QR code, open a link, or copy to the clipboard, so the payment screen was
+	// never going to live inside it.
+	//
+	// "CURRENT" AND NOT "OPEN": it also returns a charge that closed a few minutes
+	// ago, and that is the whole reason the name is not Open. A page that simply
+	// empties out is a page that, as far as the person is concerned, lost their
+	// money — and the worst moment for that is the second after they paid. The
+	// window is server configuration; past it, the answer is empty.
+	//
+	// READ ONLY. It creates nothing and cancels nothing. The charge is created by
+	// the game when the shelf is bought, and it closes by payment, by the buyer
+	// leaving the game, or by its deadline.
+	//
+	// THERE IS NO "GIVE UP" CALL, and leaving it out is a decision: cancelling on
+	// our side does NOT cancel the Pix at the processor, so a give-up button would
+	// manufacture the PAID_LATE case for anyone who clicks it and then pays anyway
+	// with the bank app already open. The deadline already closes the charge on its
+	// own.
+	//
+	// NO CHARGE IS AN EMPTY ANSWER, NOT AN ERROR. It is the ordinary state of
+	// almost every account almost all of the time, and the page that asks this is
+	// the account page — which people open to look at other things.
+	//
+	// AT MOST ONE, and that is an invariant of the database rather than a choice
+	// made here: one charge open per listing, and a buyer with two open charges
+	// could pay twice for one item.
+	GetMyCurrentPixCharge(ctx context.Context, in *GetMyCurrentPixChargeRequest, opts ...grpc.CallOption) (*GetMyCurrentPixChargeResponse, error)
 }
 
 type rmtWebServiceClient struct {
@@ -236,6 +270,16 @@ func (c *rmtWebServiceClient) GetPixKey(ctx context.Context, in *GetPixKeyReques
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetPixKeyResponse)
 	err := c.cc.Invoke(ctx, RmtWebService_GetPixKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rmtWebServiceClient) GetMyCurrentPixCharge(ctx context.Context, in *GetMyCurrentPixChargeRequest, opts ...grpc.CallOption) (*GetMyCurrentPixChargeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMyCurrentPixChargeResponse)
+	err := c.cc.Invoke(ctx, RmtWebService_GetMyCurrentPixCharge_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -268,6 +312,39 @@ type RmtWebServiceServer interface {
 	// "you already registered ...1234", and a Pix key is personal payment data on a
 	// public site.
 	GetPixKey(context.Context, *GetPixKeyRequest) (*GetPixKeyResponse, error)
+	// GetMyCurrentPixCharge returns the real-money charge this account has as a
+	// BUYER, so the site can show the Pix copy-and-paste code — and so it can say
+	// what happened once the charge closes.
+	//
+	// The buyer clicks buy IN THE GAME, is told to pay on the site, opens their
+	// account page and pays there. The game client is not touched: it cannot draw
+	// a QR code, open a link, or copy to the clipboard, so the payment screen was
+	// never going to live inside it.
+	//
+	// "CURRENT" AND NOT "OPEN": it also returns a charge that closed a few minutes
+	// ago, and that is the whole reason the name is not Open. A page that simply
+	// empties out is a page that, as far as the person is concerned, lost their
+	// money — and the worst moment for that is the second after they paid. The
+	// window is server configuration; past it, the answer is empty.
+	//
+	// READ ONLY. It creates nothing and cancels nothing. The charge is created by
+	// the game when the shelf is bought, and it closes by payment, by the buyer
+	// leaving the game, or by its deadline.
+	//
+	// THERE IS NO "GIVE UP" CALL, and leaving it out is a decision: cancelling on
+	// our side does NOT cancel the Pix at the processor, so a give-up button would
+	// manufacture the PAID_LATE case for anyone who clicks it and then pays anyway
+	// with the bank app already open. The deadline already closes the charge on its
+	// own.
+	//
+	// NO CHARGE IS AN EMPTY ANSWER, NOT AN ERROR. It is the ordinary state of
+	// almost every account almost all of the time, and the page that asks this is
+	// the account page — which people open to look at other things.
+	//
+	// AT MOST ONE, and that is an invariant of the database rather than a choice
+	// made here: one charge open per listing, and a buyer with two open charges
+	// could pay twice for one item.
+	GetMyCurrentPixCharge(context.Context, *GetMyCurrentPixChargeRequest) (*GetMyCurrentPixChargeResponse, error)
 	mustEmbedUnimplementedRmtWebServiceServer()
 }
 
@@ -283,6 +360,9 @@ func (UnimplementedRmtWebServiceServer) SavePixKey(context.Context, *SavePixKeyR
 }
 func (UnimplementedRmtWebServiceServer) GetPixKey(context.Context, *GetPixKeyRequest) (*GetPixKeyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPixKey not implemented")
+}
+func (UnimplementedRmtWebServiceServer) GetMyCurrentPixCharge(context.Context, *GetMyCurrentPixChargeRequest) (*GetMyCurrentPixChargeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMyCurrentPixCharge not implemented")
 }
 func (UnimplementedRmtWebServiceServer) mustEmbedUnimplementedRmtWebServiceServer() {}
 func (UnimplementedRmtWebServiceServer) testEmbeddedByValue()                       {}
@@ -341,6 +421,24 @@ func _RmtWebService_GetPixKey_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RmtWebService_GetMyCurrentPixCharge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMyCurrentPixChargeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RmtWebServiceServer).GetMyCurrentPixCharge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RmtWebService_GetMyCurrentPixCharge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RmtWebServiceServer).GetMyCurrentPixCharge(ctx, req.(*GetMyCurrentPixChargeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RmtWebService_ServiceDesc is the grpc.ServiceDesc for RmtWebService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -355,6 +453,10 @@ var RmtWebService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPixKey",
 			Handler:    _RmtWebService_GetPixKey_Handler,
+		},
+		{
+			MethodName: "GetMyCurrentPixCharge",
+			Handler:    _RmtWebService_GetMyCurrentPixCharge_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
