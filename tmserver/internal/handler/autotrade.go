@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"context"
+
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -406,6 +408,16 @@ func (d *Dispatcher) closeAutoTrade(w *world.World, s *world.Session) {
 	// that number can still be read.
 	d.creditShopPoints(w, s)
 
+	// O ANÚNCIO MORRE COM A BARRACA, e este é o único lugar por onde toda barraca
+	// passa ao descer — fechou pelo comando, deslogou, trocou de personagem,
+	// andou na pose antiga, ou foi derrubada por recusa anti-adulteração.
+	//
+	// Antes disto, um anúncio em dinheiro real sobrevivia à barraca que o
+	// mostrava: ficava ativo para sempre e o cadeado do escrow deixava o item
+	// intocável para sempre junto. A mensagem do jogo mandava o vendedor "cancelar
+	// o anúncio" e não existia como.
+	d.encerraAnunciosDaBarraca(w, s)
+
 	clone := 0
 	if s.AutoTrade != nil {
 		clone = s.AutoTrade.CloneID
@@ -433,6 +445,70 @@ func (d *Dispatcher) closeAutoTrade(w *world.World, s *world.Session) {
 	body := protocol.EncodeCreateMobBody(createMobFrom(e, 0))
 	w.SendTo(s, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, body)
 	w.BroadcastInView(s.Conn, protocol.MsgCreateMob, body)
+}
+
+// encerraAnunciosDaBarraca manda ao banco os anúncios das prateleiras em dinheiro
+// real que estão descendo, e solta no baú os cadeados que o banco disser que
+// podem sair.
+//
+// Usa GoDetached e não Go de propósito, e aqui o motivo é mais forte do que na
+// abertura: o caminho mais comum de uma barraca descer é a SESSÃO ACABAR. O Go
+// descarta a volta quando a sessão morre, e descartar esta volta deixaria o
+// anúncio ativo para sempre — exatamente o que esta função existe para impedir.
+//
+// A volta trabalha por CONTA e não por sessão, pelo mesmo motivo: quando ela
+// chega, a sessão quase sempre já foi. Se o baú também já saiu da memória, não há
+// o que soltar aqui, e não é perda — a marca continua no banco e a faxina do
+// login a encontra.
+func (d *Dispatcher) encerraAnunciosDaBarraca(w *world.World, s *world.Session) {
+	if s == nil || s.AutoTrade == nil {
+		return
+	}
+	var ids []int64
+	cargo := w.Cargo(s.AccountID)
+	for i := range s.AutoTrade.Slots {
+		pos := s.AutoTrade.Slots[i].CargoPos
+		if s.AutoTrade.Moeda[i] != protocol.LojaMoedaRMT || pos < 0 || pos >= world.MaxCargo {
+			continue
+		}
+		// O id vem da MARCA no baú, e não de uma cópia guardada na barraca: a
+		// marca é o que o banco também vê, e é ela que tem de sair.
+		if cargo != nil && cargo.Items[pos].AnuncioRMT != 0 {
+			ids = append(ids, cargo.Items[pos].AnuncioRMT)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	conta := s.AccountID
+	persist := w.Persistence()
+	w.GoDetached(func() func(*world.World) {
+		fim, err := persist.CloseRmtListings(context.Background(), ids)
+		return func(w *world.World) {
+			if err != nil {
+				// O anúncio fica ativo e o item preso. Não é perda definitiva: a
+				// faxina do próximo login refaz a pergunta. É por isso que a
+				// faxina existe e não é só zelo.
+				d.log.Warn("loja: nao consegui encerrar os anuncios da barraca",
+					"conta", conta, "anuncios", ids, "err", err)
+				return
+			}
+			marcas := make(map[int16]int64, len(fim))
+			for _, a := range fim {
+				if a.CobrancaAberta {
+					// Alguém pode estar com o QR na mão. O cadeado fica.
+					d.log.Info("loja: anuncio fica de pe, tem cobranca aberta",
+						"conta", conta, "anuncio", a.AnuncioID, "slot", a.CargoSlot)
+					continue
+				}
+				marcas[a.CargoSlot] = a.AnuncioID
+			}
+			if soltos := w.SoltaMarcasDeEscrow(conta, marcas); soltos > 0 {
+				d.log.Info("loja: barraca desceu e devolveu os itens ao dono",
+					"conta", conta, "itens", soltos)
+			}
+		}
+	})
 }
 
 // fecharLojinha is /fecharloja: the one way an owner closes a clone stall, now

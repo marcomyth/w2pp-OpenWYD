@@ -75,6 +75,13 @@ func (c *Client) AccountLogin(ctx context.Context, name, password string) (world
 	if slots, err := c.ListSoldEscrowSlots(ctx, out.AccountID); err == nil {
 		out.SlotsVendidos = slots
 	}
+	// E a faxina: cadeado que já não segura nada. Duas perguntas e não uma
+	// porque os destinos são OPOSTOS — aquela esvazia o slot, esta devolve o
+	// item ao dono. Uma lista só faria o código de cima ter de adivinhar qual é
+	// qual, e errar aqui é apagar o item de quem não vendeu nada.
+	if slots, err := c.ListDeadEscrowSlots(ctx, out.AccountID); err == nil {
+		out.SlotsSoltos = slots
+	}
 	return out, nil
 }
 
@@ -103,6 +110,36 @@ func (c *Client) CancelRmtListings(ctx context.Context, ids []int64) error {
 		return fmt.Errorf("dbclient: cancel rmt listings: %w", err)
 	}
 	return nil
+}
+
+// CloseRmtListings encerra os anúncios de uma barraca que está descendo.
+func (c *Client) CloseRmtListings(ctx context.Context, ids []int64) ([]world.AnuncioEncerrado, error) {
+	resp, err := c.api.CloseRmtListings(ctx, &dbv1.CloseRmtListingsRequest{ListingIds: ids})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: close rmt listings: %w", err)
+	}
+	out := make([]world.AnuncioEncerrado, 0, len(resp.GetClosed()))
+	for _, a := range resp.GetClosed() {
+		out = append(out, world.AnuncioEncerrado{
+			AnuncioID:      a.GetListingId(),
+			CargoSlot:      int16(a.GetCargoSlot()),
+			CobrancaAberta: a.GetOpenCharge(),
+		})
+	}
+	return out, nil
+}
+
+// ListDeadEscrowSlots pergunta quais marcas de escrow já não seguram nada.
+func (c *Client) ListDeadEscrowSlots(ctx context.Context, accountID int64) ([]int16, error) {
+	resp, err := c.api.ListDeadEscrowSlots(ctx, &dbv1.ListDeadEscrowSlotsRequest{AccountId: accountID})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: list dead escrow slots: %w", err)
+	}
+	out := make([]int16, 0, len(resp.GetCargoSlots()))
+	for _, slot := range resp.GetCargoSlots() {
+		out = append(out, int16(slot))
+	}
+	return out, nil
 }
 
 // ListSoldEscrowSlots pergunta quais slots do baú ainda seguram item de anúncio

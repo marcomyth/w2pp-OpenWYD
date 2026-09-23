@@ -85,6 +85,32 @@ service AccountService {
   // leave the window, or they hold the slot forever through the one-active-per-
   // slot index.
   rpc CancelRmtListings(CancelRmtListingsRequest) returns (CancelRmtListingsResponse);
+  // CloseRmtListings ends the listings of a stall that is coming down.
+  //
+  // It is the missing half of the escrow. Until it existed a listing stayed
+  // active forever once its stall was gone, and the escrow mark kept the item
+  // untouchable forever with it — the game told the seller to cancel the
+  // listing and there was no way to.
+  //
+  // A listing with NO open charge is cancelled and its slot comes free. One
+  // WITH an open charge stays active: the buyer has a QR code in hand, their
+  // payment is still valid, and cancelling now would produce the worst case in
+  // the system — money arriving against a dead listing, which is a debt owed to
+  // a person who paid correctly. Those are flagged instead, so the lock can be
+  // released once the charge closes.
+  rpc CloseRmtListings(CloseRmtListingsRequest) returns (CloseRmtListingsResponse);
+  // ListDeadEscrowSlots returns the cargo slots whose escrow mark no longer
+  // holds anything: the listing is cancelled, or gone, or active-but-stall-down
+  // with no open charge.
+  //
+  // It is the lazy half of releasing the lock. Removing the mark is the loop's
+  // job — it owns the live warehouse — and the loop is not always there when the
+  // listing ends. This is what it asks when the seller shows up.
+  //
+  // It deliberately EXCLUDES sold listings: that slot also has to be cleared,
+  // but the item leaves and never comes back to the owner. Mixing the two lists
+  // would confuse "release" with "delivered". See ListSoldEscrowSlots.
+  rpc ListDeadEscrowSlots(ListDeadEscrowSlotsRequest) returns (ListDeadEscrowSlotsResponse);
   // SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
   // marks the drained mailbox rows delivered/lost in the SAME transaction — the
   // anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -598,6 +624,22 @@ message OpenRmtListingsResponse {
 
 message CancelRmtListingsRequest  { repeated int64 listing_ids = 1; }
 message CancelRmtListingsResponse { bool ok = 1; }
+
+message CloseRmtListingsRequest { repeated int64 listing_ids = 1; }
+
+// ClosedRmtListing is what became of one listing when its stall came down.
+message ClosedRmtListing {
+  int64 listing_id = 1;
+  int32 cargo_slot = 2;
+  // open_charge means there was money in play. The listing left the window all
+  // the same, but the escrow mark STAYS until the charge closes.
+  bool open_charge = 3;
+}
+
+message CloseRmtListingsResponse { repeated ClosedRmtListing closed = 1; }
+
+message ListDeadEscrowSlotsRequest  { int64 account_id = 1; }
+message ListDeadEscrowSlotsResponse { repeated int32 cargo_slots = 1; }
 
 message SaveCargoWithDeliveriesRequest {
   int64 account_id = 1;

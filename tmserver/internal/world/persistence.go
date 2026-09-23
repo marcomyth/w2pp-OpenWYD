@@ -67,6 +67,17 @@ type CharSummary struct {
 // carries the account-shared cargo and the pending donate web-shop mailbox
 // (issue #34), both loaded in the same backend round-trip as the character list
 // (they are account-scoped, so they are fetched once per account login).
+// AnuncioEncerrado é o destino de um anúncio quando a barraca desce.
+//
+// CobrancaAberta é a única pergunta que o laço faz dele: havendo dinheiro em
+// jogo, o cadeado do slot FICA — alguém pode estar com o QR na mão, e soltar o
+// item agora seria vendê-lo duas vezes.
+type AnuncioEncerrado struct {
+	AnuncioID      int64
+	CargoSlot      int16
+	CobrancaAberta bool
+}
+
 // AnuncioRMT é uma prateleira em dinheiro real na hora de nascer: onde o item
 // está, o que ele é, e quanto custa. A fotografia viaja junto porque depois da
 // venda o item não está mais no baú, e sem ela não há como responder "o que
@@ -89,6 +100,11 @@ type LoginOutcome struct {
 	// slots — nunca devolve o item ao dono, que já foi pago e entregue a outra
 	// pessoa. Ver world.LimpaSlotsVendidos.
 	SlotsVendidos []int16
+	// SlotsSoltos são os slots cujo cadeado de escrow já não segura nada — o
+	// anúncio foi cancelado, sumiu, ou ficou ativo sem barraca e sem cobrança. O
+	// item VOLTA AO DONO, ao contrário do SlotsVendidos, que o tira. Ver
+	// world.SoltaMarcasMortas.
+	SlotsSoltos []int16
 	// As carteiras da conta, lidas no mesmo login. Cash e RMT são da CONTA e
 	// moram no banco; o laço do mundo não fala com ele, então guarda o número
 	// daqui e o mantém em dia por conta própria a cada venda.
@@ -460,6 +476,15 @@ type Persistence interface {
 	OpenRmtListings(ctx context.Context, vendedor int64, itens []AnuncioRMT) (ids []int64, semChave bool, err error)
 	// CancelRmtListings fecha anúncios que nasceram e não chegaram a valer.
 	CancelRmtListings(ctx context.Context, ids []int64) error
+	// CloseRmtListings encerra os anúncios de uma barraca que está descendo, e
+	// diz o que aconteceu com cada um. Quem tem cobrança aberta NÃO é cancelado —
+	// só quem não tem solta o cadeado do baú. Chamada FORA do laço.
+	CloseRmtListings(ctx context.Context, ids []int64) ([]AnuncioEncerrado, error)
+	// ListDeadEscrowSlots devolve os slots cuja marca de escrow já não segura
+	// nada: anúncio cancelado, sumido, ou ativo-sem-barraca e sem cobrança. É a
+	// faxina que o login faz, porque tirar a marca é trabalho do laço e o laço nem
+	// sempre está presente quando o anúncio acaba.
+	ListDeadEscrowSlots(ctx context.Context, accountID int64) ([]int16, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all) and marks the
 	// drained mailbox rows delivered/lost in one backend transaction — the anti-dup
 	// boundary for the drain.
@@ -664,6 +689,16 @@ func (NopPersistence) OpenRmtListings(context.Context, int64, []AnuncioRMT) ([]i
 
 // CancelRmtListings não tem o que cancelar.
 func (NopPersistence) CancelRmtListings(context.Context, []int64) error { return nil }
+
+// CloseRmtListings não tem anúncio para encerrar.
+func (NopPersistence) CloseRmtListings(context.Context, []int64) ([]AnuncioEncerrado, error) {
+	return nil, nil
+}
+
+// ListDeadEscrowSlots não tem baú para varrer.
+func (NopPersistence) ListDeadEscrowSlots(context.Context, int64) ([]int16, error) {
+	return nil, nil
+}
 
 // SaveCargoWithDeliveries drops the snapshot (no backend to persist to).
 func (NopPersistence) SaveCargoWithDeliveries(context.Context, CargoSave, []int64, []int64) error {

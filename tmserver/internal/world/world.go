@@ -779,6 +779,86 @@ func (w *World) LimpaSlotsVendidos(s *Session, slots []int16) int {
 	return saiu
 }
 
+// SoltaMarcasDeEscrow tira do baú da CONTA as marcas dos slots dados, devolvendo
+// o item ao dono.
+//
+// É a operação oposta à LimpaSlotsVendidos, e a diferença é tudo: aquela ESVAZIA
+// o slot, porque o item já foi pago e entregue a outra pessoa; esta só tira o
+// cadeado, porque a venda não aconteceu e o item nunca deixou de ser do dono.
+// Trocar uma pela outra apagaria o item de alguém que não vendeu nada.
+//
+// Trabalha por CONTA e não por sessão: o vendedor pode estar na tela de
+// personagem quando isto roda, e o baú é da conta de qualquer forma. Se ele nem
+// estiver em jogo, não há o que fazer aqui — a marca continua no banco e a faxina
+// do login a encontra.
+//
+// Só solta slot que AINDA carrega a marca daquele anúncio. A lista vem de fora do
+// laço e pode chegar depois de o slot ter mudado; soltar um cadeado que já é de
+// outro anúncio libertaria um item que está à venda agora.
+func (w *World) SoltaMarcasDeEscrow(accountID int64, marcas map[int16]int64) int {
+	if accountID == 0 || len(marcas) == 0 {
+		return 0
+	}
+	cargo := w.cargo[accountID]
+	if cargo == nil {
+		return 0
+	}
+	soltos := 0
+	for slot, anuncio := range marcas {
+		if slot < 0 || int(slot) >= MaxCargo {
+			continue
+		}
+		it := cargo.Items[slot]
+		if it.Empty() || it.AnuncioRMT != anuncio {
+			continue
+		}
+		w.log.Info("escrow: cadeado solto, o item volta ao dono", "account", accountID,
+			"slot", slot, "anuncio", anuncio, "item", it.Index)
+		cargo.Items[slot].AnuncioRMT = 0
+		soltos++
+	}
+	if soltos > 0 {
+		w.saveCargoAcking(accountID)
+	}
+	return soltos
+}
+
+// SoltaMarcasMortas tira as marcas dos slots que a faxina apontou, sem conferir
+// contra qual anúncio elas apontam.
+//
+// A conferência que a SoltaMarcasDeEscrow faz não serve aqui, e é por um motivo
+// e não por preguiça: a faxina responde "este slot tem cadeado morto", e o id do
+// anúncio morto é justamente o que o laço não conhece. O que protege esta versão
+// é a origem da lista — ela vem de uma consulta que já excluiu todo anúncio vivo,
+// vendido e com cobrança aberta.
+func (w *World) SoltaMarcasMortas(accountID int64, slots []int16) int {
+	if accountID == 0 || len(slots) == 0 {
+		return 0
+	}
+	cargo := w.cargo[accountID]
+	if cargo == nil {
+		return 0
+	}
+	soltos := 0
+	for _, slot := range slots {
+		if slot < 0 || int(slot) >= MaxCargo {
+			continue
+		}
+		it := cargo.Items[slot]
+		if it.Empty() || it.AnuncioRMT == 0 {
+			continue
+		}
+		w.log.Info("escrow: faxina soltou um cadeado morto", "account", accountID,
+			"slot", slot, "anuncio", it.AnuncioRMT, "item", it.Index)
+		cargo.Items[slot].AnuncioRMT = 0
+		soltos++
+	}
+	if soltos > 0 {
+		w.saveCargoAcking(accountID)
+	}
+	return soltos
+}
+
 // SalvaCargo grava o baú da conta agora, sem esperar o próximo momento de save.
 //
 // Existe para encurtar janelas: quando o laço acabou de escrever no baú uma coisa

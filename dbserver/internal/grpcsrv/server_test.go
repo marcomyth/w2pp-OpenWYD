@@ -16,6 +16,9 @@ import (
 type fakeStore struct {
 	anunciosAbertos    []store.ItemAnunciado
 	anunciosCancelados []int64
+	anunciosEncerrados []int64
+	encerrados         []store.AnuncioEncerrado
+	slotsSoltos        []int16
 	erroAbrirAnuncios  error
 	slotsVendidos      []int16
 	erroSlotsVendidos  error
@@ -221,6 +224,15 @@ func (f *fakeStore) AbrirAnunciosRMT(_ context.Context, _ int64, itens []store.I
 func (f *fakeStore) CancelarAnunciosRMT(_ context.Context, ids []int64) error {
 	f.anunciosCancelados = ids
 	return nil
+}
+
+func (f *fakeStore) EncerrarAnunciosRMT(_ context.Context, ids []int64) ([]store.AnuncioEncerrado, error) {
+	f.anunciosEncerrados = ids
+	return f.encerrados, nil
+}
+
+func (f *fakeStore) SlotsDeEscrowMorto(context.Context, int64) ([]int16, error) {
+	return f.slotsSoltos, nil
 }
 
 func (f *fakeStore) SlotsVendidosPendentes(context.Context, int64) ([]int16, error) {

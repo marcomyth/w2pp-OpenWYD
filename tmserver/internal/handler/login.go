@@ -110,6 +110,15 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 				"conn", s.Conn, "account", s.AccountName, "itens", saiu)
 			vendidos = saiu
 		}
+		// E a faxina, que é o contrário da retirada: aqui o item FICA e só o
+		// cadeado sai. São dois caminhos porque são dois destinos — confundi-los
+		// apagaria o item de quem não vendeu nada. O vendedor não é avisado desta:
+		// nada mudou no baú dele que ele pudesse notar, e um aviso sobre uma trava
+		// que ele nunca viu seria conversa sobre encanamento.
+		if soltos := w.SoltaMarcasMortas(out.AccountID, out.SlotsSoltos); soltos > 0 {
+			d.log.Info("escrow: faxina do login soltou cadeados mortos",
+				"conn", s.Conn, "account", s.AccountName, "itens", soltos)
+		}
 		s.Mode = world.UserSelChar
 		coin, cargoItems := d.cargoWire(w.Cargo(out.AccountID))
 		body := protocol.EncodeCNFAccountLoginBody(s.AccountName, d.selCharsFrom(out.Characters), coin, cargoItems)

@@ -43,6 +43,8 @@ type Store interface {
 	SlotsVendidosPendentes(ctx context.Context, accountID int64) ([]int16, error)
 	AbrirAnunciosRMT(ctx context.Context, vendedorConta int64, itens []store.ItemAnunciado) ([]int64, error)
 	CancelarAnunciosRMT(ctx context.Context, ids []int64) error
+	EncerrarAnunciosRMT(ctx context.Context, ids []int64) ([]store.AnuncioEncerrado, error)
+	SlotsDeEscrowMorto(ctx context.Context, accountID int64) ([]int16, error)
 	SaveCargoWithDeliveries(ctx context.Context, accountID int64, coin int32, items []domain.Item, deliveredIDs, lostIDs []int64) error
 	SetBlockedByName(ctx context.Context, name string, blocked bool) error
 	RecordDuelResult(ctx context.Context, winnerName, loserName string) error
@@ -343,6 +345,39 @@ func (s *Server) CancelRmtListings(ctx context.Context, req *dbv1.CancelRmtListi
 		return nil, status.Errorf(codes.Internal, "cancel rmt listings: %v", err)
 	}
 	return &dbv1.CancelRmtListingsResponse{Ok: true}, nil
+}
+
+// CloseRmtListings encerra os anúncios de uma barraca que está descendo.
+//
+// O que tem cobrança aberta NÃO é cancelado, e a resposta diz quais: quem chamou
+// só pode soltar o cadeado do baú dos outros.
+func (s *Server) CloseRmtListings(ctx context.Context, req *dbv1.CloseRmtListingsRequest) (*dbv1.CloseRmtListingsResponse, error) {
+	fim, err := s.store.EncerrarAnunciosRMT(ctx, req.GetListingIds())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "close rmt listings: %v", err)
+	}
+	out := make([]*dbv1.ClosedRmtListing, 0, len(fim))
+	for _, a := range fim {
+		out = append(out, &dbv1.ClosedRmtListing{
+			ListingId:  a.AnuncioID,
+			CargoSlot:  int32(a.CargoSlot),
+			OpenCharge: a.CobrancaAberta,
+		})
+	}
+	return &dbv1.CloseRmtListingsResponse{Closed: out}, nil
+}
+
+// ListDeadEscrowSlots devolve os slots cuja marca já não segura nada.
+func (s *Server) ListDeadEscrowSlots(ctx context.Context, req *dbv1.ListDeadEscrowSlotsRequest) (*dbv1.ListDeadEscrowSlotsResponse, error) {
+	slots, err := s.store.SlotsDeEscrowMorto(ctx, req.GetAccountId())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "list dead escrow slots: %v", err)
+	}
+	out := make([]int32, 0, len(slots))
+	for _, slot := range slots {
+		out = append(out, int32(slot))
+	}
+	return &dbv1.ListDeadEscrowSlotsResponse{CargoSlots: out}, nil
 }
 
 // SaveCargoWithDeliveries persists the cargo and marks the drained mailbox rows

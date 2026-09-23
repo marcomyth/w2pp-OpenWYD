@@ -16,6 +16,9 @@ import (
 type fakeAPI struct {
 	anunciosPedidos    *dbv1.OpenRmtListingsRequest
 	anunciosCancelados []int64
+	anunciosEncerrados []int64
+	encerrados         []*dbv1.ClosedRmtListing
+	slotsSoltos        []int32
 	semChavePix        bool
 	slotsVendidos      []int32
 	transfPedida       *dbv1.TransferPlayerBalanceRequest
@@ -134,6 +137,15 @@ func (f *fakeAPI) CancelRmtListings(_ context.Context, req *dbv1.CancelRmtListin
 
 func (f *fakeAPI) ListSoldEscrowSlots(_ context.Context, _ *dbv1.ListSoldEscrowSlotsRequest, _ ...grpc.CallOption) (*dbv1.ListSoldEscrowSlotsResponse, error) {
 	return &dbv1.ListSoldEscrowSlotsResponse{CargoSlots: f.slotsVendidos}, nil
+}
+
+func (f *fakeAPI) CloseRmtListings(_ context.Context, req *dbv1.CloseRmtListingsRequest, _ ...grpc.CallOption) (*dbv1.CloseRmtListingsResponse, error) {
+	f.anunciosEncerrados = req.GetListingIds()
+	return &dbv1.CloseRmtListingsResponse{Closed: f.encerrados}, nil
+}
+
+func (f *fakeAPI) ListDeadEscrowSlots(_ context.Context, _ *dbv1.ListDeadEscrowSlotsRequest, _ ...grpc.CallOption) (*dbv1.ListDeadEscrowSlotsResponse, error) {
+	return &dbv1.ListDeadEscrowSlotsResponse{CargoSlots: f.slotsSoltos}, nil
 }
 
 func (f *fakeAPI) ListPendingDeliveries(_ context.Context, _ *dbv1.ListPendingDeliveriesRequest, _ ...grpc.CallOption) (*dbv1.ListPendingDeliveriesResponse, error) {

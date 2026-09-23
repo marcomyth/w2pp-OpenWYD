@@ -40,6 +40,11 @@ type fakeDB struct {
 	portaoAnuncio      chan struct{}
 	anunciosAbertos    []world.AnuncioRMT
 	anunciosCancelados []int64
+	anunciosEncerrados []int64
+	encerrados         []world.AnuncioEncerrado // destino forçado pelo teste
+	erroEncerrar       error
+	slotDoAnuncio      map[int64]int16 // id do anúncio → slot, para o destino padrão
+	slotsSoltos        map[int64][]int16
 	slotsVendidos      map[int64][]int16
 	accounts           map[string]*fakeAccount
 	created            int
@@ -169,6 +174,37 @@ func (f *fakeDB) CancelRmtListings(_ context.Context, ids []int64) error {
 	defer f.mu.Unlock()
 	f.anunciosCancelados = append(f.anunciosCancelados, ids...)
 	return nil
+}
+
+// CloseRmtListings finge o encerramento da barraca: devolve o destino que o
+// teste montou, ou, por padrão, "cancelado e sem cobrança" para cada id.
+func (f *fakeDB) CloseRmtListings(_ context.Context, ids []int64) ([]world.AnuncioEncerrado, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.erroEncerrar != nil {
+		return nil, f.erroEncerrar
+	}
+	f.anunciosEncerrados = append(f.anunciosEncerrados, ids...)
+	if f.encerrados != nil {
+		return f.encerrados, nil
+	}
+	out := make([]world.AnuncioEncerrado, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, world.AnuncioEncerrado{AnuncioID: id, CargoSlot: f.slotDoAnuncio[id]})
+	}
+	return out, nil
+}
+
+// ListDeadEscrowSlots é a faxina do login.
+func (f *fakeDB) ListDeadEscrowSlots(_ context.Context, accountID int64) ([]int16, error) {
+	return f.slotsSoltos[accountID], nil
+}
+
+// encerrouAnuncios lê sob o mutex o que a barraca mandou encerrar.
+func (f *fakeDB) encerrouAnuncios() []int64 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]int64(nil), f.anunciosEncerrados...)
 }
 
 // abertos e cancelados leem sob o mutex, que é como o teste tem de ler algo que
@@ -470,6 +506,7 @@ func (f *fakeDB) AccountLogin(_ context.Context, name, pass string) (world.Login
 			Result: world.LoginOK, AccountID: a.id, Role: a.role, Characters: a.chars, Cargo: cargo,
 			PendingDeliveries: f.pending[a.id],
 			SlotsVendidos:     f.slotsVendidos[a.id],
+			SlotsSoltos:       f.slotsSoltos[a.id],
 			Cash:              a.cash,
 			Rmt:               a.rmt,
 		}, nil
