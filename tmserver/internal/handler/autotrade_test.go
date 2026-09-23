@@ -254,7 +254,15 @@ func TestAutoTradeOpenRejectsBlacklist(t *testing.T) {
 func TestReqBuyRecusaMoedaQueNaoEOuro(t *testing.T) {
 	const sellItem = int16(1030)
 	const price, tax = int32(200_000), int32(5)
-	addr, stop, _ := startServerClock(t, autotradeDB(sellItem))
+	db := autotradeDB(sellItem)
+	// Um SEGUNDO item, no slot 1, para a venda em ouro do fim. O slot 0 sai desta
+	// prova marcado pelo anúncio em dinheiro real, e item marcado não volta para
+	// prateleira nenhuma (msgItemJaAnunciado) — que é outra trava, e não a que
+	// este teste mede.
+	cargo := db.accounts["tester"].cargo
+	cargo.Items[1] = world.Item{Index: sellItem}
+	db.accounts["tester"].cargo = cargo
+	addr, stop, _ := startServerClock(t, db)
 	defer stop()
 	seller := enterWorldAs(t, addr, "tester") // conn 1
 	defer seller.Close()
@@ -297,8 +305,13 @@ func TestReqBuyRecusaMoedaQueNaoEOuro(t *testing.T) {
 	tentaComprarERecusa("RMT")
 
 	// E em ouro a porta continua aberta: o item sai, e sai pelo preço certo.
-	send(t, seller, protocol.MsgLojaMoeda,
-		(&protocol.LojaMoedaBody{Slot: 0, Moeda: protocol.LojaMoedaOuro}).Encode())
+	//
+	// É outra barraca, sobre o OUTRO item: o do slot 0 ficou preso no anúncio que
+	// a prateleira em RMT criou, e vendê-lo em ouro agora seria vendê-lo duas
+	// vezes. Virar a moeda da mesma prateleira também não serve — a recusa do
+	// escrow na compra pegaria, e o que este teste mede é a recusa por MOEDA.
+	send(t, seller, protocol.MsgQuitTrade, nil)
+	abreBarraca(t, seller, "Loja", 1, price, protocol.LojaMoedaOuro)
 	drena(t, buyer)
 	send(t, buyer, protocol.MsgReqBuy, reqBuyPayload(1, 0, sellItem, price, tax))
 

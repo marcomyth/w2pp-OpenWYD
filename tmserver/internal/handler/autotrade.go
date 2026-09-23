@@ -199,6 +199,21 @@ func (d *Dispatcher) reqBuy(w *world.World, s *world.Session, _ protocol.Header,
 		return
 	}
 	cargoItem := sellerCargo.Items[cpos]
+	// ITEM PRESO NUM ANÚNCIO EM DINHEIRO REAL NÃO SAI POR AQUI.
+	//
+	// As duas conferências anti-adulteração logo abaixo não pegam isto: o
+	// `itemsEqual` compara índice e efeitos, e a marca do escrow não é nem uma
+	// coisa nem outra. O item CONFERE — ele é o mesmo — e ainda assim já tem dono
+	// decidido por outro caminho.
+	//
+	// É a mesma recusa da compra pelo painel (lojacompra.go), e precisa existir
+	// nas duas porque as duas mexem no baú direto, sem passar pelo `itemSlot`.
+	if cargoItem.AnuncioRMT != 0 {
+		d.log.Info("autotrade buy recusada: item preso num anuncio em dinheiro real",
+			"conn", s.Conn, "stall", targetID, "slot", pos, "anuncio", cargoItem.AnuncioRMT)
+		d.notify(w, s, NoticeCantAutoTrade)
+		return
+	}
 	if m.Tax != int32(seller.AutoTrade.Tax) || m.Price != slot.Price ||
 		!sameItem(m.Item, slot.Item) || !itemsEqual(slot.Item, cargoItem) {
 		d.removeTrade(w, s)

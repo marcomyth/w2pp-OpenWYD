@@ -779,6 +779,14 @@ func (w *World) LimpaSlotsVendidos(s *Session, slots []int16) int {
 	return saiu
 }
 
+// SalvaCargo grava o baú da conta agora, sem esperar o próximo momento de save.
+//
+// Existe para encurtar janelas: quando o laço acabou de escrever no baú uma coisa
+// cuja contraparte já está no banco — a marca de um anúncio recém-criado, por
+// exemplo —, cada segundo entre as duas é um segundo em que uma queda deixa as
+// duas metades em desacordo. Loop-only.
+func (w *World) SalvaCargo(accountID int64) { w.saveCargoAcking(accountID) }
+
 // saveCargoAcking persists the account cargo together with every placed-but-
 // unacked delivery id, in one transaction, and forgets the ids once it commits.
 // A failed save keeps them, so the next cargo save of the account — another

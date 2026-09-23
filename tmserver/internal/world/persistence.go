@@ -67,6 +67,16 @@ type CharSummary struct {
 // carries the account-shared cargo and the pending donate web-shop mailbox
 // (issue #34), both loaded in the same backend round-trip as the character list
 // (they are account-scoped, so they are fetched once per account login).
+// AnuncioRMT é uma prateleira em dinheiro real na hora de nascer: onde o item
+// está, o que ele é, e quanto custa. A fotografia viaja junto porque depois da
+// venda o item não está mais no baú, e sem ela não há como responder "o que
+// exatamente foi vendido" numa disputa.
+type AnuncioRMT struct {
+	CargoSlot     int16
+	Item          Item
+	PrecoCentavos int64
+}
+
 type LoginOutcome struct {
 	Result            LoginResult
 	AccountID         int64
@@ -444,6 +454,12 @@ type Persistence interface {
 	// real-money listing already sold. Called off the loop at login; the loop
 	// empties them.
 	ListSoldEscrowSlots(ctx context.Context, accountID int64) ([]int16, error)
+	// OpenRmtListings cria os anúncios de uma barraca em dinheiro real, todos ou
+	// nenhum, e devolve os ids na mesma ordem. semChave=true é a recusa prevista
+	// de quem não tem para onde receber. Chamada FORA do laço.
+	OpenRmtListings(ctx context.Context, vendedor int64, itens []AnuncioRMT) (ids []int64, semChave bool, err error)
+	// CancelRmtListings fecha anúncios que nasceram e não chegaram a valer.
+	CancelRmtListings(ctx context.Context, ids []int64) error
 	// SaveCargoWithDeliveries persists the cargo (replace-all) and marks the
 	// drained mailbox rows delivered/lost in one backend transaction — the anti-dup
 	// boundary for the drain.
@@ -639,6 +655,15 @@ func (NopPersistence) ListPendingDeliveries(context.Context, int64) ([]Delivery,
 func (NopPersistence) ListSoldEscrowSlots(context.Context, int64) ([]int16, error) {
 	return nil, nil
 }
+
+// OpenRmtListings recusa: sem banco não há chave de recebimento nem anúncio, e
+// o modo sem banco existe para subir o protocolo, não para vender.
+func (NopPersistence) OpenRmtListings(context.Context, int64, []AnuncioRMT) ([]int64, bool, error) {
+	return nil, true, nil
+}
+
+// CancelRmtListings não tem o que cancelar.
+func (NopPersistence) CancelRmtListings(context.Context, []int64) error { return nil }
 
 // SaveCargoWithDeliveries drops the snapshot (no backend to persist to).
 func (NopPersistence) SaveCargoWithDeliveries(context.Context, CargoSave, []int64, []int64) error {

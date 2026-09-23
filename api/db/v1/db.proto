@@ -67,6 +67,24 @@ service AccountService {
   // to somebody else, and giving it back would mint the second copy the whole
   // escrow exists to prevent.
   rpc ListSoldEscrowSlots(ListSoldEscrowSlotsRequest) returns (ListSoldEscrowSlotsResponse);
+  // OpenRmtListings creates the real-money listings of one stall, all or none,
+  // and returns their ids so the loop can stamp the escrow mark on each cargo
+  // slot.
+  //
+  // It REFUSES when the seller has no Pix receiving key, and the check happens
+  // inside the same transaction rather than in a call before it: two calls would
+  // leave a gap — the key deleted between the question and the creation — and
+  // would spread the rule over two places. The refusal rides in the response, not
+  // as an error, because the seller needs to be told what to do about it.
+  rpc OpenRmtListings(OpenRmtListingsRequest) returns (OpenRmtListingsResponse);
+  // CancelRmtListings closes listings that never came into force.
+  //
+  // It is the compensating action for the gap between creating the listings and
+  // the stall going up: if the stall fails to rise after they are born — the
+  // session dropped, the warehouse changed while the loop was away — they must
+  // leave the window, or they hold the slot forever through the one-active-per-
+  // slot index.
+  rpc CancelRmtListings(CancelRmtListingsRequest) returns (CancelRmtListingsResponse);
   // SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
   // marks the drained mailbox rows delivered/lost in the SAME transaction — the
   // anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -548,6 +566,38 @@ message ListSoldEscrowSlotsRequest { int64 account_id = 1; }
 // cargo_slots are warehouse positions to empty. Empty is the normal answer:
 // almost nobody has sold an item for real money since their last login.
 message ListSoldEscrowSlotsResponse { repeated int32 cargo_slots = 1; }
+
+// RmtListing is one real-money shelf: where the item sits, what it is, and what
+// it costs. The item snapshot is carried so a dispute can be answered after the
+// item has left the warehouse.
+message RmtListing {
+  int32 cargo_slot = 1;
+  int32 item_index = 2;
+  int32 eff1 = 3;
+  int32 effv1 = 4;
+  int32 eff2 = 5;
+  int32 effv2 = 6;
+  int32 eff3 = 7;
+  int32 effv3 = 8;
+  int64 price_cents = 9;
+}
+
+message OpenRmtListingsRequest {
+  int64 seller_account_id = 1;
+  repeated RmtListing listings = 2;
+}
+
+message OpenRmtListingsResponse {
+  // no_pix_key is the predicted refusal: the seller has nowhere to be paid. When
+  // it is true, listing_ids is empty and nothing was written.
+  bool no_pix_key = 1;
+  // listing_ids come back in the SAME ORDER as the request, which is how the
+  // caller ties each id to the warehouse slot it will mark.
+  repeated int64 listing_ids = 2;
+}
+
+message CancelRmtListingsRequest  { repeated int64 listing_ids = 1; }
+message CancelRmtListingsResponse { bool ok = 1; }
 
 message SaveCargoWithDeliveriesRequest {
   int64 account_id = 1;

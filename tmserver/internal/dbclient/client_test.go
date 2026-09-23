@@ -14,13 +14,16 @@ import (
 // fakeAPI implements dbv1.AccountServiceClient, capturing requests and returning
 // canned responses, so the adapter's mapping is tested without a gRPC server.
 type fakeAPI struct {
-	slotsVendidos   []int32
-	transfPedida    *dbv1.TransferPlayerBalanceRequest
-	transfResp      *dbv1.TransferPlayerBalanceResponse
-	presenceReq     *dbv1.SetCharacterPresenceRequest
-	presenceCleared int64
-	shopPoints      int32 // running personal-shop balance, as the real wallet accumulates
-	donate          int32 // carteira de donate, que a RCoin enche
+	anunciosPedidos    *dbv1.OpenRmtListingsRequest
+	anunciosCancelados []int64
+	semChavePix        bool
+	slotsVendidos      []int32
+	transfPedida       *dbv1.TransferPlayerBalanceRequest
+	transfResp         *dbv1.TransferPlayerBalanceResponse
+	presenceReq        *dbv1.SetCharacterPresenceRequest
+	presenceCleared    int64
+	shopPoints         int32 // running personal-shop balance, as the real wallet accumulates
+	donate             int32 // carteira de donate, que a RCoin enche
 
 	newbieKitAccount int64 // conta do último ClaimNewbieKit
 	newbieKitGranted bool  // resposta que o dbServer devolveria
@@ -112,6 +115,23 @@ func (f *fakeAPI) SaveCargo(_ context.Context, req *dbv1.SaveCargoRequest, _ ...
 	f.savedCargo = req
 	return &dbv1.SaveCargoResponse{Ok: true}, nil
 }
+func (f *fakeAPI) OpenRmtListings(_ context.Context, req *dbv1.OpenRmtListingsRequest, _ ...grpc.CallOption) (*dbv1.OpenRmtListingsResponse, error) {
+	f.anunciosPedidos = req
+	if f.semChavePix {
+		return &dbv1.OpenRmtListingsResponse{NoPixKey: true}, nil
+	}
+	ids := make([]int64, len(req.GetListings()))
+	for i := range ids {
+		ids[i] = int64(500 + i)
+	}
+	return &dbv1.OpenRmtListingsResponse{ListingIds: ids}, nil
+}
+
+func (f *fakeAPI) CancelRmtListings(_ context.Context, req *dbv1.CancelRmtListingsRequest, _ ...grpc.CallOption) (*dbv1.CancelRmtListingsResponse, error) {
+	f.anunciosCancelados = req.GetListingIds()
+	return &dbv1.CancelRmtListingsResponse{Ok: true}, nil
+}
+
 func (f *fakeAPI) ListSoldEscrowSlots(_ context.Context, _ *dbv1.ListSoldEscrowSlotsRequest, _ ...grpc.CallOption) (*dbv1.ListSoldEscrowSlotsResponse, error) {
 	return &dbv1.ListSoldEscrowSlotsResponse{CargoSlots: f.slotsVendidos}, nil
 }
