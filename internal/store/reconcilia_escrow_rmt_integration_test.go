@@ -48,7 +48,7 @@ func TestReconciliarLiberaOSlotParaAnunciarDeNovo(t *testing.T) {
 			"continuaria recusando todo anuncio novo naquele slot", st)
 	}
 	// A prova que importa: dá para anunciar de novo.
-	if _, err := s.AbrirAnunciosRMT(ctx, vendedor,
+	if _, err := s.AbrirAnunciosRMT(ctx, vendedor, "Vendedor",
 		[]ItemAnunciado{{CargoSlot: 0, ItemIndex: 1100, PrecoCentavos: 5000}}); err != nil {
 		t.Errorf("o slot continua preso: %v", err)
 	}

@@ -3084,8 +3084,18 @@ type OpenRmtListingsRequest struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	SellerAccountId int64                  `protobuf:"varint,1,opt,name=seller_account_id,json=sellerAccountId,proto3" json:"seller_account_id,omitempty"`
 	Listings        []*RmtListing          `protobuf:"bytes,2,rep,name=listings,proto3" json:"listings,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// The name of the character who put the stall up, stored in the listing's
+	// snapshot so the buyer can be shown who they are buying from.
+	//
+	// It travels with the listing rather than being looked up later, for the same
+	// reason the item's effects do: it is the answer to "who sold me this" after
+	// the stall is gone, after the character has been renamed, and after it has
+	// been deleted. Looking it up later would also have to guess WHICH of the
+	// account's characters, and guessing wrong shows the buyer a name they never
+	// saw and exposes one that has nothing to do with the sale.
+	SellerCharacterName string `protobuf:"bytes,3,opt,name=seller_character_name,json=sellerCharacterName,proto3" json:"seller_character_name,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *OpenRmtListingsRequest) Reset() {
@@ -3130,6 +3140,13 @@ func (x *OpenRmtListingsRequest) GetListings() []*RmtListing {
 		return x.Listings
 	}
 	return nil
+}
+
+func (x *OpenRmtListingsRequest) GetSellerCharacterName() string {
+	if x != nil {
+		return x.SellerCharacterName
+	}
+	return ""
 }
 
 type OpenRmtListingsResponse struct {
@@ -13641,10 +13658,11 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x04eff3\x18\a \x01(\x05R\x04eff3\x12\x14\n" +
 	"\x05effv3\x18\b \x01(\x05R\x05effv3\x12\x1f\n" +
 	"\vprice_cents\x18\t \x01(\x03R\n" +
-	"priceCents\"s\n" +
+	"priceCents\"\xa7\x01\n" +
 	"\x16OpenRmtListingsRequest\x12*\n" +
 	"\x11seller_account_id\x18\x01 \x01(\x03R\x0fsellerAccountId\x12-\n" +
-	"\blistings\x18\x02 \x03(\v2\x11.db.v1.RmtListingR\blistings\"X\n" +
+	"\blistings\x18\x02 \x03(\v2\x11.db.v1.RmtListingR\blistings\x122\n" +
+	"\x15seller_character_name\x18\x03 \x01(\tR\x13sellerCharacterName\"X\n" +
 	"\x17OpenRmtListingsResponse\x12\x1c\n" +
 	"\n" +
 	"no_pix_key\x18\x01 \x01(\bR\bnoPixKey\x12\x1f\n" +

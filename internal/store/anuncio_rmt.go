@@ -47,6 +47,12 @@ type ItemAnunciado struct {
 // está olhando para a tela e pode resolver; na hora de pagar, quem está com o QR
 // aberto é o COMPRADOR, e o único que poderia resolver foi embora.
 //
+// O NOME DO PERSONAGEM entra na fotografia junto com o item, e não é procurado
+// depois: é a resposta a "quem me vendeu isto" depois de a barraca descer, depois
+// de o personagem ser renomeado, e depois de ele ser apagado. Procurar depois
+// ainda teria de adivinhar QUAL personagem da conta, e adivinhar errado mostra ao
+// comprador um nome que ele nunca viu.
+//
 // O QUE ESTA FUNÇÃO NÃO FAZ: pôr a marca no item. A marca vive no baú vivo, que é
 // do laço do tmServer, e escrever nela daqui seria escrever por cima do dono. O
 // laço põe a marca com os ids que voltam daqui e salva.
@@ -56,7 +62,9 @@ type ItemAnunciado struct {
 // servidor cair exatamente ali, sobra um anúncio ativo sem escrow. Ele não vende
 // nada — a compra confere a marca — mas fica na vitrine. Quem varre isso é a
 // reconciliação do anúncio órfão, que ainda não existe e está anotada.
-func (s *Store) AbrirAnunciosRMT(ctx context.Context, vendedorConta int64, itens []ItemAnunciado) ([]int64, error) {
+func (s *Store) AbrirAnunciosRMT(ctx context.Context, vendedorConta int64, personagem string,
+	itens []ItemAnunciado,
+) ([]int64, error) {
 	if len(itens) == 0 {
 		return nil, nil
 	}
@@ -74,11 +82,11 @@ func (s *Store) AbrirAnunciosRMT(ctx context.Context, vendedorConta int64, itens
 		for i, it := range itens {
 			if err := tx.QueryRow(ctx, `
 				INSERT INTO rmt_anuncio
-					(vendedor_conta, cargo_slot, item_index,
+					(vendedor_conta, vendedor_personagem, cargo_slot, item_index,
 					 eff1, effv1, eff2, effv2, eff3, effv3, preco_centavos, status)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 				RETURNING id`,
-				vendedorConta, it.CargoSlot, it.ItemIndex,
+				vendedorConta, personagem, it.CargoSlot, it.ItemIndex,
 				it.Eff1, it.EffV1, it.Eff2, it.EffV2, it.Eff3, it.EffV3,
 				it.PrecoCentavos, anuncioAtivo).Scan(&ids[i]); err != nil {
 				return fmt.Errorf("store: abrir anuncio a=%d slot=%d: %w", vendedorConta, it.CargoSlot, err)

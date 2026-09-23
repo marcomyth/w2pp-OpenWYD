@@ -1,0 +1,24 @@
+-- 0112_cobranca_codigo_pix — o copia-e-cola que o comprador paga.
+--
+-- A cobrança existia sem ele porque, até a decisão de 23/09/2026, não estava
+-- claro ONDE o comprador ia pagar. Agora está: ele clica em comprar no jogo,
+-- recebe um aviso no jogo, e paga no SITE, na conta dele.
+--
+-- O jogo nunca vai mostrar isto. O cliente não sabe desenhar QR, abrir link nem
+-- copiar para a área de transferência — medido no GamePatch, não suposto —, e um
+-- copia-e-cola de Pix passa de cem caracteres. Ler na tela e digitar não é
+-- caminho.
+--
+-- GUARDADO INTEIRO E NUNCA REESCRITO. Um código Pix tem checksum de ponta a
+-- ponta: um servidor que o "arrume" — tira espaço, normaliza caixa, corta o que
+-- parece sobrar — quebra o pagamento de um jeito que ninguém vê até o dinheiro
+-- não chegar. Entra como veio da processadora e sai como entrou.
+--
+-- NULL até a processadora responder, e é isso que o NULL quer dizer: a linha da
+-- cobrança nasce antes da ida à ponte, então existe um instante em que ela é
+-- válida e ainda não tem código. O site trata isso como "aguarde", não como erro.
+--
+-- Não há índice: esta coluna nunca é critério de busca. Quem procura cobrança
+-- procura por referência externa (que já é única) ou pelas abertas de uma conta.
+ALTER TABLE rmt_cobranca
+    ADD COLUMN IF NOT EXISTS codigo_pix TEXT;

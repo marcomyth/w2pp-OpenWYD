@@ -221,9 +221,15 @@ func (d *Dispatcher) abreAnunciosESobe(w *world.World, s *world.Session,
 	barraca *world.AutoTradeState, anuncios []world.AnuncioRMT, posicoes []int,
 ) {
 	conta, conn := s.AccountID, s.Conn
+	// O nome vai junto porque a fotografia é montada agora: quando alguém
+	// perguntar "quem me vendeu isto", a barraca já terá descido.
+	personagem := ""
+	if e := w.Entity(conn); e != nil {
+		personagem = e.Name
+	}
 	persist := w.Persistence()
 	w.GoDetached(func() func(*world.World) {
-		ids, semChave, err := persist.OpenRmtListings(context.Background(), conta, anuncios)
+		ids, semChave, err := persist.OpenRmtListings(context.Background(), conta, personagem, anuncios)
 		return func(w *world.World) {
 			sess := sessaoDaConexao(w, conn, conta)
 			if err != nil {

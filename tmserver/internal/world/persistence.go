@@ -468,7 +468,12 @@ type Persistence interface {
 	// OpenRmtListings cria os anúncios de uma barraca em dinheiro real, todos ou
 	// nenhum, e devolve os ids na mesma ordem. semChave=true é a recusa prevista
 	// de quem não tem para onde receber. Chamada FORA do laço.
-	OpenRmtListings(ctx context.Context, vendedor int64, itens []AnuncioRMT) (ids []int64, semChave bool, err error)
+	//
+	// O nome do PERSONAGEM entra na fotografia do anúncio: é o que o comprador vê
+	// como "de quem estou comprando", e tem de sobreviver à barraca descer, ao
+	// personagem ser renomeado e a ele ser apagado.
+	OpenRmtListings(ctx context.Context, vendedor int64, personagem string,
+		itens []AnuncioRMT) (ids []int64, semChave bool, err error)
 	// CancelRmtListings fecha anúncios que nasceram e não chegaram a valer.
 	CancelRmtListings(ctx context.Context, ids []int64) error
 	// CloseRmtListings encerra os anúncios de uma barraca que está descendo, e
@@ -682,7 +687,7 @@ func (NopPersistence) ListSoldEscrowSlots(context.Context, int64) ([]int16, erro
 
 // OpenRmtListings recusa: sem banco não há chave de recebimento nem anúncio, e
 // o modo sem banco existe para subir o protocolo, não para vender.
-func (NopPersistence) OpenRmtListings(context.Context, int64, []AnuncioRMT) ([]int64, bool, error) {
+func (NopPersistence) OpenRmtListings(context.Context, int64, string, []AnuncioRMT) ([]int64, bool, error) {
 	return nil, true, nil
 }
 

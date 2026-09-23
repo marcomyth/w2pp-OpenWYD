@@ -626,6 +626,16 @@ message RmtListing {
 message OpenRmtListingsRequest {
   int64 seller_account_id = 1;
   repeated RmtListing listings = 2;
+  // The name of the character who put the stall up, stored in the listing's
+  // snapshot so the buyer can be shown who they are buying from.
+  //
+  // It travels with the listing rather than being looked up later, for the same
+  // reason the item's effects do: it is the answer to "who sold me this" after
+  // the stall is gone, after the character has been renamed, and after it has
+  // been deleted. Looking it up later would also have to guess WHICH of the
+  // account's characters, and guessing wrong shows the buyer a name they never
+  // saw and exposes one that has nothing to do with the sale.
+  string seller_character_name = 3;
 }
 
 message OpenRmtListingsResponse {
