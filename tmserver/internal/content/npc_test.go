@@ -132,6 +132,9 @@ func TestBlocosDesligadosPorIndice(t *testing.T) {
 		// Migration 0064: the world's Troll Enigma, whose cage the Acampamento
 		// Troll quest took over. Switched off in npc_generator_off.
 		3804: "Troll_Enigma",
+		// Migration 0108: the two Agmo of the Deserto are event-only now (their
+		// drop is a pack of 100 mount cores). Switched off in npc_generator_off.
+		3451: "Verme_Agmo", 3452: "Tauron_Agmo",
 		// The two the square keeps.
 		3442: "Perzen", 3809: "GodGovernment",
 	}
@@ -143,5 +146,37 @@ func TestBlocosDesligadosPorIndice(t *testing.T) {
 			}
 			t.Errorf("bloco %d = %q, want %q — o NPCGener mudou; revise eventOwnedGenerators e a migração 0047", idx, got, leader)
 		}
+	}
+}
+
+// TestCavLugeferSaoVinte pins the Deserto boss population the team asked for on
+// 23/09/2026 ("2x a quantidade, para deixar pior"): the ten Cav._Lugefer blocks
+// hold two each, and all ten regenerate on the generator clock (MinuteGenerate 4
+// is four 12 s passes, 48 s — internal/spawnrate). The boot raises
+// one group per block, so a MinuteGenerate -1 block would never reach its second
+// one — that is why 3235 left -1 in the same change.
+func TestCavLugeferSaoVinte(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("NPCGener.txt unavailable: %v", err)
+	}
+	gens, err := LoadNPCGenerators(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocos, total := 0, 0
+	for i, g := range gens {
+		if g.Leader != "Cav._Lugefer" {
+			continue
+		}
+		blocos++
+		total += g.MaxNumMob
+		if g.MaxNumMob != 2 || g.MinuteGenerate != 4 || g.MinGroup != 0 || g.MaxGroup != 0 {
+			t.Errorf("bloco %d: MaxNumMob %d, MinuteGenerate %d, grupo %d-%d; want 2, 4, 0-0",
+				i, g.MaxNumMob, g.MinuteGenerate, g.MinGroup, g.MaxGroup)
+		}
+	}
+	if blocos != 10 || total != 20 {
+		t.Errorf("%d blocos com %d Cav._Lugefer, want 10 com 20", blocos, total)
 	}
 }

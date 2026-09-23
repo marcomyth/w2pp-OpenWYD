@@ -92157,7 +92157,7 @@
 // ********************************************
 #	[3226]
 	MinuteGenerate:	4
-	MaxNumMob:	1
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Cav._Lugefer
@@ -92244,7 +92244,7 @@
 // ********************************************
 #	[3229]
 	MinuteGenerate:	4
-	MaxNumMob:	1
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Cav._Lugefer
@@ -92273,7 +92273,7 @@
 // ********************************************
 #	[3230]
 	MinuteGenerate:	4
-	MaxNumMob:	1
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Cav._Lugefer
@@ -92302,7 +92302,7 @@
 // ********************************************
 #	[3231]
 	MinuteGenerate:	4
-	MaxNumMob:	1
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Cav._Lugefer
@@ -92323,7 +92323,7 @@
 // ********************************************
 #	[3232]
 	MinuteGenerate:	4
-	MaxNumMob:	1
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Cav._Lugefer
@@ -92352,7 +92352,7 @@
 // ********************************************
 #	[3233]
 	MinuteGenerate:	4
-	MaxNumMob:	1
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Cav._Lugefer
@@ -92373,7 +92373,7 @@
 // ********************************************
 #	[3234]
 	MinuteGenerate:	4
-	MaxNumMob:	1
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Cav._Lugefer
@@ -92393,8 +92393,8 @@
 //  no3634 (Cav._Lugefer) -1014 - DESATIVADO
 // ********************************************
 #	[3235]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	4
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Cav._Lugefer
@@ -92415,7 +92415,7 @@
 // ********************************************
 #	[3236]
 	MinuteGenerate:	4
-	MaxNumMob:	1
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Cav._Lugefer
@@ -97176,7 +97176,7 @@
 // ********************************************
 #	[3401]
 	MinuteGenerate:	4
-	MaxNumMob:	1
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Cav._Lugefer
