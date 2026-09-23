@@ -14,6 +14,7 @@ import (
 // fakeAPI implements dbv1.AccountServiceClient, capturing requests and returning
 // canned responses, so the adapter's mapping is tested without a gRPC server.
 type fakeAPI struct {
+	slotsVendidos   []int32
 	transfPedida    *dbv1.TransferPlayerBalanceRequest
 	transfResp      *dbv1.TransferPlayerBalanceResponse
 	presenceReq     *dbv1.SetCharacterPresenceRequest
@@ -110,6 +111,10 @@ func (f *fakeAPI) SaveCargo(_ context.Context, req *dbv1.SaveCargoRequest, _ ...
 	f.savedCargo = req
 	return &dbv1.SaveCargoResponse{Ok: true}, nil
 }
+func (f *fakeAPI) ListSoldEscrowSlots(_ context.Context, _ *dbv1.ListSoldEscrowSlotsRequest, _ ...grpc.CallOption) (*dbv1.ListSoldEscrowSlotsResponse, error) {
+	return &dbv1.ListSoldEscrowSlotsResponse{CargoSlots: f.slotsVendidos}, nil
+}
+
 func (f *fakeAPI) ListPendingDeliveries(_ context.Context, _ *dbv1.ListPendingDeliveriesRequest, _ ...grpc.CallOption) (*dbv1.ListPendingDeliveriesResponse, error) {
 	if f.deliveriesResp != nil {
 		return f.deliveriesResp, nil

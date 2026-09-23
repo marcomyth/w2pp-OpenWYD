@@ -52,6 +52,21 @@ service AccountService {
   // into the account cargo inside its loop at login, then acks the outcome via
   // SaveCargoWithDeliveries.
   rpc ListPendingDeliveries(ListPendingDeliveriesRequest) returns (ListPendingDeliveriesResponse);
+  // ListSoldEscrowSlots returns the account's cargo slots that still hold an
+  // item whose real-money listing has ALREADY BEEN SOLD.
+  //
+  // Selling for real money does not take the item out of the warehouse at the
+  // moment the payment lands. It leaves the escrow mark (migration 0104) in the
+  // slot, and a marked item is untouchable — it cannot be moved, changed,
+  // refined or sold. So removing it can wait for the seller to show up, and the
+  // buyer never waits for the seller: what the buyer receives comes from the
+  // listing's snapshot.
+  //
+  // This is what the tmServer asks when the seller shows up. The slots it names
+  // are to be EMPTIED, never handed back: that item was paid for and delivered
+  // to somebody else, and giving it back would mint the second copy the whole
+  // escrow exists to prevent.
+  rpc ListSoldEscrowSlots(ListSoldEscrowSlotsRequest) returns (ListSoldEscrowSlotsResponse);
   // SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
   // marks the drained mailbox rows delivered/lost in the SAME transaction — the
   // anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -514,6 +529,11 @@ message Delivery {
 }
 message ListPendingDeliveriesRequest { int64 account_id = 1; }
 message ListPendingDeliveriesResponse { repeated Delivery deliveries = 1; }
+
+message ListSoldEscrowSlotsRequest { int64 account_id = 1; }
+// cargo_slots are warehouse positions to empty. Empty is the normal answer:
+// almost nobody has sold an item for real money since their last login.
+message ListSoldEscrowSlotsResponse { repeated int32 cargo_slots = 1; }
 
 message SaveCargoWithDeliveriesRequest {
   int64 account_id = 1;

@@ -95,15 +95,32 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		// It lives for the whole account session and is released on disconnect.
 		cargo := out.Cargo
 		w.SetCargo(out.AccountID, &cargo)
+		vendidos := 0
 		// Drain any pending donate web-shop grants (fetched in the same login
 		// round-trip) into the freshly-loaded cargo (issue #34); items land in the
 		// next free slot, or stay in the mailbox when it is full. Encode AFTER the
 		// drain so the client vault cache includes freshly delivered items.
 		_, held := w.ApplyDeliveries(s, out.PendingDeliveries)
+		// E o contrário da entrega: os slots que uma venda em dinheiro real
+		// deixou para trás. A marca do escrow segurou o item intocável até aqui,
+		// e agora ele sai — ANTES de montar a tela, para o jogador não ver no
+		// baú uma coisa que já não é dele.
+		if saiu := w.LimpaSlotsVendidos(s, out.SlotsVendidos); saiu > 0 {
+			d.log.Info("escrow: itens vendidos retirados no login",
+				"conn", s.Conn, "account", s.AccountName, "itens", saiu)
+			vendidos = saiu
+		}
 		s.Mode = world.UserSelChar
 		coin, cargoItems := d.cargoWire(w.Cargo(out.AccountID))
 		body := protocol.EncodeCNFAccountLoginBody(s.AccountName, d.selCharsFrom(out.Characters), coin, cargoItems)
 		w.SendTo(s, protocol.Header{Type: protocol.MsgCNFAccountLogin, ID: protocol.IDSelChar}, body)
+		if vendidos > 0 {
+			// O vendedor tem de saber por que o baú tem um espaço a mais. Sem
+			// esta linha ele conta os itens, acha que sumiu um, e abre chamado —
+			// e quem atender não vai ter o que olhar, porque está tudo certo.
+			sendClientMessage(w, s, fmt.Sprintf(
+				"%d item(ns) que você vendeu por dinheiro real saíram do baú.", vendidos))
+		}
 		if held > 0 {
 			// The player paid for these and cannot see them yet. Saying why is
 			// what keeps "abre espaço" from becoming a support ticket.

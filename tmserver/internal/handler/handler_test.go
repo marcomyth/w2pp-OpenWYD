@@ -33,13 +33,14 @@ type fakeAccount struct {
 
 type fakeDB struct {
 	world.NopPersistence
-	accounts    map[string]*fakeAccount
-	created     int
-	archCreated int
-	archSlot    int
-	archOK      bool
-	archErr     error
-	archReq     struct {
+	slotsVendidos map[int64][]int16
+	accounts      map[string]*fakeAccount
+	created       int
+	archCreated   int
+	archSlot      int
+	archOK        bool
+	archErr       error
+	archReq       struct {
 		accountID                            int64
 		name                                 string
 		class, face, mortalSlot, mortalLevel int
@@ -126,6 +127,11 @@ func (f *fakeDB) SaveCargo(_ context.Context, save world.CargoSave) error {
 
 func (f *fakeDB) ListPendingDeliveries(_ context.Context, accountID int64) ([]world.Delivery, error) {
 	return f.pending[accountID], nil
+}
+
+// slotsVendidos é o que o banco responderia sobre slots de anúncio já vendido.
+func (f *fakeDB) ListSoldEscrowSlots(_ context.Context, accountID int64) ([]int16, error) {
+	return f.slotsVendidos[accountID], nil
 }
 
 // SetAccountBlocked records the GM ban/unban write (overrides the NopPersistence
@@ -407,6 +413,7 @@ func (f *fakeDB) AccountLogin(_ context.Context, name, pass string) (world.Login
 		return world.LoginOutcome{
 			Result: world.LoginOK, AccountID: a.id, Role: a.role, Characters: a.chars, Cargo: cargo,
 			PendingDeliveries: f.pending[a.id],
+			SlotsVendidos:     f.slotsVendidos[a.id],
 			Cash:              a.cash,
 			Rmt:               a.rmt,
 		}, nil
