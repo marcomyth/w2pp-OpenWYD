@@ -146,16 +146,17 @@ func TestDesertoCavaloEquipado(t *testing.T) {
 	}
 }
 
-// Sem Fenrir no Deserto ("Fenrir ainda não precisamos"): nenhuma linha da 0108
-// dá Fenrir, e todo monstro da 0108 cujo TEMPLATE solta Fenrir tem a linha a 0%
-// que o tira — senão o template continua soltando por baixo da Mesa.
-func TestDesertoSemFenrir(t *testing.T) {
-	fenrir := map[int16]bool{2406: true, 2316: true, 2408: true, 2318: true} // âmagos e ovos, normal e das Sombras
+// semNoDeserto cobra que nenhum item de proibidos caia no Deserto: nenhuma linha
+// da 0108 o dá, todo monstro da 0108 cujo TEMPLATE o solta tem a linha a 0% que o
+// tira — senão o template continua soltando por baixo da Mesa —, e os sorteios
+// que moram no código (Agmo, Boss Mantícora) não o têm.
+func semNoDeserto(t *testing.T, oque string, proibidos map[int16]bool) {
+	t.Helper()
 	root := releaseDir(t)
 	for mob, l := range linhasDoDeserto(t) {
 		for item, c := range l {
-			if fenrir[item] && c > 0 {
-				t.Errorf("%s solta Fenrir (%d) a %d", mob, item, c)
+			if proibidos[item] && c > 0 {
+				t.Errorf("%s solta %s (%d) a %d", mob, oque, item, c)
 			}
 		}
 		b, _, err := npctemplate.Load(root, mob)
@@ -167,14 +168,35 @@ func TestDesertoSemFenrir(t *testing.T) {
 			t.Fatalf("%s: %v", mob, err)
 		}
 		for _, it := range m.Carry {
-			if !fenrir[it.Index] {
+			if !proibidos[it.Index] {
 				continue
 			}
 			if c, ok := l[it.Index]; !ok || c != 0 {
-				t.Errorf("o template de %s solta o Fenrir %d e a 0108 não o zera", mob, it.Index)
+				t.Errorf("o template de %s solta %s (%d) e a 0108 não o zera", mob, oque, it.Index)
 			}
 		}
 	}
+	for _, a := range agmoAmagos {
+		if proibidos[a.item] {
+			t.Errorf("o sorteio do Agmo dá %s (%d)", oque, a.item)
+		}
+	}
+	for _, p := range bossManticoraPremios {
+		if proibidos[p.itemN] || proibidos[p.itemB] {
+			t.Errorf("o sorteio do Boss Mantícora dá %s (%s)", oque, p.nome)
+		}
+	}
+}
+
+// Sem Fenrir no Deserto ("Fenrir ainda não precisamos", 23/09): âmagos e ovos,
+// o normal e o das Sombras.
+func TestDesertoSemFenrir(t *testing.T) {
+	semNoDeserto(t, "Fenrir", map[int16]bool{2406: true, 2316: true, 2408: true, 2318: true})
+}
+
+// Sem Andaluz no Deserto, por enquanto (23/09): âmagos e ovos, N e B.
+func TestDesertoSemAndaluz(t *testing.T) {
+	semNoDeserto(t, "Andaluz", map[int16]bool{2400: true, 2405: true, 2310: true, 2315: true})
 }
 
 // Os Agmo não têm linha na Mesa: o âmago deles sai do código, exatamente um.

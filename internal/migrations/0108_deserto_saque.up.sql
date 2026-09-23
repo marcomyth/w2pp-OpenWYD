@@ -45,7 +45,8 @@
 -- O Cav. Lugefer: a Pedra do Lugefer estava na vaga 8, que o código fixa em 1 a
 -- cada 4 mortes seja qual for o nível. A equipe pediu 1 pedra a cada 100 mortes
 -- ou mais, nunca menos: 81 aqui paga 0,989% (1 a cada 101); 82 já pagaria
--- 1,001%. Andaluz N 2,5% pagos (Andaluz só de chefe, a 2-3%), Andaluz B fora,
+-- 1,001%. Sem Andaluz, por enquanto (pedido da equipe em 23/09): o template dele
+-- solta os âmagos N e B, e as duas linhas a 0% abaixo os tiram;
 -- o Fragmento de Alma a 1 a cada 150-180 mortes, também pedido da equipe (50
 -- aqui paga 0,610%, 1 a cada 164; a faixa cabe de 46 a 54), Classe E de chefe, e
 -- Poeiras e Moeda em quantidade de chefe.
@@ -112,8 +113,8 @@ INSERT INTO drop_rule (mob, item, chance) VALUES
 
     -- O Cav. Lugefer.
     ('Cav._Lugefer',    1758,   81),      -- Pedra do Lugefer: 1 a cada 101 mortes
-    ('Cav._Lugefer',    2400,  205),      -- Âmago de Andaluz N: 2,5% pagos
-    ('Cav._Lugefer',    2405,    0),      -- Âmago de Andaluz B: branca é do gelo
+    ('Cav._Lugefer',    2400,    0),      -- Âmago de Andaluz N: fora, por enquanto
+    ('Cav._Lugefer',    2405,    0),      -- Âmago de Andaluz B: fora, por enquanto
     ('Cav._Lugefer',    2399,  300),      -- Âmago de Cavalo Equipado N
     ('Cav._Lugefer',    2309,   40),      -- Ovo de Cavalo Equipado N
     ('Cav._Lugefer',    3224,   50),      -- Fragmento de Alma: 1 a cada 164 mortes
