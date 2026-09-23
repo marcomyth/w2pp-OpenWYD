@@ -14,8 +14,8 @@ import (
 // fakeAPI implements dbv1.AccountServiceClient, capturing requests and returning
 // canned responses, so the adapter's mapping is tested without a gRPC server.
 type fakeAPI struct {
-	transfPedida *dbv1.TransferPlayerBalanceRequest
-	transfResp   *dbv1.TransferPlayerBalanceResponse
+	transfPedida    *dbv1.TransferPlayerBalanceRequest
+	transfResp      *dbv1.TransferPlayerBalanceResponse
 	presenceReq     *dbv1.SetCharacterPresenceRequest
 	presenceCleared int64
 	shopPoints      int32 // running personal-shop balance, as the real wallet accumulates
@@ -74,6 +74,7 @@ func (f *fakeAPI) QuoteKingdomCape(_ context.Context, _ *dbv1.QuoteKingdomCapeRe
 func (f *fakeAPI) PurchaseKingdomCape(_ context.Context, _ *dbv1.PurchaseKingdomCapeRequest, _ ...grpc.CallOption) (*dbv1.PurchaseKingdomCapeResponse, error) {
 	return &dbv1.PurchaseKingdomCapeResponse{Ok: true, Quote: &dbv1.QuoteKingdomCapeResponse{Revision: 2, HekalotiaCost: 9, AkeloniaCost: 7}}, nil
 }
+
 // transfPedida guarda a ultima transferencia de carteira (Loja do Servidor), e
 // transfResp o que o dbServer deve responder.
 func (f *fakeAPI) TransferPlayerBalance(_ context.Context, req *dbv1.TransferPlayerBalanceRequest, _ ...grpc.CallOption) (*dbv1.TransferPlayerBalanceResponse, error) {
