@@ -29,9 +29,9 @@ type fakeStore struct {
 	// transferencia e transfErr cobrem TransferePlayerBalance (Loja do Servidor).
 	transferencia transferenciaPedida
 	transfErr     error
-	archErr    error
-	archSlot   int
-	archChar   domain.Character
+	archErr       error
+	archSlot      int
+	archChar      domain.Character
 	// createdChar is the last character CreateCharacter was asked to insert.
 	createdChar domain.Character
 	saveResult  error

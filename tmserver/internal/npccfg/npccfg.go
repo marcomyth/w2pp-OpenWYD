@@ -26,8 +26,8 @@ type ShopItem struct {
 // Template is nil when the referenced file could not be loaded — such a
 // definition is skipped by the applier.
 type Definition struct {
-	Slug                                                     string
-	Template                                                 []byte
+	Slug     string
+	Template []byte
 	// TemplateName é o NOME do arquivo de template (npc_definition.template_name),
 	// ao lado dos bytes dele. Existe porque há regra nossa que depende de QUAL
 	// template o NPC é, e não do que está dentro dele: a loja de honra nasce do
