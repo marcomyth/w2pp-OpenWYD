@@ -3308,7 +3308,6 @@ func scoreMaxMP(e *world.Entity) int32 {
 	return 2*e.MaxMP + 2*int32(e.Int-e.BaseInt)
 }
 
-
 func semNegativo(v int32) int32 {
 	if v < 0 {
 		return 0
