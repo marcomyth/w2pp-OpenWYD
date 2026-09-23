@@ -260,6 +260,22 @@ func (d *Dispatcher) lojaMoeda(w *world.World, s *world.Session, _ protocol.Head
 	if sl.CargoPos < 0 || sl.Item.Empty() {
 		return
 	}
+	// E NEM SE DESESCOLHE.
+	//
+	// O outro lado da mesma regra, e o que a torna útil. Virar para ouro uma
+	// prateleira que tem anúncio vivo deixaria o vendedor com uma oferta que
+	// NUNCA VENDE: a compra confere o cadeado do escrow e recusa, sempre, e o
+	// jogador não teria como saber por quê. Pior, ele pensaria que vendeu em
+	// ouro uma coisa que ainda está prometida por Pix.
+	//
+	// A recusa é aqui e não na compra porque aqui existe alguém para avisar, e
+	// existe o que fazer a respeito: fechar a barraca cancela o anúncio e devolve
+	// o item.
+	if cargo := w.Cargo(s.AccountID); cargo != nil && sl.CargoPos < world.MaxCargo &&
+		cargo.Items[sl.CargoPos].AnuncioRMT != 0 {
+		sendClientMessage(w, s, msgAnuncioVivoNaPrateleira)
+		return
+	}
 	s.AutoTrade.Moeda[corpo.Slot] = corpo.Moeda
 	d.mercadoMudou(w) // a oferta mudou de moeda
 }
@@ -267,3 +283,7 @@ func (d *Dispatcher) lojaMoeda(w *world.World, s *world.Session, _ protocol.Head
 // msgMoedaRMTSoNaMontagem é o que o vendedor lê ao tentar virar uma prateleira
 // para dinheiro real com a barraca já de pé.
 const msgMoedaRMTSoNaMontagem = "Para vender por dinheiro real, monte a barraca de novo escolhendo essa moeda."
+
+// msgAnuncioVivoNaPrateleira é o que o vendedor lê ao tentar tirar de dinheiro
+// real uma prateleira que já tem anúncio de pé.
+const msgAnuncioVivoNaPrateleira = "Esse item está anunciado por dinheiro real. Feche a barraca para cancelar o anúncio."

@@ -45,6 +45,8 @@ const (
 	AccountService_ListSoldEscrowSlots_FullMethodName     = "/db.v1.AccountService/ListSoldEscrowSlots"
 	AccountService_OpenRmtListings_FullMethodName         = "/db.v1.AccountService/OpenRmtListings"
 	AccountService_CancelRmtListings_FullMethodName       = "/db.v1.AccountService/CancelRmtListings"
+	AccountService_CloseRmtListings_FullMethodName        = "/db.v1.AccountService/CloseRmtListings"
+	AccountService_ListDeadEscrowSlots_FullMethodName     = "/db.v1.AccountService/ListDeadEscrowSlots"
 	AccountService_SaveCargoWithDeliveries_FullMethodName = "/db.v1.AccountService/SaveCargoWithDeliveries"
 	AccountService_SetAccountBlocked_FullMethodName       = "/db.v1.AccountService/SetAccountBlocked"
 	AccountService_RecordDuelResult_FullMethodName        = "/db.v1.AccountService/RecordDuelResult"
@@ -164,6 +166,32 @@ type AccountServiceClient interface {
 	// leave the window, or they hold the slot forever through the one-active-per-
 	// slot index.
 	CancelRmtListings(ctx context.Context, in *CancelRmtListingsRequest, opts ...grpc.CallOption) (*CancelRmtListingsResponse, error)
+	// CloseRmtListings ends the listings of a stall that is coming down.
+	//
+	// It is the missing half of the escrow. Until it existed a listing stayed
+	// active forever once its stall was gone, and the escrow mark kept the item
+	// untouchable forever with it — the game told the seller to cancel the
+	// listing and there was no way to.
+	//
+	// A listing with NO open charge is cancelled and its slot comes free. One
+	// WITH an open charge stays active: the buyer has a QR code in hand, their
+	// payment is still valid, and cancelling now would produce the worst case in
+	// the system — money arriving against a dead listing, which is a debt owed to
+	// a person who paid correctly. Those are flagged instead, so the lock can be
+	// released once the charge closes.
+	CloseRmtListings(ctx context.Context, in *CloseRmtListingsRequest, opts ...grpc.CallOption) (*CloseRmtListingsResponse, error)
+	// ListDeadEscrowSlots returns the cargo slots whose escrow mark no longer
+	// holds anything: the listing is cancelled, or gone, or active-but-stall-down
+	// with no open charge.
+	//
+	// It is the lazy half of releasing the lock. Removing the mark is the loop's
+	// job — it owns the live warehouse — and the loop is not always there when the
+	// listing ends. This is what it asks when the seller shows up.
+	//
+	// It deliberately EXCLUDES sold listings: that slot also has to be cleared,
+	// but the item leaves and never comes back to the owner. Mixing the two lists
+	// would confuse "release" with "delivered". See ListSoldEscrowSlots.
+	ListDeadEscrowSlots(ctx context.Context, in *ListDeadEscrowSlotsRequest, opts ...grpc.CallOption) (*ListDeadEscrowSlotsResponse, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
 	// marks the drained mailbox rows delivered/lost in the SAME transaction — the
 	// anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -483,6 +511,26 @@ func (c *accountServiceClient) CancelRmtListings(ctx context.Context, in *Cancel
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(CancelRmtListingsResponse)
 	err := c.cc.Invoke(ctx, AccountService_CancelRmtListings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) CloseRmtListings(ctx context.Context, in *CloseRmtListingsRequest, opts ...grpc.CallOption) (*CloseRmtListingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CloseRmtListingsResponse)
+	err := c.cc.Invoke(ctx, AccountService_CloseRmtListings_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) ListDeadEscrowSlots(ctx context.Context, in *ListDeadEscrowSlotsRequest, opts ...grpc.CallOption) (*ListDeadEscrowSlotsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDeadEscrowSlotsResponse)
+	err := c.cc.Invoke(ctx, AccountService_ListDeadEscrowSlots_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -957,6 +1005,32 @@ type AccountServiceServer interface {
 	// leave the window, or they hold the slot forever through the one-active-per-
 	// slot index.
 	CancelRmtListings(context.Context, *CancelRmtListingsRequest) (*CancelRmtListingsResponse, error)
+	// CloseRmtListings ends the listings of a stall that is coming down.
+	//
+	// It is the missing half of the escrow. Until it existed a listing stayed
+	// active forever once its stall was gone, and the escrow mark kept the item
+	// untouchable forever with it — the game told the seller to cancel the
+	// listing and there was no way to.
+	//
+	// A listing with NO open charge is cancelled and its slot comes free. One
+	// WITH an open charge stays active: the buyer has a QR code in hand, their
+	// payment is still valid, and cancelling now would produce the worst case in
+	// the system — money arriving against a dead listing, which is a debt owed to
+	// a person who paid correctly. Those are flagged instead, so the lock can be
+	// released once the charge closes.
+	CloseRmtListings(context.Context, *CloseRmtListingsRequest) (*CloseRmtListingsResponse, error)
+	// ListDeadEscrowSlots returns the cargo slots whose escrow mark no longer
+	// holds anything: the listing is cancelled, or gone, or active-but-stall-down
+	// with no open charge.
+	//
+	// It is the lazy half of releasing the lock. Removing the mark is the loop's
+	// job — it owns the live warehouse — and the loop is not always there when the
+	// listing ends. This is what it asks when the seller shows up.
+	//
+	// It deliberately EXCLUDES sold listings: that slot also has to be cleared,
+	// but the item leaves and never comes back to the owner. Mixing the two lists
+	// would confuse "release" with "delivered". See ListSoldEscrowSlots.
+	ListDeadEscrowSlots(context.Context, *ListDeadEscrowSlotsRequest) (*ListDeadEscrowSlotsResponse, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
 	// marks the drained mailbox rows delivered/lost in the SAME transaction — the
 	// anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -1155,6 +1229,12 @@ func (UnimplementedAccountServiceServer) OpenRmtListings(context.Context, *OpenR
 }
 func (UnimplementedAccountServiceServer) CancelRmtListings(context.Context, *CancelRmtListingsRequest) (*CancelRmtListingsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CancelRmtListings not implemented")
+}
+func (UnimplementedAccountServiceServer) CloseRmtListings(context.Context, *CloseRmtListingsRequest) (*CloseRmtListingsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CloseRmtListings not implemented")
+}
+func (UnimplementedAccountServiceServer) ListDeadEscrowSlots(context.Context, *ListDeadEscrowSlotsRequest) (*ListDeadEscrowSlotsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListDeadEscrowSlots not implemented")
 }
 func (UnimplementedAccountServiceServer) SaveCargoWithDeliveries(context.Context, *SaveCargoWithDeliveriesRequest) (*SaveCargoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SaveCargoWithDeliveries not implemented")
@@ -1614,6 +1694,42 @@ func _AccountService_CancelRmtListings_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccountServiceServer).CancelRmtListings(ctx, req.(*CancelRmtListingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_CloseRmtListings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CloseRmtListingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).CloseRmtListings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_CloseRmtListings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).CloseRmtListings(ctx, req.(*CloseRmtListingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_ListDeadEscrowSlots_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDeadEscrowSlotsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ListDeadEscrowSlots(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ListDeadEscrowSlots_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ListDeadEscrowSlots(ctx, req.(*ListDeadEscrowSlotsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2398,6 +2514,14 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelRmtListings",
 			Handler:    _AccountService_CancelRmtListings_Handler,
+		},
+		{
+			MethodName: "CloseRmtListings",
+			Handler:    _AccountService_CloseRmtListings_Handler,
+		},
+		{
+			MethodName: "ListDeadEscrowSlots",
+			Handler:    _AccountService_ListDeadEscrowSlots_Handler,
 		},
 		{
 			MethodName: "SaveCargoWithDeliveries",

@@ -191,6 +191,30 @@ func esperaConn(t *testing.T, w *world.World, conn int, vazia bool) {
 	t.Fatalf("a conexao %d nao ficou vazia=%v a tempo", conn, vazia)
 }
 
+// esperaUmPouco é a pausa entre duas voltas de espera. Uma função porque todo
+// este arquivo e o do cancelamento esperam a mesma coisa: uma goroutine de fora
+// do laço voltar.
+func esperaUmPouco() { time.Sleep(10 * time.Millisecond) }
+
+// esperaMarcaPosta espera o cadeado APARECER no slot, que é o fim da ida ao
+// banco na abertura.
+func esperaMarcaPosta(t *testing.T, w *world.World, conta int64, slot int) bool {
+	t.Helper()
+	for i := 0; i < 200; i++ {
+		posta := false
+		noLacoDoMundo(t, w, func(w *world.World) {
+			if c := w.Cargo(conta); c != nil {
+				posta = c.Items[slot].AnuncioRMT != 0
+			}
+		})
+		if posta {
+			return true
+		}
+		esperaUmPouco()
+	}
+	return false
+}
+
 // esperaCancelamento espera a compensação chegar ao banco. Ela roda por
 // GoDetached, então não é síncrona com o fechamento do portão.
 func esperaCancelamento(t *testing.T, db *fakeDB) {
