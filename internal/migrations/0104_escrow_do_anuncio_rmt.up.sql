@@ -1,0 +1,45 @@
+-- 0104_escrow_do_anuncio_rmt — travar o item que está anunciado por dinheiro real.
+--
+-- A venda em Pix não é instantânea como a venda em ouro. Entre o comprador ver
+-- o QR e o dinheiro cair passam minutos, e nesse intervalo o item anunciado
+-- continua inteiro na mão do vendedor: ele pode movê-lo, refiná-lo, pôr uma
+-- gema, ou vendê-lo a outra pessoa. Se qualquer uma dessas coisas acontecer
+-- depois de o comprador pagar, o servidor deve um item que não existe mais.
+--
+-- A TRAVA É UMA MARCA NO SLOT, NÃO UMA REMOÇÃO DO ITEM. Tirar o item do baú e
+-- guardá-lo noutro lugar seria o desenho óbvio e é o errado aqui, por três
+-- razões que só aparecem quando se olha o que já existe:
+--
+--   O baú VAI para o banco (SaveCargo) e a barraca NÃO — ela é memória de
+--   sessão, e o comentário em world/session.go diz isso com todas as letras.
+--   Remover o item tornaria a remoção durável em segundos enquanto o registro
+--   de onde ele foi parar morreria no primeiro reinício. Uma queda no meio
+--   apagaria o item do jogador sem deixar rastro, e o tmServer reinicia a cada
+--   implantação.
+--
+--   A conferência anti-troca da compra (itemsEqual, lojacompra.go) compara o
+--   item anunciado contra o item VIVO no baú. Esvaziar o slot faria essa
+--   comparação falhar sempre, e a venda nunca sairia.
+--
+--   Devolver o item quando a cobrança expira com o vendedor offline seria uma
+--   entrega; com a marca é um UPDATE numa linha, porque o slot nunca deixou de
+--   ser dele.
+--
+-- O QUE A COLUNA GUARDA é o ID DO ANÚNCIO, e não um sim/não. Custa o mesmo e
+-- paga a reconciliação de arranque: "marca apontando para anúncio que não
+-- existe mais, ou que não está ativo, limpa" é uma consulta só, em vez do
+-- cruzamento que um booleano exigiria.
+--
+-- ZERO É "SEM MARCA", não "anúncio número zero" — mesma convenção do serial
+-- (0033), e pela mesma razão: item que já existia nasce zero e nunca entra em
+-- escrow por acidente. Por isso o índice é PARCIAL: a esmagadora maioria das
+-- linhas é zero e não interessa a consulta nenhuma.
+--
+-- E ela cabe aqui pelo mesmo motivo que o serial coube: o STRUCT_ITEM do jogo
+-- são oito bytes — um índice e três pares de efeito — e não sobra nada. Um
+-- campo que o cliente nunca vê é o único lugar onde isto mora sem custar um
+-- espaço de efeito. É o terceiro da família, depois de expires_at e serial.
+ALTER TABLE item ADD COLUMN rmt_anuncio BIGINT NOT NULL DEFAULT 0;
+
+-- A consulta que a reconciliação de arranque faz: quem está travado.
+CREATE INDEX item_rmt_anuncio_idx ON item (rmt_anuncio) WHERE rmt_anuncio <> 0;

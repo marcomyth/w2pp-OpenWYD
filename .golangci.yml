@@ -111,6 +111,11 @@ linters:
         # Portuguese word as a typo for the English one it translates.
         - condicional
         - condicionais
+        # Portuguese for "side effect" (efeito colateral), in the note that explains
+        # why o aviso do escrow vive dentro de um acessor. misspell reads it as a
+        # typo for "collateral" — que é a mesma palavra em inglês, e é por isso
+        # que a colisão acontece.
+        - colateral
   exclusions:
     generated: lax
     presets:

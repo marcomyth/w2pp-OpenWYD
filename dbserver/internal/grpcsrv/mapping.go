@@ -203,17 +203,31 @@ func protoToByteArr(v []uint32, n int) []uint8 {
 	return out
 }
 
+// itemToProto e protoToItems são a fronteira do item entre o banco e o jogo, e
+// tudo que o item carrega tem de aparecer NAS DUAS. Um campo esquecido aqui não
+// dá erro em lugar nenhum: ele simplesmente chega zerado do outro lado, e o zero
+// é um valor legítimo em todos eles.
+//
+// Foi o que aconteceu com o serial. A 0033 o criou para que duas cópias do mesmo
+// item fossem PROVA de duplicação e não suspeita, mas ele nunca atravessou estas
+// duas funções — então o dbServer devolvia serial 0 em toda carga, e toda
+// gravação escrevia 0 por cima. O recurso estava no banco, no domínio e no fio,
+// e mesmo assim não existia. Não havia teste que cruzasse a fronteira; havia
+// teste do store (serial_integration_test.go), que passava, e teste do gRPC, que
+// não olhava o campo.
 func itemToProto(it domain.Item) *dbv1.Item {
 	return &dbv1.Item{
-		Slot:      int32(it.Slot),
-		Index:     int32(it.Index),
-		Eff1:      int32(it.Eff1),
-		Effv1:     int32(it.EffV1),
-		Eff2:      int32(it.Eff2),
-		Effv2:     int32(it.EffV2),
-		Eff3:      int32(it.Eff3),
-		Effv3:     int32(it.EffV3),
-		ExpiresAt: it.ExpiresAt,
+		Slot:       int32(it.Slot),
+		Index:      int32(it.Index),
+		Eff1:       int32(it.Eff1),
+		Effv1:      int32(it.EffV1),
+		Eff2:       int32(it.Eff2),
+		Effv2:      int32(it.EffV2),
+		Eff3:       int32(it.Eff3),
+		Effv3:      int32(it.EffV3),
+		ExpiresAt:  it.ExpiresAt,
+		Serial:     it.Serial,
+		RmtAnuncio: it.AnuncioRMT,
 	}
 }
 
@@ -235,15 +249,17 @@ func protoToItems(items []*dbv1.Item) []domain.Item {
 	out := make([]domain.Item, 0, len(items))
 	for _, it := range items {
 		out = append(out, domain.Item{
-			Slot:      int(it.GetSlot()),
-			Index:     int16(it.GetIndex()),
-			Eff1:      uint8(it.GetEff1()),
-			EffV1:     uint8(it.GetEffv1()),
-			Eff2:      uint8(it.GetEff2()),
-			EffV2:     uint8(it.GetEffv2()),
-			Eff3:      uint8(it.GetEff3()),
-			EffV3:     uint8(it.GetEffv3()),
-			ExpiresAt: it.GetExpiresAt(),
+			Slot:       int(it.GetSlot()),
+			Index:      int16(it.GetIndex()),
+			Eff1:       uint8(it.GetEff1()),
+			EffV1:      uint8(it.GetEffv1()),
+			Eff2:       uint8(it.GetEff2()),
+			EffV2:      uint8(it.GetEffv2()),
+			Eff3:       uint8(it.GetEff3()),
+			EffV3:      uint8(it.GetEffv3()),
+			ExpiresAt:  it.GetExpiresAt(),
+			Serial:     it.GetSerial(),
+			AnuncioRMT: it.GetRmtAnuncio(),
 		})
 	}
 	return out

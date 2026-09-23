@@ -212,6 +212,9 @@ type SavedItem struct {
 	EffV3     uint8
 	ExpiresAt int64 // Unix-seconds expiry for timed items (0 = permanent)
 	Serial    int64 // item identity (0033_item_serial), 0 = unmarked
+	// AnuncioRMT trava o item enquanto há anúncio em dinheiro real contra ele;
+	// 0 = destravado (0104_escrow_do_anuncio_rmt).
+	AnuncioRMT int64
 }
 
 // CharacterSave is the snapshot the world hands to the persistence backend on

@@ -274,6 +274,10 @@ type Item struct {
 	// only place an identity can live without costing an effect slot. That is
 	// the whole point: a marked +11 sword is still +11.
 	Serial int64
+	// AnuncioRMT is the id of the real-money listing that LOCKS this item, or
+	// zero. It rides the same route as Serial, for the same reason
+	// (0104_escrow_do_anuncio_rmt).
+	AnuncioRMT int64
 }
 
 // Affect is a persisted buff/debuff (affect[char][32]).
