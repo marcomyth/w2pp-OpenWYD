@@ -35,6 +35,12 @@ make test           # go test -race -cover ./...
 `make run-local` imprime o IP:porta para apontar um client Windows real. A conta começa sem
 personagens — crie-os no client.
 
+**Desenvolvendo no Windows?** Leia [docs/verificar-no-windows.md](docs/verificar-no-windows.md)
+antes de acreditar num resultado vermelho. As ferramentas de verificação mentem aqui de quatro
+jeitos — codificação e sistema de arquivos —, e quatro testes falham sempre nesta máquina e
+sempre passam na CI. A regra curta: quando o local divergir da CI, suspeite do ambiente antes
+do código.
+
 ## Cliente do jogo
 
 O servidor Go mira o **`WYD.exe` build 7662 sem modificação**, que usa o protocolo/
