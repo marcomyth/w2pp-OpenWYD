@@ -50,52 +50,130 @@ func (s *Store) MarcarReembolsoPendente(ctx context.Context, cobrancaID int64) e
 	return nil
 }
 
+// TransicaoRecusada e uma mudanca de estado que nao vale a partir de onde a linha
+// esta.
+//
+// NAO E FALHA DE INFRAESTRUTURA, e por isso e um tipo proprio: acontece o tempo
+// todo por resposta atrasada e aviso fora de ordem, que e o normal de quem fala
+// com uma processadora pela rede. Quem chama registra como AVISO, com o estado
+// encontrado, e segue.
+type TransicaoRecusada struct {
+	CobrancaID int64
+	De         int16
+	Para       int16
+}
+
+func (e *TransicaoRecusada) Error() string {
+	return fmt.Sprintf("store: reembolso da cobranca %d nao vai de %d para %d",
+		e.CobrancaID, e.De, e.Para)
+}
+
+// A MAQUINA DE ESTADOS DO REEMBOLSO, e ela existe porque as mensagens chegam fora
+// de ordem.
+//
+// Sem guarda, um UPDATE por id faz o estado ANDAR PARA TRAS: a staff marca
+// "resolvido na mao" e meio segundo depois chega a resposta atrasada de uma
+// tentativa antiga, que devolve a linha para RECUSADO. A pagina do comprador passa
+// a dizer que ha algo pendente sobre um dinheiro que ja voltou.
+//
+// CONCLUIDO E TERMINAL. Nada sai dele, por nenhum caminho automatico: e o unico
+// estado que afirma que o dinheiro voltou, e uma afirmacao dessas nao se desfaz
+// por uma mensagem que se atrasou.
+var saidasDoReembolso = map[int16][]int16{
+	reembolsoPedido:    {reembolsoPendente},
+	reembolsoRecusado:  {reembolsoPendente, reembolsoPedido},
+	reembolsoConcluido: {reembolsoPedido},
+}
+
 // MarcarReembolsoPedido registra que a processadora ACEITOU o pedido.
 //
-// A data é gravada aqui e não quando decidimos pedir: é dela que a página conta
-// os até dois dias úteis da análise, e o relógio que importa para a pessoa começa
-// quando o pedido entrou na fila deles, não na nossa.
+// A data e gravada aqui e nao quando decidimos pedir: e dela que a pagina conta
+// os ate dois dias uteis da analise, e o relogio que importa para a pessoa comeca
+// quando o pedido entrou na fila deles, nao na nossa.
+//
+// So a partir de PENDENTE: pedir de novo sobre um que ja esta em analise criaria
+// um segundo pedido sobre o mesmo dinheiro.
 func (s *Store) MarcarReembolsoPedido(ctx context.Context, cobrancaID int64) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE rmt_cobranca
-		   SET reembolso_status = $2, reembolso_pedido_em = now(), reembolso_erro = NULL
-		 WHERE id = $1`, cobrancaID, reembolsoPedido)
-	if err != nil {
-		return fmt.Errorf("store: marcar reembolso pedido %d: %w", cobrancaID, err)
-	}
-	return nil
+	return s.mudaReembolso(ctx, cobrancaID, reembolsoPedido, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE rmt_cobranca
+			   SET reembolso_status = $2, reembolso_pedido_em = now(), reembolso_erro = NULL
+			 WHERE id = $1`, cobrancaID, reembolsoPedido)
+		return err
+	})
 }
 
-// MarcarReembolsoRecusado guarda a recusa da processadora COM O CÓDIGO DELA.
+// MarcarReembolsoRecusado guarda a recusa da processadora COM O CODIGO DELA.
 //
-// O código vai inteiro e não traduzido: quem for olhar precisa do que eles
-// disseram, não da nossa interpretação. A diferença entre "reembolso não
-// habilitado para esta conta" e "conta do seller não está aprovada" decide o que
+// O codigo vai inteiro e nao traduzido: quem for olhar precisa do que eles
+// disseram, nao da nossa interpretacao. A diferenca entre "reembolso nao
+// habilitado para esta conta" e "conta do seller nao esta aprovada" decide o que
 // a Hanna tem de pedir ao suporte, e as duas viram "falhou" se a gente resumir.
 //
-// NÃO SE TENTA DE NOVO EM LAÇO. Recusado espera uma pessoa — é por isso que existe
-// a ação da staff, e é por isso que este estado não sai da página do comprador
+// NAO SE TENTA DE NOVO EM LACO. Recusado espera uma pessoa - e por isso que existe
+// a acao da staff, e e por isso que este estado nao sai da pagina do comprador
 // sozinho.
+//
+// De PENDENTE ou de PEDIDO: uma recusa pode chegar antes de a gente registrar que
+// pediu, e pode chegar depois da analise.
 func (s *Store) MarcarReembolsoRecusado(ctx context.Context, cobrancaID int64, codigo string) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE rmt_cobranca SET reembolso_status = $2, reembolso_erro = $3
-		 WHERE id = $1`, cobrancaID, reembolsoRecusado, codigo)
-	if err != nil {
-		return fmt.Errorf("store: marcar reembolso recusado %d: %w", cobrancaID, err)
-	}
-	return nil
+	return s.mudaReembolso(ctx, cobrancaID, reembolsoRecusado, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE rmt_cobranca SET reembolso_status = $2, reembolso_erro = $3
+			 WHERE id = $1`, cobrancaID, reembolsoRecusado, codigo)
+		return err
+	})
 }
 
-// MarcarReembolsoConcluido registra que o dinheiro voltou.
+// MarcarReembolsoConcluido registra que o dinheiro voltou. So a partir de PEDIDO:
+// e a analise deles que conclui.
 func (s *Store) MarcarReembolsoConcluido(ctx context.Context, cobrancaID int64) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE rmt_cobranca
-		   SET reembolso_status = $2, reembolso_erro = NULL
-		 WHERE id = $1`, cobrancaID, reembolsoConcluido)
-	if err != nil {
-		return fmt.Errorf("store: marcar reembolso concluido %d: %w", cobrancaID, err)
+	return s.mudaReembolso(ctx, cobrancaID, reembolsoConcluido, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE rmt_cobranca
+			   SET reembolso_status = $2, reembolso_erro = NULL
+			 WHERE id = $1`, cobrancaID, reembolsoConcluido)
+		return err
+	})
+}
+
+// mudaReembolso trava a linha, confere se a mudanca vale a partir de onde ela
+// esta, e so entao aplica.
+//
+// Travar antes de conferir e o que impede duas mensagens que chegam juntas de
+// passarem as duas pela conferencia: sem o FOR UPDATE, as duas leem o mesmo estado
+// antigo e as duas se acham permitidas.
+func (s *Store) mudaReembolso(ctx context.Context, cobrancaID int64, destino int16,
+	aplica func(pgx.Tx) error,
+) error {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		var atual *int16
+		if err := tx.QueryRow(ctx,
+			`SELECT reembolso_status FROM rmt_cobranca WHERE id = $1 FOR UPDATE`,
+			cobrancaID).Scan(&atual); err != nil {
+			return fmt.Errorf("store: reembolso %d: lendo o estado: %w", cobrancaID, err)
+		}
+		var de int16
+		if atual != nil {
+			de = *atual
+		}
+		if !podeIrPara(de, destino) {
+			return &TransicaoRecusada{CobrancaID: cobrancaID, De: de, Para: destino}
+		}
+		if err := aplica(tx); err != nil {
+			return fmt.Errorf("store: reembolso %d para %d: %w", cobrancaID, destino, err)
+		}
+		return nil
+	})
+}
+
+func podeIrPara(de, para int16) bool {
+	for _, ok := range saidasDoReembolso[para] {
+		if ok == de {
+			return true
+		}
 	}
-	return nil
+	return false
 }
 
 // ReabrirReembolsoRecusado é o "tentar de novo" da staff: volta o reembolso para
@@ -138,19 +216,38 @@ func (s *Store) transicaoDaStaff(ctx context.Context, cobrancaID int64, ator Ato
 	destino int16, acao string,
 ) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
+		// LER ANTES DE ESCREVER, e nao por gosto: o RETURNING de um UPDATE devolve
+		// a linha NOVA. Escrevendo `reembolso_erro = NULL` e lendo no RETURNING, o
+		// que volta e o NULL que a propria instrucao acabou de gravar - e o codigo
+		// da processadora, que e a unica coisa que explica POR QUE o reembolso
+		// falhou, sumiria exatamente no momento em que a staff mexe. A auditoria
+		// ficaria dizendo "estava recusado" sem dizer de que.
+		//
+		// O FOR UPDATE aqui tambem serve de trava contra dois cliques.
 		var compradorConta int64
+		var estadoAtual *int16
 		var erroAntigo *string
 		err := tx.QueryRow(ctx, `
-			UPDATE rmt_cobranca
-			   SET reembolso_status = $2, reembolso_erro = NULL
-			 WHERE id = $1 AND reembolso_status = $3
-			RETURNING comprador_conta, reembolso_erro`,
-			cobrancaID, destino, reembolsoRecusado).Scan(&compradorConta, &erroAntigo)
+			SELECT comprador_conta, reembolso_status, reembolso_erro
+			  FROM rmt_cobranca WHERE id = $1 FOR UPDATE`, cobrancaID).
+			Scan(&compradorConta, &estadoAtual, &erroAntigo)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrReembolsoNaoEstaRecusado
 		}
 		if err != nil {
 			return fmt.Errorf("store: %s na cobranca %d: %w", acao, cobrancaID, err)
+		}
+		if estadoAtual == nil || *estadoAtual != reembolsoRecusado {
+			return ErrReembolsoNaoEstaRecusado
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE rmt_cobranca SET reembolso_status = $2, reembolso_erro = NULL
+			 WHERE id = $1`, cobrancaID, destino); err != nil {
+			return fmt.Errorf("store: %s na cobranca %d: %w", acao, cobrancaID, err)
+		}
+		codigoAntigo := ""
+		if erroAntigo != nil {
+			codigoAntigo = *erroAntigo
 		}
 
 		// O alvo da auditoria é o COMPRADOR, que é de quem é o dinheiro. A
@@ -160,7 +257,7 @@ func (s *Store) transicaoDaStaff(ctx context.Context, cobrancaID int64, ator Ato
 			    (actor_account_id, actor_role, action, target_account_id, old_value, new_value)
 			VALUES ($1, $2, $3, $4, $5, $6)`,
 			ator.ContaID, ator.Papel, acao, compradorConta,
-			fmt.Sprintf(`{"cobranca":%d,"reembolso":"recusado"}`, cobrancaID),
+			fmt.Sprintf(`{"cobranca":%d,"reembolso":"recusado","erro":%q}`, cobrancaID, codigoAntigo),
 			fmt.Sprintf(`{"cobranca":%d,"reembolso":%d}`, cobrancaID, destino)); err != nil {
 			return fmt.Errorf("store: %s: registrando na auditoria: %w", acao, err)
 		}

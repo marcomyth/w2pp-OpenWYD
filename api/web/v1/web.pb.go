@@ -234,17 +234,17 @@ const (
 	// their phone. Without a state for it the page empties with no explanation and
 	// the buyer has no idea what they did wrong.
 	PixChargeState_PIX_CHARGE_STATE_CANCELED PixChargeState = 4
-	// PAID_LATE: the money arrived AFTER the charge had closed, and the item was
-	// not delivered. The amount is under review.
+	// PAID_LATE: the money arrived AFTER the charge had closed; the item was not
+	// delivered and the amount is refunded automatically through the processor.
+	// refund_state and refund_requested_at say how far that refund has got.
 	//
-	// RESERVED ON PURPOSE, and the server does not produce it yet. The case is
-	// real and unavoidable: there is no known route to cancel a cash-in at the
-	// processor, so the copy-and-paste code stays payable after our row closes.
-	// What happens to that money — refund, credit, another item — is a money
-	// decision and not the server's to make.
+	// The case is real and unavoidable, which is why it is a state and not an
+	// accident: there is no known route to cancel a cash-in at the processor, so
+	// the copy-and-paste code stays payable after our row closes.
 	//
-	// The slot exists now because a state invented later is another contract
-	// handshake with somebody's money sitting in the middle of it.
+	// Implementation status: the server does not produce this state yet. Creating
+	// the charge is a later change, and nothing can arrive late before anything
+	// arrives at all.
 	PixChargeState_PIX_CHARGE_STATE_PAID_LATE PixChargeState = 5
 )
 

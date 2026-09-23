@@ -78,6 +78,14 @@ func recusadoNaFila(ctx context.Context, t *testing.T, s *Store, nome, codigo st
 		ref, cobrancaPagaSemItem, "id-deles-"+nome).Scan(&cobranca); err != nil {
 		t.Fatal(err)
 	}
+	// PENDENTE antes de RECUSADO, porque é essa a ordem do caminho real: primeiro
+	// registramos que devemos o reembolso, depois pedimos, e só então a
+	// processadora pode recusar. A máquina de estados recusa o atalho, e recusa
+	// com razão — uma recusa sobre uma cobrança que nunca teve reembolso nenhum
+	// seria resposta a um pedido que não existiu.
+	if err := s.MarcarReembolsoPendente(ctx, cobranca); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.MarcarReembolsoRecusado(ctx, cobranca, codigo); err != nil {
 		t.Fatal(err)
 	}
@@ -149,10 +157,11 @@ func TestResolvidoNaMaoConcluiEAudita(t *testing.T) {
 func TestAsAcoesDaStaffSoValemSobreORecusado(t *testing.T) {
 	s, ctx := freshStore(t)
 	_, cobranca := recusadoNaFila(ctx, t, s, "emanalise", "erro")
-	// Volta para "em análise", que é o estado em que ninguém deve mexer.
-	if err := s.MarcarReembolsoPedido(ctx, cobranca); err != nil {
-		t.Fatal(err)
-	}
+	// Põe em "em análise", que é o estado em que ninguém deve mexer. Forçado e não
+	// pelo caminho normal: sair de RECUSADO para ANÁLISE é justamente uma das
+	// transições que a máquina de estados proíbe, e a proibição está certa — a
+	// saída do recusado é pela staff, com registro de quem foi.
+	poeEstado(ctx, t, s, cobranca, reembolsoPedido)
 	ator := staffDeTeste(ctx, t, s, "staff_analise")
 
 	if err := s.ReabrirReembolsoRecusado(ctx, cobranca, ator); !errors.Is(err, ErrReembolsoNaoEstaRecusado) {

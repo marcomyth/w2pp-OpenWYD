@@ -29,7 +29,12 @@ ALTER TABLE rmt_cobranca
     ADD COLUMN IF NOT EXISTS reembolso_erro TEXT;
 
 -- A fila que precisa de gente: dinheiro entrou, item não saiu, e o reembolso
--- ainda não concluiu.
+-- ainda não terminou.
+--
+-- O predicado é "não concluído" e não "menor que concluído": o RECUSADO (4) é
+-- justamente o que a tela da staff consulta, e um índice que promete "aberto"
+-- deixando de fora o único estado que EXIGE uma pessoa seria um índice que
+-- engana quem o lê.
 CREATE INDEX IF NOT EXISTS rmt_cobranca_reembolso_aberto
     ON rmt_cobranca (reembolso_pedido_em)
- WHERE reembolso_status IS NOT NULL AND reembolso_status < 3;
+ WHERE reembolso_status IS NOT NULL AND reembolso_status <> 3;
