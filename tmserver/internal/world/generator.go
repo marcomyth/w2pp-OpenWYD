@@ -208,13 +208,19 @@ func isSecretRoomStrayGenerator(idx int) bool {
 	return idx >= SecretRoomStrayGenFirst && idx <= SecretRoomStrayGenLast
 }
 
-// coliseuGenerators são os 26 blocos de população da região Coliseu do
+// coliseuGenerators são os 36 blocos de monstro da região Coliseu do
 // Regions.txt (2589-2681 × 1671-1785), todos com MinuteGenerate -1:
 //
-//	0, 1, 2       Ciclope_Forte, Ciclop_Selvagem, Ciclope_Wild — o Coliseu N, 100 cada
-//	5, 6, 7       Orc_Sniper_, Orc_Selvagem, Orc_Wild — o Coliseu N, 100 cada
+//	0, 1, 2       Ciclope_Forte, Ciclop_Selvagem, Ciclope_Wild — as ondas das 20h, 100 cada
+//	5, 6, 7       Orc_Sniper_, Orc_Selvagem, Orc_Wild — as ondas da hora de novato, 100 cada
 //	4854-4863     Espectro, 10 cada, com o primeiro ponto em 2615,1716
 //	4865-4874     Espectro, 10 cada, com o primeiro ponto em 2615,1735
+//	103-106       Sombra_Negra, Verid, Canhao, Arvak — chefes sozinhos, nível 399
+//	4853, 4864    Barrack, Barrack_ — idem (o 4864 fica no meio dos Espectros)
+//	4885-4888     Guerreiro, Guerreiro, Guerreiro_, Guerreiro_ — idem
+//
+// As ondas são do evento do Coliseu (handler/coliseu.go), que as solta com
+// GenerateMob; ser de evento só as tira do boot e da fila de 15 s.
 //
 // A regra é NOSSA, não uma porta do legado. No legado nenhum bloco -1 nasce fora
 // de um evento: o boot só gera o Kefra (Server.cpp:4093-4099) e o relógio de
@@ -225,10 +231,11 @@ func isSecretRoomStrayGenerator(idx int) bool {
 // ficam fora do mundo: não nascem no boot e não voltam pela fila de 15 s. Um GM
 // ainda os levanta com "gerar <bloco> aqui".
 //
-// Ficam de fora da lista, e seguem do mundo: os dez chefes sozinhos da região
-// (103-106, 4853, 4864, 4885-4888), que voltam em horas (handler/chefes.go); o
-// Guarda_Carga (974); e a Prona (4232). O 4864 fica no meio da faixa dos
-// Espectros e é o Barrack_, um desses chefes.
+// Os dez chefes sozinhos entraram em 24/09/2026, a pedido do Marco: a arena fica
+// sem monstro nenhum enquanto o Coliseu está desligado. Eles valiam 2,99 mi de
+// XP cada e voltavam em horas (handler/chefes.go); o legado também nunca os
+// fazia nascer. Seguem do mundo só o Guarda_Carga (974) e a Prona (4232), que são
+// NPCs.
 //
 // Não é o retângulo de GenerateMob (Server.cpp:3505-3509), que desliga os blocos
 // com o primeiro ponto em 2440-2545 × 1845-1921 quando o líder não veste o item
@@ -239,9 +246,11 @@ var coliseuGenerators = map[int]bool{
 	4859: true, 4860: true, 4861: true, 4862: true, 4863: true,
 	4865: true, 4866: true, 4867: true, 4868: true, 4869: true,
 	4870: true, 4871: true, 4872: true, 4873: true, 4874: true,
+	103: true, 104: true, 105: true, 106: true, 4853: true, 4864: true,
+	4885: true, 4886: true, 4887: true, 4888: true,
 }
 
-// isColiseuGenerator diz se um bloco é um dos 26 do Coliseu.
+// isColiseuGenerator diz se um bloco é um dos 36 do Coliseu.
 func isColiseuGenerator(idx int) bool {
 	return coliseuGenerators[idx]
 }
