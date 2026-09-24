@@ -457,8 +457,14 @@ type AccountLoginResponse struct {
 	// banco e precisa delas para o painel da Loja do Servidor dizer quanto o
 	// jogador tem de Cash e de RMT — antes ele mostrava zero sempre, e o jogador
 	// achava que tinha comprado de graça quando na verdade tinha saldo.
-	Cash          int32 `protobuf:"varint,4,opt,name=cash,proto3" json:"cash,omitempty"`
-	Rmt           int32 `protobuf:"varint,5,opt,name=rmt,proto3" json:"rmt,omitempty"`
+	Cash int32 `protobuf:"varint,4,opt,name=cash,proto3" json:"cash,omitempty"`
+	Rmt  int32 `protobuf:"varint,5,opt,name=rmt,proto3" json:"rmt,omitempty"`
+	// O nível do passe de batalha da CONTA (0..4), pelo mesmo motivo das carteiras: o
+	// tmServer não fala com o banco e precisa do número para pôr a moldura no pacote
+	// que desenha o jogador.
+	//
+	// Zero é "sem passe", e é o que toda conta tem até alguém dar.
+	PasseNivel    int32 `protobuf:"varint,6,opt,name=passe_nivel,json=passeNivel,proto3" json:"passe_nivel,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -524,6 +530,13 @@ func (x *AccountLoginResponse) GetCash() int32 {
 func (x *AccountLoginResponse) GetRmt() int32 {
 	if x != nil {
 		return x.Rmt
+	}
+	return 0
+}
+
+func (x *AccountLoginResponse) GetPasseNivel() int32 {
+	if x != nil {
+		return x.PasseNivel
 	}
 	return 0
 }
@@ -13556,14 +13569,16 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x13AccountLoginRequest\x12!\n" +
 	"\faccount_name\x18\x01 \x01(\tR\vaccountName\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12%\n" +
-	"\x0eclient_version\x18\x03 \x01(\x05R\rclientVersion\"\x9b\x01\n" +
+	"\x0eclient_version\x18\x03 \x01(\x05R\rclientVersion\"\xbc\x01\n" +
 	"\x14AccountLoginResponse\x12*\n" +
 	"\x06result\x18\x01 \x01(\x0e2\x12.db.v1.LoginResultR\x06result\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x02 \x01(\x03R\taccountId\x12\x12\n" +
 	"\x04role\x18\x03 \x01(\tR\x04role\x12\x12\n" +
 	"\x04cash\x18\x04 \x01(\x05R\x04cash\x12\x10\n" +
-	"\x03rmt\x18\x05 \x01(\x05R\x03rmt\"6\n" +
+	"\x03rmt\x18\x05 \x01(\x05R\x03rmt\x12\x1f\n" +
+	"\vpasse_nivel\x18\x06 \x01(\x05R\n" +
+	"passeNivel\"6\n" +
 	"\x15ListCharactersRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\"\xe0\x02\n" +

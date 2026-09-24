@@ -21,6 +21,116 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type SetPassLevelRequest struct {
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	AccountName string                 `protobuf:"bytes,1,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
+	// 0 = no pass, 1..4 = the four frames. Out of range is refused: the byte goes
+	// straight onto the wire, and a number the client cannot draw would show up as
+	// something else entirely.
+	Level         int32 `protobuf:"varint,2,opt,name=level,proto3" json:"level,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetPassLevelRequest) Reset() {
+	*x = SetPassLevelRequest{}
+	mi := &file_api_game_v1_game_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetPassLevelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetPassLevelRequest) ProtoMessage() {}
+
+func (x *SetPassLevelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_game_v1_game_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetPassLevelRequest.ProtoReflect.Descriptor instead.
+func (*SetPassLevelRequest) Descriptor() ([]byte, []int) {
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *SetPassLevelRequest) GetAccountName() string {
+	if x != nil {
+		return x.AccountName
+	}
+	return ""
+}
+
+func (x *SetPassLevelRequest) GetLevel() int32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+type SetPassLevelResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Whether the account was connected and got the new frame now.
+	Found bool `protobuf:"varint,1,opt,name=found,proto3" json:"found,omitempty"`
+	// The character standing in the world, when there is one, so the panel can say
+	// "Fulana viu a moldura mudar".
+	CharacterName string `protobuf:"bytes,2,opt,name=character_name,json=characterName,proto3" json:"character_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetPassLevelResponse) Reset() {
+	*x = SetPassLevelResponse{}
+	mi := &file_api_game_v1_game_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetPassLevelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetPassLevelResponse) ProtoMessage() {}
+
+func (x *SetPassLevelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_game_v1_game_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetPassLevelResponse.ProtoReflect.Descriptor instead.
+func (*SetPassLevelResponse) Descriptor() ([]byte, []int) {
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SetPassLevelResponse) GetFound() bool {
+	if x != nil {
+		return x.Found
+	}
+	return false
+}
+
+func (x *SetPassLevelResponse) GetCharacterName() string {
+	if x != nil {
+		return x.CharacterName
+	}
+	return ""
+}
+
 type ListMarketRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -29,7 +139,7 @@ type ListMarketRequest struct {
 
 func (x *ListMarketRequest) Reset() {
 	*x = ListMarketRequest{}
-	mi := &file_api_game_v1_game_proto_msgTypes[0]
+	mi := &file_api_game_v1_game_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41,7 +151,7 @@ func (x *ListMarketRequest) String() string {
 func (*ListMarketRequest) ProtoMessage() {}
 
 func (x *ListMarketRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[0]
+	mi := &file_api_game_v1_game_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54,7 +164,7 @@ func (x *ListMarketRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMarketRequest.ProtoReflect.Descriptor instead.
 func (*ListMarketRequest) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{0}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{2}
 }
 
 // MarketOffer is one item on one shelf.
@@ -101,7 +211,7 @@ type MarketOffer struct {
 
 func (x *MarketOffer) Reset() {
 	*x = MarketOffer{}
-	mi := &file_api_game_v1_game_proto_msgTypes[1]
+	mi := &file_api_game_v1_game_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -113,7 +223,7 @@ func (x *MarketOffer) String() string {
 func (*MarketOffer) ProtoMessage() {}
 
 func (x *MarketOffer) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[1]
+	mi := &file_api_game_v1_game_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -126,7 +236,7 @@ func (x *MarketOffer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MarketOffer.ProtoReflect.Descriptor instead.
 func (*MarketOffer) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{1}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *MarketOffer) GetSellerAccountId() int64 {
@@ -208,7 +318,7 @@ type ListMarketResponse struct {
 
 func (x *ListMarketResponse) Reset() {
 	*x = ListMarketResponse{}
-	mi := &file_api_game_v1_game_proto_msgTypes[2]
+	mi := &file_api_game_v1_game_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -220,7 +330,7 @@ func (x *ListMarketResponse) String() string {
 func (*ListMarketResponse) ProtoMessage() {}
 
 func (x *ListMarketResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[2]
+	mi := &file_api_game_v1_game_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -233,7 +343,7 @@ func (x *ListMarketResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMarketResponse.ProtoReflect.Descriptor instead.
 func (*ListMarketResponse) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{2}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListMarketResponse) GetOffers() []*MarketOffer {
@@ -258,7 +368,7 @@ type ListBlocksRequest struct {
 
 func (x *ListBlocksRequest) Reset() {
 	*x = ListBlocksRequest{}
-	mi := &file_api_game_v1_game_proto_msgTypes[3]
+	mi := &file_api_game_v1_game_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -270,7 +380,7 @@ func (x *ListBlocksRequest) String() string {
 func (*ListBlocksRequest) ProtoMessage() {}
 
 func (x *ListBlocksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[3]
+	mi := &file_api_game_v1_game_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -283,7 +393,7 @@ func (x *ListBlocksRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBlocksRequest.ProtoReflect.Descriptor instead.
 func (*ListBlocksRequest) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{3}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ListBlocksRequest) GetIndex() int32 {
@@ -338,7 +448,7 @@ type ListBlocksResponse struct {
 
 func (x *ListBlocksResponse) Reset() {
 	*x = ListBlocksResponse{}
-	mi := &file_api_game_v1_game_proto_msgTypes[4]
+	mi := &file_api_game_v1_game_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -350,7 +460,7 @@ func (x *ListBlocksResponse) String() string {
 func (*ListBlocksResponse) ProtoMessage() {}
 
 func (x *ListBlocksResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[4]
+	mi := &file_api_game_v1_game_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -363,7 +473,7 @@ func (x *ListBlocksResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListBlocksResponse.ProtoReflect.Descriptor instead.
 func (*ListBlocksResponse) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{4}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ListBlocksResponse) GetBlocks() []*Block {
@@ -400,7 +510,7 @@ type Block struct {
 
 func (x *Block) Reset() {
 	*x = Block{}
-	mi := &file_api_game_v1_game_proto_msgTypes[5]
+	mi := &file_api_game_v1_game_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -412,7 +522,7 @@ func (x *Block) String() string {
 func (*Block) ProtoMessage() {}
 
 func (x *Block) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[5]
+	mi := &file_api_game_v1_game_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -425,7 +535,7 @@ func (x *Block) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Block.ProtoReflect.Descriptor instead.
 func (*Block) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{5}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Block) GetIndex() int32 {
@@ -517,7 +627,7 @@ type BlockCommandRequest struct {
 
 func (x *BlockCommandRequest) Reset() {
 	*x = BlockCommandRequest{}
-	mi := &file_api_game_v1_game_proto_msgTypes[6]
+	mi := &file_api_game_v1_game_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -529,7 +639,7 @@ func (x *BlockCommandRequest) String() string {
 func (*BlockCommandRequest) ProtoMessage() {}
 
 func (x *BlockCommandRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[6]
+	mi := &file_api_game_v1_game_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -542,7 +652,7 @@ func (x *BlockCommandRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockCommandRequest.ProtoReflect.Descriptor instead.
 func (*BlockCommandRequest) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{6}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *BlockCommandRequest) GetLine() string {
@@ -582,7 +692,7 @@ type BlockCommandResponse struct {
 
 func (x *BlockCommandResponse) Reset() {
 	*x = BlockCommandResponse{}
-	mi := &file_api_game_v1_game_proto_msgTypes[7]
+	mi := &file_api_game_v1_game_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -594,7 +704,7 @@ func (x *BlockCommandResponse) String() string {
 func (*BlockCommandResponse) ProtoMessage() {}
 
 func (x *BlockCommandResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[7]
+	mi := &file_api_game_v1_game_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -607,7 +717,7 @@ func (x *BlockCommandResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BlockCommandResponse.ProtoReflect.Descriptor instead.
 func (*BlockCommandResponse) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{7}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *BlockCommandResponse) GetLines() []string {
@@ -625,7 +735,7 @@ type ListOnlineRequest struct {
 
 func (x *ListOnlineRequest) Reset() {
 	*x = ListOnlineRequest{}
-	mi := &file_api_game_v1_game_proto_msgTypes[8]
+	mi := &file_api_game_v1_game_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -637,7 +747,7 @@ func (x *ListOnlineRequest) String() string {
 func (*ListOnlineRequest) ProtoMessage() {}
 
 func (x *ListOnlineRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[8]
+	mi := &file_api_game_v1_game_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -650,7 +760,7 @@ func (x *ListOnlineRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOnlineRequest.ProtoReflect.Descriptor instead.
 func (*ListOnlineRequest) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{8}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{10}
 }
 
 type ListOnlineResponse struct {
@@ -667,7 +777,7 @@ type ListOnlineResponse struct {
 
 func (x *ListOnlineResponse) Reset() {
 	*x = ListOnlineResponse{}
-	mi := &file_api_game_v1_game_proto_msgTypes[9]
+	mi := &file_api_game_v1_game_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -679,7 +789,7 @@ func (x *ListOnlineResponse) String() string {
 func (*ListOnlineResponse) ProtoMessage() {}
 
 func (x *ListOnlineResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[9]
+	mi := &file_api_game_v1_game_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -692,7 +802,7 @@ func (x *ListOnlineResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListOnlineResponse.ProtoReflect.Descriptor instead.
 func (*ListOnlineResponse) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{9}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListOnlineResponse) GetPlayers() []*OnlinePlayer {
@@ -731,7 +841,7 @@ type OnlinePlayer struct {
 
 func (x *OnlinePlayer) Reset() {
 	*x = OnlinePlayer{}
-	mi := &file_api_game_v1_game_proto_msgTypes[10]
+	mi := &file_api_game_v1_game_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -743,7 +853,7 @@ func (x *OnlinePlayer) String() string {
 func (*OnlinePlayer) ProtoMessage() {}
 
 func (x *OnlinePlayer) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[10]
+	mi := &file_api_game_v1_game_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -756,7 +866,7 @@ func (x *OnlinePlayer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OnlinePlayer.ProtoReflect.Descriptor instead.
 func (*OnlinePlayer) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{10}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *OnlinePlayer) GetAccountName() string {
@@ -821,7 +931,7 @@ type KickRequest struct {
 
 func (x *KickRequest) Reset() {
 	*x = KickRequest{}
-	mi := &file_api_game_v1_game_proto_msgTypes[11]
+	mi := &file_api_game_v1_game_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -833,7 +943,7 @@ func (x *KickRequest) String() string {
 func (*KickRequest) ProtoMessage() {}
 
 func (x *KickRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[11]
+	mi := &file_api_game_v1_game_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -846,7 +956,7 @@ func (x *KickRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KickRequest.ProtoReflect.Descriptor instead.
 func (*KickRequest) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{11}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *KickRequest) GetAccountName() string {
@@ -867,7 +977,7 @@ type KickResponse struct {
 
 func (x *KickResponse) Reset() {
 	*x = KickResponse{}
-	mi := &file_api_game_v1_game_proto_msgTypes[12]
+	mi := &file_api_game_v1_game_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -879,7 +989,7 @@ func (x *KickResponse) String() string {
 func (*KickResponse) ProtoMessage() {}
 
 func (x *KickResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[12]
+	mi := &file_api_game_v1_game_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -892,7 +1002,7 @@ func (x *KickResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use KickResponse.ProtoReflect.Descriptor instead.
 func (*KickResponse) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{12}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *KickResponse) GetSessions() int32 {
@@ -922,7 +1032,7 @@ type UnstuckRequest struct {
 
 func (x *UnstuckRequest) Reset() {
 	*x = UnstuckRequest{}
-	mi := &file_api_game_v1_game_proto_msgTypes[13]
+	mi := &file_api_game_v1_game_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -934,7 +1044,7 @@ func (x *UnstuckRequest) String() string {
 func (*UnstuckRequest) ProtoMessage() {}
 
 func (x *UnstuckRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[13]
+	mi := &file_api_game_v1_game_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -947,7 +1057,7 @@ func (x *UnstuckRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnstuckRequest.ProtoReflect.Descriptor instead.
 func (*UnstuckRequest) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{13}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *UnstuckRequest) GetAccountName() string {
@@ -989,7 +1099,7 @@ type UnstuckResponse struct {
 
 func (x *UnstuckResponse) Reset() {
 	*x = UnstuckResponse{}
-	mi := &file_api_game_v1_game_proto_msgTypes[14]
+	mi := &file_api_game_v1_game_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1001,7 +1111,7 @@ func (x *UnstuckResponse) String() string {
 func (*UnstuckResponse) ProtoMessage() {}
 
 func (x *UnstuckResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[14]
+	mi := &file_api_game_v1_game_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1014,7 +1124,7 @@ func (x *UnstuckResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UnstuckResponse.ProtoReflect.Descriptor instead.
 func (*UnstuckResponse) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{14}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *UnstuckResponse) GetFound() bool {
@@ -1075,7 +1185,7 @@ type DeliverNowRequest struct {
 
 func (x *DeliverNowRequest) Reset() {
 	*x = DeliverNowRequest{}
-	mi := &file_api_game_v1_game_proto_msgTypes[15]
+	mi := &file_api_game_v1_game_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1087,7 +1197,7 @@ func (x *DeliverNowRequest) String() string {
 func (*DeliverNowRequest) ProtoMessage() {}
 
 func (x *DeliverNowRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[15]
+	mi := &file_api_game_v1_game_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1100,7 +1210,7 @@ func (x *DeliverNowRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeliverNowRequest.ProtoReflect.Descriptor instead.
 func (*DeliverNowRequest) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{15}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *DeliverNowRequest) GetAccountName() string {
@@ -1129,7 +1239,7 @@ type DeliverNowResponse struct {
 
 func (x *DeliverNowResponse) Reset() {
 	*x = DeliverNowResponse{}
-	mi := &file_api_game_v1_game_proto_msgTypes[16]
+	mi := &file_api_game_v1_game_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1141,7 +1251,7 @@ func (x *DeliverNowResponse) String() string {
 func (*DeliverNowResponse) ProtoMessage() {}
 
 func (x *DeliverNowResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[16]
+	mi := &file_api_game_v1_game_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1154,7 +1264,7 @@ func (x *DeliverNowResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeliverNowResponse.ProtoReflect.Descriptor instead.
 func (*DeliverNowResponse) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{16}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *DeliverNowResponse) GetFound() bool {
@@ -1194,7 +1304,7 @@ type SettleRmtSaleNowRequest struct {
 
 func (x *SettleRmtSaleNowRequest) Reset() {
 	*x = SettleRmtSaleNowRequest{}
-	mi := &file_api_game_v1_game_proto_msgTypes[17]
+	mi := &file_api_game_v1_game_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1206,7 +1316,7 @@ func (x *SettleRmtSaleNowRequest) String() string {
 func (*SettleRmtSaleNowRequest) ProtoMessage() {}
 
 func (x *SettleRmtSaleNowRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[17]
+	mi := &file_api_game_v1_game_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1219,7 +1329,7 @@ func (x *SettleRmtSaleNowRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettleRmtSaleNowRequest.ProtoReflect.Descriptor instead.
 func (*SettleRmtSaleNowRequest) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{17}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *SettleRmtSaleNowRequest) GetAccountName() string {
@@ -1245,7 +1355,7 @@ type SettleRmtSaleNowResponse struct {
 
 func (x *SettleRmtSaleNowResponse) Reset() {
 	*x = SettleRmtSaleNowResponse{}
-	mi := &file_api_game_v1_game_proto_msgTypes[18]
+	mi := &file_api_game_v1_game_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1257,7 +1367,7 @@ func (x *SettleRmtSaleNowResponse) String() string {
 func (*SettleRmtSaleNowResponse) ProtoMessage() {}
 
 func (x *SettleRmtSaleNowResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[18]
+	mi := &file_api_game_v1_game_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1270,7 +1380,7 @@ func (x *SettleRmtSaleNowResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SettleRmtSaleNowResponse.ProtoReflect.Descriptor instead.
 func (*SettleRmtSaleNowResponse) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{18}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *SettleRmtSaleNowResponse) GetFound() bool {
@@ -1302,7 +1412,7 @@ type OverlaysRequest struct {
 
 func (x *OverlaysRequest) Reset() {
 	*x = OverlaysRequest{}
-	mi := &file_api_game_v1_game_proto_msgTypes[19]
+	mi := &file_api_game_v1_game_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1314,7 +1424,7 @@ func (x *OverlaysRequest) String() string {
 func (*OverlaysRequest) ProtoMessage() {}
 
 func (x *OverlaysRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[19]
+	mi := &file_api_game_v1_game_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1327,7 +1437,7 @@ func (x *OverlaysRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OverlaysRequest.ProtoReflect.Descriptor instead.
 func (*OverlaysRequest) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{19}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{21}
 }
 
 type OverlaysResponse struct {
@@ -1381,7 +1491,7 @@ type OverlaysResponse struct {
 
 func (x *OverlaysResponse) Reset() {
 	*x = OverlaysResponse{}
-	mi := &file_api_game_v1_game_proto_msgTypes[20]
+	mi := &file_api_game_v1_game_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1393,7 +1503,7 @@ func (x *OverlaysResponse) String() string {
 func (*OverlaysResponse) ProtoMessage() {}
 
 func (x *OverlaysResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[20]
+	mi := &file_api_game_v1_game_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1406,7 +1516,7 @@ func (x *OverlaysResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OverlaysResponse.ProtoReflect.Descriptor instead.
 func (*OverlaysResponse) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{20}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *OverlaysResponse) GetItemStats() bool {
@@ -1467,7 +1577,7 @@ type QuestContentRate struct {
 
 func (x *QuestContentRate) Reset() {
 	*x = QuestContentRate{}
-	mi := &file_api_game_v1_game_proto_msgTypes[21]
+	mi := &file_api_game_v1_game_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1479,7 +1589,7 @@ func (x *QuestContentRate) String() string {
 func (*QuestContentRate) ProtoMessage() {}
 
 func (x *QuestContentRate) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[21]
+	mi := &file_api_game_v1_game_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1492,7 +1602,7 @@ func (x *QuestContentRate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuestContentRate.ProtoReflect.Descriptor instead.
 func (*QuestContentRate) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{21}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *QuestContentRate) GetTier() int32 {
@@ -1539,7 +1649,7 @@ type BroadcastRequest struct {
 
 func (x *BroadcastRequest) Reset() {
 	*x = BroadcastRequest{}
-	mi := &file_api_game_v1_game_proto_msgTypes[22]
+	mi := &file_api_game_v1_game_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1551,7 +1661,7 @@ func (x *BroadcastRequest) String() string {
 func (*BroadcastRequest) ProtoMessage() {}
 
 func (x *BroadcastRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[22]
+	mi := &file_api_game_v1_game_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1564,7 +1674,7 @@ func (x *BroadcastRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BroadcastRequest.ProtoReflect.Descriptor instead.
 func (*BroadcastRequest) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{22}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *BroadcastRequest) GetMessage() string {
@@ -1584,7 +1694,7 @@ type BroadcastResponse struct {
 
 func (x *BroadcastResponse) Reset() {
 	*x = BroadcastResponse{}
-	mi := &file_api_game_v1_game_proto_msgTypes[23]
+	mi := &file_api_game_v1_game_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1596,7 +1706,7 @@ func (x *BroadcastResponse) String() string {
 func (*BroadcastResponse) ProtoMessage() {}
 
 func (x *BroadcastResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[23]
+	mi := &file_api_game_v1_game_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1609,7 +1719,7 @@ func (x *BroadcastResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BroadcastResponse.ProtoReflect.Descriptor instead.
 func (*BroadcastResponse) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{23}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *BroadcastResponse) GetRecipients() int32 {
@@ -1630,7 +1740,7 @@ type DrainRequest struct {
 
 func (x *DrainRequest) Reset() {
 	*x = DrainRequest{}
-	mi := &file_api_game_v1_game_proto_msgTypes[24]
+	mi := &file_api_game_v1_game_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1642,7 +1752,7 @@ func (x *DrainRequest) String() string {
 func (*DrainRequest) ProtoMessage() {}
 
 func (x *DrainRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[24]
+	mi := &file_api_game_v1_game_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1655,7 +1765,7 @@ func (x *DrainRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DrainRequest.ProtoReflect.Descriptor instead.
 func (*DrainRequest) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{24}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *DrainRequest) GetMessage() string {
@@ -1675,7 +1785,7 @@ type DrainResponse struct {
 
 func (x *DrainResponse) Reset() {
 	*x = DrainResponse{}
-	mi := &file_api_game_v1_game_proto_msgTypes[25]
+	mi := &file_api_game_v1_game_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1687,7 +1797,7 @@ func (x *DrainResponse) String() string {
 func (*DrainResponse) ProtoMessage() {}
 
 func (x *DrainResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_game_v1_game_proto_msgTypes[25]
+	mi := &file_api_game_v1_game_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1700,7 +1810,7 @@ func (x *DrainResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DrainResponse.ProtoReflect.Descriptor instead.
 func (*DrainResponse) Descriptor() ([]byte, []int) {
-	return file_api_game_v1_game_proto_rawDescGZIP(), []int{25}
+	return file_api_game_v1_game_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *DrainResponse) GetNotified() int32 {
@@ -1721,7 +1831,13 @@ var File_api_game_v1_game_proto protoreflect.FileDescriptor
 
 const file_api_game_v1_game_proto_rawDesc = "" +
 	"\n" +
-	"\x16api/game/v1/game.proto\x12\agame.v1\"\x13\n" +
+	"\x16api/game/v1/game.proto\x12\agame.v1\"N\n" +
+	"\x13SetPassLevelRequest\x12!\n" +
+	"\faccount_name\x18\x01 \x01(\tR\vaccountName\x12\x14\n" +
+	"\x05level\x18\x02 \x01(\x05R\x05level\"S\n" +
+	"\x14SetPassLevelResponse\x12\x14\n" +
+	"\x05found\x18\x01 \x01(\bR\x05found\x12%\n" +
+	"\x0echaracter_name\x18\x02 \x01(\tR\rcharacterName\"\x13\n" +
 	"\x11ListMarketRequest\"\xc6\x02\n" +
 	"\vMarketOffer\x12*\n" +
 	"\x11seller_account_id\x18\x01 \x01(\x03R\x0fsellerAccountId\x12\x1b\n" +
@@ -1841,7 +1957,7 @@ const file_api_game_v1_game_proto_rawDesc = "" +
 	"\amessage\x18\x01 \x01(\tR\amessage\"C\n" +
 	"\rDrainResponse\x12\x1a\n" +
 	"\bnotified\x18\x01 \x01(\x05R\bnotified\x12\x16\n" +
-	"\x06kicked\x18\x02 \x01(\x05R\x06kicked2\x86\x06\n" +
+	"\x06kicked\x18\x02 \x01(\x05R\x06kicked2\xd3\x06\n" +
 	"\x12GameControlService\x12E\n" +
 	"\n" +
 	"ListOnline\x12\x1a.game.v1.ListOnlineRequest\x1a\x1b.game.v1.ListOnlineResponse\x123\n" +
@@ -1857,7 +1973,8 @@ const file_api_game_v1_game_proto_rawDesc = "" +
 	"ListBlocks\x12\x1a.game.v1.ListBlocksRequest\x1a\x1b.game.v1.ListBlocksResponse\x12K\n" +
 	"\fBlockCommand\x12\x1c.game.v1.BlockCommandRequest\x1a\x1d.game.v1.BlockCommandResponse\x12E\n" +
 	"\n" +
-	"ListMarket\x12\x1a.game.v1.ListMarketRequest\x1a\x1b.game.v1.ListMarketResponseB5Z3github.com/jeanluca/w2pp-openwyd/api/game/v1;gamev1b\x06proto3"
+	"ListMarket\x12\x1a.game.v1.ListMarketRequest\x1a\x1b.game.v1.ListMarketResponse\x12K\n" +
+	"\fSetPassLevel\x12\x1c.game.v1.SetPassLevelRequest\x1a\x1d.game.v1.SetPassLevelResponseB5Z3github.com/jeanluca/w2pp-openwyd/api/game/v1;gamev1b\x06proto3"
 
 var (
 	file_api_game_v1_game_proto_rawDescOnce sync.Once
@@ -1871,64 +1988,68 @@ func file_api_game_v1_game_proto_rawDescGZIP() []byte {
 	return file_api_game_v1_game_proto_rawDescData
 }
 
-var file_api_game_v1_game_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
+var file_api_game_v1_game_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_api_game_v1_game_proto_goTypes = []any{
-	(*ListMarketRequest)(nil),        // 0: game.v1.ListMarketRequest
-	(*MarketOffer)(nil),              // 1: game.v1.MarketOffer
-	(*ListMarketResponse)(nil),       // 2: game.v1.ListMarketResponse
-	(*ListBlocksRequest)(nil),        // 3: game.v1.ListBlocksRequest
-	(*ListBlocksResponse)(nil),       // 4: game.v1.ListBlocksResponse
-	(*Block)(nil),                    // 5: game.v1.Block
-	(*BlockCommandRequest)(nil),      // 6: game.v1.BlockCommandRequest
-	(*BlockCommandResponse)(nil),     // 7: game.v1.BlockCommandResponse
-	(*ListOnlineRequest)(nil),        // 8: game.v1.ListOnlineRequest
-	(*ListOnlineResponse)(nil),       // 9: game.v1.ListOnlineResponse
-	(*OnlinePlayer)(nil),             // 10: game.v1.OnlinePlayer
-	(*KickRequest)(nil),              // 11: game.v1.KickRequest
-	(*KickResponse)(nil),             // 12: game.v1.KickResponse
-	(*UnstuckRequest)(nil),           // 13: game.v1.UnstuckRequest
-	(*UnstuckResponse)(nil),          // 14: game.v1.UnstuckResponse
-	(*DeliverNowRequest)(nil),        // 15: game.v1.DeliverNowRequest
-	(*DeliverNowResponse)(nil),       // 16: game.v1.DeliverNowResponse
-	(*SettleRmtSaleNowRequest)(nil),  // 17: game.v1.SettleRmtSaleNowRequest
-	(*SettleRmtSaleNowResponse)(nil), // 18: game.v1.SettleRmtSaleNowResponse
-	(*OverlaysRequest)(nil),          // 19: game.v1.OverlaysRequest
-	(*OverlaysResponse)(nil),         // 20: game.v1.OverlaysResponse
-	(*QuestContentRate)(nil),         // 21: game.v1.QuestContentRate
-	(*BroadcastRequest)(nil),         // 22: game.v1.BroadcastRequest
-	(*BroadcastResponse)(nil),        // 23: game.v1.BroadcastResponse
-	(*DrainRequest)(nil),             // 24: game.v1.DrainRequest
-	(*DrainResponse)(nil),            // 25: game.v1.DrainResponse
+	(*SetPassLevelRequest)(nil),      // 0: game.v1.SetPassLevelRequest
+	(*SetPassLevelResponse)(nil),     // 1: game.v1.SetPassLevelResponse
+	(*ListMarketRequest)(nil),        // 2: game.v1.ListMarketRequest
+	(*MarketOffer)(nil),              // 3: game.v1.MarketOffer
+	(*ListMarketResponse)(nil),       // 4: game.v1.ListMarketResponse
+	(*ListBlocksRequest)(nil),        // 5: game.v1.ListBlocksRequest
+	(*ListBlocksResponse)(nil),       // 6: game.v1.ListBlocksResponse
+	(*Block)(nil),                    // 7: game.v1.Block
+	(*BlockCommandRequest)(nil),      // 8: game.v1.BlockCommandRequest
+	(*BlockCommandResponse)(nil),     // 9: game.v1.BlockCommandResponse
+	(*ListOnlineRequest)(nil),        // 10: game.v1.ListOnlineRequest
+	(*ListOnlineResponse)(nil),       // 11: game.v1.ListOnlineResponse
+	(*OnlinePlayer)(nil),             // 12: game.v1.OnlinePlayer
+	(*KickRequest)(nil),              // 13: game.v1.KickRequest
+	(*KickResponse)(nil),             // 14: game.v1.KickResponse
+	(*UnstuckRequest)(nil),           // 15: game.v1.UnstuckRequest
+	(*UnstuckResponse)(nil),          // 16: game.v1.UnstuckResponse
+	(*DeliverNowRequest)(nil),        // 17: game.v1.DeliverNowRequest
+	(*DeliverNowResponse)(nil),       // 18: game.v1.DeliverNowResponse
+	(*SettleRmtSaleNowRequest)(nil),  // 19: game.v1.SettleRmtSaleNowRequest
+	(*SettleRmtSaleNowResponse)(nil), // 20: game.v1.SettleRmtSaleNowResponse
+	(*OverlaysRequest)(nil),          // 21: game.v1.OverlaysRequest
+	(*OverlaysResponse)(nil),         // 22: game.v1.OverlaysResponse
+	(*QuestContentRate)(nil),         // 23: game.v1.QuestContentRate
+	(*BroadcastRequest)(nil),         // 24: game.v1.BroadcastRequest
+	(*BroadcastResponse)(nil),        // 25: game.v1.BroadcastResponse
+	(*DrainRequest)(nil),             // 26: game.v1.DrainRequest
+	(*DrainResponse)(nil),            // 27: game.v1.DrainResponse
 }
 var file_api_game_v1_game_proto_depIdxs = []int32{
-	1,  // 0: game.v1.ListMarketResponse.offers:type_name -> game.v1.MarketOffer
-	5,  // 1: game.v1.ListBlocksResponse.blocks:type_name -> game.v1.Block
-	10, // 2: game.v1.ListOnlineResponse.players:type_name -> game.v1.OnlinePlayer
-	21, // 3: game.v1.OverlaysResponse.quest_content:type_name -> game.v1.QuestContentRate
-	8,  // 4: game.v1.GameControlService.ListOnline:input_type -> game.v1.ListOnlineRequest
-	11, // 5: game.v1.GameControlService.Kick:input_type -> game.v1.KickRequest
-	22, // 6: game.v1.GameControlService.Broadcast:input_type -> game.v1.BroadcastRequest
-	13, // 7: game.v1.GameControlService.Unstuck:input_type -> game.v1.UnstuckRequest
-	15, // 8: game.v1.GameControlService.DeliverNow:input_type -> game.v1.DeliverNowRequest
-	17, // 9: game.v1.GameControlService.SettleRmtSaleNow:input_type -> game.v1.SettleRmtSaleNowRequest
-	19, // 10: game.v1.GameControlService.Overlays:input_type -> game.v1.OverlaysRequest
-	24, // 11: game.v1.GameControlService.Drain:input_type -> game.v1.DrainRequest
-	3,  // 12: game.v1.GameControlService.ListBlocks:input_type -> game.v1.ListBlocksRequest
-	6,  // 13: game.v1.GameControlService.BlockCommand:input_type -> game.v1.BlockCommandRequest
-	0,  // 14: game.v1.GameControlService.ListMarket:input_type -> game.v1.ListMarketRequest
-	9,  // 15: game.v1.GameControlService.ListOnline:output_type -> game.v1.ListOnlineResponse
-	12, // 16: game.v1.GameControlService.Kick:output_type -> game.v1.KickResponse
-	23, // 17: game.v1.GameControlService.Broadcast:output_type -> game.v1.BroadcastResponse
-	14, // 18: game.v1.GameControlService.Unstuck:output_type -> game.v1.UnstuckResponse
-	16, // 19: game.v1.GameControlService.DeliverNow:output_type -> game.v1.DeliverNowResponse
-	18, // 20: game.v1.GameControlService.SettleRmtSaleNow:output_type -> game.v1.SettleRmtSaleNowResponse
-	20, // 21: game.v1.GameControlService.Overlays:output_type -> game.v1.OverlaysResponse
-	25, // 22: game.v1.GameControlService.Drain:output_type -> game.v1.DrainResponse
-	4,  // 23: game.v1.GameControlService.ListBlocks:output_type -> game.v1.ListBlocksResponse
-	7,  // 24: game.v1.GameControlService.BlockCommand:output_type -> game.v1.BlockCommandResponse
-	2,  // 25: game.v1.GameControlService.ListMarket:output_type -> game.v1.ListMarketResponse
-	15, // [15:26] is the sub-list for method output_type
-	4,  // [4:15] is the sub-list for method input_type
+	3,  // 0: game.v1.ListMarketResponse.offers:type_name -> game.v1.MarketOffer
+	7,  // 1: game.v1.ListBlocksResponse.blocks:type_name -> game.v1.Block
+	12, // 2: game.v1.ListOnlineResponse.players:type_name -> game.v1.OnlinePlayer
+	23, // 3: game.v1.OverlaysResponse.quest_content:type_name -> game.v1.QuestContentRate
+	10, // 4: game.v1.GameControlService.ListOnline:input_type -> game.v1.ListOnlineRequest
+	13, // 5: game.v1.GameControlService.Kick:input_type -> game.v1.KickRequest
+	24, // 6: game.v1.GameControlService.Broadcast:input_type -> game.v1.BroadcastRequest
+	15, // 7: game.v1.GameControlService.Unstuck:input_type -> game.v1.UnstuckRequest
+	17, // 8: game.v1.GameControlService.DeliverNow:input_type -> game.v1.DeliverNowRequest
+	19, // 9: game.v1.GameControlService.SettleRmtSaleNow:input_type -> game.v1.SettleRmtSaleNowRequest
+	21, // 10: game.v1.GameControlService.Overlays:input_type -> game.v1.OverlaysRequest
+	26, // 11: game.v1.GameControlService.Drain:input_type -> game.v1.DrainRequest
+	5,  // 12: game.v1.GameControlService.ListBlocks:input_type -> game.v1.ListBlocksRequest
+	8,  // 13: game.v1.GameControlService.BlockCommand:input_type -> game.v1.BlockCommandRequest
+	2,  // 14: game.v1.GameControlService.ListMarket:input_type -> game.v1.ListMarketRequest
+	0,  // 15: game.v1.GameControlService.SetPassLevel:input_type -> game.v1.SetPassLevelRequest
+	11, // 16: game.v1.GameControlService.ListOnline:output_type -> game.v1.ListOnlineResponse
+	14, // 17: game.v1.GameControlService.Kick:output_type -> game.v1.KickResponse
+	25, // 18: game.v1.GameControlService.Broadcast:output_type -> game.v1.BroadcastResponse
+	16, // 19: game.v1.GameControlService.Unstuck:output_type -> game.v1.UnstuckResponse
+	18, // 20: game.v1.GameControlService.DeliverNow:output_type -> game.v1.DeliverNowResponse
+	20, // 21: game.v1.GameControlService.SettleRmtSaleNow:output_type -> game.v1.SettleRmtSaleNowResponse
+	22, // 22: game.v1.GameControlService.Overlays:output_type -> game.v1.OverlaysResponse
+	27, // 23: game.v1.GameControlService.Drain:output_type -> game.v1.DrainResponse
+	6,  // 24: game.v1.GameControlService.ListBlocks:output_type -> game.v1.ListBlocksResponse
+	9,  // 25: game.v1.GameControlService.BlockCommand:output_type -> game.v1.BlockCommandResponse
+	4,  // 26: game.v1.GameControlService.ListMarket:output_type -> game.v1.ListMarketResponse
+	1,  // 27: game.v1.GameControlService.SetPassLevel:output_type -> game.v1.SetPassLevelResponse
+	16, // [16:28] is the sub-list for method output_type
+	4,  // [4:16] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
 	4,  // [4:4] is the sub-list for extension extendee
 	0,  // [0:4] is the sub-list for field type_name
@@ -1939,14 +2060,14 @@ func file_api_game_v1_game_proto_init() {
 	if File_api_game_v1_game_proto != nil {
 		return
 	}
-	file_api_game_v1_game_proto_msgTypes[3].OneofWrappers = []any{}
+	file_api_game_v1_game_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_game_v1_game_proto_rawDesc), len(file_api_game_v1_game_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   26,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

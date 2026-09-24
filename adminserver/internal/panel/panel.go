@@ -219,6 +219,9 @@ type Live interface {
 	Derrubar(ctx context.Context, conta string) (int32, error)
 	Desatolar(ctx context.Context, conta string, paraX, paraY int32) (jogo.Desatolo, error)
 	EntregarAgora(ctx context.Context, conta string) (jogo.Entrega, error)
+	// TrocarPasse redesenha a moldura do passe de quem está em jogo. Cortesia: o
+	// que vale é o que está gravado no banco.
+	TrocarPasse(ctx context.Context, conta string, nivel int32) (jogo.Passe, error)
 	Ajustes(ctx context.Context) (jogo.Overlays, error)
 	Avisar(ctx context.Context, msg string) (int32, error)
 	Drenar(ctx context.Context, aviso string) (jogo.Drenagem, error)
@@ -309,9 +312,12 @@ type Config struct {
 	MesaDrops   MesaDrops
 	Repasses    Repasses
 	FilasRMT    FilasRMT
-	Sessions    *session.Store
-	Logger      *slog.Logger
-	SecureOnly  bool // Secure flag on the cookie; false only for local HTTP dev
+	// Passe é a gravação do nível do passe de batalha. Opcional: sem ela a seção
+	// some da página da conta, em vez de aparecer e recusar.
+	Passe      PasseDaConta
+	Sessions   *session.Store
+	Logger     *slog.Logger
+	SecureOnly bool // Secure flag on the cookie; false only for local HTTP dev
 
 	// SemCadastro tranca a criação de conta pelo painel.
 	//
@@ -509,6 +515,11 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("POST /blocos/comando", h.requireStaff(http.HandlerFunc(h.comandoBloco)))
 	}
 	mux.Handle("POST /contas/{nome}/cargo", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setCargo))))
+	// O PASSE É ADMIN, como o cargo. Ele é um cosmético comprado: quem o dá está
+	// entregando o que alguém pagaria, e isso não é decisão de plantão.
+	if h.cfg.Passe != nil {
+		mux.Handle("POST /contas/{nome}/passe", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setPasse))))
+	}
 	mux.Handle("POST /contas/{nome}/bloqueio", h.requireStaff(http.HandlerFunc(h.setBloqueio)))
 	mux.Handle("POST /contas/{nome}/vip", h.requireStaff(http.HandlerFunc(h.setVip)))
 	mux.Handle("POST /contas/{nome}/senha", h.requireStaff(http.HandlerFunc(h.setSenha)))
@@ -940,7 +951,8 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 			ID: auth.ID, Name: nome, Role: auth.Role, IsBlocked: auth.IsBlocked,
 			Email: det.Email, DonateBalance: det.DonateBalance, ShopPoints: det.ShopPoints,
 			VipUntil: det.VipUntil, VipActive: accounts.VipActive(det.VipUntil),
-			Bloqueio: det.Bloqueio,
+			Bloqueio:   det.Bloqueio,
+			PasseNivel: det.PasseNivel, PodePasse: h.cfg.Passe != nil,
 		},
 		chars,
 		emJogo,
@@ -1091,6 +1103,8 @@ type contaView struct {
 	VipUntil      *time.Time
 	VipActive     bool // expiry compared against now, which is the whole mechanism
 	Bloqueio      accounts.Bloqueio
+	PasseNivel    int16 // 0 sem passe, 1..4 as molduras (0128)
+	PodePasse     bool  // a seção do passe só existe com a gravação ligada
 }
 
 // --- login / logout ---

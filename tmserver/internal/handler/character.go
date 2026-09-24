@@ -347,6 +347,10 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		// — pre-migration rows and zero-valued test fixtures both read back 0, so
 		// treat that as neutral, the same convention as ClassMaster == 0 above.
 		e.PKPoint, e.Guilty, e.CurKill, e.TotKill = st.PKPoint, st.Guilty, st.CurKill, st.TotKill
+		// A MOLDURA DO PASSE VEM DA SESSÃO, e não do personagem: o passe é da CONTA
+		// (0128), então todos os personagens dela levam o mesmo. Quem trocar de
+		// personagem continua com a moldura.
+		e.PasseNivel = s.PasseNivel
 		if e.PKPoint == 0 {
 			e.PKPoint = pkPointNeutral
 		}
@@ -713,11 +717,15 @@ func createMobFrom(e *world.Entity, createType uint16) protocol.CreateMobData {
 		// Players pack PKPoint/CurKill/TotKill into MobName[12..15] to color the nick
 		// (75 neutral/white, 0 chaos/red) and show the kill-streak bytes (issue #210);
 		// mobs send a raw name with no PK coloring.
-		IsPlayer: world.IsPlayer(e.ID),
-		PKPoint:  playerPKPoint(e),
-		CurKill:  e.CurKill,
-		TotKill:  e.TotKill,
-		Tab:      e.Tab,
+		// A moldura do passe. Ela sai no CreateMob de TODO jogador de propósito: é
+		// um cosmético feito para os outros verem, e é assim que ele aparece para
+		// quem está por perto e não só para o dono.
+		PasseNivel: e.PasseNivel,
+		IsPlayer:   world.IsPlayer(e.ID),
+		PKPoint:    playerPKPoint(e),
+		CurKill:    e.CurKill,
+		TotKill:    e.TotKill,
+		Tab:        e.Tab,
 	}
 	for i := range e.Affect {
 		if e.Affect[i].Type == 0 {

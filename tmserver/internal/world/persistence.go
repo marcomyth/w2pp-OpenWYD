@@ -105,6 +105,9 @@ type LoginOutcome struct {
 	// daqui e o mantém em dia por conta própria a cada venda.
 	Cash int32
 	Rmt  int32
+	// PasseNivel é o nível do passe da CONTA (0..4). Ele vem no login porque é o
+	// jogo que desenha a moldura, e o laço não fala com o banco.
+	PasseNivel uint8
 }
 
 // CargoState is the account-shared warehouse (the legacy STRUCT_ACCOUNTFILE

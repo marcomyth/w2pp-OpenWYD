@@ -98,6 +98,33 @@ service GameControlService {
   //
   // It answers from inside the single-owner loop, like every other call here.
   rpc ListMarket(ListMarketRequest) returns (ListMarketResponse);
+  // SetPassLevel changes the battle-pass frame of an account that is PLAYING, and
+  // redraws it for everybody who can see them.
+  //
+  // IT DOES NOT WRITE THE DATABASE. The level lives on the account row, and the
+  // caller has already written it there — this is the courtesy that spares the
+  // player a relog, exactly like DeliverNow. A failure here loses nothing: the
+  // stored level applies at the next login.
+  //
+  // found=false means the account is not connected. That is the ordinary answer,
+  // not an error: most accounts are offline most of the time.
+  rpc SetPassLevel(SetPassLevelRequest) returns (SetPassLevelResponse);
+}
+
+message SetPassLevelRequest {
+  string account_name = 1;
+  // 0 = no pass, 1..4 = the four frames. Out of range is refused: the byte goes
+  // straight onto the wire, and a number the client cannot draw would show up as
+  // something else entirely.
+  int32 level = 2;
+}
+
+message SetPassLevelResponse {
+  // Whether the account was connected and got the new frame now.
+  bool found = 1;
+  // The character standing in the world, when there is one, so the panel can say
+  // "Fulana viu a moldura mudar".
+  string character_name = 2;
 }
 
 message ListMarketRequest {}

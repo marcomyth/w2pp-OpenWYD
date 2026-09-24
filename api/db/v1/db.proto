@@ -314,6 +314,12 @@ message AccountLoginResponse {
   // achava que tinha comprado de graça quando na verdade tinha saldo.
   int32 cash = 4;
   int32 rmt = 5;
+  // O nível do passe de batalha da CONTA (0..4), pelo mesmo motivo das carteiras: o
+  // tmServer não fala com o banco e precisa do número para pôr a moldura no pacote
+  // que desenha o jogador.
+  //
+  // Zero é "sem passe", e é o que toda conta tem até alguém dar.
+  int32 passe_nivel = 6;
 }
 
 message ListCharactersRequest { int64 account_id = 1; }

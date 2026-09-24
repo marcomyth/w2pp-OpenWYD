@@ -122,6 +122,9 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		s.AccountID = out.AccountID
 		s.AccessLevel = world.ParseAccess(out.Role) // GM/moderation privilege (issue #122)
 		s.Cash, s.Rmt = out.Cash, out.Rmt
+		// O passe vem no mesmo login, como as carteiras, e pela mesma razão: o laço
+		// não fala com o banco.
+		s.PasseNivel = out.PasseNivel
 		d.log.Info("account login: OK", "conn", s.Conn, "account", s.AccountName, "id", out.AccountID, "role", s.AccessLevel, "chars", len(out.Characters))
 		// Install the account-shared cargo, loaded in the same backend round-trip.
 		// It lives for the whole account session and is released on disconnect.

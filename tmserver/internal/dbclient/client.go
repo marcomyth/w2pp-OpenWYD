@@ -43,11 +43,12 @@ func (c *Client) AccountLogin(ctx context.Context, name, password string) (world
 		return world.LoginOutcome{}, fmt.Errorf("dbclient: account login: %w", err)
 	}
 	out := world.LoginOutcome{
-		Result:    loginResultFromProto(resp.GetResult()),
-		AccountID: resp.GetAccountId(),
-		Role:      resp.GetRole(),
-		Cash:      resp.GetCash(),
-		Rmt:       resp.GetRmt(),
+		Result:     loginResultFromProto(resp.GetResult()),
+		AccountID:  resp.GetAccountId(),
+		Role:       resp.GetRole(),
+		Cash:       resp.GetCash(),
+		Rmt:        resp.GetRmt(),
+		PasseNivel: uint8(clampPasse(resp.GetPasseNivel())),
 	}
 	if out.Result != world.LoginOK {
 		return out, nil
@@ -1343,4 +1344,20 @@ func (c *Client) DonateBalance(ctx context.Context, accountID int64) (int32, err
 		return 0, fmt.Errorf("dbclient: ler saldo de donate: %w", err)
 	}
 	return resp.GetBalance(), nil
+}
+
+// clampPasse prende o nível do passe na faixa que o cliente sabe desenhar.
+//
+// O banco já tem o CHECK e o serviço já recusa fora da faixa, e ainda assim isto
+// existe: o que chega aqui veio pela rede, e um número fora de 0..4 escrito no byte
+// do pacote sairia como outra coisa qualquer no cliente. Prender é uma linha; um
+// pacote errado é uma tarde procurando.
+func clampPasse(n int32) int32 {
+	if n < 0 {
+		return 0
+	}
+	if n > 4 {
+		return 4
+	}
+	return n
 }

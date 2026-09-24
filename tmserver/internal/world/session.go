@@ -71,6 +71,10 @@ type Session struct {
 	// Loja do Servidor. É o que o painel mostra no rodapé.
 	Cash int32
 	Rmt  int32
+	// PasseNivel é o nível do passe da CONTA, lido no login e copiado para cada
+	// personagem que entrar (ver character.go). Fica na sessão porque é da conta, e
+	// porque é aqui que o SetPassLevel o atualiza sem esperar relogin.
+	PasseNivel uint8
 	// O painel da loja aberto, e em que página e filtro ele está. O servidor
 	// avisa quem está com ele aberto quando o mercado muda, em vez de deixar o
 	// cliente perguntar de tempos em tempos — ver handler.mercadoMudou.
@@ -430,6 +434,16 @@ type Entity struct {
 	// clients can render them) — no gameplay effect modeled. Persisted.
 	CurKill uint8
 	TotKill uint16
+
+	// PasseNivel é a moldura do passe de batalha desta pessoa, 0 a 4, e ela vem da
+	// CONTA e não do personagem (0128).
+	//
+	// Ela está na entidade e não só na sessão porque quem monta o MSG_CreateMob tem a
+	// entidade na mão — inclusive o de OUTRO jogador entrando na tela, que é
+	// justamente quando a moldura de alguém precisa aparecer para terceiros.
+	//
+	// Monstro e NPC ficam em zero.
+	PasseNivel uint8
 
 	Str        int16 // CurrentScore attributes (base + equipment, kept live by refreshScore)
 	Int        int16
