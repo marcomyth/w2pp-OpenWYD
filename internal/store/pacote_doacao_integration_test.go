@@ -180,9 +180,19 @@ func TestConfirmarPacoteEnfileiraOsBrindesComOCredito(t *testing.T) {
 		t.Errorf("saldo = %d, quero 20000", saldo)
 	}
 
+	// UMA LINHA NA FILA POR ESPAÇO NO BAÚ, e a conta é a MESMA que a tela do site
+	// promete. Amarrar ao `EspacosNoBau` e não a um número escrito à mão é o que
+	// garante que a promessa e a entrega não podem divergir — e é o que faz este teste
+	// continuar valendo quando os baús passarem a empilhar, em vez de quebrar por uma
+	// mudança que ele deveria acompanhar.
+	pacote, err := s.LerPacote(ctx, "apoiador-supremo")
+	if err != nil {
+		t.Fatal(err)
+	}
 	entregas := brindesNaFila(ctx, t, s, conta)
-	if len(entregas) != 6 {
-		t.Fatalf("%d brindes na fila, quero 6", len(entregas))
+	if len(entregas) != pacote.EspacosNoBau() {
+		t.Fatalf("%d linhas na fila e a tela promete %d espacos; os dois numeros tem de ser o mesmo",
+			len(entregas), pacote.EspacosNoBau())
 	}
 
 	// O DRAGÃO VERMELHO VEM COM A DURAÇÃO NÃO INICIADA. Se ele viesse com expires_at,
@@ -201,15 +211,22 @@ func TestConfirmarPacoteEnfileiraOsBrindesComOCredito(t *testing.T) {
 			dragao.Eff1, dragao.EffV1)
 	}
 
-	// OS 64 BAÚS VÊM EM UMA LINHA SÓ, empilhados. Sem empilhar seriam 64 linhas e 64
-	// espacos dos 128 do bau da conta.
-	baus := entregas[5]
-	if baus.ItemIndex != 3305 {
-		t.Errorf("o ultimo brinde e %d, quero o Bau do Apoiador 3305", baus.ItemIndex)
+	// OS BAÚS SÃO OS ÚLTIMOS, e quantas linhas eles ocupam depende de empilharem ou
+	// não — que é exatamente o que o PR da pilha muda. O teste confere a REGRA, e não o
+	// número: cada linha tem EF_AMOUNT, e a soma delas dá os 64 que o pacote promete.
+	var baus int
+	for _, e := range entregas {
+		if e.ItemIndex != 3305 {
+			continue
+		}
+		if e.Eff1 != 61 {
+			t.Errorf("um bau veio sem EF_AMOUNT: eff %d", e.Eff1)
+			continue
+		}
+		baus += int(e.EffV1)
 	}
-	if baus.Eff1 != 61 || baus.EffV1 != 64 {
-		t.Errorf("os baus vieram como eff %d valor %d, quero EF_AMOUNT 64",
-			baus.Eff1, baus.EffV1)
+	if baus != 64 {
+		t.Errorf("a soma dos baus entregues = %d, quero os 64 que o pacote promete", baus)
 	}
 }
 
@@ -239,8 +256,15 @@ func TestConfirmarPacoteDuasVezesNaoDuplicaOsBrindes(t *testing.T) {
 	if saldo != 300 {
 		t.Errorf("saldo = %d, quero 300: creditou duas vezes", saldo)
 	}
-	if n := len(brindesNaFila(ctx, t, s, conta)); n != 4 {
-		t.Errorf("%d brindes na fila depois de duas confirmacoes, quero 4", n)
+	// A conta vem do pacote, pelo mesmo motivo do teste de cima: ela muda quando os
+	// baús passarem a empilhar, e o teste tem de acompanhar em vez de quebrar.
+	iniciante, err := s.LerPacote(ctx, "apoiador-iniciante")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(brindesNaFila(ctx, t, s, conta)); n != iniciante.EspacosNoBau() {
+		t.Errorf("%d brindes na fila depois de duas confirmacoes, quero %d",
+			n, iniciante.EspacosNoBau())
 	}
 }
 
