@@ -54,8 +54,28 @@ jobs:
 
       # Race detector + coverage. Os testes de integracao ficam atras da etiqueta
       # `integration` (precisam de Postgres) e rodam no job `integration`.
+      #
+      # `-timeout 25m` EXPLICITO, porque o padrao do Go e 10 min POR PACOTE e o
+      # tmserver/internal/handler acabou de cruzar essa linha: em 24/09/2026 a main
+      # ficou vermelha com "panic: test timed out after 10m0s" nele, e o rastro
+      # mostrava um teste que tinha acabado de comecar (0s) — ou seja, nao era um
+      # travamento, era a soma do pacote passando dos 600 s.
+      #
+      # O pacote e o maior do repositorio de longe: 4046 testes, e a conta e imposto
+      # espalhado, nao um vilao (os 12 mais lentos somam 15%). Ele sobe um pouco a
+      # cada dia de trabalho, e hoje ganhou mais testes. Sem o teto explicito, o
+      # proximo teste somado derruba a main de novo, e a mensagem de erro nao diz
+      # "acabou o tempo do job", diz "panic" — que manda quem le procurar bug.
+      #
+      # 25 min, e nao 11: o valor tem de sobreviver a um dia ruim do runner sem
+      # virar manutencao mensal. O job inteiro leva ~13 min, entao um pacote que
+      # chegasse perto de 25 seria um problema de verdade, e ai o vermelho e o certo.
+      #
+      # ISTO NAO E CONSERTO DA LENTIDAO, e sim tirar o disfarce dela: o pacote
+      # continua caro, e isso esta anotado como divida (a metade (A) da suite, que
+      # ainda nao foi feita).
       - name: Test
-        run: go test -race -cover ./...
+        run: go test -race -cover -timeout 25m ./...
 
   lint:
     name: Lint
