@@ -145,6 +145,16 @@ const (
 	MsgGuildaAtiva    Type = 0x0F49 // C->S  usar um Guild Buff da mochila
 	MsgGuildaEsquadra Type = 0x0F4A // S->C  quem esta designado para uma cidade
 	MsgGuildaDesigna  Type = 0x0F4B // C->S  trocar a escalacao de uma cidade
+	MsgGuildaAcao     Type = 0x0F4C // C->S  promover, passar lideranca, expulsar, sair
+	MsgGuildaImposto  Type = 0x0F4D // C->S  trocar o imposto da cidade dominada
+
+	// A lixeira em lote do inventário (protocol/lixeira.go). Ela existe porque o
+	// apagar de um item só (0x02E4) não sabe dizer NÃO: ele volta calado, não
+	// confere o índice do item, e cancela a troca em aberto. Num lote, os três
+	// viram estrago — o jogador não saberia o que ficou, apagaria o item errado se
+	// algo tivesse mudado de lugar, e perderia a troca na primeira linha.
+	MsgLixeiraApaga     Type = 0x0F50 // C->S  apaga estes itens da mochila
+	MsgLixeiraResultado Type = 0x0F51 // S->C  quantos foram, e por que os outros nao
 
 	MsgRestart          Type = 0x0289 // 649
 	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)

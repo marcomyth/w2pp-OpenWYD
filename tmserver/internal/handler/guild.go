@@ -448,42 +448,28 @@ func parseSmallInt(s string) (int, bool) {
 	return n, true
 }
 
-// guildAlly handles _MSG_GuildAlly (0x0E12).
-func (d *Dispatcher) guildAlly(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
-	d.guildRelay(w, s, payload, world.GuildRelationAlly)
-}
-
-// war handles _MSG_War (0x0E0E).
-func (d *Dispatcher) war(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
-	d.guildRelay(w, s, payload, world.GuildRelationWar)
-}
-
-func (d *Dispatcher) guildRelay(w *world.World, s *world.Session, payload []byte, kind world.GuildRelationKind) {
-	e := w.Entity(s.Conn)
-	if e == nil {
-		return
-	}
-	guild, target, ok := protocol.StandardParm2(payload)
-	if !ok || guild <= 0 || guild >= 65536 || target < 0 || target >= 65536 {
-		return
-	}
-	if e.Guild != uint16(guild) || e.GuildLevel != guildLeaderLevel {
-		return
-	}
-	p := w.Persistence()
-	guildID, targetID := uint16(guild), uint16(target)
-	w.Go(s, func() func(*world.World, *world.Session) {
-		err := p.SetGuildRelation(context.Background(), guildID, targetID, kind)
-		return func(w *world.World, s *world.Session) {
-			if err != nil {
-				d.log.Warn("guild relation failed", "conn", s.Conn, "guild", guildID, "target", targetID, "kind", kind, "err", err)
-				return
-			}
-			d.applyGuildRelation(guildID, targetID, kind)
-			d.sendWarInfoToGuild(w, guildID)
-		}
-	})
-}
+// A ALIANÇA E A GUERRA DECLARADA ENTRE GUILDAS SAÍRAM.
+//
+// Aqui moravam o guildAlly (0x0E12), o war (0x0E0E) e o guildRelay que os dois
+// chamavam. Eram o par que se fazia com item, e a Hanna tirou os dois do jogo.
+// Saíram daqui e das rotas: sem rota, o pacote cai no caminho de mensagem
+// desconhecida, em vez de executar meio caminho.
+//
+// A GUERRA DE CIDADE CONTINUA INTEIRA. Ela é outra coisa: mora na torre
+// (towerwar.go) e nunca passou por nenhuma destas funções.
+//
+// E O applyGuildRelation CONTINUA RODANDO na partida, para as linhas de
+// guild_relation que já existem no banco. Elas não nascem mais, mas as antigas
+// SEGUEM VALENDO até alguém apagar — o que é um DELETE explícito e não acontece
+// sozinho. Deixá-las valendo é a escolha conservadora: apagar relação de guilda em
+// migração é mexer no jogo de quem não pediu.
+//
+// O sendWarInfoToGuild (0x03A8) saiu junto, porque ficou sem quem o chamasse: o
+// guildRelay era o único. E ISSO NÃO TIRA NADA DE NINGUÉM — ele só era mandado no
+// instante da declaração, nunca no login, então quem entrava depois de uma guerra
+// declarada já não recebia o aviso antes desta mudança. A aliada e a guerra das
+// linhas antigas continuam aparecendo, com nome, na aba Informações do painel
+// (montaInfoDaGuilda).
 
 // challange handles _MSG_Challange (0x028E): status/collection for a guild zone.
 func (d *Dispatcher) challange(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
@@ -590,17 +576,6 @@ func (d *Dispatcher) persistGuildZone(w *world.World, s *world.Session, z world.
 			if err != nil {
 				d.log.Warn("persist guild zone failed", "zone", z.Zone, "err", err)
 			}
-		}
-	})
-}
-
-func (d *Dispatcher) sendWarInfoToGuild(w *world.World, guildID uint16) {
-	warTarget := int32(d.guildWars[guildID])
-	allyTarget := int32(d.guildAllies[guildID])
-	body := protocol.EncodeStandardParm3(warTarget, 0, allyTarget)
-	w.ForEachPlaying(-1, func(s *world.Session, e *world.Entity) {
-		if e.Guild == guildID {
-			w.SendTo(s, protocol.Header{Type: protocol.MsgSendWarInfo, ID: protocol.IDScene}, body)
 		}
 	})
 }
