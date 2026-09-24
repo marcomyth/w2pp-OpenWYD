@@ -31,18 +31,28 @@ type fakePix struct {
 	criarChamadas  int
 	minimoPedido   time.Duration
 	cobrancaPedida int64
+	erroDoCriador  error
 }
 
-// CriarPixSeFaltar finge o store. NÃO chama o `criar` recebido: o que esta fake
-// existe para observar é se o HANDLER pediu a criação, e em que condições. Quem
-// prova que a chamada à ponte sai uma vez só é o teste de integração do store, que
-// é onde a trava mora.
-func (f *fakePix) CriarPixSeFaltar(_ context.Context, cobrancaID int64,
-	minimo time.Duration, _ store.CriadorDePix,
+// CriarPixSeFaltar finge o store, e CHAMA o criador que recebeu.
+//
+// Chamar importa, e a primeira versão desta fake não chamava: sem isso, o teste de
+// que o cancelamento do chamador não mata a criação não observava nada — o contexto
+// que interessa é justamente o que chega no criador. Uma fake que pula o pedaço sob
+// teste dá um teste verde que não prova nada.
+//
+// O resultado continua vindo dos campos, e não do criador: o que esta fake observa é
+// o HANDLER, e quem prova que a chamada à ponte sai uma vez só é o teste de
+// integração do store, que é onde a trava mora.
+func (f *fakePix) CriarPixSeFaltar(ctx context.Context, cobrancaID int64,
+	minimo time.Duration, criar store.CriadorDePix,
 ) (store.PixDaCobranca, error) {
 	f.criarChamadas++
 	f.cobrancaPedida = cobrancaID
 	f.minimoPedido = minimo
+	if criar != nil {
+		_, _, f.erroDoCriador = criar(ctx, "ref-fake", 5000)
+	}
 	return f.pixCriado, f.erroCriarPix
 }
 

@@ -23,9 +23,12 @@ func abertaSemCodigo() *fakePix {
 	}
 }
 
-func criadorQueNaoRoda() CriadorDePixComTexto {
+// criadorInerte é chamado e não faz nada de interessante. Os testes que o usam
+// olham SE o handler pediu a criação e com quais condições, e não o que a ponte
+// devolveu — esse é papel do teste de integração do store.
+func criadorInerte() CriadorDePixComTexto {
 	return func(context.Context, string, int64, string) (string, string, error) {
-		return "", "", errors.New("este criador nao devia ser chamado pelo teste do handler")
+		return "codigo-inerte", "ident-inerte", nil
 	}
 }
 
@@ -54,7 +57,7 @@ func TestLeituraCriaEDevolveOCodigo(t *testing.T) {
 	f := abertaSemCodigo()
 	f.pixCriado = store.PixDaCobranca{CodigoPix: "00020126", Identifier: "sp-1", Criado: true}
 
-	resp, err := NewRmt(f).ComCriadorDePix(criadorQueNaoRoda(), nil, nil).
+	resp, err := NewRmt(f).ComCriadorDePix(criadorInerte(), nil, nil).
 		GetMyCurrentPixCharge(context.Background(), &webv1.GetMyCurrentPixChargeRequest{AccountId: 7})
 
 	if err != nil {
@@ -78,7 +81,7 @@ func TestComCodigoNaoPedeCriacao(t *testing.T) {
 	f := abertaSemCodigo()
 	f.cobranca.CodigoPix = "00020126"
 
-	if _, err := NewRmt(f).ComCriadorDePix(criadorQueNaoRoda(), nil, nil).
+	if _, err := NewRmt(f).ComCriadorDePix(criadorInerte(), nil, nil).
 		GetMyCurrentPixCharge(context.Background(),
 			&webv1.GetMyCurrentPixChargeRequest{AccountId: 7}); err != nil {
 		t.Fatalf("erro inesperado: %v", err)
@@ -101,7 +104,7 @@ func TestEstadoFechadoNaoPedeCriacao(t *testing.T) {
 		f := abertaSemCodigo()
 		f.cobranca.Estado = e
 
-		if _, err := NewRmt(f).ComCriadorDePix(criadorQueNaoRoda(), nil, nil).
+		if _, err := NewRmt(f).ComCriadorDePix(criadorInerte(), nil, nil).
 			GetMyCurrentPixCharge(context.Background(),
 				&webv1.GetMyCurrentPixChargeRequest{AccountId: 7}); err != nil {
 			t.Fatalf("%v: erro inesperado: %v", e, err)
@@ -119,7 +122,7 @@ func TestSemPrazoAPaginaMostraVencida(t *testing.T) {
 	f := abertaSemCodigo()
 	f.pixCriado = store.PixDaCobranca{SemPrazo: true}
 
-	resp, err := NewRmt(f).ComCriadorDePix(criadorQueNaoRoda(), nil, nil).
+	resp, err := NewRmt(f).ComCriadorDePix(criadorInerte(), nil, nil).
 		GetMyCurrentPixCharge(context.Background(), &webv1.GetMyCurrentPixChargeRequest{AccountId: 7})
 
 	if err != nil {
@@ -141,7 +144,7 @@ func TestFalhaAoCriarNaoViraErroNaPagina(t *testing.T) {
 	f := abertaSemCodigo()
 	f.erroCriarPix = errors.New("ponte fora do ar")
 
-	resp, err := NewRmt(f).ComCriadorDePix(criadorQueNaoRoda(), nil, nil).
+	resp, err := NewRmt(f).ComCriadorDePix(criadorInerte(), nil, nil).
 		GetMyCurrentPixCharge(context.Background(), &webv1.GetMyCurrentPixChargeRequest{AccountId: 7})
 
 	if err != nil {
@@ -184,4 +187,78 @@ func TestNomeDoItemEntraNaDescricao(t *testing.T) {
 		t.Errorf("sem catalogo a descricao = %q", d)
 	}
 	_ = visto
+}
+
+// O CHAMADOR DESISTIR NÃO PODE CANCELAR A CRIAÇÃO, e este é o teste do conserto
+// que mais importa neste arquivo.
+//
+// O que acontecia: o site desiste da leitura em 10 s, o gRPC cancela o contexto da
+// requisição, e esse contexto era o mesmo que ia para a chamada à processadora e para
+// a transação. A chamada morria no meio, a transação era desfeita, e NADA ficava
+// gravado — enquanto a cobrança podia já ter nascido do outro lado com um identifier
+// que ninguém aqui jamais saberia.
+//
+// Aqui o contexto do chamador é cancelado ANTES de a ponte responder. A criação tem
+// de continuar e receber a resposta, porque é ela que grava.
+func TestChamadorDesistirNaoCancelaACriacao(t *testing.T) {
+	f := abertaSemCodigo()
+	f.pixCriado = store.PixDaCobranca{CodigoPix: "00020126", Identifier: "sp-1", Criado: true}
+
+	ctx, cancelar := context.WithCancel(context.Background())
+
+	// O erro é lido DENTRO do criador, e não depois da chamada. Depois não serve: o
+	// handler tem um `defer cancel()` do próprio prazo, então qualquer contexto
+	// aparece cancelado quando a função retorna. A primeira versão deste teste lia
+	// depois e acusava o código por uma coisa que o próprio teste tinha causado.
+	var erroVistoNaPonte error
+	var chamado bool
+	entrou := make(chan struct{})
+	criar := func(c context.Context, _ string, _ int64, _ string) (string, string, error) {
+		chamado = true
+		close(entrou)
+		// A ponte demora. O chamador desiste no meio disto.
+		time.Sleep(50 * time.Millisecond)
+		erroVistoNaPonte = c.Err()
+		return "00020126", "sp-1", nil
+	}
+
+	go func() {
+		<-entrou
+		cancelar()
+	}()
+
+	resp, err := NewRmt(f).ComCriadorDePix(criar, nil, nil).
+		GetMyCurrentPixCharge(ctx, &webv1.GetMyCurrentPixChargeRequest{AccountId: 7})
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	// A prova: o contexto que chegou na ponte NÃO foi cancelado junto com o do
+	// chamador. Se a criação usasse o ctx da requisição, aqui haveria
+	// context.Canceled — e nada teria sido gravado.
+	if !chamado {
+		t.Fatal("a criacao nao foi nem chamada")
+	}
+	if erroVistoNaPonte != nil {
+		t.Errorf("o contexto da criacao morreu com o do chamador: %v; "+
+			"nada teria sido gravado", erroVistoNaPonte)
+	}
+	if f.criarChamadas != 1 {
+		t.Errorf("pediu a criacao %d vezes", f.criarChamadas)
+	}
+	if resp.GetPixCode() != "00020126" {
+		t.Errorf("codigo = %q", resp.GetPixCode())
+	}
+}
+
+// E o prazo da criação é MAIOR que o da ponte, de propósito: quem desiste da chamada
+// à processadora tem de ser o cliente da ponte, com a mensagem dele. Um prazo de fora
+// menor transformaria toda lentidão da processadora num erro genérico, escondendo qual
+// das duas coisas falhou.
+func TestPrazoDaCriacaoEMaiorQueODaPonte(t *testing.T) {
+	const prazoDaPonte = 15 * time.Second // ponte.timeoutPadrao
+	if PrazoDaCriacao <= prazoDaPonte {
+		t.Errorf("PrazoDaCriacao = %v e o da ponte e %v; o de fora tem de ser maior",
+			PrazoDaCriacao, prazoDaPonte)
+	}
 }

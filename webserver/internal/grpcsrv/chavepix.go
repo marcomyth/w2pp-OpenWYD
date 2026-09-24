@@ -44,6 +44,15 @@ type ChavesPix interface {
 // inteiro. É melhor do que um QR que quase sempre falha.
 var MinimoParaCriarPix = 60 * time.Second
 
+// PrazoDaCriacao é quanto a criação do Pix tem para terminar, contado do PRÓPRIO
+// relógio dela e não do de quem pediu a página.
+//
+// MAIOR QUE O PRAZO DA PONTE (15 s) de propósito: quem tem de desistir da chamada à
+// processadora é o cliente da ponte, com a mensagem dele, e não este prazo por cima.
+// Um prazo de fora menor transformaria toda lentidão da processadora num erro
+// genérico, escondendo qual das duas coisas falhou.
+var PrazoDaCriacao = 20 * time.Second
+
 // CriadorDePixComTexto é a chamada à ponte, já com o texto que o pagador lê.
 //
 // A DESCRIÇÃO NÃO PODE DESCER ATÉ O STORE, e é por isso que este tipo existe em vez
@@ -217,9 +226,57 @@ func (s *ServerRmt) GetMyCurrentPixCharge(ctx context.Context, req *webv1.GetMyC
 		// o store. Assim o store continua sem saber que existe catálogo.
 		descricao := s.descricaoDaCobranca(cob)
 		criar := func(ctx context.Context, referencia string, centavos int64) (string, string, error) {
-			return s.criarPix(ctx, referencia, centavos, descricao)
+			// MEDE QUANTO A PROCESSADORA DEMORA, porque esse número decide um
+			// desenho e hoje ninguém o tem.
+			//
+			// O site desiste da leitura em 10 s e o cliente da ponte espera até 15.
+			// Se a criação passar dos 10, a tela mostra erro e PARA de reler — a
+			// pessoa fica com uma página morta até recarregar.
+			//
+			// O conserto óbvio seria encurtar o prazo daqui para menos de 10 s, e
+			// ele é ARMADILHA: se a processadora for consistentemente mais lenta
+			// que o corte, NENHUMA tentativa termina e o código nunca nasce. Trocar
+			// uma página morta por um item que não se consegue comprar é pior.
+			//
+			// Então primeiro o número aparece, e a decisão vem depois dele. Sai no
+			// log em toda criação, inclusive quando falha, que é o caso cuja
+			// duração interessa mais.
+			inicio := time.Now()
+			cod, ident, err := s.criarPix(ctx, referencia, centavos, descricao)
+			s.log.Info("rmt: a processadora respondeu a criacao do pix",
+				"cobranca", cob.CobrancaID,
+				"levou_ms", time.Since(inicio).Milliseconds(),
+				"deu_certo", err == nil)
+			return cod, ident, err
 		}
-		pix, err := s.pix.CriarPixSeFaltar(ctx, cob.CobrancaID, MinimoParaCriarPix, criar)
+		// A CRIAÇÃO É DESLIGADA DO CHAMADOR, e este é o conserto que mais importa
+		// neste arquivo.
+		//
+		// O QUE ACONTECIA: o site desiste da leitura em 10 s. Aí o gRPC cancela o
+		// contexto da requisição, e esse contexto era o mesmo que ia para a chamada à
+		// processadora E para a transação. Resultado: a chamada morria no meio e a
+		// transação era desfeita, então NADA ficava gravado — enquanto a cobrança
+		// podia já ter nascido do outro lado, com um identifier que ninguém aqui
+		// jamais saberia.
+		//
+		// E o estrago não era eventual: se a processadora fosse consistentemente mais
+		// lenta que os 10 s, TODA tentativa morreria no mesmo ponto, o código nunca
+		// nasceria, o item ficaria invendável, e cada clique deixaria uma cobrança
+		// órfã na processadora.
+		//
+		// Com o contexto desligado, a criação termina e GRAVA mesmo que quem pediu já
+		// tenha ido embora. A leitura seguinte do site encontra o código gravado — o
+		// FOR UPDATE faz a segunda esperar a primeira em vez de criar outra.
+		//
+		// O preço, que é aceito e não ignorado: um leitor que desistiu continua
+		// ocupando uma conexão do banco até este prazo acabar. Com poucas cobranças
+		// por dia isso é irrelevante; se um dia o volume crescer, o conserto é a
+		// criação sair para um trabalhador de fundo em vez de viver na leitura.
+		ctxCriar, cancelarCriacao := context.WithTimeout(
+			context.WithoutCancel(ctx), PrazoDaCriacao)
+		defer cancelarCriacao()
+
+		pix, err := s.pix.CriarPixSeFaltar(ctxCriar, cob.CobrancaID, MinimoParaCriarPix, criar)
 		switch {
 		case err != nil:
 			// NÃO VIRA ERRO PARA A PÁGINA, de propósito. A página relê a cada cinco
