@@ -89,6 +89,9 @@ const (
 	ActionReembolsoNaMao          = "REEMBOLSO_NA_MAO"
 	ActionReembolsoAchadoNoPainel = "REEMBOLSO_ACHADO_NO_PAINEL"
 	ActionDivergenteDevolvido     = "DIVERGENTE_DEVOLVIDO"
+	// O passe de batalha: quem deu, para quem e qual nível. É um cosmético
+	// comprado, então dar de graça é entregar o que alguém pagaria.
+	ActionSetPasse = "SET_PASSE"
 )
 
 // listLimit caps one page of the log.
@@ -288,6 +291,7 @@ var rotulos = map[string]string{
 	ActionReembolsoNaMao:          "Afirmou que um reembolso foi resolvido na mao",
 	ActionReembolsoAchadoNoPainel: "Achou o pedido de reembolso no painel da processadora",
 	ActionDivergenteDevolvido:     "Registrou que devolveu por fora um pagamento de valor divergente",
+	ActionSetPasse:                "Mudou o nivel do passe de batalha de uma conta",
 	ActionHandleReport:            "Tratou uma denúncia",
 	ActionBroadcast:               "Mandou um aviso para todos",
 	ActionRestartGame:             "Reiniciou o servidor",

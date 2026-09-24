@@ -850,6 +850,10 @@ func run(logger *slog.Logger) error {
 		}
 		// The panel's "Blocos" page runs the same block commands as "/gm".
 		ctl.SetBlockRunner(dispatch.RunBlockCommand)
+		// A troca de moldura do passe em jogo. Ela vem do dispatcher pelo mesmo
+		// caminho do teleporte: quem monta o pacote é o handler, e o control não
+		// pode importá-lo sem fechar um ciclo com os testes de lá.
+		ctl.SetAplicadorDePasse(dispatch.AplicarPasse)
 		gsrv := grpc.NewServer(grpc.UnaryInterceptor(ctl.Interceptor()))
 		gamev1.RegisterGameControlServiceServer(gsrv, ctl)
 		go func() {

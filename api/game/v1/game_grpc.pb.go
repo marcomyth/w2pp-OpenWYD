@@ -30,6 +30,7 @@ const (
 	GameControlService_ListBlocks_FullMethodName       = "/game.v1.GameControlService/ListBlocks"
 	GameControlService_BlockCommand_FullMethodName     = "/game.v1.GameControlService/BlockCommand"
 	GameControlService_ListMarket_FullMethodName       = "/game.v1.GameControlService/ListMarket"
+	GameControlService_SetPassLevel_FullMethodName     = "/game.v1.GameControlService/SetPassLevel"
 )
 
 // GameControlServiceClient is the client API for GameControlService service.
@@ -128,6 +129,17 @@ type GameControlServiceClient interface {
 	//
 	// It answers from inside the single-owner loop, like every other call here.
 	ListMarket(ctx context.Context, in *ListMarketRequest, opts ...grpc.CallOption) (*ListMarketResponse, error)
+	// SetPassLevel changes the battle-pass frame of an account that is PLAYING, and
+	// redraws it for everybody who can see them.
+	//
+	// IT DOES NOT WRITE THE DATABASE. The level lives on the account row, and the
+	// caller has already written it there — this is the courtesy that spares the
+	// player a relog, exactly like DeliverNow. A failure here loses nothing: the
+	// stored level applies at the next login.
+	//
+	// found=false means the account is not connected. That is the ordinary answer,
+	// not an error: most accounts are offline most of the time.
+	SetPassLevel(ctx context.Context, in *SetPassLevelRequest, opts ...grpc.CallOption) (*SetPassLevelResponse, error)
 }
 
 type gameControlServiceClient struct {
@@ -248,6 +260,16 @@ func (c *gameControlServiceClient) ListMarket(ctx context.Context, in *ListMarke
 	return out, nil
 }
 
+func (c *gameControlServiceClient) SetPassLevel(ctx context.Context, in *SetPassLevelRequest, opts ...grpc.CallOption) (*SetPassLevelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetPassLevelResponse)
+	err := c.cc.Invoke(ctx, GameControlService_SetPassLevel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GameControlServiceServer is the server API for GameControlService service.
 // All implementations must embed UnimplementedGameControlServiceServer
 // for forward compatibility.
@@ -344,6 +366,17 @@ type GameControlServiceServer interface {
 	//
 	// It answers from inside the single-owner loop, like every other call here.
 	ListMarket(context.Context, *ListMarketRequest) (*ListMarketResponse, error)
+	// SetPassLevel changes the battle-pass frame of an account that is PLAYING, and
+	// redraws it for everybody who can see them.
+	//
+	// IT DOES NOT WRITE THE DATABASE. The level lives on the account row, and the
+	// caller has already written it there — this is the courtesy that spares the
+	// player a relog, exactly like DeliverNow. A failure here loses nothing: the
+	// stored level applies at the next login.
+	//
+	// found=false means the account is not connected. That is the ordinary answer,
+	// not an error: most accounts are offline most of the time.
+	SetPassLevel(context.Context, *SetPassLevelRequest) (*SetPassLevelResponse, error)
 	mustEmbedUnimplementedGameControlServiceServer()
 }
 
@@ -386,6 +419,9 @@ func (UnimplementedGameControlServiceServer) BlockCommand(context.Context, *Bloc
 }
 func (UnimplementedGameControlServiceServer) ListMarket(context.Context, *ListMarketRequest) (*ListMarketResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListMarket not implemented")
+}
+func (UnimplementedGameControlServiceServer) SetPassLevel(context.Context, *SetPassLevelRequest) (*SetPassLevelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetPassLevel not implemented")
 }
 func (UnimplementedGameControlServiceServer) mustEmbedUnimplementedGameControlServiceServer() {}
 func (UnimplementedGameControlServiceServer) testEmbeddedByValue()                            {}
@@ -606,6 +642,24 @@ func _GameControlService_ListMarket_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _GameControlService_SetPassLevel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetPassLevelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GameControlServiceServer).SetPassLevel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: GameControlService_SetPassLevel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GameControlServiceServer).SetPassLevel(ctx, req.(*SetPassLevelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // GameControlService_ServiceDesc is the grpc.ServiceDesc for GameControlService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -656,6 +710,10 @@ var GameControlService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListMarket",
 			Handler:    _GameControlService_ListMarket_Handler,
+		},
+		{
+			MethodName: "SetPassLevel",
+			Handler:    _GameControlService_SetPassLevel_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

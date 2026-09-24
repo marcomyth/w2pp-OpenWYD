@@ -300,6 +300,11 @@ type Details struct {
 	ShopPoints int32
 	VipUntil   *time.Time // nil means the account has never been VIP
 	Bloqueio   Bloqueio   // why the account is blocked, when, and by whom
+	// PasseNivel é a moldura do passe de batalha (0128): 0 sem passe, 1 a 4 os
+	// quatro níveis. Aqui para a página poder MOSTRAR o que a conta tem antes de
+	// alguém mudar — um formulário que não diz o valor de agora convida a trocar o
+	// que já estava certo.
+	PasseNivel int16
 }
 
 // Get reads the panel-facing fields of one account.
@@ -309,10 +314,12 @@ func (s *Store) Get(ctx context.Context, id int64) (Details, error) {
 		SELECT email, donate_balance,
 		       COALESCE((SELECT balance FROM shop_points WHERE account_id = account.id), 0),
 		       vip_until,
-		       is_blocked, block_reason, blocked_at, blocked_by, blocked_until
+		       is_blocked, block_reason, blocked_at, blocked_by, blocked_until,
+		       passe_nivel
 		  FROM account WHERE id = $1`, id).
 		Scan(&d.Email, &d.DonateBalance, &d.ShopPoints, &d.VipUntil,
-			&d.Bloqueio.Blocked, &d.Bloqueio.Reason, &d.Bloqueio.At, &d.Bloqueio.By, &d.Bloqueio.Until)
+			&d.Bloqueio.Blocked, &d.Bloqueio.Reason, &d.Bloqueio.At, &d.Bloqueio.By,
+			&d.Bloqueio.Until, &d.PasseNivel)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Details{}, ErrNotFound
 	}

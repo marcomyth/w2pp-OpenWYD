@@ -64,6 +64,14 @@ var ErrNoTeleporter = errors.New("control: refusing to serve without a teleporte
 // Called INSIDE the game loop.
 type Teleporter func(w *world.World, s *world.Session, x, y int16)
 
+// AplicadorDePasse troca a moldura do passe de quem está em jogo e a redesenha.
+//
+// Função e não import, pelo mesmo motivo do Teleporter: o pacote que monta o
+// CreateMob é o handler, e o handler é testado com um servidor de controle dentro —
+// importar um do outro fecharia um ciclo. Quem junta os dois é o main, que já
+// conhece os dois.
+type AplicadorDePasse func(w *world.World, accountID int64, nivel uint8) (personagem string, achou bool)
+
 // Overlays is which moderator-editing overlays the server booted with.
 //
 // They are boot flags that default to off, and the panel writes to the same
@@ -128,7 +136,8 @@ type Server struct {
 	log       *slog.Logger
 	teleporta Teleporter
 	overlays  Overlays
-	blocos    BlockRunner // optional; see SetBlockRunner
+	blocos    BlockRunner      // optional; see SetBlockRunner
+	passe     AplicadorDePasse // optional; see SetAplicadorDePasse
 }
 
 // NewServer builds the control service. It fails when the token is empty or the

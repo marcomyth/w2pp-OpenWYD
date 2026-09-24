@@ -36,6 +36,10 @@ type AccountAuth struct {
 	// fala com o banco e precisa delas para mostrar saldo no painel da loja.
 	Cash int32
 	Rmt  int32
+	// PasseNivel é o nível do passe de batalha da CONTA (0128), de 0 a 4. Vai no
+	// login pelo mesmo motivo das carteiras: o tmServer não fala com o banco, e
+	// precisa do número para pôr a moldura no pacote que desenha o jogador.
+	PasseNivel int16
 }
 
 // AccountByName fetches the auth row for a canonical (lowercase) account name.
@@ -54,8 +58,9 @@ const BlockedNowSQL = `(is_blocked AND (blocked_until IS NULL OR blocked_until >
 func (s *Store) AccountByName(ctx context.Context, name string) (AccountAuth, error) {
 	var a AccountAuth
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, pass_hash, `+BlockedNowSQL+`, role, donate_balance, rmt_balance FROM account WHERE name = $1`, name).
-		Scan(&a.ID, &a.PassHash, &a.IsBlocked, &a.Role, &a.Cash, &a.Rmt)
+		`SELECT id, pass_hash, `+BlockedNowSQL+`, role, donate_balance, rmt_balance, passe_nivel
+		   FROM account WHERE name = $1`, name).
+		Scan(&a.ID, &a.PassHash, &a.IsBlocked, &a.Role, &a.Cash, &a.Rmt, &a.PasseNivel)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AccountAuth{}, ErrNotFound
 	}

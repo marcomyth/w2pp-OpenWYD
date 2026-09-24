@@ -142,6 +142,8 @@ func (s *Server) AccountLogin(ctx context.Context, req *dbv1.AccountLoginRequest
 		// banco, e sem isto o painel da loja mostra Cash e RMT zerados.
 		Cash: auth.Cash,
 		Rmt:  auth.Rmt,
+		// E o passe (0128), pela mesma razão: é o jogo que desenha a moldura.
+		PasseNivel: int32(auth.PasseNivel),
 	}, nil
 }
 

@@ -134,6 +134,32 @@
       </form>
       {{end}}
 
+      {{if and .IsAdmin .Conta.PodePasse}}
+      <form method="post" action="/contas/{{.Conta.Name}}/passe" class="acao-bloco">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label for="passe">Passe de batalha</label>
+        <div class="linha">
+          <select id="passe" name="nivel">
+            <option value="0" {{if eq .Conta.PasseNivel 0}}selected{{end}}>0 — sem passe</option>
+            <option value="1" {{if eq .Conta.PasseNivel 1}}selected{{end}}>1</option>
+            <option value="2" {{if eq .Conta.PasseNivel 2}}selected{{end}}>2</option>
+            <option value="3" {{if eq .Conta.PasseNivel 3}}selected{{end}}>3</option>
+            <option value="4" {{if eq .Conta.PasseNivel 4}}selected{{end}}>4</option>
+          </select>
+          <button type="submit">Aplicar</button>
+        </div>
+        <p class="dica">
+          É a moldura em volta do nome, e quem está por perto no jogo também a vê.
+          Vale para <strong>todos os personagens</strong> da conta, porque o passe é da
+          conta.
+          <br>
+          Se a pessoa estiver jogando, a moldura muda na hora; se não estiver, aparece
+          no próximo login. O passe <strong>não dá vantagem nenhuma</strong> — por
+          enquanto é só o desenho.
+        </p>
+      </form>
+      {{end}}
+
       <form method="post" action="/contas/{{.Conta.Name}}/vip" class="acao-bloco">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <label for="dias">VIP</label>

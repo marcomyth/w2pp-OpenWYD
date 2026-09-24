@@ -3677,18 +3677,24 @@ func TestTrocasNoMenuQuandoConfigurado(t *testing.T) {
 // --- servidor ao vivo ---
 
 type fakeJogo struct {
-	mu                   sync.Mutex
-	estado               jogo.Estado
-	derrubadas           []string
-	avisos               []string
-	sessoes              int32
-	estadoErr            error
-	kickErr              error
-	avisoErr             error
-	drenagens            []string
-	drenarErr            error
-	desatolados          []string
-	destinos             [][2]int32
+	mu          sync.Mutex
+	estado      jogo.Estado
+	derrubadas  []string
+	avisos      []string
+	sessoes     int32
+	estadoErr   error
+	kickErr     error
+	avisoErr    error
+	drenagens   []string
+	drenarErr   error
+	desatolados []string
+	destinos    [][2]int32
+
+	// A troca de moldura do passe.
+	passeConta           string
+	passeNivel           int32
+	passeResp            jogo.Passe
+	passeErr             error
 	desatolarErr         error
 	entregasAgora        []string
 	entregarErr          error
@@ -3746,6 +3752,17 @@ func (f *fakeJogo) Desatolar(_ context.Context, conta string, paraX, paraY int32
 		}
 	}
 	return jogo.Desatolo{}, nil
+}
+
+// TrocarPasse: a fake guarda o que foi pedido e devolve o que o teste mandar.
+func (f *fakeJogo) TrocarPasse(_ context.Context, conta string, nivel int32) (jogo.Passe, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.passeConta, f.passeNivel = conta, nivel
+	if f.passeErr != nil {
+		return jogo.Passe{}, f.passeErr
+	}
+	return f.passeResp, nil
 }
 
 func (f *fakeJogo) EntregarAgora(_ context.Context, conta string) (jogo.Entrega, error) {

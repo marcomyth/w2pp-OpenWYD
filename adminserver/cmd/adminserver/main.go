@@ -229,6 +229,7 @@ func run(logger *slog.Logger) error {
 		Denuncias:   store.New(pool),
 		Repasses:    store.New(pool),
 		FilasRMT:    store.New(pool),
+		Passe:       store.New(pool),
 		Guildas:     store.New(pool),
 		Carteira:    donate.New(pool),
 		Trocas:      store.New(pool),
