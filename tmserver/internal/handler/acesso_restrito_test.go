@@ -92,9 +92,43 @@ func TestComATrancaOJogadorEhRecusadoComOTexto(t *testing.T) {
 	if texto != "Servidor de teste, acesso restrito." {
 		t.Fatalf("texto = %q", texto)
 	}
-	// E a conexão fecha DEPOIS do texto: fechar antes descartaria a mensagem, e a
-	// pessoa ficaria olhando uma janela que sumiu sem dizer nada.
-	expectClosed(t, c)
+}
+
+// A CONEXÃO NÃO CAI EM CIMA DA MENSAGEM, e a sessão volta a NÃO SER NINGUÉM.
+//
+// O cliente mostra o painel por quatro segundos e devolve os campos para a pessoa
+// tentar de novo; o que ele faz se o socket cair antes disso ninguém mediu. Então a
+// recusa desfaz o login — sem conta, sem modo de jogo — e deixa o socket de pé por
+// um prazo curto.
+//
+// O QUE ESTE TESTE PROVA é a parte que importa para a segurança: depois da recusa,
+// a sessão não carrega conta nenhuma e um comando de jogo não passa. Um socket vivo
+// só é aceitável porque ele não é mais de ninguém.
+func TestDepoisDaRecusaASessaoNaoEhNinguem(t *testing.T) {
+	db := newDB()
+	addr, stop := servidorTrancado(t, db, true)
+	defer stop()
+
+	c := dial(t, addr)
+	defer func() { _ = c.Close() }()
+	send(t, c, protocol.MsgAccountLogin, loginBody("tester", "secret", protocol.AppVersion))
+	if texto := leTextoAtePainel(t, c); texto != "Servidor de teste, acesso restrito." {
+		t.Fatalf("texto = %q", texto)
+	}
+
+	// Entrar com um personagem é o passo seguinte de quem passou pelo login. Numa
+	// sessão que voltou a não ser ninguém, ele não pode levar a lugar nenhum.
+	send(t, c, protocol.MsgCharacterLogin, make([]byte, 12))
+	_ = c.SetReadDeadline(time.Now().Add(time.Second))
+	for {
+		ty, _ := readOptional(c)
+		if ty == 0 {
+			break // nada mais veio, que é o esperado
+		}
+		if ty == protocol.MsgCNFAccountLogin {
+			t.Fatal("a sessao recusada ainda conseguiu chegar na tela de personagens")
+		}
+	}
 }
 
 // E A STAFF ENTRA, que é a razão de o ambiente existir.
@@ -125,4 +159,30 @@ func TestQuemEhStaff(t *testing.T) {
 			t.Errorf("EhStaff(%q) = %v, quero %v", papel, got, quer)
 		}
 	}
+}
+
+// readOptional lê a próxima mensagem, ou devolve 0 quando nada veio no prazo.
+//
+// Existe porque o teste acima precisa provar uma AUSÊNCIA, e o read normal falha o
+// teste no tempo esgotado — que aqui é justamente o resultado bom.
+func readOptional(c net.Conn) (protocol.Type, []byte) {
+	_ = c.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+	var sz [2]byte
+	if _, err := io.ReadFull(c, sz[:]); err != nil {
+		return 0, nil
+	}
+	n := int(sz[0]) | int(sz[1])<<8
+	if n < 2 || n > 1<<16 {
+		return 0, nil
+	}
+	buf := make([]byte, n)
+	copy(buf, sz[:])
+	if _, err := io.ReadFull(c, buf[2:]); err != nil {
+		return 0, nil
+	}
+	h, body, _, err := protocol.Decode(buf)
+	if err != nil {
+		return 0, nil
+	}
+	return h.Type, body
 }

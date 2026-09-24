@@ -92,15 +92,24 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		// instala o baú, drena entregas e reconcilia o escrow. Recusar depois disso
 		// deixaria metade do login feito para alguém que não entrou.
 		//
-		// O texto sai pelo painel (0x101) e só então o socket fecha, na mesma ordem
-		// do NoticeVersionMismatch: fechar antes descarta a mensagem, e a pessoa fica
-		// olhando uma janela que sumiu sem dizer nada.
+		// O texto sai pelo painel (0x101) e a CONEXÃO NÃO FECHA EM CIMA DELE.
+		//
+		// Medido no cliente pela dupla que cuida dele: ele mostra o 0x101 por quatro
+		// segundos e reabilita os campos para a pessoa tentar de novo. O que ele faz
+		// se o socket cair ANTES de o painel aparecer ninguém sabe — e a aposta
+		// errada aí é a pessoa ver a janela sumir sem ler nada.
+		//
+		// Então a sessão volta ao estado de ANTES do login: sem conta, sem modo de
+		// jogo. Ela não é mais ninguém, e nenhum comando de jogo passa. O socket cai
+		// depois, sozinho, pelo prazo abaixo.
 		if d.cfg.AcessoRestrito && !world.ParseAccess(out.Role).EhStaff() {
 			d.log.Info("acesso restrito: login de jogador recusado",
 				"conn", s.Conn, "account", s.AccountName)
 			sendClientMessage(w, s, "Servidor de teste, acesso restrito.")
+			s.AccountName = ""
+			s.AccountID = 0
 			s.Mode = world.UserAccept
-			w.Close(s)
+			d.fechaDepois(w, s)
 			return
 		}
 		delete(d.fails, s.AccountName)
@@ -319,4 +328,28 @@ func (d *Dispatcher) selCharsFrom(chars []world.CharSummary) []protocol.SelChar 
 		out = append(out, sc)
 	}
 	return out
+}
+
+// prazoDaRecusa é quanto o socket fica de pé depois de uma recusa de acesso.
+//
+// DEZ SEGUNDOS, e o número vem do cliente: ele mostra a mensagem por quatro e
+// devolve os campos à pessoa. Fechar antes disso apaga a mensagem; deixar aberto
+// para sempre segura um dos mil lugares de sessão por causa de quem nem entrou.
+//
+// O prazo de ocioso do servidor (-idle-timeout-sec) faria este trabalho, mas ele
+// nasce DESLIGADO e é sobre outra coisa. Uma recusa não pode depender de uma opção
+// que talvez ninguém tenha ligado.
+const prazoDaRecusa = 10 * time.Second
+
+// fechaDepois derruba o socket daqui a pouco, sem segurar o laço.
+//
+// A espera acontece FORA do laço — dentro dele, dez segundos parados seriam dez
+// segundos de servidor congelado para todo mundo. O World.Go é o caminho de sempre
+// para isso, e ele já descarta o retorno quando a sessão morreu antes: quem desistir
+// e fechar o jogo não vira um Close numa sessão que já não existe.
+func (d *Dispatcher) fechaDepois(w *world.World, s *world.Session) {
+	w.Go(s, func() func(*world.World, *world.Session) {
+		time.Sleep(prazoDaRecusa)
+		return func(w *world.World, s *world.Session) { w.Close(s) }
+	})
 }

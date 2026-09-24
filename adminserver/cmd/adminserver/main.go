@@ -31,7 +31,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -52,6 +51,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/siteapi"
+	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
 
@@ -95,6 +95,15 @@ func run(logger *slog.Logger) error {
 	// only; empty leaves it off and the panel exactly as it was.
 	siteAddr := flag.String("site-api", os.Getenv("SITE_API_ADDR"), "private listen address for the player site's API, e.g. :8090 (empty = off). Needs W2PP_PAINEL_TOKEN_SITE")
 	flag.Parse()
+
+	// A MESMA tranca dos outros dois, pelo mesmo pacote. Valor desconhecido não sobe:
+	// um painel que sobe com a criação de conta aberta, num servidor que deveria estar
+	// trancado, é o erro que ninguém procura.
+	acessoRestrito, err := acesso.Restrito()
+	if err != nil {
+		return err
+	}
+	logger.Info(acesso.Frase(acessoRestrito))
 
 	if *dsn == "" {
 		return fmt.Errorf("-dsn (or DATABASE_URL) is required")
@@ -228,7 +237,7 @@ func run(logger *slog.Logger) error {
 		SecureOnly:  !*insecureCookies,
 		// A MESMA variável do jogo e do site: um servidor trancado para entrar e
 		// aberto para cadastrar seria a porta que ninguém lembra de fechar.
-		SemCadastro: envLigada("W2PP_ACESSO_RESTRITO"),
+		SemCadastro: acessoRestrito,
 	})
 	if err != nil {
 		return fmt.Errorf("build panel: %w", err)
@@ -330,19 +339,6 @@ func defaultAddr() string {
 		return ":" + p
 	}
 	return ":8080"
-}
-
-// envLigada lê uma chave liga/desliga do ambiente.
-//
-// Só "1", "true", "yes" e "sim" ligam. Uma variável escrita errada não pode LIGAR
-// uma tranca por acidente: no painel de produção isso esconderia a criação de conta
-// sem ninguém entender por quê.
-func envLigada(key string) bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
-	case "1", "true", "yes", "sim":
-		return true
-	}
-	return false
 }
 
 func envOr(key, def string) string {

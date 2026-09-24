@@ -18,7 +18,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -26,6 +25,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
+	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/account"
@@ -78,6 +78,18 @@ func run(logger *slog.Logger) error {
 	contentDir := flag.String("content", os.Getenv("W2PP_CONTENT"), "path to the Release/ content tree (empty = skip; ListMerchantTemplates/ListItemCatalog return empty lists and the UI falls back to manual entry)")
 	iconManifestPath := flag.String("item-icons-manifest", os.Getenv("W2PP_ITEM_ICONS_MANIFEST"), "generated item-icon manifest (empty = fallback-only)")
 	flag.Parse()
+
+	// A MESMA tranca do jogo e do painel, lida pelo mesmo pacote: um servidor
+	// trancado para entrar e aberto para cadastrar seria a porta que ninguém lembra
+	// de fechar. Valor desconhecido não sobe.
+	acessoRestrito, err := acesso.Restrito()
+	if err != nil {
+		return err
+	}
+	logger.Info(acesso.Frase(acessoRestrito))
+	if acessoRestrito {
+		logger.Warn("acesso restrito: o cadastro de conta pelo site esta DESLIGADO")
+	}
 
 	if *dsn == "" {
 		return fmt.Errorf("-dsn (or W2PP_DB_DSN) is required")
@@ -407,9 +419,8 @@ func run(logger *slog.Logger) error {
 	// Só o CADASTRO fecha; o login segue igual, porque é para quem já tem conta de
 	// staff que o ambiente existe.
 	contas := account.New(st)
-	if envLigada("W2PP_ACESSO_RESTRITO") {
+	if acessoRestrito {
 		contas = contas.SemCadastro()
-		logger.Warn("acesso restrito: o cadastro de conta pelo site esta DESLIGADO")
 	}
 	webv1.RegisterAccountWebServiceServer(srv, grpcsrv.New(contas))
 	webv1.RegisterRankingWebServiceServer(srv, grpcsrv.NewRanking(ranking.New(st)))
@@ -457,19 +468,6 @@ func run(logger *slog.Logger) error {
 }
 
 // envOr returns the environment value for key, or def when unset.
-// envLigada lê uma chave liga/desliga do ambiente.
-//
-// Só "1", "true", "yes" e "sim" ligam, e qualquer outra coisa deixa desligado — uma
-// variável escrita errada não pode LIGAR uma tranca por acidente, porque aí o
-// servidor de verdade fecharia para todo mundo.
-func envLigada(key string) bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
-	case "1", "true", "yes", "sim":
-		return true
-	}
-	return false
-}
-
 func envOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
