@@ -144,6 +144,7 @@ func TestTrofeuCaiSemTrava(t *testing.T) {
 // do lado, levar à bolsa para o baú é recusado; soltar no chão também. Uma espada
 // passa pelos dois caminhos, para o teste não passar por outra trava.
 func TestTrofeuNaoVaiAoBauNemAoChao(t *testing.T) {
+	comLargarLigado(t)
 	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), inicioDaVolta)
 	c := enterWorldAs(t, srv.addr, "tester")
 	defer c.Close()

@@ -32,6 +32,20 @@ var dropBlacklist = func() map[int16]bool {
 	return m
 }()
 
+// largarNoChaoLiberado diz se o jogador pode largar item no chão.
+//
+// DESLIGADO por decisão da Hanna: item no chão é o par que se faz sem troca, e era
+// metade de como se dava item a outra conta sem registro nenhum.
+//
+// É `var` e não `const` de propósito: os testes do port do _MSG_DropItem ligam a
+// chave para continuar cobrindo aquele caminho inteiro. Apagar o caminho perderia a
+// paridade com o legado, que é cara de reconstruir; desligar a porta não.
+//
+// ELE SÓ PODE FICAR DESLIGADO COM A LIXEIRA EM LOTE NO AR. Sem uma das duas, o
+// jogador fica sem NENHUMA forma de se livrar de um item — e é por isso que as duas
+// sobem no mesmo merge.
+var largarNoChaoLiberado = false
+
 // dropItem handles _MSG_DropItem (0x0272), handlers/_MSG_DropItem.md: move an
 // inventory item to the floor. Create-on-floor then clear-source is atomic
 // (single loop goroutine) — no dup.
@@ -39,6 +53,21 @@ func (d *Dispatcher) dropItem(w *world.World, s *world.Session, _ protocol.Heade
 	e := w.Entity(s.Conn)
 	if e == nil || e.HP <= 0 || s.Mode != world.UserPlay {
 		w.AddCrackError(s, 1, 14)
+		return
+	}
+	if !largarNoChaoLiberado {
+		// O SLOT É REENVIADO, e sem isso a grade do cliente fica com um buraco: ele
+		// já tirou o item do lugar na tela quando arrastou, e sem a atualização de
+		// volta o item some visualmente até o próximo login.
+		//
+		// E NÃO há AddCrackError: a pessoa arrastou um item, não tentou trapacear.
+		var body protocol.MsgDropItemBody
+		if err := body.Decode(payload); err == nil && int(body.SourType) == world.ItemPlaceCarry {
+			if slot := int(body.SourPos); slot >= 0 && slot < len(e.Carry) {
+				d.sendSlot(w, s, world.ItemPlaceCarry, slot, e.Carry[slot])
+			}
+		}
+		d.notify(w, s, NoticeCantDropHere)
 		return
 	}
 	if s.Trade.Active {

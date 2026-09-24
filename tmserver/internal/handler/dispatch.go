@@ -790,8 +790,13 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgAcceptParty] = d.acceptParty
 	d.routes[protocol.MsgRemoveParty] = d.removeParty
 	d.routes[protocol.MsgInviteGuild] = d.inviteGuild
-	d.routes[protocol.MsgGuildAlly] = d.guildAlly
-	d.routes[protocol.MsgWar] = d.war
+	// A ALIANÇA (0x0E12) E A GUERRA DECLARADA (0x0E0E) SAÍRAM, e a ausência é a
+	// decisão: eram o par que se fazia com item, e a Hanna tirou os dois. Sem rota,
+	// o pacote cai no caminho de mensagem desconhecida em vez de executar meio
+	// caminho.
+	//
+	// A GUERRA DE CIDADE CONTINUA INTEIRA — ela é outra coisa, mora na torre
+	// (towerwar.go) e nunca passou por aqui.
 	d.routes[protocol.MsgChallange] = d.challange
 	d.routes[protocol.MsgChallangeConfirm] = d.challangeConfirm
 	// Batch 8 — chat, bonus, quest/cash (stubs).
@@ -808,6 +813,12 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgGuildaCria] = d.guildaCria
 	d.routes[protocol.MsgGuildaAtiva] = d.guildaAtiva
 	d.routes[protocol.MsgGuildaDesigna] = d.guildaDesigna
+	d.routes[protocol.MsgGuildaAcao] = d.guildaAcao
+	d.routes[protocol.MsgGuildaImposto] = d.guildaImposto
+	// A lixeira em lote do inventário (lixeira.go). Ela entra JUNTO com o
+	// desligamento do largar-no-chão, e não depois: sem uma das duas, o jogador fica
+	// sem nenhuma forma de descartar um item.
+	d.routes[protocol.MsgLixeiraApaga] = d.lixeiraApaga
 	d.routes[protocol.MsgSetShortSkill] = d.setShortSkill
 	d.routes[protocol.MsgAccountSecure] = d.accountSecure
 	d.routes[protocol.MsgQuest] = d.quest

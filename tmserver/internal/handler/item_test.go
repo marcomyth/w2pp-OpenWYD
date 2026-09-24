@@ -132,6 +132,7 @@ func getFrame(t *testing.T, c net.Conn, itemID int32, destPos int) {
 }
 
 func TestDropAndGet(t *testing.T) {
+	comLargarLigado(t)
 	addr, stop, _ := startServerClock(t, itemDB(1100))
 	defer stop()
 	c := enterWorld(t, addr)
@@ -150,6 +151,7 @@ func TestDropAndGet(t *testing.T) {
 }
 
 func TestDropBlacklisted(t *testing.T) {
+	comLargarLigado(t)
 	addr, stop, _ := startServerClock(t, itemDB(508)) // 508 is non-droppable
 	defer stop()
 	c := enterWorld(t, addr)
@@ -175,6 +177,7 @@ func TestGetDecayed(t *testing.T) {
 }
 
 func TestGetTooFar(t *testing.T) {
+	comLargarLigado(t)
 	addr, stop, _ := startServerClock(t, itemDB(1100))
 	defer stop()
 	c := enterWorld(t, addr)
@@ -193,6 +196,7 @@ func TestGetTooFar(t *testing.T) {
 // TestDupRace proves the atomic claim: two gets of the same ground item ⇒ exactly
 // one CNFGetItem, the other DecayItem (the loop serializes them).
 func TestDupRace(t *testing.T) {
+	comLargarLigado(t)
 	addr, stop, _ := startServerClock(t, itemDB(1100))
 	defer stop()
 	c := enterWorld(t, addr)
@@ -3326,6 +3330,7 @@ func TestUsePortalScrollBlockedFromPesadeloSavePoint(t *testing.T) {
 // one route an item could take between two players leaving no record at all.
 // Drop then pick up, and the two rows have to pair — same floor slot, same item.
 func TestChaoRegistraLargarEPegar(t *testing.T) {
+	comLargarLigado(t)
 	db := itemDB(1100)
 	addr, stop, _ := startServerClock(t, db)
 	defer stop()
@@ -3371,6 +3376,7 @@ func TestChaoRegistraLargarEPegar(t *testing.T) {
 // it must not show up in the log — a log that records non-events is worse than
 // none, because it sends whoever reads it after an item that never moved.
 func TestChaoNaoRegistraDropRecusado(t *testing.T) {
+	comLargarLigado(t)
 	db := itemDB(508) // 508 is non-droppable
 	addr, stop, _ := startServerClock(t, db)
 	defer stop()
@@ -3508,4 +3514,17 @@ func TestPedraIdealRecusaComEquipamento(t *testing.T) {
 	if !hasItem(char.Equip, 3860) {
 		t.Error("a montaria sumiu; uma recusa não pode destruir nada")
 	}
+}
+
+// comLargarLigado liga a porta de largar no chão só para este teste.
+//
+// A porta está DESLIGADA em produção (ver largarNoChaoLiberado). O caminho do
+// _MSG_DropItem continua inteiro por baixo dela, e estes testes são o que prova
+// isso: sem eles, a paridade com o legado apodreceria atrás de uma chave, e ninguém
+// saberia no dia em que a Hanna mandasse religar.
+func comLargarLigado(t *testing.T) {
+	t.Helper()
+	antes := largarNoChaoLiberado
+	largarNoChaoLiberado = true
+	t.Cleanup(func() { largarNoChaoLiberado = antes })
 }
