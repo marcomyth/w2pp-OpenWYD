@@ -316,7 +316,7 @@ func addEnemyList(e, target *world.Entity) {
 		return
 	}
 	if world.IsPlayer(target.ID) {
-		if target.Rsv&world.RsvHide != 0 || target.Merchant&1 != 0 {
+		if target.Rsv&world.RsvHide != 0 || target.Merchant&1 != 0 || target.GMInvisible {
 			return
 		}
 	}
@@ -383,7 +383,7 @@ func selectTargetFromEnemyList(w *world.World, e *world.Entity) {
 			continue
 		}
 		if world.IsPlayer(enemyID) {
-			if enemy.Rsv&world.RsvHide != 0 {
+			if enemy.Rsv&world.RsvHide != 0 || enemy.GMInvisible {
 				e.EnemyList[i] = 0
 				continue
 			}
@@ -786,6 +786,9 @@ func validTarget(w *world.World, e, target *world.Entity) bool {
 	}
 	if m, ok := w.SessionMode(target.ID); !ok || m != world.UserPlay {
 		return false
+	}
+	if target.GMInvisible {
+		return false // a mob already on the GM lets go the moment they vanish
 	}
 	if world.Village(target.X, target.Y) >= 0 {
 		return false // target stepped into a safe city — break off (no chasing into town)

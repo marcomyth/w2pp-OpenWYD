@@ -121,6 +121,9 @@ func (w *World) FindEnemyFromView(x, y int16, clan uint8) int {
 			if int(id) < MaxUser && e.Rsv&RsvHide != 0 {
 				continue // hidden players don't draw aggro (CMob.cpp:1342 Rsv & 0x10)
 			}
+			if e.GMInvisible {
+				continue // an invisible GM is out of aggro, as "+snoop" was (CMob.cpp:340)
+			}
 			if clan >= 9 || e.Clan >= 9 {
 				// A handful of real event/arena templates ship Clan 9 (Aberest, Pikeman,
 				// Wizard, …), and this scan runs every tick — Debug, not Warn, or they

@@ -414,6 +414,13 @@ type Entity struct {
 	// hits, but it does NOT by itself blink the nickname. Session-only, not persisted.
 	PKMode bool
 
+	// GMInvisible is "/gm invisivel", the port of the legacy "+snoop" (MSV_SNOOP,
+	// imple.cpp:1567): no frame about this character reaches a non-staff client
+	// (World.hiddenFrom) and monsters do not take it as a target. Lives on the
+	// per-connection entity and is never persisted, so it lasts until the GM
+	// disconnects — a GM who forgot it on is visible again at the next login.
+	GMInvisible bool
+
 	// PKPoint is the legacy PKPoint byte (GetFunc.cpp GetPKPoint/SetPKPoint, the
 	// hidden KILL_MARK carry slot): the chaos/karma counter, clamped [1,150] on
 	// write, 75 = neutral. The wire/display value is PKPoint-75 (range [-74,+75],

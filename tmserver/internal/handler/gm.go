@@ -81,6 +81,8 @@ func (d *Dispatcher) runGMCommand(w *world.World, s *world.Session, args []byte)
 		d.gmQuestReset(w, s, rest)
 	case "weather", "clima":
 		d.gmWeather(w, s, rest)
+	case "invisivel", "invis", "snoop":
+		d.gmInvisible(w, s, rest) // gminvisible.go
 	case "guerra", "war":
 		d.gmGuerra(w, s, rest) // gmguerra.go
 	case "npc", "gerar", "generate", "criar", "create", "matar", "kill", "recarregar", "reloadnpc":

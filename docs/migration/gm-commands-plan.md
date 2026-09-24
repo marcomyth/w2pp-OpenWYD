@@ -67,5 +67,10 @@ criterion.
 - `weather` (`/gm weather <0|1|2|auto>`) shipped with issue #116 (`handler/weather.go`):
   it ports the legacy `/weather` (`imple.cpp:1122-1129`) but validates the value and adds
   the `auto` reset the original lacked.
+- `invisivel` (`/gm invisivel [on|off]`, aliases `invis`/`snoop`, `handler/gminvisible.go`) ports
+  the legacy `+snoop` (`imple.cpp:1567`), which only took the GM out of mob aggro. Here it also
+  hides the GM from every non-staff client: `World.hiddenFrom` drops, at the single send path,
+  every frame about the GM (whispers and party/guild bookkeeping excepted). Session-only — not
+  persisted.
 - Later batches from `Comandos GM.txt` (events, guild/castle war, rates,
-  mute/snoop) and the binServer ban migration are separate tasks.
+  mute) and the binServer ban migration are separate tasks.

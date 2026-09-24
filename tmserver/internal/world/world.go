@@ -1063,6 +1063,9 @@ func (w *World) SaveCargoThen(s *Session, then func(*World, *Session)) {
 // blocks the loop: if the session's queue is full (a slow/stuck client), the
 // session is dropped instead of stalling the whole world (head-of-line safety).
 func (w *World) enqueue(s *Session, h protocol.Header, payload []byte) {
+	if w.hiddenFrom(s, h, payload) {
+		return
+	}
 	h.ClientTick = w.cfg.Now()
 	s.noteSend(h, len(payload))
 	if w.cfg.LogSends {
@@ -1111,6 +1114,9 @@ const SkipCheckTick = 235543242
 // lands, but the experience in it is not the reader's to take, which is why the
 // exp bar never moved and no gain floated. Loop-only, like enqueue.
 func (w *World) SendEcho(s *Session, h protocol.Header, payload []byte) {
+	if w.hiddenFrom(s, h, payload) {
+		return
+	}
 	if h.ClientTick == 0 || h.ClientTick == SkipCheckTick {
 		h.ClientTick = w.cfg.Now()
 	}

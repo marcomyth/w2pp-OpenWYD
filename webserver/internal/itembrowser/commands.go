@@ -218,6 +218,18 @@ func CommandReference() CommandBus {
 					"O \"reloadnpc\" do legado relia o NPCGener.txt; aqui o arquivo vem na imagem do deploy, então o que se recarrega é o banco.",
 				},
 			},
+			{
+				Name: "invisivel", Aliases: []string{"invis", "snoop"}, Args: "[on|off]", Target: "você",
+				Summary: "Deixa VOCÊ invisível para os jogadores, e visível de novo.",
+				Notes: []string{
+					"Sem parâmetro alterna; on/off força o estado.",
+					"Moderadores e admins continuam vendo você; jogadores não recebem nada sobre você — nem fala pública, movimento ou golpe.",
+					"Sussurros e convites de grupo/guilda seguem entregues: o destinatário já sabe quem você é pelo nome.",
+					"Monstros e evocações não atacam você enquanto estiver invisível.",
+					"Dura até desconectar: não é gravado, e no próximo login você volta visível.",
+					"O +snoop do legado só tirava o GM do aggro dos monstros; esconder dos jogadores é novo aqui.",
+				},
+			},
 		},
 	}
 }
