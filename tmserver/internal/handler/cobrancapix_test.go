@@ -129,15 +129,15 @@ func TestComprarEmDinheiroRealAbreACobrancaEAvisaOndePagar(t *testing.T) {
 	})
 }
 
-// O AVISO DIZ PARA NÃO SAIR DO JOGO, e essa linha vale uma compra.
+// O AVISO DIZ ONDE PAGAR, E NÃO MANDA MAIS FICAR NO JOGO.
 //
-// Sair do jogo CANCELA a cobrança, e o movimento natural de quem vai pagar no
-// celular é fechar o jogo. Sem isto, o primeiro comprador de verdade perde a
-// compra fazendo exatamente o que parecia certo.
-func TestOAvisoDizParaNaoSairDoJogo(t *testing.T) {
+// A frase "não saia do jogo" saiu porque o motivo dela saiu: o logout do comprador
+// não mexe mais na cobrança. Pedir que ele fique seria pedir por nada — e pior,
+// atrapalharia quem vai pagar no celular, que é o que qualquer pessoa faz.
+func TestOAvisoDizOndePagarENaoMandaFicar(t *testing.T) {
 	msg := msgPagueNoSite()
-	if !contemPedaco(msg, "NÃO saia do jogo") {
-		t.Errorf("a mensagem %q nao avisa para ficar; sair do jogo cancela a cobranca", msg)
+	if contemPedaco(msg, "saia do jogo") {
+		t.Errorf("a mensagem %q ainda manda ficar no jogo; nao ha mais motivo", msg)
 	}
 	// O ENDEREÇO COM www, MEDIDO: `wydretry.com` sem o www não responde nada
 	// (curl devolve 000); só `www.wydretry.com` atende. A frase anterior mandava o

@@ -14,21 +14,19 @@ import (
 // fakeAPI implements dbv1.AccountServiceClient, capturing requests and returning
 // canned responses, so the adapter's mapping is tested without a gRPC server.
 type fakeAPI struct {
-	anunciosPedidos     *dbv1.OpenRmtListingsRequest
-	anunciosCancelados  []int64
-	anunciosEncerrados  []int64
-	compradorCancelado  int64
-	anunciosDoComprador []int64
-	encerrados          []*dbv1.ClosedRmtListing
-	slotsSoltos         []int32
-	semChavePix         bool
-	slotsVendidos       []int32
-	transfPedida        *dbv1.TransferPlayerBalanceRequest
-	transfResp          *dbv1.TransferPlayerBalanceResponse
-	presenceReq         *dbv1.SetCharacterPresenceRequest
-	presenceCleared     int64
-	shopPoints          int32 // running personal-shop balance, as the real wallet accumulates
-	donate              int32 // carteira de donate, que a RCoin enche
+	anunciosPedidos    *dbv1.OpenRmtListingsRequest
+	anunciosCancelados []int64
+	anunciosEncerrados []int64
+	encerrados         []*dbv1.ClosedRmtListing
+	slotsSoltos        []int32
+	semChavePix        bool
+	slotsVendidos      []int32
+	transfPedida       *dbv1.TransferPlayerBalanceRequest
+	transfResp         *dbv1.TransferPlayerBalanceResponse
+	presenceReq        *dbv1.SetCharacterPresenceRequest
+	presenceCleared    int64
+	shopPoints         int32 // running personal-shop balance, as the real wallet accumulates
+	donate             int32 // carteira de donate, que a RCoin enche
 
 	newbieKitAccount int64 // conta do último ClaimNewbieKit
 	newbieKitGranted bool  // resposta que o dbServer devolveria
@@ -144,11 +142,6 @@ func (f *fakeAPI) ListSoldEscrowSlots(_ context.Context, _ *dbv1.ListSoldEscrowS
 func (f *fakeAPI) CloseRmtListings(_ context.Context, req *dbv1.CloseRmtListingsRequest, _ ...grpc.CallOption) (*dbv1.CloseRmtListingsResponse, error) {
 	f.anunciosEncerrados = req.GetListingIds()
 	return &dbv1.CloseRmtListingsResponse{Closed: f.encerrados}, nil
-}
-
-func (f *fakeAPI) CancelBuyerRmtCharges(_ context.Context, req *dbv1.CancelBuyerRmtChargesRequest, _ ...grpc.CallOption) (*dbv1.CancelBuyerRmtChargesResponse, error) {
-	f.compradorCancelado = req.GetBuyerAccountId()
-	return &dbv1.CancelBuyerRmtChargesResponse{ListingIds: f.anunciosDoComprador}, nil
 }
 
 func (f *fakeAPI) ReconcileRmtEscrow(_ context.Context, _ *dbv1.ReconcileRmtEscrowRequest, _ ...grpc.CallOption) (*dbv1.ReconcileRmtEscrowResponse, error) {

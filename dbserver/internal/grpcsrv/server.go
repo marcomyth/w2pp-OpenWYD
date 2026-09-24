@@ -46,7 +46,6 @@ type Store interface {
 	CancelarAnunciosRMT(ctx context.Context, ids []int64) error
 	EncerrarAnunciosRMT(ctx context.Context, ids []int64) ([]store.AnuncioEncerrado, error)
 	ReconciliarEscrowRMT(ctx context.Context, accountID int64) ([]int16, error)
-	CancelarCobrancasDoComprador(ctx context.Context, compradorConta int64) ([]int64, error)
 	SaveCargoWithDeliveries(ctx context.Context, accountID int64, coin int32, items []domain.Item, deliveredIDs, lostIDs []int64) error
 	SetBlockedByName(ctx context.Context, name string, blocked bool) error
 	RecordDuelResult(ctx context.Context, winnerName, loserName string) error
@@ -382,15 +381,6 @@ func (s *Server) ReconcileRmtEscrow(ctx context.Context, req *dbv1.ReconcileRmtE
 		out = append(out, int32(slot))
 	}
 	return &dbv1.ReconcileRmtEscrowResponse{CargoSlots: out}, nil
-}
-
-// CancelBuyerRmtCharges fecha as cobranças abertas de um comprador que saiu.
-func (s *Server) CancelBuyerRmtCharges(ctx context.Context, req *dbv1.CancelBuyerRmtChargesRequest) (*dbv1.CancelBuyerRmtChargesResponse, error) {
-	anuncios, err := s.store.CancelarCobrancasDoComprador(ctx, req.GetBuyerAccountId())
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "cancel buyer rmt charges: %v", err)
-	}
-	return &dbv1.CancelBuyerRmtChargesResponse{ListingIds: anuncios}, nil
 }
 
 // SaveCargoWithDeliveries persists the cargo and marks the drained mailbox rows

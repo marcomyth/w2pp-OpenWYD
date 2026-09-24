@@ -90,16 +90,15 @@ func DefineJanelaDeCobranca(d time.Duration) {
 
 // msgPagueNoSite é o que o comprador lê ao clicar em comprar.
 //
-// TRÊS COISAS NUMA FRASE SÓ, e nenhuma é enfeite:
+// DUAS COISAS, e as duas são necessárias: ONDE pagar, porque o pagamento não está
+// no jogo e ele não tem como adivinhar isso, e QUANTO TEMPO, porque a cobrança
+// morre sozinha.
 //
-//  1. ONDE pagar, porque o pagamento não está no jogo e ele não tem como
-//     adivinhar isso;
-//  2. QUANTO TEMPO, porque a cobrança morre sozinha e ele precisa saber que há
-//     pressa;
-//  3. NÃO SAIR DO JOGO — e esta é a que mais importa. Sair do jogo CANCELA a
-//     cobrança, e o movimento natural de quem vai pagar no celular é fechar o
-//     jogo. Sem este aviso, o primeiro comprador de verdade perde a compra
-//     fazendo exatamente o que parecia certo.
+// ELA JÁ DISSE "NÃO SAIA DO JOGO", e a frase saiu porque o motivo dela saiu. Sair
+// do jogo cancelava a cobrança, e o movimento natural de quem vai pagar no celular
+// é fechar o jogo — o aviso existia para salvar a compra de quem fizesse o óbvio.
+// Agora o logout do comprador não mexe na cobrança, então pagar pelo celular é
+// seguro e pedir que ele fique seria pedir por nada.
 //
 // O PRAZO VEM DA CONFIGURAÇÃO e não está escrito na frase: com o número fixo, mudar
 // a janela deixaria a mensagem mentindo, e mentir sobre prazo de pagamento é a
@@ -110,7 +109,7 @@ func DefineJanelaDeCobranca(d time.Duration) {
 // mandava o jogador para um endereço morto.
 func msgPagueNoSite() string {
 	return fmt.Sprintf(
-		"Pague em www.wydretry.com/conta em até %d minutos. NÃO saia do jogo até o pagamento cair.",
+		"Pague em www.wydretry.com/conta em até %d minutos.",
 		int(JanelaDeCobranca.Minutes()))
 }
 

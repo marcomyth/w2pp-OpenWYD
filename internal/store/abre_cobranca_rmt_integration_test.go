@@ -339,36 +339,6 @@ func TestCompradorQueSaiuMasPagouNoPrazoRecebe(t *testing.T) {
 	}
 }
 
-// O COMPRADOR QUE SAI leva as cobranças dele junto.
-//
-// Ele não vai voltar para aquele QR, e cada cobrança aberta prende o item de
-// OUTRA pessoa até o prazo acabar. O vendedor não fez nada de errado.
-func TestCompradorQueSaiFechaAsCobrancasDele(t *testing.T) {
-	s, ctx := freshStore(t)
-	_, comprador, anuncio := anuncioPronto(ctx, t, s, "saiu")
-	if _, _, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-saiu-1", 0); err != nil {
-		t.Fatal(err)
-	}
-	// Uma cobrança de OUTRO comprador, que não pode ser tocada.
-	outroVend, outroComp, outroAnun := anuncioPronto(ctx, t, s, "fica")
-	_ = outroVend
-	if _, _, err := s.AbrirCobrancaRMT(ctx, outroAnun, outroComp, "ref-fica-1", 0); err != nil {
-		t.Fatal(err)
-	}
-
-	anuncios, err := s.CancelarCobrancasDoComprador(ctx, comprador)
-	if err != nil {
-		t.Fatalf("cancelando as do comprador: %v", err)
-	}
-
-	if len(anuncios) != 1 || anuncios[0] != anuncio {
-		t.Errorf("anuncios afetados = %v, quero [%d]", anuncios, anuncio)
-	}
-	if st := statusDaCobranca(ctx, t, s, "ref-fica-1"); st != cobrancaAberta {
-		t.Errorf("a cobranca de outro comprador virou %d", st)
-	}
-}
-
 // A EXPIRAÇÃO fecha o que venceu, e só o que venceu.
 func TestExpirarFechaSoOQueVenceu(t *testing.T) {
 	s, ctx := freshStore(t)

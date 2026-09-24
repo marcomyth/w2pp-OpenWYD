@@ -252,40 +252,17 @@ func TestPrateleiraComAnuncioVivoNaoViraOuro(t *testing.T) {
 	}
 }
 
-// O COMPRADOR QUE SAI DO JOGO leva as cobranças dele junto.
+// O COMPRADOR QUE SAI DO JOGO NÃO PERDE A COBRANÇA, e o teste que provava o
+// contrário saiu daqui.
 //
-// Ele não vai voltar para aquele QR, e cada cobrança aberta prende o item de
-// OUTRA pessoa até o prazo acabar. O vendedor não fez nada de errado e está
-// esperando.
+// Ele existia porque o SessionEnd cancelava as cobranças de quem saía. Esse
+// caminho foi removido: cancelar ali não soltava o item de ninguém — a marca do
+// escrow segura até o prazo acabar de qualquer jeito — e quebrava a compra de quem
+// fecha o jogo para pagar no celular, que é o movimento natural de todo mundo.
 //
-// A volta NÃO solta cadeado nenhum, e isso é decisão e não esquecimento: os
-// cadeados são do VENDEDOR, que é outra conta e pode nem estar em jogo. Quem os
-// solta é a reconciliação do login dele.
-func TestCompradorQueSaiFechaAsCobrancas(t *testing.T) {
-	db := newDB()
-	addr, stop, _ := startServerNovato(t, db)
-	defer stop()
-	c := enterWorldAs(t, addr, "tester")
-	drena(t, c)
-
-	_ = c.Close()
-
-	pediu := false
-	for i := 0; i < 200; i++ {
-		for _, conta := range db.cancelouComprador() {
-			if conta == 7 {
-				pediu = true
-			}
-		}
-		if pediu {
-			break
-		}
-		esperaUmPouco()
-	}
-	if !pediu {
-		t.Error("o comprador saiu e as cobrancas dele ficaram abertas, prendendo item de terceiro")
-	}
-}
+// A prova do caminho novo mora em internal/store, onde dá para ir até o
+// pagamento: o comprador sai, o vendedor derruba a barraca, o Pix cai dentro do
+// prazo, e o item é entregue.
 
 // LOGIN DUPLICADO NÃO CANCELA A VENDA DA BARRACA VIVA.
 //

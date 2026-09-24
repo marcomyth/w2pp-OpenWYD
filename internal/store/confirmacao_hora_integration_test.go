@@ -224,3 +224,109 @@ func TestDoisAvisosAoMesmoTempoEntregamUmaVez(t *testing.T) {
 		t.Errorf("a caixa postal tem %d entrega(s), quero 1", n)
 	}
 }
+
+// O COMPRADOR FECHA O JOGO PARA PAGAR NO CELULAR, O VENDEDOR DERRUBA A BARRACA, E
+// O PIX CAI DENTRO DO PRAZO. O item tem de ser ENTREGUE.
+//
+// É o caso mais comum que existe, e hoje ele perde dinheiro:
+//
+// O caminho ANTIGO perdia dinheiro:
+//
+//  1. o comprador saía do jogo — o movimento natural de quem vai pagar no celular;
+//  2. o logout CANCELAVA a cobrança dele;
+//  3. cancelada, ela deixava de contar como "aberta" para o escrow;
+//  4. o vendedor derrubava a barraca, e sem cobrança aberta o anúncio era
+//     cancelado e o item solto NA HORA;
+//  5. o Pix caía trinta segundos depois, DENTRO do prazo, e não achava item.
+//
+// Resultado: PAGA_SEM_ITEM. Reembolso que custa R$ 1,00 mais as taxas à Hanna, de
+// um comprador que fez tudo certo.
+//
+// O conserto foi tirar o passo 2. Cancelar no logout não soltava o item de
+// ninguém — a marca do escrow segura até o prazo acabar de qualquer jeito —, então
+// ele não comprava nada e quebrava esta compra. A cobrança passa a fechar de dois
+// jeitos só: paga ou vencida.
+func TestCompradorQueSaiParaPagarNoCelularRecebe(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor, _, ref := cobrancaPronta(ctx, t, s, "celular")
+
+	var anuncio int64
+	if err := s.pool.QueryRow(ctx,
+		`SELECT anuncio_id FROM rmt_cobranca WHERE referencia_externa = $1`, ref).
+		Scan(&anuncio); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1: ele sai do jogo. E É SÓ ISSO: o logout do comprador NÃO mexe mais na
+	// cobrança dela. Cancelar ali não soltava o item de ninguém — a marca segura
+	// até o prazo acabar de qualquer jeito — e quebrava exatamente esta compra.
+	//
+	// Não há nada a chamar aqui, e a ausência de chamada É o conserto. A prova de
+	// que o logout não cancela está no que vem depois: a cobrança segue ABERTA.
+	if st := statusDaCobranca(ctx, t, s, ref); st != cobrancaAberta {
+		t.Fatalf("a cobranca esta no status %d depois do logout; ela tem de seguir aberta", st)
+	}
+
+	// 2: o vendedor derruba a barraca.
+	if _, err := s.EncerrarAnunciosRMT(ctx, []int64{anuncio}); err != nil {
+		t.Fatal(err)
+	}
+	// E entra em jogo de novo, o que dispara a reconciliacao.
+	if _, err := s.ReconciliarEscrowRMT(ctx, vendedor); err != nil {
+		t.Fatal(err)
+	}
+
+	// 3: o Pix cai, DENTRO do prazo.
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo())
+	if err != nil {
+		t.Fatalf("confirmando: %v", err)
+	}
+
+	if res != CobrancaConfirmada {
+		t.Fatalf("resultado = %d, quero confirmada(%d). Ele pagou DENTRO do prazo e "+
+			"fez tudo certo; isto vira reembolso que custa dinheiro a Hanna",
+			res, CobrancaConfirmada)
+	}
+	if venda.EntregaID == 0 {
+		t.Error("nao enfileirou a entrega de quem pagou no prazo")
+	}
+	if venda.PagoComAtraso {
+		t.Error("marcou como atraso um pagamento feito dentro do prazo")
+	}
+}
+
+// E A PÁGINA CONTINUA MOSTRANDO O CÓDIGO DEPOIS DE ELE SAIR DO JOGO.
+//
+// É a outra metade do conserto, e sem ela o resto não serve de nada: se o código
+// some da página quando ele fecha o jogo, ele não tem como pagar no celular, que é
+// exatamente o que a mudança existe para permitir.
+//
+// O teste anterior prova que o pagamento SERIA aceito; este prova que ele consegue
+// FAZER o pagamento.
+func TestDepoisDeSairDoJogoOCodigoContinuaNaPagina(t *testing.T) {
+	s, ctx := freshStore(t)
+	_, comprador, ref := cobrancaPronta(ctx, t, s, "codigovivo")
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE rmt_cobranca SET codigo_pix = $2 WHERE referencia_externa = $1`,
+		ref, "00020126BR.GOV.BCB.PIX6304ABCD"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Ele sai do jogo. Nada acontece com a cobrança — é esse o conserto.
+
+	tem, cob, err := s.CobrancaAtualDoComprador(ctx, comprador, 0)
+	if err != nil {
+		t.Fatalf("lendo: %v", err)
+	}
+
+	if !tem {
+		t.Fatal("a pagina esvaziou depois de ele sair do jogo")
+	}
+	if cob.Estado != EstadoCobrancaAberta {
+		t.Errorf("estado = %d, quero aberta(%d): sair do jogo nao fecha cobranca",
+			cob.Estado, EstadoCobrancaAberta)
+	}
+	if cob.CodigoPix != "00020126BR.GOV.BCB.PIX6304ABCD" {
+		t.Errorf("codigo = %q; sem ele a pessoa nao tem como pagar no celular", cob.CodigoPix)
+	}
+}
