@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
@@ -39,6 +40,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemcatalog"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemicons"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemstatadmin"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/jogo"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobspawns"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplateadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplates"
@@ -47,6 +49,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/npctemplates"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ponte"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ranking"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/rmtpagamento"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/worldevent"
 )
 
@@ -155,7 +158,7 @@ func run(logger *slog.Logger) error {
 			logger.Info("ponte respondeu ao teste do boot: mTLS e assinatura conferem")
 		}()
 	}
-	_ = clientePonte // ligado ao serviço de pagamento no PR do caminho do aviso
+	_ = clientePonte // usado mais abaixo, junto com o registro dos serviços
 
 	if !chaves.Configurada() {
 		// Loud, and every boot, because the quiet version of this line is how
@@ -279,9 +282,60 @@ func run(logger *slog.Logger) error {
 			npcAdmin.SetDropCatalog(drops)
 		}
 	}
+	// O LINK COM O JOGO É CORTESIA, e por isso ele não impede nada de subir.
+	//
+	// As duas chamadas que o caminho do pagamento faz nele — entregar agora, liberar
+	// a venda agora — só ENCURTAM a espera: quando elas rodam, a venda já está
+	// gravada, e o login de cada um faz o mesmo trabalho. Sem o link, a venda
+	// acontece igual e demora mais a aparecer.
+	//
+	// Mesma autenticação e mesma configuração do painel da staff, de propósito:
+	// mesmas duas variáveis, mesmo cabeçalho de token do proto. Um canal novo aqui
+	// seria uma segunda porta para o servidor de jogo, com a metade da atenção.
+	var jogoDoPagamento rmtpagamento.Jogo
+	if addr := os.Getenv("W2PP_TMSERVER_CONTROL"); addr != "" {
+		token := os.Getenv("W2PP_CONTROL_TOKEN")
+		switch {
+		case token == "":
+			// Avisa e NÃO liga. Ligar sem token daria um cliente que o servidor de
+			// jogo recusa em toda chamada, e cada recusa sairia como falha de
+			// entrega — ruído que esconde a causa, que é uma variável vazia.
+			logger.Warn("W2PP_TMSERVER_CONTROL está setado e W2PP_CONTROL_TOKEN está vazio: " +
+				"a entrega imediata fica desligada; a venda sai no login")
+		default:
+			conn, cerr := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if cerr != nil {
+				logger.Warn("não consegui abrir o link com o servidor de jogo; "+
+					"a entrega imediata fica desligada", "addr", addr, "err", cerr)
+			} else {
+				defer func() { _ = conn.Close() }()
+				jogoDoPagamento = jogo.New(conn, token)
+				logger.Info("link com o servidor de jogo ligado para a entrega imediata", "addr", addr)
+			}
+		}
+	} else {
+		logger.Info("entrega imediata desligada; a venda sai no login de cada um",
+			"configuração", "W2PP_TMSERVER_CONTROL + W2PP_CONTROL_TOKEN")
+	}
+
+	// O serviço do aviso de pagamento e a criação tardia do Pix, os dois presos à
+	// ponte: sem ela não há como consultar nem criar, e ligar qualquer um dos dois
+	// sem ela daria um caminho que falha em toda chamada.
+	rmtSrv := grpcsrv.NewRmt(st)
+	if clientePonte != nil {
+		adaptador := rmtpagamento.PonteDeVerdade{Cliente: clientePonte}
+		pagamentos := rmtpagamento.Novo(adaptador, st, jogoDoPagamento, logger)
+		webv1.RegisterRmtSystemServiceServer(srv, grpcsrv.NewRmtSistema(pagamentos, logger))
+		rmtSrv = rmtSrv.ComCriadorDePix(adaptador.CriarPix, nomeDeItem(itemCatalog), logger)
+		logger.Info("caminho do pagamento em dinheiro real ligado")
+	} else {
+		logger.Warn("caminho do pagamento em dinheiro real DESLIGADO: sem a ponte, " +
+			"a página da cobrança não gera código e nenhum aviso é processado")
+	}
+
 	webv1.RegisterAccountWebServiceServer(srv, grpcsrv.New(account.New(st)))
 	webv1.RegisterRankingWebServiceServer(srv, grpcsrv.NewRanking(ranking.New(st)))
-	webv1.RegisterRmtWebServiceServer(srv, grpcsrv.NewRmt(st))
+	webv1.RegisterRmtWebServiceServer(srv, rmtSrv)
 	webv1.RegisterCharacterWebServiceServer(srv, grpcsrv.NewCharacters(characters.New(st)))
 	webv1.RegisterItemCatalogServiceServer(srv, grpcsrv.NewItemCatalog(itemCatalog))
 	npcAdminSrv := grpcsrv.NewNpcAdmin(npcAdmin)
@@ -330,4 +384,23 @@ func envOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// nomeDeItem monta a busca de nome por índice a partir do catálogo.
+//
+// UM MAPA E NÃO UMA VARREDURA: a lista tem milhares de entradas e esta função é
+// chamada na criação de cada cobrança. Varrer seria barato hoje e é o tipo de coisa
+// que ninguém vai reler depois.
+//
+// Devolve vazio para índice que o catálogo não conhece, e quem chama trata isso
+// caindo na descrição genérica: perder o nome do item não pode derrubar uma venda.
+func nomeDeItem(c itemcatalog.Catalog) grpcsrv.NomeDeItem {
+	if len(c.Items) == 0 {
+		return nil
+	}
+	porIndice := make(map[int32]string, len(c.Items))
+	for _, e := range c.Items {
+		porIndice[e.Index] = e.DisplayName
+	}
+	return func(i int32) string { return porIndice[i] }
 }
