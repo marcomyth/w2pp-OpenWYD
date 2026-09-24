@@ -2,7 +2,11 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # A preview e o ambiente de teste do Railway (teste-xp-grupo), com "Wait for
+    # CI" ligado: ele so faz deploy depois que as checagens do commit passam. Um
+    # PR mesclado na preview chega la como PUSH, e sem a preview aqui esse push
+    # nao teria checagem nenhuma - o deploy ficaria esperando para sempre.
+    branches: [main, preview]
   # Sem filtro de alvo, de proposito. Enquanto era `branches: [main]`, todo PR
   # que nao apontasse para a main entrava com ZERO checagem — e ninguem via,
   # porque "nenhum check" e silencio, nao vermelho. O trabalho longo do projeto
