@@ -488,6 +488,156 @@ var RmtWebService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	RmtSystemService_NotifySyncpayEvent_FullMethodName = "/web.v1.RmtSystemService/NotifySyncpayEvent"
+)
+
+// RmtSystemServiceClient is the client API for RmtSystemService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// RmtSystemService is the server-to-server side of real-money selling: the site
+// telling the game that the payment processor said something.
+//
+// A SERVICE OF ITS OWN, and not two more methods on RmtWebService, because the
+// CALLER is different in kind. RmtWebService answers a person looking at their
+// own account page; this one answers the site's webhook handler, with no person
+// behind it. Mixing them would put a payment-notification endpoint behind the key
+// a browser-driven request can reach.
+//
+// It is NOT in servicosDoJogador, and that means the site's player key does not
+// open it: the webhook handler holds a separate system key. If a bug in the
+// player-facing side ever let somebody call arbitrary web-api methods with the
+// site key, this door would still be shut.
+//
+// NOTHING HERE IS TRUSTED. The notice is a doorbell, not evidence: the server
+// answers it by asking the processor what actually happened. A forged or repeated
+// notice costs one extra query and nothing else.
+type RmtSystemServiceClient interface {
+	// NotifySyncpayEvent relays one processor event the site received.
+	//
+	// The site receives it because the processor's webhook is per ACCOUNT, not per
+	// charge: a real-money charge created on the same account as the donation shop
+	// announces itself to the site. Rather than the site guessing what to do, it
+	// recognizes the event as ours and hands it over.
+	NotifySyncpayEvent(ctx context.Context, in *NotifySyncpayEventRequest, opts ...grpc.CallOption) (*NotifySyncpayEventResponse, error)
+}
+
+type rmtSystemServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewRmtSystemServiceClient(cc grpc.ClientConnInterface) RmtSystemServiceClient {
+	return &rmtSystemServiceClient{cc}
+}
+
+func (c *rmtSystemServiceClient) NotifySyncpayEvent(ctx context.Context, in *NotifySyncpayEventRequest, opts ...grpc.CallOption) (*NotifySyncpayEventResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(NotifySyncpayEventResponse)
+	err := c.cc.Invoke(ctx, RmtSystemService_NotifySyncpayEvent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// RmtSystemServiceServer is the server API for RmtSystemService service.
+// All implementations must embed UnimplementedRmtSystemServiceServer
+// for forward compatibility.
+//
+// RmtSystemService is the server-to-server side of real-money selling: the site
+// telling the game that the payment processor said something.
+//
+// A SERVICE OF ITS OWN, and not two more methods on RmtWebService, because the
+// CALLER is different in kind. RmtWebService answers a person looking at their
+// own account page; this one answers the site's webhook handler, with no person
+// behind it. Mixing them would put a payment-notification endpoint behind the key
+// a browser-driven request can reach.
+//
+// It is NOT in servicosDoJogador, and that means the site's player key does not
+// open it: the webhook handler holds a separate system key. If a bug in the
+// player-facing side ever let somebody call arbitrary web-api methods with the
+// site key, this door would still be shut.
+//
+// NOTHING HERE IS TRUSTED. The notice is a doorbell, not evidence: the server
+// answers it by asking the processor what actually happened. A forged or repeated
+// notice costs one extra query and nothing else.
+type RmtSystemServiceServer interface {
+	// NotifySyncpayEvent relays one processor event the site received.
+	//
+	// The site receives it because the processor's webhook is per ACCOUNT, not per
+	// charge: a real-money charge created on the same account as the donation shop
+	// announces itself to the site. Rather than the site guessing what to do, it
+	// recognizes the event as ours and hands it over.
+	NotifySyncpayEvent(context.Context, *NotifySyncpayEventRequest) (*NotifySyncpayEventResponse, error)
+	mustEmbedUnimplementedRmtSystemServiceServer()
+}
+
+// UnimplementedRmtSystemServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedRmtSystemServiceServer struct{}
+
+func (UnimplementedRmtSystemServiceServer) NotifySyncpayEvent(context.Context, *NotifySyncpayEventRequest) (*NotifySyncpayEventResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method NotifySyncpayEvent not implemented")
+}
+func (UnimplementedRmtSystemServiceServer) mustEmbedUnimplementedRmtSystemServiceServer() {}
+func (UnimplementedRmtSystemServiceServer) testEmbeddedByValue()                          {}
+
+// UnsafeRmtSystemServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to RmtSystemServiceServer will
+// result in compilation errors.
+type UnsafeRmtSystemServiceServer interface {
+	mustEmbedUnimplementedRmtSystemServiceServer()
+}
+
+func RegisterRmtSystemServiceServer(s grpc.ServiceRegistrar, srv RmtSystemServiceServer) {
+	// If the following call panics, it indicates UnimplementedRmtSystemServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&RmtSystemService_ServiceDesc, srv)
+}
+
+func _RmtSystemService_NotifySyncpayEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NotifySyncpayEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RmtSystemServiceServer).NotifySyncpayEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RmtSystemService_NotifySyncpayEvent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RmtSystemServiceServer).NotifySyncpayEvent(ctx, req.(*NotifySyncpayEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// RmtSystemService_ServiceDesc is the grpc.ServiceDesc for RmtSystemService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var RmtSystemService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "web.v1.RmtSystemService",
+	HandlerType: (*RmtSystemServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "NotifySyncpayEvent",
+			Handler:    _RmtSystemService_NotifySyncpayEvent_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/web/v1/web.proto",
+}
+
+const (
 	RankingWebService_ListExpRanking_FullMethodName  = "/web.v1.RankingWebService/ListExpRanking"
 	RankingWebService_ListDuelRanking_FullMethodName = "/web.v1.RankingWebService/ListDuelRanking"
 )
