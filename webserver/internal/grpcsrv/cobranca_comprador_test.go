@@ -170,3 +170,34 @@ func TestServicoNaoDecideAJanela(t *testing.T) {
 		t.Errorf("o servico mandou a janela %v; quem decide e a camada de banco", f.janelaPedida)
 	}
 }
+
+// O VALOR DIVERGENTE VIRA PAID_LATE, e não OPEN.
+//
+// A cobrança continua ABERTA no banco — ela não se resolveu —, mas OPEN diria
+// "pague" a alguém que já pagou, e convidaria a pagar duas vezes. PAID_LATE diz o
+// que de fato aconteceu: o dinheiro chegou, o item não foi entregue, e alguém está
+// olhando.
+//
+// E o refund_state fica UNSPECIFIED, que é o certo: não há reembolso automático
+// para valor divergente, ao contrário do pagamento atrasado.
+func TestValorDivergenteViraPaidLateENaoOpen(t *testing.T) {
+	f := &fakePix{temCobranca: true,
+		cobranca: store.CobrancaDoComprador{Estado: store.EstadoCobrancaValorDivergente}}
+
+	resp, err := NewRmt(f).GetMyCurrentPixCharge(context.Background(),
+		&webv1.GetMyCurrentPixChargeRequest{AccountId: 7})
+	if err != nil {
+		t.Fatalf("GetMyCurrentPixCharge: %v", err)
+	}
+
+	if resp.GetState() == webv1.PixChargeState_PIX_CHARGE_STATE_OPEN {
+		t.Fatal("estado OPEN diz \"pague\" a quem ja pagou; convida a pagar duas vezes")
+	}
+	if resp.GetState() != webv1.PixChargeState_PIX_CHARGE_STATE_PAID_LATE {
+		t.Errorf("estado = %v, quero PAID_LATE", resp.GetState())
+	}
+	if resp.GetRefundState() != webv1.RefundState_REFUND_STATE_UNSPECIFIED {
+		t.Errorf("refund_state = %v; nao ha reembolso automatico para valor divergente",
+			resp.GetRefundState())
+	}
+}

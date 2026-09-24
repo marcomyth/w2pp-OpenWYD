@@ -168,6 +168,30 @@ func estadoParaProto(e store.EstadoCobrancaComprador) webv1.PixChargeState {
 		return webv1.PixChargeState_PIX_CHARGE_STATE_CANCELED
 	case store.EstadoCobrancaPagaSemItem:
 		return webv1.PixChargeState_PIX_CHARGE_STATE_PAID_LATE
+	case store.EstadoCobrancaValorDivergente:
+		// PAID_LATE TAMBÉM PARA O VALOR DIVERGENTE, e a escolha é do menos errado
+		// entre os que existem.
+		//
+		// O nome fala de atraso e o caso não é de atraso — mas o que o estado diz
+		// à pessoa é exatamente o certo: O DINHEIRO CHEGOU, O ITEM NÃO FOI
+		// ENTREGUE, E ALGUÉM ESTÁ OLHANDO. É a mesma frase nos dois casos, e a
+		// causa (tarde, ou valor diferente) não muda nada do que ela pode fazer.
+		//
+		// Os outros mentiriam pior. OPEN diz "pague", e ela já pagou — convidaria a
+		// pagar duas vezes. PAID diz "o item está indo", e não está. EXPIRED e
+		// CANCELED dizem que não houve pagamento, e houve.
+		//
+		// A diferença aparece no refund_state: no atrasado ele anda (PENDING,
+		// REQUESTED, REFUNDED); aqui fica UNSPECIFIED, porque não há reembolso
+		// automático — valor diferente do cobrado é caso que precisa de gente, e
+		// escolher devolver, cobrar a diferença ou entregar assim mesmo é decidir
+		// sobre o dinheiro de duas pessoas.
+		//
+		// O comentário do .proto ainda diz só "arrived late". Ele pega carona no
+		// próximo handshake: mudança de comentário também muda o sha256, e o
+		// prebuild do site compara o hash com a main — um handshake inteiro por uma
+		// frase não se paga.
+		return webv1.PixChargeState_PIX_CHARGE_STATE_PAID_LATE
 	}
 	return webv1.PixChargeState_PIX_CHARGE_STATE_UNSPECIFIED
 }
