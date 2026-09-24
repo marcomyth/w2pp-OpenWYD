@@ -83,6 +83,11 @@ var saidasDoReembolso = map[int16][]int16{
 	reembolsoPedido:    {reembolsoPendente},
 	reembolsoRecusado:  {reembolsoPendente, reembolsoPedido},
 	reembolsoConcluido: {reembolsoPedido},
+	// INCERTO so vem de PENDENTE, que e o unico estado de onde a varredura pede. E
+	// nada sai dele por aqui: nao ha transicao automatica de saida no mapa, de
+	// proposito. Quem tira uma linha do incerto e uma pessoa que foi ao painel da
+	// processadora ver se o pedido existe.
+	reembolsoIncerto: {reembolsoPendente},
 }
 
 // MarcarReembolsoPedido registra que a processadora ACEITOU o pedido.
@@ -133,6 +138,24 @@ func (s *Store) MarcarReembolsoConcluido(ctx context.Context, cobrancaID int64) 
 			UPDATE rmt_cobranca
 			   SET reembolso_status = $2, reembolso_erro = NULL
 			 WHERE id = $1`, cobrancaID, reembolsoConcluido)
+		return err
+	})
+}
+
+// MarcarReembolsoIncerto registra que o pedido saiu e a resposta nao voltou.
+//
+// O QUE FICA GUARDADO AQUI NAO E RECUSA, e o campo e o mesmo (`reembolso_erro`)
+// porque a pergunta que ele responde e a mesma: "o que a ponte disse". A diferenca
+// esta no ESTADO, e e ele que decide se alguem pode pedir de novo.
+//
+// De PENDENTE so. Um incerto chegando sobre um pedido ja aceito seria resposta
+// atrasada de outra coisa, e andar para tras aqui apagaria a data de que a pagina
+// do comprador conta os dois dias uteis.
+func (s *Store) MarcarReembolsoIncerto(ctx context.Context, cobrancaID int64, motivo string) error {
+	return s.mudaReembolso(ctx, cobrancaID, reembolsoIncerto, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE rmt_cobranca SET reembolso_status = $2, reembolso_erro = $3
+			 WHERE id = $1`, cobrancaID, reembolsoIncerto, motivo)
 		return err
 	})
 }

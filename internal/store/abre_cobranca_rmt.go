@@ -307,12 +307,30 @@ func (s *Store) CancelarCobrancaRMT(ctx context.Context, referenciaExterna strin
 	return tag.RowsAffected() > 0, nil
 }
 
-// ExpirarCobrancasRMT fecha as cobranças cujo prazo acabou.
+// ExpirarCobrancasRMT fecha as cobranças cujo prazo acabou e que NINGUÉM PODERIA
+// TER PAGO.
 //
 // A expiração é por VARREDURA e não por temporizador, e isso não é preguiça: um
 // temporizador por cobrança morre com o processo, e o prazo tem de continuar
 // valendo depois de um reinício. A linha guarda `expira_em`; a varredura só lê o
 // que o banco já sabe.
+//
+// SÓ AS SEM IDENTIFIER, e essa condição é a correção de um buraco que devolvia
+// dinheiro de gente. Antes, esta varredura vencia qualquer cobrança no prazo, sem
+// perguntar nada à processadora — e a reconciliação então soltava o item do
+// vendedor. Um Pix pago no último segundo, com o aviso atrasado, virava um
+// pagamento sem item: a pessoa pagava, não recebia, e o item já tinha voltado para
+// o vendedor.
+//
+// O identifier nasce junto com o código Pix. Sem ele não há código, e sem código
+// ninguém conseguiu pagar — então estas aqui vencem sem se perguntar nada. As
+// outras são vencidas pela varredura do webserver, DEPOIS de ela consultar a
+// processadora, porque é lá que moram as credenciais da ponte.
+//
+// Se o webserver estiver fora, as com identifier param de vencer e o item do
+// vendedor fica preso além do combinado. É a troca deliberada: item preso se
+// conserta, dinheiro entregue a quem não devia não. O tamanho da fila sai no log
+// pela CobrancasVencidasSemConferir.
 //
 // A DIVERGENTE NÃO VENCE. Nela o dinheiro JÁ ENTROU, com o valor errado, e está
 // esperando uma pessoa. Vencer aqui soltaria o item de quem recebeu o pagamento —
@@ -324,6 +342,7 @@ func (s *Store) ExpirarCobrancasRMT(ctx context.Context) ([]int64, error) {
 		UPDATE rmt_cobranca SET status = $1, encerrada_em = now()
 		 WHERE status = $2 AND expira_em <= now()
 		   AND valor_divergente_centavos IS NULL
+		   AND identifier_syncpay IS NULL
 		RETURNING anuncio_id`, cobrancaExpirada, cobrancaAberta)
 	if err != nil {
 		return nil, fmt.Errorf("store: expirar cobrancas: %w", err)
