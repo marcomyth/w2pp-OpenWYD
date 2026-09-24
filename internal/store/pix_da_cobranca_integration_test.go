@@ -18,11 +18,22 @@ import (
 )
 
 // cobrancaAbertaParaPix cria uma cobrança aberta, sem código, para os testes daqui.
+//
+// E PÕE A MARCA DO ESCROW no item, que é o passo que a primeira versão deste ajudante
+// esqueceu. Sem ela o anúncio está ativo e o item NÃO está preso a ele, e o banco
+// recusa a cobrança com ItemNaoEstaPreso — porque as duas coisas discordam e
+// discordância em linha de dinheiro se resolve não cobrando.
+//
+// O estado sem marca NÃO EXISTE NO JOGO: o item é marcado na mesma transação em que o
+// anúncio nasce. Montá-lo aqui era testar uma situação que o sistema não produz, e os
+// nove testes deste arquivo falharam todos pelo mesmo motivo — que era meu, e não do
+// código sob teste.
 func cobrancaAbertaParaPix(ctx context.Context, t *testing.T, s *Store, ref string) int64 {
 	t.Helper()
 	vendedor := contaPix(ctx, t, s, "vendedor_"+ref)
 	comprador := contaPix(ctx, t, s, "comprador_"+ref)
 	anuncio := anuncioAtivoSimples(ctx, t, s, vendedor, 0)
+	itemMarcado(ctx, t, s, vendedor, 0, anuncio)
 
 	res, cob, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, ref, 5*time.Minute)
 	if err != nil {

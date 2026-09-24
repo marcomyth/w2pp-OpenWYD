@@ -333,9 +333,23 @@ func TestCompradorQueSaiuMasPagouNoPrazoRecebe(t *testing.T) {
 	if venda.EntregaID == 0 {
 		t.Error("nao enfileirou a entrega")
 	}
-	if venda.PagoComAtraso {
-		t.Error("marcou como atraso um pagamento feito DENTRO do prazo; a coluna conta " +
-			"pagamento tardio, nao aviso tardio")
+	// A COLUNA CONTA O LARGO, e a suíte CONTINHA AS DUAS REGRAS antes de este job
+	// existir: este teste exigia falso e o TestPagamentoAtrasadoComItemAindaMarcadoEntrega
+	// exigia verdadeiro, no MESMO cenário. Nenhum dos dois rodava, então ninguém
+	// podia ver a contradição.
+	//
+	// Ficou o largo, que é o que a 0105 escreveu: "a confirmação que chegou DEPOIS do
+	// cancelamento ou da expiração". A razão é a pergunta que a coluna existe para
+	// responder — "o prazo está errado?" — e este caso É um sintoma disso: com uma
+	// janela maior, a corrida entre o pagamento e a nossa varredura não teria
+	// acontecido. Contar só o pagamento genuinamente tardio esconderia a corrida, que
+	// é o que mais aparece na prática.
+	//
+	// A regra ESTREITA continua existindo, com outro nome: `foraDoPrazo`, que é quem
+	// decide a entrega. Ela não virou coluna porque o pagamento tardio de verdade já
+	// é achável pelo status PAGA_SEM_ITEM.
+	if !venda.PagoComAtraso {
+		t.Error("nao contou a confirmacao que chegou depois do cancelamento")
 	}
 }
 

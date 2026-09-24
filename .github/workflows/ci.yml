@@ -52,8 +52,8 @@ jobs:
       - name: Build
         run: go build ./...
 
-      # Race detector + coverage. Integration tests are behind the `integration`
-      # build tag (need Postgres) and are intentionally excluded here.
+      # Race detector + coverage. Os testes de integracao ficam atras da etiqueta
+      # `integration` (precisam de Postgres) e rodam no job `integration`.
       - name: Test
         run: go test -race -cover ./...
 
@@ -91,6 +91,93 @@ jobs:
 
       - name: Run govulncheck
         run: govulncheck ./...
+
+  integration:
+    name: Integration (Postgres)
+    runs-on: ubuntu-latest
+
+    # POR QUE ESTE JOB EXISTE, e vale a pena escrever porque ele custa minutos: os
+    # testes de integracao deste repo NAO RODAVAM EM LUGAR NENHUM. O job de cima
+    # nao passa `-tags=integration`, e rodar a suite na maquina de quem desenvolve
+    # e caro demais para ser habito.
+    #
+    # O que ficava sem portao nao era periferia: era o escrow do mercado, a corrida
+    # entre abrir a cobranca e fechar a barraca, a maquina de estados do reembolso
+    # e a corrida das duas abas criando duas cobrancas na processadora. Tudo isso
+    # tinha teste escrito, verde uma vez na maquina de alguem, e nunca mais.
+    services:
+      postgres:
+        # A MESMA VERSAO do docker-compose, de proposito. Um teste que passa no 16
+        # e falha no 17 e um dia perdido descobrindo que o portao nao media o que a
+        # producao roda.
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: dev
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # SEM `-race` NESTA PRIMEIRA VERSAO, e isto e divida anotada e nao esquecida.
+      # O motivo e tempo: a suite recria o schema e reaplica as 136 migracoes A CADA
+      # TESTE, em 269 testes, e ninguem mediu quanto isso da num runner limpo. O
+      # `-race` dobraria um numero desconhecido. Este job E a medicao; quando a
+      # duracao real aparecer, o `-race` entra se couber.
+      #
+      # `-p 1` porque os testes compartilham UM banco: em paralelo eles se atropelam
+      # no reset de schema, e a falha que sai disso parece bug de produto.
+      #
+      # `-timeout 30m` explicito porque o padrao do Go e 10 min e a suite estoura.
+      - name: Integration tests
+        env:
+          W2PP_TEST_DSN: postgres://postgres:dev@localhost:5432/postgres
+        run: |
+          set -o pipefail
+          go test -tags=integration -p 1 -timeout 30m -v ./... 2>&1 | tee integration.log
+
+      # A GUARDA CONTRA O PIOR RESULTADO POSSIVEL: um job VERDE que nao rodou nada.
+      #
+      # Os testes fazem `t.Skip("W2PP_TEST_DSN not set")` quando a variavel falta. Se
+      # alguem errar o nome dela, mudar a porta, ou o servico do Postgres nao subir,
+      # os 269 testes PULAM e o job passa. Silencio fica identico a sucesso, e o
+      # portao vira enfeite sem ninguem notar.
+      #
+      # Roda sempre (`if: always()`) para tambem falar quando o passo de cima falhou.
+      - name: O portao rodou de verdade?
+        if: always()
+        run: |
+          pularam="$(grep -c 'W2PP_TEST_DSN not set' integration.log || true)"
+          passaram="$(grep -c -- '--- PASS' integration.log || true)"
+          echo "passaram=$passaram  pularam-por-falta-de-banco=$pularam"
+          if [ "$pularam" -gt 0 ]; then
+            echo "::error::$pularam teste(s) pularam por falta de W2PP_TEST_DSN: o banco nao chegou ate eles"
+            exit 1
+          fi
+          if [ "$passaram" -eq 0 ]; then
+            echo "::error::nenhum teste passou; a suite de integracao nao rodou"
+            exit 1
+          fi
+
+      # O log inteiro fica anexado, e nao so o rabo que o console mostra. Com 269
+      # testes, a falha que interessa costuma estar longe do fim.
+      - name: Guardar o log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-log
+          path: integration.log
+          retention-days: 7
 
   docker:
     name: Docker build (${{ matrix.svc }})

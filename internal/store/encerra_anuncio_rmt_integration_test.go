@@ -146,6 +146,12 @@ func TestReconciliarSoltaOCadeadoMortoEDeixaOVivo(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_faxina")
 	comprador := contaPix(ctx, t, s, "comprador_faxina")
+	// DOIS COMPRADORES, e não um, porque a 0116 só permite UMA cobrança aberta por
+	// comprador — e é assim que o jogo produz este cenário de verdade: um comprador
+	// está com o QR na mão de um item, e a cobrança de OUTRO comprador, em outro
+	// item, venceu. Com um comprador só, este arranjo é impossível, e um teste que o
+	// monta não prova nada sobre o sistema.
+	outroComprador := contaPix(ctx, t, s, "comprador_faxina_2")
 
 	// slot 0: anúncio cancelado — o cadeado é lixo, solta.
 	cancelado := anuncioAtivoSimples(ctx, t, s, vendedor, 0)
@@ -166,7 +172,7 @@ func TestReconciliarSoltaOCadeadoMortoEDeixaOVivo(t *testing.T) {
 
 	// slot 3: anúncio ativo, barraca caída, a cobrança expirou. Ninguém mais vai
 	// pagar. Solta.
-	expirou := anuncioComCobrancaAberta(ctx, t, s, vendedor, comprador, "ref-faxina-2")
+	expirou := anuncioComCobrancaAberta(ctx, t, s, vendedor, outroComprador, "ref-faxina-2")
 	if _, err := s.pool.Exec(ctx,
 		`UPDATE rmt_anuncio SET cargo_slot = 3, barraca_caiu = TRUE WHERE id = $1`, expirou); err != nil {
 		t.Fatal(err)
