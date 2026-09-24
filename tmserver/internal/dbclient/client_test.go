@@ -15,6 +15,9 @@ import (
 // canned responses, so the adapter's mapping is tested without a gRPC server.
 type fakeAPI struct {
 	anunciosPedidos    *dbv1.OpenRmtListingsRequest
+	cobrancaPedida     *dbv1.OpenRmtChargeRequest
+	cobrancaResp       *dbv1.OpenRmtChargeResponse
+	cobrancaErro       error
 	anunciosCancelados []int64
 	anunciosEncerrados []int64
 	encerrados         []*dbv1.ClosedRmtListing
@@ -118,6 +121,14 @@ func (f *fakeAPI) SaveCargo(_ context.Context, req *dbv1.SaveCargoRequest, _ ...
 	f.savedCargo = req
 	return &dbv1.SaveCargoResponse{Ok: true}, nil
 }
+func (f *fakeAPI) OpenRmtCharge(_ context.Context, req *dbv1.OpenRmtChargeRequest, _ ...grpc.CallOption) (*dbv1.OpenRmtChargeResponse, error) {
+	f.cobrancaPedida = req
+	if f.cobrancaErro != nil {
+		return nil, f.cobrancaErro
+	}
+	return f.cobrancaResp, nil
+}
+
 func (f *fakeAPI) OpenRmtListings(_ context.Context, req *dbv1.OpenRmtListingsRequest, _ ...grpc.CallOption) (*dbv1.OpenRmtListingsResponse, error) {
 	f.anunciosPedidos = req
 	if f.semChavePix {

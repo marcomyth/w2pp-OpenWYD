@@ -250,6 +250,15 @@ func run(logger *slog.Logger) error {
 		// existem com o dbServer ligado. Sem ele, a compra nessas moedas é
 		// recusada e nada se move (handler/lojasaldo.go).
 		handler.UsaSaldoDeConta(handler.SaldoPeloBanco(banco))
+		// A cobranca em Pix: clicar numa prateleira em dinheiro real passa a CRIAR a
+		// linha da cobranca. Sem o dbServer, a loja recusa em voz alta
+		// (ErrPixNaoLigado) em vez de fingir que abriu.
+		//
+		// O QUE NASCE AQUI E SO A LINHA. O codigo Pix nasce na primeira leitura da
+		// pagina do comprador, no site — e e por isso que ESTE processo nao precisa
+		// do segredo nem do certificado da ponte. O servidor de jogo nao fala com a
+		// processadora.
+		handler.UsaCobradorPix(banco)
 		logger.Info("dbServer wired", "addr", *dbAddr)
 	} else {
 		logger.Warn("no -dbserver: using no-op persistence (logins report no account)")

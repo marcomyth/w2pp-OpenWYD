@@ -3,6 +3,7 @@ package grpcsrv
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -18,11 +19,20 @@ type fakeStore struct {
 	anunciosCancelados  []int64
 	anunciosEncerrados  []int64
 	personagemDoAnuncio string
-	encerrados          []store.AnuncioEncerrado
-	slotsSoltos         []int16
-	erroAbrirAnuncios   error
-	slotsVendidos       []int16
-	erroSlotsVendidos   error
+
+	// A cobrança: o que a fake responde, e o que ela viu chegar.
+	cobrancaResultado store.ResultadoAbertura
+	cobranca          store.CobrancaRMT
+	cobrancaErro      error
+	cobrancaAnuncio   int64
+	cobrancaComprador int64
+	cobrancaRef       string
+	cobrancaJanela    time.Duration
+	encerrados        []store.AnuncioEncerrado
+	slotsSoltos       []int16
+	erroAbrirAnuncios error
+	slotsVendidos     []int16
+	erroSlotsVendidos error
 	// fama captures UpdateGuildFame calls.
 	fama map[uint16]int32
 	// shopPoints is the personal-shop wallet, accumulated like the real store.
@@ -210,6 +220,15 @@ func (f *fakeStore) SaveCargo(_ context.Context, accountID int64, coin int32, it
 }
 
 // slotsVendidos é o que ListSoldEscrowSlots devolve; vazio é a resposta normal.
+// Cobranca: o resultado e a linha que a fake devolve, e o que ela viu.
+func (f *fakeStore) AbrirCobrancaRMT(_ context.Context, anuncio, comprador int64,
+	ref string, janela time.Duration,
+) (store.ResultadoAbertura, store.CobrancaRMT, error) {
+	f.cobrancaAnuncio, f.cobrancaComprador = anuncio, comprador
+	f.cobrancaRef, f.cobrancaJanela = ref, janela
+	return f.cobrancaResultado, f.cobranca, f.cobrancaErro
+}
+
 func (f *fakeStore) AbrirAnunciosRMT(_ context.Context, _ int64, personagem string,
 	itens []store.ItemAnunciado,
 ) ([]int64, error) {

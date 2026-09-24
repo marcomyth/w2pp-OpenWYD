@@ -47,6 +47,7 @@ const (
 	AccountService_CancelRmtListings_FullMethodName       = "/db.v1.AccountService/CancelRmtListings"
 	AccountService_CloseRmtListings_FullMethodName        = "/db.v1.AccountService/CloseRmtListings"
 	AccountService_ReconcileRmtEscrow_FullMethodName      = "/db.v1.AccountService/ReconcileRmtEscrow"
+	AccountService_OpenRmtCharge_FullMethodName           = "/db.v1.AccountService/OpenRmtCharge"
 	AccountService_SaveCargoWithDeliveries_FullMethodName = "/db.v1.AccountService/SaveCargoWithDeliveries"
 	AccountService_SetAccountBlocked_FullMethodName       = "/db.v1.AccountService/SetAccountBlocked"
 	AccountService_RecordDuelResult_FullMethodName        = "/db.v1.AccountService/RecordDuelResult"
@@ -196,6 +197,29 @@ type AccountServiceClient interface {
 	// but the item leaves and never comes back to the owner. See
 	// ListSoldEscrowSlots.
 	ReconcileRmtEscrow(ctx context.Context, in *ReconcileRmtEscrowRequest, opts ...grpc.CallOption) (*ReconcileRmtEscrowResponse, error)
+	// OpenRmtCharge creates one buyer's payment attempt against a listing.
+	//
+	// It is called from the game, at the click on a real-money shelf, and it creates
+	// the row and NOTHING ELSE: no Pix code, no call to the payment processor. The
+	// code is born later, on the first read of the charge page on the site.
+	//
+	// WHY THE CODE IS NOT CREATED HERE, since this is the obvious place: a buyer who
+	// clicks and never opens the site would cost a paid call to the processor, and
+	// the game server would need the bridge's secret and client certificate — in the
+	// one process that must not stall on the network and that faces the internet on
+	// the game port. webServer's GetMyCurrentPixCharge creates it instead.
+	//
+	// THE EXTERNAL REFERENCE COMES IN READY, and it is ours. It is born before this
+	// call because it is the idempotency anchor: if the answer is lost on the way, it
+	// is by that reference that the confirmation finds the SAME row instead of
+	// creating another. Calling twice with the same reference answers ALREADY_OPEN
+	// and does not create a second charge.
+	//
+	// Every refusal rides in the response enum and NOT as an error, because each one
+	// is a different sentence to the player: the item was sold to somebody else, you
+	// cannot buy from yourself, you already have a payment open. A transport error
+	// could only produce "it did not work".
+	OpenRmtCharge(ctx context.Context, in *OpenRmtChargeRequest, opts ...grpc.CallOption) (*OpenRmtChargeResponse, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
 	// marks the drained mailbox rows delivered/lost in the SAME transaction — the
 	// anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -535,6 +559,16 @@ func (c *accountServiceClient) ReconcileRmtEscrow(ctx context.Context, in *Recon
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReconcileRmtEscrowResponse)
 	err := c.cc.Invoke(ctx, AccountService_ReconcileRmtEscrow_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) OpenRmtCharge(ctx context.Context, in *OpenRmtChargeRequest, opts ...grpc.CallOption) (*OpenRmtChargeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OpenRmtChargeResponse)
+	err := c.cc.Invoke(ctx, AccountService_OpenRmtCharge_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1039,6 +1073,29 @@ type AccountServiceServer interface {
 	// but the item leaves and never comes back to the owner. See
 	// ListSoldEscrowSlots.
 	ReconcileRmtEscrow(context.Context, *ReconcileRmtEscrowRequest) (*ReconcileRmtEscrowResponse, error)
+	// OpenRmtCharge creates one buyer's payment attempt against a listing.
+	//
+	// It is called from the game, at the click on a real-money shelf, and it creates
+	// the row and NOTHING ELSE: no Pix code, no call to the payment processor. The
+	// code is born later, on the first read of the charge page on the site.
+	//
+	// WHY THE CODE IS NOT CREATED HERE, since this is the obvious place: a buyer who
+	// clicks and never opens the site would cost a paid call to the processor, and
+	// the game server would need the bridge's secret and client certificate — in the
+	// one process that must not stall on the network and that faces the internet on
+	// the game port. webServer's GetMyCurrentPixCharge creates it instead.
+	//
+	// THE EXTERNAL REFERENCE COMES IN READY, and it is ours. It is born before this
+	// call because it is the idempotency anchor: if the answer is lost on the way, it
+	// is by that reference that the confirmation finds the SAME row instead of
+	// creating another. Calling twice with the same reference answers ALREADY_OPEN
+	// and does not create a second charge.
+	//
+	// Every refusal rides in the response enum and NOT as an error, because each one
+	// is a different sentence to the player: the item was sold to somebody else, you
+	// cannot buy from yourself, you already have a payment open. A transport error
+	// could only produce "it did not work".
+	OpenRmtCharge(context.Context, *OpenRmtChargeRequest) (*OpenRmtChargeResponse, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
 	// marks the drained mailbox rows delivered/lost in the SAME transaction — the
 	// anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -1243,6 +1300,9 @@ func (UnimplementedAccountServiceServer) CloseRmtListings(context.Context, *Clos
 }
 func (UnimplementedAccountServiceServer) ReconcileRmtEscrow(context.Context, *ReconcileRmtEscrowRequest) (*ReconcileRmtEscrowResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReconcileRmtEscrow not implemented")
+}
+func (UnimplementedAccountServiceServer) OpenRmtCharge(context.Context, *OpenRmtChargeRequest) (*OpenRmtChargeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method OpenRmtCharge not implemented")
 }
 func (UnimplementedAccountServiceServer) SaveCargoWithDeliveries(context.Context, *SaveCargoWithDeliveriesRequest) (*SaveCargoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SaveCargoWithDeliveries not implemented")
@@ -1738,6 +1798,24 @@ func _AccountService_ReconcileRmtEscrow_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccountServiceServer).ReconcileRmtEscrow(ctx, req.(*ReconcileRmtEscrowRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_OpenRmtCharge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OpenRmtChargeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).OpenRmtCharge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_OpenRmtCharge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).OpenRmtCharge(ctx, req.(*OpenRmtChargeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2530,6 +2608,10 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReconcileRmtEscrow",
 			Handler:    _AccountService_ReconcileRmtEscrow_Handler,
+		},
+		{
+			MethodName: "OpenRmtCharge",
+			Handler:    _AccountService_OpenRmtCharge_Handler,
 		},
 		{
 			MethodName: "SaveCargoWithDeliveries",
