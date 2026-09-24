@@ -49,6 +49,15 @@ const (
 	// anúncio foi cancelado, ou a marca do escrow já tinha soltado. Vira dívida
 	// com uma pessoa, numa fila que alguém olha.
 	CobrancaPagaSemItem
+	// CobrancaValorDivergente: a processadora diz ter recebido um valor diferente
+	// do que a cobrança pedia.
+	//
+	// NÃO ENTREGA E NÃO FECHA A LINHA. Pagar menos e receber o item seria comprar
+	// com desconto de si mesmo; pagar mais e receber sem troco seria o contrário.
+	// Os dois pedem uma pessoa, e nenhum pede uma decisão automática — é por isso
+	// que a cobrança fica como está em vez de virar PAGA_SEM_ITEM, que já é um
+	// destino (reembolso) e este caso ainda não tem.
+	CobrancaValorDivergente
 )
 
 // Status de rmt_cobranca (0105).
@@ -101,8 +110,19 @@ type VendaRMT struct {
 // vendedor. Os dois são iguais enquanto a marca está lá — é para isso que ela
 // serve —, e ler a fotografia significa que o comprador não espera o vendedor
 // estar em jogo para receber.
+// OrigemDaHora diz de que relógio veio o instante do pagamento.
+type OrigemDaHora string
+
+const (
+	// HoraDaProcessadora: o paid_at que a consulta devolveu.
+	HoraDaProcessadora OrigemDaHora = "syncpay"
+	// HoraDoServidor: o instante em que a consulta VIU o pagamento, usado quando a
+	// processadora não deu a hora — a consulta caiu para a V1, que não a documenta.
+	HoraDoServidor OrigemDaHora = "servidor"
+)
+
 func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna string,
-	pagoEm time.Time,
+	pagoEm time.Time, origem OrigemDaHora, valorObservado int64,
 ) (ResultadoCobranca, VendaRMT, error) {
 	var res ResultadoCobranca
 	var venda VendaRMT
@@ -112,11 +132,13 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 		var entregaAtual *int64
 		var atrasoAtual bool
 		var expiraEm time.Time
+		var valorCobrado int64
 		err := tx.QueryRow(ctx, `
-			SELECT id, anuncio_id, comprador_conta, status, entrega_id, pago_com_atraso, expira_em
+			SELECT id, anuncio_id, comprador_conta, status, entrega_id, pago_com_atraso,
+			       expira_em, valor_centavos
 			  FROM rmt_cobranca WHERE referencia_externa = $1 FOR UPDATE`,
 			referenciaExterna).Scan(&venda.CobrancaID, &venda.AnuncioID, &venda.CompradorConta,
-			&statusCobranca, &entregaAtual, &atrasoAtual, &expiraEm)
+			&statusCobranca, &entregaAtual, &atrasoAtual, &expiraEm, &valorCobrado)
 		if errors.Is(err, pgx.ErrNoRows) {
 			res = CobrancaNaoEncontrada
 			return nil
@@ -160,6 +182,17 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 		// Relógio de fora contra relógio nosso é uma comparação imperfeita, e é a
 		// melhor disponível: a alternativa é o nosso relógio contra o momento em
 		// que a rede entregou o aviso, que é pior de todas as formas.
+		// O VALOR TEM DE BATER, e a conferência é aqui dentro porque é aqui que a
+		// linha está travada: ler o valor fora da transação e comparar depois
+		// deixaria a fresta em que ele muda no meio.
+		//
+		// Depois da idempotência, de propósito: um aviso repetido de uma cobrança
+		// já paga não é reconferido, porque o valor que importava já foi conferido
+		// quando ela foi paga.
+		if valorObservado > 0 && valorObservado != valorCobrado {
+			res = CobrancaValorDivergente
+			return nil
+		}
 		if pagoEm.IsZero() {
 			// Sem hora do pagamento não dá para decidir, e adivinhar aqui é
 			// decidir sobre o dinheiro de alguém no escuro. Quem chama trata como
@@ -203,9 +236,10 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 			// meio das normais. Este estado existe para ela NÃO sumir.
 			if _, err := tx.Exec(ctx, `
 				UPDATE rmt_cobranca
-				   SET status = $2, paga_em = $4, encerrada_em = now(), pago_com_atraso = $3
+				   SET status = $2, paga_em = $4, encerrada_em = now(), pago_com_atraso = $3,
+				       origem_da_hora = $5
 				 WHERE id = $1`, venda.CobrancaID, cobrancaPagaSemItem, venda.PagoComAtraso,
-				pagoEm); err != nil {
+				pagoEm, string(origem)); err != nil {
 				return fmt.Errorf("store: confirmar cobranca: marcando sem item %d: %w", venda.CobrancaID, err)
 			}
 			res = CobrancaPagaSemItem
@@ -227,10 +261,10 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 		if _, err := tx.Exec(ctx, `
 			UPDATE rmt_cobranca
 			   SET status = $2, paga_em = $5, encerrada_em = now(),
-			       entrega_id = $3, pago_com_atraso = $4
+			       entrega_id = $3, pago_com_atraso = $4, origem_da_hora = $6
 			 WHERE id = $1`,
 			venda.CobrancaID, cobrancaPaga, venda.EntregaID, venda.PagoComAtraso,
-			pagoEm); err != nil {
+			pagoEm, string(origem)); err != nil {
 			return fmt.Errorf("store: confirmar cobranca: marcando paga %d: %w", venda.CobrancaID, err)
 		}
 		// O anúncio sai da vitrine agora. A MARCA DO ESCROW FICA: ela é o que
