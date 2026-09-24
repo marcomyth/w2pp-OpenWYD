@@ -328,3 +328,83 @@ func TestRecusaDaPonteSeDistingueDaRecusaDaProcessadora(t *testing.T) {
 		t.Error("a fila nao trouxe as duas recusas")
 	}
 }
+
+// O INCERTO É TERMINAL PARA A MÁQUINA, e este teste é o que amarra isso.
+//
+// NADA o reenvia: nem a varredura que paga, nem um caminho de "tentar de novo". A única
+// saída é uma pessoa que foi olhar o painel da processadora e disse o que viu — porque
+// reenviar um pagamento que PODE ter saído é a única coisa deste sistema que não se
+// desfaz, e não existe consulta de saque para desempatar.
+func TestIncertoSoSaiPelaMaoDeUmaPessoa(t *testing.T) {
+	s, ctx := freshStore(t)
+
+	fazIncerto := func(sufixo string) int64 {
+		v := montaVenda(ctx, t, s, sufixo)
+		if err := s.SalvarChavePix(ctx, v.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
+			t.Fatal(err)
+		}
+		_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id := idDoRepasse(ctx, t, s, venda.CobrancaID)
+		if err := s.MarcarRepasseIncerto(ctx, id, "a resposta nao voltou"); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+
+	// NENHUMA transição automática pega num incerto. Se alguma pegasse, a linha
+	// voltaria para a fila de pagar e o vendedor receberia duas vezes.
+	travado := fazIncerto("incerto-travado")
+	if err := s.MarcarRepasseEnviado(ctx, travado, "saque-x", precoEmCentavos); err == nil {
+		t.Error("um incerto foi reenviado; o vendedor poderia receber duas vezes")
+	}
+	if err := s.MarcarRepasseRecusado(ctx, travado, nil, "", "x"); err == nil {
+		t.Error("um incerto virou recusado sem ninguem ter olhado")
+	}
+	if err := s.MarcarRepassePago(ctx, "saque-x", precoEmCentavos); err == nil {
+		t.Error("um aviso de saque fechou um incerto que nao tem id de saque")
+	}
+
+	// A pessoa olhou e viu que PAGOU: a linha fecha, com o nome de quem disse.
+	pago := fazIncerto("incerto-pago")
+	if err := s.ResolverIncertoComoPago(ctx, pago, AtorDoRepasse{Nome: "hanna"}, precoEmCentavos-100); err != nil {
+		t.Fatalf("resolvendo como pago: %v", err)
+	}
+	var status int16
+	var por string
+	if err := s.pool.QueryRow(ctx,
+		`SELECT status, coalesce(resolvido_por, '') FROM rmt_repasse WHERE id = $1`, pago).
+		Scan(&status, &por); err != nil {
+		t.Fatal(err)
+	}
+	if status != repassePago || por != "hanna" {
+		t.Errorf("status = %d resolvido_por = %q", status, por)
+	}
+
+	// A pessoa olhou e viu que NÃO pagou: a dívida volta para a fila, e só por aqui.
+	naoPago := fazIncerto("incerto-nao-pago")
+	if err := s.ResolverIncertoComoNaoPago(ctx, naoPago, AtorDoRepasse{Nome: "hanna"}, "nao saiu"); err != nil {
+		t.Fatalf("resolvendo como nao pago: %v", err)
+	}
+	fila, err := s.RepassesAPagar(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var voltou bool
+	for _, r := range fila {
+		if r.ID == naoPago {
+			voltou = true
+		}
+	}
+	if !voltou {
+		t.Error("a divida conferida como nao paga nao voltou para a fila de pagar")
+	}
+	// E a que foi conferida como PAGA não voltou junto.
+	for _, r := range fila {
+		if r.ID == pago {
+			t.Error("a divida ja paga voltou para a fila: seria paga duas vezes")
+		}
+	}
+}

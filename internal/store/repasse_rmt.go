@@ -242,3 +242,60 @@ func (s *Store) RepassesQuePrecisamDeGente(ctx context.Context) ([]RepasseNaFila
 	}
 	return fila, rows.Err()
 }
+
+// AtorDoRepasse é quem, da staff, resolveu uma linha à mão.
+type AtorDoRepasse struct {
+	Nome string
+}
+
+// ResolverIncertoComoPago é a staff dizendo, depois de olhar o painel da processadora,
+// que o dinheiro SAIU.
+//
+// SÓ SAI DE INCERTO, e é por isso que ela existe separada das outras transições: o
+// incerto é TERMINAL PARA A MÁQUINA. Nada o reenvia — nem a varredura, nem um botão de
+// "tentar de novo" —, porque reenviar um pagamento que pode ter saído é a única coisa
+// deste sistema que não se desfaz. A única saída é uma pessoa que foi olhar.
+//
+// Quem resolveu fica gravado. Numa disputa, a pergunta é "quem disse que pagou, e
+// quando", e um estado que muda sem dono não responde.
+func (s *Store) ResolverIncertoComoPago(ctx context.Context, id int64, ator AtorDoRepasse, chegouCentavos int64) error {
+	return s.mudaRepasse(ctx, id, `
+		UPDATE rmt_repasse
+		   SET status = $2, chegou_centavos = $3, pago_em = now(),
+		       resolvido_em = now(), resolvido_por = $4
+		 WHERE id = $1 AND status = $5`,
+		id, repassePago, chegouCentavos, ator.Nome, repasseIncerto)
+}
+
+// ResolverIncertoComoNaoPago é a staff dizendo que o dinheiro NÃO saiu, e que a dívida
+// continua de pé.
+//
+// Volta para PENDENTE de propósito, e essa é a diferença entre esta função e a de cima:
+// aqui a pessoa CONFERIU que nada saiu, então reenviar deixa de ser perigoso e vira a
+// coisa certa. É a única porta de volta para a fila de pagar.
+//
+// A referência da ponte, porém, ficou travada para sempre naquele incerto. Quem
+// reenviar terá de usar outra, e é por isso que este caminho registra o motivo: sem ele,
+// o reenvio seguinte pareceria uma cobrança nova sem explicação.
+func (s *Store) ResolverIncertoComoNaoPago(ctx context.Context, id int64, ator AtorDoRepasse, nota string) error {
+	return s.mudaRepasse(ctx, id, `
+		UPDATE rmt_repasse
+		   SET status = $2, recusa_texto = $3, resolvido_em = now(), resolvido_por = $4,
+		       enviado_em = NULL
+		 WHERE id = $1 AND status = $5`,
+		id, repassePendente, nota, ator.Nome, repasseIncerto)
+}
+
+// ResolverRecusa tira da fila uma recusa que uma pessoa já tratou.
+//
+// Volta para PENDENTE porque a recusa tem CERTEZA de que nada saiu — é o único estado
+// de falha em que tentar de novo é seguro. O caso comum é o vendedor ter corrigido a
+// chave, ou a trava do saque ter sido ligada.
+func (s *Store) ResolverRecusa(ctx context.Context, id int64, ator AtorDoRepasse) error {
+	return s.mudaRepasse(ctx, id, `
+		UPDATE rmt_repasse
+		   SET status = $2, resolvido_em = now(), resolvido_por = $3,
+		       recusa_http = NULL, recusa_codigo = NULL, recusa_texto = NULL
+		 WHERE id = $1 AND status = $4`,
+		id, repassePendente, ator.Nome, repasseRecusado)
+}
