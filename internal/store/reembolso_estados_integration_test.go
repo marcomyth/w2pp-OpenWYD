@@ -54,6 +54,23 @@ func TestAsTransicoesProibidasDoReembolso(t *testing.T) {
 		{"recusar o que ja concluiu", reembolsoConcluido, func(ctx context.Context, id int64) error {
 			return s.MarcarReembolsoRecusado(ctx, id, "resposta atrasada")
 		}, "CONCLUIDO E TERMINAL: o dinheiro voltou, e isso nao se desfaz por uma mensagem atrasada"},
+		// O INCERTO SO NASCE DO PENDENTE, e as tres linhas abaixo sao a metade que
+		// faltava: ate aqui o teste provava que nada SAI do incerto, e nao que nada
+		// ENTRA nele indevidamente.
+		//
+		// O buraco que elas fecham e o mesmo de sempre, a resposta atrasada: um
+		// incerto chegando sobre um PEDIDO apagaria a data de que a pagina do
+		// comprador conta os dois dias uteis, e sobre um CONCLUIDO diria que talvez
+		// nao tenhamos devolvido um dinheiro que ja voltou.
+		{"incerto sobre um pedido", reembolsoPedido, func(ctx context.Context, id int64) error {
+			return s.MarcarReembolsoIncerto(ctx, id, "resposta atrasada")
+		}, "apagaria a data de que a pagina conta os dois dias uteis"},
+		{"incerto sobre um concluido", reembolsoConcluido, func(ctx context.Context, id int64) error {
+			return s.MarcarReembolsoIncerto(ctx, id, "resposta atrasada")
+		}, "diria 'talvez nao tenhamos devolvido' sobre dinheiro que ja voltou"},
+		{"incerto sobre um recusado", reembolsoRecusado, func(ctx context.Context, id int64) error {
+			return s.MarcarReembolsoIncerto(ctx, id, "resposta atrasada")
+		}, "o recusado e certeza de que nada saiu; incerto por cima dele perde essa certeza"},
 	}
 
 	for _, c := range casos {
@@ -100,6 +117,12 @@ func TestAsTransicoesPermitidasDoReembolso(t *testing.T) {
 		if err := s.MarcarReembolsoRecusado(ctx, cobranca, "403"); err != nil {
 			t.Errorf("%d -> recusado: %v", de, err)
 		}
+	}
+
+	// E o incerto a partir do pendente, que e o unico lugar de onde a varredura pede.
+	poeEstado(ctx, t, s, cobranca, reembolsoPendente)
+	if err := s.MarcarReembolsoIncerto(ctx, cobranca, "a chamada nao voltou"); err != nil {
+		t.Errorf("pendente -> incerto: %v", err)
 	}
 }
 

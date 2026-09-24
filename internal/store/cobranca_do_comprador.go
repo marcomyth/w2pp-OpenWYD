@@ -103,6 +103,14 @@ const (
 	// ReembolsoRecusado: a processadora recusou. NÃO se tenta de novo em laço e
 	// NÃO sai da página sozinho — espera uma pessoa.
 	ReembolsoRecusado
+	// ReembolsoIncerto: o pedido saiu e a resposta não voltou. PODE TER SIDO
+	// CRIADO (0126).
+	//
+	// Nunca se pede de novo daqui, e é por isso que ele é um estado e não um erro:
+	// dois pedidos sobre o mesmo dinheiro devolveriam o dobro ao comprador, e o
+	// dobro sai da conta da Hanna. Não há consulta de reembolso na ponte para
+	// desempatar — só uma pessoa olhando o painel da processadora.
+	ReembolsoIncerto
 )
 
 // CobrancaAtualDoComprador devolve a cobrança desta conta como COMPRADORA: a
@@ -268,4 +276,5 @@ const (
 	reembolsoPedido    int16 = 2
 	reembolsoConcluido int16 = 3
 	reembolsoRecusado  int16 = 4
+	reembolsoIncerto   int16 = 5
 )

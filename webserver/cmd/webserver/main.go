@@ -51,6 +51,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ranking"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/rmtpagamento"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/rmtrepasse"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/rmtvarredura"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/worldevent"
 )
 
@@ -343,10 +344,23 @@ func run(logger *slog.Logger) error {
 		repasses := rmtrepasse.Novo(clientePonte, st, logger)
 		go varrerRepasses(ctx, repasses, logger)
 		logger.Info("repasse ao vendedor ligado", "intervalo", intervaloDoRepasse)
+
+		// NADA VENCE SEM PERGUNTAR, e o que entrou fora do prazo volta.
+		//
+		// Esta varredura mora aqui e não no dbserver porque as duas coisas que ela faz
+		// falam com a ponte, e as credenciais são deste processo. Enquanto ela não
+		// existia, a varredura do dbserver vencia a cobrança sem consultar ninguém — e
+		// um Pix pago no último segundo, com o aviso atrasado, virava pagamento sem
+		// item.
+		varredura := rmtvarredura.Nova(rmtvarredura.DoPagamento{Servico: pagamentos},
+			clientePonte, st, logger)
+		go varrerCobrancas(ctx, varredura)
+		logger.Info("conferencia antes de vencer ligada", "intervalo", intervaloDaConferencia)
 		logger.Info("caminho do pagamento em dinheiro real ligado")
 	} else {
 		logger.Warn("caminho do pagamento em dinheiro real DESLIGADO: sem a ponte, " +
-			"a página da cobrança não gera código e nenhum aviso é processado")
+			"a página da cobrança não gera código e nenhum aviso é processado; " +
+			"as cobranças com código NÃO vencem sozinhas e os reembolsos não são pedidos")
 	}
 
 	webv1.RegisterAccountWebServiceServer(srv, grpcsrv.New(account.New(st)))
@@ -428,6 +442,72 @@ func nomeDeItem(c itemcatalog.Catalog) grpcsrv.NomeDeItem {
 // ande sozinha, e não que ande rápido — uma varredura curta multiplicaria as chances de
 // duas rodadas se cruzarem sem comprar nada em troca.
 const intervaloDoRepasse = 2 * time.Minute
+
+// intervaloDaConferencia é de quanto em quanto tempo as cobranças abertas são
+// conferidas na processadora.
+//
+// CURTO, ao contrário do repasse, e por dois motivos que puxam para o mesmo lado. O
+// atraso desta varredura entra inteiro no tempo que o item do vendedor fica preso além
+// do prazo, porque agora é ela que vence as cobranças com código. E ela é também o
+// polling: o comprador que pagou e cujo aviso não chegou espera exatamente um
+// intervalo destes para receber.
+//
+// Vinte segundos contra uma janela de cinco minutos é um vigésimo quinto da janela, e
+// o custo é uma consulta por cobrança aberta — que são poucas por construção, uma por
+// anúncio.
+const intervaloDaConferencia = 20 * time.Second
+
+// intervaloDasMortas é de quanto em quanto tempo as cobranças JÁ VENCIDAS são
+// conferidas.
+//
+// RARO, porque aqui ninguém está esperando na frente de uma tela: o dinheiro que
+// entra numa cobrança morta vai ser devolvido de qualquer jeito, e cinco minutos a
+// mais no caminho não mudam nada para ninguém. O que não pode é NUNCA perguntar — aí
+// o pagamento não vira linha nenhuma.
+const intervaloDasMortas = 5 * time.Minute
+
+// varrerCobrancas confere as abertas e pede as devoluções devidas, até o servidor
+// parar.
+//
+// Numa goroutine só, pelo mesmo motivo do repasse: é a trava mais simples contra duas
+// rodadas se cruzarem. As duas passadas são sequenciais de propósito — a conferência é
+// que produz os reembolsos pendentes, então pedir logo depois de conferir faz a
+// devolução sair na mesma rodada em que a dívida nasceu.
+func varrerCobrancas(ctx context.Context, v *rmtvarredura.Varredura) {
+	t := time.NewTicker(intervaloDaConferencia)
+	defer t.Stop()
+	// As mortas num relógio próprio, e as duas no MESMO select: uma goroutine só
+	// continua sendo a trava mais simples contra duas rodadas se cruzarem.
+	mortas := time.NewTicker(intervaloDasMortas)
+	defer mortas.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			// Prazo por rodada: uma ponte lenta não pode segurar a varredura para
+			// sempre, e a rodada seguinte pega o que sobrou.
+			prazo, cancela := context.WithTimeout(ctx, intervaloDaConferencia)
+			// Em passos e não aninhado: a ordem importa — a conferência é que produz
+			// os reembolsos pendentes que o Devolver pede — e ordem que depende da
+			// avaliação dos argumentos de uma chamada é ordem que ninguém lê.
+			conferencia := v.Conferir(prazo)
+			reembolsos := v.Devolver(prazo)
+			v.Registrar(prazo, conferencia, reembolsos)
+			cancela()
+		case <-mortas.C:
+			// O pagamento que chega depois do prazo: o código Pix continua pagável, e
+			// sem esta passada um aviso perdido faria o dinheiro entrar sem virar
+			// linha nenhuma. Devolver logo em seguida, pelo mesmo motivo de cima — é a
+			// conferência que produz a devolução a pedir.
+			prazo, cancela := context.WithTimeout(ctx, intervaloDasMortas)
+			conferencia := v.ConferirMortas(prazo)
+			reembolsos := v.Devolver(prazo)
+			v.Registrar(prazo, conferencia, reembolsos)
+			cancela()
+		}
+	}
+}
 
 // varrerRepasses paga a fila de tempos em tempos, até o servidor parar.
 //
