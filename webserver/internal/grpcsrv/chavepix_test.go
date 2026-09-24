@@ -24,6 +24,26 @@ type fakePix struct {
 	cobranca     store.CobrancaDoComprador
 	erroCobranca error
 	janelaPedida time.Duration
+
+	// Criação tardia do Pix.
+	pixCriado      store.PixDaCobranca
+	erroCriarPix   error
+	criarChamadas  int
+	minimoPedido   time.Duration
+	cobrancaPedida int64
+}
+
+// CriarPixSeFaltar finge o store. NÃO chama o `criar` recebido: o que esta fake
+// existe para observar é se o HANDLER pediu a criação, e em que condições. Quem
+// prova que a chamada à ponte sai uma vez só é o teste de integração do store, que
+// é onde a trava mora.
+func (f *fakePix) CriarPixSeFaltar(_ context.Context, cobrancaID int64,
+	minimo time.Duration, _ store.CriadorDePix,
+) (store.PixDaCobranca, error) {
+	f.criarChamadas++
+	f.cobrancaPedida = cobrancaID
+	f.minimoPedido = minimo
+	return f.pixCriado, f.erroCriarPix
 }
 
 func (f *fakePix) SalvarChavePix(_ context.Context, _ int64, chave string, tipo store.TipoChavePix) error {

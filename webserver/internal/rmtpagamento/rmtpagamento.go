@@ -129,7 +129,14 @@ type Resultado struct {
 	CobrancaID int64
 }
 
-// AvisoDeEntrada processa um aviso de dinheiro ENTRANDO.
+// ConferirEConcluir pergunta à processadora o que houve com um pagamento e conclui
+// a venda, se for o caso.
+//
+// UM LUGAR SÓ, E É DE PROPÓSITO QUE O NOME NÃO FALA DE AVISO. Dois caminhos
+// diferentes chegam aqui e têm de decidir igual: o aviso que o site repassa, e a
+// varredura das cobranças abertas. Se cada um tivesse a sua versão da regra, as duas
+// divergiriam no dia em que só uma fosse corrigida — e a regra em questão é a que
+// decide se um item sai do baú de alguém.
 //
 // A ORDEM É DELIBERADA, e cada passo só existe porque o anterior não basta:
 //
@@ -143,11 +150,11 @@ type Resultado struct {
 //  4. CONFIRMA NO BANCO. É aí que a venda acontece, numa transação, idempotente, e
 //     é o banco que compara o valor.
 //  5. ENTREGA AGORA, se der. Cortesia: falhar aqui não desfaz nada.
-func (s *Servico) AvisoDeEntrada(ctx context.Context, identifier string) (Resultado, error) {
+func (s *Servico) ConferirEConcluir(ctx context.Context, identifier string) (Resultado, error) {
 	if strings.TrimSpace(identifier) == "" {
 		// Aviso sem identifier não dá nem para perguntar. Não é nosso e não há o
 		// que registrar: sem o id deles, ninguém acha o pagamento lá.
-		s.log.Warn("rmt: aviso de entrada sem identifier")
+		s.log.Warn("rmt: pedido de conferencia sem identifier")
 		return Resultado{}, nil
 	}
 
