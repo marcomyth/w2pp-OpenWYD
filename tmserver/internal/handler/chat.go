@@ -261,6 +261,10 @@ func (d *Dispatcher) runCommand(w *world.World, s *world.Session, name string, a
 		d.leaveGuild(w, s)
 		return true
 	}
+	if cmd == "tirarcidadania" {
+		d.tirarCidadania(w, s)
+		return true
+	}
 	if cmd == "time" {
 		d.showTime(w, s)
 		return true
