@@ -817,6 +817,10 @@ func run(logger *slog.Logger) error {
 		// problema é valor diferente — sem nenhum dos dois logs conter o valor.
 		logger.Info("api de controle: token exigido",
 			"token", secret.Impressao(os.Getenv("W2PP_CONTROL_TOKEN")))
+		if secret.TokenFraco(os.Getenv("W2PP_CONTROL_TOKEN")) {
+			logger.Warn("o token de controle e CURTO; troque por um aleatorio de 32 bytes ou mais",
+				"minimo", secret.TamanhoMinimoDoToken)
+		}
 		ctl, cerr := control.NewServer(w, os.Getenv("W2PP_CONTROL_TOKEN"), logger, dispatch.Teleport,
 			// What the panel cannot see from the database: whether this server
 			// was booted to read the moderator overlays at all.

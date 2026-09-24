@@ -338,6 +338,7 @@ func run(logger *slog.Logger) error {
 				// a recusa não diz qual dos dois está errado — ver secret.Impressao.
 				logger.Info("link com o servidor de jogo ligado para a entrega imediata",
 					"addr", addr, "token", secret.Impressao(token))
+				avisaTokenFraco(logger, token)
 			}
 		}
 	} else {
@@ -633,5 +634,17 @@ func varrerRepasses(ctx context.Context, s *rmtrepasse.Servico, log *slog.Logger
 			s.PagarPendentes(prazo, 20).Registrar(log)
 			cancela()
 		}
+	}
+}
+
+// avisaTokenFraco fala quando o segredo de controle é curto demais.
+//
+// AVISO E NÃO ERRO: um token curto funciona, e derrubar o servidor por causa dele
+// trocaria um risco por uma parada. O que não pode é passar calado — a impressão do
+// token já foi para o log, e é justamente o token fraco que ela ajuda a adivinhar.
+func avisaTokenFraco(log *slog.Logger, token string) {
+	if secret.TokenFraco(token) {
+		log.Warn("o token de controle e CURTO; troque por um aleatorio de 32 bytes ou mais",
+			"minimo", secret.TamanhoMinimoDoToken)
 	}
 }

@@ -175,6 +175,10 @@ func run(logger *slog.Logger) error {
 		cliente := jogo.New(conn, token)
 		live, blocos = cliente, cliente
 		logger.Info("live game link enabled", "addr", *jogoAddr, "token", secret.Impressao(token))
+		if secret.TokenFraco(token) {
+			logger.Warn("o token de controle e CURTO; troque por um aleatorio de 32 bytes ou mais",
+				"minimo", secret.TamanhoMinimoDoToken)
+		}
 	} else {
 		logger.Info("live game pages disabled",
 			"configuration", "W2PP_TMSERVER_CONTROL + W2PP_CONTROL_TOKEN")

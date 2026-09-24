@@ -20,6 +20,15 @@ import (
 // para o texto original: a entrada tem entropia de token e oito hex são 32 bits de
 // uma função que ninguém inverte.
 //
+// E ISSO SÓ É INOFENSIVO PORQUE O TOKEN É LONGO E ALEATÓRIO. Oito hex de um SHA-256
+// num log são um jeito de CONFERIR PALPITES: com um token curto ou adivinhável,
+// quem leia o log pode testar candidatos fora do servidor até achar o que dá o mesmo
+// sha8. Com 32 bytes aleatórios não há lista de candidatos para testar.
+//
+// Por isso existe o TokenFraco logo abaixo, e por isso os serviços avisam no boot
+// quando o token é curto: a impressão é segura enquanto o segredo for um segredo de
+// verdade.
+//
 // E ELA DENUNCIA A REFERÊNCIA NÃO RESOLVIDA, que é o erro mais comum de todos numa
 // plataforma que monta variável a partir de outra: um valor que ainda começa com
 // "${{" não é um token, é o TEXTO de um token que ninguém substituiu. Isso não é
@@ -40,4 +49,21 @@ func Impressao(valor string) string {
 		impressao += " ATENCAO: tem espaco ou quebra de linha nas pontas"
 	}
 	return impressao
+}
+
+// TamanhoMinimoDoToken é o que um segredo de controle precisa ter.
+//
+// Trinta e dois bytes aleatórios. Não é número redondo por gosto: é o tamanho a
+// partir do qual não existe lista de candidatos que alguém possa testar contra o
+// sha8 que o log mostra.
+const TamanhoMinimoDoToken = 32
+
+// TokenFraco diz se este segredo é curto demais para ter a impressão publicada.
+//
+// Quem chama registra isso como AVISO e não como erro: um token curto FUNCIONA, e
+// derrubar o servidor por causa dele trocaria um risco por uma parada. O que não pode
+// é passar calado — porque o log com o sha8 já foi escrito, e é justamente o token
+// fraco que ele ajuda a adivinhar.
+func TokenFraco(valor string) bool {
+	return valor != "" && len(valor) < TamanhoMinimoDoToken
 }

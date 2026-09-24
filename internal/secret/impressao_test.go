@@ -68,3 +68,23 @@ func TestOVazio(t *testing.T) {
 		t.Errorf("Impressao(\"\") = %q", Impressao(""))
 	}
 }
+
+// O TOKEN CURTO É DENUNCIADO, porque é justamente com ele que a impressão no log
+// deixa de ser inofensiva: oito hex viram um jeito de conferir palpites, e um segredo
+// curto tem lista de candidatos.
+func TestTokenFraco(t *testing.T) {
+	if !TokenFraco("curtinho") {
+		t.Error("oito caracteres passaram como token forte")
+	}
+	if !TokenFraco(strings.Repeat("a", TamanhoMinimoDoToken-1)) {
+		t.Error("um byte abaixo do minimo passou")
+	}
+	if TokenFraco(strings.Repeat("a", TamanhoMinimoDoToken)) {
+		t.Error("o minimo foi reprovado")
+	}
+	// O vazio não é "fraco": ele é AUSENTE, e quem trata disso é outro caminho — os
+	// serviços já recusam ligar o link sem token.
+	if TokenFraco("") {
+		t.Error("o vazio foi chamado de fraco em vez de ausente")
+	}
+}
