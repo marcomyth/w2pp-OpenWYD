@@ -18,7 +18,8 @@ import (
 // Interface e não o store concreto pelo mesmo motivo do resto do pacote: o
 // servidor fica testável sem banco.
 type ChavesPix interface {
-	SalvarChavePix(ctx context.Context, accountID int64, chave string, tipo store.TipoChavePix) error
+	SalvarChavePix(ctx context.Context, accountID int64, chave string,
+		tipo store.TipoChavePix, documento string) error
 	LerChavePix(ctx context.Context, accountID int64) (store.RecebedorPix, error)
 	// CobrancaAtualDoComprador é a única leitura feita para quem PAGA: a cobrança
 	// aberta da conta, ou a que fechou há pouco. Ver store/cobranca_do_comprador.go.
@@ -128,12 +129,18 @@ func (s *ServerRmt) descricaoDaCobranca(cob store.CobrancaDoComprador) string {
 // vira erro, que é a mesma divisão que o CreateAccount faz: o formulário precisa
 // saber O QUE dizer à pessoa, e um código de erro de transporte não diz.
 func (s *ServerRmt) SavePixKey(ctx context.Context, req *webv1.SavePixKeyRequest) (*webv1.SavePixKeyResponse, error) {
-	err := s.pix.SalvarChavePix(ctx, req.GetAccountId(), req.GetKey(), tipoDoProto(req.GetType()))
+	err := s.pix.SalvarChavePix(ctx, req.GetAccountId(), req.GetKey(),
+		tipoDoProto(req.GetType()), req.GetTaxId())
 	switch {
 	case err == nil:
 		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_OK}, nil
 	case errors.Is(err, store.ErrChavePixInvalida):
 		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_INVALID}, nil
+	case errors.Is(err, store.ErrDocumentoInvalido):
+		// CÓDIGO PRÓPRIO, e não o INVALID genérico: o formulário tem dois campos, e
+		// dizer só "inválido" faria a pessoa corrigir a chave, que estava certa. O
+		// contrato já previa este valor; o servidor é que nunca o produzia.
+		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_INVALID_TAX_ID}, nil
 	case errors.Is(err, store.ErrVendaEmCurso):
 		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_SALE_IN_PROGRESS}, nil
 	case errors.Is(err, store.ErrNotFound):
@@ -153,10 +160,11 @@ func (s *ServerRmt) GetPixKey(ctx context.Context, req *webv1.GetPixKeyRequest) 
 		return nil, status.Errorf(codes.Internal, "get pix key: %v", err)
 	}
 	return &webv1.GetPixKeyResponse{
-		HasKey:    r.TemChave,
-		MaskedKey: r.ChaveMascarada,
-		Type:      tipoParaProto(r.Tipo),
-		Verified:  r.Verificada,
+		HasKey:      r.TemChave,
+		MaskedKey:   r.ChaveMascarada,
+		Type:        tipoParaProto(r.Tipo),
+		Verified:    r.Verificada,
+		MaskedTaxId: r.DocumentoMascarado,
 	}, nil
 }
 

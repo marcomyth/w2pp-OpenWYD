@@ -48,7 +48,7 @@ func TestCobrancaAbertaChegaComAFotografia(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_leitura")
 	comprador := contaPix(ctx, t, s, "comprador_leitura")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	personagemDe(ctx, t, s, vendedor, 0, "Mercador")
@@ -105,7 +105,7 @@ func TestONomeEODoPersonagemQueMontouABarraca(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_dois_chars")
 	comprador := contaPix(ctx, t, s, "comprador_dois_chars")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	personagemDe(ctx, t, s, vendedor, 0, "PrimeiroSlot")
@@ -155,7 +155,7 @@ func TestNaoVeACobrancaDeOutroComprador(t *testing.T) {
 	vendedor := contaPix(ctx, t, s, "vendedor_privado")
 	dono := contaPix(ctx, t, s, "comprador_dono")
 	bisbilhoteiro := contaPix(ctx, t, s, "comprador_curioso")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
@@ -183,7 +183,7 @@ func TestPrazoVencidoJaViraExpiradaEEsconderCodigo(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_vencido")
 	comprador := contaPix(ctx, t, s, "comprador_vencido")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
@@ -226,7 +226,7 @@ func TestCobrancaRecemFechadaAparecePorAlgunsMinutos(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_recente")
 	comprador := contaPix(ctx, t, s, "comprador_recente")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
@@ -274,7 +274,7 @@ func TestEntreDuasFechadasGanhaAMaisNova(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_duas")
 	comprador := contaPix(ctx, t, s, "comprador_duas")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
@@ -318,7 +318,7 @@ func TestAnuncioSemNomeNaFotografiaNaoDerrubaALeitura(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_sem_char")
 	comprador := contaPix(ctx, t, s, "comprador_sem_char")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioComFoto(ctx, t, s, vendedor, "", 0, 0, 1)
@@ -387,7 +387,7 @@ func TestPagamentoAtrasadoNaoEnvelheceEnquantoOReembolsoNaoTermina(t *testing.T)
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_atrasado")
 	comprador := contaPix(ctx, t, s, "comprador_atrasado")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	cobrancaPagaSemItemDe(ctx, t, s, vendedor, comprador, "ref-atrasado", reembolsoPedido)
@@ -417,7 +417,7 @@ func TestReembolsoRecusadoNaoSaiDaPagina(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_recusado")
 	comprador := contaPix(ctx, t, s, "comprador_recusado")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	cobrancaPagaSemItemDe(ctx, t, s, vendedor, comprador, "ref-recusado", reembolsoRecusado)
@@ -437,7 +437,7 @@ func TestReembolsoConcluidoEnvelheceNormalmente(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_concluido")
 	comprador := contaPix(ctx, t, s, "comprador_concluido")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	cobrancaPagaSemItemDe(ctx, t, s, vendedor, comprador, "ref-concluido", reembolsoConcluido)
@@ -461,7 +461,7 @@ func TestAbertaTemPrecedenciaEOAtrasadoVolta(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_fila")
 	comprador := contaPix(ctx, t, s, "comprador_fila")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	// O ATRASADO É O MAIS NOVO, de propósito: uma ordenação só por data escolheria

@@ -121,6 +121,10 @@ type RecebedorPix struct {
 	ChaveMascarada string
 	Tipo           TipoChavePix
 	Verificada     bool
+	// DocumentoMascarado sai pelo mesmo motivo da chave: só a máscara atravessa esta
+	// camada. Vazio quando não há documento, que é o caso de todo vendedor cadastrado
+	// antes de a coluna existir.
+	DocumentoMascarado string
 }
 
 // SalvarChavePix grava a chave de recebimento da conta.
@@ -135,11 +139,27 @@ type RecebedorPix struct {
 // A leitura das cobranças e a gravação acontecem na MESMA transação, com a linha
 // do recebedor travada: sem isso, uma cobrança aberta entre a conferência e o
 // UPDATE passaria pelo meio das duas.
-func (s *Store) SalvarChavePix(ctx context.Context, accountID int64, chave string, tipo TipoChavePix) error {
+func (s *Store) SalvarChavePix(ctx context.Context, accountID int64, chave string,
+	tipo TipoChavePix, documento string,
+) error {
 	if err := validaChavePix(chave, tipo); err != nil {
 		return err
 	}
 	chave = strings.TrimSpace(chave)
+
+	// O DOCUMENTO É OBRIGATÓRIO, e recusar aqui é o que impede a conta de chegar ao
+	// dia do repasse sem ele. A ponte exige documento; sem ele o dinheiro do vendedor
+	// fica parado sem caminho de saída, e a pessoa descobre isso no pior momento —
+	// depois de ter vendido.
+	//
+	// Ele é exigido inclusive quando a chave NÃO é CPF. Não é para provar que a chave
+	// é dela: para e-mail, telefone ou chave aleatória a processadora não diz de quem
+	// é a chave, e guardar o CPF não fecha essa regra. É porque a rota de repasse
+	// pede documento de qualquer jeito.
+	doc, err := NormalizaDocumento(documento)
+	if err != nil {
+		return err
+	}
 
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		var existe bool
@@ -176,12 +196,13 @@ func (s *Store) SalvarChavePix(ctx context.Context, accountID int64, chave strin
 		// verificada. Deixar a marca de pé seria dizer que conferimos o que não
 		// conferimos.
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO rmt_recebedor (account_id, chave, tipo, verificada_em, updated_at)
-			VALUES ($1, $2, $3, NULL, now())
+			INSERT INTO rmt_recebedor (account_id, chave, tipo, documento, verificada_em, updated_at)
+			VALUES ($1, $2, $3, $4, NULL, now())
 			ON CONFLICT (account_id) DO UPDATE
 			   SET chave = EXCLUDED.chave, tipo = EXCLUDED.tipo,
+			       documento = EXCLUDED.documento,
 			       verificada_em = NULL, updated_at = now()`,
-			accountID, chave, int16(tipo)); err != nil {
+			accountID, chave, int16(tipo), doc); err != nil {
 			return fmt.Errorf("store: chave pix: gravando a=%d: %w", accountID, err)
 		}
 
@@ -213,20 +234,25 @@ func (s *Store) LerChavePix(ctx context.Context, accountID int64) (RecebedorPix,
 	var chave string
 	var tipo int16
 	var verificada bool
+	var documento string
 	err := s.pool.QueryRow(ctx, `
-		SELECT chave, tipo, verificada_em IS NOT NULL
-		  FROM rmt_recebedor WHERE account_id = $1`, accountID).Scan(&chave, &tipo, &verificada)
+		SELECT chave, tipo, coalesce(documento, ''), verificada_em IS NOT NULL
+		  FROM rmt_recebedor WHERE account_id = $1`, accountID).
+		Scan(&chave, &tipo, &documento, &verificada)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return RecebedorPix{}, nil
+		return RecebedorPix{
+			DocumentoMascarado: MascaraDocumento(documento)}, nil
 	}
 	if err != nil {
-		return RecebedorPix{}, fmt.Errorf("store: chave pix: lendo a=%d: %w", accountID, err)
+		return RecebedorPix{
+			DocumentoMascarado: MascaraDocumento(documento)}, fmt.Errorf("store: chave pix: lendo a=%d: %w", accountID, err)
 	}
 	return RecebedorPix{
-		TemChave:       true,
-		ChaveMascarada: MascaraChavePix(chave, TipoChavePix(tipo)),
-		Tipo:           TipoChavePix(tipo),
-		Verificada:     verificada,
+		DocumentoMascarado: MascaraDocumento(documento),
+		TemChave:           true,
+		ChaveMascarada:     MascaraChavePix(chave, TipoChavePix(tipo)),
+		Tipo:               TipoChavePix(tipo),
+		Verificada:         verificada,
 	}, nil
 }
 

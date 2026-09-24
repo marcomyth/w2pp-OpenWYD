@@ -39,7 +39,7 @@ func TestAbrirAnunciosRecusaSemChavePix(t *testing.T) {
 func TestAbrirAnunciosGravaAFotografia(t *testing.T) {
 	s, ctx := freshStore(t)
 	conta := contaPix(ctx, t, s, "com_chave")
-	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -83,7 +83,7 @@ func TestAbrirAnunciosGravaAFotografia(t *testing.T) {
 func TestAbrirAnunciosENenhumSeUmFalhar(t *testing.T) {
 	s, ctx := freshStore(t)
 	conta := contaPix(ctx, t, s, "meio_caminho")
-	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	itens := doisItens()
@@ -105,7 +105,7 @@ func TestAbrirAnunciosENenhumSeUmFalhar(t *testing.T) {
 func TestCancelarSoFechaOQueEstaAtivo(t *testing.T) {
 	s, ctx := freshStore(t)
 	conta := contaPix(ctx, t, s, "cancelar")
-	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	ids, err := s.AbrirAnunciosRMT(ctx, conta, "Vendedor", doisItens())
@@ -142,7 +142,7 @@ func TestCancelarSoFechaOQueEstaAtivo(t *testing.T) {
 func TestDoisAtivosNoMesmoSlotNaoEntram(t *testing.T) {
 	s, ctx := freshStore(t)
 	conta := contaPix(ctx, t, s, "slot_dobrado")
-	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.AbrirAnunciosRMT(ctx, conta, "Vendedor", doisItens()[:1]); err != nil {
