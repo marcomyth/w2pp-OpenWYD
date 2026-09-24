@@ -1,0 +1,22 @@
+-- 0116_uma_cobranca_por_comprador — uma cobrança aberta por COMPRADOR, além de
+-- uma por anúncio.
+--
+-- A invariante que já existia (0105) é "uma cobrança aberta por ANÚNCIO", e ela
+-- impede duas pessoas de pagarem pelo mesmo item. Falta a simétrica, e a falta
+-- dela é um jeito de travar o mercado inteiro sem gastar um centavo:
+--
+--   uma conta clica em comprar em TODAS as prateleiras em dinheiro real do
+--   mercado. Cada clique abre uma cobrança e cada cobrança prende o item de um
+--   vendedor por cinco minutos. Ninguém pagou nada, nenhum item mudou de mão, e
+--   todo o estoque em dinheiro real fica indisponível. Repetindo a cada cinco
+--   minutos, para sempre.
+--
+-- E há uma segunda razão, menor e mais imediata: a página do site mostra UMA
+-- cobrança. A segunda de um mesmo comprador nunca poderia ser paga, porque ele
+-- nunca veria o código dela.
+--
+-- NO BANCO E NÃO NO CÓDIGO, pelo mesmo motivo do índice irmão: dois cliques no
+-- mesmo instante passam os dois pela conferência e só um passa pelo índice.
+-- Invariante de dinheiro que depende de alguém lembrar não é invariante.
+CREATE UNIQUE INDEX rmt_cobranca_uma_aberta_por_comprador
+    ON rmt_cobranca (comprador_conta) WHERE status = 1;

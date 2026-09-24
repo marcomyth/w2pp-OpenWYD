@@ -100,7 +100,19 @@ func DefineJanelaDeCobranca(d time.Duration) {
 //     cobrança, e o movimento natural de quem vai pagar no celular é fechar o
 //     jogo. Sem este aviso, o primeiro comprador de verdade perde a compra
 //     fazendo exatamente o que parecia certo.
-const msgPagueNoSite = "Pague em wydretry.com/conta em até 5 minutos. NÃO saia do jogo até o pagamento cair."
+//
+// O PRAZO VEM DA CONFIGURAÇÃO e não está escrito na frase: com o número fixo, mudar
+// a janela deixaria a mensagem mentindo, e mentir sobre prazo de pagamento é a
+// mentira mais cara que esta tela pode contar.
+//
+// O ENDEREÇO É www.wydretry.com, MEDIDO e não suposto: `wydretry.com` sem o www
+// não responde nada (curl 000), e só `www.wydretry.com` atende. A frase anterior
+// mandava o jogador para um endereço morto.
+func msgPagueNoSite() string {
+	return fmt.Sprintf(
+		"Pague em www.wydretry.com/conta em até %d minutos. NÃO saia do jogo até o pagamento cair.",
+		int(JanelaDeCobranca.Minutes()))
+}
 
 // msgCobrancaNaoSaiu é a falha de quem tentou comprar e não conseguiu nem começar.
 //
@@ -121,6 +133,22 @@ const msgItemJaTemComprador = "Alguém está pagando esse item agora. Tente de n
 // Não há ganho — o item volta para o mesmo baú e o dinheiro sai da própria conta.
 // O custo é a CHAMADA: cada cobrança bate na processadora, que cobra por ela.
 const msgNaoComprarDeSiMesmo = "Esse anúncio é seu."
+
+// msgJaTemPagamentoAberto é a recusa de quem já está pagando outra coisa.
+//
+// Uma cobrança aberta por comprador, e não só uma por anúncio: sem isso, uma conta
+// clica em todas as prateleiras do mercado e prende o estoque inteiro por cinco
+// minutos, de graça. A mensagem diz o que resolve — terminar o que começou — em vez
+// de um "não pode" seco.
+const msgJaTemPagamentoAberto = "Você já tem um pagamento aberto. Pague ou espere ele vencer."
+
+// msgRMTNaoEstaAberta é o que o jogador lê enquanto a ponte não está montada.
+//
+// SEPARADA da falha, e a diferença não é de estilo: "tente de novo em instantes"
+// manda a pessoa repetir uma coisa que nunca vai dar certo. Isto aqui não é uma
+// falha passageira, é um caminho que ainda não existe, e dizer isso é o que evita
+// que ela fique clicando.
+const msgRMTNaoEstaAberta = "Venda por dinheiro real ainda não está aberta."
 
 // abreCobrancaPix vai a processadora, pela ponte, e volta com o codigo para o
 // comprador pagar no site.
@@ -152,7 +180,18 @@ func (d *Dispatcher) abreCobrancaPix(w *world.World, s *world.Session, anuncioID
 	// Gerada de um id que nao se repete, e nao do par anuncio+comprador: o mesmo
 	// comprador pode tentar o mesmo anuncio de novo depois de um prazo vencido, e
 	// isso e uma cobranca NOVA, nao a mesma.
-	referencia := referenciaDeCobranca()
+	referencia, err := referenciaDeCobranca()
+	if err != nil {
+		// NÃO ABRE A COBRANÇA. O caminho antigo caía para um número derivado do
+		// relógio, e o comentário dele mesmo dizia que número previsível é aviso
+		// que se forja — quem adivinhasse a referência poderia forjar a
+		// confirmação de um pagamento que nunca existiu. Não gerar é o erro
+		// barato: ninguém perde nada e o clique seguinte tenta de novo.
+		d.log.Error("loja: nao consegui gerar a referencia da cobranca",
+			"conn", s.Conn, "conta", s.AccountID, "err", err)
+		sendClientMessage(w, s, msgCobrancaNaoSaiu)
+		return
+	}
 	cobrador := cobradorPix
 	w.Go(s, func() func(*world.World, *world.Session) {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -164,6 +203,12 @@ func (d *Dispatcher) abreCobrancaPix(w *world.World, s *world.Session, anuncioID
 				sendClientMessage(w, s, msgItemJaTemComprador)
 			case errors.Is(err, ErrCompradorEOVendedor):
 				sendClientMessage(w, s, msgNaoComprarDeSiMesmo)
+			case errors.Is(err, ErrCompradorJaTemCobranca):
+				sendClientMessage(w, s, msgJaTemPagamentoAberto)
+			case errors.Is(err, ErrPixNaoLigado):
+				// Nem log de aviso: enquanto a ponte não está montada, isto é o
+				// caminho NORMAL, e um aviso por clique encheria o log de ruído.
+				sendClientMessage(w, s, msgRMTNaoEstaAberta)
 			case errors.Is(err, ErrAnuncioIndisponivel):
 				// Vendeu para outra pessoa, ou o vendedor fechou a barraca entre o
 				// clique e a ida ao banco. A vitrine do comprador esta velha.
@@ -177,7 +222,7 @@ func (d *Dispatcher) abreCobrancaPix(w *world.World, s *world.Session, anuncioID
 				d.log.Info("loja: cobranca em pix aberta", "conn", conn, "conta", conta,
 					"anuncio", anuncioID, "cobranca", cob.CobrancaID,
 					"centavos", preco, "expira_em", cob.ExpiraEm)
-				sendClientMessage(w, s, msgPagueNoSite)
+				sendClientMessage(w, s, msgPagueNoSite())
 			}
 		}
 	})
@@ -195,6 +240,8 @@ var (
 	ErrCompradorEOVendedor = errors.New("loja: o comprador e o vendedor")
 	// ErrAnuncioIndisponivel: o anuncio nao esta mais ativo.
 	ErrAnuncioIndisponivel = errors.New("loja: o anuncio nao esta disponivel")
+	// ErrCompradorJaTemCobranca: a conta ja esta pagando outro item.
+	ErrCompradorJaTemCobranca = errors.New("loja: o comprador ja tem cobranca aberta")
 )
 
 // referenciaDeCobranca gera a referencia externa da cobranca.
@@ -202,13 +249,13 @@ var (
 // Aleatoria e nao sequencial: ela vai viajar ate a processadora e voltar num
 // aviso, e um numero que se pode adivinhar e um aviso que se pode forjar. O
 // prefixo e so para quem for ler um log saber de onde ela veio.
-func referenciaDeCobranca() string {
+func referenciaDeCobranca() (string, error) {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		// Nunca acontece com o crypto/rand do Go, e se acontecer e melhor uma
-		// referencia previsivel do que nenhuma cobranca: o indice unico ainda
-		// protege contra a repetida.
-		return fmt.Sprintf("rmt-%d", time.Now().UnixNano())
+		// Sem saida de emergencia. Um numero derivado do relogio seria adivinhavel,
+		// e a referencia e o que a confirmacao usa para reconhecer um pagamento -
+		// adivinha-la e poder forjar a confirmacao de um pagamento que nao houve.
+		return "", fmt.Errorf("loja: gerando a referencia da cobranca: %w", err)
 	}
-	return "rmt-" + hex.EncodeToString(b[:])
+	return "rmt-" + hex.EncodeToString(b[:]), nil
 }

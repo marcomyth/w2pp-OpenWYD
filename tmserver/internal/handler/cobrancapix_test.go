@@ -101,7 +101,7 @@ func TestComprarEmDinheiroRealAbreACobrancaEAvisaOndePagar(t *testing.T) {
 	send(t, comprador, protocol.MsgLojaCompra,
 		(&protocol.LojaCompraBody{Vendedor: barraca, Slot: 0, Moeda: protocol.LojaMoedaRMT}).Encode())
 
-	if !recebeu(t, comprador, msgPagueNoSite) {
+	if !recebeu(t, comprador, msgPagueNoSite()) {
 		t.Error("nao disse ao comprador onde pagar; o pagamento nao esta no jogo e ele nao adivinha")
 	}
 	pedidoAnuncio, pedidoComprador, ref, chamadas := cobrador.pedido()
@@ -135,12 +135,35 @@ func TestComprarEmDinheiroRealAbreACobrancaEAvisaOndePagar(t *testing.T) {
 // celular é fechar o jogo. Sem isto, o primeiro comprador de verdade perde a
 // compra fazendo exatamente o que parecia certo.
 func TestOAvisoDizParaNaoSairDoJogo(t *testing.T) {
-	if !contemPedaco(msgPagueNoSite, "NÃO saia do jogo") {
-		t.Errorf("a mensagem %q nao avisa para ficar; sair do jogo cancela a cobranca",
-			msgPagueNoSite)
+	msg := msgPagueNoSite()
+	if !contemPedaco(msg, "NÃO saia do jogo") {
+		t.Errorf("a mensagem %q nao avisa para ficar; sair do jogo cancela a cobranca", msg)
 	}
-	if !contemPedaco(msgPagueNoSite, "wydretry.com/conta") {
-		t.Errorf("a mensagem %q nao diz ONDE pagar", msgPagueNoSite)
+	// O ENDEREÇO COM www, MEDIDO: `wydretry.com` sem o www não responde nada
+	// (curl devolve 000); só `www.wydretry.com` atende. A frase anterior mandava o
+	// jogador para um endereço morto.
+	if !contemPedaco(msg, "www.wydretry.com/conta") {
+		t.Errorf("a mensagem %q nao diz ONDE pagar, ou manda para o dominio sem www, "+
+			"que nao responde", msg)
+	}
+}
+
+// O PRAZO DA MENSAGEM SEGUE A CONFIGURAÇÃO.
+//
+// Com o número escrito na frase, mudar a janela deixaria a mensagem mentindo — e
+// mentir sobre prazo de pagamento é a mentira mais cara que esta tela pode contar.
+func TestOPrazoDaMensagemSegueAConfiguracao(t *testing.T) {
+	antes := JanelaDeCobranca
+	t.Cleanup(func() { JanelaDeCobranca = antes })
+
+	DefineJanelaDeCobranca(9 * time.Minute)
+	if msg := msgPagueNoSite(); !contemPedaco(msg, "9 minutos") {
+		t.Errorf("a mensagem %q nao acompanhou a janela de 9 minutos", msg)
+	}
+	// E valor inválido não vira prazo zero, que faria toda cobrança nascer vencida.
+	DefineJanelaDeCobranca(0)
+	if JanelaDeCobranca != 9*time.Minute {
+		t.Errorf("a janela virou %v com um valor invalido", JanelaDeCobranca)
 	}
 }
 
@@ -157,7 +180,10 @@ func TestAsRecusasDaCompraEmDinheiroReal(t *testing.T) {
 		{"ja tem comprador", ErrCobrancaJaAberta, msgItemJaTemComprador},
 		{"comprando de si mesmo", ErrCompradorEOVendedor, msgNaoComprarDeSiMesmo},
 		{"a ponte caiu", errors.New("timeout"), msgCobrancaNaoSaiu},
-		{"a ponte nao esta ligada", ErrPixNaoLigado, msgCobrancaNaoSaiu},
+		{"ja esta pagando outra coisa", ErrCompradorJaTemCobranca, msgJaTemPagamentoAberto},
+		// A PONTE DESLIGADA NÃO É "TENTE DE NOVO". Mandar repetir uma coisa que
+		// nunca vai dar certo faz o jogador clicar até desistir.
+		{"a ponte nao esta ligada", ErrPixNaoLigado, msgRMTNaoEstaAberta},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
