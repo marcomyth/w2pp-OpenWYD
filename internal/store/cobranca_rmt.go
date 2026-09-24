@@ -110,6 +110,12 @@ type VendaRMT struct {
 // vendedor. Os dois são iguais enquanto a marca está lá — é para isso que ela
 // serve —, e ler a fotografia significa que o comprador não espera o vendedor
 // estar em jogo para receber.
+//
+// A hora do pagamento e de que relógio ela veio chegam de fora, em pagoEm e origem:
+// quem consulta a processadora é o webServer, e é ele que sabe se a resposta trouxe
+// o `paid_at` ou não. valorObservado é o valor que ela diz ter recebido, conferido
+// aqui dentro, com a linha travada.
+
 // OrigemDaHora diz de que relógio veio o instante do pagamento.
 type OrigemDaHora string
 
@@ -217,7 +223,26 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 			return fmt.Errorf("store: confirmar cobranca %q: sem a hora do pagamento",
 				referenciaExterna)
 		}
-		venda.PagoComAtraso = pagoEm.After(expiraEm)
+		// DUAS PERGUNTAS DIFERENTES, e conflatá-las foi um erro meu que só apareceu
+		// quando a suíte de integração passou a rodar na CI.
+		//
+		// `foraDoPrazo` é a que DECIDE a entrega: o dinheiro chegou depois do prazo
+		// que o vendedor combinou? Só ela pode barrar o item, porque só ela fala do
+		// combinado entre as duas pessoas.
+		//
+		// `pago_com_atraso` é a que se CONTA, e a 0105 escreveu o que ela significa:
+		// "a confirmação que chegou DEPOIS do cancelamento ou da expiração". É mais
+		// larga de propósito — ela existe para responder "isso virou rotina?", e o
+		// caso do comprador que paga em 4:59 com o aviso chegando em 5:10 É um caso
+		// desses, mesmo tendo entregado direito.
+		//
+		// Eu havia reduzido a coluna à pergunta estreita. O resultado: aquele caso
+		// deixava de ser contado, e o número que responde "o prazo está errado?"
+		// passava a esconder justamente a situação que o prazo causa. A entrega nunca
+		// esteve errada; o registro estava.
+		foraDoPrazo := pagoEm.After(expiraEm)
+		linhaJaFechada := statusCobranca == cobrancaCancelada || statusCobranca == cobrancaExpirada
+		venda.PagoComAtraso = foraDoPrazo || linhaJaFechada
 
 		var statusAnuncio int16
 		var it itemPayload
@@ -244,7 +269,7 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 		// alguns segundos.
 		//
 		// O dinheiro volta: o caminho do atrasado é o reembolso, não o item.
-		if venda.PagoComAtraso {
+		if foraDoPrazo {
 			entregavel = false
 		}
 		if !entregavel {

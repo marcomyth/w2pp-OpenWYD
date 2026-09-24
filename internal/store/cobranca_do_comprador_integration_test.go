@@ -464,19 +464,26 @@ func TestAbertaTemPrecedenciaEOAtrasadoVolta(t *testing.T) {
 	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
 		t.Fatal(err)
 	}
-	// A ABERTA NASCE PRIMEIRO E O ATRASADO DEPOIS, de propósito: assim o atrasado
-	// é o MAIS NOVO, e uma ordenação só por data escolheria ele. É o que isola a
-	// regra de precedência — com a aberta sendo também a mais nova, os dois
-	// critérios dariam a mesma resposta e o teste não provaria nada.
-	aberto := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 5, 0, 1)
-	itemMarcado(ctx, t, s, vendedor, 5, aberto)
-	if _, _, err := s.AbrirCobrancaRMT(ctx, aberto, comprador, "ref-fila-nova", 0); err != nil {
-		t.Fatal(err)
-	}
+	// O ATRASADO É O MAIS NOVO, de propósito: uma ordenação só por data escolheria
+	// ele, e é isso que isola a regra de precedência — com a aberta sendo também a
+	// mais nova, os dois critérios dariam a mesma resposta e o teste não provaria
+	// nada. A data é FORÇADA logo abaixo, então a ordem em que as duas linhas são
+	// criadas aqui não muda o que o teste mede.
+	//
+	// E A ORDEM DE CRIAÇÃO IMPORTA POR OUTRO MOTIVO: o atrasado nasce PRIMEIRO
+	// porque a 0116 só permite UMA cobrança aberta por comprador. Criar a aberta
+	// antes e depois tentar abrir a do atrasado — que nasce aberta para só então ser
+	// fechada — bate no índice, e a segunda nunca existiria. A ordem inversa é a que
+	// o jogo produz: uma cobrança se resolve, e só depois a pessoa abre outra.
 	atrasada := cobrancaPagaSemItemDe(ctx, t, s, vendedor, comprador, "ref-fila-velha", reembolsoPedido)
 	if _, err := s.pool.Exec(ctx, `
 		UPDATE rmt_cobranca SET criada_em = now() + interval '1 minute'
 		 WHERE referencia_externa = 'ref-fila-velha'`); err != nil {
+		t.Fatal(err)
+	}
+	aberto := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 5, 0, 1)
+	itemMarcado(ctx, t, s, vendedor, 5, aberto)
+	if _, _, err := s.AbrirCobrancaRMT(ctx, aberto, comprador, "ref-fila-nova", 0); err != nil {
 		t.Fatal(err)
 	}
 
