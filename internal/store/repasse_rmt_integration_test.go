@@ -8,6 +8,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -406,5 +407,102 @@ func TestIncertoSoSaiPelaMaoDeUmaPessoa(t *testing.T) {
 		if r.ID == pago {
 			t.Error("a divida ja paga voltou para a fila: seria paga duas vezes")
 		}
+	}
+}
+
+// A TRAVA DE "UM PAGAMENTO POR VENDA" PASSOU A SER NOSSA, e este teste é o que a amarra.
+//
+// Enquanto a referência era a da cobrança, a PONTE sabia que duas chamadas eram a mesma
+// dívida e recusava a segunda sozinha. Com uma referência por TENTATIVA ela não sabe
+// mais: para ela, cada tentativa é um repasse diferente, e ela paga as duas.
+//
+// A trava agora é o estado PENDENTE, e ela tem de segurar o caso que mais dói: uma
+// dívida INCERTA, que pode já ter sido paga.
+func TestTentativaNovaSoNasceDePendente(t *testing.T) {
+	s, ctx := freshStore(t)
+	v := montaVenda(ctx, t, s, "tentativa-trava")
+	if err := s.SalvarChavePix(ctx, v.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
+		t.Fatal(err)
+	}
+	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := idDoRepasse(ctx, t, s, venda.CobrancaID)
+
+	// A primeira nasce sem ninguém autorizar: ela é automática.
+	t1, err := s.AbrirTentativa(ctx, id, "")
+	if err != nil {
+		t.Fatalf("primeira tentativa: %v", err)
+	}
+	if t1.Numero != 1 || t1.Referencia != ReferenciaDaTentativa(id, 1) {
+		t.Errorf("primeira tentativa = %+v", t1)
+	}
+
+	// Mandada, a dívida sai de pendente — e NENHUMA tentativa nova nasce.
+	if err := s.MarcarRepasseEnviado(ctx, id, "saque-1", precoEmCentavos); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AbrirTentativa(ctx, id, ""); !errors.Is(err, ErrRepasseNaoPendente) {
+		t.Errorf("abriu tentativa numa divida ja enviada: %v", err)
+	}
+
+	// E o caso que mais importa: a dívida vira INCERTA e continua travada. Uma
+	// tentativa aqui é o caminho direto para pagar duas vezes, porque o incerto PODE
+	// ter pago e ninguém sabe.
+	s2, ctx2 := freshStore(t)
+	v2 := montaVenda(ctx2, t, s2, "tentativa-incerta")
+	if err := s2.SalvarChavePix(ctx2, v2.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
+		t.Fatal(err)
+	}
+	_, venda2, err := s2.ConfirmarCobrancaRMT(ctx2, v2.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2 := idDoRepasse(ctx2, t, s2, venda2.CobrancaID)
+	if _, err := s2.AbrirTentativa(ctx2, id2, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := s2.MarcarRepasseIncerto(ctx2, id2, "a resposta nao voltou"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s2.AbrirTentativa(ctx2, id2, ""); !errors.Is(err, ErrRepasseNaoPendente) {
+		t.Errorf("abriu tentativa num INCERTO; seria o segundo pagamento da mesma divida: %v", err)
+	}
+
+	// Só depois de uma PESSOA conferir no painel que não pagou é que a segunda nasce —
+	// e ela carrega o nome de quem autorizou, senão pareceria um bug.
+	if err := s2.ResolverIncertoComoNaoPago(ctx2, id2, AtorDoRepasse{Nome: "hanna"}, "nao saiu"); err != nil {
+		t.Fatal(err)
+	}
+	t2, err := s2.AbrirTentativa(ctx2, id2, "hanna")
+	if err != nil {
+		t.Fatalf("segunda tentativa depois da conferencia: %v", err)
+	}
+	if t2.Numero != 2 {
+		t.Errorf("numero da segunda = %d, quero 2", t2.Numero)
+	}
+	// A REFERÊNCIA MUDOU, que é a razão de tudo isto: a da primeira ficou travada para
+	// sempre na ponte, e reenviar com ela devolveria o resultado que ninguem sabe.
+	if t2.Referencia == ReferenciaDaTentativa(id2, 1) {
+		t.Error("a segunda tentativa repetiu a referencia da primeira; a ponte devolveria o resultado velho")
+	}
+
+	// E o histórico guarda as duas, que é o que uma disputa pergunta.
+	hist, err := s2.TentativasDoRepasse(ctx2, id2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hist) != 2 {
+		t.Errorf("historico tem %d tentativas, quero 2", len(hist))
+	}
+	var liberado string
+	if err := s2.pool.QueryRow(ctx2,
+		`SELECT coalesce(liberado_por, '') FROM rmt_repasse_tentativa
+		  WHERE repasse_id = $1 AND tentativa = 2`, id2).Scan(&liberado); err != nil {
+		t.Fatal(err)
+	}
+	if liberado != "hanna" {
+		t.Errorf("a segunda tentativa nao registrou quem a autorizou: %q", liberado)
 	}
 }
