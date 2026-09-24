@@ -40,6 +40,13 @@ func ParseAccess(role string) AccessLevel {
 	}
 }
 
+// EhStaff diz se este nível é de gente da casa — moderação ou administração.
+//
+// Existe como método e não como comparação solta porque a pergunta "isto é staff?"
+// aparece em lugares distantes, e cada um escrevendo o seu `>= AccessModerator` é
+// como um deles fica para trás no dia em que aparecer um nível novo.
+func (a AccessLevel) EhStaff() bool { return a >= AccessModerator }
+
 // String renders the tier for audit logs.
 func (a AccessLevel) String() string {
 	switch a {

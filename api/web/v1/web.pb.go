@@ -40,6 +40,17 @@ const (
 	CreateResult_CREATE_RESULT_OK          CreateResult = 1 // account created; account_id is set
 	CreateResult_CREATE_RESULT_NAME_TAKEN  CreateResult = 2 // canonical name already exists
 	CreateResult_CREATE_RESULT_INVALID     CreateResult = 3 // name/password/email failed validation
+	// CLOSED: sign-up is switched off on this server. Nothing about the request was
+	// wrong.
+	//
+	// A VALUE OF ITS OWN, and not INVALID, because the page has to say something
+	// true. Telling somebody their name or password failed validation, when the door
+	// is simply shut, sends them to try again with a different password — and again,
+	// and then to support.
+	//
+	// It is what the TEST server answers: the client is already in people's hands, so
+	// the door is shut there and open in production.
+	CreateResult_CREATE_RESULT_CLOSED CreateResult = 4
 )
 
 // Enum value maps for CreateResult.
@@ -49,12 +60,14 @@ var (
 		1: "CREATE_RESULT_OK",
 		2: "CREATE_RESULT_NAME_TAKEN",
 		3: "CREATE_RESULT_INVALID",
+		4: "CREATE_RESULT_CLOSED",
 	}
 	CreateResult_value = map[string]int32{
 		"CREATE_RESULT_UNSPECIFIED": 0,
 		"CREATE_RESULT_OK":          1,
 		"CREATE_RESULT_NAME_TAKEN":  2,
 		"CREATE_RESULT_INVALID":     3,
+		"CREATE_RESULT_CLOSED":      4,
 	}
 )
 
@@ -13722,12 +13735,13 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\x16ClearMountBonusRequest\x12!\n" +
 	"\fmoderator_id\x18\x01 \x01(\x03R\vmoderatorId\x12\x1f\n" +
 	"\vmount_index\x18\x02 \x01(\x05R\n" +
-	"mountIndex*|\n" +
+	"mountIndex*\x96\x01\n" +
 	"\fCreateResult\x12\x1d\n" +
 	"\x19CREATE_RESULT_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10CREATE_RESULT_OK\x10\x01\x12\x1c\n" +
 	"\x18CREATE_RESULT_NAME_TAKEN\x10\x02\x12\x19\n" +
-	"\x15CREATE_RESULT_INVALID\x10\x03*\x89\x01\n" +
+	"\x15CREATE_RESULT_INVALID\x10\x03\x12\x18\n" +
+	"\x14CREATE_RESULT_CLOSED\x10\x04*\x89\x01\n" +
 	"\n" +
 	"PixKeyType\x12\x1c\n" +
 	"\x18PIX_KEY_TYPE_UNSPECIFIED\x10\x00\x12\x14\n" +

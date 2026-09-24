@@ -177,6 +177,17 @@ enum CreateResult {
   CREATE_RESULT_OK = 1;          // account created; account_id is set
   CREATE_RESULT_NAME_TAKEN = 2;  // canonical name already exists
   CREATE_RESULT_INVALID = 3;     // name/password/email failed validation
+  // CLOSED: sign-up is switched off on this server. Nothing about the request was
+  // wrong.
+  //
+  // A VALUE OF ITS OWN, and not INVALID, because the page has to say something
+  // true. Telling somebody their name or password failed validation, when the door
+  // is simply shut, sends them to try again with a different password — and again,
+  // and then to support.
+  //
+  // It is what the TEST server answers: the client is already in people's hands, so
+  // the door is shut there and open in production.
+  CREATE_RESULT_CLOSED = 4;
 }
 
 message CreateAccountRequest {

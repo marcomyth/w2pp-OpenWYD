@@ -31,6 +31,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -225,6 +226,9 @@ func run(logger *slog.Logger) error {
 		Sessions:    sessoes,
 		Logger:      logger,
 		SecureOnly:  !*insecureCookies,
+		// A MESMA variável do jogo e do site: um servidor trancado para entrar e
+		// aberto para cadastrar seria a porta que ninguém lembra de fechar.
+		SemCadastro: envLigada("W2PP_ACESSO_RESTRITO"),
 	})
 	if err != nil {
 		return fmt.Errorf("build panel: %w", err)
@@ -326,6 +330,19 @@ func defaultAddr() string {
 		return ":" + p
 	}
 	return ":8080"
+}
+
+// envLigada lê uma chave liga/desliga do ambiente.
+//
+// Só "1", "true", "yes" e "sim" ligam. Uma variável escrita errada não pode LIGAR
+// uma tranca por acidente: no painel de produção isso esconderia a criação de conta
+// sem ninguém entender por quê.
+func envLigada(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+	case "1", "true", "yes", "sim":
+		return true
+	}
+	return false
 }
 
 func envOr(key, def string) string {

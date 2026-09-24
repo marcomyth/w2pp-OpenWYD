@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -397,7 +398,20 @@ func run(logger *slog.Logger) error {
 			"as cobranças com código NÃO vencem sozinhas e os reembolsos não são pedidos")
 	}
 
-	webv1.RegisterAccountWebServiceServer(srv, grpcsrv.New(account.New(st)))
+	// O CADASTRO, que o ambiente de teste tranca.
+	//
+	// Mesma variável do jogo (W2PP_ACESSO_RESTRITO) e não uma segunda: um servidor
+	// trancado para entrar e aberto para cadastrar seria uma porta que ninguém
+	// lembra de fechar. Uma variável, uma decisão.
+	//
+	// Só o CADASTRO fecha; o login segue igual, porque é para quem já tem conta de
+	// staff que o ambiente existe.
+	contas := account.New(st)
+	if envLigada("W2PP_ACESSO_RESTRITO") {
+		contas = contas.SemCadastro()
+		logger.Warn("acesso restrito: o cadastro de conta pelo site esta DESLIGADO")
+	}
+	webv1.RegisterAccountWebServiceServer(srv, grpcsrv.New(contas))
 	webv1.RegisterRankingWebServiceServer(srv, grpcsrv.NewRanking(ranking.New(st)))
 	webv1.RegisterRmtWebServiceServer(srv, rmtSrv)
 	webv1.RegisterCharacterWebServiceServer(srv, grpcsrv.NewCharacters(characters.New(st)))
@@ -443,6 +457,19 @@ func run(logger *slog.Logger) error {
 }
 
 // envOr returns the environment value for key, or def when unset.
+// envLigada lê uma chave liga/desliga do ambiente.
+//
+// Só "1", "true", "yes" e "sim" ligam, e qualquer outra coisa deixa desligado — uma
+// variável escrita errada não pode LIGAR uma tranca por acidente, porque aí o
+// servidor de verdade fecharia para todo mundo.
+func envLigada(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+	case "1", "true", "yes", "sim":
+		return true
+	}
+	return false
+}
+
 func envOr(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

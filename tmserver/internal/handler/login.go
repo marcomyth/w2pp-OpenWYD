@@ -81,6 +81,28 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 	}
 	switch out.Result {
 	case world.LoginOK:
+		// A TRANCA DO SERVIDOR DE TESTE, e ela vem antes de tudo o que escreve.
+		//
+		// A senha estava certa: o que recusa aqui não é quem a pessoa é, é ONDE ela
+		// está tentando entrar. Por isso o texto diz isso, em vez de "senha
+		// inválida" — mandar alguém conferir a senha que estava certa é fazer a
+		// pessoa perder a tarde.
+		//
+		// ANTES DO accountInUse E DE QUALQUER ESCRITA: mais abaixo esta função
+		// instala o baú, drena entregas e reconcilia o escrow. Recusar depois disso
+		// deixaria metade do login feito para alguém que não entrou.
+		//
+		// O texto sai pelo painel (0x101) e só então o socket fecha, na mesma ordem
+		// do NoticeVersionMismatch: fechar antes descarta a mensagem, e a pessoa fica
+		// olhando uma janela que sumiu sem dizer nada.
+		if d.cfg.AcessoRestrito && !world.ParseAccess(out.Role).EhStaff() {
+			d.log.Info("acesso restrito: login de jogador recusado",
+				"conn", s.Conn, "account", s.AccountName)
+			sendClientMessage(w, s, "Servidor de teste, acesso restrito.")
+			s.Mode = world.UserAccept
+			w.Close(s)
+			return
+		}
 		delete(d.fails, s.AccountName)
 		// Before AccountID is set: closing s below must not release the cargo
 		// that the session already holding the account is using.

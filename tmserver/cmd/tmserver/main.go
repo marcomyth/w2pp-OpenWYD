@@ -112,6 +112,17 @@ func run(logger *slog.Logger) error {
 	maxMsgPerSec := flag.Float64("max-msg-per-sec", 200, "per-connection inbound message rate limit (0 = disabled)")
 	msgBurst := flag.Int("msg-burst", 400, "per-connection message burst depth")
 	idleTimeoutSec := flag.Int("idle-timeout-sec", envInt("W2PP_IDLE_TIMEOUT_SEC", 0), "drop a connection that sends nothing for this many seconds (0 = disabled). An authenticated socket that goes silent otherwise holds one of the 1000 session slots forever. Off by default because the real client's idle cadence is unconfirmed — enable once a capture shows it, or a legitimate idle player gets disconnected")
+	// A TRANCA DO AMBIENTE DE TESTE. Ligada, só staff entra no jogo.
+	//
+	// Existe porque o cliente do teste já está na mão de gente, e a conta de qualquer
+	// um serve para entrar nele. Sem a tranca, o ambiente de teste vira um segundo
+	// servidor aberto sem ninguém ter decidido isso.
+	//
+	// DESLIGADA POR PADRÃO, e é a produção que depende disso: uma tranca que nasce
+	// ligada derruba o servidor de verdade no dia em que alguém esquecer a variável.
+	acessoRestrito := flag.Bool("acesso-restrito", envBool("W2PP_ACESSO_RESTRITO", false),
+		"só staff (moderator/admin) consegue entrar; para o ambiente de teste. "+
+			"A recusa é uma mensagem no cliente, não um erro de senha")
 	contentDir := flag.String("content", os.Getenv("W2PP_CONTENT"), "path to the Release/ content tree (empty = skip; validates rates/catalogs/maps at boot)")
 	npcEditing := flag.Bool("npc-editing", envBool("W2PP_NPC_EDITING", false), "enable the moderator NPC-editing overlay (npc-editing-plan.md); needs -dbserver and -content. OFF by default: turn it on only after `dbserver import-npcs` has seeded npc_definition, else DB-managed merchant NPCs would be skipped from NPCGener.txt with nothing to replace them")
 	mobStatEditing := flag.Bool("mob-stat-editing", envBool("W2PP_MOB_STAT_EDITING", false), "enable the moderator mob/NPC template stat overlay (mob-template-editing-plan.md, the equivalent-tool successor to the legacy EDITAPPMOB); needs -dbserver and -content. Applied ONCE at boot, like every other content load — a moderator edit needs a tmServer restart to take effect (EDITAPPMOB itself required a server restart too), independent of -npc-editing")
@@ -636,7 +647,7 @@ func run(logger *slog.Logger) error {
 		eventSeed = 1
 	}
 	dispatch := handler.New(handler.Config{
-		Log: logger, ClientVersion: int32(*clientVersion), BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, CasteloOrcNPC: casteloOrcNPC, AcampamentoTrollNPC: acampamentoTrollNPC, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemKeyIDs: itemKeyIDs, ItemClasses: itemClasses, ItemReqs: itemReqs,
+		Log: logger, ClientVersion: int32(*clientVersion), AcessoRestrito: *acessoRestrito, BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, CasteloOrcNPC: casteloOrcNPC, AcampamentoTrollNPC: acampamentoTrollNPC, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemKeyIDs: itemKeyIDs, ItemClasses: itemClasses, ItemReqs: itemReqs,
 		ItemVolatiles: itemVolatiles, ItemDonates: itemDonates, ItemDurations: itemDurations, MountRates: mountRates, MountAbsorb: mountAbsorb, MountBonus: mountBonus, ItemPos: itemPos, ItemUnique: itemUnique, ItemGrades: itemGrades, ItemExtra: itemExtra, Spells: spells, Heights: heights, Attributes: attributes,
 		SancRate:        sancRate,
 		ExpEvents:       level.ExpEvents{DoubleMode: *doubleExp, NewbieEvent: *newbieEvent, KefraLive: *kefraLive},
