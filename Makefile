@@ -1,4 +1,4 @@
-.PHONY: build binaries test lint fmt vet run run-local vuln tidy proto certs certs-clean exp-data item-icons item-icons-publish item-browser npc-panel
+.PHONY: build binaries test lint fmt vet run run-local vuln tidy proto proto-versao certs certs-clean exp-data item-icons item-icons-publish item-browser npc-panel
 
 build:
 	go build ./...
@@ -71,10 +71,11 @@ run:
 run-local:
 	./scripts/run-local.sh
 
-# Generate gRPC code from api/ (requires protoc + protoc-gen-go / protoc-gen-go-grpc
-# on PATH; install with `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest`
-# and `.../grpc/cmd/protoc-gen-go-grpc@latest`).
-proto:
+# Generate gRPC code from api/. AS VERSOES DAS FERRAMENTAS SAO FIXAS e conferidas
+# antes de gerar: o cabecalho de cada .pb.go carrega a versao que o gerou, e gerar com
+# outra produz diff em arquivo que ninguem tocou. Ver scripts/proto-versao.sh, que diz
+# quais sao e como instalar.
+proto: proto-versao
 	protoc --go_out=. --go_opt=module=github.com/jeanluca/w2pp-openwyd \
 	       --go-grpc_out=. --go-grpc_opt=module=github.com/jeanluca/w2pp-openwyd \
 	       api/db/v1/db.proto api/bin/v1/bin.proto api/web/v1/web.proto api/game/v1/game.proto
@@ -86,3 +87,8 @@ certs:
 
 certs-clean:
 	rm -rf certs
+
+# Confere as versoes do protoc e dos dois plugins. Alvo proprio para dar para rodar
+# sozinho, antes de gerar qualquer coisa.
+proto-versao:
+	./scripts/proto-versao.sh
