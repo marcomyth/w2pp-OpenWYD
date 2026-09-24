@@ -515,3 +515,57 @@ func TestAbertaTemPrecedenciaEOAtrasadoVolta(t *testing.T) {
 			cob.CobrancaID, atrasada)
 	}
 }
+
+// A PÁGINA NÃO PODE LER O pago_com_atraso, e este teste existe para amarrar isso.
+//
+// O caso é o do comprador que paga no minuto 4:59 com o aviso chegando em 5:10: a
+// varredura já expirou a nossa linha, mas ele pagou DENTRO do prazo, então recebe o
+// item — e a cobrança fica com `pago_com_atraso = true`, porque a coluna guarda o
+// largo, para contar "o prazo está errado?".
+//
+// Se a página saísse da coluna em vez do STATUS, esse comprador veria PAGA_SEM_ITEM,
+// que na tela dele quer dizer "o seu dinheiro está em análise para reembolso". Ele
+// receberia o item e leria que não ia receber — a promessa errada, no pior momento,
+// para quem fez tudo certo.
+//
+// Hoje o `estadoParaOComprador` recebe só status e expira_em, e é por isso que está
+// certo. O teste é o que impede alguém de ligar a coluna nisso mais tarde "para ficar
+// mais preciso".
+func TestPagouNoPrazoComAvisoAtrasadoVePagaENaoPagaSemItem(t *testing.T) {
+	s, ctx := freshStore(t)
+	v := montaVenda(ctx, t, s, "atraso-na-tela")
+
+	// A nossa linha venceu antes de o aviso chegar. O item continua marcado.
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE rmt_cobranca SET status = $2 WHERE anuncio_id = $1`,
+		v.anuncio, cobrancaExpirada); err != nil {
+		t.Fatal(err)
+	}
+
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	if err != nil {
+		t.Fatalf("confirmando: %v", err)
+	}
+	if res != CobrancaConfirmada {
+		t.Fatalf("resultado = %v, quero CobrancaConfirmada: ele pagou dentro do prazo", res)
+	}
+	if !venda.PagoComAtraso {
+		t.Error("pago_com_atraso ficou falso; o caso nao seria contado")
+	}
+
+	tem, cob, err := s.CobrancaAtualDoComprador(ctx, v.comprador, time.Hour)
+	if err != nil {
+		t.Fatalf("lendo a cobranca do comprador: %v", err)
+	}
+	if !tem {
+		t.Fatal("a pagina nao achou a cobranca")
+	}
+	if cob.Estado != EstadoCobrancaPaga {
+		t.Errorf("estado da pagina = %v, quero PAGA. Com PAGA_SEM_ITEM a tela diria "+
+			"que o dinheiro dele esta em analise, e ele acabou de receber o item", cob.Estado)
+	}
+	// E não há reembolso nenhum em curso: o caminho dele foi o item, não a devolução.
+	if cob.Reembolso != ReembolsoNenhum {
+		t.Errorf("reembolso = %v, quero nenhum", cob.Reembolso)
+	}
+}
