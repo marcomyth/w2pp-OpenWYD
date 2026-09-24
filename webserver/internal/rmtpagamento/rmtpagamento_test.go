@@ -45,6 +45,13 @@ type bancofake struct {
 	valorVisto    int64
 	reembolsos    []int64
 	orfaos        []store.PagamentoOrfao
+	identGravados [][2]string
+	erroGravarID  error
+}
+
+func (b *bancofake) GravarIdentifierSeFaltar(_ context.Context, ref, ident string) error {
+	b.identGravados = append(b.identGravados, [2]string{ref, ident})
+	return b.erroGravarID
 }
 
 func (b *bancofake) CobrancaDoIdentifier(context.Context, string) (string, bool, error) {
@@ -516,5 +523,93 @@ func TestAMarcaEArrancadaDoNomeDoItem(t *testing.T) {
 	d := Descricao("Espada rmt:falsa", 0)
 	if contemMarca(d) {
 		t.Errorf("a descricao levou a marca adiante: %q", d)
+	}
+}
+
+// VALOR AUSENTE NÃO ENTREGA, e este é o guarda que faltava.
+//
+// A regra é status E valor E referência, mas o valor é conferido no banco, e lá o
+// ZERO significa "não observado" e PULA a conferência. Então uma resposta
+// "completed" com valor zero — ponte quebrando o contrato, fonte antiga sem o campo,
+// erro de leitura — entregaria o item sem prova nenhuma de quanto entrou.
+//
+// Vale para o zero e para o negativo: os dois não são "um valor que bate".
+func TestValorAusenteNaoEntrega(t *testing.T) {
+	for _, valor := range []int64{0, -1} {
+		p, b := vendaBoa()
+		p.t.ValorCentavos = valor
+
+		res, err := Novo(p, b, nil, mudo()).ConferirEConcluir(context.Background(), "id-1")
+
+		if err != nil {
+			t.Fatalf("valor %d: erro inesperado: %v", valor, err)
+		}
+		if res.Confirmada || res.Entregue {
+			t.Errorf("valor %d: resultado = %+v, NAO devia confirmar nem entregar", valor, res)
+		}
+		if b.confirmou != 0 {
+			t.Errorf("valor %d: chamou a confirmacao %d vezes", valor, b.confirmou)
+		}
+		if len(b.orfaos) != 1 || b.orfaos[0].Motivo != store.MotivoOrfaoSemValor {
+			t.Errorf("valor %d: fila = %+v, queria uma linha de valor ausente", valor, b.orfaos)
+		}
+	}
+}
+
+// O IDENTIFIER QUE A CORRIDA DEIXOU PARA TRÁS É COMPLETADO. Sem isso a cobrança fica
+// PAGA com identifier nulo, e quem precisar pedir o reembolso dela não tem por onde.
+func TestIdentifierQueFicouParaTrasEGravado(t *testing.T) {
+	p, b := vendaBoa()
+	b.achou, b.refGravada = false, "" // a corrida: o aviso chegou antes do UPDATE
+
+	if _, err := Novo(p, b, nil, mudo()).ConferirEConcluir(context.Background(), "id-1"); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if len(b.identGravados) != 1 || b.identGravados[0] != [2]string{"ref-1", "id-1"} {
+		t.Errorf("gravou %v, queria a referencia com o identifier do aviso", b.identGravados)
+	}
+}
+
+// E NÃO grava quando o identifier já estava lá: sobrescrever não é trabalho desta
+// função, e dois identifiers diferentes na mesma cobrança é caso para uma pessoa.
+func TestNaoRegravaOIdentifierQueJaEstava(t *testing.T) {
+	p, b := vendaBoa() // achou=true, o caminho normal
+
+	if _, err := Novo(p, b, nil, mudo()).ConferirEConcluir(context.Background(), "id-1"); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if len(b.identGravados) != 0 {
+		t.Errorf("gravou %v numa cobranca que ja tinha identifier", b.identGravados)
+	}
+}
+
+// Falhar em completar o identifier é AVISO e não erro: a venda já está gravada, e
+// insistir não melhora nada de ninguém.
+func TestFalhaAoCompletarOIdentifierNaoDesfazAVenda(t *testing.T) {
+	p, b := vendaBoa()
+	b.achou, b.refGravada = false, ""
+	b.erroGravarID = errors.New("banco fora do ar")
+
+	res, err := Novo(p, b, nil, mudo()).ConferirEConcluir(context.Background(), "id-1")
+	if err != nil {
+		t.Fatalf("a falha de completar o identifier virou erro: %v", err)
+	}
+	if !res.Confirmada || !res.Entregue {
+		t.Errorf("resultado = %+v, a venda tinha de continuar valendo", res)
+	}
+}
+
+// E não tenta gravar quando a referência não é de cobrança nossa: gravar o identifier
+// contra uma referência que não existe não faz nada e esconde o problema real.
+func TestNaoGravaOIdentifierQuandoNaoAchouCobranca(t *testing.T) {
+	p, b := vendaBoa()
+	b.achou, b.refGravada = false, ""
+	b.resultado = store.CobrancaNaoEncontrada
+
+	if _, err := Novo(p, b, nil, mudo()).ConferirEConcluir(context.Background(), "id-1"); err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if len(b.identGravados) != 0 {
+		t.Errorf("gravou %v para uma referencia que nao existe", b.identGravados)
 	}
 }

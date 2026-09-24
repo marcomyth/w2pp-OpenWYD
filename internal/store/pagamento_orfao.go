@@ -33,6 +33,13 @@ const (
 	// e a processadora devolveu a referência de OUTRA. Ninguém entrega nada aqui: é
 	// erro de alguém, e confirmar pelo palpite errado dá item ao comprador errado.
 	MotivoOrfaoReferenciaDivergente = "a referencia da processadora nao bate com a gravada"
+	// MotivoOrfaoSemValor: a processadora disse "pago" e NÃO disse quanto.
+	//
+	// Não entrega, e é o guarda que faltava: a regra de entregar é status E valor E
+	// referência, e um valor ausente não é um valor que bate. Sem isto, uma resposta
+	// sem o campo do valor — contrato quebrado, fonte antiga, erro de leitura —
+	// entregaria o item sem prova de quanto entrou.
+	MotivoOrfaoSemValor = "a processadora disse pago e nao disse o valor"
 	// MotivoOrfaoContestado: a venda entrou em contestação do Pix (MED) ou foi
 	// estornada. O dinheiro existiu e está indo embora, e ninguém entrega item.
 	MotivoOrfaoContestado = "pagamento contestado ou estornado na processadora"

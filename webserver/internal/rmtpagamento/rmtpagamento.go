@@ -84,6 +84,9 @@ type Banco interface {
 	ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna string, pagoEm time.Time,
 		origem store.OrigemDaHora, valorObservado int64) (store.ResultadoCobranca, store.VendaRMT, error)
 	MarcarReembolsoPendente(ctx context.Context, cobrancaID int64) error
+	// GravarIdentifierSeFaltar completa o id DELES quando a corrida no nascimento
+	// fez a confirmação acontecer antes de ele estar gravado.
+	GravarIdentifierSeFaltar(ctx context.Context, referenciaExterna, identifier string) error
 	RegistrarPagamentoOrfao(ctx context.Context, p store.PagamentoOrfao) error
 	NomeDaConta(ctx context.Context, accountID int64) (string, error)
 }
@@ -180,7 +183,25 @@ func (s *Servico) ConferirEConcluir(ctx context.Context, identifier string) (Res
 		return Resultado{}, nil
 	}
 
-	referencia, ok := s.deQualCobranca(ctx, identifier, t)
+	// VALOR AUSENTE NÃO ENTREGA, e este guarda existe porque o zero atravessava.
+	//
+	// A regra combinada é status E VALOR E referência. Mas o valor é conferido no
+	// banco, e lá o zero significa "não observado" e PULA a conferência — quer dizer,
+	// uma resposta "completed" sem o valor entregaria o item sem prova nenhuma de
+	// quanto entrou. Acontece se a ponte quebrar o contrato, se a fonte antiga não
+	// tiver o campo, ou por um erro de leitura da resposta.
+	//
+	// Fica aqui e não no banco de propósito: o banco usa o zero como "não observado"
+	// em outros caminhos, e mudar aquele significado mexeria em tudo que confirma. O
+	// lugar de recusar é onde se sabe que o valor VEIO de uma consulta.
+	if t.ValorCentavos <= 0 {
+		s.orfao(ctx, identifier, t, store.MotivoOrfaoSemValor)
+		s.log.Warn("rmt: a processadora disse pago e nao disse o valor; nao entreguei nada",
+			"identifier", identifier, "valor", t.ValorCentavos)
+		return Resultado{Tratado: true}, nil
+	}
+
+	referencia, gravarIdent, ok := s.deQualCobranca(ctx, identifier, t)
 	if !ok {
 		return Resultado{}, nil
 	}
@@ -198,6 +219,21 @@ func (s *Servico) ConferirEConcluir(ctx context.Context, identifier string) (Res
 	res, venda, err := s.banco.ConfirmarCobrancaRMT(ctx, referencia, pagoEm, origem, t.ValorCentavos)
 	if err != nil {
 		return Resultado{}, err
+	}
+
+	// Completa o identifier que a corrida deixou para trás, agora que se sabe que a
+	// referência é de uma cobrança nossa. Depois da confirmação e não antes: antes, a
+	// referência ainda podia não ser de ninguém.
+	//
+	// Falha aqui é AVISO e não erro: a venda já está gravada, e insistir não melhora
+	// nada. O que se perde é a referência do reembolso futuro, e é por isso que ela
+	// sai no log com o identifier — para uma pessoa poder completar à mão.
+	if gravarIdent && res != store.CobrancaNaoEncontrada {
+		if err := s.banco.GravarIdentifierSeFaltar(ctx, referencia, identifier); err != nil {
+			s.log.Warn("rmt: nao consegui completar o identifier da cobranca; "+
+				"um reembolso futuro dela ficaria sem referencia",
+				"referencia", referencia, "identifier", identifier, "err", err)
+		}
 	}
 
 	switch res {
@@ -310,13 +346,13 @@ func (s *Servico) naoEhParaEntregar(ctx context.Context, identifier, status stri
 //     for de nenhuma cobrança o passo seguinte devolve "não encontrada".
 //   - Diferentes: NÃO CONFIRMA NADA. Fila da staff.
 //   - Nenhuma das duas: fila da staff.
-func (s *Servico) deQualCobranca(ctx context.Context, identifier string, t Transacao) (string, bool) {
+func (s *Servico) deQualCobranca(ctx context.Context, identifier string, t Transacao) (referencia string, gravarIdent, ok bool) {
 	gravada, achou, err := s.banco.CobrancaDoIdentifier(ctx, identifier)
 	if err != nil {
 		// Não dá para conferir, então não confirma. Quem chamou repete.
 		s.log.Warn("rmt: nao consegui ler a cobranca do identifier",
 			"identifier", identifier, "err", err)
-		return "", false
+		return "", false, false
 	}
 	daProcessadora := strings.TrimSpace(t.Referencia)
 
@@ -325,16 +361,19 @@ func (s *Servico) deQualCobranca(ctx context.Context, identifier string, t Trans
 		s.orfao(ctx, identifier, t, store.MotivoOrfaoReferenciaDivergente)
 		s.log.Warn("rmt: a referencia da processadora nao bate com a gravada",
 			"identifier", identifier, "gravada", gravada, "da_processadora", daProcessadora)
-		return "", false
+		return "", false, false
 	case achou:
-		return gravada, true
+		return gravada, false, true
 	case daProcessadora != "":
+		// gravarIdent=true: a confirmação vai acontecer pela referência, e a cobrança
+		// ficaria PAGA com identifier nulo. Isso só dói depois — quando alguém
+		// precisar pedir o reembolso dela e não tiver por onde.
 		s.log.Info("rmt: aviso chegou antes de o identifier estar gravado",
 			"identifier", identifier, "referencia", daProcessadora)
-		return daProcessadora, true
+		return daProcessadora, true, true
 	default:
 		s.orfao(ctx, identifier, t, store.MotivoOrfaoSemCobranca)
-		return "", false
+		return "", false, false
 	}
 }
 

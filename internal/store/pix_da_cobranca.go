@@ -29,6 +29,18 @@ var ErrPonteSemCodigo = errors.New("store: a ponte respondeu sem codigo pix")
 // referência.
 var ErrIdentifierDeOutraCobranca = errors.New("store: o identifier ja pertence a outra cobranca")
 
+// ErrPonteSemIdentifier é a ponte devolver o código do Pix e NÃO o identifier.
+//
+// Tratado igual ao código vazio, e a razão é o que se perde sem ele: o identifier é
+// o id DELES, e é por ele que o aviso de pagamento acha a cobrança, que a consulta
+// do fim da janela consulta, e que o reembolso é pedido. Um código gravado sem
+// identifier daria um Pix pagável cujo pagamento ninguém conseguiria ligar de volta
+// à venda — e devolver o dinheiro também ficaria sem referência.
+//
+// Então é melhor NÃO mostrar código nenhum: a leitura seguinte tenta de novo com a
+// mesma referência, e a ponte devolve a cobrança que já existe lá, agora com o id.
+var ErrPonteSemIdentifier = errors.New("store: a ponte respondeu sem identifier")
+
 // PixDaCobranca é o código que o comprador vê, e como ele chegou aqui.
 type PixDaCobranca struct {
 	CodigoPix  string
@@ -141,13 +153,8 @@ func (s *Store) CriarPixSeFaltar(ctx context.Context, cobrancaID int64,
 		if cod == "" {
 			return fmt.Errorf("store: cobranca %d: %w", cobrancaID, ErrPonteSemCodigo)
 		}
-
-		// O identifier pode voltar vazio sem ser falha — a ponte pode ter o código e
-		// não o id. Guardado como nulo, não como texto vazio: o índice único é
-		// parcial sobre o não-nulo, e dois vazios gravados colidiriam entre si.
-		var identParaGravar *string
-		if ident != "" {
-			identParaGravar = &ident
+		if ident == "" {
+			return fmt.Errorf("store: cobranca %d: %w", cobrancaID, ErrPonteSemIdentifier)
 		}
 
 		err = tx.QueryRow(ctx, `
@@ -155,7 +162,7 @@ func (s *Store) CriarPixSeFaltar(ctx context.Context, cobrancaID int64,
 			   SET codigo_pix = $2, identifier_syncpay = $3
 			 WHERE id = $1 AND codigo_pix IS NULL
 			RETURNING codigo_pix, coalesce(identifier_syncpay, '')`,
-			cobrancaID, cod, identParaGravar).Scan(&out.CodigoPix, &out.Identifier)
+			cobrancaID, cod, ident).Scan(&out.CodigoPix, &out.Identifier)
 		if ehConflitoDeIndice(err, "rmt_cobranca_identifier") {
 			return fmt.Errorf("store: cobranca %d, identifier %q: %w",
 				cobrancaID, ident, ErrIdentifierDeOutraCobranca)
@@ -227,4 +234,30 @@ func texto(p *string) string {
 		return ""
 	}
 	return *p
+}
+
+// GravarIdentifierSeFaltar completa a cobrança com o id DELES, quando ele ficou
+// para trás.
+//
+// EXISTE POR CAUSA DA CORRIDA NO NASCIMENTO: o webhook da processadora pode chegar
+// antes de o nosso UPDATE do identifier ter commitado. Nesse caso a confirmação
+// acontece pela referência que a processadora devolveu, e a cobrança fica PAGA com
+// identifier nulo — o que só dói depois, quando alguém precisa pedir o reembolso
+// dela e não tem por onde.
+//
+// SÓ PREENCHE O NULO. Nunca sobrescreve um identifier já gravado: se os dois
+// existirem e forem diferentes, isso é um problema para uma pessoa olhar, e não algo
+// para esta função resolver sozinha em silêncio.
+func (s *Store) GravarIdentifierSeFaltar(ctx context.Context, referenciaExterna, identifier string) error {
+	if identifier == "" {
+		return nil
+	}
+	_, err := s.pool.Exec(ctx, `
+		UPDATE rmt_cobranca SET identifier_syncpay = $2
+		 WHERE referencia_externa = $1 AND identifier_syncpay IS NULL`,
+		referenciaExterna, identifier)
+	if err != nil {
+		return fmt.Errorf("store: gravando o identifier de %q: %w", referenciaExterna, err)
+	}
+	return nil
 }

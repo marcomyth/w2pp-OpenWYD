@@ -295,8 +295,8 @@ func run(logger *slog.Logger) error {
 	var jogoDoPagamento rmtpagamento.Jogo
 	if addr := os.Getenv("W2PP_TMSERVER_CONTROL"); addr != "" {
 		token := os.Getenv("W2PP_CONTROL_TOKEN")
-		switch {
-		case token == "":
+		switch token {
+		case "":
 			// Avisa e NÃO liga. Ligar sem token daria um cliente que o servidor de
 			// jogo recusa em toda chamada, e cada recusa sairia como falha de
 			// entrega — ruído que esconde a causa, que é uma variável vazia.

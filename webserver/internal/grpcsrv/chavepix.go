@@ -109,7 +109,7 @@ func (s *ServerRmt) descricaoDaCobranca(cob store.CobrancaDoComprador) string {
 	if s.nomeItem != nil {
 		nome = s.nomeItem(int32(cob.ItemIndex))
 	}
-	return rmtpagamento.Descricao(nome, int(cob.Refino))
+	return rmtpagamento.Descricao(nome, cob.Refino)
 }
 
 // SavePixKey grava a chave de recebimento da conta.
