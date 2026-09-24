@@ -95,6 +95,12 @@ func topupResultToProto(r donatetopup.Result) webv1.AdminResult {
 		return webv1.AdminResult_ADMIN_RESULT_OK
 	case donatetopup.NotFound:
 		return webv1.AdminResult_ADMIN_RESULT_NOT_FOUND
+	case donatetopup.Forbidden:
+		// O FORBIDDEN cai aqui com o sentido que o enum já tem: "caller is not a
+		// moderator/admin". É o pacote reservado à staff pedido por quem não é staff,
+		// e é a única recusa deste caminho que é sobre QUEM compra — as outras são
+		// sobre o pedido.
+		return webv1.AdminResult_ADMIN_RESULT_FORBIDDEN
 	default:
 		return webv1.AdminResult_ADMIN_RESULT_INVALID
 	}

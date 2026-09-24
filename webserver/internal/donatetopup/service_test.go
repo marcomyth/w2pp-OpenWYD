@@ -332,7 +332,6 @@ func TestCreateTopupOrderRecusaOsQuatroCasosDePacote(t *testing.T) {
 	}{
 		{"id que nao existe na tabela", "apoiador-inventado", 575, 4990},
 		{"pacote desligado", "apoiador-velho", 100, 1000},
-		{"so staff pedido por jogador", "teste-real", 10, 100},
 		{"creditos divergentes", "apoiador-bronze", 5750, 4990},
 		{"preco divergente", "apoiador-bronze", 575, 490},
 	}
@@ -433,5 +432,35 @@ func TestCreateTopupOrderComPacoteEContaInexistenteENotFound(t *testing.T) {
 	}
 	if res != NotFound {
 		t.Errorf("resultado = %v, queria NotFound", res)
+	}
+}
+
+// O PACOTE DE STAFF PEDIDO POR JOGADOR TEM CÓDIGO PRÓPRIO, e não o Invalid genérico.
+//
+// O site precisa dizer coisas diferentes: o Invalid deste caminho cobre referência
+// repetida, pedido malformado e pacote fora de sincronia — três causas que pedem três
+// mensagens —, e a única que é sobre QUEM está comprando é esta. Sem separá-la, a tela
+// diria "esse pacote não está disponível" para um UUID repetido, que é bug do site.
+func TestPacoteDeStaffParaJogadorEForbidden(t *testing.T) {
+	const conta = int64(7)
+	f := newFake()
+	f.accounts[conta] = true
+	f.pacotes = map[string]store.PacoteDoacao{
+		"teste-real": {ID: "teste-real", Credits: 10, AmountCents: 100, Ativo: true, SoStaff: true},
+	}
+
+	res, id, err := New(f).CreateTopupOrder(context.Background(), domain.TopupOrder{
+		AccountID: conta, ExternalReference: "ref-staff-negada", Credits: 10,
+		AmountCents: 100, PaymentMethod: 1, PacoteID: "teste-real",
+	})
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if res != Forbidden {
+		t.Errorf("resultado = %v, quero Forbidden", res)
+	}
+	if id != 0 || len(f.orders) != 0 {
+		t.Errorf("criou ordem: id=%d ordens=%d", id, len(f.orders))
 	}
 }

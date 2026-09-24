@@ -48,6 +48,14 @@ const (
 	Invalid
 	// NotFound means the target account does not exist.
 	NotFound
+	// Forbidden é o pacote reservado à staff pedido por quem não é staff.
+	//
+	// CÓDIGO PRÓPRIO, e não o Invalid genérico, porque o site precisa dizer coisas
+	// diferentes. O Invalid daqui cobre referência repetida, pedido malformado e
+	// pacote fora de sincronia — três causas que pedem três mensagens —, e a única
+	// que é sobre QUEM está comprando é esta. Sem separá-la, a tela diria "esse
+	// pacote não está disponível" para um UUID repetido, que é bug do site.
+	Forbidden
 )
 
 // ConfirmOutcome is the result of ConfirmTopupOrder, mirroring webv1.TopupResult.
@@ -150,6 +158,11 @@ func (s *Service) CreateTopupOrder(ctx context.Context, o domain.TopupOrder) (Re
 			return Invalid, 0, fmt.Errorf("donatetopup: cargo da conta %d: %w", o.AccountID, err)
 		}
 		if _, err := s.store.ConferirPacote(ctx, o.PacoteID, ehStaff, o.Credits, o.AmountCents); err != nil {
+			if errors.Is(err, store.ErrPacoteSoStaff) {
+				s.log.Warn("donatetopup: pacote de staff pedido por quem nao e staff",
+					"conta", o.AccountID, "pacote", o.PacoteID)
+				return Forbidden, 0, nil
+			}
 			// As quatro recusas viram Invalid para o site, e o log diz qual foi. O
 			// site não precisa distinguir: as quatro querem dizer "este pedido não
 			// pode ser criado", e nenhuma delas é algo que a pessoa na tela conserte.
