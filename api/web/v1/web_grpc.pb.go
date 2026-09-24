@@ -185,6 +185,7 @@ const (
 	RmtWebService_SavePixKey_FullMethodName            = "/web.v1.RmtWebService/SavePixKey"
 	RmtWebService_GetPixKey_FullMethodName             = "/web.v1.RmtWebService/GetPixKey"
 	RmtWebService_GetMyCurrentPixCharge_FullMethodName = "/web.v1.RmtWebService/GetMyCurrentPixCharge"
+	RmtWebService_ListMarketListings_FullMethodName    = "/web.v1.RmtWebService/ListMarketListings"
 )
 
 // RmtWebServiceClient is the client API for RmtWebService service.
@@ -280,6 +281,24 @@ type RmtWebServiceClient interface {
 	// made here: one charge open per listing, and a buyer with two open charges
 	// could pay twice for one item.
 	GetMyCurrentPixCharge(ctx context.Context, in *GetMyCurrentPixChargeRequest, opts ...grpc.CallOption) (*GetMyCurrentPixChargeResponse, error)
+	// ListMarketListings is the market as a PUBLIC page: everything on sale in every
+	// stall, right now.
+	//
+	// IT IS NOT A DATABASE READ. A personal shop lives only in the seller's session,
+	// in the game server's memory, and is never persisted — so this answer is fetched
+	// from the game over the control link and cached for a few seconds, because the
+	// page is public and the game must not be asked once per visitor.
+	//
+	// NOTHING HERE IDENTIFIES AN ACCOUNT. The seller is named by the CHARACTER
+	// standing in the stall, which is what any player already sees by walking up to
+	// it. The account behind it is not in this contract at all.
+	//
+	// REAL-MONEY SHELVES WITH SOMEBODY ALREADY PAYING ARE LEFT OUT. While a charge is
+	// open the item cannot be bought by anyone else, and the game refuses the second
+	// buyer. Listing it would be an invitation to a refusal; leaving it out promises
+	// nothing and is the simpler truth. It comes back on its own when the charge
+	// closes.
+	ListMarketListings(ctx context.Context, in *ListMarketListingsRequest, opts ...grpc.CallOption) (*ListMarketListingsResponse, error)
 }
 
 type rmtWebServiceClient struct {
@@ -314,6 +333,16 @@ func (c *rmtWebServiceClient) GetMyCurrentPixCharge(ctx context.Context, in *Get
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetMyCurrentPixChargeResponse)
 	err := c.cc.Invoke(ctx, RmtWebService_GetMyCurrentPixCharge_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rmtWebServiceClient) ListMarketListings(ctx context.Context, in *ListMarketListingsRequest, opts ...grpc.CallOption) (*ListMarketListingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMarketListingsResponse)
+	err := c.cc.Invoke(ctx, RmtWebService_ListMarketListings_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -413,6 +442,24 @@ type RmtWebServiceServer interface {
 	// made here: one charge open per listing, and a buyer with two open charges
 	// could pay twice for one item.
 	GetMyCurrentPixCharge(context.Context, *GetMyCurrentPixChargeRequest) (*GetMyCurrentPixChargeResponse, error)
+	// ListMarketListings is the market as a PUBLIC page: everything on sale in every
+	// stall, right now.
+	//
+	// IT IS NOT A DATABASE READ. A personal shop lives only in the seller's session,
+	// in the game server's memory, and is never persisted — so this answer is fetched
+	// from the game over the control link and cached for a few seconds, because the
+	// page is public and the game must not be asked once per visitor.
+	//
+	// NOTHING HERE IDENTIFIES AN ACCOUNT. The seller is named by the CHARACTER
+	// standing in the stall, which is what any player already sees by walking up to
+	// it. The account behind it is not in this contract at all.
+	//
+	// REAL-MONEY SHELVES WITH SOMEBODY ALREADY PAYING ARE LEFT OUT. While a charge is
+	// open the item cannot be bought by anyone else, and the game refuses the second
+	// buyer. Listing it would be an invitation to a refusal; leaving it out promises
+	// nothing and is the simpler truth. It comes back on its own when the charge
+	// closes.
+	ListMarketListings(context.Context, *ListMarketListingsRequest) (*ListMarketListingsResponse, error)
 	mustEmbedUnimplementedRmtWebServiceServer()
 }
 
@@ -431,6 +478,9 @@ func (UnimplementedRmtWebServiceServer) GetPixKey(context.Context, *GetPixKeyReq
 }
 func (UnimplementedRmtWebServiceServer) GetMyCurrentPixCharge(context.Context, *GetMyCurrentPixChargeRequest) (*GetMyCurrentPixChargeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetMyCurrentPixCharge not implemented")
+}
+func (UnimplementedRmtWebServiceServer) ListMarketListings(context.Context, *ListMarketListingsRequest) (*ListMarketListingsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMarketListings not implemented")
 }
 func (UnimplementedRmtWebServiceServer) mustEmbedUnimplementedRmtWebServiceServer() {}
 func (UnimplementedRmtWebServiceServer) testEmbeddedByValue()                       {}
@@ -507,6 +557,24 @@ func _RmtWebService_GetMyCurrentPixCharge_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RmtWebService_ListMarketListings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMarketListingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RmtWebServiceServer).ListMarketListings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RmtWebService_ListMarketListings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RmtWebServiceServer).ListMarketListings(ctx, req.(*ListMarketListingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RmtWebService_ServiceDesc is the grpc.ServiceDesc for RmtWebService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -525,6 +593,10 @@ var RmtWebService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetMyCurrentPixCharge",
 			Handler:    _RmtWebService_GetMyCurrentPixCharge_Handler,
+		},
+		{
+			MethodName: "ListMarketListings",
+			Handler:    _RmtWebService_ListMarketListings_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -90,6 +90,61 @@ service GameControlService {
   // the lines the GM would have read. Same code as "/gm", so the two cannot
   // drift apart.
   rpc BlockCommand(BlockCommandRequest) returns (BlockCommandResponse);
+  // ListMarket returns every open stall shelf, as the game holds it right now.
+  //
+  // IT HAS TO COME FROM HERE, and that is the whole reason this RPC exists: a
+  // personal shop lives only in the seller's SESSION, in the game's memory. It is
+  // never written to the database, so no amount of reading the database finds it.
+  //
+  // It answers from inside the single-owner loop, like every other call here.
+  rpc ListMarket(ListMarketRequest) returns (ListMarketResponse);
+}
+
+message ListMarketRequest {}
+
+// MarketOffer is one item on one shelf.
+//
+// THIS IS THE INTERNAL SHAPE, and it carries the seller's ACCOUNT id, which the
+// public page must never see. The web-api uses it to ask the database whether that
+// shelf already has somebody paying, and drops it before answering the site.
+message MarketOffer {
+  // Who is selling, for the caller's own lookups. NOT for showing.
+  int64 seller_account_id = 1;
+  // Which Cargo slot the item is offered from. With the account id it names the
+  // listing row, which is how the caller finds an open charge.
+  int32 cargo_pos = 2;
+
+  // The seller's CHARACTER name, which is what a player sees in game and the only
+  // name that may be shown.
+  string seller_character = 3;
+  int32 item_index = 4;
+  int32 refine = 5;
+  int32 amount = 6;
+  // 0 gold, 1 cash, 2 real money. The price is in that currency's own unit —
+  // cents for real money.
+  int32 currency = 7;
+  int64 price = 8;
+  // The city the stall stands in, written out ("Armia"), and EMPTY outside a city.
+  //
+  // The NAME and not the index, because the list of names would then exist in two
+  // places — here and in whoever shows it — and the two would disagree the day
+  // somebody adds a city. The game owns the table; it owns the names.
+  string village = 9;
+
+  // HOW LONG THE STALL HAS BEEN UP, IN SECONDS, and not the instant it went up.
+  //
+  // The stall's clock is the game loop's tick counter, not a wall clock: turning
+  // it into a date would produce a wrong date the first time the server restarts.
+  // A duration measured at the moment of the answer needs no clock at all.
+  //
+  // Whoever caches this answer must remember WHEN it arrived and add the time
+  // since, rather than serving this number as it was: a cached duration freezes,
+  // and a page that says "up 3 minutes ago" for an hour is lying quietly.
+  int64 open_for_seconds = 10;
+}
+
+message ListMarketResponse {
+  repeated MarketOffer offers = 1;
 }
 
 message ListBlocksRequest {

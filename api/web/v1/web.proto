@@ -112,6 +112,24 @@ service RmtWebService {
   // made here: one charge open per listing, and a buyer with two open charges
   // could pay twice for one item.
   rpc GetMyCurrentPixCharge(GetMyCurrentPixChargeRequest) returns (GetMyCurrentPixChargeResponse);
+  // ListMarketListings is the market as a PUBLIC page: everything on sale in every
+  // stall, right now.
+  //
+  // IT IS NOT A DATABASE READ. A personal shop lives only in the seller's session,
+  // in the game server's memory, and is never persisted — so this answer is fetched
+  // from the game over the control link and cached for a few seconds, because the
+  // page is public and the game must not be asked once per visitor.
+  //
+  // NOTHING HERE IDENTIFIES AN ACCOUNT. The seller is named by the CHARACTER
+  // standing in the stall, which is what any player already sees by walking up to
+  // it. The account behind it is not in this contract at all.
+  //
+  // REAL-MONEY SHELVES WITH SOMEBODY ALREADY PAYING ARE LEFT OUT. While a charge is
+  // open the item cannot be bought by anyone else, and the game refuses the second
+  // buyer. Listing it would be an invitation to a refusal; leaving it out promises
+  // nothing and is the simpler truth. It comes back on its own when the charge
+  // closes.
+  rpc ListMarketListings(ListMarketListingsRequest) returns (ListMarketListingsResponse);
 }
 
 // RmtSystemService is the server-to-server side of real-money selling: the site
@@ -236,6 +254,106 @@ message SavePixKeyRequest {
 
 message SavePixKeyResponse {
   PixKeyResult result = 1;
+}
+
+// MarketCurrency is what a shelf is priced in.
+enum MarketCurrency {
+  MARKET_CURRENCY_UNSPECIFIED = 0;
+  MARKET_CURRENCY_GOLD = 1;
+  MARKET_CURRENCY_CASH = 2;
+  MARKET_CURRENCY_REAL = 3;
+}
+
+// MarketSort is the order the page asks for.
+//
+// The order the GAME keeps (stall, then slot) is stable and useless to a buyer: it
+// puts the same seller's items together and tells nobody what is cheap.
+enum MarketSort {
+  // UNSPECIFIED keeps the game's own order. Not an error, and not "no order".
+  MARKET_SORT_UNSPECIFIED = 0;
+  MARKET_SORT_PRICE_ASC = 1;
+  MARKET_SORT_PRICE_DESC = 2;
+  // NEWEST is the stall that went up most recently, which is the smallest
+  // open_for_seconds.
+  MARKET_SORT_NEWEST = 3;
+}
+
+message ListMarketListingsRequest {
+  // WHICH CURRENCY, and it is REQUIRED: UNSPECIFIED is refused with
+  // INVALID_ARGUMENT.
+  //
+  // Refused rather than answered with everything, because of the sort: ordering by
+  // price across currencies would put 300 gold beside 300 cents and call the list
+  // sorted. And refused rather than answered empty, because an empty list reads as
+  // "nothing for sale" — a lie the caller would spend an afternoon debugging.
+  MarketCurrency currency = 1;
+
+  // ONE-BASED. Zero is read as the first page, which is the forgiving reading of a
+  // field somebody forgot to fill.
+  //
+  // A page past the end returns an EMPTY list with the real total, never an error:
+  // the list shrinks between two clicks all the time — a stall closes — and a
+  // person arriving at page 3 of a market that now has two pages did nothing wrong.
+  int32 page = 2;
+
+  // How to order. See MarketSort.
+  MarketSort sort = 3;
+
+  // ONE ITEM ONLY, for "who is selling this". Zero means every item.
+  int32 item_index = 4;
+}
+
+message MarketListing {
+  int32 item_index = 1;
+  int32 refine = 2;
+  // How many are on the shelf. They are sold TOGETHER, for `price`.
+  int32 amount = 3;
+  MarketCurrency currency = 4;
+  // In the currency's own unit: gold, cash, or CENTS for real money. The unit is
+  // not guessable from the number, which is why the currency travels beside it.
+  //
+  // IT IS THE PRICE OF THE WHOLE SHELF, not of one unit. A shelf holding a stack of
+  // five at 1000 gold costs 1000 gold, and the buyer gets all five: the game charges
+  // `slot.Price` once and moves the entire stack out of the seller's warehouse
+  // (tmserver/internal/handler/lojacompra.go — `preco := slot.Price`, then
+  // `e.Coin -= preco` and `e.Carry[destino] = itemCargo`, which is the stack itself).
+  //
+  // Measured in the buy handler and not assumed, because a page that divides by
+  // `amount` to show a unit price would advertise a fifth of the real cost.
+  int64 price = 5;
+  // The CHARACTER standing in the stall. The only name in this contract.
+  string seller_character = 6;
+  // The city the stall stands in, already written out ("Armia"). Empty outside a
+  // city, which happens and is not an error.
+  string village = 7;
+  // HOW LONG THE STALL HAS BEEN UP, in seconds, measured at the moment this answer
+  // was built — including the time it sat in the server's cache.
+  //
+  // A duration and not a date because the game's own clock is a tick counter, not
+  // a wall clock: a date built from it would be wrong after a restart.
+  int64 open_for_seconds = 8;
+}
+
+message ListMarketListingsResponse {
+  repeated MarketListing listings = 1;
+  // How many matched the filters before the page was cut, so the page can say
+  // "1 of 4". It counts the WHOLE match, not this page.
+  int32 total = 2;
+  // HOW OLD THIS ANSWER IS. Zero means it came from the game just now; anything
+  // else is the age of the cache.
+  //
+  // It is in the contract because the page is allowed to be stale and the visitor is
+  // not supposed to find that out by buying something that is gone.
+  //
+  // THE CEILING IS ONE MINUTE, and the page may say so. Normally this is at most a
+  // few seconds; when the game server is not answering, the last good list keeps
+  // being served for up to a minute — an empty market reads as "nobody is selling",
+  // which would be the bigger lie — and past that the call fails instead.
+  //
+  // Nothing wrong is handed to anyone by a stale list: this is a shop WINDOW, and
+  // the purchase is checked again inside the game, which refuses a shelf that is
+  // gone.
+  int32 cached_for_seconds = 3;
 }
 
 message GetPixKeyRequest {

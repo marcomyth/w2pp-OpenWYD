@@ -248,6 +248,46 @@ func (s *Server) ListOnline(ctx context.Context, _ *gamev1.ListOnlineRequest) (*
 	return out, nil
 }
 
+// ListMarket devolve as prateleiras das barracas abertas, como o jogo as tem agora.
+//
+// TEM DE VIR DAQUI, e é a razão de a RPC existir: a barraca vive só na SESSÃO do
+// vendedor, na memória do jogo, e nunca é persistida. Nenhuma leitura de banco a
+// encontra.
+//
+// A LISTA VEM INTEIRA, sem filtro e sem página. Quem filtra é quem chama, e é de
+// propósito: o filtro do site precisa do banco — saber se a prateleira já tem alguém
+// pagando —, e o laço do jogo não fala com banco. Passar por aqui um filtro que só
+// resolve metade faria duas peneiras, e a de cá pareceria a completa.
+//
+// O ID DA CONTA VAI JUNTO, e é o único lugar do caminho em que ele aparece: quem
+// chama precisa dele para achar o anúncio no banco, e o joga fora antes de responder
+// ao site.
+func (s *Server) ListMarket(ctx context.Context, _ *gamev1.ListMarketRequest) (*gamev1.ListMarketResponse, error) {
+	out, err := noLoop(ctx, s.world, func(w *world.World) *gamev1.ListMarketResponse {
+		ofertas := world.OfertasDoMercado(w)
+		resp := &gamev1.ListMarketResponse{Offers: make([]*gamev1.MarketOffer, 0, len(ofertas))}
+		for _, o := range ofertas {
+			resp.Offers = append(resp.Offers, &gamev1.MarketOffer{
+				SellerAccountId: o.ContaVendedor,
+				CargoPos:        int32(o.CargoPos),
+				SellerCharacter: o.Personagem,
+				ItemIndex:       int32(o.Indice),
+				Refine:          int32(o.Refino),
+				Amount:          int32(o.Qtd),
+				Currency:        int32(o.Moeda),
+				Price:           int64(o.Preco),
+				Village:         world.NomeDaVila(o.Cidade),
+				OpenForSeconds:  o.AbertaHaSegundos,
+			})
+		}
+		return resp
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Kick ends every session of one account.
 //
 // By account name, not character: the panel works in accounts, and a player

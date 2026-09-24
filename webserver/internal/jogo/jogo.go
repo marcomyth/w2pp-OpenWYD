@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	gamev1 "github.com/jeanluca/w2pp-openwyd/api/game/v1"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mercado"
 )
 
 // tempoDeChamada bounds a call. The control API answers from inside the game
@@ -111,4 +112,33 @@ func (c *Cliente) LiberaVenda(parent context.Context, conta string) (encontrou b
 		return false, traduz(err, "liberar a venda")
 	}
 	return resp.GetFound(), nil
+}
+
+// ListarMercado pede ao jogo as prateleiras das barracas abertas.
+//
+// É a única leitura possível delas: a barraca vive na memória do laço, na sessão do
+// vendedor, e nunca é persistida. Quem quiser a vitrine pergunta ao jogo ou não tem.
+func (c *Cliente) ListarMercado(parent context.Context) ([]mercado.Bruta, error) {
+	ctx, cancel := c.ctx(parent)
+	defer cancel()
+	resp, err := c.api.ListMarket(ctx, &gamev1.ListMarketRequest{})
+	if err != nil {
+		return nil, traduz(err, "listar o mercado")
+	}
+	fora := make([]mercado.Bruta, 0, len(resp.GetOffers()))
+	for _, o := range resp.GetOffers() {
+		fora = append(fora, mercado.Bruta{
+			ContaVendedor: o.GetSellerAccountId(),
+			CargoPos:      o.GetCargoPos(),
+			Personagem:    o.GetSellerCharacter(),
+			Indice:        o.GetItemIndex(),
+			Refino:        o.GetRefine(),
+			Qtd:           o.GetAmount(),
+			Moeda:         o.GetCurrency(),
+			Preco:         o.GetPrice(),
+			Cidade:        o.GetVillage(),
+			AbertaHa:      time.Duration(o.GetOpenForSeconds()) * time.Second,
+		})
+	}
+	return fora, nil
 }

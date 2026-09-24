@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"sort"
-
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -52,52 +50,30 @@ func lojaQuantidade(it world.Item) uint8 {
 	return uint8(n)
 }
 
-// lojaOfertasAbertas percorre as barracas abertas e devolve uma oferta por item
-// à venda, em ordem estável (barraca, depois posição) para a paginação não
-// embaralhar entre um pedido e outro.
+// lojaOfertasAbertas é a vitrine DO JOGO: as mesmas prateleiras, estreitadas pelo
+// filtro de moeda e pelo "só as minhas".
 func lojaOfertasAbertas(w *world.World, quem *world.Session, filtro int16) []protocol.LojaOferta {
 	var ofertas []protocol.LojaOferta
-	w.ForEachSession(func(s *world.Session, e *world.Entity) {
-		if s == nil || s.AutoTrade == nil || e == nil {
-			return
+	for _, o := range world.OfertasDoMercado(w) {
+		if filtro == protocol.LojaFiltroMeus &&
+			(quem == nil || quem.AccountID != o.ContaVendedor) {
+			continue
 		}
-		if filtro == protocol.LojaFiltroMeus && (quem == nil || s.Conn != quem.Conn) {
-			return
+		if !lojaPassaNoFiltro(filtro, o.Moeda) {
+			continue
 		}
-		// O mercado é do servidor inteiro: barraca de qualquer cidade entra na
-		// vitrine, e comprar não exige chegar perto (decisão da Josiel,
-		// 19/09/2026). O que a distância ainda decide é o imposto, que se
-		// reparte entre a cidade da barraca e a de quem compra — ver lojacompra.
-		perto := uint8(1)
-		barraca := int32(shopStallID(s))
-		for i := range s.AutoTrade.Slots {
-			sl := s.AutoTrade.Slots[i]
-			if sl.CargoPos < 0 || sl.Item.Empty() {
-				continue
-			}
-			moeda := s.AutoTrade.Moeda[i]
-			if !lojaPassaNoFiltro(filtro, moeda) {
-				continue
-			}
-			ofertas = append(ofertas, protocol.LojaOferta{
-				Vendedor: barraca,
-				Nome:     e.Name,
-				Indice:   sl.Item.Index,
-				Slot:     int8(i),
-				Refino:   lojaRefino(sl.Item),
-				Qtd:      lojaQuantidade(sl.Item),
-				Moeda:    moeda,
-				Perto:    perto,
-				Preco:    sl.Price,
-			})
-		}
-	})
-	sort.Slice(ofertas, func(a, b int) bool {
-		if ofertas[a].Vendedor != ofertas[b].Vendedor {
-			return ofertas[a].Vendedor < ofertas[b].Vendedor
-		}
-		return ofertas[a].Slot < ofertas[b].Slot
-	})
+		ofertas = append(ofertas, protocol.LojaOferta{
+			Vendedor: o.Barraca,
+			Nome:     o.Personagem,
+			Indice:   o.Indice,
+			Slot:     o.Slot,
+			Refino:   o.Refino,
+			Qtd:      o.Qtd,
+			Moeda:    o.Moeda,
+			Perto:    o.Perto,
+			Preco:    o.Preco,
+		})
+	}
 	return ofertas
 }
 
