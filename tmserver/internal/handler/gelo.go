@@ -96,8 +96,8 @@ func (d *Dispatcher) geloChefeSaque(w *world.World, reward, mob *world.Entity) {
 }
 
 // geloChefeHoras é a espera entre a morte de um chefe do Gelo e a volta dele,
-// pedido da equipe em 23/09 (esperaDoRenascimento). No boot eles nascem como
-// todo bloco sem período.
+// pedido da equipe em 23/09 (esperaDoRenascimento), e desde 24/09 também a
+// espera depois de o servidor subir (ApplyGeloChefesBoot).
 const geloChefeHoras = 4
 
 // geradorDeChefeDoGelo diz se o bloco idx é de um chefe do Gelo — Sombra Negra ou
@@ -110,4 +110,102 @@ func geradorDeChefeDoGelo(w *world.World, idx int) bool {
 	}
 	x, y := int(g.SegX[0]), int(g.SegY[0])
 	return x >= geloMinX && x <= geloMaxX && y >= geloMinY && y <= geloMaxY
+}
+
+// ApplyGeloChefesBoot segura os chefes do Gelo por geloChefeHoras depois que o
+// servidor sobe, pedido da equipe em 24/09/2026. O boot povoa todo bloco de uma
+// vez (spawnNPCs), e sem isto a Sombra e o Verid estariam de pé no primeiro
+// segundo de cada reinício — um reinício valeria um chefe.
+//
+// Eles entram na mesma fila de quem morre (world.DeferGenerator), então voltam
+// como voltariam de uma morte, e ficam até alguém matá-los: bloco sem período de
+// minuto não é reposto nem esvaziado pelo relógio. Roda depois do populate, do
+// overlay de NPC e dos blocos desligados, para adiar só o que ficou de pé.
+func (d *Dispatcher) ApplyGeloChefesBoot(w *world.World) {
+	var blocos []int
+	for idx := 0; idx < w.GeneratorCount(); idx++ {
+		if geradorDeChefeDoGelo(w, idx) && w.DeferGenerator(idx, geloChefeHoras*msPorHora) > 0 {
+			blocos = append(blocos, idx)
+		}
+	}
+	d.log.Info("chefes do Gelo nascem horas depois do boot", "horas", geloChefeHoras, "blocos", blocos)
+}
+
+// Os macacos fortes do Gelo — Soldado e Guerreiro Amon — soltam o topo das Armas
+// D (0128), pedido da equipe em 24/09/2026, com um add próprio: sorteado, e com
+// chance de vir 45-54 de dano ou 20-24 de magia. Físicas levam dano; a Lança do
+// Triunfo e a Fúria Divina (nUnique 44 e 47) levam magia, como o bônus de drop do
+// legado as separa (refine/dropbonus.go).
+var (
+	geloAmon = map[string]bool{
+		droprule.Canonical("Soldado_Amon"):   true,
+		droprule.Canonical("Guerreiro_Amon"): true,
+	}
+	armasAmonFisicas = map[int16]bool{
+		810: true, // Martelo Assassino
+		825: true, // Arco Divino
+		840: true, // Garra Draconiana
+		870: true, // Espada Vorpal
+		885: true, // Cruz Sagrada
+		911: true, // Solaris
+		936: true, // Mjolnir
+	}
+	armasAmonMagicas = map[int16]bool{
+		855: true, // Lança do Triunfo
+		900: true, // Fúria Divina
+	}
+)
+
+// A escada dos Amon anda nos degraus do bônus de drop do legado — dano de 9 em 9,
+// magia de 4 em 4 — e para um degrau acima do teto dele: o SetItemBonus nunca
+// passa de 45 de dano nem de 20 de magia numa arma, e 54 e 24 são o degrau que o
+// pedido abre. Pesos escolhidos aqui (a equipe não deu): 35% das armas saem na
+// faixa pedida, e 13% no topo.
+//
+//	física   27 · 36 · 45 · 54
+//	mágica   12 · 16 · 20 · 24
+var (
+	addAmonFisica = []addArma{
+		{35, efDamage, 27},
+		{30, efDamage, 36},
+		{22, efDamage, 45},
+		{13, efDamage, 54},
+	}
+	addAmonMagica = []addArma{
+		{35, efMagic, 12},
+		{30, efMagic, 16},
+		{22, efMagic, 20},
+		{13, efMagic, 24},
+	}
+)
+
+// geloAmonFinish carimba o add de uma Arma D que um Amon do Gelo soltou, depois
+// do bônus de drop comum.
+//
+// O slot 1 é o add da escada. O slot 0 fica com o refino que o bônus sorteou (+0
+// a +2); se o bônus pôs ali outra coisa — o bônus especial, que pode ser dano —,
+// a arma sai +0, refinável. O slot 2 guarda o segundo add aleatório do legado
+// (velocidade, skill…), a não ser que seja o mesmo atributo da escada: dano sobre
+// dano passaria do teto pedido.
+func (d *Dispatcher) geloAmonFinish(w *world.World, mob *world.Entity, it *world.Item) {
+	if !geloAmon[droprule.Canonical(mob.TemplateName)] || !nasceuNoGelo(mob) {
+		return
+	}
+	var tabela []addArma
+	switch {
+	case armasAmonFisicas[it.Index]:
+		tabela = addAmonFisica
+	case armasAmonMagicas[it.Index]:
+		tabela = addAmonMagica
+	default:
+		return
+	}
+	linha := sortearAddArma(w, tabela)
+	if it.Effects[0].Effect != efSanc {
+		it.Effects[0] = world.Effect{Effect: efSanc, Value: 0}
+	}
+	it.Effects[1] = world.Effect{Effect: linha.efeito, Value: uint8(linha.valor)}
+	if it.Effects[2].Effect == linha.efeito {
+		it.Effects[2] = world.Effect{}
+	}
 }

@@ -356,12 +356,8 @@ func (w *World) DespawnMob(id int, removeType int32) {
 		!IsKefraGenerator(int(e.GenIndex)) &&
 		(gen == nil || (gen.MinuteGenerate <= 0 && !gen.ArenaRefill)) {
 		w.respawnQueue = append(w.respawnQueue, respawnEntry{
-			spawn: MobSpawn{
-				Template: e.Template, X: e.SpawnX, Y: e.SpawnY,
-				RouteType: e.RouteType, SegX: e.SegListX, SegY: e.SegListY,
-				SegWait: e.SegWait, GenIndex: e.GenIndex, TemplateName: e.TemplateName,
-			},
-			due: w.Now() + w.respawnDelay(int32(e.GenIndex)),
+			spawn: respawnSpawn(e),
+			due:   w.Now() + w.respawnDelay(int32(e.GenIndex)),
 		})
 	}
 	if cur, ok := w.grid.MobAt(int(e.X), int(e.Y)); ok && int(cur) == id {

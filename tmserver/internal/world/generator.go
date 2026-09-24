@@ -310,6 +310,51 @@ func (w *World) ClearGenerator(idx int) {
 	}
 }
 
+// respawnSpawn is what the respawn queue needs to rebuild a monster where it
+// was born: template, spawn point and its instance patrol route.
+func respawnSpawn(e *Entity) MobSpawn {
+	return MobSpawn{
+		Template: e.Template, X: e.SpawnX, Y: e.SpawnY,
+		RouteType: e.RouteType, SegX: e.SegListX, SegY: e.SegListY,
+		SegWait: e.SegWait, GenIndex: e.GenIndex, TemplateName: e.TemplateName,
+	}
+}
+
+// DeferGenerator takes the monsters block idx has standing out of the world and
+// queues each one to come back after wait (World.Now units), exactly as a death
+// would — so what returns is the same monster, on its own route, through the
+// same queue and the same reveal. It reports how many it deferred.
+//
+// It is how a boss that the boot populate raised is held back: the boot fills
+// every block at once, and a boss the team wants a few hours after a restart
+// has to be put back in line. Once it is back it stays until someone kills it:
+// a block with no minute period is never refilled or cleared by the timer.
+//
+// The removal is type 0, which does not touch CurrentNumMob, so the count is
+// taken back here — SpawnMobAt adds it again when the monster returns.
+// Loop-only.
+func (w *World) DeferGenerator(idx int, wait uint32) int {
+	g := w.GeneratorAt(idx)
+	if g == nil {
+		return 0
+	}
+	n := 0
+	for id := MaxUser; id < MaxMob; id++ {
+		e := w.entities[id]
+		if e == nil || int(e.GenIndex) != idx || e.Template == nil || e.Summoner != 0 {
+			continue
+		}
+		spawn := respawnSpawn(e)
+		w.DespawnMob(id, 0)
+		w.respawnQueue = append(w.respawnQueue, respawnEntry{spawn: spawn, due: w.Now() + wait})
+		n++
+	}
+	if g.CurrentNumMob -= n; g.CurrentNumMob < 0 {
+		g.CurrentNumMob = 0
+	}
+	return n
+}
+
 // SpawnGeneratorLeader spawns exactly one generator leader at its first
 // waypoint without consuming RNG. Scripted world events use this instead of
 // GenerateMob so they cannot perturb the combat/drop parity stream.
