@@ -50,6 +50,22 @@ var ErrDesligada = errors.New("ponte: o cliente nao esta configurado")
 // aconteceu" e soltar o item é o que este erro impede de virar descuido.
 var ErrIncerta = errors.New("ponte: a chamada saiu e a resposta nao voltou")
 
+// ErroHTTP e a recusa na porta: corpo malformado, assinatura errada, corpo grande
+// demais, rota que nao existe.
+//
+// Carrega o CODIGO porque quem chama precisa distinguir: 401 e segredo, 404 e URL,
+// 400 e o corpo. Sao consertos diferentes, e um erro que dissesse so "recusado"
+// mandaria procurar nos tres.
+type ErroHTTP struct {
+	Rota   string
+	Codigo int
+	Corpo  string
+}
+
+func (e *ErroHTTP) Error() string {
+	return fmt.Sprintf("ponte: %s recusado pela ponte: http %d: %s", e.Rota, e.Codigo, e.Corpo)
+}
+
 // Config são as quatro variáveis que a Hanna põe na Railway. Nenhuma delas é lida
 // de arquivo: a Railway não tem sistema de arquivos persistente, então o
 // certificado e a chave vêm como conteúdo PEM na própria variável.
@@ -104,6 +120,37 @@ func pemDeVariavel(v string) []byte {
 		v = strings.ReplaceAll(v, "\\n", "\n")
 	}
 	return []byte(v)
+}
+
+// horaOpcional aceita null, string vazia e RFC3339.
+//
+// A ponte converte string vazia em null antes de responder, então o caso não
+// deveria chegar. Tratá-lo custa três linhas e evita que a venda inteira pare com
+// "não consegui ler a data" se aquele lado mudar — e um campo de data vazio é
+// exatamente o tipo de coisa que muda sem ninguém avisar.
+type horaOpcional struct{ time.Time }
+
+func (h *horaOpcional) UnmarshalJSON(b []byte) error {
+	txt := strings.Trim(string(b), `"`)
+	if txt == "" || txt == "null" {
+		return nil
+	}
+	t, err := time.Parse(time.RFC3339, txt)
+	if err != nil {
+		return fmt.Errorf("ponte: hora %q ilegivel: %w", txt, err)
+	}
+	h.Time = t
+	return nil
+}
+
+// Quando devolve nil, a processadora não disse a hora — e é isso que faz o
+// servidor cair para o próprio relógio.
+func (h *horaOpcional) Valor() *time.Time {
+	if h == nil || h.IsZero() {
+		return nil
+	}
+	t := h.Time
+	return &t
 }
 
 const timeoutPadrao = 15 * time.Second
@@ -186,8 +233,8 @@ type RespostaConsulta struct {
 	// diferentes: nulo quer dizer "a processadora não disse", e é isso que faz o
 	// servidor cair para o próprio relógio. Um time.Time zero diria "1 de janeiro
 	// do ano 1", que compararia como muito antigo e entregaria tudo.
-	PagoEm      *time.Time `json:"pagoEm"`
-	DevolvidoEm *time.Time `json:"devolvidoEm"`
+	PagoEm      *horaOpcional `json:"pagoEm"`
+	DevolvidoEm *horaOpcional `json:"devolvidoEm"`
 }
 
 type pedidoReembolso struct {
@@ -303,8 +350,7 @@ func (c *Cliente) chama(ctx context.Context, rota string, corpo, saida any) erro
 		// 400, 401, 413 e afins: erro NOSSO — corpo malformado, assinatura errada,
 		// corpo grande demais. Não é recusa da processadora e não pode ser tratado
 		// como tal.
-		return fmt.Errorf("ponte: %s recusado pela ponte: http %d: %s",
-			rota, resp.StatusCode, primeirasLinhas(dados))
+		return &ErroHTTP{Rota: rota, Codigo: resp.StatusCode, Corpo: primeirasLinhas(dados)}
 	}
 }
 
@@ -319,25 +365,42 @@ func primeirasLinhas(b []byte) string {
 	return s
 }
 
-// Saude bate na ponte com uma chamada ASSINADA, só para provar que a configuração
-// está certa.
+// Sonda prova, no boot, que as DUAS travas da porta estao certas — sem efeito
+// nenhum do outro lado.
 //
-// Ela existe porque os valores são SELADOS na Railway: ninguém — nem a Hanna
-// depois de colar, nem eu — consegue reler o segredo ou o certificado para
-// conferir. A única prova de que o bloco foi colado inteiro é uma chamada que
-// funcione.
+// Ela existe porque o segredo e o certificado sao SELADOS na Railway: ninguem
+// consegue rele-los para conferir se o bloco foi colado inteiro. A unica prova e
+// uma chamada que funcione.
 //
-// E ela DISTINGUE as duas falhas, que é o que torna o aviso útil:
+// E ELA NAO USA O /saude, que seria o palpite obvio: aquele e GET e NAO e assinado,
+// entao passaria com o segredo errado e provaria so metade. Um teste que passa com
+// a configuracao quebrada e pior do que nenhum.
 //
-//   - erro de TLS quer dizer certificado ou chave errados, ou o par não bate;
-//   - 401 quer dizer que o segredo está errado, ou o relógio fora da janela.
+// O que ela faz: POST assinado em /cobranca/consulta com o corpo vazio. A ponte
+// confere a assinatura ANTES de validar o corpo, entao:
 //
-// São consertos diferentes, e um aviso que dissesse só "não conectou" mandaria
-// procurar nos dois lugares.
-func (c *Cliente) Saude(ctx context.Context) error {
+//	400  -> SUCESSO. mTLS e assinatura conferem, e o corpo vazio foi recusado na
+//	        validacao, sem chegar na processadora. Nada foi criado, nada foi pago.
+//	401  -> o SEGREDO esta errado, ou o relogio esta fora da janela de 5 minutos.
+//	404  -> a URL esta errada.
+//	erro de TLS -> o CERTIFICADO ou a CHAVE estao errados, ou nao formam par.
+//
+// SIM, 400 E O SUCESSO, e nao e engano. Se alguem "consertar" isto daqui a um mes
+// trocando por 200, a sonda vai reprovar uma configuracao correta. O custo do
+// desenho e uma linha de recusa por boot no log da ponte, e ele foi aceito por
+// quem cuida dela.
+func (c *Cliente) Sonda(ctx context.Context) error {
 	var vazio struct{}
-	if err := c.chama(ctx, "/saude", struct{}{}, &vazio); err != nil {
+	err := c.chama(ctx, "/cobranca/consulta", struct{}{}, &vazio)
+
+	var http *ErroHTTP
+	if errors.As(err, &http) && http.Codigo == 400 {
+		return nil
+	}
+	if err != nil {
 		return err
 	}
-	return nil
+	// 200 num corpo vazio significa que a ponte parou de validar. Nao e sucesso:
+	// e um aviso de que a porta ficou mais permissiva do que o contrato diz.
+	return errors.New("ponte: a consulta aceitou um corpo vazio; a validacao dela mudou")
 }

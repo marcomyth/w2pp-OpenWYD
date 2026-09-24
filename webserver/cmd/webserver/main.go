@@ -133,6 +133,9 @@ func run(logger *slog.Logger) error {
 		// conferir se o bloco foi colado inteiro. A única prova é uma chamada que
 		// funcione.
 		//
+		// Ver ponte.Sonda para por que ela NÃO usa o /saude: aquele é GET e não é
+		// assinado, então passaria com o segredo errado e provaria só metade.
+		//
 		// Em segundo plano e sem derrubar nada: o resto do web-api não tem nada a
 		// ver com dinheiro real, e uma ponte fora do ar não pode impedir o
 		// cadastro de conta de subir.
@@ -142,10 +145,11 @@ func run(logger *slog.Logger) error {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer cancel()
-			if err := cliente.Saude(ctx); err != nil {
-				logger.Warn("ponte nao respondeu ao teste do boot: confira se o "+
-					"certificado/chave (erro de TLS) ou o segredo (http 401) foram "+
-					"colados inteiros", "err", err)
+			if err := cliente.Sonda(ctx); err != nil {
+				logger.Warn("ponte reprovou no teste do boot. erro de TLS = "+
+					"PONTE_CERT_CLIENTE/PONTE_CHAVE_CLIENTE; http 401 = "+
+					"PONTE_SEGREDO (ou relógio fora da janela de 5 min); "+
+					"http 404 = PONTE_URL", "err", err)
 				return
 			}
 			logger.Info("ponte respondeu ao teste do boot: mTLS e assinatura conferem")

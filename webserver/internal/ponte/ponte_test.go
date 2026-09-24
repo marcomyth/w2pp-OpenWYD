@@ -117,7 +117,7 @@ func TestConsultaDistingueNaoPagoDePagoNaHoraZero(t *testing.T) {
 		if r.PagoEm == nil {
 			t.Fatal("a hora veio nula com a v2, que a documenta")
 		}
-		if got := r.PagoEm.UTC().Format(time.RFC3339); got != "2026-09-23T14:32:10Z" {
+		if got := r.PagoEm.Valor().UTC().Format(time.RFC3339); got != "2026-09-23T14:32:10Z" {
 			t.Errorf("hora = %s", got)
 		}
 		if r.Fonte != "v2" {
@@ -269,5 +269,90 @@ func TestOPemChegaDosDoisJeitos(t *testing.T) {
 	}
 	if got := string(pemDeVariavel(comBarraN)); got != comQuebras {
 		t.Errorf("o PEM com barra-n nao virou quebras:\n%q", got)
+	}
+}
+
+// A SONDA DO BOOT: 400 É SUCESSO, e isso precisa de teste porque parece engano.
+//
+// Ela prova as DUAS travas de uma vez. A ponte confere a assinatura ANTES de
+// validar o corpo, então um corpo vazio que chega até a validação já provou que o
+// mTLS e o segredo estão certos — e é recusado sem chegar na processadora.
+//
+// O /saude seria o palpite óbvio e prova só metade: ele é GET e não é assinado,
+// então passaria com o segredo errado. Um teste que passa com a configuração
+// quebrada é pior do que nenhum.
+func TestSondaDoBootTrata400ComoSucesso(t *testing.T) {
+	var rotaVista string
+	srv := pontefalsa(t, func(rota string, corpo []byte) (int, string) {
+		rotaVista = rota
+		if string(corpo) != "{}" {
+			t.Errorf("a sonda mandou %q; ela tem de mandar corpo vazio", corpo)
+		}
+		return 400, `{"erro":"referencia obrigatoria"}`
+	})
+
+	if err := clienteContra(t, srv.URL).Sonda(context.Background()); err != nil {
+		t.Errorf("a sonda reprovou uma configuracao CERTA: %v", err)
+	}
+	if rotaVista != "/cobranca/consulta" {
+		t.Errorf("a sonda bateu em %s; o /saude nao serve porque nao e assinado", rotaVista)
+	}
+}
+
+// E os três jeitos de falhar chegam distinguíveis, porque os consertos são
+// diferentes: certificado, segredo e URL.
+func TestASondaDistingueAsFalhas(t *testing.T) {
+	casos := []struct {
+		nome   string
+		codigo int
+	}{
+		{"segredo errado", 401},
+		{"url errada", 404},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			srv := pontefalsa(t, func(string, []byte) (int, string) { return c.codigo, `{}` })
+			err := clienteContra(t, srv.URL).Sonda(context.Background())
+			if err == nil {
+				t.Fatalf("http %d passou como sucesso", c.codigo)
+			}
+			var httpErr *ErroHTTP
+			if !errors.As(err, &httpErr) || httpErr.Codigo != c.codigo {
+				t.Errorf("erro = %v; quem le precisa do codigo para saber o que consertar", err)
+			}
+		})
+	}
+}
+
+// E se a ponte ACEITAR um corpo vazio, a sonda reprova.
+//
+// Não é sucesso: é aviso de que a validação do outro lado mudou e a porta ficou
+// mais permissiva do que o contrato diz.
+func TestASondaReprovaSeAPonteAceitarCorpoVazio(t *testing.T) {
+	srv := pontefalsa(t, func(string, []byte) (int, string) {
+		return 200, `{"estado":"inexistente"}`
+	})
+
+	if err := clienteContra(t, srv.URL).Sonda(context.Background()); err == nil {
+		t.Error("a sonda aprovou uma ponte que aceitou corpo vazio; a validacao dela mudou")
+	}
+}
+
+// String vazia numa data é tratada como nula.
+//
+// A ponte converte antes de responder, então não deveria chegar. Tratar custa três
+// linhas e evita que a venda inteira pare com "não consegui ler a data" se aquele
+// lado mudar — e campo de data vazio é o tipo de coisa que muda sem avisar.
+func TestDataVaziaContaComoNula(t *testing.T) {
+	srv := pontefalsa(t, func(string, []byte) (int, string) {
+		return 200, `{"estado":"achada","fonte":"v1","status":"completed","pagoEm":""}`
+	})
+
+	r, err := clienteContra(t, srv.URL).ConsultarCobranca(context.Background(), "uuid-1")
+	if err != nil {
+		t.Fatalf("a data vazia derrubou a leitura inteira: %v", err)
+	}
+	if r.PagoEm.Valor() != nil {
+		t.Errorf("hora = %v, quero nula", r.PagoEm.Valor())
 	}
 }
