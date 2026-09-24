@@ -228,9 +228,31 @@ type RmtWebServiceClient interface {
 	// money — and the worst moment for that is the second after they paid. The
 	// window is server configuration; past it, the answer is empty.
 	//
-	// READ ONLY. It creates nothing and cancels nothing. The charge is created by
-	// the game when the shelf is bought, and it closes by payment, by the buyer
-	// leaving the game, or by its deadline.
+	// IT CREATES THE PIX CODE, and this is the one write it does. The charge row
+	// itself is created by the game when the shelf is bought, WITHOUT a code; the
+	// first read of an open charge that has no code yet asks the processor for one,
+	// stores it, and returns it. It closes by payment, by the buyer leaving the
+	// game, or by its deadline. Nothing here cancels anything.
+	//
+	// Creating late, rather than at the click in the game, means a buyer who never
+	// opens the page costs no processor call — and the game server needs no
+	// credentials for the payment path.
+	//
+	// IDEMPOTENT PER CHARGE, and the caller sees the consequences:
+	//
+	//   - The site polls every 5 s while a charge is OPEN, so concurrent reads do
+	//     arrive together. Only ONE call to the processor may go out per charge, so
+	//     the row is locked for the duration of that call and every reader is
+	//     answered with the STORED code, never with one a losing racer created.
+	//     Two tabs therefore always show the same code.
+	//   - While the processor is answering, the read returns OPEN with an EMPTY
+	//     pix_code. That is not a failure: it means "being generated", and the next
+	//     poll has it. A read that fails to create also returns OPEN with an empty
+	//     code rather than an error, because the retry is what fixes it.
+	//   - With less than a minute left before expires_at, NOTHING is created and the
+	//     state comes back EXPIRED even though the row is still open in the
+	//     database. A code with ten seconds of life is a refund waiting to happen:
+	//     the person pays, the money lands on a dead charge, and both sides lose.
 	//
 	// THERE IS NO "GIVE UP" CALL, and leaving it out is a decision: cancelling on
 	// our side does NOT cancel the Pix at the processor, so a give-up button would
@@ -339,9 +361,31 @@ type RmtWebServiceServer interface {
 	// money — and the worst moment for that is the second after they paid. The
 	// window is server configuration; past it, the answer is empty.
 	//
-	// READ ONLY. It creates nothing and cancels nothing. The charge is created by
-	// the game when the shelf is bought, and it closes by payment, by the buyer
-	// leaving the game, or by its deadline.
+	// IT CREATES THE PIX CODE, and this is the one write it does. The charge row
+	// itself is created by the game when the shelf is bought, WITHOUT a code; the
+	// first read of an open charge that has no code yet asks the processor for one,
+	// stores it, and returns it. It closes by payment, by the buyer leaving the
+	// game, or by its deadline. Nothing here cancels anything.
+	//
+	// Creating late, rather than at the click in the game, means a buyer who never
+	// opens the page costs no processor call — and the game server needs no
+	// credentials for the payment path.
+	//
+	// IDEMPOTENT PER CHARGE, and the caller sees the consequences:
+	//
+	//   - The site polls every 5 s while a charge is OPEN, so concurrent reads do
+	//     arrive together. Only ONE call to the processor may go out per charge, so
+	//     the row is locked for the duration of that call and every reader is
+	//     answered with the STORED code, never with one a losing racer created.
+	//     Two tabs therefore always show the same code.
+	//   - While the processor is answering, the read returns OPEN with an EMPTY
+	//     pix_code. That is not a failure: it means "being generated", and the next
+	//     poll has it. A read that fails to create also returns OPEN with an empty
+	//     code rather than an error, because the retry is what fixes it.
+	//   - With less than a minute left before expires_at, NOTHING is created and the
+	//     state comes back EXPIRED even though the row is still open in the
+	//     database. A code with ten seconds of life is a refund waiting to happen:
+	//     the person pays, the money lands on a dead charge, and both sides lose.
 	//
 	// THERE IS NO "GIVE UP" CALL, and leaving it out is a decision: cancelling on
 	// our side does NOT cancel the Pix at the processor, so a give-up button would
