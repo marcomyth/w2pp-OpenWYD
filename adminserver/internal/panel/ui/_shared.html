@@ -429,6 +429,9 @@
       <a href="/contas" {{if eq .Nav "contas"}}class="on"{{end}}>Contas</a>
       {{if .HasDenun}}<a href="/denuncias" {{if eq .Nav "denuncias"}}class="on"{{end}}>Denúncias</a>{{end}}
       {{if .HasRepasse}}<a href="/repasses" {{if eq .Nav "repasses"}}class="on"{{end}}>Repasses</a>{{end}}
+      {{if .HasFilasRMT}}<a href="/reembolsos" {{if eq .Nav "reembolsos"}}class="on"{{end}}>Reembolsos</a>{{end}}
+      {{if .HasFilasRMT}}<a href="/orfaos" {{if eq .Nav "orfaos"}}class="on"{{end}}>Órfãos</a>{{end}}
+      {{if .HasFilasRMT}}<a href="/divergentes" {{if eq .Nav "divergentes"}}class="on"{{end}}>Divergentes</a>{{end}}
       {{if .HasGuilda}}<a href="/guildas" {{if eq .Nav "guildas"}}class="on"{{end}}>Guildas</a>{{end}}
       {{if .HasTrocas}}<a href="/trocas" {{if eq .Nav "trocas"}}class="on"{{end}}>Trocas</a>{{end}}
       {{if .HasCenso}}<a href="/censo" {{if eq .Nav "censo"}}class="on"{{end}}>Censo</a>{{end}}

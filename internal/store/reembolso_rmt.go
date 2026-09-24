@@ -213,6 +213,19 @@ func (s *Store) ReabrirReembolsoRecusado(ctx context.Context, cobrancaID int64, 
 		"rmt_reembolso_tentar_de_novo")
 }
 
+// ConfirmarReembolsoPedido e a saida do INCERTO para quem foi olhar e ACHOU o pedido
+// no painel da processadora.
+//
+// Ela existe porque o incerto nao tem saida automatica nenhuma, e sem esta a linha
+// ficaria parada para sempre depois de a duvida ter sido desfeita. O que ela afirma e
+// modesto de proposito: "o pedido existe e esta em analise", e nao "o dinheiro
+// voltou". Quem diz que voltou e o ResolverReembolsoNaMao, e sao coisas diferentes —
+// a analise deles leva ate dois dias uteis e pode ser reprovada.
+func (s *Store) ConfirmarReembolsoPedido(ctx context.Context, cobrancaID int64, ator AtorDaStaff) error {
+	return s.transicaoDaStaff(ctx, cobrancaID, ator, reembolsoPedido,
+		"rmt_reembolso_achado_no_painel")
+}
+
 // ResolverReembolsoNaMao é para quando a staff devolveu o dinheiro pelo painel da
 // processadora, fora do nosso caminho.
 //
@@ -260,7 +273,17 @@ func (s *Store) transicaoDaStaff(ctx context.Context, cobrancaID int64, ator Ato
 		if err != nil {
 			return fmt.Errorf("store: %s na cobranca %d: %w", acao, cobrancaID, err)
 		}
-		if estadoAtual == nil || *estadoAtual != reembolsoRecusado {
+		// AS DUAS ESPECIES DE PARADO, e nao so a recusa.
+		//
+		// O INCERTO (0126) entrou aqui porque ele nao tem saida automatica nenhuma —
+		// de proposito, para ninguem pedir duas vezes o mesmo reembolso. Sem a staff
+		// poder tira-lo, a linha ficaria parada para sempre depois de a pessoa ja ter
+		// aberto o painel da processadora e desfeito a duvida.
+		//
+		// E nada mais entra: PENDENTE anda sozinho, PEDIDO esta em analise, e
+		// CONCLUIDO e terminal.
+		if estadoAtual == nil ||
+			(*estadoAtual != reembolsoRecusado && *estadoAtual != reembolsoIncerto) {
 			return ErrReembolsoNaoEstaRecusado
 		}
 		if _, err := tx.Exec(ctx, `
@@ -280,7 +303,11 @@ func (s *Store) transicaoDaStaff(ctx context.Context, cobrancaID int64, ator Ato
 			    (actor_account_id, actor_role, action, target_account_id, old_value, new_value)
 			VALUES ($1, $2, $3, $4, $5, $6)`,
 			ator.ContaID, ator.Papel, acao, compradorConta,
-			fmt.Sprintf(`{"cobranca":%d,"reembolso":"recusado","erro":%q}`, cobrancaID, codigoAntigo),
+			// O ESTADO DE ONDE VEIO, e nao a palavra "recusado" fixa: agora ele pode
+			// ser incerto, e um registro que diz sempre a mesma coisa nao registra
+			// nada. Numa disputa, "saiu de incerto" e "saiu de recusado" sao fatos
+			// diferentes — no primeiro alguem afirmou o que a processadora nao disse.
+			fmt.Sprintf(`{"cobranca":%d,"reembolso":%d,"erro":%q}`, cobrancaID, *estadoAtual, codigoAntigo),
 			fmt.Sprintf(`{"cobranca":%d,"reembolso":%d}`, cobrancaID, destino)); err != nil {
 			return fmt.Errorf("store: %s: registrando na auditoria: %w", acao, err)
 		}
@@ -296,9 +323,22 @@ type ReembolsoRecusadoNaFila struct {
 	ValorCentavos  int64
 	Identifier     string
 	Erro           string
+	// Estado separa as duas espécies de parado, e a diferença muda o que a pessoa
+	// tem de fazer: no RECUSADO nada saiu, e no INCERTO o pedido PODE ter sido
+	// criado. Ver ReembolsosRecusados.
+	Estado EstadoReembolso
 }
 
 // ReembolsosRecusados lista o que travou, para a tela da staff.
+//
+// AS DUAS ESPÉCIES DE PARADO, e não só a recusa: recusado e INCERTO (0126).
+//
+// Estão na mesma lista porque são a mesma fila para quem olha — dinheiro que devia
+// ter voltado e não voltou —, e separadas pelo estado porque pedem coisas
+// diferentes. No recusado nada saiu, com certeza, e a ação é pedir de novo depois de
+// consertar a causa. No incerto o pedido PODE ter sido criado, e pedir de novo
+// devolveria em dobro; ali a única saída é uma pessoa abrir o painel da processadora
+// e olhar.
 //
 // Devolve o identifier da processadora e o código de erro DELES porque é com
 // esses dois que uma pessoa resolve: o identifier acha a venda no painel deles, e
@@ -306,10 +346,10 @@ type ReembolsoRecusadoNaFila struct {
 func (s *Store) ReembolsosRecusados(ctx context.Context) ([]ReembolsoRecusadoNaFila, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, comprador_conta, valor_centavos,
-		       coalesce(identifier_syncpay, ''), coalesce(reembolso_erro, '')
+		       coalesce(identifier_syncpay, ''), coalesce(reembolso_erro, ''), reembolso_status
 		  FROM rmt_cobranca
-		 WHERE reembolso_status = $1
-		 ORDER BY reembolso_pedido_em NULLS FIRST, id`, reembolsoRecusado)
+		 WHERE reembolso_status IN ($1, $2)
+		 ORDER BY reembolso_pedido_em NULLS FIRST, id`, reembolsoRecusado, reembolsoIncerto)
 	if err != nil {
 		return nil, fmt.Errorf("store: reembolsos recusados: %w", err)
 	}
@@ -317,10 +357,12 @@ func (s *Store) ReembolsosRecusados(ctx context.Context) ([]ReembolsoRecusadoNaF
 	var fila []ReembolsoRecusadoNaFila
 	for rows.Next() {
 		var r ReembolsoRecusadoNaFila
+		var estado int16
 		if err := rows.Scan(&r.CobrancaID, &r.CompradorConta, &r.ValorCentavos,
-			&r.Identifier, &r.Erro); err != nil {
+			&r.Identifier, &r.Erro, &estado); err != nil {
 			return nil, fmt.Errorf("store: reembolsos recusados: %w", err)
 		}
+		r.Estado = EstadoReembolso(estado)
 		fila = append(fila, r)
 	}
 	return fila, rows.Err()

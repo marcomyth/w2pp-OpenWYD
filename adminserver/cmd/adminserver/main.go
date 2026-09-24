@@ -213,6 +213,7 @@ func run(logger *slog.Logger) error {
 		MesaDrops:   store.New(pool),
 		Denuncias:   store.New(pool),
 		Repasses:    store.New(pool),
+		FilasRMT:    store.New(pool),
 		Guildas:     store.New(pool),
 		Carteira:    donate.New(pool),
 		Trocas:      store.New(pool),

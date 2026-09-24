@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Valores divergentes — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  .linha { border-left: 3px solid var(--warn); padding-left: 15px; margin-bottom: 26px; }
+  .valores { display: flex; flex-wrap: wrap; gap: 6px 26px; align-items: baseline;
+             margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+  .valores .rot { text-transform: uppercase; letter-spacing: .07em;
+                  font-size: 10.5px; color: var(--ink-3); display: block; }
+  .valores .val { font-size: 17px; color: var(--ink); }
+  .dif { color: var(--warn); }
+  .campos { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: baseline;
+            font-size: 12.5px; color: var(--ink-3); }
+  .campos .rot { text-transform: uppercase; letter-spacing: .07em; font-size: 10.5px; }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Valores divergentes</h1>
+  <p class="sub">Entrou dinheiro com um valor diferente do que foi cobrado.</p>
+
+  <p class="nota">
+    <strong>Esta tela não tem botão, e a falta é a decisão.</strong> Devolver, cobrar a
+    diferença ou entregar assim mesmo é escolha sobre o dinheiro de duas pessoas — de
+    quem pagou e de quem vendeu —, e não existe resposta automática certa. Um botão
+    aqui daria a impressão de que existe.
+    <br><br>
+    O que o servidor faz sozinho é o que ele sabe fazer sem errar: ele <strong>não
+    entrega o item</strong> e <strong>não vence a cobrança</strong>. Ela fica aberta, e
+    é isso que segura o item do vendedor — quem pagou não pode perder o item para outra
+    pessoa enquanto a decisão não sai.
+    <br><br>
+    Resolvido por fora, a linha some daqui quando a cobrança for concluída ou
+    devolvida no painel da processadora. Use o
+    <span class="mono">identifier</span> para achá-la lá.
+  </p>
+
+  {{if .Fila}}
+    {{range .Fila}}
+    <div class="linha">
+      <div class="valores">
+        <span><span class="rot">Cobrado</span><span class="val">{{.Cobrado}}</span></span>
+        <span><span class="rot">Recebido</span><span class="val">{{.Recebido}}</span></span>
+        <span>
+          <span class="rot">Diferença</span>
+          <span class="val dif">
+            {{if .AMenos}}faltaram {{.Diferenca}}{{else}}sobraram {{.Diferenca}}{{end}}
+          </span>
+        </span>
+      </div>
+      <div class="campos">
+        <span><span class="rot">Comprador</span> <a href="/contas/{{.CompradorConta}}">conta {{.CompradorConta}}</a></span>
+        <span><span class="rot">Cobrança</span> {{.CobrancaID}}</span>
+        {{if .Identifier}}<span><span class="rot">Identifier</span> <span class="mono">{{.Identifier}}</span></span>{{end}}
+      </div>
+    </div>
+    {{end}}
+  {{else}}
+    <div class="vazio">Nenhum valor divergente. Todo pagamento entrou pelo valor cobrado.</div>
+  {{end}}
+</main>
+</body>
+</html>
