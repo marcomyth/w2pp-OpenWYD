@@ -146,6 +146,10 @@ const (
 	MsgGuildaEsquadra Type = 0x0F4A // S->C  quem esta designado para uma cidade
 	MsgGuildaDesigna  Type = 0x0F4B // C->S  trocar a escalacao de uma cidade
 
+	// Painel de refino (protocol/refino.go): várias poeiras num pedido só.
+	MsgRefinoPede      Type = 0x0F50 // C->S  refine este item com esta poeira até +N
+	MsgRefinoResultado Type = 0x0F51 // S->C  quantas foram, quantas deram certo, e por que parou
+
 	MsgRestart          Type = 0x0289 // 649
 	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)
 	MsgSendReqParty     Type = 0x037F // 895  invite to party

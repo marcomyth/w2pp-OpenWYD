@@ -759,6 +759,8 @@ func New(cfg Config) *Dispatcher {
 	// no NPC, que chega como MsgReqShopList.
 	d.routes[protocol.MsgHonraCompra] = d.honraCompra
 	d.routes[protocol.MsgHonraFecha] = d.honraFecha
+	// Painel de refino (refino_lote.go): várias poeiras num pedido só.
+	d.routes[protocol.MsgRefinoPede] = d.refinoLote
 	// Batch 6 — combine/refine (one engine, all Item[]-based variants).
 	for _, ty := range combineItemTypes {
 		d.routes[ty] = d.combineItem

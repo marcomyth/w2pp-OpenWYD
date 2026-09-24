@@ -154,23 +154,48 @@ func (d *Dispatcher) refineItem(w *world.World, s *world.Session, e *world.Entit
 		d.refinePedraArch(w, s, e, dst, body, src)
 		return
 	}
-	if d.itemAbility(*dst, efNoSanc) != 0 || isCapaCelestial(dst.Index) {
-		d.refineReject(w, s, e, src, NoticeCantRefineMore)
+	res, recusa, ok := d.refineTentativa(w, e, dst, src, vol)
+	if !ok {
+		d.refineReject(w, s, e, src, recusa)
 		return
+	}
+	t := refineTarget{item: dst, place: int(body.DestType), slot: int(body.DestPos)}
+	if res.sucesso {
+		d.refineSucceed(w, s, e, t, res.nivelAnuncio)
+		return
+	}
+	d.refineFail(w, s, e, t)
+}
+
+// tentativa é o que UMA poeira fez com o item.
+type tentativa struct {
+	sucesso bool
+	// nivelAnuncio é o nível que o arrasto passa a announceRefine. No passo
+	// +10→+11 ele continua 10, como sempre foi; o lote anuncia o nível do item.
+	nivelAnuncio int
+}
+
+// refineTentativa são os passos de refineItem a partir do EF_NOSANC: as travas, o
+// sorteio e a escrita no item e no carry, sem mandar nada ao cliente. Quem chama
+// manda as mensagens: o arrasto, uma vez por poeira; o painel de refino
+// (refino_lote.go), uma vez por lote.
+//
+// ok == false é recusa: nada foi gasto nem sorteado, e recusa é o aviso.
+func (d *Dispatcher) refineTentativa(w *world.World, e *world.Entity, dst *world.Item, src, vol int) (res tentativa, recusa Notice, ok bool) {
+	if d.itemAbility(*dst, efNoSanc) != 0 || isCapaCelestial(dst.Index) {
+		return res, NoticeCantRefineMore, false
 	}
 
 	level := refine.Level(*dst)
 	// Ori cannot touch an item already at +6 or above (:203).
 	if vol == volDustOri && level >= oriMaxSanc {
-		d.refineReject(w, s, e, src, NoticeCantRefineMore)
-		return
+		return res, NoticeCantRefineMore, false
 	}
 	// +9 is the dust path's wall. +10 is allowed through as the one special case
 	// (it becomes +11); +11 and up are refused (:802, where the legacy compares
 	// against the REF_11 sentinel).
 	if level == lacMaxSanc || level >= sancHardCap || (level >= lacMaxSanc && dst.Index == item769) {
-		d.refineReject(w, s, e, src, NoticeCantRefineMore)
-		return
+		return res, NoticeCantRefineMore, false
 	}
 
 	// Read the pity BEFORE the bootstrap: planting the pair zeroes the slot, and
@@ -181,8 +206,7 @@ func (d *Dispatcher) refineItem(w *world.World, s *world.Session, e *world.Entit
 	// A never-refined item has nowhere to store a level yet. When all three effect
 	// slots hold real effects the legacy refuses to refine the item at all (:814).
 	if level == 0 && !refine.Bootstrap(dst) {
-		d.refineReject(w, s, e, src, NoticeCantRefineMore)
-		return
+		return res, NoticeCantRefineMore, false
 	}
 
 	// An egg that failed a previous refine has to sit out its incubation timer,
@@ -191,8 +215,7 @@ func (d *Dispatcher) refineItem(w *world.World, s *world.Session, e *world.Entit
 	// UNVERIFIED: the legacy reads BaseScore.Level here; the Entity only carries
 	// CurrentScore.Level. They differ only via EF_LEVEL gear, never near 999.
 	if isEgg(*dst) && e.Level < incuLevelExempt && itemInstanceAbility(*dst, efIncuDelay) > 0 {
-		d.refineReject(w, s, e, src, NoticeIncuWaitMore)
-		return
+		return res, NoticeIncuWaitMore, false
 	}
 
 	anvil := vol - volDustOri // 0 = Ori, 1 = Lac — also indexes g_pSancGrade
@@ -212,13 +235,15 @@ func (d *Dispatcher) refineItem(w *world.World, s *world.Session, e *world.Entit
 	roll := w.Rand().Intn(refineRollModulo)
 	grade := d.itemAbility(*dst, efItemLevel)
 
-	t := refineTarget{item: dst, place: int(body.DestType), slot: int(body.DestPos)}
 	// `<=` is inclusive, and a 0 rate always fails despite roll 0 passing it (:855).
 	if roll <= rate && rate != 0 {
-		d.refineSucceed(w, s, e, t, src, vol, anvil, level, grade)
-		return
+		res.sucesso = true
+		res.nivelAnuncio = refineSucceedItem(dst, vol, anvil, level, grade)
+	} else {
+		refineFailItem(w, dst, anvil, level, pity)
 	}
-	d.refineFail(w, s, e, t, src, anvil, level, pity)
+	consumeOneItem(&e.Carry[src])
+	return res, 0, true
 }
 
 // Capas do Celestial: Mestre de Hekalotia (3197), Mestre de Akelonia (3198) e
@@ -259,28 +284,52 @@ type refineTarget struct {
 	place, slot int
 }
 
-// refineSucceed applies a won roll (_MSG_UseItem.cpp:856-927).
-func (d *Dispatcher) refineSucceed(w *world.World, s *world.Session, e *world.Entity, t refineTarget, src, vol, anvil, level, grade int) {
-	dst := t.item
-
+// refineSucceedItem writes a won roll into the item (_MSG_UseItem.cpp:856-883)
+// and returns the level the drag path announces.
+func refineSucceedItem(dst *world.Item, vol, anvil, level, grade int) int {
 	if level == gemSancLvl {
 		// +10 → +11, carrying the gem index across (:857).
 		refine.Set(dst, gemSancLvl+1, refine.Gem(*dst))
-	} else {
-		if grade >= 1 && grade <= 5 {
-			level += refine.Step(anvil, grade)
-			if level >= oriMaxSanc && vol == volDustOri {
-				level = oriMaxSanc
-			} else if level > lacMaxSanc {
-				level = lacMaxSanc
-			}
-		} else {
-			// No usable grade → a plain +1. Note the legacy skips BOTH caps on this
-			// branch (:874), so it is the one way past them; reproduced.
-			level++
-		}
-		refine.Set(dst, level, 0) // a success clears the pity
+		return level
 	}
+	if grade >= 1 && grade <= 5 {
+		level += refine.Step(anvil, grade)
+		if level >= oriMaxSanc && vol == volDustOri {
+			level = oriMaxSanc
+		} else if level > lacMaxSanc {
+			level = lacMaxSanc
+		}
+	} else {
+		// No usable grade → a plain +1. Note the legacy skips BOTH caps on this
+		// branch (:874), so it is the one way past them; reproduced.
+		level++
+	}
+	refine.Set(dst, level, 0) // a success clears the pity
+	return level
+}
+
+// refineFailItem writes a lost roll into the item (_MSG_UseItem.cpp:929-968). The
+// item survives untouched — only the pity counter grows.
+func refineFailItem(w *world.World, dst *world.Item, anvil, level, pity int) {
+	if w.Rand().Intn(pityRollModulo) <= pityRollMax {
+		// Lac always accrues pity; Ori only up to +5 (:943-949).
+		if anvil == refine.Lac || (level <= 5 && anvil == refine.Ori) {
+			pity++
+		}
+	}
+	if isEgg(*dst) {
+		// A failed egg refine starts the incubation cooldown (:951).
+		dst.Effects[2] = world.Effect{Effect: efIncuDelay, Value: uint8(w.Rand().Intn(pityRollModulo))}
+	}
+	if level != gemSancLvl {
+		refine.Set(dst, level, pity)
+	}
+}
+
+// refineSucceed sends what a won drag shows (_MSG_UseItem.cpp:884-927). The item
+// and the dust were already written by refineTentativa.
+func (d *Dispatcher) refineSucceed(w *world.World, s *world.Session, e *world.Entity, t refineTarget, level int) {
+	dst := t.item
 
 	d.refreshScore(e)
 	d.sendScore(w, s, e)
@@ -296,42 +345,28 @@ func (d *Dispatcher) refineSucceed(w *world.World, s *world.Session, e *world.En
 	// reads as "it worked". The comment here used to say no emotion packet existed
 	// in this port; MsgMotion has been in use by the level-up path all along.
 	sendEmotion(w, s, e, motionLevelUp, motionLevelUpParm)
-	consumeOneItem(&e.Carry[src])
 	// The dust slot is deliberately NOT re-sent: the client already removed the
 	// item it dragged, and the legacy only echoes the source back on the refusal
 	// paths, to undo that removal.
 }
 
-// refineFail applies a lost roll (_MSG_UseItem.cpp:929-974). The item survives
-// untouched — only the dust is spent and the pity counter grows.
-func (d *Dispatcher) refineFail(w *world.World, s *world.Session, e *world.Entity, t refineTarget, src, anvil, level, pity int) {
+// refineFail sends what a lost drag shows (_MSG_UseItem.cpp:929-974). The item and
+// the dust were already written by refineTentativa.
+func (d *Dispatcher) refineFail(w *world.World, s *world.Session, e *world.Entity, t refineTarget) {
 	d.notify(w, s, NoticeFailToRefine)
-	consumeOneItem(&e.Carry[src])
+	d.sendSlot(w, s, t.place, t.slot, *t.item)
+	sendEmotion(w, s, e, refineFailMotion(e), 0)
+}
 
-	if w.Rand().Intn(pityRollModulo) <= pityRollMax {
-		// Lac always accrues pity; Ori only up to +5 (:943-949).
-		if anvil == refine.Lac || (level <= 5 && anvil == refine.Ori) {
-			pity++
-		}
-	}
-
-	dst := t.item
-	if isEgg(*dst) {
-		// A failed egg refine starts the incubation cooldown (:951).
-		dst.Effects[2] = world.Effect{Effect: efIncuDelay, Value: uint8(w.Rand().Intn(pityRollModulo))}
-	}
-	if level != gemSancLvl {
-		refine.Set(dst, level, pity)
-	}
-	d.sendSlot(w, s, t.place, t.slot, *dst)
-	// The disappointment animation (_MSG_UseItem.cpp:970-973). Which one depends on
-	// whether the character has a face item: the legacy reads Equip[0].sIndex / 10,
-	// so any index below 10 (an empty slot included) takes the bare variant.
-	motion := motionRefineFailBare
+// refineFailMotion is the disappointment animation (_MSG_UseItem.cpp:970-973).
+// Which one depends on whether the character has a face item: the legacy reads
+// Equip[0].sIndex / 10, so any index below 10 (an empty slot included) takes the
+// bare variant.
+func refineFailMotion(e *world.Entity) uint16 {
 	if e.Equip[0].Index/10 != 0 {
-		motion = motionRefineFailFaced
+		return motionRefineFailFaced
 	}
-	sendEmotion(w, s, e, motion, 0)
+	return motionRefineFailBare
 }
 
 // The refine outcome emotions. Success reuses the same 14/3 the level-up plays,
