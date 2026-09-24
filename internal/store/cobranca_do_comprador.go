@@ -53,6 +53,13 @@ const (
 	// EstadoCobrancaPagaSemItem: o dinheiro chegou depois de a cobrança fechar e
 	// o item não foi entregue. O valor está em análise.
 	EstadoCobrancaPagaSemItem
+	// EstadoCobrancaValorDivergente: entrou um valor diferente do cobrado, e uma
+	// pessoa vai olhar.
+	//
+	// A cobrança continua ABERTA no banco — ela não se resolveu —, mas para a
+	// página ela NÃO é "pague agora": o código sairia ao lado de um pagamento que
+	// já chegou, e convidaria a pagar duas vezes.
+	EstadoCobrancaValorDivergente
 )
 
 // CobrancaDoComprador é a cobrança do jeito que a página precisa dela.
@@ -125,6 +132,7 @@ func (s *Store) CobrancaAtualDoComprador(ctx context.Context, compradorConta int
 	var eff [6]int16
 	var reembolsoStatus *int16
 	var reembolsoEm *time.Time
+	var divergente *int64
 
 	// O nome do vendedor vem da FOTOGRAFIA (0113) e não de uma busca por
 	// personagem da conta. Buscar erraria de duas formas ao mesmo tempo: mostraria
@@ -143,7 +151,7 @@ func (s *Store) CobrancaAtualDoComprador(ctx context.Context, compradorConta int
 	// fechar. Nada se perde, só entra na fila.
 	err := s.pool.QueryRow(ctx, `
 		SELECT c.id, c.codigo_pix, c.valor_centavos, c.expira_em, c.status,
-		       c.reembolso_status, c.reembolso_pedido_em,
+		       c.reembolso_status, c.reembolso_pedido_em, c.valor_divergente_centavos,
 		       a.item_index, a.eff1, a.effv1, a.eff2, a.effv2, a.eff3, a.effv3,
 		       a.vendedor_personagem
 		  FROM rmt_cobranca c
@@ -163,7 +171,7 @@ func (s *Store) CobrancaAtualDoComprador(ctx context.Context, compradorConta int
 		compradorConta, cobrancaAberta, janelaRecente.String(),
 		cobrancaPagaSemItem, reembolsoConcluido).
 		Scan(&cob.CobrancaID, &codigo, &cob.ValorCentavos, &cob.ExpiraEm, &status,
-			&reembolsoStatus, &reembolsoEm,
+			&reembolsoStatus, &reembolsoEm, &divergente,
 			&cob.ItemIndex, &eff[0], &eff[1], &eff[2], &eff[3], &eff[4], &eff[5],
 			&nomeVendedor)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -175,6 +183,11 @@ func (s *Store) CobrancaAtualDoComprador(ctx context.Context, compradorConta int
 	}
 
 	cob.Estado = estadoParaOComprador(status, cob.ExpiraEm)
+	// A divergência ganha do status: a linha está aberta no banco, mas para a
+	// pessoa ela não é "pague agora" — o dinheiro dela já chegou.
+	if divergente != nil {
+		cob.Estado = EstadoCobrancaValorDivergente
+	}
 	if cob.Estado == EstadoCobrancaAberta && codigo != nil {
 		cob.CodigoPix = *codigo
 	}

@@ -314,11 +314,16 @@ func (s *Store) CancelarCobrancaRMT(ctx context.Context, referenciaExterna strin
 // valendo depois de um reinício. A linha guarda `expira_em`; a varredura só lê o
 // que o banco já sabe.
 //
+// A DIVERGENTE NÃO VENCE. Nela o dinheiro JÁ ENTROU, com o valor errado, e está
+// esperando uma pessoa. Vencer aqui soltaria o item de quem recebeu o pagamento —
+// o contrário exato do que o prazo existe para fazer.
+//
 // Devolve os anúncios afetados pelo mesmo motivo da função acima.
 func (s *Store) ExpirarCobrancasRMT(ctx context.Context) ([]int64, error) {
 	rows, err := s.pool.Query(ctx, `
 		UPDATE rmt_cobranca SET status = $1, encerrada_em = now()
 		 WHERE status = $2 AND expira_em <= now()
+		   AND valor_divergente_centavos IS NULL
 		RETURNING anuncio_id`, cobrancaExpirada, cobrancaAberta)
 	if err != nil {
 		return nil, fmt.Errorf("store: expirar cobrancas: %w", err)

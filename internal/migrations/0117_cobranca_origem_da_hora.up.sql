@@ -1,0 +1,21 @@
+-- 0117_cobranca_origem_da_hora — com que relógio a decisão foi tomada.
+--
+-- Entregar ou reembolsar depende de comparar a hora do pagamento com o prazo. A
+-- hora vem da processadora quando ela a dá, e do NOSSO relógio quando não dá — a
+-- consulta cai da V2 para a V1, e a V1 não documenta o campo.
+--
+-- São dois relógios com precisões muito diferentes, e a coluna guarda qual valeu.
+-- No dia em que alguém perguntar "por que essa venda foi reembolsada", a resposta
+-- tem de poder dizer se a gente sabia a hora ou estimou. Sem isto, as duas
+-- decisões ficam indistinguíveis no banco e a diferença é justamente a que importa
+-- quando há uma reclamação.
+--
+-- Também é o que responde, depois do primeiro teste real, uma pergunta de desenho
+-- em aberto: se a V2 nunca responder a cobrança pendente, todas as linhas vão dizer
+-- 'servidor', e aí o desenho simplifica. Se disserem 'syncpay', a queda para a V1
+-- é caminho raro e o relógio deles é o que manda.
+--
+-- 'syncpay' = o paid_at deles. 'servidor' = o instante em que a consulta viu
+-- completed.
+ALTER TABLE rmt_cobranca
+    ADD COLUMN IF NOT EXISTS origem_da_hora TEXT;
