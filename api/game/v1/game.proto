@@ -124,8 +124,12 @@ message MarketOffer {
   // cents for real money.
   int32 currency = 7;
   int64 price = 8;
-  // The city the stall stands in, as the tax split names it; -1 outside a city.
-  int32 village = 9;
+  // The city the stall stands in, written out ("Armia"), and EMPTY outside a city.
+  //
+  // The NAME and not the index, because the list of names would then exist in two
+  // places — here and in whoever shows it — and the two would disagree the day
+  // somebody adds a city. The game owns the table; it owns the names.
+  string village = 9;
 
   // HOW LONG THE STALL HAS BEEN UP, IN SECONDS, and not the instant it went up.
   //

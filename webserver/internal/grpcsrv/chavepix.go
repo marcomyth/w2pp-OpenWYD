@@ -85,6 +85,9 @@ type ServerRmt struct {
 	criarPix CriadorDePixComTexto
 	nomeItem NomeDeItem
 	log      *slog.Logger
+	// vitrine é opcional: sem o link com o servidor de jogo não há mercado para
+	// listar, e o método responde Unavailable em vez de mentir uma lista vazia.
+	vitrine Vitrine
 }
 
 // NewRmt monta o serviço de dinheiro real sobre a superfície da chave.

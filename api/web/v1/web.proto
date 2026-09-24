@@ -306,10 +306,20 @@ message ListMarketListingsRequest {
 message MarketListing {
   int32 item_index = 1;
   int32 refine = 2;
+  // How many are on the shelf. They are sold TOGETHER, for `price`.
   int32 amount = 3;
   MarketCurrency currency = 4;
   // In the currency's own unit: gold, cash, or CENTS for real money. The unit is
   // not guessable from the number, which is why the currency travels beside it.
+  //
+  // IT IS THE PRICE OF THE WHOLE SHELF, not of one unit. A shelf holding a stack of
+  // five at 1000 gold costs 1000 gold, and the buyer gets all five: the game charges
+  // `slot.Price` once and moves the entire stack out of the seller's warehouse
+  // (tmserver/internal/handler/lojacompra.go — `preco := slot.Price`, then
+  // `e.Coin -= preco` and `e.Carry[destino] = itemCargo`, which is the stack itself).
+  //
+  // Measured in the buy handler and not assumed, because a page that divides by
+  // `amount` to show a unit price would advertise a fifth of the real cost.
   int64 price = 5;
   // The CHARACTER standing in the stall. The only name in this contract.
   string seller_character = 6;

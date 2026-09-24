@@ -79,8 +79,12 @@ type MarketOffer struct {
 	// cents for real money.
 	Currency int32 `protobuf:"varint,7,opt,name=currency,proto3" json:"currency,omitempty"`
 	Price    int64 `protobuf:"varint,8,opt,name=price,proto3" json:"price,omitempty"`
-	// The city the stall stands in, as the tax split names it; -1 outside a city.
-	Village int32 `protobuf:"varint,9,opt,name=village,proto3" json:"village,omitempty"`
+	// The city the stall stands in, written out ("Armia"), and EMPTY outside a city.
+	//
+	// The NAME and not the index, because the list of names would then exist in two
+	// places — here and in whoever shows it — and the two would disagree the day
+	// somebody adds a city. The game owns the table; it owns the names.
+	Village string `protobuf:"bytes,9,opt,name=village,proto3" json:"village,omitempty"`
 	// HOW LONG THE STALL HAS BEEN UP, IN SECONDS, and not the instant it went up.
 	//
 	// The stall's clock is the game loop's tick counter, not a wall clock: turning
@@ -181,11 +185,11 @@ func (x *MarketOffer) GetPrice() int64 {
 	return 0
 }
 
-func (x *MarketOffer) GetVillage() int32 {
+func (x *MarketOffer) GetVillage() string {
 	if x != nil {
 		return x.Village
 	}
-	return 0
+	return ""
 }
 
 func (x *MarketOffer) GetOpenForSeconds() int64 {
@@ -1729,7 +1733,7 @@ const file_api_game_v1_game_proto_rawDesc = "" +
 	"\x06amount\x18\x06 \x01(\x05R\x06amount\x12\x1a\n" +
 	"\bcurrency\x18\a \x01(\x05R\bcurrency\x12\x14\n" +
 	"\x05price\x18\b \x01(\x03R\x05price\x12\x18\n" +
-	"\avillage\x18\t \x01(\x05R\avillage\x12(\n" +
+	"\avillage\x18\t \x01(\tR\avillage\x12(\n" +
 	"\x10open_for_seconds\x18\n" +
 	" \x01(\x03R\x0eopenForSeconds\"B\n" +
 	"\x12ListMarketResponse\x12,\n" +

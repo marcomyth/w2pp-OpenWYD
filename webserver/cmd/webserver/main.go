@@ -42,6 +42,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemicons"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemstatadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/jogo"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mercado"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobspawns"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplateadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplates"
@@ -296,6 +297,10 @@ func run(logger *slog.Logger) error {
 	// mesmas duas variáveis, mesmo cabeçalho de token do proto. Um canal novo aqui
 	// seria uma segunda porta para o servidor de jogo, com a metade da atenção.
 	var jogoDoPagamento rmtpagamento.Jogo
+	// O MESMO cliente, guardado com o tipo concreto: a vitrine do mercado precisa de
+	// um método que não está na interface do pagamento, e uma conversão de tipo lá
+	// embaixo seria um jeito silencioso de descobrir que o link mudou.
+	var clienteDoJogo *jogo.Cliente
 	if addr := os.Getenv("W2PP_TMSERVER_CONTROL"); addr != "" {
 		token := os.Getenv("W2PP_CONTROL_TOKEN")
 		switch token {
@@ -312,7 +317,8 @@ func run(logger *slog.Logger) error {
 					"a entrega imediata fica desligada", "addr", addr, "err", cerr)
 			} else {
 				defer func() { _ = conn.Close() }()
-				jogoDoPagamento = jogo.New(conn, token)
+				clienteDoJogo = jogo.New(conn, token)
+				jogoDoPagamento = clienteDoJogo
 				logger.Info("link com o servidor de jogo ligado para a entrega imediata", "addr", addr)
 			}
 		}
@@ -325,6 +331,18 @@ func run(logger *slog.Logger) error {
 	// ponte: sem ela não há como consultar nem criar, e ligar qualquer um dos dois
 	// sem ela daria um caminho que falha em toda chamada.
 	rmtSrv := grpcsrv.NewRmt(st)
+
+	// A VITRINE DO MERCADO, que só existe com o link do jogo: a barraca vive na
+	// memória do laço e nunca é persistida, então sem o link não há o que listar. Sem
+	// ela o método responde Unavailable, em vez de devolver uma lista vazia que se
+	// leria como "ninguém está vendendo".
+	if clienteDoJogo != nil {
+		rmtSrv = rmtSrv.ComVitrine(mercado.Novo(clienteDoJogo, st, logger))
+		logger.Info("vitrine do mercado ligada", "cache", mercado.ValidadeDoCache)
+	} else {
+		logger.Warn("vitrine do mercado DESLIGADA: sem o link com o servidor de jogo, " +
+			"nao ha barraca para listar")
+	}
 	if clientePonte != nil {
 		adaptador := rmtpagamento.PonteDeVerdade{Cliente: clientePonte}
 		pagamentos := rmtpagamento.Novo(adaptador, st, jogoDoPagamento, logger)

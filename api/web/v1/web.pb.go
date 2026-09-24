@@ -1657,10 +1657,20 @@ type MarketListing struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	ItemIndex int32                  `protobuf:"varint,1,opt,name=item_index,json=itemIndex,proto3" json:"item_index,omitempty"`
 	Refine    int32                  `protobuf:"varint,2,opt,name=refine,proto3" json:"refine,omitempty"`
-	Amount    int32                  `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
-	Currency  MarketCurrency         `protobuf:"varint,4,opt,name=currency,proto3,enum=web.v1.MarketCurrency" json:"currency,omitempty"`
+	// How many are on the shelf. They are sold TOGETHER, for `price`.
+	Amount   int32          `protobuf:"varint,3,opt,name=amount,proto3" json:"amount,omitempty"`
+	Currency MarketCurrency `protobuf:"varint,4,opt,name=currency,proto3,enum=web.v1.MarketCurrency" json:"currency,omitempty"`
 	// In the currency's own unit: gold, cash, or CENTS for real money. The unit is
 	// not guessable from the number, which is why the currency travels beside it.
+	//
+	// IT IS THE PRICE OF THE WHOLE SHELF, not of one unit. A shelf holding a stack of
+	// five at 1000 gold costs 1000 gold, and the buyer gets all five: the game charges
+	// `slot.Price` once and moves the entire stack out of the seller's warehouse
+	// (tmserver/internal/handler/lojacompra.go — `preco := slot.Price`, then
+	// `e.Coin -= preco` and `e.Carry[destino] = itemCargo`, which is the stack itself).
+	//
+	// Measured in the buy handler and not assumed, because a page that divides by
+	// `amount` to show a unit price would advertise a fifth of the real cost.
 	Price int64 `protobuf:"varint,5,opt,name=price,proto3" json:"price,omitempty"`
 	// The CHARACTER standing in the stall. The only name in this contract.
 	SellerCharacter string `protobuf:"bytes,6,opt,name=seller_character,json=sellerCharacter,proto3" json:"seller_character,omitempty"`
