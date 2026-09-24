@@ -41,6 +41,11 @@ type Store interface {
 	SaveCargo(ctx context.Context, accountID int64, coin int32, items []domain.Item) error
 	PendingItemDeliveries(ctx context.Context, accountID int64) ([]domain.Delivery, error)
 	SlotsVendidosPendentes(ctx context.Context, accountID int64) ([]int16, error)
+	// AbrirCobrancaRMT cria a tentativa de pagamento de um comprador. A referência
+	// externa vem pronta de quem chama: ela é a âncora da idempotência e nasce antes
+	// de qualquer chamada de rede.
+	AbrirCobrancaRMT(ctx context.Context, anuncioID, compradorConta int64,
+		referenciaExterna string, janela time.Duration) (store.ResultadoAbertura, store.CobrancaRMT, error)
 	AbrirAnunciosRMT(ctx context.Context, vendedorConta int64, personagem string,
 		itens []store.ItemAnunciado) ([]int64, error)
 	CancelarAnunciosRMT(ctx context.Context, ids []int64) error
@@ -339,6 +344,63 @@ func (s *Server) OpenRmtListings(ctx context.Context, req *dbv1.OpenRmtListingsR
 		return nil, status.Errorf(codes.Internal, "open rmt listings: %v", err)
 	}
 	return &dbv1.OpenRmtListingsResponse{ListingIds: ids}, nil
+}
+
+// OpenRmtCharge cria a tentativa de pagamento de um comprador contra um anúncio.
+//
+// Cria a LINHA e nada mais: nem código Pix, nem chamada à processadora. Ver a nota
+// no db.proto para por que o código nasce depois, na primeira leitura da página.
+//
+// TODA RECUSA VIAJA NO ENUM e não como erro, e a divisão é a mesma do
+// OpenRmtListings: cada recusa é uma frase diferente para o jogador — "esse item
+// acabou de ser vendido", "você não pode comprar de si mesmo", "você já tem um
+// pagamento aberto" —, e um código de erro de transporte só produziria "não deu".
+func (s *Server) OpenRmtCharge(ctx context.Context, req *dbv1.OpenRmtChargeRequest) (*dbv1.OpenRmtChargeResponse, error) {
+	janela := time.Duration(req.GetWindowSeconds()) * time.Second
+	res, cob, err := s.store.AbrirCobrancaRMT(ctx, req.GetListingId(),
+		req.GetBuyerAccountId(), req.GetExternalReference(), janela)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "open rmt charge: %v", err)
+	}
+	resp := &dbv1.OpenRmtChargeResponse{Result: resultadoDaCobranca(res)}
+	// O id, o valor e o prazo só têm sentido quando existe cobrança. Nos outros
+	// casos eles ficam zerados de propósito: um id zero é obviamente "não tem", e um
+	// id de mentira seria gravado no log de alguém como se fosse real.
+	if res == store.CobrancaAbertaOK || res == store.CobrancaJaExistia {
+		resp.ChargeId = cob.CobrancaID
+		resp.AmountCents = cob.ValorCentavos
+		resp.ExpiresAt = cob.ExpiraEm.Unix()
+	}
+	return resp, nil
+}
+
+// resultadoDaCobranca mapeia o resultado do banco no do contrato.
+//
+// EXPLÍCITO E NÃO ARITMÉTICO, mesmo com os números batendo hoje: os dois conjuntos
+// vivem em arquivos diferentes e mudam por motivos diferentes, e uma conversão por
+// cast passaria a mentir em silêncio no dia em que um deles ganhasse um valor no
+// meio. Aqui a mentira seria dizer ao jogador que ele não pode comprar de si mesmo
+// quando o item na verdade acabou de ser vendido.
+func resultadoDaCobranca(r store.ResultadoAbertura) dbv1.OpenRmtChargeResult {
+	switch r {
+	case store.CobrancaAbertaOK:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_OK
+	case store.CobrancaJaExistia:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_ALREADY_OPEN
+	case store.AnuncioNaoDisponivel:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_LISTING_GONE
+	case store.AnuncioComOutraCobranca:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_LISTING_TAKEN
+	case store.CompradorEOVendedor:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_SELF_PURCHASE
+	case store.ItemNaoEstaPreso:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_ITEM_NOT_LOCKED
+	case store.CompradorJaTemCobranca:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_BUYER_BUSY
+	}
+	// UNSPECIFIED, e quem chama trata como recusa. Um resultado que este arquivo não
+	// conhece NÃO pode virar "pode pagar": o zero do enum é a recusa de propósito.
+	return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_UNSPECIFIED
 }
 
 // CancelRmtListings fecha anúncios que não chegaram a valer.

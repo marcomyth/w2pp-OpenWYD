@@ -211,6 +211,15 @@ func (d *Dispatcher) abreCobrancaPix(w *world.World, s *world.Session, anuncioID
 			case errors.Is(err, ErrAnuncioIndisponivel):
 				// Vendeu para outra pessoa, ou o vendedor fechou a barraca entre o
 				// clique e a ida ao banco. A vitrine do comprador esta velha.
+				//
+				// O cadeado que nao bate cai aqui tambem, e o jogador ve a MESMA
+				// coisa — mas ele e defeito nosso e nao curso normal, entao sai no
+				// log com a conta e o anuncio para alguem poder ir olhar. Sem isso
+				// ele some dentro do caso comum e ninguem descobre que existe.
+				if errors.Is(err, ErrCadeadoNaoBate) {
+					d.log.Warn("loja: o cadeado do item nao aponta para o anuncio",
+						"conn", conn, "conta", conta, "anuncio", anuncioID)
+				}
 				d.notify(w, s, NoticeCantAutoTrade)
 				d.mercadoMudou(w)
 			case err != nil:
@@ -241,6 +250,18 @@ var (
 	ErrAnuncioIndisponivel = errors.New("loja: o anuncio nao esta disponivel")
 	// ErrCompradorJaTemCobranca: a conta ja esta pagando outro item.
 	ErrCompradorJaTemCobranca = errors.New("loja: o comprador ja tem cobranca aberta")
+	// ErrCadeadoNaoBate: o anuncio esta ATIVO e a marca do escrow no item nao aponta
+	// para ele. As duas coisas discordam, e discordancia em linha de dinheiro se
+	// resolve nao cobrando.
+	//
+	// EMBRULHA O ErrAnuncioIndisponivel de proposito, e e essa a ideia: para o
+	// jogador os dois sao a mesma frase, porque nenhum dos dois sugere uma acao
+	// diferente — "este item nao esta compravel e a sua vitrine esta velha". Mas este
+	// aqui e DEFEITO NOSSO, e nao o curso normal de um item que foi vendido, entao
+	// alguem tem de ver. O errors.Is continua casando com o generico, e quem quiser
+	// distinguir consegue.
+	ErrCadeadoNaoBate = fmt.Errorf("loja: o cadeado do item nao aponta para o anuncio: %w",
+		ErrAnuncioIndisponivel)
 )
 
 // referenciaDeCobranca gera a referencia externa da cobranca.

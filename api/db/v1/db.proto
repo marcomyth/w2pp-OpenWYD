@@ -115,6 +115,29 @@ service AccountService {
   // but the item leaves and never comes back to the owner. See
   // ListSoldEscrowSlots.
   rpc ReconcileRmtEscrow(ReconcileRmtEscrowRequest) returns (ReconcileRmtEscrowResponse);
+  // OpenRmtCharge creates one buyer's payment attempt against a listing.
+  //
+  // It is called from the game, at the click on a real-money shelf, and it creates
+  // the row and NOTHING ELSE: no Pix code, no call to the payment processor. The
+  // code is born later, on the first read of the charge page on the site.
+  //
+  // WHY THE CODE IS NOT CREATED HERE, since this is the obvious place: a buyer who
+  // clicks and never opens the site would cost a paid call to the processor, and
+  // the game server would need the bridge's secret and client certificate — in the
+  // one process that must not stall on the network and that faces the internet on
+  // the game port. webServer's GetMyCurrentPixCharge creates it instead.
+  //
+  // THE EXTERNAL REFERENCE COMES IN READY, and it is ours. It is born before this
+  // call because it is the idempotency anchor: if the answer is lost on the way, it
+  // is by that reference that the confirmation finds the SAME row instead of
+  // creating another. Calling twice with the same reference answers ALREADY_OPEN
+  // and does not create a second charge.
+  //
+  // Every refusal rides in the response enum and NOT as an error, because each one
+  // is a different sentence to the player: the item was sold to somebody else, you
+  // cannot buy from yourself, you already have a payment open. A transport error
+  // could only produce "it did not work".
+  rpc OpenRmtCharge(OpenRmtChargeRequest) returns (OpenRmtChargeResponse);
   // SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
   // marks the drained mailbox rows delivered/lost in the SAME transaction — the
   // anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -651,6 +674,60 @@ message ClosedRmtListing {
 }
 
 message CloseRmtListingsResponse { repeated ClosedRmtListing closed = 1; }
+
+// OpenRmtChargeResult is what the attempt produced. Business outcomes ride here,
+// not as gRPC error codes: each one is a different sentence to the player.
+enum OpenRmtChargeResult {
+  OPEN_RMT_CHARGE_RESULT_UNSPECIFIED = 0;
+  // OK: the charge was born and the buyer can pay.
+  OPEN_RMT_CHARGE_RESULT_OK = 1;
+  // ALREADY_OPEN: the same external reference already had a row. This is the
+  // idempotency working, and it is the ordinary path of a repeated request — the
+  // network stuttered, the client retried. The charge in the response is the one
+  // that already existed.
+  OPEN_RMT_CHARGE_RESULT_ALREADY_OPEN = 2;
+  // LISTING_GONE: the listing is no longer active. Sold to somebody else, or the
+  // seller took the stall down between the click and the answer.
+  OPEN_RMT_CHARGE_RESULT_LISTING_GONE = 3;
+  // LISTING_TAKEN: another buyer already has an open charge against this listing.
+  // It is the invariant that stops two buyers from paying for one item and both
+  // being right; it lives in a unique index, not in code.
+  OPEN_RMT_CHARGE_RESULT_LISTING_TAKEN = 4;
+  // SELF_PURCHASE: buying from yourself. There is no gain in the item — it returns
+  // to the same warehouse — and the cost is the CALL, which the processor charges
+  // for. It is a cheap way to dirty the queue for free.
+  OPEN_RMT_CHARGE_RESULT_SELF_PURCHASE = 5;
+  // ITEM_NOT_LOCKED: the listing is active but the escrow mark does not point at
+  // it. The two disagree, and disagreement on a money row is settled by NOT
+  // charging.
+  OPEN_RMT_CHARGE_RESULT_ITEM_NOT_LOCKED = 6;
+  // BUYER_BUSY: this account already has an open charge, for another item. It is
+  // what stops one account from clicking every shelf in the market and holding the
+  // whole stock hostage for five minutes, free and repeatedly — and it keeps the
+  // site page honest, since that page shows ONE charge.
+  OPEN_RMT_CHARGE_RESULT_BUYER_BUSY = 7;
+}
+
+message OpenRmtChargeRequest {
+  int64 listing_id = 1;
+  int64 buyer_account_id = 2;
+  // OURS, and born before this call. See the note on the rpc.
+  string external_reference = 3;
+  // How long the buyer has to pay, in seconds. It travels on the wire rather than
+  // living only in the database service because the same number has to rule the
+  // game's message and the expiry sweep, and a value that lived on one side would
+  // drift from the other with nobody noticing. Zero uses the server default.
+  int64 window_seconds = 4;
+}
+
+message OpenRmtChargeResponse {
+  OpenRmtChargeResult result = 1;
+  // Set only when result is OK or ALREADY_OPEN.
+  int64 charge_id = 2;
+  int64 amount_cents = 3;
+  // Unix seconds. After this the charge expires and the item is released.
+  int64 expires_at = 4;
+}
 
 message ReconcileRmtEscrowRequest  { int64 account_id = 1; }
 message ReconcileRmtEscrowResponse { repeated int32 cargo_slots = 1; }
