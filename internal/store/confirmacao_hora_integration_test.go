@@ -224,3 +224,64 @@ func TestDoisAvisosAoMesmoTempoEntregamUmaVez(t *testing.T) {
 		t.Errorf("a caixa postal tem %d entrega(s), quero 1", n)
 	}
 }
+
+// O COMPRADOR FECHA O JOGO PARA PAGAR NO CELULAR, O VENDEDOR DERRUBA A BARRACA, E
+// O PIX CAI DENTRO DO PRAZO. O item tem de ser ENTREGUE.
+//
+// É o caso mais comum que existe, e hoje ele perde dinheiro:
+//
+//  1. o comprador sai do jogo — o movimento natural de quem vai pagar no celular;
+//  2. o logout CANCELA a cobrança dele;
+//  3. cancelada, ela deixa de contar como "aberta" para o escrow;
+//  4. o vendedor derruba a barraca, e sem cobrança aberta o anúncio é cancelado e
+//     o item é solto NA HORA;
+//  5. o Pix cai trinta segundos depois, DENTRO do prazo, e não acha item.
+//
+// O resultado é PAGA_SEM_ITEM: reembolso que custa R$ 1,00 mais as taxas à Hanna,
+// de um comprador que fez tudo certo.
+//
+// A regra: NENHUMA cobrança solta o item antes do prazo acabar, seja qual for o
+// jeito que ela fechou.
+func TestCompradorQueSaiParaPagarNoCelularRecebe(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor, comprador, ref := cobrancaPronta(ctx, t, s, "celular")
+
+	var anuncio int64
+	if err := s.pool.QueryRow(ctx,
+		`SELECT anuncio_id FROM rmt_cobranca WHERE referencia_externa = $1`, ref).
+		Scan(&anuncio); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1 e 2: ele sai do jogo, e o logout cancela a cobranca.
+	if _, err := s.CancelarCobrancasDoComprador(ctx, comprador); err != nil {
+		t.Fatal(err)
+	}
+
+	// 4: o vendedor derruba a barraca.
+	if _, err := s.EncerrarAnunciosRMT(ctx, []int64{anuncio}); err != nil {
+		t.Fatal(err)
+	}
+	// E entra em jogo de novo, o que dispara a reconciliacao.
+	if _, err := s.ReconciliarEscrowRMT(ctx, vendedor); err != nil {
+		t.Fatal(err)
+	}
+
+	// 5: o Pix cai, DENTRO do prazo.
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo())
+	if err != nil {
+		t.Fatalf("confirmando: %v", err)
+	}
+
+	if res != CobrancaConfirmada {
+		t.Fatalf("resultado = %d, quero confirmada(%d). Ele pagou DENTRO do prazo e "+
+			"fez tudo certo; isto vira reembolso que custa dinheiro a Hanna",
+			res, CobrancaConfirmada)
+	}
+	if venda.EntregaID == 0 {
+		t.Error("nao enfileirou a entrega de quem pagou no prazo")
+	}
+	if venda.PagoComAtraso {
+		t.Error("marcou como atraso um pagamento feito dentro do prazo")
+	}
+}
