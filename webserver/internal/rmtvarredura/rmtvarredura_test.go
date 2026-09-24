@@ -41,9 +41,11 @@ func (f *fakeDev) PedirReembolso(_ context.Context, identifier, referencia, deta
 }
 
 type fakeBanco struct {
-	abertas    []store.CobrancaParaConferir
-	vencidas   []int64
-	erroListar error
+	abertas      []store.CobrancaParaConferir
+	mortas       []store.CobrancaParaConferir
+	janelaPedida time.Duration
+	vencidas     []int64
+	erroListar   error
 
 	semConferir   int
 	reembolsos    []store.ReembolsoParaPedir
@@ -60,6 +62,12 @@ func novoBanco() *fakeBanco {
 
 func (b *fakeBanco) CobrancasParaConferir(context.Context, int) ([]store.CobrancaParaConferir, error) {
 	return b.abertas, b.erroListar
+}
+
+func (b *fakeBanco) CobrancasMortasParaConferir(_ context.Context, janela time.Duration, _ int,
+) ([]store.CobrancaParaConferir, error) {
+	b.janelaPedida = janela
+	return b.mortas, nil
 }
 
 func (b *fakeBanco) VencerCobrancaConferida(_ context.Context, id int64) (int64, error) {
@@ -327,5 +335,67 @@ func TestOPedidoLevaOIdentifierEAReferencia(t *testing.T) {
 	// quem lê do outro lado é o suporte deles.
 	if !strings.Contains(dev.ultimos[2], "12") {
 		t.Errorf("detalhes = %q, nao identificam a cobranca", dev.ultimos[2])
+	}
+}
+
+// O PAGAMENTO QUE CHEGA DEPOIS DE A COBRANÇA VENCER NÃO PODE SUMIR.
+//
+// O código Pix não morre com a cobrança — não há como cancelá-lo na processadora —,
+// então ele continua pagável depois do prazo. Enquanto só as abertas eram
+// conferidas, um pagamento atrasado cujo aviso se perdesse não virava linha nenhuma:
+// nem pagamento sem item, nem órfão. O dinheiro entrava e sumia do nosso lado.
+func TestACobrancaVencidaContinuaSendoPerguntada(t *testing.T) {
+	b := novoBanco()
+	b.mortas = []store.CobrancaParaConferir{vencida(8, "id-8")}
+	conf := &fakeConf{confirmada: map[string]bool{"id-8": true}}
+
+	r := Nova(conf, nil, b, mudo()).ConferirMortas(context.Background())
+
+	if len(conf.pedidas) != 1 || conf.pedidas[0] != "id-8" {
+		t.Fatalf("nao perguntou pela cobranca vencida: %v", conf.pedidas)
+	}
+	if r.Confirmadas != 1 {
+		t.Errorf("rodada = %+v", r)
+	}
+	// E não tenta vencer o que já venceu.
+	if len(b.vencidas) != 0 {
+		t.Errorf("tentou vencer uma cobranca ja fechada: %v", b.vencidas)
+	}
+}
+
+// E ELA PERGUNTA DENTRO DA JANELA COMBINADA, que é a vida estimada do código.
+func TestAConferenciaDasMortasUsaAJanela(t *testing.T) {
+	b := novoBanco()
+
+	Nova(&fakeConf{}, nil, b, mudo()).ConferirMortas(context.Background())
+
+	if b.janelaPedida != store.JanelaDaCobrancaMorta {
+		t.Errorf("janela = %v, quero %v", b.janelaPedida, store.JanelaDaCobrancaMorta)
+	}
+}
+
+// O CAMINHO INTEIRO DO ATRASADO: vence, o aviso não chega, a consulta acha o
+// pagamento, e a devolução é PEDIDA.
+//
+// É o teste que amarra as duas passadas na ordem em que o main as chama. Sem a
+// segunda, a dívida nasceria e ficaria parada; sem a primeira, ela nem nasceria.
+func TestOAtrasadoPerdidoAcabaComOReembolsoPedido(t *testing.T) {
+	b := novoBanco()
+	b.mortas = []store.CobrancaParaConferir{vencida(11, "id-11")}
+	conf := &fakeConf{confirmada: map[string]bool{"id-11": true}}
+	dev := &fakeDev{resp: ponte.RespostaReembolso{Estado: "pedido"}}
+	v := Nova(conf, dev, b, mudo())
+
+	// A confirmação é que põe a devolução em pendente, no banco de verdade. Aqui a
+	// fake faz o mesmo papel: depois de conferida, a linha está na fila de devolver.
+	v.ConferirMortas(context.Background())
+	b.reembolsos = []store.ReembolsoParaPedir{{CobrancaID: 11, Identifier: "id-11", Referencia: "ref-11"}}
+	r := v.Devolver(context.Background())
+
+	if r.Pedidos != 1 {
+		t.Fatalf("rodada = %+v; o dinheiro do comprador ficaria parado", r)
+	}
+	if len(b.pedido) != 1 || b.pedido[0] != 11 {
+		t.Errorf("pedido = %v", b.pedido)
 	}
 }

@@ -92,6 +92,66 @@ func (s *Store) VencerCobrancaConferida(ctx context.Context, cobrancaID int64) (
 	return anuncio, nil
 }
 
+// JanelaDaCobrancaMorta é por quanto tempo depois do prazo uma cobrança vencida
+// continua sendo consultada.
+//
+// QUARENTA E OITO HORAS É CHUTE, e fica escrito que é: ninguém mediu quanto tempo um
+// código Pix da SyncPay continua pagável depois de vencido. Sabe-se que ele NÃO dá
+// para cancelar, então a janela real é a vida do código, e ela é o que o primeiro
+// teste com dinheiro de verdade tem de medir. Até lá, dois dias é generoso o
+// bastante para cobrir a pessoa que pagou e foi dormir.
+const JanelaDaCobrancaMorta = 48 * time.Hour
+
+// CobrancasMortasParaConferir lista as cobranças VENCIDAS que ainda podem receber
+// dinheiro.
+//
+// O BURACO QUE ELA TAPA: depois que a cobrança vence, o código Pix continua pagável
+// — não há como cancelá-lo na processadora. Se o aviso do site se perder, ninguém
+// mais pergunta nada sobre aquele pagamento, porque a conferência das abertas já não
+// enxerga essa linha. O dinheiro entra na conta da Hanna sem virar linha nenhuma: nem
+// pagamento sem item, nem órfão. Some.
+//
+// Continuar perguntando por um tempo é o que transforma esse silêncio em
+// PAGA_SEM_ITEM e, daí, em devolução — que é o caminho que já existe.
+//
+// AS MAIS RECENTES PRIMEIRO, ao contrário da fila das abertas. Aqui não há prazo
+// correndo contra ninguém; o que importa é que a que acabou de vencer, que é a que
+// tem mais chance de receber um pagamento atrasado, seja perguntada antes de a lista
+// ser cortada pelo limite.
+func (s *Store) CobrancasMortasParaConferir(ctx context.Context, janela time.Duration,
+	limite int,
+) ([]CobrancaParaConferir, error) {
+	if janela <= 0 {
+		janela = JanelaDaCobrancaMorta
+	}
+	if limite <= 0 {
+		limite = 100
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, identifier_syncpay, expira_em
+		  FROM rmt_cobranca
+		 WHERE status = $1 AND identifier_syncpay IS NOT NULL
+		   AND expira_em > now() - $2::interval
+		 ORDER BY expira_em DESC
+		 LIMIT $3`, cobrancaExpirada, janela, limite)
+	if err != nil {
+		return nil, fmt.Errorf("store: cobrancas mortas para conferir: %w", err)
+	}
+	defer rows.Close()
+	var lista []CobrancaParaConferir
+	for rows.Next() {
+		var c CobrancaParaConferir
+		if err := rows.Scan(&c.ID, &c.Identifier, &c.ExpiraEm); err != nil {
+			return nil, fmt.Errorf("store: cobrancas mortas para conferir: %w", err)
+		}
+		lista = append(lista, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: cobrancas mortas para conferir: %w", err)
+	}
+	return lista, nil
+}
+
 // ReembolsoParaPedir é uma devolução que devemos e ainda não pedimos.
 type ReembolsoParaPedir struct {
 	CobrancaID    int64

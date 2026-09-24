@@ -54,6 +54,7 @@ type Devolvedor interface {
 // Banco é o que as duas varreduras leem e escrevem.
 type Banco interface {
 	CobrancasParaConferir(ctx context.Context, limite int) ([]store.CobrancaParaConferir, error)
+	CobrancasMortasParaConferir(ctx context.Context, janela time.Duration, limite int) ([]store.CobrancaParaConferir, error)
 	VencerCobrancaConferida(ctx context.Context, cobrancaID int64) (int64, error)
 	CobrancasVencidasSemConferir(ctx context.Context) (int, error)
 	ReembolsosParaPedir(ctx context.Context, limite int) ([]store.ReembolsoParaPedir, error)
@@ -162,6 +163,48 @@ func (v *Varredura) Conferir(ctx context.Context) RodadaDeConferencia {
 		v.log.WarnContext(ctx, "rmt: nao consegui contar as vencidas sem conferir", "erro", err)
 	} else {
 		r.VencidasSemConferir = n
+	}
+	return r
+}
+
+// ConferirMortas pergunta à processadora sobre as cobranças que JÁ VENCERAM.
+//
+// O CÓDIGO PIX NÃO MORRE COM A COBRANÇA: não há como cancelá-lo na processadora,
+// então ele continua pagável depois do prazo. Enquanto só as abertas eram
+// conferidas, um pagamento atrasado cujo aviso se perdesse não virava linha nenhuma
+// — nem pagamento sem item, nem órfão. O dinheiro entrava e sumia do nosso lado.
+//
+// Perguntando por mais um tempo, esse pagamento vira PAGA_SEM_ITEM e entra na fila
+// de devolução, que é o caminho que já existe para o dinheiro que chegou tarde.
+//
+// NÃO VENCE NADA, porque não há o que vencer: estas linhas já estão fechadas. A
+// única coisa que esta passada faz é perguntar e deixar o ConferirEConcluir decidir.
+//
+// MAIS RARA que a das abertas, de propósito: aqui ninguém está esperando na frente
+// de uma tela, e cada rodada é uma consulta por cobrança contra a processadora.
+func (v *Varredura) ConferirMortas(ctx context.Context) RodadaDeConferencia {
+	var r RodadaDeConferencia
+	lista, err := v.banco.CobrancasMortasParaConferir(ctx, store.JanelaDaCobrancaMorta, LimiteDaRodada)
+	if err != nil {
+		v.log.ErrorContext(ctx, "rmt: nao consegui listar as cobrancas vencidas a conferir", "erro", err)
+		r.Falhas++
+		return r
+	}
+	for _, c := range lista {
+		r.Conferidas++
+		res, err := v.conf.ConferirEConcluir(ctx, c.Identifier)
+		if err != nil {
+			v.log.WarnContext(ctx, "rmt: a consulta de uma cobranca vencida falhou",
+				"cobranca", c.ID, "erro", err)
+			r.Falhas++
+			continue
+		}
+		if res.Confirmada {
+			// Alguém pagou depois do prazo. A confirmação já pôs a linha em
+			// pagamento-sem-item e marcou a devolução como devida; a passada de
+			// reembolso, logo em seguida, é que pede.
+			r.Confirmadas++
+		}
 	}
 	return r
 }

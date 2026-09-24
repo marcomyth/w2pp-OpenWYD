@@ -303,3 +303,88 @@ func TestVencidasSemConferirContaAsQuePassaramDoPrazo(t *testing.T) {
 		t.Errorf("depois de vencer: alarme = %d, err = %v", n, err)
 	}
 }
+
+// A COBRANÇA VENCIDA CONTINUA NA LISTA POR UM TEMPO, e sai dela depois.
+//
+// O código Pix não morre com a cobrança: não há como cancelá-lo na processadora. Se
+// ninguém mais perguntar, um pagamento atrasado cujo aviso se perdeu não vira linha
+// nenhuma — nem pagamento sem item, nem órfão — e o dinheiro entra sem destino.
+//
+// A janela é chute até alguém medir quanto tempo o código vive; o que este teste
+// amarra é que ela EXISTE nos dois sentidos: a recém-vencida entra, e a velha sai.
+func TestACobrancaVencidaFicaNaListaEnquantoOCodigoPodeSerPago(t *testing.T) {
+	s, ctx := freshStore(t)
+	nova := montaVenda(ctx, t, s, "morta-nova")
+	velha := montaVenda(ctx, t, s, "morta-velha")
+	poeIdentifier(ctx, t, s, nova.ref, "tx-morta-nova")
+	poeIdentifier(ctx, t, s, velha.ref, "tx-morta-velha")
+	for _, v := range []vendaMontada{nova, velha} {
+		venceOPrazo(ctx, t, s, v.ref)
+		if _, err := s.VencerCobrancaConferida(ctx, idDaCobranca(ctx, t, s, v.ref)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A velha venceu há três dias, fora de qualquer janela razoável.
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE rmt_cobranca SET expira_em = now() - interval '3 days'
+		  WHERE referencia_externa = $1`, velha.ref); err != nil {
+		t.Fatal(err)
+	}
+
+	lista, err := s.CobrancasMortasParaConferir(ctx, JanelaDaCobrancaMorta, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lista) != 1 {
+		t.Fatalf("lista = %d, quero 1 (so a recem-vencida)", len(lista))
+	}
+	if lista[0].Identifier != "tx-morta-nova" {
+		t.Errorf("veio %q", lista[0].Identifier)
+	}
+}
+
+// O CAMINHO INTEIRO DO PAGAMENTO QUE CHEGOU DEPOIS DE VENCER.
+//
+// Vence sem pagamento; dez minutos depois o dinheiro aparece; a confirmação põe a
+// linha em PAGA_SEM_ITEM e a devolução em PENDENTE; e ela entra na fila de pedir.
+//
+// É o buraco que a planejadora viu: sem a conferência das vencidas, ninguém chega a
+// chamar o ConfirmarCobrancaRMT, e esse dinheiro não existe em lugar nenhum do
+// nosso lado.
+func TestPagamentoDepoisDeVencerVaiPararNaFilaDeDevolucao(t *testing.T) {
+	s, ctx := freshStore(t)
+	v := montaVenda(ctx, t, s, "pagou-tarde")
+	poeIdentifier(ctx, t, s, v.ref, "tx-pagou-tarde")
+	venceOPrazo(ctx, t, s, v.ref)
+	id := idDaCobranca(ctx, t, s, v.ref)
+	if _, err := s.VencerCobrancaConferida(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+
+	// Ela continua sendo perguntada.
+	lista, err := s.CobrancasMortasParaConferir(ctx, JanelaDaCobrancaMorta, 10)
+	if err != nil || len(lista) != 1 {
+		t.Fatalf("lista = %d, err = %v", len(lista), err)
+	}
+
+	// E a consulta acha o pagamento, dez minutos depois do prazo.
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, time.Now().UTC(),
+		HoraDaProcessadora, precoEmCentavos)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != CobrancaPagaSemItem {
+		t.Fatalf("resultado = %v, quero paga sem item", res)
+	}
+	if err := s.MarcarReembolsoPendente(ctx, venda.CobrancaID); err != nil {
+		t.Fatal(err)
+	}
+
+	fila, err := s.ReembolsosParaPedir(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fila) != 1 || fila[0].CobrancaID != id {
+		t.Fatalf("fila de devolucao = %+v; o dinheiro ficaria sem destino", fila)
+	}
+}

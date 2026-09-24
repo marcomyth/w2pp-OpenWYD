@@ -457,6 +457,15 @@ const intervaloDoRepasse = 2 * time.Minute
 // anúncio.
 const intervaloDaConferencia = 20 * time.Second
 
+// intervaloDasMortas é de quanto em quanto tempo as cobranças JÁ VENCIDAS são
+// conferidas.
+//
+// RARO, porque aqui ninguém está esperando na frente de uma tela: o dinheiro que
+// entra numa cobrança morta vai ser devolvido de qualquer jeito, e cinco minutos a
+// mais no caminho não mudam nada para ninguém. O que não pode é NUNCA perguntar — aí
+// o pagamento não vira linha nenhuma.
+const intervaloDasMortas = 5 * time.Minute
+
 // varrerCobrancas confere as abertas e pede as devoluções devidas, até o servidor
 // parar.
 //
@@ -467,6 +476,10 @@ const intervaloDaConferencia = 20 * time.Second
 func varrerCobrancas(ctx context.Context, v *rmtvarredura.Varredura) {
 	t := time.NewTicker(intervaloDaConferencia)
 	defer t.Stop()
+	// As mortas num relógio próprio, e as duas no MESMO select: uma goroutine só
+	// continua sendo a trava mais simples contra duas rodadas se cruzarem.
+	mortas := time.NewTicker(intervaloDasMortas)
+	defer mortas.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -479,6 +492,16 @@ func varrerCobrancas(ctx context.Context, v *rmtvarredura.Varredura) {
 			// os reembolsos pendentes que o Devolver pede — e ordem que depende da
 			// avaliação dos argumentos de uma chamada é ordem que ninguém lê.
 			conferencia := v.Conferir(prazo)
+			reembolsos := v.Devolver(prazo)
+			v.Registrar(prazo, conferencia, reembolsos)
+			cancela()
+		case <-mortas.C:
+			// O pagamento que chega depois do prazo: o código Pix continua pagável, e
+			// sem esta passada um aviso perdido faria o dinheiro entrar sem virar
+			// linha nenhuma. Devolver logo em seguida, pelo mesmo motivo de cima — é a
+			// conferência que produz a devolução a pedir.
+			prazo, cancela := context.WithTimeout(ctx, intervaloDasMortas)
+			conferencia := v.ConferirMortas(prazo)
 			reembolsos := v.Devolver(prazo)
 			v.Registrar(prazo, conferencia, reembolsos)
 			cancela()
