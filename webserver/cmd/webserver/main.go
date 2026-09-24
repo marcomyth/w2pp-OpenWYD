@@ -325,6 +325,20 @@ func run(logger *slog.Logger) error {
 			logger.Warn("W2PP_TMSERVER_CONTROL está setado e W2PP_CONTROL_TOKEN está vazio: " +
 				"a entrega imediata fica desligada; a venda sai no login")
 		default:
+			// O TOKEN COM CARA DE ENDEREÇO NÃO LIGA O LINK, e o erro diz o que trocar.
+			//
+			// Foi o defeito de 24/09/2026: a variável do token apontava para a do
+			// endereço, o serviço subiu anunciando o link ligado, e o tmServer recusava
+			// tudo. Erro e não aviso, porque aqui não há dúvida nenhuma sobre o que
+			// está errado — e mesmo assim o serviço SOBE, que é o que separa uma
+			// variável trocada de uma parada geral.
+			if secret.TokenComCaraDeEndereco(token, addr) {
+				logger.Error("W2PP_CONTROL_TOKEN parece o ENDEREÇO e não o segredo; "+
+					"a entrega imediata fica desligada. Aponte a variável para o "+
+					"W2PP_CONTROL_TOKEN do serviço tmserver, e não para o endereço",
+					"token", secret.Impressao(token), "addr", addr)
+				break
+			}
 			conn, cerr := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 			if cerr != nil {
 				logger.Warn("não consegui abrir o link com o servidor de jogo; "+

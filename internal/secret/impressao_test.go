@@ -88,3 +88,48 @@ func TestTokenFraco(t *testing.T) {
 		t.Error("o vazio foi chamado de fraco em vez de ausente")
 	}
 }
+
+// O CASO REAL DE 24/09/2026: a variável do token apontava para a do ENDEREÇO, e o
+// webserver subiu dizendo que o link estava ligado. Este é o teste que teria evitado
+// a tarde inteira.
+func TestOEnderecoNoLugarDoTokenEhPego(t *testing.T) {
+	const endereco = "tmserver.railway.internal:7700"
+	if !TokenComCaraDeEndereco(endereco, endereco) {
+		t.Error("o proprio endereco passou como token")
+	}
+	// E pega mesmo sem ter com o que comparar: a porta entrega o engano sozinha.
+	if !TokenComCaraDeEndereco(endereco, "") {
+		t.Error("o endereco passou quando nao havia endereco para comparar")
+	}
+	// O espaço nas pontas não salva o engano de ser engano.
+	if !TokenComCaraDeEndereco("  "+endereco+"\n", endereco) {
+		t.Error("o endereco com espaco nas pontas passou")
+	}
+}
+
+// UM TOKEN DE VERDADE PASSA. É a metade que costuma faltar: sem ela, uma regra que
+// recusa tudo tambem passaria nos testes de recusa.
+func TestOTokenDeVerdadePassa(t *testing.T) {
+	bons := []string{
+		"7f3a9c1e5b8d2406af71c3e9d05b8264", // hexadecimal, como se gera
+		"Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5MGFi", // base64
+		strings.Repeat("a", 40),
+	}
+	for _, v := range bons {
+		if TokenComCaraDeEndereco(v, "tmserver.railway.internal:7700") {
+			t.Errorf("recusou um token legitimo: %q", v)
+		}
+	}
+}
+
+// O VAZIO NÃO É "CARA DE ENDEREÇO": ele é AUSENTE, e quem trata disso é o caminho de
+// sempre — os serviços já recusam ligar o link sem token. Dizer as duas coisas com a
+// mesma mensagem esconderia qual das duas aconteceu.
+func TestOVazioNaoTemCaraDeEndereco(t *testing.T) {
+	if TokenComCaraDeEndereco("", "tmserver.railway.internal:7700") {
+		t.Error("o vazio foi chamado de endereco")
+	}
+	if TokenComCaraDeEndereco("   ", "") {
+		t.Error("so espaco foi chamado de endereco")
+	}
+}
