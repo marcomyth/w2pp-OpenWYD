@@ -19,6 +19,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"google.golang.org/grpc"
 
@@ -44,6 +45,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mountgrowth"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/npcadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/npctemplates"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ponte"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ranking"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/worldevent"
 )
@@ -99,7 +101,58 @@ func run(logger *slog.Logger) error {
 	chaves := authz.Chaves{
 		Painel: os.Getenv("W2PP_WEB_TOKEN_PAINEL"),
 		Site:   os.Getenv("W2PP_WEB_TOKEN_SITE"),
+		// A chave de SISTEMA abre só o que nenhuma pessoa dispara: hoje, o aviso
+		// de pagamento que o site repassa. Separada da do site porque o caller é
+		// diferente em espécie — ver authz.servicosDeSistema.
+		Sistema: os.Getenv("W2PP_WEB_TOKEN_SISTEMA"),
 	}
+	// A PONTE, que é quem fala com a processadora.
+	//
+	// Sem as quatro variáveis o cliente fica DESLIGADO e o boot avisa, sem derrubar
+	// o servidor. É o mesmo desenho do saldo e da cobrança no jogo, e pelo mesmo
+	// motivo: um caminho recusando em voz alta é melhor do que um servidor que não
+	// sobe — e a maior parte do que este processo serve não tem nada a ver com
+	// dinheiro real.
+	cfgPonte := ponte.Config{
+		URL:      os.Getenv("PONTE_URL"),
+		Segredo:  os.Getenv("PONTE_SEGREDO"),
+		CertPEM:  os.Getenv("PONTE_CERT_CLIENTE"),
+		ChavePEM: os.Getenv("PONTE_CHAVE_CLIENTE"),
+	}
+	var clientePonte *ponte.Cliente
+	if cliente, err := ponte.Novo(cfgPonte); err != nil {
+		// O erro diz QUAIS variáveis faltam, por nome e nunca por valor. É o que
+		// transforma um boot pela metade numa tarefa de dois minutos.
+		logger.Warn("ponte desligada: a venda por dinheiro real não vai cobrar nem pagar",
+			"motivo", err)
+	} else {
+		clientePonte = cliente
+		logger.Info("ponte ligada", "url", cfgPonte.URL)
+		// UMA CHAMADA ASSINADA NO BOOT, e ela existe porque o segredo e o
+		// certificado são SELADOS na Railway: ninguém consegue relê-los para
+		// conferir se o bloco foi colado inteiro. A única prova é uma chamada que
+		// funcione.
+		//
+		// Em segundo plano e sem derrubar nada: o resto do web-api não tem nada a
+		// ver com dinheiro real, e uma ponte fora do ar não pode impedir o
+		// cadastro de conta de subir.
+		//
+		// O aviso separa as duas falhas porque os consertos são diferentes: erro
+		// de TLS é certificado ou chave; 401 é segredo ou relógio.
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			if err := cliente.Saude(ctx); err != nil {
+				logger.Warn("ponte nao respondeu ao teste do boot: confira se o "+
+					"certificado/chave (erro de TLS) ou o segredo (http 401) foram "+
+					"colados inteiros", "err", err)
+				return
+			}
+			logger.Info("ponte respondeu ao teste do boot: mTLS e assinatura conferem")
+		}()
+	}
+	_ = clientePonte // ligado ao serviço de pagamento no PR do caminho do aviso
+
 	if !chaves.Configurada() {
 		// Loud, and every boot, because the quiet version of this line is how
 		// the hole survived: the server starts, looks healthy, and serves
