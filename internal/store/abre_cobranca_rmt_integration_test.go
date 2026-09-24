@@ -300,12 +300,18 @@ func TestCancelarCobrancaSoFechaAAberta(t *testing.T) {
 	}
 }
 
-// CANCELAR NÃO IMPEDE O PIX ATRASADO DE ENTREGAR.
+// O COMPRADOR SAIU DO JOGO, A COBRANÇA FOI CANCELADA, E O PIX DELE ENTREGA.
 //
-// É a regra da Hanna, e é a que mais custa se quebrar: quem pagou direito recebe,
-// mesmo tendo pagado tarde. O teste vai até o fim — confirma a cobrança
-// cancelada e confere que a entrega foi enfileirada.
-func TestPixAtrasadoEntregaMesmoDepoisDoCancelamento(t *testing.T) {
+// Regra da Hanna: quem pagou DENTRO do prazo recebe, e o estado da nossa linha não
+// muda isso. Ele saiu do jogo — talvez para pagar no celular, que é o movimento
+// natural — e o cancelamento é consequência disso, não do pagamento.
+//
+// E NÃO É "pago com atraso": esta coluna agora conta uma coisa só, o pagamento
+// feito depois do prazo. Antes ela era ligada pelo estado da nossa linha, e por
+// isso marcava também quem pagou em dia com o aviso atrasado — o número ficava
+// inflado justamente na pergunta que ele existe para responder, que é se a janela
+// de cinco minutos está curta demais.
+func TestCompradorQueSaiuMasPagouNoPrazoRecebe(t *testing.T) {
 	s, ctx := freshStore(t)
 	_, comprador, anuncio := anuncioPronto(ctx, t, s, "atraso")
 	if _, _, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-atraso-1", 0); err != nil {
@@ -315,7 +321,7 @@ func TestPixAtrasadoEntregaMesmoDepoisDoCancelamento(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, "ref-atraso-1")
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, "ref-atraso-1", dentroDoPrazo())
 	if err != nil {
 		t.Fatalf("confirmando tarde: %v", err)
 	}
@@ -327,9 +333,9 @@ func TestPixAtrasadoEntregaMesmoDepoisDoCancelamento(t *testing.T) {
 	if venda.EntregaID == 0 {
 		t.Error("nao enfileirou a entrega")
 	}
-	if !venda.PagoComAtraso {
-		t.Error("nao marcou pago_com_atraso; sem essa coluna nao da para saber se " +
-			"a janela de cinco minutos esta curta demais")
+	if venda.PagoComAtraso {
+		t.Error("marcou como atraso um pagamento feito DENTRO do prazo; a coluna conta " +
+			"pagamento tardio, nao aviso tardio")
 	}
 }
 
