@@ -1446,6 +1446,30 @@ message CreateTopupOrderRequest {
   int32         credits = 3;            // credits to add to donate_balance when paid
   int64         amount_cents = 4;       // amount charged, in cents (never float)
   PaymentMethod payment_method = 5;     // PIX for now
+  // WHICH PACKAGE this is, by the id the site uses ("apoiador-supremo"). It is what
+  // lets the server know what it promised, which it could not know before: credits
+  // and amount_cents arrived already decided and were credited as they came.
+  //
+  // THE SERVER'S TABLE WINS. credits and amount_cents above are CHECKED against the
+  // package's own row, and the order is refused when they disagree. The request comes
+  // from the site's own BFF, and it is checked anyway: checking is cheap, and taking
+  // back an item already delivered is not.
+  //
+  // An id that is not in the server's table is REFUSED, and not treated as a
+  // giftless donation. An unknown id means the site and the server disagree about
+  // what is on sale, and crediting regardless would hand out credits for a price
+  // nobody checked. Failing while the person is still looking at the screen is the
+  // cheap failure.
+  //
+  // Empty is accepted and means a donation with no package — every order created
+  // before packages existed, and any future path that credits without selling a
+  // package. Empty is not the same as unknown.
+  //
+  // Some packages are STAFF ONLY (the R$ 1,00 one that exists so the server's owner
+  // can test a real payment). The site hides those, and the server refuses them for
+  // an account that is not staff: hiding on a screen is not a lock, because the
+  // screen is one door and this rpc is another.
+  string package_id = 6;
 }
 message CreateTopupOrderResponse {
   AdminResult result = 1;

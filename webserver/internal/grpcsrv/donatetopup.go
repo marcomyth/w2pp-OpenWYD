@@ -56,6 +56,9 @@ func (s *DonateTopupServer) CreateTopupOrder(ctx context.Context, req *webv1.Cre
 		Credits:           req.GetCredits(),
 		AmountCents:       req.GetAmountCents(),
 		PaymentMethod:     int16(req.GetPaymentMethod()),
+		// Vazio é aceito e quer dizer doação sem pacote — é toda ordem anterior aos
+		// pacotes existirem. Quem recusa id DESCONHECIDO é o serviço, contra a tabela.
+		PacoteID: req.GetPackageId(),
 	})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create topup order: %v", err)

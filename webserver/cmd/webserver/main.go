@@ -183,7 +183,7 @@ func run(logger *slog.Logger) error {
 	mountGrowthAdmin := mountgrowth.New(st)
 	donate := donateshop.New(st)
 	dailyRwd := dailyreward.New(st)
-	topup := donatetopup.New(st)
+	topup := donatetopup.New(st).ComLog(logger)
 	revenue := donaterevenue.New(st)
 	attrMap := attributemap.New(st, *contentDir)
 	worldEvents := worldevent.New(st)

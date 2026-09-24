@@ -91,7 +91,10 @@ var tabelasDeTeste = []string{
 	"guild_buff",
 	"guild_city_squad",
 	"guild",
+	"donate_pacote_item",
 	"donate_topup_order",
+	// Depois dos dois de cima, que apontam para ele.
+	"donate_pacote",
 	"donate_payer_profile",
 	"account",
 	"donate_shop_audit",

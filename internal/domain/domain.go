@@ -549,6 +549,9 @@ type TopupOrder struct {
 	AmountCents       int64
 	PaymentMethod     int16
 	Status            int16
+	// PacoteID é qual pacote foi comprado, pelo id que o site usa. Vazio numa doação
+	// sem pacote, que é todo pedido anterior aos pacotes existirem.
+	PacoteID string
 }
 
 // --- painel de faturamento read models (web.v1.DonateRevenueAdminService) ---
