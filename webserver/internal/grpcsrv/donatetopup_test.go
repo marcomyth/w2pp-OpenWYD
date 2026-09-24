@@ -158,3 +158,54 @@ func (f *fakeTopup) AnexarIdentifier(_ context.Context, ref, identifier string) 
 	f.anexouRef, f.anexouID = ref, identifier
 	return f.anexoResultado, f.anexoErro
 }
+
+// O IDENTIFIER SAI CORTADO NO LOG, e o vazio continua vazio.
+//
+// Ele não é segredo, mas é o nome do pagamento de uma pessoa, e log é onde dado de
+// pagamento fica guardado sem ninguém lembrar. Oito caracteres bastam para casar com
+// a linha do site, que corta igual.
+func TestUltimos8(t *testing.T) {
+	casos := map[string]string{
+		"":                    "",
+		"abc":                 "abc",
+		"12345678":            "12345678",
+		"tx-0123456789abcdef": "89abcdef",
+	}
+	for entra, quer := range casos {
+		if got := ultimos8(entra); got != quer {
+			t.Errorf("ultimos8(%q) = %q, quero %q", entra, got, quer)
+		}
+	}
+}
+
+// O ATTACH TRADUZ OS SEIS RESULTADOS, e o desconhecido NÃO vira "deu certo".
+func TestAttachTraduzOsResultados(t *testing.T) {
+	casos := []struct {
+		res  store.ResultadoAnexo
+		quer webv1.AttachResult
+	}{
+		{store.AnexoGravado, webv1.AttachResult_ATTACH_RESULT_ATTACHED},
+		{store.AnexoRepetido, webv1.AttachResult_ATTACH_RESULT_ALREADY},
+		{store.AnexoConflitoDePedido, webv1.AttachResult_ATTACH_RESULT_CONFLICT_ORDER},
+		{store.AnexoConflitoDeIdentifier, webv1.AttachResult_ATTACH_RESULT_CONFLICT_IDENTIFIER},
+		{store.AnexoPedidoInexistente, webv1.AttachResult_ATTACH_RESULT_NOT_FOUND},
+		{store.AnexoJaPago, webv1.AttachResult_ATTACH_RESULT_ALREADY_PAID},
+		{store.ResultadoAnexo(99), webv1.AttachResult_ATTACH_RESULT_UNSPECIFIED},
+	}
+	for _, c := range casos {
+		f := &fakeTopup{anexoResultado: c.res}
+		s := NewDonateTopup(f)
+		resp, err := s.AttachTopupCharge(context.Background(), &webv1.AttachTopupChargeRequest{
+			ExternalReference: "ref-1", GatewayIdentifier: "tx-0123456789abcdef",
+		})
+		if err != nil {
+			t.Fatalf("resultado %d: %v", c.res, err)
+		}
+		if resp.GetResult() != c.quer {
+			t.Errorf("resultado %d = %v, quero %v", c.res, resp.GetResult(), c.quer)
+		}
+		if f.anexouRef != "ref-1" || f.anexouID != "tx-0123456789abcdef" {
+			t.Errorf("chegou ref=%q id=%q", f.anexouRef, f.anexouID)
+		}
+	}
+}

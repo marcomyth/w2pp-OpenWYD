@@ -397,7 +397,7 @@ func run(logger *slog.Logger) error {
 	webv1.RegisterDonateShopServiceServer(srv, grpcsrv.NewDonateShop(donate))
 	webv1.RegisterDailyRewardAdminServiceServer(srv, grpcsrv.NewDailyRewardAdmin(dailyRwd))
 	webv1.RegisterDailyRewardServiceServer(srv, grpcsrv.NewDailyReward(dailyRwd))
-	webv1.RegisterDonateTopupServiceServer(srv, grpcsrv.NewDonateTopup(topup))
+	webv1.RegisterDonateTopupServiceServer(srv, grpcsrv.NewDonateTopup(topup).ComLog(logger))
 	webv1.RegisterDonateRevenueAdminServiceServer(srv, grpcsrv.NewDonateRevenue(revenue))
 	webv1.RegisterWorldEventAdminServiceServer(srv, grpcsrv.NewWorldEventAdmin(worldEvents))
 

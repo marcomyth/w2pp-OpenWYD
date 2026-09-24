@@ -2,6 +2,7 @@ package grpcsrv
 
 import (
 	"context"
+	"log/slog"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -29,10 +30,22 @@ type DonateTopup interface {
 type DonateTopupServer struct {
 	webv1.UnimplementedDonateTopupServiceServer
 	topup DonateTopup
+	log   *slog.Logger
 }
 
 // NewDonateTopup builds the DonateTopupService over the given top-up logic.
-func NewDonateTopup(t DonateTopup) *DonateTopupServer { return &DonateTopupServer{topup: t} }
+func NewDonateTopup(t DonateTopup) *DonateTopupServer {
+	return &DonateTopupServer{topup: t, log: slog.New(slog.DiscardHandler)}
+}
+
+// ComLog liga o registro do Attach. Construtor separado para não mexer na
+// assinatura que todo chamador antigo já usa.
+func (s *DonateTopupServer) ComLog(l *slog.Logger) *DonateTopupServer {
+	if l != nil {
+		s.log = l
+	}
+	return s
+}
 
 // GetPayerProfile returns the payer's stored name + CPF (found=false when none).
 func (s *DonateTopupServer) GetPayerProfile(ctx context.Context, req *webv1.GetPayerProfileRequest) (*webv1.GetPayerProfileResponse, error) {
@@ -148,6 +161,24 @@ func (s *DonateTopupServer) AttachTopupCharge(ctx context.Context,
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "attach topup charge: %v", err)
 	}
+	// O RASTRO DOS DOIS LADOS. O site registra o resultado dele; sem uma linha aqui,
+	// bater os dois na primeira doação real dependeria de conclusão por AUSÊNCIA —
+	// "não houve linha de falha, então deu certo" —, que não é medição.
+	//
+	// O IDENTIFIER SAI CORTADO, só os últimos 8. Ele não é segredo, mas é o nome de
+	// um pagamento de uma pessoa, e o log é o lugar onde dado de pagamento fica
+	// guardado sem ninguém lembrar. Oito caracteres bastam para casar com a linha do
+	// site, que corta do mesmo jeito.
+	nivel := slog.LevelInfo
+	if res != store.AnexoGravado && res != store.AnexoRepetido {
+		// Recusa não é rotina: ou é bug do site, ou é um pagamento sendo apontado
+		// para o pedido errado.
+		nivel = slog.LevelWarn
+	}
+	s.log.Log(ctx, nivel, "doacao: attach do identifier",
+		"referencia", req.GetExternalReference(),
+		"identifier_fim", ultimos8(req.GetGatewayIdentifier()),
+		"resultado", anexoParaProto(res).String())
 	return &webv1.AttachTopupChargeResponse{Result: anexoParaProto(res)}, nil
 }
 
@@ -169,4 +200,13 @@ func anexoParaProto(r store.ResultadoAnexo) webv1.AttachResult {
 		return webv1.AttachResult_ATTACH_RESULT_ALREADY_PAID
 	}
 	return webv1.AttachResult_ATTACH_RESULT_UNSPECIFIED
+}
+
+// ultimos8 corta o identifier para o log. Vazio continua vazio: um "" cortado não
+// pode virar um texto que parece um id.
+func ultimos8(id string) string {
+	if len(id) <= 8 {
+		return id
+	}
+	return id[len(id)-8:]
 }
