@@ -317,6 +317,25 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 			venda.AnuncioID, anuncioVendido); err != nil {
 			return fmt.Errorf("store: confirmar cobranca: fechando o anuncio %d: %w", venda.AnuncioID, err)
 		}
+
+		// A DÍVIDA COM O VENDEDOR NASCE AQUI, na mesma transação.
+		//
+		// Antes não nascia em lugar nenhum: o comprador recebia o item, o dinheiro
+		// entrava, e não havia nenhuma linha dizendo a quem ele pertencia. Não era um
+		// repasse atrasado — era a ausência de qualquer registro de dívida.
+		//
+		// Dentro da transação porque fora dela abre a janela em que o item sai, o
+		// dinheiro entra, e a dívida não fica escrita. Uma queda ali deixaria a venda
+		// completa e o vendedor invisível, e ninguém saberia procurar por ele.
+		//
+		// E SÓ AQUI, no caminho da venda concluída. Nem no PAGA_SEM_ITEM nem no valor
+		// divergente, que são os dois lugares acima em que a função também termina: lá
+		// o dinheiro vai VOLTAR para o comprador, e o vendedor não tem nada a receber.
+		// Uma linha de dívida que não existe apareceria na fila, alguém tentaria pagar,
+		// e o dinheiro sairia duas vezes do mesmo lugar.
+		if err := abrirRepasse(ctx, tx, venda, valorCobrado); err != nil {
+			return err
+		}
 		res = CobrancaConfirmada
 		return nil
 	})
