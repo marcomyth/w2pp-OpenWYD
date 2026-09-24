@@ -49,8 +49,12 @@ type Config struct {
 	//
 	// Desligado é o normal, e é o que a produção usa. Ver completeAccountLogin.
 	AcessoRestrito bool
-	Log            *slog.Logger     // default slog.Default()
-	Now            func() time.Time // wall clock for calendar-gated guild ops
+
+	// PrazoDaRecusa é quanto o socket de uma recusa de acesso fica de pé. Zero
+	// escolhe o padrão (prazoDaRecusa); o teste o encurta.
+	PrazoDaRecusa time.Duration
+	Log           *slog.Logger     // default slog.Default()
+	Now           func() time.Time // wall clock for calendar-gated guild ops
 
 	// MaxNightmare is maxNightmare (Server.cpp:687): Pesadelo runs allowed per
 	// window per tier, server-wide. Zero selects the legacy default of 3.

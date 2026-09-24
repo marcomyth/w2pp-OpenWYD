@@ -27,12 +27,22 @@ import (
 // servidorTrancado sobe um servidor com a tranca ligada ou desligada.
 func servidorTrancado(t *testing.T, persist world.Persistence, trancado bool) (string, func()) {
 	t.Helper()
+	return servidorTrancadoComPrazo(t, persist, trancado, 0)
+}
+
+// servidorTrancadoComPrazo encurta o fechamento atrasado, para o teste da corrida
+// não levar dez segundos.
+func servidorTrancadoComPrazo(t *testing.T, persist world.Persistence, trancado bool,
+	prazo time.Duration,
+) (string, func()) {
+	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	d := New(Config{Log: log, CombatRules: regraSemEscala(), AcessoRestrito: trancado})
+	d := New(Config{Log: log, CombatRules: regraSemEscala(),
+		AcessoRestrito: trancado, PrazoDaRecusa: prazo})
 	w := world.New(world.Config{GridDim: 16}, log, persist, d.Handle)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -185,4 +195,66 @@ func readOptional(c net.Conn) (protocol.Type, []byte) {
 		return 0, nil
 	}
 	return h.Type, body
+}
+
+// A SEGUNDA TENTATIVA NO MESMO SOCKET NÃO MORRE PELO FECHAMENTO DA PRIMEIRA.
+//
+// É a corrida que a planejadora pegou, e ela derrubaria gente legítima: o cliente
+// devolve os campos à pessoa depois de quatro segundos, então um staff que errou a
+// conta na primeira vez entra de novo NA MESMA CONEXÃO. Sem a guarda, o fechamento
+// agendado pela recusa antiga chegava dez segundos depois e matava a sessão que já
+// tinha entrado.
+//
+// A sabotagem: recusa, login bom em seguida, e o prazo passa. A sessão tem de
+// continuar viva e respondendo.
+func TestOFechamentoDaRecusaNaoMataAEntradaSeguinte(t *testing.T) {
+	db := newDB()
+	db.accounts["mod"] = &fakeAccount{id: 42, pass: "secret", role: "moderator",
+		chars: []world.CharSummary{{Slot: 0, Name: "Moderadora", Class: 1, Level: 50}}}
+	// Prazo curto, senão o teste levaria dez segundos.
+	addr, stop := servidorTrancadoComPrazo(t, db, true, 300*time.Millisecond)
+	defer stop()
+
+	c := dial(t, addr)
+	defer func() { _ = c.Close() }()
+
+	// A pessoa erra a conta e leva a recusa.
+	send(t, c, protocol.MsgAccountLogin, loginBody("tester", "secret", protocol.AppVersion))
+	if texto := leTextoAtePainel(t, c); texto != "Servidor de teste, acesso restrito." {
+		t.Fatalf("texto = %q", texto)
+	}
+
+	// E entra de novo, com a conta certa, no MESMO socket.
+	send(t, c, protocol.MsgAccountLogin, loginBody("mod", "secret", protocol.AppVersion))
+	if h := readHeader(t, c); h.Type != protocol.MsgCNFAccountLogin {
+		t.Fatalf("segunda tentativa = %#x, quero a tela de personagens", h.Type)
+	}
+
+	// Passado o prazo do fechamento da PRIMEIRA, a sessão da segunda continua de pé.
+	time.Sleep(600 * time.Millisecond)
+	send(t, c, protocol.MsgAccountLogin, loginBody("mod", "secret", protocol.AppVersion))
+	_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if ty, _ := readOptional(c); ty == 0 {
+		t.Fatal("a sessao legitima foi derrubada pelo fechamento da recusa anterior")
+	}
+}
+
+// E DUAS RECUSAS SEGUIDAS não fazem o fechamento da primeira matar a espera da
+// segunda: quem manda é sempre a última.
+func TestDuasRecusasSeguidasNaoSeAtropelam(t *testing.T) {
+	db := newDB()
+	addr, stop := servidorTrancadoComPrazo(t, db, true, 300*time.Millisecond)
+	defer stop()
+
+	c := dial(t, addr)
+	defer func() { _ = c.Close() }()
+	for i := 0; i < 2; i++ {
+		send(t, c, protocol.MsgAccountLogin, loginBody("tester", "secret", protocol.AppVersion))
+		if texto := leTextoAtePainel(t, c); texto != "Servidor de teste, acesso restrito." {
+			t.Fatalf("recusa %d: texto = %q", i+1, texto)
+		}
+	}
+	// A conexão acaba caindo, pela última recusa, e isso é o certo: ela nunca foi de
+	// ninguém.
+	expectClosed(t, c)
 }

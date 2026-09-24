@@ -109,7 +109,8 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 			s.AccountName = ""
 			s.AccountID = 0
 			s.Mode = world.UserAccept
-			d.fechaDepois(w, s)
+			s.RecusasDeAcesso++
+			d.fechaDepois(w, s, s.RecusasDeAcesso)
 			return
 		}
 		delete(d.fails, s.AccountName)
@@ -347,9 +348,33 @@ const prazoDaRecusa = 10 * time.Second
 // segundos de servidor congelado para todo mundo. O World.Go é o caminho de sempre
 // para isso, e ele já descarta o retorno quando a sessão morreu antes: quem desistir
 // e fechar o jogo não vira um Close numa sessão que já não existe.
-func (d *Dispatcher) fechaDepois(w *world.World, s *world.Session) {
+func (d *Dispatcher) fechaDepois(w *world.World, s *world.Session, recusa int) {
+	prazo := d.cfg.PrazoDaRecusa
+	if prazo <= 0 {
+		prazo = prazoDaRecusa
+	}
 	w.Go(s, func() func(*world.World, *world.Session) {
-		time.Sleep(prazoDaRecusa)
-		return func(w *world.World, s *world.Session) { w.Close(s) }
+		time.Sleep(prazo)
+		return func(w *world.World, s *world.Session) {
+			// SÓ FECHA SE NADA ACONTECEU DEPOIS, e esta guarda é a correção de uma
+			// corrida que derrubaria gente legítima.
+			//
+			// O cliente devolve os campos à pessoa depois de quatro segundos, e ela
+			// pode entrar de novo NO MESMO SOCKET — é o caso de um staff que errou a
+			// conta na primeira vez. Sem a guarda, o fechamento agendado pela recusa
+			// antiga chegaria aos dez segundos e derrubaria a sessão que já entrou.
+			//
+			// O World.Go só descarta a volta quando a sessão MORREU; aqui ela está
+			// viva, e mais do que isso: logada.
+			//
+			// Três perguntas, e as três precisam continuar valendo: a sessão não tem
+			// conta, não está em modo de jogo, e nenhuma recusa NOVA aconteceu depois
+			// desta — senão o fechamento da segunda seria feito duas vezes, e o da
+			// primeira mataria a espera da segunda antes da hora.
+			if s.AccountID != 0 || s.Mode != world.UserAccept || s.RecusasDeAcesso != recusa {
+				return
+			}
+			w.Close(s)
+		}
 	})
 }
