@@ -7,9 +7,10 @@
 -- Kalintz soltam as armas E. Com o viés do rand() do MSVC abaixo de 27,68%, 10
 -- paga 0,12% (internal/droprule/vies_test.go): ~1,1% dos abates dá uma das nove.
 --
--- O add é código (handler/gelo.go, geloAmonFinish): sorteado numa escada que
--- chega a 45-54 de dano nas físicas e 20-24 de magia na Lança do Triunfo e na
--- Fúria Divina. Os dois templates só nascem no Gelo (12 Soldados, 19 Guerreiros).
+-- O add é o aleatório do bônus de drop do legado, e 10% das armas saem com um
+-- add alto, que é código (handler/gelo.go, geloAmonFinish): 45-54 de dano nas
+-- físicas e 20-24 de magia na Lança do Triunfo e na Fúria Divina.
+-- Os dois templates só nascem no Gelo (12 Soldados, 19 Guerreiros).
 INSERT INTO drop_rule (mob, item, chance) VALUES
     ('Soldado_Amon',    810,   10),  -- Martelo Assassino
     ('Soldado_Amon',    825,   10),  -- Arco Divino

@@ -132,8 +132,8 @@ func (d *Dispatcher) ApplyGeloChefesBoot(w *world.World) {
 }
 
 // Os macacos fortes do Gelo — Soldado e Guerreiro Amon — soltam o topo das Armas
-// D (0128), pedido da equipe em 24/09/2026, com um add próprio: sorteado, e com
-// chance de vir 45-54 de dano ou 20-24 de magia. Físicas levam dano; a Lança do
+// D (0128), pedido da equipe em 24/09/2026, com add aleatório e, em 10% delas,
+// um add alto: 45-54 de dano ou 20-24 de magia. Físicas levam dano; a Lança do
 // Triunfo e a Fúria Divina (nUnique 44 e 47) levam magia, como o bônus de drop do
 // legado as separa (refine/dropbonus.go).
 var (
@@ -156,37 +156,36 @@ var (
 	}
 )
 
-// A escada dos Amon anda nos degraus do bônus de drop do legado — dano de 9 em 9,
-// magia de 4 em 4 — e para um degrau acima do teto dele: o SetItemBonus nunca
-// passa de 45 de dano nem de 20 de magia numa arma, e 54 e 24 são o degrau que o
-// pedido abre. Pesos escolhidos aqui (a equipe não deu): 35% das armas saem na
-// faixa pedida, e 13% no topo.
+// O add alto dos Amon, pedido da equipe em 24/09/2026: 10% das armas saem com ele,
+// e as outras 90% ficam com o add aleatório do bônus de drop do legado, sem mexer.
+// Ele para um degrau acima do teto do legado — o SetItemBonus nunca passa de 45
+// de dano nem de 20 de magia numa arma, e 54 e 24 são o degrau que o pedido abre.
+// Dentro do add alto, o maior sai em 40% (escolha daqui; a equipe não deu): 4%
+// das armas no total.
 //
-//	física   27 · 36 · 45 · 54
-//	mágica   12 · 16 · 20 · 24
+//	física   45 · 54
+//	mágica   20 · 24
+const geloAmonAddAltoPct = 10
+
 var (
 	addAmonFisica = []addArma{
-		{35, efDamage, 27},
-		{30, efDamage, 36},
-		{22, efDamage, 45},
-		{13, efDamage, 54},
+		{60, efDamage, 45},
+		{40, efDamage, 54},
 	}
 	addAmonMagica = []addArma{
-		{35, efMagic, 12},
-		{30, efMagic, 16},
-		{22, efMagic, 20},
-		{13, efMagic, 24},
+		{60, efMagic, 20},
+		{40, efMagic, 24},
 	}
 )
 
-// geloAmonFinish carimba o add de uma Arma D que um Amon do Gelo soltou, depois
-// do bônus de drop comum.
+// geloAmonFinish dá o add alto a uma parte das Armas D que um Amon do Gelo
+// soltou, depois do bônus de drop comum; as outras passam como o bônus as deixou.
 //
-// O slot 1 é o add da escada. O slot 0 fica com o refino que o bônus sorteou (+0
-// a +2); se o bônus pôs ali outra coisa — o bônus especial, que pode ser dano —,
-// a arma sai +0, refinável. O slot 2 guarda o segundo add aleatório do legado
-// (velocidade, skill…), a não ser que seja o mesmo atributo da escada: dano sobre
-// dano passaria do teto pedido.
+// Na que ganha, o slot 1 é o add alto. O slot 0 fica com o refino que o bônus
+// sorteou (+0 a +2); se o bônus pôs ali outra coisa — o bônus especial, que pode
+// ser dano —, a arma sai +0, refinável. O slot 2 guarda o segundo add aleatório do
+// legado (velocidade, skill…), a não ser que seja o mesmo atributo do add alto:
+// dano sobre dano passaria do teto pedido.
 func (d *Dispatcher) geloAmonFinish(w *world.World, mob *world.Entity, it *world.Item) {
 	if !geloAmon[droprule.Canonical(mob.TemplateName)] || !nasceuNoGelo(mob) {
 		return
@@ -198,6 +197,11 @@ func (d *Dispatcher) geloAmonFinish(w *world.World, mob *world.Entity, it *world
 	case armasAmonMagicas[it.Index]:
 		tabela = addAmonMagica
 	default:
+		return
+	}
+	// 32768 % 100 = 68: os valores de 0 a 67 saem uma vez a mais, e os dez
+	// primeiros pagam 10,01%.
+	if w.Rand().Intn(100) >= geloAmonAddAltoPct {
 		return
 	}
 	linha := sortearAddArma(w, tabela)

@@ -67,10 +67,11 @@ func TestGeloAmonArmasD(t *testing.T) {
 	}
 }
 
-// A escada dos Amon: a física só dá dano (27 a 54) e a mágica só magia (12 a 24),
-// todo degrau sai, o slot 0 é refino de +0 a +2, e o slot 2 nunca repete o
-// atributo da escada — o segundo add aleatório do legado fica quando é outro.
-func TestGeloAmonAddDaEscada(t *testing.T) {
+// O add alto dos Amon: sai em ~10% das armas, a física só com dano (45 ou 54) e a
+// mágica só com magia (20 ou 24), os dois valores saem, o slot 0 vira refino de
+// +0 a +2 e o slot 2 nunca repete o atributo. As outras armas passam exatamente
+// como o bônus de drop as deixou.
+func TestGeloAmonAddAlto(t *testing.T) {
 	casos := []struct {
 		nome   string
 		arma   int16
@@ -82,66 +83,61 @@ func TestGeloAmonAddDaEscada(t *testing.T) {
 		{"Lança do Triunfo", 855, addAmonMagica, world.Effect{Effect: efSpecialAll, Value: 9}},
 		{"Fúria Divina", 900, addAmonMagica, world.Effect{Effect: efSpecialAll, Value: 3}},
 	}
+	const rolagens = 4000
 	for _, tc := range casos {
 		t.Run(tc.nome, func(t *testing.T) {
 			d, w, _ := mobKilledWorld(t)
-			naTabela := map[world.Effect]bool{}
+			alto := map[world.Effect]bool{}
 			for _, l := range tc.tabela {
-				naTabela[world.Effect{Effect: l.efeito, Value: uint8(l.valor)}] = true
+				alto[world.Effect{Effect: l.efeito, Value: uint8(l.valor)}] = true
 			}
 			visto := map[world.Effect]bool{}
-			for _, mob := range []string{"Soldado_Amon", "Guerreiro_Amon"} {
-				m := spawnNamed(t, w, expMobTemplate(360, 0, 0), mob)
+			ganhou := 0
+			for i := range rolagens {
+				m := spawnNamed(t, w, expMobTemplate(360, 0, 0), []string{"Soldado_Amon", "Guerreiro_Amon"}[i%2])
 				m.SpawnX, m.SpawnY = 3700, 2900
-				for i := range 400 {
-					// O que o bônus de drop comum pode ter deixado: um bônus especial
-					// no slot 0 e, no slot 2, o mesmo atributo da escada ou outro.
-					repete := world.Effect{Effect: tc.tabela[0].efeito, Value: 36}
-					it := world.Item{Index: tc.arma, Effects: [3]world.Effect{{Effect: efDamage, Value: 20}, {}, repete}}
-					if i%2 == 1 {
-						it.Effects = [3]world.Effect{{Effect: efSanc, Value: 2}, {}, tc.outro}
-					}
-					d.geloAmonFinish(w, m, &it)
-					if it.Effects[0].Effect != efSanc || it.Effects[0].Value > 2 {
-						t.Fatalf("slot 0 = %+v, want EF_SANC de +0 a +2", it.Effects[0])
-					}
-					if !naTabela[it.Effects[1]] {
-						t.Fatalf("add %+v fora da escada", it.Effects[1])
-					}
-					if it.Effects[2].Effect == it.Effects[1].Effect {
-						t.Fatalf("slot 2 = %+v repete o atributo do add %+v", it.Effects[2], it.Effects[1])
-					}
-					if i%2 == 1 && it.Effects[2] != tc.outro {
-						t.Fatalf("slot 2 = %+v, want o segundo add do legado %+v intacto", it.Effects[2], tc.outro)
-					}
-					visto[it.Effects[1]] = true
+				// O que o bônus de drop comum pode ter deixado: um bônus especial
+				// no slot 0 e, no slot 2, o mesmo atributo do add alto ou outro.
+				veio := world.Item{Index: tc.arma, Effects: [3]world.Effect{
+					{Effect: efDamage, Value: 20}, {Effect: 26, Value: 6}, {Effect: tc.tabela[0].efeito, Value: 36},
+				}}
+				if i%2 == 1 {
+					veio.Effects = [3]world.Effect{{Effect: efSanc, Value: 2}, {Effect: efSpecialAll, Value: 3}, tc.outro}
 				}
+				it := veio
+				d.geloAmonFinish(w, m, &it)
+				w.DespawnMob(m.ID, 0)
+				if it == veio {
+					continue
+				}
+				ganhou++
+				if it.Effects[0].Effect != efSanc || it.Effects[0].Value > 2 {
+					t.Fatalf("slot 0 = %+v, want EF_SANC de +0 a +2", it.Effects[0])
+				}
+				if !alto[it.Effects[1]] {
+					t.Fatalf("add %+v fora do add alto", it.Effects[1])
+				}
+				if it.Effects[2].Effect == it.Effects[1].Effect {
+					t.Fatalf("slot 2 = %+v repete o atributo do add %+v", it.Effects[2], it.Effects[1])
+				}
+				if i%2 == 1 && it.Effects[2] != tc.outro {
+					t.Fatalf("slot 2 = %+v, want o segundo add do legado %+v intacto", it.Effects[2], tc.outro)
+				}
+				visto[it.Effects[1]] = true
+			}
+			if taxa := float64(ganhou) / rolagens; taxa < 0.08 || taxa > 0.12 {
+				t.Errorf("add alto em %.1f%% das armas, want perto de %d%%", taxa*100, geloAmonAddAltoPct)
 			}
 			if len(visto) != len(tc.tabela) {
-				t.Errorf("só %d dos %d degraus saíram: %v", len(visto), len(tc.tabela), visto)
+				t.Errorf("só %d dos %d valores do add alto saíram: %v", len(visto), len(tc.tabela), visto)
 			}
 		})
 	}
 	if addAmonFisica[len(addAmonFisica)-1].valor != 54 || addAmonMagica[len(addAmonMagica)-1].valor != 24 {
-		t.Error("o topo da escada deixou de ser 54 de dano e 24 de magia")
+		t.Error("o topo do add alto deixou de ser 54 de dano e 24 de magia")
 	}
-	pedida := func(tab []addArma, de int) (p, total int) {
-		for _, l := range tab {
-			total += l.peso
-			if l.valor >= de {
-				p += l.peso
-			}
-		}
-		return p, total
-	}
-	for _, c := range []struct {
-		nome string
-		tab  []addArma
-		de   int
-	}{{"física 45-54", addAmonFisica, 45}, {"mágica 20-24", addAmonMagica, 20}} {
-		if p, total := pedida(c.tab, c.de); p == 0 || p*2 > total {
-			t.Errorf("%s sai em %d de %d: want possível, mas não a maioria", c.nome, p, total)
-		}
+	if addAmonFisica[0].valor != 45 || addAmonMagica[0].valor != 20 {
+		t.Error("o add alto deixou de começar em 45 de dano e 20 de magia")
 	}
 }
 
@@ -173,28 +169,48 @@ func TestGeloAmonNaoMexeEmOutroDrop(t *testing.T) {
 	}
 }
 
-// Pelo abate de verdade: a regra da Mesa solta a Arma D do Amon, e ela chega à
-// bolsa com o add da escada. Trinta abates, porque o bônus de drop sozinho também
-// escreve dano no slot 1 — só numa parte das armas, nunca em todas.
+// Pelo abate de verdade, com o bônus de drop do legado rodando: a regra da Mesa
+// solta a Solaris, ~10% saem com o add alto, e as outras com o add aleatório do
+// legado — que nunca passa de 45 de dano.
 func TestGeloAmonAbateSoltaArmaComAdd(t *testing.T) {
-	naEscada := map[world.Effect]bool{}
-	for _, l := range addAmonFisica {
-		naEscada[world.Effect{Effect: l.efeito, Value: uint8(l.valor)}] = true
-	}
+	const solaris = 911
 	d, w, killer := mobKilledWorld(t)
-	d.dropRules = droprule.NewTable([]droprule.Rule{{Mob: "Guerreiro_Amon", Item: 911, Chance: droprule.MaxChance}})
-	for i := range 30 {
+	d.dropRules = droprule.NewTable([]droprule.Rule{{Mob: "Guerreiro_Amon", Item: solaris, Chance: droprule.MaxChance}})
+	// O que o catálogo diz da Solaris e o bônus de drop lê: arma de uma mão (nPos
+	// 64), nUnique 48, nível 174.
+	d.itemPos = map[int]int{solaris: 64}
+	d.itemUnique = map[int]int{solaris: 48}
+	d.itemReqs = map[int]content.ItemReq{solaris: {Lvl: 174}}
+	const abates = 600
+	alto, comAddDoLegado := 0, 0
+	for i := range abates {
 		killer.Carry = [len(killer.Carry)]world.Item{}
 		m := spawnNamed(t, w, expMobTemplate(360, 0, 0), "Guerreiro_Amon")
 		m.SpawnX, m.SpawnY = 3700, 2900
 		d.mobKilled(w, killer, m)
-		it, ok := carryHas(killer, 911)
+		it, ok := carryHas(killer, solaris)
 		if !ok {
 			t.Fatalf("abate %d: a Solaris não chegou à bolsa", i)
 		}
-		if !naEscada[it.Effects[1]] {
-			t.Fatalf("abate %d: a Solaris saiu com %+v, want um add da escada dos Amon no slot 1", i, it.Effects)
+		switch it.Effects[1] {
+		case world.Effect{Effect: efDamage, Value: 54}, world.Effect{Effect: efDamage, Value: 45}:
+			if it.Effects[0].Effect == efSanc {
+				alto++
+				continue
+			}
 		}
+		if it.Effects[1].Effect == efDamage && it.Effects[1].Value > 45 {
+			t.Fatalf("abate %d: add do legado %+v passou de 45", i, it.Effects[1])
+		}
+		if it.Effects[1].Effect != 0 || it.Effects[2].Effect != 0 {
+			comAddDoLegado++
+		}
+	}
+	if taxa := float64(alto) / abates; taxa < 0.07 || taxa > 0.14 {
+		t.Errorf("add alto em %.1f%% das Solaris, want perto de %d%%", taxa*100, geloAmonAddAltoPct)
+	}
+	if comAddDoLegado < abates/2 {
+		t.Errorf("só %d de %d Solaris saíram com add do legado", comAddDoLegado, abates-alto)
 	}
 }
 
