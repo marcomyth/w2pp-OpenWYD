@@ -15,6 +15,26 @@
 --
 -- E o CASCADE acompanha a tabela: dado pessoal some com a conta. O que NÃO pode
 -- sumir é o registro do dinheiro, e ele mora em rmt_cobranca, com RESTRICT.
+-- ISTO É DADO PESSOAL, e fica escrito aqui porque é o primeiro lugar que alguém lê
+-- ao perguntar "o que tem nesta coluna".
+--
+-- Guardado em TEXTO PURO, e essa é uma decisão de agora e não uma conclusão: cifrar
+-- exigiria uma chave com dono, rotação e um lugar para guardá-la, e nada disso existe
+-- neste servidor hoje. Fingir que existe seria pior do que escrever a verdade.
+--
+-- QUEM PODE LER O VALOR INTEIRO, e ninguém mais:
+--
+--   1. o REPASSE, que manda o documento à ponte porque a rota de pagamento o exige;
+--   2. a STAFF, pelo painel, numa disputa.
+--
+-- NÃO crie leitura nova dele. A camada de store devolve só a MÁSCARA (RecebedorPix),
+-- de propósito, para não existir um caminho em que o inteiro escape por descuido de
+-- quem chamar — é o mesmo desenho da chave Pix. O inteiro sai por uma query própria,
+-- escrita à mão, no caminho do repasse.
+--
+-- E ele não entra em log nem em mensagem de erro. Um CPF num log é um CPF que vai para
+-- a rotação, para o backup e para qualquer ferramenta que leia log — sem ninguém nunca
+-- ter decidido isso.
 ALTER TABLE rmt_recebedor
     ADD COLUMN IF NOT EXISTS documento TEXT;
 

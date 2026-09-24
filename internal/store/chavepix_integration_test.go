@@ -351,3 +351,108 @@ func TestBancoRecusaDocumentoForaDeForma(t *testing.T) {
 		}
 	}
 }
+
+// A TRAVA DA VENDA EM CURSO VALE PARA O DOCUMENTO TAMBÉM, e tem de valer pelo mesmo
+// motivo do golpe da chave: anunciar, esperar o comprador abrir o QR, e trocar para
+// onde o dinheiro vai enquanto o pagamento está em andamento.
+//
+// Não há caminho de "trocar só o documento": ele viaja na mesma chamada da chave, e a
+// chamada inteira é recusada. Este teste amarra isso, porque um caminho separado para
+// o documento seria uma porta aberta atrás da trava.
+func TestTrocarDocumentoComVendaEmCursoERecusado(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor := contaPix(ctx, t, s, "doc_travado")
+	comprador := contaPix(ctx, t, s, "doc_travado_comp")
+
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
+		t.Fatal(err)
+	}
+	anuncioComCobrancaAberta(ctx, t, s, vendedor, comprador, "ref-doc-travado")
+
+	// Mesma chave, documento DIFERENTE: é a tentativa de desviar só o documento.
+	err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "52998224725")
+	if !errors.Is(err, ErrVendaEmCurso) {
+		t.Fatalf("erro = %v, quero ErrVendaEmCurso", err)
+	}
+
+	var guardado string
+	if err := s.pool.QueryRow(ctx,
+		`SELECT documento FROM rmt_recebedor WHERE account_id = $1`, vendedor).Scan(&guardado); err != nil {
+		t.Fatal(err)
+	}
+	if guardado != "11144477735" {
+		t.Errorf("o documento mudou para %q com uma venda em curso", guardado)
+	}
+}
+
+// A TROCA DO DOCUMENTO ENTRA NO RASTRO, MASCARADA.
+//
+// A 0106 criou o rastro da chave com uma razão que vale igual aqui: numa disputa, a
+// pergunta é "o que aconteceu com o destino do dinheiro DESTA conta". Trocar o CPF é a
+// mesma espécie de evento que trocar a chave, e sem registro ela é invisível.
+//
+// E vai MASCARADO, porque o rastro é justamente o lugar que ninguém lembra de proteger
+// porque "é só histórico". O que a disputa precisa saber é QUE mudou e QUANDO.
+func TestTrocarDocumentoDeixaRastroMascarado(t *testing.T) {
+	s, ctx := freshStore(t)
+	conta := contaPix(ctx, t, s, "doc_rastro")
+
+	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF, "11144477735"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SalvarChavePix(ctx, conta, "fulano@exemplo.com", ChavePixEmail, "52998224725"); err != nil {
+		t.Fatal(err)
+	}
+
+	type linha struct{ antigo, novo *string }
+	var ls []linha
+	rows, err := s.pool.Query(ctx, `
+		SELECT documento_antigo_mascarado, documento_novo_mascarado
+		  FROM rmt_recebedor_historico WHERE account_id = $1 ORDER BY id`, conta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var l linha
+		if err := rows.Scan(&l.antigo, &l.novo); err != nil {
+			t.Fatal(err)
+		}
+		ls = append(ls, l)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(ls) != 2 {
+		t.Fatalf("o rastro tem %d linhas, quero 2", len(ls))
+	}
+	// Primeiro cadastro: NULO no "de onde", porque não havia documento antes. Nulo e
+	// vazio dizem coisas diferentes aqui — nulo é "não havia", vazio seria "havia e eu
+	// perdi".
+	if ls[0].antigo != nil {
+		t.Errorf("o primeiro cadastro registrou um documento anterior: %q", *ls[0].antigo)
+	}
+	if ls[0].novo == nil || *ls[0].novo != "***.***.***-35" {
+		t.Errorf("primeiro registro novo = %v", ls[0].novo)
+	}
+	// A troca: o de onde e o para onde, os dois mascarados.
+	if ls[1].antigo == nil || *ls[1].antigo != "***.***.***-35" {
+		t.Errorf("a troca nao registrou o documento anterior: %v", ls[1].antigo)
+	}
+	if ls[1].novo == nil || *ls[1].novo != "***.***.***-25" {
+		t.Errorf("a troca registrou o novo como %v", ls[1].novo)
+	}
+	// E O DOCUMENTO INTEIRO NÃO ESTÁ NO RASTRO em lugar nenhum.
+	var vazamentos int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FROM rmt_recebedor_historico
+		 WHERE account_id = $1
+		   AND (documento_antigo_mascarado LIKE '%11144477735%'
+		     OR documento_novo_mascarado   LIKE '%52998224725%')`, conta).Scan(&vazamentos); err != nil {
+		t.Fatal(err)
+	}
+	if vazamentos != 0 {
+		t.Errorf("o rastro guardou %d documento(s) inteiro(s)", vazamentos)
+	}
+}

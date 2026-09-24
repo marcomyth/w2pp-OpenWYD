@@ -186,9 +186,10 @@ func (s *Store) SalvarChavePix(ctx context.Context, accountID int64, chave strin
 		// Nulo aqui significa primeiro cadastro, e não "não sei qual era".
 		var antigaChave *string
 		var antigoTipo *int16
+		var antigoDoc *string
 		if err := tx.QueryRow(ctx,
-			`SELECT chave, tipo FROM rmt_recebedor WHERE account_id = $1`, accountID).
-			Scan(&antigaChave, &antigoTipo); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			`SELECT chave, tipo, documento FROM rmt_recebedor WHERE account_id = $1`, accountID).
+			Scan(&antigaChave, &antigoTipo, &antigoDoc); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("store: chave pix: lendo a anterior a=%d: %w", accountID, err)
 		}
 
@@ -220,9 +221,11 @@ func (s *Store) SalvarChavePix(ctx context.Context, accountID int64, chave strin
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO rmt_recebedor_historico
-				(account_id, tipo_antigo, chave_antiga_mascarada, tipo_novo, chave_nova_mascarada)
-			VALUES ($1, $2, $3, $4, $5)`,
-			accountID, antigoTipo, antigaMasc, int16(tipo), MascaraChavePix(chave, tipo)); err != nil {
+				(account_id, tipo_antigo, chave_antiga_mascarada, tipo_novo, chave_nova_mascarada,
+				 documento_antigo_mascarado, documento_novo_mascarado)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			accountID, antigoTipo, antigaMasc, int16(tipo), MascaraChavePix(chave, tipo),
+			mascaraOuNulo(antigoDoc), MascaraDocumento(doc)); err != nil {
 			return fmt.Errorf("store: chave pix: gravando o historico a=%d: %w", accountID, err)
 		}
 		return nil
@@ -240,12 +243,14 @@ func (s *Store) LerChavePix(ctx context.Context, accountID int64) (RecebedorPix,
 		  FROM rmt_recebedor WHERE account_id = $1`, accountID).
 		Scan(&chave, &tipo, &documento, &verificada)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return RecebedorPix{
-			DocumentoMascarado: MascaraDocumento(documento)}, nil
+		return RecebedorPix{}, nil
 	}
 	if err != nil {
-		return RecebedorPix{
-			DocumentoMascarado: MascaraDocumento(documento)}, fmt.Errorf("store: chave pix: lendo a=%d: %w", accountID, err)
+		// Struct ZERO junto com o erro, e nao uma meio preenchida. Meu sed anterior
+		// enfiou o documento aqui: era inofensivo na pratica, porque a variavel esta
+		// vazia num erro de leitura, e era errado de qualquer jeito. Quem le "devolveu
+		// dado E erro" nao sabe em qual acreditar.
+		return RecebedorPix{}, fmt.Errorf("store: chave pix: lendo a=%d: %w", accountID, err)
 	}
 	return RecebedorPix{
 		DocumentoMascarado: MascaraDocumento(documento),
@@ -269,4 +274,17 @@ func (s *Store) TemChavePixValida(ctx context.Context, accountID int64) (bool, e
 		return false, fmt.Errorf("store: chave pix: conferindo a=%d: %w", accountID, err)
 	}
 	return tem, nil
+}
+
+// mascaraOuNulo mascara um documento que pode nao existir.
+//
+// Devolve nulo e nao texto vazio quando nao havia documento antes, porque no rastro os
+// dois dizem coisas diferentes: nulo e "nao havia", e vazio seria "havia e eu perdi".
+// A 0106 tomou a mesma decisao para a chave antiga.
+func mascaraOuNulo(doc *string) *string {
+	if doc == nil || *doc == "" {
+		return nil
+	}
+	m := MascaraDocumento(*doc)
+	return &m
 }
