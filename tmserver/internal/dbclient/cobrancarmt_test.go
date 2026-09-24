@@ -34,10 +34,8 @@ func TestAbrirCobrancaTraduzCadaRecusa(t *testing.T) {
 		{"anuncio sumiu",
 			dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_LISTING_GONE,
 			handler.ErrAnuncioIndisponivel},
-		// O cadeado que não aponta para o anúncio é DEFEITO NOSSO, e ainda assim vira
-		// a mesma frase: os dois dizem "este item não está comprável e a sua vitrine
-		// está velha", e nenhum sugere uma ação diferente a quem clicou. O
-		// diagnóstico fica no log do servidor, que é onde ele serve para algo.
+		// O cadeado que não aponta para o anúncio CASA com o genérico, porque o
+		// ErrCadeadoNaoBate o embrulha — é isso que faz o jogador ler a mesma frase.
 		{"cadeado nao aponta para o anuncio",
 			dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_ITEM_NOT_LOCKED,
 			handler.ErrAnuncioIndisponivel},
@@ -148,5 +146,33 @@ func TestAbrirCobrancaFalhaDeTransporteViraErro(t *testing.T) {
 		if errors.Is(err, sentinela) {
 			t.Errorf("a falha de rede virou a recusa de negocio %v", sentinela)
 		}
+	}
+}
+
+// E O CADEADO QUE NÃO BATE É DISTINGUÍVEL DO ANÚNCIO QUE SUMIU, mesmo os dois lendo
+// igual para o jogador.
+//
+// A distinção não é preciosismo: anúncio vendido é curso normal e acontece o dia
+// inteiro; cadeado apontando para outro lugar com o anúncio ativo é DEFEITO NOSSO.
+// Colapsar os dois num erro só faria esse defeito viver para sempre dentro do caso
+// comum, e a loja não teria como saber que precisa avisar.
+func TestCadeadoQueNaoBateEDistinguivelDoAnuncioQueSumiu(t *testing.T) {
+	semCadeado := &fakeAPI{cobrancaResp: &dbv1.OpenRmtChargeResponse{
+		Result: dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_ITEM_NOT_LOCKED}}
+	_, err := newClient(semCadeado).AbrirCobranca(context.Background(), 10, 20, "ref-1")
+	if !errors.Is(err, handler.ErrCadeadoNaoBate) {
+		t.Errorf("o cadeado que nao bate nao e distinguivel: %v", err)
+	}
+	if !errors.Is(err, handler.ErrAnuncioIndisponivel) {
+		t.Error("deixou de casar com o generico; o jogador veria outra frase")
+	}
+
+	// E o contrário: o anúncio que sumiu NÃO pode virar o erro do defeito, senão o
+	// log enche de aviso por uma coisa que é o curso normal do mercado.
+	sumiu := &fakeAPI{cobrancaResp: &dbv1.OpenRmtChargeResponse{
+		Result: dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_LISTING_GONE}}
+	_, err = newClient(sumiu).AbrirCobranca(context.Background(), 10, 20, "ref-1")
+	if errors.Is(err, handler.ErrCadeadoNaoBate) {
+		t.Error("o anuncio vendido virou aviso de defeito; o log encheria de ruido")
 	}
 }

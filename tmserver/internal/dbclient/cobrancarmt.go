@@ -62,14 +62,22 @@ func (c *Client) AbrirCobranca(ctx context.Context, anuncioID, compradorConta in
 	case dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_BUYER_BUSY:
 		return handler.CobrancaAberta{}, handler.ErrCompradorJaTemCobranca
 
-	case dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_LISTING_GONE,
-		dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_ITEM_NOT_LOCKED:
-		// OS DOIS VIRAM A MESMA COISA PARA O JOGADOR, e a razão é o que ele pode
-		// fazer: nos dois casos o item não está comprável e a vitrine dele está
-		// velha. "O anúncio sumiu" e "o cadeado do item não aponta para o anúncio"
-		// são diagnósticos NOSSOS — o segundo é até sinal de defeito e aparece no log
-		// do servidor —, mas nenhum dos dois sugere uma ação diferente a quem clicou.
+	case dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_LISTING_GONE:
 		return handler.CobrancaAberta{}, handler.ErrAnuncioIndisponivel
+
+	case dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_ITEM_NOT_LOCKED:
+		// A MESMA FRASE PARA O JOGADOR, e um erro DIFERENTE para nós.
+		//
+		// O ErrCadeadoNaoBate embrulha o ErrAnuncioIndisponivel, então o `errors.Is`
+		// da loja continua casando e a pessoa lê a mesma coisa que leria se o item
+		// tivesse sido vendido — o que é certo, porque nenhum dos dois pede uma ação
+		// diferente dela.
+		//
+		// A diferença existe para o NOSSO lado: anúncio ativo com o cadeado apontando
+		// para outro lugar é defeito, e não curso normal. Colapsar os dois num erro só
+		// faria esse defeito viver para sempre dentro do caso comum, sem ninguém
+		// descobrir que ele existe.
+		return handler.CobrancaAberta{}, handler.ErrCadeadoNaoBate
 
 	default:
 		// UNSPECIFIED, ou um valor novo que este arquivo não conhece. Recusa genérica
