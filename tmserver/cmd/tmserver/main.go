@@ -35,6 +35,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/mountbonus"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/reinos"
+	"github.com/jeanluca/w2pp-openwyd/internal/secret"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/binclient"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
@@ -813,6 +814,15 @@ func run(logger *slog.Logger) error {
 	// TLS is unconfigured, so "wire it like the other services" would have
 	// shipped an unauthenticated way to kick every player off the server.
 	if *controlAddr != "" {
+		// A impressão do token que ESTE servidor exige. Quem se conectar imprime a
+		// dele do mesmo jeito, e as duas linhas juntas dizem em um segundo se o
+		// problema é valor diferente — sem nenhum dos dois logs conter o valor.
+		logger.Info("api de controle: token exigido",
+			"token", secret.Impressao(os.Getenv("W2PP_CONTROL_TOKEN")))
+		if secret.TokenFraco(os.Getenv("W2PP_CONTROL_TOKEN")) {
+			logger.Warn("o token de controle e CURTO; troque por um aleatorio de 32 bytes ou mais",
+				"minimo", secret.TamanhoMinimoDoToken)
+		}
 		ctl, cerr := control.NewServer(w, os.Getenv("W2PP_CONTROL_TOKEN"), logger, dispatch.Teleport,
 			// What the panel cannot see from the database: whether this server
 			// was booted to read the moderator overlays at all.
