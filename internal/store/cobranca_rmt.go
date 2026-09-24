@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -100,7 +101,9 @@ type VendaRMT struct {
 // vendedor. Os dois são iguais enquanto a marca está lá — é para isso que ela
 // serve —, e ler a fotografia significa que o comprador não espera o vendedor
 // estar em jogo para receber.
-func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna string) (ResultadoCobranca, VendaRMT, error) {
+func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna string,
+	pagoEm time.Time,
+) (ResultadoCobranca, VendaRMT, error) {
 	var res ResultadoCobranca
 	var venda VendaRMT
 
@@ -108,11 +111,12 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 		var statusCobranca int16
 		var entregaAtual *int64
 		var atrasoAtual bool
+		var expiraEm time.Time
 		err := tx.QueryRow(ctx, `
-			SELECT id, anuncio_id, comprador_conta, status, entrega_id, pago_com_atraso
+			SELECT id, anuncio_id, comprador_conta, status, entrega_id, pago_com_atraso, expira_em
 			  FROM rmt_cobranca WHERE referencia_externa = $1 FOR UPDATE`,
 			referenciaExterna).Scan(&venda.CobrancaID, &venda.AnuncioID, &venda.CompradorConta,
-			&statusCobranca, &entregaAtual, &atrasoAtual)
+			&statusCobranca, &entregaAtual, &atrasoAtual, &expiraEm)
 		if errors.Is(err, pgx.ErrNoRows) {
 			res = CobrancaNaoEncontrada
 			return nil
@@ -140,10 +144,30 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 			return nil
 		}
 
-		// A confirmação que chega depois do fim da cobrança é EXCEÇÃO e precisa
-		// ser contável. Sem a marca, a gente descobriria pelo volume de
-		// reclamação em vez de pela coluna.
-		venda.PagoComAtraso = statusCobranca == cobrancaCancelada || statusCobranca == cobrancaExpirada
+		// O QUE DECIDE É A HORA DO PAGAMENTO, e não a hora em que o aviso chegou
+		// nem o estado em que a nossa linha está.
+		//
+		// A diferença aparece no caso que mais dói: o comprador paga no minuto
+		// 4:59, o aviso da processadora atrasa, e quando ele chega a varredura já
+		// expirou a cobrança. Decidindo pelo nosso estado, esse pagamento viraria
+		// dívida — ele pagou DENTRO do prazo e ficaria sem o item. Decidindo pelo
+		// `paid_at`, ele recebe.
+		//
+		// O campo é o `paid_at` da consulta de transação da SyncPay (V2), que é
+		// nulo até o pagamento existir. NÃO é o `updated_at`, que muda por
+		// qualquer modificação.
+		//
+		// Relógio de fora contra relógio nosso é uma comparação imperfeita, e é a
+		// melhor disponível: a alternativa é o nosso relógio contra o momento em
+		// que a rede entregou o aviso, que é pior de todas as formas.
+		if pagoEm.IsZero() {
+			// Sem hora do pagamento não dá para decidir, e adivinhar aqui é
+			// decidir sobre o dinheiro de alguém no escuro. Quem chama trata como
+			// falha e tenta de novo; a confirmação repetida é o caminho normal.
+			return fmt.Errorf("store: confirmar cobranca %q: sem a hora do pagamento",
+				referenciaExterna)
+		}
+		venda.PagoComAtraso = pagoEm.After(expiraEm)
 
 		var statusAnuncio int16
 		var it itemPayload
@@ -160,14 +184,28 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 		if err != nil {
 			return err
 		}
+		// PAGO FORA DO PRAZO NÃO ENTREGA, mesmo que o item ainda esteja lá.
+		//
+		// Parece desperdício — o item está disponível, por que não dar? Porque o
+		// prazo é a única coisa que o vendedor tem. Ele combinou prender o item por
+		// cinco minutos; entregar aos dez seria decidir por ele que a venda ainda
+		// valia. E a esta altura o item pode já ter sido solto e vendido a outra
+		// pessoa, e a diferença entre "ainda está lá" e "já foi" é o acaso de
+		// alguns segundos.
+		//
+		// O dinheiro volta: o caminho do atrasado é o reembolso, não o item.
+		if venda.PagoComAtraso {
+			entregavel = false
+		}
 		if !entregavel {
 			// O dinheiro entrou e não há item. Marcar PAGA com entrega_id nulo
 			// seria indistinguível de "ainda não entreguei", e a linha sumiria no
 			// meio das normais. Este estado existe para ela NÃO sumir.
 			if _, err := tx.Exec(ctx, `
 				UPDATE rmt_cobranca
-				   SET status = $2, paga_em = now(), encerrada_em = now(), pago_com_atraso = $3
-				 WHERE id = $1`, venda.CobrancaID, cobrancaPagaSemItem, venda.PagoComAtraso); err != nil {
+				   SET status = $2, paga_em = $4, encerrada_em = now(), pago_com_atraso = $3
+				 WHERE id = $1`, venda.CobrancaID, cobrancaPagaSemItem, venda.PagoComAtraso,
+				pagoEm); err != nil {
 				return fmt.Errorf("store: confirmar cobranca: marcando sem item %d: %w", venda.CobrancaID, err)
 			}
 			res = CobrancaPagaSemItem
@@ -188,10 +226,11 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 
 		if _, err := tx.Exec(ctx, `
 			UPDATE rmt_cobranca
-			   SET status = $2, paga_em = now(), encerrada_em = now(),
+			   SET status = $2, paga_em = $5, encerrada_em = now(),
 			       entrega_id = $3, pago_com_atraso = $4
 			 WHERE id = $1`,
-			venda.CobrancaID, cobrancaPaga, venda.EntregaID, venda.PagoComAtraso); err != nil {
+			venda.CobrancaID, cobrancaPaga, venda.EntregaID, venda.PagoComAtraso,
+			pagoEm); err != nil {
 			return fmt.Errorf("store: confirmar cobranca: marcando paga %d: %w", venda.CobrancaID, err)
 		}
 		// O anúncio sai da vitrine agora. A MARCA DO ESCROW FICA: ela é o que
