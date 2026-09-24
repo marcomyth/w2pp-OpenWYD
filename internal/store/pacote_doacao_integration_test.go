@@ -90,13 +90,23 @@ func TestOsPacotesDoSiteEstaoNaTabela(t *testing.T) {
 func TestEspacosNoBauPorPacote(t *testing.T) {
 	s, ctx := freshStore(t)
 
-	// Com os baús de sorteio empilhando (medido em jogo, 24/09), cada brinde ocupa um
-	// espaço: os empilháveis cabem numa pilha só (o maior pede 64, e o teto é 120) e os
-	// que não empilham vêm em unidade. Então a conta é uma linha por brinde.
+	// OS NÚMEROS SÃO OS DE HOJE, com os baús de sorteio NÃO empilhando.
+	//
+	// O Baú de Experiência empilha (está no internal/pilha), então os 20 do Supremo
+	// ocupam um espaço. Os de sorteio não estão na lista, então cada um ocupa o seu — e
+	// é isso que faz o Supremo pedir 69 dos 128 espaços do baú da conta.
+	//
+	// ESTES NÚMEROS VÃO MUDAR, e a mudança é o que prova que ela funcionou: a Hanna
+	// mediu em jogo que os baús empilham, e a linha que os põe na lista está num PR
+	// próprio esperando duas confirmações. Quando ela entrar, esta tabela vira
+	// 4,4,4,4,4,4,5,6,6 — uma linha por brinde — e o Supremo cai de 69 para 6.
+	//
+	// O teste é o que obriga essa mudança a ser explícita em vez de silenciosa, e o que
+	// dá o número novo para a tela do site sem ninguém recontar na mão.
 	querido := map[string]int{
-		"apoiador-iniciante": 4, "apoiador-bronze": 4, "apoiador-prata": 4,
-		"apoiador-ouro": 4, "apoiador-platina": 4, "apoiador-diamante": 4,
-		"apoiador-mestre": 5, "apoiador-lenda": 6, "apoiador-supremo": 6,
+		"apoiador-iniciante": 5, "apoiador-bronze": 7, "apoiador-prata": 11,
+		"apoiador-ouro": 15, "apoiador-platina": 19, "apoiador-diamante": 27,
+		"apoiador-mestre": 36, "apoiador-lenda": 45, "apoiador-supremo": 69,
 		"teste-real": 0,
 	}
 	for id, espacos := range querido {
