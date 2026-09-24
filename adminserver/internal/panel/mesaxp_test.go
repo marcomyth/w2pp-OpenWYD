@@ -156,7 +156,10 @@ func TestMesaSimulaUmaMorte(t *testing.T) {
 	// the same kill internal/level pins at 2726 for the general field.
 	rec := abrirMesa(t, h, "?simular=1&zona=0&evolucao=2&mob_exp=20000&mob_nivel=371&nivel=371&segundos=6")
 	corpo := rec.Body.String()
-	if !strings.Contains(corpo, "2726") {
+	// ANCORADO NO LADRILHO, e não solto na página: a simulação tem 51 KB e 55
+	// números de quatro dígitos ou mais, e um "2726" achado em qualquer um deles
+	// passaria por este.
+	if !strings.Contains(corpo, `class="val">2726<`) {
 		t.Errorf("a simulação não mostrou 2726 de XP por morte")
 	}
 	if !strings.Contains(corpo, "Mortes para subir") {
@@ -920,7 +923,7 @@ func TestSemMonstroAindaDaParaDigitar(t *testing.T) {
 	if !strings.Contains(corpo, `type="number" name="mob_exp"`) {
 		t.Error("sem monstro escolhido a XP deveria continuar editável")
 	}
-	if !strings.Contains(corpo, "2726") {
+	if !strings.Contains(corpo, `class="val">2726<`) {
 		t.Error("a simulação à mão parou de funcionar")
 	}
 }

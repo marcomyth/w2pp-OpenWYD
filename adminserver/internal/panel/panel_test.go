@@ -4957,7 +4957,7 @@ func TestCensoFalhaDasCopiasNaoDerrubaOCenso(t *testing.T) {
 	if !strings.Contains(body, "as cópias") {
 		t.Error("a página não avisa que não conseguiu ler as cópias")
 	}
-	if !strings.Contains(body, "1415") {
+	if !strings.Contains(body, "1415</span>") {
 		t.Error("o censo sumiu junto com a lista que falhou")
 	}
 }
