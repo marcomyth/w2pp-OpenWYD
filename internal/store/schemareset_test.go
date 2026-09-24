@@ -25,6 +25,9 @@ var tabelasDeTeste = []string{
 	// que existem: rmt_cobranca aponta para rmt_anuncio E para delivery_queue,
 	// que está lá no fim desta lista.
 	"rmt_recebedor_historico",
+	// Não aponta para ninguém — dinheiro que entrou e NÃO achou cobrança não pode
+	// depender de uma cobrança existir —, então a posição aqui é indiferente.
+	"rmt_pagamento_orfao",
 	"rmt_cobranca",
 	"rmt_anuncio",
 	"rmt_recebedor",

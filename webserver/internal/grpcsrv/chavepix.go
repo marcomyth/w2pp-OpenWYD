@@ -3,6 +3,7 @@ package grpcsrv
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -10,6 +11,7 @@ import (
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/rmtpagamento"
 )
 
 // ChavesPix é a superfície da chave de recebimento (satisfeita por *store.Store).
@@ -22,7 +24,39 @@ type ChavesPix interface {
 	// aberta da conta, ou a que fechou há pouco. Ver store/cobranca_do_comprador.go.
 	CobrancaAtualDoComprador(ctx context.Context, compradorConta int64,
 		janelaRecente time.Duration) (bool, store.CobrancaDoComprador, error)
+	// CriarPixSeFaltar faz nascer o código na processadora na PRIMEIRA leitura de
+	// uma cobrança aberta que ainda não tem um. Ver store/pix_da_cobranca.go, que é
+	// onde vive a trava contra duas abas criarem duas cobranças.
+	CriarPixSeFaltar(ctx context.Context, cobrancaID int64, minimoRestante time.Duration,
+		criar store.CriadorDePix) (store.PixDaCobranca, error)
 }
+
+// MinimoParaCriarPix é quanto prazo tem de sobrar para valer a pena criar o código.
+//
+// CRIAR UM PIX COM DEZ SEGUNDOS DE VIDA É FABRICAR REEMBOLSO. A pessoa abre o
+// aplicativo do banco, escaneia, confirma — e o dinheiro cai numa cobrança que já
+// venceu. Aí o item já foi solto, ela não recebe nada na hora, e a gente devolve
+// pagando taxa de reembolso mais as taxas da venda, que não voltam. Os dois lados
+// perdem por causa de um código que nunca devia ter nascido.
+//
+// Sessenta segundos contra uma janela de cinco minutos: quem chega com menos de um
+// minuto vê a cobrança como vencida e pode abrir outra, que nasce com o prazo
+// inteiro. É melhor do que um QR que quase sempre falha.
+var MinimoParaCriarPix = 60 * time.Second
+
+// CriadorDePixComTexto é a chamada à ponte, já com o texto que o pagador lê.
+//
+// A DESCRIÇÃO NÃO PODE DESCER ATÉ O STORE, e é por isso que este tipo existe em vez
+// de o store.CriadorDePix ganhar um parâmetro: o texto tem o NOME do item, e para
+// saber o nome de um índice é preciso o catálogo do cliente legado, que é coisa do
+// webserver. O store não conhece catálogo e não deveria passar a conhecer para
+// montar uma frase.
+type CriadorDePixComTexto func(ctx context.Context, referencia string, centavos int64,
+	descricao string) (codigoPix, identifier string, err error)
+
+// NomeDeItem traduz um índice no nome que uma pessoa lê, ou devolve vazio quando
+// não sabe. Pode ser nulo: aí a descrição sai genérica, o que é feio e não é erro.
+type NomeDeItem func(index int32) string
 
 // ServerRmt implementa webv1.RmtWebServiceServer.
 //
@@ -33,11 +67,50 @@ type ChavesPix interface {
 // ler um log de acesso.
 type ServerRmt struct {
 	webv1.UnimplementedRmtWebServiceServer
-	pix ChavesPix
+	pix      ChavesPix
+	criarPix CriadorDePixComTexto
+	nomeItem NomeDeItem
+	log      *slog.Logger
 }
 
 // NewRmt monta o serviço de dinheiro real sobre a superfície da chave.
-func NewRmt(pix ChavesPix) *ServerRmt { return &ServerRmt{pix: pix} }
+//
+// Sem criador de Pix: a leitura da cobrança devolve o que está gravado e nunca
+// chama a processadora. É o comportamento certo quando a ponte não está
+// configurada — a cobrança existe, a página mostra que está sendo gerada, e
+// ninguém paga um código que não nasceu.
+func NewRmt(pix ChavesPix) *ServerRmt {
+	return &ServerRmt{pix: pix, log: slog.New(slog.DiscardHandler)}
+}
+
+// ComCriadorDePix liga a criação tardia do código.
+//
+// Construtor separado, e não um parâmetro a mais no NewRmt, por duas razões: a
+// criação é opcional de verdade (sem ponte configurada ela não existe), e assim o
+// caminho SEM ponte continua sendo o que os testes antigos já cobrem, em vez de
+// todos passarem a carregar um nulo.
+func (s *ServerRmt) ComCriadorDePix(criar CriadorDePixComTexto, nome NomeDeItem, log *slog.Logger) *ServerRmt {
+	s.criarPix = criar
+	s.nomeItem = nome
+	if log != nil {
+		s.log = log
+	}
+	return s
+}
+
+// descricaoDaCobranca monta o texto que a processadora mostra a quem paga.
+//
+// Sem catálogo ligado, ou com um índice que ele não conhece, sai o texto genérico.
+// Perder o nome do item NÃO pode derrubar a venda: a alternativa seria recusar a
+// cobrança porque o catálogo não carregou, e ninguém deixa de vender por causa de
+// uma frase.
+func (s *ServerRmt) descricaoDaCobranca(cob store.CobrancaDoComprador) string {
+	var nome string
+	if s.nomeItem != nil {
+		nome = s.nomeItem(int32(cob.ItemIndex))
+	}
+	return rmtpagamento.Descricao(nome, cob.Refino)
+}
 
 // SavePixKey grava a chave de recebimento da conta.
 //
@@ -129,6 +202,47 @@ func (s *ServerRmt) GetMyCurrentPixCharge(ctx context.Context, req *webv1.GetMyC
 	if !tem {
 		return &webv1.GetMyCurrentPixChargeResponse{}, nil
 	}
+
+	estado := cob.Estado
+	// A LEITURA CRIA, e é a única escrita que este método faz. Antes ela não criava
+	// nada, e o comentário do .proto dizia isso — a mudança está registrada lá.
+	//
+	// Por que aqui e não na hora do clique no jogo: assim quem clica em comprar e
+	// nunca abre a página não gasta uma chamada na processadora, que é cobrada. E o
+	// servidor de jogo não precisa do segredo nem do certificado da ponte, o que
+	// seria o preço da outra saída.
+	if estado == store.EstadoCobrancaAberta && cob.CodigoPix == "" && s.criarPix != nil {
+		// A descrição é montada AQUI e fechada dentro da função que o store chama,
+		// porque quem sabe o nome do item é este pacote e quem tem a linha travada é
+		// o store. Assim o store continua sem saber que existe catálogo.
+		descricao := s.descricaoDaCobranca(cob)
+		criar := func(ctx context.Context, referencia string, centavos int64) (string, string, error) {
+			return s.criarPix(ctx, referencia, centavos, descricao)
+		}
+		pix, err := s.pix.CriarPixSeFaltar(ctx, cob.CobrancaID, MinimoParaCriarPix, criar)
+		switch {
+		case err != nil:
+			// NÃO VIRA ERRO PARA A PÁGINA, de propósito. A página relê a cada cinco
+			// segundos: a tentativa seguinte tenta de novo, com a MESMA referência,
+			// e a ponte reconhece a repetição em vez de criar uma segunda cobrança.
+			// Um erro aqui poria vermelho na tela por um tropeço de rede que se
+			// resolve em cinco segundos.
+			//
+			// Error e não Warn porque, se isto NÃO se resolver, a venda não acontece:
+			// o comprador fica olhando "gerando o código" até o prazo vencer, e
+			// ninguém do lado dele consegue fazer nada.
+			s.log.Error("rmt: nao consegui criar o codigo pix da cobranca",
+				"cobranca", cob.CobrancaID, "err", err)
+		case pix.SemPrazo:
+			// Não sobrou prazo útil, então nada foi criado. A pessoa vê VENCIDA e
+			// pode abrir outra cobrança, que nasce com a janela inteira — em vez de
+			// receber um QR que quase certamente vira reembolso.
+			estado = store.EstadoCobrancaExpirada
+		default:
+			cob.CodigoPix = pix.CodigoPix
+		}
+	}
+
 	return &webv1.GetMyCurrentPixChargeResponse{
 		HasCharge: true,
 		// Vem como o banco guardou, que é como a processadora devolveu. E vem
@@ -138,7 +252,7 @@ func (s *ServerRmt) GetMyCurrentPixCharge(ctx context.Context, req *webv1.GetMyC
 		PixCode:     cob.CodigoPix,
 		AmountCents: cob.ValorCentavos,
 		ExpiresAt:   cob.ExpiraEm.Unix(),
-		State:       estadoParaProto(cob.Estado),
+		State:       estadoParaProto(estado),
 		ItemIndex:   int32(cob.ItemIndex),
 		RefineLevel: int32(cob.Refino),
 		StackSize:   int32(cob.Quantidade),

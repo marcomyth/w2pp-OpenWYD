@@ -247,9 +247,22 @@ const (
 	// accident: there is no known route to cancel a cash-in at the processor, so
 	// the copy-and-paste code stays payable after our row closes.
 	//
-	// Implementation status: the server does not produce this state yet. Creating
-	// the charge is a later change, and nothing can arrive late before anything
-	// arrives at all.
+	// IT ALSO CARRIES THE WRONG-AMOUNT CASE, and the reuse is deliberate: the name
+	// speaks of lateness and that case is not late, but what the state TELLS the
+	// person is exactly right — the money arrived, the item was not delivered, and
+	// somebody is looking at it. Every other value would lie worse. OPEN says "pay",
+	// and they already paid, which invites paying twice; PAID says the item is on
+	// its way; EXPIRED and CANCELED say no payment happened.
+	//
+	// The two are told apart by refund_state. Late payment refunds automatically, so
+	// it moves through PENDING, REQUESTED, REFUNDED. A wrong amount leaves it
+	// UNSPECIFIED, because there is no automatic refund: refunding, charging the
+	// difference or delivering anyway is a decision about two people's money, and
+	// the code does not make it.
+	//
+	// Implementation status: the server PRODUCES this state as of the payment-notice
+	// change. Paying the seller, however, does not exist yet — see the note on
+	// masked_tax_id.
 	PixChargeState_PIX_CHARGE_STATE_PAID_LATE PixChargeState = 5
 )
 
