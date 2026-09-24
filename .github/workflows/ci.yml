@@ -129,11 +129,16 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      # SEM `-race` NESTA PRIMEIRA VERSAO, e isto e divida anotada e nao esquecida.
-      # O motivo e tempo: a suite recria o schema e reaplica as 136 migracoes A CADA
-      # TESTE, em 269 testes, e ninguem mediu quanto isso da num runner limpo. O
-      # `-race` dobraria um numero desconhecido. Este job E a medicao; quando a
-      # duracao real aparecer, o `-race` entra se couber.
+      # COM `-race`, e agora com numero para justificar: a primeira rodada verde deste
+      # job levou 535 s (8m55s). Dobrar isso cabe folgado nos 30 min de teto, e a
+      # medicao era a unica coisa que faltava para decidir.
+      #
+      # E o `-race` vale mais AQUI do que no job de cima. O que so existe neste job e
+      # concorrencia de verdade contra o Postgres: a corrida das duas abas criando o
+      # Pix, a corrida entre abrir a cobranca e fechar a barraca. Sao testes que rodam
+      # goroutines de proposito, e uma corrida de dados neles passaria despercebida
+      # sem o detector — um teste de corrida que nao roda com -race prova menos do que
+      # parece.
       #
       # `-p 1` porque os testes compartilham UM banco: em paralelo eles se atropelam
       # no reset de schema, e a falha que sai disso parece bug de produto.
@@ -144,7 +149,7 @@ jobs:
           W2PP_TEST_DSN: postgres://postgres:dev@localhost:5432/postgres
         run: |
           set -o pipefail
-          go test -tags=integration -p 1 -timeout 30m -v ./... 2>&1 | tee integration.log
+          go test -tags=integration -race -p 1 -timeout 30m -v ./... 2>&1 | tee integration.log
 
       # A GUARDA CONTRA O PIOR RESULTADO POSSIVEL: um job VERDE que nao rodou nada.
       #
