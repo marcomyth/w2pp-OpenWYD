@@ -1451,14 +1451,27 @@ type GetPixKeyResponse struct {
 	// in a Discord channel, should not learn what this person sold and to whom.
 	// The detail belongs to staff, who can be asked.
 	//
-	// Zero means nothing is owed, and it is NOT the same as "paid": a payout that
-	// arrived stops being owed and leaves this total. The page says "nothing
-	// pending", which is the true sentence.
+	// ZERO MEANS ONE OF TWO THINGS, and the page cannot tell them apart: nothing is
+	// owed, OR the total could not be read. A failure while adding it up does NOT
+	// fail the call — it returns zero with UNSPECIFIED and logs on the server.
+	//
+	// The reason is that this field rides along on the KEY response, and the key
+	// response is what the form needs to work. That form is where an incomplete
+	// registration gets fixed, and an incomplete registration is the most common
+	// cause of money sitting still: letting a failed total take down the whole
+	// answer would black out the very screen that solves the problem.
+	//
+	// WHAT THE PAGE MUST NOT DO, therefore, is write "you have nothing to receive"
+	// in so many words on a zero. Showing no line at all is the honest rendering of
+	// "nothing pending, or we could not tell".
+	//
+	// Zero is also NOT the same as "paid": a payout that arrived stops being owed
+	// and leaves this total.
 	PendingPayoutCents int64 `protobuf:"varint,6,opt,name=pending_payout_cents,json=pendingPayoutCents,proto3" json:"pending_payout_cents,omitempty"`
 	// Why it has not arrived, so the page can say something other than "wait".
 	//
-	// UNSPECIFIED when pending_payout_cents is zero: with nothing owed there is no
-	// waiting to explain.
+	// UNSPECIFIED when pending_payout_cents is zero — both when nothing is owed,
+	// with no waiting to explain, and when the total could not be read.
 	PayoutWaitReason PayoutWaitReason `protobuf:"varint,7,opt,name=payout_wait_reason,json=payoutWaitReason,proto3,enum=web.v1.PayoutWaitReason" json:"payout_wait_reason,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
