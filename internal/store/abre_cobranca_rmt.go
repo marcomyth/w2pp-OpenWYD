@@ -270,6 +270,23 @@ func completaDestino(ctx context.Context, tx pgx.Tx, cob *CobrancaRMT) error {
 // ninguém previu tem de poder ser fechada por uma pessoa. E porque tirar e voltar a
 // escrever é mais caro do que manter cinco linhas com o motivo escrito.
 //
+// AS CONDIÇÕES PARA LIGAR ISTO NUMA TELA, porque quem for fazê-lo não vai ter o
+// contexto de hoje:
+//
+//  1. CANCELAR A NOSSA LINHA NÃO INVALIDA O CÓDIGO NA PROCESSADORA. Não existe rota
+//     conhecida para cancelar um cash-in lá. O copia-e-cola continua pagável depois
+//     de a linha fechar, e é por isso que o item NÃO pode ser solto antes do
+//     expira_em mais a consulta que confirma que não houve pagamento — a mesma
+//     regra de toda cobrança. Uma tela que "cancela e libera" criaria exatamente o
+//     caso que o resto deste arquivo existe para evitar: dinheiro entrando contra
+//     um item que já foi para outra pessoa.
+//  2. É AÇÃO DE ADMIN, com auditoria na MESMA transação, no molde do
+//     transicaoDaStaff em reembolso_rmt.go. Mexer no dinheiro de alguém sem
+//     registro é a mudança que ninguém consegue explicar depois.
+//
+// Fora isso, nenhum chamador. Se você está lendo isto porque quer chamá-la de
+// outro lugar, provavelmente não quer.
+//
 // SÓ CANCELA O QUE ESTÁ ABERTO, e o WHERE é quem garante — não a ordem em que as
 // coisas acontecem. Uma cobrança PAGA que fosse cancelada por um caminho de
 // desistência apagaria o registro de um pagamento que existiu; e o cancelamento
