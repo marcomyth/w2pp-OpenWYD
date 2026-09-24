@@ -37,9 +37,22 @@ import (
 
 // Config tunes the dispatcher. Zero values get sensible defaults.
 type Config struct {
-	ClientVersion int32            // required client version (default AppVersion 7640)
-	MaxFailLogin  int              // wrong-password lockout threshold (default 3)
-	ServerIndex   int              // legacy guild id high bits (server_index * 4096)
+	ClientVersion int32 // required client version (default AppVersion 7640)
+	MaxFailLogin  int   // wrong-password lockout threshold (default 3)
+	ServerIndex   int   // legacy guild id high bits (server_index * 4096)
+
+	// AcessoRestrito tranca o servidor: só entra quem é staff.
+	//
+	// É para o AMBIENTE DE TESTE, onde o cliente já está distribuído e a conta de
+	// qualquer um serve para entrar. Sem a tranca, o teste vira servidor aberto sem
+	// ninguém ter decidido isso.
+	//
+	// Desligado é o normal, e é o que a produção usa. Ver completeAccountLogin.
+	AcessoRestrito bool
+
+	// PrazoDaRecusa é quanto o socket de uma recusa de acesso fica de pé. Zero
+	// escolhe o padrão (prazoDaRecusa); o teste o encurta.
+	PrazoDaRecusa time.Duration
 	Log           *slog.Logger     // default slog.Default()
 	Now           func() time.Time // wall clock for calendar-gated guild ops
 

@@ -40,6 +40,13 @@ func ParseAccess(role string) AccessLevel {
 	}
 }
 
+// EhStaff diz se este nível é de gente da casa — moderação ou administração.
+//
+// Existe como método e não como comparação solta porque a pergunta "isto é staff?"
+// aparece em lugares distantes, e cada um escrevendo o seu `>= AccessModerator` é
+// como um deles fica para trás no dia em que aparecer um nível novo.
+func (a AccessLevel) EhStaff() bool { return a >= AccessModerator }
+
 // String renders the tier for audit logs.
 func (a AccessLevel) String() string {
 	switch a {
@@ -119,7 +126,16 @@ type Session struct {
 	// GuildaPedidoEm é quando este jogador pediu, pela última vez, uma aba do
 	// Painel de Guilda que vai ao banco. É o freio contra um cliente remendado
 	// pedir o quadro em laço (handler/guildapainel.go).
-	GuildaPedidoEm    time.Time
+	GuildaPedidoEm time.Time
+	// RecusasDeAcesso conta quantas vezes ESTA conexão levou uma recusa de acesso
+	// restrito. É do laço, como todo o resto da sessão, e não precisa de trava.
+	//
+	// Ele existe para o fechamento atrasado de uma recusa não derrubar o que veio
+	// DEPOIS dela: o cliente devolve os campos à pessoa e ela pode entrar de novo, com
+	// a conta certa, NO MESMO SOCKET. Sem o contador, o fechamento agendado pela
+	// recusa antiga chegaria em cima de uma sessão que agora é legítima.
+	RecusasDeAcesso int
+
 	TradeMode         int             // non-zero while in auto-trade (blocks attacks)
 	Trade             TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
 	AutoTrade         *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1

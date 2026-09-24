@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc"
 
 	gamev1 "github.com/jeanluca/w2pp-openwyd/api/game/v1"
+	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
 	"github.com/jeanluca/w2pp-openwyd/internal/buildinfo"
 	"github.com/jeanluca/w2pp-openwyd/internal/campotreino"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
@@ -112,6 +113,14 @@ func run(logger *slog.Logger) error {
 	maxMsgPerSec := flag.Float64("max-msg-per-sec", 200, "per-connection inbound message rate limit (0 = disabled)")
 	msgBurst := flag.Int("msg-burst", 400, "per-connection message burst depth")
 	idleTimeoutSec := flag.Int("idle-timeout-sec", envInt("W2PP_IDLE_TIMEOUT_SEC", 0), "drop a connection that sends nothing for this many seconds (0 = disabled). An authenticated socket that goes silent otherwise holds one of the 1000 session slots forever. Off by default because the real client's idle cadence is unconfirmed — enable once a capture shows it, or a legitimate idle player gets disconnected")
+	// A TRANCA DO AMBIENTE DE TESTE. Ligada, só staff entra no jogo.
+	//
+	// Existe porque o cliente do teste já está na mão de gente, e a conta de qualquer
+	// um serve para entrar nele. Sem a tranca, o ambiente de teste vira um segundo
+	// servidor aberto sem ninguém ter decidido isso.
+	//
+	// DESLIGADA POR PADRÃO, e é a produção que depende disso: uma tranca que nasce
+	// ligada derruba o servidor de verdade no dia em que alguém esquecer a variável.
 	contentDir := flag.String("content", os.Getenv("W2PP_CONTENT"), "path to the Release/ content tree (empty = skip; validates rates/catalogs/maps at boot)")
 	npcEditing := flag.Bool("npc-editing", envBool("W2PP_NPC_EDITING", false), "enable the moderator NPC-editing overlay (npc-editing-plan.md); needs -dbserver and -content. OFF by default: turn it on only after `dbserver import-npcs` has seeded npc_definition, else DB-managed merchant NPCs would be skipped from NPCGener.txt with nothing to replace them")
 	mobStatEditing := flag.Bool("mob-stat-editing", envBool("W2PP_MOB_STAT_EDITING", false), "enable the moderator mob/NPC template stat overlay (mob-template-editing-plan.md, the equivalent-tool successor to the legacy EDITAPPMOB); needs -dbserver and -content. Applied ONCE at boot, like every other content load — a moderator edit needs a tmServer restart to take effect (EDITAPPMOB itself required a server restart too), independent of -npc-editing")
@@ -137,6 +146,15 @@ func run(logger *slog.Logger) error {
 	affectMinSeconds := flag.Int("affect-min-seconds", envInt("W2PP_AFFECT_MIN_SECONDS", 60), "floor for NON-aggressive cast affects, in seconds; keeps the shortest buffs usable (0 = no floor)")
 	affectMaxMinutes := flag.Int("affect-max-minutes", envInt("W2PP_AFFECT_MAX_MINUTES", 10), "cap for cast affects, in minutes; cuts the mastery tail (0 = no cap)")
 	flag.Parse()
+
+	// A TRANCA DO AMBIENTE DE TESTE, lida pelo mesmo pacote que o site e o painel
+	// usam. Valor que ninguém entende NÃO vira desligado: o servidor não sobe, porque
+	// subir destrancado achando que está trancado é o erro que ninguém procura.
+	acessoRestrito, err := acesso.Restrito()
+	if err != nil {
+		return err
+	}
+	logger.Info(acesso.Frase(acessoRestrito))
 
 	// Echo the effective wiring at boot: the client-version and the resolved
 	// dbServer/binServer addresses are the knobs most often misconfigured in a
@@ -636,7 +654,7 @@ func run(logger *slog.Logger) error {
 		eventSeed = 1
 	}
 	dispatch := handler.New(handler.Config{
-		Log: logger, ClientVersion: int32(*clientVersion), BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, CasteloOrcNPC: casteloOrcNPC, AcampamentoTrollNPC: acampamentoTrollNPC, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemKeyIDs: itemKeyIDs, ItemClasses: itemClasses, ItemReqs: itemReqs,
+		Log: logger, ClientVersion: int32(*clientVersion), AcessoRestrito: acessoRestrito, BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, CasteloOrcNPC: casteloOrcNPC, AcampamentoTrollNPC: acampamentoTrollNPC, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemKeyIDs: itemKeyIDs, ItemClasses: itemClasses, ItemReqs: itemReqs,
 		ItemVolatiles: itemVolatiles, ItemDonates: itemDonates, ItemDurations: itemDurations, MountRates: mountRates, MountAbsorb: mountAbsorb, MountBonus: mountBonus, ItemPos: itemPos, ItemUnique: itemUnique, ItemGrades: itemGrades, ItemExtra: itemExtra, Spells: spells, Heights: heights, Attributes: attributes,
 		SancRate:        sancRate,
 		ExpEvents:       level.ExpEvents{DoubleMode: *doubleExp, NewbieEvent: *newbieEvent, KefraLive: *kefraLive},

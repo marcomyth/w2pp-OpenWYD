@@ -312,6 +312,17 @@ type Config struct {
 	Sessions    *session.Store
 	Logger      *slog.Logger
 	SecureOnly  bool // Secure flag on the cookie; false only for local HTTP dev
+
+	// SemCadastro tranca a criação de conta pelo painel.
+	//
+	// É o AMBIENTE DE TESTE, e a razão de trancar até aqui — onde quem está do outro
+	// lado já é staff — é que uma sessão esquecida aberta cria conta de jogador num
+	// servidor que deveria estar trancado. Quem precisar criar conta no teste usa a
+	// linha de comando, que exige a máquina.
+	//
+	// SÓ A CRIAÇÃO. Trocar o CARGO de uma conta que já existe continua valendo, e
+	// tem de continuar: é assim que alguém vira staff no ambiente trancado.
+	SemCadastro bool
 }
 
 // Handler is the panel's HTTP surface.
@@ -503,7 +514,12 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("POST /contas/{nome}/senha", h.requireStaff(http.HandlerFunc(h.setSenha)))
 	// Creating an account hands out a login; admin-only, like the other writes
 	// that create access rather than adjust it.
-	mux.Handle("POST /contas/criar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.criarConta))))
+	// A criação de conta some no ambiente trancado; a troca de cargo NÃO, senão
+	// ninguém vira staff lá dentro. Rota ausente e não rota que recusa: um botão que
+	// existe e sempre nega é pior do que um botão que não está lá.
+	if !h.cfg.SemCadastro {
+		mux.Handle("POST /contas/criar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.criarConta))))
+	}
 	if h.cfg.Entregas != nil {
 		mux.Handle("POST /contas/{nome}/entregar", h.requireStaff(http.HandlerFunc(h.entregarItem)))
 		mux.Handle("POST /contas/{nome}/entregas/{entrega}/cancelar", h.requireStaff(http.HandlerFunc(h.cancelarEntrega)))
@@ -622,6 +638,7 @@ type page struct {
 	HasDenun     bool // the report queue needs the database read
 	HasRepasse   bool // a fila do repasse ao vendedor precisa da leitura do banco
 	HasFilasRMT  bool // as outras tres filas do dinheiro real
+	PodeCriar    bool // false no ambiente trancado: o formulario de criar conta some
 	HasGuilda    bool // the guild pages need the database read
 	HasMesaXP    bool // the Mesa de XP needs the database read
 	HasMasm      bool // the dungeon doors need the database read
@@ -676,6 +693,7 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		HasDenun:     h.cfg.Denuncias != nil,
 		HasRepasse:   h.cfg.Repasses != nil,
 		HasFilasRMT:  h.cfg.FilasRMT != nil,
+		PodeCriar:    !h.cfg.SemCadastro,
 		HasGuilda:    h.cfg.Guildas != nil,
 		HasMesaXP:    h.cfg.MesaXP != nil,
 		HasMasm:      h.cfg.Masmorras != nil,

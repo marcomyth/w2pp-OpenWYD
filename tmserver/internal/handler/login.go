@@ -81,6 +81,38 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 	}
 	switch out.Result {
 	case world.LoginOK:
+		// A TRANCA DO SERVIDOR DE TESTE, e ela vem antes de tudo o que escreve.
+		//
+		// A senha estava certa: o que recusa aqui não é quem a pessoa é, é ONDE ela
+		// está tentando entrar. Por isso o texto diz isso, em vez de "senha
+		// inválida" — mandar alguém conferir a senha que estava certa é fazer a
+		// pessoa perder a tarde.
+		//
+		// ANTES DO accountInUse E DE QUALQUER ESCRITA: mais abaixo esta função
+		// instala o baú, drena entregas e reconcilia o escrow. Recusar depois disso
+		// deixaria metade do login feito para alguém que não entrou.
+		//
+		// O texto sai pelo painel (0x101) e a CONEXÃO NÃO FECHA EM CIMA DELE.
+		//
+		// Medido no cliente pela dupla que cuida dele: ele mostra o 0x101 por quatro
+		// segundos e reabilita os campos para a pessoa tentar de novo. O que ele faz
+		// se o socket cair ANTES de o painel aparecer ninguém sabe — e a aposta
+		// errada aí é a pessoa ver a janela sumir sem ler nada.
+		//
+		// Então a sessão volta ao estado de ANTES do login: sem conta, sem modo de
+		// jogo. Ela não é mais ninguém, e nenhum comando de jogo passa. O socket cai
+		// depois, sozinho, pelo prazo abaixo.
+		if d.cfg.AcessoRestrito && !world.ParseAccess(out.Role).EhStaff() {
+			d.log.Info("acesso restrito: login de jogador recusado",
+				"conn", s.Conn, "account", s.AccountName)
+			sendClientMessage(w, s, "Servidor de teste, acesso restrito.")
+			s.AccountName = ""
+			s.AccountID = 0
+			s.Mode = world.UserAccept
+			s.RecusasDeAcesso++
+			d.fechaDepois(w, s, s.RecusasDeAcesso)
+			return
+		}
 		delete(d.fails, s.AccountName)
 		// Before AccountID is set: closing s below must not release the cargo
 		// that the session already holding the account is using.
@@ -297,4 +329,52 @@ func (d *Dispatcher) selCharsFrom(chars []world.CharSummary) []protocol.SelChar 
 		out = append(out, sc)
 	}
 	return out
+}
+
+// prazoDaRecusa é quanto o socket fica de pé depois de uma recusa de acesso.
+//
+// DEZ SEGUNDOS, e o número vem do cliente: ele mostra a mensagem por quatro e
+// devolve os campos à pessoa. Fechar antes disso apaga a mensagem; deixar aberto
+// para sempre segura um dos mil lugares de sessão por causa de quem nem entrou.
+//
+// O prazo de ocioso do servidor (-idle-timeout-sec) faria este trabalho, mas ele
+// nasce DESLIGADO e é sobre outra coisa. Uma recusa não pode depender de uma opção
+// que talvez ninguém tenha ligado.
+const prazoDaRecusa = 10 * time.Second
+
+// fechaDepois derruba o socket daqui a pouco, sem segurar o laço.
+//
+// A espera acontece FORA do laço — dentro dele, dez segundos parados seriam dez
+// segundos de servidor congelado para todo mundo. O World.Go é o caminho de sempre
+// para isso, e ele já descarta o retorno quando a sessão morreu antes: quem desistir
+// e fechar o jogo não vira um Close numa sessão que já não existe.
+func (d *Dispatcher) fechaDepois(w *world.World, s *world.Session, recusa int) {
+	prazo := d.cfg.PrazoDaRecusa
+	if prazo <= 0 {
+		prazo = prazoDaRecusa
+	}
+	w.Go(s, func() func(*world.World, *world.Session) {
+		time.Sleep(prazo)
+		return func(w *world.World, s *world.Session) {
+			// SÓ FECHA SE NADA ACONTECEU DEPOIS, e esta guarda é a correção de uma
+			// corrida que derrubaria gente legítima.
+			//
+			// O cliente devolve os campos à pessoa depois de quatro segundos, e ela
+			// pode entrar de novo NO MESMO SOCKET — é o caso de um staff que errou a
+			// conta na primeira vez. Sem a guarda, o fechamento agendado pela recusa
+			// antiga chegaria aos dez segundos e derrubaria a sessão que já entrou.
+			//
+			// O World.Go só descarta a volta quando a sessão MORREU; aqui ela está
+			// viva, e mais do que isso: logada.
+			//
+			// Três perguntas, e as três precisam continuar valendo: a sessão não tem
+			// conta, não está em modo de jogo, e nenhuma recusa NOVA aconteceu depois
+			// desta — senão o fechamento da segunda seria feito duas vezes, e o da
+			// primeira mataria a espera da segunda antes da hora.
+			if s.AccountID != 0 || s.Mode != world.UserAccept || s.RecusasDeAcesso != recusa {
+				return
+			}
+			w.Close(s)
+		}
+	})
 }

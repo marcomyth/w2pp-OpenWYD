@@ -17,7 +17,19 @@
     <button type="submit">Buscar</button>
   </form>
 
-  {{if .IsAdmin}}
+  {{if and .IsAdmin (not .PodeCriar)}}
+  <p class="nota">
+    <strong>A criação de conta está desligada neste servidor.</strong> É o ambiente de
+    teste: o cliente já está na mão de gente, e uma conta criada por engano aqui
+    entraria num servidor que deveria estar trancado.
+    <br>
+    Quem precisar criar uma conta usa a linha de comando na máquina
+    (<span class="mono">dbserver seed-account</span>). Trocar o cargo de uma conta que
+    já existe continua funcionando — é assim que alguém vira staff aqui dentro.
+  </p>
+  {{end}}
+
+  {{if and .IsAdmin .PodeCriar}}
   <details class="criar-conta">
     <summary>Criar conta</summary>
     <form method="post" action="/contas/criar">

@@ -55,6 +55,10 @@ func createResultToProto(r account.CreateResult) webv1.CreateResult {
 		return webv1.CreateResult_CREATE_RESULT_OK
 	case account.CreateNameTaken:
 		return webv1.CreateResult_CREATE_RESULT_NAME_TAKEN
+	case account.CreateFechado:
+		// NÃO cai no INVALID: nada no pedido estava errado. Ver o comentário no
+		// CREATE_RESULT_CLOSED do proto.
+		return webv1.CreateResult_CREATE_RESULT_CLOSED
 	default:
 		return webv1.CreateResult_CREATE_RESULT_INVALID
 	}

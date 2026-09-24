@@ -131,3 +131,52 @@ func TestVerify(t *testing.T) {
 		})
 	}
 }
+
+// O CADASTRO FECHADO RECUSA COM UM CÓDIGO PRÓPRIO, e não com "inválido".
+//
+// Dizer que o nome ou a senha falharam, quando a porta é que está fechada, manda a
+// pessoa tentar de novo com outra senha, e de novo, e depois procurar o suporte.
+func TestCadastroFechadoTemCodigoProprio(t *testing.T) {
+	s := New(&fakeStore{}).SemCadastro()
+
+	res, id, err := s.Create(context.Background(), "novato", "senha123", "")
+
+	if err != nil {
+		t.Fatalf("erro = %v; a porta fechada nao e falha de infraestrutura", err)
+	}
+	if res != CreateFechado {
+		t.Errorf("resultado = %v, quero CreateFechado", res)
+	}
+	if id != 0 {
+		t.Errorf("id = %d; nada devia ter sido criado", id)
+	}
+}
+
+// E ELA É CONFERIDA ANTES DA VALIDAÇÃO.
+//
+// Um pedido malformado num servidor fechado tem de ouvir "fechado", e não
+// "inválido": corrigir o formulário não abriria a porta, e a pessoa passaria a tarde
+// consertando o que não estava errado.
+func TestOFechadoGanhaDoInvalido(t *testing.T) {
+	s := New(&fakeStore{}).SemCadastro()
+
+	res, _, err := s.Create(context.Background(), "x", "1", "nao-e-email")
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != CreateFechado {
+		t.Errorf("resultado = %v, quero CreateFechado mesmo com o pedido ruim", res)
+	}
+}
+
+// SEM A TRANCA, O CADASTRO CONTINUA COMO SEMPRE — é o teste que protege a produção.
+func TestSemATrancaOCadastroFunciona(t *testing.T) {
+	s := New(&fakeStore{})
+
+	res, id, err := s.Create(context.Background(), "novato", "senha123", "")
+
+	if err != nil || res != CreateOK || id == 0 {
+		t.Fatalf("resultado = %v, id = %d, err = %v", res, id, err)
+	}
+}

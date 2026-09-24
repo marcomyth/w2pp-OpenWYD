@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
+	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/account"
@@ -77,6 +78,18 @@ func run(logger *slog.Logger) error {
 	contentDir := flag.String("content", os.Getenv("W2PP_CONTENT"), "path to the Release/ content tree (empty = skip; ListMerchantTemplates/ListItemCatalog return empty lists and the UI falls back to manual entry)")
 	iconManifestPath := flag.String("item-icons-manifest", os.Getenv("W2PP_ITEM_ICONS_MANIFEST"), "generated item-icon manifest (empty = fallback-only)")
 	flag.Parse()
+
+	// A MESMA tranca do jogo e do painel, lida pelo mesmo pacote: um servidor
+	// trancado para entrar e aberto para cadastrar seria a porta que ninguém lembra
+	// de fechar. Valor desconhecido não sobe.
+	acessoRestrito, err := acesso.Restrito()
+	if err != nil {
+		return err
+	}
+	logger.Info(acesso.Frase(acessoRestrito))
+	if acessoRestrito {
+		logger.Warn("acesso restrito: o cadastro de conta pelo site esta DESLIGADO")
+	}
 
 	if *dsn == "" {
 		return fmt.Errorf("-dsn (or W2PP_DB_DSN) is required")
@@ -397,7 +410,19 @@ func run(logger *slog.Logger) error {
 			"as cobranças com código NÃO vencem sozinhas e os reembolsos não são pedidos")
 	}
 
-	webv1.RegisterAccountWebServiceServer(srv, grpcsrv.New(account.New(st)))
+	// O CADASTRO, que o ambiente de teste tranca.
+	//
+	// Mesma variável do jogo (W2PP_ACESSO_RESTRITO) e não uma segunda: um servidor
+	// trancado para entrar e aberto para cadastrar seria uma porta que ninguém
+	// lembra de fechar. Uma variável, uma decisão.
+	//
+	// Só o CADASTRO fecha; o login segue igual, porque é para quem já tem conta de
+	// staff que o ambiente existe.
+	contas := account.New(st)
+	if acessoRestrito {
+		contas = contas.SemCadastro()
+	}
+	webv1.RegisterAccountWebServiceServer(srv, grpcsrv.New(contas))
 	webv1.RegisterRankingWebServiceServer(srv, grpcsrv.NewRanking(ranking.New(st)))
 	webv1.RegisterRmtWebServiceServer(srv, rmtSrv)
 	webv1.RegisterCharacterWebServiceServer(srv, grpcsrv.NewCharacters(characters.New(st)))
