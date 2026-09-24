@@ -47,7 +47,6 @@ const (
 	AccountService_CancelRmtListings_FullMethodName       = "/db.v1.AccountService/CancelRmtListings"
 	AccountService_CloseRmtListings_FullMethodName        = "/db.v1.AccountService/CloseRmtListings"
 	AccountService_ReconcileRmtEscrow_FullMethodName      = "/db.v1.AccountService/ReconcileRmtEscrow"
-	AccountService_CancelBuyerRmtCharges_FullMethodName   = "/db.v1.AccountService/CancelBuyerRmtCharges"
 	AccountService_SaveCargoWithDeliveries_FullMethodName = "/db.v1.AccountService/SaveCargoWithDeliveries"
 	AccountService_SetAccountBlocked_FullMethodName       = "/db.v1.AccountService/SetAccountBlocked"
 	AccountService_RecordDuelResult_FullMethodName        = "/db.v1.AccountService/RecordDuelResult"
@@ -197,17 +196,6 @@ type AccountServiceClient interface {
 	// but the item leaves and never comes back to the owner. See
 	// ListSoldEscrowSlots.
 	ReconcileRmtEscrow(ctx context.Context, in *ReconcileRmtEscrowRequest, opts ...grpc.CallOption) (*ReconcileRmtEscrowResponse, error)
-	// CancelBuyerRmtCharges closes every open real-money charge of one buyer.
-	//
-	// It runs when the buyer LEAVES THE GAME. They are not coming back to that QR
-	// code, and every charge left open holds somebody else's item hostage until
-	// the window runs out.
-	//
-	// Cancelling does NOT stop a late payment from being delivered: the
-	// confirmation finds the row by its external reference, sees CANCELLED, and
-	// delivers anyway flagging pago_com_atraso. Whoever paid correctly receives,
-	// even having paid late.
-	CancelBuyerRmtCharges(ctx context.Context, in *CancelBuyerRmtChargesRequest, opts ...grpc.CallOption) (*CancelBuyerRmtChargesResponse, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
 	// marks the drained mailbox rows delivered/lost in the SAME transaction — the
 	// anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -547,16 +535,6 @@ func (c *accountServiceClient) ReconcileRmtEscrow(ctx context.Context, in *Recon
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ReconcileRmtEscrowResponse)
 	err := c.cc.Invoke(ctx, AccountService_ReconcileRmtEscrow_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *accountServiceClient) CancelBuyerRmtCharges(ctx context.Context, in *CancelBuyerRmtChargesRequest, opts ...grpc.CallOption) (*CancelBuyerRmtChargesResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CancelBuyerRmtChargesResponse)
-	err := c.cc.Invoke(ctx, AccountService_CancelBuyerRmtCharges_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1061,17 +1039,6 @@ type AccountServiceServer interface {
 	// but the item leaves and never comes back to the owner. See
 	// ListSoldEscrowSlots.
 	ReconcileRmtEscrow(context.Context, *ReconcileRmtEscrowRequest) (*ReconcileRmtEscrowResponse, error)
-	// CancelBuyerRmtCharges closes every open real-money charge of one buyer.
-	//
-	// It runs when the buyer LEAVES THE GAME. They are not coming back to that QR
-	// code, and every charge left open holds somebody else's item hostage until
-	// the window runs out.
-	//
-	// Cancelling does NOT stop a late payment from being delivered: the
-	// confirmation finds the row by its external reference, sees CANCELLED, and
-	// delivers anyway flagging pago_com_atraso. Whoever paid correctly receives,
-	// even having paid late.
-	CancelBuyerRmtCharges(context.Context, *CancelBuyerRmtChargesRequest) (*CancelBuyerRmtChargesResponse, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
 	// marks the drained mailbox rows delivered/lost in the SAME transaction — the
 	// anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -1276,9 +1243,6 @@ func (UnimplementedAccountServiceServer) CloseRmtListings(context.Context, *Clos
 }
 func (UnimplementedAccountServiceServer) ReconcileRmtEscrow(context.Context, *ReconcileRmtEscrowRequest) (*ReconcileRmtEscrowResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReconcileRmtEscrow not implemented")
-}
-func (UnimplementedAccountServiceServer) CancelBuyerRmtCharges(context.Context, *CancelBuyerRmtChargesRequest) (*CancelBuyerRmtChargesResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method CancelBuyerRmtCharges not implemented")
 }
 func (UnimplementedAccountServiceServer) SaveCargoWithDeliveries(context.Context, *SaveCargoWithDeliveriesRequest) (*SaveCargoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SaveCargoWithDeliveries not implemented")
@@ -1774,24 +1738,6 @@ func _AccountService_ReconcileRmtEscrow_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccountServiceServer).ReconcileRmtEscrow(ctx, req.(*ReconcileRmtEscrowRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AccountService_CancelBuyerRmtCharges_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CancelBuyerRmtChargesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AccountServiceServer).CancelBuyerRmtCharges(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AccountService_CancelBuyerRmtCharges_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AccountServiceServer).CancelBuyerRmtCharges(ctx, req.(*CancelBuyerRmtChargesRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2584,10 +2530,6 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReconcileRmtEscrow",
 			Handler:    _AccountService_ReconcileRmtEscrow_Handler,
-		},
-		{
-			MethodName: "CancelBuyerRmtCharges",
-			Handler:    _AccountService_CancelBuyerRmtCharges_Handler,
 		},
 		{
 			MethodName: "SaveCargoWithDeliveries",

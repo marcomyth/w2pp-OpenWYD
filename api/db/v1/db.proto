@@ -115,17 +115,6 @@ service AccountService {
   // but the item leaves and never comes back to the owner. See
   // ListSoldEscrowSlots.
   rpc ReconcileRmtEscrow(ReconcileRmtEscrowRequest) returns (ReconcileRmtEscrowResponse);
-  // CancelBuyerRmtCharges closes every open real-money charge of one buyer.
-  //
-  // It runs when the buyer LEAVES THE GAME. They are not coming back to that QR
-  // code, and every charge left open holds somebody else's item hostage until
-  // the window runs out.
-  //
-  // Cancelling does NOT stop a late payment from being delivered: the
-  // confirmation finds the row by its external reference, sees CANCELLED, and
-  // delivers anyway flagging pago_com_atraso. Whoever paid correctly receives,
-  // even having paid late.
-  rpc CancelBuyerRmtCharges(CancelBuyerRmtChargesRequest) returns (CancelBuyerRmtChargesResponse);
   // SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
   // marks the drained mailbox rows delivered/lost in the SAME transaction — the
   // anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -665,12 +654,6 @@ message CloseRmtListingsResponse { repeated ClosedRmtListing closed = 1; }
 
 message ReconcileRmtEscrowRequest  { int64 account_id = 1; }
 message ReconcileRmtEscrowResponse { repeated int32 cargo_slots = 1; }
-
-message CancelBuyerRmtChargesRequest  { int64 buyer_account_id = 1; }
-// listing_ids are the listings whose charge just closed — the seller's lock can
-// come off those, and the seller is a DIFFERENT account, which is why the ids
-// travel back instead of being resolved here.
-message CancelBuyerRmtChargesResponse { repeated int64 listing_ids = 1; }
 
 message SaveCargoWithDeliveriesRequest {
   int64 account_id = 1;

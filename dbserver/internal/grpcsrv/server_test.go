@@ -18,8 +18,6 @@ type fakeStore struct {
 	anunciosCancelados  []int64
 	anunciosEncerrados  []int64
 	personagemDoAnuncio string
-	compradorCancelado  int64
-	anunciosDoComprador []int64
 	encerrados          []store.AnuncioEncerrado
 	slotsSoltos         []int16
 	erroAbrirAnuncios   error
@@ -235,11 +233,6 @@ func (f *fakeStore) CancelarAnunciosRMT(_ context.Context, ids []int64) error {
 func (f *fakeStore) EncerrarAnunciosRMT(_ context.Context, ids []int64) ([]store.AnuncioEncerrado, error) {
 	f.anunciosEncerrados = ids
 	return f.encerrados, nil
-}
-
-func (f *fakeStore) CancelarCobrancasDoComprador(_ context.Context, comprador int64) ([]int64, error) {
-	f.compradorCancelado = comprador
-	return f.anunciosDoComprador, nil
 }
 
 func (f *fakeStore) ReconciliarEscrowRMT(context.Context, int64) ([]int16, error) {

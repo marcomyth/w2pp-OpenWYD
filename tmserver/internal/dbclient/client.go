@@ -151,16 +151,6 @@ func (c *Client) ReconcileRmtEscrow(ctx context.Context, accountID int64) ([]int
 	return out, nil
 }
 
-// CancelBuyerRmtCharges fecha as cobranças abertas de um comprador que saiu.
-func (c *Client) CancelBuyerRmtCharges(ctx context.Context, compradorConta int64) ([]int64, error) {
-	resp, err := c.api.CancelBuyerRmtCharges(ctx,
-		&dbv1.CancelBuyerRmtChargesRequest{BuyerAccountId: compradorConta})
-	if err != nil {
-		return nil, fmt.Errorf("dbclient: cancel buyer rmt charges: %w", err)
-	}
-	return resp.GetListingIds(), nil
-}
-
 // ListSoldEscrowSlots pergunta quais slots do baú ainda seguram item de anúncio
 // já vendido.
 func (c *Client) ListSoldEscrowSlots(ctx context.Context, accountID int64) ([]int16, error) {

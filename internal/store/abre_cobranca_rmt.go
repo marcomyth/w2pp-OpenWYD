@@ -258,8 +258,17 @@ func completaDestino(ctx context.Context, tx pgx.Tx, cob *CobrancaRMT) error {
 
 // CancelarCobrancaRMT fecha uma cobrança que não vai ser paga.
 //
-// É o que roda quando o comprador desiste ou cai: ele foi embora, e deixar a
-// cobrança aberta prenderia o item do vendedor até o prazo acabar, por nada.
+// SEM CHAMADOR EM PRODUÇÃO HOJE, e isso é decisão e não esquecimento.
+//
+// Ela existia para o logout do comprador, e esse caminho SAIU: cancelar ali não
+// soltava o item de ninguém — a marca do escrow segura até o prazo acabar, de
+// qualquer jeito — e quebrava a compra de quem fecha o jogo para pagar no celular,
+// que é o movimento natural. A cobrança passa a fechar de dois jeitos só: paga ou
+// vencida.
+//
+// Fica porque a staff vai precisar dela: uma cobrança presa por um caso que
+// ninguém previu tem de poder ser fechada por uma pessoa. E porque tirar e voltar a
+// escrever é mais caro do que manter cinco linhas com o motivo escrito.
 //
 // SÓ CANCELA O QUE ESTÁ ABERTO, e o WHERE é quem garante — não a ordem em que as
 // coisas acontecem. Uma cobrança PAGA que fosse cancelada por um caminho de
@@ -279,38 +288,6 @@ func (s *Store) CancelarCobrancaRMT(ctx context.Context, referenciaExterna strin
 		return false, fmt.Errorf("store: cancelar cobranca ref=%q: %w", referenciaExterna, err)
 	}
 	return tag.RowsAffected() > 0, nil
-}
-
-// CancelarCobrancasDoComprador fecha todas as cobranças abertas de uma conta.
-//
-// É o que roda quando o comprador SAI DO JOGO, que é a regra da Hanna: comprador
-// deslogou, cobrança cancelada. Ele não vai voltar para aquele QR, e cada
-// cobrança aberta é um item de outra pessoa preso à toa.
-//
-// Devolve os anúncios afetados, porque é neles que o cadeado pode sair agora — e
-// quem pode soltá-lo é o laço, do lado do VENDEDOR, que é outra conta. Por isso a
-// lista sobe em vez de a função resolver sozinha.
-func (s *Store) CancelarCobrancasDoComprador(ctx context.Context, compradorConta int64) ([]int64, error) {
-	rows, err := s.pool.Query(ctx, `
-		UPDATE rmt_cobranca SET status = $2, encerrada_em = now()
-		 WHERE comprador_conta = $1 AND status = $3
-		RETURNING anuncio_id`, compradorConta, cobrancaCancelada, cobrancaAberta)
-	if err != nil {
-		return nil, fmt.Errorf("store: cancelar cobrancas do comprador %d: %w", compradorConta, err)
-	}
-	defer rows.Close()
-	var anuncios []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("store: cancelar cobrancas do comprador: %w", err)
-		}
-		anuncios = append(anuncios, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("store: cancelar cobrancas do comprador %d: %w", compradorConta, err)
-	}
-	return anuncios, nil
 }
 
 // ExpirarCobrancasRMT fecha as cobranças cujo prazo acabou.

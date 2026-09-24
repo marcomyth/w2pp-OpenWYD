@@ -37,13 +37,12 @@ type fakeDB struct {
 	erroAnuncio error
 	// portaoAnuncio segura a ida ao banco até o teste mandar soltar, que é o
 	// único jeito de fazer alguma coisa acontecer ENTRE a ida e a volta.
-	portaoAnuncio         chan struct{}
-	anunciosAbertos       []world.AnuncioRMT
-	anunciosCancelados    []int64
-	anunciosEncerrados    []int64
-	compradoresCancelados []int64
-	reconciliadas         []int64
-	personagemDoAnuncio   string
+	portaoAnuncio       chan struct{}
+	anunciosAbertos     []world.AnuncioRMT
+	anunciosCancelados  []int64
+	anunciosEncerrados  []int64
+	reconciliadas       []int64
+	personagemDoAnuncio string
 	// portaoReconcilia segura a reconciliação no banco até o teste soltar, que é
 	// o único jeito de agir DENTRO da janela em que a trava existe.
 	portaoReconcilia chan struct{}
@@ -202,21 +201,6 @@ func (f *fakeDB) CloseRmtListings(_ context.Context, ids []int64) ([]world.Anunc
 		out = append(out, world.AnuncioEncerrado{AnuncioID: id, CargoSlot: f.slotDoAnuncio[id]})
 	}
 	return out, nil
-}
-
-// CancelBuyerRmtCharges fecha as cobranças do comprador que saiu.
-func (f *fakeDB) CancelBuyerRmtCharges(_ context.Context, comprador int64) ([]int64, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.compradoresCancelados = append(f.compradoresCancelados, comprador)
-	return nil, nil
-}
-
-// cancelouComprador lê sob o mutex quem teve as cobranças fechadas.
-func (f *fakeDB) cancelouComprador() []int64 {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return append([]int64(nil), f.compradoresCancelados...)
 }
 
 // ReconcileRmtEscrow é a reconciliação do login. Conta as chamadas, porque o que

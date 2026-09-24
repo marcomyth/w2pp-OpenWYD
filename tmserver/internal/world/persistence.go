@@ -485,10 +485,6 @@ type Persistence interface {
 	// no login do vendedor, que é o instante em que ele SEM DÚVIDA não tem barraca
 	// de pé. Escreve e lê, nesta ordem, numa transação só.
 	ReconcileRmtEscrow(ctx context.Context, accountID int64) ([]int16, error)
-	// CancelBuyerRmtCharges fecha as cobranças abertas de um comprador que está
-	// saindo do jogo. Ele não volta para aquele QR, e cada cobrança aberta prende
-	// o item de OUTRA pessoa até o prazo acabar. Chamada FORA do laço.
-	CancelBuyerRmtCharges(ctx context.Context, compradorConta int64) ([]int64, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all) and marks the
 	// drained mailbox rows delivered/lost in one backend transaction — the anti-dup
 	// boundary for the drain.
@@ -701,11 +697,6 @@ func (NopPersistence) CloseRmtListings(context.Context, []int64) ([]AnuncioEncer
 
 // ReconcileRmtEscrow não tem anúncio para reconciliar.
 func (NopPersistence) ReconcileRmtEscrow(context.Context, int64) ([]int16, error) {
-	return nil, nil
-}
-
-// CancelBuyerRmtCharges não tem cobrança para cancelar.
-func (NopPersistence) CancelBuyerRmtCharges(context.Context, int64) ([]int64, error) {
 	return nil, nil
 }
 
