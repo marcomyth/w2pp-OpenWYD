@@ -33,6 +33,8 @@ func TestTodaAcaoTemRotulo(t *testing.T) {
 		ActionSetCombineRate, ActionClearCombineRate, ActionSetCombineBands, ActionSetCombineTag,
 		ActionBlockCommand,
 		ActionRepasseIncertoPago, ActionRepasseIncertoNaoPago, ActionRepasseRecusaResolvida,
+		ActionOrfaoResolvido, ActionReembolsoDeNovo, ActionReembolsoNaMao,
+		ActionReembolsoAchadoNoPainel, ActionDivergenteDevolvido,
 	}
 	for _, a := range acoes {
 		e := Entry{Action: a}

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Pagamentos órfãos — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  .linha { border-left: 3px solid var(--warn); padding-left: 15px; margin-bottom: 26px; }
+  .cab { display: flex; flex-wrap: wrap; align-items: baseline;
+         justify-content: space-between; gap: 6px 16px; margin-bottom: 8px; }
+  .valor { font-size: 18px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .quando { font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .porque { background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+            padding: 10px 14px; margin: 0 0 10px; color: var(--ink);
+            font-size: 14px; line-height: 1.5; max-width: 70ch; overflow-wrap: anywhere; }
+  .campos { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: baseline;
+            font-size: 12.5px; color: var(--ink-3); margin-bottom: 10px; }
+  .campos .rot { text-transform: uppercase; letter-spacing: .07em; font-size: 10.5px; }
+  form.resolver { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+  form.resolver label { font-size: 12px; color: var(--ink-3); display: block; }
+  form.resolver input[type=text] { width: 46ch; }
+  .naodisse { color: var(--ink-3); font-style: italic; }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Pagamentos órfãos</h1>
+  <p class="sub">Entrou dinheiro, e o servidor não achou a venda dele.</p>
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  <p class="nota">
+    Cada linha aqui é alguém que pagou e não recebeu nada. O servidor perguntou à
+    processadora, ela disse que o pagamento existe, e a referência dele não aponta
+    para nenhuma cobrança nossa — ou aponta e o valor não veio.
+    <br><br>
+    <strong>Esta tela não mexe no dinheiro.</strong> Devolver, achar a venda na mão ou
+    deixar como está é decisão de quem manda, e acontece no painel da processadora.
+    Aqui só se registra o que foi feito, por quem, e quando — e é por isso que a nota
+    é obrigatória: a linha sai da fila e não volta, e daqui a um mês ela é a única
+    coisa que vai explicar o que aconteceu com o dinheiro daquela pessoa.
+    <br><br>
+    Use o <span class="mono">identifier</span> para achar o pagamento no painel deles.
+  </p>
+
+  {{if .Fila}}
+    {{range .Fila}}
+    <div class="linha">
+      <div class="cab">
+        <div class="valor">
+          {{if .Valor}}<strong>{{.Valor}}</strong>
+          {{else}}<span class="naodisse">a processadora não disse o valor</span>{{end}}
+        </div>
+        <div class="quando">{{if .Espera}}visto há {{.Espera}}{{end}}</div>
+      </div>
+
+      {{if .Motivo}}<p class="porque">{{.Motivo}}</p>{{end}}
+
+      <div class="campos">
+        <span><span class="rot">Identifier</span> <span class="mono">{{.Identifier}}</span></span>
+        {{if .ReferenciaVista}}
+        <span><span class="rot">Referência vista</span> <span class="mono">{{.ReferenciaVista}}</span></span>
+        {{else}}
+        <span><span class="rot">Referência vista</span> nenhuma</span>
+        {{end}}
+        {{if .Pago}}<span><span class="rot">Pago em</span> {{.Pago}}</span>{{end}}
+      </div>
+
+      {{if $.IsAdmin}}
+      <form class="resolver" method="post" action="/orfaos/{{.ID}}/resolver">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <div>
+          <label for="nota-{{.ID}}">O que foi feito com este dinheiro</label>
+          <input type="text" id="nota-{{.ID}}" name="nota" required
+                 placeholder="devolvido pelo painel em 24/09; falei com o jogador">
+        </div>
+        <button type="submit">Marcar como resolvido</button>
+      </form>
+      {{else}}
+      <p class="nota">Só quem é admin decide o que aconteceu com este dinheiro.</p>
+      {{end}}
+    </div>
+    {{end}}
+  {{else}}
+    <div class="vazio">Nenhum pagamento órfão. Todo dinheiro que entrou achou a venda dele.</div>
+  {{end}}
+</main>
+</body>
+</html>

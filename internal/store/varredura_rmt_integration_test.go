@@ -7,6 +7,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -387,4 +388,109 @@ func TestPagamentoDepoisDeVencerVaiPararNaFilaDeDevolucao(t *testing.T) {
 	if len(fila) != 1 || fila[0].CobrancaID != id {
 		t.Fatalf("fila de devolucao = %+v; o dinheiro ficaria sem destino", fila)
 	}
+}
+
+// A SAÍDA DO VALOR DIVERGENTE DESTRAVA AS DUAS PONTAS, e este teste existe porque a
+// primeira versão da tela não tinha saída nenhuma.
+//
+// A cobrança divergente fica ABERTA. Enquanto ela estiver, o comprador não consegue
+// abrir outra — o índice de uma aberta por comprador o recusa — e o item do vendedor
+// fica marcado, porque o anúncio continua esperando uma cobrança que nunca fecha. A
+// staff resolveria o dinheiro por fora e as duas pessoas continuariam presas para
+// sempre, porque nada no sistema saberia que acabou.
+//
+// A sabotagem que o teste faz é a que a planejadora pediu: DEPOIS da saída, o
+// comprador consegue abrir outra cobrança e o cadeado do vendedor sai.
+func TestASaidaDoDivergenteDestravaAsDuasPontas(t *testing.T) {
+	s, ctx := freshStore(t)
+	v := montaVenda(ctx, t, s, "divergente-preso")
+	id := idDaCobranca(ctx, t, s, v.ref)
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE rmt_cobranca SET valor_divergente_centavos = 700 WHERE id = $1`, id); err != nil {
+		t.Fatal(err)
+	}
+
+	// Antes: ela está na fila, e o comprador está travado.
+	fila, err := s.ValoresDivergentes(ctx)
+	if err != nil || len(fila) != 1 {
+		t.Fatalf("fila = %d, err = %v", len(fila), err)
+	}
+
+	ator := AtorDaStaff{ContaID: 1, Papel: "admin"}
+	if err := s.ResolverDivergenteDevolvido(ctx, id, ator, "devolvi pelo painel"); err != nil {
+		t.Fatalf("a saida falhou: %v", err)
+	}
+
+	// A cobrança saiu da fila, e a coluna da divergência FICA como registro.
+	if fila, err = s.ValoresDivergentes(ctx); err != nil || len(fila) != 0 {
+		t.Fatalf("depois da saida: fila = %d, err = %v", len(fila), err)
+	}
+	var divergente *int64
+	if err := s.pool.QueryRow(ctx,
+		`SELECT valor_divergente_centavos FROM rmt_cobranca WHERE id = $1`, id).Scan(&divergente); err != nil {
+		t.Fatal(err)
+	}
+	if divergente == nil {
+		t.Error("a saida apagou o registro de que houve divergencia")
+	}
+
+	// E O ESTADO É PAGA_SEM_ITEM, que é a verdade: o dinheiro entrou, o item não saiu.
+	if st := statusDaCobranca(ctx, t, s, v.ref); st != cobrancaPagaSemItem {
+		t.Errorf("status = %d, quero paga sem item(%d)", st, cobrancaPagaSemItem)
+	}
+
+	// O COMPRADOR VOLTA A COMPRAR: nada mais o segura.
+	var abertas int
+	if err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM rmt_cobranca WHERE comprador_conta = $1 AND status = $2`,
+		v.comprador, cobrancaAberta).Scan(&abertas); err != nil {
+		t.Fatal(err)
+	}
+	if abertas != 0 {
+		t.Errorf("o comprador continua com %d cobranca(s) aberta(s); nao compraria nada", abertas)
+	}
+
+	// E O ITEM DO VENDEDOR SAI, pelo caminho de sempre: a reconciliação do login.
+	slots, err := s.ReconciliarEscrowRMT(ctx, v.vendedor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(slots) != 1 || slots[0] != 3 {
+		t.Errorf("cadeados a soltar = %v, quero [3]: o item ficaria preso no bau", slots)
+	}
+}
+
+// E ELA SÓ VALE UMA VEZ, e só sobre uma cobrança que é mesmo divergente.
+//
+// Dois cliques fechariam duas vezes, e sem a conferência da divergência esta saída
+// viraria um jeito de fechar qualquer cobrança aberta pela tela errada.
+func TestASaidaDoDivergenteSoValeUmaVezESoNaDivergente(t *testing.T) {
+	s, ctx := freshStore(t)
+	ator := AtorDaStaff{ContaID: 1, Papel: "admin"}
+
+	t.Run("duas vezes nao", func(t *testing.T) {
+		v := montaVenda(ctx, t, s, "div-duas-vezes")
+		id := idDaCobranca(ctx, t, s, v.ref)
+		if _, err := s.pool.Exec(ctx,
+			`UPDATE rmt_cobranca SET valor_divergente_centavos = 700 WHERE id = $1`, id); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.ResolverDivergenteDevolvido(ctx, id, ator, "primeira"); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.ResolverDivergenteDevolvido(ctx, id, ator, "segunda"); !errors.Is(err, ErrDivergenteNaoEstaAberta) {
+			t.Errorf("erro = %v, quero ErrDivergenteNaoEstaAberta", err)
+		}
+	})
+
+	t.Run("cobranca sem divergencia nao", func(t *testing.T) {
+		v := montaVenda(ctx, t, s, "div-sem-divergencia")
+		id := idDaCobranca(ctx, t, s, v.ref)
+		if err := s.ResolverDivergenteDevolvido(ctx, id, ator, "nao devia passar"); !errors.Is(err, ErrDivergenteNaoEstaAberta) {
+			t.Errorf("erro = %v, quero ErrDivergenteNaoEstaAberta", err)
+		}
+		if st := statusDaCobranca(ctx, t, s, v.ref); st != cobrancaAberta {
+			t.Errorf("status = %d: fechou uma cobranca comum pela tela errada", st)
+		}
+	})
 }

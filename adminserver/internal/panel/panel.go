@@ -308,6 +308,7 @@ type Config struct {
 	Maquinas    Maquinas
 	MesaDrops   MesaDrops
 	Repasses    Repasses
+	FilasRMT    FilasRMT
 	Sessions    *session.Store
 	Logger      *slog.Logger
 	SecureOnly  bool // Secure flag on the cookie; false only for local HTTP dev
@@ -542,6 +543,23 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("POST /repasses/{repasse}/resolver",
 			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.resolverRepasse))))
 	}
+	// AS OUTRAS TRÊS FILAS DO DINHEIRO REAL. Mesma divisão da do repasse: ler é
+	// staff, decidir é admin.
+	//
+	// A dos divergentes tem UMA escrita só, e ela não mexe em dinheiro: registra que
+	// alguém já devolveu por fora, e destrava o comprador e o item do vendedor, que
+	// ficam presos enquanto a cobrança está aberta.
+	if h.cfg.FilasRMT != nil {
+		mux.Handle("GET /orfaos", h.requireStaff(http.HandlerFunc(h.orfaos)))
+		mux.Handle("POST /orfaos/{orfao}/resolver",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.resolverOrfao))))
+		mux.Handle("GET /reembolsos", h.requireStaff(http.HandlerFunc(h.reembolsos)))
+		mux.Handle("POST /reembolsos/{cobranca}/resolver",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.resolverReembolso))))
+		mux.Handle("GET /divergentes", h.requireStaff(http.HandlerFunc(h.divergentes)))
+		mux.Handle("POST /divergentes/{cobranca}/resolver",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.resolverDivergente))))
+	}
 	// Os mapas guardados para evento são uma lista do código (internal/mapaevento),
 	// a mesma que o tmServer usa para não gerar mob neles. Não dependem de banco
 	// nem de jogo, então a tela existe sempre.
@@ -603,6 +621,7 @@ type page struct {
 	HasEvento    bool // the event switches need the database read
 	HasDenun     bool // the report queue needs the database read
 	HasRepasse   bool // a fila do repasse ao vendedor precisa da leitura do banco
+	HasFilasRMT  bool // as outras tres filas do dinheiro real
 	HasGuilda    bool // the guild pages need the database read
 	HasMesaXP    bool // the Mesa de XP needs the database read
 	HasMasm      bool // the dungeon doors need the database read
@@ -656,6 +675,7 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		HasEvento:    h.cfg.Eventos != nil,
 		HasDenun:     h.cfg.Denuncias != nil,
 		HasRepasse:   h.cfg.Repasses != nil,
+		HasFilasRMT:  h.cfg.FilasRMT != nil,
 		HasGuilda:    h.cfg.Guildas != nil,
 		HasMesaXP:    h.cfg.MesaXP != nil,
 		HasMasm:      h.cfg.Masmorras != nil,
