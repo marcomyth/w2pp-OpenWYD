@@ -17,7 +17,7 @@ func anuncioPronto(ctx context.Context, t *testing.T, s *Store, nome string) (ve
 	t.Helper()
 	vendedor = contaPix(ctx, t, s, "vendedor_"+nome)
 	comprador = contaPix(ctx, t, s, "comprador_"+nome)
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio = anuncioAtivoSimples(ctx, t, s, vendedor, 0)
@@ -220,7 +220,7 @@ func TestUmaCobrancaAbertaPorComprador(t *testing.T) {
 	primeiro := contaPix(ctx, t, s, "vendedor_um")
 	segundo := contaPix(ctx, t, s, "vendedor_dois")
 	for _, v := range []int64{primeiro, segundo} {
-		if err := s.SalvarChavePix(ctx, v, "11111111111", ChavePixCPF); err != nil {
+		if err := s.SalvarChavePix(ctx, v, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 			t.Fatal(err)
 		}
 	}

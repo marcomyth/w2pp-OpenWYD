@@ -23,7 +23,7 @@ import (
 func TestReconciliarLiberaOSlotParaAnunciarDeNovo(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_orfao_slot")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	// Um anúncio ativo com a barraca já caída e sem cobrança: o servidor reiniciou

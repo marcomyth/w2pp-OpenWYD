@@ -56,12 +56,12 @@ func TestSalvarChavePixRecusaComCobrancaAberta(t *testing.T) {
 	vendedor := contaPix(ctx, t, s, "vendedor_pix")
 	comprador := contaPix(ctx, t, s, "comprador_pix")
 
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatalf("primeira gravacao: %v", err)
 	}
 	anuncioComCobrancaAberta(ctx, t, s, vendedor, comprador, "ref-aberta-1")
 
-	err := s.SalvarChavePix(ctx, vendedor, "22222222222", ChavePixCPF)
+	err := s.SalvarChavePix(ctx, vendedor, "22222222222", ChavePixCPF, "11144477735")
 
 	if !errors.Is(err, ErrVendaEmCurso) {
 		t.Fatalf("erro = %v, quero ErrVendaEmCurso", err)
@@ -82,7 +82,7 @@ func TestSalvarChavePixLiberaComCobrancaFechada(t *testing.T) {
 	vendedor := contaPix(ctx, t, s, "vendedor_pix2")
 	comprador := contaPix(ctx, t, s, "comprador_pix2")
 
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatalf("primeira gravacao: %v", err)
 	}
 	anuncio := anuncioComCobrancaAberta(ctx, t, s, vendedor, comprador, "ref-fechada-1")
@@ -90,7 +90,7 @@ func TestSalvarChavePixLiberaComCobrancaFechada(t *testing.T) {
 		t.Fatalf("fechando a cobranca: %v", err)
 	}
 
-	if err := s.SalvarChavePix(ctx, vendedor, "22222222222", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "22222222222", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatalf("com a cobranca paga devia deixar trocar: %v", err)
 	}
 	r, _ := s.LerChavePix(ctx, vendedor)
@@ -110,7 +110,7 @@ func TestSalvarChavePixNaoTravaPorCobrancaDeOutro(t *testing.T) {
 
 	anuncioComCobrancaAberta(ctx, t, s, outro, comprador, "ref-do-outro")
 
-	if err := s.SalvarChavePix(ctx, eu, "33333333333", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, eu, "33333333333", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatalf("a venda do outro travou a minha chave: %v", err)
 	}
 }
@@ -122,10 +122,10 @@ func TestSalvarChavePixDeixaRastro(t *testing.T) {
 	s, ctx := freshStore(t)
 	conta := contaPix(ctx, t, s, "rastro_pix")
 
-	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatalf("cadastro: %v", err)
 	}
-	if err := s.SalvarChavePix(ctx, conta, "jogador@exemplo.com", ChavePixEmail); err != nil {
+	if err := s.SalvarChavePix(ctx, conta, "jogador@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
 		t.Fatalf("troca: %v", err)
 	}
 
@@ -185,7 +185,7 @@ func TestTrocarChaveZeraAVerificacao(t *testing.T) {
 	s, ctx := freshStore(t)
 	conta := contaPix(ctx, t, s, "verif_pix")
 
-	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatalf("cadastro: %v", err)
 	}
 	if _, err := s.pool.Exec(ctx,
@@ -196,7 +196,7 @@ func TestTrocarChaveZeraAVerificacao(t *testing.T) {
 		t.Fatal("o preparo do teste nao marcou a verificacao")
 	}
 
-	if err := s.SalvarChavePix(ctx, conta, "22222222222", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, conta, "22222222222", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatalf("troca: %v", err)
 	}
 
@@ -210,7 +210,7 @@ func TestTrocarChaveZeraAVerificacao(t *testing.T) {
 func TestSalvarChavePixContaInexistente(t *testing.T) {
 	s, ctx := freshStore(t)
 
-	err := s.SalvarChavePix(ctx, 999999, "11111111111", ChavePixCPF)
+	err := s.SalvarChavePix(ctx, 999999, "11111111111", ChavePixCPF, "11144477735")
 
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("erro = %v, quero ErrNotFound", err)
@@ -234,10 +234,225 @@ func TestTemChavePixValida(t *testing.T) {
 	if tem, err := s.TemChavePixValida(ctx, conta); err != nil || tem {
 		t.Fatalf("antes de cadastrar: tem=%v err=%v", tem, err)
 	}
-	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatalf("cadastro: %v", err)
 	}
 	if tem, err := s.TemChavePixValida(ctx, conta); err != nil || !tem {
 		t.Fatalf("depois de cadastrar: tem=%v err=%v", tem, err)
+	}
+}
+
+// O DOCUMENTO É OBRIGATÓRIO, e a recusa acontece ANTES de qualquer escrita.
+//
+// Exigir aqui é o que impede a conta de chegar ao dia do repasse sem ele. A ponte
+// exige documento; sem ele o dinheiro do vendedor fica parado sem caminho de saída, e
+// a pessoa descobre isso depois de já ter vendido — no pior momento possível.
+func TestSalvarChavePixExigeDocumentoValido(t *testing.T) {
+	s, ctx := freshStore(t)
+	conta := contaPix(ctx, t, s, "doc_obrigatorio")
+
+	ruins := []struct{ nome, doc string }{
+		{"vazio", ""},
+		{"curto", "1114447773"},
+		{"onze iguais, que fecham a conta", "11111111111"},
+		{"um digito trocado", "11144477734"},
+	}
+	for _, c := range ruins {
+		if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF, c.doc); !errors.Is(err, ErrDocumentoInvalido) {
+			t.Errorf("%s (%q): erro = %v, quero ErrDocumentoInvalido", c.nome, c.doc, err)
+		}
+	}
+
+	// E NADA foi gravado por causa das tentativas recusadas: a chave também não.
+	// Recusar depois de escrever deixaria a conta com chave e sem documento, que é
+	// justamente o estado que esta validação existe para impedir.
+	r, err := s.LerChavePix(ctx, conta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.TemChave {
+		t.Errorf("gravou a chave apesar de recusar o documento: %+v", r)
+	}
+}
+
+// O documento é guardado em DÍGITOS e volta MASCARADO, mostrando só o fim.
+//
+// Normalizar na escrita: "111.444.777-35" e "11144477735" são a mesma pessoa, e
+// guardar os dois formatos faria uma busca por documento achar metade das linhas.
+func TestDocumentoENormalizadoEVoltaMascarado(t *testing.T) {
+	s, ctx := freshStore(t)
+	conta := contaPix(ctx, t, s, "doc_mascara")
+
+	if err := s.SalvarChavePix(ctx, conta, "fulano@exemplo.com", ChavePixEmail, "111.444.777-35"); err != nil {
+		t.Fatalf("salvando: %v", err)
+	}
+
+	var guardado string
+	if err := s.pool.QueryRow(ctx,
+		`SELECT documento FROM rmt_recebedor WHERE account_id = $1`, conta).Scan(&guardado); err != nil {
+		t.Fatal(err)
+	}
+	if guardado != "11144477735" {
+		t.Errorf("guardado = %q, quero so os digitos", guardado)
+	}
+
+	r, err := s.LerChavePix(ctx, conta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.DocumentoMascarado != "***.***.***-35" {
+		t.Errorf("mascara = %q", r.DocumentoMascarado)
+	}
+	// O DOCUMENTO INTEIRO NÃO ATRAVESSA ESTA CAMADA, pelo mesmo motivo da chave: o
+	// site é público, e o que chega no navegador vai para o histórico e para o cache.
+	if r.DocumentoMascarado == guardado {
+		t.Error("a leitura devolveu o documento inteiro")
+	}
+}
+
+// Quem cadastrou a chave ANTES de a coluna existir não tem documento, e a leitura
+// disso não pode quebrar nem inventar máscara sobre coisa nenhuma.
+func TestRecebedorSemDocumentoVoltaMascaraVazia(t *testing.T) {
+	s, ctx := freshStore(t)
+	conta := contaPix(ctx, t, s, "doc_antigo")
+
+	// Escrito direto, sem passar pela validação, que é o que a migração encontrou.
+	if _, err := s.pool.Exec(ctx, `
+		INSERT INTO rmt_recebedor (account_id, chave, tipo, documento, updated_at)
+		VALUES ($1, '11111111111', 1, NULL, now())`, conta); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := s.LerChavePix(ctx, conta)
+	if err != nil {
+		t.Fatalf("a leitura quebrou com documento nulo: %v", err)
+	}
+	if !r.TemChave {
+		t.Error("nao achou a chave que existe")
+	}
+	if r.DocumentoMascarado != "" {
+		t.Errorf("mascara = %q, quero vazio: nao ha documento para mascarar", r.DocumentoMascarado)
+	}
+}
+
+// O banco recusa documento fora de forma mesmo por escrita direta. O CHECK existe
+// porque invariante de dado pessoal que depende de alguém lembrar não é invariante.
+func TestBancoRecusaDocumentoForaDeForma(t *testing.T) {
+	s, ctx := freshStore(t)
+	conta := contaPix(ctx, t, s, "doc_check")
+
+	for _, ruim := range []string{"111.444.777-35", "1114447773", "abcdefghijk"} {
+		if _, err := s.pool.Exec(ctx, `
+			INSERT INTO rmt_recebedor (account_id, chave, tipo, documento, updated_at)
+			VALUES ($1, '11111111111', 1, $2, now())
+			ON CONFLICT (account_id) DO UPDATE SET documento = EXCLUDED.documento`,
+			conta, ruim); err == nil {
+			t.Errorf("o banco aceitou o documento %q", ruim)
+		}
+	}
+}
+
+// A TRAVA DA VENDA EM CURSO VALE PARA O DOCUMENTO TAMBÉM, e tem de valer pelo mesmo
+// motivo do golpe da chave: anunciar, esperar o comprador abrir o QR, e trocar para
+// onde o dinheiro vai enquanto o pagamento está em andamento.
+//
+// Não há caminho de "trocar só o documento": ele viaja na mesma chamada da chave, e a
+// chamada inteira é recusada. Este teste amarra isso, porque um caminho separado para
+// o documento seria uma porta aberta atrás da trava.
+func TestTrocarDocumentoComVendaEmCursoERecusado(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor := contaPix(ctx, t, s, "doc_travado")
+	comprador := contaPix(ctx, t, s, "doc_travado_comp")
+
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
+		t.Fatal(err)
+	}
+	anuncioComCobrancaAberta(ctx, t, s, vendedor, comprador, "ref-doc-travado")
+
+	// Mesma chave, documento DIFERENTE: é a tentativa de desviar só o documento.
+	err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "52998224725")
+	if !errors.Is(err, ErrVendaEmCurso) {
+		t.Fatalf("erro = %v, quero ErrVendaEmCurso", err)
+	}
+
+	var guardado string
+	if err := s.pool.QueryRow(ctx,
+		`SELECT documento FROM rmt_recebedor WHERE account_id = $1`, vendedor).Scan(&guardado); err != nil {
+		t.Fatal(err)
+	}
+	if guardado != "11144477735" {
+		t.Errorf("o documento mudou para %q com uma venda em curso", guardado)
+	}
+}
+
+// A TROCA DO DOCUMENTO ENTRA NO RASTRO, MASCARADA.
+//
+// A 0106 criou o rastro da chave com uma razão que vale igual aqui: numa disputa, a
+// pergunta é "o que aconteceu com o destino do dinheiro DESTA conta". Trocar o CPF é a
+// mesma espécie de evento que trocar a chave, e sem registro ela é invisível.
+//
+// E vai MASCARADO, porque o rastro é justamente o lugar que ninguém lembra de proteger
+// porque "é só histórico". O que a disputa precisa saber é QUE mudou e QUANDO.
+func TestTrocarDocumentoDeixaRastroMascarado(t *testing.T) {
+	s, ctx := freshStore(t)
+	conta := contaPix(ctx, t, s, "doc_rastro")
+
+	if err := s.SalvarChavePix(ctx, conta, "11111111111", ChavePixCPF, "11144477735"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SalvarChavePix(ctx, conta, "fulano@exemplo.com", ChavePixEmail, "52998224725"); err != nil {
+		t.Fatal(err)
+	}
+
+	type linha struct{ antigo, novo *string }
+	var ls []linha
+	rows, err := s.pool.Query(ctx, `
+		SELECT documento_antigo_mascarado, documento_novo_mascarado
+		  FROM rmt_recebedor_historico WHERE account_id = $1 ORDER BY id`, conta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var l linha
+		if err := rows.Scan(&l.antigo, &l.novo); err != nil {
+			t.Fatal(err)
+		}
+		ls = append(ls, l)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(ls) != 2 {
+		t.Fatalf("o rastro tem %d linhas, quero 2", len(ls))
+	}
+	// Primeiro cadastro: NULO no "de onde", porque não havia documento antes. Nulo e
+	// vazio dizem coisas diferentes aqui — nulo é "não havia", vazio seria "havia e eu
+	// perdi".
+	if ls[0].antigo != nil {
+		t.Errorf("o primeiro cadastro registrou um documento anterior: %q", *ls[0].antigo)
+	}
+	if ls[0].novo == nil || *ls[0].novo != "***.***.***-35" {
+		t.Errorf("primeiro registro novo = %v", ls[0].novo)
+	}
+	// A troca: o de onde e o para onde, os dois mascarados.
+	if ls[1].antigo == nil || *ls[1].antigo != "***.***.***-35" {
+		t.Errorf("a troca nao registrou o documento anterior: %v", ls[1].antigo)
+	}
+	if ls[1].novo == nil || *ls[1].novo != "***.***.***-25" {
+		t.Errorf("a troca registrou o novo como %v", ls[1].novo)
+	}
+	// E O DOCUMENTO INTEIRO NÃO ESTÁ NO RASTRO em lugar nenhum.
+	var vazamentos int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FROM rmt_recebedor_historico
+		 WHERE account_id = $1
+		   AND (documento_antigo_mascarado LIKE '%11144477735%'
+		     OR documento_novo_mascarado   LIKE '%52998224725%')`, conta).Scan(&vazamentos); err != nil {
+		t.Fatal(err)
+	}
+	if vazamentos != 0 {
+		t.Errorf("o rastro guardou %d documento(s) inteiro(s)", vazamentos)
 	}
 }

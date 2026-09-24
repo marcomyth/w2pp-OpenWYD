@@ -19,6 +19,7 @@ type fakePix struct {
 	erroLer   error
 	salvouKey string
 	salvouTip store.TipoChavePix
+	salvouDoc string
 
 	temCobranca  bool
 	cobranca     store.CobrancaDoComprador
@@ -56,8 +57,10 @@ func (f *fakePix) CriarPixSeFaltar(ctx context.Context, cobrancaID int64,
 	return f.pixCriado, f.erroCriarPix
 }
 
-func (f *fakePix) SalvarChavePix(_ context.Context, _ int64, chave string, tipo store.TipoChavePix) error {
-	f.salvouKey, f.salvouTip = chave, tipo
+func (f *fakePix) SalvarChavePix(_ context.Context, _ int64, chave string,
+	tipo store.TipoChavePix, documento string,
+) error {
+	f.salvouKey, f.salvouTip, f.salvouDoc = chave, tipo, documento
 	return f.erro
 }
 
@@ -88,11 +91,17 @@ func TestSavePixKeyTraduzAsRecusas(t *testing.T) {
 		{"chave malformada", store.ErrChavePixInvalida, webv1.PixKeyResult_PIX_KEY_RESULT_INVALID},
 		{"venda em curso", store.ErrVendaEmCurso, webv1.PixKeyResult_PIX_KEY_RESULT_SALE_IN_PROGRESS},
 		{"conta não existe", store.ErrNotFound, webv1.PixKeyResult_PIX_KEY_RESULT_NO_ACCOUNT},
+		// CÓDIGO PRÓPRIO PARA O DOCUMENTO, e não o INVALID genérico. O formulário tem
+		// DOIS campos: dizer só "inválido" faria a pessoa corrigir a chave, que estava
+		// certa, e tentar de novo com o mesmo documento errado — sem entender por quê.
+		{"documento inválido", store.ErrDocumentoInvalido,
+			webv1.PixKeyResult_PIX_KEY_RESULT_INVALID_TAX_ID},
 	}
 	for _, c := range casos {
 		s := NewRmt(&fakePix{erro: c.erro})
 		resp, err := s.SavePixKey(context.Background(), &webv1.SavePixKeyRequest{
 			AccountId: 7, Key: "12345678901", Type: webv1.PixKeyType_PIX_KEY_TYPE_CPF,
+			TaxId: "11144477735",
 		})
 		if err != nil {
 			t.Errorf("%s: virou erro de transporte: %v", c.nome, err)
@@ -112,6 +121,7 @@ func TestSavePixKeyFalhaDeInfraViraErro(t *testing.T) {
 
 	_, err := s.SavePixKey(context.Background(), &webv1.SavePixKeyRequest{
 		AccountId: 7, Key: "12345678901", Type: webv1.PixKeyType_PIX_KEY_TYPE_CPF,
+		TaxId: "11144477735",
 	})
 
 	if status.Code(err) != codes.Internal {
@@ -135,7 +145,7 @@ func TestTipoAtravessaNasDuasDirecoes(t *testing.T) {
 		f := &fakePix{}
 		s := NewRmt(f)
 		if _, err := s.SavePixKey(context.Background(), &webv1.SavePixKeyRequest{
-			AccountId: 7, Key: "x", Type: c.proto,
+			AccountId: 7, Key: "x", Type: c.proto, TaxId: "11144477735",
 		}); err != nil {
 			t.Fatalf("%v: %v", c.proto, err)
 		}
