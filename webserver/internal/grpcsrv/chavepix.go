@@ -217,7 +217,28 @@ func (s *ServerRmt) GetMyCurrentPixCharge(ctx context.Context, req *webv1.GetMyC
 		// o store. Assim o store continua sem saber que existe catálogo.
 		descricao := s.descricaoDaCobranca(cob)
 		criar := func(ctx context.Context, referencia string, centavos int64) (string, string, error) {
-			return s.criarPix(ctx, referencia, centavos, descricao)
+			// MEDE QUANTO A PROCESSADORA DEMORA, porque esse número decide um
+			// desenho e hoje ninguém o tem.
+			//
+			// O site desiste da leitura em 10 s e o cliente da ponte espera até 15.
+			// Se a criação passar dos 10, a tela mostra erro e PARA de reler — a
+			// pessoa fica com uma página morta até recarregar.
+			//
+			// O conserto óbvio seria encurtar o prazo daqui para menos de 10 s, e
+			// ele é ARMADILHA: se a processadora for consistentemente mais lenta
+			// que o corte, NENHUMA tentativa termina e o código nunca nasce. Trocar
+			// uma página morta por um item que não se consegue comprar é pior.
+			//
+			// Então primeiro o número aparece, e a decisão vem depois dele. Sai no
+			// log em toda criação, inclusive quando falha, que é o caso cuja
+			// duração interessa mais.
+			inicio := time.Now()
+			cod, ident, err := s.criarPix(ctx, referencia, centavos, descricao)
+			s.log.Info("rmt: a processadora respondeu a criacao do pix",
+				"cobranca", cob.CobrancaID,
+				"levou_ms", time.Since(inicio).Milliseconds(),
+				"deu_certo", err == nil)
+			return cod, ident, err
 		}
 		pix, err := s.pix.CriarPixSeFaltar(ctx, cob.CobrancaID, MinimoParaCriarPix, criar)
 		switch {
