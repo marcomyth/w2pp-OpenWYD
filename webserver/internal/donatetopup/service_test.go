@@ -18,6 +18,44 @@ type fakeStore struct {
 	accounts  map[int64]bool        // existing accounts (for FK checks)
 	saveErr   error                 // forces SavePayerProfile to return this
 	createErr error                 // forces CreateTopupOrder to return this
+
+	// Pacotes: o que a tabela do servidor responderia, e quem é staff.
+	pacotes      map[string]store.PacoteDoacao
+	staff        map[int64]bool
+	pacotePedido string
+	staffVisto   bool
+}
+
+// ContaEhStaff finge a leitura do cargo. Falha fechado, como a de verdade: conta que
+// não está no mapa não é staff.
+func (f *fakeStore) ContaEhStaff(_ context.Context, accountID int64) (bool, error) {
+	if !f.accounts[accountID] {
+		return false, store.ErrNotFound
+	}
+	return f.staff[accountID], nil
+}
+
+// ConferirPacote repete as regras da de verdade sobre o mapa de pacotes. Repetir aqui é
+// o preço de o teste do serviço não precisar de banco; quem prova as regras contra o
+// banco é o teste de integração do store.
+func (f *fakeStore) ConferirPacote(_ context.Context, id string, ehStaff bool,
+	creditsPedidos int32, centavosPedidos int64,
+) (store.PacoteDoacao, error) {
+	f.pacotePedido, f.staffVisto = id, ehStaff
+	p, ok := f.pacotes[id]
+	if !ok {
+		return store.PacoteDoacao{}, store.ErrPacoteDesconhecido
+	}
+	if !p.Ativo {
+		return store.PacoteDoacao{}, store.ErrPacoteDesligado
+	}
+	if p.SoStaff && !ehStaff {
+		return store.PacoteDoacao{}, store.ErrPacoteSoStaff
+	}
+	if creditsPedidos != p.Credits || centavosPedidos != p.AmountCents {
+		return store.PacoteDoacao{}, store.ErrPacoteDivergente
+	}
+	return p, nil
 }
 
 type profile struct{ name, cpf string }
@@ -94,6 +132,8 @@ func newFake() *fakeStore {
 		owners:   map[string]int64{},
 		balances: map[int64]int32{7: 100},
 		accounts: map[int64]bool{7: true, 8: true},
+		pacotes:  map[string]store.PacoteDoacao{},
+		staff:    map[int64]bool{},
 	}
 }
 
@@ -265,5 +305,162 @@ func TestGetTopupOrderOwnership(t *testing.T) {
 	st, _, bal, err = s.GetTopupOrder(ctx, "ref-o", 7)
 	if err != nil || st != store.TopupStatusPaid || bal != 110 {
 		t.Errorf("owner get after paid = (%d, bal=%d, %v), want (2, 110, nil)", st, bal, err)
+	}
+}
+
+// AS QUATRO RECUSAS DE PACOTE NÃO CRIAM ORDEM, e nenhuma delas pode passar.
+//
+// Cada uma protege uma coisa diferente:
+//   - id desconhecido: o site e o servidor discordam sobre o que está à venda, e
+//     creditar assim mesmo entregaria créditos por um preço que ninguém conferiu;
+//   - desligado: o pacote saiu de venda entre a tela e o clique;
+//   - só-staff: o pacote de R$ 1,00 existe para a dona do servidor testar pagamento de
+//     verdade, e esconder na tela não é trava;
+//   - divergência: o preço e os créditos que valem são os da TABELA, e os do pedido são
+//     conferidos contra ela.
+func TestCreateTopupOrderRecusaOsQuatroCasosDePacote(t *testing.T) {
+	const conta = int64(7)
+	base := store.PacoteDoacao{ID: "apoiador-bronze", Credits: 575, AmountCents: 4990, Ativo: true}
+	soStaff := store.PacoteDoacao{ID: "teste-real", Credits: 10, AmountCents: 100, Ativo: true, SoStaff: true}
+	desligado := store.PacoteDoacao{ID: "apoiador-velho", Credits: 100, AmountCents: 1000}
+
+	casos := []struct {
+		nome     string
+		pacote   string
+		credits  int32
+		centavos int64
+	}{
+		{"id que nao existe na tabela", "apoiador-inventado", 575, 4990},
+		{"pacote desligado", "apoiador-velho", 100, 1000},
+		{"creditos divergentes", "apoiador-bronze", 5750, 4990},
+		{"preco divergente", "apoiador-bronze", 575, 490},
+	}
+	for _, c := range casos {
+		f := newFake()
+		f.accounts[conta] = true
+		f.pacotes = map[string]store.PacoteDoacao{
+			"apoiador-bronze": base, "teste-real": soStaff, "apoiador-velho": desligado,
+		}
+		svc := New(f)
+
+		res, id, err := svc.CreateTopupOrder(context.Background(), domain.TopupOrder{
+			AccountID: conta, ExternalReference: "ref-" + c.nome, Credits: c.credits,
+			AmountCents: c.centavos, PaymentMethod: 1, PacoteID: c.pacote,
+		})
+
+		if err != nil {
+			t.Errorf("%s: virou erro de infra: %v", c.nome, err)
+			continue
+		}
+		if res != Invalid || id != 0 {
+			t.Errorf("%s: resultado = %v id = %d, queria Invalid e nenhuma ordem", c.nome, res, id)
+		}
+		// E A ORDEM NÃO EXISTE. Recusar depois de gravar deixaria uma ordem pendente
+		// que o site poderia confirmar, e aí a recusa não teria servido para nada.
+		if len(f.orders) != 0 {
+			t.Errorf("%s: gravou %d ordem(ns) apesar de recusar", c.nome, len(f.orders))
+		}
+	}
+}
+
+// O MESMO PACOTE SÓ-STAFF PASSA PARA QUEM É STAFF. É o outro lado da trava: ela não
+// pode ser tão apertada que impeça a dona do servidor de testar pagamento de verdade.
+func TestCreateTopupOrderAceitaOPacoteDeStaffParaStaff(t *testing.T) {
+	const conta = int64(9)
+	f := newFake()
+	f.accounts[conta] = true
+	f.staff[conta] = true
+	f.pacotes = map[string]store.PacoteDoacao{
+		"teste-real": {ID: "teste-real", Credits: 10, AmountCents: 100, Ativo: true, SoStaff: true},
+	}
+
+	res, id, err := New(f).CreateTopupOrder(context.Background(), domain.TopupOrder{
+		AccountID: conta, ExternalReference: "ref-staff", Credits: 10,
+		AmountCents: 100, PaymentMethod: 1, PacoteID: "teste-real",
+	})
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if res != OK || id == 0 {
+		t.Errorf("resultado = %v id = %d, queria OK com ordem criada", res, id)
+	}
+	if !f.staffVisto {
+		t.Error("o servico nao passou ehStaff=true para a conferencia")
+	}
+}
+
+// DOAÇÃO SEM PACOTE CONTINUA VALENDO, e não passa pela conferência nenhuma. É toda
+// ordem anterior aos pacotes existirem, e qualquer caminho futuro que credite sem
+// vender pacote. Vazio não é desconhecido.
+func TestCreateTopupOrderSemPacoteNaoConfereNada(t *testing.T) {
+	const conta = int64(11)
+	f := newFake()
+	f.accounts[conta] = true
+
+	res, _, err := New(f).CreateTopupOrder(context.Background(), domain.TopupOrder{
+		AccountID: conta, ExternalReference: "ref-sem-pacote", Credits: 100,
+		AmountCents: 1000, PaymentMethod: 1,
+	})
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if res != OK {
+		t.Errorf("resultado = %v, queria OK", res)
+	}
+	if f.pacotePedido != "" {
+		t.Errorf("conferiu o pacote %q numa doacao sem pacote", f.pacotePedido)
+	}
+}
+
+// Conta que não existe é NotFound, e não Invalid: o site precisa distinguir "essa conta
+// não é sua" de "esse pedido está malformado".
+func TestCreateTopupOrderComPacoteEContaInexistenteENotFound(t *testing.T) {
+	f := newFake()
+	f.pacotes = map[string]store.PacoteDoacao{
+		"apoiador-bronze": {ID: "apoiador-bronze", Credits: 575, AmountCents: 4990, Ativo: true},
+	}
+
+	res, _, err := New(f).CreateTopupOrder(context.Background(), domain.TopupOrder{
+		AccountID: 404, ExternalReference: "ref-sem-conta", Credits: 575,
+		AmountCents: 4990, PaymentMethod: 1, PacoteID: "apoiador-bronze",
+	})
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if res != NotFound {
+		t.Errorf("resultado = %v, queria NotFound", res)
+	}
+}
+
+// O PACOTE DE STAFF PEDIDO POR JOGADOR TEM CÓDIGO PRÓPRIO, e não o Invalid genérico.
+//
+// O site precisa dizer coisas diferentes: o Invalid deste caminho cobre referência
+// repetida, pedido malformado e pacote fora de sincronia — três causas que pedem três
+// mensagens —, e a única que é sobre QUEM está comprando é esta. Sem separá-la, a tela
+// diria "esse pacote não está disponível" para um UUID repetido, que é bug do site.
+func TestPacoteDeStaffParaJogadorEForbidden(t *testing.T) {
+	const conta = int64(7)
+	f := newFake()
+	f.accounts[conta] = true
+	f.pacotes = map[string]store.PacoteDoacao{
+		"teste-real": {ID: "teste-real", Credits: 10, AmountCents: 100, Ativo: true, SoStaff: true},
+	}
+
+	res, id, err := New(f).CreateTopupOrder(context.Background(), domain.TopupOrder{
+		AccountID: conta, ExternalReference: "ref-staff-negada", Credits: 10,
+		AmountCents: 100, PaymentMethod: 1, PacoteID: "teste-real",
+	})
+
+	if err != nil {
+		t.Fatalf("erro inesperado: %v", err)
+	}
+	if res != Forbidden {
+		t.Errorf("resultado = %v, quero Forbidden", res)
+	}
+	if id != 0 || len(f.orders) != 0 {
+		t.Errorf("criou ordem: id=%d ordens=%d", id, len(f.orders))
 	}
 }

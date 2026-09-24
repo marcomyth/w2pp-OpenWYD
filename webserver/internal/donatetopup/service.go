@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
@@ -26,6 +27,13 @@ type Store interface {
 	CreateTopupOrder(ctx context.Context, o domain.TopupOrder) (int64, error)
 	ConfirmTopupOrder(ctx context.Context, externalRef string) (store.TopupConfirmOutcome, int32, error)
 	GetTopupOrder(ctx context.Context, externalRef string, accountID int64) (status int16, credits int32, newBalance int32, err error)
+	// ContaEhStaff decide se os pacotes reservados estão liberados para esta conta.
+	// Falha fechado: cargo que o store não reconhece vira não-staff.
+	ContaEhStaff(ctx context.Context, accountID int64) (bool, error)
+	// ConferirPacote diz se esta conta pode comprar este pacote por este preço. O que
+	// vale são os números da tabela do servidor; os do pedido são conferidos.
+	ConferirPacote(ctx context.Context, id string, ehStaff bool,
+		creditsPedidos int32, centavosPedidos int64) (store.PacoteDoacao, error)
 }
 
 // Result is the business outcome of a profile/create operation, mirroring
@@ -40,6 +48,14 @@ const (
 	Invalid
 	// NotFound means the target account does not exist.
 	NotFound
+	// Forbidden é o pacote reservado à staff pedido por quem não é staff.
+	//
+	// CÓDIGO PRÓPRIO, e não o Invalid genérico, porque o site precisa dizer coisas
+	// diferentes. O Invalid daqui cobre referência repetida, pedido malformado e
+	// pacote fora de sincronia — três causas que pedem três mensagens —, e a única
+	// que é sobre QUEM está comprando é esta. Sem separá-la, a tela diria "esse
+	// pacote não está disponível" para um UUID repetido, que é bug do site.
+	Forbidden
 )
 
 // ConfirmOutcome is the result of ConfirmTopupOrder, mirroring webv1.TopupResult.
@@ -57,10 +73,24 @@ const (
 // Service implements the donate top-up operations.
 type Service struct {
 	store Store
+	log   *slog.Logger
 }
 
 // New builds the service over the given store.
-func New(s Store) *Service { return &Service{store: s} }
+//
+// O logger é descartado por padrão para não obrigar todo teste antigo a montar um. Só o
+// caminho do pacote escreve nele, e o que ele escreve é a razão da recusa — que, sem
+// log, chegaria ao site como um "inválido" sem causa.
+func New(s Store) *Service { return &Service{store: s, log: slog.New(slog.DiscardHandler)} }
+
+// ComLog liga o log da recusa de pacote. Construtor separado para não mexer na
+// assinatura que todo chamador antigo já usa.
+func (s *Service) ComLog(l *slog.Logger) *Service {
+	if l != nil {
+		s.log = l
+	}
+	return s
+}
 
 // --- payer profile ---
 
@@ -109,6 +139,45 @@ func (s *Service) CreateTopupOrder(ctx context.Context, o domain.TopupOrder) (Re
 		strings.TrimSpace(o.ExternalReference) == "" || o.PaymentMethod == 0 {
 		return Invalid, 0, nil
 	}
+
+	// O PACOTE É CONFERIDO ANTES DE GRAVAR A ORDEM, e é aqui que a conferência tem de
+	// acontecer: depois, a pessoa já pagou.
+	//
+	// O que vale são o preço e os créditos da TABELA DO SERVIDOR; os do pedido são
+	// conferidos contra ela. A requisição vem do BFF do site, que é nosso, e ainda
+	// assim se confere — porque conferir é barato e destrocar item entregue não é.
+	//
+	// Pedido SEM pacote continua valendo: é toda doação anterior aos pacotes, e
+	// qualquer caminho futuro que credite sem vender pacote. Vazio não é desconhecido.
+	if o.PacoteID != "" {
+		ehStaff, err := s.store.ContaEhStaff(ctx, o.AccountID)
+		if errors.Is(err, store.ErrNotFound) {
+			return NotFound, 0, nil
+		}
+		if err != nil {
+			return Invalid, 0, fmt.Errorf("donatetopup: cargo da conta %d: %w", o.AccountID, err)
+		}
+		if _, err := s.store.ConferirPacote(ctx, o.PacoteID, ehStaff, o.Credits, o.AmountCents); err != nil {
+			if errors.Is(err, store.ErrPacoteSoStaff) {
+				s.log.Warn("donatetopup: pacote de staff pedido por quem nao e staff",
+					"conta", o.AccountID, "pacote", o.PacoteID)
+				return Forbidden, 0, nil
+			}
+			// As quatro recusas viram Invalid para o site, e o log diz qual foi. O
+			// site não precisa distinguir: as quatro querem dizer "este pedido não
+			// pode ser criado", e nenhuma delas é algo que a pessoa na tela conserte.
+			//
+			// E o log importa: id desconhecido é bug de integração, divergência é bug
+			// de preço, e só-staff pode ser alguém tentando comprar o que não é para
+			// vender. Sem o log, as três chegam como "inválido".
+			s.log.Warn("donatetopup: pacote recusado",
+				"conta", o.AccountID, "pacote", o.PacoteID,
+				"creditos_pedidos", o.Credits, "centavos_pedidos", o.AmountCents,
+				"motivo", err)
+			return Invalid, 0, nil
+		}
+	}
+
 	id, err := s.store.CreateTopupOrder(ctx, o)
 	switch {
 	case err == nil:

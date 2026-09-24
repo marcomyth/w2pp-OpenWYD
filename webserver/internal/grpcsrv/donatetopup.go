@@ -56,6 +56,9 @@ func (s *DonateTopupServer) CreateTopupOrder(ctx context.Context, req *webv1.Cre
 		Credits:           req.GetCredits(),
 		AmountCents:       req.GetAmountCents(),
 		PaymentMethod:     int16(req.GetPaymentMethod()),
+		// Vazio é aceito e quer dizer doação sem pacote — é toda ordem anterior aos
+		// pacotes existirem. Quem recusa id DESCONHECIDO é o serviço, contra a tabela.
+		PacoteID: req.GetPackageId(),
 	})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create topup order: %v", err)
@@ -92,6 +95,12 @@ func topupResultToProto(r donatetopup.Result) webv1.AdminResult {
 		return webv1.AdminResult_ADMIN_RESULT_OK
 	case donatetopup.NotFound:
 		return webv1.AdminResult_ADMIN_RESULT_NOT_FOUND
+	case donatetopup.Forbidden:
+		// O FORBIDDEN cai aqui com o sentido que o enum já tem: "caller is not a
+		// moderator/admin". É o pacote reservado à staff pedido por quem não é staff,
+		// e é a única recusa deste caminho que é sobre QUEM compra — as outras são
+		// sobre o pedido.
+		return webv1.AdminResult_ADMIN_RESULT_FORBIDDEN
 	default:
 		return webv1.AdminResult_ADMIN_RESULT_INVALID
 	}

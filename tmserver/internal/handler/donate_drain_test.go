@@ -60,8 +60,15 @@ func TestDeliveryDrainCargoFullHolds(t *testing.T) {
 	if ty, _ := read(t, c); ty != protocol.MsgCNFAccountLogin {
 		t.Fatalf("account login: %#x", ty)
 	}
-	if ty, body := read(t, c); ty != protocol.MsgMessagePanel || !strings.Contains(string(body), "esperam") {
-		t.Fatalf("after the login: %#x %q, want the notice that 1 item waits for room", ty, body)
+	// Conferido contra a FUNÇÃO e não contra uma palavra solta.
+	//
+	// A versão anterior procurava "esperam" no corpo, e quebrou no dia em que o texto
+	// mudou — sem que nada do comportamento tivesse mudado. O que este teste existe
+	// para provar é que o aviso SAIU, e com o número certo; a redação é da
+	// MensagemEntregaPresa, que é um lugar só de propósito.
+	querido := world.MensagemEntregaPresa(1)
+	if ty, body := read(t, c); ty != protocol.MsgMessagePanel || !strings.Contains(string(body), querido) {
+		t.Fatalf("after the login: %#x %q, want %q", ty, body, querido)
 	}
 
 	if ds, ok := db.lastDrainSave(t); ok {

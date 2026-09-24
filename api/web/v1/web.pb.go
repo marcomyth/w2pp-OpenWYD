@@ -8485,8 +8485,32 @@ type CreateTopupOrderRequest struct {
 	Credits           int32                  `protobuf:"varint,3,opt,name=credits,proto3" json:"credits,omitempty"`                                                            // credits to add to donate_balance when paid
 	AmountCents       int64                  `protobuf:"varint,4,opt,name=amount_cents,json=amountCents,proto3" json:"amount_cents,omitempty"`                                 // amount charged, in cents (never float)
 	PaymentMethod     PaymentMethod          `protobuf:"varint,5,opt,name=payment_method,json=paymentMethod,proto3,enum=web.v1.PaymentMethod" json:"payment_method,omitempty"` // PIX for now
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// WHICH PACKAGE this is, by the id the site uses ("apoiador-supremo"). It is what
+	// lets the server know what it promised, which it could not know before: credits
+	// and amount_cents arrived already decided and were credited as they came.
+	//
+	// THE SERVER'S TABLE WINS. credits and amount_cents above are CHECKED against the
+	// package's own row, and the order is refused when they disagree. The request comes
+	// from the site's own BFF, and it is checked anyway: checking is cheap, and taking
+	// back an item already delivered is not.
+	//
+	// An id that is not in the server's table is REFUSED, and not treated as a
+	// giftless donation. An unknown id means the site and the server disagree about
+	// what is on sale, and crediting regardless would hand out credits for a price
+	// nobody checked. Failing while the person is still looking at the screen is the
+	// cheap failure.
+	//
+	// Empty is accepted and means a donation with no package — every order created
+	// before packages existed, and any future path that credits without selling a
+	// package. Empty is not the same as unknown.
+	//
+	// Some packages are STAFF ONLY (the R$ 1,00 one that exists so the server's owner
+	// can test a real payment). The site hides those, and the server refuses them for
+	// an account that is not staff: hiding on a screen is not a lock, because the
+	// screen is one door and this rpc is another.
+	PackageId     string `protobuf:"bytes,6,opt,name=package_id,json=packageId,proto3" json:"package_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateTopupOrderRequest) Reset() {
@@ -8552,6 +8576,13 @@ func (x *CreateTopupOrderRequest) GetPaymentMethod() PaymentMethod {
 		return x.PaymentMethod
 	}
 	return PaymentMethod_PAYMENT_METHOD_UNSPECIFIED
+}
+
+func (x *CreateTopupOrderRequest) GetPackageId() string {
+	if x != nil {
+		return x.PackageId
+	}
+	return ""
 }
 
 type CreateTopupOrderResponse struct {
@@ -12628,14 +12659,16 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x10\n" +
 	"\x03cpf\x18\x03 \x01(\tR\x03cpf\"G\n" +
 	"\x18SavePayerProfileResponse\x12+\n" +
-	"\x06result\x18\x01 \x01(\x0e2\x13.web.v1.AdminResultR\x06result\"\xe2\x01\n" +
+	"\x06result\x18\x01 \x01(\x0e2\x13.web.v1.AdminResultR\x06result\"\x81\x02\n" +
 	"\x17CreateTopupOrderRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12-\n" +
 	"\x12external_reference\x18\x02 \x01(\tR\x11externalReference\x12\x18\n" +
 	"\acredits\x18\x03 \x01(\x05R\acredits\x12!\n" +
 	"\famount_cents\x18\x04 \x01(\x03R\vamountCents\x12<\n" +
-	"\x0epayment_method\x18\x05 \x01(\x0e2\x15.web.v1.PaymentMethodR\rpaymentMethod\"b\n" +
+	"\x0epayment_method\x18\x05 \x01(\x0e2\x15.web.v1.PaymentMethodR\rpaymentMethod\x12\x1d\n" +
+	"\n" +
+	"package_id\x18\x06 \x01(\tR\tpackageId\"b\n" +
 	"\x18CreateTopupOrderResponse\x12+\n" +
 	"\x06result\x18\x01 \x01(\x0e2\x13.web.v1.AdminResultR\x06result\x12\x19\n" +
 	"\border_id\x18\x02 \x01(\x03R\aorderId\"I\n" +

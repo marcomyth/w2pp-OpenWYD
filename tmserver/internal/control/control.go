@@ -417,6 +417,22 @@ func (s *Server) DeliverNow(ctx context.Context, req *gamev1.DeliverNowRequest) 
 			// the grants that found no free slot and stay in the mailbox.
 			entregues, semEspaco := w.ApplyDeliveries(sess, pendentes)
 			resp.Delivered, resp.Lost = int32(entregues), int32(semEspaco)
+
+			// AVISA A PESSOA, e não só o log do servidor.
+			//
+			// O login já avisa quem entra com entrega presa (handler/login.go). Aqui
+			// não avisava, e este é o caminho da COMPRA: a pessoa paga, o site pede a
+			// entrega imediata, parte dos itens não cabe, e ela fica olhando um baú
+			// que recebeu menos do que a página prometeu — sem nada na tela dizendo
+			// por quê, porque ela não vai relogar para descobrir.
+			//
+			// Dói mais nos pacotes grandes, que são justamente os que enchem o baú: o
+			// maior deles ocupa 69 espaços dos 128, porque baú de sorteio não empilha.
+			// Silêncio ali vira reclamação de quem pagou mais.
+			if semEspaco > 0 {
+				w.Send(sess, protocol.MsgMessagePanel,
+					protocol.EncodeMessagePanelBody(world.MensagemEntregaPresa(semEspaco)))
+			}
 		})
 		return resp
 	})

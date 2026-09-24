@@ -36,15 +36,24 @@ const (
 	itemBauSupremo  = 3306
 )
 
-// Os índices emprestados para o teste em jogo, enquanto 3304-3306 não existem
-// no cliente. São três baús do legado que o catálogo tem, o cliente desenha e
-// NENHUM código abre: os Grandes Baús do Tesouro nunca foram portados e não têm
-// efeito nenhum no catálogo, então não há comportamento a atropelar.
+// Os índices emprestados para o teste em jogo. São três baús do legado que o
+// catálogo tem, o cliente desenha e NENHUM código abre: os Grandes Baús do
+// Tesouro nunca foram portados e não têm efeito nenhum no catálogo, então não há
+// comportamento a atropelar.
 //
-// Eles saem daqui no momento em que o ItemList.bin do cliente ganhar os três
-// definitivos. Estão aqui e não numa branch separada porque um teste que roda
-// num código diferente do que vai para produção não testa o que vai para
-// produção.
+// CORREÇÃO DE 24/09/2026: o texto aqui dizia "enquanto 3304-3306 não existem no
+// cliente", e isso ESTAVA ERRADO para o cliente que está em uso. A
+// client-planejadora mediu o `Itemname.bin` e o `ItemList.bin` da Hanna: os
+// registros 3304, 3305 e 3306 estão lá, com malha e ícone, e o cliente novo usa
+// os mesmos arquivos. O "não existem" foi medido em OUTRO cliente, e ficou aqui
+// sem dizer qual — que é o que o fez mentir depois.
+//
+// A lição, para o próximo comentário sobre arquivo de cliente: dizer QUAL cliente
+// e QUANDO. "O cliente" não é um só.
+//
+// Os emprestados ficam por enquanto porque o mapa aceita os dois e não custa
+// nada, e porque um teste que roda num código diferente do que vai para produção
+// não testa o que vai para produção.
 const (
 	itemBauBronzeTeste   = 4900 // Grande_Baú_do_Tesouro_I
 	itemBauApoiadorTeste = 4901 // Grande_Baú_do_Tesouro_II
