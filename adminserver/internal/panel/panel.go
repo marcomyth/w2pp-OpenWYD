@@ -307,6 +307,7 @@ type Config struct {
 	BonusDrop   BonusDrop
 	Maquinas    Maquinas
 	MesaDrops   MesaDrops
+	Repasses    Repasses
 	Sessions    *session.Store
 	Logger      *slog.Logger
 	SecureOnly  bool // Secure flag on the cookie; false only for local HTTP dev
@@ -530,6 +531,17 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("GET /denuncias", h.requireStaff(http.HandlerFunc(h.denuncias)))
 		mux.Handle("POST /denuncias/{denuncia}/tratar", h.requireStaff(http.HandlerFunc(h.tratarDenuncia)))
 	}
+	// A FILA DO REPASSE AO VENDEDOR. Ler é staff, decidir é ADMIN.
+	//
+	// A diferença não é hierarquia por hierarquia: aqui não se configura jogo, se
+	// AFIRMA o que aconteceu com o dinheiro de uma pessoa. "Foi pago" fecha uma
+	// dívida sem que nada tenha saído da conta, e "não foi pago" manda o dinheiro
+	// sair de novo. Nenhuma das duas é decisão de plantão.
+	if h.cfg.Repasses != nil {
+		mux.Handle("GET /repasses", h.requireStaff(http.HandlerFunc(h.repasses)))
+		mux.Handle("POST /repasses/{repasse}/resolver",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.resolverRepasse))))
+	}
 	// Os mapas guardados para evento são uma lista do código (internal/mapaevento),
 	// a mesma que o tmServer usa para não gerar mob neles. Não dependem de banco
 	// nem de jogo, então a tela existe sempre.
@@ -590,6 +602,7 @@ type page struct {
 	HasSeguro    bool // the safe restart needs BOTH the game link and the hosting API
 	HasEvento    bool // the event switches need the database read
 	HasDenun     bool // the report queue needs the database read
+	HasRepasse   bool // a fila do repasse ao vendedor precisa da leitura do banco
 	HasGuilda    bool // the guild pages need the database read
 	HasMesaXP    bool // the Mesa de XP needs the database read
 	HasMasm      bool // the dungeon doors need the database read
@@ -642,6 +655,7 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		HasSeguro:    h.cfg.Jogo != nil && h.cfg.Platform != nil,
 		HasEvento:    h.cfg.Eventos != nil,
 		HasDenun:     h.cfg.Denuncias != nil,
+		HasRepasse:   h.cfg.Repasses != nil,
 		HasGuilda:    h.cfg.Guildas != nil,
 		HasMesaXP:    h.cfg.MesaXP != nil,
 		HasMasm:      h.cfg.Masmorras != nil,

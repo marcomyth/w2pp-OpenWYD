@@ -69,6 +69,7 @@ func painelCompleto(t *testing.T) http.Handler {
 		Personagens: &fakePersonagensSlot{fichas: map[int]personagem.Ficha{0: {AccountID: 7, Slot: 0}}},
 		Eventos:     &fakeEventos{cfg: chuvaViva()},
 		Denuncias:   &fakeDenuncias{},
+		Repasses:    &fakeRepasses{fila: umaFilaDeRepasse()},
 		Guildas: &fakeGuildas{
 			guildas:  []domain.Guild{{ID: 1, Name: "Guilda Um", Fame: 10}},
 			membros:  map[uint16][]domain.GuildMember{1: {{Name: "Heroina", Level: 200}}},
@@ -125,6 +126,7 @@ func TestTodaPaginaRenderiza(t *testing.T) {
 		"/auditoria?pagina=2",
 		"/denuncias",
 		"/denuncias?todas=1",
+		"/repasses",
 		"/guildas",
 		"/guildas/1",
 		"/trocas",
@@ -207,7 +209,7 @@ func TestTodaPaginaRenderizaSemAsOpcionais(t *testing.T) {
 	// And what must be a clean 404 rather than a crash.
 	opcionais := []string{
 		"/trocas", "/censo", "/chat", "/servidor", "/mapa", "/eventos", "/blocos",
-		"/denuncias", "/guildas", "/rates/xp", "/rates/montarias",
+		"/denuncias", "/repasses", "/guildas", "/rates/xp", "/rates/montarias",
 		"/itens", "/npcs", "/monstros", "/drops",
 		"/contas/ana/donate", "/contas/ana/personagens/0",
 	}
