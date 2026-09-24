@@ -194,17 +194,6 @@ func (s *Store) SalvarChavePix(ctx context.Context, accountID int64, chave strin
 		// a recusa mais comum é justamente a chave estar errada, e uma trava que
 		// impedisse o vendedor de corrigi-la prenderia o dinheiro dele para sempre — a
 		// trava passaria a causar o problema que ela existe para evitar.
-		var repasses int
-		if err := tx.QueryRow(ctx, `
-			SELECT count(*) FROM rmt_repasse
-			 WHERE vendedor_conta = $1 AND status IN ($2, $3, $4)`,
-			accountID, repassePendente, repasseEnviado, repasseIncerto).Scan(&repasses); err != nil {
-			return fmt.Errorf("store: chave pix: contando repasses a=%d: %w", accountID, err)
-		}
-		if repasses > 0 {
-			return ErrVendaEmCurso
-		}
-
 		// O que havia ANTES, lido antes de sobrescrever: é o "de onde" do rastro.
 		// Nulo aqui significa primeiro cadastro, e não "não sei qual era".
 		var antigaChave *string
@@ -214,6 +203,38 @@ func (s *Store) SalvarChavePix(ctx context.Context, accountID int64, chave strin
 			`SELECT chave, tipo, documento FROM rmt_recebedor WHERE account_id = $1`, accountID).
 			Scan(&antigaChave, &antigoTipo, &antigoDoc); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("store: chave pix: lendo a anterior a=%d: %w", accountID, err)
+		}
+
+		// E ELA TRAVA A TROCA DA CHAVE, e não qualquer gravação. A diferença decide se
+		// alguém consegue receber.
+		//
+		// O que a trava impede é DESVIO: mudar para onde vai um dinheiro que já foi
+		// vendido. Gravar a MESMA chave não desvia nada — e é justamente o que faz um
+		// vendedor antigo, cadastrado antes de o CPF ser obrigatório, quando vai
+		// preencher o documento que falta.
+		//
+		// Sem esta distinção, essa pessoa cairia num nó fechado: o repasse dela fica
+		// pendente por falta de documento, e o documento não pode ser gravado porque o
+		// repasse está pendente. A trava causaria exatamente o que existe para evitar,
+		// que é ela não receber.
+		//
+		// Vender SEM chave não é possível — o AbrirAnunciosRMT recusa com
+		// ErrSemChavePix —, então o caso de "nunca cadastrou e já vendeu" não existe. O
+		// caso real é este: chave certa, documento faltando.
+		//
+		// RECUSADO não trava, pelo mesmo motivo de sempre: a recusa mais comum é a
+		// chave estar errada, e travar a correção prenderia o dinheiro para sempre.
+		if antigaChave != nil && *antigaChave != chave {
+			var repasses int
+			if err := tx.QueryRow(ctx, `
+				SELECT count(*) FROM rmt_repasse
+				 WHERE vendedor_conta = $1 AND status IN ($2, $3, $4)`,
+				accountID, repassePendente, repasseEnviado, repasseIncerto).Scan(&repasses); err != nil {
+				return fmt.Errorf("store: chave pix: contando repasses a=%d: %w", accountID, err)
+			}
+			if repasses > 0 {
+				return ErrVendaEmCurso
+			}
 		}
 
 		// Trocar a chave zera a verificação: a chave nova não é a que foi

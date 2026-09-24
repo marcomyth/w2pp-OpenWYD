@@ -143,27 +143,36 @@ func TestValorDivergenteNaoAbreRepasse(t *testing.T) {
 // A FILA DE PAGAR TRAZ A CHAVE E O DOCUMENTO INTEIRO, que é o que a ponte exige — e é
 // a única consulta do código que lê o documento sem máscara.
 //
-// E ela EXCLUI quem não tem chave: não há para onde mandar, e uma linha sem destino
-// faria quem paga tropeçar nela uma por uma.
-func TestRepassesAPagarTrazemODestinoEPulamQuemNaoTem(t *testing.T) {
+// E ela EXCLUI quem não tem DOCUMENTO. O caso é o do vendedor cadastrado antes de o CPF
+// ser obrigatório: ele tem chave, vende normalmente, e a ponte recusaria o repasse por
+// falta de documento. Uma linha assim na fila de pagar faria quem paga tropeçar nela uma
+// por uma.
+//
+// (Sem CHAVE não existe: o AbrirAnunciosRMT recusa anunciar sem ela.)
+func TestRepassesAPagarTrazemODestinoEPulamQuemNaoTemDocumento(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "repasse-fila")
 
-	// Sem chave ainda: a venda conclui e a dívida nasce, mas ela não entra na fila.
+	// O estado do vendedor antigo: chave sim, documento não.
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE rmt_recebedor SET documento = NULL WHERE account_id = $1`, v.vendedor); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos); err != nil {
 		t.Fatal(err)
 	}
+
 	fila, err := s.RepassesAPagar(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(fila) != 0 {
-		t.Fatalf("a fila tem %d linha(s) para quem nao cadastrou chave", len(fila))
+		t.Fatalf("a fila tem %d linha(s) sem documento; a ponte recusaria cada uma", len(fila))
 	}
 
-	// Agora o vendedor cadastra, e a dívida dele aparece com o destino.
+	// Preenchendo o documento, com a MESMA chave, a dívida aparece com o destino.
 	if err := s.SalvarChavePix(ctx, v.vendedor, "vendedor@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
-		t.Fatal(err)
+		t.Fatalf("preencher o documento foi barrado: %v", err)
 	}
 	fila, err = s.RepassesAPagar(ctx, 10)
 	if err != nil {
@@ -241,9 +250,6 @@ func TestTransicoesDoRepasseSoSaemDoEstadoCerto(t *testing.T) {
 func TestIncertoSaiDaFilaDePagarEVaiParaADeGente(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "repasse-incerto")
-	if err := s.SalvarChavePix(ctx, v.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
-		t.Fatal(err)
-	}
 	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
 	if err != nil {
 		t.Fatal(err)
@@ -341,9 +347,6 @@ func TestIncertoSoSaiPelaMaoDeUmaPessoa(t *testing.T) {
 
 	fazIncerto := func(sufixo string) int64 {
 		v := montaVenda(ctx, t, s, sufixo)
-		if err := s.SalvarChavePix(ctx, v.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
-			t.Fatal(err)
-		}
 		_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
 		if err != nil {
 			t.Fatal(err)
@@ -421,9 +424,6 @@ func TestIncertoSoSaiPelaMaoDeUmaPessoa(t *testing.T) {
 func TestTentativaNovaSoNasceDePendente(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "tentativa-trava")
-	if err := s.SalvarChavePix(ctx, v.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
-		t.Fatal(err)
-	}
 	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
 	if err != nil {
 		t.Fatal(err)
@@ -452,9 +452,6 @@ func TestTentativaNovaSoNasceDePendente(t *testing.T) {
 	// ter pago e ninguém sabe.
 	s2, ctx2 := freshStore(t)
 	v2 := montaVenda(ctx2, t, s2, "tentativa-incerta")
-	if err := s2.SalvarChavePix(ctx2, v2.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
-		t.Fatal(err)
-	}
 	_, venda2, err := s2.ConfirmarCobrancaRMT(ctx2, v2.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
 	if err != nil {
 		t.Fatal(err)
@@ -521,9 +518,6 @@ func TestTentativaNovaSoNasceDePendente(t *testing.T) {
 func TestTrocarChaveComRepasseEmAbertoERecusadoLiberaNoRecusado(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "trava-repasse")
-	if err := s.SalvarChavePix(ctx, v.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
-		t.Fatal(err)
-	}
 	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
 	if err != nil {
 		t.Fatal(err)
@@ -551,9 +545,6 @@ func TestTrocarChaveComRepasseEmAbertoERecusadoLiberaNoRecusado(t *testing.T) {
 	// para a chave antiga, e trocar agora embaralharia quem recebeu o quê.
 	s2, ctx2 := freshStore(t)
 	v2 := montaVenda(ctx2, t, s2, "trava-incerto")
-	if err := s2.SalvarChavePix(ctx2, v2.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
-		t.Fatal(err)
-	}
 	_, venda2, err := s2.ConfirmarCobrancaRMT(ctx2, v2.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
 	if err != nil {
 		t.Fatal(err)
@@ -570,9 +561,6 @@ func TestTrocarChaveComRepasseEmAbertoERecusadoLiberaNoRecusado(t *testing.T) {
 	// corrigi-la, e o dinheiro dele ficaria preso para sempre.
 	s3, ctx3 := freshStore(t)
 	v3 := montaVenda(ctx3, t, s3, "trava-recusado")
-	if err := s3.SalvarChavePix(ctx3, v3.vendedor, "errada@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
-		t.Fatal(err)
-	}
 	_, venda3, err := s3.ConfirmarCobrancaRMT(ctx3, v3.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
 	if err != nil {
 		t.Fatal(err)
@@ -587,26 +575,30 @@ func TestTrocarChaveComRepasseEmAbertoERecusadoLiberaNoRecusado(t *testing.T) {
 	}
 }
 
-// QUEM NÃO TEM CADASTRO APARECE NA FILA DE GENTE, com o motivo.
+// QUEM NÃO TEM O CADASTRO COMPLETO APARECE NA FILA DE GENTE, com o motivo.
 //
 // Antes disto essas linhas eram invisíveis: o JOIN da fila de pagar as excluía e nenhum
 // contador as mencionava. A pessoa tinha dinheiro a receber, não sabia, e o log dizia
 // que estava tudo certo.
-func TestQuemNaoTemCadastroApareceNaFilaDeGente(t *testing.T) {
+func TestQuemNaoTemCadastroCompletoApareceNaFilaDeGente(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "sem-cadastro")
-	// A venda conclui SEM o vendedor ter cadastrado chave.
+	// Vendedor antigo: chave sim, documento não — que é o caso que existe de verdade.
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE rmt_recebedor SET documento = NULL WHERE account_id = $1`, v.vendedor); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos); err != nil {
 		t.Fatal(err)
 	}
 
-	// Não está na fila de pagar: não há para onde mandar.
+	// Não está na fila de pagar: a ponte recusaria por falta de documento.
 	pagar, err := s.RepassesAPagar(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(pagar) != 0 {
-		t.Errorf("a fila de pagar tem %d linha(s) sem destino", len(pagar))
+		t.Errorf("a fila de pagar tem %d linha(s) sem documento", len(pagar))
 	}
 
 	// MAS aparece na fila de gente, com o motivo — e é essa a diferença.
@@ -633,9 +625,10 @@ func TestQuemNaoTemCadastroApareceNaFilaDeGente(t *testing.T) {
 		t.Errorf("contador = %d, quero 1", n)
 	}
 
-	// Cadastrando, ela sai da fila de gente e entra na de pagar. É o que prova que a
-	// espera é do cadastro e não de outra coisa.
-	if err := s.SalvarChavePix(ctx, v.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
+	// Completando, ela sai da fila de gente e entra na de pagar. É o que prova que a
+	// espera é do cadastro e não de outra coisa — e é o que permite ao site dizer
+	// "cadastre e o pagamento entra na fila".
+	if err := s.SalvarChavePix(ctx, v.vendedor, "vendedor@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	if pagar, err = s.RepassesAPagar(ctx, 10); err != nil || len(pagar) != 1 {
@@ -643,5 +636,58 @@ func TestQuemNaoTemCadastroApareceNaFilaDeGente(t *testing.T) {
 	}
 	if n, err = s.RepassesEsperandoCadastro(ctx); err != nil || n != 0 {
 		t.Errorf("depois do cadastro: contador = %d, err = %v", n, err)
+	}
+}
+
+// O VENDEDOR ANTIGO TEM DE CONSEGUIR PREENCHER O CPF QUE FALTA, e este teste existe
+// porque eu quase prendi o dinheiro dessas pessoas para sempre.
+//
+// A primeira versão da trava olhava só o estado do repasse, e barrava QUALQUER gravação
+// da chave. Com ela assim, o vendedor cadastrado antes de o CPF ser obrigatório caía num
+// nó fechado: o repasse fica pendente por falta de documento, e o documento não pode ser
+// gravado porque o repasse está pendente. A trava causaria exatamente o que existe para
+// evitar — a pessoa não receber.
+//
+// A regra certa é sobre DESVIO: trava quando a CHAVE muda. Gravar a mesma chave com o
+// documento que faltava não desvia nada.
+//
+// (E "vendeu sem nunca ter cadastrado" NÃO existe: o AbrirAnunciosRMT recusa anunciar
+// sem chave. O caso real é este — chave certa, documento faltando.)
+func TestVendedorAntigoConseguePreencherOCPFQueFalta(t *testing.T) {
+	s, ctx := freshStore(t)
+	v := montaVenda(ctx, t, s, "cpf-faltando")
+
+	// O estado do vendedor antigo: chave cadastrada, documento NULO. O montaVenda já põe
+	// a chave — porque sem ela não se anuncia —, e aqui o documento é apagado, que é o
+	// que a migração do CPF encontrou nas contas que já existiam.
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE rmt_recebedor SET documento = NULL WHERE account_id = $1`, v.vendedor); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos); err != nil {
+		t.Fatal(err)
+	}
+
+	// Sem documento, a dívida não entra na fila de pagar — não há como mandar.
+	if fila, err := s.RepassesAPagar(ctx, 10); err != nil || len(fila) != 0 {
+		t.Fatalf("fila de pagar = %d, err = %v", len(fila), err)
+	}
+
+	// E ELE CONSEGUE PREENCHER, com a MESMA chave. É esta gravação que a primeira
+	// versão da trava barrava.
+	if err := s.SalvarChavePix(ctx, v.vendedor, "vendedor@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
+		t.Fatalf("a trava barrou o preenchimento do CPF: o dinheiro ficaria preso: %v", err)
+	}
+
+	// E aí a dívida entra na fila sozinha.
+	fila, err := s.RepassesAPagar(ctx, 10)
+	if err != nil || len(fila) != 1 {
+		t.Fatalf("depois do CPF: fila = %d, err = %v", len(fila), err)
+	}
+
+	// MAS trocar a CHAVE continua travado: é aí que o desvio seria possível.
+	if err := s.SalvarChavePix(ctx, v.vendedor, "ladrao@exemplo.com", ChavePixEmail, "52998224725"); !errors.Is(err, ErrVendaEmCurso) {
+		t.Errorf("a troca de chave com divida pendente passou: erro = %v", err)
 	}
 }
