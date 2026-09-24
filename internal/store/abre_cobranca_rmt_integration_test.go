@@ -202,6 +202,80 @@ func TestCobrancaNaoNasceContraAnuncioSemBarraca(t *testing.T) {
 	}
 }
 
+// UMA COBRANÇA ABERTA POR COMPRADOR, e esta é a que impede travar o mercado
+// inteiro de graça.
+//
+// Sem ela, uma conta clica em comprar em TODAS as prateleiras em dinheiro real do
+// mercado. Cada clique prende o item de um vendedor por cinco minutos. Ninguém
+// pagou nada, nenhum item mudou de mão, e todo o estoque fica indisponível —
+// repetindo a cada cinco minutos, para sempre.
+//
+// Dois VENDEDORES diferentes de propósito: a invariante que já existia é por
+// ANÚNCIO, e com um vendedor só ela poderia ser a responsável pela recusa. A prova
+// só vale com anúncios que não têm nada em comum além do comprador.
+func TestUmaCobrancaAbertaPorComprador(t *testing.T) {
+	s, ctx := freshStore(t)
+	comprador := contaPix(ctx, t, s, "comprador_ganancioso")
+
+	primeiro := contaPix(ctx, t, s, "vendedor_um")
+	segundo := contaPix(ctx, t, s, "vendedor_dois")
+	for _, v := range []int64{primeiro, segundo} {
+		if err := s.SalvarChavePix(ctx, v, "11111111111", ChavePixCPF); err != nil {
+			t.Fatal(err)
+		}
+	}
+	anuncioA := anuncioComFoto(ctx, t, s, primeiro, "Um", 0, 0, 1)
+	itemMarcado(ctx, t, s, primeiro, 0, anuncioA)
+	anuncioB := anuncioComFoto(ctx, t, s, segundo, "Dois", 0, 0, 1)
+	itemMarcado(ctx, t, s, segundo, 0, anuncioB)
+
+	if res, _, err := s.AbrirCobrancaRMT(ctx, anuncioA, comprador, "ref-ganancia-1", 0); err != nil {
+		t.Fatal(err)
+	} else if res != CobrancaAbertaOK {
+		t.Fatalf("a primeira nao abriu: resultado %d", res)
+	}
+
+	res, _, err := s.AbrirCobrancaRMT(ctx, anuncioB, comprador, "ref-ganancia-2", 0)
+	if err != nil {
+		t.Fatalf("segunda cobranca: %v", err)
+	}
+
+	if res != CompradorJaTemCobranca {
+		t.Errorf("resultado = %d, quero CompradorJaTemCobranca(%d): com outro resultado "+
+			"uma conta prende o mercado inteiro de graca", res, CompradorJaTemCobranca)
+	}
+	// E o item do SEGUNDO vendedor continua livre para outra pessoa comprar.
+	outro := contaPix(ctx, t, s, "outro_comprador_livre")
+	if res, _, err := s.AbrirCobrancaRMT(ctx, anuncioB, outro, "ref-ganancia-3", 0); err != nil {
+		t.Fatal(err)
+	} else if res != CobrancaAbertaOK {
+		t.Errorf("o item do segundo vendedor ficou preso: resultado %d", res)
+	}
+}
+
+// E DEPOIS DE FECHAR A PRIMEIRA, ELE COMPRA DE NOVO. Sem esta metade, uma trava
+// que recusasse sempre passaria no teste de cima — e o comprador ficaria preso
+// para sempre à primeira compra que fez.
+func TestDepoisDeFecharOCompradorAbreOutra(t *testing.T) {
+	s, ctx := freshStore(t)
+	_, comprador, anuncio := anuncioPronto(ctx, t, s, "denovo")
+
+	if _, _, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-denovo-1", 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CancelarCobrancaRMT(ctx, "ref-denovo-1"); err != nil {
+		t.Fatal(err)
+	}
+
+	res, _, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-denovo-2", 0)
+	if err != nil {
+		t.Fatalf("segunda tentativa: %v", err)
+	}
+	if res != CobrancaAbertaOK {
+		t.Errorf("resultado = %d, quero aberta: a primeira ja fechou", res)
+	}
+}
+
 // Cancelar fecha a cobrança aberta, e SÓ a aberta.
 func TestCancelarCobrancaSoFechaAAberta(t *testing.T) {
 	s, ctx := freshStore(t)

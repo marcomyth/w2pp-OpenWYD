@@ -45,6 +45,14 @@ const (
 	// para ele. As duas coisas discordam, e discordância em linha de dinheiro se
 	// resolve NÃO cobrando.
 	ItemNaoEstaPreso
+	// CompradorJaTemCobranca: esta conta já tem uma cobrança aberta, de outro
+	// item.
+	//
+	// É o que impede uma conta de clicar em todas as prateleiras do mercado e
+	// prender o estoque inteiro por cinco minutos, de graça e repetidamente. E é
+	// também o que mantém a página do site honesta: ela mostra UMA cobrança, e uma
+	// segunda nunca poderia ser paga porque o comprador nunca veria o código dela.
+	CompradorJaTemCobranca
 )
 
 // CobrancaRMT é a cobrança que nasceu, do jeito que quem chamou precisa dela.
@@ -175,6 +183,11 @@ func (s *Store) AbrirCobrancaRMT(ctx context.Context, anuncioID, compradorConta 
 			RETURNING id, expira_em`,
 			anuncioID, compradorConta, referenciaExterna, cob.ValorCentavos,
 			metodoPix, cobrancaAberta, janela.String()).Scan(&cob.CobrancaID, &cob.ExpiraEm)
+		if ehConflitoDeIndice(err, "rmt_cobranca_uma_aberta_por_comprador") {
+			// A conta já está pagando outra coisa. Recusa prevista, e o índice é
+			// quem a garante mesmo com dois cliques no mesmo instante.
+			return errCompradorJaTemCobranca
+		}
 		if ehConflitoDeUnicidade(err) {
 			// Outra pessoa abriu o QR primeiro. O índice é quem resolve, e ele
 			// resolve mesmo no meio-segundo em que a conferência acima não
@@ -198,6 +211,9 @@ func (s *Store) AbrirCobrancaRMT(ctx context.Context, anuncioID, compradorConta 
 	if errors.Is(err, errOutraCobrancaAberta) {
 		return AnuncioComOutraCobranca, CobrancaRMT{}, nil
 	}
+	if errors.Is(err, errCompradorJaTemCobranca) {
+		return CompradorJaTemCobranca, CobrancaRMT{}, nil
+	}
 	if err != nil {
 		return AnuncioNaoDisponivel, CobrancaRMT{}, err
 	}
@@ -208,6 +224,18 @@ func (s *Store) AbrirCobrancaRMT(ctx context.Context, anuncioID, compradorConta 
 // transação abortada. Nunca sai desta camada: a AbrirCobrancaRMT o traduz em
 // AnuncioComOutraCobranca, que é recusa prevista e não falha.
 var errOutraCobrancaAberta = errors.New("store: ja existe cobranca aberta para este anuncio")
+
+// errCompradorJaTemCobranca carrega, pelo mesmo caminho, a recusa do índice de uma
+// aberta por comprador.
+var errCompradorJaTemCobranca = errors.New("store: o comprador ja tem cobranca aberta")
+
+// ehConflitoDeIndice reconhece a violação de um índice único ESPECÍFICO.
+//
+// Pelo nome do índice e não só pelo código 23505: hoje há dois índices que a mesma
+// inserção pode violar — um por anúncio e um por comprador —, e eles dizem coisas
+// diferentes ao jogador. "Alguém está pagando esse item" manda esperar por aquele
+// item; "você já tem um pagamento aberto" manda terminar o que começou. Tratar os
+// dois como um só faria a mensagem mentir metade das vezes.
 
 // completaDestino lê a chave Pix do vendedor, que é o que vira o QR.
 func completaDestino(ctx context.Context, tx pgx.Tx, cob *CobrancaRMT) error {
@@ -321,6 +349,11 @@ func (s *Store) ExpirarCobrancasRMT(ctx context.Context) ([]int64, error) {
 // Pelo CÓDIGO e nunca pelo texto: o texto muda com a versão e com o idioma do
 // servidor, e uma comparação de texto que falha aqui trataria "outra pessoa
 // chegou primeiro" como falha de infraestrutura.
+func ehConflitoDeIndice(err error, indice string) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == indice
+}
+
 func ehConflitoDeUnicidade(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"

@@ -104,26 +104,51 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	if !itemsEqual(slot.Item, itemCargo) {
 		return
 	}
-	// ITEM PRESO NO ESCROW NÃO SAI POR AQUI.
+	preco := slot.Price
+	moeda := vendedor.AutoTrade.Moeda[pos]
+	// ITEM PRESO NO ESCROW NAO SAI POR AQUI - EXCETO PELA PORTA DELE.
 	//
-	// A partir do momento em que um anúncio em dinheiro real existe, o item tem
-	// dono decidido por outro caminho: a cobrança, o Pix e a confirmação. Deixar
-	// esta compra levá-lo tiraria o item de baixo de um anúncio ativo — sobraria
-	// uma oferta na vitrine sem nada atrás, e um comprador pagaria por ela.
+	// A marca diz que existe um anuncio em dinheiro real vivo sobre este item. Uma
+	// compra em OURO ou em CASH levando-o tiraria o item de baixo de um anuncio
+	// ativo: sobraria uma oferta na vitrine sem nada atras, e alguem pagaria por
+	// ela.
 	//
-	// A recusa é aqui e não só no itemSlot porque esta função mexe no baú
-	// DIRETAMENTE, sem passar por lá. Armadilha que não cobre todos os caminhos
-	// não é armadilha.
-	if itemCargo.AnuncioRMT != 0 {
+	// Mas a compra em dinheiro real E a porta desse anuncio. Recusa-la seria
+	// recusar a unica venda que a marca existe para permitir.
+	//
+	// E ELA ERA RECUSADA. Esta conferencia ficava ANTES da leitura da moeda, e o
+	// item de uma prateleira em dinheiro real esta SEMPRE marcado - entao a recusa
+	// pegava tambem a compra legitima, e a mensagem de "ainda nao esta aberta" logo
+	// abaixo era codigo morto. O teste que deveria pega-la montava uma prateleira em
+	// RMT com o item NAO marcado, que e um estado que o jogo nao produz.
+	//
+	// A recusa continua aqui e nao so no itemSlot porque esta funcao mexe no bau
+	// DIRETAMENTE, sem passar por la. Armadilha que nao cobre todos os caminhos nao
+	// e armadilha.
+	if itemCargo.AnuncioRMT != 0 && moeda != protocol.LojaMoedaRMT {
 		d.notify(w, s, NoticeCantAutoTrade)
 		return
 	}
-	preco := slot.Price
-	moeda := vendedor.AutoTrade.Moeda[pos]
 	// O painel manda a moeda que ele mostrou ao jogador; se o vendedor trocou
 	// nesse meio-tempo, a compra não sai — ninguém paga em moeda que não viu.
 	if pedido.Moeda != moeda {
 		d.notify(w, s, NoticeCantAutoTrade)
+		return
+	}
+
+	// A COMPRA EM DINHEIRO REAL NAO ACONTECE AQUI. Ela COMECA aqui.
+	//
+	// Nada se move neste instante: o item fica no bau do vendedor, preso pela
+	// marca, e o comprador nao paga nada ainda. O que sai daqui e uma cobranca e um
+	// aviso de onde pagar. A venda so acontece quando o dinheiro cair, noutro
+	// processo, pela confirmacao.
+	//
+	// E SAI ANTES DA CONFERENCIA DE ESPACO, de proposito: aquela pergunta e sobre a
+	// MOCHILA, e o item comprado por dinheiro real nao vai para a mochila - vai para
+	// a caixa postal, e de la para o bau, no login ou no DeliverNow. Recusar por
+	// mochila cheia seria recusar por um motivo que nao se aplica.
+	if moeda == protocol.LojaMoedaRMT {
+		d.abreCobrancaPix(w, s, itemCargo.AnuncioRMT, preco)
 		return
 	}
 
@@ -151,28 +176,6 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 		cargoVendedor.Coin += preco - imposto
 		d.repartirImposto(w, s, imposto, world.Village(barraca.X, barraca.Y),
 			world.Village(e.X, e.Y))
-	case protocol.LojaMoedaRMT:
-		// NÃO EXISTE CARTEIRA DE DINHEIRO REAL, e este caminho existia como se
-		// existisse.
-		//
-		// A carteira do jogo é a das Rcoins (Cash), que a recarga por Pix credita.
-		// Prateleira em dinheiro real é dinheiro que sai de UM jogador e vai para
-		// OUTRO, e isso se paga por Pix, entre as duas pessoas — não por um saldo
-		// interno que o servidor movia de uma conta para a outra.
-		//
-		// O caminho antigo transferia `account.rmt_balance`, uma carteira que
-		// ninguém nunca alimentou: medido em produção em 23/09/2026, as 16 contas
-		// têm saldo ZERO (a mesma consulta mostra 900 em donate_balance, então ela
-		// lê valores de verdade). Tirar isto não move dinheiro de ninguém.
-		//
-		// A recusa fica até a cobrança por Pix estar ligada de ponta a ponta. Ela
-		// é EXPLÍCITA e não "saldo insuficiente": o jogador não tem saldo nenhum
-		// para juntar, e mandá-lo procurar seria mentira. Duas portas para pagar a
-		// mesma prateleira é o que isto impede.
-		sendClientMessage(w, s, msgRMTSoPorPix)
-		d.log.Info("loja: compra em dinheiro real recusada, o Pix ainda nao esta ligado",
-			"conn", s.Conn, "vendedor", vendedor.Conn, "preco_centavos", preco)
-		return
 	case protocol.LojaMoedaCash:
 		// Cash é a carteira de verdade: `account.donate_balance`, que a recarga
 		// credita. Ver lojasaldo.go.
@@ -212,7 +215,3 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	// mandaria a todos uma vitrine com o item que acabou de ser vendido.
 	d.mercadoMudou(w)
 }
-
-// msgRMTSoPorPix é a recusa da compra em dinheiro real enquanto a cobrança por
-// Pix não está ligada. Diz o que é: não está aberto, e não "falta saldo".
-const msgRMTSoPorPix = "Venda por dinheiro real ainda não está aberta."

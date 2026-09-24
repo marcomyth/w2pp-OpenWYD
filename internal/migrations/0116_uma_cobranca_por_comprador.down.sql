@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS rmt_cobranca_uma_aberta_por_comprador;
