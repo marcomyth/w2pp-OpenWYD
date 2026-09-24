@@ -6,7 +6,11 @@
 // on boot, so the answer is one line in the log instead of a guess.
 package buildinfo
 
-import "runtime/debug"
+import (
+	"os"
+	"runtime/debug"
+	"strings"
+)
 
 // Commit is the git revision, injected at link time:
 //
@@ -30,7 +34,7 @@ func Revision() string {
 	}
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
-		return "unknown"
+		return doAmbiente()
 	}
 	var rev, modified string
 	for _, s := range info.Settings {
@@ -42,7 +46,7 @@ func Revision() string {
 		}
 	}
 	if rev == "" {
-		return "unknown"
+		return doAmbiente()
 	}
 	if len(rev) > 8 {
 		rev = rev[:8]
@@ -65,6 +69,30 @@ func Built() string {
 	for _, s := range info.Settings {
 		if s.Key == "vcs.time" {
 			return s.Value
+		}
+	}
+	return "unknown"
+}
+
+// doAmbiente é a última tentativa: a revisão que a PLATAFORMA injeta como variável.
+//
+// POR QUE ELA EXISTE: em 24/09/2026 medi o boot do tmserver em produção e ele dizia
+// `revision=unknown built=unknown`. Ou seja, o pacote inteiro — que existe para
+// responder "o conserto já está no ar?" — estava mudo justamente no lugar onde a
+// pergunta é feita. O construtor da plataforma compila fora de um checkout git, então
+// o carimbo do toolchain não existe, e ninguém passa o -ldflags.
+//
+// A plataforma, porém, injeta a revisão como variável de ambiente em todo serviço. Ler
+// dali não é tão bom quanto o carimbo do compilador — é a palavra de quem construiu
+// sobre o que construiu, e não do binário sobre si mesmo — mas é infinitamente melhor
+// que "unknown", e é o que transforma um palpite numa linha de log.
+func doAmbiente() string {
+	for _, nome := range []string{"GIT_COMMIT", "RAILWAY_GIT_COMMIT_SHA"} {
+		if v := strings.TrimSpace(os.Getenv(nome)); v != "" {
+			if len(v) > 8 {
+				v = v[:8]
+			}
+			return v + " (do ambiente)"
 		}
 	}
 	return "unknown"

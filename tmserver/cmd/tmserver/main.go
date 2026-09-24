@@ -1287,10 +1287,29 @@ func loadContent(dir string, logger *slog.Logger) (*loadedContent, error) {
 	// The Ori/Lac rates are worth logging outright: SancRate.txt only overrides the
 	// indices it lists, so a broken mount silently leaves the compiled defaults and
 	// the operator would otherwise not notice.
+	// A IMPRESSÃO DO ItemList VAI JUNTO COM AS CONTAGENS, e é ela que responde o que
+	// as contagens não respondem: CONTAGEM NÃO MUDA QUANDO O VALOR MUDA. Em 24/09/2026,
+	// 456 armas ganharam 15% de dano e esta linha continuou dizendo os mesmos 3242
+	// itens — provar que o servidor tinha os números novos virou uma investigação que
+	// terminou em dedução pela plataforma, e não em medição. Agora é comparar dezesseis
+	// caracteres com o sha256 do arquivo em qualquer revisão do repositório.
+	//
+	// É o MESMO número que o webServer imprime, de propósito (ver buildinfo e o teste
+	// que prende os dois), para os dois lados poderem ser comparados entre si.
+	impressaoDoItemList, errImpressao := buildinfo.ImpressaoDoConteudo(
+		filepath.Join(dir, "Common", "ItemList.csv"))
+	if errImpressao != nil {
+		// Não derruba nada: o ItemList já foi lido com sucesso logo acima, então o que
+		// falhou foi só a identificação. Dizer isso é melhor do que imprimir um campo
+		// vazio que alguém leria como "não mudou".
+		logger.Warn("não consegui calcular a impressão do ItemList", "err", errImpressao)
+		impressaoDoItemList = "nao-calculada"
+	}
 	logger.Info("content loaded",
 		"comprate_families", comp.Families(),
 		"sancrate_ori", sancRow(sanc, 0), "sancrate_lac", sancRow(sanc, 1),
-		"items", items.Len(), "skills", skills.Len(), "language_lines", language.Len())
+		"items", items.Len(), "itemlist_version", impressaoDoItemList,
+		"skills", skills.Len(), "language_lines", language.Len())
 
 	// Maps are optional: 17 MiB HeightMap + 1 MiB AttributeMap aren't required to
 	// accept logins; warn rather than fail when they aren't mounted. When both
