@@ -32,6 +32,17 @@ const (
 	// RepasseRecusado: nada saiu, com certeza. É o único estado de falha em que
 	// tentar de novo é seguro.
 	RepasseRecusado EstadoRepasse = EstadoRepasse(repasseRecusado)
+	// RepasseEsperandoCadastro NÃO é um status do banco: é o que a fila devolve para
+	// uma dívida PENDENTE cujo vendedor não tem chave ou não tem documento.
+	//
+	// Existe porque essas linhas eram INVISÍVEIS: o JOIN da fila de pagar as excluía, e
+	// elas não apareciam em contador nenhum — nem pago, nem recusado, nem incerto. Uma
+	// pessoa com dinheiro a receber ficava esperando para sempre, e o log dizia que
+	// estava tudo certo.
+	//
+	// Não vira status porque não é um estado da DÍVIDA: ela está pendente e correta. O
+	// que falta é do lado do vendedor, e muda no instante em que ele cadastrar.
+	RepasseEsperandoCadastro EstadoRepasse = -1
 	// RepasseIncerto: a chamada saiu e a resposta não voltou. PODE TER PAGO.
 	//
 	// NUNCA se reenvia daqui, e é por isso que ele é um estado e não um erro: pagar
@@ -213,18 +224,35 @@ type RepasseNaFila struct {
 	CriadoEm      time.Time
 }
 
-// RepassesQuePrecisamDeGente lista o que travou: o recusado e o incerto.
+// RepassesQuePrecisamDeGente lista o que travou: o recusado, o incerto, e o que espera
+// o vendedor cadastrar.
 //
-// OS DOIS JUNTOS e não em consultas separadas, porque quem olha a fila quer saber "o
-// que está parado" — e separá-los faria alguém olhar uma e esquecer a outra. O estado
-// vem na linha, e o incerto é o que se olha primeiro.
+// OS TRÊS JUNTOS e não em consultas separadas, porque quem olha a fila quer saber "o que
+// está parado" — e separá-los faria alguém olhar uma e esquecer as outras. O estado vem
+// na linha, e o incerto é o que se olha primeiro.
+//
+// O TERCEIRO É O QUE ERA INVISÍVEL: uma dívida pendente cujo vendedor não tem chave ou
+// não tem documento não aparecia em lugar nenhum. O JOIN da fila de pagar a excluía, e
+// nenhum contador a mencionava. A pessoa ficava esperando o dinheiro dela para sempre e
+// o log dizia que estava tudo certo.
 func (s *Store) RepassesQuePrecisamDeGente(ctx context.Context) ([]RepasseNaFila, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, cobranca_id, vendedor_conta, valor_centavos, status,
-		       recusa_http, coalesce(recusa_codigo, ''), coalesce(recusa_texto, ''), criado_em
-		  FROM rmt_repasse
-		 WHERE status IN ($1, $2) AND resolvido_em IS NULL
-		 ORDER BY status DESC, criado_em`, repasseRecusado, repasseIncerto)
+		SELECT r.id, r.cobranca_id, r.vendedor_conta, r.valor_centavos, r.status,
+		       r.recusa_http, coalesce(r.recusa_codigo, ''), coalesce(r.recusa_texto, ''),
+		       r.criado_em
+		  FROM rmt_repasse r
+		 WHERE r.status IN ($1, $2) AND r.resolvido_em IS NULL
+		UNION ALL
+		-- As pendentes sem destino. O LEFT JOIN é o que as acha: com o JOIN normal elas
+		-- desapareceriam, que é exatamente o que estava acontecendo.
+		SELECT r.id, r.cobranca_id, r.vendedor_conta, r.valor_centavos, $4,
+		       NULL, '', 'o vendedor ainda nao cadastrou chave pix ou CPF',
+		       r.criado_em
+		  FROM rmt_repasse r
+		  LEFT JOIN rmt_recebedor d ON d.account_id = r.vendedor_conta
+		 WHERE r.status = $3 AND (d.account_id IS NULL OR d.documento IS NULL)
+		 ORDER BY 5 DESC, 9`,
+		repasseRecusado, repasseIncerto, repassePendente, int16(RepasseEsperandoCadastro))
 	if err != nil {
 		return nil, fmt.Errorf("store: repasses parados: %w", err)
 	}
@@ -298,4 +326,29 @@ func (s *Store) ResolverRecusa(ctx context.Context, id int64, ator AtorDoRepasse
 		       recusa_http = NULL, recusa_codigo = NULL, recusa_texto = NULL
 		 WHERE id = $1 AND status = $4`,
 		id, repassePendente, ator.Nome, repasseRecusado)
+}
+
+// RepassesEsperandoCadastro conta as dívidas pendentes cujo vendedor não tem chave ou
+// não tem documento.
+//
+// EXISTE SÓ PARA O NÚMERO APARECER. Essas linhas não entram na fila de pagar — não há
+// para onde mandar —, e antes disso elas também não entravam em contador nenhum: uma
+// varredura com dez delas dizia "nada a fazer". A pessoa ficava esperando o dinheiro
+// dela e o log dizia que estava tudo certo.
+//
+// Consulta separada e não um JOIN na fila de pagar, porque são coisas diferentes: a
+// fila é "o que eu vou tentar mandar agora", e isto é "quanta gente está esperando o
+// próprio cadastro". Misturá-las faria a fila de pagar carregar linhas que ela nunca
+// vai processar.
+func (s *Store) RepassesEsperandoCadastro(ctx context.Context) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx, `
+		SELECT count(*) FROM rmt_repasse r
+		  LEFT JOIN rmt_recebedor d ON d.account_id = r.vendedor_conta
+		 WHERE r.status = $1 AND (d.account_id IS NULL OR d.documento IS NULL)`,
+		repassePendente).Scan(&n)
+	if err != nil {
+		return 0, fmt.Errorf("store: contando repasses sem cadastro: %w", err)
+	}
+	return n, nil
 }

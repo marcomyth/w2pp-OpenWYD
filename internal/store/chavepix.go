@@ -182,6 +182,29 @@ func (s *Store) SalvarChavePix(ctx context.Context, accountID int64, chave strin
 			return ErrVendaEmCurso
 		}
 
+		// E A TRAVA VALE ATÉ O DINHEIRO SAIR, e não só até a venda fechar.
+		//
+		// O golpe que a trava de cima impede tem uma segunda metade que ela não
+		// alcançava: esperar a venda CONCLUIR e trocar a chave antes do repasse. A
+		// chave é lida na hora de pagar, então entre a venda e o saque — dois minutos,
+		// ou dias enquanto a trava do saque estiver desligada — quem entrasse na conta
+		// desviaria o dinheiro de uma venda que já aconteceu.
+		//
+		// PENDENTE, ENVIADO e INCERTO travam. RECUSADO NÃO, e essa exceção é o ponto:
+		// a recusa mais comum é justamente a chave estar errada, e uma trava que
+		// impedisse o vendedor de corrigi-la prenderia o dinheiro dele para sempre — a
+		// trava passaria a causar o problema que ela existe para evitar.
+		var repasses int
+		if err := tx.QueryRow(ctx, `
+			SELECT count(*) FROM rmt_repasse
+			 WHERE vendedor_conta = $1 AND status IN ($2, $3, $4)`,
+			accountID, repassePendente, repasseEnviado, repasseIncerto).Scan(&repasses); err != nil {
+			return fmt.Errorf("store: chave pix: contando repasses a=%d: %w", accountID, err)
+		}
+		if repasses > 0 {
+			return ErrVendaEmCurso
+		}
+
 		// O que havia ANTES, lido antes de sobrescrever: é o "de onde" do rastro.
 		// Nulo aqui significa primeiro cadastro, e não "não sei qual era".
 		var antigaChave *string

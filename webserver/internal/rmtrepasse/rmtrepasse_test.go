@@ -33,8 +33,9 @@ func (p *pontefake) Repassar(_ context.Context, referencia string, centavos int6
 }
 
 type bancofake struct {
-	fila      []store.RepasseAPagar
-	erroAbrir error
+	fila        []store.RepasseAPagar
+	semCadastro int
+	erroAbrir   error
 
 	abertas   []int64
 	enviados  []string
@@ -45,6 +46,10 @@ type bancofake struct {
 
 func (b *bancofake) RepassesAPagar(context.Context, int) ([]store.RepasseAPagar, error) {
 	return b.fila, nil
+}
+
+func (b *bancofake) RepassesEsperandoCadastro(context.Context) (int, error) {
+	return b.semCadastro, nil
 }
 
 func (b *bancofake) AbrirTentativa(_ context.Context, repasseID int64, _ string) (store.TentativaDeRepasse, error) {
@@ -309,3 +314,32 @@ func (g gravador) Enabled(context.Context, slog.Level) bool      { return true }
 func (g gravador) Handle(_ context.Context, r slog.Record) error { g.fn(r); return nil }
 func (g gravador) WithAttrs([]slog.Attr) slog.Handler            { return g }
 func (g gravador) WithGroup(string) slog.Handler                 { return g }
+
+// QUEM ESPERA CADASTRO APARECE NO LOG, mesmo sem nada a pagar.
+//
+// Essas linhas não entram na fila de pagar — não há para onde mandar —, e antes deste
+// contador elas não entravam em contador nenhum. Uma varredura com dez pessoas
+// esperando o próprio cadastro dizia "nada a fazer", e cada uma delas tinha dinheiro a
+// receber sem saber.
+func TestQuemEsperaCadastroAparaceNaRodada(t *testing.T) {
+	p := &pontefake{}
+	b := &bancofake{semCadastro: 3} // fila de pagar VAZIA, e mesmo assim há gente esperando
+
+	rod := Novo(p, b, mudo()).PagarPendentes(context.Background(), 10)
+
+	if rod.EsperandoCadastro != 3 {
+		t.Errorf("esperando_cadastro = %d, quero 3", rod.EsperandoCadastro)
+	}
+	if p.chamadas != 0 {
+		t.Error("chamou a ponte por alguem que nao disse para onde mandar")
+	}
+
+	// E a rodada NÃO é vazia: ela tem o que dizer, então tem de escrever.
+	var linhas []slog.Record
+	log := slog.New(gravador{fn: func(r slog.Record) { linhas = append(linhas, r) }})
+	rod.Registrar(log)
+	if len(linhas) != 1 {
+		t.Errorf("a rodada com gente esperando escreveu %d linha(s); antes ela dizia 'nada a fazer'",
+			len(linhas))
+	}
+}

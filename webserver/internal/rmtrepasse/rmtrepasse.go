@@ -35,6 +35,9 @@ type Ponte interface {
 // Banco é o que o pagamento precisa do banco.
 type Banco interface {
 	RepassesAPagar(ctx context.Context, limite int) ([]store.RepasseAPagar, error)
+	// RepassesEsperandoCadastro conta quem tem dinheiro a receber e ainda não cadastrou
+	// chave ou CPF. Não entra na fila de pagar, e por isso precisa de contador próprio.
+	RepassesEsperandoCadastro(ctx context.Context) (int, error)
 	AbrirTentativa(ctx context.Context, repasseID int64, liberadoPor string) (store.TentativaDeRepasse, error)
 	FecharTentativa(ctx context.Context, tentativaID int64, resultado store.EstadoRepasse,
 		identifierSaque string, httpSyncpay *int32, codigo, texto string) error
@@ -74,6 +77,14 @@ type Rodada struct {
 	Incertos int
 	// Falhas são os erros desta varredura, e não estados da dívida.
 	Falhas int
+	// EsperandoCadastro é quanta gente tem dinheiro a receber e ainda não disse para
+	// onde mandar.
+	//
+	// NÃO É FALHA e não é erro de ninguém, e mesmo assim precisa aparecer: essas linhas
+	// não entram na fila de pagar, então antes deste contador uma varredura com dez
+	// delas dizia "nada a fazer". A pessoa esperava o dinheiro dela e o log dizia que
+	// estava tudo certo.
+	EsperandoCadastro int
 }
 
 // PagarPendentes tenta pagar as dívidas que estão esperando.
@@ -90,6 +101,11 @@ func (s *Servico) PagarPendentes(ctx context.Context, limite int) Rodada {
 	if err != nil {
 		s.log.Error("repasse: nao consegui ler a fila", "err", err)
 		return out
+	}
+	if n, err := s.banco.RepassesEsperandoCadastro(ctx); err != nil {
+		s.log.Error("repasse: nao consegui contar quem espera cadastro", "err", err)
+	} else {
+		out.EsperandoCadastro = n
 	}
 	for _, r := range fila {
 		estado, err := s.pagarUm(ctx, r)
@@ -127,6 +143,7 @@ func (r Rodada) Registrar(log *slog.Logger) {
 	args := []any{
 		"aceitos", r.Aceitos, "recusados", r.Recusados,
 		"incertos", r.Incertos, "falhas", r.Falhas,
+		"esperando_cadastro", r.EsperandoCadastro,
 	}
 	if r.Incertos > 0 {
 		log.Warn("repasse: rodada COM INCERTOS; alguem precisa olhar o painel", args...)

@@ -506,3 +506,142 @@ func TestTentativaNovaSoNasceDePendente(t *testing.T) {
 		t.Errorf("a segunda tentativa nao registrou quem a autorizou: %q", liberado)
 	}
 }
+
+// A TRAVA DA CHAVE VALE ATÉ O DINHEIRO SAIR, e LIBERA quem precisa corrigir.
+//
+// O golpe: esperar a venda CONCLUIR e trocar a chave antes do repasse. A chave é lida na
+// hora de pagar, então entre a venda e o saque — dois minutos, ou dias enquanto a trava
+// do saque estiver desligada — quem entrasse na conta desviaria o dinheiro de uma venda
+// que já aconteceu. A trava antiga só cobria cobrança ABERTA e não alcançava isso.
+//
+// E a segunda metade é tão importante quanto a primeira: no RECUSADO a trava SOLTA. A
+// recusa mais comum é justamente a chave estar errada, e uma trava que impedisse o
+// vendedor de corrigi-la prenderia o dinheiro dele para sempre — ela passaria a causar o
+// problema que existe para evitar.
+func TestTrocarChaveComRepasseEmAbertoERecusadoLiberaNoRecusado(t *testing.T) {
+	s, ctx := freshStore(t)
+	v := montaVenda(ctx, t, s, "trava-repasse")
+	if err := s.SalvarChavePix(ctx, v.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
+		t.Fatal(err)
+	}
+	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := idDoRepasse(ctx, t, s, venda.CobrancaID)
+
+	trocar := func() error {
+		return s.SalvarChavePix(ctx, v.vendedor, "ladrao@exemplo.com", ChavePixEmail, "52998224725")
+	}
+
+	// PENDENTE: travado. A venda já aconteceu e o dinheiro ainda não saiu.
+	if err := trocar(); !errors.Is(err, ErrVendaEmCurso) {
+		t.Errorf("pendente: erro = %v, quero ErrVendaEmCurso", err)
+	}
+
+	// ENVIADO: travado. O saque está a caminho da chave que valia.
+	if err := s.MarcarRepasseEnviado(ctx, id, "saque-1", precoEmCentavos); err != nil {
+		t.Fatal(err)
+	}
+	if err := trocar(); !errors.Is(err, ErrVendaEmCurso) {
+		t.Errorf("enviado: erro = %v, quero ErrVendaEmCurso", err)
+	}
+
+	// INCERTO: travado, e é o mais importante dos três — o dinheiro PODE já ter saído
+	// para a chave antiga, e trocar agora embaralharia quem recebeu o quê.
+	s2, ctx2 := freshStore(t)
+	v2 := montaVenda(ctx2, t, s2, "trava-incerto")
+	if err := s2.SalvarChavePix(ctx2, v2.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
+		t.Fatal(err)
+	}
+	_, venda2, err := s2.ConfirmarCobrancaRMT(ctx2, v2.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2 := idDoRepasse(ctx2, t, s2, venda2.CobrancaID)
+	if err := s2.MarcarRepasseIncerto(ctx2, id2, "a resposta nao voltou"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s2.SalvarChavePix(ctx2, v2.vendedor, "outra@exemplo.com", ChavePixEmail, "52998224725"); !errors.Is(err, ErrVendaEmCurso) {
+		t.Errorf("incerto: erro = %v, quero ErrVendaEmCurso", err)
+	}
+
+	// RECUSADO: LIBERA. Sem isto, o vendedor cuja chave estava errada nunca conseguiria
+	// corrigi-la, e o dinheiro dele ficaria preso para sempre.
+	s3, ctx3 := freshStore(t)
+	v3 := montaVenda(ctx3, t, s3, "trava-recusado")
+	if err := s3.SalvarChavePix(ctx3, v3.vendedor, "errada@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
+		t.Fatal(err)
+	}
+	_, venda3, err := s3.ConfirmarCobrancaRMT(ctx3, v3.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id3 := idDoRepasse(ctx3, t, s3, venda3.CobrancaID)
+	http := int32(422)
+	if err := s3.MarcarRepasseRecusado(ctx3, id3, &http, "PIX_KEY_NOT_FOUND", "chave nao existe"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s3.SalvarChavePix(ctx3, v3.vendedor, "certa@exemplo.com", ChavePixEmail, "52998224725"); err != nil {
+		t.Errorf("recusado: a trava prendeu quem precisava corrigir a chave: %v", err)
+	}
+}
+
+// QUEM NÃO TEM CADASTRO APARECE NA FILA DE GENTE, com o motivo.
+//
+// Antes disto essas linhas eram invisíveis: o JOIN da fila de pagar as excluía e nenhum
+// contador as mencionava. A pessoa tinha dinheiro a receber, não sabia, e o log dizia
+// que estava tudo certo.
+func TestQuemNaoTemCadastroApareceNaFilaDeGente(t *testing.T) {
+	s, ctx := freshStore(t)
+	v := montaVenda(ctx, t, s, "sem-cadastro")
+	// A venda conclui SEM o vendedor ter cadastrado chave.
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos); err != nil {
+		t.Fatal(err)
+	}
+
+	// Não está na fila de pagar: não há para onde mandar.
+	pagar, err := s.RepassesAPagar(ctx, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pagar) != 0 {
+		t.Errorf("a fila de pagar tem %d linha(s) sem destino", len(pagar))
+	}
+
+	// MAS aparece na fila de gente, com o motivo — e é essa a diferença.
+	gente, err := s.RepassesQuePrecisamDeGente(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gente) != 1 {
+		t.Fatalf("fila de gente = %d linhas, quero 1", len(gente))
+	}
+	if gente[0].Estado != RepasseEsperandoCadastro {
+		t.Errorf("estado = %v, quero esperando-cadastro", gente[0].Estado)
+	}
+	if gente[0].RecusaTexto == "" {
+		t.Error("a linha nao diz por que esta parada")
+	}
+
+	// E o contador existe, para o número aparecer no log da varredura.
+	n, err := s.RepassesEsperandoCadastro(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("contador = %d, quero 1", n)
+	}
+
+	// Cadastrando, ela sai da fila de gente e entra na de pagar. É o que prova que a
+	// espera é do cadastro e não de outra coisa.
+	if err := s.SalvarChavePix(ctx, v.vendedor, "v@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
+		t.Fatal(err)
+	}
+	if pagar, err = s.RepassesAPagar(ctx, 10); err != nil || len(pagar) != 1 {
+		t.Errorf("depois do cadastro: fila de pagar = %d, err = %v", len(pagar), err)
+	}
+	if n, err = s.RepassesEsperandoCadastro(ctx); err != nil || n != 0 {
+		t.Errorf("depois do cadastro: contador = %d, err = %v", n, err)
+	}
+}
