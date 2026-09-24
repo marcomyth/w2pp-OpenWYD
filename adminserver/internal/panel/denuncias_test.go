@@ -115,7 +115,9 @@ func TestAPaginaMostraORelatoEOContexto(t *testing.T) {
 	if !strings.Contains(body, "o cara ali esta usando bot") {
 		t.Error("o relato não apareceu")
 	}
-	if !strings.Contains(body, "2800") || !strings.Contains(body, "2600") {
+	// AS DUAS JUNTAS, como a página as escreve: soltas, cada uma casaria com
+	// qualquer número maior que por acaso as contivesse.
+	if !strings.Contains(body, "(2800, 2600)") {
 		t.Error("a posição não apareceu")
 	}
 	// The coordinates alone are two numbers; the region is what a person reads.
