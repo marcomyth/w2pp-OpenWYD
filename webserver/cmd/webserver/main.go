@@ -32,6 +32,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/authz"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/characters"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/dailyreward"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/doacaovarredura"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/donaterevenue"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/donateshop"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/donatetopup"
@@ -356,6 +357,21 @@ func run(logger *slog.Logger) error {
 			clientePonte, st, logger)
 		go varrerCobrancas(ctx, varredura)
 		logger.Info("conferencia antes de vencer ligada", "intervalo", intervaloDaConferencia)
+
+		// A REDE EMBAIXO DO AVISO DA DOAÇÃO.
+		//
+		// A doação tinha um caminho só para virar crédito: a processadora avisa o
+		// site, o site chama o ConfirmTopupOrder. Um aviso perdido era dinheiro
+		// cobrado e Rcoin nunca dado, sem nada aqui capaz de perceber — o servidor
+		// nunca tinha visto o id da processadora.
+		//
+		// Agora o site entrega o id (AttachTopupCharge) e esta varredura pergunta.
+		doacoes := doacaovarredura.Nova(doacaovarredura.DaPonte{Cliente: clientePonte},
+			doacaovarredura.DoServico{Servico: topup}, st, logger)
+		go varrerDoacoes(ctx, doacoes)
+		logger.Info("conferencia da doacao ligada",
+			"intervalo_novos", intervaloDaConferencia, "intervalo_resto", intervaloDasMortas,
+			"janela_de_novo", janelaDoPedidoNovo, "janela", store.JanelaDaCobrancaMorta)
 		logger.Info("caminho do pagamento em dinheiro real ligado")
 	} else {
 		logger.Warn("caminho do pagamento em dinheiro real DESLIGADO: sem a ponte, " +
@@ -504,6 +520,46 @@ func varrerCobrancas(ctx context.Context, v *rmtvarredura.Varredura) {
 			conferencia := v.ConferirMortas(prazo)
 			reembolsos := v.Devolver(prazo)
 			v.Registrar(prazo, conferencia, reembolsos)
+			cancela()
+		}
+	}
+}
+
+// janelaDoPedidoNovo é até quando um pedido de doação conta como "recém-feito".
+//
+// DEZ MINUTOS, e o número sai do comportamento de quem paga: quem vai pagar um Pix
+// paga nos primeiros minutos, com a tela aberta. Nessa faixa a varredura roda junto
+// com a das cobranças, a cada 20 segundos, porque é a faixa em que alguém está
+// esperando o crédito aparecer.
+//
+// Passados os dez minutos o pedido não some da varredura: ele cai na passada rara,
+// que o alcança por 48 horas. O que muda é só a pressa.
+const janelaDoPedidoNovo = 10 * time.Minute
+
+// varrerDoacoes confere os pedidos de doação pendentes, em duas cadências.
+//
+// AS DUAS NO MESMO SELECT e numa goroutine só, como as outras: é a trava mais
+// simples contra duas rodadas se cruzarem.
+//
+// Por que duas: a rápida serve quem está com a tela aberta; a rara existe porque o
+// código Pix continua pagável depois, e um carrinho abandonado não pode custar uma
+// consulta a cada 20 segundos por dois dias.
+func varrerDoacoes(ctx context.Context, v *doacaovarredura.Varredura) {
+	novos := time.NewTicker(intervaloDaConferencia)
+	defer novos.Stop()
+	resto := time.NewTicker(intervaloDasMortas)
+	defer resto.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-novos.C:
+			prazo, cancela := context.WithTimeout(ctx, intervaloDaConferencia)
+			v.Registrar(prazo, v.Conferir(prazo, janelaDoPedidoNovo))
+			cancela()
+		case <-resto.C:
+			prazo, cancela := context.WithTimeout(ctx, intervaloDasMortas)
+			v.Registrar(prazo, v.Conferir(prazo, store.JanelaDaCobrancaMorta))
 			cancela()
 		}
 	}

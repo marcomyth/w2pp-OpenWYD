@@ -3241,6 +3241,7 @@ const (
 	DonateTopupService_CreateTopupOrder_FullMethodName  = "/web.v1.DonateTopupService/CreateTopupOrder"
 	DonateTopupService_ConfirmTopupOrder_FullMethodName = "/web.v1.DonateTopupService/ConfirmTopupOrder"
 	DonateTopupService_GetTopupOrder_FullMethodName     = "/web.v1.DonateTopupService/GetTopupOrder"
+	DonateTopupService_AttachTopupCharge_FullMethodName = "/web.v1.DonateTopupService/AttachTopupCharge"
 )
 
 // DonateTopupServiceClient is the client API for DonateTopupService service.
@@ -3266,6 +3267,31 @@ type DonateTopupServiceClient interface {
 	CreateTopupOrder(ctx context.Context, in *CreateTopupOrderRequest, opts ...grpc.CallOption) (*CreateTopupOrderResponse, error)
 	ConfirmTopupOrder(ctx context.Context, in *ConfirmTopupOrderRequest, opts ...grpc.CallOption) (*ConfirmTopupOrderResponse, error)
 	GetTopupOrder(ctx context.Context, in *GetTopupOrderRequest, opts ...grpc.CallOption) (*GetTopupOrderResponse, error)
+	// AttachTopupCharge records the gateway's OWN id for an order, so the server
+	// can ask the processor about it later instead of waiting to be told.
+	//
+	// WHY IT EXISTS: until this call, a donation had exactly one path to being
+	// credited — the gateway notifies the site, the site calls ConfirmTopupOrder.
+	// A lost notification meant money charged and credits never given, with
+	// nothing on the server able to notice, because the server had never seen the
+	// gateway's id and cannot ask about a payment it cannot name.
+	//
+	// The site creates the donation charge itself and gets that id back. This
+	// hands it over, and a sweep then polls the pending orders exactly the way the
+	// marketplace already polls its charges. The notification stays the fast path;
+	// the sweep is the net underneath it.
+	//
+	// IDEMPOTENT, and refusing in two directions. The same order cannot be given a
+	// DIFFERENT id, and the same id cannot be attached to a SECOND order — the
+	// second refusal is the one that matters, because that is how one payment
+	// would credit two orders.
+	//
+	// IT MUST NOT BREAK THE PURCHASE. If this call fails, the site shows the Pix
+	// code anyway and logs: the player is in the middle of paying, and a failure
+	// to set up our safety net is not a reason to refuse their money. What is lost
+	// is the net under THAT order, and the count of orders without an id is what
+	// makes that visible.
+	AttachTopupCharge(ctx context.Context, in *AttachTopupChargeRequest, opts ...grpc.CallOption) (*AttachTopupChargeResponse, error)
 }
 
 type donateTopupServiceClient struct {
@@ -3326,6 +3352,16 @@ func (c *donateTopupServiceClient) GetTopupOrder(ctx context.Context, in *GetTop
 	return out, nil
 }
 
+func (c *donateTopupServiceClient) AttachTopupCharge(ctx context.Context, in *AttachTopupChargeRequest, opts ...grpc.CallOption) (*AttachTopupChargeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AttachTopupChargeResponse)
+	err := c.cc.Invoke(ctx, DonateTopupService_AttachTopupCharge_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DonateTopupServiceServer is the server API for DonateTopupService service.
 // All implementations must embed UnimplementedDonateTopupServiceServer
 // for forward compatibility.
@@ -3349,6 +3385,31 @@ type DonateTopupServiceServer interface {
 	CreateTopupOrder(context.Context, *CreateTopupOrderRequest) (*CreateTopupOrderResponse, error)
 	ConfirmTopupOrder(context.Context, *ConfirmTopupOrderRequest) (*ConfirmTopupOrderResponse, error)
 	GetTopupOrder(context.Context, *GetTopupOrderRequest) (*GetTopupOrderResponse, error)
+	// AttachTopupCharge records the gateway's OWN id for an order, so the server
+	// can ask the processor about it later instead of waiting to be told.
+	//
+	// WHY IT EXISTS: until this call, a donation had exactly one path to being
+	// credited — the gateway notifies the site, the site calls ConfirmTopupOrder.
+	// A lost notification meant money charged and credits never given, with
+	// nothing on the server able to notice, because the server had never seen the
+	// gateway's id and cannot ask about a payment it cannot name.
+	//
+	// The site creates the donation charge itself and gets that id back. This
+	// hands it over, and a sweep then polls the pending orders exactly the way the
+	// marketplace already polls its charges. The notification stays the fast path;
+	// the sweep is the net underneath it.
+	//
+	// IDEMPOTENT, and refusing in two directions. The same order cannot be given a
+	// DIFFERENT id, and the same id cannot be attached to a SECOND order — the
+	// second refusal is the one that matters, because that is how one payment
+	// would credit two orders.
+	//
+	// IT MUST NOT BREAK THE PURCHASE. If this call fails, the site shows the Pix
+	// code anyway and logs: the player is in the middle of paying, and a failure
+	// to set up our safety net is not a reason to refuse their money. What is lost
+	// is the net under THAT order, and the count of orders without an id is what
+	// makes that visible.
+	AttachTopupCharge(context.Context, *AttachTopupChargeRequest) (*AttachTopupChargeResponse, error)
 	mustEmbedUnimplementedDonateTopupServiceServer()
 }
 
@@ -3373,6 +3434,9 @@ func (UnimplementedDonateTopupServiceServer) ConfirmTopupOrder(context.Context, 
 }
 func (UnimplementedDonateTopupServiceServer) GetTopupOrder(context.Context, *GetTopupOrderRequest) (*GetTopupOrderResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTopupOrder not implemented")
+}
+func (UnimplementedDonateTopupServiceServer) AttachTopupCharge(context.Context, *AttachTopupChargeRequest) (*AttachTopupChargeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AttachTopupCharge not implemented")
 }
 func (UnimplementedDonateTopupServiceServer) mustEmbedUnimplementedDonateTopupServiceServer() {}
 func (UnimplementedDonateTopupServiceServer) testEmbeddedByValue()                            {}
@@ -3485,6 +3549,24 @@ func _DonateTopupService_GetTopupOrder_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DonateTopupService_AttachTopupCharge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AttachTopupChargeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DonateTopupServiceServer).AttachTopupCharge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DonateTopupService_AttachTopupCharge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DonateTopupServiceServer).AttachTopupCharge(ctx, req.(*AttachTopupChargeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DonateTopupService_ServiceDesc is the grpc.ServiceDesc for DonateTopupService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -3511,6 +3593,10 @@ var DonateTopupService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTopupOrder",
 			Handler:    _DonateTopupService_GetTopupOrder_Handler,
+		},
+		{
+			MethodName: "AttachTopupCharge",
+			Handler:    _DonateTopupService_AttachTopupCharge_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -229,6 +229,18 @@ type RespostaConsulta struct {
 	Status        string `json:"status"`
 	ValorCentavos int64  `json:"valorCentavos"`
 	Referencia    string `json:"referencia"`
+	// Descricao e o texto CRU que a processadora guardou, sem ninguem interpretar.
+	//
+	// O campo burro existe porque a `Referencia` acima e interpretada: a ponte so a
+	// preenche quando o texto tem a marca do mercado. A doacao escreve a referencia
+	// dela noutro formato, e quem sabe ler cada formato e quem o escreveu — nao a
+	// ponte, que teria de aprender todos e virar o lugar que alguem esquece de mexer.
+	//
+	// VAZIO SIGNIFICA "NAO SEI", E NUNCA "NAO TEM". A ponte em producao so passa a
+	// mandar este campo no proximo git pull da VPS; ate la ele chega ausente em toda
+	// resposta. Quem confere pagamento com ele tem de recusar o vazio, e nao tratar a
+	// ausencia como prova de nada.
+	Descricao string `json:"descricao"`
 	// PagoEm e DevolvidoEm são ponteiros porque NULO e "zero" são coisas
 	// diferentes: nulo quer dizer "a processadora não disse", e é isso que faz o
 	// servidor cair para o próprio relógio. Um time.Time zero diria "1 de janeiro

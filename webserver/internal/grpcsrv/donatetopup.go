@@ -8,6 +8,7 @@ import (
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
+	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/donatetopup"
 )
 
@@ -19,6 +20,9 @@ type DonateTopup interface {
 	CreateTopupOrder(ctx context.Context, o domain.TopupOrder) (donatetopup.Result, int64, error)
 	ConfirmTopupOrder(ctx context.Context, externalRef string) (donatetopup.ConfirmOutcome, int64, error)
 	GetTopupOrder(ctx context.Context, externalRef string, accountID int64) (status int16, credits int32, newBalance int64, err error)
+	// AnexarIdentifier guarda o id da processadora, para a varredura poder perguntar
+	// sobre o pagamento em vez de esperar ser avisada.
+	AnexarIdentifier(ctx context.Context, externalRef, identifier string) (store.ResultadoAnexo, error)
 }
 
 // DonateTopupServer implements webv1.DonateTopupServiceServer.
@@ -128,4 +132,41 @@ func topupStatusToProto(st int16) webv1.TopupStatus {
 	default:
 		return webv1.TopupStatus_TOPUP_STATUS_UNSPECIFIED
 	}
+}
+
+// AttachTopupCharge guarda o id da processadora para um pedido de doação.
+//
+// AS RECUSAS VIAJAM NO ENUM e não como erro de transporte, pelo mesmo motivo do
+// resto deste arquivo: o site precisa saber O QUE aconteceu. "Já tinha este id" é
+// uma repetição e não é nada; "este id já está em outro pedido" é bug ou ataque, e
+// tem de virar alarme do lado de lá. Um código de erro gRPC não carrega essa
+// diferença, e o site trataria as duas como falha de rede.
+func (s *DonateTopupServer) AttachTopupCharge(ctx context.Context,
+	req *webv1.AttachTopupChargeRequest,
+) (*webv1.AttachTopupChargeResponse, error) {
+	res, err := s.topup.AnexarIdentifier(ctx, req.GetExternalReference(), req.GetGatewayIdentifier())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "attach topup charge: %v", err)
+	}
+	return &webv1.AttachTopupChargeResponse{Result: anexoParaProto(res)}, nil
+}
+
+// anexoParaProto traduz explicitamente, e o default é UNSPECIFIED e não um palpite:
+// um resultado novo que chegasse aqui sem tradução não pode virar "deu certo".
+func anexoParaProto(r store.ResultadoAnexo) webv1.AttachResult {
+	switch r {
+	case store.AnexoGravado:
+		return webv1.AttachResult_ATTACH_RESULT_ATTACHED
+	case store.AnexoRepetido:
+		return webv1.AttachResult_ATTACH_RESULT_ALREADY
+	case store.AnexoConflitoDePedido:
+		return webv1.AttachResult_ATTACH_RESULT_CONFLICT_ORDER
+	case store.AnexoConflitoDeIdentifier:
+		return webv1.AttachResult_ATTACH_RESULT_CONFLICT_IDENTIFIER
+	case store.AnexoPedidoInexistente:
+		return webv1.AttachResult_ATTACH_RESULT_NOT_FOUND
+	case store.AnexoJaPago:
+		return webv1.AttachResult_ATTACH_RESULT_ALREADY_PAID
+	}
+	return webv1.AttachResult_ATTACH_RESULT_UNSPECIFIED
 }

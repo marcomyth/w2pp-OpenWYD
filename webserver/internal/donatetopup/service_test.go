@@ -11,13 +11,19 @@ import (
 // fakeStore is an in-memory Store for exercising validation and outcome mapping
 // without a database.
 type fakeStore struct {
-	profiles  map[int64]profile     // account_id -> saved profile
-	orders    map[string]*fakeOrder // external_reference -> order
-	owners    map[string]int64      // external_reference -> owning account
-	balances  map[int64]int32       // account_id -> donate balance
-	accounts  map[int64]bool        // existing accounts (for FK checks)
-	saveErr   error                 // forces SavePayerProfile to return this
-	createErr error                 // forces CreateTopupOrder to return this
+	profiles map[int64]profile     // account_id -> saved profile
+	orders   map[string]*fakeOrder // external_reference -> order
+	owners   map[string]int64      // external_reference -> owning account
+	balances map[int64]int32       // account_id -> donate balance
+	accounts map[int64]bool        // existing accounts (for FK checks)
+
+	// O id da processadora anexado ao pedido.
+	anexouRef      string
+	anexouID       string
+	anexoResultado store.ResultadoAnexo
+	anexoErro      error
+	saveErr        error // forces SavePayerProfile to return this
+	createErr      error // forces CreateTopupOrder to return this
 
 	// Pacotes: o que a tabela do servidor responderia, e quem é staff.
 	pacotes      map[string]store.PacoteDoacao
@@ -463,4 +469,11 @@ func TestPacoteDeStaffParaJogadorEForbidden(t *testing.T) {
 	if id != 0 || len(f.orders) != 0 {
 		t.Errorf("criou ordem: id=%d ordens=%d", id, len(f.orders))
 	}
+}
+
+// AnexarIdentifierDoTopup: a fake guarda o que foi pedido, e devolve o que o teste
+// mandar. Quem tem a regra é o store de verdade.
+func (f *fakeStore) AnexarIdentifierDoTopup(_ context.Context, ref, identifier string) (store.ResultadoAnexo, error) {
+	f.anexouRef, f.anexouID = ref, identifier
+	return f.anexoResultado, f.anexoErro
 }

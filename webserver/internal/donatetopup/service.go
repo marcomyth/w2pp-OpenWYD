@@ -34,6 +34,8 @@ type Store interface {
 	// vale são os números da tabela do servidor; os do pedido são conferidos.
 	ConferirPacote(ctx context.Context, id string, ehStaff bool,
 		creditsPedidos int32, centavosPedidos int64) (store.PacoteDoacao, error)
+	// AnexarIdentifierDoTopup guarda o id da processadora no pedido.
+	AnexarIdentifierDoTopup(ctx context.Context, externalRef, identifier string) (store.ResultadoAnexo, error)
 }
 
 // Result is the business outcome of a profile/create operation, mirroring
@@ -189,6 +191,15 @@ func (s *Service) CreateTopupOrder(ctx context.Context, o domain.TopupOrder) (Re
 	default:
 		return Invalid, 0, fmt.Errorf("donatetopup: create order ref=%q: %w", o.ExternalReference, err)
 	}
+}
+
+// AnexarIdentifier repassa ao banco o id da processadora que o site entregou.
+//
+// Sem regra própria: quem decide aceitar, recusar ou dizer "já tinha" é o store, com
+// a linha travada e o índice único. Este método existe para o caminho ser o mesmo dos
+// outros — o servidor gRPC fala com o serviço, e não com o banco.
+func (s *Service) AnexarIdentifier(ctx context.Context, externalRef, identifier string) (store.ResultadoAnexo, error) {
+	return s.store.AnexarIdentifierDoTopup(ctx, externalRef, identifier)
 }
 
 // ConfirmTopupOrder settles a paid order idempotently, returning the outcome and
