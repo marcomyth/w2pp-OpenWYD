@@ -258,6 +258,78 @@ message GetPixKeyResponse {
   // Empty when no CPF was ever saved, which is every seller registered before
   // this field existed.
   string masked_tax_id = 5;
+
+  // THE MONEY OWED TO THIS SELLER THAT HAS NOT REACHED THEM YET, in cents, added
+  // up across every sale.
+  //
+  // It lives on the KEY response, and that placement is the point: the page that
+  // shows "you already registered ...1234" is the page where somebody goes when
+  // they are wondering where their money is. A separate call would be a separate
+  // screen nobody opens.
+  //
+  // A TOTAL AND NOTHING ELSE. No sale, no date, no buyer — for the same reason
+  // the key comes back masked. Somebody reading over a shoulder, or a screenshot
+  // in a Discord channel, should not learn what this person sold and to whom.
+  // The detail belongs to staff, who can be asked.
+  //
+  // ZERO MEANS ONE OF TWO THINGS, and the page cannot tell them apart: nothing is
+  // owed, OR the total could not be read. A failure while adding it up does NOT
+  // fail the call — it returns zero with UNSPECIFIED and logs on the server.
+  //
+  // The reason is that this field rides along on the KEY response, and the key
+  // response is what the form needs to work. That form is where an incomplete
+  // registration gets fixed, and an incomplete registration is the most common
+  // cause of money sitting still: letting a failed total take down the whole
+  // answer would black out the very screen that solves the problem.
+  //
+  // WHAT THE PAGE MUST NOT DO, therefore, is write "you have nothing to receive"
+  // in so many words on a zero. Showing no line at all is the honest rendering of
+  // "nothing pending, or we could not tell".
+  //
+  // Zero is also NOT the same as "paid": a payout that arrived stops being owed
+  // and leaves this total.
+  int64 pending_payout_cents = 6;
+
+  // Why it has not arrived, so the page can say something other than "wait".
+  //
+  // UNSPECIFIED when pending_payout_cents is zero — both when nothing is owed,
+  // with no waiting to explain, and when the total could not be read.
+  PayoutWaitReason payout_wait_reason = 7;
+}
+
+// PayoutWaitReason answers the only question a seller with money owed actually
+// has: is this on me, or on you?
+//
+// THE ORDER OF PRECEDENCE is NO_KEY_OR_TAX_ID, then NEEDS_STAFF, then
+// IN_PROGRESS. Registration wins because it is the only one the person can do
+// something about: telling somebody "we are looking into it" while their own
+// registration is what blocks the payment leaves them waiting for a day that
+// never comes.
+//
+// The first two cannot both be true today — a payout only reaches a staff state
+// after an attempt, an attempt requires the document, and a stored document is
+// never removed. The order is written because the choice had to be made
+// somewhere, not because the case occurs.
+enum PayoutWaitReason {
+  PAYOUT_WAIT_REASON_UNSPECIFIED = 0;
+  // NO_KEY_OR_TAX_ID: the registration is incomplete, so there is nowhere to
+  // send the money. This is the seller's to fix, and finishing the form puts the
+  // payment in the queue by itself.
+  //
+  // It is the common case for anybody who sold before the CPF became required:
+  // the key is there and the document is not.
+  PAYOUT_WAIT_REASON_NO_KEY_OR_TAX_ID = 1;
+  // IN_PROGRESS: the registration is complete and the payment is on its way, or
+  // is about to be. Nothing to do but wait, and the wait is minutes.
+  PAYOUT_WAIT_REASON_IN_PROGRESS = 2;
+  // NEEDS_STAFF: the payment was refused, or the answer never came back and we
+  // do not know whether it left. A person has to look at it.
+  //
+  // The page must NOT tell the seller to redo anything here. A refusal caused by
+  // a wrong key is fixed by correcting the key, which is allowed precisely in
+  // this state — but a refusal has other causes, and "try again" as blanket
+  // advice would have people editing a correct key for nothing.
+  PAYOUT_WAIT_REASON_NEEDS_STAFF = 3;
 }
 
 // PixChargeState is where the buyer's charge stands.
