@@ -50,6 +50,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ponte"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ranking"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/rmtpagamento"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/rmtrepasse"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/worldevent"
 )
 
@@ -327,6 +328,21 @@ func run(logger *slog.Logger) error {
 		pagamentos := rmtpagamento.Novo(adaptador, st, jogoDoPagamento, logger)
 		webv1.RegisterRmtSystemServiceServer(srv, grpcsrv.NewRmtSistema(pagamentos, logger))
 		rmtSrv = rmtSrv.ComCriadorDePix(adaptador.CriarPix, nomeDeItem(itemCatalog), logger)
+
+		// O PAGAMENTO AO VENDEDOR, numa varredura de fundo.
+		//
+		// Varredura e não gatilho na confirmação da venda, de propósito: o repasse pode
+		// falhar por coisas que não têm nada a ver com a venda — a chave do vendedor
+		// ainda não cadastrada, o teto diário da ponte, a trava do saque desligada — e
+		// amarrar o pagamento ao instante da compra faria a venda carregar o risco de
+		// todas elas.
+		//
+		// O intervalo é longo porque a pressa aqui não vale nada: o vendedor espera
+		// minutos e ninguém fica bloqueado. O que importa é que a fila ANDE, e ande
+		// sozinha, e não que ande rápido.
+		repasses := rmtrepasse.Novo(clientePonte, st, logger)
+		go varrerRepasses(ctx, repasses, logger)
+		logger.Info("repasse ao vendedor ligado", "intervalo", intervaloDoRepasse)
 		logger.Info("caminho do pagamento em dinheiro real ligado")
 	} else {
 		logger.Warn("caminho do pagamento em dinheiro real DESLIGADO: sem a ponte, " +
@@ -403,4 +419,35 @@ func nomeDeItem(c itemcatalog.Catalog) grpcsrv.NomeDeItem {
 		porIndice[e.Index] = e.DisplayName
 	}
 	return func(i int32) string { return porIndice[i] }
+}
+
+// intervaloDoRepasse é de quanto em quanto tempo a fila de pagamento anda.
+//
+// LONGO DE PROPÓSITO. A pressa aqui não vale nada: o vendedor espera minutos, ninguém
+// fica bloqueado, e cada rodada move dinheiro de verdade. O que importa é que a fila
+// ande sozinha, e não que ande rápido — uma varredura curta multiplicaria as chances de
+// duas rodadas se cruzarem sem comprar nada em troca.
+const intervaloDoRepasse = 2 * time.Minute
+
+// varrerRepasses paga a fila de tempos em tempos, até o servidor parar.
+//
+// Roda numa goroutine só, e essa é a trava mais simples que existe contra duas rodadas
+// se cruzarem. A do banco continua valendo — o estado PENDENTE conferido com a linha
+// travada —, e ela é a que vale se um dia houver duas réplicas do webserver. Esta aqui
+// é a que dispensa pensar no caso comum.
+func varrerRepasses(ctx context.Context, s *rmtrepasse.Servico, log *slog.Logger) {
+	t := time.NewTicker(intervaloDoRepasse)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			// Prazo por rodada: uma ponte lenta não pode segurar a varredura para
+			// sempre, e a rodada seguinte pega o que sobrou.
+			prazo, cancela := context.WithTimeout(ctx, intervaloDoRepasse)
+			s.PagarPendentes(prazo, 20).Registrar(log)
+			cancela()
+		}
+	}
 }

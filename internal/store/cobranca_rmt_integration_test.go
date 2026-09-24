@@ -48,6 +48,16 @@ func montaVenda(ctx context.Context, t *testing.T, s *Store, sufixo string) vend
 		comprador: contaPix(ctx, t, s, "comprador_"+sufixo),
 		ref:       "ref-" + sufixo,
 	}
+	// A CHAVE DO VENDEDOR NASCE ANTES DO ANÚNCIO, porque é assim no jogo: o
+	// AbrirAnunciosRMT recusa anunciar sem chave (ErrSemChavePix). Um vendedor que
+	// anuncia sem ter cadastrado NÃO EXISTE, e um teste que monta esse estado está
+	// medindo uma situação que o sistema não produz.
+	//
+	// E cadastrar DEPOIS do anúncio também não dá: a trava da chave recusa enquanto há
+	// cobrança aberta. Antes é o único momento em que cabe, e é o momento real.
+	if err := s.SalvarChavePix(ctx, v.vendedor, "vendedor@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
+		t.Fatalf("cadastrando a chave do vendedor: %v", err)
+	}
 	if err := s.pool.QueryRow(ctx, `
 		INSERT INTO rmt_anuncio (vendedor_conta, cargo_slot, item_index, eff1, effv1, preco_centavos, status)
 		VALUES ($1, 3, $2, 7, 9, $3, 1) RETURNING id`,

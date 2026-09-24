@@ -356,3 +356,20 @@ func TestDataVaziaContaComoNula(t *testing.T) {
 		t.Errorf("hora = %v, quero nula", r.PagoEm.Valor())
 	}
 }
+
+// O MAPA DO TIPO DE CHAVE É EXPLÍCITO, e um tipo que ele não conhece devolve VAZIO.
+//
+// Vazio é o que faz quem chama recusar antes de mandar. Se um tipo desconhecido virasse
+// um texto qualquer, o dinheiro sairia para o tipo errado de chave e a processadora
+// recusaria sem dizer por quê — ou pior, encontraria outra chave.
+func TestTipoDeChaveNaPonte(t *testing.T) {
+	casos := map[int16]string{
+		1: "cpf", 2: "email", 3: "phone", 4: "evp",
+		0: "", 5: "", 99: "", -1: "",
+	}
+	for tipo, quer := range casos {
+		if got := TipoDeChaveNaPonte(tipo); got != quer {
+			t.Errorf("tipo %d = %q, quero %q", tipo, got, quer)
+		}
+	}
+}

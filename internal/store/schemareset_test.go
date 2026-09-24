@@ -24,6 +24,10 @@ var tabelasDeTeste = []string{
 	// As três da venda em dinheiro real vêm primeiro porque são as mais filhas
 	// que existem: rmt_cobranca aponta para rmt_anuncio E para delivery_queue,
 	// que está lá no fim desta lista.
+	// Aponta para rmt_repasse, então vem antes dele.
+	"rmt_repasse_tentativa",
+	// Aponta para rmt_cobranca e para account, então vem antes das duas.
+	"rmt_repasse",
 	"rmt_recebedor_historico",
 	// Não aponta para ninguém — dinheiro que entrou e NÃO achou cobrança não pode
 	// depender de uma cobrança existir —, então a posição aqui é indiferente.
