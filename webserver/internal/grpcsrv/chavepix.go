@@ -21,6 +21,10 @@ type ChavesPix interface {
 	SalvarChavePix(ctx context.Context, accountID int64, chave string,
 		tipo store.TipoChavePix, documento string) error
 	LerChavePix(ctx context.Context, accountID int64) (store.RecebedorPix, error)
+	// RepasseDoVendedor é quanto esta conta tem a receber e por que ainda não
+	// chegou. Sai na MESMA resposta da chave, porque a página da chave é onde a
+	// pessoa vai quando está procurando o dinheiro dela.
+	RepasseDoVendedor(ctx context.Context, accountID int64) (int64, store.MotivoDaEspera, error)
 	// CobrancaAtualDoComprador é a única leitura feita para quem PAGA: a cobrança
 	// aberta da conta, ou a que fechou há pouco. Ver store/cobranca_do_comprador.go.
 	CobrancaAtualDoComprador(ctx context.Context, compradorConta int64,
@@ -159,13 +163,46 @@ func (s *ServerRmt) GetPixKey(ctx context.Context, req *webv1.GetPixKeyRequest) 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get pix key: %v", err)
 	}
+	// O QUE HÁ A RECEBER SAI JUNTO, e uma falha aqui NÃO derruba a resposta.
+	//
+	// São duas perguntas de peso diferente na mesma chamada: "qual é a minha chave"
+	// é o que o formulário precisa para funcionar, e "quanto eu tenho a receber" é
+	// informação. Deixar a segunda derrubar a primeira tiraria do ar a única tela
+	// onde a pessoa conserta o cadastro — e o cadastro incompleto é justamente a
+	// causa mais comum de haver dinheiro parado.
+	//
+	// Na falha vai zero com motivo UNSPECIFIED, que é o que a tela já sabe mostrar
+	// como "nada pendente". Ela erra para o lado de não afirmar nada.
+	pendente, motivo, err := s.pix.RepasseDoVendedor(ctx, req.GetAccountId())
+	if err != nil {
+		s.log.ErrorContext(ctx, "lendo o repasse pendente do vendedor",
+			"account_id", req.GetAccountId(), "erro", err)
+		pendente, motivo = 0, store.SemEspera
+	}
 	return &webv1.GetPixKeyResponse{
-		HasKey:      r.TemChave,
-		MaskedKey:   r.ChaveMascarada,
-		Type:        tipoParaProto(r.Tipo),
-		Verified:    r.Verificada,
-		MaskedTaxId: r.DocumentoMascarado,
+		HasKey:             r.TemChave,
+		MaskedKey:          r.ChaveMascarada,
+		Type:               tipoParaProto(r.Tipo),
+		Verified:           r.Verificada,
+		MaskedTaxId:        r.DocumentoMascarado,
+		PendingPayoutCents: pendente,
+		PayoutWaitReason:   motivoParaProto(motivo),
 	}, nil
+}
+
+// motivoParaProto traduz o motivo da espera. O default é UNSPECIFIED e não um
+// palpite: motivo novo que chegasse aqui sem tradução viraria uma frase errada na
+// tela de alguém que está atrás do próprio dinheiro.
+func motivoParaProto(m store.MotivoDaEspera) webv1.PayoutWaitReason {
+	switch m {
+	case store.EsperaCadastro:
+		return webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_NO_KEY_OR_TAX_ID
+	case store.EsperaPagamento:
+		return webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_IN_PROGRESS
+	case store.EsperaGente:
+		return webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_NEEDS_STAFF
+	}
+	return webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_UNSPECIFIED
 }
 
 func tipoDoProto(t webv1.PixKeyType) store.TipoChavePix {

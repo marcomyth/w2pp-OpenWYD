@@ -33,6 +33,11 @@ type fakePix struct {
 	minimoPedido   time.Duration
 	cobrancaPedida int64
 	erroDoCriador  error
+
+	// O que há a receber, que sai na mesma resposta da chave.
+	pendente     int64
+	motivo       store.MotivoDaEspera
+	erroPendente error
 }
 
 // CriarPixSeFaltar finge o store, e CHAMA o criador que recebeu.
@@ -66,6 +71,10 @@ func (f *fakePix) SalvarChavePix(_ context.Context, _ int64, chave string,
 
 func (f *fakePix) LerChavePix(context.Context, int64) (store.RecebedorPix, error) {
 	return f.leitura, f.erroLer
+}
+
+func (f *fakePix) RepasseDoVendedor(context.Context, int64) (int64, store.MotivoDaEspera, error) {
+	return f.pendente, f.motivo, f.erroPendente
 }
 
 func (f *fakePix) CobrancaAtualDoComprador(_ context.Context, _ int64,
@@ -203,5 +212,65 @@ func TestGetPixKeyFalhaDeInfraViraErro(t *testing.T) {
 
 	if _, err := s.GetPixKey(context.Background(), &webv1.GetPixKeyRequest{AccountId: 7}); status.Code(err) != codes.Internal {
 		t.Errorf("código = %v, quero Internal", status.Code(err))
+	}
+}
+
+// O QUE HÁ A RECEBER SAI NA RESPOSTA DA CHAVE, com o motivo traduzido.
+func TestGetPixKeyDevolveOQueHaAReceber(t *testing.T) {
+	casos := []struct {
+		nome   string
+		motivo store.MotivoDaEspera
+		quer   webv1.PayoutWaitReason
+	}{
+		{"nada a receber", store.SemEspera, webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_UNSPECIFIED},
+		{"falta cadastro", store.EsperaCadastro, webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_NO_KEY_OR_TAX_ID},
+		{"a caminho", store.EsperaPagamento, webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_IN_PROGRESS},
+		{"precisa de gente", store.EsperaGente, webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_NEEDS_STAFF},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			f := &fakePix{pendente: 12345, motivo: c.motivo}
+			s := NewRmt(f)
+			r, err := s.GetPixKey(context.Background(), &webv1.GetPixKeyRequest{AccountId: 7})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if r.GetPendingPayoutCents() != 12345 {
+				t.Errorf("pendente = %d", r.GetPendingPayoutCents())
+			}
+			if r.GetPayoutWaitReason() != c.quer {
+				t.Errorf("motivo = %v, quero %v", r.GetPayoutWaitReason(), c.quer)
+			}
+		})
+	}
+}
+
+// E A FALHA DA SEGUNDA LEITURA NÃO DERRUBA A PRIMEIRA.
+//
+// Este é o teste que importa dos dois. A tela da chave é onde a pessoa CONSERTA o
+// cadastro, e cadastro incompleto é a causa mais comum de haver dinheiro parado. Se
+// uma falha ao somar a dívida derrubasse a resposta inteira, o erro tiraria do ar
+// justamente a tela que resolve o problema — e a pessoa com dinheiro preso seria a
+// única que não conseguiria abri-la.
+func TestGetPixKeyNaoCaiQuandoOTotalFalha(t *testing.T) {
+	f := &fakePix{
+		leitura:      store.RecebedorPix{TemChave: true, ChaveMascarada: "***1234"},
+		pendente:     999,
+		motivo:       store.EsperaGente,
+		erroPendente: errors.New("o banco caiu"),
+	}
+	s := NewRmt(f)
+	r, err := s.GetPixKey(context.Background(), &webv1.GetPixKeyRequest{AccountId: 7})
+	if err != nil {
+		t.Fatalf("a falha do total derrubou a resposta da chave: %v", err)
+	}
+	if !r.GetHasKey() || r.GetMaskedKey() != "***1234" {
+		t.Errorf("a chave nao voltou: %+v", r)
+	}
+	// Zero e UNSPECIFIED, e não os valores da fake: na dúvida não se afirma nada.
+	if r.GetPendingPayoutCents() != 0 ||
+		r.GetPayoutWaitReason() != webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_UNSPECIFIED {
+		t.Errorf("a falha virou numero na tela: %d / %v",
+			r.GetPendingPayoutCents(), r.GetPayoutWaitReason())
 	}
 }
