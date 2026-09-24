@@ -302,3 +302,45 @@ func (s *Store) ReembolsosRecusados(ctx context.Context) ([]ReembolsoRecusadoNaF
 	}
 	return fila, rows.Err()
 }
+
+// ValorDivergenteNaFila é uma cobrança em que entrou dinheiro com o valor errado.
+type ValorDivergenteNaFila struct {
+	CobrancaID     int64
+	CompradorConta int64
+	ValorCobrado   int64
+	ValorRecebido  int64
+	Identifier     string
+}
+
+// ValoresDivergentes lista o que precisa de gente porque o valor não bateu.
+//
+// SEM REEMBOLSO AUTOMÁTICO, ao contrário do pagamento atrasado: lá o certo é
+// sempre devolver, porque o comprador não recebeu nada. Aqui não se sabe o certo —
+// pode ser devolver, pode ser cobrar a diferença, pode ser entregar assim mesmo —,
+// e escolher por conta própria é decidir sobre o dinheiro de duas pessoas.
+//
+// A cobrança continua ABERTA enquanto isto não se resolve, e é isso que segura o
+// item do vendedor: quem pagou não pode perder o item para outra pessoa enquanto a
+// staff decide.
+func (s *Store) ValoresDivergentes(ctx context.Context) ([]ValorDivergenteNaFila, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, comprador_conta, valor_centavos, valor_divergente_centavos,
+		       coalesce(identifier_syncpay, '')
+		  FROM rmt_cobranca
+		 WHERE valor_divergente_centavos IS NOT NULL
+		 ORDER BY paga_em NULLS FIRST, id`)
+	if err != nil {
+		return nil, fmt.Errorf("store: valores divergentes: %w", err)
+	}
+	defer rows.Close()
+	var fila []ValorDivergenteNaFila
+	for rows.Next() {
+		var v ValorDivergenteNaFila
+		if err := rows.Scan(&v.CobrancaID, &v.CompradorConta, &v.ValorCobrado,
+			&v.ValorRecebido, &v.Identifier); err != nil {
+			return nil, fmt.Errorf("store: valores divergentes: %w", err)
+		}
+		fila = append(fila, v)
+	}
+	return fila, rows.Err()
+}

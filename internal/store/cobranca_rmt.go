@@ -190,6 +190,23 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 		// já paga não é reconferido, porque o valor que importava já foi conferido
 		// quando ela foi paga.
 		if valorObservado > 0 && valorObservado != valorCobrado {
+			// GRAVA, e é esse o conserto. Antes isto saía sem escrever nada: o
+			// dinheiro tinha entrado, a linha continuava aberta, e a varredura do
+			// prazo a vencia e soltava o item. Alguém pagava e não sobrava linha
+			// que dissesse isso.
+			//
+			// A cobrança CONTINUA ABERTA de propósito: ela não se resolveu, e tudo
+			// que pergunta "há dinheiro em jogo?" — o encerramento da barraca, a
+			// reconciliação, a faxina — segue respondendo sim e segurando o item
+			// até uma pessoa olhar.
+			if _, err := tx.Exec(ctx, `
+				UPDATE rmt_cobranca
+				   SET valor_divergente_centavos = $2, paga_em = $3, origem_da_hora = $4
+				 WHERE id = $1`, venda.CobrancaID, valorObservado, pagoEm,
+				string(origem)); err != nil {
+				return fmt.Errorf("store: confirmar cobranca: gravando a divergencia de %d: %w",
+					venda.CobrancaID, err)
+			}
 			res = CobrancaValorDivergente
 			return nil
 		}

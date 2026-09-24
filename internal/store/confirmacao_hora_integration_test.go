@@ -351,10 +351,52 @@ func TestValorDiferenteNaoEntregaENaoFechaACobranca(t *testing.T) {
 		t.Fatalf("resultado = %d, quero valor-divergente(%d)", res, CobrancaValorDivergente)
 	}
 	if st := statusDaCobranca(ctx, t, s, ref); st != cobrancaAberta {
-		t.Errorf("a cobranca virou %d; ela tem de ficar como esta ate uma pessoa olhar", st)
+		t.Errorf("a cobranca virou %d; ela tem de ficar aberta, porque nao se resolveu", st)
 	}
 	if n := entregasDe(ctx, t, s, comprador); n != 0 {
 		t.Errorf("enfileirou %d entrega(s) por um valor que nao bate", n)
+	}
+
+	// O DINHEIRO NÃO SOME DO REGISTRO, e é este o conserto. Antes, este caminho
+	// não gravava nada: alguém pagava e não sobrava linha que dissesse isso.
+	fila, err := s.ValoresDivergentes(ctx)
+	if err != nil {
+		t.Fatalf("lendo a fila: %v", err)
+	}
+	if len(fila) != 1 {
+		t.Fatalf("a fila da staff tem %d linha(s), quero 1: entrou dinheiro e ninguem "+
+			"decidiu o que fazer", len(fila))
+	}
+	if fila[0].ValorCobrado != 12345 || fila[0].ValorRecebido != 100 {
+		t.Errorf("fila = %+v; quero os DOIS valores, porque a decisao depende da diferenca",
+			fila[0])
+	}
+
+	// E A VARREDURA DO PRAZO NÃO A VENCE. Vencer soltaria o item de quem já
+	// recebeu o pagamento — o contrário exato do que o prazo existe para fazer.
+	if _, err := s.pool.Exec(ctx, `
+		UPDATE rmt_cobranca SET expira_em = now() - interval '1 hour'
+		 WHERE referencia_externa = $1`, ref); err != nil {
+		t.Fatal(err)
+	}
+	if venceram, err := s.ExpirarCobrancasRMT(ctx); err != nil {
+		t.Fatal(err)
+	} else if len(venceram) != 0 {
+		t.Errorf("a varredura venceu %v; a divergente tem dinheiro dentro e espera gente",
+			venceram)
+	}
+
+	// E a página do comprador não convida a pagar de novo.
+	_, cob, err := s.CobrancaAtualDoComprador(ctx, comprador, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cob.Estado != EstadoCobrancaValorDivergente {
+		t.Errorf("estado na pagina = %d, quero valor-divergente(%d)",
+			cob.Estado, EstadoCobrancaValorDivergente)
+	}
+	if cob.CodigoPix != "" {
+		t.Error("mostrou o codigo de uma cobranca que ja recebeu dinheiro")
 	}
 }
 
