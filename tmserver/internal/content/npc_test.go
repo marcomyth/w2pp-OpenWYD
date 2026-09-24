@@ -135,6 +135,9 @@ func TestBlocosDesligadosPorIndice(t *testing.T) {
 		// Migration 0109: the two Agmo of the Deserto are event-only now (every
 		// kill drops a guaranteed mount core, handler/deserto.go). Switched off in npc_generator_off.
 		3451: "Verme_Agmo", 3452: "Tauron_Agmo",
+		// Migration 0129: the Terras Místicas NPC, whose spot is kept for another
+		// quest. Switched off in npc_generator_off.
+		985: "Cap.Mercenario",
 		// The two the square keeps.
 		3442: "Perzen", 3809: "GodGovernment",
 	}
