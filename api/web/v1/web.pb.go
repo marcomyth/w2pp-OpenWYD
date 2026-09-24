@@ -1782,8 +1782,17 @@ type ListMarketListingsResponse struct {
 	// HOW OLD THIS ANSWER IS. Zero means it came from the game just now; anything
 	// else is the age of the cache.
 	//
-	// It is in the contract because the page is allowed to be a few seconds stale and
-	// the visitor is not supposed to find that out by buying something that is gone.
+	// It is in the contract because the page is allowed to be stale and the visitor is
+	// not supposed to find that out by buying something that is gone.
+	//
+	// THE CEILING IS ONE MINUTE, and the page may say so. Normally this is at most a
+	// few seconds; when the game server is not answering, the last good list keeps
+	// being served for up to a minute — an empty market reads as "nobody is selling",
+	// which would be the bigger lie — and past that the call fails instead.
+	//
+	// Nothing wrong is handed to anyone by a stale list: this is a shop WINDOW, and
+	// the purchase is checked again inside the game, which refuses a shelf that is
+	// gone.
 	CachedForSeconds int32 `protobuf:"varint,3,opt,name=cached_for_seconds,json=cachedForSeconds,proto3" json:"cached_for_seconds,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
