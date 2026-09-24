@@ -312,7 +312,7 @@ func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.E
 	if id := w.SpawnShopClone(s.Conn, e.Name); id != 0 {
 		s.AutoTrade.CloneID = id
 		ce := w.Entity(id)
-		data := createMobFrom(ce, 0)
+		data := createMobFrom(w, ce, 0)
 		data.Con = 0
 		body := protocol.EncodeCreateMobTradeBody(data, data.Tab, s.AutoTrade.Title)
 		// One broadcast reaches everyone INCLUDING the owner: BroadcastInView
@@ -330,7 +330,7 @@ func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.E
 	// still opens the legacy way — the seller IS the stall, so shopPinsOwner keeps
 	// his old restrictions and walking closes the shop (movement.go).
 	d.log.Info("autotrade sem clone, usando a pose do legado", "conn", s.Conn)
-	data := createMobFrom(e, 0)
+	data := createMobFrom(w, e, 0)
 	data.Con = 0 // _MSG_SendAutoTrade.cpp:118
 	// data.Tab, e não 26 zeros: nesta saída o vendedor É o próprio personagem, e
 	// zerar apagaria a linha que ele escreveu com "/tab" (chat.go).
@@ -442,7 +442,7 @@ func (d *Dispatcher) closeAutoTrade(w *world.World, s *world.Session) {
 	if e == nil || e.Mode != world.MobUser {
 		return
 	}
-	body := protocol.EncodeCreateMobBody(createMobFrom(e, 0))
+	body := protocol.EncodeCreateMobBody(createMobFrom(w, e, 0))
 	w.SendTo(s, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, body)
 	w.BroadcastInView(s.Conn, protocol.MsgCreateMob, body)
 }

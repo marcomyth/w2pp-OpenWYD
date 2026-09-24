@@ -121,7 +121,7 @@ func compraDeHonra(t *testing.T, c net.Conn, slot int) {
 // senão o clique cai em _MSG_Quest e nada acontece.
 func TestGodOfWarApareceComoLoja(t *testing.T) {
 	god := &world.Entity{ID: shopNPCID, Merchant: merchantLojaDeHonra}
-	if got := createMobFrom(god, 0).Merchant; got != 1 {
+	if got := createMobFrom(nil, god, 0).Merchant; got != 1 {
 		t.Errorf("CreateMob do God of War com Merchant %d; o cliente só manda o clique com 1", got)
 	}
 }

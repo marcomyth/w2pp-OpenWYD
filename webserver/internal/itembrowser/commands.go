@@ -177,6 +177,17 @@ func CommandReference() CommandBus {
 				},
 			},
 			{
+				Name: "coliseu", Args: "<ligar|desligar|estado|iniciar|fim|batalha|horas|horabatalha|premio> [valor]", Target: "mundo",
+				Summary: "Liga, desliga, configura e força o Coliseu do legado (ondas das 20h, Batalha Real e Coliseu {N}).",
+				Notes: []string{
+					"Nasce desligado a cada boot. Desligado, a arena fica como sempre: portões abertos e sem desenho, nenhum relógio e nenhuma regra.",
+					"ligar: portões no estado de boot do legado (entrada aberta, os cinco de dentro trancados) e o relógio passa a valer. desligar: encerra o que estiver correndo, tira as ondas e abre e apaga os portões.",
+					"iniciar: força o evento de ondas agora, a partir do minuto 3 (entrada tranca; ondas nos minutos 4, 7, 9, 11 e 13; fim no 15). fim: encerra já.",
+					"batalha [0|1|2]: força uma rodada da Batalha Real (0 = Nv < 100, 1 = Nv < 200, 2 = qualquer nível); precisa de prêmio. batalha fim: encerra.",
+					"horas <guilda> [novato] e horabatalha <hora>: as horas do legado (padrão 20, 20 e 19). premio <item>: o prêmio da Batalha Real; 0 a desliga.",
+				},
+			},
+			{
 				Name: "npc", Args: "[raio] | off <bloco> | on <bloco>", Target: "mundo",
 				Summary: "Lista os blocos do NPCGener em volta, com o número de cada um; desliga ou liga um bloco.",
 				Notes: []string{

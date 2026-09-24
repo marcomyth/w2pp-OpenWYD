@@ -119,6 +119,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.sweepDuelArena(w)
 	d.tickKingdomRvR(w)
 	d.tickTowerWar(w)
+	d.tickColiseu(w) // desligado por padrão (coliseu.go)
 	d.tickKefraSemanal(w)
 	d.tickKefraGuardas(w)
 	d.tickCastle(w)
@@ -489,7 +490,7 @@ func (d *Dispatcher) revealSpawned(w *world.World, ids []int) int {
 		if mob == nil {
 			continue
 		}
-		body := protocol.EncodeCreateMobBody(createMobFrom(mob, 0))
+		body := protocol.EncodeCreateMobBody(createMobFrom(w, mob, 0))
 		w.ForEachInView(id, func(vs *world.Session, _ *world.Entity) {
 			if !w.MarkSeen(vs, id) {
 				return

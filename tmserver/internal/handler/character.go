@@ -641,7 +641,7 @@ func (d *Dispatcher) enterWorldView(w *world.World, s *world.Session) {
 	if self.HasAnyAffect() {
 		d.sendAffect(w, s, self) // buff icons/timers (e.g. a re-applied Divine)
 	}
-	selfMob := protocol.EncodeCreateMobBody(createMobFrom(self, 2))
+	selfMob := protocol.EncodeCreateMobBody(createMobFrom(w, self, 2))
 	// Send the newcomer its OWN CreateMob (the legacy GridMulticast has skip=0, so
 	// the conn — already in the grid — receives its own, ProcessDBMessage.cpp:1029).
 	// This is what colors the player's OWN nick via MobName[12] (PKPoint): without
@@ -667,6 +667,7 @@ func (d *Dispatcher) enterWorldView(w *world.World, s *world.Session) {
 	d.syncCasteloOrcGate(w, s, self.X, self.Y)
 	// (E) e os três portões do campo de treino, pelo mesmo caminho.
 	d.syncPortoesDoCampo(w, s, self.X, self.Y)
+	d.syncPortoesDoColiseu(w, s, self.X, self.Y)
 	d.syncCasteloOrcLeste(w, s, self.X, self.Y)
 }
 
@@ -692,7 +693,20 @@ func (d *Dispatcher) revealMobsInView(w *world.World, s *world.Session) {
 // The visual equipment codes and glow overlays come from the entity's
 // EquipVisual/EquipAnct, set at login/spawn from the relevant STRUCT_MOB data.
 // createType: 0 normal, 2 "just entered".
-func createMobFrom(e *world.Entity, createType uint16) protocol.CreateMobData {
+//
+// Na arena da Batalha Real em curso, qualquer um — jogador ou monstro — sai
+// como "??????", sem capa e sem guilda (GetFunc.cpp:1186-1193; coliseu.go).
+func createMobFrom(w *world.World, e *world.Entity, createType uint16) protocol.CreateMobData {
+	d := createMobData(e, createType)
+	if w != nil && w.Anonimo(e.X, e.Y) {
+		d.Name = nomeAnonimo
+		d.Equip[capeEquipSlot], d.AnctCode[capeEquipSlot] = 0, 0
+		d.Guild = 0
+	}
+	return d
+}
+
+func createMobData(e *world.Entity, createType uint16) protocol.CreateMobData {
 	d := protocol.CreateMobData{
 		MobID:           e.ID,
 		Name:            e.Name,
@@ -743,7 +757,7 @@ func createMobFrom(e *world.Entity, createType uint16) protocol.CreateMobData {
 // personal shop must be revealed with MSG_CreateMobTrade, not the normal avatar
 // packet, so clients that enter view after the shop opened still see the stall.
 func createMobViewPacket(w *world.World, e *world.Entity, createType uint16) (protocol.Type, []byte) {
-	data := createMobFrom(e, createType)
+	data := createMobFrom(w, e, createType)
 	if s := shopSessionOf(w, e); s != nil {
 		data.Con = 0 // GetCreateMobTrade parity: shop pose hides the Con field.
 		// O Tab vai junto: quem abriu barraca e tinha escrito acima da cabeça com

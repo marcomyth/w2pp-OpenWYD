@@ -85,6 +85,8 @@ func (d *Dispatcher) runGMCommand(w *world.World, s *world.Session, args []byte)
 		d.gmInvisible(w, s, rest) // gminvisible.go
 	case "guerra", "war":
 		d.gmGuerra(w, s, rest) // gmguerra.go
+	case "coliseu":
+		d.gmColiseu(w, s, rest) // gmcoliseu.go
 	case "npc", "gerar", "generate", "criar", "create", "matar", "kill", "recarregar", "reloadnpc":
 		d.gmBloco(w, s, sub, rest) // gmnpc.go — the same commands the staff panel sends
 	default:

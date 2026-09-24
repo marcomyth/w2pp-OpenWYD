@@ -371,7 +371,7 @@ func (d *Dispatcher) generateSummon(w *world.World, s *world.Session, e *world.E
 		}
 
 		// Reveal with CreateType|=3 (the summon-appear effect, Server.cpp:3210-3218).
-		body := protocol.EncodeCreateMobBody(createMobFrom(mob, 3))
+		body := protocol.EncodeCreateMobBody(createMobFrom(w, mob, 3))
 		w.ForEachInView(id, func(vs *world.Session, _ *world.Entity) {
 			if w.MarkSeen(vs, id) {
 				w.SendTo(vs, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, body)
@@ -527,7 +527,7 @@ func (d *Dispatcher) generateBabyMountSummon(w *world.World, s *world.Session, e
 		d.sendSummonPartySlot(w, leaderID, id, slot+1)
 	}
 
-	body := protocol.EncodeCreateMobBody(createMobFrom(mob, 3))
+	body := protocol.EncodeCreateMobBody(createMobFrom(w, mob, 3))
 	w.ForEachInView(id, func(vs *world.Session, _ *world.Entity) {
 		if w.MarkSeen(vs, id) {
 			w.SendTo(vs, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, body)

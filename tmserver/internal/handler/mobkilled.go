@@ -92,6 +92,10 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 		d.grantPartyExp(w, ks, reward, mob)
 	}
 
+	// O drop do Coliseu {N}, entre a experiência e o item de evento, onde o
+	// legado o põe (MobKilled.cpp:2502). Só com o Coliseu ligado (coliseu.go).
+	d.coliseuNMorto(w, reward, mob)
+
 	d.tryWorldEventDrop(w, reward, int(mob.Level))
 
 	// Item drop: each occupied loot slot rolls against its g_pDropRate odds.

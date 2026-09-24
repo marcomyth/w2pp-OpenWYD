@@ -46,7 +46,11 @@ func (d *Dispatcher) messageChat(w *world.World, s *world.Session, _ protocol.He
 		s.GuildChat = !s.GuildChat
 		sendClientMessage(w, s, estadoDoCanal("Chat de guilda", s.GuildChat))
 	default:
-		// Public speech → everyone in view (HEADER.ID = speaker).
+		// Public speech → everyone in view (HEADER.ID = speaker). Na Batalha
+		// Real a fala sai embaralhada (coliseu.go).
+		if e := w.Entity(s.Conn); e != nil {
+			payload = d.falaDaBatalha(e, payload)
+		}
 		w.BroadcastInView(s.Conn, protocol.MsgMessageChat, payload)
 		d.registraFala(w, s, world.ChatPublico, "", text)
 	}
