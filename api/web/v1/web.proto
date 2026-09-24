@@ -92,6 +92,33 @@ service RmtWebService {
   rpc GetMyCurrentPixCharge(GetMyCurrentPixChargeRequest) returns (GetMyCurrentPixChargeResponse);
 }
 
+// RmtSystemService is the server-to-server side of real-money selling: the site
+// telling the game that the payment processor said something.
+//
+// A SERVICE OF ITS OWN, and not two more methods on RmtWebService, because the
+// CALLER is different in kind. RmtWebService answers a person looking at their
+// own account page; this one answers the site's webhook handler, with no person
+// behind it. Mixing them would put a payment-notification endpoint behind the key
+// a browser-driven request can reach.
+//
+// It is NOT in servicosDoJogador, and that means the site's player key does not
+// open it: the webhook handler holds a separate system key. If a bug in the
+// player-facing side ever let somebody call arbitrary web-api methods with the
+// site key, this door would still be shut.
+//
+// NOTHING HERE IS TRUSTED. The notice is a doorbell, not evidence: the server
+// answers it by asking the processor what actually happened. A forged or repeated
+// notice costs one extra query and nothing else.
+service RmtSystemService {
+  // NotifySyncpayEvent relays one processor event the site received.
+  //
+  // The site receives it because the processor's webhook is per ACCOUNT, not per
+  // charge: a real-money charge created on the same account as the donation shop
+  // announces itself to the site. Rather than the site guessing what to do, it
+  // recognizes the event as ours and hands it over.
+  rpc NotifySyncpayEvent(NotifySyncpayEventRequest) returns (NotifySyncpayEventResponse);
+}
+
 // RankingWebService exposes public ranking projections for the web front-end.
 // It reads persisted character state from Postgres; the browser calls the
 // Next.js BFF, and the BFF calls this service over gRPC + mTLS.
@@ -162,12 +189,27 @@ enum PixKeyResult {
   PIX_KEY_RESULT_SALE_IN_PROGRESS = 3;
   // The account does not exist.
   PIX_KEY_RESULT_NO_ACCOUNT = 4;
+  // The CPF is missing or malformed. Separate from INVALID, which is about the
+  // KEY: the form has two fields and has to be able to point at the wrong one.
+  PIX_KEY_RESULT_INVALID_TAX_ID = 5;
 }
 
 message SavePixKeyRequest {
   int64 account_id = 1;
   string key = 2;
   PixKeyType type = 3;
+  // The seller's CPF, digits only.
+  //
+  // It is here because PAYING the seller needs it: the payout route refuses
+  // without a document, and when the key is a CPF it requires the two to match —
+  // the house rule is that the key must be in the seller's own name.
+  //
+  // WHAT IT DOES AND DOES NOT BUY, said plainly so nobody reads more into it: the
+  // rule is only verifiable when the key IS a CPF. For an e-mail, a phone or a
+  // random key, the processor does not say whose key it is, so storing the CPF
+  // proves nothing about ownership. It is required for all of them because the
+  // payout route needs a document regardless, not because it closes the rule.
+  string tax_id = 4;
 }
 
 message SavePixKeyResponse {
@@ -185,6 +227,15 @@ message GetPixKeyResponse {
   string masked_key = 2;
   PixKeyType type = 3;
   bool verified = 4;
+  // MASKED, never whole, exactly like masked_key and for the same reason: the
+  // form only needs to say "CPF ending in 01" so the person recognizes their own.
+  // A CPF is personal data and the site is public — returning it in full would
+  // put it in the browser, and from there in the history, the cache and every
+  // installed extension.
+  //
+  // Empty when no CPF was ever saved, which is every seller registered before
+  // this field existed.
+  string masked_tax_id = 5;
 }
 
 // PixChargeState is where the buyer's charge stands.
@@ -310,6 +361,47 @@ enum RefundState {
   // to the log and to the staff screen, because it is an operational detail and
   // the buyer can do nothing with it.
   REFUND_STATE_FAILED = 4;
+}
+
+// SyncpayEventKind says which way the money moved.
+//
+// The two are handled very differently, and that is the reason they share one
+// method instead of being two: the kind is the first thing the server branches
+// on, and a caller that has to choose the method would be choosing the branch.
+enum SyncpayEventKind {
+  SYNCPAY_EVENT_KIND_UNSPECIFIED = 0;
+  // CASHIN: a buyer paid. NOTHING in the notice is believed — the server queries
+  // the processor and decides from the answer.
+  SYNCPAY_EVENT_KIND_CASHIN = 1;
+  // CASHOUT: a seller was paid out. This one is a RECORD, not a decision: the
+  // money already left, and the notice only says how much arrived after the
+  // processor's fee. Nothing is delivered or paid because of it.
+  SYNCPAY_EVENT_KIND_CASHOUT = 2;
+}
+
+message NotifySyncpayEventRequest {
+  SyncpayEventKind kind = 1;
+  // The processor's own identifier, never one of ours. It is the only field the
+  // server uses from a CASHIN notice, and it is used to ASK, not to conclude.
+  string identifier = 2;
+  // CASHOUT only, and taken at face value. amount_cents is what we asked to send
+  // and final_amount_cents is what arrived; the difference is the withdrawal fee,
+  // which is the whole reason this event is relayed at all.
+  //
+  // Believing a notice is acceptable HERE and nowhere else on this path: nothing
+  // is delivered or paid from it, the money already moved, and there is no other
+  // known source — the query endpoint answers 404 for non-sale transactions. A
+  // value that disagrees with what the bridge asked for raises a staff alert.
+  int64 amount_cents = 3;
+  int64 final_amount_cents = 4;
+}
+
+message NotifySyncpayEventResponse {
+  // handled is false when the event was not ours — an identifier with no charge
+  // behind it, most often the donation shop's own traffic. NOT an error: it is
+  // the ordinary answer, and treating it as failure would make the site retry
+  // forever over somebody else's payment.
+  bool handled = 1;
 }
 
 message ListExpRankingRequest {

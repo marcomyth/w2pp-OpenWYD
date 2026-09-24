@@ -46,10 +46,17 @@ func TestTodoServicoFoiClassificado(t *testing.T) {
 	for i := range svcs.Len() {
 		nome := string(svcs.Get(i).Name())
 		jogador, admin := servicosDoJogador[nome], servicosDeAdmin[nome]
+		sistema := servicosDeSistema[nome]
+		quantas := 0
+		for _, em := range []bool{jogador, admin, sistema} {
+			if em {
+				quantas++
+			}
+		}
 		switch {
-		case jogador && admin:
-			t.Errorf("%s está nas duas listas; decida qual", nome)
-		case !jogador && !admin:
+		case quantas > 1:
+			t.Errorf("%s está em mais de uma lista; decida qual", nome)
+		case quantas == 0:
 			t.Errorf("%s não foi classificado. Em produção ele já nasce fechado "+
 				"(só a chave do painel abre); este teste existe para você confirmar "+
 				"que é isso mesmo, ou pôr ele na lista do jogador.", nome)
@@ -145,5 +152,46 @@ func TestServicoDe(t *testing.T) {
 		if got := servicoDe(entrada); got != quer {
 			t.Errorf("servicoDe(%q) = %q, queria %q", entrada, got, quer)
 		}
+	}
+}
+
+// A CHAVE DE SISTEMA NÃO ABRE O QUE É DO JOGADOR, e a do jogador não abre o que é
+// de sistema.
+//
+// É a razão de existir a terceira chave. Se qualquer uma das duas abrisse a outra,
+// a divisão seria decoração: a chave do site passaria a alcançar a porta do
+// pagamento, que é exatamente o que não se quer quando um bug no lado do navegador
+// deixa alguém dirigir chamadas com ela.
+func TestAsTresChavesNaoSeAbremUmaAOutra(t *testing.T) {
+	casos := []struct {
+		nome    string
+		servico string
+		jogador bool
+		sistema bool
+	}{
+		{"servico do jogador", "RmtWebService", true, false},
+		{"servico de sistema", "RmtSystemService", false, true},
+		{"servico de admin", "NpcAdminService", false, false},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			if got := DoJogador(c.servico); got != c.jogador {
+				t.Errorf("DoJogador(%s) = %v, quero %v", c.servico, got, c.jogador)
+			}
+			if got := DoSistema(c.servico); got != c.sistema {
+				t.Errorf("DoSistema(%s) = %v, quero %v", c.servico, got, c.sistema)
+			}
+		})
+	}
+}
+
+// E uma web-api com SÓ a chave de sistema está configurada.
+//
+// Sem isto, um servidor que tivesse apenas a chave nova cairia no caminho de
+// transição — que deixa passar TUDO, sem chave nenhuma. A porta ficaria escancarada
+// justamente no servidor que só tem a chave do dinheiro.
+func TestSoAChaveDeSistemaJaConfigura(t *testing.T) {
+	if !(Chaves{Sistema: "x"}).Configurada() {
+		t.Error("uma web-api so com a chave de sistema cairia no modo que deixa passar tudo")
 	}
 }

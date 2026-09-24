@@ -1,6 +1,6 @@
 // Package authz decides who may call what on the web-api.
 //
-// The web-api carries seventeen services, and most of them administer the game:
+// The web-api carries eighteen services, and most of them administer the game:
 // create and delete NPCs, set item prices and item stats, move donate balances,
 // read revenue. Until this package existed it had one gate — mutual TLS — and
 // that gate answers the wrong question. It says "is the caller one of our
@@ -65,6 +65,31 @@ var servicosDoJogador = map[string]bool{
 	"RmtWebService": true,
 }
 
+// servicosDeSistema are the services one machine calls on another machine's
+// behalf, with no person behind the request.
+//
+// A THIRD LIST, and not a corner of servicosDoJogador, because the caller is
+// different in kind. The player list is "things a browser-driven request can
+// cause"; this one is "things the site's server does when the payment processor
+// talks to it". They happen to live in the same process today and that is an
+// accident of deployment, not a reason to share a key.
+//
+// The concrete benefit is small and real: if a bug in the player-facing side ever
+// let somebody drive arbitrary web-api calls with the site key — an SSRF, a
+// confused path, a leaked header — the payment-notification door would still be
+// shut. A key that opens everything the site can reach is not a key.
+var servicosDeSistema = map[string]bool{
+	// RmtSystemService: o webhook da processadora é da CONTA e não da cobrança,
+	// então o aviso de uma venda em dinheiro real chega ao SITE. Ele repassa, e
+	// este servidor não acredita no repasse — vai perguntar à processadora. Não há
+	// pessoa nenhuma nesta chamada.
+	"RmtSystemService": true,
+}
+
+// DoSistema reports whether a proto service name is one the site's server-side
+// system key may reach.
+func DoSistema(servico string) bool { return servicosDeSistema[servico] }
+
 // DoJogador reports whether a proto service name is one a player-facing caller
 // may reach. Exported for the guard test that keeps this list and the .proto
 // from drifting apart.
@@ -81,12 +106,20 @@ type Chaves struct {
 	// Site opens only servicosDoJogador. Held by the player-facing site, which
 	// does not exist yet — an empty value simply matches nobody.
 	Site string
+	// Sistema opens only servicosDeSistema. Held by the site's SERVER side, for
+	// the calls that no person triggers.
+	//
+	// Separate from Site even though the same deployment holds both: see
+	// servicosDeSistema. Empty matches nobody, which is what a server without the
+	// payment path configured should be.
+	Sistema string
 }
 
 // Configurada reports whether any key was set. A web-api with none is the
 // pre-existing behaviour: it serves everything to whoever reaches the port.
 func (c Chaves) Configurada() bool {
-	return strings.TrimSpace(c.Painel) != "" || strings.TrimSpace(c.Site) != ""
+	return strings.TrimSpace(c.Painel) != "" || strings.TrimSpace(c.Site) != "" ||
+		strings.TrimSpace(c.Sistema) != ""
 }
 
 // Interceptor authenticates every call against the keys.
@@ -120,6 +153,12 @@ func Interceptor(c Chaves) grpc.UnaryServerInterceptor {
 					"the site key does not open %s", servicoDe(info.FullMethod))
 			}
 			return handler(ctx, req)
+		case confere(token, c.Sistema):
+			if !DoSistema(servicoDe(info.FullMethod)) {
+				return nil, status.Errorf(codes.PermissionDenied,
+					"the system key does not open %s", servicoDe(info.FullMethod))
+			}
+			return handler(ctx, req)
 		default:
 			return nil, status.Error(codes.Unauthenticated, "bad web-api key")
 		}
@@ -146,6 +185,12 @@ func StreamInterceptor(c Chaves) grpc.StreamServerInterceptor {
 			if !DoJogador(servicoDe(info.FullMethod)) {
 				return status.Errorf(codes.PermissionDenied,
 					"the site key does not open %s", servicoDe(info.FullMethod))
+			}
+			return handler(srv, ss)
+		case confere(token, c.Sistema):
+			if !DoSistema(servicoDe(info.FullMethod)) {
+				return status.Errorf(codes.PermissionDenied,
+					"the system key does not open %s", servicoDe(info.FullMethod))
 			}
 			return handler(srv, ss)
 		default:
