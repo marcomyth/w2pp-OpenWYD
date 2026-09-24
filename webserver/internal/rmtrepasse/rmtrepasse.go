@@ -58,12 +58,25 @@ func Novo(p Ponte, b Banco, log *slog.Logger) *Servico {
 	return &Servico{ponte: p, banco: b, log: log}
 }
 
-// PagarPendentes tenta pagar as dívidas que estão esperando.
+// Rodada é o que uma varredura produziu.
 //
-// `pagos` conta só o que a ponte ACEITOU. O incerto e a recusa não entram em nenhum dos
-// dois números: eles foram tratados, saíram da fila, e não são falha desta varredura —
-// mas também não são pagamento, e contá-los faria o log dizer que a gente pagou alguém
-// que talvez não tenha recebido. Quem quer saber deles olha a fila da staff.
+// QUATRO NÚMEROS E NÃO UM, e a razão é o que alguém faz com eles. O primeiro impulso foi
+// contar só os pagos; mas aí uma rodada com três incertos e nenhum pago sairia como
+// "nada aconteceu" — que é a pior frase possível para três pagamentos que talvez tenham
+// saído. Sumir da contagem é o mesmo silêncio que o número errado, com outra cara.
+type Rodada struct {
+	// Aceitos é o que a ponte aceitou, e só isso. Não é "pago": o dinheiro só chega
+	// quando o aviso de saque confirmar.
+	Aceitos int
+	// Recusados tem CERTEZA de que nada saiu. Param na fila da staff.
+	Recusados int
+	// Incertos PODEM ter pago, e ninguém sabe. É o número que precisa gritar.
+	Incertos int
+	// Falhas são os erros desta varredura, e não estados da dívida.
+	Falhas int
+}
+
+// PagarPendentes tenta pagar as dívidas que estão esperando.
 //
 // UMA POR VEZ, e sem paralelismo: o volume é de poucas por dia, e o ganho de paralelizar
 // não paga o risco. Cada chamada aqui move dinheiro de verdade.
@@ -71,33 +84,63 @@ func Novo(p Ponte, b Banco, log *slog.Logger) *Servico {
 // O ERRO DE UMA NÃO PARA AS OUTRAS. Uma chave inválida de um vendedor não pode segurar o
 // pagamento de quem está atrás dele na fila — mas o erro sai no log, com o id, porque
 // uma fila que engole falhas é uma fila que ninguém percebe que parou.
-func (s *Servico) PagarPendentes(ctx context.Context, limite int) (pagos, falhas int) {
+func (s *Servico) PagarPendentes(ctx context.Context, limite int) Rodada {
+	var out Rodada
 	fila, err := s.banco.RepassesAPagar(ctx, limite)
 	if err != nil {
 		s.log.Error("repasse: nao consegui ler a fila", "err", err)
-		return 0, 0
+		return out
 	}
 	for _, r := range fila {
-		enviou, err := s.pagarUm(ctx, r)
+		estado, err := s.pagarUm(ctx, r)
 		if err != nil {
-			falhas++
+			out.Falhas++
 			s.log.Error("repasse: falhou", "repasse", r.ID,
 				"vendedor", r.VendedorConta, "err", err)
 			continue
 		}
-		if enviou {
-			pagos++
+		switch estado {
+		case store.RepasseEnviado:
+			out.Aceitos++
+		case store.RepasseRecusado:
+			out.Recusados++
+		case store.RepasseIncerto:
+			out.Incertos++
 		}
 	}
-	return pagos, falhas
+	return out
+}
+
+// Registrar escreve o resultado da rodada, e escolhe o NÍVEL pelo que ele significa.
+//
+// O incerto sai em WARN mesmo quando tudo o mais correu bem, e é essa a diferença que
+// importa: cada incerto é um vendedor que talvez já tenha o dinheiro e talvez não, e só
+// uma pessoa resolve. Um número desses numa linha de INFO, no meio de outras, é um
+// número que ninguém vai ver.
+//
+// E a rodada VAZIA não escreve nada. A varredura roda a cada dois minutos: uma linha por
+// rodada encheria o log de "não fiz nada" e afogaria as que dizem alguma coisa.
+func (r Rodada) Registrar(log *slog.Logger) {
+	if r == (Rodada{}) {
+		return
+	}
+	args := []any{
+		"aceitos", r.Aceitos, "recusados", r.Recusados,
+		"incertos", r.Incertos, "falhas", r.Falhas,
+	}
+	if r.Incertos > 0 {
+		log.Warn("repasse: rodada COM INCERTOS; alguem precisa olhar o painel", args...)
+		return
+	}
+	log.Info("repasse: rodada", args...)
 }
 
 // pagarUm faz uma tentativa e grava o que voltou.
 //
-// Devolve enviou=true SÓ quando a ponte aceitou. O incerto e a recusa voltam com
-// enviou=false e erro nulo: eles foram tratados e não são falha, mas também não são
-// pagamento — e a diferença entre as duas coisas é o que o log precisa dizer.
-func (s *Servico) pagarUm(ctx context.Context, r store.RepasseAPagar) (enviou bool, err error) {
+// Devolve o estado em que a dívida ficou, e erro nulo em todos eles: o incerto e a
+// recusa foram TRATADOS, e não são falha desta varredura. O que muda entre eles é o que
+// o log tem de dizer, e quem precisa agir.
+func (s *Servico) pagarUm(ctx context.Context, r store.RepasseAPagar) (store.EstadoRepasse, error) {
 	tipo := ponte.TipoDeChaveNaPonte(int16(r.TipoChave))
 	if tipo == "" {
 		// RECUSA ANTES DE MANDAR. Um tipo vazio no corpo é 400 na ponte, e o 400 não
@@ -106,7 +149,7 @@ func (s *Servico) pagarUm(ctx context.Context, r store.RepasseAPagar) (enviou bo
 		s.log.Error("repasse: tipo de chave que eu nao sei traduzir",
 			"repasse", r.ID, "tipo", int16(r.TipoChave))
 		http := int32(0)
-		return false, s.banco.MarcarRepasseRecusado(ctx, r.ID, &http, "TIPO_DESCONHECIDO",
+		return store.RepasseRecusado, s.banco.MarcarRepasseRecusado(ctx, r.ID, &http, "TIPO_DESCONHECIDO",
 			"o servidor nao sabe traduzir este tipo de chave")
 	}
 
@@ -115,7 +158,7 @@ func (s *Servico) pagarUm(ctx context.Context, r store.RepasseAPagar) (enviou bo
 	// se a dívida estiver PENDENTE.
 	t, err := s.banco.AbrirTentativa(ctx, r.ID, "")
 	if err != nil {
-		return false, err
+		return 0, err
 	}
 
 	resp, err := s.ponte.Repassar(ctx, t.Referencia, r.ValorCentavos,
@@ -130,9 +173,9 @@ func (s *Servico) pagarUm(ctx context.Context, r store.RepasseAPagar) (enviou bo
 		s.log.Error("repasse: INCERTO, pode ter pago; ninguem reenvia isto",
 			"repasse", r.ID, "vendedor", r.VendedorConta, "referencia", t.Referencia, "err", err)
 		if e := s.banco.FecharTentativa(ctx, t.ID, store.RepasseIncerto, "", nil, "", err.Error()); e != nil {
-			return false, e
+			return 0, e
 		}
-		return false, s.banco.MarcarRepasseIncerto(ctx, r.ID, err.Error())
+		return store.RepasseIncerto, s.banco.MarcarRepasseIncerto(ctx, r.ID, err.Error())
 	}
 	if err != nil {
 		// Erro de transporte ou recusa da porta (400, 401, 413): nada saiu, e a
@@ -140,9 +183,9 @@ func (s *Servico) pagarUm(ctx context.Context, r store.RepasseAPagar) (enviou bo
 		// PENDENTE e a próxima varredura abre a tentativa seguinte, com referência
 		// nova — que é seguro porque nada saiu.
 		if e := s.banco.FecharTentativa(ctx, t.ID, store.RepasseRecusado, "", nil, "", err.Error()); e != nil {
-			return false, e
+			return 0, e
 		}
-		return false, err
+		return 0, err
 	}
 
 	switch resp.Estado {
@@ -153,11 +196,11 @@ func (s *Servico) pagarUm(ctx context.Context, r store.RepasseAPagar) (enviou bo
 		// anterior ter se perdido.
 		if err := s.banco.FecharTentativa(ctx, t.ID, store.RepasseEnviado,
 			resp.ChaveGateway, nil, "", ""); err != nil {
-			return false, err
+			return 0, err
 		}
 		s.log.Info("repasse: aceito pela ponte", "repasse", r.ID,
 			"vendedor", r.VendedorConta, "saque", resp.ChaveGateway, "estado", resp.Estado)
-		return true, s.banco.MarcarRepasseEnviado(ctx, r.ID, resp.ChaveGateway, r.ValorCentavos)
+		return store.RepasseEnviado, s.banco.MarcarRepasseEnviado(ctx, r.ID, resp.ChaveGateway, r.ValorCentavos)
 
 	case "recusado":
 		// CERTEZA de que nada saiu. É o único resultado em que tentar de novo é seguro,
@@ -170,9 +213,9 @@ func (s *Servico) pagarUm(ctx context.Context, r store.RepasseAPagar) (enviou bo
 			"http_syncpay", resp.HTTPSyncpay, "codigo", resp.CodigoSyncpay, "motivo", resp.Motivo)
 		if err := s.banco.FecharTentativa(ctx, t.ID, store.RepasseRecusado, "",
 			resp.HTTPSyncpay, resp.CodigoSyncpay, resp.Motivo); err != nil {
-			return false, err
+			return 0, err
 		}
-		return false, s.banco.MarcarRepasseRecusado(ctx, r.ID, resp.HTTPSyncpay,
+		return store.RepasseRecusado, s.banco.MarcarRepasseRecusado(ctx, r.ID, resp.HTTPSyncpay,
 			resp.CodigoSyncpay, resp.Motivo)
 
 	default:
@@ -186,8 +229,8 @@ func (s *Servico) pagarUm(ctx context.Context, r store.RepasseAPagar) (enviou bo
 			"repasse", r.ID, "estado", resp.Estado)
 		if err := s.banco.FecharTentativa(ctx, t.ID, store.RepasseIncerto, resp.ChaveGateway,
 			resp.HTTPSyncpay, resp.CodigoSyncpay, "estado desconhecido: "+resp.Estado); err != nil {
-			return false, err
+			return 0, err
 		}
-		return false, s.banco.MarcarRepasseIncerto(ctx, r.ID, "estado desconhecido: "+resp.Estado)
+		return store.RepasseIncerto, s.banco.MarcarRepasseIncerto(ctx, r.ID, "estado desconhecido: "+resp.Estado)
 	}
 }

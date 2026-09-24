@@ -100,10 +100,19 @@ func TestIncertoNaoViraRecusa(t *testing.T) {
 	p := &pontefake{err: ponte.ErrIncerta}
 	b := &bancofake{fila: []store.RepasseAPagar{umaDivida()}}
 
-	pagos, falhas := Novo(p, b, mudo()).PagarPendentes(context.Background(), 10)
+	rod := Novo(p, b, mudo()).PagarPendentes(context.Background(), 10)
 
-	if pagos != 0 || falhas != 0 {
-		t.Errorf("pagos=%d falhas=%d; o incerto nao e nenhum dos dois", pagos, falhas)
+	// O INCERTO TEM CONTADOR PRÓPRIO, e não some nem vira "pago".
+	//
+	// Somem os dois erros: contá-lo como pago faria o log dizer que a gente pagou
+	// alguém que talvez não tenha recebido; tirá-lo de tudo faria uma rodada com três
+	// incertos sair como "nada aconteceu" — e três pagamentos que talvez tenham saído é
+	// o oposto de nada.
+	if rod.Aceitos != 0 || rod.Falhas != 0 || rod.Recusados != 0 {
+		t.Errorf("rodada = %+v; o incerto nao e nenhum dos outros tres", rod)
+	}
+	if rod.Incertos != 1 {
+		t.Errorf("incertos = %d, quero 1: e o numero que precisa gritar", rod.Incertos)
 	}
 	if len(b.incertos) != 1 || b.incertos[0] != 7 {
 		t.Errorf("marcou incerto = %v, queria [7]", b.incertos)
@@ -146,10 +155,10 @@ func TestAceitoERepetidoSaoSucesso(t *testing.T) {
 		p := &pontefake{resp: ponte.RespostaRepasse{Estado: estado, ChaveGateway: "saque-1"}}
 		b := &bancofake{fila: []store.RepasseAPagar{umaDivida()}}
 
-		pagos, falhas := Novo(p, b, mudo()).PagarPendentes(context.Background(), 10)
+		rod := Novo(p, b, mudo()).PagarPendentes(context.Background(), 10)
 
-		if pagos != 1 || falhas != 0 {
-			t.Errorf("%s: pagos=%d falhas=%d", estado, pagos, falhas)
+		if rod.Aceitos != 1 || rod.Falhas != 0 || rod.Incertos != 0 {
+			t.Errorf("%s: rodada = %+v", estado, rod)
 		}
 		if len(b.enviados) != 1 || b.enviados[0] != "saque-1" {
 			t.Errorf("%s: enviados = %v; sem o id do saque a taxa fica sem dono", estado, b.enviados)
@@ -240,13 +249,13 @@ func TestUmaFalhaNaoParaAFila(t *testing.T) {
 	chamou := 0
 	falhaNaPrimeira := &bancoQueFalhaUmaVez{bancofake: b, falharNo: 1, chamou: &chamou}
 
-	pagos, falhas := Novo(p, falhaNaPrimeira, mudo()).PagarPendentes(context.Background(), 10)
+	rod := Novo(p, falhaNaPrimeira, mudo()).PagarPendentes(context.Background(), 10)
 
-	if falhas != 1 {
-		t.Errorf("falhas = %d, queria 1", falhas)
+	if rod.Falhas != 1 {
+		t.Errorf("falhas = %d, queria 1", rod.Falhas)
 	}
-	if pagos != 1 {
-		t.Errorf("pagos = %d; a divida de tras nao foi tentada", pagos)
+	if rod.Aceitos != 1 {
+		t.Errorf("aceitos = %d; a divida de tras nao foi tentada", rod.Aceitos)
 	}
 }
 
@@ -263,3 +272,40 @@ func (b *bancoQueFalhaUmaVez) AbrirTentativa(ctx context.Context, repasseID int6
 	}
 	return b.bancofake.AbrirTentativa(ctx, repasseID, por)
 }
+
+// A RODADA VAZIA NÃO ESCREVE NADA, e a com incerto escreve em WARN.
+//
+// A varredura roda a cada dois minutos: uma linha por rodada encheria o log de "não fiz
+// nada" e afogaria as que dizem alguma coisa. E o incerto sobe de nível mesmo quando o
+// resto correu bem, porque ele é o único número da linha que exige uma pessoa.
+func TestRegistrarEscolheONivelPeloQueSignifica(t *testing.T) {
+	var linhas []slog.Record
+	log := slog.New(gravador{fn: func(r slog.Record) { linhas = append(linhas, r) }})
+
+	Rodada{}.Registrar(log)
+	if len(linhas) != 0 {
+		t.Errorf("a rodada vazia escreveu %d linha(s); o log encheria de 'nao fiz nada'", len(linhas))
+	}
+
+	Rodada{Aceitos: 2}.Registrar(log)
+	if len(linhas) != 1 || linhas[0].Level != slog.LevelInfo {
+		t.Fatalf("rodada boa = %+v", linhas)
+	}
+
+	Rodada{Aceitos: 2, Incertos: 1}.Registrar(log)
+	if len(linhas) != 2 {
+		t.Fatalf("a rodada com incerto nao escreveu")
+	}
+	if linhas[1].Level != slog.LevelWarn {
+		t.Errorf("a rodada com incerto saiu em %v; ela tem de subir de nivel mesmo com o resto bom",
+			linhas[1].Level)
+	}
+}
+
+// gravador guarda as linhas em vez de escrevê-las.
+type gravador struct{ fn func(slog.Record) }
+
+func (g gravador) Enabled(context.Context, slog.Level) bool      { return true }
+func (g gravador) Handle(_ context.Context, r slog.Record) error { g.fn(r); return nil }
+func (g gravador) WithAttrs([]slog.Attr) slog.Handler            { return g }
+func (g gravador) WithGroup(string) slog.Handler                 { return g }

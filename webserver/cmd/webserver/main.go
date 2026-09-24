@@ -445,12 +445,9 @@ func varrerRepasses(ctx context.Context, s *rmtrepasse.Servico, log *slog.Logger
 		case <-t.C:
 			// Prazo por rodada: uma ponte lenta não pode segurar a varredura para
 			// sempre, e a rodada seguinte pega o que sobrou.
-			rodada, cancela := context.WithTimeout(ctx, intervaloDoRepasse)
-			pagos, falhas := s.PagarPendentes(rodada, 20)
+			prazo, cancela := context.WithTimeout(ctx, intervaloDoRepasse)
+			s.PagarPendentes(prazo, 20).Registrar(log)
 			cancela()
-			if pagos > 0 || falhas > 0 {
-				log.Info("repasse: rodada", "aceitos", pagos, "falhas", falhas)
-			}
 		}
 	}
 }
