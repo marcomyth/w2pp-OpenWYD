@@ -1052,8 +1052,11 @@ func characterSaveToProto(s world.CharacterSave) *dbv1.Character {
 		LastCity:   int32(s.LastCity),
 		SaveX:      int32(s.SaveX),
 		SaveY:      int32(s.SaveY),
-		Carry:      savedItemsToProto(s.Carry),
-		Equip:      savedItemsToProto(s.Equip),
+		// A cidadania, que a Kibita vende em jogo. O campo do proto ja existia
+		// (Character.citizen = 31) e so o save nao o preenchia.
+		Citizen: int32(s.Citizen),
+		Carry:   savedItemsToProto(s.Carry),
+		Equip:   savedItemsToProto(s.Equip),
 
 		ScoreBonus:      int32(s.ScoreBonus),
 		SpecialBonus:    int32(s.SpecialBonus),
