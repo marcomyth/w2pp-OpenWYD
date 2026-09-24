@@ -26,6 +26,7 @@ import (
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
 	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
+	"github.com/jeanluca/w2pp-openwyd/internal/secret"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/account"
@@ -332,7 +333,11 @@ func run(logger *slog.Logger) error {
 				defer func() { _ = conn.Close() }()
 				clienteDoJogo = jogo.New(conn, token)
 				jogoDoPagamento = clienteDoJogo
-				logger.Info("link com o servidor de jogo ligado para a entrega imediata", "addr", addr)
+				// A IMPRESSÃO DO TOKEN VAI NO LOG, e o token não. Dois serviços com
+				// valores diferentes só descobriam isso quando um recusava o outro, e
+				// a recusa não diz qual dos dois está errado — ver secret.Impressao.
+				logger.Info("link com o servidor de jogo ligado para a entrega imediata",
+					"addr", addr, "token", secret.Impressao(token))
 			}
 		}
 	} else {
