@@ -56,6 +56,11 @@ type ExpRewardInput struct {
 	// Config is the moderator-managed configuration (cut tables and per-branch
 	// rate). Its zero value is the pure legacy behaviour.
 	Config Config
+
+	// Trace, quando não é nil, recebe o valor de CADA etapa do pagamento. É a
+	// ferramenta de calibração descrita em xptrace.go, e é temporária. Nil é o
+	// caminho normal e não custa nada.
+	Trace *ExpTrace
 }
 
 // KillingBlow is the character that landed the killing blow, as the eMob cap
@@ -158,6 +163,12 @@ func ExpRewardOutcome(in ExpRewardInput) (int64, ExpLoss) {
 	if in.KillingBlow != nil {
 		eMob = ExpApply(in.MobExp, in.KillingBlow.Level, in.MobLevel, in.KillingBlow.Tier)
 	}
+	tr := in.Trace
+	if tr != nil {
+		tr.Zona, tr.Tier = in.Zone, tierKeyFor(classMaster)
+		tr.NivelMatou, tr.NivelMolde, tr.MobExp = in.KillerLevel, in.MobLevel, in.MobExp
+		tr.IsExp, tr.EMob = isExp, eMob
+	}
 	myLevel := int64(in.KillerLevel)
 	if classMaster != classMortal && classMaster != classArch {
 		myLevel += int64(MaxLevel) + 1
@@ -192,6 +203,10 @@ func ExpRewardOutcome(in ExpRewardInput) (int64, ExpLoss) {
 	} else {
 		exp = 450 * isExp / (30 + myLevel)
 	}
+	if tr != nil {
+		tr.Bruto = exp
+		tr.PassouOGate = exp <= soloExpGate
+	}
 	if exp > soloExpGate {
 		return 0, ExpLossWindow
 	}
@@ -204,6 +219,14 @@ func ExpRewardOutcome(in ExpRewardInput) (int64, ExpLoss) {
 		// A moderator's table replaces the branch's, including the doubled
 		// celestial block of Pesadelo Normal: an edited table is read as
 		// written, not as the legacy's quirk plus an edit.
+		if tr != nil {
+			for _, c := range ov.Cuts {
+				if myLevel <= int64(c.UpTo) {
+					tr.DivisorUsado, tr.DivisorAte = c.Divisor, c.UpTo
+					break
+				}
+			}
+		}
 		exp = applyCuts(exp, myLevel, ov.Cuts)
 	} else {
 		exp = applyBands(exp, myLevel, bandsFor(r, tier))
@@ -214,7 +237,14 @@ func ExpRewardOutcome(in ExpRewardInput) (int64, ExpLoss) {
 
 	// The cap comes AFTER the member's own cuts, where the legacy puts it: the
 	// cut is chosen by the member's level, the ceiling by the killer's.
+	if tr != nil {
+		tr.DepoisCortes = exp
+	}
 	exp = 6 * exp / 10
+	if tr != nil {
+		tr.DepoisSeis = exp
+		tr.TetouNoEMob = r.capToEMob && exp > eMob
+	}
 	if r.capToEMob && exp > eMob {
 		if eMob <= 0 {
 			return 0, ExpLossKillerCap
@@ -222,8 +252,12 @@ func ExpRewardOutcome(in ExpRewardInput) (int64, ExpLoss) {
 		exp = eMob
 	}
 
-	if bonus := ItemBonusApplied(in.Zone, in.ExpBonus, in.FairyContent); bonus != 0 {
+	bonus := ItemBonusApplied(in.Zone, in.ExpBonus, in.FairyContent)
+	if bonus != 0 {
 		exp += exp * int64(bonus) / 100
+	}
+	if tr != nil {
+		tr.BonusPercent, tr.DepoisBonus = bonus, exp
 	}
 
 	if in.Events.NewbieEvent && in.KillerLevel < 100 && !isCelestialTier(classMaster) {
@@ -232,8 +266,14 @@ func ExpRewardOutcome(in ExpRewardInput) (int64, ExpLoss) {
 	if in.Events.DoubleMode {
 		exp *= 2
 	}
+	if tr != nil {
+		tr.DepoisDobro = exp
+	}
 	if !in.Events.KefraLive {
 		exp /= 2
+	}
+	if tr != nil {
+		tr.DepoisKefra = exp
 	}
 	if in.Events.NewbieEvent {
 		exp += exp * 15 / 100
@@ -243,8 +283,15 @@ func ExpRewardOutcome(in ExpRewardInput) (int64, ExpLoss) {
 	// The configured rate is ours, not the legacy's, and it goes last so that
 	// "200%" means exactly twice what the game would otherwise have paid —
 	// nothing downstream can round it away.
-	if rate := in.Config.RatePercent(in.Zone, tier); rate != 100 {
+	rate := in.Config.RatePercent(in.Zone, tier)
+	if tr != nil {
+		tr.DepoisNovato, tr.TaxaPercent = exp, rate
+	}
+	if rate != 100 {
 		exp = exp * int64(rate) / 100
+	}
+	if tr != nil {
+		tr.Final = exp
 	}
 	if exp <= 0 {
 		return 0, ExpLossNone

@@ -379,7 +379,36 @@ func (d *Dispatcher) grantExp(w *world.World, ks *world.Session, member, mob *wo
 		Events:       d.expEvents,
 		Config:       d.xpConfig,
 	}
+	// O RASTRO DA XP, SÓ PARA A STAFF (xptrace.go). Temporário: existe para fechar
+	// a calibração da Mesa e sai depois, o que está escrito no PR que o trouxe.
+	//
+	// Só staff porque uma linha por morte de todo jogador encheria o log de
+	// produção — e porque quem precisa da conta é quem está medindo, não quem está
+	// jogando. A regra fica mesmo hoje, com só a staff em campo: o log não pode
+	// virar um problema no dia em que abrir.
+	var rastro *level.ExpTrace
+	if ks != nil && ks.AccessLevel.EhStaff() {
+		rastro = &level.ExpTrace{}
+		in.Trace = rastro
+	}
 	gain, loss := level.ExpRewardOutcome(in)
+	if rastro != nil {
+		d.log.Info("xp-trace",
+			"conta", ks.AccountName, "personagem", member.Name,
+			"molde", mob.Name, "nivel_molde", rastro.NivelMolde, "mob_exp", rastro.MobExp,
+			"zona", int(rastro.Zona), "tier", rastro.Tier, "nivel_interno", rastro.NivelMatou,
+			"is_exp", rastro.IsExp, "e_mob", rastro.EMob,
+			"bruto", rastro.Bruto, "passou_o_gate", rastro.PassouOGate,
+			"divisor", rastro.DivisorUsado, "divisor_ate", rastro.DivisorAte,
+			"depois_cortes", rastro.DepoisCortes, "depois_6_10", rastro.DepoisSeis,
+			"tetou_no_emob", rastro.TetouNoEMob,
+			"bonus_pct", rastro.BonusPercent, "bonus_item", in.ExpBonus, "bonus_fada", in.FairyContent,
+			"depois_bonus", rastro.DepoisBonus,
+			"dobro", in.Events.DoubleMode, "depois_dobro", rastro.DepoisDobro,
+			"kefra_live_flag", in.Events.KefraLive, "depois_kefra", rastro.DepoisKefra,
+			"novato", in.Events.NewbieEvent, "depois_novato", rastro.DepoisNovato,
+			"taxa_pct", rastro.TaxaPercent, "final", rastro.Final, "concedido", gain)
+	}
 	if gain <= 0 {
 		d.avisarXPPerdida(w, ks, member, mob, in.Zone, loss)
 		return
