@@ -689,6 +689,28 @@ func (w *World) SetCargo(accountID int64, st *CargoState) {
 // want of a free slot. The admin panel's deliver-now reports both, so a
 // moderator can tell the player to make room instead of reporting a delivery
 // that did not happen.
+// MensagemEntregaPresa é o que o jogador lê quando parte da entrega não coube.
+//
+// UMA FUNÇÃO E NÃO DUAS FRASES, e o motivo é concreto: os dois caminhos que drenam a
+// caixa postal — o login e a entrega imediata pedida pelo site — avisavam com textos
+// diferentes, e um deles não avisava nada. Texto de jogador escrito em dois lugares
+// vira dois textos, e o que se corrige num dia continua errado no outro.
+//
+// E ela diz O QUE FAZER, porque o aviso sem a ação vira chamado: "não couberam" sozinho
+// faz a pessoa contar os itens, achar que sumiu, e abrir ticket. Dói mais no pacote
+// grande, que é justamente o que enche o baú — o maior deles ocupa 69 dos 128 espaços,
+// porque baú de sorteio não empilha.
+//
+// "Entre de novo" é o certo nos dois lugares: o que ficou preso é retentado no próximo
+// dreno, e os drenos são o login e a entrega imediata. Não há terceiro.
+func MensagemEntregaPresa(presos int) string {
+	if presos <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d item(ns) nao couberam no bau da conta. "+
+		"Libere espaco e entre de novo para receber o resto.", presos)
+}
+
 func (w *World) ApplyDeliveries(s *Session, pending []Delivery) (delivered, held int) {
 	if s == nil || s.AccountID == 0 || len(pending) == 0 {
 		return 0, 0

@@ -133,7 +133,7 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		if held > 0 {
 			// The player paid for these and cannot see them yet. Saying why is
 			// what keeps "abre espaço" from becoming a support ticket.
-			sendClientMessage(w, s, fmt.Sprintf("%d item(ns) da loja esperam espaço no baú. Abra espaço e entre de novo.", held))
+			sendClientMessage(w, s, world.MensagemEntregaPresa(held))
 		}
 	case world.LoginBadPassword:
 		d.fails[s.AccountName]++

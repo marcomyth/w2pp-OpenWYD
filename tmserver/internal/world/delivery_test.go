@@ -3,6 +3,7 @@ package world
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -128,5 +129,35 @@ func TestDeliveryReleaseForgetsTheMailbox(t *testing.T) {
 	w.SetCargo(42, &CargoState{})
 	if d, _ := w.ApplyDeliveries(s, []Delivery{{ID: 41, Item: Item{Index: 4321}}}); d != 1 {
 		t.Fatalf("re-drain after release delivered %d, want 1 (the row never left pending)", d)
+	}
+}
+
+// A MENSAGEM DA ENTREGA PRESA É UMA SÓ, e este teste existe porque ela era duas: o
+// login avisava com um texto, e a entrega imediata pedida pelo site não avisava nada.
+//
+// O caminho da entrega imediata é o da COMPRA — a pessoa paga, o site pede a entrega,
+// parte não cabe, e ela fica olhando um baú que recebeu menos do que a página
+// prometeu. Sem nada na tela, porque ela não vai relogar para descobrir.
+func TestMensagemEntregaPresa(t *testing.T) {
+	// Zero e negativo não produzem mensagem: quem chama não precisa lembrar de
+	// conferir antes, e um "0 item(ns) não couberam" seria pior do que o silêncio.
+	for _, n := range []int{0, -1} {
+		if got := MensagemEntregaPresa(n); got != "" {
+			t.Errorf("MensagemEntregaPresa(%d) = %q, quero vazio", n, got)
+		}
+	}
+
+	msg := MensagemEntregaPresa(9)
+	if msg == "" {
+		t.Fatal("nao avisou nada com 9 itens presos")
+	}
+	// O NÚMERO aparece: "alguns itens" faria a pessoa contar para descobrir quantos.
+	if !strings.Contains(msg, "9") {
+		t.Errorf("a mensagem nao diz quantos: %q", msg)
+	}
+	// E ela diz O QUE FAZER. Aviso sem ação vira chamado: a pessoa conta os itens,
+	// acha que sumiu um, e abre ticket — e quem atender não vai ter o que olhar.
+	if !strings.Contains(msg, "espaco") || !strings.Contains(msg, "entre de novo") {
+		t.Errorf("a mensagem nao diz o que fazer: %q", msg)
 	}
 }
