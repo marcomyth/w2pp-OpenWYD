@@ -14,6 +14,9 @@
   .campos { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: baseline;
             font-size: 12.5px; color: var(--ink-3); }
   .campos .rot { text-transform: uppercase; letter-spacing: .07em; font-size: 10.5px; }
+  form.resolver { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; margin-top: 10px; }
+  form.resolver label { font-size: 12px; color: var(--ink-3); display: block; }
+  form.resolver input[type=text] { width: 52ch; }
 </style>
 </head>
 <body>
@@ -23,20 +26,28 @@
   <h1>Valores divergentes</h1>
   <p class="sub">Entrou dinheiro com um valor diferente do que foi cobrado.</p>
 
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
   <p class="nota">
-    <strong>Esta tela não tem botão, e a falta é a decisão.</strong> Devolver, cobrar a
+    <strong>O destino do dinheiro se decide fora daqui.</strong> Devolver, cobrar a
     diferença ou entregar assim mesmo é escolha sobre o dinheiro de duas pessoas — de
-    quem pagou e de quem vendeu —, e não existe resposta automática certa. Um botão
-    aqui daria a impressão de que existe.
+    quem pagou e de quem vendeu —, e não existe resposta automática certa. Faça no
+    painel da processadora, e falando com quem comprou. Use o
+    <span class="mono">identifier</span> para achar o pagamento lá.
     <br><br>
     O que o servidor faz sozinho é o que ele sabe fazer sem errar: ele <strong>não
-    entrega o item</strong> e <strong>não vence a cobrança</strong>. Ela fica aberta, e
-    é isso que segura o item do vendedor — quem pagou não pode perder o item para outra
-    pessoa enquanto a decisão não sai.
+    entrega o item</strong> e <strong>não vence a cobrança</strong>.
     <br><br>
-    Resolvido por fora, a linha some daqui quando a cobrança for concluída ou
-    devolvida no painel da processadora. Use o
-    <span class="mono">identifier</span> para achá-la lá.
+    <strong>Mas depois de resolver, volte aqui e registre.</strong> Enquanto a cobrança
+    estiver aberta, duas pessoas continuam presas: o comprador <strong>não consegue
+    comprar mais nada</strong>, e o item do vendedor <strong>fica preso no baú</strong>.
+    Nada no sistema sabe que você resolveu — só você sabe, e é o registro que destrava
+    as duas pontas.
+    <br><br>
+    <strong>Vai entregar o item assim mesmo?</strong> Entregue pelo painel de entrega,
+    e depois registre aqui dizendo isso na nota. Não há botão para isso de propósito:
+    um botão com dois destinos para o item seria o caminho automático que esta tela
+    existe para não ter.
   </p>
 
   {{if .Fila}}
@@ -57,6 +68,20 @@
         <span><span class="rot">Cobrança</span> {{.CobrancaID}}</span>
         {{if .Identifier}}<span><span class="rot">Identifier</span> <span class="mono">{{.Identifier}}</span></span>{{end}}
       </div>
+
+      {{if $.IsAdmin}}
+      <form class="resolver" method="post" action="/divergentes/{{.CobrancaID}}/resolver">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <div>
+          <label for="nota-{{.CobrancaID}}">O que você fez com este dinheiro</label>
+          <input type="text" id="nota-{{.CobrancaID}}" name="nota" required
+                 placeholder="devolvi os R$ 7,00 pelo painel em 24/09 e avisei o comprador">
+        </div>
+        <button type="submit">Resolvido, pode destravar</button>
+      </form>
+      {{else}}
+      <p class="nota">Só quem é admin registra o que foi feito com este dinheiro.</p>
+      {{end}}
     </div>
     {{end}}
   {{else}}

@@ -34,6 +34,7 @@ type FilasRMT interface {
 	ResolverReembolsoNaMao(ctx context.Context, cobrancaID int64, ator store.AtorDaStaff) error
 	ConfirmarReembolsoPedido(ctx context.Context, cobrancaID int64, ator store.AtorDaStaff) error
 	ValoresDivergentes(ctx context.Context) ([]store.ValorDivergenteNaFila, error)
+	ResolverDivergenteDevolvido(ctx context.Context, cobrancaID int64, ator store.AtorDaStaff, nota string) error
 	// ReembolsosSemIdentifier é a fila invisível: devoluções devidas que a varredura
 	// não consegue nem tentar, porque falta o id da processadora.
 	ReembolsosSemIdentifier(ctx context.Context) (int, error)
@@ -233,14 +234,26 @@ type divergenteView struct {
 
 // divergentes mostra as cobranças em que entrou valor diferente do pedido.
 //
-// A TELA NÃO TEM BOTÃO, e a ausência é a decisão. Devolver, cobrar a diferença ou
-// entregar assim mesmo é escolha sobre o dinheiro de duas pessoas, e ela é executada
-// por fora — no painel da processadora, e falando com quem comprou. Um botão aqui
-// daria a impressão de que existe um caminho automático certo, e não existe.
+// A TELA NÃO DECIDE O DESTINO DO DINHEIRO, e essa parte continua sendo de fora:
+// devolver, cobrar a diferença ou entregar assim mesmo é escolha sobre o dinheiro de
+// duas pessoas, e acontece no painel da processadora e conversando com quem comprou.
 //
-// A cobrança fica ABERTA enquanto isso não se resolve, e é isso que segura o item do
-// vendedor: quem pagou não pode perder o item para outra pessoa enquanto a staff
-// decide.
+// MAS ELA PRECISA DE UMA SAÍDA, e a primeira versão desta tela não tinha — foi um
+// erro meu que a planejadora pegou. A cobrança divergente fica ABERTA, e enquanto ela
+// estiver aberta duas pessoas estão presas no jogo: o comprador não consegue comprar
+// mais nada, porque o índice de uma cobrança aberta por comprador o recusa, e o item
+// do vendedor fica marcado, porque o anúncio continua esperando uma cobrança que
+// nunca fecha. Sem saída, a staff resolvia o dinheiro e as duas continuavam travadas
+// para sempre, porque nada no sistema sabia que tinha acabado.
+//
+// UMA SAÍDA SÓ, e é de registro e não de dinheiro: "devolvido ao comprador por fora".
+// Ela não devolve nada — diz que alguém já devolveu, e destrava o que estava preso
+// por causa daquela cobrança.
+//
+// "ENTREGAR ASSIM MESMO" NÃO GANHOU BOTÃO. Quem quiser isso entrega o item pelo painel
+// de entrega que já existe e depois usa esta mesma saída, escrevendo na nota o que
+// fez. Um botão com dois destinos para o item seria exatamente o caminho automático
+// que esta tela existe para não ter.
 func (h *Handler) divergentes(w http.ResponseWriter, r *http.Request) {
 	fila, err := h.cfg.FilasRMT.ValoresDivergentes(r.Context())
 	if err != nil {
@@ -265,6 +278,53 @@ func (h *Handler) divergentes(w http.ResponseWriter, r *http.Request) {
 	}
 	h.render(w, "divergentes.html", struct {
 		page
-		Fila []divergenteView
-	}{h.pageFor(r, "divergentes"), vistas})
+		Fila  []divergenteView
+		Aviso string
+	}{h.pageFor(r, "divergentes"), vistas, r.URL.Query().Get("aviso")})
+}
+
+// resolverDivergente registra que uma pessoa já devolveu o dinheiro por fora, e
+// destrava as duas pontas.
+//
+// A NOTA É OBRIGATÓRIA, e aqui ela carrega mais peso do que nas outras telas: esta é
+// a única linha que vai dizer o que foi feito com uma diferença de valor que nenhum
+// caminho automático tocou. Sem ela, fica registrado que "alguém fechou", e mais nada.
+func (h *Handler) resolverDivergente(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil || !h.checkCSRF(w, r) {
+		if err != nil {
+			http.Error(w, "Formulário ilegível.", http.StatusBadRequest)
+		}
+		return
+	}
+	sess, _ := staffFrom(r.Context())
+	id, err := strconv.ParseInt(r.PathValue("cobranca"), 10, 64)
+	if err != nil || id <= 0 {
+		http.NotFound(w, r)
+		return
+	}
+	nota := r.PostFormValue("nota")
+	if nota == "" {
+		http.Redirect(w, r, "/divergentes?aviso="+urlQuery(
+			"Escreva o que foi feito com este dinheiro."), http.StatusSeeOther)
+		return
+	}
+	ator := store.AtorDaStaff{ContaID: sess.AccountID, Papel: roleFrom(r.Context())}
+
+	if err := h.cfg.FilasRMT.ResolverDivergenteDevolvido(r.Context(), id, ator, nota); err != nil {
+		if errors.Is(err, store.ErrDivergenteNaoEstaAberta) {
+			http.Redirect(w, r, "/divergentes?aviso="+urlQuery(
+				"Esta cobranca ja foi fechada por alguem. Recarregue e olhe de novo."),
+				http.StatusSeeOther)
+			return
+		}
+		h.cfg.Logger.Error("resolver divergente falhou", "cobranca", id, "err", err)
+		http.Error(w, "Erro ao resolver a cobrança.", http.StatusInternalServerError)
+		return
+	}
+	// A auditoria já foi escrita DENTRO da transição, na mesma transação. Ver a nota
+	// em resolverReembolso: uma segunda escrita daqui viraria duas linhas para o
+	// mesmo ato.
+	h.cfg.Logger.Info("divergente resolvida", "ator", sess.AccountName, "cobranca", id)
+	http.Redirect(w, r, "/divergentes?aviso="+urlQuery("Registrado, e as duas pontas destravadas."),
+		http.StatusSeeOther)
 }

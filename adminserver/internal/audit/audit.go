@@ -88,6 +88,7 @@ const (
 	ActionReembolsoDeNovo         = "REEMBOLSO_DE_NOVO"
 	ActionReembolsoNaMao          = "REEMBOLSO_NA_MAO"
 	ActionReembolsoAchadoNoPainel = "REEMBOLSO_ACHADO_NO_PAINEL"
+	ActionDivergenteDevolvido     = "DIVERGENTE_DEVOLVIDO"
 )
 
 // listLimit caps one page of the log.
@@ -286,6 +287,7 @@ var rotulos = map[string]string{
 	ActionReembolsoDeNovo:         "Poe um reembolso de volta na fila para pedir",
 	ActionReembolsoNaMao:          "Afirmou que um reembolso foi resolvido na mao",
 	ActionReembolsoAchadoNoPainel: "Achou o pedido de reembolso no painel da processadora",
+	ActionDivergenteDevolvido:     "Registrou que devolveu por fora um pagamento de valor divergente",
 	ActionHandleReport:            "Tratou uma denúncia",
 	ActionBroadcast:               "Mandou um aviso para todos",
 	ActionRestartGame:             "Reiniciou o servidor",

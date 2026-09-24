@@ -34,7 +34,7 @@ func TestTodaAcaoTemRotulo(t *testing.T) {
 		ActionBlockCommand,
 		ActionRepasseIncertoPago, ActionRepasseIncertoNaoPago, ActionRepasseRecusaResolvida,
 		ActionOrfaoResolvido, ActionReembolsoDeNovo, ActionReembolsoNaMao,
-		ActionReembolsoAchadoNoPainel,
+		ActionReembolsoAchadoNoPainel, ActionDivergenteDevolvido,
 	}
 	for _, a := range acoes {
 		e := Entry{Action: a}

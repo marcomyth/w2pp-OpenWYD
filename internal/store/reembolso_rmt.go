@@ -388,12 +388,16 @@ type ValorDivergenteNaFila struct {
 // item do vendedor: quem pagou não pode perder o item para outra pessoa enquanto a
 // staff decide.
 func (s *Store) ValoresDivergentes(ctx context.Context) ([]ValorDivergenteNaFila, error) {
+	// SÓ AS AINDA ABERTAS. A coluna da divergência fica na linha para sempre, como
+	// registro do que houve; o que sai da fila é a cobrança que já foi fechada por
+	// uma pessoa. Sem este filtro, a linha resolvida ficaria na tela para sempre e a
+	// fila deixaria de significar "o que precisa de mim".
 	rows, err := s.pool.Query(ctx, `
 		SELECT id, comprador_conta, valor_centavos, valor_divergente_centavos,
 		       coalesce(identifier_syncpay, '')
 		  FROM rmt_cobranca
-		 WHERE valor_divergente_centavos IS NOT NULL
-		 ORDER BY paga_em NULLS FIRST, id`)
+		 WHERE valor_divergente_centavos IS NOT NULL AND status = $1
+		 ORDER BY paga_em NULLS FIRST, id`, cobrancaAberta)
 	if err != nil {
 		return nil, fmt.Errorf("store: valores divergentes: %w", err)
 	}

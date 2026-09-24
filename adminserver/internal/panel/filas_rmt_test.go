@@ -26,6 +26,7 @@ type fakeFilas struct {
 	deNovo         []int64
 	naMao          []int64
 	achado         []int64
+	divResolvida   map[int64]string
 	erroAcao       error
 }
 
@@ -35,6 +36,7 @@ func novoFakeFilas() *fakeFilas {
 		reembolsos:     umaFilaDeReembolsos(),
 		divergentes:    umaFilaDeDivergentes(),
 		orfaoResolvido: map[int64]string{},
+		divResolvida:   map[int64]string{},
 	}
 }
 
@@ -71,6 +73,16 @@ func (f *fakeFilas) ConfirmarReembolsoPedido(_ context.Context, id int64, _ stor
 
 func (f *fakeFilas) ValoresDivergentes(context.Context) ([]store.ValorDivergenteNaFila, error) {
 	return f.divergentes, nil
+}
+
+func (f *fakeFilas) ResolverDivergenteDevolvido(_ context.Context, id int64,
+	_ store.AtorDaStaff, nota string,
+) error {
+	if f.divResolvida == nil {
+		f.divResolvida = map[int64]string{}
+	}
+	f.divResolvida[id] = nota
+	return f.erroAcao
 }
 
 func (f *fakeFilas) ReembolsosSemIdentifier(context.Context) (int, error) {
@@ -271,7 +283,52 @@ func TestDivergentesMostraADiferencaENaoTemBotao(t *testing.T) {
 	}
 	// A busca e o "sair" da barra de cima são formulários e não contam; o que não
 	// pode existir é um que aja sobre uma cobrança.
-	if strings.Contains(corpo, `action="/divergentes`) {
-		t.Error("a tela dos divergentes ganhou um formulario; a falta dele e a decisao")
+	// E tem UMA saída, que não mexe em dinheiro: ela registra que alguém já devolveu
+	// por fora. Sem ela, o comprador ficaria sem poder comprar e o item do vendedor
+	// preso no baú para sempre, porque a cobrança divergente não fecha sozinha.
+	if !strings.Contains(corpo, `action="/divergentes/20/resolver"`) {
+		t.Error("a tela nao tem a saida que destrava as duas pontas")
+	}
+}
+
+// A SAÍDA DO DIVERGENTE EXIGE A NOTA, e é a nota que mais importa das quatro telas:
+// é a única linha que vai dizer o que foi feito com uma diferença de valor que nenhum
+// caminho automático tocou.
+func TestResolverDivergenteExigeANota(t *testing.T) {
+	f := novoFakeFilas()
+	h := painelComFilas(t, f)
+
+	rec := postSigned(t, h, "/divergentes/20/resolver", url.Values{})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("codigo = %d", rec.Code)
+	}
+	if len(f.divResolvida) != 0 {
+		t.Fatalf("fechou a cobranca sem ninguem dizer o que fez: %v", f.divResolvida)
+	}
+
+	rec = postSigned(t, h, "/divergentes/20/resolver",
+		url.Values{"nota": {"devolvi os R$ 7,00 e avisei o comprador"}})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("codigo = %d", rec.Code)
+	}
+	if f.divResolvida[20] != "devolvi os R$ 7,00 e avisei o comprador" {
+		t.Errorf("nota = %q", f.divResolvida[20])
+	}
+}
+
+// E A COBRANÇA QUE ALGUÉM JÁ FECHOU VIRA AVISO, e não erro: duas pessoas na mesma
+// tela é o caso normal de uma fila.
+func TestDivergenteJaFechadaAvisaEmVezDeQuebrar(t *testing.T) {
+	f := novoFakeFilas()
+	f.erroAcao = store.ErrDivergenteNaoEstaAberta
+	h := painelComFilas(t, f)
+
+	rec := postSigned(t, h, "/divergentes/20/resolver", url.Values{"nota": {"ja devolvi"}})
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("codigo = %d, quero um aviso e nao um erro", rec.Code)
+	}
+	if !strings.Contains(rec.Header().Get("Location"), "ja+foi+fechada") {
+		t.Errorf("destino = %q", rec.Header().Get("Location"))
 	}
 }

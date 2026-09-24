@@ -546,10 +546,9 @@ func (h *Handler) Routes() http.Handler {
 	// AS OUTRAS TRÊS FILAS DO DINHEIRO REAL. Mesma divisão da do repasse: ler é
 	// staff, decidir é admin.
 	//
-	// A dos divergentes NÃO TEM rota de escrita, e a falta é a decisão: devolver,
-	// cobrar a diferença ou entregar assim mesmo é escolha sobre o dinheiro de duas
-	// pessoas, e é executada por fora. Uma rota aqui daria a impressão de que existe
-	// um caminho automático certo.
+	// A dos divergentes tem UMA escrita só, e ela não mexe em dinheiro: registra que
+	// alguém já devolveu por fora, e destrava o comprador e o item do vendedor, que
+	// ficam presos enquanto a cobrança está aberta.
 	if h.cfg.FilasRMT != nil {
 		mux.Handle("GET /orfaos", h.requireStaff(http.HandlerFunc(h.orfaos)))
 		mux.Handle("POST /orfaos/{orfao}/resolver",
@@ -558,6 +557,8 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("POST /reembolsos/{cobranca}/resolver",
 			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.resolverReembolso))))
 		mux.Handle("GET /divergentes", h.requireStaff(http.HandlerFunc(h.divergentes)))
+		mux.Handle("POST /divergentes/{cobranca}/resolver",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.resolverDivergente))))
 	}
 	// Os mapas guardados para evento são uma lista do código (internal/mapaevento),
 	// a mesma que o tmServer usa para não gerar mob neles. Não dependem de banco
