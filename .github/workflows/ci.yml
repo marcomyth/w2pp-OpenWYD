@@ -144,12 +144,32 @@ jobs:
       # no reset de schema, e a falha que sai disso parece bug de produto.
       #
       # `-timeout 30m` explicito porque o padrao do Go e 10 min e a suite estoura.
+      #
+      # E SO OS PACOTES QUE PRECISAM DE BANCO, e nao `./...`. Isto aqui rodava a suite
+      # INTEIRA, os mesmos pacotes que o job "Build & Test" ja roda com -race no mesmo
+      # commit — 83 pacotes duas vezes, entre eles o tmserver/internal/handler, que
+      # sozinho leva 372 s e nao chega perto de um banco. Medido em 24/09/2026: o job
+      # levava 796 s, dos quais 152 s eram os 6 pacotes de banco.
+      #
+      # O relogio da CI quase nao muda com isso (passa a ser o Build & Test, 755 s, que
+      # manda), e nao e por relogio que se faz: e porque rodar de novo SO este job,
+      # quando uma instabilidade obriga, cai de 13 min para uns 6 — e esse e o tempo em
+      # que alguem fica parado esperando para mergear.
+      #
+      # A lista sai de um script que a DERIVA do codigo, nunca escrita a mao: ver
+      # scripts/pacotes-de-teste.sh e o passo de conferencia logo abaixo.
+      - name: Quais pacotes precisam de banco?
+        run: |
+          set -o pipefail
+          ./scripts/pacotes-de-teste.sh conferir
+          ./scripts/pacotes-de-teste.sh com-banco | tee pacotes-com-banco.txt
+
       - name: Integration tests
         env:
           W2PP_TEST_DSN: postgres://postgres:dev@localhost:5432/postgres
         run: |
           set -o pipefail
-          go test -tags=integration -race -p 1 -timeout 30m -v ./... 2>&1 | tee integration.log
+          go test -tags=integration -race -p 1 -timeout 30m -v $(cat pacotes-com-banco.txt) 2>&1 | tee integration.log
 
       # A GUARDA CONTRA O PIOR RESULTADO POSSIVEL: um job VERDE que nao rodou nada.
       #
@@ -162,6 +182,9 @@ jobs:
       - name: O portao rodou de verdade?
         if: always()
         run: |
+          # E agora ela pega uma coisa a mais: com o job rodando so os pacotes
+          # escolhidos, um pulo por falta de DSN significa que algum deles chegou
+          # aqui sem banco — ou que a separacao mandou para ca quem nao devia.
           pularam="$(grep -c 'W2PP_TEST_DSN not set' integration.log || true)"
           passaram="$(grep -c -- '--- PASS' integration.log || true)"
           echo "passaram=$passaram  pularam-por-falta-de-banco=$pularam"
