@@ -44,6 +44,15 @@ type ChavesPix interface {
 // inteiro. É melhor do que um QR que quase sempre falha.
 var MinimoParaCriarPix = 60 * time.Second
 
+// PrazoDaCriacao é quanto a criação do Pix tem para terminar, contado do PRÓPRIO
+// relógio dela e não do de quem pediu a página.
+//
+// MAIOR QUE O PRAZO DA PONTE (15 s) de propósito: quem tem de desistir da chamada à
+// processadora é o cliente da ponte, com a mensagem dele, e não este prazo por cima.
+// Um prazo de fora menor transformaria toda lentidão da processadora num erro
+// genérico, escondendo qual das duas coisas falhou.
+var PrazoDaCriacao = 20 * time.Second
+
 // CriadorDePixComTexto é a chamada à ponte, já com o texto que o pagador lê.
 //
 // A DESCRIÇÃO NÃO PODE DESCER ATÉ O STORE, e é por isso que este tipo existe em vez
@@ -240,7 +249,34 @@ func (s *ServerRmt) GetMyCurrentPixCharge(ctx context.Context, req *webv1.GetMyC
 				"deu_certo", err == nil)
 			return cod, ident, err
 		}
-		pix, err := s.pix.CriarPixSeFaltar(ctx, cob.CobrancaID, MinimoParaCriarPix, criar)
+		// A CRIAÇÃO É DESLIGADA DO CHAMADOR, e este é o conserto que mais importa
+		// neste arquivo.
+		//
+		// O QUE ACONTECIA: o site desiste da leitura em 10 s. Aí o gRPC cancela o
+		// contexto da requisição, e esse contexto era o mesmo que ia para a chamada à
+		// processadora E para a transação. Resultado: a chamada morria no meio e a
+		// transação era desfeita, então NADA ficava gravado — enquanto a cobrança
+		// podia já ter nascido do outro lado, com um identifier que ninguém aqui
+		// jamais saberia.
+		//
+		// E o estrago não era eventual: se a processadora fosse consistentemente mais
+		// lenta que os 10 s, TODA tentativa morreria no mesmo ponto, o código nunca
+		// nasceria, o item ficaria invendável, e cada clique deixaria uma cobrança
+		// órfã na processadora.
+		//
+		// Com o contexto desligado, a criação termina e GRAVA mesmo que quem pediu já
+		// tenha ido embora. A leitura seguinte do site encontra o código gravado — o
+		// FOR UPDATE faz a segunda esperar a primeira em vez de criar outra.
+		//
+		// O preço, que é aceito e não ignorado: um leitor que desistiu continua
+		// ocupando uma conexão do banco até este prazo acabar. Com poucas cobranças
+		// por dia isso é irrelevante; se um dia o volume crescer, o conserto é a
+		// criação sair para um trabalhador de fundo em vez de viver na leitura.
+		ctxCriar, cancelarCriacao := context.WithTimeout(
+			context.WithoutCancel(ctx), PrazoDaCriacao)
+		defer cancelarCriacao()
+
+		pix, err := s.pix.CriarPixSeFaltar(ctxCriar, cob.CobrancaID, MinimoParaCriarPix, criar)
 		switch {
 		case err != nil:
 			// NÃO VIRA ERRO PARA A PÁGINA, de propósito. A página relê a cada cinco
