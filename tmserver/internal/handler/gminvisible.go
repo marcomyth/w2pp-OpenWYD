@@ -38,12 +38,9 @@ func (d *Dispatcher) gmInvisible(w *world.World, s *world.Session, rest string) 
 
 	if on {
 		// RemoveMob BEFORE the flag goes up: after it, hiddenFrom would swallow the
-		// removal itself. Staff are skipped — they keep seeing the GM.
+		// removal itself.
 		rm := protocol.EncodeRemoveMobBody(0)
 		w.ForEachInView(s.Conn, func(vs *world.Session, _ *world.Entity) {
-			if vs.AccessLevel >= world.AccessModerator {
-				return
-			}
 			w.SendTo(vs, protocol.Header{Type: protocol.MsgRemoveMob, ID: uint16(s.Conn)}, rm)
 			w.UnmarkSeen(vs, s.Conn)
 		})
@@ -56,9 +53,6 @@ func (d *Dispatcher) gmInvisible(w *world.World, s *world.Session, rest string) 
 		ty, body := createMobViewPacket(w, e, 0)
 		pk := protocol.EncodeStandardParm(pkInfoParm(e))
 		w.ForEachInView(s.Conn, func(vs *world.Session, _ *world.Entity) {
-			if vs.AccessLevel >= world.AccessModerator {
-				return
-			}
 			w.MarkSeen(vs, s.Conn)
 			w.SendTo(vs, protocol.Header{Type: ty, ID: protocol.IDScene}, body)
 			w.SendTo(vs, protocol.Header{Type: protocol.MsgPKInfo, ID: uint16(s.Conn)}, pk)
@@ -71,7 +65,7 @@ func (d *Dispatcher) gmInvisible(w *world.World, s *world.Session, rest string) 
 
 func invisibleStatus(on bool) string {
 	if on {
-		return "Invisível: LIGADO. Só a equipe vê você."
+		return "Invisível: LIGADO. Ninguém vê você."
 	}
 	return "Invisível: DESLIGADO."
 }

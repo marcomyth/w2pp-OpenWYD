@@ -73,7 +73,8 @@ func anyAbout(fs []rawFrame, id int) (rawFrame, bool) {
 }
 
 // TestGMInvisibleHidesFromPlayers walks the whole switch with one player and a
-// second GM in view. Every "nothing arrives" below has a positive control right
+// second GM in view — the second GM is the case that failed in game, where every
+// account in the room was admin and the first version let staff see through it. Every "nothing arrives" below has a positive control right
 // before it — the same frame reaching someone — so a filter that swallowed
 // everything, or a test that listened on the wrong connection, would fail.
 func TestGMInvisibleHidesFromPlayers(t *testing.T) {
@@ -90,19 +91,21 @@ func TestGMInvisibleHidesFromPlayers(t *testing.T) {
 	collectRaw(t, player)
 	collectRaw(t, mod2)
 
-	// Control: while visible, the player hears the GM.
+	// Control: while visible, both the player and the other GM hear the GM.
 	chatFrame(t, mod, "antes")
 	if !hasFrame(collectRaw(t, player), protocol.MsgMessageChat, modID) {
 		t.Fatal("control failed: a visible GM's chat never reached the player")
 	}
-	collectRaw(t, mod2)
+	if !hasFrame(collectRaw(t, mod2), protocol.MsgMessageChat, modID) {
+		t.Fatal("control failed: a visible GM's chat never reached the other GM")
+	}
 
 	gmFrame(t, mod, "invisivel")
 	if !hasFrame(collectRaw(t, player), protocol.MsgRemoveMob, modID) {
 		t.Error("going invisible must RemoveMob the GM from a player already looking at them")
 	}
-	if hasFrame(collectRaw(t, mod2), protocol.MsgRemoveMob, modID) {
-		t.Error("another GM must keep seeing the invisible GM")
+	if !hasFrame(collectRaw(t, mod2), protocol.MsgRemoveMob, modID) {
+		t.Error("going invisible must RemoveMob the GM from another GM too")
 	}
 	if !hasFrame(collectRaw(t, mod), protocol.MsgMessagePanel, 0) {
 		t.Error("the GM was not told the switch went through")
@@ -112,8 +115,8 @@ func TestGMInvisibleHidesFromPlayers(t *testing.T) {
 	if f, ok := anyAbout(collectRaw(t, player), modID); ok {
 		t.Errorf("player received %#x about the invisible GM", f.h.Type)
 	}
-	if !hasFrame(collectRaw(t, mod2), protocol.MsgMessageChat, modID) {
-		t.Error("another GM must still hear the invisible GM")
+	if f, ok := anyAbout(collectRaw(t, mod2), modID); ok {
+		t.Errorf("another GM received %#x about the invisible GM", f.h.Type)
 	}
 
 	// A whisper is addressed by name, so hiding it hides nothing — it goes through.
@@ -125,6 +128,9 @@ func TestGMInvisibleHidesFromPlayers(t *testing.T) {
 	gmFrame(t, mod, "invisivel off")
 	if !hasFrame(collectRaw(t, player), protocol.MsgCreateMob, modID) {
 		t.Error("becoming visible must CreateMob the GM for the player in view")
+	}
+	if !hasFrame(collectRaw(t, mod2), protocol.MsgCreateMob, modID) {
+		t.Error("becoming visible must CreateMob the GM for the other GM in view")
 	}
 }
 

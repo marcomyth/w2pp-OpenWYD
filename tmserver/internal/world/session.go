@@ -415,7 +415,7 @@ type Entity struct {
 	PKMode bool
 
 	// GMInvisible is "/gm invisivel", the port of the legacy "+snoop" (MSV_SNOOP,
-	// imple.cpp:1567): no frame about this character reaches a non-staff client
+	// imple.cpp:1567): no frame about this character reaches any other client
 	// (World.hiddenFrom) and monsters do not take it as a target. Lives on the
 	// per-connection entity and is never persisted, so it lasts until the GM
 	// disconnects — a GM who forgot it on is visible again at the next login.

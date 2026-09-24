@@ -220,10 +220,10 @@ func CommandReference() CommandBus {
 			},
 			{
 				Name: "invisivel", Aliases: []string{"invis", "snoop"}, Args: "[on|off]", Target: "você",
-				Summary: "Deixa VOCÊ invisível para os jogadores, e visível de novo.",
+				Summary: "Deixa VOCÊ invisível para todos, e visível de novo.",
 				Notes: []string{
 					"Sem parâmetro alterna; on/off força o estado.",
-					"Moderadores e admins continuam vendo você; jogadores não recebem nada sobre você — nem fala pública, movimento ou golpe.",
+					"Ninguém vê você, nem outros GMs: ninguém recebe nada sobre você — nem fala pública, movimento ou golpe.",
 					"Sussurros e convites de grupo/guilda seguem entregues: o destinatário já sabe quem você é pelo nome.",
 					"Monstros e evocações não atacam você enquanto estiver invisível.",
 					"Dura até desconectar: não é gravado, e no próximo login você volta visível.",

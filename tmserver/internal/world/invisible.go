@@ -22,12 +22,11 @@ import (
 // source there), except CreateMob/CreateMobTrade, which ride IDScene and carry
 // the entity in MobID (body @4).
 //
-// Staff see each other: another moderator or admin is never filtered, which is
-// what lets a second GM find the first.
+// Staff are filtered like anyone else. The first version let moderators and
+// admins keep seeing an invisible GM, and in the first test in game every
+// account in the room was admin, so the GM never vanished for anybody: the
+// staff exception is exactly the audience a GM is most often standing next to.
 func (w *World) hiddenFrom(s *Session, h protocol.Header, payload []byte) bool {
-	if s.AccessLevel >= AccessModerator {
-		return false
-	}
 	id := int(h.ID)
 	if (h.Type == protocol.MsgCreateMob || h.Type == protocol.MsgCreateMobTrade) && len(payload) >= 6 {
 		id = int(binary.LittleEndian.Uint16(payload[4:6]))

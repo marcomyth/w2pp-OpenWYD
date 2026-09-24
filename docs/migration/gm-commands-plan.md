@@ -69,7 +69,7 @@ criterion.
   the `auto` reset the original lacked.
 - `invisivel` (`/gm invisivel [on|off]`, aliases `invis`/`snoop`, `handler/gminvisible.go`) ports
   the legacy `+snoop` (`imple.cpp:1567`), which only took the GM out of mob aggro. Here it also
-  hides the GM from every non-staff client: `World.hiddenFrom` drops, at the single send path,
+  hides the GM from every other client, staff included: `World.hiddenFrom` drops, at the single send path,
   every frame about the GM (whispers and party/guild bookkeeping excepted). Session-only — not
   persisted.
 - Later batches from `Comandos GM.txt` (events, guild/castle war, rates,
