@@ -67,3 +67,39 @@ const TamanhoMinimoDoToken = 32
 func TokenFraco(valor string) bool {
 	return valor != "" && len(valor) < TamanhoMinimoDoToken
 }
+
+// TokenComCaraDeEndereco diz se este valor é o ENDEREÇO no lugar do segredo.
+//
+// POR QUE ISTO EXISTE: aconteceu. A variável do token do webserver ficou apontada
+// para a variável do ENDEREÇO do servidor de jogo, e o serviço subiu dizendo que o
+// link estava ligado. Ele não estava: o tmServer recusava toda chamada, e cada
+// recusa saía como uma falha de entrega diferente. A causa — duas variáveis
+// trocadas — não aparecia em lugar nenhum, e levou meses para ser vista.
+//
+// As duas formas de reconhecer, e as duas são o mesmo engano:
+//
+//   - O valor é IGUAL ao endereço. É o caso exato do dia: alguém apontou a variável
+//     do token para a variável do endereço.
+//   - O valor tem ":". Endereço de rede tem porta; token não tem. Um token gerado
+//     como se gera token — aleatório em hexadecimal ou base64 — nunca tem dois
+//     pontos, porque nenhum dos dois alfabetos o inclui.
+//
+// A SEGUNDA REGRA RECUSA UM TOKEN LEGÍTIMO que por acaso tivesse ":", como uma frase
+// escolhida à mão. É de propósito: o estrago de aceitar um endereço como token é um
+// link que finge estar de pé, e o estrago de recusar uma frase com dois pontos é uma
+// mensagem de erro que diz exatamente o que trocar. O segundo custa minutos; o
+// primeiro custou meses.
+//
+// Quem chama NÃO liga o link e escreve ERRO no boot — mas continua subindo o
+// serviço, porque tudo o que não depende do link segue funcionando, e derrubar o
+// site inteiro por causa de uma variável seria trocar um defeito por uma parada.
+func TokenComCaraDeEndereco(token, endereco string) bool {
+	t := strings.TrimSpace(token)
+	if t == "" {
+		return false
+	}
+	if e := strings.TrimSpace(endereco); e != "" && t == e {
+		return true
+	}
+	return strings.Contains(t, ":")
+}

@@ -167,17 +167,33 @@ func run(logger *slog.Logger) error {
 			return fmt.Errorf("-tmserver is set but W2PP_CONTROL_TOKEN is empty; " +
 				"the game server refuses every call without it")
 		}
-		conn, cerr := grpc.NewClient(*jogoAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if cerr != nil {
-			return fmt.Errorf("tmserver dial: %w", cerr)
-		}
-		defer func() { _ = conn.Close() }()
-		cliente := jogo.New(conn, token)
-		live, blocos = cliente, cliente
-		logger.Info("live game link enabled", "addr", *jogoAddr, "token", secret.Impressao(token))
-		if secret.TokenFraco(token) {
-			logger.Warn("o token de controle e CURTO; troque por um aleatorio de 32 bytes ou mais",
-				"minimo", secret.TamanhoMinimoDoToken)
+		// O TOKEN COM CARA DE ENDEREÇO NÃO LIGA O LINK, e o erro diz o que trocar.
+		//
+		// Foi o defeito de 24/09/2026: a variável do token apontava para a do endereço,
+		// o serviço subia anunciando o link ligado, e o tmServer recusava toda chamada.
+		//
+		// E NOTE A DIFERENÇA para o token VAZIO logo acima, que derruba o boot: aqui o
+		// painel SOBE. Não é descuido. O painel sem o link perde as páginas do jogo e
+		// continua servindo conta, VIP, bloqueio e auditoria — e uma variável trocada
+		// não pode tirar do ar o lugar de onde se conserta a variável trocada.
+		if secret.TokenComCaraDeEndereco(token, *jogoAddr) {
+			logger.Error("W2PP_CONTROL_TOKEN parece o ENDEREÇO e não o segredo; "+
+				"as páginas do jogo ficam desligadas. Aponte a variável para o "+
+				"W2PP_CONTROL_TOKEN do serviço tmserver, e não para o endereço",
+				"token", secret.Impressao(token), "addr", *jogoAddr)
+		} else {
+			conn, cerr := grpc.NewClient(*jogoAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if cerr != nil {
+				return fmt.Errorf("tmserver dial: %w", cerr)
+			}
+			defer func() { _ = conn.Close() }()
+			cliente := jogo.New(conn, token)
+			live, blocos = cliente, cliente
+			logger.Info("live game link enabled", "addr", *jogoAddr, "token", secret.Impressao(token))
+			if secret.TokenFraco(token) {
+				logger.Warn("o token de controle e CURTO; troque por um aleatorio de 32 bytes ou mais",
+					"minimo", secret.TamanhoMinimoDoToken)
+			}
 		}
 	} else {
 		logger.Info("live game pages disabled",
