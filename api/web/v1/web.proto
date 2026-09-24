@@ -1481,6 +1481,32 @@ service DonateTopupService {
   rpc CreateTopupOrder(CreateTopupOrderRequest) returns (CreateTopupOrderResponse);
   rpc ConfirmTopupOrder(ConfirmTopupOrderRequest) returns (ConfirmTopupOrderResponse);
   rpc GetTopupOrder(GetTopupOrderRequest) returns (GetTopupOrderResponse);
+
+  // AttachTopupCharge records the gateway's OWN id for an order, so the server
+  // can ask the processor about it later instead of waiting to be told.
+  //
+  // WHY IT EXISTS: until this call, a donation had exactly one path to being
+  // credited — the gateway notifies the site, the site calls ConfirmTopupOrder.
+  // A lost notification meant money charged and credits never given, with
+  // nothing on the server able to notice, because the server had never seen the
+  // gateway's id and cannot ask about a payment it cannot name.
+  //
+  // The site creates the donation charge itself and gets that id back. This
+  // hands it over, and a sweep then polls the pending orders exactly the way the
+  // marketplace already polls its charges. The notification stays the fast path;
+  // the sweep is the net underneath it.
+  //
+  // IDEMPOTENT, and refusing in two directions. The same order cannot be given a
+  // DIFFERENT id, and the same id cannot be attached to a SECOND order — the
+  // second refusal is the one that matters, because that is how one payment
+  // would credit two orders.
+  //
+  // IT MUST NOT BREAK THE PURCHASE. If this call fails, the site shows the Pix
+  // code anyway and logs: the player is in the middle of paying, and a failure
+  // to set up our safety net is not a reason to refuse their money. What is lost
+  // is the net under THAT order, and the count of orders without an id is what
+  // makes that visible.
+  rpc AttachTopupCharge(AttachTopupChargeRequest) returns (AttachTopupChargeResponse);
 }
 
 // PaymentMethod is the gateway a top-up is paid through. Extensible without
@@ -1497,6 +1523,49 @@ enum TopupResult {
   TOPUP_RESULT_CONFIRMED = 1;         // order was PENDING -> credited now
   TOPUP_RESULT_ALREADY_CONFIRMED = 2; // order was already PAID -> no-op (never re-credit)
   TOPUP_RESULT_NOT_FOUND = 3;         // external_reference does not exist
+}
+
+message AttachTopupChargeRequest {
+  // The order, by the reference the server itself issued.
+  string external_reference = 1;
+  // The gateway's own id for the charge, exactly as it returned it. Opaque
+  // here: nothing parses it, it only travels back to the processor as the name
+  // of the payment to ask about.
+  string gateway_identifier = 2;
+}
+
+// AttachResult says what happened, and every refusal is named.
+//
+// NAMED RATHER THAN A TRANSPORT ERROR because the caller has to be able to tell
+// "I already did this" from "this is a bug in me". The first is normal on a
+// retry; the second means one payment is about to be pointed at two orders, and
+// it deserves an alert on the site's side rather than a line in a log.
+enum AttachResult {
+  ATTACH_RESULT_UNSPECIFIED = 0;
+  // ATTACHED: stored now.
+  ATTACH_RESULT_ATTACHED = 1;
+  // ALREADY: this order already had exactly this id. A retry, and not a problem.
+  ATTACH_RESULT_ALREADY = 2;
+  // CONFLICT_ORDER: this order already has a DIFFERENT id. Nothing is changed —
+  // the first id stays, because it is the one the charge was created with.
+  ATTACH_RESULT_CONFLICT_ORDER = 3;
+  // CONFLICT_IDENTIFIER: this id is already attached to ANOTHER order.
+  //
+  // THE REFUSAL THAT PROTECTS MONEY. Allowed, one paid transaction would satisfy
+  // two pending orders and credit both, and the second set of credits comes out
+  // of the server owner's pocket. It should never happen, which is exactly why
+  // it is worth an alert and not a shrug.
+  ATTACH_RESULT_CONFLICT_IDENTIFIER = 4;
+  // NOT_FOUND: no order with that reference.
+  ATTACH_RESULT_NOT_FOUND = 5;
+  // ALREADY_PAID: the order is already credited. Nothing to attach: the sweep
+  // only looks at pending orders, and re-pointing a settled order at a payment
+  // has no honest meaning.
+  ATTACH_RESULT_ALREADY_PAID = 6;
+}
+
+message AttachTopupChargeResponse {
+  AttachResult result = 1;
 }
 
 // TopupStatus is the durable state of an order.

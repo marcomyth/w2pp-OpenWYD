@@ -6,6 +6,7 @@ import (
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
+	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/donatetopup"
 )
 
@@ -21,6 +22,11 @@ type fakeTopup struct {
 	getStatus  int16
 	getCredits int32
 	getBalance int64
+
+	anexouRef      string
+	anexouID       string
+	anexoResultado store.ResultadoAnexo
+	anexoErro      error
 
 	lastOrder domain.TopupOrder
 	lastRef   string
@@ -145,4 +151,10 @@ func TestGetPayerProfileMapping(t *testing.T) {
 	if !resp.GetFound() || resp.GetName() != "Jean" || resp.GetCpf() != "12345678909" {
 		t.Errorf("resp = %+v", resp)
 	}
+}
+
+// AnexarIdentifier: a fake só registra e devolve o que o teste pediu.
+func (f *fakeTopup) AnexarIdentifier(_ context.Context, ref, identifier string) (store.ResultadoAnexo, error) {
+	f.anexouRef, f.anexouID = ref, identifier
+	return f.anexoResultado, f.anexoErro
 }

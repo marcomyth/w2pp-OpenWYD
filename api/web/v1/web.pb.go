@@ -860,6 +860,87 @@ func (TopupResult) EnumDescriptor() ([]byte, []int) {
 	return file_api_web_v1_web_proto_rawDescGZIP(), []int{12}
 }
 
+// AttachResult says what happened, and every refusal is named.
+//
+// NAMED RATHER THAN A TRANSPORT ERROR because the caller has to be able to tell
+// "I already did this" from "this is a bug in me". The first is normal on a
+// retry; the second means one payment is about to be pointed at two orders, and
+// it deserves an alert on the site's side rather than a line in a log.
+type AttachResult int32
+
+const (
+	AttachResult_ATTACH_RESULT_UNSPECIFIED AttachResult = 0
+	// ATTACHED: stored now.
+	AttachResult_ATTACH_RESULT_ATTACHED AttachResult = 1
+	// ALREADY: this order already had exactly this id. A retry, and not a problem.
+	AttachResult_ATTACH_RESULT_ALREADY AttachResult = 2
+	// CONFLICT_ORDER: this order already has a DIFFERENT id. Nothing is changed —
+	// the first id stays, because it is the one the charge was created with.
+	AttachResult_ATTACH_RESULT_CONFLICT_ORDER AttachResult = 3
+	// CONFLICT_IDENTIFIER: this id is already attached to ANOTHER order.
+	//
+	// THE REFUSAL THAT PROTECTS MONEY. Allowed, one paid transaction would satisfy
+	// two pending orders and credit both, and the second set of credits comes out
+	// of the server owner's pocket. It should never happen, which is exactly why
+	// it is worth an alert and not a shrug.
+	AttachResult_ATTACH_RESULT_CONFLICT_IDENTIFIER AttachResult = 4
+	// NOT_FOUND: no order with that reference.
+	AttachResult_ATTACH_RESULT_NOT_FOUND AttachResult = 5
+	// ALREADY_PAID: the order is already credited. Nothing to attach: the sweep
+	// only looks at pending orders, and re-pointing a settled order at a payment
+	// has no honest meaning.
+	AttachResult_ATTACH_RESULT_ALREADY_PAID AttachResult = 6
+)
+
+// Enum value maps for AttachResult.
+var (
+	AttachResult_name = map[int32]string{
+		0: "ATTACH_RESULT_UNSPECIFIED",
+		1: "ATTACH_RESULT_ATTACHED",
+		2: "ATTACH_RESULT_ALREADY",
+		3: "ATTACH_RESULT_CONFLICT_ORDER",
+		4: "ATTACH_RESULT_CONFLICT_IDENTIFIER",
+		5: "ATTACH_RESULT_NOT_FOUND",
+		6: "ATTACH_RESULT_ALREADY_PAID",
+	}
+	AttachResult_value = map[string]int32{
+		"ATTACH_RESULT_UNSPECIFIED":         0,
+		"ATTACH_RESULT_ATTACHED":            1,
+		"ATTACH_RESULT_ALREADY":             2,
+		"ATTACH_RESULT_CONFLICT_ORDER":      3,
+		"ATTACH_RESULT_CONFLICT_IDENTIFIER": 4,
+		"ATTACH_RESULT_NOT_FOUND":           5,
+		"ATTACH_RESULT_ALREADY_PAID":        6,
+	}
+)
+
+func (x AttachResult) Enum() *AttachResult {
+	p := new(AttachResult)
+	*p = x
+	return p
+}
+
+func (x AttachResult) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AttachResult) Descriptor() protoreflect.EnumDescriptor {
+	return file_api_web_v1_web_proto_enumTypes[13].Descriptor()
+}
+
+func (AttachResult) Type() protoreflect.EnumType {
+	return &file_api_web_v1_web_proto_enumTypes[13]
+}
+
+func (x AttachResult) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AttachResult.Descriptor instead.
+func (AttachResult) EnumDescriptor() ([]byte, []int) {
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{13}
+}
+
 // TopupStatus is the durable state of an order.
 type TopupStatus int32
 
@@ -894,11 +975,11 @@ func (x TopupStatus) String() string {
 }
 
 func (TopupStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_web_v1_web_proto_enumTypes[13].Descriptor()
+	return file_api_web_v1_web_proto_enumTypes[14].Descriptor()
 }
 
 func (TopupStatus) Type() protoreflect.EnumType {
-	return &file_api_web_v1_web_proto_enumTypes[13]
+	return &file_api_web_v1_web_proto_enumTypes[14]
 }
 
 func (x TopupStatus) Number() protoreflect.EnumNumber {
@@ -907,7 +988,7 @@ func (x TopupStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use TopupStatus.Descriptor instead.
 func (TopupStatus) EnumDescriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{13}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{14}
 }
 
 // RevenueBucket is the time-series granularity. UNSPECIFIED skips the series
@@ -950,11 +1031,11 @@ func (x RevenueBucket) String() string {
 }
 
 func (RevenueBucket) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_web_v1_web_proto_enumTypes[14].Descriptor()
+	return file_api_web_v1_web_proto_enumTypes[15].Descriptor()
 }
 
 func (RevenueBucket) Type() protoreflect.EnumType {
-	return &file_api_web_v1_web_proto_enumTypes[14]
+	return &file_api_web_v1_web_proto_enumTypes[15]
 }
 
 func (x RevenueBucket) Number() protoreflect.EnumNumber {
@@ -963,7 +1044,7 @@ func (x RevenueBucket) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use RevenueBucket.Descriptor instead.
 func (RevenueBucket) EnumDescriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{14}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{15}
 }
 
 // DonateLedgerAction filters the donate_shop_audit read. UNSPECIFIED returns both
@@ -1002,11 +1083,11 @@ func (x DonateLedgerAction) String() string {
 }
 
 func (DonateLedgerAction) Descriptor() protoreflect.EnumDescriptor {
-	return file_api_web_v1_web_proto_enumTypes[15].Descriptor()
+	return file_api_web_v1_web_proto_enumTypes[16].Descriptor()
 }
 
 func (DonateLedgerAction) Type() protoreflect.EnumType {
-	return &file_api_web_v1_web_proto_enumTypes[15]
+	return &file_api_web_v1_web_proto_enumTypes[16]
 }
 
 func (x DonateLedgerAction) Number() protoreflect.EnumNumber {
@@ -1015,7 +1096,7 @@ func (x DonateLedgerAction) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DonateLedgerAction.Descriptor instead.
 func (DonateLedgerAction) EnumDescriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{15}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{16}
 }
 
 type CreateAccountRequest struct {
@@ -8399,6 +8480,106 @@ func (x *ClaimResponse) GetResult() ClaimResult {
 	return ClaimResult_CLAIM_RESULT_UNSPECIFIED
 }
 
+type AttachTopupChargeRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The order, by the reference the server itself issued.
+	ExternalReference string `protobuf:"bytes,1,opt,name=external_reference,json=externalReference,proto3" json:"external_reference,omitempty"`
+	// The gateway's own id for the charge, exactly as it returned it. Opaque
+	// here: nothing parses it, it only travels back to the processor as the name
+	// of the payment to ask about.
+	GatewayIdentifier string `protobuf:"bytes,2,opt,name=gateway_identifier,json=gatewayIdentifier,proto3" json:"gateway_identifier,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *AttachTopupChargeRequest) Reset() {
+	*x = AttachTopupChargeRequest{}
+	mi := &file_api_web_v1_web_proto_msgTypes[109]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AttachTopupChargeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AttachTopupChargeRequest) ProtoMessage() {}
+
+func (x *AttachTopupChargeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_web_v1_web_proto_msgTypes[109]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AttachTopupChargeRequest.ProtoReflect.Descriptor instead.
+func (*AttachTopupChargeRequest) Descriptor() ([]byte, []int) {
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{109}
+}
+
+func (x *AttachTopupChargeRequest) GetExternalReference() string {
+	if x != nil {
+		return x.ExternalReference
+	}
+	return ""
+}
+
+func (x *AttachTopupChargeRequest) GetGatewayIdentifier() string {
+	if x != nil {
+		return x.GatewayIdentifier
+	}
+	return ""
+}
+
+type AttachTopupChargeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Result        AttachResult           `protobuf:"varint,1,opt,name=result,proto3,enum=web.v1.AttachResult" json:"result,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AttachTopupChargeResponse) Reset() {
+	*x = AttachTopupChargeResponse{}
+	mi := &file_api_web_v1_web_proto_msgTypes[110]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AttachTopupChargeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AttachTopupChargeResponse) ProtoMessage() {}
+
+func (x *AttachTopupChargeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_web_v1_web_proto_msgTypes[110]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AttachTopupChargeResponse.ProtoReflect.Descriptor instead.
+func (*AttachTopupChargeResponse) Descriptor() ([]byte, []int) {
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{110}
+}
+
+func (x *AttachTopupChargeResponse) GetResult() AttachResult {
+	if x != nil {
+		return x.Result
+	}
+	return AttachResult_ATTACH_RESULT_UNSPECIFIED
+}
+
 type GetPayerProfileRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
@@ -8408,7 +8589,7 @@ type GetPayerProfileRequest struct {
 
 func (x *GetPayerProfileRequest) Reset() {
 	*x = GetPayerProfileRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[109]
+	mi := &file_api_web_v1_web_proto_msgTypes[111]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8420,7 +8601,7 @@ func (x *GetPayerProfileRequest) String() string {
 func (*GetPayerProfileRequest) ProtoMessage() {}
 
 func (x *GetPayerProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[109]
+	mi := &file_api_web_v1_web_proto_msgTypes[111]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8433,7 +8614,7 @@ func (x *GetPayerProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPayerProfileRequest.ProtoReflect.Descriptor instead.
 func (*GetPayerProfileRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{109}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{111}
 }
 
 func (x *GetPayerProfileRequest) GetAccountId() int64 {
@@ -8454,7 +8635,7 @@ type GetPayerProfileResponse struct {
 
 func (x *GetPayerProfileResponse) Reset() {
 	*x = GetPayerProfileResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[110]
+	mi := &file_api_web_v1_web_proto_msgTypes[112]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8466,7 +8647,7 @@ func (x *GetPayerProfileResponse) String() string {
 func (*GetPayerProfileResponse) ProtoMessage() {}
 
 func (x *GetPayerProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[110]
+	mi := &file_api_web_v1_web_proto_msgTypes[112]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8479,7 +8660,7 @@ func (x *GetPayerProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetPayerProfileResponse.ProtoReflect.Descriptor instead.
 func (*GetPayerProfileResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{110}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{112}
 }
 
 func (x *GetPayerProfileResponse) GetFound() bool {
@@ -8514,7 +8695,7 @@ type SavePayerProfileRequest struct {
 
 func (x *SavePayerProfileRequest) Reset() {
 	*x = SavePayerProfileRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[111]
+	mi := &file_api_web_v1_web_proto_msgTypes[113]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8526,7 +8707,7 @@ func (x *SavePayerProfileRequest) String() string {
 func (*SavePayerProfileRequest) ProtoMessage() {}
 
 func (x *SavePayerProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[111]
+	mi := &file_api_web_v1_web_proto_msgTypes[113]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8539,7 +8720,7 @@ func (x *SavePayerProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SavePayerProfileRequest.ProtoReflect.Descriptor instead.
 func (*SavePayerProfileRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{111}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{113}
 }
 
 func (x *SavePayerProfileRequest) GetAccountId() int64 {
@@ -8572,7 +8753,7 @@ type SavePayerProfileResponse struct {
 
 func (x *SavePayerProfileResponse) Reset() {
 	*x = SavePayerProfileResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[112]
+	mi := &file_api_web_v1_web_proto_msgTypes[114]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8584,7 +8765,7 @@ func (x *SavePayerProfileResponse) String() string {
 func (*SavePayerProfileResponse) ProtoMessage() {}
 
 func (x *SavePayerProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[112]
+	mi := &file_api_web_v1_web_proto_msgTypes[114]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8597,7 +8778,7 @@ func (x *SavePayerProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SavePayerProfileResponse.ProtoReflect.Descriptor instead.
 func (*SavePayerProfileResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{112}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{114}
 }
 
 func (x *SavePayerProfileResponse) GetResult() AdminResult {
@@ -8644,7 +8825,7 @@ type CreateTopupOrderRequest struct {
 
 func (x *CreateTopupOrderRequest) Reset() {
 	*x = CreateTopupOrderRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[113]
+	mi := &file_api_web_v1_web_proto_msgTypes[115]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8656,7 +8837,7 @@ func (x *CreateTopupOrderRequest) String() string {
 func (*CreateTopupOrderRequest) ProtoMessage() {}
 
 func (x *CreateTopupOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[113]
+	mi := &file_api_web_v1_web_proto_msgTypes[115]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8669,7 +8850,7 @@ func (x *CreateTopupOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTopupOrderRequest.ProtoReflect.Descriptor instead.
 func (*CreateTopupOrderRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{113}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{115}
 }
 
 func (x *CreateTopupOrderRequest) GetAccountId() int64 {
@@ -8724,7 +8905,7 @@ type CreateTopupOrderResponse struct {
 
 func (x *CreateTopupOrderResponse) Reset() {
 	*x = CreateTopupOrderResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[114]
+	mi := &file_api_web_v1_web_proto_msgTypes[116]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8736,7 +8917,7 @@ func (x *CreateTopupOrderResponse) String() string {
 func (*CreateTopupOrderResponse) ProtoMessage() {}
 
 func (x *CreateTopupOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[114]
+	mi := &file_api_web_v1_web_proto_msgTypes[116]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8749,7 +8930,7 @@ func (x *CreateTopupOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateTopupOrderResponse.ProtoReflect.Descriptor instead.
 func (*CreateTopupOrderResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{114}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{116}
 }
 
 func (x *CreateTopupOrderResponse) GetResult() AdminResult {
@@ -8775,7 +8956,7 @@ type ConfirmTopupOrderRequest struct {
 
 func (x *ConfirmTopupOrderRequest) Reset() {
 	*x = ConfirmTopupOrderRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[115]
+	mi := &file_api_web_v1_web_proto_msgTypes[117]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8787,7 +8968,7 @@ func (x *ConfirmTopupOrderRequest) String() string {
 func (*ConfirmTopupOrderRequest) ProtoMessage() {}
 
 func (x *ConfirmTopupOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[115]
+	mi := &file_api_web_v1_web_proto_msgTypes[117]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8800,7 +8981,7 @@ func (x *ConfirmTopupOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmTopupOrderRequest.ProtoReflect.Descriptor instead.
 func (*ConfirmTopupOrderRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{115}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{117}
 }
 
 func (x *ConfirmTopupOrderRequest) GetExternalReference() string {
@@ -8820,7 +9001,7 @@ type ConfirmTopupOrderResponse struct {
 
 func (x *ConfirmTopupOrderResponse) Reset() {
 	*x = ConfirmTopupOrderResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[116]
+	mi := &file_api_web_v1_web_proto_msgTypes[118]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8832,7 +9013,7 @@ func (x *ConfirmTopupOrderResponse) String() string {
 func (*ConfirmTopupOrderResponse) ProtoMessage() {}
 
 func (x *ConfirmTopupOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[116]
+	mi := &file_api_web_v1_web_proto_msgTypes[118]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8845,7 +9026,7 @@ func (x *ConfirmTopupOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConfirmTopupOrderResponse.ProtoReflect.Descriptor instead.
 func (*ConfirmTopupOrderResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{116}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{118}
 }
 
 func (x *ConfirmTopupOrderResponse) GetResult() TopupResult {
@@ -8872,7 +9053,7 @@ type GetTopupOrderRequest struct {
 
 func (x *GetTopupOrderRequest) Reset() {
 	*x = GetTopupOrderRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[117]
+	mi := &file_api_web_v1_web_proto_msgTypes[119]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8884,7 +9065,7 @@ func (x *GetTopupOrderRequest) String() string {
 func (*GetTopupOrderRequest) ProtoMessage() {}
 
 func (x *GetTopupOrderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[117]
+	mi := &file_api_web_v1_web_proto_msgTypes[119]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8897,7 +9078,7 @@ func (x *GetTopupOrderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTopupOrderRequest.ProtoReflect.Descriptor instead.
 func (*GetTopupOrderRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{117}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{119}
 }
 
 func (x *GetTopupOrderRequest) GetExternalReference() string {
@@ -8925,7 +9106,7 @@ type GetTopupOrderResponse struct {
 
 func (x *GetTopupOrderResponse) Reset() {
 	*x = GetTopupOrderResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[118]
+	mi := &file_api_web_v1_web_proto_msgTypes[120]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8937,7 +9118,7 @@ func (x *GetTopupOrderResponse) String() string {
 func (*GetTopupOrderResponse) ProtoMessage() {}
 
 func (x *GetTopupOrderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[118]
+	mi := &file_api_web_v1_web_proto_msgTypes[120]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8950,7 +9131,7 @@ func (x *GetTopupOrderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetTopupOrderResponse.ProtoReflect.Descriptor instead.
 func (*GetTopupOrderResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{118}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{120}
 }
 
 func (x *GetTopupOrderResponse) GetStatus() TopupStatus {
@@ -8988,7 +9169,7 @@ type RevenueWindow struct {
 
 func (x *RevenueWindow) Reset() {
 	*x = RevenueWindow{}
-	mi := &file_api_web_v1_web_proto_msgTypes[119]
+	mi := &file_api_web_v1_web_proto_msgTypes[121]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9000,7 +9181,7 @@ func (x *RevenueWindow) String() string {
 func (*RevenueWindow) ProtoMessage() {}
 
 func (x *RevenueWindow) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[119]
+	mi := &file_api_web_v1_web_proto_msgTypes[121]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9013,7 +9194,7 @@ func (x *RevenueWindow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevenueWindow.ProtoReflect.Descriptor instead.
 func (*RevenueWindow) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{119}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{121}
 }
 
 func (x *RevenueWindow) GetFromUnix() int64 {
@@ -9052,7 +9233,7 @@ type RevenueTotals struct {
 
 func (x *RevenueTotals) Reset() {
 	*x = RevenueTotals{}
-	mi := &file_api_web_v1_web_proto_msgTypes[120]
+	mi := &file_api_web_v1_web_proto_msgTypes[122]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9064,7 +9245,7 @@ func (x *RevenueTotals) String() string {
 func (*RevenueTotals) ProtoMessage() {}
 
 func (x *RevenueTotals) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[120]
+	mi := &file_api_web_v1_web_proto_msgTypes[122]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9077,7 +9258,7 @@ func (x *RevenueTotals) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevenueTotals.ProtoReflect.Descriptor instead.
 func (*RevenueTotals) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{120}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{122}
 }
 
 func (x *RevenueTotals) GetPaidOrders() int64 {
@@ -9170,7 +9351,7 @@ type RevenueByMethod struct {
 
 func (x *RevenueByMethod) Reset() {
 	*x = RevenueByMethod{}
-	mi := &file_api_web_v1_web_proto_msgTypes[121]
+	mi := &file_api_web_v1_web_proto_msgTypes[123]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9182,7 +9363,7 @@ func (x *RevenueByMethod) String() string {
 func (*RevenueByMethod) ProtoMessage() {}
 
 func (x *RevenueByMethod) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[121]
+	mi := &file_api_web_v1_web_proto_msgTypes[123]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9195,7 +9376,7 @@ func (x *RevenueByMethod) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevenueByMethod.ProtoReflect.Descriptor instead.
 func (*RevenueByMethod) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{121}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{123}
 }
 
 func (x *RevenueByMethod) GetPaymentMethod() PaymentMethod {
@@ -9234,7 +9415,7 @@ type RevenuePoint struct {
 
 func (x *RevenuePoint) Reset() {
 	*x = RevenuePoint{}
-	mi := &file_api_web_v1_web_proto_msgTypes[122]
+	mi := &file_api_web_v1_web_proto_msgTypes[124]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9246,7 +9427,7 @@ func (x *RevenuePoint) String() string {
 func (*RevenuePoint) ProtoMessage() {}
 
 func (x *RevenuePoint) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[122]
+	mi := &file_api_web_v1_web_proto_msgTypes[124]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9259,7 +9440,7 @@ func (x *RevenuePoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RevenuePoint.ProtoReflect.Descriptor instead.
 func (*RevenuePoint) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{122}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{124}
 }
 
 func (x *RevenuePoint) GetBucketStartUnix() int64 {
@@ -9309,7 +9490,7 @@ type GetRevenueSummaryRequest struct {
 
 func (x *GetRevenueSummaryRequest) Reset() {
 	*x = GetRevenueSummaryRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[123]
+	mi := &file_api_web_v1_web_proto_msgTypes[125]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9321,7 +9502,7 @@ func (x *GetRevenueSummaryRequest) String() string {
 func (*GetRevenueSummaryRequest) ProtoMessage() {}
 
 func (x *GetRevenueSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[123]
+	mi := &file_api_web_v1_web_proto_msgTypes[125]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9334,7 +9515,7 @@ func (x *GetRevenueSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRevenueSummaryRequest.ProtoReflect.Descriptor instead.
 func (*GetRevenueSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{123}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{125}
 }
 
 func (x *GetRevenueSummaryRequest) GetModeratorId() int64 {
@@ -9379,7 +9560,7 @@ type GetRevenueSummaryResponse struct {
 
 func (x *GetRevenueSummaryResponse) Reset() {
 	*x = GetRevenueSummaryResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[124]
+	mi := &file_api_web_v1_web_proto_msgTypes[126]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9391,7 +9572,7 @@ func (x *GetRevenueSummaryResponse) String() string {
 func (*GetRevenueSummaryResponse) ProtoMessage() {}
 
 func (x *GetRevenueSummaryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[124]
+	mi := &file_api_web_v1_web_proto_msgTypes[126]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9404,7 +9585,7 @@ func (x *GetRevenueSummaryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRevenueSummaryResponse.ProtoReflect.Descriptor instead.
 func (*GetRevenueSummaryResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{124}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{126}
 }
 
 func (x *GetRevenueSummaryResponse) GetResult() AdminResult {
@@ -9478,7 +9659,7 @@ type TopupOrderRow struct {
 
 func (x *TopupOrderRow) Reset() {
 	*x = TopupOrderRow{}
-	mi := &file_api_web_v1_web_proto_msgTypes[125]
+	mi := &file_api_web_v1_web_proto_msgTypes[127]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9490,7 +9671,7 @@ func (x *TopupOrderRow) String() string {
 func (*TopupOrderRow) ProtoMessage() {}
 
 func (x *TopupOrderRow) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[125]
+	mi := &file_api_web_v1_web_proto_msgTypes[127]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9503,7 +9684,7 @@ func (x *TopupOrderRow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopupOrderRow.ProtoReflect.Descriptor instead.
 func (*TopupOrderRow) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{125}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{127}
 }
 
 func (x *TopupOrderRow) GetId() int64 {
@@ -9621,7 +9802,7 @@ type ListTopupOrdersRequest struct {
 
 func (x *ListTopupOrdersRequest) Reset() {
 	*x = ListTopupOrdersRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[126]
+	mi := &file_api_web_v1_web_proto_msgTypes[128]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9633,7 +9814,7 @@ func (x *ListTopupOrdersRequest) String() string {
 func (*ListTopupOrdersRequest) ProtoMessage() {}
 
 func (x *ListTopupOrdersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[126]
+	mi := &file_api_web_v1_web_proto_msgTypes[128]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9646,7 +9827,7 @@ func (x *ListTopupOrdersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTopupOrdersRequest.ProtoReflect.Descriptor instead.
 func (*ListTopupOrdersRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{126}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{128}
 }
 
 func (x *ListTopupOrdersRequest) GetModeratorId() int64 {
@@ -9711,7 +9892,7 @@ type ListTopupOrdersResponse struct {
 
 func (x *ListTopupOrdersResponse) Reset() {
 	*x = ListTopupOrdersResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[127]
+	mi := &file_api_web_v1_web_proto_msgTypes[129]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9723,7 +9904,7 @@ func (x *ListTopupOrdersResponse) String() string {
 func (*ListTopupOrdersResponse) ProtoMessage() {}
 
 func (x *ListTopupOrdersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[127]
+	mi := &file_api_web_v1_web_proto_msgTypes[129]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9736,7 +9917,7 @@ func (x *ListTopupOrdersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTopupOrdersResponse.ProtoReflect.Descriptor instead.
 func (*ListTopupOrdersResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{127}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{129}
 }
 
 func (x *ListTopupOrdersResponse) GetResult() AdminResult {
@@ -9796,7 +9977,7 @@ type TopBuyerRow struct {
 
 func (x *TopBuyerRow) Reset() {
 	*x = TopBuyerRow{}
-	mi := &file_api_web_v1_web_proto_msgTypes[128]
+	mi := &file_api_web_v1_web_proto_msgTypes[130]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9808,7 +9989,7 @@ func (x *TopBuyerRow) String() string {
 func (*TopBuyerRow) ProtoMessage() {}
 
 func (x *TopBuyerRow) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[128]
+	mi := &file_api_web_v1_web_proto_msgTypes[130]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9821,7 +10002,7 @@ func (x *TopBuyerRow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TopBuyerRow.ProtoReflect.Descriptor instead.
 func (*TopBuyerRow) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{128}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{130}
 }
 
 func (x *TopBuyerRow) GetAccountId() int64 {
@@ -9913,7 +10094,7 @@ type ListTopBuyersRequest struct {
 
 func (x *ListTopBuyersRequest) Reset() {
 	*x = ListTopBuyersRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[129]
+	mi := &file_api_web_v1_web_proto_msgTypes[131]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9925,7 +10106,7 @@ func (x *ListTopBuyersRequest) String() string {
 func (*ListTopBuyersRequest) ProtoMessage() {}
 
 func (x *ListTopBuyersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[129]
+	mi := &file_api_web_v1_web_proto_msgTypes[131]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9938,7 +10119,7 @@ func (x *ListTopBuyersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTopBuyersRequest.ProtoReflect.Descriptor instead.
 func (*ListTopBuyersRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{129}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{131}
 }
 
 func (x *ListTopBuyersRequest) GetModeratorId() int64 {
@@ -9982,7 +10163,7 @@ type ListTopBuyersResponse struct {
 
 func (x *ListTopBuyersResponse) Reset() {
 	*x = ListTopBuyersResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[130]
+	mi := &file_api_web_v1_web_proto_msgTypes[132]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -9994,7 +10175,7 @@ func (x *ListTopBuyersResponse) String() string {
 func (*ListTopBuyersResponse) ProtoMessage() {}
 
 func (x *ListTopBuyersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[130]
+	mi := &file_api_web_v1_web_proto_msgTypes[132]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10007,7 +10188,7 @@ func (x *ListTopBuyersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTopBuyersResponse.ProtoReflect.Descriptor instead.
 func (*ListTopBuyersResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{130}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{132}
 }
 
 func (x *ListTopBuyersResponse) GetResult() AdminResult {
@@ -10070,7 +10251,7 @@ type DonateLedgerRow struct {
 
 func (x *DonateLedgerRow) Reset() {
 	*x = DonateLedgerRow{}
-	mi := &file_api_web_v1_web_proto_msgTypes[131]
+	mi := &file_api_web_v1_web_proto_msgTypes[133]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10082,7 +10263,7 @@ func (x *DonateLedgerRow) String() string {
 func (*DonateLedgerRow) ProtoMessage() {}
 
 func (x *DonateLedgerRow) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[131]
+	mi := &file_api_web_v1_web_proto_msgTypes[133]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10095,7 +10276,7 @@ func (x *DonateLedgerRow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DonateLedgerRow.ProtoReflect.Descriptor instead.
 func (*DonateLedgerRow) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{131}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{133}
 }
 
 func (x *DonateLedgerRow) GetId() int64 {
@@ -10196,7 +10377,7 @@ type ListDonateSpendRequest struct {
 
 func (x *ListDonateSpendRequest) Reset() {
 	*x = ListDonateSpendRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[132]
+	mi := &file_api_web_v1_web_proto_msgTypes[134]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10208,7 +10389,7 @@ func (x *ListDonateSpendRequest) String() string {
 func (*ListDonateSpendRequest) ProtoMessage() {}
 
 func (x *ListDonateSpendRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[132]
+	mi := &file_api_web_v1_web_proto_msgTypes[134]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10221,7 +10402,7 @@ func (x *ListDonateSpendRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDonateSpendRequest.ProtoReflect.Descriptor instead.
 func (*ListDonateSpendRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{132}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{134}
 }
 
 func (x *ListDonateSpendRequest) GetModeratorId() int64 {
@@ -10279,7 +10460,7 @@ type ListDonateSpendResponse struct {
 
 func (x *ListDonateSpendResponse) Reset() {
 	*x = ListDonateSpendResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[133]
+	mi := &file_api_web_v1_web_proto_msgTypes[135]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10291,7 +10472,7 @@ func (x *ListDonateSpendResponse) String() string {
 func (*ListDonateSpendResponse) ProtoMessage() {}
 
 func (x *ListDonateSpendResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[133]
+	mi := &file_api_web_v1_web_proto_msgTypes[135]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10304,7 +10485,7 @@ func (x *ListDonateSpendResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListDonateSpendResponse.ProtoReflect.Descriptor instead.
 func (*ListDonateSpendResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{133}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{135}
 }
 
 func (x *ListDonateSpendResponse) GetResult() AdminResult {
@@ -10358,7 +10539,7 @@ type AccountSummary struct {
 
 func (x *AccountSummary) Reset() {
 	*x = AccountSummary{}
-	mi := &file_api_web_v1_web_proto_msgTypes[134]
+	mi := &file_api_web_v1_web_proto_msgTypes[136]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10370,7 +10551,7 @@ func (x *AccountSummary) String() string {
 func (*AccountSummary) ProtoMessage() {}
 
 func (x *AccountSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[134]
+	mi := &file_api_web_v1_web_proto_msgTypes[136]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10383,7 +10564,7 @@ func (x *AccountSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountSummary.ProtoReflect.Descriptor instead.
 func (*AccountSummary) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{134}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{136}
 }
 
 func (x *AccountSummary) GetId() int64 {
@@ -10439,7 +10620,7 @@ type SearchAccountsRequest struct {
 
 func (x *SearchAccountsRequest) Reset() {
 	*x = SearchAccountsRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[135]
+	mi := &file_api_web_v1_web_proto_msgTypes[137]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10451,7 +10632,7 @@ func (x *SearchAccountsRequest) String() string {
 func (*SearchAccountsRequest) ProtoMessage() {}
 
 func (x *SearchAccountsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[135]
+	mi := &file_api_web_v1_web_proto_msgTypes[137]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10464,7 +10645,7 @@ func (x *SearchAccountsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchAccountsRequest.ProtoReflect.Descriptor instead.
 func (*SearchAccountsRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{135}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{137}
 }
 
 func (x *SearchAccountsRequest) GetModeratorId() int64 {
@@ -10498,7 +10679,7 @@ type SearchAccountsResponse struct {
 
 func (x *SearchAccountsResponse) Reset() {
 	*x = SearchAccountsResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[136]
+	mi := &file_api_web_v1_web_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10510,7 +10691,7 @@ func (x *SearchAccountsResponse) String() string {
 func (*SearchAccountsResponse) ProtoMessage() {}
 
 func (x *SearchAccountsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[136]
+	mi := &file_api_web_v1_web_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10523,7 +10704,7 @@ func (x *SearchAccountsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SearchAccountsResponse.ProtoReflect.Descriptor instead.
 func (*SearchAccountsResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{136}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{138}
 }
 
 func (x *SearchAccountsResponse) GetResult() AdminResult {
@@ -10602,7 +10783,7 @@ type AdminItemStat struct {
 
 func (x *AdminItemStat) Reset() {
 	*x = AdminItemStat{}
-	mi := &file_api_web_v1_web_proto_msgTypes[137]
+	mi := &file_api_web_v1_web_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10614,7 +10795,7 @@ func (x *AdminItemStat) String() string {
 func (*AdminItemStat) ProtoMessage() {}
 
 func (x *AdminItemStat) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[137]
+	mi := &file_api_web_v1_web_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -10627,7 +10808,7 @@ func (x *AdminItemStat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminItemStat.ProtoReflect.Descriptor instead.
 func (*AdminItemStat) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{137}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{139}
 }
 
 func (x *AdminItemStat) GetItemIndex() int32 {
@@ -10976,7 +11157,7 @@ type GetItemStatRequest struct {
 
 func (x *GetItemStatRequest) Reset() {
 	*x = GetItemStatRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[138]
+	mi := &file_api_web_v1_web_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -10988,7 +11169,7 @@ func (x *GetItemStatRequest) String() string {
 func (*GetItemStatRequest) ProtoMessage() {}
 
 func (x *GetItemStatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[138]
+	mi := &file_api_web_v1_web_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11001,7 +11182,7 @@ func (x *GetItemStatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetItemStatRequest.ProtoReflect.Descriptor instead.
 func (*GetItemStatRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{138}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{140}
 }
 
 func (x *GetItemStatRequest) GetModeratorId() int64 {
@@ -11028,7 +11209,7 @@ type GetItemStatResponse struct {
 
 func (x *GetItemStatResponse) Reset() {
 	*x = GetItemStatResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[139]
+	mi := &file_api_web_v1_web_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11040,7 +11221,7 @@ func (x *GetItemStatResponse) String() string {
 func (*GetItemStatResponse) ProtoMessage() {}
 
 func (x *GetItemStatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[139]
+	mi := &file_api_web_v1_web_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11053,7 +11234,7 @@ func (x *GetItemStatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetItemStatResponse.ProtoReflect.Descriptor instead.
 func (*GetItemStatResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{139}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{141}
 }
 
 func (x *GetItemStatResponse) GetResult() AdminResult {
@@ -11080,7 +11261,7 @@ type UpsertItemStatRequest struct {
 
 func (x *UpsertItemStatRequest) Reset() {
 	*x = UpsertItemStatRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[140]
+	mi := &file_api_web_v1_web_proto_msgTypes[142]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11092,7 +11273,7 @@ func (x *UpsertItemStatRequest) String() string {
 func (*UpsertItemStatRequest) ProtoMessage() {}
 
 func (x *UpsertItemStatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[140]
+	mi := &file_api_web_v1_web_proto_msgTypes[142]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11105,7 +11286,7 @@ func (x *UpsertItemStatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpsertItemStatRequest.ProtoReflect.Descriptor instead.
 func (*UpsertItemStatRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{140}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{142}
 }
 
 func (x *UpsertItemStatRequest) GetModeratorId() int64 {
@@ -11132,7 +11313,7 @@ type DeleteItemStatRequest struct {
 
 func (x *DeleteItemStatRequest) Reset() {
 	*x = DeleteItemStatRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[141]
+	mi := &file_api_web_v1_web_proto_msgTypes[143]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11144,7 +11325,7 @@ func (x *DeleteItemStatRequest) String() string {
 func (*DeleteItemStatRequest) ProtoMessage() {}
 
 func (x *DeleteItemStatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[141]
+	mi := &file_api_web_v1_web_proto_msgTypes[143]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11157,7 +11338,7 @@ func (x *DeleteItemStatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteItemStatRequest.ProtoReflect.Descriptor instead.
 func (*DeleteItemStatRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{141}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{143}
 }
 
 func (x *DeleteItemStatRequest) GetModeratorId() int64 {
@@ -11193,7 +11374,7 @@ type AdminMountGrowthCurve struct {
 
 func (x *AdminMountGrowthCurve) Reset() {
 	*x = AdminMountGrowthCurve{}
-	mi := &file_api_web_v1_web_proto_msgTypes[142]
+	mi := &file_api_web_v1_web_proto_msgTypes[144]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11205,7 +11386,7 @@ func (x *AdminMountGrowthCurve) String() string {
 func (*AdminMountGrowthCurve) ProtoMessage() {}
 
 func (x *AdminMountGrowthCurve) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[142]
+	mi := &file_api_web_v1_web_proto_msgTypes[144]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11218,7 +11399,7 @@ func (x *AdminMountGrowthCurve) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminMountGrowthCurve.ProtoReflect.Descriptor instead.
 func (*AdminMountGrowthCurve) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{142}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{144}
 }
 
 func (x *AdminMountGrowthCurve) GetMountIndex() int32 {
@@ -11271,7 +11452,7 @@ type ListMountGrowthCurvesRequest struct {
 
 func (x *ListMountGrowthCurvesRequest) Reset() {
 	*x = ListMountGrowthCurvesRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[143]
+	mi := &file_api_web_v1_web_proto_msgTypes[145]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11283,7 +11464,7 @@ func (x *ListMountGrowthCurvesRequest) String() string {
 func (*ListMountGrowthCurvesRequest) ProtoMessage() {}
 
 func (x *ListMountGrowthCurvesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[143]
+	mi := &file_api_web_v1_web_proto_msgTypes[145]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11296,7 +11477,7 @@ func (x *ListMountGrowthCurvesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMountGrowthCurvesRequest.ProtoReflect.Descriptor instead.
 func (*ListMountGrowthCurvesRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{143}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{145}
 }
 
 type ListMountGrowthCurvesResponse struct {
@@ -11308,7 +11489,7 @@ type ListMountGrowthCurvesResponse struct {
 
 func (x *ListMountGrowthCurvesResponse) Reset() {
 	*x = ListMountGrowthCurvesResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[144]
+	mi := &file_api_web_v1_web_proto_msgTypes[146]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11320,7 +11501,7 @@ func (x *ListMountGrowthCurvesResponse) String() string {
 func (*ListMountGrowthCurvesResponse) ProtoMessage() {}
 
 func (x *ListMountGrowthCurvesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[144]
+	mi := &file_api_web_v1_web_proto_msgTypes[146]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11333,7 +11514,7 @@ func (x *ListMountGrowthCurvesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMountGrowthCurvesResponse.ProtoReflect.Descriptor instead.
 func (*ListMountGrowthCurvesResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{144}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{146}
 }
 
 func (x *ListMountGrowthCurvesResponse) GetCurves() []*AdminMountGrowthCurve {
@@ -11355,7 +11536,7 @@ type SetMountGrowthCurveRequest struct {
 
 func (x *SetMountGrowthCurveRequest) Reset() {
 	*x = SetMountGrowthCurveRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[145]
+	mi := &file_api_web_v1_web_proto_msgTypes[147]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11367,7 +11548,7 @@ func (x *SetMountGrowthCurveRequest) String() string {
 func (*SetMountGrowthCurveRequest) ProtoMessage() {}
 
 func (x *SetMountGrowthCurveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[145]
+	mi := &file_api_web_v1_web_proto_msgTypes[147]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11380,7 +11561,7 @@ func (x *SetMountGrowthCurveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetMountGrowthCurveRequest.ProtoReflect.Descriptor instead.
 func (*SetMountGrowthCurveRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{145}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{147}
 }
 
 func (x *SetMountGrowthCurveRequest) GetModeratorId() int64 {
@@ -11421,7 +11602,7 @@ type ClearMountGrowthCurveRequest struct {
 
 func (x *ClearMountGrowthCurveRequest) Reset() {
 	*x = ClearMountGrowthCurveRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[146]
+	mi := &file_api_web_v1_web_proto_msgTypes[148]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11433,7 +11614,7 @@ func (x *ClearMountGrowthCurveRequest) String() string {
 func (*ClearMountGrowthCurveRequest) ProtoMessage() {}
 
 func (x *ClearMountGrowthCurveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[146]
+	mi := &file_api_web_v1_web_proto_msgTypes[148]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11446,7 +11627,7 @@ func (x *ClearMountGrowthCurveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearMountGrowthCurveRequest.ProtoReflect.Descriptor instead.
 func (*ClearMountGrowthCurveRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{146}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{148}
 }
 
 func (x *ClearMountGrowthCurveRequest) GetModeratorId() int64 {
@@ -11484,7 +11665,7 @@ type AdminMountAbsorb struct {
 
 func (x *AdminMountAbsorb) Reset() {
 	*x = AdminMountAbsorb{}
-	mi := &file_api_web_v1_web_proto_msgTypes[147]
+	mi := &file_api_web_v1_web_proto_msgTypes[149]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11496,7 +11677,7 @@ func (x *AdminMountAbsorb) String() string {
 func (*AdminMountAbsorb) ProtoMessage() {}
 
 func (x *AdminMountAbsorb) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[147]
+	mi := &file_api_web_v1_web_proto_msgTypes[149]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11509,7 +11690,7 @@ func (x *AdminMountAbsorb) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminMountAbsorb.ProtoReflect.Descriptor instead.
 func (*AdminMountAbsorb) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{147}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{149}
 }
 
 func (x *AdminMountAbsorb) GetMountIndex() int32 {
@@ -11555,7 +11736,7 @@ type MountConfigVersionRequest struct {
 
 func (x *MountConfigVersionRequest) Reset() {
 	*x = MountConfigVersionRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[148]
+	mi := &file_api_web_v1_web_proto_msgTypes[150]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11567,7 +11748,7 @@ func (x *MountConfigVersionRequest) String() string {
 func (*MountConfigVersionRequest) ProtoMessage() {}
 
 func (x *MountConfigVersionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[148]
+	mi := &file_api_web_v1_web_proto_msgTypes[150]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11580,7 +11761,7 @@ func (x *MountConfigVersionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MountConfigVersionRequest.ProtoReflect.Descriptor instead.
 func (*MountConfigVersionRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{148}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{150}
 }
 
 type MountConfigVersionResponse struct {
@@ -11592,7 +11773,7 @@ type MountConfigVersionResponse struct {
 
 func (x *MountConfigVersionResponse) Reset() {
 	*x = MountConfigVersionResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[149]
+	mi := &file_api_web_v1_web_proto_msgTypes[151]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11604,7 +11785,7 @@ func (x *MountConfigVersionResponse) String() string {
 func (*MountConfigVersionResponse) ProtoMessage() {}
 
 func (x *MountConfigVersionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[149]
+	mi := &file_api_web_v1_web_proto_msgTypes[151]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11617,7 +11798,7 @@ func (x *MountConfigVersionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MountConfigVersionResponse.ProtoReflect.Descriptor instead.
 func (*MountConfigVersionResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{149}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{151}
 }
 
 func (x *MountConfigVersionResponse) GetVersion() int64 {
@@ -11635,7 +11816,7 @@ type ListMountAbsorbRequest struct {
 
 func (x *ListMountAbsorbRequest) Reset() {
 	*x = ListMountAbsorbRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[150]
+	mi := &file_api_web_v1_web_proto_msgTypes[152]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11647,7 +11828,7 @@ func (x *ListMountAbsorbRequest) String() string {
 func (*ListMountAbsorbRequest) ProtoMessage() {}
 
 func (x *ListMountAbsorbRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[150]
+	mi := &file_api_web_v1_web_proto_msgTypes[152]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11660,7 +11841,7 @@ func (x *ListMountAbsorbRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMountAbsorbRequest.ProtoReflect.Descriptor instead.
 func (*ListMountAbsorbRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{150}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{152}
 }
 
 type ListMountAbsorbResponse struct {
@@ -11672,7 +11853,7 @@ type ListMountAbsorbResponse struct {
 
 func (x *ListMountAbsorbResponse) Reset() {
 	*x = ListMountAbsorbResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[151]
+	mi := &file_api_web_v1_web_proto_msgTypes[153]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11684,7 +11865,7 @@ func (x *ListMountAbsorbResponse) String() string {
 func (*ListMountAbsorbResponse) ProtoMessage() {}
 
 func (x *ListMountAbsorbResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[151]
+	mi := &file_api_web_v1_web_proto_msgTypes[153]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11697,7 +11878,7 @@ func (x *ListMountAbsorbResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMountAbsorbResponse.ProtoReflect.Descriptor instead.
 func (*ListMountAbsorbResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{151}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{153}
 }
 
 func (x *ListMountAbsorbResponse) GetAbsorb() []*AdminMountAbsorb {
@@ -11720,7 +11901,7 @@ type SetMountAbsorbRequest struct {
 
 func (x *SetMountAbsorbRequest) Reset() {
 	*x = SetMountAbsorbRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[152]
+	mi := &file_api_web_v1_web_proto_msgTypes[154]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11732,7 +11913,7 @@ func (x *SetMountAbsorbRequest) String() string {
 func (*SetMountAbsorbRequest) ProtoMessage() {}
 
 func (x *SetMountAbsorbRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[152]
+	mi := &file_api_web_v1_web_proto_msgTypes[154]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11745,7 +11926,7 @@ func (x *SetMountAbsorbRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetMountAbsorbRequest.ProtoReflect.Descriptor instead.
 func (*SetMountAbsorbRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{152}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{154}
 }
 
 func (x *SetMountAbsorbRequest) GetModeratorId() int64 {
@@ -11793,7 +11974,7 @@ type ClearMountAbsorbRequest struct {
 
 func (x *ClearMountAbsorbRequest) Reset() {
 	*x = ClearMountAbsorbRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[153]
+	mi := &file_api_web_v1_web_proto_msgTypes[155]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11805,7 +11986,7 @@ func (x *ClearMountAbsorbRequest) String() string {
 func (*ClearMountAbsorbRequest) ProtoMessage() {}
 
 func (x *ClearMountAbsorbRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[153]
+	mi := &file_api_web_v1_web_proto_msgTypes[155]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11818,7 +11999,7 @@ func (x *ClearMountAbsorbRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearMountAbsorbRequest.ProtoReflect.Descriptor instead.
 func (*ClearMountAbsorbRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{153}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{155}
 }
 
 func (x *ClearMountAbsorbRequest) GetModeratorId() int64 {
@@ -11859,7 +12040,7 @@ type AdminMountBonus struct {
 
 func (x *AdminMountBonus) Reset() {
 	*x = AdminMountBonus{}
-	mi := &file_api_web_v1_web_proto_msgTypes[154]
+	mi := &file_api_web_v1_web_proto_msgTypes[156]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11871,7 +12052,7 @@ func (x *AdminMountBonus) String() string {
 func (*AdminMountBonus) ProtoMessage() {}
 
 func (x *AdminMountBonus) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[154]
+	mi := &file_api_web_v1_web_proto_msgTypes[156]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11884,7 +12065,7 @@ func (x *AdminMountBonus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AdminMountBonus.ProtoReflect.Descriptor instead.
 func (*AdminMountBonus) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{154}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{156}
 }
 
 func (x *AdminMountBonus) GetMountIndex() int32 {
@@ -11972,7 +12153,7 @@ type ListMountBonusRequest struct {
 
 func (x *ListMountBonusRequest) Reset() {
 	*x = ListMountBonusRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[155]
+	mi := &file_api_web_v1_web_proto_msgTypes[157]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -11984,7 +12165,7 @@ func (x *ListMountBonusRequest) String() string {
 func (*ListMountBonusRequest) ProtoMessage() {}
 
 func (x *ListMountBonusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[155]
+	mi := &file_api_web_v1_web_proto_msgTypes[157]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -11997,7 +12178,7 @@ func (x *ListMountBonusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMountBonusRequest.ProtoReflect.Descriptor instead.
 func (*ListMountBonusRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{155}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{157}
 }
 
 type ListMountBonusResponse struct {
@@ -12009,7 +12190,7 @@ type ListMountBonusResponse struct {
 
 func (x *ListMountBonusResponse) Reset() {
 	*x = ListMountBonusResponse{}
-	mi := &file_api_web_v1_web_proto_msgTypes[156]
+	mi := &file_api_web_v1_web_proto_msgTypes[158]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12021,7 +12202,7 @@ func (x *ListMountBonusResponse) String() string {
 func (*ListMountBonusResponse) ProtoMessage() {}
 
 func (x *ListMountBonusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[156]
+	mi := &file_api_web_v1_web_proto_msgTypes[158]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12034,7 +12215,7 @@ func (x *ListMountBonusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMountBonusResponse.ProtoReflect.Descriptor instead.
 func (*ListMountBonusResponse) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{156}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{158}
 }
 
 func (x *ListMountBonusResponse) GetBonus() []*AdminMountBonus {
@@ -12059,7 +12240,7 @@ type SetMountBonusRequest struct {
 
 func (x *SetMountBonusRequest) Reset() {
 	*x = SetMountBonusRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[157]
+	mi := &file_api_web_v1_web_proto_msgTypes[159]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12071,7 +12252,7 @@ func (x *SetMountBonusRequest) String() string {
 func (*SetMountBonusRequest) ProtoMessage() {}
 
 func (x *SetMountBonusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[157]
+	mi := &file_api_web_v1_web_proto_msgTypes[159]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12084,7 +12265,7 @@ func (x *SetMountBonusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetMountBonusRequest.ProtoReflect.Descriptor instead.
 func (*SetMountBonusRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{157}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{159}
 }
 
 func (x *SetMountBonusRequest) GetModeratorId() int64 {
@@ -12146,7 +12327,7 @@ type ClearMountBonusRequest struct {
 
 func (x *ClearMountBonusRequest) Reset() {
 	*x = ClearMountBonusRequest{}
-	mi := &file_api_web_v1_web_proto_msgTypes[158]
+	mi := &file_api_web_v1_web_proto_msgTypes[160]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -12158,7 +12339,7 @@ func (x *ClearMountBonusRequest) String() string {
 func (*ClearMountBonusRequest) ProtoMessage() {}
 
 func (x *ClearMountBonusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_api_web_v1_web_proto_msgTypes[158]
+	mi := &file_api_web_v1_web_proto_msgTypes[160]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -12171,7 +12352,7 @@ func (x *ClearMountBonusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClearMountBonusRequest.ProtoReflect.Descriptor instead.
 func (*ClearMountBonusRequest) Descriptor() ([]byte, []int) {
-	return file_api_web_v1_web_proto_rawDescGZIP(), []int{158}
+	return file_api_web_v1_web_proto_rawDescGZIP(), []int{160}
 }
 
 func (x *ClearMountBonusRequest) GetModeratorId() int64 {
@@ -12776,7 +12957,12 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12$\n" +
 	"\x0ereward_item_id\x18\x02 \x01(\x03R\frewardItemId\"<\n" +
 	"\rClaimResponse\x12+\n" +
-	"\x06result\x18\x01 \x01(\x0e2\x13.web.v1.ClaimResultR\x06result\"7\n" +
+	"\x06result\x18\x01 \x01(\x0e2\x13.web.v1.ClaimResultR\x06result\"x\n" +
+	"\x18AttachTopupChargeRequest\x12-\n" +
+	"\x12external_reference\x18\x01 \x01(\tR\x11externalReference\x12-\n" +
+	"\x12gateway_identifier\x18\x02 \x01(\tR\x11gatewayIdentifier\"I\n" +
+	"\x19AttachTopupChargeResponse\x12,\n" +
+	"\x06result\x18\x01 \x01(\x0e2\x14.web.v1.AttachResultR\x06result\"7\n" +
 	"\x16GetPayerProfileRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\"U\n" +
@@ -13201,7 +13387,15 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\x18TOPUP_RESULT_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16TOPUP_RESULT_CONFIRMED\x10\x01\x12\"\n" +
 	"\x1eTOPUP_RESULT_ALREADY_CONFIRMED\x10\x02\x12\x1a\n" +
-	"\x16TOPUP_RESULT_NOT_FOUND\x10\x03*\\\n" +
+	"\x16TOPUP_RESULT_NOT_FOUND\x10\x03*\xea\x01\n" +
+	"\fAttachResult\x12\x1d\n" +
+	"\x19ATTACH_RESULT_UNSPECIFIED\x10\x00\x12\x1a\n" +
+	"\x16ATTACH_RESULT_ATTACHED\x10\x01\x12\x19\n" +
+	"\x15ATTACH_RESULT_ALREADY\x10\x02\x12 \n" +
+	"\x1cATTACH_RESULT_CONFLICT_ORDER\x10\x03\x12%\n" +
+	"!ATTACH_RESULT_CONFLICT_IDENTIFIER\x10\x04\x12\x1b\n" +
+	"\x17ATTACH_RESULT_NOT_FOUND\x10\x05\x12\x1e\n" +
+	"\x1aATTACH_RESULT_ALREADY_PAID\x10\x06*\\\n" +
 	"\vTopupStatus\x12\x1c\n" +
 	"\x18TOPUP_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14TOPUP_STATUS_PENDING\x10\x01\x12\x15\n" +
@@ -13278,13 +13472,14 @@ const file_api_web_v1_web_proto_rawDesc = "" +
 	"\x12DailyRewardService\x12F\n" +
 	"\vListRewards\x12\x1a.web.v1.ListRewardsRequest\x1a\x1b.web.v1.ListRewardsResponse\x12O\n" +
 	"\x0eGetClaimStatus\x12\x1d.web.v1.GetClaimStatusRequest\x1a\x1e.web.v1.GetClaimStatusResponse\x124\n" +
-	"\x05Claim\x12\x14.web.v1.ClaimRequest\x1a\x15.web.v1.ClaimResponse2\xbe\x03\n" +
+	"\x05Claim\x12\x14.web.v1.ClaimRequest\x1a\x15.web.v1.ClaimResponse2\x98\x04\n" +
 	"\x12DonateTopupService\x12R\n" +
 	"\x0fGetPayerProfile\x12\x1e.web.v1.GetPayerProfileRequest\x1a\x1f.web.v1.GetPayerProfileResponse\x12U\n" +
 	"\x10SavePayerProfile\x12\x1f.web.v1.SavePayerProfileRequest\x1a .web.v1.SavePayerProfileResponse\x12U\n" +
 	"\x10CreateTopupOrder\x12\x1f.web.v1.CreateTopupOrderRequest\x1a .web.v1.CreateTopupOrderResponse\x12X\n" +
 	"\x11ConfirmTopupOrder\x12 .web.v1.ConfirmTopupOrderRequest\x1a!.web.v1.ConfirmTopupOrderResponse\x12L\n" +
-	"\rGetTopupOrder\x12\x1c.web.v1.GetTopupOrderRequest\x1a\x1d.web.v1.GetTopupOrderResponse2\xbc\x03\n" +
+	"\rGetTopupOrder\x12\x1c.web.v1.GetTopupOrderRequest\x1a\x1d.web.v1.GetTopupOrderResponse\x12X\n" +
+	"\x11AttachTopupCharge\x12 .web.v1.AttachTopupChargeRequest\x1a!.web.v1.AttachTopupChargeResponse2\xbc\x03\n" +
 	"\x19DonateRevenueAdminService\x12X\n" +
 	"\x11GetRevenueSummary\x12 .web.v1.GetRevenueSummaryRequest\x1a!.web.v1.GetRevenueSummaryResponse\x12R\n" +
 	"\x0fListTopupOrders\x12\x1e.web.v1.ListTopupOrdersRequest\x1a\x1f.web.v1.ListTopupOrdersResponse\x12L\n" +
@@ -13319,8 +13514,8 @@ func file_api_web_v1_web_proto_rawDescGZIP() []byte {
 	return file_api_web_v1_web_proto_rawDescData
 }
 
-var file_api_web_v1_web_proto_enumTypes = make([]protoimpl.EnumInfo, 16)
-var file_api_web_v1_web_proto_msgTypes = make([]protoimpl.MessageInfo, 159)
+var file_api_web_v1_web_proto_enumTypes = make([]protoimpl.EnumInfo, 17)
+var file_api_web_v1_web_proto_msgTypes = make([]protoimpl.MessageInfo, 161)
 var file_api_web_v1_web_proto_goTypes = []any{
 	(CreateResult)(0),                     // 0: web.v1.CreateResult
 	(PixKeyType)(0),                       // 1: web.v1.PixKeyType
@@ -13335,168 +13530,171 @@ var file_api_web_v1_web_proto_goTypes = []any{
 	(ClaimResult)(0),                      // 10: web.v1.ClaimResult
 	(PaymentMethod)(0),                    // 11: web.v1.PaymentMethod
 	(TopupResult)(0),                      // 12: web.v1.TopupResult
-	(TopupStatus)(0),                      // 13: web.v1.TopupStatus
-	(RevenueBucket)(0),                    // 14: web.v1.RevenueBucket
-	(DonateLedgerAction)(0),               // 15: web.v1.DonateLedgerAction
-	(*CreateAccountRequest)(nil),          // 16: web.v1.CreateAccountRequest
-	(*CreateAccountResponse)(nil),         // 17: web.v1.CreateAccountResponse
-	(*VerifyCredentialsRequest)(nil),      // 18: web.v1.VerifyCredentialsRequest
-	(*VerifyCredentialsResponse)(nil),     // 19: web.v1.VerifyCredentialsResponse
-	(*SavePixKeyRequest)(nil),             // 20: web.v1.SavePixKeyRequest
-	(*SavePixKeyResponse)(nil),            // 21: web.v1.SavePixKeyResponse
-	(*GetPixKeyRequest)(nil),              // 22: web.v1.GetPixKeyRequest
-	(*GetPixKeyResponse)(nil),             // 23: web.v1.GetPixKeyResponse
-	(*GetMyCurrentPixChargeRequest)(nil),  // 24: web.v1.GetMyCurrentPixChargeRequest
-	(*GetMyCurrentPixChargeResponse)(nil), // 25: web.v1.GetMyCurrentPixChargeResponse
-	(*NotifySyncpayEventRequest)(nil),     // 26: web.v1.NotifySyncpayEventRequest
-	(*NotifySyncpayEventResponse)(nil),    // 27: web.v1.NotifySyncpayEventResponse
-	(*ListExpRankingRequest)(nil),         // 28: web.v1.ListExpRankingRequest
-	(*RankingEntry)(nil),                  // 29: web.v1.RankingEntry
-	(*ListExpRankingResponse)(nil),        // 30: web.v1.ListExpRankingResponse
-	(*ListDuelRankingRequest)(nil),        // 31: web.v1.ListDuelRankingRequest
-	(*DuelRankingEntry)(nil),              // 32: web.v1.DuelRankingEntry
-	(*ListDuelRankingResponse)(nil),       // 33: web.v1.ListDuelRankingResponse
-	(*ListMyCharactersRequest)(nil),       // 34: web.v1.ListMyCharactersRequest
-	(*WebCharacterSummary)(nil),           // 35: web.v1.WebCharacterSummary
-	(*ListMyCharactersResponse)(nil),      // 36: web.v1.ListMyCharactersResponse
-	(*ListItemsRequest)(nil),              // 37: web.v1.ListItemsRequest
-	(*ListItemsResponse)(nil),             // 38: web.v1.ListItemsResponse
-	(*AdminAck)(nil),                      // 39: web.v1.AdminAck
-	(*AdminNpcShopItem)(nil),              // 40: web.v1.AdminNpcShopItem
-	(*AdminNpc)(nil),                      // 41: web.v1.AdminNpc
-	(*ListNpcsRequest)(nil),               // 42: web.v1.ListNpcsRequest
-	(*ListNpcsResponse)(nil),              // 43: web.v1.ListNpcsResponse
-	(*GetNpcRequest)(nil),                 // 44: web.v1.GetNpcRequest
-	(*GetNpcResponse)(nil),                // 45: web.v1.GetNpcResponse
-	(*UpsertNpcRequest)(nil),              // 46: web.v1.UpsertNpcRequest
-	(*UpsertNpcResponse)(nil),             // 47: web.v1.UpsertNpcResponse
-	(*SetNpcVisibilityRequest)(nil),       // 48: web.v1.SetNpcVisibilityRequest
-	(*SetNpcShopRequest)(nil),             // 49: web.v1.SetNpcShopRequest
-	(*SetItemPriceRequest)(nil),           // 50: web.v1.SetItemPriceRequest
-	(*DeleteNpcRequest)(nil),              // 51: web.v1.DeleteNpcRequest
-	(*MerchantTemplate)(nil),              // 52: web.v1.MerchantTemplate
-	(*ListMerchantTemplatesRequest)(nil),  // 53: web.v1.ListMerchantTemplatesRequest
-	(*ListMerchantTemplatesResponse)(nil), // 54: web.v1.ListMerchantTemplatesResponse
-	(*ItemCatalogEntry)(nil),              // 55: web.v1.ItemCatalogEntry
-	(*ListItemCatalogRequest)(nil),        // 56: web.v1.ListItemCatalogRequest
-	(*ListItemCatalogResponse)(nil),       // 57: web.v1.ListItemCatalogResponse
-	(*DropItemMob)(nil),                   // 58: web.v1.DropItemMob
-	(*DropItemEntry)(nil),                 // 59: web.v1.DropItemEntry
-	(*ListDropItemsRequest)(nil),          // 60: web.v1.ListDropItemsRequest
-	(*ListDropItemsResponse)(nil),         // 61: web.v1.ListDropItemsResponse
-	(*MobDropItem)(nil),                   // 62: web.v1.MobDropItem
-	(*MobDropEntry)(nil),                  // 63: web.v1.MobDropEntry
-	(*ListMobDropsRequest)(nil),           // 64: web.v1.ListMobDropsRequest
-	(*ListMobDropsResponse)(nil),          // 65: web.v1.ListMobDropsResponse
-	(*ItemPrice)(nil),                     // 66: web.v1.ItemPrice
-	(*ListItemPricesRequest)(nil),         // 67: web.v1.ListItemPricesRequest
-	(*ListItemPricesResponse)(nil),        // 68: web.v1.ListItemPricesResponse
-	(*MapZone)(nil),                       // 69: web.v1.MapZone
-	(*ListMapZonesRequest)(nil),           // 70: web.v1.ListMapZonesRequest
-	(*ListMapZonesResponse)(nil),          // 71: web.v1.ListMapZonesResponse
-	(*MobTemplateFile)(nil),               // 72: web.v1.MobTemplateFile
-	(*ListMobTemplatesRequest)(nil),       // 73: web.v1.ListMobTemplatesRequest
-	(*ListMobTemplatesResponse)(nil),      // 74: web.v1.ListMobTemplatesResponse
-	(*AdminMobTemplateEquipItem)(nil),     // 75: web.v1.AdminMobTemplateEquipItem
-	(*AdminMobTemplateStat)(nil),          // 76: web.v1.AdminMobTemplateStat
-	(*GetMobTemplateStatRequest)(nil),     // 77: web.v1.GetMobTemplateStatRequest
-	(*GetMobTemplateStatResponse)(nil),    // 78: web.v1.GetMobTemplateStatResponse
-	(*AdminMobOrigin)(nil),                // 79: web.v1.AdminMobOrigin
-	(*UpsertMobTemplateStatRequest)(nil),  // 80: web.v1.UpsertMobTemplateStatRequest
-	(*UpsertMobTemplateStatResponse)(nil), // 81: web.v1.UpsertMobTemplateStatResponse
-	(*SetMobTemplateEquipRequest)(nil),    // 82: web.v1.SetMobTemplateEquipRequest
-	(*DeleteMobTemplateStatRequest)(nil),  // 83: web.v1.DeleteMobTemplateStatRequest
-	(*GetAttributeMapInfoRequest)(nil),    // 84: web.v1.GetAttributeMapInfoRequest
-	(*GetAttributeMapInfoResponse)(nil),   // 85: web.v1.GetAttributeMapInfoResponse
-	(*AttributeMapInfo)(nil),              // 86: web.v1.AttributeMapInfo
-	(*AttributeMapValueCount)(nil),        // 87: web.v1.AttributeMapValueCount
-	(*AttributeMapMeaning)(nil),           // 88: web.v1.AttributeMapMeaning
-	(*AttributeMapRect)(nil),              // 89: web.v1.AttributeMapRect
-	(*AttributeMapTransformFilter)(nil),   // 90: web.v1.AttributeMapTransformFilter
-	(*TransformAttributeMapRequest)(nil),  // 91: web.v1.TransformAttributeMapRequest
-	(*TransformAttributeMapResponse)(nil), // 92: web.v1.TransformAttributeMapResponse
-	(*DonateShopItem)(nil),                // 93: web.v1.DonateShopItem
-	(*ListShopItemsRequest)(nil),          // 94: web.v1.ListShopItemsRequest
-	(*ListShopItemsResponse)(nil),         // 95: web.v1.ListShopItemsResponse
-	(*UpsertShopItemRequest)(nil),         // 96: web.v1.UpsertShopItemRequest
-	(*UpsertShopItemResponse)(nil),        // 97: web.v1.UpsertShopItemResponse
-	(*SetShopItemEnabledRequest)(nil),     // 98: web.v1.SetShopItemEnabledRequest
-	(*DeleteShopItemRequest)(nil),         // 99: web.v1.DeleteShopItemRequest
-	(*CreditDonateBalanceRequest)(nil),    // 100: web.v1.CreditDonateBalanceRequest
-	(*CreditDonateBalanceResponse)(nil),   // 101: web.v1.CreditDonateBalanceResponse
-	(*ListStoreItemsRequest)(nil),         // 102: web.v1.ListStoreItemsRequest
-	(*ListStoreItemsResponse)(nil),        // 103: web.v1.ListStoreItemsResponse
-	(*GetBalanceRequest)(nil),             // 104: web.v1.GetBalanceRequest
-	(*GetBalanceResponse)(nil),            // 105: web.v1.GetBalanceResponse
-	(*BuyRequest)(nil),                    // 106: web.v1.BuyRequest
-	(*BuyResponse)(nil),                   // 107: web.v1.BuyResponse
-	(*DailyRewardItem)(nil),               // 108: web.v1.DailyRewardItem
-	(*ListRewardItemsRequest)(nil),        // 109: web.v1.ListRewardItemsRequest
-	(*ListRewardItemsResponse)(nil),       // 110: web.v1.ListRewardItemsResponse
-	(*UpsertRewardItemRequest)(nil),       // 111: web.v1.UpsertRewardItemRequest
-	(*UpsertRewardItemResponse)(nil),      // 112: web.v1.UpsertRewardItemResponse
-	(*SetRewardItemEnabledRequest)(nil),   // 113: web.v1.SetRewardItemEnabledRequest
-	(*DeleteRewardItemRequest)(nil),       // 114: web.v1.DeleteRewardItemRequest
-	(*WorldEventConfig)(nil),              // 115: web.v1.WorldEventConfig
-	(*GetWorldEventConfigRequest)(nil),    // 116: web.v1.GetWorldEventConfigRequest
-	(*GetWorldEventConfigResponse)(nil),   // 117: web.v1.GetWorldEventConfigResponse
-	(*SetWorldEventConfigRequest)(nil),    // 118: web.v1.SetWorldEventConfigRequest
-	(*ListRewardsRequest)(nil),            // 119: web.v1.ListRewardsRequest
-	(*ListRewardsResponse)(nil),           // 120: web.v1.ListRewardsResponse
-	(*GetClaimStatusRequest)(nil),         // 121: web.v1.GetClaimStatusRequest
-	(*GetClaimStatusResponse)(nil),        // 122: web.v1.GetClaimStatusResponse
-	(*ClaimRequest)(nil),                  // 123: web.v1.ClaimRequest
-	(*ClaimResponse)(nil),                 // 124: web.v1.ClaimResponse
-	(*GetPayerProfileRequest)(nil),        // 125: web.v1.GetPayerProfileRequest
-	(*GetPayerProfileResponse)(nil),       // 126: web.v1.GetPayerProfileResponse
-	(*SavePayerProfileRequest)(nil),       // 127: web.v1.SavePayerProfileRequest
-	(*SavePayerProfileResponse)(nil),      // 128: web.v1.SavePayerProfileResponse
-	(*CreateTopupOrderRequest)(nil),       // 129: web.v1.CreateTopupOrderRequest
-	(*CreateTopupOrderResponse)(nil),      // 130: web.v1.CreateTopupOrderResponse
-	(*ConfirmTopupOrderRequest)(nil),      // 131: web.v1.ConfirmTopupOrderRequest
-	(*ConfirmTopupOrderResponse)(nil),     // 132: web.v1.ConfirmTopupOrderResponse
-	(*GetTopupOrderRequest)(nil),          // 133: web.v1.GetTopupOrderRequest
-	(*GetTopupOrderResponse)(nil),         // 134: web.v1.GetTopupOrderResponse
-	(*RevenueWindow)(nil),                 // 135: web.v1.RevenueWindow
-	(*RevenueTotals)(nil),                 // 136: web.v1.RevenueTotals
-	(*RevenueByMethod)(nil),               // 137: web.v1.RevenueByMethod
-	(*RevenuePoint)(nil),                  // 138: web.v1.RevenuePoint
-	(*GetRevenueSummaryRequest)(nil),      // 139: web.v1.GetRevenueSummaryRequest
-	(*GetRevenueSummaryResponse)(nil),     // 140: web.v1.GetRevenueSummaryResponse
-	(*TopupOrderRow)(nil),                 // 141: web.v1.TopupOrderRow
-	(*ListTopupOrdersRequest)(nil),        // 142: web.v1.ListTopupOrdersRequest
-	(*ListTopupOrdersResponse)(nil),       // 143: web.v1.ListTopupOrdersResponse
-	(*TopBuyerRow)(nil),                   // 144: web.v1.TopBuyerRow
-	(*ListTopBuyersRequest)(nil),          // 145: web.v1.ListTopBuyersRequest
-	(*ListTopBuyersResponse)(nil),         // 146: web.v1.ListTopBuyersResponse
-	(*DonateLedgerRow)(nil),               // 147: web.v1.DonateLedgerRow
-	(*ListDonateSpendRequest)(nil),        // 148: web.v1.ListDonateSpendRequest
-	(*ListDonateSpendResponse)(nil),       // 149: web.v1.ListDonateSpendResponse
-	(*AccountSummary)(nil),                // 150: web.v1.AccountSummary
-	(*SearchAccountsRequest)(nil),         // 151: web.v1.SearchAccountsRequest
-	(*SearchAccountsResponse)(nil),        // 152: web.v1.SearchAccountsResponse
-	(*AdminItemStat)(nil),                 // 153: web.v1.AdminItemStat
-	(*GetItemStatRequest)(nil),            // 154: web.v1.GetItemStatRequest
-	(*GetItemStatResponse)(nil),           // 155: web.v1.GetItemStatResponse
-	(*UpsertItemStatRequest)(nil),         // 156: web.v1.UpsertItemStatRequest
-	(*DeleteItemStatRequest)(nil),         // 157: web.v1.DeleteItemStatRequest
-	(*AdminMountGrowthCurve)(nil),         // 158: web.v1.AdminMountGrowthCurve
-	(*ListMountGrowthCurvesRequest)(nil),  // 159: web.v1.ListMountGrowthCurvesRequest
-	(*ListMountGrowthCurvesResponse)(nil), // 160: web.v1.ListMountGrowthCurvesResponse
-	(*SetMountGrowthCurveRequest)(nil),    // 161: web.v1.SetMountGrowthCurveRequest
-	(*ClearMountGrowthCurveRequest)(nil),  // 162: web.v1.ClearMountGrowthCurveRequest
-	(*AdminMountAbsorb)(nil),              // 163: web.v1.AdminMountAbsorb
-	(*MountConfigVersionRequest)(nil),     // 164: web.v1.MountConfigVersionRequest
-	(*MountConfigVersionResponse)(nil),    // 165: web.v1.MountConfigVersionResponse
-	(*ListMountAbsorbRequest)(nil),        // 166: web.v1.ListMountAbsorbRequest
-	(*ListMountAbsorbResponse)(nil),       // 167: web.v1.ListMountAbsorbResponse
-	(*SetMountAbsorbRequest)(nil),         // 168: web.v1.SetMountAbsorbRequest
-	(*ClearMountAbsorbRequest)(nil),       // 169: web.v1.ClearMountAbsorbRequest
-	(*AdminMountBonus)(nil),               // 170: web.v1.AdminMountBonus
-	(*ListMountBonusRequest)(nil),         // 171: web.v1.ListMountBonusRequest
-	(*ListMountBonusResponse)(nil),        // 172: web.v1.ListMountBonusResponse
-	(*SetMountBonusRequest)(nil),          // 173: web.v1.SetMountBonusRequest
-	(*ClearMountBonusRequest)(nil),        // 174: web.v1.ClearMountBonusRequest
+	(AttachResult)(0),                     // 13: web.v1.AttachResult
+	(TopupStatus)(0),                      // 14: web.v1.TopupStatus
+	(RevenueBucket)(0),                    // 15: web.v1.RevenueBucket
+	(DonateLedgerAction)(0),               // 16: web.v1.DonateLedgerAction
+	(*CreateAccountRequest)(nil),          // 17: web.v1.CreateAccountRequest
+	(*CreateAccountResponse)(nil),         // 18: web.v1.CreateAccountResponse
+	(*VerifyCredentialsRequest)(nil),      // 19: web.v1.VerifyCredentialsRequest
+	(*VerifyCredentialsResponse)(nil),     // 20: web.v1.VerifyCredentialsResponse
+	(*SavePixKeyRequest)(nil),             // 21: web.v1.SavePixKeyRequest
+	(*SavePixKeyResponse)(nil),            // 22: web.v1.SavePixKeyResponse
+	(*GetPixKeyRequest)(nil),              // 23: web.v1.GetPixKeyRequest
+	(*GetPixKeyResponse)(nil),             // 24: web.v1.GetPixKeyResponse
+	(*GetMyCurrentPixChargeRequest)(nil),  // 25: web.v1.GetMyCurrentPixChargeRequest
+	(*GetMyCurrentPixChargeResponse)(nil), // 26: web.v1.GetMyCurrentPixChargeResponse
+	(*NotifySyncpayEventRequest)(nil),     // 27: web.v1.NotifySyncpayEventRequest
+	(*NotifySyncpayEventResponse)(nil),    // 28: web.v1.NotifySyncpayEventResponse
+	(*ListExpRankingRequest)(nil),         // 29: web.v1.ListExpRankingRequest
+	(*RankingEntry)(nil),                  // 30: web.v1.RankingEntry
+	(*ListExpRankingResponse)(nil),        // 31: web.v1.ListExpRankingResponse
+	(*ListDuelRankingRequest)(nil),        // 32: web.v1.ListDuelRankingRequest
+	(*DuelRankingEntry)(nil),              // 33: web.v1.DuelRankingEntry
+	(*ListDuelRankingResponse)(nil),       // 34: web.v1.ListDuelRankingResponse
+	(*ListMyCharactersRequest)(nil),       // 35: web.v1.ListMyCharactersRequest
+	(*WebCharacterSummary)(nil),           // 36: web.v1.WebCharacterSummary
+	(*ListMyCharactersResponse)(nil),      // 37: web.v1.ListMyCharactersResponse
+	(*ListItemsRequest)(nil),              // 38: web.v1.ListItemsRequest
+	(*ListItemsResponse)(nil),             // 39: web.v1.ListItemsResponse
+	(*AdminAck)(nil),                      // 40: web.v1.AdminAck
+	(*AdminNpcShopItem)(nil),              // 41: web.v1.AdminNpcShopItem
+	(*AdminNpc)(nil),                      // 42: web.v1.AdminNpc
+	(*ListNpcsRequest)(nil),               // 43: web.v1.ListNpcsRequest
+	(*ListNpcsResponse)(nil),              // 44: web.v1.ListNpcsResponse
+	(*GetNpcRequest)(nil),                 // 45: web.v1.GetNpcRequest
+	(*GetNpcResponse)(nil),                // 46: web.v1.GetNpcResponse
+	(*UpsertNpcRequest)(nil),              // 47: web.v1.UpsertNpcRequest
+	(*UpsertNpcResponse)(nil),             // 48: web.v1.UpsertNpcResponse
+	(*SetNpcVisibilityRequest)(nil),       // 49: web.v1.SetNpcVisibilityRequest
+	(*SetNpcShopRequest)(nil),             // 50: web.v1.SetNpcShopRequest
+	(*SetItemPriceRequest)(nil),           // 51: web.v1.SetItemPriceRequest
+	(*DeleteNpcRequest)(nil),              // 52: web.v1.DeleteNpcRequest
+	(*MerchantTemplate)(nil),              // 53: web.v1.MerchantTemplate
+	(*ListMerchantTemplatesRequest)(nil),  // 54: web.v1.ListMerchantTemplatesRequest
+	(*ListMerchantTemplatesResponse)(nil), // 55: web.v1.ListMerchantTemplatesResponse
+	(*ItemCatalogEntry)(nil),              // 56: web.v1.ItemCatalogEntry
+	(*ListItemCatalogRequest)(nil),        // 57: web.v1.ListItemCatalogRequest
+	(*ListItemCatalogResponse)(nil),       // 58: web.v1.ListItemCatalogResponse
+	(*DropItemMob)(nil),                   // 59: web.v1.DropItemMob
+	(*DropItemEntry)(nil),                 // 60: web.v1.DropItemEntry
+	(*ListDropItemsRequest)(nil),          // 61: web.v1.ListDropItemsRequest
+	(*ListDropItemsResponse)(nil),         // 62: web.v1.ListDropItemsResponse
+	(*MobDropItem)(nil),                   // 63: web.v1.MobDropItem
+	(*MobDropEntry)(nil),                  // 64: web.v1.MobDropEntry
+	(*ListMobDropsRequest)(nil),           // 65: web.v1.ListMobDropsRequest
+	(*ListMobDropsResponse)(nil),          // 66: web.v1.ListMobDropsResponse
+	(*ItemPrice)(nil),                     // 67: web.v1.ItemPrice
+	(*ListItemPricesRequest)(nil),         // 68: web.v1.ListItemPricesRequest
+	(*ListItemPricesResponse)(nil),        // 69: web.v1.ListItemPricesResponse
+	(*MapZone)(nil),                       // 70: web.v1.MapZone
+	(*ListMapZonesRequest)(nil),           // 71: web.v1.ListMapZonesRequest
+	(*ListMapZonesResponse)(nil),          // 72: web.v1.ListMapZonesResponse
+	(*MobTemplateFile)(nil),               // 73: web.v1.MobTemplateFile
+	(*ListMobTemplatesRequest)(nil),       // 74: web.v1.ListMobTemplatesRequest
+	(*ListMobTemplatesResponse)(nil),      // 75: web.v1.ListMobTemplatesResponse
+	(*AdminMobTemplateEquipItem)(nil),     // 76: web.v1.AdminMobTemplateEquipItem
+	(*AdminMobTemplateStat)(nil),          // 77: web.v1.AdminMobTemplateStat
+	(*GetMobTemplateStatRequest)(nil),     // 78: web.v1.GetMobTemplateStatRequest
+	(*GetMobTemplateStatResponse)(nil),    // 79: web.v1.GetMobTemplateStatResponse
+	(*AdminMobOrigin)(nil),                // 80: web.v1.AdminMobOrigin
+	(*UpsertMobTemplateStatRequest)(nil),  // 81: web.v1.UpsertMobTemplateStatRequest
+	(*UpsertMobTemplateStatResponse)(nil), // 82: web.v1.UpsertMobTemplateStatResponse
+	(*SetMobTemplateEquipRequest)(nil),    // 83: web.v1.SetMobTemplateEquipRequest
+	(*DeleteMobTemplateStatRequest)(nil),  // 84: web.v1.DeleteMobTemplateStatRequest
+	(*GetAttributeMapInfoRequest)(nil),    // 85: web.v1.GetAttributeMapInfoRequest
+	(*GetAttributeMapInfoResponse)(nil),   // 86: web.v1.GetAttributeMapInfoResponse
+	(*AttributeMapInfo)(nil),              // 87: web.v1.AttributeMapInfo
+	(*AttributeMapValueCount)(nil),        // 88: web.v1.AttributeMapValueCount
+	(*AttributeMapMeaning)(nil),           // 89: web.v1.AttributeMapMeaning
+	(*AttributeMapRect)(nil),              // 90: web.v1.AttributeMapRect
+	(*AttributeMapTransformFilter)(nil),   // 91: web.v1.AttributeMapTransformFilter
+	(*TransformAttributeMapRequest)(nil),  // 92: web.v1.TransformAttributeMapRequest
+	(*TransformAttributeMapResponse)(nil), // 93: web.v1.TransformAttributeMapResponse
+	(*DonateShopItem)(nil),                // 94: web.v1.DonateShopItem
+	(*ListShopItemsRequest)(nil),          // 95: web.v1.ListShopItemsRequest
+	(*ListShopItemsResponse)(nil),         // 96: web.v1.ListShopItemsResponse
+	(*UpsertShopItemRequest)(nil),         // 97: web.v1.UpsertShopItemRequest
+	(*UpsertShopItemResponse)(nil),        // 98: web.v1.UpsertShopItemResponse
+	(*SetShopItemEnabledRequest)(nil),     // 99: web.v1.SetShopItemEnabledRequest
+	(*DeleteShopItemRequest)(nil),         // 100: web.v1.DeleteShopItemRequest
+	(*CreditDonateBalanceRequest)(nil),    // 101: web.v1.CreditDonateBalanceRequest
+	(*CreditDonateBalanceResponse)(nil),   // 102: web.v1.CreditDonateBalanceResponse
+	(*ListStoreItemsRequest)(nil),         // 103: web.v1.ListStoreItemsRequest
+	(*ListStoreItemsResponse)(nil),        // 104: web.v1.ListStoreItemsResponse
+	(*GetBalanceRequest)(nil),             // 105: web.v1.GetBalanceRequest
+	(*GetBalanceResponse)(nil),            // 106: web.v1.GetBalanceResponse
+	(*BuyRequest)(nil),                    // 107: web.v1.BuyRequest
+	(*BuyResponse)(nil),                   // 108: web.v1.BuyResponse
+	(*DailyRewardItem)(nil),               // 109: web.v1.DailyRewardItem
+	(*ListRewardItemsRequest)(nil),        // 110: web.v1.ListRewardItemsRequest
+	(*ListRewardItemsResponse)(nil),       // 111: web.v1.ListRewardItemsResponse
+	(*UpsertRewardItemRequest)(nil),       // 112: web.v1.UpsertRewardItemRequest
+	(*UpsertRewardItemResponse)(nil),      // 113: web.v1.UpsertRewardItemResponse
+	(*SetRewardItemEnabledRequest)(nil),   // 114: web.v1.SetRewardItemEnabledRequest
+	(*DeleteRewardItemRequest)(nil),       // 115: web.v1.DeleteRewardItemRequest
+	(*WorldEventConfig)(nil),              // 116: web.v1.WorldEventConfig
+	(*GetWorldEventConfigRequest)(nil),    // 117: web.v1.GetWorldEventConfigRequest
+	(*GetWorldEventConfigResponse)(nil),   // 118: web.v1.GetWorldEventConfigResponse
+	(*SetWorldEventConfigRequest)(nil),    // 119: web.v1.SetWorldEventConfigRequest
+	(*ListRewardsRequest)(nil),            // 120: web.v1.ListRewardsRequest
+	(*ListRewardsResponse)(nil),           // 121: web.v1.ListRewardsResponse
+	(*GetClaimStatusRequest)(nil),         // 122: web.v1.GetClaimStatusRequest
+	(*GetClaimStatusResponse)(nil),        // 123: web.v1.GetClaimStatusResponse
+	(*ClaimRequest)(nil),                  // 124: web.v1.ClaimRequest
+	(*ClaimResponse)(nil),                 // 125: web.v1.ClaimResponse
+	(*AttachTopupChargeRequest)(nil),      // 126: web.v1.AttachTopupChargeRequest
+	(*AttachTopupChargeResponse)(nil),     // 127: web.v1.AttachTopupChargeResponse
+	(*GetPayerProfileRequest)(nil),        // 128: web.v1.GetPayerProfileRequest
+	(*GetPayerProfileResponse)(nil),       // 129: web.v1.GetPayerProfileResponse
+	(*SavePayerProfileRequest)(nil),       // 130: web.v1.SavePayerProfileRequest
+	(*SavePayerProfileResponse)(nil),      // 131: web.v1.SavePayerProfileResponse
+	(*CreateTopupOrderRequest)(nil),       // 132: web.v1.CreateTopupOrderRequest
+	(*CreateTopupOrderResponse)(nil),      // 133: web.v1.CreateTopupOrderResponse
+	(*ConfirmTopupOrderRequest)(nil),      // 134: web.v1.ConfirmTopupOrderRequest
+	(*ConfirmTopupOrderResponse)(nil),     // 135: web.v1.ConfirmTopupOrderResponse
+	(*GetTopupOrderRequest)(nil),          // 136: web.v1.GetTopupOrderRequest
+	(*GetTopupOrderResponse)(nil),         // 137: web.v1.GetTopupOrderResponse
+	(*RevenueWindow)(nil),                 // 138: web.v1.RevenueWindow
+	(*RevenueTotals)(nil),                 // 139: web.v1.RevenueTotals
+	(*RevenueByMethod)(nil),               // 140: web.v1.RevenueByMethod
+	(*RevenuePoint)(nil),                  // 141: web.v1.RevenuePoint
+	(*GetRevenueSummaryRequest)(nil),      // 142: web.v1.GetRevenueSummaryRequest
+	(*GetRevenueSummaryResponse)(nil),     // 143: web.v1.GetRevenueSummaryResponse
+	(*TopupOrderRow)(nil),                 // 144: web.v1.TopupOrderRow
+	(*ListTopupOrdersRequest)(nil),        // 145: web.v1.ListTopupOrdersRequest
+	(*ListTopupOrdersResponse)(nil),       // 146: web.v1.ListTopupOrdersResponse
+	(*TopBuyerRow)(nil),                   // 147: web.v1.TopBuyerRow
+	(*ListTopBuyersRequest)(nil),          // 148: web.v1.ListTopBuyersRequest
+	(*ListTopBuyersResponse)(nil),         // 149: web.v1.ListTopBuyersResponse
+	(*DonateLedgerRow)(nil),               // 150: web.v1.DonateLedgerRow
+	(*ListDonateSpendRequest)(nil),        // 151: web.v1.ListDonateSpendRequest
+	(*ListDonateSpendResponse)(nil),       // 152: web.v1.ListDonateSpendResponse
+	(*AccountSummary)(nil),                // 153: web.v1.AccountSummary
+	(*SearchAccountsRequest)(nil),         // 154: web.v1.SearchAccountsRequest
+	(*SearchAccountsResponse)(nil),        // 155: web.v1.SearchAccountsResponse
+	(*AdminItemStat)(nil),                 // 156: web.v1.AdminItemStat
+	(*GetItemStatRequest)(nil),            // 157: web.v1.GetItemStatRequest
+	(*GetItemStatResponse)(nil),           // 158: web.v1.GetItemStatResponse
+	(*UpsertItemStatRequest)(nil),         // 159: web.v1.UpsertItemStatRequest
+	(*DeleteItemStatRequest)(nil),         // 160: web.v1.DeleteItemStatRequest
+	(*AdminMountGrowthCurve)(nil),         // 161: web.v1.AdminMountGrowthCurve
+	(*ListMountGrowthCurvesRequest)(nil),  // 162: web.v1.ListMountGrowthCurvesRequest
+	(*ListMountGrowthCurvesResponse)(nil), // 163: web.v1.ListMountGrowthCurvesResponse
+	(*SetMountGrowthCurveRequest)(nil),    // 164: web.v1.SetMountGrowthCurveRequest
+	(*ClearMountGrowthCurveRequest)(nil),  // 165: web.v1.ClearMountGrowthCurveRequest
+	(*AdminMountAbsorb)(nil),              // 166: web.v1.AdminMountAbsorb
+	(*MountConfigVersionRequest)(nil),     // 167: web.v1.MountConfigVersionRequest
+	(*MountConfigVersionResponse)(nil),    // 168: web.v1.MountConfigVersionResponse
+	(*ListMountAbsorbRequest)(nil),        // 169: web.v1.ListMountAbsorbRequest
+	(*ListMountAbsorbResponse)(nil),       // 170: web.v1.ListMountAbsorbResponse
+	(*SetMountAbsorbRequest)(nil),         // 171: web.v1.SetMountAbsorbRequest
+	(*ClearMountAbsorbRequest)(nil),       // 172: web.v1.ClearMountAbsorbRequest
+	(*AdminMountBonus)(nil),               // 173: web.v1.AdminMountBonus
+	(*ListMountBonusRequest)(nil),         // 174: web.v1.ListMountBonusRequest
+	(*ListMountBonusResponse)(nil),        // 175: web.v1.ListMountBonusResponse
+	(*SetMountBonusRequest)(nil),          // 176: web.v1.SetMountBonusRequest
+	(*ClearMountBonusRequest)(nil),        // 177: web.v1.ClearMountBonusRequest
 }
 var file_api_web_v1_web_proto_depIdxs = []int32{
 	0,   // 0: web.v1.CreateAccountResponse.result:type_name -> web.v1.CreateResult
@@ -13507,249 +13705,252 @@ var file_api_web_v1_web_proto_depIdxs = []int32{
 	4,   // 5: web.v1.GetMyCurrentPixChargeResponse.state:type_name -> web.v1.PixChargeState
 	5,   // 6: web.v1.GetMyCurrentPixChargeResponse.refund_state:type_name -> web.v1.RefundState
 	6,   // 7: web.v1.NotifySyncpayEventRequest.kind:type_name -> web.v1.SyncpayEventKind
-	29,  // 8: web.v1.ListExpRankingResponse.entries:type_name -> web.v1.RankingEntry
-	32,  // 9: web.v1.ListDuelRankingResponse.entries:type_name -> web.v1.DuelRankingEntry
-	35,  // 10: web.v1.ListMyCharactersResponse.characters:type_name -> web.v1.WebCharacterSummary
-	55,  // 11: web.v1.ListItemsResponse.items:type_name -> web.v1.ItemCatalogEntry
+	30,  // 8: web.v1.ListExpRankingResponse.entries:type_name -> web.v1.RankingEntry
+	33,  // 9: web.v1.ListDuelRankingResponse.entries:type_name -> web.v1.DuelRankingEntry
+	36,  // 10: web.v1.ListMyCharactersResponse.characters:type_name -> web.v1.WebCharacterSummary
+	56,  // 11: web.v1.ListItemsResponse.items:type_name -> web.v1.ItemCatalogEntry
 	7,   // 12: web.v1.AdminAck.result:type_name -> web.v1.AdminResult
-	40,  // 13: web.v1.AdminNpc.shop:type_name -> web.v1.AdminNpcShopItem
+	41,  // 13: web.v1.AdminNpc.shop:type_name -> web.v1.AdminNpcShopItem
 	7,   // 14: web.v1.ListNpcsResponse.result:type_name -> web.v1.AdminResult
-	41,  // 15: web.v1.ListNpcsResponse.npcs:type_name -> web.v1.AdminNpc
+	42,  // 15: web.v1.ListNpcsResponse.npcs:type_name -> web.v1.AdminNpc
 	7,   // 16: web.v1.GetNpcResponse.result:type_name -> web.v1.AdminResult
-	41,  // 17: web.v1.GetNpcResponse.npc:type_name -> web.v1.AdminNpc
+	42,  // 17: web.v1.GetNpcResponse.npc:type_name -> web.v1.AdminNpc
 	7,   // 18: web.v1.UpsertNpcResponse.result:type_name -> web.v1.AdminResult
-	40,  // 19: web.v1.SetNpcShopRequest.items:type_name -> web.v1.AdminNpcShopItem
+	41,  // 19: web.v1.SetNpcShopRequest.items:type_name -> web.v1.AdminNpcShopItem
 	7,   // 20: web.v1.ListMerchantTemplatesResponse.result:type_name -> web.v1.AdminResult
-	52,  // 21: web.v1.ListMerchantTemplatesResponse.templates:type_name -> web.v1.MerchantTemplate
+	53,  // 21: web.v1.ListMerchantTemplatesResponse.templates:type_name -> web.v1.MerchantTemplate
 	7,   // 22: web.v1.ListItemCatalogResponse.result:type_name -> web.v1.AdminResult
-	55,  // 23: web.v1.ListItemCatalogResponse.items:type_name -> web.v1.ItemCatalogEntry
-	79,  // 24: web.v1.DropItemMob.origins:type_name -> web.v1.AdminMobOrigin
-	58,  // 25: web.v1.DropItemEntry.mobs:type_name -> web.v1.DropItemMob
+	56,  // 23: web.v1.ListItemCatalogResponse.items:type_name -> web.v1.ItemCatalogEntry
+	80,  // 24: web.v1.DropItemMob.origins:type_name -> web.v1.AdminMobOrigin
+	59,  // 25: web.v1.DropItemEntry.mobs:type_name -> web.v1.DropItemMob
 	7,   // 26: web.v1.ListDropItemsResponse.result:type_name -> web.v1.AdminResult
-	59,  // 27: web.v1.ListDropItemsResponse.items:type_name -> web.v1.DropItemEntry
-	62,  // 28: web.v1.MobDropEntry.items:type_name -> web.v1.MobDropItem
+	60,  // 27: web.v1.ListDropItemsResponse.items:type_name -> web.v1.DropItemEntry
+	63,  // 28: web.v1.MobDropEntry.items:type_name -> web.v1.MobDropItem
 	7,   // 29: web.v1.ListMobDropsResponse.result:type_name -> web.v1.AdminResult
-	63,  // 30: web.v1.ListMobDropsResponse.mobs:type_name -> web.v1.MobDropEntry
+	64,  // 30: web.v1.ListMobDropsResponse.mobs:type_name -> web.v1.MobDropEntry
 	7,   // 31: web.v1.ListItemPricesResponse.result:type_name -> web.v1.AdminResult
-	66,  // 32: web.v1.ListItemPricesResponse.prices:type_name -> web.v1.ItemPrice
+	67,  // 32: web.v1.ListItemPricesResponse.prices:type_name -> web.v1.ItemPrice
 	7,   // 33: web.v1.ListMapZonesResponse.result:type_name -> web.v1.AdminResult
-	69,  // 34: web.v1.ListMapZonesResponse.zones:type_name -> web.v1.MapZone
+	70,  // 34: web.v1.ListMapZonesResponse.zones:type_name -> web.v1.MapZone
 	7,   // 35: web.v1.ListMobTemplatesResponse.result:type_name -> web.v1.AdminResult
-	72,  // 36: web.v1.ListMobTemplatesResponse.templates:type_name -> web.v1.MobTemplateFile
-	75,  // 37: web.v1.AdminMobTemplateStat.equip:type_name -> web.v1.AdminMobTemplateEquipItem
+	73,  // 36: web.v1.ListMobTemplatesResponse.templates:type_name -> web.v1.MobTemplateFile
+	76,  // 37: web.v1.AdminMobTemplateStat.equip:type_name -> web.v1.AdminMobTemplateEquipItem
 	7,   // 38: web.v1.GetMobTemplateStatResponse.result:type_name -> web.v1.AdminResult
-	76,  // 39: web.v1.GetMobTemplateStatResponse.stat:type_name -> web.v1.AdminMobTemplateStat
-	76,  // 40: web.v1.GetMobTemplateStatResponse.file_stat:type_name -> web.v1.AdminMobTemplateStat
-	79,  // 41: web.v1.GetMobTemplateStatResponse.origins:type_name -> web.v1.AdminMobOrigin
-	76,  // 42: web.v1.UpsertMobTemplateStatRequest.stat:type_name -> web.v1.AdminMobTemplateStat
+	77,  // 39: web.v1.GetMobTemplateStatResponse.stat:type_name -> web.v1.AdminMobTemplateStat
+	77,  // 40: web.v1.GetMobTemplateStatResponse.file_stat:type_name -> web.v1.AdminMobTemplateStat
+	80,  // 41: web.v1.GetMobTemplateStatResponse.origins:type_name -> web.v1.AdminMobOrigin
+	77,  // 42: web.v1.UpsertMobTemplateStatRequest.stat:type_name -> web.v1.AdminMobTemplateStat
 	7,   // 43: web.v1.UpsertMobTemplateStatResponse.result:type_name -> web.v1.AdminResult
-	75,  // 44: web.v1.SetMobTemplateEquipRequest.items:type_name -> web.v1.AdminMobTemplateEquipItem
+	76,  // 44: web.v1.SetMobTemplateEquipRequest.items:type_name -> web.v1.AdminMobTemplateEquipItem
 	7,   // 45: web.v1.GetAttributeMapInfoResponse.result:type_name -> web.v1.AdminResult
-	86,  // 46: web.v1.GetAttributeMapInfoResponse.info:type_name -> web.v1.AttributeMapInfo
-	87,  // 47: web.v1.AttributeMapInfo.histogram:type_name -> web.v1.AttributeMapValueCount
-	88,  // 48: web.v1.AttributeMapInfo.meanings:type_name -> web.v1.AttributeMapMeaning
+	87,  // 46: web.v1.GetAttributeMapInfoResponse.info:type_name -> web.v1.AttributeMapInfo
+	88,  // 47: web.v1.AttributeMapInfo.histogram:type_name -> web.v1.AttributeMapValueCount
+	89,  // 48: web.v1.AttributeMapInfo.meanings:type_name -> web.v1.AttributeMapMeaning
 	8,   // 49: web.v1.TransformAttributeMapRequest.operation:type_name -> web.v1.AttributeMapTransformOperation
-	89,  // 50: web.v1.TransformAttributeMapRequest.rect:type_name -> web.v1.AttributeMapRect
-	90,  // 51: web.v1.TransformAttributeMapRequest.filter:type_name -> web.v1.AttributeMapTransformFilter
+	90,  // 50: web.v1.TransformAttributeMapRequest.rect:type_name -> web.v1.AttributeMapRect
+	91,  // 51: web.v1.TransformAttributeMapRequest.filter:type_name -> web.v1.AttributeMapTransformFilter
 	7,   // 52: web.v1.TransformAttributeMapResponse.result:type_name -> web.v1.AdminResult
-	87,  // 53: web.v1.TransformAttributeMapResponse.before_histogram:type_name -> web.v1.AttributeMapValueCount
-	87,  // 54: web.v1.TransformAttributeMapResponse.after_histogram:type_name -> web.v1.AttributeMapValueCount
+	88,  // 53: web.v1.TransformAttributeMapResponse.before_histogram:type_name -> web.v1.AttributeMapValueCount
+	88,  // 54: web.v1.TransformAttributeMapResponse.after_histogram:type_name -> web.v1.AttributeMapValueCount
 	7,   // 55: web.v1.ListShopItemsResponse.result:type_name -> web.v1.AdminResult
-	93,  // 56: web.v1.ListShopItemsResponse.items:type_name -> web.v1.DonateShopItem
-	93,  // 57: web.v1.UpsertShopItemRequest.item:type_name -> web.v1.DonateShopItem
+	94,  // 56: web.v1.ListShopItemsResponse.items:type_name -> web.v1.DonateShopItem
+	94,  // 57: web.v1.UpsertShopItemRequest.item:type_name -> web.v1.DonateShopItem
 	7,   // 58: web.v1.UpsertShopItemResponse.result:type_name -> web.v1.AdminResult
 	7,   // 59: web.v1.CreditDonateBalanceResponse.result:type_name -> web.v1.AdminResult
-	93,  // 60: web.v1.ListStoreItemsResponse.items:type_name -> web.v1.DonateShopItem
+	94,  // 60: web.v1.ListStoreItemsResponse.items:type_name -> web.v1.DonateShopItem
 	9,   // 61: web.v1.BuyResponse.result:type_name -> web.v1.BuyResult
 	7,   // 62: web.v1.ListRewardItemsResponse.result:type_name -> web.v1.AdminResult
-	108, // 63: web.v1.ListRewardItemsResponse.items:type_name -> web.v1.DailyRewardItem
-	108, // 64: web.v1.UpsertRewardItemRequest.item:type_name -> web.v1.DailyRewardItem
+	109, // 63: web.v1.ListRewardItemsResponse.items:type_name -> web.v1.DailyRewardItem
+	109, // 64: web.v1.UpsertRewardItemRequest.item:type_name -> web.v1.DailyRewardItem
 	7,   // 65: web.v1.UpsertRewardItemResponse.result:type_name -> web.v1.AdminResult
 	7,   // 66: web.v1.GetWorldEventConfigResponse.result:type_name -> web.v1.AdminResult
-	115, // 67: web.v1.GetWorldEventConfigResponse.config:type_name -> web.v1.WorldEventConfig
-	115, // 68: web.v1.SetWorldEventConfigRequest.config:type_name -> web.v1.WorldEventConfig
-	108, // 69: web.v1.ListRewardsResponse.items:type_name -> web.v1.DailyRewardItem
+	116, // 67: web.v1.GetWorldEventConfigResponse.config:type_name -> web.v1.WorldEventConfig
+	116, // 68: web.v1.SetWorldEventConfigRequest.config:type_name -> web.v1.WorldEventConfig
+	109, // 69: web.v1.ListRewardsResponse.items:type_name -> web.v1.DailyRewardItem
 	10,  // 70: web.v1.ClaimResponse.result:type_name -> web.v1.ClaimResult
-	7,   // 71: web.v1.SavePayerProfileResponse.result:type_name -> web.v1.AdminResult
-	11,  // 72: web.v1.CreateTopupOrderRequest.payment_method:type_name -> web.v1.PaymentMethod
-	7,   // 73: web.v1.CreateTopupOrderResponse.result:type_name -> web.v1.AdminResult
-	12,  // 74: web.v1.ConfirmTopupOrderResponse.result:type_name -> web.v1.TopupResult
-	13,  // 75: web.v1.GetTopupOrderResponse.status:type_name -> web.v1.TopupStatus
-	11,  // 76: web.v1.RevenueByMethod.payment_method:type_name -> web.v1.PaymentMethod
-	135, // 77: web.v1.GetRevenueSummaryRequest.window:type_name -> web.v1.RevenueWindow
-	14,  // 78: web.v1.GetRevenueSummaryRequest.bucket:type_name -> web.v1.RevenueBucket
-	7,   // 79: web.v1.GetRevenueSummaryResponse.result:type_name -> web.v1.AdminResult
-	136, // 80: web.v1.GetRevenueSummaryResponse.totals:type_name -> web.v1.RevenueTotals
-	137, // 81: web.v1.GetRevenueSummaryResponse.by_method:type_name -> web.v1.RevenueByMethod
-	138, // 82: web.v1.GetRevenueSummaryResponse.series:type_name -> web.v1.RevenuePoint
-	11,  // 83: web.v1.TopupOrderRow.payment_method:type_name -> web.v1.PaymentMethod
-	13,  // 84: web.v1.TopupOrderRow.status:type_name -> web.v1.TopupStatus
-	135, // 85: web.v1.ListTopupOrdersRequest.window:type_name -> web.v1.RevenueWindow
-	13,  // 86: web.v1.ListTopupOrdersRequest.status:type_name -> web.v1.TopupStatus
-	11,  // 87: web.v1.ListTopupOrdersRequest.payment_method:type_name -> web.v1.PaymentMethod
-	7,   // 88: web.v1.ListTopupOrdersResponse.result:type_name -> web.v1.AdminResult
-	141, // 89: web.v1.ListTopupOrdersResponse.orders:type_name -> web.v1.TopupOrderRow
-	135, // 90: web.v1.ListTopBuyersRequest.window:type_name -> web.v1.RevenueWindow
-	7,   // 91: web.v1.ListTopBuyersResponse.result:type_name -> web.v1.AdminResult
-	144, // 92: web.v1.ListTopBuyersResponse.buyers:type_name -> web.v1.TopBuyerRow
-	15,  // 93: web.v1.DonateLedgerRow.action:type_name -> web.v1.DonateLedgerAction
-	135, // 94: web.v1.ListDonateSpendRequest.window:type_name -> web.v1.RevenueWindow
-	15,  // 95: web.v1.ListDonateSpendRequest.action:type_name -> web.v1.DonateLedgerAction
-	7,   // 96: web.v1.ListDonateSpendResponse.result:type_name -> web.v1.AdminResult
-	147, // 97: web.v1.ListDonateSpendResponse.entries:type_name -> web.v1.DonateLedgerRow
-	7,   // 98: web.v1.SearchAccountsResponse.result:type_name -> web.v1.AdminResult
-	150, // 99: web.v1.SearchAccountsResponse.accounts:type_name -> web.v1.AccountSummary
-	7,   // 100: web.v1.GetItemStatResponse.result:type_name -> web.v1.AdminResult
-	153, // 101: web.v1.GetItemStatResponse.stat:type_name -> web.v1.AdminItemStat
-	153, // 102: web.v1.UpsertItemStatRequest.stat:type_name -> web.v1.AdminItemStat
-	158, // 103: web.v1.ListMountGrowthCurvesResponse.curves:type_name -> web.v1.AdminMountGrowthCurve
-	163, // 104: web.v1.ListMountAbsorbResponse.absorb:type_name -> web.v1.AdminMountAbsorb
-	170, // 105: web.v1.ListMountBonusResponse.bonus:type_name -> web.v1.AdminMountBonus
-	16,  // 106: web.v1.AccountWebService.CreateAccount:input_type -> web.v1.CreateAccountRequest
-	18,  // 107: web.v1.AccountWebService.VerifyCredentials:input_type -> web.v1.VerifyCredentialsRequest
-	20,  // 108: web.v1.RmtWebService.SavePixKey:input_type -> web.v1.SavePixKeyRequest
-	22,  // 109: web.v1.RmtWebService.GetPixKey:input_type -> web.v1.GetPixKeyRequest
-	24,  // 110: web.v1.RmtWebService.GetMyCurrentPixCharge:input_type -> web.v1.GetMyCurrentPixChargeRequest
-	26,  // 111: web.v1.RmtSystemService.NotifySyncpayEvent:input_type -> web.v1.NotifySyncpayEventRequest
-	28,  // 112: web.v1.RankingWebService.ListExpRanking:input_type -> web.v1.ListExpRankingRequest
-	31,  // 113: web.v1.RankingWebService.ListDuelRanking:input_type -> web.v1.ListDuelRankingRequest
-	34,  // 114: web.v1.CharacterWebService.ListMyCharacters:input_type -> web.v1.ListMyCharactersRequest
-	37,  // 115: web.v1.ItemCatalogService.ListItems:input_type -> web.v1.ListItemsRequest
-	42,  // 116: web.v1.NpcAdminService.ListNpcs:input_type -> web.v1.ListNpcsRequest
-	44,  // 117: web.v1.NpcAdminService.GetNpc:input_type -> web.v1.GetNpcRequest
-	46,  // 118: web.v1.NpcAdminService.UpsertNpc:input_type -> web.v1.UpsertNpcRequest
-	48,  // 119: web.v1.NpcAdminService.SetNpcVisibility:input_type -> web.v1.SetNpcVisibilityRequest
-	49,  // 120: web.v1.NpcAdminService.SetNpcShop:input_type -> web.v1.SetNpcShopRequest
-	50,  // 121: web.v1.NpcAdminService.SetItemPrice:input_type -> web.v1.SetItemPriceRequest
-	51,  // 122: web.v1.NpcAdminService.DeleteNpc:input_type -> web.v1.DeleteNpcRequest
-	53,  // 123: web.v1.NpcAdminService.ListMerchantTemplates:input_type -> web.v1.ListMerchantTemplatesRequest
-	56,  // 124: web.v1.NpcAdminService.ListItemCatalog:input_type -> web.v1.ListItemCatalogRequest
-	60,  // 125: web.v1.NpcAdminService.ListDropItems:input_type -> web.v1.ListDropItemsRequest
-	64,  // 126: web.v1.NpcAdminService.ListMobDrops:input_type -> web.v1.ListMobDropsRequest
-	67,  // 127: web.v1.NpcAdminService.ListItemPrices:input_type -> web.v1.ListItemPricesRequest
-	70,  // 128: web.v1.NpcAdminService.ListMapZones:input_type -> web.v1.ListMapZonesRequest
-	73,  // 129: web.v1.MobTemplateAdminService.ListMobTemplates:input_type -> web.v1.ListMobTemplatesRequest
-	77,  // 130: web.v1.MobTemplateAdminService.GetMobTemplateStat:input_type -> web.v1.GetMobTemplateStatRequest
-	80,  // 131: web.v1.MobTemplateAdminService.UpsertMobTemplateStat:input_type -> web.v1.UpsertMobTemplateStatRequest
-	82,  // 132: web.v1.MobTemplateAdminService.SetMobTemplateEquip:input_type -> web.v1.SetMobTemplateEquipRequest
-	83,  // 133: web.v1.MobTemplateAdminService.DeleteMobTemplateStat:input_type -> web.v1.DeleteMobTemplateStatRequest
-	84,  // 134: web.v1.AttributeMapAdminService.GetAttributeMapInfo:input_type -> web.v1.GetAttributeMapInfoRequest
-	91,  // 135: web.v1.AttributeMapAdminService.TransformAttributeMap:input_type -> web.v1.TransformAttributeMapRequest
-	94,  // 136: web.v1.DonateAdminService.ListShopItems:input_type -> web.v1.ListShopItemsRequest
-	96,  // 137: web.v1.DonateAdminService.UpsertShopItem:input_type -> web.v1.UpsertShopItemRequest
-	98,  // 138: web.v1.DonateAdminService.SetShopItemEnabled:input_type -> web.v1.SetShopItemEnabledRequest
-	99,  // 139: web.v1.DonateAdminService.DeleteShopItem:input_type -> web.v1.DeleteShopItemRequest
-	100, // 140: web.v1.DonateAdminService.CreditDonateBalance:input_type -> web.v1.CreditDonateBalanceRequest
-	102, // 141: web.v1.DonateShopService.ListShopItems:input_type -> web.v1.ListStoreItemsRequest
-	104, // 142: web.v1.DonateShopService.GetBalance:input_type -> web.v1.GetBalanceRequest
-	106, // 143: web.v1.DonateShopService.Buy:input_type -> web.v1.BuyRequest
-	109, // 144: web.v1.DailyRewardAdminService.ListRewardItems:input_type -> web.v1.ListRewardItemsRequest
-	111, // 145: web.v1.DailyRewardAdminService.UpsertRewardItem:input_type -> web.v1.UpsertRewardItemRequest
-	113, // 146: web.v1.DailyRewardAdminService.SetRewardItemEnabled:input_type -> web.v1.SetRewardItemEnabledRequest
-	114, // 147: web.v1.DailyRewardAdminService.DeleteRewardItem:input_type -> web.v1.DeleteRewardItemRequest
-	116, // 148: web.v1.WorldEventAdminService.GetWorldEventConfig:input_type -> web.v1.GetWorldEventConfigRequest
-	118, // 149: web.v1.WorldEventAdminService.SetWorldEventConfig:input_type -> web.v1.SetWorldEventConfigRequest
-	119, // 150: web.v1.DailyRewardService.ListRewards:input_type -> web.v1.ListRewardsRequest
-	121, // 151: web.v1.DailyRewardService.GetClaimStatus:input_type -> web.v1.GetClaimStatusRequest
-	123, // 152: web.v1.DailyRewardService.Claim:input_type -> web.v1.ClaimRequest
-	125, // 153: web.v1.DonateTopupService.GetPayerProfile:input_type -> web.v1.GetPayerProfileRequest
-	127, // 154: web.v1.DonateTopupService.SavePayerProfile:input_type -> web.v1.SavePayerProfileRequest
-	129, // 155: web.v1.DonateTopupService.CreateTopupOrder:input_type -> web.v1.CreateTopupOrderRequest
-	131, // 156: web.v1.DonateTopupService.ConfirmTopupOrder:input_type -> web.v1.ConfirmTopupOrderRequest
-	133, // 157: web.v1.DonateTopupService.GetTopupOrder:input_type -> web.v1.GetTopupOrderRequest
-	139, // 158: web.v1.DonateRevenueAdminService.GetRevenueSummary:input_type -> web.v1.GetRevenueSummaryRequest
-	142, // 159: web.v1.DonateRevenueAdminService.ListTopupOrders:input_type -> web.v1.ListTopupOrdersRequest
-	145, // 160: web.v1.DonateRevenueAdminService.ListTopBuyers:input_type -> web.v1.ListTopBuyersRequest
-	148, // 161: web.v1.DonateRevenueAdminService.ListDonateSpend:input_type -> web.v1.ListDonateSpendRequest
-	151, // 162: web.v1.DonateRevenueAdminService.SearchAccounts:input_type -> web.v1.SearchAccountsRequest
-	154, // 163: web.v1.ItemStatAdminService.GetItemStat:input_type -> web.v1.GetItemStatRequest
-	156, // 164: web.v1.ItemStatAdminService.UpsertItemStat:input_type -> web.v1.UpsertItemStatRequest
-	157, // 165: web.v1.ItemStatAdminService.DeleteItemStat:input_type -> web.v1.DeleteItemStatRequest
-	159, // 166: web.v1.MountGrowthAdminService.ListMountGrowthCurves:input_type -> web.v1.ListMountGrowthCurvesRequest
-	161, // 167: web.v1.MountGrowthAdminService.SetMountGrowthCurve:input_type -> web.v1.SetMountGrowthCurveRequest
-	162, // 168: web.v1.MountGrowthAdminService.ClearMountGrowthCurve:input_type -> web.v1.ClearMountGrowthCurveRequest
-	166, // 169: web.v1.MountGrowthAdminService.ListMountAbsorb:input_type -> web.v1.ListMountAbsorbRequest
-	168, // 170: web.v1.MountGrowthAdminService.SetMountAbsorb:input_type -> web.v1.SetMountAbsorbRequest
-	169, // 171: web.v1.MountGrowthAdminService.ClearMountAbsorb:input_type -> web.v1.ClearMountAbsorbRequest
-	171, // 172: web.v1.MountGrowthAdminService.ListMountBonus:input_type -> web.v1.ListMountBonusRequest
-	173, // 173: web.v1.MountGrowthAdminService.SetMountBonus:input_type -> web.v1.SetMountBonusRequest
-	174, // 174: web.v1.MountGrowthAdminService.ClearMountBonus:input_type -> web.v1.ClearMountBonusRequest
-	164, // 175: web.v1.MountGrowthAdminService.MountConfigVersion:input_type -> web.v1.MountConfigVersionRequest
-	17,  // 176: web.v1.AccountWebService.CreateAccount:output_type -> web.v1.CreateAccountResponse
-	19,  // 177: web.v1.AccountWebService.VerifyCredentials:output_type -> web.v1.VerifyCredentialsResponse
-	21,  // 178: web.v1.RmtWebService.SavePixKey:output_type -> web.v1.SavePixKeyResponse
-	23,  // 179: web.v1.RmtWebService.GetPixKey:output_type -> web.v1.GetPixKeyResponse
-	25,  // 180: web.v1.RmtWebService.GetMyCurrentPixCharge:output_type -> web.v1.GetMyCurrentPixChargeResponse
-	27,  // 181: web.v1.RmtSystemService.NotifySyncpayEvent:output_type -> web.v1.NotifySyncpayEventResponse
-	30,  // 182: web.v1.RankingWebService.ListExpRanking:output_type -> web.v1.ListExpRankingResponse
-	33,  // 183: web.v1.RankingWebService.ListDuelRanking:output_type -> web.v1.ListDuelRankingResponse
-	36,  // 184: web.v1.CharacterWebService.ListMyCharacters:output_type -> web.v1.ListMyCharactersResponse
-	38,  // 185: web.v1.ItemCatalogService.ListItems:output_type -> web.v1.ListItemsResponse
-	43,  // 186: web.v1.NpcAdminService.ListNpcs:output_type -> web.v1.ListNpcsResponse
-	45,  // 187: web.v1.NpcAdminService.GetNpc:output_type -> web.v1.GetNpcResponse
-	47,  // 188: web.v1.NpcAdminService.UpsertNpc:output_type -> web.v1.UpsertNpcResponse
-	39,  // 189: web.v1.NpcAdminService.SetNpcVisibility:output_type -> web.v1.AdminAck
-	39,  // 190: web.v1.NpcAdminService.SetNpcShop:output_type -> web.v1.AdminAck
-	39,  // 191: web.v1.NpcAdminService.SetItemPrice:output_type -> web.v1.AdminAck
-	39,  // 192: web.v1.NpcAdminService.DeleteNpc:output_type -> web.v1.AdminAck
-	54,  // 193: web.v1.NpcAdminService.ListMerchantTemplates:output_type -> web.v1.ListMerchantTemplatesResponse
-	57,  // 194: web.v1.NpcAdminService.ListItemCatalog:output_type -> web.v1.ListItemCatalogResponse
-	61,  // 195: web.v1.NpcAdminService.ListDropItems:output_type -> web.v1.ListDropItemsResponse
-	65,  // 196: web.v1.NpcAdminService.ListMobDrops:output_type -> web.v1.ListMobDropsResponse
-	68,  // 197: web.v1.NpcAdminService.ListItemPrices:output_type -> web.v1.ListItemPricesResponse
-	71,  // 198: web.v1.NpcAdminService.ListMapZones:output_type -> web.v1.ListMapZonesResponse
-	74,  // 199: web.v1.MobTemplateAdminService.ListMobTemplates:output_type -> web.v1.ListMobTemplatesResponse
-	78,  // 200: web.v1.MobTemplateAdminService.GetMobTemplateStat:output_type -> web.v1.GetMobTemplateStatResponse
-	81,  // 201: web.v1.MobTemplateAdminService.UpsertMobTemplateStat:output_type -> web.v1.UpsertMobTemplateStatResponse
-	39,  // 202: web.v1.MobTemplateAdminService.SetMobTemplateEquip:output_type -> web.v1.AdminAck
-	39,  // 203: web.v1.MobTemplateAdminService.DeleteMobTemplateStat:output_type -> web.v1.AdminAck
-	85,  // 204: web.v1.AttributeMapAdminService.GetAttributeMapInfo:output_type -> web.v1.GetAttributeMapInfoResponse
-	92,  // 205: web.v1.AttributeMapAdminService.TransformAttributeMap:output_type -> web.v1.TransformAttributeMapResponse
-	95,  // 206: web.v1.DonateAdminService.ListShopItems:output_type -> web.v1.ListShopItemsResponse
-	97,  // 207: web.v1.DonateAdminService.UpsertShopItem:output_type -> web.v1.UpsertShopItemResponse
-	39,  // 208: web.v1.DonateAdminService.SetShopItemEnabled:output_type -> web.v1.AdminAck
-	39,  // 209: web.v1.DonateAdminService.DeleteShopItem:output_type -> web.v1.AdminAck
-	101, // 210: web.v1.DonateAdminService.CreditDonateBalance:output_type -> web.v1.CreditDonateBalanceResponse
-	103, // 211: web.v1.DonateShopService.ListShopItems:output_type -> web.v1.ListStoreItemsResponse
-	105, // 212: web.v1.DonateShopService.GetBalance:output_type -> web.v1.GetBalanceResponse
-	107, // 213: web.v1.DonateShopService.Buy:output_type -> web.v1.BuyResponse
-	110, // 214: web.v1.DailyRewardAdminService.ListRewardItems:output_type -> web.v1.ListRewardItemsResponse
-	112, // 215: web.v1.DailyRewardAdminService.UpsertRewardItem:output_type -> web.v1.UpsertRewardItemResponse
-	39,  // 216: web.v1.DailyRewardAdminService.SetRewardItemEnabled:output_type -> web.v1.AdminAck
-	39,  // 217: web.v1.DailyRewardAdminService.DeleteRewardItem:output_type -> web.v1.AdminAck
-	117, // 218: web.v1.WorldEventAdminService.GetWorldEventConfig:output_type -> web.v1.GetWorldEventConfigResponse
-	39,  // 219: web.v1.WorldEventAdminService.SetWorldEventConfig:output_type -> web.v1.AdminAck
-	120, // 220: web.v1.DailyRewardService.ListRewards:output_type -> web.v1.ListRewardsResponse
-	122, // 221: web.v1.DailyRewardService.GetClaimStatus:output_type -> web.v1.GetClaimStatusResponse
-	124, // 222: web.v1.DailyRewardService.Claim:output_type -> web.v1.ClaimResponse
-	126, // 223: web.v1.DonateTopupService.GetPayerProfile:output_type -> web.v1.GetPayerProfileResponse
-	128, // 224: web.v1.DonateTopupService.SavePayerProfile:output_type -> web.v1.SavePayerProfileResponse
-	130, // 225: web.v1.DonateTopupService.CreateTopupOrder:output_type -> web.v1.CreateTopupOrderResponse
-	132, // 226: web.v1.DonateTopupService.ConfirmTopupOrder:output_type -> web.v1.ConfirmTopupOrderResponse
-	134, // 227: web.v1.DonateTopupService.GetTopupOrder:output_type -> web.v1.GetTopupOrderResponse
-	140, // 228: web.v1.DonateRevenueAdminService.GetRevenueSummary:output_type -> web.v1.GetRevenueSummaryResponse
-	143, // 229: web.v1.DonateRevenueAdminService.ListTopupOrders:output_type -> web.v1.ListTopupOrdersResponse
-	146, // 230: web.v1.DonateRevenueAdminService.ListTopBuyers:output_type -> web.v1.ListTopBuyersResponse
-	149, // 231: web.v1.DonateRevenueAdminService.ListDonateSpend:output_type -> web.v1.ListDonateSpendResponse
-	152, // 232: web.v1.DonateRevenueAdminService.SearchAccounts:output_type -> web.v1.SearchAccountsResponse
-	155, // 233: web.v1.ItemStatAdminService.GetItemStat:output_type -> web.v1.GetItemStatResponse
-	39,  // 234: web.v1.ItemStatAdminService.UpsertItemStat:output_type -> web.v1.AdminAck
-	39,  // 235: web.v1.ItemStatAdminService.DeleteItemStat:output_type -> web.v1.AdminAck
-	160, // 236: web.v1.MountGrowthAdminService.ListMountGrowthCurves:output_type -> web.v1.ListMountGrowthCurvesResponse
-	39,  // 237: web.v1.MountGrowthAdminService.SetMountGrowthCurve:output_type -> web.v1.AdminAck
-	39,  // 238: web.v1.MountGrowthAdminService.ClearMountGrowthCurve:output_type -> web.v1.AdminAck
-	167, // 239: web.v1.MountGrowthAdminService.ListMountAbsorb:output_type -> web.v1.ListMountAbsorbResponse
-	39,  // 240: web.v1.MountGrowthAdminService.SetMountAbsorb:output_type -> web.v1.AdminAck
-	39,  // 241: web.v1.MountGrowthAdminService.ClearMountAbsorb:output_type -> web.v1.AdminAck
-	172, // 242: web.v1.MountGrowthAdminService.ListMountBonus:output_type -> web.v1.ListMountBonusResponse
-	39,  // 243: web.v1.MountGrowthAdminService.SetMountBonus:output_type -> web.v1.AdminAck
-	39,  // 244: web.v1.MountGrowthAdminService.ClearMountBonus:output_type -> web.v1.AdminAck
-	165, // 245: web.v1.MountGrowthAdminService.MountConfigVersion:output_type -> web.v1.MountConfigVersionResponse
-	176, // [176:246] is the sub-list for method output_type
-	106, // [106:176] is the sub-list for method input_type
-	106, // [106:106] is the sub-list for extension type_name
-	106, // [106:106] is the sub-list for extension extendee
-	0,   // [0:106] is the sub-list for field type_name
+	13,  // 71: web.v1.AttachTopupChargeResponse.result:type_name -> web.v1.AttachResult
+	7,   // 72: web.v1.SavePayerProfileResponse.result:type_name -> web.v1.AdminResult
+	11,  // 73: web.v1.CreateTopupOrderRequest.payment_method:type_name -> web.v1.PaymentMethod
+	7,   // 74: web.v1.CreateTopupOrderResponse.result:type_name -> web.v1.AdminResult
+	12,  // 75: web.v1.ConfirmTopupOrderResponse.result:type_name -> web.v1.TopupResult
+	14,  // 76: web.v1.GetTopupOrderResponse.status:type_name -> web.v1.TopupStatus
+	11,  // 77: web.v1.RevenueByMethod.payment_method:type_name -> web.v1.PaymentMethod
+	138, // 78: web.v1.GetRevenueSummaryRequest.window:type_name -> web.v1.RevenueWindow
+	15,  // 79: web.v1.GetRevenueSummaryRequest.bucket:type_name -> web.v1.RevenueBucket
+	7,   // 80: web.v1.GetRevenueSummaryResponse.result:type_name -> web.v1.AdminResult
+	139, // 81: web.v1.GetRevenueSummaryResponse.totals:type_name -> web.v1.RevenueTotals
+	140, // 82: web.v1.GetRevenueSummaryResponse.by_method:type_name -> web.v1.RevenueByMethod
+	141, // 83: web.v1.GetRevenueSummaryResponse.series:type_name -> web.v1.RevenuePoint
+	11,  // 84: web.v1.TopupOrderRow.payment_method:type_name -> web.v1.PaymentMethod
+	14,  // 85: web.v1.TopupOrderRow.status:type_name -> web.v1.TopupStatus
+	138, // 86: web.v1.ListTopupOrdersRequest.window:type_name -> web.v1.RevenueWindow
+	14,  // 87: web.v1.ListTopupOrdersRequest.status:type_name -> web.v1.TopupStatus
+	11,  // 88: web.v1.ListTopupOrdersRequest.payment_method:type_name -> web.v1.PaymentMethod
+	7,   // 89: web.v1.ListTopupOrdersResponse.result:type_name -> web.v1.AdminResult
+	144, // 90: web.v1.ListTopupOrdersResponse.orders:type_name -> web.v1.TopupOrderRow
+	138, // 91: web.v1.ListTopBuyersRequest.window:type_name -> web.v1.RevenueWindow
+	7,   // 92: web.v1.ListTopBuyersResponse.result:type_name -> web.v1.AdminResult
+	147, // 93: web.v1.ListTopBuyersResponse.buyers:type_name -> web.v1.TopBuyerRow
+	16,  // 94: web.v1.DonateLedgerRow.action:type_name -> web.v1.DonateLedgerAction
+	138, // 95: web.v1.ListDonateSpendRequest.window:type_name -> web.v1.RevenueWindow
+	16,  // 96: web.v1.ListDonateSpendRequest.action:type_name -> web.v1.DonateLedgerAction
+	7,   // 97: web.v1.ListDonateSpendResponse.result:type_name -> web.v1.AdminResult
+	150, // 98: web.v1.ListDonateSpendResponse.entries:type_name -> web.v1.DonateLedgerRow
+	7,   // 99: web.v1.SearchAccountsResponse.result:type_name -> web.v1.AdminResult
+	153, // 100: web.v1.SearchAccountsResponse.accounts:type_name -> web.v1.AccountSummary
+	7,   // 101: web.v1.GetItemStatResponse.result:type_name -> web.v1.AdminResult
+	156, // 102: web.v1.GetItemStatResponse.stat:type_name -> web.v1.AdminItemStat
+	156, // 103: web.v1.UpsertItemStatRequest.stat:type_name -> web.v1.AdminItemStat
+	161, // 104: web.v1.ListMountGrowthCurvesResponse.curves:type_name -> web.v1.AdminMountGrowthCurve
+	166, // 105: web.v1.ListMountAbsorbResponse.absorb:type_name -> web.v1.AdminMountAbsorb
+	173, // 106: web.v1.ListMountBonusResponse.bonus:type_name -> web.v1.AdminMountBonus
+	17,  // 107: web.v1.AccountWebService.CreateAccount:input_type -> web.v1.CreateAccountRequest
+	19,  // 108: web.v1.AccountWebService.VerifyCredentials:input_type -> web.v1.VerifyCredentialsRequest
+	21,  // 109: web.v1.RmtWebService.SavePixKey:input_type -> web.v1.SavePixKeyRequest
+	23,  // 110: web.v1.RmtWebService.GetPixKey:input_type -> web.v1.GetPixKeyRequest
+	25,  // 111: web.v1.RmtWebService.GetMyCurrentPixCharge:input_type -> web.v1.GetMyCurrentPixChargeRequest
+	27,  // 112: web.v1.RmtSystemService.NotifySyncpayEvent:input_type -> web.v1.NotifySyncpayEventRequest
+	29,  // 113: web.v1.RankingWebService.ListExpRanking:input_type -> web.v1.ListExpRankingRequest
+	32,  // 114: web.v1.RankingWebService.ListDuelRanking:input_type -> web.v1.ListDuelRankingRequest
+	35,  // 115: web.v1.CharacterWebService.ListMyCharacters:input_type -> web.v1.ListMyCharactersRequest
+	38,  // 116: web.v1.ItemCatalogService.ListItems:input_type -> web.v1.ListItemsRequest
+	43,  // 117: web.v1.NpcAdminService.ListNpcs:input_type -> web.v1.ListNpcsRequest
+	45,  // 118: web.v1.NpcAdminService.GetNpc:input_type -> web.v1.GetNpcRequest
+	47,  // 119: web.v1.NpcAdminService.UpsertNpc:input_type -> web.v1.UpsertNpcRequest
+	49,  // 120: web.v1.NpcAdminService.SetNpcVisibility:input_type -> web.v1.SetNpcVisibilityRequest
+	50,  // 121: web.v1.NpcAdminService.SetNpcShop:input_type -> web.v1.SetNpcShopRequest
+	51,  // 122: web.v1.NpcAdminService.SetItemPrice:input_type -> web.v1.SetItemPriceRequest
+	52,  // 123: web.v1.NpcAdminService.DeleteNpc:input_type -> web.v1.DeleteNpcRequest
+	54,  // 124: web.v1.NpcAdminService.ListMerchantTemplates:input_type -> web.v1.ListMerchantTemplatesRequest
+	57,  // 125: web.v1.NpcAdminService.ListItemCatalog:input_type -> web.v1.ListItemCatalogRequest
+	61,  // 126: web.v1.NpcAdminService.ListDropItems:input_type -> web.v1.ListDropItemsRequest
+	65,  // 127: web.v1.NpcAdminService.ListMobDrops:input_type -> web.v1.ListMobDropsRequest
+	68,  // 128: web.v1.NpcAdminService.ListItemPrices:input_type -> web.v1.ListItemPricesRequest
+	71,  // 129: web.v1.NpcAdminService.ListMapZones:input_type -> web.v1.ListMapZonesRequest
+	74,  // 130: web.v1.MobTemplateAdminService.ListMobTemplates:input_type -> web.v1.ListMobTemplatesRequest
+	78,  // 131: web.v1.MobTemplateAdminService.GetMobTemplateStat:input_type -> web.v1.GetMobTemplateStatRequest
+	81,  // 132: web.v1.MobTemplateAdminService.UpsertMobTemplateStat:input_type -> web.v1.UpsertMobTemplateStatRequest
+	83,  // 133: web.v1.MobTemplateAdminService.SetMobTemplateEquip:input_type -> web.v1.SetMobTemplateEquipRequest
+	84,  // 134: web.v1.MobTemplateAdminService.DeleteMobTemplateStat:input_type -> web.v1.DeleteMobTemplateStatRequest
+	85,  // 135: web.v1.AttributeMapAdminService.GetAttributeMapInfo:input_type -> web.v1.GetAttributeMapInfoRequest
+	92,  // 136: web.v1.AttributeMapAdminService.TransformAttributeMap:input_type -> web.v1.TransformAttributeMapRequest
+	95,  // 137: web.v1.DonateAdminService.ListShopItems:input_type -> web.v1.ListShopItemsRequest
+	97,  // 138: web.v1.DonateAdminService.UpsertShopItem:input_type -> web.v1.UpsertShopItemRequest
+	99,  // 139: web.v1.DonateAdminService.SetShopItemEnabled:input_type -> web.v1.SetShopItemEnabledRequest
+	100, // 140: web.v1.DonateAdminService.DeleteShopItem:input_type -> web.v1.DeleteShopItemRequest
+	101, // 141: web.v1.DonateAdminService.CreditDonateBalance:input_type -> web.v1.CreditDonateBalanceRequest
+	103, // 142: web.v1.DonateShopService.ListShopItems:input_type -> web.v1.ListStoreItemsRequest
+	105, // 143: web.v1.DonateShopService.GetBalance:input_type -> web.v1.GetBalanceRequest
+	107, // 144: web.v1.DonateShopService.Buy:input_type -> web.v1.BuyRequest
+	110, // 145: web.v1.DailyRewardAdminService.ListRewardItems:input_type -> web.v1.ListRewardItemsRequest
+	112, // 146: web.v1.DailyRewardAdminService.UpsertRewardItem:input_type -> web.v1.UpsertRewardItemRequest
+	114, // 147: web.v1.DailyRewardAdminService.SetRewardItemEnabled:input_type -> web.v1.SetRewardItemEnabledRequest
+	115, // 148: web.v1.DailyRewardAdminService.DeleteRewardItem:input_type -> web.v1.DeleteRewardItemRequest
+	117, // 149: web.v1.WorldEventAdminService.GetWorldEventConfig:input_type -> web.v1.GetWorldEventConfigRequest
+	119, // 150: web.v1.WorldEventAdminService.SetWorldEventConfig:input_type -> web.v1.SetWorldEventConfigRequest
+	120, // 151: web.v1.DailyRewardService.ListRewards:input_type -> web.v1.ListRewardsRequest
+	122, // 152: web.v1.DailyRewardService.GetClaimStatus:input_type -> web.v1.GetClaimStatusRequest
+	124, // 153: web.v1.DailyRewardService.Claim:input_type -> web.v1.ClaimRequest
+	128, // 154: web.v1.DonateTopupService.GetPayerProfile:input_type -> web.v1.GetPayerProfileRequest
+	130, // 155: web.v1.DonateTopupService.SavePayerProfile:input_type -> web.v1.SavePayerProfileRequest
+	132, // 156: web.v1.DonateTopupService.CreateTopupOrder:input_type -> web.v1.CreateTopupOrderRequest
+	134, // 157: web.v1.DonateTopupService.ConfirmTopupOrder:input_type -> web.v1.ConfirmTopupOrderRequest
+	136, // 158: web.v1.DonateTopupService.GetTopupOrder:input_type -> web.v1.GetTopupOrderRequest
+	126, // 159: web.v1.DonateTopupService.AttachTopupCharge:input_type -> web.v1.AttachTopupChargeRequest
+	142, // 160: web.v1.DonateRevenueAdminService.GetRevenueSummary:input_type -> web.v1.GetRevenueSummaryRequest
+	145, // 161: web.v1.DonateRevenueAdminService.ListTopupOrders:input_type -> web.v1.ListTopupOrdersRequest
+	148, // 162: web.v1.DonateRevenueAdminService.ListTopBuyers:input_type -> web.v1.ListTopBuyersRequest
+	151, // 163: web.v1.DonateRevenueAdminService.ListDonateSpend:input_type -> web.v1.ListDonateSpendRequest
+	154, // 164: web.v1.DonateRevenueAdminService.SearchAccounts:input_type -> web.v1.SearchAccountsRequest
+	157, // 165: web.v1.ItemStatAdminService.GetItemStat:input_type -> web.v1.GetItemStatRequest
+	159, // 166: web.v1.ItemStatAdminService.UpsertItemStat:input_type -> web.v1.UpsertItemStatRequest
+	160, // 167: web.v1.ItemStatAdminService.DeleteItemStat:input_type -> web.v1.DeleteItemStatRequest
+	162, // 168: web.v1.MountGrowthAdminService.ListMountGrowthCurves:input_type -> web.v1.ListMountGrowthCurvesRequest
+	164, // 169: web.v1.MountGrowthAdminService.SetMountGrowthCurve:input_type -> web.v1.SetMountGrowthCurveRequest
+	165, // 170: web.v1.MountGrowthAdminService.ClearMountGrowthCurve:input_type -> web.v1.ClearMountGrowthCurveRequest
+	169, // 171: web.v1.MountGrowthAdminService.ListMountAbsorb:input_type -> web.v1.ListMountAbsorbRequest
+	171, // 172: web.v1.MountGrowthAdminService.SetMountAbsorb:input_type -> web.v1.SetMountAbsorbRequest
+	172, // 173: web.v1.MountGrowthAdminService.ClearMountAbsorb:input_type -> web.v1.ClearMountAbsorbRequest
+	174, // 174: web.v1.MountGrowthAdminService.ListMountBonus:input_type -> web.v1.ListMountBonusRequest
+	176, // 175: web.v1.MountGrowthAdminService.SetMountBonus:input_type -> web.v1.SetMountBonusRequest
+	177, // 176: web.v1.MountGrowthAdminService.ClearMountBonus:input_type -> web.v1.ClearMountBonusRequest
+	167, // 177: web.v1.MountGrowthAdminService.MountConfigVersion:input_type -> web.v1.MountConfigVersionRequest
+	18,  // 178: web.v1.AccountWebService.CreateAccount:output_type -> web.v1.CreateAccountResponse
+	20,  // 179: web.v1.AccountWebService.VerifyCredentials:output_type -> web.v1.VerifyCredentialsResponse
+	22,  // 180: web.v1.RmtWebService.SavePixKey:output_type -> web.v1.SavePixKeyResponse
+	24,  // 181: web.v1.RmtWebService.GetPixKey:output_type -> web.v1.GetPixKeyResponse
+	26,  // 182: web.v1.RmtWebService.GetMyCurrentPixCharge:output_type -> web.v1.GetMyCurrentPixChargeResponse
+	28,  // 183: web.v1.RmtSystemService.NotifySyncpayEvent:output_type -> web.v1.NotifySyncpayEventResponse
+	31,  // 184: web.v1.RankingWebService.ListExpRanking:output_type -> web.v1.ListExpRankingResponse
+	34,  // 185: web.v1.RankingWebService.ListDuelRanking:output_type -> web.v1.ListDuelRankingResponse
+	37,  // 186: web.v1.CharacterWebService.ListMyCharacters:output_type -> web.v1.ListMyCharactersResponse
+	39,  // 187: web.v1.ItemCatalogService.ListItems:output_type -> web.v1.ListItemsResponse
+	44,  // 188: web.v1.NpcAdminService.ListNpcs:output_type -> web.v1.ListNpcsResponse
+	46,  // 189: web.v1.NpcAdminService.GetNpc:output_type -> web.v1.GetNpcResponse
+	48,  // 190: web.v1.NpcAdminService.UpsertNpc:output_type -> web.v1.UpsertNpcResponse
+	40,  // 191: web.v1.NpcAdminService.SetNpcVisibility:output_type -> web.v1.AdminAck
+	40,  // 192: web.v1.NpcAdminService.SetNpcShop:output_type -> web.v1.AdminAck
+	40,  // 193: web.v1.NpcAdminService.SetItemPrice:output_type -> web.v1.AdminAck
+	40,  // 194: web.v1.NpcAdminService.DeleteNpc:output_type -> web.v1.AdminAck
+	55,  // 195: web.v1.NpcAdminService.ListMerchantTemplates:output_type -> web.v1.ListMerchantTemplatesResponse
+	58,  // 196: web.v1.NpcAdminService.ListItemCatalog:output_type -> web.v1.ListItemCatalogResponse
+	62,  // 197: web.v1.NpcAdminService.ListDropItems:output_type -> web.v1.ListDropItemsResponse
+	66,  // 198: web.v1.NpcAdminService.ListMobDrops:output_type -> web.v1.ListMobDropsResponse
+	69,  // 199: web.v1.NpcAdminService.ListItemPrices:output_type -> web.v1.ListItemPricesResponse
+	72,  // 200: web.v1.NpcAdminService.ListMapZones:output_type -> web.v1.ListMapZonesResponse
+	75,  // 201: web.v1.MobTemplateAdminService.ListMobTemplates:output_type -> web.v1.ListMobTemplatesResponse
+	79,  // 202: web.v1.MobTemplateAdminService.GetMobTemplateStat:output_type -> web.v1.GetMobTemplateStatResponse
+	82,  // 203: web.v1.MobTemplateAdminService.UpsertMobTemplateStat:output_type -> web.v1.UpsertMobTemplateStatResponse
+	40,  // 204: web.v1.MobTemplateAdminService.SetMobTemplateEquip:output_type -> web.v1.AdminAck
+	40,  // 205: web.v1.MobTemplateAdminService.DeleteMobTemplateStat:output_type -> web.v1.AdminAck
+	86,  // 206: web.v1.AttributeMapAdminService.GetAttributeMapInfo:output_type -> web.v1.GetAttributeMapInfoResponse
+	93,  // 207: web.v1.AttributeMapAdminService.TransformAttributeMap:output_type -> web.v1.TransformAttributeMapResponse
+	96,  // 208: web.v1.DonateAdminService.ListShopItems:output_type -> web.v1.ListShopItemsResponse
+	98,  // 209: web.v1.DonateAdminService.UpsertShopItem:output_type -> web.v1.UpsertShopItemResponse
+	40,  // 210: web.v1.DonateAdminService.SetShopItemEnabled:output_type -> web.v1.AdminAck
+	40,  // 211: web.v1.DonateAdminService.DeleteShopItem:output_type -> web.v1.AdminAck
+	102, // 212: web.v1.DonateAdminService.CreditDonateBalance:output_type -> web.v1.CreditDonateBalanceResponse
+	104, // 213: web.v1.DonateShopService.ListShopItems:output_type -> web.v1.ListStoreItemsResponse
+	106, // 214: web.v1.DonateShopService.GetBalance:output_type -> web.v1.GetBalanceResponse
+	108, // 215: web.v1.DonateShopService.Buy:output_type -> web.v1.BuyResponse
+	111, // 216: web.v1.DailyRewardAdminService.ListRewardItems:output_type -> web.v1.ListRewardItemsResponse
+	113, // 217: web.v1.DailyRewardAdminService.UpsertRewardItem:output_type -> web.v1.UpsertRewardItemResponse
+	40,  // 218: web.v1.DailyRewardAdminService.SetRewardItemEnabled:output_type -> web.v1.AdminAck
+	40,  // 219: web.v1.DailyRewardAdminService.DeleteRewardItem:output_type -> web.v1.AdminAck
+	118, // 220: web.v1.WorldEventAdminService.GetWorldEventConfig:output_type -> web.v1.GetWorldEventConfigResponse
+	40,  // 221: web.v1.WorldEventAdminService.SetWorldEventConfig:output_type -> web.v1.AdminAck
+	121, // 222: web.v1.DailyRewardService.ListRewards:output_type -> web.v1.ListRewardsResponse
+	123, // 223: web.v1.DailyRewardService.GetClaimStatus:output_type -> web.v1.GetClaimStatusResponse
+	125, // 224: web.v1.DailyRewardService.Claim:output_type -> web.v1.ClaimResponse
+	129, // 225: web.v1.DonateTopupService.GetPayerProfile:output_type -> web.v1.GetPayerProfileResponse
+	131, // 226: web.v1.DonateTopupService.SavePayerProfile:output_type -> web.v1.SavePayerProfileResponse
+	133, // 227: web.v1.DonateTopupService.CreateTopupOrder:output_type -> web.v1.CreateTopupOrderResponse
+	135, // 228: web.v1.DonateTopupService.ConfirmTopupOrder:output_type -> web.v1.ConfirmTopupOrderResponse
+	137, // 229: web.v1.DonateTopupService.GetTopupOrder:output_type -> web.v1.GetTopupOrderResponse
+	127, // 230: web.v1.DonateTopupService.AttachTopupCharge:output_type -> web.v1.AttachTopupChargeResponse
+	143, // 231: web.v1.DonateRevenueAdminService.GetRevenueSummary:output_type -> web.v1.GetRevenueSummaryResponse
+	146, // 232: web.v1.DonateRevenueAdminService.ListTopupOrders:output_type -> web.v1.ListTopupOrdersResponse
+	149, // 233: web.v1.DonateRevenueAdminService.ListTopBuyers:output_type -> web.v1.ListTopBuyersResponse
+	152, // 234: web.v1.DonateRevenueAdminService.ListDonateSpend:output_type -> web.v1.ListDonateSpendResponse
+	155, // 235: web.v1.DonateRevenueAdminService.SearchAccounts:output_type -> web.v1.SearchAccountsResponse
+	158, // 236: web.v1.ItemStatAdminService.GetItemStat:output_type -> web.v1.GetItemStatResponse
+	40,  // 237: web.v1.ItemStatAdminService.UpsertItemStat:output_type -> web.v1.AdminAck
+	40,  // 238: web.v1.ItemStatAdminService.DeleteItemStat:output_type -> web.v1.AdminAck
+	163, // 239: web.v1.MountGrowthAdminService.ListMountGrowthCurves:output_type -> web.v1.ListMountGrowthCurvesResponse
+	40,  // 240: web.v1.MountGrowthAdminService.SetMountGrowthCurve:output_type -> web.v1.AdminAck
+	40,  // 241: web.v1.MountGrowthAdminService.ClearMountGrowthCurve:output_type -> web.v1.AdminAck
+	170, // 242: web.v1.MountGrowthAdminService.ListMountAbsorb:output_type -> web.v1.ListMountAbsorbResponse
+	40,  // 243: web.v1.MountGrowthAdminService.SetMountAbsorb:output_type -> web.v1.AdminAck
+	40,  // 244: web.v1.MountGrowthAdminService.ClearMountAbsorb:output_type -> web.v1.AdminAck
+	175, // 245: web.v1.MountGrowthAdminService.ListMountBonus:output_type -> web.v1.ListMountBonusResponse
+	40,  // 246: web.v1.MountGrowthAdminService.SetMountBonus:output_type -> web.v1.AdminAck
+	40,  // 247: web.v1.MountGrowthAdminService.ClearMountBonus:output_type -> web.v1.AdminAck
+	168, // 248: web.v1.MountGrowthAdminService.MountConfigVersion:output_type -> web.v1.MountConfigVersionResponse
+	178, // [178:249] is the sub-list for method output_type
+	107, // [107:178] is the sub-list for method input_type
+	107, // [107:107] is the sub-list for extension type_name
+	107, // [107:107] is the sub-list for extension extendee
+	0,   // [0:107] is the sub-list for field type_name
 }
 
 func init() { file_api_web_v1_web_proto_init() }
@@ -13764,8 +13965,8 @@ func file_api_web_v1_web_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_web_v1_web_proto_rawDesc), len(file_api_web_v1_web_proto_rawDesc)),
-			NumEnums:      16,
-			NumMessages:   159,
+			NumEnums:      17,
+			NumMessages:   161,
 			NumExtensions: 0,
 			NumServices:   18,
 		},
