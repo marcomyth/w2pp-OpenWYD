@@ -182,11 +182,29 @@ jobs:
       - name: O portao rodou de verdade?
         if: always()
         run: |
+          # O LOG TEM DE EXISTIR, e esta e a primeira coisa conferida porque a
+          # propria guarda ja passou verde sem ele. Quando o passo dos testes nem
+          # chega a rodar — foi o que aconteceu em 24/09/2026, com um passo novo
+          # falhando antes —, o arquivo nao existe, o `grep` devolve vazio, e
+          # `[ "" -eq 0 ]` e um ERRO de sintaxe do teste. Dentro de um `if`, o
+          # `set -e` nao dispara: o erro e lido como "condicao falsa", e a guarda
+          # segue em frente dizendo que esta tudo bem.
+          #
+          # Ou seja: a guarda contra o silencio tinha um silencio dentro dela.
+          if [ ! -f integration.log ]; then
+            echo "::error::integration.log nao existe: o passo dos testes nao chegou a rodar"
+            exit 1
+          fi
+
           # E agora ela pega uma coisa a mais: com o job rodando so os pacotes
           # escolhidos, um pulo por falta de DSN significa que algum deles chegou
           # aqui sem banco — ou que a separacao mandou para ca quem nao devia.
           pularam="$(grep -c 'W2PP_TEST_DSN not set' integration.log || true)"
           passaram="$(grep -c -- '--- PASS' integration.log || true)"
+          # Contagem vazia vira zero AQUI, para nenhuma comparacao abaixo poder
+          # errar em silencio pelo mesmo motivo.
+          pularam="${pularam:-0}"
+          passaram="${passaram:-0}"
           echo "passaram=$passaram  pularam-por-falta-de-banco=$pularam"
           if [ "$pularam" -gt 0 ]; then
             echo "::error::$pularam teste(s) pularam por falta de W2PP_TEST_DSN: o banco nao chegou ate eles"
