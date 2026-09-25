@@ -31,10 +31,14 @@ type Store interface {
 	DeleteCharacter(ctx context.Context, accountID int64, slot int) error
 	PinHashByID(ctx context.Context, id int64) (string, error)
 	SetPinHash(ctx context.Context, id int64, hash string) error
-	SalvarPersonagemOrdenado(ctx context.Context, accountID int64, ch domain.Character, epoca, seq int64) error
+	SalvarPersonagemOrdenado(ctx context.Context, accountID int64, ch domain.Character, epoca, seq int64, soltarPosse bool) error
 	NovaEpocaDePar(ctx context.Context) (int64, error)
+	TomarPosseDaConta(ctx context.Context, accountID, epoca int64) error
+	SoltarPosseDaConta(ctx context.Context, accountID, epoca int64) error
+	BaterPelasContas(ctx context.Context, epoca int64, contas []int64) ([]int64, error)
 	SalvarPersonagemComCarga(ctx context.Context, accountID int64, ch domain.Character,
-		cargoCoin int32, cargoItems []domain.Item, deliveredIDs, lostIDs []int64, epoca, seq int64) error
+		cargoCoin int32, cargoItems []domain.Item, deliveredIDs, lostIDs []int64, epoca, seq int64,
+		soltarPosse bool) error
 	QuoteKingdomCape(ctx context.Context) (domain.KingdomCapeQuote, error)
 	PurchaseKingdomCape(ctx context.Context, accountID, expectedRevision int64, kingdom uint8, ch domain.Character) (domain.KingdomCapeQuote, bool, error)
 	// Pagamento de uma venda na Loja do Servidor: Cash ou RMT entre duas contas,
@@ -195,7 +199,7 @@ func (s *Server) LoadCharacter(ctx context.Context, req *dbv1.LoadCharacterReque
 // SaveCharacter persists a character's live state (partial; see store.SaveCharacter).
 func (s *Server) SaveCharacter(ctx context.Context, req *dbv1.SaveCharacterRequest) (*dbv1.SaveCharacterResponse, error) {
 	ch := protoToCharacter(req.GetCharacter())
-	err := s.store.SalvarPersonagemOrdenado(ctx, req.GetAccountId(), ch, req.GetParEpoca(), req.GetParSeq())
+	err := s.store.SalvarPersonagemOrdenado(ctx, req.GetAccountId(), ch, req.GetParEpoca(), req.GetParSeq(), req.GetSoltarPosse())
 	if errors.Is(err, store.ErrNotFound) {
 		return &dbv1.SaveCharacterResponse{Ok: false}, nil
 	}
@@ -216,7 +220,7 @@ func (s *Server) SaveCharacter(ctx context.Context, req *dbv1.SaveCharacterReque
 func (s *Server) SalvarPersonagemComCarga(ctx context.Context, req *dbv1.SalvarPersonagemComCargaRequest) (*dbv1.SaveCharacterResponse, error) {
 	err := s.store.SalvarPersonagemComCarga(ctx, req.GetAccountId(), protoToCharacter(req.GetCharacter()),
 		req.GetCargoCoin(), protoToItems(req.GetCargoItems()), req.GetDeliveredIds(), req.GetLostIds(),
-		req.GetParEpoca(), req.GetParSeq())
+		req.GetParEpoca(), req.GetParSeq(), req.GetSoltarPosse())
 	if errors.Is(err, store.ErrNotFound) {
 		return &dbv1.SaveCharacterResponse{Ok: false}, nil
 	}
@@ -239,6 +243,38 @@ func (s *Server) NovaEpocaDePar(ctx context.Context, _ *dbv1.NovaEpocaDeParReque
 		return nil, status.Errorf(codes.Internal, "nova epoca de par: %v", err)
 	}
 	return &dbv1.NovaEpocaDeParResponse{Epoca: n}, nil
+}
+
+// TomarPosseDaConta marca esta execução como dona da conta, ou diz que está em uso.
+func (s *Server) TomarPosseDaConta(ctx context.Context, req *dbv1.TomarPosseDaContaRequest) (*dbv1.TomarPosseDaContaResponse, error) {
+	err := s.store.TomarPosseDaConta(ctx, req.GetAccountId(), req.GetEpoca())
+	switch {
+	case errors.Is(err, store.ErrContaEmUso):
+		return &dbv1.TomarPosseDaContaResponse{EmUso: true}, nil
+	case errors.Is(err, store.ErrNotFound):
+		return &dbv1.TomarPosseDaContaResponse{}, nil
+	case err != nil:
+		return nil, status.Errorf(codes.Internal, "tomar posse da conta: %v", err)
+	}
+	return &dbv1.TomarPosseDaContaResponse{Ok: true}, nil
+}
+
+// SoltarPosseDaConta devolve a conta que saiu sem save de saída (a que ficou na
+// seleção de personagem).
+func (s *Server) SoltarPosseDaConta(ctx context.Context, req *dbv1.SoltarPosseDaContaRequest) (*dbv1.SoltarPosseDaContaResponse, error) {
+	if err := s.store.SoltarPosseDaConta(ctx, req.GetAccountId(), req.GetEpoca()); err != nil {
+		return nil, status.Errorf(codes.Internal, "soltar posse da conta: %v", err)
+	}
+	return &dbv1.SoltarPosseDaContaResponse{}, nil
+}
+
+// BaterPelasContas renova a posse e devolve quais contas continuam desta execução.
+func (s *Server) BaterPelasContas(ctx context.Context, req *dbv1.BaterPelasContasRequest) (*dbv1.BaterPelasContasResponse, error) {
+	minhas, err := s.store.BaterPelasContas(ctx, req.GetEpoca(), req.GetAccountIds())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "batimento da posse: %v", err)
+	}
+	return &dbv1.BaterPelasContasResponse{AindaMinhas: minhas}, nil
 }
 
 // QuoteKingdomCape returns the durable price and revision used by both Kings.

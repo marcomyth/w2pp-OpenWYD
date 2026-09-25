@@ -22,7 +22,7 @@ type capturaPar struct {
 	falharPar bool
 }
 
-func (c *capturaPar) SalvarPersonagemComCarga(context.Context, CharacterSave, CargoSave, []int64, []int64, int64, int64) error {
+func (c *capturaPar) SalvarPersonagemComCarga(context.Context, CharacterSave, CargoSave, []int64, []int64, int64, int64, bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.pares++
@@ -46,7 +46,7 @@ func (c *capturaPar) SaveCargoWithDeliveries(context.Context, CargoSave, []int64
 	return nil
 }
 
-func (c *capturaPar) SaveOnShutdown(context.Context, CharacterSave, int64, int64) error {
+func (c *capturaPar) SaveOnShutdown(context.Context, CharacterSave, int64, int64, bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.soPessoa++
@@ -180,7 +180,7 @@ func TestONumeroDoParSaiDoInstantaneo(t *testing.T) {
 
 	// E a época vai junto, senão o banco não sabe de que execução o número é.
 	if err := SalvarPar(context.Background(), pc, CharacterSave{AccountID: 42}, CargoSave{AccountID: 42},
-		true, nil, w.EpocaDoPar(), primeiro); err != nil {
+		true, nil, w.EpocaDoPar(), primeiro, false); err != nil {
 		t.Fatal(err)
 	}
 	epoca, seq := pc.ultimo()
@@ -197,7 +197,7 @@ type capturaSeq struct {
 }
 
 func (c *capturaSeq) SalvarPersonagemComCarga(_ context.Context, _ CharacterSave, _ CargoSave,
-	_, _ []int64, epoca, seq int64,
+	_, _ []int64, epoca, seq int64, _ bool,
 ) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

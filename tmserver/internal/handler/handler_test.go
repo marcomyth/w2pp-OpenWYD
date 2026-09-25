@@ -131,7 +131,7 @@ type drainSave struct {
 	lost      []int64
 }
 
-func (f *fakeDB) SaveOnShutdown(_ context.Context, save world.CharacterSave, _, _ int64) error {
+func (f *fakeDB) SaveOnShutdown(_ context.Context, save world.CharacterSave, _, _ int64, _ bool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.saveErr != nil {
@@ -158,7 +158,7 @@ func (f *fakeDB) SaveCargo(_ context.Context, save world.CargoSave) error {
 // save que passou a ir pelo par sumiria dos dois contadores e todo teste que
 // confere gravação passaria sem gravar nada — verde por ausência.
 func (f *fakeDB) SalvarPersonagemComCarga(_ context.Context, personagem world.CharacterSave,
-	carga world.CargoSave, deliveredIDs, lostIDs []int64, epoca, seq int64,
+	carga world.CargoSave, deliveredIDs, lostIDs []int64, epoca, seq int64, _ bool,
 ) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -576,7 +576,7 @@ func (f *fakeDB) archRequest() (int, int64, string, int, int, int, int) {
 // their base account, so LoadCharacter can find the base again with a modulo.
 const cloneStride = 1000
 
-func (f *fakeDB) AccountLogin(_ context.Context, name, pass string) (world.LoginOutcome, error) {
+func (f *fakeDB) AccountLogin(_ context.Context, name, pass string, _ int64) (world.LoginOutcome, error) {
 	a, ok := f.accounts[name]
 	// "tester2", "tester3"… are clones of "tester" under their own account id:
 	// the server keeps one session per account, so a test that puts a second

@@ -62,10 +62,11 @@ func (d *Dispatcher) accountLogin(w *world.World, s *world.Session, _ protocol.H
 	d.log.Info("account login: relaying to dbServer", "conn", s.Conn, "account", name)
 
 	p := w.Persistence()
+	epoca := w.EpocaDoPar()
 	w.Go(s, func() func(*world.World, *world.Session) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		out, err := p.AccountLogin(ctx, name, pass)
+		out, err := p.AccountLogin(ctx, name, pass, epoca)
 		return func(w *world.World, s *world.Session) { d.completeAccountLogin(w, s, out, err, takeOver) }
 	})
 }
@@ -182,13 +183,26 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		d.notify(w, s, NoticeBlocked)
 		w.Close(s)
 	case world.LoginAlreadyPlaying:
-		// Only a dbServer that tracks presence itself answers this; ours does
-		// not, and accountInUse above is where the rule is kept. The reply is
-		// the legacy TM's to _MSG_DBAlreadyPlaying (ProcessDBMessage.cpp:1253).
+		// AGORA O dbServer RESPONDE ISTO, e o caso é o da posse da conta: outra
+		// execução do tmServer está com ela. Durante a sobreposição de um deploy,
+		// isto é quase sempre a própria pessoa tentando voltar antes de o servidor
+		// velho terminar de gravá-la.
+		//
+		// POR ISSO A FRASE MANDA ESPERAR, e não parece castigo: o
+		// MsgAlreadyPlaying sozinho é a janela do legado, que não explica nada e
+		// que, num deploy, o jogador leria como ban. A trava de DENTRO do processo
+		// (accountInUse) continua respondendo só a janela do legado, porque lá a
+		// causa é outra: a conta está mesmo aberta em outro lugar agora.
+		sendClientMessage(w, s, msgContaAindaSaindo)
 		w.SendTo(s, protocol.Header{Type: protocol.MsgAlreadyPlaying, ID: protocol.IDSelChar}, nil)
 		w.Close(s)
 	}
 }
+
+// msgContaAindaSaindo é o que o jogador lê quando a conta ainda está presa à
+// execução anterior do servidor. Ela manda ESPERAR: o caso normal é a sobreposição
+// de um deploy, e é a própria pessoa tentando voltar.
+const msgContaAindaSaindo = "Sua conta ainda está saindo do servidor. Tente de novo em alguns segundos."
 
 // reconciliaEscrow põe o escrow em dia depois de esta conexão ganhar a conta.
 //

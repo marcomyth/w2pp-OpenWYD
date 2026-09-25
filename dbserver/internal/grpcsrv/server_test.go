@@ -15,6 +15,11 @@ import (
 
 // fakeStore is an in-memory Store for unit tests (no PostgreSQL).
 type fakeStore struct {
+	posseTomada         int64
+	posseSolta          int64
+	posseEmUso          bool
+	posseSoltaNoSave    bool
+	batimentoPerde      bool
 	epoca               int64
 	parEpoca, parSeq    int64
 	cargaSalvaOuro      int32
@@ -169,6 +174,26 @@ func (f *fakeStore) DeleteCharacter(_ context.Context, accountID int64, slot int
 // SalvarPersonagemComCarga guarda as DUAS metades, para que um teste possa provar
 // que a mesma chamada levou o personagem e a carga.
 // NovaEpocaDePar devolve números crescentes, como a sequência do banco.
+func (f *fakeStore) TomarPosseDaConta(_ context.Context, _, epoca int64) error {
+	f.posseTomada = epoca
+	if f.posseEmUso {
+		return store.ErrContaEmUso
+	}
+	return nil
+}
+
+func (f *fakeStore) SoltarPosseDaConta(_ context.Context, _, epoca int64) error {
+	f.posseSolta = epoca
+	return nil
+}
+
+func (f *fakeStore) BaterPelasContas(_ context.Context, _ int64, contas []int64) ([]int64, error) {
+	if f.batimentoPerde {
+		return nil, nil
+	}
+	return contas, nil
+}
+
 func (f *fakeStore) NovaEpocaDePar(context.Context) (int64, error) {
 	f.epoca++
 	return f.epoca, nil
@@ -176,7 +201,9 @@ func (f *fakeStore) NovaEpocaDePar(context.Context) (int64, error) {
 
 func (f *fakeStore) SalvarPersonagemComCarga(_ context.Context, _ int64, ch domain.Character,
 	cargoCoin int32, cargoItems []domain.Item, deliveredIDs, lostIDs []int64, epoca, seq int64,
+	soltarPosse bool,
 ) error {
+	f.posseSoltaNoSave = soltarPosse
 	f.parEpoca, f.parSeq = epoca, seq
 	if f.saveErr != nil {
 		return f.saveErr
@@ -190,7 +217,8 @@ func (f *fakeStore) SalvarPersonagemComCarga(_ context.Context, _ int64, ch doma
 	return f.saveResult
 }
 
-func (f *fakeStore) SalvarPersonagemOrdenado(_ context.Context, _ int64, ch domain.Character, epoca, seq int64) error {
+func (f *fakeStore) SalvarPersonagemOrdenado(_ context.Context, _ int64, ch domain.Character, epoca, seq int64, soltarPosse bool) error {
+	f.posseSoltaNoSave = soltarPosse
 	f.parEpoca, f.parSeq = epoca, seq
 	if f.saveErr != nil {
 		return f.saveErr

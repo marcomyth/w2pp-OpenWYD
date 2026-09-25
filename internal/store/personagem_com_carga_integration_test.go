@@ -80,7 +80,7 @@ func TestParGravaAsDuasMetadesJuntas(t *testing.T) {
 		// mochila, tudo no mesmo instante.
 		if err := s.SalvarPersonagemComCarga(ctx, conta,
 			personagemDoPar("par_saque_p", 1000, []domain.Item{{Slot: 0, Index: item}}),
-			0, nil, nil, nil, 0, 0); err != nil {
+			0, nil, nil, nil, 0, 0, false); err != nil {
 			t.Fatalf("SalvarPersonagemComCarga: %v", err)
 		}
 		p, c := leOuro(ctx, t, s, conta)
@@ -99,7 +99,7 @@ func TestParGravaAsDuasMetadesJuntas(t *testing.T) {
 		conta := contaComPersonagem(ctx, t, s, "par_deposito", 1000, 0)
 		if err := s.SalvarPersonagemComCarga(ctx, conta,
 			personagemDoPar("par_deposito_p", 0, nil),
-			1000, []domain.Item{{Slot: 0, Index: item}}, nil, nil, 0, 0); err != nil {
+			1000, []domain.Item{{Slot: 0, Index: item}}, nil, nil, 0, 0, false); err != nil {
 			t.Fatalf("SalvarPersonagemComCarga: %v", err)
 		}
 		p, c := leOuro(ctx, t, s, conta)
@@ -123,7 +123,7 @@ func TestParNaoDeixaMetadeGravada(t *testing.T) {
 		// Slot 3 não existe: a metade do personagem falha primeiro.
 		ch := personagemDoPar("fantasma", 0, nil)
 		ch.Slot = 3
-		err := s.SalvarPersonagemComCarga(ctx, conta, ch, 9999, nil, nil, nil, 0, 0)
+		err := s.SalvarPersonagemComCarga(ctx, conta, ch, 9999, nil, nil, nil, 0, 0, false)
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("erro = %v, queria ErrNotFound", err)
 		}
@@ -157,7 +157,7 @@ func TestParNaoDeixaMetadeGravada(t *testing.T) {
 
 		err := s.SalvarPersonagemComCarga(ctx, conta,
 			personagemDoPar("par_meia_b_p", 0, nil),
-			1000, []domain.Item{{Slot: 0, Index: 31337}}, nil, nil, 0, 0)
+			1000, []domain.Item{{Slot: 0, Index: 31337}}, nil, nil, 0, 0, false)
 		if err == nil {
 			t.Fatal("a gravação passou, e o gatilho tinha de ter derrubado a metade da carga")
 		}

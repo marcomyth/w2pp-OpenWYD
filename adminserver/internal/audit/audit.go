@@ -49,6 +49,7 @@ const (
 	ActionHandleReport       = "HANDLE_REPORT"
 	ActionBroadcast          = "BROADCAST"
 	ActionSafeRestart        = "SAFE_RESTART"
+	ActionSoltarPosse        = "SOLTAR_POSSE_DA_CONTA"
 	ActionStopGame           = "STOP_GAME"
 	ActionStartGame          = "START_GAME"
 	ActionSetXPRule          = "SET_XP_RULE"
@@ -348,6 +349,7 @@ var rotulos = map[string]string{
 	ActionBroadcast:                            "Mandou um aviso para todos",
 	ActionRestartGame:                          "Reiniciou o servidor",
 	ActionSafeRestart:                          "Reiniciou com segurança",
+	ActionSoltarPosse:                          "Soltou a posse da conta",
 	ActionStopGame:                             "Desligou o servidor",
 	ActionStartGame:                            "Ligou o servidor",
 	ActionSetXPRule:                            "Mexeu na Mesa de XP",

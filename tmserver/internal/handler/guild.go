@@ -278,7 +278,7 @@ func (d *Dispatcher) subcreate(w *world.World, s *world.Session, args []byte) {
 	w.GoDetached(func() func(*world.World) {
 		// Save que falha cancela a promoção, pelo mesmo motivo do /create: seguir
 		// adiante devolveria o banco a decidir com ouro velho.
-		if err := world.SalvarPar(context.Background(), p, save, carga, temCarga, entregues, epocaDoPar, seqDoPar); err != nil {
+		if err := world.SalvarPar(context.Background(), p, save, carga, temCarga, entregues, epocaDoPar, seqDoPar, false); err != nil {
 			return func(w *world.World) {
 				ls := w.Session(leaderConn)
 				if ls != leaderSession {

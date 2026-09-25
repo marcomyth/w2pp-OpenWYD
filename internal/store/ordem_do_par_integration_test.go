@@ -26,14 +26,14 @@ func TestParVelhoNaoApagaOParNovo(t *testing.T) {
 	// O par NOVO chega primeiro: o item está na carga.
 	if err := s.SalvarPersonagemComCarga(ctx, conta,
 		personagemDoPar("ordem_par_p", 0, nil),
-		500, []domain.Item{{Slot: 0, Index: item}}, nil, nil, 1, 20); err != nil {
+		500, []domain.Item{{Slot: 0, Index: item}}, nil, nil, 1, 20, false); err != nil {
 		t.Fatalf("o par novo: %v", err)
 	}
 
 	// O VELHO chega atrasado, com a carga como era antes.
 	err := s.SalvarPersonagemComCarga(ctx, conta,
 		personagemDoPar("ordem_par_p", 999, nil),
-		0, nil, nil, nil, 1, 10)
+		0, nil, nil, nil, 1, 10, false)
 	if !errors.Is(err, ErrParVelho) {
 		t.Fatalf("erro = %v, queria ErrParVelho", err)
 	}
@@ -56,12 +56,12 @@ func TestEpocaNovaPassaPorCima(t *testing.T) {
 	conta := contaComPersonagem(ctx, t, s, "ordem_epoca", 0, 0)
 
 	if err := s.SalvarPersonagemComCarga(ctx, conta,
-		personagemDoPar("ordem_epoca_p", 0, nil), 500, nil, nil, nil, 5, 900); err != nil {
+		personagemDoPar("ordem_epoca_p", 0, nil), 500, nil, nil, nil, 5, 900, false); err != nil {
 		t.Fatalf("a época velha: %v", err)
 	}
 	// Época maior, número MENOR: tem de passar.
 	if err := s.SalvarPersonagemComCarga(ctx, conta,
-		personagemDoPar("ordem_epoca_p", 0, nil), 700, nil, nil, nil, 6, 1); err != nil {
+		personagemDoPar("ordem_epoca_p", 0, nil), 700, nil, nil, nil, 6, 1, false); err != nil {
 		t.Fatalf("a época nova foi recusada: %v", err)
 	}
 	if _, c := leOuro(ctx, t, s, conta); c != 700 {
@@ -77,7 +77,7 @@ func TestSemEpocaNaoConfere(t *testing.T) {
 
 	for i, ouro := range []int32{300, 100} {
 		if err := s.SalvarPersonagemComCarga(ctx, conta,
-			personagemDoPar("ordem_sem_epoca_p", 0, nil), ouro, nil, nil, nil, 0, 0); err != nil {
+			personagemDoPar("ordem_sem_epoca_p", 0, nil), ouro, nil, nil, nil, 0, 0, false); err != nil {
 			t.Fatalf("gravação %d: %v", i, err)
 		}
 	}
@@ -118,13 +118,13 @@ func TestDeployComSobreposicaoNaoPerdeOSaveDoVelho(t *testing.T) {
 
 	// O container velho vinha gravando esta conta.
 	if err := s.SalvarPersonagemComCarga(ctx, conta,
-		personagemDoPar("deploy_sobrepoe_p", 100, nil), 0, nil, nil, nil, velho, 40); err != nil {
+		personagemDoPar("deploy_sobrepoe_p", 100, nil), 0, nil, nil, nil, velho, 40, false); err != nil {
 		t.Fatal(err)
 	}
 	// O novo subiu (época 6) e NÃO tocou nesta conta: o jogador continua no velho.
 	// O save de desligamento do velho chega agora.
 	if err := s.SalvarPersonagemComCarga(ctx, conta,
-		personagemDoPar("deploy_sobrepoe_p", 999, nil), 0, nil, nil, nil, velho, 41); err != nil {
+		personagemDoPar("deploy_sobrepoe_p", 999, nil), 0, nil, nil, nil, velho, 41, false); err != nil {
 		t.Fatalf("o save final do container velho foi recusado: %v", err)
 	}
 	if p, _ := leOuro(ctx, t, s, conta); p != 999 {
@@ -142,18 +142,18 @@ func TestSessaoNovaGanhaDaVelhaAtrasada(t *testing.T) {
 
 	// A sessão velha, época 5.
 	if err := s.SalvarPersonagemComCarga(ctx, conta,
-		personagemDoPar("sessao_nova_p", 10, nil), 0, nil, nil, nil, 5, 100); err != nil {
+		personagemDoPar("sessao_nova_p", 10, nil), 0, nil, nil, nil, 5, 100, false); err != nil {
 		t.Fatal(err)
 	}
 	// A nova, época 6, põe o item na carga.
 	if err := s.SalvarPersonagemComCarga(ctx, conta,
 		personagemDoPar("sessao_nova_p", 20, nil),
-		50, []domain.Item{{Slot: 0, Index: item}}, nil, nil, 6, 1); err != nil {
+		50, []domain.Item{{Slot: 0, Index: item}}, nil, nil, 6, 1, false); err != nil {
 		t.Fatal(err)
 	}
 	// O par atrasado da velha chega depois.
 	if err := s.SalvarPersonagemComCarga(ctx, conta,
-		personagemDoPar("sessao_nova_p", 10, nil), 0, nil, nil, nil, 5, 101); !errors.Is(err, ErrParVelho) {
+		personagemDoPar("sessao_nova_p", 10, nil), 0, nil, nil, nil, 5, 101, false); !errors.Is(err, ErrParVelho) {
 		t.Fatalf("erro = %v, queria ErrParVelho", err)
 	}
 	p, c := leOuro(ctx, t, s, conta)
@@ -176,7 +176,7 @@ func TestCargaSozinhaNaoCarimbaAOrdem(t *testing.T) {
 	conta := contaComPersonagem(ctx, t, s, "carga_nao_carimba", 0, 0)
 
 	if err := s.SalvarPersonagemComCarga(ctx, conta,
-		personagemDoPar("carga_nao_carimba_p", 100, nil), 0, nil, nil, nil, 5, 40); err != nil {
+		personagemDoPar("carga_nao_carimba_p", 100, nil), 0, nil, nil, nil, 5, 40, false); err != nil {
 		t.Fatal(err)
 	}
 	// A carga sozinha, vinda do container novo.
@@ -193,7 +193,7 @@ func TestCargaSozinhaNaoCarimbaAOrdem(t *testing.T) {
 	}
 	// E o save do container velho continua passando depois dela.
 	if err := s.SalvarPersonagemComCarga(ctx, conta,
-		personagemDoPar("carga_nao_carimba_p", 999, nil), 0, nil, nil, nil, 5, 41); err != nil {
+		personagemDoPar("carga_nao_carimba_p", 999, nil), 0, nil, nil, nil, 5, 41, false); err != nil {
 		t.Fatalf("o save do velho foi recusado depois da carga sozinha: %v", err)
 	}
 }
@@ -205,11 +205,11 @@ func TestSavePersonagemSozinhoRespeitaAOrdem(t *testing.T) {
 	conta := contaComPersonagem(ctx, t, s, "so_personagem", 0, 0)
 
 	if err := s.SalvarPersonagemComCarga(ctx, conta,
-		personagemDoPar("so_personagem_p", 500, nil), 0, nil, nil, nil, 7, 30); err != nil {
+		personagemDoPar("so_personagem_p", 500, nil), 0, nil, nil, nil, 7, 30, false); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.SalvarPersonagemOrdenado(ctx, conta,
-		personagemDoPar("so_personagem_p", 1, nil), 7, 29); !errors.Is(err, ErrParVelho) {
+		personagemDoPar("so_personagem_p", 1, nil), 7, 29, false); !errors.Is(err, ErrParVelho) {
 		t.Fatalf("erro = %v, queria ErrParVelho", err)
 	}
 	if p, _ := leOuro(ctx, t, s, conta); p != 500 {
@@ -217,7 +217,7 @@ func TestSavePersonagemSozinhoRespeitaAOrdem(t *testing.T) {
 	}
 	// E o mais novo passa.
 	if err := s.SalvarPersonagemOrdenado(ctx, conta,
-		personagemDoPar("so_personagem_p", 900, nil), 7, 31); err != nil {
+		personagemDoPar("so_personagem_p", 900, nil), 7, 31, false); err != nil {
 		t.Fatal(err)
 	}
 	if p, _ := leOuro(ctx, t, s, conta); p != 900 {

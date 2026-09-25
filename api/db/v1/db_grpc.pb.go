@@ -33,6 +33,9 @@ const (
 	AccountService_SaveCharacter_FullMethodName            = "/db.v1.AccountService/SaveCharacter"
 	AccountService_SalvarPersonagemComCarga_FullMethodName = "/db.v1.AccountService/SalvarPersonagemComCarga"
 	AccountService_NovaEpocaDePar_FullMethodName           = "/db.v1.AccountService/NovaEpocaDePar"
+	AccountService_TomarPosseDaConta_FullMethodName        = "/db.v1.AccountService/TomarPosseDaConta"
+	AccountService_BaterPelasContas_FullMethodName         = "/db.v1.AccountService/BaterPelasContas"
+	AccountService_SoltarPosseDaConta_FullMethodName       = "/db.v1.AccountService/SoltarPosseDaConta"
 	AccountService_QuoteKingdomCape_FullMethodName         = "/db.v1.AccountService/QuoteKingdomCape"
 	AccountService_PurchaseKingdomCape_FullMethodName      = "/db.v1.AccountService/PurchaseKingdomCape"
 	AccountService_TransferPlayerBalance_FullMethodName    = "/db.v1.AccountService/TransferPlayerBalance"
@@ -115,6 +118,17 @@ type AccountServiceClient interface {
 	// NovaEpocaDePar entrega a esta execucao do tmServer o seu numero de epoca, para
 	// ordenar as gravacoes do par. Uma chamada por boot.
 	NovaEpocaDePar(ctx context.Context, in *NovaEpocaDeParRequest, opts ...grpc.CallOption) (*NovaEpocaDeParResponse, error)
+	// TomarPosseDaConta marca esta execucao como dona da conta, ou recusa porque
+	// outra execucao viva esta com ela. E o que impede a mesma conta de estar em jogo
+	// em dois tmServers, que hoje nada impede.
+	TomarPosseDaConta(ctx context.Context, in *TomarPosseDaContaRequest, opts ...grpc.CallOption) (*TomarPosseDaContaResponse, error)
+	// BaterPelasContas diz "ainda estou vivo" pelas contas desta execucao e devolve
+	// QUAIS continuam sendo dela. Quem nao volta deixou de ser meu.
+	BaterPelasContas(ctx context.Context, in *BaterPelasContasRequest, opts ...grpc.CallOption) (*BaterPelasContasResponse, error)
+	// SoltarPosseDaConta devolve a conta quando nao houve save de saida para levar a
+	// soltura junto: a conta que logou, ficou na selecao de personagem e desconectou.
+	// Sem ela, quem sai da selecao ficaria preso ate o prazo vencer.
+	SoltarPosseDaConta(ctx context.Context, in *SoltarPosseDaContaRequest, opts ...grpc.CallOption) (*SoltarPosseDaContaResponse, error)
 	QuoteKingdomCape(ctx context.Context, in *QuoteKingdomCapeRequest, opts ...grpc.CallOption) (*QuoteKingdomCapeResponse, error)
 	PurchaseKingdomCape(ctx context.Context, in *PurchaseKingdomCapeRequest, opts ...grpc.CallOption) (*PurchaseKingdomCapeResponse, error)
 	// TransferPlayerBalance moves Cash or RMT between two accounts in one
@@ -431,6 +445,36 @@ func (c *accountServiceClient) NovaEpocaDePar(ctx context.Context, in *NovaEpoca
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(NovaEpocaDeParResponse)
 	err := c.cc.Invoke(ctx, AccountService_NovaEpocaDePar_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) TomarPosseDaConta(ctx context.Context, in *TomarPosseDaContaRequest, opts ...grpc.CallOption) (*TomarPosseDaContaResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TomarPosseDaContaResponse)
+	err := c.cc.Invoke(ctx, AccountService_TomarPosseDaConta_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) BaterPelasContas(ctx context.Context, in *BaterPelasContasRequest, opts ...grpc.CallOption) (*BaterPelasContasResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BaterPelasContasResponse)
+	err := c.cc.Invoke(ctx, AccountService_BaterPelasContas_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) SoltarPosseDaConta(ctx context.Context, in *SoltarPosseDaContaRequest, opts ...grpc.CallOption) (*SoltarPosseDaContaResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SoltarPosseDaContaResponse)
+	err := c.cc.Invoke(ctx, AccountService_SoltarPosseDaConta_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1021,6 +1065,17 @@ type AccountServiceServer interface {
 	// NovaEpocaDePar entrega a esta execucao do tmServer o seu numero de epoca, para
 	// ordenar as gravacoes do par. Uma chamada por boot.
 	NovaEpocaDePar(context.Context, *NovaEpocaDeParRequest) (*NovaEpocaDeParResponse, error)
+	// TomarPosseDaConta marca esta execucao como dona da conta, ou recusa porque
+	// outra execucao viva esta com ela. E o que impede a mesma conta de estar em jogo
+	// em dois tmServers, que hoje nada impede.
+	TomarPosseDaConta(context.Context, *TomarPosseDaContaRequest) (*TomarPosseDaContaResponse, error)
+	// BaterPelasContas diz "ainda estou vivo" pelas contas desta execucao e devolve
+	// QUAIS continuam sendo dela. Quem nao volta deixou de ser meu.
+	BaterPelasContas(context.Context, *BaterPelasContasRequest) (*BaterPelasContasResponse, error)
+	// SoltarPosseDaConta devolve a conta quando nao houve save de saida para levar a
+	// soltura junto: a conta que logou, ficou na selecao de personagem e desconectou.
+	// Sem ela, quem sai da selecao ficaria preso ate o prazo vencer.
+	SoltarPosseDaConta(context.Context, *SoltarPosseDaContaRequest) (*SoltarPosseDaContaResponse, error)
 	QuoteKingdomCape(context.Context, *QuoteKingdomCapeRequest) (*QuoteKingdomCapeResponse, error)
 	PurchaseKingdomCape(context.Context, *PurchaseKingdomCapeRequest) (*PurchaseKingdomCapeResponse, error)
 	// TransferPlayerBalance moves Cash or RMT between two accounts in one
@@ -1300,6 +1355,15 @@ func (UnimplementedAccountServiceServer) SalvarPersonagemComCarga(context.Contex
 }
 func (UnimplementedAccountServiceServer) NovaEpocaDePar(context.Context, *NovaEpocaDeParRequest) (*NovaEpocaDeParResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method NovaEpocaDePar not implemented")
+}
+func (UnimplementedAccountServiceServer) TomarPosseDaConta(context.Context, *TomarPosseDaContaRequest) (*TomarPosseDaContaResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TomarPosseDaConta not implemented")
+}
+func (UnimplementedAccountServiceServer) BaterPelasContas(context.Context, *BaterPelasContasRequest) (*BaterPelasContasResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BaterPelasContas not implemented")
+}
+func (UnimplementedAccountServiceServer) SoltarPosseDaConta(context.Context, *SoltarPosseDaContaRequest) (*SoltarPosseDaContaResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SoltarPosseDaConta not implemented")
 }
 func (UnimplementedAccountServiceServer) QuoteKingdomCape(context.Context, *QuoteKingdomCapeRequest) (*QuoteKingdomCapeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method QuoteKingdomCape not implemented")
@@ -1594,6 +1658,60 @@ func _AccountService_NovaEpocaDePar_Handler(srv interface{}, ctx context.Context
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccountServiceServer).NovaEpocaDePar(ctx, req.(*NovaEpocaDeParRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_TomarPosseDaConta_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TomarPosseDaContaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).TomarPosseDaConta(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_TomarPosseDaConta_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).TomarPosseDaConta(ctx, req.(*TomarPosseDaContaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_BaterPelasContas_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BaterPelasContasRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).BaterPelasContas(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_BaterPelasContas_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).BaterPelasContas(ctx, req.(*BaterPelasContasRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_SoltarPosseDaConta_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SoltarPosseDaContaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).SoltarPosseDaConta(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_SoltarPosseDaConta_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).SoltarPosseDaConta(ctx, req.(*SoltarPosseDaContaRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2636,6 +2754,18 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "NovaEpocaDePar",
 			Handler:    _AccountService_NovaEpocaDePar_Handler,
+		},
+		{
+			MethodName: "TomarPosseDaConta",
+			Handler:    _AccountService_TomarPosseDaConta_Handler,
+		},
+		{
+			MethodName: "BaterPelasContas",
+			Handler:    _AccountService_BaterPelasContas_Handler,
+		},
+		{
+			MethodName: "SoltarPosseDaConta",
+			Handler:    _AccountService_SoltarPosseDaConta_Handler,
 		},
 		{
 			MethodName: "QuoteKingdomCape",

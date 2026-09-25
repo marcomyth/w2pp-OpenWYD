@@ -31,6 +31,17 @@ service AccountService {
   // NovaEpocaDePar entrega a esta execucao do tmServer o seu numero de epoca, para
   // ordenar as gravacoes do par. Uma chamada por boot.
   rpc NovaEpocaDePar(NovaEpocaDeParRequest) returns (NovaEpocaDeParResponse);
+  // TomarPosseDaConta marca esta execucao como dona da conta, ou recusa porque
+  // outra execucao viva esta com ela. E o que impede a mesma conta de estar em jogo
+  // em dois tmServers, que hoje nada impede.
+  rpc TomarPosseDaConta(TomarPosseDaContaRequest) returns (TomarPosseDaContaResponse);
+  // BaterPelasContas diz "ainda estou vivo" pelas contas desta execucao e devolve
+  // QUAIS continuam sendo dela. Quem nao volta deixou de ser meu.
+  rpc BaterPelasContas(BaterPelasContasRequest) returns (BaterPelasContasResponse);
+  // SoltarPosseDaConta devolve a conta quando nao houve save de saida para levar a
+  // soltura junto: a conta que logou, ficou na selecao de personagem e desconectou.
+  // Sem ela, quem sai da selecao ficaria preso ate o prazo vencer.
+  rpc SoltarPosseDaConta(SoltarPosseDaContaRequest) returns (SoltarPosseDaContaResponse);
   rpc QuoteKingdomCape(QuoteKingdomCapeRequest) returns (QuoteKingdomCapeResponse);
   rpc PurchaseKingdomCape(PurchaseKingdomCapeRequest) returns (PurchaseKingdomCapeResponse);
   // TransferPlayerBalance moves Cash or RMT between two accounts in one
@@ -502,8 +513,33 @@ message SaveCharacterRequest {
   // conferem as MESMAS colunas da conta, entao compartilham uma ordem so.
   int64 par_epoca = 3;
   int64 par_seq = 4;
+  bool soltar_posse = 5; // ver SalvarPersonagemComCargaRequest
 }
 message SaveCharacterResponse { bool ok = 1; }
+
+message TomarPosseDaContaRequest {
+  int64 account_id = 1;
+  int64 epoca = 2;
+}
+// em_uso e true quando outra execucao viva esta com a conta.
+message TomarPosseDaContaResponse {
+  bool ok = 1;
+  bool em_uso = 2;
+}
+
+message SoltarPosseDaContaRequest {
+  int64 account_id = 1;
+  int64 epoca = 2;
+}
+message SoltarPosseDaContaResponse {}
+
+message BaterPelasContasRequest {
+  int64 epoca = 1;
+  repeated int64 account_ids = 2;
+}
+// ainda_minhas sao as contas que continuam desta execucao. Uma conta que saiu da
+// lista tem de ser largada por quem chamou.
+message BaterPelasContasResponse { repeated int64 ainda_minhas = 1; }
 
 message NovaEpocaDeParRequest {}
 message NovaEpocaDeParResponse { int64 epoca = 1; }
@@ -523,6 +559,10 @@ message SalvarPersonagemComCargaRequest {
   // guardou e travaria tudo, calado. Epoca zero desliga a guarda.
   int64 par_epoca = 7;
   int64 par_seq = 8;
+  // soltar_posse diz que este e o save de SAIDA: a posse da conta sai na mesma
+  // transacao em que o personagem e a carga entram. Save que falha mantem a posse,
+  // que e o certo — conta cujo ultimo save nao caiu e a que ninguem deve carregar.
+  bool soltar_posse = 9;
 }
 
 message QuoteKingdomCapeRequest {}

@@ -14,6 +14,7 @@ import (
 // fakeAPI implements dbv1.AccountServiceClient, capturing requests and returning
 // canned responses, so the adapter's mapping is tested without a gRPC server.
 type fakeAPI struct {
+	posseEmUso         bool
 	parSalvo           *dbv1.SalvarPersonagemComCargaRequest
 	anunciosPedidos    *dbv1.OpenRmtListingsRequest
 	cobrancaPedida     *dbv1.OpenRmtChargeRequest
@@ -79,6 +80,15 @@ func (f *fakeAPI) LoadCharacter(_ context.Context, _ *dbv1.LoadCharacterRequest,
 func (f *fakeAPI) SaveCharacter(_ context.Context, req *dbv1.SaveCharacterRequest, _ ...grpc.CallOption) (*dbv1.SaveCharacterResponse, error) {
 	f.saved = req
 	return &dbv1.SaveCharacterResponse{Ok: true}, nil
+}
+func (f *fakeAPI) TomarPosseDaConta(_ context.Context, _ *dbv1.TomarPosseDaContaRequest, _ ...grpc.CallOption) (*dbv1.TomarPosseDaContaResponse, error) {
+	return &dbv1.TomarPosseDaContaResponse{Ok: !f.posseEmUso, EmUso: f.posseEmUso}, nil
+}
+func (f *fakeAPI) SoltarPosseDaConta(_ context.Context, _ *dbv1.SoltarPosseDaContaRequest, _ ...grpc.CallOption) (*dbv1.SoltarPosseDaContaResponse, error) {
+	return &dbv1.SoltarPosseDaContaResponse{}, nil
+}
+func (f *fakeAPI) BaterPelasContas(_ context.Context, req *dbv1.BaterPelasContasRequest, _ ...grpc.CallOption) (*dbv1.BaterPelasContasResponse, error) {
+	return &dbv1.BaterPelasContasResponse{AindaMinhas: req.GetAccountIds()}, nil
 }
 func (f *fakeAPI) NovaEpocaDePar(_ context.Context, _ *dbv1.NovaEpocaDeParRequest, _ ...grpc.CallOption) (*dbv1.NovaEpocaDeParResponse, error) {
 	return &dbv1.NovaEpocaDeParResponse{Epoca: 7}, nil
@@ -273,7 +283,7 @@ func TestAccountLoginMapping(t *testing.T) {
 			{Slot: 2, Index: 999, Eff1: 1, Effv1: 7},
 		}},
 	}
-	out, err := newClient(api).AccountLogin(context.Background(), "alice", "pw")
+	out, err := newClient(api).AccountLogin(context.Background(), "alice", "pw", 0)
 	if err != nil {
 		t.Fatalf("AccountLogin: %v", err)
 	}
@@ -301,7 +311,7 @@ func TestAccountLoginRoleMapped(t *testing.T) {
 		loginResp: &dbv1.AccountLoginResponse{Result: dbv1.LoginResult_LOGIN_RESULT_OK, AccountId: 1, Role: "moderator"},
 		listResp:  &dbv1.ListCharactersResponse{},
 	}
-	out, err := newClient(api).AccountLogin(context.Background(), "mod", "pw")
+	out, err := newClient(api).AccountLogin(context.Background(), "mod", "pw", 0)
 	if err != nil {
 		t.Fatalf("AccountLogin: %v", err)
 	}
@@ -341,7 +351,7 @@ func TestAccountLoginFailSkipsList(t *testing.T) {
 	// On a failed login the adapter must not call ListCharacters (nil listResp
 	// would panic if it did).
 	api := &fakeAPI{loginResp: &dbv1.AccountLoginResponse{Result: dbv1.LoginResult_LOGIN_RESULT_BAD_PASSWORD}}
-	out, err := newClient(api).AccountLogin(context.Background(), "alice", "bad")
+	out, err := newClient(api).AccountLogin(context.Background(), "alice", "bad", 0)
 	if err != nil {
 		t.Fatalf("AccountLogin: %v", err)
 	}
@@ -413,7 +423,7 @@ func TestSaveOnShutdownMapping(t *testing.T) {
 		ClassMaster: 3, CelLv40: 1, CelCircle: 1, MortalLevel: 399, CelestialArchLevel: 5,
 		Carry: []world.SavedItem{{Slot: 3, Index: 1234, Eff1: 9, EffV1: 1}},
 	}
-	if err := newClient(api).SaveOnShutdown(context.Background(), save, 0, 0); err != nil {
+	if err := newClient(api).SaveOnShutdown(context.Background(), save, 0, 0, false); err != nil {
 		t.Fatalf("SaveOnShutdown: %v", err)
 	}
 	if api.saved.GetAccountId() != 1 {
@@ -445,7 +455,7 @@ func TestDivinePersistMapping(t *testing.T) {
 	// Save: an active Divine buff produces one type-34 affect with Time == deadline.
 	api := &fakeAPI{}
 	save := world.CharacterSave{AccountID: 1, Slot: 0, DivineEnd: deadline}
-	if err := newClient(api).SaveOnShutdown(context.Background(), save, 0, 0); err != nil {
+	if err := newClient(api).SaveOnShutdown(context.Background(), save, 0, 0, false); err != nil {
 		t.Fatalf("SaveOnShutdown: %v", err)
 	}
 	aff := api.saved.GetCharacter().GetAffects()
@@ -471,7 +481,7 @@ func TestDivinePersistMapping(t *testing.T) {
 func TestDivineNotPersistedWhenExpired(t *testing.T) {
 	api := &fakeAPI{}
 	save := world.CharacterSave{AccountID: 1, Slot: 0, DivineEnd: time.Now().Unix() - 100}
-	if err := newClient(api).SaveOnShutdown(context.Background(), save, 0, 0); err != nil {
+	if err := newClient(api).SaveOnShutdown(context.Background(), save, 0, 0, false); err != nil {
 		t.Fatalf("SaveOnShutdown: %v", err)
 	}
 	if aff := api.saved.GetCharacter().GetAffects(); len(aff) != 0 {

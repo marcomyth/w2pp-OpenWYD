@@ -33,7 +33,7 @@ var _ world.Persistence = (*Client)(nil)
 
 // AccountLogin authenticates and, on success, fetches the character-selection
 // list so the world can present it immediately.
-func (c *Client) AccountLogin(ctx context.Context, name, password string) (world.LoginOutcome, error) {
+func (c *Client) AccountLogin(ctx context.Context, name, password string, epoca int64) (world.LoginOutcome, error) {
 	resp, err := c.api.AccountLogin(ctx, &dbv1.AccountLoginRequest{
 		AccountName:   name,
 		Password:      password,
@@ -52,6 +52,23 @@ func (c *Client) AccountLogin(ctx context.Context, name, password string) (world
 	}
 	if out.Result != world.LoginOK {
 		return out, nil
+	}
+	// A POSSE DA CONTA, ANTES DE LER QUALQUER COISA DELA.
+	//
+	// É aqui que a conta deixa de poder estar em jogo em dois tmServers ao mesmo
+	// tempo. Vem de carona neste round trip porque o laço não fala com o banco, e
+	// uma ida a mais só para isto custaria outra volta.
+	//
+	// Antes de ler, e não depois: o que este login carregar tem de ser de uma conta
+	// que já é minha, senão eu leria o estado de alguém que ainda está jogando.
+	if epoca > 0 {
+		tomou, err := c.TomarPosseDaConta(ctx, out.AccountID, epoca)
+		if err != nil {
+			return world.LoginOutcome{}, err
+		}
+		if !tomou {
+			return world.LoginOutcome{Result: world.LoginAlreadyPlaying}, nil
+		}
 	}
 	out.Characters, err = c.ListCharacters(ctx, out.AccountID)
 	if err != nil {
@@ -290,12 +307,13 @@ func (c *Client) LoadCharacter(ctx context.Context, accountID int64, slot int) (
 }
 
 // SaveOnShutdown persists the world's snapshot of a character.
-func (c *Client) SaveOnShutdown(ctx context.Context, save world.CharacterSave, epoca, seq int64) error {
+func (c *Client) SaveOnShutdown(ctx context.Context, save world.CharacterSave, epoca, seq int64, soltarPosse bool) error {
 	_, err := c.api.SaveCharacter(ctx, &dbv1.SaveCharacterRequest{
-		AccountId: save.AccountID,
-		Character: characterSaveToProto(save),
-		ParEpoca:  epoca,
-		ParSeq:    seq,
+		AccountId:   save.AccountID,
+		Character:   characterSaveToProto(save),
+		ParEpoca:    epoca,
+		ParSeq:      seq,
+		SoltarPosse: soltarPosse,
 	})
 	if err != nil {
 		return fmt.Errorf("dbclient: save character: %w", err)
@@ -305,7 +323,7 @@ func (c *Client) SaveOnShutdown(ctx context.Context, save world.CharacterSave, e
 
 // SalvarPersonagemComCarga grava personagem e carga na mesma transação do banco.
 func (c *Client) SalvarPersonagemComCarga(ctx context.Context, personagem world.CharacterSave,
-	carga world.CargoSave, deliveredIDs, lostIDs []int64, epoca, seq int64,
+	carga world.CargoSave, deliveredIDs, lostIDs []int64, epoca, seq int64, soltarPosse bool,
 ) error {
 	_, err := c.api.SalvarPersonagemComCarga(ctx, &dbv1.SalvarPersonagemComCargaRequest{
 		AccountId:    personagem.AccountID,
@@ -316,6 +334,7 @@ func (c *Client) SalvarPersonagemComCarga(ctx context.Context, personagem world.
 		LostIds:      lostIDs,
 		ParEpoca:     epoca,
 		ParSeq:       seq,
+		SoltarPosse:  soltarPosse,
 	})
 	if err != nil {
 		return fmt.Errorf("dbclient: salvar personagem com carga: %w", err)
@@ -330,6 +349,35 @@ func (c *Client) NovaEpocaDePar(ctx context.Context) (int64, error) {
 		return 0, fmt.Errorf("dbclient: nova epoca de par: %w", err)
 	}
 	return resp.GetEpoca(), nil
+}
+
+// TomarPosseDaConta marca esta execução como dona da conta. Devolve false quando
+// outra execução viva está com ela.
+func (c *Client) TomarPosseDaConta(ctx context.Context, accountID, epoca int64) (bool, error) {
+	resp, err := c.api.TomarPosseDaConta(ctx, &dbv1.TomarPosseDaContaRequest{AccountId: accountID, Epoca: epoca})
+	if err != nil {
+		return false, fmt.Errorf("dbclient: tomar posse da conta: %w", err)
+	}
+	return resp.GetOk(), nil
+}
+
+// SoltarPosseDaConta devolve a conta quando não houve save de saída para levar a
+// soltura junto — a conta que ficou na seleção e desconectou.
+func (c *Client) SoltarPosseDaConta(ctx context.Context, accountID, epoca int64) error {
+	_, err := c.api.SoltarPosseDaConta(ctx, &dbv1.SoltarPosseDaContaRequest{AccountId: accountID, Epoca: epoca})
+	if err != nil {
+		return fmt.Errorf("dbclient: soltar posse da conta: %w", err)
+	}
+	return nil
+}
+
+// BaterPelasContas renova a posse e devolve quais contas continuam desta execução.
+func (c *Client) BaterPelasContas(ctx context.Context, epoca int64, contas []int64) ([]int64, error) {
+	resp, err := c.api.BaterPelasContas(ctx, &dbv1.BaterPelasContasRequest{Epoca: epoca, AccountIds: contas})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: batimento da posse: %w", err)
+	}
+	return resp.GetAindaMinhas(), nil
 }
 
 // QuoteKingdomCape fetches the database-owned sapphire prices.
