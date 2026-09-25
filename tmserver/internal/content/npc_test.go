@@ -303,3 +303,37 @@ func TestChefesDaLavaBlocos(t *testing.T) {
 		t.Errorf("Anf Ninja %d e Golem de Pedra %d, want 300 e 280 (5x)", mobs["Anf_Ninja"], mobs["Golem_de_Pedra"])
 	}
 }
+
+// TestDungeonSalasPopulacao pins the rooms at the start of the Dungeon's 1st
+// floor (migration 0143, x 127-260 × y 3700-3860): Urso_Zumbi and Arq_Caveira
+// 5x, Caveira 2x, each block born as one full group of its own template — the
+// generator raises ONE group per call, so a bigger MaxNumMob alone would leave
+// the -1 blocks at one mob forever.
+func TestDungeonSalasPopulacao(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("NPCGener.txt unavailable: %v", err)
+	}
+	gens, err := LoadNPCGenerators(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]int{"Caveira": 132, "Urso_Zumbi": 285, "Arq_Caveira": 75}
+	got := map[string]int{}
+	for i, g := range gens {
+		x, y := g.SegX[0], g.SegY[0]
+		if _, ok := want[g.Leader]; !ok || x < 127 || x > 260 || y < 3700 || y > 3860 {
+			continue
+		}
+		got[g.Leader] += g.MaxNumMob
+		if g.Follower != g.Leader || g.MinGroup != g.MaxNumMob-1 || g.MaxGroup != g.MaxNumMob-1 {
+			t.Errorf("bloco %d (%s): max %d, grupo %d-%d, seguidor %q; want um grupo cheio do mesmo template",
+				i, g.Leader, g.MaxNumMob, g.MinGroup, g.MaxGroup, g.Follower)
+		}
+	}
+	for nome, n := range want {
+		if got[nome] != n {
+			t.Errorf("%s nas salas: %d, want %d", nome, got[nome], n)
+		}
+	}
+}

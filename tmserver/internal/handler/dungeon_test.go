@@ -220,3 +220,51 @@ func TestDungeonMigracaoApontaParaOQueExiste(t *testing.T) {
 		t.Errorf("Pedra de Dragão Lich no Dragão comum: %d (presente %v), want 0", got, ok)
 	}
 }
+
+// Um bloco das salas do 1º andar (0143) com grupo cheio levanta todos os bichos
+// numa chamada só — que é o que o boot faz uma vez por bloco. Com o grupo de 0
+// seguidores de antes, só um nasceria.
+func TestDungeonSalasBlocoNasceCheio(t *testing.T) {
+	w := world.New(world.Config{GridDim: 4096}, slog.New(slog.NewTextHandler(io.Discard, nil)), world.NopPersistence{}, nil)
+	g := geradorSozinho(10_000, 200)
+	g.LeaderName = "Urso_Zumbi"
+	g.LeaderTmpl = moldeDeMonstro("Urso_Zumbi", 10_000, 0)
+	g.FollowerTmpl = g.LeaderTmpl
+	g.MaxNumMob, g.MinGroup, g.MaxGroup = 5, 4, 4
+	g.SegRange[0] = 2
+	w.RegisterGenerators([]*world.Generator{30: g})
+	if got := len(w.GenerateMob(30)); got != 5 {
+		t.Fatalf("o bloco levantou %d, want 5 numa chamada", got)
+	}
+	if got := len(w.GenerateMob(30)); got != 0 {
+		t.Errorf("o bloco cheio levantou mais %d, want 0", got)
+	}
+}
+
+// A 0143 soma os três âmagos e o Resto de Ori nos três monstros das salas, e só
+// cita templates e itens que existem.
+func TestDungeonSalasMigracao(t *testing.T) {
+	root := releaseDir(t)
+	items, err := content.LoadItemList(filepath.Join(root, "Common", "ItemList.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	linhas := linhasComZero(t, "0143_dungeon_salas_amagos_e_restos.up.sql")
+	want := map[int16]int32{2392: 50, 2393: 50, 2394: 50, 419: 100}
+	for _, mob := range []string{"Caveira", "Urso_Zumbi", "Arq_Caveira"} {
+		if _, _, err := npctemplate.Load(root, mob); err != nil {
+			t.Errorf("%s: %v", mob, err)
+		}
+		for item, chance := range want {
+			if _, ok := items.Get(int(item)); !ok {
+				t.Errorf("item %d não existe no ItemList", item)
+			}
+			if got := linhas[mob][item]; got != chance {
+				t.Errorf("%s item %d a %d, want %d", mob, item, got, chance)
+			}
+		}
+		if len(linhas[mob]) != len(want) {
+			t.Errorf("%s com %d regras, want %d: a 0143 só soma, não tira", mob, len(linhas[mob]), len(want))
+		}
+	}
+}
