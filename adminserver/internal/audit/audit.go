@@ -105,11 +105,23 @@ const listLimit = 100
 
 // Record is one action to write, as the caller knows it.
 type Record struct {
+	// ActorID é a CONTA DE JOGO que agiu, pelo caminho de login antigo. Fica 0
+	// quando quem agiu é um usuário do painel — ver AtorPainelID.
 	ActorID   int64
 	ActorRole string // the role AT THE TIME of the action, not looked up later
 	Action    string
 	TargetID  int64 // 0 when the action has no target
 	Old, New  any   // marshalled to JSONB; nil writes SQL NULL
+
+	// AtorPainelID é o USUÁRIO DO PAINEL que agiu, quando o login veio pela tabela
+	// painel_usuario e não por uma conta de jogo com cargo (migração 0130).
+	//
+	// EXATAMENTE UM DOS DOIS tem de estar preenchido, e o banco tem um CHECK que
+	// garante isso. O motivo de ser trava de banco e não só de código: uma linha de
+	// auditoria sem ator é uma ação que aconteceu e que ninguém consegue atribuir a
+	// ninguém — numa tabela cuja única razão de existir é dizer QUEM fez, isso é
+	// pior do que a linha não existir.
+	AtorPainelID int64
 }
 
 // Entry is one row as the log page shows it, with names resolved.
@@ -151,11 +163,28 @@ func (s *Store) Write(ctx context.Context, r Record) error {
 		target = r.TargetID
 	}
 
+	// OS DOIS ATORES VIRAM NULO QUANDO SÃO ZERO, porque o CHECK do banco exige
+	// exatamente um preenchido. Mandar 0 em vez de NULL faria o insert falhar na
+	// chave estrangeira (não existe conta id 0) — o que é seguro, mas a mensagem
+	// falaria de conta inexistente em vez de ator faltando.
+	var ator, atorPainel any
+	if r.ActorID != 0 {
+		ator = r.ActorID
+	}
+	if r.AtorPainelID != 0 {
+		atorPainel = r.AtorPainelID
+	}
+	if (ator == nil) == (atorPainel == nil) {
+		return fmt.Errorf("audit: %s sem ator ou com dois: conta=%d painel=%d",
+			r.Action, r.ActorID, r.AtorPainelID)
+	}
+
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO admin_audit_log
-		    (actor_account_id, actor_role, action, target_account_id, old_value, new_value)
-		VALUES ($1, $2, $3, $4, $5, $6)`,
-		r.ActorID, r.ActorRole, r.Action, target, oldJSON, newJSON)
+		    (actor_account_id, actor_painel_usuario_id, actor_role, action,
+		     target_account_id, old_value, new_value)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		ator, atorPainel, r.ActorRole, r.Action, target, oldJSON, newJSON)
 	if err != nil {
 		return fmt.Errorf("audit: write %s: %w", r.Action, err)
 	}
