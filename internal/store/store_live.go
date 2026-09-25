@@ -53,6 +53,15 @@ type AccountAuth struct {
 	// login pelo mesmo motivo das carteiras: o tmServer não fala com o banco, e
 	// precisa do número para pôr a moldura no pacote que desenha o jogador.
 	PasseNivel int16
+	// DiscordID é o Discord vinculado à conta (0141), ou vazio quando não há.
+	//
+	// Vai na leitura do login porque a página do site precisa dele no MESMO instante
+	// em que precisa do papel, e uma segunda ida ao servidor por um campo seria uma
+	// ida a mais em todo login.
+	//
+	// DADO PESSOAL LEVE: não entra em log nosso. Quando algo der errado no vínculo, o
+	// log diz a CONTA e não o Discord.
+	DiscordID string
 }
 
 // AccountByName fetches the auth row for a canonical (lowercase) account name.
@@ -71,9 +80,10 @@ const BlockedNowSQL = `(is_blocked AND (blocked_until IS NULL OR blocked_until >
 func (s *Store) AccountByName(ctx context.Context, name string) (AccountAuth, error) {
 	var a AccountAuth
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, pass_hash, `+BlockedNowSQL+`, role, donate_balance, rmt_balance, passe_nivel
+		`SELECT id, pass_hash, `+BlockedNowSQL+`, role, donate_balance, rmt_balance, passe_nivel,
+		        COALESCE(discord_id, '')
 		   FROM account WHERE name = $1`, name).
-		Scan(&a.ID, &a.PassHash, &a.IsBlocked, &a.Role, &a.Cash, &a.Rmt, &a.PasseNivel)
+		Scan(&a.ID, &a.PassHash, &a.IsBlocked, &a.Role, &a.Cash, &a.Rmt, &a.PasseNivel, &a.DiscordID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AccountAuth{}, ErrNotFound
 	}

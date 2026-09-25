@@ -15,19 +15,28 @@ type fakeAccounts struct {
 	createID  int64
 	createErr error
 
-	verifyOK   bool
-	verifyID   int64
-	verifyBlk  bool
-	verifyRole string
-	verifyErr  error
+	verifyOK      bool
+	verifyDiscord string
+	discordConta  int64
+	discordID     string
+	discordErr    error
+	verifyID      int64
+	verifyBlk     bool
+	verifyRole    string
+	verifyErr     error
 }
 
 func (f *fakeAccounts) Create(context.Context, string, string, string) (account.CreateResult, int64, error) {
 	return f.createRes, f.createID, f.createErr
 }
 
-func (f *fakeAccounts) Verify(context.Context, string, string) (bool, int64, bool, string, error) {
-	return f.verifyOK, f.verifyID, f.verifyBlk, f.verifyRole, f.verifyErr
+func (f *fakeAccounts) Verify(context.Context, string, string) (bool, int64, bool, string, string, error) {
+	return f.verifyOK, f.verifyID, f.verifyBlk, f.verifyRole, f.verifyDiscord, f.verifyErr
+}
+
+func (f *fakeAccounts) VincularDiscord(_ context.Context, accountID int64, discordID string) error {
+	f.discordConta, f.discordID = accountID, discordID
+	return f.discordErr
 }
 
 func TestCreateAccountMapping(t *testing.T) {
