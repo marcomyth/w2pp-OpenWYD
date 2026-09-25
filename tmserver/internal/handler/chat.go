@@ -307,8 +307,16 @@ func (d *Dispatcher) runCommand(w *world.World, s *world.Session, name string, a
 		d.runGMCommand(w, s, args)
 		return true
 	}
+	// DENÚNCIA E SUPORTE SAÍRAM DO JOGO, por decisão da Hanna: passam a ser pelo Discord.
+	//
+	// O comando continua RESPONDENDO em vez de cair no "comando desconhecido", e isso é o
+	// ponto. Quem digitava /reportar tinha um problema agora; um silêncio, ou um "não
+	// existe", manda essa pessoa embora sem saber para onde ir. Ela lê onde pedir ajuda.
+	//
+	// Sem link na frase: texto de chat neste cliente não é clicável, então uma URL só
+	// ocuparia a linha com algo que ninguém consegue usar.
 	if cmd == "reportar" || cmd == "report" {
-		d.reportar(w, s, args)
+		sendClientMessage(w, s, msgSuportePeloDiscord)
 		return true
 	}
 	if cmd == "nick" {

@@ -254,6 +254,8 @@ func run(logger *slog.Logger) error {
 		// deixar isto opcional só criaria um jeito de subir o painel sem a tela que a
 		// Hanna pediu.
 		Painel: store.New(pool),
+		// O contador das quatro filas, para o distintivo do menu.
+		FilasDeDinheiro: store.New(pool),
 		// SoUsuarioDoPainel desliga o login por conta de jogo com cargo. A Hanna liga
 		// quando tiver criado os usuários dela; ligar antes trancaria para fora a única
 		// pessoa que poderia criá-los.
@@ -271,7 +273,6 @@ func run(logger *slog.Logger) error {
 		BonusDrop:         store.New(pool),
 		Maquinas:          store.New(pool),
 		MesaDrops:         store.New(pool),
-		Denuncias:         store.New(pool),
 		Repasses:          store.New(pool),
 		FilasRMT:          store.New(pool),
 		Passe:             store.New(pool),

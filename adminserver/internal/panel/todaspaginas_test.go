@@ -68,7 +68,6 @@ func painelCompleto(t *testing.T) http.Handler {
 		Audit:       aud,
 		Personagens: &fakePersonagensSlot{fichas: map[int]personagem.Ficha{0: {AccountID: 7, Slot: 0}}},
 		Eventos:     &fakeEventos{cfg: chuvaViva()},
-		Denuncias:   &fakeDenuncias{},
 		Repasses:    &fakeRepasses{fila: umaFilaDeRepasse()},
 		FilasRMT:    novoFakeFilas(),
 		Guildas: &fakeGuildas{
@@ -125,8 +124,6 @@ func TestTodaPaginaRenderiza(t *testing.T) {
 		"/contas/ana/personagens/0",
 		"/auditoria",
 		"/auditoria?pagina=2",
-		"/denuncias",
-		"/denuncias?todas=1",
 		"/repasses",
 		"/orfaos",
 		"/reembolsos",
@@ -156,7 +153,6 @@ func TestTodaPaginaRenderiza(t *testing.T) {
 		"/rates/maquinas",
 		"/rates/combate",
 		"/masmorras",
-		"/auditoria/xp",
 		"/eventos",
 		"/mapas-evento",
 		"/servidor",
@@ -213,7 +209,7 @@ func TestTodaPaginaRenderizaSemAsOpcionais(t *testing.T) {
 	// And what must be a clean 404 rather than a crash.
 	opcionais := []string{
 		"/trocas", "/censo", "/chat", "/servidor", "/mapa", "/eventos", "/blocos",
-		"/denuncias", "/repasses", "/orfaos", "/reembolsos", "/divergentes",
+		"/repasses", "/orfaos", "/reembolsos", "/divergentes",
 		"/guildas", "/rates/xp", "/rates/montarias",
 		"/itens", "/npcs", "/monstros", "/drops",
 		"/contas/ana/donate", "/contas/ana/personagens/0",
@@ -275,7 +271,6 @@ func TestTodoPostExigeCSRF(t *testing.T) {
 		{"/contas/ana/entregas/1/cancelar", url.Values{}},
 		{"/contas/ana/personagens/0/atributos", url.Values{"forca": {"10"}}},
 		{"/contas/ana/personagens/0/slot", url.Values{"destino": {"carry"}, "slot": {"0"}}},
-		{"/denuncias/1/tratar", url.Values{}},
 		{"/eventos", url.Values{"torre_hora": {"20"}}},
 		{"/itens/1415/preco", url.Values{"preco": {"100"}}},
 		{"/itens/1415/atributos", url.Values{}},

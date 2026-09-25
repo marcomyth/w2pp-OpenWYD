@@ -114,7 +114,7 @@ func abrirMesa(t *testing.T, h http.Handler, query string) *httptest.ResponseRec
 	if c == nil {
 		t.Fatal("o login não devolveu cookie")
 	}
-	req := httptest.NewRequest(http.MethodGet, "/auditoria/xp"+query, nil)
+	req := httptest.NewRequest(http.MethodGet, "/rates/xp"+query, nil)
 	req.AddCookie(c)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -346,7 +346,7 @@ func TestLimparVoltaAoLegadoEAudita(t *testing.T) {
 	h := newTestPanelMesa(t, roleAdmin, mesa, log)
 	post, token := signedInPost(t, h)
 
-	if rec := post("/auditoria/xp/limpar", url.Values{
+	if rec := post("/rates/xp/limpar", url.Values{
 		"csrf": {token}, "zona": {"0"}, "evolucao": {"2"},
 	}); rec.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d", rec.Code)
@@ -1332,5 +1332,44 @@ func TestTabelaCelestialAntigaApareceMarcada(t *testing.T) {
 	}
 	if strings.Contains(corpo, `value="-281"`) {
 		t.Errorf("a tela mostrou o número negativo da tradução")
+	}
+}
+
+// O ENDEREÇO ANTIGO DA MESA REDIRECIONA, e não serve uma segunda cópia da tela.
+//
+// /auditoria/xp era a Mesa registrada DUAS vezes, com os mesmos cinco handlers em dois
+// caminhos. Duas cópias de uma tela de balanceamento é como uma ganha um conserto e a
+// outra não — e quem abrir a errada vai jurar que o conserto não foi feito.
+//
+// Só a LEITURA redireciona. Os quatro POST antigos foram removidos em vez de
+// redirecionados: um 302 num POST vira GET no navegador e o formulário se perde CALADO —
+// a pessoa clicaria em "limpar" e nada aconteceria, sem erro nenhum. 404 é alto, e alto é
+// o que se quer quando um endereço de ESCRITA morre.
+func TestOEnderecoAntigoDaMesaRedireciona(t *testing.T) {
+	h := newTestPanelMesa(t, roleAdmin, newFakeMesa(), newFakeAudit())
+	c := sessionCookie(postLogin(h, "chefe", testPassword))
+	if c == nil {
+		t.Fatal("o login não devolveu cookie")
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/auditoria/xp", nil)
+	req.AddCookie(c)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusMovedPermanently {
+		t.Errorf("codigo = %d, queria 301", rec.Code)
+	}
+	if destino := rec.Header().Get("Location"); destino != "/rates/xp" {
+		t.Errorf("destino = %q, queria /rates/xp", destino)
+	}
+
+	// E O POST ANTIGO MORREU ALTO. Um 303 aqui significaria que ele virou GET e o
+	// formulário sumiu sem aviso.
+	post, token := signedInPost(t, h)
+	if rec := post("/auditoria/xp/limpar", url.Values{
+		"csrf": {token}, "zona": {"0"}, "evolucao": {"2"},
+	}); rec.Code != http.StatusNotFound {
+		t.Errorf("POST antigo = %d, queria 404: redirecionar escrita perde o formulario calado", rec.Code)
 	}
 }

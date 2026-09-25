@@ -2,17 +2,14 @@ package handler
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"net"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -36,24 +33,20 @@ func (r *reportDB) RecordReport(_ context.Context, rep world.PlayerReport) error
 	return nil
 }
 
-// esperaDenuncias waits briefly for the detached write to land, the way
-// fakeDB.lastTrade does: the report is filed off the loop, so asserting
-// immediately would race the goroutine rather than the behavior.
-func (r *reportDB) esperaDenuncias(t *testing.T, quantas int) []world.PlayerReport {
-	t.Helper()
-	prazo := time.Now().Add(2 * time.Second)
-	for {
-		r.mu.Lock()
-		n := len(r.feitos)
-		if n >= quantas || time.Now().After(prazo) {
-			out := make([]world.PlayerReport, n)
-			copy(out, r.feitos)
-			r.mu.Unlock()
-			return out
-		}
-		r.mu.Unlock()
-		time.Sleep(10 * time.Millisecond)
-	}
+// recebidas diz quantas denúncias chegaram ao banco, dando um instante para uma escrita
+// fora do laço aparecer.
+//
+// A ESPERA EXISTE PARA O TESTE PODER FALHAR. A gravação antiga era feita fora do laço do
+// mundo, então ler na hora daria zero mesmo se alguém religasse o caminho — o teste
+// passaria dizendo "não grava" sem ter medido nada. Esperar um pouco é o que torna o zero
+// uma afirmação.
+func (r *reportDB) recebidas() []world.PlayerReport {
+	time.Sleep(150 * time.Millisecond)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]world.PlayerReport, len(r.feitos))
+	copy(out, r.feitos)
+	return out
 }
 
 // startServerReport is startServerClock with a clock the test can move.
@@ -85,169 +78,33 @@ func startServerReport(t *testing.T, persist world.Persistence, agora *atomic.In
 	}
 }
 
-func TestReportarGuardaOMomento(t *testing.T) {
-	// The whole point: staff gets the server's own answer to "what was going on"
-	// instead of a screenshot and a story.
-	db := newReportDB()
-	agora := &atomic.Int64{}
-	addr, stop := startServerReport(t, db, agora)
-	defer stop()
-	a := enterWorldAs(t, addr, "tester")
-	defer a.Close()
+// O /REPORTAR MANDA PARA O DISCORD, e não grava mais nada.
+//
+// Denúncia e suporte saíram do jogo em 25/09/2026. O comando continua RESPONDENDO em vez
+// de cair no "comando desconhecido": quem digitava tinha um problema NAQUELE momento, e um
+// silêncio manda essa pessoa embora sem saber para onde ir.
+//
+// A metade que vale mais é a segunda: NADA é gravado. O caminho de gravação continua de pé
+// no dbclient e no store — tirá-lo exigiria mexer no .proto e quebrar o build do par do
+// site —, e é justamente por ele existir sem ninguém chamar que este teste precisa afirmar
+// que ninguém chama. Sem isso, uma religação acidental voltaria a enfileirar denúncia numa
+// tela que não existe mais, e ninguém descobriria.
+func TestReportarMandaParaODiscordENaoGravaNada(t *testing.T) {
+	for _, cmd := range []string{"reportar", "report"} {
+		db := newReportDB()
+		agora := &atomic.Int64{}
+		addr, stop := startServerReport(t, db, agora)
+		a := enterWorldAs(t, addr, "tester")
 
-	whisperFrame(t, a, "reportar", "o cara ali esta usando bot")
+		whisperFrame(t, a, cmd, "alguem esta usando bot aqui")
 
-	feitos := db.esperaDenuncias(t, 1)
-	if len(feitos) != 1 {
-		t.Fatalf("denúncias = %d, want 1", len(feitos))
-	}
-	r := feitos[0]
-	if r.Text != "o cara ali esta usando bot" {
-		t.Errorf("texto = %q", r.Text)
-	}
-	if r.Character != "Hero" {
-		t.Errorf("personagem = %q, want Hero", r.Character)
-	}
-	// Without the position the report is "somewhere on the map".
-	if r.X != 5 || r.Y != 5 {
-		t.Errorf("posição = %d,%d, want 5,5", r.X, r.Y)
-	}
-	if r.Account == "" {
-		t.Error("a denúncia não sabe de qual conta veio")
-	}
-}
-
-func TestReportarAvisaOJogador(t *testing.T) {
-	// The player asked for help; the answer must not wait on Postgres. Here the
-	// write fails on purpose and the player is told it went in anyway — a failed
-	// write is ours to see in the log, not theirs to read on screen.
-	db := newReportDB()
-	db.erro = errors.New("falha de teste")
-	agora := &atomic.Int64{}
-	addr, stop := startServerReport(t, db, agora)
-	defer stop()
-	a := enterWorldAs(t, addr, "tester")
-	defer a.Close()
-
-	whisperFrame(t, a, "reportar", "o banco vai falhar")
-	ty, payload, ok := readMaybe(t, a)
-	if !ok || ty != protocol.MsgMessageChat {
-		t.Fatalf("got %#x ok=%v, want MessageChat", ty, ok)
-	}
-	if !strings.Contains(string(payload), "Reportado") {
-		t.Errorf("resposta = %q, want confirmando", payload)
-	}
-}
-
-func TestReportarSemTextoEnsinaOComando(t *testing.T) {
-	// A bare /reportar is somebody who does not know the syntax, not a complaint.
-	// Filing it would put a blank row at the top of the queue.
-	db := newReportDB()
-	agora := &atomic.Int64{}
-	addr, stop := startServerReport(t, db, agora)
-	defer stop()
-	a := enterWorldAs(t, addr, "tester")
-	defer a.Close()
-
-	whisperFrame(t, a, "reportar", "")
-	ty, payload, ok := readMaybe(t, a)
-	if !ok || ty != protocol.MsgMessageChat {
-		t.Fatalf("got %#x ok=%v, want MessageChat", ty, ok)
-	}
-	if !strings.Contains(string(payload), "Escreva o que houve") {
-		t.Errorf("resposta = %q, want ensinando a usar", payload)
-	}
-	if n := len(db.esperaDenuncias(t, 0)); n != 0 {
-		t.Errorf("denúncias = %d, want 0", n)
-	}
-}
-
-func TestReportarTemEsperaEntreUmEOutro(t *testing.T) {
-	// Without this one annoyed player writes hundreds of rows in a minute and
-	// buries the queue — the tool for handling grief becomes what is griefed.
-	db := newReportDB()
-	agora := &atomic.Int64{}
-	addr, stop := startServerReport(t, db, agora)
-	defer stop()
-	a := enterWorldAs(t, addr, "tester")
-	defer a.Close()
-
-	whisperFrame(t, a, "reportar", "primeira")
-	if _, _, ok := readMaybe(t, a); !ok {
-		t.Fatal("sem resposta da primeira")
-	}
-	whisperFrame(t, a, "reportar", "segunda, logo em seguida")
-	ty, payload, ok := readMaybe(t, a)
-	if !ok || ty != protocol.MsgMessageChat {
-		t.Fatalf("got %#x ok=%v, want MessageChat", ty, ok)
-	}
-	if !strings.Contains(string(payload), "Espere") {
-		t.Errorf("resposta = %q, want avisando da espera", payload)
-	}
-	if n := len(db.esperaDenuncias(t, 2)); n != 1 {
-		t.Errorf("denúncias = %d, want 1 — a segunda passou pela espera", n)
-	}
-}
-
-func TestDepoisDaEsperaReportaDeNovo(t *testing.T) {
-	// The gate must not block somebody who genuinely has a second problem.
-	db := newReportDB()
-	agora := &atomic.Int64{}
-	addr, stop := startServerReport(t, db, agora)
-	defer stop()
-	a := enterWorldAs(t, addr, "tester")
-	defer a.Close()
-
-	whisperFrame(t, a, "reportar", "primeira")
-	if _, _, ok := readMaybe(t, a); !ok {
-		t.Fatal("sem resposta da primeira")
-	}
-	agora.Store(int64(reportEspera/time.Second) + 1)
-
-	whisperFrame(t, a, "reportar", "segunda, bem depois")
-	if _, _, ok := readMaybe(t, a); !ok {
-		t.Fatal("sem resposta da segunda")
-	}
-	if n := len(db.esperaDenuncias(t, 2)); n != 2 {
-		t.Errorf("denúncias = %d, want 2 — a espera prendeu quem tinha outro problema", n)
-	}
-}
-
-func TestReportarVeQuemEstaPorPerto(t *testing.T) {
-	// The bystander list is what turns "somebody here is botting" into something
-	// checkable. Names only — no positions, no accounts.
-	db := newReportDB()
-	agora := &atomic.Int64{}
-	addr, stop := startServerReport(t, db, agora)
-	defer stop()
-	a := enterWorldAs(t, addr, "tester")
-	defer a.Close()
-	b := enterWorldAs(t, addr, "tradeb")
-	defer b.Close()
-
-	whisperFrame(t, a, "reportar", "esse ai do lado")
-
-	feitos := db.esperaDenuncias(t, 1)
-	if len(feitos) != 1 {
-		t.Fatalf("denúncias = %d, want 1", len(feitos))
-	}
-	if len(feitos[0].Nearby) == 0 {
-		t.Fatal("ninguém por perto, com outro jogador no mesmo lugar")
-	}
-	achou := false
-	for _, n := range feitos[0].Nearby {
-		if n == "HeroB" {
-			achou = true
+		if !recebeu(t, a, msgSuportePeloDiscord) {
+			t.Errorf("/%s: o jogador nao leu para onde ir", cmd)
 		}
-	}
-	if !achou {
-		t.Errorf("por perto = %v, want incluindo HeroB", feitos[0].Nearby)
-	}
-	// The reporter is not in their own bystander list: ForEachInView excludes the
-	// source, and a report that named its own author would read as two people.
-	for _, n := range feitos[0].Nearby {
-		if n == "Hero" {
-			t.Error("o próprio denunciante entrou na lista de quem estava por perto")
+		if n := len(db.recebidas()); n != 0 {
+			t.Errorf("/%s: gravou %d denuncia(s); o caminho devia estar desligado", cmd, n)
 		}
+		a.Close()
+		stop()
 	}
 }
