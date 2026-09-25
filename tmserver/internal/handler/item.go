@@ -2216,30 +2216,27 @@ func (d *Dispatcher) useIdealStone(w *world.World, s *world.Session, e *world.En
 	staged := *e
 	d.buildCelestialSnapshot(&staged, src)
 	save := w.CharacterSaveFor(s, &staged)
-	p := w.Persistence()
 	s.Mode = world.UserWaitDB
-	w.Go(s, func() func(*world.World, *world.Session) {
-		err := p.SaveOnShutdown(context.Background(), save)
-		return func(w *world.World, s *world.Session) {
-			if err != nil {
-				s.Mode = world.UserPlay
-				d.log.Warn("celestial save failed", "conn", s.Conn, "name", e.Name, "err", err)
-				d.notify(w, s, NoticeDBError)
-				d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
-				return
-			}
-			*e = staged
+	// A carga vai junto: ver SalvarEncenadoComCarga.
+	w.SalvarEncenadoComCarga(s, save, func(w *world.World, s *world.Session, err error) {
+		if err != nil {
+			s.Mode = world.UserPlay
+			d.log.Warn("celestial save failed", "conn", s.Conn, "name", e.Name, "err", err)
+			d.notify(w, s, NoticeDBError)
 			d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
-			d.sendSlot(w, s, world.ItemPlaceEquip, 1, e.Equip[1])
-			d.sendSlot(w, s, world.ItemPlaceEquip, capeEquipSlot, e.Equip[capeEquipSlot])
-			d.sendScore(w, s, e)
-			d.sendEtc(w, s, e)
-			d.returnPersistedCharacterToSelection(w, s, func(w *world.World, s *world.Session) {
-				w.SendTo(s, protocol.Header{Type: protocol.MsgSendArchEffect, ID: protocol.IDScene}, protocol.EncodeStandardParm(int32(s.Slot)))
-			})
-			d.log.Info("celestial created", "conn", s.Conn, "name", e.Name)
-			d.announceCelestial(w, e.Name)
+			return
 		}
+		*e = staged
+		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+		d.sendSlot(w, s, world.ItemPlaceEquip, 1, e.Equip[1])
+		d.sendSlot(w, s, world.ItemPlaceEquip, capeEquipSlot, e.Equip[capeEquipSlot])
+		d.sendScore(w, s, e)
+		d.sendEtc(w, s, e)
+		d.returnPersistedCharacterToSelection(w, s, func(w *world.World, s *world.Session) {
+			w.SendTo(s, protocol.Header{Type: protocol.MsgSendArchEffect, ID: protocol.IDScene}, protocol.EncodeStandardParm(int32(s.Slot)))
+		})
+		d.log.Info("celestial created", "conn", s.Conn, "name", e.Name)
+		d.announceCelestial(w, e.Name)
 	})
 }
 

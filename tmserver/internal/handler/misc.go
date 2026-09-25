@@ -768,25 +768,25 @@ func (d *Dispatcher) completeKingArch(w *world.World, s *world.Session, archSlot
 		w.SendTo(vs, protocol.Header{Type: protocol.MsgRemoveMob, ID: uint16(s.Conn)}, body)
 	})
 
+	// Um save só: o SaveCharacterThen grava personagem e carga na mesma transação.
+	// Eram dois aninhados, e entre os dois cabia a queda que duplicava.
 	w.SaveCharacterThen(s, func(w *world.World, s *world.Session) {
-		w.SaveCargoThen(s, func(w *world.World, s *world.Session) {
-			if e := w.Entity(s.Conn); e != nil {
-				e.Mode = world.MobUserDock
-				e.ResetAffects()
-			}
-			s.Mode = world.UserSelChar
-			w.Send(s, protocol.MsgCNFCharacterLogout, nil)
-			if listErr == nil {
-				w.SendTo(s, protocol.Header{Type: protocol.MsgCNFNewCharacter, ID: protocol.IDNewCharacter},
-					protocol.EncodeCNFNewCharacterBody(d.selCharsFrom(chars)))
-			}
-			w.SendTo(s, protocol.Header{Type: protocol.MsgSendArchEffect, ID: protocol.IDScene},
-				protocol.EncodeStandardParm(int32(archSlot)))
-			// Announced with the MORTAL's name: the Arch is a new character the
-			// player has not named yet, and the name everyone recognises is the one
-			// that just spent 299 levels getting here.
-			d.announceArch(w, mortalName)
-		})
+		if e := w.Entity(s.Conn); e != nil {
+			e.Mode = world.MobUserDock
+			e.ResetAffects()
+		}
+		s.Mode = world.UserSelChar
+		w.Send(s, protocol.MsgCNFCharacterLogout, nil)
+		if listErr == nil {
+			w.SendTo(s, protocol.Header{Type: protocol.MsgCNFNewCharacter, ID: protocol.IDNewCharacter},
+				protocol.EncodeCNFNewCharacterBody(d.selCharsFrom(chars)))
+		}
+		w.SendTo(s, protocol.Header{Type: protocol.MsgSendArchEffect, ID: protocol.IDScene},
+			protocol.EncodeStandardParm(int32(archSlot)))
+		// Announced with the MORTAL's name: the Arch is a new character the
+		// player has not named yet, and the name everyone recognises is the one
+		// that just spent 299 levels getting here.
+		d.announceArch(w, mortalName)
 	})
 }
 

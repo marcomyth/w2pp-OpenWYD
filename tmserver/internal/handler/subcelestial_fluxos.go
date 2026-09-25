@@ -1,8 +1,6 @@
 package handler
 
 import (
-	"context"
-
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -181,26 +179,23 @@ func (d *Dispatcher) usePedraMisteriosa(w *world.World, s *world.Session, e *wor
 // para magia que o personagem nao tem faz o servidor contar peso de trapaca.
 func (d *Dispatcher) persisteTrocaDeVidaComBarra(w *world.World, s *world.Session, e *world.Entity, src int, staged world.Entity, motivo string, barraDeVolta [16]uint8) {
 	save := w.CharacterSaveFor(s, &staged)
-	p := w.Persistence()
 	s.Mode = world.UserWaitDB
-	w.Go(s, func() func(*world.World, *world.Session) {
-		err := p.SaveOnShutdown(context.Background(), save)
-		return func(w *world.World, s *world.Session) {
-			if err != nil {
-				s.Mode = world.UserPlay
-				s.ShortSkill = barraDeVolta
-				d.log.Warn("sub celestial save failed", "conn", s.Conn, "name", e.Name, "err", err)
-				d.notify(w, s, NoticeDBError)
-				d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
-				return
-			}
-			*e = staged
+	// A carga vai junto, na mesma transacao: ver SalvarEncenadoComCarga.
+	w.SalvarEncenadoComCarga(s, save, func(w *world.World, s *world.Session, err error) {
+		if err != nil {
+			s.Mode = world.UserPlay
+			s.ShortSkill = barraDeVolta
+			d.log.Warn("sub celestial save failed", "conn", s.Conn, "name", e.Name, "err", err)
+			d.notify(w, s, NoticeDBError)
 			d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
-			d.sendScore(w, s, e)
-			d.sendEtc(w, s, e)
-			d.returnPersistedCharacterToSelection(w, s, nil)
-			d.log.Info(motivo, "conn", s.Conn, "name", e.Name,
-				"nivel_ativo", e.Level, "nivel_guardado", e.SubCelestialLevel, "ativo", e.SubCelestialAtivo)
+			return
 		}
+		*e = staged
+		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+		d.sendScore(w, s, e)
+		d.sendEtc(w, s, e)
+		d.returnPersistedCharacterToSelection(w, s, nil)
+		d.log.Info(motivo, "conn", s.Conn, "name", e.Name,
+			"nivel_ativo", e.Level, "nivel_guardado", e.SubCelestialLevel, "ativo", e.SubCelestialAtivo)
 	})
 }

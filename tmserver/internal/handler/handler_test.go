@@ -77,17 +77,20 @@ type fakeDB struct {
 	pinSetOK     bool            // SetPin ok flag
 	pinSets      []string        // captured SetPin plaintext (test-only; prod never stores plaintext)
 
-	mu            sync.Mutex
-	pontosLojinha int32                 // carteira de pontos de lojinha (ver lojapontos_test.go)
-	savedChars    []world.CharacterSave // captured SaveOnShutdown calls
-	saveErr       error                 // one-shot injected character-save failure
-	savedCargos   []world.CargoSave     // captured SaveCargo calls
-	drainSaves    []drainSave           // captured SaveCargoWithDeliveries calls
-	blockedNames  map[string]bool       // captured SetAccountBlocked calls (GM ban/unban)
-	presence      map[string]bool       // captured SetCharacterPresence calls
-	duelResults   []duelResult          // captured RecordDuelResult calls (issue #118)
-	trades        []world.TradeRecord   // captured RecordTrade calls (0025_trade_log)
-	grounds       []world.GroundEvent   // captured RecordGround calls (0031_ground_log)
+	mu                sync.Mutex
+	pontosLojinha     int32                 // carteira de pontos de lojinha (ver lojapontos_test.go)
+	savedChars        []world.CharacterSave // captured SaveOnShutdown calls
+	saveErr           error                 // one-shot injected character-save failure
+	savedCargos       []world.CargoSave     // captured SaveCargo calls
+	paresSalvos       int                   // quantas vezes personagem e carga foram na MESMA transação
+	personagemSozinho int                   // gravações só do personagem
+	cargaSozinha      int                   // gravações só da carga
+	drainSaves        []drainSave           // captured SaveCargoWithDeliveries calls
+	blockedNames      map[string]bool       // captured SetAccountBlocked calls (GM ban/unban)
+	presence          map[string]bool       // captured SetCharacterPresence calls
+	duelResults       []duelResult          // captured RecordDuelResult calls (issue #118)
+	trades            []world.TradeRecord   // captured RecordTrade calls (0025_trade_log)
+	grounds           []world.GroundEvent   // captured RecordGround calls (0031_ground_log)
 
 	createdGuilds            []world.GuildRecord
 	recusaDeGuilda           world.GuildRefusal
@@ -135,6 +138,7 @@ func (f *fakeDB) SaveOnShutdown(_ context.Context, save world.CharacterSave) err
 		return err
 	}
 	f.savedChars = append(f.savedChars, save)
+	f.personagemSozinho++
 	return nil
 }
 
@@ -142,6 +146,31 @@ func (f *fakeDB) SaveCargo(_ context.Context, save world.CargoSave) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.savedCargos = append(f.savedCargos, save)
+	f.cargaSozinha++
+	return nil
+}
+
+// SalvarPersonagemComCarga registra as DUAS metades na mesma chamada.
+//
+// ELE PRECISA EXISTIR AQUI, e não cair no NopPersistence embutido: com o no-op, um
+// save que passou a ir pelo par sumiria dos dois contadores e todo teste que
+// confere gravação passaria sem gravar nada — verde por ausência.
+func (f *fakeDB) SalvarPersonagemComCarga(_ context.Context, personagem world.CharacterSave,
+	carga world.CargoSave, deliveredIDs, lostIDs []int64,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.saveErr != nil {
+		err := f.saveErr
+		f.saveErr = nil
+		return err
+	}
+	f.savedChars = append(f.savedChars, personagem)
+	f.savedCargos = append(f.savedCargos, carga)
+	f.paresSalvos++
+	if len(deliveredIDs) > 0 || len(lostIDs) > 0 {
+		f.drainSaves = append(f.drainSaves, drainSave{save: carga, delivered: deliveredIDs, lost: lostIDs})
+	}
 	return nil
 }
 
@@ -403,6 +432,8 @@ func (f *fakeDB) SaveCargoWithDeliveries(_ context.Context, save world.CargoSave
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.drainSaves = append(f.drainSaves, drainSave{save: save, delivered: deliveredIDs, lost: lostIDs})
+	f.savedCargos = append(f.savedCargos, save)
+	f.cargaSozinha++
 	return nil
 }
 

@@ -411,14 +411,17 @@ func (s *Store) DeleteCharacter(ctx context.Context, accountID int64, slot int) 
 // skill_bonus is also untouched: the tmServer re-derives it at login
 // (BASE_GetBonusSkillPoint) instead of trusting the stored value.
 func (s *Store) SaveCharacter(ctx context.Context, accountID int64, ch domain.Character) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("store: begin save character: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		return salvarPersonagemTx(ctx, tx, accountID, ch)
+	})
+}
 
+// salvarPersonagemTx é o corpo do SaveCharacter dentro de uma transação que já
+// existe. Ele foi separado para que o personagem e a carga possam ir ao banco
+// JUNTOS, na MESMA transação — ver SalvarPersonagemComCarga.
+func salvarPersonagemTx(ctx context.Context, tx pgx.Tx, accountID int64, ch domain.Character) error {
 	var charID int64
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		UPDATE character SET
 			clan=$3, guild_id=$4, guild_level=$5, level=$6, coin=$7,
 			str=$8, int=$9, dex=$10, con=$11, hp=$12, max_hp=$13, last_city=$14, exp=$15,
@@ -494,9 +497,6 @@ func (s *Store) SaveCharacter(ctx context.Context, accountID int64, ch domain.Ch
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("store: commit save character %q: %w", ch.Name, err)
-	}
 	return nil
 }
 
@@ -551,32 +551,9 @@ func (s *Store) loadAccountItems(ctx context.Context, accountID int64, kind stri
 // and the new set re-inserted in one transaction). A missing account returns
 // ErrNotFound.
 func (s *Store) SaveCargo(ctx context.Context, accountID int64, coin int32, items []domain.Item) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("store: begin save cargo: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	tag, err := tx.Exec(ctx, `UPDATE account SET cargo_coin = $2 WHERE id = $1`, accountID, coin)
-	if err != nil {
-		return fmt.Errorf("store: update cargo coin a=%d: %w", accountID, err)
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	if _, err := tx.Exec(ctx,
-		`DELETE FROM item WHERE account_id = $1 AND owner_kind = 'account_cargo'`, accountID); err != nil {
-		return fmt.Errorf("store: clear cargo items a=%d: %w", accountID, err)
-	}
-	for _, it := range items {
-		if err := insertItem(ctx, tx, "account_cargo", &accountID, nil, it); err != nil {
-			return err
-		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("store: commit save cargo a=%d: %w", accountID, err)
-	}
-	return nil
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		return salvarCargaTx(ctx, tx, accountID, coin, items, nil, nil)
+	})
 }
 
 // int16ArrToByteArr narrows a smallint[] column back into a fixed byte array,

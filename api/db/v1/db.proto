@@ -21,6 +21,13 @@ service AccountService {
   rpc LoadCharacter(LoadCharacterRequest) returns (LoadCharacterResponse);
   // SaveCharacter persists one character's state (_MSG_DBSaveMob / SavingQuit).
   rpc SaveCharacter(SaveCharacterRequest) returns (SaveCharacterResponse);
+  // SalvarPersonagemComCarga grava o personagem E a carga da conta na MESMA
+  // transacao. Enquanto a conta tem personagem em jogo, e este o unico caminho de
+  // gravacao dos dois: o ouro e os itens andam entre a mochila e a carga, e duas
+  // transacoes separadas deixam uma janela em que uma queda faz a mesma coisa
+  // existir nos dois lados. Nao ha ordem segura entre duas transacoes; a cura e
+  // nao ter duas.
+  rpc SalvarPersonagemComCarga(SalvarPersonagemComCargaRequest) returns (SaveCharacterResponse);
   rpc QuoteKingdomCape(QuoteKingdomCapeRequest) returns (QuoteKingdomCapeResponse);
   rpc PurchaseKingdomCape(PurchaseKingdomCapeRequest) returns (PurchaseKingdomCapeResponse);
   // TransferPlayerBalance moves Cash or RMT between two accounts in one
@@ -489,6 +496,15 @@ message SaveCharacterRequest {
   Character character = 2;
 }
 message SaveCharacterResponse { bool ok = 1; }
+
+message SalvarPersonagemComCargaRequest {
+  int64 account_id = 1;
+  Character character = 2;
+  int32 cargo_coin = 3;
+  repeated Item cargo_items = 4;
+  repeated int64 delivered_ids = 5; // entregas aplicadas nesta carga
+  repeated int64 lost_ids = 6;      // entregas descartadas (a carga estava cheia)
+}
 
 message QuoteKingdomCapeRequest {}
 message QuoteKingdomCapeResponse {
