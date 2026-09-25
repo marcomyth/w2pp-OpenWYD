@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -121,6 +122,21 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 		// consertar — separando a pilha — e ele está na frente da tela agora.
 		if p.Moeda == protocol.LojaMoedaRMT && itemAmount(item) > 1 {
 			sendClientMessage(w, s, msgPilhaNaoVaiRMT)
+			return
+		}
+		// O PREÇO MÍNIMO EM DINHEIRO REAL, decisão da Hanna de 24/09/2026.
+		//
+		// Um centavo não é preço: a processadora cobra taxa por cobrança, então um
+		// item de R$ 0,01 custa mais para vender do que rende, e o repasse ao
+		// vendedor sairia negativo. O cliente novo também trava abaixo disso, mas
+		// QUEM MANDA É O SERVIDOR — um cliente remendado não pode criar anúncio de
+		// um centavo.
+		//
+		// A recusa é AQUI, na montagem, pelo mesmo motivo da pilha: é o vendedor que
+		// pode consertar, e ele está na frente da tela agora. Recusar só na compra
+		// puniria o comprador por um preço que ele não escolheu.
+		if p.Moeda == protocol.LojaMoedaRMT && int64(p.Preco) < store.PrecoMinimoRMTCentavos {
+			sendClientMessage(w, s, msgPrecoMinimoRMT)
 			return
 		}
 		// A RECONCILIAÇÃO DO LOGIN AINDA ESTÁ NO BANCO.
@@ -378,6 +394,12 @@ func (d *Dispatcher) sobeBarraca(w *world.World, s *world.Session, e *world.Enti
 
 // msgPilhaNaoVaiRMT é o que o vendedor lê quando põe uma pilha à venda por
 // dinheiro real. Diz o que fazer, e não só que não deu.
+// msgPrecoMinimoRMT é a recusa do preço abaixo do mínimo.
+//
+// Diz o VALOR, e não só "muito baixo": o vendedor precisa saber para quanto subir, e
+// uma recusa que não diz o número obriga a tentativa e erro.
+const msgPrecoMinimoRMT = "O preço mínimo em dinheiro real é R$ 1,00."
+
 const msgPilhaNaoVaiRMT = "Pilha não pode ser vendida por dinheiro real. Separe uma unidade e anuncie ela."
 
 // msgSemChavePix é a terceira recusa do dinheiro real, e a que o vendedor

@@ -11,6 +11,7 @@ import (
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ponte"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/rmtpagamento"
 )
 
@@ -34,6 +35,10 @@ type ChavesPix interface {
 	// onde vive a trava contra duas abas criarem duas cobranças.
 	CriarPixSeFaltar(ctx context.Context, cobrancaID int64, minimoRestante time.Duration,
 		criar store.CriadorDePix) (store.PixDaCobranca, error)
+	// FecharCobrancaPorRecusaDefinitiva encerra a cobrança que a processadora
+	// recusou de um jeito que não muda tentando de novo. Ver
+	// store/pix_da_cobranca.go.
+	FecharCobrancaPorRecusaDefinitiva(ctx context.Context, cobrancaID int64) (bool, error)
 }
 
 // MinimoParaCriarPix é quanto prazo tem de sobrar para valer a pena criar o código.
@@ -326,6 +331,36 @@ func (s *ServerRmt) GetMyCurrentPixCharge(ctx context.Context, req *webv1.GetMyC
 
 		pix, err := s.pix.CriarPixSeFaltar(ctxCriar, cob.CobrancaID, MinimoParaCriarPix, criar)
 		switch {
+		case recusaDefinitiva(err):
+			// RECUSA QUE NÃO MUDA TENTANDO DE NOVO. É a diferença que faltava aqui, e
+			// a falta dela virou defeito de produção em 24/09/2026: a referência saía
+			// num formato que a ponte não aceita, e o servidor repetiu a MESMA chamada
+			// recusada a cada cinco segundos, indefinidamente. Do lado do jogador,
+			// "gerando o código" para sempre.
+			//
+			// Fechar é seguro porque NENHUM CÓDIGO FOI CRIADO: sem código não há o que
+			// pagar, então não existe dinheiro a caminho que este fechamento perca.
+			fechou, errFechar := s.pix.FecharCobrancaPorRecusaDefinitiva(ctxCriar, cob.CobrancaID)
+			if errFechar != nil {
+				s.log.Error("rmt: recusa definitiva e nao consegui fechar a cobranca",
+					"cobranca", cob.CobrancaID, "recusa", err, "err", errFechar)
+			} else {
+				s.log.Error("rmt: a processadora RECUSOU a cobranca; fechada sem codigo",
+					"cobranca", cob.CobrancaID, "fechou", fechou, "err", err)
+			}
+			// CANCELADA, e o estado ganhou ESTE significado de propósito.
+			//
+			// Ele tinha ficado SEM PRODUTOR: a razão original era "o comprador saiu do
+			// jogo", e o cancelamento por logout saiu no PR 92. Ninguém mais o
+			// produzia. Agora o único produtor é esta recusa, e o significado passa a
+			// ser "a cobrança não pôde ser gerada; nada foi cobrado".
+			//
+			// O que a pessoa pode fazer é o mesmo nos dois — tentar de novo —, e é por
+			// isso que serve sem número novo no contrato. O texto do web.proto ainda
+			// descreve a razão antiga, e muda no próximo handshake com o site: tocar o
+			// .proto agora trocaria o sha e travaria o build deles até o sync.
+			estado = store.EstadoCobrancaCancelada
+			cob.CodigoPix = ""
 		case err != nil:
 			// NÃO VIRA ERRO PARA A PÁGINA, de propósito. A página relê a cada cinco
 			// segundos: a tentativa seguinte tenta de novo, com a MESMA referência,
@@ -438,4 +473,31 @@ func reembolsoParaProto(e store.EstadoReembolso) webv1.RefundState {
 		return webv1.RefundState_REFUND_STATE_FAILED
 	}
 	return webv1.RefundState_REFUND_STATE_UNSPECIFIED
+}
+
+// recusaDefinitiva diz se a processadora recusou de um jeito que repetir não conserta.
+//
+// A LINHA QUE SEPARA é o que o servidor pode fazer a respeito. Uma 4xx quer dizer "o
+// seu pedido está errado": a mesma chamada, repetida, será recusada igual. Uma 5xx ou
+// um erro de rede quer dizer "não deu agora", e a tentativa de cinco segundos depois
+// pode dar — é exatamente para esses que o laço de releitura existe.
+//
+// O 429 FICA DE FORA DAS DEFINITIVAS, e é a exceção que prova a regra: ele é 4xx mas
+// significa "muitas chamadas", que é o caso mais passageiro que existe. Fechar a
+// cobrança de quem esbarrou num limite de taxa seria punir o comprador por um aperto
+// nosso.
+//
+// A incerteza (ErrIncerta) TAMBÉM não fecha: ali a chamada pode ter saído e a
+// resposta ter se perdido, então pode existir cobrança do outro lado. Fechar seria
+// esquecer um pagamento possível — é o caso em que a releitura, com a mesma
+// referência, deixa a ponte reconhecer a repetição.
+func recusaDefinitiva(err error) bool {
+	if err == nil || errors.Is(err, ponte.ErrIncerta) {
+		return false
+	}
+	var httpErr *ponte.ErroHTTP
+	if !errors.As(err, &httpErr) {
+		return false
+	}
+	return httpErr.Codigo >= 400 && httpErr.Codigo < 500 && httpErr.Codigo != 429
 }

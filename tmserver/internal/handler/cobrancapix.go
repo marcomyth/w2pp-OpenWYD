@@ -277,5 +277,20 @@ func referenciaDeCobranca() (string, error) {
 		// adivinha-la e poder forjar a confirmacao de um pagamento que nao houve.
 		return "", fmt.Errorf("loja: gerando a referencia da cobranca: %w", err)
 	}
-	return "rmt-" + hex.EncodeToString(b[:]), nil
+	// TRINTA E DOIS HEX MINÚSCULOS, SEM PREFIXO, e o "sem prefixo" é o conserto.
+	//
+	// Isto devolvia "rmt-" + 32 hex = 36 caracteres, e a ponte recusava TODA cobrança
+	// com http 400 e "referencia fora do formato (32 caracteres hex minusculos)". O
+	// teste de venda real da Hanna ficou parado em "gerando o código", repetindo a
+	// recusa a cada cinco segundos, em 24/09/2026.
+	//
+	// O contrato é de 32 hex e está escrito em dois lugares que eu podia ter lido: a
+	// ponte valida em src/cobranca.js, e o reconhecimento do aviso de pagamento
+	// procura /rmt:([0-9a-f]{32})/ na descrição — o "rmt:" ali é do TEXTO da
+	// descrição, não da referência. Foi essa a confusão.
+	//
+	// E o gerador irmão, o do repasse (store.ReferenciaDaTentativa), já fazia certo
+	// com um comentário dizendo "a ponte valida 32 hex minúsculos". A regra estava no
+	// arquivo vizinho.
+	return hex.EncodeToString(b[:]), nil
 }

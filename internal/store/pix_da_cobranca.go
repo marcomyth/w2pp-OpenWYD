@@ -261,3 +261,40 @@ func (s *Store) GravarIdentifierSeFaltar(ctx context.Context, referenciaExterna,
 	}
 	return nil
 }
+
+// FecharCobrancaPorRecusaDefinitiva fecha uma cobrança que a processadora RECUSOU de
+// um jeito que não muda tentando de novo.
+//
+// POR QUE ELA EXISTE, e é um defeito de produção de 24/09/2026: a criação do Pix
+// tratava toda falha como TROPEÇO DE REDE, de propósito — a página relê a cada cinco
+// segundos, e um erro passageiro se resolve na tentativa seguinte. O raciocínio está
+// certo para o que é passageiro.
+//
+// Só que uma recusa de FORMATO não é passageira. A referência saía com um prefixo que
+// a ponte não aceita, e o servidor repetiu a mesma chamada recusada a cada cinco
+// segundos, indefinidamente. Do lado do jogador: "gerando o código" para sempre, sem
+// explicação e sem o item liberado.
+//
+// É SEGURO FECHAR, e a segurança vem de um fato e não de uma aposta: NENHUM CÓDIGO
+// FOI CRIADO. Sem código não há o que pagar, então não existe dinheiro a caminho que
+// este fechamento possa perder. É diferente de cancelar uma cobrança com código vivo,
+// onde a pessoa pode ter pagado no segundo anterior.
+//
+// E o item NÃO é solto aqui: ele continua marcado para o anúncio, que segue na
+// prateleira. O que este fechamento libera é o COMPRADOR, que só pode ter uma
+// cobrança aberta — sem isso ele ficaria preso a uma cobrança morta e não conseguiria
+// tentar de novo nem comprar outra coisa.
+func (s *Store) FecharCobrancaPorRecusaDefinitiva(ctx context.Context, cobrancaID int64) (bool, error) {
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE rmt_cobranca SET status = $2, encerrada_em = now()
+		 WHERE id = $1 AND status = $3
+		   -- SÓ SEM CÓDIGO. O WHERE é o guarda, e não a ordem das chamadas: se por
+		   -- qualquer caminho já houver código gravado, esta cobrança é pagável e
+		   -- fechá-la aqui poderia descartar um pagamento em curso.
+		   AND codigo_pix IS NULL`,
+		cobrancaID, cobrancaCancelada, cobrancaAberta)
+	if err != nil {
+		return false, fmt.Errorf("store: fechar cobranca %d por recusa definitiva: %w", cobrancaID, err)
+	}
+	return tag.RowsAffected() > 0, nil
+}

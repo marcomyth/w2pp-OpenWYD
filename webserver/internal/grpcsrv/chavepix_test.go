@@ -34,6 +34,12 @@ type fakePix struct {
 	cobrancaPedida int64
 	erroDoCriador  error
 
+	// O fechamento por recusa definitiva: quantas vezes foi pedido e de qual
+	// cobrança. Contar as chamadas é o que distingue "fechou" de "tentou de novo".
+	fechouPorRecusa  int
+	fechadaPorRecusa int64
+	erroFecharRecusa error
+
 	// O que há a receber, que sai na mesma resposta da chave.
 	pendente     int64
 	motivo       store.MotivoDaEspera
@@ -60,6 +66,15 @@ func (f *fakePix) CriarPixSeFaltar(ctx context.Context, cobrancaID int64,
 		_, _, f.erroDoCriador = criar(ctx, "ref-fake", 5000)
 	}
 	return f.pixCriado, f.erroCriarPix
+}
+
+func (f *fakePix) FecharCobrancaPorRecusaDefinitiva(_ context.Context, cobrancaID int64) (bool, error) {
+	f.fechouPorRecusa++
+	f.fechadaPorRecusa = cobrancaID
+	if f.erroFecharRecusa != nil {
+		return false, f.erroFecharRecusa
+	}
+	return true, nil
 }
 
 func (f *fakePix) SalvarChavePix(_ context.Context, _ int64, chave string,

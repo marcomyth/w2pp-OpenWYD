@@ -141,3 +141,62 @@ func TestLojaMoedaAindaTrocaEntreOuroECash(t *testing.T) {
 		t.Error("trocar para cash levou a recusa de dinheiro real")
 	}
 }
+
+// O PREÇO MÍNIMO EM DINHEIRO REAL É R$ 1,00, e a recusa é na montagem.
+//
+// Um centavo não é preço: a processadora cobra taxa por cobrança, então o item
+// custaria mais para vender do que rende e o repasse sairia negativo. O cliente novo
+// também trava, mas quem manda é o servidor — um cliente remendado não pode criar
+// anúncio de um centavo.
+//
+// 99 e 100 são os dois lados exatos da linha. Testar 1 e 1000 não provaria onde ela
+// está, e "onde está a linha" é a única coisa que pode sair errada num mínimo.
+func TestLojaAbrirRecusaPrecoAbaixoDoMinimoEmRMT(t *testing.T) {
+	const solto, pilha = int16(1030), int16(2020)
+
+	t.Run("99 centavos recusa", func(t *testing.T) {
+		addr, stop, _ := startServerClock(t, lojaRMTdb(solto, pilha, 1))
+		defer stop()
+		c := enterWorldAs(t, addr, "tester")
+		defer c.Close()
+		drena(t, c)
+
+		mandaAbrirBarraca(t, c, "Loja", 0, 99, protocol.LojaMoedaRMT)
+
+		if !recebeu(t, c, msgPrecoMinimoRMT) {
+			t.Error("99 centavos passou, ou foi recusado em silêncio")
+		}
+	})
+
+	t.Run("100 centavos aceita", func(t *testing.T) {
+		addr, stop, _ := startServerClock(t, lojaRMTdb(solto, pilha, 1))
+		defer stop()
+		c := enterWorldAs(t, addr, "tester")
+		defer c.Close()
+		drena(t, c)
+
+		mandaAbrirBarraca(t, c, "Loja", 0, 100, protocol.LojaMoedaRMT)
+
+		// O MÍNIMO NÃO PODE RECUSAR O PRÓPRIO MÍNIMO. É o erro de um a menos que um
+		// teste de "1 recusa, 1000 aceita" nunca encontraria.
+		if recebeu(t, c, msgPrecoMinimoRMT) {
+			t.Error("100 centavos foi recusado; o mínimo está excluindo o próprio valor")
+		}
+	})
+
+	// E O OURO NÃO É TOCADO: o mínimo é do dinheiro real, e uma prateleira de um
+	// gold continua valendo.
+	t.Run("ouro de 1 continua valendo", func(t *testing.T) {
+		addr, stop, _ := startServerClock(t, lojaRMTdb(solto, pilha, 1))
+		defer stop()
+		c := enterWorldAs(t, addr, "tester")
+		defer c.Close()
+		drena(t, c)
+
+		mandaAbrirBarraca(t, c, "Loja", 0, 1, protocol.LojaMoedaOuro)
+
+		if recebeu(t, c, msgPrecoMinimoRMT) {
+			t.Error("o mínimo do dinheiro real vazou para o ouro")
+		}
+	})
+}

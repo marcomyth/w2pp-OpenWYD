@@ -433,3 +433,63 @@ func statusDaCobranca(ctx context.Context, t *testing.T, s *Store, ref string) i
 	}
 	return st
 }
+
+// ANÚNCIO ABAIXO DO MÍNIMO NÃO ABRE COBRANÇA.
+//
+// O mínimo de R$ 1,00 nasceu em 24/09/2026, e quando nasceu JÁ HAVIA anúncio de um
+// centavo gravado, de um teste da Hanna. A trava principal é na montagem da barraca,
+// no jogo, onde o vendedor pode consertar — mas ela não alcança o que já está no
+// banco. Esta é a segunda trava, e é a que cobre esse caso.
+//
+// Sem ela, o anúncio velho continuaria vendendo por um centavo: a processadora cobra
+// taxa por cobrança, então o repasse ao vendedor sairia negativo e a casa pagaria
+// para vender.
+//
+// O anúncio é gravado DIRETO NO BANCO de propósito, porque é assim que ele existe na
+// produção — passar pelo jogo seria testar a outra trava, não esta.
+func TestCobrancaRecusaAnuncioAbaixoDoMinimo(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor := contaPix(ctx, t, s, "vendedor_minimo")
+	comprador := contaPix(ctx, t, s, "comprador_minimo")
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Um centavo, como o Elmo do teste que ficou no banco.
+	var anuncio int64
+	if err := s.pool.QueryRow(ctx, `
+		INSERT INTO rmt_anuncio (vendedor_conta, cargo_slot, item_index, preco_centavos, status)
+		VALUES ($1, 0, 1100, 1, 1) RETURNING id`, vendedor).Scan(&anuncio); err != nil {
+		t.Fatal(err)
+	}
+	itemMarcado(ctx, t, s, vendedor, 0, anuncio)
+
+	res, _, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-minimo-1", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != AnuncioNaoDisponivel {
+		t.Errorf("resultado = %v, queria AnuncioNaoDisponivel: um anuncio de 1 centavo abriu cobranca", res)
+	}
+
+	// E O MÍNIMO EXATO ABRE, que é o outro lado da linha. Sem este caso, a trava
+	// poderia estar recusando 100 também e o teste de cima passaria igual.
+	var noMinimo int64
+	if err := s.pool.QueryRow(ctx, `
+		INSERT INTO rmt_anuncio (vendedor_conta, cargo_slot, item_index, preco_centavos, status)
+		VALUES ($1, 1, 1100, $2, 1) RETURNING id`, vendedor, PrecoMinimoRMTCentavos).Scan(&noMinimo); err != nil {
+		t.Fatal(err)
+	}
+	itemMarcado(ctx, t, s, vendedor, 1, noMinimo)
+
+	res, cob, err := s.AbrirCobrancaRMT(ctx, noMinimo, comprador, "ref-minimo-2", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != CobrancaAbertaOK {
+		t.Fatalf("no minimo exato o resultado foi %v, queria CobrancaAbertaOK", res)
+	}
+	if cob.ValorCentavos != PrecoMinimoRMTCentavos {
+		t.Errorf("valor = %d, queria %d", cob.ValorCentavos, PrecoMinimoRMTCentavos)
+	}
+}

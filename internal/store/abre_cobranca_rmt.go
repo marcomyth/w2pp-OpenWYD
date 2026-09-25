@@ -156,6 +156,23 @@ func (s *Store) AbrirCobrancaRMT(ctx context.Context, anuncioID, compradorConta 
 			res = CompradorEOVendedor
 			return nil
 		}
+		// ABAIXO DO MÍNIMO NÃO ABRE COBRANÇA, e esta trava existe para os anúncios
+		// que JÁ ESTÃO no banco abaixo dele.
+		//
+		// A trava principal é na montagem da barraca, no jogo, onde o vendedor pode
+		// consertar. Mas quando o mínimo nasceu (24/09/2026) já havia anúncio de um
+		// centavo gravado, de um teste. Em vez de fechá-los à força — mexer em anúncio
+		// de outra pessoa por migração — eles simplesmente não vendem, e morrem
+		// sozinhos quando a barraca descer, como todo anúncio.
+		//
+		// A resposta é a MESMA de indisponível, de propósito: para quem compra, um
+		// anúncio que não pode ser vendido e um que não existe mais dão no mesmo, e
+		// inventar um motivo novo no contrato obrigaria um handshake com o site por
+		// uma situação que vai desaparecer sozinha.
+		if cob.ValorCentavos < PrecoMinimoRMTCentavos {
+			res = AnuncioNaoDisponivel
+			return nil
+		}
 
 		// O item TEM de estar preso. Anúncio ativo com o cadeado solto significa
 		// que o item pode ter saído por outro caminho, e cobrar aqui produziria
@@ -238,6 +255,17 @@ var errCompradorJaTemCobranca = errors.New("store: o comprador ja tem cobranca a
 // dois como um só faria a mensagem mentir metade das vezes.
 
 // completaDestino lê a chave Pix do vendedor, que é o que vira o QR.
+// PrecoMinimoRMTCentavos é o menor preço que um item pode ter em dinheiro real.
+//
+// R$ 1,00, decisão da Hanna de 24/09/2026. UM LUGAR SÓ porque DUAS travas o leem — a
+// montagem da barraca, no jogo, e a abertura da cobrança, aqui — e dois números que
+// deveriam ser iguais acabam diferentes no dia em que alguém muda um.
+//
+// POR QUE EXISTE UM MÍNIMO: a processadora cobra taxa por cobrança. Um item de um
+// centavo custa mais para vender do que rende, e o repasse ao vendedor sairia
+// negativo. Não é regra de gosto, é aritmética.
+const PrecoMinimoRMTCentavos = 100
+
 func completaDestino(ctx context.Context, tx pgx.Tx, cob *CobrancaRMT) error {
 	err := tx.QueryRow(ctx, `
 		SELECT a.vendedor_conta, r.chave
