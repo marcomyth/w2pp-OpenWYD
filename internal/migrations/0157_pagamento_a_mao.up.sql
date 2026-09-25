@@ -1,4 +1,4 @@
--- 0153_pagamento_a_mao — quem pagou o vendedor à mão, e o que ela disse que fez.
+-- 0157_pagamento_a_mao — quem pagou o vendedor à mão, e o que ela disse que fez.
 --
 -- POR QUE ISTO EXISTE. O saque automático saiu (decisão da Hanna, 25/09/2026): quem
 -- paga o vendedor agora é a staff, fora do sistema, e marca a linha como paga no painel.
