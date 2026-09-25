@@ -131,6 +131,11 @@ const (
 	// Pontos em lote na janela de Personagem (protocol/pontos_em_lote.go).
 	MsgPontosEmLote Type = 0x0F30 // C->S  gastar N pontos de uma vez num campo
 
+	// Painel de up da montaria adulta (protocol/montaria.go): várias pilhas de
+	// âmago num pedido só. 0x0F60/0x0F61 ficam reservados para uma consulta.
+	MsgMontariaPede      Type = 0x0F62 // C->S  dê este âmago à montaria vestida, N pilhas
+	MsgMontariaResultado Type = 0x0F63 // S->C  usados, subiu, falhou, voltou, e por que parou
+
 	// Painel de Guilda (protocol/guildapainel.go). Os buffs não têm pacote de
 	// ativação: quem liga um buff é um item de cash, usado pelo caminho normal.
 	MsgGuildaPede     Type = 0x0F40 // C->S  me manda esta aba do painel
