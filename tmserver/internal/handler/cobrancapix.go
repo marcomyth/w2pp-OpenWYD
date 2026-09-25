@@ -149,7 +149,16 @@ const msgNaoComprarDeSiMesmo = "Esse anúncio é seu."
 // de um "não pode" seco.
 const msgJaTemPagamentoAberto = "Você já tem um pagamento aberto. Pague ou espere ele vencer."
 
-// msgRMTNaoEstaAberta é o que o jogador lê enquanto a ponte não está montada.
+// msgRMTNaoEstaAberta é o que o jogador lê quando o mercado em dinheiro real não está
+// disponível para ele.
+//
+// UMA FRASE PARA TRÊS CAMINHOS, de propósito: a ponte não montada, o mercado FECHADO
+// (W2PP_RMT, 25/09/2026) e o mercado em "staff" para quem não é da casa. Para o jogador os
+// três são a mesma coisa — não está aberto —, e frases diferentes convidariam a testar a
+// outra ponta para ver se aquela funciona.
+//
+// E é uma CONSTANTE só, e não uma por caminho com o mesmo texto: duas constantes iguais é
+// como uma delas muda e as telas passam a discordar sobre o mesmo fato.
 //
 // SEPARADA da falha, e a diferença não é de estilo: "tente de novo em instantes"
 // manda a pessoa repetir uma coisa que nunca vai dar certo. Isto aqui não é uma

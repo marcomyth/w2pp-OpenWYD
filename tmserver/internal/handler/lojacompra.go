@@ -148,6 +148,18 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	// a caixa postal, e de la para o bau, no login ou no DeliverNow. Recusar por
 	// mochila cheia seria recusar por um motivo que nao se aplica.
 	if moeda == protocol.LojaMoedaRMT {
+		// O MERCADO PODE ESTAR FECHADO, e a trava vale aqui também e não só na montagem
+		// da barraca.
+		//
+		// Parece redundante — se ninguém anuncia, ninguém compra — e não é: anúncio aberto
+		// ANTES do fechamento continua na vitrine, e um cliente remendado pode mandar a
+		// compra de um anúncio que ele descobriu de outro jeito. Travar só a porta de
+		// entrada deixaria o que já estava dentro comprável, e aí entra dinheiro de verdade
+		// num mercado que a Hanna decidiu manter fechado.
+		if !d.podeUsarRMT(s) {
+			sendClientMessage(w, s, msgRMTNaoEstaAberta)
+			return
+		}
 		d.abreCobrancaPix(w, s, itemCargo.AnuncioRMT, preco)
 		return
 	}
