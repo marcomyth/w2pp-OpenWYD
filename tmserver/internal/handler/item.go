@@ -1065,9 +1065,16 @@ func (d *Dispatcher) equipItem(w *world.World, s *world.Session, e *world.Entity
 	e.Carry[src], e.Equip[dst] = e.Equip[dst], e.Carry[src]
 	// A temporary item starts its life the first time it is worn, not when it was
 	// obtained: a Conjunto left in the bag must still be worth its full thirty days.
-	d.startTimedItem(&e.Equip[dst], time.Now())
+	started := d.startTimedItem(&e.Equip[dst], time.Now())
 	w.Send(s, protocol.MsgUseItem, payload) // echo result
-	d.refreshEquip(w, s, e)                 // update the rendered gear
+	// The echo only tells the client to move ITS copy, which still holds the
+	// un-started duration: a Shire worn this way read "4 Dia(s) 0Hora 0" until
+	// relog while the server was already counting. Sent after the echo, so it
+	// overwrites the slot the echo just filled.
+	if started {
+		d.sendSlot(w, s, world.ItemPlaceEquip, dst, e.Equip[dst])
+	}
+	d.refreshEquip(w, s, e) // update the rendered gear
 	if dst == mountEquipSlot {
 		d.refreshBabyMountSummon(w, s, e)
 	}

@@ -156,6 +156,76 @@ func (d *Dispatcher) startTimedItem(it *world.Item, now time.Time) bool {
 	return true
 }
 
+// tickTimedItems is the minute pulse for every other temporary item — the cash
+// mounts, the Esferas, the costumes — which run on a deadline (ExpiresAt), not
+// on a burned duration like the fairies.
+//
+// Deriving the countdown on every send (expiryEffects) was only half of it: the
+// client draws what it was last sent and never ticks it, and before this nothing
+// was sent while the player stayed online. A mount read the same "N Dia(s)" all
+// session, and one whose deadline passed kept its damage, ABS and XP until the
+// next login, the only place dropExpired ran.
+func (d *Dispatcher) tickTimedItems(w *world.World) {
+	if d.tickCount%fairyTickPeriod != 0 {
+		return
+	}
+	now := time.Now()
+	w.ForEachPlaying(-1, func(s *world.Session, e *world.Entity) {
+		d.pulseTimedItems(w, s, e, now)
+	})
+}
+
+// pulseTimedItems does the three things a worn deadline needs each minute:
+// resend it so the client's countdown moves, clear it once it is due, and start
+// one that sits in the gear un-started. That last one is a mount dragged on
+// before 16c867bb, when dragging did not start the clock: it has been worn ever
+// since with its duration intact and would otherwise never run out.
+//
+// The bag gets only the expiry. An item there is either un-started, and must not
+// age, or taken off after starting ("Consumo contínuo, mesmo não equipado"), and
+// then it dies on time like the worn one. The Bolsa do Andarilho is left to
+// expireWandererBags, which also has to shrink the bag.
+func (d *Dispatcher) pulseTimedItems(w *world.World, s *world.Session, e *world.Entity, now time.Time) {
+	gearChanged, mountGone := false, false
+	for slot := range e.Equip {
+		if slot == fairyEquipSlot {
+			continue // tickFairies: a fairy burns only while worn
+		}
+		it := &e.Equip[slot]
+		if it.Empty() {
+			continue
+		}
+		switch {
+		case it.ExpiresAt == 0:
+			if !d.startTimedItem(it, now) {
+				continue // permanent
+			}
+			d.log.Info("timed item started on the pulse", "account", s.AccountName, "conn", s.Conn, "slot", slot, "item", it.Index)
+		case now.Unix() >= it.ExpiresAt:
+			d.log.Info("timed item expired", "account", s.AccountName, "conn", s.Conn, "slot", slot, "item", it.Index)
+			*it = world.Item{}
+			gearChanged = true
+			mountGone = mountGone || slot == mountEquipSlot
+		}
+		d.sendSlot(w, s, world.ItemPlaceEquip, slot, *it)
+	}
+	for slot := range e.Carry {
+		it := &e.Carry[slot]
+		if it.ExpiresAt == 0 || it.Index == itemWandererBag || now.Unix() < it.ExpiresAt {
+			continue
+		}
+		d.log.Info("timed item expired in the bag", "account", s.AccountName, "conn", s.Conn, "slot", slot, "item", it.Index)
+		*it = world.Item{}
+		d.sendSlot(w, s, world.ItemPlaceCarry, slot, *it)
+	}
+	if gearChanged {
+		d.refreshEquip(w, s, e)
+	}
+	if mountGone {
+		d.refreshBabyMountSummon(w, s, e)
+	}
+}
+
 // tickFairies burns a minute off every equipped fairy, and only off those:
 // ProcessSecMinTimer.cpp:612 passes Equip[13] and nothing else, which is what
 // the item's own "Não gasta caso não esteja equipado" promises. One that runs out
