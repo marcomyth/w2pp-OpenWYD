@@ -130,6 +130,9 @@ func (d *Dispatcher) esperaDoRenascimento(w *world.World, idx int) uint32 {
 	if geradorDoReiTrollZumbi(w, idx) {
 		return reiTrollZumbiHoras * msPorHora // o Rei Troll Zumbi (rei_troll_zumbi.go)
 	}
+	if geradorDaGargulaSabio(w, idx) {
+		return gargulaSabioHoras * msPorHora // a Gárgula Sábio chefe (gargula_sabio.go)
+	}
 	if geradorDoFrenzy(w, idx) {
 		return frenzyHoras * msPorHora // o FrenzyDemonLord (submundo.go)
 	}

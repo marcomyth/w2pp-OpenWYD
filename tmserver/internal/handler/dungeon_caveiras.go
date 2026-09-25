@@ -133,6 +133,14 @@ func (d *Dispatcher) bossConjuradorSaque(w *world.World, reward, mob *world.Enti
 	if !isBossConjurador(mob) {
 		return
 	}
+	d.entregaArmaCDeChefe(w, reward, mob)
+}
+
+// entregaArmaCDeChefe entrega UMA Arma C, sorteada por igual entre as dezenove,
+// com o add alto do Boss Conjurador. A Gárgula Sábio chefe (gargula_sabio.go) usa
+// a mesma. Uma regra da Mesa para a arma sorteada, neste monstro, a governa: aí
+// aquela morte não solta nada.
+func (d *Dispatcher) entregaArmaCDeChefe(w *world.World, reward, mob *world.Entity) {
 	// 32768 % 19 = 12: as doze primeiras saem uma vez a mais em 1.724.
 	armas := slices.Concat(armasCFisicas, armasCMagicas)
 	arma := armas[w.Rand().Intn(len(armas))]

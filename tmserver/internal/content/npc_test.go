@@ -501,3 +501,44 @@ func TestBossHidraDouradaBloco(t *testing.T) {
 		t.Errorf("chefe em %d blocos e escolta em %d, want 1 e 1", n["Boss_Hidra_Dourada"], n["Guer_Caveira_Escolta"])
 	}
 }
+
+// TestGargulaSabioBlocos pins the Gárgula Sábio of the photo (migration 0151),
+// 2nd floor of the Dungeon: block 2540 is the boss copy alone, with no minute
+// period — the 1 h wait is the individual queue's (handler/gargula_sabio.go) —,
+// block 6162, the last, is its five Golem guards on the same point, and the
+// other Gárgula Sábio of the floor (block 2478) is untouched.
+func TestGargulaSabioBlocos(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("NPCGener.txt unavailable: %v", err)
+	}
+	gens, err := LoadNPCGenerators(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const chefe, guardas, outra = 2540, 6162, 2478
+	if guardas != len(gens)-1 {
+		t.Fatalf("NPCGener has %d blocks, want block %d to be the last", len(gens), guardas)
+	}
+	g := gens[chefe]
+	if g.Leader != "Gargula_Sabio_Chefe" || g.Follower != g.Leader || g.MinuteGenerate != -1 || g.MaxNumMob != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
+		t.Errorf("bloco %d = %+v, want a Gárgula chefe sozinha, sem período", chefe, g)
+	}
+	gu := gens[guardas]
+	if gu.Leader != "Golem_Guarda" || gu.Follower != gu.Leader || gu.MinuteGenerate != -1 || gu.MaxNumMob != 5 || gu.MinGroup != 4 || gu.MaxGroup != 4 {
+		t.Errorf("bloco %d = %+v, want um grupo cheio de 5 guardas, sem período", guardas, gu)
+	}
+	if gu.SegX[0] != g.SegX[0] || gu.SegY[0] != g.SegY[0] || g.SegX[0] != 872 || g.SegY[0] != 3876 {
+		t.Errorf("chefe em (%d,%d) e guardas em (%d,%d), want os dois em (872,3876)", g.SegX[0], g.SegY[0], gu.SegX[0], gu.SegY[0])
+	}
+	if o := gens[outra]; o.Leader != "Gargula_Sabio" || o.Follower != "Golem_de_Fogo" {
+		t.Errorf("bloco %d = %s/%s, want a outra Gárgula Sábio intocada", outra, o.Leader, o.Follower)
+	}
+	for idx, g := range gens {
+		for _, n := range []string{g.Leader, g.Follower} {
+			if (n == "Gargula_Sabio_Chefe" && idx != chefe) || (n == "Golem_Guarda" && idx != guardas) {
+				t.Errorf("%s no bloco %d: a cópia é só do bloco da foto", n, idx)
+			}
+		}
+	}
+}

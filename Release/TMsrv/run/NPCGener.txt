@@ -72591,12 +72591,12 @@
 // no2897 (0630�ʵ�E
 // ********************************************
 #	[2540]
-	MinuteGenerate:	50
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	5
-	Leader:		Gargula_Sabio
-	Follower:	Golem_de_Fogo
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Gargula_Sabio_Chefe
+	Follower:	Gargula_Sabio_Chefe
 	RouteType:	2
 	Formation:	0
 	StartX:		872
@@ -160026,4 +160026,27 @@
 	DestX:		740
 	DestY:		3776
 	DestRange:	2
+	DestWait:	10
+
+// Guardas da Gargula Sabio - os Golens de Fogo que nasciam como seguidores dela no
+// bloco 2540, agora num bloco proprio, mais fortes e com saque proprio (Golem_Guarda,
+// migracao 0151). A Gargula volta de hora em hora sozinha (handler/gargula_sabio.go).
+// ********************************************
+
+#	[6162]
+	MinuteGenerate:	-1
+	MaxNumMob:	5
+	MinGroup:	4
+	MaxGroup:	4
+	Leader:		Golem_Guarda
+	Follower:	Golem_Guarda
+	RouteType:	2
+	Formation:	0
+	StartX:		872
+	StartY:		3876
+	StartRange:	6
+	StartWait:	10
+	DestX:		872
+	DestY:		3876
+	DestRange:	6
 	DestWait:	10
