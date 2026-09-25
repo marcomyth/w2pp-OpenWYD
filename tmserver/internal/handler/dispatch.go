@@ -320,7 +320,6 @@ type Dispatcher struct {
 	log               *slog.Logger
 	routes            map[protocol.Type]handlerFunc
 	fails             map[string]int        // wrong-password count per account (CheckFailAccount)
-	reportadoEm       map[int64]time.Time   // account id -> last /reportar (flood gate)
 	invisRecarga      map[personagem]uint32 // (conta, slot) -> World.Now do último cast de Invisibilidade
 	tempestadeRecarga map[personagem]uint32 // (conta, slot) -> World.Now do último cast de Tempestade de Flechas
 	combineFamilies   map[protocol.Type]CombineFamily
