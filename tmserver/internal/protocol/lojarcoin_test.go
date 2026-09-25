@@ -2,6 +2,9 @@ package protocol
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 )
@@ -223,5 +226,35 @@ func TestOPedidoCurtoNaoDerrubaNada(t *testing.T) {
 	var lista RcoinListaBody
 	if err := lista.Decode(make([]byte, 7)); err == nil {
 		t.Error("uma pagina curta foi aceita")
+	}
+}
+
+// TestOArquivoDoContratoNaoMudouUmByte.
+//
+// O lojarcoin.go está CONGELADO. A dupla do cliente construiu o lado dela contra ESTE
+// arquivo (commit 8229def, 41 testes de parse) e guarda este sha256 como referência: os
+// dois lados leem o fio por deslocamento fixo, então um byte diferente aqui é lixo
+// desenhado lá.
+//
+// O sha vive no TESTE e não no arquivo, porque um sha escrito dentro do próprio arquivo
+// mudaria o sha — e porque o teste é o lugar onde uma mudança acidental para, enquanto
+// um comentário é o lugar onde ela passa.
+//
+// SE ESTE TESTE FALHAR, não atualize o número. O número é a pergunta, não a resposta: ou
+// a mudança é acidental e volta atrás, ou ela é combinada com o cliente ANTES, e aí o
+// número novo entra no mesmo commit que avisa os dois lados.
+//
+// O .gitattributes fixa `*.go text eol=lf`, então o sha é o mesmo no Windows e no Linux.
+func TestOArquivoDoContratoNaoMudouUmByte(t *testing.T) {
+	const combinado = "cd469b6c9152dbeb1c9b438f84c2ad6b93baa7daaf7258c495ec72b368306d9c"
+	b, err := os.ReadFile("lojarcoin.go")
+	if err != nil {
+		t.Fatalf("lendo o arquivo do contrato: %v", err)
+	}
+	if tem := fmt.Sprintf("%x", sha256.Sum256(b)); tem != combinado {
+		t.Errorf("o lojarcoin.go mudou.\n  agora:    %s\n  combinado: %s\n"+
+			"O cliente foi construido contra o arquivo combinado. Se a mudanca nao foi "+
+			"acertada com a dupla do cliente ANTES, desfaca; se foi, o sha novo entra "+
+			"neste mesmo commit.", tem, combinado)
 	}
 }
