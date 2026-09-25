@@ -46,7 +46,7 @@ func TestOsPacotesDoSiteEstaoNaTabela(t *testing.T) {
 		brindes  int
 	}{
 		// OS PREÇOS ESTÃO TODOS EM 100 por decisão da Hanna de 25/09/2026 (migração
-		// 0156), e não porque a tabela do site mudou. Os RCOINS e os BRINDES continuam
+		// 0158), e não porque a tabela do site mudou. Os RCOINS e os BRINDES continuam
 		// sendo os de lá: é o par preço/crédito que o `ConferirPacote` compara com o
 		// pedido, e é ele que este teste liga ao site.
 		//

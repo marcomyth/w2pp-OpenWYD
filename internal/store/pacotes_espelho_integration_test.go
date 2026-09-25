@@ -133,7 +133,7 @@ func oEspelhoRecusaQuemNaoEStaff(t *testing.T, s *Store, ctx context.Context) {
 //
 // Ele nasceu de manhã prendendo os nove preços de tabela, para impedir que alguém
 // baixasse os pacotes reais e o Supremo ficasse a R$ 1,00 para qualquer conta. À tarde a
-// Hanna mandou baixar mesmo assim, por escrito e sabendo desse custo (migração 0156).
+// Hanna mandou baixar mesmo assim, por escrito e sabendo desse custo (migração 0158).
 //
 // ENTÃO ELE MUDOU DE LADO, e não foi apagado: agora prende que os nove estão a 100 E que
 // os créditos continuam os de sempre. O que ele protege é o mesmo de antes — que o preço
