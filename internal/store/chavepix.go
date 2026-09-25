@@ -171,14 +171,13 @@ func (s *Store) SalvarChavePix(ctx context.Context, accountID int64, chave strin
 			return ErrNotFound
 		}
 
-		var abertas int
-		if err := tx.QueryRow(ctx, `
-			SELECT count(*) FROM rmt_cobranca c
-			  JOIN rmt_anuncio a ON a.id = c.anuncio_id
-			 WHERE a.vendedor_conta = $1 AND c.status = 1`, accountID).Scan(&abertas); err != nil {
-			return fmt.Errorf("store: chave pix: contando cobrancas a=%d: %w", accountID, err)
+		// A CONSULTA É COMPARTILHADA com o apagar (ver apagar_chave_pix.go): a regra é a
+		// mesma nos dois caminhos, e uma cópia é como as duas saem de sincronia.
+		venda, err := haCobrancaAberta(ctx, tx, accountID)
+		if err != nil {
+			return err
 		}
-		if abertas > 0 {
+		if venda {
 			return ErrVendaEmCurso
 		}
 
@@ -230,17 +229,21 @@ func (s *Store) SalvarChavePix(ctx context.Context, accountID int64, chave strin
 		// boa e o que falta é um número nosso. Deixar trocar seria abrir exatamente o
 		// desvio que esta trava existe para impedir — vender, esperar o repasse
 		// segurar, e apontar o dinheiro para outra chave antes de ele sair.
+		// A CONDIÇÃO FICA AQUI, e não dentro da consulta compartilhada: ela é a regra
+		// DESTE caminho. O apagar confere sempre, porque apagar não é gravar a mesma
+		// chave — ver a nota em haRepasseEmCurso.
+		//
+		// E O ERRO AGORA É PRÓPRIO: ErrRepasseEmCurso, e não mais ErrVendaEmCurso. Os
+		// dois casos pediam coisas diferentes da pessoa e liam a mesma frase — a
+		// cobrança aberta passa sozinha quando a compra fechar, o repasse só quando o
+		// dinheiro sair.
 		if antigaChave != nil && *antigaChave != chave {
-			var repasses int
-			if err := tx.QueryRow(ctx, `
-				SELECT count(*) FROM rmt_repasse
-				 WHERE vendedor_conta = $1 AND status IN ($2, $3, $4, $5)`,
-				accountID, repassePendente, repasseEnviado, repasseIncerto,
-				repasseSemTaxa).Scan(&repasses); err != nil {
-				return fmt.Errorf("store: chave pix: contando repasses a=%d: %w", accountID, err)
+			repasse, err := haRepasseEmCurso(ctx, tx, accountID)
+			if err != nil {
+				return err
 			}
-			if repasses > 0 {
-				return ErrVendaEmCurso
+			if repasse {
+				return ErrRepasseEmCurso
 			}
 		}
 
