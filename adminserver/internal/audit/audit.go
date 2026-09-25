@@ -223,11 +223,12 @@ func (s *Store) List(ctx context.Context, targetID int64, limit, offset int) ([]
 	// One query with a nullable filter rather than two: the difference is a
 	// parameter, and two near-identical SQL strings drift apart over time.
 	rows, err := s.pool.Query(ctx, `
-		SELECT l.id, l.actor_account_id, COALESCE(a.name, ''), l.actor_role, l.action,
+		SELECT l.id, COALESCE(l.actor_account_id, 0), COALESCE(a.name, 'painel: ' || p.login, ''), l.actor_role, l.action,
 		       COALESCE(l.target_account_id, 0), COALESCE(t.name, ''),
 		       l.old_value, l.new_value, l.created_at
 		  FROM admin_audit_log l
 		  LEFT JOIN account a ON a.id = l.actor_account_id
+		  LEFT JOIN painel_usuario p ON p.id = l.actor_painel_usuario_id
 		  LEFT JOIN account t ON t.id = l.target_account_id
 		 WHERE $1::bigint IS NULL OR l.target_account_id = $1
 		 ORDER BY l.created_at DESC, l.id DESC
@@ -239,6 +240,12 @@ func (s *Store) List(ctx context.Context, targetID int64, limit, offset int) ([]
 	return scanEntries(rows)
 }
 
+// O ATOR PODE SER UM USUÁRIO DO PAINEL (#132), e aí actor_account_id é NULO: as
+// duas consultas leem o id com COALESCE(…, 0) e o nome com o login do painel
+// ("painel: fulano"). Sem isso, uma única linha feita pelo painel derrubava a
+// página inteira da auditoria (produção, 25/09/2026: "cannot scan NULL into
+// *int64").
+//
 // scanEntries drains a result set shaped like the SELECT above. Both listings
 // read the same ten columns in the same order, and one decoder is what keeps
 // them from drifting apart.
@@ -403,11 +410,12 @@ func (s *Store) ListActions(ctx context.Context, actions []string) ([]Entry, err
 		return nil, nil
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT l.id, l.actor_account_id, COALESCE(a.name, ''), l.actor_role, l.action,
+		SELECT l.id, COALESCE(l.actor_account_id, 0), COALESCE(a.name, 'painel: ' || p.login, ''), l.actor_role, l.action,
 		       COALESCE(l.target_account_id, 0), COALESCE(t.name, ''),
 		       l.old_value, l.new_value, l.created_at
 		  FROM admin_audit_log l
 		  LEFT JOIN account a ON a.id = l.actor_account_id
+		  LEFT JOIN painel_usuario p ON p.id = l.actor_painel_usuario_id
 		  LEFT JOIN account t ON t.id = l.target_account_id
 		 WHERE l.action = ANY($1)
 		 ORDER BY l.created_at DESC, l.id DESC
