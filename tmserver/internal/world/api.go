@@ -90,6 +90,10 @@ type MobSpawn struct {
 	// with three loot tables and one name on screen. Empty for spawns that have
 	// no file (summons, the Vine).
 	TemplateName string
+	// GenRev is Generator.Rev of GenIndex when this spawn was built. The respawn
+	// queue compares it to the block's current one: a monster born under a recipe
+	// the panel has since changed comes back from the new recipe, not as itself.
+	GenRev uint32
 }
 
 // SpawnMob creates a stationary NPC/monster from a raw STRUCT_MOB template at
@@ -152,7 +156,7 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 		Template:     template,   // retained for runtime respawn (world/respawn.go)
 		TemplateName: sp.TemplateName,
 		RouteType:    sp.RouteType, SegListX: sp.SegX, SegListY: sp.SegY, SegWait: sp.SegWait,
-		GenIndex: sp.GenIndex,
+		GenIndex: sp.GenIndex, GenRev: sp.GenRev,
 		// The current waypoint doubles as the aggro/leash anchor (CMob.cpp:292);
 		// it starts at waypoint 0 = the spawn point (GenerateMob Server.cpp:3649).
 		// The initial waypoint pause comes pre-armed (WaitSec = SegmentWait[0],

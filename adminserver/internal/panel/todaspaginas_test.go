@@ -127,10 +127,14 @@ func painelCompleto(t *testing.T) http.Handler {
 			droprule.Rule{Mob: "Kentania", Item: 2000, Chance: 800},
 			droprule.Rule{Mob: droprule.AllMobs, Item: 1415, Chance: 0},
 		),
-		Blocos:     &fakeBlocos{lista: torresDeNoatum()},
-		Sessions:   session.New(time.Hour),
-		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
-		SecureOnly: true,
+		Blocos: &fakeBlocos{lista: torresDeNoatum()},
+		Receitas: newFakeReceitas(domain.GeneratorRecipe{Index: domain.NewGeneratorIndexBase, Leader: "Urso",
+			SegX: [5]int32{3000}, SegY: [5]int32{3000}}),
+		NPCGener:    arquivoDeTeste(),
+		MoldeExiste: moldesConhecidos,
+		Sessions:    session.New(time.Hour),
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		SecureOnly:  true,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -194,6 +198,10 @@ func TestTodaPaginaRenderiza(t *testing.T) {
 		"/mapa",
 		"/blocos",
 		"/blocos?nome=torre&x=1050&y=1700&raio=30",
+		"/blocos/receitas",
+		"/blocos/receita?bloco=1",
+		"/blocos/receita?bloco=20000",
+		"/blocos/receita?novo=1&de=2",
 	}
 
 	for _, rota := range rotas {
@@ -243,7 +251,7 @@ func TestTodaPaginaRenderizaSemAsOpcionais(t *testing.T) {
 
 	// And what must be a clean 404 rather than a crash.
 	opcionais := []string{
-		"/trocas", "/censo", "/chat", "/servidor", "/mapa", "/eventos", "/blocos",
+		"/trocas", "/censo", "/chat", "/servidor", "/mapa", "/eventos", "/blocos", "/blocos/receitas",
 		"/repasses", "/orfaos", "/reembolsos", "/divergentes",
 		"/guildas", "/rates/xp", "/rates/montarias",
 		"/itens", "/npcs", "/monstros", "/drops",
@@ -337,6 +345,8 @@ func TestTodoPostExigeCSRF(t *testing.T) {
 		{"/servidor/desligar", url.Values{}},
 		{"/servidor/ligar", url.Values{}},
 		{"/blocos/comando", url.Values{"acao": {"desligar"}, "bloco": {"23"}}},
+		{"/blocos/receita", receitaValida("", "1")},
+		{"/blocos/receita/limpar", url.Values{"bloco": {"1"}}},
 	}
 
 	for _, c := range rotas {

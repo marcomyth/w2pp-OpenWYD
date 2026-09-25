@@ -260,6 +260,7 @@ func run(logger *slog.Logger) error {
 	var combineRates handler.CombineRateSource
 	var combatRules handler.CombatRuleSource
 	var generatorOff handler.GeneratorOffSource
+	var generatorRecipes handler.GeneratorRecipeSource
 	var dropRules handler.DropRuleSource
 	if *dbAddr != "" {
 		conn, err := grpc.NewClient(*dbAddr, grpc.WithTransportCredentials(clientCreds))
@@ -277,6 +278,7 @@ func run(logger *slog.Logger) error {
 		combineRates = dbclient.NewCombineRateSource(conn)
 		combatRules = dbclient.NewCombatRuleSource(conn)
 		generatorOff = dbclient.NewGeneratorOffSource(conn)
+		generatorRecipes = dbclient.NewGeneratorRecipeSource(conn)
 		dropRules = dbclient.NewDropRuleSource(conn)
 		// Cash e RMT da Loja do Servidor: são carteiras da CONTA, no banco, e só
 		// existem com o dbServer ligado. Sem ele, a compra nessas moedas é
@@ -433,6 +435,18 @@ func run(logger *slog.Logger) error {
 		mobStatBootVersion = versao
 		logger.Info("mob template stat overlay enabled (moderator editing)",
 			"overrides", len(mobStatOverrides), "version", versao)
+	}
+
+	// The block recipes (handler/receita.go) read the templates they name straight
+	// from the content tree, and need the file each name resolved to: that is the
+	// name the Mesa de Drops and the sheet reload key on. Without -content there is
+	// no file to read, and the recipes stay off.
+	var recipeTemplate handler.RecipeTemplateLoader
+	if *contentDir != "" {
+		recipeTemplate = func(name string) ([]byte, string, error) {
+			b, res, err := npctemplate.Load(*contentDir, name)
+			return b, res.Name, err
+		}
 	}
 
 	// Moderator item base stat overlay (0023_item_stats), the item-side sibling
@@ -686,6 +700,8 @@ func run(logger *slog.Logger) error {
 		DungeonGates:    dungeonGates,
 		SpawnRates:      spawnRates,
 		GeneratorOff:    generatorOff,
+		Recipes:         generatorRecipes,
+		RecipeTemplate:  recipeTemplate,
 		CombineRateSrc:  combineRates,
 		CombatRuleSrc:   combatRules,
 		DropRuleSrc:     dropRules,
@@ -800,7 +816,13 @@ func run(logger *slog.Logger) error {
 	// the DB overlay is active, merchant blocks are skipped here (owned by
 	// npc_definition) and applied from the config snapshot instead.
 	if *contentDir != "" {
-		spawnNPCs(w, *contentDir, npcConfig != nil, mobStatOverrides, itemPrices, itemNames, logger)
+		gens := spawnNPCs(w, *contentDir, npcConfig != nil, mobStatOverrides, itemPrices, itemNames, logger)
+		// The block recipes from the database (0165_receita_de_bloco) go on right
+		// after the populate, before anything else touches the blocks: they replace
+		// what the populate raised from the file, and the NPC overlay, the switches
+		// and the boss holds below then act on the recipe in force.
+		dispatch.SetRecipeBase(gens)
+		dispatch.ApplyGeneratorRecipesBoot(w)
 		seedWorldItems(w, *contentDir, logger)
 	}
 	if npcConfig != nil {
@@ -923,13 +945,17 @@ func run(logger *slog.Logger) error {
 // front so the world is playable immediately. This burns the LCG at boot (one
 // stream for all spawns, like the original's global rand()); there is no legacy
 // boot rand order to diverge from.
+//
+// It returns the file's blocks, in file order: what a block edited in the
+// database goes back to when its row is deleted (handler/receita.go). Nil when
+// the file did not load.
 func spawnNPCs(w *world.World, dir string, skipMerchants bool, mobStatOverrides map[string]mobstat.Override,
 	itemPrices map[int]int32, itemNames map[int]string, logger *slog.Logger,
-) {
+) []content.NPCGenerator {
 	gens, err := content.LoadNPCGenerators(filepath.Join(dir, "TMsrv", "run", "NPCGener.txt"))
 	if err != nil {
 		logger.Warn("NPC generators not loaded", "err", err)
-		return
+		return nil
 	}
 	// A real monster whose kill reward is zero or beyond the legacy award gate
 	// (10M, MobKilled.cpp:1284) means the content tree wasn't restamped with
@@ -1201,6 +1227,7 @@ func spawnNPCs(w *world.World, dir string, skipMerchants bool, mobStatOverrides 
 	logger.Info("npc template catalog", "layouts", stats)
 	logger.Info("NPCs spawned", "generators", len(gens), "mobs", total, "templates", len(templates),
 		"merchant_blocks_skipped", skipped)
+	return gens
 }
 
 // seedWorldItems spawns the static world objects (gates/doors) from

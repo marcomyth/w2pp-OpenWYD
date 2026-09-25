@@ -22,6 +22,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/dungeon"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/internal/mountbonus"
+	"github.com/jeanluca/w2pp-openwyd/internal/npcgener"
 	"github.com/jeanluca/w2pp-openwyd/internal/spawnrate"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
@@ -274,6 +275,12 @@ type Config struct {
 	// but only until the next restart.
 	GeneratorOff GeneratorOffSource
 
+	// Recipes is the block recipes kept in the database (receita.go), polled
+	// live, and RecipeTemplate reads the templates they name. Either nil means
+	// every block spawns as NPCGener.txt says, as before the table existed.
+	Recipes        GeneratorRecipeSource
+	RecipeTemplate RecipeTemplateLoader
+
 	// CombatRules seeds the combat knobs (internal/combatrule). Nil — or a rule
 	// outside the ranges — runs combatrule.Default, the rule decided for this
 	// server; CombatRuleSrc then keeps it in step with the panel.
@@ -441,6 +448,17 @@ type Dispatcher struct {
 	genOffEpoch    int
 	genOffPolling  bool
 	genOffPollTick int
+
+	// The block recipes from the database, read LIVE (receita.go). recipeBase is
+	// the file's blocks, what a block goes back to when its row is deleted;
+	// recipeApplied is what each row put in force, loop-owned.
+	recipeSource   GeneratorRecipeSource
+	recipeTemplate RecipeTemplateLoader
+	recipeBase     []npcgener.Generator
+	recipeApplied  map[int]receitaAplicada
+	recipeVersion  int64
+	recipePolling  bool
+	recipePollTick int
 
 	// The combat knobs (internal/combatrule), read LIVE like the spawn pacing
 	// (combatrule.go). The zero value is NOT a valid rule, so New seeds it with
@@ -685,6 +703,8 @@ func New(cfg Config) *Dispatcher {
 		dungeonGateSource: cfg.DungeonGates,
 		spawnRateSource:   cfg.SpawnRates,
 		genOffSource:      cfg.GeneratorOff,
+		recipeSource:      cfg.Recipes,
+		recipeTemplate:    cfg.RecipeTemplate,
 		combatRules:       combatRulesDe(cfg),
 		combatRuleSource:  cfg.CombatRuleSrc,
 		dropRuleSource:    cfg.DropRuleSrc,

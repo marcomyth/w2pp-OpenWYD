@@ -46,6 +46,14 @@ type Generator struct {
 	// what the Mesa de Drops matches on.
 	LeaderName   string
 	FollowerName string
+
+	// Rev goes up every time the recipe above is replaced while the server runs
+	// (the panel's block recipe, handler/receita.go). Each mob carries the Rev it
+	// was born under, so the respawn queue can tell a monster of the old recipe
+	// from one of the current. A sheet change on /monstros does NOT move it: that
+	// swaps LeaderTmpl/FollowerTmpl in place and the queue picks the bytes up by
+	// name.
+	Rev uint32
 }
 
 // generateWorldCap stops the generator timer from filling every entity slot:
@@ -69,6 +77,26 @@ var formationOffsets = [5][MaxParty]struct{ x, y int16 }{
 // RegisterGenerators installs the generator table (index = NPCGener block =
 // Entity.GenIndex). Wiring-time only, before Run.
 func (w *World) RegisterGenerators(gens []*Generator) { w.generators = gens }
+
+// SetGenerator installs g at idx, growing the table when idx is past its end —
+// how a block the panel created (domain.NewGeneratorIndexBase and up) gets a
+// slot. The gap it opens is nil slots, which every caller already skips.
+// Loop-only.
+func (w *World) SetGenerator(idx int, g *Generator) {
+	if idx < 0 || idx > maxGeneratorIndex {
+		return
+	}
+	if idx >= len(w.generators) {
+		grown := make([]*Generator, idx+1)
+		copy(grown, w.generators)
+		w.generators = grown
+	}
+	w.generators[idx] = g
+}
+
+// maxGeneratorIndex is the highest block a mob can name: MobSpawn.GenIndex is
+// an int16.
+const maxGeneratorIndex = 1<<15 - 1
 
 // GeneratorCount returns the number of registered generator slots (some may be
 // nil — blocks whose templates failed to load).
@@ -326,6 +354,7 @@ func respawnSpawn(e *Entity) MobSpawn {
 		Template: e.Template, X: e.SpawnX, Y: e.SpawnY,
 		RouteType: e.RouteType, SegX: e.SegListX, SegY: e.SegListY,
 		SegWait: e.SegWait, GenIndex: e.GenIndex, TemplateName: e.TemplateName,
+		GenRev: e.GenRev,
 	}
 }
 
@@ -388,7 +417,8 @@ func (w *World) SpawnGeneratorLeader(idx int) int {
 	if !ok {
 		return -1
 	}
-	sp := MobSpawn{Template: g.LeaderTmpl, TemplateName: g.LeaderName, X: x, Y: y, RouteType: g.RouteType, GenIndex: int16(idx)}
+	sp := MobSpawn{Template: g.LeaderTmpl, TemplateName: g.LeaderName, X: x, Y: y, RouteType: g.RouteType,
+		GenIndex: int16(idx), GenRev: g.Rev}
 	sp.SegX, sp.SegY, sp.SegWait = g.SegX, g.SegY, g.SegWait
 	return w.SpawnMobAt(sp)
 }
@@ -488,7 +518,8 @@ func (w *World) generateMob(idx int, near bool, nearX, nearY int16, limit int) [
 		return nil
 	}
 
-	sp := MobSpawn{Template: g.LeaderTmpl, TemplateName: g.LeaderName, RouteType: g.RouteType, GenIndex: int16(idx)}
+	sp := MobSpawn{Template: g.LeaderTmpl, TemplateName: g.LeaderName, RouteType: g.RouteType,
+		GenIndex: int16(idx), GenRev: g.Rev}
 	for i := 0; i < 5; i++ {
 		if g.SegX[i] == 0 {
 			continue

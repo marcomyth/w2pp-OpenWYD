@@ -1295,6 +1295,47 @@ type GeneratorOffConfig struct {
 	Off     []GeneratorOff
 }
 
+// NewGeneratorIndexBase is where blocks created by the panel start. The file's
+// own blocks are numbered from 0 and the file grows every week; a block that
+// lives only in the database must never land on an index the file will reach.
+const NewGeneratorIndexBase = 20000
+
+// MaxGeneratorIndex is the highest block index a mob can carry: every spawned
+// mob keeps its block in an int16 (MobSpawn.GenIndex).
+const MaxGeneratorIndex = 32767
+
+// GeneratorRecipe is the whole spawn recipe of one NPCGener block, kept in the
+// database (npc_generator_recipe). It replaces what the file says for that
+// block; a block at NewGeneratorIndexBase or above exists only here.
+//
+// Seg* follow the legacy waypoint order: Start, Segment1..3, Dest.
+type GeneratorRecipe struct {
+	Index          int32
+	Leader         string
+	Follower       string // "" = leader-only groups
+	MinuteGenerate int32
+	MinGroup       int32
+	MaxGroup       int32
+	MaxNumMob      int32
+	RouteType      int32
+	Formation      int32
+	SegX, SegY     [5]int32
+	SegRange       [5]int32
+	SegWait        [5]int32
+	// Renovar is bumped by the panel's "trocar os vivos agora": a server that
+	// sees it move clears the block's live mobs and raises them again from this
+	// recipe. Without a bump the change reaches only the next ones to be born.
+	Renovar int64
+	Nota    string
+}
+
+// GeneratorRecipeConfig is every block the database gives a recipe, plus the
+// version they belong to. A block absent from Recipes spawns as the file says.
+type GeneratorRecipeConfig struct {
+	Version int64
+	Recipes []GeneratorRecipe
+}
+
 // QuestReward is one quest trophy's payout (items 4117..4121, EF_VOLATILE 191):
 // the XP and gold using it grants, plus the half-open level band that may use
 // it — min inclusive, max exclusive, as the legacy gate reads them.

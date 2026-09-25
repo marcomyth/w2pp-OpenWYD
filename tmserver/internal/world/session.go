@@ -361,7 +361,9 @@ type Entity struct {
 	Template []byte
 	// TemplateName is the template file this mob was spawned from (MobSpawn).
 	TemplateName string
-	Merchant     uint8 // bit-packed: spawn city in bits 6-7 (lote2-movimento.md ChangeCity)
+	// GenRev is the recipe revision of its block when it was born (MobSpawn).
+	GenRev   uint32
+	Merchant uint8 // bit-packed: spawn city in bits 6-7 (lote2-movimento.md ChangeCity)
 	// MobMerchant is the OTHER merchant byte, STRUCT_MOB.Merchant @17: the one the
 	// legacy routes quest NPCs by (_MSG_Quest.cpp:33). The Treinadores are 36/40/41
 	// here and 100/104/105 in Merchant above; see internal/campotreino.

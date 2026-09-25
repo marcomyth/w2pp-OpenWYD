@@ -514,6 +514,7 @@ func runServe(args []string, logger *slog.Logger) error {
 	dbv1.RegisterQuestRewardServiceServer(srv, grpcsrv.NewQuestReward(st))
 	dbv1.RegisterDropBonusServiceServer(srv, grpcsrv.NewDropBonus(st))
 	dbv1.RegisterNpcGeneratorServiceServer(srv, grpcsrv.NewNpcGenerator(st))
+	dbv1.RegisterNpcRecipeServiceServer(srv, grpcsrv.NewNpcRecipe(st))
 	dbv1.RegisterDropRuleServiceServer(srv, grpcsrv.NewDropRule(st))
 
 	ln, err := net.Listen("tcp", *addr)

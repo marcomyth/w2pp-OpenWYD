@@ -22,6 +22,7 @@ import (
 //	matar [raio]          kills the monsters around you (default 3)
 //	matar bloco <bloco>   kills every live mob of a block, wherever it is
 //	recarregar            re-reads the database switches and tops up every block
+//	renovar <bloco>       takes the block's live mobs out and raises it from its recipe
 //
 // The same commands run from two places: typed in game after "/gm", and sent by
 // the staff panel through the control API (RunBlockCommand). Each one answers
@@ -80,6 +81,8 @@ func (d *Dispatcher) blocoCmd(w *world.World, o blocoOrigem, line string) []stri
 		return d.matarCmd(w, o, args)
 	case "recarregar", "reloadnpc":
 		return d.recarregarCmd(w)
+	case "renovar", "renew":
+		return d.renovarCmd(w, o, args) // receita.go
 	}
 	return []string{fmt.Sprintf("Comando %q não existe.", sub)}
 }
@@ -385,11 +388,12 @@ func (d *Dispatcher) matarCmd(w *world.World, o blocoOrigem, args []string) []st
 
 // recarregarCmd is the legacy "reloadnpc" as this server can do it. The file
 // itself ships with the deploy, so there is nothing on disk to re-read; what it
-// does is re-read the database now (block switches and the NPC panel) and top
+// does is re-read the database now (block switches, block recipes and the NPC panel) and top
 // every block up to its cap, bringing back whatever is missing.
 func (d *Dispatcher) recarregarCmd(w *world.World) []string {
 	d.forceGeneratorOffReload()
 	d.forceNPCConfigReload()
+	d.forceRecipeReload()
 	n := 0
 	for i := 0; i < w.GeneratorCount(); i++ {
 		g := w.GeneratorAt(i)

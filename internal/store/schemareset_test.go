@@ -84,6 +84,8 @@ var tabelasDeTeste = []string{
 	"combat_rule",
 	"npc_generator_off_meta",
 	"npc_generator_off",
+	"npc_generator_recipe_meta",
+	"npc_generator_recipe",
 	"drop_rule_meta",
 	"drop_rule",
 	"affect",
