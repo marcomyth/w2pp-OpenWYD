@@ -424,26 +424,40 @@
     <span class="marca">Painel OpenWYD</span>
     <a href="/" {{if eq .Nav "inicio"}}class="on"{{end}}>Início</a>
 
-    {{/* Gente: contas, o que trocaram entre si, e o que a equipe fez. */}}
+    {{/* SETE GRUPOS, e a regra que decide o grupo é "de que assunto isto trata",
+         não "de que serviço vem". O menu tinha 23 entradas soltas e um grupo
+         "Gente" com 11, onde conta, moderação, quatro filas de dinheiro e
+         auditoria dividiam a mesma linha — quem procurava dinheiro varria tudo. */}}
+
+    {{/* CONTAS: quem é a pessoa, quem administra, e o que a equipe fez. */}}
     <span class="grupo">
       <a href="/contas" {{if eq .Nav "contas"}}class="on"{{end}}>Contas</a>
-      {{if .HasDenun}}<a href="/denuncias" {{if eq .Nav "denuncias"}}class="on"{{end}}>Denúncias</a>{{end}}
-      {{if .HasRepasse}}<a href="/repasses" {{if eq .Nav "repasses"}}class="on"{{end}}>Repasses</a>{{end}}
-      {{if .HasFilasRMT}}<a href="/reembolsos" {{if eq .Nav "reembolsos"}}class="on"{{end}}>Reembolsos</a>{{end}}
-      {{if .HasFilasRMT}}<a href="/orfaos" {{if eq .Nav "orfaos"}}class="on"{{end}}>Órfãos</a>{{end}}
-      {{if .HasFilasRMT}}<a href="/divergentes" {{if eq .Nav "divergentes"}}class="on"{{end}}>Divergentes</a>{{end}}
-      {{if .HasGuilda}}<a href="/guildas" {{if eq .Nav "guildas"}}class="on"{{end}}>Guildas</a>{{end}}
-      {{if .HasTrocas}}<a href="/trocas" {{if eq .Nav "trocas"}}class="on"{{end}}>Trocas</a>{{end}}
-      {{if .HasCenso}}<a href="/censo" {{if eq .Nav "censo"}}class="on"{{end}}>Censo</a>{{end}}
-      {{if .HasChat}}<a href="/chat" {{if eq .Nav "chat"}}class="on"{{end}}>Conversa</a>{{end}}
+      {{if and .IsAdmin .HasPainelUsuarios}}<a href="/usuarios-do-painel" {{if eq .Nav "usuarios-do-painel"}}class="on"{{end}}>Usuários do painel</a>{{end}}
       {{if .IsAdmin}}<a href="/auditoria" {{if eq .Nav "auditoria"}}class="on"{{end}}>Auditoria</a>{{end}}
     </span>
 
-    {{/* O mundo: o conteúdo que o jogo carrega. Os quatro primeiros vêm do mesmo
-         webServer e por isso partilham uma condição; Rates tem a sua porque a
-         mesa de XP vem do banco e a de montarias vem do webServer, e a seção
-         existe se pelo menos uma das duas existir. */}}
-    {{if or .HasItems (or .HasRates .HasMasm)}}
+    {{/* MODERAÇÃO: o que jogador fez e alguém precisa olhar. */}}
+    {{if or .HasDenun (or .HasChat (or .HasTrocas (or .HasCenso .HasGuilda)))}}
+    <span class="grupo">
+      {{if .HasDenun}}<a href="/denuncias" {{if eq .Nav "denuncias"}}class="on"{{end}}>Denúncias</a>{{end}}
+      {{if .HasChat}}<a href="/chat" {{if eq .Nav "chat"}}class="on"{{end}}>Chat</a>{{end}}
+      {{if .HasTrocas}}<a href="/trocas" {{if eq .Nav "trocas"}}class="on"{{end}}>Trocas</a>{{end}}
+      {{if .HasCenso}}<a href="/censo" {{if eq .Nav "censo"}}class="on"{{end}}>Censo</a>{{end}}
+      {{if .HasGuilda}}<a href="/guildas" {{if eq .Nav "guildas"}}class="on"{{end}}>Guildas</a>{{end}}
+    </span>
+    {{end}}
+
+    {{/* DINHEIRO: UMA entrada para as quatro filas, que antes ocupavam quatro
+         lugares no meio de "Gente". O contador é o que faz a entrada valer:
+         sem ele, saber se há dinheiro parado exigia abrir as quatro telas. */}}
+    {{if and .IsAdmin (or .HasRepasse .HasFilasRMT)}}
+    <span class="grupo">
+      <a href="/dinheiro" {{if eq .Nav "dinheiro"}}class="on"{{end}}>Dinheiro{{if .FilasDinheiro}} <span class="conta">{{.FilasDinheiro}}</span>{{end}}</a>
+    </span>
+    {{end}}
+
+    {{/* MUNDO: o conteúdo que o jogo carrega. */}}
+    {{if or .HasItems (and .IsAdmin .HasMasm)}}
     <span class="grupo">
       {{if .HasItems}}
       <a href="/itens" {{if eq .Nav "itens"}}class="on"{{end}}>Itens</a>
@@ -451,7 +465,6 @@
       <a href="/monstros" {{if eq .Nav "monstros"}}class="on"{{end}}>Monstros</a>
       <a href="/drops" {{if eq .Nav "drops"}}class="on"{{end}}>Drops</a>
       {{end}}
-      {{if and .IsAdmin .HasRates}}<a href="/rates" {{if eq .Nav "rates"}}class="on"{{end}}>Rates</a>{{end}}
       {{/* Masmorras fica com o conteúdo, e não com "Agora", porque a maior parte
            dela é ajuste frio — quem entra, quanto paga. O que ela tem de vivo é
            a porta, que vale na hora. */}}
@@ -459,22 +472,29 @@
     </span>
     {{end}}
 
-    {{/* Agora: o servidor rodando neste instante. Sempre aparece, porque Mapas
-         de evento, no fim do grupo, não depende de nada configurado. */}}
+    {{/* REGRAS: os números que decidem o jogo. Era "Rates", que não dizia nada a
+         quem não conhece o termo — e o que está lá dentro é XP, quest, montaria,
+         máquina e combate. */}}
+    {{if and .IsAdmin .HasRates}}
+    <span class="grupo">
+      <a href="/regras" {{if eq .Nav "regras"}}class="on"{{end}}>Regras</a>
+    </span>
+    {{end}}
+
+    {{/* AGORA: o servidor rodando neste instante. */}}
     <span class="grupo">
       {{if .HasJogo}}<a href="/servidor" {{if eq .Nav "servidor"}}class="on"{{end}}>Servidor</a>{{end}}
-      {{if .HasJogo}}<a href="/mapa" {{if eq .Nav "mapa"}}class="on"{{end}}>Quem está onde</a>{{end}}
-      {{/* Blocos fica em "Agora" e não com NPCs/Monstros: o que ela mostra e mexe
-           são os mobs vivos neste instante, e cada botão vale na hora. */}}
-      {{if .HasBlocos}}<a href="/blocos" {{if eq .Nav "blocos"}}class="on"{{end}}>Blocos</a>{{end}}
+      {{if .HasJogo}}<a href="/mapa" {{if eq .Nav "mapa"}}class="on"{{end}}>Mapa ao vivo</a>{{end}}
+      {{/* Comandos em bloco fica em "Agora" e não com NPCs/Monstros: o que ela
+           mostra e mexe são os mobs vivos neste instante, e cada botão vale na
+           hora. O nome "Blocos" dizia o mecanismo, não o que a tela faz. */}}
+      {{if .HasBlocos}}<a href="/blocos" {{if eq .Nav "blocos"}}class="on"{{end}}>Comandos em bloco</a>{{end}}
+      {{/* Mapas de evento virou ABA de Eventos: é a lista que o tmServer usa para
+           não gerar mob em mapa de evento, ou seja, é sobre eventos. */}}
       {{if .HasEvento}}<a href="/eventos" {{if eq .Nav "eventos"}}class="on"{{end}}>Eventos</a>{{end}}
-      {{/* Mapas de evento não depende de banco nem de jogo: é a lista do código
-           que o tmServer usa para não gerar mob lá. */}}
-      <a href="/mapas-evento" {{if eq .Nav "mapas-evento"}}class="on"{{end}}>Mapas de evento</a>
+      {{if not .HasEvento}}<a href="/mapas-evento" {{if eq .Nav "mapas-evento"}}class="on"{{end}}>Mapas de evento</a>{{end}}
     </span>
   </nav>
-  {{/* Uma caixa só, em toda página. Sem JavaScript: é um formulário GET que vai
-       para uma rota que decide o destino. */}}
   <form class="ir" method="get" action="/ir" role="search">
     <input type="search" name="q" placeholder="conta, personagem ou item"
            aria-label="Procurar conta, personagem ou item" autocomplete="off">
