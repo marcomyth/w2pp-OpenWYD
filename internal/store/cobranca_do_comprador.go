@@ -93,7 +93,43 @@ type CobrancaDoComprador struct {
 	// A partir desta data a página conta os até dois dias úteis da análise.
 	ReembolsoPedidoEm time.Time
 	Reembolso         EstadoReembolso
+	// Entrega é onde está o item depois de pago: a caminho, ou segurado porque o
+	// baú está cheio. Ver EstadoEntrega.
+	Entrega EstadoEntrega
 }
+
+// EstadoEntrega diz onde está o item de uma compra já paga.
+//
+// CALCULADO NA LEITURA, e não guardado numa coluna. Quem descobre que o item não
+// cabe é o servidor de jogo, no laço dele, e ele só fala com o banco por gRPC —
+// marcar uma coluna exigiria um RPC novo, e quando NADA é entregue o dreno nem
+// chega a chamar o banco. O calculado também é mais honesto: uma coluna diria "não
+// cabia às 02h10" e envelheceria, enquanto isto diz "não cabe agora".
+//
+// "SEM ESPAÇO LIVRE" NÃO É "NÃO CABE": item que empilha entra num baú lotado. Por
+// isso o estado afirma o FATO, e a página diz "o baú está sem espaço livre" em vez
+// de prever que o item não vai entrar — assim a frase não fica falsa quando ele
+// empilhar.
+//
+// E O ESPAÇO É LIDO NO BANCO, não na memória do jogo: o webserver não fala com o
+// laço. Com o jogador online, o baú do banco é o do último save, então isto pode
+// estar um save atrasado. É a melhor resposta disponível deste lado, e é melhor que
+// a anterior, que era dizer "a caminho" para quem nunca receberia.
+type EstadoEntrega int
+
+const (
+	// EntregaNenhuma: não há linha de entrega. Ainda não pago, ou sem entrega.
+	EntregaNenhuma EstadoEntrega = iota
+	// EntregaNaFila: pago e na fila. Chega no próximo dreno, que é o login ou a
+	// entrega imediata.
+	EntregaNaFila
+	// EntregaPresa: está na fila E o baú da conta não tem espaço livre.
+	EntregaPresa
+	// EntregaFeita: o item entrou no baú.
+	EntregaFeita
+	// EntregaPerdida: a linha foi encerrada sem entregar. Não acontece sozinha.
+	EntregaPerdida
+)
 
 // EstadoReembolso é o caminho de volta do dinheiro que chegou tarde.
 //
@@ -153,6 +189,8 @@ func (s *Store) CobrancaAtualDoComprador(ctx context.Context, compradorConta int
 	var reembolsoStatus *int16
 	var reembolsoEm *time.Time
 	var divergente *int64
+	var entregaStatus *string
+	var itensNoBau int
 
 	// O nome do vendedor vem da FOTOGRAFIA (0113) e não de uma busca por
 	// personagem da conta. Buscar erraria de duas formas ao mesmo tempo: mostraria
@@ -173,9 +211,16 @@ func (s *Store) CobrancaAtualDoComprador(ctx context.Context, compradorConta int
 		SELECT c.id, c.codigo_pix, c.valor_centavos, c.expira_em, c.status,
 		       c.reembolso_status, c.reembolso_pedido_em, c.valor_divergente_centavos,
 		       a.item_index, a.eff1, a.effv1, a.eff2, a.effv2, a.eff3, a.effv3,
-		       a.vendedor_personagem
+		       a.vendedor_personagem,
+		       e.status,
+		       -- O espaço livre do baú, contado aqui e não numa segunda consulta:
+		       -- assim ele é lido no MESMO instante do resto, e a página não mistura
+		       -- uma entrega de agora com um baú de um segundo atrás.
+		       (SELECT count(*) FROM item
+		         WHERE account_id = c.comprador_conta AND owner_kind = 'account_cargo')
 		  FROM rmt_cobranca c
 		  JOIN rmt_anuncio a ON a.id = c.anuncio_id
+		  LEFT JOIN delivery_queue e ON e.id = c.entrega_id
 		 WHERE c.comprador_conta = $1
 		   AND (c.status = $2
 		        OR (c.status = $4 AND (c.reembolso_status IS NULL OR c.reembolso_status <> $5))
@@ -193,7 +238,7 @@ func (s *Store) CobrancaAtualDoComprador(ctx context.Context, compradorConta int
 		Scan(&cob.CobrancaID, &codigo, &cob.ValorCentavos, &cob.ExpiraEm, &status,
 			&reembolsoStatus, &reembolsoEm, &divergente,
 			&cob.ItemIndex, &eff[0], &eff[1], &eff[2], &eff[3], &eff[4], &eff[5],
-			&nomeVendedor)
+			&nomeVendedor, &entregaStatus, &itensNoBau)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, CobrancaDoComprador{}, nil
 	}
@@ -221,8 +266,42 @@ func (s *Store) CobrancaAtualDoComprador(ctx context.Context, compradorConta int
 		cob.ReembolsoPedidoEm = *reembolsoEm
 	}
 	cob.Refino, cob.Quantidade = refinoEQuantidade(eff)
+	cob.Entrega = estadoDaEntrega(entregaStatus, itensNoBau)
 	return true, cob, nil
 }
+
+// estadoDaEntrega decide onde está o item a partir da linha da caixa postal e do
+// espaço do baú.
+//
+// SEM LINHA É "NENHUMA", e não "na fila": a cobrança que ainda não foi paga não tem
+// entrega, e dizer "a caminho" ali prometeria uma coisa que ninguém pediu ao banco.
+func estadoDaEntrega(status *string, itensNoBau int) EstadoEntrega {
+	if status == nil {
+		return EntregaNenhuma
+	}
+	switch *status {
+	case "delivered":
+		return EntregaFeita
+	case "lost":
+		return EntregaPerdida
+	case "pending":
+		// PRESA só quando o baú não tem espaço livre. É o fato que a página afirma;
+		// se o item empilhar, ele entra mesmo assim, e a frase continua verdadeira
+		// porque ela fala do baú e não do item.
+		if itensNoBau >= maxCargoDoBau {
+			return EntregaPresa
+		}
+		return EntregaNaFila
+	}
+	// Status que esta versão não conhece vira NENHUMA, e não um chute: a página tem
+	// uma frase neutra para isso, e afirmar "entregue" por engano é o pior erro
+	// possível aqui.
+	return EntregaNenhuma
+}
+
+// maxCargoDoBau é MAX_CARGO, os espaços do baú da conta. O número mora aqui porque
+// esta consulta é o único lugar do store que precisa saber quando o baú está cheio.
+const maxCargoDoBau = 128
 
 // estadoParaOComprador traduz o status da linha no que a página diz.
 //
