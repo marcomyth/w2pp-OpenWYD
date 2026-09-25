@@ -269,6 +269,8 @@ func newTestPanel(t *testing.T, acc Accounts) http.Handler {
 
 // fakeWriter records the writes asked of it and can be made to refuse.
 type fakeWriter struct {
+	discordSolto    []soltura
+	erroDesvincular error
 	posse           accounts.Posse
 	posseSolta      []soltura
 	erroSoltarPosse error
@@ -369,6 +371,22 @@ func (f *fakeWriter) SoltarPosse(_ context.Context, atorConta, atorPainel int64,
 		conta: accountID, nota: nota,
 	})
 	f.posse = accounts.Posse{}
+	return nil
+}
+
+// DesvincularDiscord: a saída da staff para o vínculo do Discord (0141).
+func (f *fakeWriter) DesvincularDiscord(_ context.Context, atorConta, atorPainel int64, papel string,
+	accountID int64, nota string,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.erroDesvincular != nil {
+		return f.erroDesvincular
+	}
+	f.discordSolto = append(f.discordSolto, soltura{
+		atorConta: atorConta, atorPainel: atorPainel, papel: papel,
+		conta: accountID, nota: nota,
+	})
 	return nil
 }
 

@@ -832,3 +832,98 @@ func TestBuscarVaziaListaTudoAteOLimite(t *testing.T) {
 		t.Fatalf("achados = %d, want 2 (o limite)", len(achados))
 	}
 }
+
+// TestDesvincularDiscordGravaAAuditoriaNaMesmaTransacao.
+//
+// Desvincular abre a porta para outra pessoa pegar aquele Discord. Se a decisão estiver
+// errada, a linha da auditoria é a única coisa que sobra — então ela não pode ficar de
+// fora quando a soltura acontece, nem existir quando a soltura falha.
+func TestDesvincularDiscordGravaAAuditoriaNaMesmaTransacao(t *testing.T) {
+	pool := testPool(t)
+	s := New(pool)
+	ctx := context.Background()
+	const id = "123456789012345678"
+	conta := seed(t, pool, "discord_desv", RolePlayer)
+	ator := seed(t, pool, "discord_staff", RoleAdmin)
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE account SET discord_id = $2 WHERE id = $1`, conta, id); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.DesvincularDiscord(ctx, ator, 0, "admin", conta, "dono antigo pediu"); err != nil {
+		t.Fatalf("DesvincularDiscord: %v", err)
+	}
+
+	var restou *string
+	if err := s.pool.QueryRow(ctx,
+		`SELECT discord_id FROM account WHERE id = $1`, conta).Scan(&restou); err != nil {
+		t.Fatal(err)
+	}
+	if restou != nil {
+		t.Errorf("o vínculo ficou: %q", *restou)
+	}
+
+	// A auditoria guarda o Discord que SAIU: sem ele a linha diria "alguém
+	// desvinculou algo", que não responde nada.
+	var antigo, nota string
+	if err := s.pool.QueryRow(ctx, `
+		SELECT old_value::text, new_value::text FROM admin_audit_log
+		 WHERE target_account_id = $1 AND action = 'DESVINCULAR_DISCORD'`, conta).
+		Scan(&antigo, &nota); err != nil {
+		t.Fatalf("a auditoria não foi gravada: %v", err)
+	}
+	if !strings.Contains(antigo, id) {
+		t.Errorf("a auditoria não guardou o Discord que saiu: %s", antigo)
+	}
+	if !strings.Contains(nota, "dono antigo pediu") {
+		t.Errorf("a auditoria não guardou a observação: %s", nota)
+	}
+}
+
+// TestDesvincularDiscordSemObservacaoNaoMexeEmNada: a recusa acontece antes de a
+// transação começar, então nem o vínculo sai nem sobra linha de auditoria.
+func TestDesvincularDiscordSemObservacaoNaoMexeEmNada(t *testing.T) {
+	pool := testPool(t)
+	s := New(pool)
+	ctx := context.Background()
+	const id = "222222222222222222"
+	conta := seed(t, pool, "discord_sem_nota", RolePlayer)
+	ator := seed(t, pool, "discord_staff2", RoleAdmin)
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE account SET discord_id = $2 WHERE id = $1`, conta, id); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.DesvincularDiscord(ctx, ator, 0, "admin", conta, "   "); !errors.Is(err, ErrNotaDoDiscord) {
+		t.Fatalf("erro = %v, queria ErrNotaDoDiscord", err)
+	}
+	var restou *string
+	if err := s.pool.QueryRow(ctx,
+		`SELECT discord_id FROM account WHERE id = $1`, conta).Scan(&restou); err != nil {
+		t.Fatal(err)
+	}
+	if restou == nil || *restou != id {
+		t.Error("o vínculo saiu numa chamada que devia ter sido recusada")
+	}
+	var linhas int
+	if err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM admin_audit_log WHERE target_account_id = $1`, conta).Scan(&linhas); err != nil {
+		t.Fatal(err)
+	}
+	if linhas != 0 {
+		t.Errorf("sobraram %d linhas de auditoria de uma soltura recusada", linhas)
+	}
+}
+
+// TestDesvincularODeUmaContaSemVinculoERecusado: dizer "pronto" faria quem clicou
+// procurar a causa no lugar errado.
+func TestDesvincularODeUmaContaSemVinculoERecusado(t *testing.T) {
+	pool := testPool(t)
+	s := New(pool)
+	ctx := context.Background()
+	conta := seed(t, pool, "discord_livre", RolePlayer)
+	ator := seed(t, pool, "discord_staff3", RoleAdmin)
+	if err := s.DesvincularDiscord(ctx, ator, 0, "admin", conta, "conferido"); !errors.Is(err, ErrSemDiscord) {
+		t.Fatalf("erro = %v, queria ErrSemDiscord", err)
+	}
+}

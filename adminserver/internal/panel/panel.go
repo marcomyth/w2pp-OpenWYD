@@ -126,6 +126,11 @@ type Writer interface {
 	// A soltura grava a auditoria na MESMA transação, por isso não passa pelo
 	// caminho comum de auditoria.
 	PosseDaConta(ctx context.Context, accountID int64) (accounts.Posse, error)
+	// DesvincularDiscord é a saída da staff: o jogador não troca o próprio vínculo,
+	// e essa recusa só se sustenta porque isto existe. Grava a auditoria na MESMA
+	// transação, por isso não passa pelo caminho comum.
+	DesvincularDiscord(ctx context.Context, atorConta, atorPainel int64, papel string,
+		accountID int64, nota string) error
 	SoltarPosse(ctx context.Context, atorConta, atorPainel int64, papel string, accountID int64, nota string) error
 	AddVipDays(ctx context.Context, actorID, targetID int64, days int) (prev, next *time.Time, err error)
 	ClearVip(ctx context.Context, actorID, targetID int64) (*time.Time, error)
@@ -584,6 +589,9 @@ func (h *Handler) Routes() http.Handler {
 	// existe mais, e se a afirmação estiver errada duas cópias do mesmo personagem
 	// entram em jogo — que é o defeito que a posse existe para impedir.
 	mux.Handle("POST /contas/{nome}/posse", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.soltarPosse))))
+	// DESVINCULAR O DISCORD É ADMIN. Ele abre a porta para outra pessoa pegar aquele
+	// Discord — e com ele o cargo que o Discord dá.
+	mux.Handle("POST /contas/{nome}/discord", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.desvincularDiscord))))
 	mux.Handle("POST /contas/{nome}/vip", h.requireStaff(http.HandlerFunc(h.setVip)))
 	mux.Handle("POST /contas/{nome}/senha", h.requireStaff(http.HandlerFunc(h.setSenha)))
 	// Creating an account hands out a login; admin-only, like the other writes
@@ -1036,6 +1044,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		EhVoce       bool
 		Pontos       []accounts.PontoDeLojinha
 		Posse        posseView
+		Discord      string
 	}{
 		p,
 		contaView{
@@ -1058,6 +1067,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		p.AccountID == auth.ID,
 		pontos,
 		posse,
+		det.DiscordID,
 	})
 }
 

@@ -241,6 +241,28 @@
       </form>
       {{end}}
 
+      {{if .Discord}}
+      <form method="post" action="/contas/{{.Conta.Name}}/discord" class="acao-bloco">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label for="obs-discord">Discord vinculado</label>
+        <p class="dica">
+          Esta conta está ligada ao Discord <strong>{{.Discord}}</strong>. O próprio
+          jogador NÃO troca o vínculo — trocar é recusado, para quem tomasse uma conta
+          não levar junto o cargo que o Discord dá. Desvincular aqui é a única saída, e
+          é o que libera aquele Discord para outra conta.
+        </p>
+        <div class="linha">
+          <input type="text" id="obs-discord" name="observacao" maxlength="500"
+                 placeholder="Por que está desvinculando" required>
+          <button type="submit">Desvincular Discord</button>
+        </div>
+        <p class="dica">
+          A observação fica na auditoria, junto com o Discord que saiu. É o que explica a
+          decisão se ela estiver errada.
+        </p>
+      </form>
+      {{end}}
+
       {{if .Posse.Presa}}
       <form method="post" action="/contas/{{.Conta.Name}}/posse" class="acao-bloco">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
