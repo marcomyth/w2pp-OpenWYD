@@ -66,18 +66,13 @@
     <h2>Servidor de jogo</h2>
     {{template "estado-servidor" .Servidor}}
 
-    {{if .IsAdmin}}
-      <form method="post" action="/servidor/reiniciar">
-        <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <button type="submit" class="perigo">Reiniciar o servidor de jogo</button>
-        <p class="dica" style="margin-top:8px">
-          Avisa quem está jogando, espera todo mundo sair e as gravações
-          confirmarem, e só então reinicia. Se alguma gravação não confirmar,
-          ele não reinicia — reiniciar com item pela metade no disco é como
-          item duplica.
-        </p>
-      </form>
-    {{end}}
+    {{/* O BOTÃO DE REINICIAR SAIU DAQUI, e mora só em /servidor.
+         Ele existia nas duas telas, e reinício é a ação mais cara do painel:
+         derruba todo mundo que está jogando. Uma ação dessas em dois lugares é
+         uma que alguém aperta sem estar na tela que explica o que ela faz — e a
+         explicação completa, com os dois modos (com aviso e sem), está lá.
+         Aqui fica o estado e o caminho. */}}
+    {{if .IsAdmin}}<p class="dica"><a href="/servidor">Ligar, reiniciar ou avisar em Servidor</a></p>{{end}}
 
     <p class="dica">
       {{if .Servidor.Pendentes}}
