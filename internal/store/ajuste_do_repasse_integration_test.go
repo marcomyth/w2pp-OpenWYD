@@ -8,6 +8,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -263,8 +264,11 @@ func TestAAuditoriaDizDeQuantoParaQuantoEDeQuem(t *testing.T) {
 		AcaoAjusteDeRepasse).Scan(&acao, &antigo, &novo, &alvo); err != nil {
 		t.Fatalf("nao achei a linha da auditoria: %v", err)
 	}
-	if !strings.Contains(antigo, "100") {
-		t.Errorf("old_value = %s, queria conter o valor antigo 100", antigo)
+	// O NÚMERO VEM DA CONSTANTE, e não escrito à mão: eu havia posto "100" aqui e o
+	// cenário cobra precoEmCentavos, que é 5000. O teste falhou na CI por isso — o tipo
+	// de erro que acontece quando a afirmação repete um valor em vez de apontar para ele.
+	if !strings.Contains(antigo, fmt.Sprint(precoEmCentavos)) {
+		t.Errorf("old_value = %s, queria conter o valor antigo %d", antigo, precoEmCentavos)
 	}
 	if !strings.Contains(novo, "20") || !strings.Contains(novo, "Hanna") {
 		t.Errorf("new_value = %s, queria conter o valor novo e a nota", novo)

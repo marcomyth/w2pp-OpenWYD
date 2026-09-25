@@ -15,6 +15,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -81,7 +82,10 @@ const (
 	ActionRepasseIncertoPago     = "REPASSE_INCERTO_PAGO"
 	ActionRepasseIncertoNaoPago  = "REPASSE_INCERTO_NAO_PAGO"
 	ActionRepasseRecusaResolvida = "REPASSE_RECUSA_RESOLVIDA"
-	ActionRepasseValorAjustado   = "REPASSE_VALOR_AJUSTADO"
+	// ActionRepasseValorAjustado NÃO repete o texto: ele vem do store, que é quem grava a
+	// linha, dentro da mesma transação do UPDATE. Duas constantes com a mesma palavra é
+	// como uma delas muda sozinha — e aí o painel filtra por um nome que o banco não tem.
+	ActionRepasseValorAjustado = store.AcaoAjusteDeRepasse
 	// As outras tres filas de gente do dinheiro real. Mesma especie das de cima:
 	// nenhuma muda configuracao de jogo, todas afirmam o que aconteceu com o
 	// dinheiro de alguem.
