@@ -67,8 +67,18 @@ func autoTradeInRange(a, b *world.Entity) bool {
 // moeda escolhida.
 func (d *Dispatcher) sendAutoTrade(w *world.World, s *world.Session, _ protocol.Header, _ []byte) {
 	d.log.Info("autotrade: janela antiga recusada, a barraca se monta pelo painel", "conn", s.Conn)
-	d.notify(w, s, NoticeCantAutoTrade)
+	sendClientMessage(w, s, msgBarracaSoPeloPainel)
 }
+
+// msgBarracaSoPeloPainel substitui o _NN_CantWhenAutoTrade nesta recusa, onde ele
+// MENTIA: a frase do cliente é "Não é possível durante a auto venda", e quem chega
+// aqui não está em auto venda nenhuma - ele está TENTANDO montar uma, pela janela
+// que se aposentou em 18/09/2026.
+//
+// Quem lê esta linha tem um cliente velho: o GamePatch novo toma o clique do botão
+// antes de ele virar pacote. É por isso que a frase diz PARA ONDE ir, e não só que
+// não deu - sem isso o jogador fica clicando num botão que não funciona mais.
+const msgBarracaSoPeloPainel = "A barraca não se monta mais por esta janela: use o painel da Loja do Servidor."
 
 // shopStocked reports whether a shop has anything left to sell. It reads the same
 // two fields a buy clears, so a stall whose last item sells goes unstocked on the

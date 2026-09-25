@@ -93,9 +93,9 @@ type itemDeHonra struct {
 // arma e uma peça de set. Foi decidido em 21/09/2026 que os itens continuam sendo
 // só exemplos, então isto é para revisar depois, não um erro.
 var estoqueDaLojaDeHonra = []itemDeHonra{
-	{3901, 150, protocol.HonraCatConsumo}, // Fada_Azul(3dias) - a fada que dobra o próprio ganho
-	{3904, 240, protocol.HonraCatConsumo}, // Fada_Azul(5dias)
-	{3907, 320, protocol.HonraCatConsumo}, // Fada_Azul(7dias)
+	{3901, 150, protocol.HonraCatConsumo}, // Fada_Azul de 3 dias - a fada que dobra o próprio ganho
+	{3904, 240, protocol.HonraCatConsumo}, // Fada_Azul de 5 dias
+	{3907, 320, protocol.HonraCatConsumo}, // Fada_Azul de 7 dias
 	{412, 40, protocol.HonraCatConsumo},   // Poeira_de_Oriharucon
 	{413, 40, protocol.HonraCatConsumo},   // Poeira_de_Lactolerium
 	{414, 60, protocol.HonraCatConsumo},   // Poeira_de_Fada

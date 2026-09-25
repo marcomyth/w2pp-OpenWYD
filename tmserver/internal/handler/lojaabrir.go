@@ -49,6 +49,24 @@ func (d *Dispatcher) lojaCargo(w *world.World, s *world.Session, _ protocol.Head
 		corpo.Encode())
 }
 
+// msgItemNaoVaiParaBarraca e msgBarracaSemItem substituem o _NN_CantWhenAutoTrade
+// em duas recusas onde ele MENTIA. A frase do cliente é "Não é possível durante a
+// auto venda", e nos dois casos o vendedor não tem auto venda nenhuma - ele está
+// justamente tentando abrir uma, e o que faltou foi outra coisa.
+//
+// A primeira é um item da lista de proibidos (autoTradeBlacklist). O jogador precisa
+// saber que o problema é O ITEM, senão ele tenta de novo com a mesma prateleira.
+//
+// A segunda é barraca sem nada dentro. Ela é alcançável de verdade: o painel deixa
+// tirar a última prateleira antes de mandar montar, e o pedido chega com todos os
+// CargoPos em -1.
+//
+// O _NN_CantWhenAutoTrade continua na porta de cima desta função, onde ele é
+// verdade: quem tenta montar barraca no meio de uma troca.
+const msgItemNaoVaiParaBarraca = "Este item não pode ser vendido em barraca."
+
+const msgBarracaSemItem = "Escolha ao menos um item para vender antes de abrir a barraca."
+
 // lojaAbrir atende MsgLojaAbrir: monta a barraca com os itens, preços e moedas
 // que o painel escolheu.
 func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
@@ -181,7 +199,7 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 			return
 		}
 		if autoTradeBlacklist[item.Index] {
-			d.notify(w, s, NoticeCantAutoTrade)
+			sendClientMessage(w, s, msgItemNaoVaiParaBarraca)
 			return
 		}
 		if d.itemAbility(item, efNoTrade) != 0 {
@@ -195,7 +213,7 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 		barraca.Moeda[i] = p.Moeda
 	}
 	if !shopStocked(barraca) {
-		d.notify(w, s, NoticeCantAutoTrade)
+		sendClientMessage(w, s, msgBarracaSemItem)
 		return
 	}
 

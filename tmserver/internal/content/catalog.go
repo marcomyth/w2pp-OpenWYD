@@ -297,8 +297,11 @@ func parseItemList(r io.Reader) (*ItemList, error) {
 }
 
 // durationInName matches the "(30dias)" suffix the catalog puts on every
-// temporary item — "Conjunto_Yin-Yang(30dias)", "Fada_Verde(5dias)",
+// temporary item — "Conjunto_Yin-Yang(30dias)", "Shire(15dias)",
 // "Panqueca_(7dias)". The count is the item's lifetime in days.
+//
+// NOT the fairies: they lost the suffix on 2026-09-23 and now carry their life in
+// EF_WDAY alone (handler.defaultLifetimeDays covers the ones the shop sells bare).
 var durationInName = regexp.MustCompile(`\((\d+)\s*dias?\)`)
 
 // Durations returns item index → lifetime in days for every item whose NAME
