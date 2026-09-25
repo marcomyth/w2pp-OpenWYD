@@ -68,8 +68,16 @@ func UsaCobradorPix(c CobradorPix) {
 
 // JanelaDeCobranca é quanto tempo o comprador tem para pagar.
 //
-// CONFIGURAÇÃO E NÃO CONSTANTE, e a diferença é o que se pode fazer com ela: cinco
-// minutos é o ponto de partida que a Hanna escolheu, e é número para MEDIR. A troca
+// CONFIGURAÇÃO E NÃO CONSTANTE, e a diferença é o que se pode fazer com ela.
+//
+// QUINZE MINUTOS desde 25/09/2026, e a troca tem motivo medido: eram cinco, e cinco
+// é apertado para uma pessoa pagando Pix DE VERDADE — abrir o aplicativo do banco,
+// achar o Pix, colar o código, confirmar. Um pagamento que cai em 5min30 não entrega
+// o item: ele vai para o caminho do PAGO COM ATRASO, com reembolso, e a pessoa vê
+// "venceu" tendo pagado. Com dinheiro real no meio, esse susto custa mais do que o
+// item do vendedor ficar preso dez minutos a mais.
+//
+// É número para MEDIR, e o que responde é o volume de `pago_com_atraso`. A troca
 // é dos dois lados — janela curta prende menos o item do vendedor e faz o
 // pagamento atrasado ser mais comum; janela longa faz o contrário. Quem responde é
 // o volume de `pago_com_atraso`, que a 0105 guarda para esta pergunta.
@@ -78,7 +86,7 @@ func UsaCobradorPix(c CobradorPix) {
 // a expiração do lado do banco, que roda noutro processo: os dois leem a mesma
 // variável de ambiente, e um valor que morasse só na Config do tmServer sairia de
 // sincronia sem ninguém notar.
-var JanelaDeCobranca = 5 * time.Minute
+var JanelaDeCobranca = 15 * time.Minute
 
 // DefineJanelaDeCobranca ajusta o prazo na montagem do servidor. Valor inválido é
 // ignorado: um prazo zero faria toda cobrança nascer vencida.
@@ -277,5 +285,20 @@ func referenciaDeCobranca() (string, error) {
 		// adivinha-la e poder forjar a confirmacao de um pagamento que nao houve.
 		return "", fmt.Errorf("loja: gerando a referencia da cobranca: %w", err)
 	}
-	return "rmt-" + hex.EncodeToString(b[:]), nil
+	// TRINTA E DOIS HEX MINÚSCULOS, SEM PREFIXO, e o "sem prefixo" é o conserto.
+	//
+	// Isto devolvia "rmt-" + 32 hex = 36 caracteres, e a ponte recusava TODA cobrança
+	// com http 400 e "referencia fora do formato (32 caracteres hex minusculos)". O
+	// teste de venda real da Hanna ficou parado em "gerando o código", repetindo a
+	// recusa a cada cinco segundos, em 24/09/2026.
+	//
+	// O contrato é de 32 hex e está escrito em dois lugares que eu podia ter lido: a
+	// ponte valida em src/cobranca.js, e o reconhecimento do aviso de pagamento
+	// procura /rmt:([0-9a-f]{32})/ na descrição — o "rmt:" ali é do TEXTO da
+	// descrição, não da referência. Foi essa a confusão.
+	//
+	// E o gerador irmão, o do repasse (store.ReferenciaDaTentativa), já fazia certo
+	// com um comentário dizendo "a ponte valida 32 hex minúsculos". A regra estava no
+	// arquivo vizinho.
+	return hex.EncodeToString(b[:]), nil
 }

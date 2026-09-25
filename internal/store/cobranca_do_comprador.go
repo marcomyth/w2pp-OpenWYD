@@ -47,8 +47,20 @@ const (
 	EstadoCobrancaExpirada
 	// EstadoCobrancaPaga: o dinheiro entrou e o item está a caminho.
 	EstadoCobrancaPaga
-	// EstadoCobrancaCancelada: fechou sem pagamento, porque o comprador saiu do
-	// jogo.
+	// EstadoCobrancaCancelada: fechou sem pagamento, e NADA FOI COBRADO.
+	//
+	// O SIGNIFICADO MUDOU em 24/09/2026, e o motivo é que ele tinha ficado sem
+	// produtor: a razão original era "o comprador saiu do jogo", e o cancelamento por
+	// logout saiu no PR 92 — ninguém mais o produzia. Agora o único produtor é a
+	// RECUSA DEFINITIVA da processadora (FecharCobrancaPorRecusaDefinitiva, em
+	// pix_da_cobranca.go): a cobrança não pôde ser gerada, nenhum código existiu, e
+	// por isso é certo dizer que nada foi cobrado.
+	//
+	// O que a pessoa pode fazer é o mesmo nos dois significados — tentar de novo —,
+	// e é por isso que o estado serve sem número novo no contrato. O texto do
+	// web.proto ainda descreve a razão antiga: ele muda no próximo handshake com o
+	// site, porque qualquer byte no .proto troca o sha e trava o build deles até o
+	// sync. Esta é a fonte da verdade até lá.
 	EstadoCobrancaCancelada
 	// EstadoCobrancaPagaSemItem: o dinheiro chegou depois de a cobrança fechar e
 	// o item não foi entregue. O valor está em análise.

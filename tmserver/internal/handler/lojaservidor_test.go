@@ -4,6 +4,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -480,7 +481,11 @@ func TestAbreBarracaPeloPainel(t *testing.T) {
 	for i := range abrir.Slots {
 		abrir.Slots[i].CargoPos = -1
 	}
-	abrir.Slots[0] = protocol.LojaAbrirSlot{CargoPos: 0, Moeda: protocol.LojaMoedaRMT, Preco: 42}
+	// 100 centavos e nao 42: o preco minimo em dinheiro real passou a ser R$ 1,00
+	// (store.PrecoMinimoRMTCentavos). O 42 era numero arbitrario — este teste e sobre
+	// a barraca subir pelo painel e aparecer na vitrine, e nao sobre preco.
+	abrir.Slots[0] = protocol.LojaAbrirSlot{
+		CargoPos: 0, Moeda: protocol.LojaMoedaRMT, Preco: store.PrecoMinimoRMTCentavos}
 	send(t, vendedor, protocol.MsgLojaAbrir, abrir.Encode())
 	// Esperar o aviso antes de perguntar pela vitrine: são duas conexões, e sem
 	// isto a pergunta do comprador pode chegar antes de a barraca subir.
@@ -490,9 +495,10 @@ func TestAbreBarracaPeloPainel(t *testing.T) {
 	if lista.Total != 1 {
 		t.Fatalf("vitrine = %d ofertas; queria 1", lista.Total)
 	}
-	if o := lista.Ofertas[0]; o.Indice != item || o.Preco != 42 || o.Moeda != protocol.LojaMoedaRMT {
-		t.Errorf("oferta = item %d, %d, moeda %d; queria %d, 42, RMT", o.Indice, o.Preco, o.Moeda,
-			item)
+	if o := lista.Ofertas[0]; o.Indice != item ||
+		o.Preco != store.PrecoMinimoRMTCentavos || o.Moeda != protocol.LojaMoedaRMT {
+		t.Errorf("oferta = item %d, %d, moeda %d; queria %d, %d, RMT", o.Indice, o.Preco, o.Moeda,
+			item, store.PrecoMinimoRMTCentavos)
 	}
 }
 
