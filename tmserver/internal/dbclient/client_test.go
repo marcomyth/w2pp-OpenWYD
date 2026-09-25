@@ -80,6 +80,9 @@ func (f *fakeAPI) SaveCharacter(_ context.Context, req *dbv1.SaveCharacterReques
 	f.saved = req
 	return &dbv1.SaveCharacterResponse{Ok: true}, nil
 }
+func (f *fakeAPI) NovaEpocaDePar(_ context.Context, _ *dbv1.NovaEpocaDeParRequest, _ ...grpc.CallOption) (*dbv1.NovaEpocaDeParResponse, error) {
+	return &dbv1.NovaEpocaDeParResponse{Epoca: 7}, nil
+}
 func (f *fakeAPI) SalvarPersonagemComCarga(_ context.Context, req *dbv1.SalvarPersonagemComCargaRequest, _ ...grpc.CallOption) (*dbv1.SaveCharacterResponse, error) {
 	f.parSalvo = req
 	return &dbv1.SaveCharacterResponse{Ok: true}, nil
@@ -410,7 +413,7 @@ func TestSaveOnShutdownMapping(t *testing.T) {
 		ClassMaster: 3, CelLv40: 1, CelCircle: 1, MortalLevel: 399, CelestialArchLevel: 5,
 		Carry: []world.SavedItem{{Slot: 3, Index: 1234, Eff1: 9, EffV1: 1}},
 	}
-	if err := newClient(api).SaveOnShutdown(context.Background(), save); err != nil {
+	if err := newClient(api).SaveOnShutdown(context.Background(), save, 0, 0); err != nil {
 		t.Fatalf("SaveOnShutdown: %v", err)
 	}
 	if api.saved.GetAccountId() != 1 {
@@ -442,7 +445,7 @@ func TestDivinePersistMapping(t *testing.T) {
 	// Save: an active Divine buff produces one type-34 affect with Time == deadline.
 	api := &fakeAPI{}
 	save := world.CharacterSave{AccountID: 1, Slot: 0, DivineEnd: deadline}
-	if err := newClient(api).SaveOnShutdown(context.Background(), save); err != nil {
+	if err := newClient(api).SaveOnShutdown(context.Background(), save, 0, 0); err != nil {
 		t.Fatalf("SaveOnShutdown: %v", err)
 	}
 	aff := api.saved.GetCharacter().GetAffects()
@@ -468,7 +471,7 @@ func TestDivinePersistMapping(t *testing.T) {
 func TestDivineNotPersistedWhenExpired(t *testing.T) {
 	api := &fakeAPI{}
 	save := world.CharacterSave{AccountID: 1, Slot: 0, DivineEnd: time.Now().Unix() - 100}
-	if err := newClient(api).SaveOnShutdown(context.Background(), save); err != nil {
+	if err := newClient(api).SaveOnShutdown(context.Background(), save, 0, 0); err != nil {
 		t.Fatalf("SaveOnShutdown: %v", err)
 	}
 	if aff := api.saved.GetCharacter().GetAffects(); len(aff) != 0 {

@@ -271,13 +271,14 @@ func (d *Dispatcher) subcreate(w *world.World, s *world.Session, args []byte) {
 	// A CARGA VAI JUNTO, na mesma transação, como no /create. Aqui o par é montado à
 	// mão porque este caminho grava com GoDetached: as duas sessões podem sumir, e a
 	// volta não pode depender de nenhuma delas continuar viva.
-	carga, entregues, temCarga := w.CargaParaOPar(s.AccountID)
+	carga, entregues, temCarga, seqDoPar := w.CargaParaOPar(s.AccountID)
+	epocaDoPar := w.EpocaDoPar()
 	s.Mode = world.UserWaitDB
 	targetSession.Mode = world.UserWaitDB
 	w.GoDetached(func() func(*world.World) {
 		// Save que falha cancela a promoção, pelo mesmo motivo do /create: seguir
 		// adiante devolveria o banco a decidir com ouro velho.
-		if err := world.SalvarPar(context.Background(), p, save, carga, temCarga, entregues); err != nil {
+		if err := world.SalvarPar(context.Background(), p, save, carga, temCarga, entregues, epocaDoPar, seqDoPar); err != nil {
 			return func(w *world.World) {
 				ls := w.Session(leaderConn)
 				if ls != leaderSession {

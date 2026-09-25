@@ -42,6 +42,24 @@ func resetTestSchema(ctx context.Context, pool *pgxpool.Pool) {
 	_, _ = pool.Exec(ctx, `DROP TABLE IF EXISTS `+
 		strings.Join(tabelasDeTeste, ", ")+` CASCADE`)
 	_, _ = pool.Exec(ctx, `DROP TYPE IF EXISTS item_owner_kind`)
+	// AS SEQUÊNCIAS SOLTAS TAMBÉM, e sem lista.
+	//
+	// As que pertencem a uma coluna caem junto com a tabela; uma CREATE SEQUENCE
+	// própria não cai, e sobrevive ao reset. A migração que a criou então falha na
+	// segunda rodada com "already exists" — e falha para a suíte INTEIRA, porque
+	// toda ela recria o schema. Foi o que aconteceu em 25/09/2026 com a
+	// par_epoca_seq.
+	//
+	// Varrer o catálogo em vez de acrescentar um nome aqui: a lista de tabelas
+	// acima já é uma que alguém precisa lembrar de atualizar, e duas seriam duas.
+	_, _ = pool.Exec(ctx, `
+		DO $$
+		DECLARE r record;
+		BEGIN
+			FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname = current_schema() LOOP
+				EXECUTE 'DROP SEQUENCE IF EXISTS ' || quote_ident(r.sequencename) || ' CASCADE';
+			END LOOP;
+		END $$`)
 }
 
 func TestMigrateAndSaveAccount(t *testing.T) {

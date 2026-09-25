@@ -456,7 +456,10 @@ type CastleQuestState struct {
 // DeleteCharacter/LoadCharacter are called OFF the loop via World.Go (blocking
 // I/O); SaveOnShutdown is called inline during the shutdown drain.
 type Persistence interface {
-	SaveOnShutdown(ctx context.Context, save CharacterSave) error
+	// epoca e seq ordenam esta gravação contra as outras da mesma conta, do mesmo
+	// jeito que ordenam o par: um save velho só do personagem passa por cima do par
+	// novo se ninguém conferir. Zero desliga a guarda.
+	SaveOnShutdown(ctx context.Context, save CharacterSave, epoca, seq int64) error
 	QuoteKingdomCape(ctx context.Context) (KingdomCapeQuote, error)
 	PurchaseKingdomCape(ctx context.Context, expectedRevision int64, kingdom uint8, save CharacterSave) (KingdomCapeQuote, bool, error)
 	AccountLogin(ctx context.Context, name, password string) (LoginOutcome, error)
@@ -510,7 +513,13 @@ type Persistence interface {
 	// uma janela em que uma queda deixava a mesma coisa nos dois lados — foi
 	// medido. Não existe ordem segura entre duas transações; a cura é não ter duas.
 	SalvarPersonagemComCarga(ctx context.Context, personagem CharacterSave, carga CargoSave,
-		deliveredIDs, lostIDs []int64) error
+		deliveredIDs, lostIDs []int64, epoca, seq int64) error
+
+	// NovaEpocaDePar entrega a esta execução o seu número de época, que ordena as
+	// gravações do par. Uma chamada por boot. A época vem do BANCO e não do
+	// relógio: um contador que zera no reinício ficaria abaixo do que o banco
+	// guardou, e nenhuma gravação passaria mais.
+	NovaEpocaDePar(ctx context.Context) (int64, error)
 	// SetAccountBlocked flips account.is_blocked by name — the write side of the
 	// in-game GM ban/unban command (issue #122). Called off the loop via World.Go.
 	SetAccountBlocked(ctx context.Context, name string, blocked bool) error
@@ -632,7 +641,9 @@ var errNoPersistence = errors.New("world: no persistence backend configured")
 type NopPersistence struct{}
 
 // SaveOnShutdown does nothing.
-func (NopPersistence) SaveOnShutdown(context.Context, CharacterSave) error { return nil }
+func (NopPersistence) SaveOnShutdown(context.Context, CharacterSave, int64, int64) error {
+	return nil
+}
 
 // QuoteKingdomCape returns the balanced development price without persistence.
 func (NopPersistence) QuoteKingdomCape(context.Context) (KingdomCapeQuote, error) {
@@ -723,9 +734,13 @@ func (NopPersistence) ReconcileRmtEscrow(context.Context, int64) ([]int16, error
 }
 
 // SalvarPersonagemComCarga drops both snapshots (no backend to persist to).
-func (NopPersistence) SalvarPersonagemComCarga(context.Context, CharacterSave, CargoSave, []int64, []int64) error {
+func (NopPersistence) SalvarPersonagemComCarga(context.Context, CharacterSave, CargoSave, []int64, []int64, int64, int64) error {
 	return nil
 }
+
+// NovaEpocaDePar devolve zero, que desliga a guarda de ordem (sem banco não há o
+// que ordenar).
+func (NopPersistence) NovaEpocaDePar(context.Context) (int64, error) { return 0, nil }
 
 // SaveCargoWithDeliveries drops the snapshot (no backend to persist to).
 func (NopPersistence) SaveCargoWithDeliveries(context.Context, CargoSave, []int64, []int64) error {

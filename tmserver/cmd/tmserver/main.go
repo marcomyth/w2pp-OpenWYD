@@ -743,6 +743,18 @@ func run(logger *slog.Logger) error {
 	// fresh boot would go out unmarked, which is a hole at exactly the moment
 	// the server is writing every item it has for the first time. Not fatal: a
 	// server with no database still runs, its items simply carry no identity.
+	// O NÚMERO DE ÉPOCA DESTA EXECUÇÃO, que ordena as gravações do par
+	// personagem+carga. Vem do banco de propósito: um contador que zerasse a cada
+	// boot ficaria abaixo do que o banco guardou da execução anterior, e nenhuma
+	// gravação passaria mais — perda total, calada. Sem banco, fica zero e a guarda
+	// de ordem simplesmente não existe, que é o mesmo comportamento de antes dela.
+	if epoca, err := persist.NovaEpocaDePar(ctx); err != nil {
+		logger.Warn("sem numero de epoca: as gravacoes do par nao serao ordenadas entre si", "err", err)
+	} else {
+		w.DefineEpocaDoPar(epoca)
+		logger.Info("epoca do par", "epoca", epoca)
+	}
+
 	if err := w.PrimeSerials(ctx); err != nil {
 		logger.Warn("could not reserve the first item serials; items stay unmarked until a later block lands", "err", err)
 	}

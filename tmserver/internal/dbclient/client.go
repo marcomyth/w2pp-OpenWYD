@@ -290,10 +290,12 @@ func (c *Client) LoadCharacter(ctx context.Context, accountID int64, slot int) (
 }
 
 // SaveOnShutdown persists the world's snapshot of a character.
-func (c *Client) SaveOnShutdown(ctx context.Context, save world.CharacterSave) error {
+func (c *Client) SaveOnShutdown(ctx context.Context, save world.CharacterSave, epoca, seq int64) error {
 	_, err := c.api.SaveCharacter(ctx, &dbv1.SaveCharacterRequest{
 		AccountId: save.AccountID,
 		Character: characterSaveToProto(save),
+		ParEpoca:  epoca,
+		ParSeq:    seq,
 	})
 	if err != nil {
 		return fmt.Errorf("dbclient: save character: %w", err)
@@ -303,7 +305,7 @@ func (c *Client) SaveOnShutdown(ctx context.Context, save world.CharacterSave) e
 
 // SalvarPersonagemComCarga grava personagem e carga na mesma transação do banco.
 func (c *Client) SalvarPersonagemComCarga(ctx context.Context, personagem world.CharacterSave,
-	carga world.CargoSave, deliveredIDs, lostIDs []int64,
+	carga world.CargoSave, deliveredIDs, lostIDs []int64, epoca, seq int64,
 ) error {
 	_, err := c.api.SalvarPersonagemComCarga(ctx, &dbv1.SalvarPersonagemComCargaRequest{
 		AccountId:    personagem.AccountID,
@@ -312,11 +314,22 @@ func (c *Client) SalvarPersonagemComCarga(ctx context.Context, personagem world.
 		CargoItems:   savedItemsToProto(carga.Items),
 		DeliveredIds: deliveredIDs,
 		LostIds:      lostIDs,
+		ParEpoca:     epoca,
+		ParSeq:       seq,
 	})
 	if err != nil {
 		return fmt.Errorf("dbclient: salvar personagem com carga: %w", err)
 	}
 	return nil
+}
+
+// NovaEpocaDePar pega o número desta execução para ordenar as gravações do par.
+func (c *Client) NovaEpocaDePar(ctx context.Context) (int64, error) {
+	resp, err := c.api.NovaEpocaDePar(ctx, &dbv1.NovaEpocaDeParRequest{})
+	if err != nil {
+		return 0, fmt.Errorf("dbclient: nova epoca de par: %w", err)
+	}
+	return resp.GetEpoca(), nil
 }
 
 // QuoteKingdomCape fetches the database-owned sapphire prices.

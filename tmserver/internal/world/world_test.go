@@ -226,7 +226,7 @@ type fakePersistence struct {
 	saved atomic.Int64
 }
 
-func (f *fakePersistence) SaveOnShutdown(context.Context, CharacterSave) error {
+func (f *fakePersistence) SaveOnShutdown(context.Context, CharacterSave, int64, int64) error {
 	f.saved.Add(1)
 	return nil
 }

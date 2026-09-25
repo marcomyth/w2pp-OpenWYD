@@ -411,7 +411,23 @@ func (s *Store) DeleteCharacter(ctx context.Context, accountID int64, slot int) 
 // skill_bonus is also untouched: the tmServer re-derives it at login
 // (BASE_GetBonusSkillPoint) instead of trusting the stored value.
 func (s *Store) SaveCharacter(ctx context.Context, accountID int64, ch domain.Character) error {
+	return s.SalvarPersonagemOrdenado(ctx, accountID, ch, 0, 0)
+}
+
+// SalvarPersonagemOrdenado é o SaveCharacter com a mesma guarda de ordem do par.
+//
+// ELA PRECISA VALER AQUI TAMBÉM: um save velho só do personagem passa por cima do
+// par novo exatamente como um par velho passaria. A guarda mora nas MESMAS colunas
+// da conta, então as duas formas de gravar compartilham uma ordem só — e é isso que
+// as torna comparáveis entre si.
+//
+// A carga não é tocada: este caminho grava o personagem de uma conta cuja carga não
+// está carregada, e escrever uma carga vazia ali apagaria o baú.
+func (s *Store) SalvarPersonagemOrdenado(ctx context.Context, accountID int64, ch domain.Character, epoca, seq int64) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := tomaAOrdemDoPar(ctx, tx, accountID, epoca, seq); err != nil {
+			return err
+		}
 		return salvarPersonagemTx(ctx, tx, accountID, ch)
 	})
 }

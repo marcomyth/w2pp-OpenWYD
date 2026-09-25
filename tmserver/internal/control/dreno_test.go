@@ -23,7 +23,7 @@ type bancoQueRecusa struct {
 	world.NopPersistence
 }
 
-func (bancoQueRecusa) SaveOnShutdown(context.Context, world.CharacterSave) error {
+func (bancoQueRecusa) SaveOnShutdown(context.Context, world.CharacterSave, int64, int64) error {
 	return errors.New("o banco recusou")
 }
 
@@ -35,7 +35,7 @@ func (bancoQueRecusa) SaveCargoWithDeliveries(context.Context, world.CargoSave, 
 	return errors.New("o banco recusou")
 }
 
-func (bancoQueRecusa) SalvarPersonagemComCarga(context.Context, world.CharacterSave, world.CargoSave, []int64, []int64) error {
+func (bancoQueRecusa) SalvarPersonagemComCarga(context.Context, world.CharacterSave, world.CargoSave, []int64, []int64, int64, int64) error {
 	return errors.New("o banco recusou")
 }
 

@@ -32,6 +32,7 @@ const (
 	AccountService_LoadCharacter_FullMethodName            = "/db.v1.AccountService/LoadCharacter"
 	AccountService_SaveCharacter_FullMethodName            = "/db.v1.AccountService/SaveCharacter"
 	AccountService_SalvarPersonagemComCarga_FullMethodName = "/db.v1.AccountService/SalvarPersonagemComCarga"
+	AccountService_NovaEpocaDePar_FullMethodName           = "/db.v1.AccountService/NovaEpocaDePar"
 	AccountService_QuoteKingdomCape_FullMethodName         = "/db.v1.AccountService/QuoteKingdomCape"
 	AccountService_PurchaseKingdomCape_FullMethodName      = "/db.v1.AccountService/PurchaseKingdomCape"
 	AccountService_TransferPlayerBalance_FullMethodName    = "/db.v1.AccountService/TransferPlayerBalance"
@@ -111,6 +112,9 @@ type AccountServiceClient interface {
 	// existir nos dois lados. Nao ha ordem segura entre duas transacoes; a cura e
 	// nao ter duas.
 	SalvarPersonagemComCarga(ctx context.Context, in *SalvarPersonagemComCargaRequest, opts ...grpc.CallOption) (*SaveCharacterResponse, error)
+	// NovaEpocaDePar entrega a esta execucao do tmServer o seu numero de epoca, para
+	// ordenar as gravacoes do par. Uma chamada por boot.
+	NovaEpocaDePar(ctx context.Context, in *NovaEpocaDeParRequest, opts ...grpc.CallOption) (*NovaEpocaDeParResponse, error)
 	QuoteKingdomCape(ctx context.Context, in *QuoteKingdomCapeRequest, opts ...grpc.CallOption) (*QuoteKingdomCapeResponse, error)
 	PurchaseKingdomCape(ctx context.Context, in *PurchaseKingdomCapeRequest, opts ...grpc.CallOption) (*PurchaseKingdomCapeResponse, error)
 	// TransferPlayerBalance moves Cash or RMT between two accounts in one
@@ -417,6 +421,16 @@ func (c *accountServiceClient) SalvarPersonagemComCarga(ctx context.Context, in 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SaveCharacterResponse)
 	err := c.cc.Invoke(ctx, AccountService_SalvarPersonagemComCarga_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) NovaEpocaDePar(ctx context.Context, in *NovaEpocaDeParRequest, opts ...grpc.CallOption) (*NovaEpocaDeParResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(NovaEpocaDeParResponse)
+	err := c.cc.Invoke(ctx, AccountService_NovaEpocaDePar_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1004,6 +1018,9 @@ type AccountServiceServer interface {
 	// existir nos dois lados. Nao ha ordem segura entre duas transacoes; a cura e
 	// nao ter duas.
 	SalvarPersonagemComCarga(context.Context, *SalvarPersonagemComCargaRequest) (*SaveCharacterResponse, error)
+	// NovaEpocaDePar entrega a esta execucao do tmServer o seu numero de epoca, para
+	// ordenar as gravacoes do par. Uma chamada por boot.
+	NovaEpocaDePar(context.Context, *NovaEpocaDeParRequest) (*NovaEpocaDeParResponse, error)
 	QuoteKingdomCape(context.Context, *QuoteKingdomCapeRequest) (*QuoteKingdomCapeResponse, error)
 	PurchaseKingdomCape(context.Context, *PurchaseKingdomCapeRequest) (*PurchaseKingdomCapeResponse, error)
 	// TransferPlayerBalance moves Cash or RMT between two accounts in one
@@ -1281,6 +1298,9 @@ func (UnimplementedAccountServiceServer) SaveCharacter(context.Context, *SaveCha
 func (UnimplementedAccountServiceServer) SalvarPersonagemComCarga(context.Context, *SalvarPersonagemComCargaRequest) (*SaveCharacterResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SalvarPersonagemComCarga not implemented")
 }
+func (UnimplementedAccountServiceServer) NovaEpocaDePar(context.Context, *NovaEpocaDeParRequest) (*NovaEpocaDeParResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method NovaEpocaDePar not implemented")
+}
 func (UnimplementedAccountServiceServer) QuoteKingdomCape(context.Context, *QuoteKingdomCapeRequest) (*QuoteKingdomCapeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method QuoteKingdomCape not implemented")
 }
@@ -1556,6 +1576,24 @@ func _AccountService_SalvarPersonagemComCarga_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccountServiceServer).SalvarPersonagemComCarga(ctx, req.(*SalvarPersonagemComCargaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_NovaEpocaDePar_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NovaEpocaDeParRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).NovaEpocaDePar(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_NovaEpocaDePar_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).NovaEpocaDePar(ctx, req.(*NovaEpocaDeParRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2594,6 +2632,10 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SalvarPersonagemComCarga",
 			Handler:    _AccountService_SalvarPersonagemComCarga_Handler,
+		},
+		{
+			MethodName: "NovaEpocaDePar",
+			Handler:    _AccountService_NovaEpocaDePar_Handler,
 		},
 		{
 			MethodName: "QuoteKingdomCape",
