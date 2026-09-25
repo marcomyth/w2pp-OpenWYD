@@ -485,6 +485,38 @@ func (d *Dispatcher) avisaLiquidoRMT(w *world.World, s *world.Session, anuncios 
 		sendClientMessage(w, s, fmt.Sprintf(msgLiquidoRMT,
 			d.itemName(a.Item.Index), emReaisRMT(liquido)))
 	}
+	// AS REGRAS DA VENDA, UMA VEZ SÓ, depois dos valores.
+	//
+	// DEPOIS e não antes: o número é o que o vendedor veio buscar, e quatro linhas de
+	// regra na frente empurrariam o valor para fora da tela de chat de quem anunciou
+	// cinco itens.
+	//
+	// UMA VEZ SÓ e não por item, pelo mesmo motivo: elas não mudam de prateleira para
+	// prateleira, e repeti-las cinco vezes faria o jogador parar de lê-las — que é o
+	// contrário do que elas existem para fazer.
+	//
+	// SÃO REGRAS QUE CUSTAM DINHEIRO SE NÃO FOREM LIDAS: quando o dinheiro chega, em
+	// que horário ele sai, quanto a casa fica e quais preços são aceitos. O jogador
+	// descobrir qualquer uma delas DEPOIS da venda é uma reclamação garantida.
+	for _, linha := range regrasDaVendaRMT {
+		sendClientMessage(w, s, linha)
+	}
+}
+
+// regrasDaVendaRMT são as quatro linhas que todo vendedor lê ao anunciar.
+//
+// TEXTOS APROVADOS PELA HANNA, palavra por palavra, e MEDIDOS em Windows-1252 contra o
+// corte de 94 bytes do painel: 69, 63, 54 e 47. Os acentos custam um byte cada, e é por
+// isso que a medição é em bytes e não em letras.
+//
+// A frase da taxa diz as DUAS faixas. A versão curta ("5% (6,99% acima de R$ 100)")
+// cabia também, e foi descartada: ela obriga o leitor a decidir se o R$ 0,80 vale nas
+// duas, e essa dúvida é sobre o dinheiro dele.
+var regrasDaVendaRMT = []string{
+	"Venda em dinheiro real: o valor cai na sua chave Pix em até 48 horas.",
+	"Pagamentos das 15h às 21h (horário de Brasília), em dias úteis.",
+	"Taxa: 5% + R$ 0,80 (acima de R$ 100: 6,99% + R$ 0,80).",
+	"Preço mínimo: R$ 5,00. Preço máximo: R$ 500,00.",
 }
 
 // msgLiquidoRMT é a linha que o vendedor lê por item anunciado.
