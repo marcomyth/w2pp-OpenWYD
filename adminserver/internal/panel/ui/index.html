@@ -104,25 +104,6 @@
        páginas que a pessoa tinha que saber abrir. */}}
   <h1>O que precisa de você</h1>
 
-  {{if .NaoLeu.denuncias}}
-    {{template "falha-de-leitura" "a fila de denúncias"}}
-  {{else if .HasDenun}}
-    {{if .Denuncias.Abertos}}
-    <a class="tarefa urgente" href="/denuncias">
-      <span class="quanto">{{.Denuncias.Abertos}}</span>
-      <span class="oque">
-        <strong>{{if eq .Denuncias.Abertos 1}}denúncia aberta{{else}}denúncias abertas{{end}}</strong>
-        {{if .Espera}}<span class="detalhe">a mais antiga espera há {{.Espera}}</span>{{end}}
-      </span>
-    </a>
-    {{else}}
-    <div class="tarefa calma">
-      <span class="quanto">0</span>
-      <span class="oque"><strong>nenhuma denúncia aberta</strong></span>
-    </div>
-    {{end}}
-  {{end}}
-
   {{if .Servidor.Conhecido}}
     {{if .Servidor.Incerto}}
     <a class="tarefa atencao" href="/servidor">

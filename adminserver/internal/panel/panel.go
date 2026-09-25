@@ -91,6 +91,15 @@ type UsuariosDoPainel interface {
 	TrocarSenhaDoPainel(ctx context.Context, id int64, senha string) error
 }
 
+// ContadorDeFilas é só a contagem das quatro filas do dinheiro real, para o menu.
+//
+// Interface própria e mínima: quem a implementa é o mesmo *store.Store das outras, mas
+// separá-la deixa claro que o MENU depende de uma consulta por página — e uma dependência
+// que aparece no contrato é uma que alguém pensa duas vezes antes de engordar.
+type ContadorDeFilas interface {
+	ContarFilasDeDinheiro(ctx context.Context) (store.FilasDeDinheiro, error)
+}
+
 // AuditLog is the panel's view of the action log.
 type AuditLog interface {
 	Write(ctx context.Context, r audit.Record) error
@@ -183,17 +192,6 @@ type Eventos interface {
 	WorldEventConfig(ctx context.Context) (domain.WorldEventConfig, error)
 	UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEventConfig, moderatorID int64) error
 	SetKefraState(ctx context.Context, live bool, guildID int32, fonte string, accountID int64) (int64, error)
-}
-
-// Denuncias is the /reportar queue.
-//
-// Satisfied by *store.Store, like Eventos and Trocas: the rows are written by
-// the game through the dbServer and read here, and a panel-owned second decoder
-// could only disagree with the one the writer uses.
-type Denuncias interface {
-	ListReports(ctx context.Context, q store.ReportQuery) ([]domain.PlayerReport, error)
-	CountReports(ctx context.Context) (store.ReportCounts, error)
-	MarkReportHandled(ctx context.Context, reportID, staffID int64) error
 }
 
 // Guildas is the guild and city state, READ ONLY.
@@ -311,6 +309,9 @@ type Config struct {
 	// as telas de usuário de painel não aparecem. É o que mantém o adminserver
 	// "deletável", como o CLAUDE.md pede.
 	Painel UsuariosDoPainel
+	// FilasDeDinheiro conta o que está parado nas quatro filas, para o distintivo do
+	// menu. NULO esconde o contador e não quebra nada.
+	FilasDeDinheiro ContadorDeFilas
 	// SoUsuarioDoPainel desliga o login por CONTA DE JOGO com cargo.
 	//
 	// A Hanna liga isto quando tiver criado os usuários dela. Enquanto estiver desligado,
@@ -319,7 +320,6 @@ type Config struct {
 	SoUsuarioDoPainel bool
 	Personagens       Personagens
 	Eventos           Eventos
-	Denuncias         Denuncias
 	Guildas           Guildas
 	Carteira          Carteira
 	Platform          Platform
@@ -443,9 +443,8 @@ func (h *Handler) Routes() http.Handler {
 		// balanceamento. Só para administrador, como era antes: estas tabelas
 		// governam o progresso de todo mundo de uma vez.
 		//
-		// /auditoria/xp, o endereço antigo, continua atendendo. Links para ele
-		// existem em anotações e nas próprias linhas da auditoria, e um 404 num
-		// link que já foi certo é a pior forma de mudar um endereço.
+		// /auditoria/xp, o endereço antigo, redireciona para cá — ver a nota mais
+		// abaixo, onde ele é registrado.
 		mux.Handle("GET /rates/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.mesaXP))))
 		mux.Handle("POST /rates/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setMesaXP))))
 		mux.Handle("POST /rates/xp/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparMesaXP))))
@@ -461,11 +460,20 @@ func (h *Handler) Routes() http.Handler {
 		// Progressão reads the same Mesa the XP tab writes, so it rides the same
 		// condition: without a Mesa there is nothing to plan against.
 		mux.Handle("GET /rates/progressao", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.progressao))))
-		mux.Handle("GET /auditoria/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.mesaXP))))
-		mux.Handle("POST /auditoria/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setMesaXP))))
-		mux.Handle("POST /auditoria/xp/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparMesaXP))))
-		mux.Handle("POST /auditoria/xp/restaurar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.restaurarMesaXP))))
-		mux.Handle("POST /auditoria/xp/dificuldade", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.aplicarDificuldade))))
+		// O ENDEREÇO ANTIGO VIRA REDIRECIONAMENTO, e não uma segunda cópia das rotas.
+		//
+		// Ele era a Mesa registrada DUAS vezes, com os mesmos cinco handlers em dois
+		// caminhos. Duas cópias de uma tela de balanceamento é como uma delas ganha um
+		// conserto e a outra não — e quem abrir a errada vai jurar que o conserto não foi
+		// feito.
+		//
+		// SÓ O GET redireciona. Os quatro POST antigos SAEM em vez de redirecionar, e a
+		// diferença importa: um 302 num POST vira GET no navegador e o formulário se perde
+		// CALADO — a pessoa clicaria em "limpar" e nada aconteceria, sem erro nenhum. Um
+		// 404 é alto, e alto é o que se quer quando um endereço de escrita morre. Nenhum
+		// template posta para cá; conferi pelo código de saída do grep, não pela tela.
+		mux.Handle("GET /auditoria/xp", h.requireStaff(h.onlyAdmin(
+			http.RedirectHandler("/rates/xp", http.StatusMovedPermanently))))
 	}
 	// As recompensas de quest têm tabela própria, então dependem dela e não da
 	// Mesa de XP — um painel sem a migração 0036 simplesmente não mostra a aba.
@@ -520,6 +528,12 @@ func (h *Handler) Routes() http.Handler {
 		// redirecionamento já pedem admin, então um moderator só chegava a um desvio que
 		// terminava em recusa — ele descobria que não podia depois de ser mandado para
 		// outra página. Não tira nada de ninguém: alinha a porta com o que há atrás dela.
+		//
+		// /REGRAS É O NOME NOVO, e /rates continua atendendo. "Rates" não dizia nada a quem
+		// não conhece o termo, e o que está atrás é XP, quest, montaria, máquina e combate.
+		// O antigo NÃO é apagado: ele está em favorito de quem usa o painel todo dia, e URL
+		// que morre em 404 é a forma mais rápida de fazer alguém achar que a tela sumiu.
+		mux.Handle("GET /regras", h.requireStaff(h.onlyAdmin(http.RedirectHandler(destino, http.StatusFound))))
 		mux.Handle("GET /rates", h.requireStaff(h.onlyAdmin(http.RedirectHandler(destino, http.StatusFound))))
 	}
 	if h.cfg.Trocas != nil {
@@ -595,10 +609,6 @@ func (h *Handler) Routes() http.Handler {
 	}
 	// The report queue. Reading and closing are both staff: answering reports is
 	// the job, and a queue only the admin can clear is a queue nobody clears.
-	if h.cfg.Denuncias != nil {
-		mux.Handle("GET /denuncias", h.requireStaff(http.HandlerFunc(h.denuncias)))
-		mux.Handle("POST /denuncias/{denuncia}/tratar", h.requireStaff(http.HandlerFunc(h.tratarDenuncia)))
-	}
 	// A FILA DO REPASSE AO VENDEDOR. Ler é staff, decidir é ADMIN.
 	//
 	// A diferença não é hierarquia por hierarquia: aqui não se configura jogo, se
@@ -686,7 +696,6 @@ type page struct {
 	HasBlocos    bool // the block page needs the game link with block commands
 	HasSeguro    bool // the safe restart needs BOTH the game link and the hosting API
 	HasEvento    bool // the event switches need the database read
-	HasDenun     bool // the report queue needs the database read
 	HasRepasse   bool // a fila do repasse ao vendedor precisa da leitura do banco
 	HasFilasRMT  bool // as outras tres filas do dinheiro real
 	PodeCriar    bool // false no ambiente trancado: o formulario de criar conta some
@@ -696,10 +705,20 @@ type page struct {
 	HasQuests    bool // the quest rewards need the database read
 	HasBonusDrop bool // the drop-bonus ladders need the database read
 	HasMaquinas  bool
-	HasCombate   bool   // a regra de combate precisa da leitura do banco
-	HasRates     bool   // Rates existe se pelo menos uma das suas abas existir
-	HasMont      bool   // a aba de montarias vem do webServer, a de XP vem do banco
-	CSRF         string // every form that changes something carries this back
+	HasCombate   bool // a regra de combate precisa da leitura do banco
+	HasRates     bool // Rates existe se pelo menos uma das suas abas existir
+	HasMont      bool // a aba de montarias vem do webServer, a de XP vem do banco
+	// HasPainelUsuarios: a tela de quem administra existe quando a separação (0130) está
+	// montada.
+	HasPainelUsuarios bool
+	// FilasDinheiro é quanto está parado nas quatro filas do dinheiro real, somado.
+	//
+	// VAI NO MENU, então é lido em TODA página — por isso é uma consulta só, e por isso uma
+	// falha nela não derruba nada: fica zero e o contador some. Um painel que deixa de
+	// abrir porque não conseguiu contar um distintivo seria pior do que o distintivo não
+	// existir.
+	FilasDinheiro int
+	CSRF          string // every form that changes something carries this back
 }
 
 // falhas records the secondary reads that did not answer.
@@ -727,34 +746,55 @@ func (f *falhas) nao(oque string) {
 // pageFor is a method rather than a function so it can answer, for every page,
 // which nav entries actually exist. Passing that in per call site meant fifteen
 // places each deciding it again, and a new one would have been fifteen edits.
+// contaFilasDeDinheiro lê o distintivo do menu, e NUNCA falha para cima.
+//
+// Roda em toda página, porque o número está no menu. Se a leitura falhar, devolve zero e o
+// contador simplesmente não aparece — a alternativa seria o painel inteiro deixar de abrir
+// por causa de um distintivo, o que é trocar um incômodo por um apagão.
+//
+// SÓ PARA ADMIN, porque só admin vê a entrada de Dinheiro: contar para quem não vê seria
+// uma consulta por clique sem ninguém para ler o resultado.
+func (h *Handler) contaFilasDeDinheiro(r *http.Request) int {
+	if h.cfg.FilasDeDinheiro == nil || roleFrom(r.Context()) != roleAdmin {
+		return 0
+	}
+	c, err := h.cfg.FilasDeDinheiro.ContarFilasDeDinheiro(r.Context())
+	if err != nil {
+		h.cfg.Logger.Warn("nao consegui contar as filas de dinheiro para o menu", "err", err)
+		return 0
+	}
+	return c.Total()
+}
+
 func (h *Handler) pageFor(r *http.Request, nav string) page {
 	sess, _ := staffFrom(r.Context())
 	role := roleFrom(r.Context())
 	return page{
 		Account: sess.AccountName, AccountID: sess.AccountID, Role: role,
 		Nav: nav, IsAdmin: role == roleAdmin,
-		HasItems:     h.cfg.GameData != nil,
-		HasTrocas:    h.cfg.Trocas != nil,
-		HasCenso:     h.cfg.Censo != nil,
-		HasChat:      h.cfg.Chat != nil,
-		HasJogo:      h.cfg.Jogo != nil,
-		HasBlocos:    h.cfg.Blocos != nil,
-		HasSeguro:    h.cfg.Jogo != nil && h.cfg.Platform != nil,
-		HasEvento:    h.cfg.Eventos != nil,
-		HasDenun:     h.cfg.Denuncias != nil,
-		HasRepasse:   h.cfg.Repasses != nil,
-		HasFilasRMT:  h.cfg.FilasRMT != nil,
-		PodeCriar:    !h.cfg.SemCadastro,
-		HasGuilda:    h.cfg.Guildas != nil,
-		HasMesaXP:    h.cfg.MesaXP != nil,
-		HasMasm:      h.cfg.Masmorras != nil,
-		HasQuests:    h.cfg.Quests != nil,
-		HasBonusDrop: h.cfg.BonusDrop != nil,
-		HasMaquinas:  h.cfg.Maquinas != nil,
-		HasCombate:   h.cfg.Combate != nil,
-		HasRates:     primeiraAbaDeRates(h.cfg) != "",
-		HasMont:      h.cfg.GameData != nil,
-		CSRF:         sess.CSRF,
+		HasItems:          h.cfg.GameData != nil,
+		HasTrocas:         h.cfg.Trocas != nil,
+		HasCenso:          h.cfg.Censo != nil,
+		HasChat:           h.cfg.Chat != nil,
+		HasJogo:           h.cfg.Jogo != nil,
+		HasBlocos:         h.cfg.Blocos != nil,
+		HasSeguro:         h.cfg.Jogo != nil && h.cfg.Platform != nil,
+		HasEvento:         h.cfg.Eventos != nil,
+		HasRepasse:        h.cfg.Repasses != nil,
+		HasFilasRMT:       h.cfg.FilasRMT != nil,
+		PodeCriar:         !h.cfg.SemCadastro,
+		HasGuilda:         h.cfg.Guildas != nil,
+		HasMesaXP:         h.cfg.MesaXP != nil,
+		HasMasm:           h.cfg.Masmorras != nil,
+		HasQuests:         h.cfg.Quests != nil,
+		HasBonusDrop:      h.cfg.BonusDrop != nil,
+		HasMaquinas:       h.cfg.Maquinas != nil,
+		HasCombate:        h.cfg.Combate != nil,
+		HasRates:          primeiraAbaDeRates(h.cfg) != "",
+		HasMont:           h.cfg.GameData != nil,
+		HasPainelUsuarios: h.cfg.Painel != nil,
+		FilasDinheiro:     h.contaFilasDeDinheiro(r),
+		CSRF:              sess.CSRF,
 	}
 }
 
@@ -779,21 +819,6 @@ const ultimasAcoes = 5
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	var naoLeu falhas
 
-	// The report queue. Read from the database, not from the game: the home page
-	// is the most-opened screen in the panel, and every call into the game
-	// crosses the single-owner loop ahead of player input. What is worth showing
-	// here is what costs a query.
-	var denuncias store.ReportCounts
-	if h.cfg.Denuncias != nil {
-		c, err := h.cfg.Denuncias.CountReports(r.Context())
-		if err != nil {
-			h.cfg.Logger.Error("report count failed", "err", err)
-			naoLeu.nao("denuncias")
-		} else {
-			denuncias = c
-		}
-	}
-
 	// What the team already did. It is the answer to "did somebody else get to
 	// this before me", which is the question that turns two moderators into one
 	// duplicated ban.
@@ -812,17 +837,13 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "index.html", struct {
 		page
-		Servidor  estadoServidor
-		Denuncias store.ReportCounts
-		Espera    string
-		Recentes  []audit.Entry
-		NaoLeu    falhas
-		Aviso     string
+		Servidor estadoServidor
+		Recentes []audit.Entry
+		NaoLeu   falhas
+		Aviso    string
 	}{
 		h.pageFor(r, "inicio"),
 		h.statusServidor(r),
-		denuncias,
-		idade(denuncias.MaisAntigo, time.Now()),
 		recentes,
 		naoLeu,
 		r.URL.Query().Get("aviso"),

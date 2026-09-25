@@ -436,10 +436,11 @@
       {{if .IsAdmin}}<a href="/auditoria" {{if eq .Nav "auditoria"}}class="on"{{end}}>Auditoria</a>{{end}}
     </span>
 
-    {{/* MODERAÇÃO: o que jogador fez e alguém precisa olhar. */}}
-    {{if or .HasDenun (or .HasChat (or .HasTrocas (or .HasCenso .HasGuilda)))}}
+    {{/* MODERAÇÃO: o que jogador fez e alguém precisa olhar.
+         Denúncias saiu em 25/09/2026: denúncia e suporte passaram a ser pelo
+         Discord, por decisão da Hanna. */}}
+    {{if or .HasChat (or .HasTrocas (or .HasCenso .HasGuilda))}}
     <span class="grupo">
-      {{if .HasDenun}}<a href="/denuncias" {{if eq .Nav "denuncias"}}class="on"{{end}}>Denúncias</a>{{end}}
       {{if .HasChat}}<a href="/chat" {{if eq .Nav "chat"}}class="on"{{end}}>Chat</a>{{end}}
       {{if .HasTrocas}}<a href="/trocas" {{if eq .Nav "trocas"}}class="on"{{end}}>Trocas</a>{{end}}
       {{if .HasCenso}}<a href="/censo" {{if eq .Nav "censo"}}class="on"{{end}}>Censo</a>{{end}}
