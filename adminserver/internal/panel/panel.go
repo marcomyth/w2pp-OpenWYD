@@ -510,8 +510,6 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("GET /rates/montarias", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.montarias))))
 		mux.Handle("POST /rates/montarias/{indice}", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setMontaria))))
 		mux.Handle("POST /rates/montarias/{indice}/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparMontaria))))
-		mux.Handle("POST /rates/montarias/{indice}/absorcao", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setAbsorcao))))
-		mux.Handle("POST /rates/montarias/{indice}/absorcao/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparAbsorcao))))
 		mux.Handle("POST /rates/montarias/{indice}/atributos", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setAtributosMontaria))))
 		mux.Handle("POST /rates/montarias/{indice}/atributos/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparAtributosMontaria))))
 		mux.Handle("GET /rates/montarias/cliente.txt", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.tabelaDoCliente))))
