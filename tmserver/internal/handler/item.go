@@ -3479,7 +3479,11 @@ func (d *Dispatcher) computeScore(e *world.Entity) protocol.ScoreData {
 		special[i] = int16(effectiveSpecial(e, i))
 	}
 	sc := protocol.ScoreData{
-		Level: e.Level, Ac: effectiveAC(e), Damage: d.effectiveDamage(e),
+		// A moldura do passe vai no score também: sem ela, a primeira troca de
+		// equipamento depois de entrar no campo de visão apagava a moldura de quem
+		// pagou, para ele e para todos em volta.
+		PasseNivel: e.PasseNivel,
+		Level:      e.Level, Ac: effectiveAC(e), Damage: d.effectiveDamage(e),
 		MaxHp: effectiveMaxHP(e), Hp: e.HP, MaxMp: effectiveMaxMP(e), Mp: e.MP,
 		Str: effectiveStr(e), Int: effectiveInt(e), Dex: effectiveDex(e), Con: e.Con + e.AffCon,
 		Special:    special,
