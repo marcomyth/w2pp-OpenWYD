@@ -1,4 +1,4 @@
--- 0161_loja_de_rcoins_categorias — as abas da Loja de Rcoin do jogo.
+-- 0163_loja_de_rcoins_categorias — as abas da Loja de Rcoin do jogo.
 --
 -- A janela do cliente (0x0F0C, tmserver/internal/protocol/lojarcoin.go) pede as
 -- ofertas por categoria, 1 a 6, uma por aba. O número é parte do contrato com o

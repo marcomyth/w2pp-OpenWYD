@@ -8,20 +8,20 @@ import (
 )
 
 // TestLojaDeRcoinListaPorAbaECompraComPrecoVisto cobre o lado do banco da Loja de
-// Rcoin do jogo: a lista por aba sai da 0160/0161, e a compra recusa sem cobrar
+// Rcoin do jogo: a lista por aba sai da 0160/0163, e a compra recusa sem cobrar
 // quando o preço mudou, quando a oferta não tem aba e quando falta saldo.
 func TestLojaDeRcoinListaPorAbaECompraComPrecoVisto(t *testing.T) {
 	ctx := context.Background()
 	pool := testPool(t)
 	// Esquema do zero: os testes de donate que rodam antes apagam o catálogo, e
-	// aqui se testa justamente o que a 0160 e a 0161 gravam.
+	// aqui se testa justamente o que a 0160 e a 0163 gravam.
 	resetTestSchema(ctx, pool)
 	if err := Migrate(ctx, pool); err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
 	s := New(pool)
 
-	// As 72 ofertas da 0160 e as abas da 0161.
+	// As 72 ofertas da 0160 e as abas da 0163.
 	todas, err := s.ListRcoinOffers(ctx, 0)
 	if err != nil || len(todas) != 72 {
 		t.Fatalf("todas = %d (err %v), want 72", len(todas), err)
