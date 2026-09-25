@@ -2020,8 +2020,10 @@ message DonateBalanceResponse { int32 balance = 1; }
 message RcoinOffer {
   int64 id = 1;
   int32 item_index = 2;
-  // The three effect pairs of STRUCT_ITEM, in order. A pair is (effect, value);
-  // zero means no effect, which is the common case.
+  // The three effect pairs of STRUCT_ITEM, in order, in the form the purchase
+  // DELIVERS them: the quantity (EF_AMOUNT) and the un-started lifetime
+  // (EF_WDAY) already stamped, so the window draws the item the player gets.
+  // A pair is (effect, value); zero means no effect.
   int32 eff1 = 3;
   int32 effv1 = 4;
   int32 eff2 = 5;
@@ -2029,9 +2031,9 @@ message RcoinOffer {
   int32 eff3 = 7;
   int32 effv3 = 8;
   int32 price = 9;
-  // expires_days is the offer's own lifetime in days, 0 for an item that never
-  // expires. It is NOT the EF_WDAY effect above: a fairy carries its days in the
-  // effect, and this field is the shop row's own deadline.
+  // expires_days is the offer's lifetime in days, 0 for an item that never
+  // expires. It is the same number the EF_WDAY above carries when the purchase
+  // stamps it, and it counts from the first equip, not from the purchase.
   int32 expires_days = 10;
   string title = 11;
   // category 1..6. The server never returns an offer without one.
@@ -2043,6 +2045,8 @@ message ListRcoinOffersRequest {
   // rather than an error: the client panel knows how to draw "nothing here" and
   // does not know how to draw a failure.
   int32 category = 1;
+  // account_id is the buyer, whose balance comes back with the page.
+  int64 account_id = 2;
 }
 message ListRcoinOffersResponse {
   repeated RcoinOffer offers = 1;

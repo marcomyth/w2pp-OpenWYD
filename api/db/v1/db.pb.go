@@ -14219,8 +14219,10 @@ type RcoinOffer struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	Id        int64                  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	ItemIndex int32                  `protobuf:"varint,2,opt,name=item_index,json=itemIndex,proto3" json:"item_index,omitempty"`
-	// The three effect pairs of STRUCT_ITEM, in order. A pair is (effect, value);
-	// zero means no effect, which is the common case.
+	// The three effect pairs of STRUCT_ITEM, in order, in the form the purchase
+	// DELIVERS them: the quantity (EF_AMOUNT) and the un-started lifetime
+	// (EF_WDAY) already stamped, so the window draws the item the player gets.
+	// A pair is (effect, value); zero means no effect.
 	Eff1  int32 `protobuf:"varint,3,opt,name=eff1,proto3" json:"eff1,omitempty"`
 	Effv1 int32 `protobuf:"varint,4,opt,name=effv1,proto3" json:"effv1,omitempty"`
 	Eff2  int32 `protobuf:"varint,5,opt,name=eff2,proto3" json:"eff2,omitempty"`
@@ -14228,9 +14230,9 @@ type RcoinOffer struct {
 	Eff3  int32 `protobuf:"varint,7,opt,name=eff3,proto3" json:"eff3,omitempty"`
 	Effv3 int32 `protobuf:"varint,8,opt,name=effv3,proto3" json:"effv3,omitempty"`
 	Price int32 `protobuf:"varint,9,opt,name=price,proto3" json:"price,omitempty"`
-	// expires_days is the offer's own lifetime in days, 0 for an item that never
-	// expires. It is NOT the EF_WDAY effect above: a fairy carries its days in the
-	// effect, and this field is the shop row's own deadline.
+	// expires_days is the offer's lifetime in days, 0 for an item that never
+	// expires. It is the same number the EF_WDAY above carries when the purchase
+	// stamps it, and it counts from the first equip, not from the purchase.
 	ExpiresDays int32  `protobuf:"varint,10,opt,name=expires_days,json=expiresDays,proto3" json:"expires_days,omitempty"`
 	Title       string `protobuf:"bytes,11,opt,name=title,proto3" json:"title,omitempty"`
 	// category 1..6. The server never returns an offer without one.
@@ -14358,7 +14360,9 @@ type ListRcoinOffersRequest struct {
 	// category 0 means every category. Anything outside 0..6 returns nothing,
 	// rather than an error: the client panel knows how to draw "nothing here" and
 	// does not know how to draw a failure.
-	Category      int32 `protobuf:"varint,1,opt,name=category,proto3" json:"category,omitempty"`
+	Category int32 `protobuf:"varint,1,opt,name=category,proto3" json:"category,omitempty"`
+	// account_id is the buyer, whose balance comes back with the page.
+	AccountId     int64 `protobuf:"varint,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -14396,6 +14400,13 @@ func (*ListRcoinOffersRequest) Descriptor() ([]byte, []int) {
 func (x *ListRcoinOffersRequest) GetCategory() int32 {
 	if x != nil {
 		return x.Category
+	}
+	return 0
+}
+
+func (x *ListRcoinOffersRequest) GetAccountId() int64 {
+	if x != nil {
+		return x.AccountId
 	}
 	return 0
 }
@@ -15630,9 +15641,11 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\fexpires_days\x18\n" +
 	" \x01(\x05R\vexpiresDays\x12\x14\n" +
 	"\x05title\x18\v \x01(\tR\x05title\x12\x1a\n" +
-	"\bcategory\x18\f \x01(\x05R\bcategory\"4\n" +
+	"\bcategory\x18\f \x01(\x05R\bcategory\"S\n" +
 	"\x16ListRcoinOffersRequest\x12\x1a\n" +
-	"\bcategory\x18\x01 \x01(\x05R\bcategory\"^\n" +
+	"\bcategory\x18\x01 \x01(\x05R\bcategory\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x02 \x01(\x03R\taccountId\"^\n" +
 	"\x17ListRcoinOffersResponse\x12)\n" +
 	"\x06offers\x18\x01 \x03(\v2\x11.db.v1.RcoinOfferR\x06offers\x12\x18\n" +
 	"\abalance\x18\x02 \x01(\x05R\abalance\"o\n" +
