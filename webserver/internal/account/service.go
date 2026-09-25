@@ -23,6 +23,9 @@ import (
 type Store interface {
 	AccountByName(ctx context.Context, name string) (store.AccountAuth, error)
 	SaveAccount(ctx context.Context, acc domain.Account) (int64, error)
+	// VincularDiscord guarda o Discord da conta. As recusas previstas vêm como
+	// erros próprios do store (ver store.ErrDiscordEmOutraConta e irmãos).
+	VincularDiscord(ctx context.Context, accountID int64, discordID string) error
 }
 
 // Service creates and authenticates web accounts.
@@ -127,23 +130,23 @@ func (s *Service) Create(ctx context.Context, name, password, email string) (Cre
 // account.is_blocked; role is account.role ('player'/'moderator'/'admin') so the
 // BFF can gate the moderator UI — authorization itself stays server-side in the
 // NpcAdminService, this is only a UI hint.
-func (s *Service) Verify(ctx context.Context, name, password string) (ok bool, accountID int64, blocked bool, role string, err error) {
+func (s *Service) Verify(ctx context.Context, name, password string) (ok bool, accountID int64, blocked bool, role, discordID string, err error) {
 	canonical := strings.ToLower(strings.TrimSpace(name))
 	auth, err := s.store.AccountByName(ctx, canonical)
 	if errors.Is(err, store.ErrNotFound) {
-		return false, 0, false, "", nil
+		return false, 0, false, "", "", nil
 	}
 	if err != nil {
-		return false, 0, false, "", fmt.Errorf("account: lookup %q: %w", canonical, err)
+		return false, 0, false, "", "", fmt.Errorf("account: lookup %q: %w", canonical, err)
 	}
 	match, err := secret.VerifySecret(password, auth.PassHash)
 	if err != nil {
-		return false, 0, false, "", fmt.Errorf("account: verify password: %w", err)
+		return false, 0, false, "", "", fmt.Errorf("account: verify password: %w", err)
 	}
 	if !match {
-		return false, 0, false, "", nil
+		return false, 0, false, "", "", nil
 	}
-	return true, auth.ID, auth.IsBlocked, auth.Role, nil
+	return true, auth.ID, auth.IsBlocked, auth.Role, auth.DiscordID, nil
 }
 
 // validName enforces the 4–12 ASCII-alphanumeric login rule on an already
@@ -176,4 +179,14 @@ func validEmail(email string) bool {
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+// VincularDiscord repassa o vínculo ao store.
+//
+// SEM REGRA NOVA AQUI de propósito: a validação do snowflake e as duas recusas de
+// unicidade moram no store, junto da transação e do índice que as garante. Uma
+// segunda conferência nesta camada seria uma regra em dois lugares, e o dia em que as
+// duas discordassem ninguém saberia qual vale.
+func (s *Service) VincularDiscord(ctx context.Context, accountID int64, discordID string) error {
+	return s.store.VincularDiscord(ctx, accountID, discordID)
 }

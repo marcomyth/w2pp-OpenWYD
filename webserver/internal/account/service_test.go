@@ -14,10 +14,19 @@ import (
 
 // fakeStore is an in-memory Store for unit tests (no PostgreSQL).
 type fakeStore struct {
-	byName  map[string]store.AccountAuth
-	saveErr error // returned by SaveAccount instead of inserting
-	saved   []domain.Account
-	nextID  int64
+	byName map[string]store.AccountAuth
+	// O vínculo do Discord: a conta que pediu, o id, e o erro que o store devolve.
+	discordConta int64
+	discordID    string
+	discordErr   error
+	saveErr      error // returned by SaveAccount instead of inserting
+	saved        []domain.Account
+	nextID       int64
+}
+
+func (f *fakeStore) VincularDiscord(_ context.Context, accountID int64, discordID string) error {
+	f.discordConta, f.discordID = accountID, discordID
+	return f.discordErr
 }
 
 func (f *fakeStore) AccountByName(_ context.Context, name string) (store.AccountAuth, error) {
@@ -120,7 +129,7 @@ func TestVerify(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ok, id, blocked, role, err := s.Verify(context.Background(), tc.login, tc.pass)
+			ok, id, blocked, role, _, err := s.Verify(context.Background(), tc.login, tc.pass)
 			if err != nil {
 				t.Fatalf("Verify: %v", err)
 			}
