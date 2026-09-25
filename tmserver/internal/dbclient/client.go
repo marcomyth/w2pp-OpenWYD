@@ -301,6 +301,24 @@ func (c *Client) SaveOnShutdown(ctx context.Context, save world.CharacterSave) e
 	return nil
 }
 
+// SalvarPersonagemComCarga grava personagem e carga na mesma transação do banco.
+func (c *Client) SalvarPersonagemComCarga(ctx context.Context, personagem world.CharacterSave,
+	carga world.CargoSave, deliveredIDs, lostIDs []int64,
+) error {
+	_, err := c.api.SalvarPersonagemComCarga(ctx, &dbv1.SalvarPersonagemComCargaRequest{
+		AccountId:    personagem.AccountID,
+		Character:    characterSaveToProto(personagem),
+		CargoCoin:    carga.Coin,
+		CargoItems:   savedItemsToProto(carga.Items),
+		DeliveredIds: deliveredIDs,
+		LostIds:      lostIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: salvar personagem com carga: %w", err)
+	}
+	return nil
+}
+
 // QuoteKingdomCape fetches the database-owned sapphire prices.
 func (c *Client) QuoteKingdomCape(ctx context.Context) (world.KingdomCapeQuote, error) {
 	resp, err := c.api.QuoteKingdomCape(ctx, &dbv1.QuoteKingdomCapeRequest{})

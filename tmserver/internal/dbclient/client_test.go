@@ -14,6 +14,7 @@ import (
 // fakeAPI implements dbv1.AccountServiceClient, capturing requests and returning
 // canned responses, so the adapter's mapping is tested without a gRPC server.
 type fakeAPI struct {
+	parSalvo           *dbv1.SalvarPersonagemComCargaRequest
 	anunciosPedidos    *dbv1.OpenRmtListingsRequest
 	cobrancaPedida     *dbv1.OpenRmtChargeRequest
 	cobrancaResp       *dbv1.OpenRmtChargeResponse
@@ -77,6 +78,10 @@ func (f *fakeAPI) LoadCharacter(_ context.Context, _ *dbv1.LoadCharacterRequest,
 }
 func (f *fakeAPI) SaveCharacter(_ context.Context, req *dbv1.SaveCharacterRequest, _ ...grpc.CallOption) (*dbv1.SaveCharacterResponse, error) {
 	f.saved = req
+	return &dbv1.SaveCharacterResponse{Ok: true}, nil
+}
+func (f *fakeAPI) SalvarPersonagemComCarga(_ context.Context, req *dbv1.SalvarPersonagemComCargaRequest, _ ...grpc.CallOption) (*dbv1.SaveCharacterResponse, error) {
+	f.parSalvo = req
 	return &dbv1.SaveCharacterResponse{Ok: true}, nil
 }
 func (f *fakeAPI) QuoteKingdomCape(_ context.Context, _ *dbv1.QuoteKingdomCapeRequest, _ ...grpc.CallOption) (*dbv1.QuoteKingdomCapeResponse, error) {

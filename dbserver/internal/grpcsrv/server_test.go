@@ -15,6 +15,11 @@ import (
 
 // fakeStore is an in-memory Store for unit tests (no PostgreSQL).
 type fakeStore struct {
+	cargaSalvaOuro      int32
+	cargaSalvaItens     []domain.Item
+	entreguesSalvas     []int64
+	perdidasSalvas      []int64
+	parGravado          int
 	anunciosAbertos     []store.ItemAnunciado
 	anunciosCancelados  []int64
 	anunciosEncerrados  []int64
@@ -157,6 +162,23 @@ func (f *fakeStore) DeleteCharacter(_ context.Context, accountID int64, slot int
 		}
 	}
 	return store.ErrNotFound
+}
+
+// SalvarPersonagemComCarga guarda as DUAS metades, para que um teste possa provar
+// que a mesma chamada levou o personagem e a carga.
+func (f *fakeStore) SalvarPersonagemComCarga(_ context.Context, _ int64, ch domain.Character,
+	cargoCoin int32, cargoItems []domain.Item, deliveredIDs, lostIDs []int64,
+) error {
+	if f.saveErr != nil {
+		return f.saveErr
+	}
+	f.savedChar = ch
+	f.cargaSalvaOuro = cargoCoin
+	f.cargaSalvaItens = cargoItems
+	f.entreguesSalvas = deliveredIDs
+	f.perdidasSalvas = lostIDs
+	f.parGravado++
+	return f.saveResult
 }
 
 func (f *fakeStore) SaveCharacter(_ context.Context, _ int64, ch domain.Character) error {

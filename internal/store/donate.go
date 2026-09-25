@@ -347,27 +347,36 @@ func (s *Store) PendingItemDeliveries(ctx context.Context, accountID int64) ([]d
 // absent.
 func (s *Store) SaveCargoWithDeliveries(ctx context.Context, accountID int64, coin int32, items []domain.Item, deliveredIDs, lostIDs []int64) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `UPDATE account SET cargo_coin = $2 WHERE id = $1`, accountID, coin)
-		if err != nil {
-			return fmt.Errorf("store: drain: update cargo coin a=%d: %w", accountID, err)
-		}
-		if tag.RowsAffected() == 0 {
-			return ErrNotFound
-		}
-		if _, err := tx.Exec(ctx,
-			`DELETE FROM item WHERE account_id = $1 AND owner_kind = 'account_cargo'`, accountID); err != nil {
-			return fmt.Errorf("store: drain: clear cargo items a=%d: %w", accountID, err)
-		}
-		for _, it := range items {
-			if err := insertItem(ctx, tx, "account_cargo", &accountID, nil, it); err != nil {
-				return err
-			}
-		}
-		if err := markDeliveries(ctx, tx, "delivered", deliveredIDs); err != nil {
+		return salvarCargaTx(ctx, tx, accountID, coin, items, deliveredIDs, lostIDs)
+	})
+}
+
+// salvarCargaTx grava a carga da conta (ouro + itens, apaga-e-reescreve) e marca
+// as entregas dentro de uma transação que já existe.
+//
+// Foi separado do SaveCargoWithDeliveries pelo mesmo motivo que o personagem: os
+// dois precisam caber na MESMA transação. Ver SalvarPersonagemComCarga.
+func salvarCargaTx(ctx context.Context, tx pgx.Tx, accountID int64, coin int32, items []domain.Item, deliveredIDs, lostIDs []int64) error {
+	tag, err := tx.Exec(ctx, `UPDATE account SET cargo_coin = $2 WHERE id = $1`, accountID, coin)
+	if err != nil {
+		return fmt.Errorf("store: update cargo coin a=%d: %w", accountID, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	if _, err := tx.Exec(ctx,
+		`DELETE FROM item WHERE account_id = $1 AND owner_kind = 'account_cargo'`, accountID); err != nil {
+		return fmt.Errorf("store: clear cargo items a=%d: %w", accountID, err)
+	}
+	for _, it := range items {
+		if err := insertItem(ctx, tx, "account_cargo", &accountID, nil, it); err != nil {
 			return err
 		}
-		return markDeliveries(ctx, tx, "lost", lostIDs)
-	})
+	}
+	if err := markDeliveries(ctx, tx, "delivered", deliveredIDs); err != nil {
+		return err
+	}
+	return markDeliveries(ctx, tx, "lost", lostIDs)
 }
 
 func markDeliveries(ctx context.Context, tx pgx.Tx, status string, ids []int64) error {

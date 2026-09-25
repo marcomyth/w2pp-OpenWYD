@@ -263,12 +263,14 @@ func (d *Dispatcher) reqBuy(w *world.World, s *world.Session, _ protocol.Header,
 	// seller's stale cargo row still has it. One item, two owners, nobody
 	// cheating.
 	//
-	// The buyer's half is a character save (the item landed in Carry); the
-	// seller's is a cargo save, because a personal shop sells straight out of the
-	// account warehouse. SaveCargoThen with an empty continuation: the seller is
-	// still playing, so the cargo is saved and kept loaded rather than released.
+	// Os dois lados gravam personagem E carga na mesma transação. A loja vende
+	// direto do baú da conta, então a metade do vendedor é uma escrita de carga —
+	// mas gravá-la SOZINHA era um buraco: quem acabou de depositar tem o item na
+	// carga da memória e ainda na mochila do banco, e uma queda ali deixa o item
+	// nos dois lugares. O SaveCharacterAsync leva o par, e mantém a carga
+	// carregada: o vendedor continua jogando.
 	w.SaveCharacterAsync(s)
-	w.SaveCargoThen(seller, func(*world.World, *world.Session) {})
+	w.SaveCharacterAsync(seller)
 }
 
 // shopPinsOwner reports whether an open personal shop still pins its owner in

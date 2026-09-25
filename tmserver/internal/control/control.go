@@ -654,6 +654,10 @@ func (s *Server) Drain(ctx context.Context, req *gamev1.DrainRequest) (*gamev1.D
 		out.Notified = aviso.GetRecipients()
 	}
 
+	// Marca antes de derrubar ninguém: o que interessa é se ALGUMA gravação DESTE
+	// dreno falhou, e não se alguma falhou algum dia.
+	falhasAntes := s.world.SavesFalhados()
+
 	n, err := noLoop(ctx, s.world, func(w *world.World) int32 {
 		var alvos []*world.Session
 		w.ForEachSession(func(sess *world.Session, _ *world.Entity) {
@@ -680,6 +684,16 @@ func (s *Server) Drain(ctx context.Context, req *gamev1.DrainRequest) (*gamev1.D
 	defer cancel()
 	select {
 	case <-pronto:
+		// ESPERAR NÃO É O MESMO QUE TER DADO CERTO. Antes daqui, uma gravação que
+		// voltasse com erro só virava linha de log: o dreno dizia "pronto", e o
+		// painel — que promete não reiniciar sem tudo gravado — reiniciava por
+		// cima do que não foi salvo.
+		if falhas := s.world.SavesFalhados() - falhasAntes; falhas > 0 {
+			s.log.Error("control: drain finished with failed saves; do not restart",
+				"falhas", falhas, "kicked", out.Kicked)
+			return nil, status.Errorf(codes.Unavailable,
+				"the sessions were ended but %d save(s) did not land; do not restart yet", falhas)
+		}
 		s.log.Info("control: drained", "notified", out.Notified, "kicked", out.Kicked)
 		return out, nil
 	case <-espera.Done():

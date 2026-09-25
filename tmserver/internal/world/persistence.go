@@ -502,6 +502,15 @@ type Persistence interface {
 	// drained mailbox rows delivered/lost in one backend transaction — the anti-dup
 	// boundary for the drain.
 	SaveCargoWithDeliveries(ctx context.Context, save CargoSave, deliveredIDs, lostIDs []int64) error
+
+	// SalvarPersonagemComCarga grava personagem e carga na MESMA transação.
+	//
+	// É o caminho de gravação de toda conta que tem personagem em jogo. As duas
+	// metades trocam ouro e itens entre si, e enquanto eram duas transações havia
+	// uma janela em que uma queda deixava a mesma coisa nos dois lados — foi
+	// medido. Não existe ordem segura entre duas transações; a cura é não ter duas.
+	SalvarPersonagemComCarga(ctx context.Context, personagem CharacterSave, carga CargoSave,
+		deliveredIDs, lostIDs []int64) error
 	// SetAccountBlocked flips account.is_blocked by name — the write side of the
 	// in-game GM ban/unban command (issue #122). Called off the loop via World.Go.
 	SetAccountBlocked(ctx context.Context, name string, blocked bool) error
@@ -711,6 +720,11 @@ func (NopPersistence) CloseRmtListings(context.Context, []int64) ([]AnuncioEncer
 // ReconcileRmtEscrow não tem anúncio para reconciliar.
 func (NopPersistence) ReconcileRmtEscrow(context.Context, int64) ([]int16, error) {
 	return nil, nil
+}
+
+// SalvarPersonagemComCarga drops both snapshots (no backend to persist to).
+func (NopPersistence) SalvarPersonagemComCarga(context.Context, CharacterSave, CargoSave, []int64, []int64) error {
+	return nil
 }
 
 // SaveCargoWithDeliveries drops the snapshot (no backend to persist to).

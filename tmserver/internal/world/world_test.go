@@ -194,9 +194,15 @@ func TestConcurrentConnections(t *testing.T) {
 func TestGracefulShutdownSavesPlayers(t *testing.T) {
 	fake := &fakePersistence{}
 	ready := make(chan struct{}, 1)
-	h := func(_ *World, s *Session, _ protocol.Header, _ []byte) {
+	h := func(w *World, s *Session, _ protocol.Header, _ []byte) {
 		s.Mode = UserPlay
 		s.AccountID = 42
+		// A ENTIDADE FAZ PARTE DO ESTADO, e não é detalhe do teste: em jogo, quem
+		// está em UserPlay tem personagem carregado. O desligamento passou a exigir
+		// isso — antes ele gravava a sessão pelo MODO, e uma sessão sem entidade
+		// produzia um CharacterSave VAZIO, que zerava nível, ouro e itens de quem
+		// caísse nessa janela.
+		w.entities[s.Conn] = &Entity{ID: s.Conn, Mode: MobUser, HP: 100, Level: 50}
 		select {
 		case ready <- struct{}{}:
 		default:

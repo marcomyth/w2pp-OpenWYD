@@ -822,11 +822,12 @@ func (d *Dispatcher) returnToCharacterSelection(w *world.World, s *world.Session
 	// Persist first, then confirm: the client re-reads the character from the DB
 	// when it re-selects (and may reconnect/re-login the account), so the save must
 	// commit before we hand it back the selection screen (otherwise the reload
-	// races the write — last_city/coin). The account-shared cargo is saved in the
-	// same flow: deposits/withdrawals exchange items between the character carry and
-	// the cargo, so persisting the character without the cargo would duplicate a
-	// withdrawn item (saved on the character row while the stale account_cargo row
-	// still holds it) on the next load.
+	// races the write — last_city/coin). O SaveCharacterThen grava personagem E
+	// carga na MESMA transação: depósitos e saques trocam itens entre a mochila e a
+	// carga, e gravar um sem o outro duplicava o item sacado no próximo login.
+	//
+	// AQUI HAVIA DOIS SAVES ANINHADOS, o do personagem e depois o da carga, e entre
+	// os dois cabia a queda que duplicava. Um save só agora.
 	// Read before the save: by the time the callback runs the entity has been
 	// docked and this session may already hold a different character.
 	var saindo string
@@ -834,49 +835,21 @@ func (d *Dispatcher) returnToCharacterSelection(w *world.World, s *world.Session
 		saindo = e.Name
 	}
 	w.SaveCharacterThen(s, func(w *world.World, s *world.Session) {
-		w.SaveCargoThen(s, func(w *world.World, s *world.Session) {
-			// The save above has committed, so the database is authoritative for
-			// this character again and the panel may edit it.
-			d.markPresence(w, saindo, false)
-			if e := w.Entity(s.Conn); e != nil {
-				e.Mode = world.MobUserDock
-				// The save above already captured this character's buffs; drop
-				// them from the per-connection entity so they can't bleed into
-				// the next character selected on this session (issue #21/#47).
-				e.ResetAffects()
-			}
-			// Drop any open personal shop (issue #115). Through closeAutoTrade, not by
-			// clearing the fields: the shop may have a clone standing in the world, and
-			// the RemoveMob above only removed the PLAYER. Zeroing the session state here
-			// would strand the stall — an entity nobody owns, that no longer resolves to a
-			// shop, and that nothing left alive knows to take down.
-			d.closeAutoTrade(w, s)
-			s.Mode = world.UserSelChar
-			w.Send(s, protocol.MsgCNFCharacterLogout, nil)
-			if after != nil {
-				after(w, s)
-			}
-		})
-	})
-}
-
-// returnPersistedCharacterToSelection completes a transition whose character
-// snapshot was already committed off-loop. It deliberately does not save the
-// character again, avoiding a second failure point after publishing the snapshot.
-func (d *Dispatcher) returnPersistedCharacterToSelection(w *world.World, s *world.Session, after func(*world.World, *world.Session)) {
-	d.SessionEnd(w, s)
-	body := protocol.EncodeRemoveMobBody(2)
-	w.ForEachInView(s.Conn, func(vs *world.Session, _ *world.Entity) {
-		w.SendTo(vs, protocol.Header{Type: protocol.MsgRemoveMob, ID: uint16(s.Conn)}, body)
-	})
-	w.SaveCargoThen(s, func(w *world.World, s *world.Session) {
+		// The save above has committed, so the database is authoritative for
+		// this character again and the panel may edit it.
+		d.markPresence(w, saindo, false)
 		if e := w.Entity(s.Conn); e != nil {
 			e.Mode = world.MobUserDock
+			// The save above already captured this character's buffs; drop
+			// them from the per-connection entity so they can't bleed into
+			// the next character selected on this session (issue #21/#47).
 			e.ResetAffects()
 		}
-		// Same reason as the sibling path above: closeAutoTrade, so a shop clone
-		// standing in the world comes down with its owner instead of being
-		// stranded by a field assignment.
+		// Drop any open personal shop (issue #115). Through closeAutoTrade, not by
+		// clearing the fields: the shop may have a clone standing in the world, and
+		// the RemoveMob above only removed the PLAYER. Zeroing the session state here
+		// would strand the stall — an entity nobody owns, that no longer resolves to a
+		// shop, and that nothing left alive knows to take down.
 		d.closeAutoTrade(w, s)
 		s.Mode = world.UserSelChar
 		w.Send(s, protocol.MsgCNFCharacterLogout, nil)
@@ -884,6 +857,39 @@ func (d *Dispatcher) returnPersistedCharacterToSelection(w *world.World, s *worl
 			after(w, s)
 		}
 	})
+}
+
+// returnPersistedCharacterToSelection completes a transition whose character
+// snapshot was already committed off-loop. It deliberately does not save the
+// character again, avoiding a second failure point after publishing the snapshot.
+//
+// E NÃO GRAVA A CARGA TAMPOUCO, desde o conserto do dupe. Os dois caminhos que
+// chegam aqui — a Pedra Ideal e o Sub Celestial — publicam o instantâneo pelo
+// SalvarEncenadoComCarga, que já gravou o PAR. A gravação de carga que existia
+// aqui era a segunda metade de um par já gravado: redundante, e uma transação a
+// mais entre duas coisas que precisam andar juntas.
+//
+// Quem trouxer um caminho novo para cá tem de publicar o par, e não o personagem
+// sozinho: a carga não é mais gravada depois.
+func (d *Dispatcher) returnPersistedCharacterToSelection(w *world.World, s *world.Session, after func(*world.World, *world.Session)) {
+	d.SessionEnd(w, s)
+	body := protocol.EncodeRemoveMobBody(2)
+	w.ForEachInView(s.Conn, func(vs *world.Session, _ *world.Entity) {
+		w.SendTo(vs, protocol.Header{Type: protocol.MsgRemoveMob, ID: uint16(s.Conn)}, body)
+	})
+	if e := w.Entity(s.Conn); e != nil {
+		e.Mode = world.MobUserDock
+		e.ResetAffects()
+	}
+	// Same reason as the sibling path above: closeAutoTrade, so a shop clone
+	// standing in the world comes down with its owner instead of being
+	// stranded by a field assignment.
+	d.closeAutoTrade(w, s)
+	s.Mode = world.UserSelChar
+	w.Send(s, protocol.MsgCNFCharacterLogout, nil)
+	if after != nil {
+		after(w, s)
+	}
 }
 
 // restart handles _MSG_Restart (0x0289): the death-respawn / town-recall button
