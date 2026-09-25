@@ -7,13 +7,18 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
-// O spot de Caveira Lanc e Conj Caveira do 1º andar da Dungeon (x 300 a 490, y
-// 3730 a 3880), pedido do Marco em 25/09/2026 com prints em (353,3756):
+// A sala da fonte do 1º andar da Dungeon, o spot de Caveira Lanc e Conj Caveira
+// pedido pelo Marco em 25/09/2026 com prints em (353,3756). A sala é x 345-361,
+// y 3740-3772, entre as paredes do HeightMap:
 //
-//   - os blocos dos dois passam a MaxNumMob x5 no NPCGener.txt (Caveira Lanc 45 ->
-//     225, Conj Caveira 30 -> 150), e os de MinuteGenerate -1 passam a 1;
-//   - os dois soltam Resto de Oriharucon e de Lactolerium e as Armas C, pela Mesa
-//     (migração 0144); o add de cada arma sai daqui (caveirasFinish);
+//   - os seis blocos dela (1884 a 1889) passam a MaxNumMob x5, cada um nascendo
+//     como um grupo cheio de 5: 6 bichos viram 30. Usam cópias dos templates,
+//     Caveira_Lanc_Fonte e Conj_Caveira_Fonte, iguais byte a byte ao original (o
+//     jogador vê o mesmo nome), para que o saque novo valha só aqui — a Mesa vale
+//     por template, e a Caveira Lanc e o Conj Caveira nascem em 74 blocos do andar;
+//   - as duas cópias soltam Resto de Oriharucon e de Lactolerium e as Armas C, pela
+//     Mesa (migração 0153, que desfaz a 0144 nos originais); o add de cada arma sai
+//     daqui (caveirasFinish);
 //   - um mini chefe, o Boss Conjurador (bloco 6149): o Conj Caveira com os números
 //     do Troll Enigma, montado num Dragão Menor de nível 100 e com a Foice
 //     Esqueleto +11. Volta 3 horas depois da morte e, como os chefes da lava
@@ -26,12 +31,11 @@ const (
 	conjuradorHoras = 3
 )
 
-// caveirasDoSpot são os dois monstros do spot. A Mesa vale por template, e os
-// dois só nascem no 1º andar da Dungeon — fora dois Conj Caveira seguidores de
-// Elfo Negro (blocos 2097 e 2098), que levam o mesmo saque.
+// caveirasDoSpot são as cópias de template da sala da fonte, que só nascem nela.
+// A Caveira Lanc e o Conj Caveira do resto do andar ficam como eram.
 var caveirasDoSpot = map[string]bool{
-	droprule.Canonical("Caveira_Lanc"): true,
-	droprule.Canonical("Conj_Caveira"): true,
+	droprule.Canonical("Caveira_Lanc_Fonte"): true,
+	droprule.Canonical("Conj_Caveira_Fonte"): true,
 }
 
 // As Armas C (EF_ITEMLEVEL 3), as duas de cada família. Físicas levam dano; as

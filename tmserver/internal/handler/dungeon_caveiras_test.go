@@ -5,10 +5,14 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/droprule"
+	"github.com/jeanluca/w2pp-openwyd/internal/migrations"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/savefmt"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
@@ -79,12 +83,12 @@ func TestBossConjuradorSomeSemLuta(t *testing.T) {
 	}
 }
 
-// Uma Arma C dos monstros do spot sai com um add pedido — dano nas físicas, magia
+// Uma Arma C dos monstros da sala da fonte sai com um add pedido — dano nas físicas, magia
 // nas lanças e cajados —, o refino do bônus fica e o segundo add sai; e todos os
 // degraus aparecem.
 func TestCaveirasCarimbamArmasC(t *testing.T) {
 	d, w, _ := mobKilledWorld(t)
-	for _, mob := range []string{"Caveira_Lanc", "Conj_Caveira"} {
+	for _, mob := range []string{"Caveira_Lanc_Fonte", "Conj_Caveira_Fonte"} {
 		m := spawnNamed(t, w, expMobTemplate(120, 0, 0), mob)
 		for _, c := range []struct {
 			armas  []int16
@@ -121,19 +125,22 @@ func TestCaveirasCarimbamArmasC(t *testing.T) {
 	}
 }
 
-// Fora do spot nada muda: a mesma arma de outro monstro, e o que não é Arma C
-// dos monstros do spot, passam como vieram.
+// Fora da sala nada muda: a mesma arma da Caveira Lanc e do Conj Caveira do resto
+// do andar (os originais, desde a 0153) e de outra caveira, e o que não é Arma C
+// dos monstros da sala, passam como vieram.
 func TestCaveirasNaoMexemEmOutroDrop(t *testing.T) {
 	d, w, _ := mobKilledWorld(t)
-	arma := world.Item{Index: 868, Effects: [3]world.Effect{{Effect: efSanc, Value: 1}, {Effect: 26, Value: 3}, {Effect: efDamage, Value: 9}}}
-	antes := arma
-	d.caveirasFinish(w, spawnNamed(t, w, expMobTemplate(120, 0, 0), "Caveira_Lanc_"), &arma)
-	if arma != antes {
-		t.Errorf("Lâmina Espiritual de outra caveira virou %+v", arma)
+	antes := world.Item{Index: 868, Effects: [3]world.Effect{{Effect: efSanc, Value: 1}, {Effect: 26, Value: 3}, {Effect: efDamage, Value: 9}}}
+	for _, mob := range []string{"Caveira_Lanc", "Conj_Caveira", "Caveira_Lanc_"} {
+		arma := antes
+		d.caveirasFinish(w, spawnNamed(t, w, expMobTemplate(120, 0, 0), mob), &arma)
+		if arma != antes {
+			t.Errorf("Lâmina Espiritual de %s, fora da sala, virou %+v", mob, arma)
+		}
 	}
 	for _, idx := range []int16{869, 820, 419} { // Arma D, a arma B do template, Resto
 		it := world.Item{Index: idx, Effects: antes.Effects}
-		d.caveirasFinish(w, spawnNamed(t, w, expMobTemplate(120, 0, 0), "Caveira_Lanc"), &it)
+		d.caveirasFinish(w, spawnNamed(t, w, expMobTemplate(120, 0, 0), "Caveira_Lanc_Fonte"), &it)
 		if it.Effects != antes.Effects {
 			t.Errorf("item %d da Caveira Lanc ganhou efeitos %+v", idx, it.Effects)
 		}
@@ -281,13 +288,14 @@ func TestCaveirasMigracao(t *testing.T) {
 	}
 }
 
-// Ponta a ponta pela Mesa: a Arma C que a regra solta de uma Caveira Lanc chega na
-// bolsa com o add pedido, e a mesma regra num monstro de fora não carimba nada.
+// Ponta a ponta pela Mesa: a Arma C que a regra solta de uma Caveira Lanc da sala
+// chega na bolsa com o add pedido, e a mesma regra na Caveira Lanc do resto do
+// andar ou noutra caveira não carimba nada.
 func TestCaveirasArmaDaMesaChegaComAdd(t *testing.T) {
 	for _, c := range []struct {
 		mob    string
 		carimb bool
-	}{{"Caveira_Lanc", true}, {"Caveira_Lanc_", false}} {
+	}{{"Caveira_Lanc_Fonte", true}, {"Caveira_Lanc", false}, {"Caveira_Lanc_", false}} {
 		d, w, killer := mobKilledWorld(t)
 		d.dropRules = droprule.NewTable([]droprule.Rule{{Mob: c.mob, Item: 868, Chance: droprule.MaxChance}})
 		d.mobKilled(w, killer, spawnNamed(t, w, expMobTemplate(120, 0, 0), c.mob))
@@ -298,6 +306,78 @@ func TestCaveirasArmaDaMesaChegaComAdd(t *testing.T) {
 		carimbada := it.Effects[1].Effect == efDamage && slices.Contains([]int{45, 54, 63}, int(it.Effects[1].Value)) && it.Effects[2] == (world.Effect{})
 		if carimbada != c.carimb {
 			t.Errorf("%s: arma %+v, want carimbada %v", c.mob, it.Effects, c.carimb)
+		}
+	}
+}
+
+// As cópias da sala são o original byte a byte: o jogador vê o mesmo monstro, e só
+// o nome do arquivo separa o saque da sala do resto do andar.
+func TestCaveirasCopiasIguaisAoOriginal(t *testing.T) {
+	root := releaseDir(t)
+	for copia, orig := range map[string]string{"Caveira_Lanc_Fonte": "Caveira_Lanc", "Conj_Caveira_Fonte": "Conj_Caveira"} {
+		if !caveirasDoSpot[droprule.Canonical(copia)] {
+			t.Errorf("%s fora de caveirasDoSpot", copia)
+		}
+		a, _, err := npctemplate.Load(root, copia)
+		if err != nil {
+			t.Fatalf("%s: %v", copia, err)
+		}
+		b, _, err := npctemplate.Load(root, orig)
+		if err != nil {
+			t.Fatalf("%s: %v", orig, err)
+		}
+		if !bytes.Equal(a, b) {
+			t.Errorf("%s difere de %s", copia, orig)
+		}
+	}
+	for _, orig := range []string{"Caveira_Lanc", "Conj_Caveira"} {
+		if caveirasDoSpot[droprule.Canonical(orig)] {
+			t.Errorf("%s, que nasce no andar inteiro, carimba Arma C", orig)
+		}
+	}
+}
+
+// A 0153 passa para as cópias o que os originais soltam e tira dos originais
+// exatamente o que a 0144 deu; o down devolve o mesmo conjunto.
+func TestCaveirasMigracaoSoNaFonte(t *testing.T) {
+	ler := func(nome string) string {
+		b, err := migrations.FS.ReadFile(nome)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	var da0144 []int
+	for item := range linhasComZero(t, caveirasMigracao)["Caveira_Lanc"] {
+		da0144 = append(da0144, int(item))
+	}
+	slices.Sort(da0144)
+	lista := func(sql, onde string) []int {
+		m := regexp.MustCompile(onde + `[^[(]*[[(]([0-9, ]+)[])]`).FindStringSubmatch(sql)
+		if m == nil {
+			t.Fatalf("lista %q não achada", onde)
+		}
+		var out []int
+		for _, f := range strings.Split(m[1], ",") {
+			n, err := strconv.Atoi(strings.TrimSpace(f))
+			if err != nil {
+				t.Fatal(err)
+			}
+			out = append(out, n)
+		}
+		slices.Sort(out)
+		return out
+	}
+	up, down := ler("0153_caveiras_so_na_fonte.up.sql"), ler("0153_caveiras_so_na_fonte.down.sql")
+	if got := lista(up, "AND item IN"); !slices.Equal(got, da0144) {
+		t.Errorf("a 0153 tira %v dos originais, want os itens da 0144 %v", got, da0144)
+	}
+	if got := lista(down, "ARRAY"); !slices.Equal(got, da0144) {
+		t.Errorf("o down devolve %v, want os itens da 0144 %v", got, da0144)
+	}
+	for copia := range map[string]bool{"Caveira_Lanc_Fonte": true, "Conj_Caveira_Fonte": true} {
+		if !strings.Contains(up, "'"+copia+"'") || !strings.Contains(down, "'"+copia+"'") {
+			t.Errorf("%s ausente da 0153", copia)
 		}
 	}
 }
