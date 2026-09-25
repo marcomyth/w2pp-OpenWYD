@@ -22,6 +22,9 @@ type ChavesPix interface {
 	SalvarChavePix(ctx context.Context, accountID int64, chave string,
 		tipo store.TipoChavePix, documento string) error
 	LerChavePix(ctx context.Context, accountID int64) (store.RecebedorPix, error)
+	// ApagarChavePix tira a chave E o documento, os dois juntos: são um cadastro
+	// só, e documento que não serve mais para nada é só o que vaza num incidente.
+	ApagarChavePix(ctx context.Context, accountID int64) error
 	// RepasseDoVendedor é quanto esta conta tem a receber e por que ainda não
 	// chegou. Sai na MESMA resposta da chave, porque a página da chave é onde a
 	// pessoa vai quando está procurando o dinheiro dela.
@@ -171,6 +174,40 @@ func (s *ServerRmt) SavePixKey(ctx context.Context, req *webv1.SavePixKeyRequest
 		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_NO_ACCOUNT}, nil
 	default:
 		return nil, status.Errorf(codes.Internal, "save pix key: %v", err)
+	}
+}
+
+// DeletePixKey apaga a chave e o documento da conta.
+//
+// AS MESMAS DUAS TRAVAS DO SavePixKey, NA MESMA ORDEM: cobrança aberta primeiro,
+// repasse depois. Quando as duas valem, a pessoa lê a da venda, que é a que passa
+// sozinha antes.
+//
+// E aqui a trava do repasse vale SEMPRE, diferente do gravar. Gravar a MESMA chave
+// passa com repasse a caminho, porque não desvia nada — é o que deixa um vendedor
+// antigo completar o CPF que falta. Apagar não é gravar a mesma chave: é tirá-la,
+// com dinheiro a caminho dela.
+//
+// "Não havia chave" é resultado próprio, e não OK: a tela precisa distinguir
+// "apaguei agora" de "não havia nada", senão ela confirma uma ação que não
+// aconteceu.
+func (s *ServerRmt) DeletePixKey(ctx context.Context, req *webv1.DeletePixKeyRequest) (*webv1.DeletePixKeyResponse, error) {
+	err := s.pix.ApagarChavePix(ctx, req.GetAccountId())
+	switch {
+	case err == nil:
+		return &webv1.DeletePixKeyResponse{Result: webv1.PixKeyDeleteResult_PIX_KEY_DELETE_RESULT_OK}, nil
+	case errors.Is(err, store.ErrNotFound):
+		// O store devolve ErrNotFound tanto para conta sem chave quanto para conta
+		// que não existe, e para ESTE caminho as duas pedem a mesma resposta: não há
+		// o que apagar. O account_id vem da sessão, então "conta que não existe" não
+		// é um estado que o site alcance.
+		return &webv1.DeletePixKeyResponse{Result: webv1.PixKeyDeleteResult_PIX_KEY_DELETE_RESULT_NO_KEY}, nil
+	case errors.Is(err, store.ErrVendaEmCurso):
+		return &webv1.DeletePixKeyResponse{Result: webv1.PixKeyDeleteResult_PIX_KEY_DELETE_RESULT_SALE_IN_PROGRESS}, nil
+	case errors.Is(err, store.ErrRepasseEmCurso):
+		return &webv1.DeletePixKeyResponse{Result: webv1.PixKeyDeleteResult_PIX_KEY_DELETE_RESULT_PAYOUT_PENDING}, nil
+	default:
+		return nil, status.Errorf(codes.Internal, "delete pix key: %v", err)
 	}
 }
 

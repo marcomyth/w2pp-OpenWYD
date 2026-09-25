@@ -21,6 +21,12 @@ type fakePix struct {
 	salvouTip store.TipoChavePix
 	salvouDoc string
 
+	// O apagar: de qual conta e quantas vezes. Contar as chamadas é o que separa
+	// "apagou" de "recusou antes de chegar ao banco".
+	apagouConta int64
+	apagouVezes int
+	erroApagar  error
+
 	temCobranca  bool
 	cobranca     store.CobrancaDoComprador
 	erroCobranca error
@@ -82,6 +88,12 @@ func (f *fakePix) SalvarChavePix(_ context.Context, _ int64, chave string,
 ) error {
 	f.salvouKey, f.salvouTip, f.salvouDoc = chave, tipo, documento
 	return f.erro
+}
+
+func (f *fakePix) ApagarChavePix(_ context.Context, accountID int64) error {
+	f.apagouConta = accountID
+	f.apagouVezes++
+	return f.erroApagar
 }
 
 func (f *fakePix) LerChavePix(context.Context, int64) (store.RecebedorPix, error) {
