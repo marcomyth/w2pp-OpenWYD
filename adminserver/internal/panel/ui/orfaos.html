@@ -28,6 +28,8 @@
   <h1>Pagamentos órfãos</h1>
   <p class="sub">Entrou dinheiro, e o servidor não achou a venda dele.</p>
 
+  {{template "abas-dinheiro" .}}
+
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
   <p class="nota">

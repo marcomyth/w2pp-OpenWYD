@@ -293,3 +293,27 @@ func (h *Handler) resolverRepasse(w http.ResponseWriter, r *http.Request) {
 	h.cfg.Logger.Info("repasse resolvido", "ator", sess.AccountName, "repasse", id, "acao", acao)
 	http.Redirect(w, r, "/repasses?aviso="+urlQuery(aviso), http.StatusSeeOther)
 }
+
+// dinheiro é a porta da seção: manda para a primeira fila que este servidor tem.
+//
+// O item "Dinheiro" do menu apontava para cá desde que a seção nasceu, e a rota nunca
+// existiu — clicar dava 404. Um desvio e não uma tela: as abas já dizem onde há gente
+// esperando, e uma quinta tela repetindo isso seria mais uma coisa para manter.
+//
+// A ORDEM É A DAS ABAS, para o clique cair onde o olho espera. E ela respeita o que o
+// servidor tem montado: sem repasse, a porta abre nos reembolsos.
+func (h *Handler) dinheiro(w http.ResponseWriter, r *http.Request) {
+	destino := ""
+	switch {
+	case h.cfg.Repasses != nil:
+		destino = "/repasses"
+	case h.cfg.FilasRMT != nil:
+		destino = "/reembolsos"
+	default:
+		// A rota nem é registrada nesse caso; o 404 aqui é a rede de segurança de
+		// quem registrar por engano.
+		http.NotFound(w, r)
+		return
+	}
+	http.Redirect(w, r, destino, http.StatusSeeOther)
+}
