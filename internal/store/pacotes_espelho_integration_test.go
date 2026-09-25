@@ -129,19 +129,32 @@ func oEspelhoRecusaQuemNaoEStaff(t *testing.T, s *Store, ctx context.Context) {
 	}
 }
 
-// TestOsPacotesReaisNaoMudaramDePreco.
+// osPacotesReaisEstaoAUmReal, E ESTE TESTE JÁ FOI O CONTRÁRIO.
 //
-// É O PONTO INTEIRO DE TER ESPELHO. O pedido era "ajusta os valores das doações todas
-// para 1 real", e fazer isso nos nove reais abriria o Supremo a R$ 1,00 para qualquer
-// conta — e esquecer de voltar venderia barato de verdade, sem nada quebrar para
-// avisar. Este teste é o que impede a versão fácil de voltar sozinha num PR futuro.
+// Ele nasceu de manhã prendendo os nove preços de tabela, para impedir que alguém
+// baixasse os pacotes reais e o Supremo ficasse a R$ 1,00 para qualquer conta. À tarde a
+// Hanna mandou baixar mesmo assim, por escrito e sabendo desse custo (migração 0156).
+//
+// ENTÃO ELE MUDOU DE LADO, e não foi apagado: agora prende que os nove estão a 100 E que
+// os créditos continuam os de sempre. O que ele protege é o mesmo de antes — que o preço
+// dos pacotes reais não mude sem alguém decidir — só que o número combinado agora é
+// outro. Um teste apagado deixaria a próxima mudança passar calada.
+//
+// QUANDO OS PREÇOS VOLTAREM (migração nova, quando ela mandar), é aqui que os valores da
+// 0123 voltam: 2990, 4990, 9990, 14990, 19990, 29990, 39990, 49990, 79990.
 func osPacotesReaisNaoMudaramDePreco(t *testing.T, s *Store, ctx context.Context) {
-	// Lidos de marcomyth/w2pp-site, src/config/pacotes.ts, os mesmos do
-	// TestOsPacotesDoSiteEstaoNaTabela.
+	// R$ 1,00 nos nove, por decisão da Hanna de 25/09/2026.
 	querido := map[string]int64{
-		"apoiador-iniciante": 2990, "apoiador-bronze": 4990, "apoiador-prata": 9990,
-		"apoiador-ouro": 14990, "apoiador-platina": 19990, "apoiador-diamante": 29990,
-		"apoiador-mestre": 39990, "apoiador-lenda": 49990, "apoiador-supremo": 79990,
+		"apoiador-iniciante": 100, "apoiador-bronze": 100, "apoiador-prata": 100,
+		"apoiador-ouro": 100, "apoiador-platina": 100, "apoiador-diamante": 100,
+		"apoiador-mestre": 100, "apoiador-lenda": 100, "apoiador-supremo": 100,
+	}
+	// OS CRÉDITOS NÃO MUDARAM, e é a metade que vale dinheiro: baixar o preço e mexer nos
+	// Rcoins sem perceber daria pacote barato E menor, ou barato E maior.
+	creditos := map[string]int32{
+		"apoiador-iniciante": 300, "apoiador-bronze": 575, "apoiador-prata": 1250,
+		"apoiador-ouro": 2100, "apoiador-platina": 3000, "apoiador-diamante": 4950,
+		"apoiador-mestre": 7000, "apoiador-lenda": 10000, "apoiador-supremo": 20000,
 	}
 	for id, centavos := range querido {
 		p, err := s.LerPacote(ctx, id)
@@ -153,6 +166,10 @@ func osPacotesReaisNaoMudaramDePreco(t *testing.T, s *Store, ctx context.Context
 		}
 		if p.SoStaff {
 			t.Errorf("%s virou so-staff: o pacote de verdade tem de continuar a venda", id)
+		}
+		if p.Credits != creditos[id] {
+			t.Errorf("%s da %d Rcoins, quero %d: o preco mudou, o credito nao devia",
+				id, p.Credits, creditos[id])
 		}
 	}
 }
