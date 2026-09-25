@@ -120,6 +120,13 @@ const (
 	MsgLojaFecha      Type = 0x0F0A // C->S  fechei o painel, pare de me avisar
 	MsgLojaMudou      Type = 0x0F0B // S->C  o mercado mudou; peca a pagina se estiver olhando
 
+	// Loja de Rcoin: as ofertas do donate_shop_item, as mesmas da loja do site,
+	// compradas dentro do jogo com a carteira de donate. Ver protocol/lojarcoin.go.
+	MsgRcoinPede      Type = 0x0F0C // C->S  pede uma pagina: categoria e pagina
+	MsgRcoinLista     Type = 0x0F0D // S->C  uma pagina de ofertas, com o saldo do banco
+	MsgRcoinCompra    Type = 0x0F0E // C->S  comprar: oferta, pedido e o preco que ele viu
+	MsgRcoinResultado Type = 0x0F0F // S->C  como acabou a compra, e o saldo depois dela
+
 	// Loja de Honra: o God of War trocando itens por pontos de lojinha. Tambem
 	// nossos, na mesma faixa. Ver protocol/lojahonra.go.
 	MsgHonraAbre   Type = 0x0F20 // S->C  o estoque e o saldo de quem clicou no NPC
