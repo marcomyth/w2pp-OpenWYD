@@ -60,8 +60,12 @@ func osEspelhosEntregamOMesmo(t *testing.T, s *Store, ctx context.Context) {
 		if !pe.SoStaff {
 			t.Errorf("%s nasceu aberto a qualquer conta", espelho)
 		}
-		if !pe.Ativo {
-			t.Errorf("%s nasceu desligado", espelho)
+		// DESLIGADO DESDE A 0159, que acabou o teste de entrega. A linha continua
+		// existindo de propósito (regra da 0122: pedido antigo tem de achar a linha
+		// dele), e o resto da conferência abaixo continua valendo — é ela que garante
+		// que o espelho ainda é cópia fiel se alguém religar para um teste novo.
+		if pe.Ativo {
+			t.Errorf("%s continua ligado: o teste de entrega acabou e a 0159 devia te-lo fechado", espelho)
 		}
 		// Os Rcoins são os do real: espelho que credita menos não prova a entrega.
 		if pe.Credits != pr.Credits {
@@ -77,28 +81,35 @@ func osEspelhosEntregamOMesmo(t *testing.T, s *Store, ctx context.Context) {
 					espelho, i, pe.Itens[i], pr.Itens[i])
 			}
 		}
-		// O preço que o site tem de mandar é o DAQUI: a conferência compara o pedido
-		// contra esta linha, então R$ 1,00 com os Rcoins do real é o par válido.
-		if _, err := s.ConferirPacote(ctx, espelho, true, pr.Credits, 100); err != nil {
-			t.Errorf("%s recusou a compra da staff pelo preço certo: %v", espelho, err)
+		// E NEM A STAFF COMPRA MAIS, mesmo com o preço e os créditos certos: a recusa
+		// vem do desligado, antes da trava de staff. Era aqui que o teste conferia a
+		// compra do espelho; agora é aqui que ele confere que ela acabou.
+		if _, err := s.ConferirPacote(ctx, espelho, true, pr.Credits, 100); !errors.Is(err, ErrPacoteDesligado) {
+			t.Errorf("%s ainda vende para a staff (erro = %v), e o teste de entrega acabou", espelho, err)
 		}
 	}
 }
 
-// TestOEspelhoRecusaQuemNaoEStaff.
+// oEspelhoRecusaQuemNaoEStaff: a trava de cargo, medida no pacote só-staff que
+// continua LIGADO.
 //
 // A trava é o `so_staff`, e ela vive no SERVIDOR: o site esconde o pacote, mas esconder
-// na tela não é trava — quem chama a RPC direto passa por ela. Sem esta recusa,
-// qualquer conta compraria o Supremo por R$ 1,00 enquanto o teste durasse.
+// na tela não é trava — quem chama a RPC direto passa por ela.
 //
-// Os três cargos aqui são os que o `ContaEhStaff` decide: 'admin' e 'moderator' passam,
-// e o resto não. Um cargo novo que precise comprar espelho tem de ser adicionado LÁ, e
-// este teste é o que faz isso aparecer.
+// O ALVO MUDOU PARA O `teste-real` DEPOIS DA 0159, que desligou os nove espelhos. Contra
+// um pacote desligado esta medição não diria mais nada: o `ConferirPacote` recusa pelo
+// desligado ANTES de olhar o cargo, então todos os quatro casos dariam a mesma resposta
+// e o teste passaria com a trava de cargo quebrada. O `teste-real` é só-staff e continua
+// ligado, então é nele que a pergunta ainda tem duas respostas possíveis.
+//
+// Os quatro cargos são os que o `ContaEhStaff` decide: 'admin' e 'moderator' passam, e o
+// resto não. Um cargo novo que precise comprar tem de ser adicionado LÁ, e este teste é
+// o que faz isso aparecer.
 func oEspelhoRecusaQuemNaoEStaff(t *testing.T, s *Store, ctx context.Context) {
-	const espelho = "teste-apoiador-supremo"
-	pr, err := s.LerPacote(ctx, "apoiador-supremo")
+	const espelho = "teste-real"
+	pr, err := s.LerPacote(ctx, espelho)
 	if err != nil {
-		t.Fatalf("apoiador-supremo: %v", err)
+		t.Fatalf("%s: %v", espelho, err)
 	}
 
 	casos := []struct {
@@ -119,7 +130,7 @@ func oEspelhoRecusaQuemNaoEStaff(t *testing.T, s *Store, ctx context.Context) {
 		if ehStaff != c.passa {
 			t.Errorf("cargo %q: ContaEhStaff = %v, quero %v", c.cargo, ehStaff, c.passa)
 		}
-		_, err = s.ConferirPacote(ctx, espelho, ehStaff, pr.Credits, 100)
+		_, err = s.ConferirPacote(ctx, espelho, ehStaff, pr.Credits, pr.AmountCents)
 		switch {
 		case c.passa && err != nil:
 			t.Errorf("cargo %q foi recusado no espelho: %v", c.cargo, err)
@@ -129,25 +140,25 @@ func oEspelhoRecusaQuemNaoEStaff(t *testing.T, s *Store, ctx context.Context) {
 	}
 }
 
-// osPacotesReaisEstaoAUmReal, E ESTE TESTE JÁ FOI O CONTRÁRIO.
+// osPacotesReaisNaoMudaramDePreco, E ESTE TESTE JÁ MUDOU DE LADO DUAS VEZES NUM DIA.
 //
-// Ele nasceu de manhã prendendo os nove preços de tabela, para impedir que alguém
-// baixasse os pacotes reais e o Supremo ficasse a R$ 1,00 para qualquer conta. À tarde a
-// Hanna mandou baixar mesmo assim, por escrito e sabendo desse custo (migração 0158).
+// Ele nasceu de manhã prendendo os nove preços de tabela. À tarde a Hanna mandou baixar
+// tudo para R$ 1,00 para testar a entrega (migração 0158) e ele passou a prender o 100.
+// À noite o teste acabou e os preços voltaram (migração 0159), então ele volta a prender
+// os valores de tabela.
 //
-// ENTÃO ELE MUDOU DE LADO, e não foi apagado: agora prende que os nove estão a 100 E que
-// os créditos continuam os de sempre. O que ele protege é o mesmo de antes — que o preço
-// dos pacotes reais não mude sem alguém decidir — só que o número combinado agora é
-// outro. Um teste apagado deixaria a próxima mudança passar calada.
+// NUNCA FOI APAGADO em nenhuma das duas viradas, e é esse o ponto: o que ele protege não
+// é um número, é a regra de que o preço dos pacotes reais não muda sem alguém decidir.
+// Um teste apagado nas idas e vindas deixaria a próxima mudança passar calada — e a
+// mudança que passa calada, aqui, é o Supremo aberto a R$ 1,00 para o mundo inteiro.
 //
-// QUANDO OS PREÇOS VOLTAREM (migração nova, quando ela mandar), é aqui que os valores da
-// 0123 voltam: 2990, 4990, 9990, 14990, 19990, 29990, 39990, 49990, 79990.
+// OS VALORES SÃO OS DA 0123, que é onde nasceram. Conferidos contra ela na volta.
 func osPacotesReaisNaoMudaramDePreco(t *testing.T, s *Store, ctx context.Context) {
-	// R$ 1,00 nos nove, por decisão da Hanna de 25/09/2026.
+	// Os preços de tabela, de volta em 25/09/2026 pela 0159.
 	querido := map[string]int64{
-		"apoiador-iniciante": 100, "apoiador-bronze": 100, "apoiador-prata": 100,
-		"apoiador-ouro": 100, "apoiador-platina": 100, "apoiador-diamante": 100,
-		"apoiador-mestre": 100, "apoiador-lenda": 100, "apoiador-supremo": 100,
+		"apoiador-iniciante": 2990, "apoiador-bronze": 4990, "apoiador-prata": 9990,
+		"apoiador-ouro": 14990, "apoiador-platina": 19990, "apoiador-diamante": 29990,
+		"apoiador-mestre": 39990, "apoiador-lenda": 49990, "apoiador-supremo": 79990,
 	}
 	// OS CRÉDITOS NÃO MUDARAM, e é a metade que vale dinheiro: baixar o preço e mexer nos
 	// Rcoins sem perceber daria pacote barato E menor, ou barato E maior.
