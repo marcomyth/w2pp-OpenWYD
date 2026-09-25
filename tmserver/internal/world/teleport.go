@@ -22,7 +22,12 @@ type teleRoute struct {
 // while it is 0 (MobKilled.cpp:543). So the `KefraLive != 0` that guards the desert
 // route (GetFunc.cpp:1007) is the defeated state, not the living one.
 //
-// Everything else is here, in the order the original tests them.
+// Everything else is here, in the order the original tests them, plus one pair
+// the original never routed (the two orphan Dungeon tiles below).
+//
+// The origins are the tiles the CLIENT asks from: the ones with bit 0x10 in
+// AttributeMap.dat. A route keyed on any other tile never fires
+// (teleport_test.go checks every key against the map).
 // The client sends an empty _MSG_ReqTeleport when it steps on a teleport tile;
 // the server resolves the route from the player's position.
 //
@@ -73,12 +78,22 @@ var teleportTable = map[[2]int16]teleRoute{
 	{1004, 4028}: {148, 3780, 0},  // Dungeon 2º → 1º andar
 	{408, 4072}:  {1004, 4064, 0}, // Dungeon 1º → 2º andar
 	{1004, 4064}: {408, 4072, 0},  // Dungeon 2º → 1º andar
-	{744, 3820}:  {1004, 3992, 0}, // Dungeon 1º → 3º andar
+	// O original testa (744,3820) (GetFunc.cpp:889), mas no AttributeMap.dat a
+	// casa de teleporte do arco é a de cima, (744,3816): a de 3820 não tem o bit
+	// 0x10, o cliente nunca pede teleporte nela, e a escada ficava muda. A volta
+	// continua chegando em (744,3820), ao pé do arco, como no original.
+	{744, 3816}:  {1004, 3992, 0}, // Dungeon 1º → 3º andar
 	{1004, 3992}: {744, 3820, 0},  // Dungeon 3º → 1º andar
-	{680, 4076}:  {916, 3820, 0},  // Dungeon 2º → 3º andar
-	{916, 3820}:  {680, 4076, 0},  // Dungeon 3º → 2º andar
-	{876, 3872}:  {932, 3820, 0},  // Dungeon 2º → 3º andar
-	{932, 3820}:  {876, 3872, 0},  // Dungeon 3º → 2º andar
+	// As duas casas de teleporte da Dungeon que o original deixou sem destino
+	// nenhum: o arco em (744,3804), logo acima do de 3816, e a casa (912,3808),
+	// junto das escadas do 3º andar. Ligadas uma à outra a pedido do Marco em
+	// 25/09/2026, depois de um jogador parar nas duas e não ir a lugar algum.
+	{744, 3804}: {912, 3808, 0},
+	{912, 3808}: {744, 3804, 0},
+	{680, 4076}: {916, 3820, 0}, // Dungeon 2º → 3º andar
+	{916, 3820}: {680, 4076, 0}, // Dungeon 3º → 2º andar
+	{876, 3872}: {932, 3820, 0}, // Dungeon 2º → 3º andar
+	{932, 3820}: {876, 3872, 0}, // Dungeon 3º → 2º andar
 
 	// Submundo.
 	{1824, 1772}: {1172, 4080, 0}, // Campo de Azran → Submundo
