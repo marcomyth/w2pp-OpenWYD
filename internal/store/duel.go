@@ -59,11 +59,17 @@ func bumpDuelLosses(ctx context.Context, tx pgx.Tx, name string) error {
 
 // ListDuelRanking returns the persisted duel win/loss leaderboard in ranking
 // order (most wins first), mirroring ListExpRanking.
+//
+// Esconde os mesmos que o ranking de EXP — cargo e `fora_do_ranking` —, e o porquê de
+// cada critério está escrito lá. Os dois andam juntos: sumir de uma lista e aparecer na
+// outra seria pior que aparecer nas duas, porque pareceria defeito em vez de regra.
 func (s *Store) ListDuelRanking(ctx context.Context, limit, offset int) ([]domain.DuelRankingEntry, int, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT c.name, c.class, c.clan, c.guild_id, p.wins, p.losses, count(*) OVER()
 		  FROM character_pvp_stats p
 		  JOIN character c ON c.id = p.character_id
+		  JOIN account a ON a.id = c.account_id
+		 WHERE a.role = 'player' AND NOT a.fora_do_ranking
 		 ORDER BY p.wins DESC, p.losses ASC, c.name ASC
 		 LIMIT $1 OFFSET $2`, limit, offset)
 	if err != nil {
@@ -92,7 +98,12 @@ func (s *Store) ListDuelRanking(ctx context.Context, limit, offset int) ([]domai
 
 func (s *Store) countDuelRanking(ctx context.Context) (int, error) {
 	var total int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM character_pvp_stats`).Scan(&total); err != nil {
+	if err := s.pool.QueryRow(ctx, `
+		SELECT count(*)
+		  FROM character_pvp_stats p
+		  JOIN character c ON c.id = p.character_id
+		  JOIN account a ON a.id = c.account_id
+		 WHERE a.role = 'player' AND NOT a.fora_do_ranking`).Scan(&total); err != nil {
 		return 0, fmt.Errorf("store: count duel ranking: %w", err)
 	}
 	return total, nil

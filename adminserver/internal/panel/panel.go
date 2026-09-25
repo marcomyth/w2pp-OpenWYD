@@ -129,6 +129,10 @@ type Writer interface {
 	SoltarPosse(ctx context.Context, atorConta, atorPainel int64, papel string, accountID int64, nota string) error
 	AddVipDays(ctx context.Context, actorID, targetID int64, days int) (prev, next *time.Time, err error)
 	ClearVip(ctx context.Context, actorID, targetID int64) (*time.Time, error)
+	// Esconder a conta do ranking. Grava a auditoria na MESMA transação, como a
+	// soltura da posse, e por isso também não passa pelo caminho comum.
+	ForaDoRanking(ctx context.Context, atorConta, atorPainel int64, papel string,
+		targetID int64, fora bool, nota string) (mudou bool, err error)
 }
 
 // GameData is the panel's window onto the webServer's admin services. Optional:
@@ -589,6 +593,10 @@ func (h *Handler) Routes() http.Handler {
 	// entram em jogo — que é o defeito que a posse existe para impedir.
 	mux.Handle("POST /contas/{nome}/posse", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.soltarPosse))))
 	mux.Handle("POST /contas/{nome}/vip", h.requireStaff(http.HandlerFunc(h.setVip)))
+	// SÓ ADMIN: esconder alguém do ranking é decisão de quem responde pelo servidor,
+	// e não uma ferramenta de moderação do dia a dia.
+	mux.Handle("POST /contas/{nome}/fora-do-ranking",
+		h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setForaDoRanking))))
 	mux.Handle("POST /contas/{nome}/senha", h.requireStaff(http.HandlerFunc(h.setSenha)))
 	// Creating an account hands out a login; admin-only, like the other writes
 	// that create access rather than adjust it.
@@ -1082,6 +1090,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 			VipUntil: det.VipUntil, VipActive: accounts.VipActive(det.VipUntil),
 			Bloqueio:   det.Bloqueio,
 			PasseNivel: det.PasseNivel, PodePasse: h.cfg.Passe != nil,
+			ForaDoRanking: det.ForaDoRanking,
 		},
 		chars,
 		emJogo,
@@ -1267,6 +1276,7 @@ type contaView struct {
 	Bloqueio      accounts.Bloqueio
 	PasseNivel    int16 // 0 sem passe, 1..4 as molduras (0128)
 	PodePasse     bool  // a seção do passe só existe com a gravação ligada
+	ForaDoRanking bool  // escondida do ranking do site e do bot (0161)
 }
 
 // --- login / logout ---
