@@ -227,10 +227,12 @@ func TestReinosBlocosDoNPCGener(t *testing.T) {
 	// +8 desde 25/09/2026: o Boss Dragão Lich da Dungeon (migração 0140), no 6146.
 	// +10 desde 25/09/2026: os mini chefes da lava da Dungeon (migração 0142), no 6147 e 6148.
 	// +11 desde 25/09/2026: o Boss Conjurador do spot de caveiras (migração 0144), no 6149.
+	// +22 no mesmo dia: o Rei Troll Zumbi no 6150 e 10 blocos de caça em volta
+	// dele, 6151-6160 (migração 0147).
 	// As Lendas continuam onde estavam — são lidas por índice absoluto logo
 	// acima —, e é justamente por isso que bloco novo vai sempre no FIM.
-	if len(gens) != world.EscoltaDoTronoGenLast+11 {
-		t.Errorf("%d blocos, want %d: bloco novo entra no fim, depois das Lendas", len(gens), world.EscoltaDoTronoGenLast+11)
+	if len(gens) != world.EscoltaDoTronoGenLast+22 {
+		t.Errorf("%d blocos, want %d: bloco novo entra no fim, depois das Lendas", len(gens), world.EscoltaDoTronoGenLast+22)
 	}
 }
 

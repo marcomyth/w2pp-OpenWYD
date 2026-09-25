@@ -159778,3 +159778,230 @@
 	DestY:		3758
 	DestRange:	2
 	DestWait:	10
+
+// Rei Troll Zumbi - mini chefe do 1o andar da Dungeon, no salao do esqueleto de
+// dragao: renasce 1 h depois da morte (handler/rei_troll_zumbi.go), saque no
+// codigo. Migracao 0147, 25/09/2026.
+// ********************************************
+
+#	[6150]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Rei_Troll_Zumbi
+	Follower:	Rei_Troll_Zumbi
+	RouteType:	0
+	Formation:	0
+	StartX:		284
+	StartY:		3753
+	StartRange:	0
+	StartWait:	10
+	DestX:		284
+	DestY:		3753
+	DestRange:	0
+	DestWait:	10
+
+// Mais Troll Zumbi nos tres saloes em volta do Rei Troll Zumbi, e Arq. Caveira
+// no salao dele (1o andar da Dungeon), pedido do Marco em 25/09/2026. No salao
+// oeste e no corredor sul o Arq. Caveira ja foi a 5x nos blocos de b2f1ce68.
+// Cada ponto tem chao em toda a caixa que o gerador sorteia (x-3..x, y-3..y).
+// ********************************************
+
+#	[6151]
+	MinuteGenerate:	1
+	MaxNumMob:	3
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Troll_Zumbi
+	Follower:	Troll_Zumbi
+	RouteType:	2
+	Formation:	0
+	StartX:		273
+	StartY:		3753
+	StartRange:	3
+	StartWait:	9
+	DestX:		273
+	DestY:		3753
+	DestRange:	3
+	DestWait:	9
+
+// ********************************************
+
+#	[6152]
+	MinuteGenerate:	1
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Arq_Caveira
+	Follower:	Arq_Caveira
+	RouteType:	2
+	Formation:	0
+	StartX:		284
+	StartY:		3763
+	StartRange:	3
+	StartWait:	9
+	DestX:		284
+	DestY:		3763
+	DestRange:	3
+	DestWait:	9
+
+// ********************************************
+
+#	[6153]
+	MinuteGenerate:	1
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Troll_Zumbi
+	Follower:	Troll_Zumbi
+	RouteType:	2
+	Formation:	0
+	StartX:		290
+	StartY:		3752
+	StartRange:	3
+	StartWait:	9
+	DestX:		290
+	DestY:		3752
+	DestRange:	3
+	DestWait:	9
+
+// ********************************************
+
+#	[6154]
+	MinuteGenerate:	1
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Troll_Zumbi
+	Follower:	Troll_Zumbi
+	RouteType:	2
+	Formation:	0
+	StartX:		261
+	StartY:		3745
+	StartRange:	3
+	StartWait:	9
+	DestX:		261
+	DestY:		3745
+	DestRange:	3
+	DestWait:	9
+
+// ********************************************
+
+#	[6155]
+	MinuteGenerate:	1
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Troll_Zumbi
+	Follower:	Troll_Zumbi
+	RouteType:	2
+	Formation:	0
+	StartX:		261
+	StartY:		3755
+	StartRange:	3
+	StartWait:	9
+	DestX:		261
+	DestY:		3755
+	DestRange:	3
+	DestWait:	9
+
+// ********************************************
+
+#	[6156]
+	MinuteGenerate:	1
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Troll_Zumbi
+	Follower:	Troll_Zumbi
+	RouteType:	2
+	Formation:	0
+	StartX:		245
+	StartY:		3758
+	StartRange:	3
+	StartWait:	9
+	DestX:		245
+	DestY:		3758
+	DestRange:	3
+	DestWait:	9
+
+// ********************************************
+
+#	[6157]
+	MinuteGenerate:	1
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Troll_Zumbi
+	Follower:	Troll_Zumbi
+	RouteType:	2
+	Formation:	0
+	StartX:		260
+	StartY:		3785
+	StartRange:	3
+	StartWait:	9
+	DestX:		260
+	DestY:		3785
+	DestRange:	3
+	DestWait:	9
+
+// ********************************************
+
+#	[6158]
+	MinuteGenerate:	1
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Troll_Zumbi
+	Follower:	Troll_Zumbi
+	RouteType:	2
+	Formation:	0
+	StartX:		256
+	StartY:		3792
+	StartRange:	3
+	StartWait:	9
+	DestX:		256
+	DestY:		3792
+	DestRange:	3
+	DestWait:	9
+
+// ********************************************
+
+#	[6159]
+	MinuteGenerate:	1
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Troll_Zumbi
+	Follower:	Troll_Zumbi
+	RouteType:	2
+	Formation:	0
+	StartX:		256
+	StartY:		3780
+	StartRange:	3
+	StartWait:	9
+	DestX:		256
+	DestY:		3780
+	DestRange:	3
+	DestWait:	9
+
+// ********************************************
+
+#	[6160]
+	MinuteGenerate:	1
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Troll_Zumbi
+	Follower:	Troll_Zumbi
+	RouteType:	2
+	Formation:	0
+	StartX:		252
+	StartY:		3795
+	StartRange:	3
+	StartWait:	9
+	DestX:		252
+	DestY:		3795
+	DestRange:	3
+	DestWait:	9

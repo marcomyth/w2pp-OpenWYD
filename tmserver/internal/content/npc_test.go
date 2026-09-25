@@ -272,8 +272,8 @@ func TestChefesDaLavaBlocos(t *testing.T) {
 		t.Fatal(err)
 	}
 	// 6150 desde 25/09/2026: o Boss Conjurador (migração 0144) entrou depois deles.
-	if len(gens) != 6150 {
-		t.Fatalf("NPCGener has %d blocks, want 6150 with the lava bosses before the Boss Conjurador", len(gens))
+	if len(gens) < 6150 {
+		t.Fatalf("NPCGener has %d blocks, want 6150 or more", len(gens))
 	}
 	// Dungeon_2_Andar in Regions.txt: 632,3847 - 1022,4091.
 	dentro := func(x, y int16) bool { return x >= 632 && x <= 1022 && y >= 3847 && y <= 4091 }
@@ -341,7 +341,7 @@ func TestDungeonSalasPopulacao(t *testing.T) {
 
 // TestCaveirasDoSpotBlocos pins the Caveira Lanc and Conj Caveira spot of the
 // Dungeon 1st floor (migration 0144): the Boss Conjurador alone in block 6149,
-// the last one, with no minute period — the 3 h wait is the individual queue's
+// with no minute period — the 3 h wait is the individual queue's
 // (handler/dungeon_caveiras.go) — and the two monsters at five times the legacy
 // count, every block on the minute timer.
 func TestCaveirasDoSpotBlocos(t *testing.T) {
@@ -353,8 +353,8 @@ func TestCaveirasDoSpotBlocos(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(gens) != 6150 {
-		t.Fatalf("NPCGener has %d blocks, want 6150 with the Boss Conjurador last", len(gens))
+	if len(gens) < 6150 {
+		t.Fatalf("NPCGener has %d blocks, want 6150 or more", len(gens))
 	}
 	// O spot: x 300 a 490, y 3730 a 3880.
 	dentro := func(x, y int16) bool { return x >= 300 && x <= 490 && y >= 3730 && y <= 3880 }
@@ -384,5 +384,61 @@ func TestCaveirasDoSpotBlocos(t *testing.T) {
 	// 45 e 30 antes da 0144.
 	if mobs["Caveira_Lanc"] != 225 || mobs["Conj_Caveira"] != 150 {
 		t.Errorf("Caveira Lanc %d e Conj Caveira %d, want 225 e 150 (5x)", mobs["Caveira_Lanc"], mobs["Conj_Caveira"])
+	}
+}
+
+// TestReiTrollZumbiBloco pins the Dungeon's 1st-floor mini boss (migration 0147):
+// one Rei_Troll_Zumbi in block 6150, fixed on (284,3753) with range 0 — the
+// tiles right next to it are blocked — and no minute period: the 1 h wait after
+// its death is the individual queue's (handler/rei_troll_zumbi.go). After it come
+// the ten hunting blocks 6151-6160: Troll Zumbi in the three rooms around it, and
+// Arq. Caveira only in its own room (the other two got 5x Arq. in b2f1ce68).
+func TestReiTrollZumbiBloco(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("NPCGener.txt unavailable: %v", err)
+	}
+	gens, err := LoadNPCGenerators(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const idx, primeiro, ultimo = 6150, 6151, 6160
+	if ultimo != len(gens)-1 {
+		t.Fatalf("NPCGener has %d blocks, want block %d to be the last", len(gens), ultimo)
+	}
+	g := gens[idx]
+	if g.Leader != "Rei_Troll_Zumbi" || g.MinuteGenerate != -1 || g.MaxNumMob != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
+		t.Errorf("bloco %d = %+v, want one Rei_Troll_Zumbi with MinuteGenerate -1", idx, g)
+	}
+	if g.SegX[0] != 284 || g.SegY[0] != 3753 || g.SegRange[0] != 0 || g.SegRange[4] != 0 {
+		t.Errorf("Rei_Troll_Zumbi em (%d,%d) raio %d/%d, want (284,3753) raio 0",
+			g.SegX[0], g.SegY[0], g.SegRange[0], g.SegRange[4])
+	}
+	n := 0
+	for _, g := range gens {
+		if g.Leader == "Rei_Troll_Zumbi" || g.Follower == "Rei_Troll_Zumbi" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("Rei_Troll_Zumbi em %d blocos, want 1", n)
+	}
+	mobs := map[string]int{}
+	for i := primeiro; i <= ultimo; i++ {
+		g := gens[i]
+		if g.Leader != g.Follower || (g.Leader != "Troll_Zumbi" && g.Leader != "Arq_Caveira") {
+			t.Errorf("bloco %d = %s/%s, want Troll_Zumbi ou Arq_Caveira", i, g.Leader, g.Follower)
+		}
+		if g.MinuteGenerate != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
+			t.Errorf("bloco %d: MinuteGenerate %d, grupo %d-%d; want 1 e 0-0, como os vizinhos", i, g.MinuteGenerate, g.MinGroup, g.MaxGroup)
+		}
+		// Os três salões em volta do Rei: X 241-291, Y 3735-3808.
+		if x, y := g.SegX[0], g.SegY[0]; x < 241 || x > 291 || y < 3735 || y > 3808 {
+			t.Errorf("bloco %d nasce em (%d,%d), fora dos salões do Rei", i, x, y)
+		}
+		mobs[g.Leader] += g.MaxNumMob
+	}
+	if mobs["Troll_Zumbi"] != 19 || mobs["Arq_Caveira"] != 2 {
+		t.Errorf("caça nova: %v, want 19 Troll_Zumbi e 2 Arq_Caveira", mobs)
 	}
 }
