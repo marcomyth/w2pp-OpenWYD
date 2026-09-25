@@ -560,7 +560,7 @@ func TestLoadSkillData(t *testing.T) {
 	}{
 		{0, Spell{Index: 0, SkillPoint: 24, TargetType: 3, ManaSpent: 15, Delay: 3,
 			Range: 5, InstanceType: 4, InstanceValue: 5, InstanceAttribute: 4,
-			Aggressive: 1, MaxTarget: 13, AffectResist: 3, Name: "Giro_da_F\xfaria"}},
+			Aggressive: 1, MaxTarget: 13, AffectResist: 3, Name: "Giro_da_Fúria"}},
 		{5, Spell{Index: 5, SkillPoint: 81, ManaSpent: 53, TickType: 17, TickValue: 75,
 			AffectTime: 150, MaxTarget: 1, Name: "Aura_da_Vida"}},
 		// Escudo Dourado (affect 31): the short tail of the table, raw AffectTime
@@ -568,7 +568,7 @@ func TestLoadSkillData(t *testing.T) {
 		// the loader is legacy-faithful again and the tuning moved to
 		// world.AffectDuration, which floors short friendly buffs instead.
 		{85, Spell{Index: 85, SkillPoint: 90, ManaSpent: 120, Delay: 5, AffectType: 31,
-			AffectValue: 150, AffectTime: 7, MaxTarget: 1, Name: "Explos\xe3o_Et\xe9rea"}},
+			AffectValue: 150, AffectTime: 7, MaxTarget: 1, Name: "Explosão_Etérea"}},
 	}
 	for _, tt := range tests {
 		got, ok := s.Get(tt.index)
@@ -581,9 +581,14 @@ func TestLoadSkillData(t *testing.T) {
 		}
 	}
 	// Indexes are sparse past the row count: the legacy loader keys on column 0.
-	// Names keep the file's Latin-1 bytes (the client charset) — no re-encode.
-	if e, ok := s.Get(200); !ok || e.Name != "Prote\xe7\xe3o_Divina" {
-		t.Errorf("Get(200) = %+v, %v, want Proteção_Divina (Latin-1)", e, ok)
+	//
+	// OS NOMES AGORA SÃO TEXTO GO, e não mais os bytes crus do arquivo. Este teste
+	// pinava o contrário ("Latin-1, sem re-encode"), e a convenção virou junto com a
+	// do ItemList: o loader decodifica, e quem escreve na rede encodifica. O motivo
+	// é que o byte cru só sobrevive enquanto ninguém o toca - passou por um
+	// ClientText, ou por um log em UTF-8, e o acento virou "?" sem aviso.
+	if e, ok := s.Get(200); !ok || e.Name != "Proteção_Divina" {
+		t.Errorf("Get(200) = %+v, %v, want Proteção_Divina", e, ok)
 	}
 	if s.Len() < 100 {
 		t.Errorf("skill count = %d, want >= 100", s.Len())

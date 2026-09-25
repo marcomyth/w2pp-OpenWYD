@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/itemeffect"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 )
 
 // ItemEntry is one row of ItemList.csv (data-formats.md §3.1).
@@ -279,7 +280,11 @@ func parseItemList(r io.Reader) (*ItemList, error) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 64*1024), 1024*1024) // rows can be long
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
+		// DECODIFICA ANTES DE QUALQUER COISA, como o language.go faz. O arquivo é
+		// Windows-1252 e 1091 das 6464 linhas têm acento: "Titã" é T-i-t-0xE3. Lido
+		// como UTF-8, esse byte vira rune inválida, e o ClientText — que não tem como
+		// adivinhar o que era — o achata em '?' na volta. O jogador via "Tit?".
+		line := strings.TrimSpace(protocol.FromClientText(sc.Bytes()))
 		if line == "" {
 			continue
 		}

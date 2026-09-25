@@ -39,3 +39,26 @@ func TestAnnounceShutdownNoPlayersReturnsImmediately(t *testing.T) {
 		t.Fatal("announceShutdown waited the grace period with no players connected")
 	}
 }
+
+// TestAvisoDeReinicioNaoLevaAcento: o "esta" fica SEM acento de propósito, e não
+// é descuido de digitação.
+//
+// O cliente arma a vigia de queda pelo TEXTO deste aviso: ele compara o começo da
+// linha com o literal, e é isso que faz um deploy ordenado não virar tela de
+// "conexão perdida". Botar o acento muda os bytes que ele compara, a comparação
+// passa a falhar, e o jogador volta a ver queda onde havia reinício - sem nada
+// quebrar aqui dentro, que é o pior tipo de mudança.
+//
+// Por isso o aviso NÃO obedece à regra geral de escrever com acento o texto que o
+// jogador lê. É exceção com dono: quem quiser o acento muda o cliente primeiro, e
+// este teste é o lugar onde os dois lados se encontram.
+func TestAvisoDeReinicioNaoLevaAcento(t *testing.T) {
+	const contrato = "O servidor esta sendo reiniciado"
+	if !strings.HasPrefix(shutdownNotice, contrato) {
+		t.Fatalf("o aviso começa com %q; o cliente espera %q", shutdownNotice, contrato)
+	}
+	// E os bytes na rede, que são o que o cliente de fato compara.
+	if got := string(protocol.ClientText(shutdownNotice)[:len(contrato)]); got != contrato {
+		t.Errorf("na rede o começo saiu %q, quero %q", got, contrato)
+	}
+}

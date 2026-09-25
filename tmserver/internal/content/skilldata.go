@@ -7,6 +7,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 )
 
 // Skill-table dimensions (Basedef.h:171/200). MaxSkill is the per-class skill
@@ -105,7 +107,12 @@ func parseSkillData(r io.Reader) (*SkillData, error) {
 	s := &SkillData{skills: make(map[int]Spell)}
 	sc := bufio.NewScanner(r)
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
+		// Decodifica antes de qualquer coisa, como o language.go e o ItemList: o
+		// arquivo é Windows-1252, e os 72 bytes altos dele vivem nos NOMES das
+		// magias ("Giro_da_Fúria" guarda 0xFA no lugar do "ú"). Hoje esse nome só
+		// aparece no log, e é justamente por isso que a decodificação fica aqui: quem
+		// for usá-lo depois não herda um texto que o ClientText achataria em "?".
+		line := strings.TrimSpace(protocol.FromClientText(sc.Bytes()))
 		if line == "" {
 			continue
 		}
