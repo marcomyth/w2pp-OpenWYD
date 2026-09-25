@@ -740,9 +740,13 @@ func (w *World) ApplyDeliveries(s *Session, pending []Delivery) (delivered, held
 		}
 	}
 	if held > 0 {
-		w.log.Warn("donate deliveries held: cargo full", "account", accountID, "count", held)
+		w.log.Warn("entregas seguradas: bau cheio", "account", accountID, "count", held)
 	}
-	w.log.Info("drained donate deliveries", "account", accountID, "delivered", len(deliveredIDs), "held", held)
+	// O NOME DIZ O QUE A FUNÇÃO FAZ, e não de onde ela veio. Este dreno nasceu para a loja
+	// de doação e hoje drena QUALQUER entrega pendente da caixa postal — inclusive a compra
+	// no mercado entre jogadores. O nome antigo, "drained donate deliveries", fez o par do
+	// site procurar a entrega de uma compra RMT no log errado, e custou o tempo dele.
+	w.log.Info("caixa postal drenada", "account", accountID, "delivered", len(deliveredIDs), "held", held)
 	if len(deliveredIDs) == 0 {
 		// Nothing moved: the cargo is unchanged and every row is still pending.
 		return 0, held

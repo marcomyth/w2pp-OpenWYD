@@ -24,6 +24,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/store"
+
 	"github.com/jeanluca/w2pp-openwyd/internal/pilha"
 )
 
@@ -274,4 +276,13 @@ func (s *Store) Cancelar(ctx context.Context, contaID, entregaID int64) error {
 		return ErrJaEntregue
 	}
 	return nil
+}
+
+// BauSemEspaco responde se a conta está com o baú lotado.
+//
+// DELEGA para store.BauSemEspaco em vez de repetir a consulta: a regra do segurado é lida
+// em dois lugares — aqui, na lista de itens a caminho, e no web-api, na compra do mercado
+// —, e duas consultas iguais escritas em dois arquivos é como uma delas fica para trás.
+func (s *Store) BauSemEspaco(ctx context.Context, accountID int64) (bool, error) {
+	return store.BauSemEspaco(ctx, s.pool, accountID)
 }

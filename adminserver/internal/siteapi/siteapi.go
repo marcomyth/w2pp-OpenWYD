@@ -115,6 +115,9 @@ type Carteira interface {
 // Entregas lists what is still waiting in the mailbox.
 type Entregas interface {
 	Pendentes(ctx context.Context, contaID int64) ([]entrega.Pendente, error)
+	// BauSemEspaco entra aqui, e não numa dependência nova, porque é a mesma pergunta
+	// desta tela — "por que este item não chegou" — e o mesmo *store.Store já a responde.
+	BauSemEspaco(ctx context.Context, accountID int64) (bool, error)
 }
 
 // Jogo is the part of the live link the site may reach.
@@ -434,6 +437,11 @@ type itemSite struct {
 	ExpiraEm *time.Time `json:"expira_em"`
 	CriadoEm time.Time  `json:"criado_em"`
 	Origem   string     `json:"origem"`
+	// Estado diz WAITING ou HELD para o que está pendente, e DELIVERED ou LOST para o
+	// resto. Existe porque a página mostrava "a caminho" para duas situações diferentes:
+	// a entrega que acontece no próximo login, e a que não acontece nenhuma vez até a
+	// pessoa esvaziar o baú. Quem estava no segundo caso esperava um dia que não chegava.
+	Estado store.EstadoEntrega `json:"estado"`
 }
 
 func (a *API) entregas(w http.ResponseWriter, r *http.Request, c alvo) {
@@ -450,13 +458,32 @@ func (a *API) entregas(w http.ResponseWriter, r *http.Request, c alvo) {
 	if len(pend) > limiteEntregas {
 		pend = pend[:limiteEntregas]
 	}
-	responde(w, http.StatusOK, map[string]any{"pendentes": itensDoSite(pend), "perdidos": itensDoSite(perd)})
+	// O BAÚ É CONSULTADO UMA VEZ, e não por linha: é a mesma resposta para todas as
+	// entregas da conta, e uma consulta por item daria fotos de instantes diferentes do
+	// mesmo baú — duas linhas da mesma lista poderiam discordar.
+	//
+	// FALHA AQUI NÃO DERRUBA A LISTA. O que a página precisa para funcionar é saber o que
+	// está devido; o "por que não chegou" é informação. Na falha vale "não está cheio",
+	// que faz a tela dizer "a caminho" — exatamente o que ela já dizia antes disto
+	// existir, e portanto a degradação certa.
+	cheio, err := a.cfg.Entregas.BauSemEspaco(r.Context(), c.ID)
+	if err != nil {
+		a.cfg.Logger.Error("nao consegui contar o bau", "conta", c.ID, "err", err)
+		cheio = false
+	}
+	responde(w, http.StatusOK, map[string]any{
+		"pendentes": itensDoSite(pend, "pending", cheio),
+		"perdidos":  itensDoSite(perd, "lost", cheio),
+	})
 }
 
-func itensDoSite(l []entrega.Pendente) []itemSite {
+func itensDoSite(l []entrega.Pendente, status string, bauCheio bool) []itemSite {
 	out := make([]itemSite, 0, len(l))
 	for _, p := range l {
-		s := itemSite{ID: p.ID, Item: p.ItemIndex, CriadoEm: p.CriadoEm.UTC(), Origem: origem(p.Origem)}
+		s := itemSite{
+			ID: p.ID, Item: p.ItemIndex, CriadoEm: p.CriadoEm.UTC(), Origem: origem(p.Origem),
+			Estado: store.EstadoDaEntrega(status, bauCheio),
+		}
 		for _, par := range p.Eff {
 			s.Efeitos = append(s.Efeitos, [2]int{int(par[0]), int(par[1])})
 		}
@@ -477,6 +504,11 @@ func origem(source string) string {
 		return "loja"
 	case strings.HasPrefix(source, "painel:"):
 		return "equipe"
+	// A COMPRA NO MERCADO ENTRE JOGADORES. Sem este caso ela caía em "outro", e a página
+	// dizia "outro" para a coisa que o jogador acabou de pagar com dinheiro real — que é
+	// justamente a que ele mais quer ver nomeada.
+	case strings.HasPrefix(source, "rmt_anuncio:"):
+		return "mercado"
 	default:
 		return "outro"
 	}

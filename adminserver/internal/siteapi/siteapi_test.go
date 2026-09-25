@@ -66,6 +66,9 @@ type fakeBanco struct {
 	dropErr     error
 	portas      domain.DungeonGateConfig
 	portasErr   error
+
+	bauCheio bool
+	erroBau  error
 }
 
 func (f *fakeBanco) WorldEventConfig(_ context.Context) (domain.WorldEventConfig, error) {
@@ -139,6 +142,12 @@ func (f *fakeBanco) Historico(_ context.Context, id int64, limite int) ([]donate
 		return nil, errors.New("the site asks for 50")
 	}
 	return f.eventos[id], nil
+}
+
+// bauCheio e erroBau ficam no fake para os testes poderem montar as duas metades da regra
+// do segurado: a linha pendente e o baú sem espaço.
+func (f *fakeBanco) BauSemEspaco(_ context.Context, _ int64) (bool, error) {
+	return f.bauCheio, f.erroBau
 }
 
 func (f *fakeBanco) Pendentes(_ context.Context, id int64) ([]entrega.Pendente, error) {
@@ -609,7 +618,12 @@ const itemDaBeta = 3314
 // camposDoItemSite is the exact set of fields a delivery may carry to the
 // player. The staff id lives in delivery_queue.source ("painel:<id>") and must
 // never be one of them.
-var camposDoItemSite = []string{"id", "item", "efeitos", "expira_em", "criado_em", "origem"}
+//
+// "estado" entrou em 25/09/2026, pelo handshake com o par do site: WAITING, HELD,
+// DELIVERED ou LOST. Acrescentar um campo aqui é uma DECISÃO, e é para isso que esta
+// lista existe — sem ela, um campo novo escaparia para a página do jogador sem ninguém
+// ter combinado, e um campo que escapa é um campo que ninguém pode remover depois.
+var camposDoItemSite = []string{"id", "item", "efeitos", "expira_em", "criado_em", "origem", "estado"}
 
 // camposDaResposta is the exact set of keys the deliveries answer itself
 // carries. It is asserted for the same reason the item's set is: a field
