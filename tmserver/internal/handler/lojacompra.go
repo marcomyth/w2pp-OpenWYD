@@ -44,6 +44,23 @@ import (
 // de Rcoins"), e é o nome que ele precisa reconhecer aqui.
 const msgSemRcoins = "Você não possui Rcoins suficientes."
 
+// msgPrecoMudou e msgItemReservado substituem o _NN_CantWhenAutoTrade em dois
+// caminhos onde ele MENTIA.
+//
+// A frase do cliente é "Não é possível durante a auto venda.", e nos dois casos o
+// comprador não está em auto venda nenhuma: num deles a oferta continua lá e só o
+// que ele vai pagar mudou; no outro o item está preso a uma venda em dinheiro real
+// de outra pessoa. Dizer "auto venda" mandava procurar um problema que não existe.
+//
+// O _NN_CantWhenAutoTrade continua onde ele é verdade — quem tem a barraca aberta e
+// tenta mexer no item (item.go, shopPinsOwner) e quem tenta montar barraca no meio
+// de uma troca.
+//
+// "Preço" e não "moeda": para quem clica, o que mudou foi o que ele vai pagar.
+const msgPrecoMudou = "O vendedor mudou o preço deste item. Abra a loja de novo para ver o valor atual."
+
+const msgItemReservado = "Este item está reservado para outra compra em andamento."
+
 func (d *Dispatcher) repartirImposto(w *world.World, s *world.Session, imposto int32,
 	cidadeDaBarraca, cidadeDoComprador int) {
 	if imposto <= 0 {
@@ -159,13 +176,13 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	// DIRETAMENTE, sem passar por la. Armadilha que nao cobre todos os caminhos nao
 	// e armadilha.
 	if itemCargo.AnuncioRMT != 0 && moeda != protocol.LojaMoedaRMT {
-		d.notify(w, s, NoticeCantAutoTrade)
+		sendClientMessage(w, s, msgItemReservado)
 		return
 	}
 	// O painel manda a moeda que ele mostrou ao jogador; se o vendedor trocou
 	// nesse meio-tempo, a compra não sai — ninguém paga em moeda que não viu.
 	if pedido.Moeda != moeda {
-		d.notify(w, s, NoticeCantAutoTrade)
+		sendClientMessage(w, s, msgPrecoMudou)
 		return
 	}
 

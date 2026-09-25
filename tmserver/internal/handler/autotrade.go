@@ -213,7 +213,9 @@ func (d *Dispatcher) reqBuy(w *world.World, s *world.Session, _ protocol.Header,
 	if cargoItem.AnuncioRMT != 0 {
 		d.log.Info("autotrade buy recusada: item preso num anuncio em dinheiro real",
 			"conn", s.Conn, "stall", targetID, "slot", pos, "anuncio", cargoItem.AnuncioRMT)
-		d.notify(w, s, NoticeCantAutoTrade)
+		// A MESMA CAUSA DA JANELA NOVA, a mesma frase: o item está preso a uma venda
+		// em dinheiro real de outra pessoa, e o comprador não está em auto venda.
+		sendClientMessage(w, s, msgItemReservado)
 		return
 	}
 	if m.Tax != int32(seller.AutoTrade.Tax) || m.Price != slot.Price ||

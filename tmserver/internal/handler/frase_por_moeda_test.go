@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"strings"
@@ -131,5 +132,59 @@ func TestOfertaQueSumiuFalaComQuemClicou(t *testing.T) {
 	}
 	if !avisado {
 		t.Fatal("a oferta sumiu e o jogador não foi avisado: o botão não fez nada")
+	}
+}
+
+// TestAsFrasesNovasCabemECodificamEmCp1252.
+//
+// O cliente desenha texto de UM BYTE (Windows-1252), e uma string escrita em Go é
+// UTF-8: o "ç" que o autor digita são DOIS bytes e chegam como lixo. O caminho já
+// passa pelo ClientText, e este teste é o que garante que continue passando — e que
+// a frase caiba, porque o que passa do limite é CORTADO em silêncio, no meio.
+func TestAsFrasesNovasCabemECodificamEmCp1252(t *testing.T) {
+	casos := []struct {
+		nome  string
+		frase string
+		// acento é um caractere que tem de virar UM byte, escolhido dentro da frase.
+		acento byte
+	}{
+		{"sem Rcoins", msgSemRcoins, 0xE3},         // "ã" de "não"
+		{"preço mudou", msgPrecoMudou, 0xE7},       // "ç" de "preço"
+		{"item reservado", msgItemReservado, 0xE1}, // "á" de "está"
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			b := protocol.ClientText(c.frase)
+			if len(b) != len([]rune(c.frase)) {
+				t.Errorf("%d bytes para %d letras: alguma coisa virou dois bytes",
+					len(b), len([]rune(c.frase)))
+			}
+			if bytes.IndexByte(b, c.acento) < 0 {
+				t.Errorf("o acento %#x não apareceu na frase codificada", c.acento)
+			}
+			if bytes.IndexByte(b, '?') >= 0 {
+				t.Errorf("o ClientText trocou algum caractere por '?': %q", c.frase)
+			}
+			// O corte é silencioso, então a frase inteira tem de caber.
+			corpo := protocol.EncodeMessagePanelBody(c.frase)
+			fim := bytes.IndexByte(corpo, 0)
+			if fim < 0 {
+				fim = len(corpo)
+			}
+			if fim != len(b) {
+				t.Errorf("a frase foi cortada: %d bytes de %d", fim, len(b))
+			}
+		})
+	}
+}
+
+// TestOPrecoMudouNaoFalaDeAutoVenda: o texto velho dizia "Não é possível durante a
+// auto venda", e o comprador não está em auto venda nenhuma. Mandar procurar um
+// problema que não existe é pior que ficar calado.
+func TestOPrecoMudouNaoFalaDeAutoVenda(t *testing.T) {
+	for _, frase := range []string{msgPrecoMudou, msgItemReservado} {
+		if strings.Contains(strings.ToLower(frase), "auto venda") {
+			t.Errorf("a frase ainda fala em auto venda: %q", frase)
+		}
 	}
 }
