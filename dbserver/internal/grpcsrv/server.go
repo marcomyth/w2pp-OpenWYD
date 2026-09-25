@@ -32,8 +32,9 @@ type Store interface {
 	PinHashByID(ctx context.Context, id int64) (string, error)
 	SetPinHash(ctx context.Context, id int64, hash string) error
 	SaveCharacter(ctx context.Context, accountID int64, ch domain.Character) error
+	NovaEpocaDePar(ctx context.Context) (int64, error)
 	SalvarPersonagemComCarga(ctx context.Context, accountID int64, ch domain.Character,
-		cargoCoin int32, cargoItems []domain.Item, deliveredIDs, lostIDs []int64) error
+		cargoCoin int32, cargoItems []domain.Item, deliveredIDs, lostIDs []int64, epoca, seq int64) error
 	QuoteKingdomCape(ctx context.Context) (domain.KingdomCapeQuote, error)
 	PurchaseKingdomCape(ctx context.Context, accountID, expectedRevision int64, kingdom uint8, ch domain.Character) (domain.KingdomCapeQuote, bool, error)
 	// Pagamento de uma venda na Loja do Servidor: Cash ou RMT entre duas contas,
@@ -210,14 +211,30 @@ func (s *Server) SaveCharacter(ctx context.Context, req *dbv1.SaveCharacterReque
 // Conta ausente devolve ok=false.
 func (s *Server) SalvarPersonagemComCarga(ctx context.Context, req *dbv1.SalvarPersonagemComCargaRequest) (*dbv1.SaveCharacterResponse, error) {
 	err := s.store.SalvarPersonagemComCarga(ctx, req.GetAccountId(), protoToCharacter(req.GetCharacter()),
-		req.GetCargoCoin(), protoToItems(req.GetCargoItems()), req.GetDeliveredIds(), req.GetLostIds())
+		req.GetCargoCoin(), protoToItems(req.GetCargoItems()), req.GetDeliveredIds(), req.GetLostIds(),
+		req.GetParEpoca(), req.GetParSeq())
 	if errors.Is(err, store.ErrNotFound) {
 		return &dbv1.SaveCharacterResponse{Ok: false}, nil
+	}
+	// PAR VELHO NÃO É FALHA. A corrida foi perdida para uma gravação mais nova, que
+	// já está no banco: devolver erro faria o tmServer contar isto como save que não
+	// caiu, e o dreno recusaria o reinício por uma coisa que deu certo.
+	if errors.Is(err, store.ErrParVelho) {
+		return &dbv1.SaveCharacterResponse{Ok: true}, nil
 	}
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "salvar personagem com carga: %v", err)
 	}
 	return &dbv1.SaveCharacterResponse{Ok: true}, nil
+}
+
+// NovaEpocaDePar entrega a esta execução do tmServer o seu número de época.
+func (s *Server) NovaEpocaDePar(ctx context.Context, _ *dbv1.NovaEpocaDeParRequest) (*dbv1.NovaEpocaDeParResponse, error) {
+	n, err := s.store.NovaEpocaDePar(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "nova epoca de par: %v", err)
+	}
+	return &dbv1.NovaEpocaDeParResponse{Epoca: n}, nil
 }
 
 // QuoteKingdomCape returns the durable price and revision used by both Kings.

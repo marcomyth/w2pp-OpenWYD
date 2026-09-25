@@ -22,7 +22,7 @@ type capturaPar struct {
 	falharPar bool
 }
 
-func (c *capturaPar) SalvarPersonagemComCarga(context.Context, CharacterSave, CargoSave, []int64, []int64) error {
+func (c *capturaPar) SalvarPersonagemComCarga(context.Context, CharacterSave, CargoSave, []int64, []int64, int64, int64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.pares++
@@ -151,4 +151,62 @@ func TestEntidadeDocadaNaoContaComoMochilaViva(t *testing.T) {
 	if pares, _, _ := pc.conta(); pares != 0 {
 		t.Errorf("a entidade docada foi tratada como mochila viva (%d pares)", pares)
 	}
+}
+
+// TestONumeroDoParSaiDoInstantaneo: o número tem de ser tirado QUANDO o
+// instantâneo é tirado, e não quando a gravação sai.
+//
+// É a diferença entre ordenar o que se quis gravar e ordenar quem chegou primeiro
+// ao banco — e é justamente porque a segunda ordem não é confiável que o número
+// existe. Duas gravações podem sair na ordem certa e chegar na errada; o número
+// que viaja com cada uma diz ao banco qual é a mais nova.
+func TestONumeroDoParSaiDoInstantaneo(t *testing.T) {
+	pc := &capturaSeq{}
+	w := New(Config{GridDim: 16}, slogDiscard(), pc, nil)
+	w.DefineEpocaDoPar(9)
+	s := &Session{Conn: 1, AccountID: 42, Mode: UserPlay}
+	w.sessions[1] = s
+	w.entities[1] = &Entity{ID: 1, Mode: MobUser, HP: 100}
+	w.SetCargo(42, &CargoState{})
+
+	_, _, _, temCarga, primeiro := w.parDeSalvamento(s)
+	_, _, _, _, segundo := w.parDeSalvamento(s)
+	if !temCarga {
+		t.Fatal("a conta tinha carga carregada")
+	}
+	if segundo <= primeiro {
+		t.Errorf("números %d e %d: o segundo instantâneo tem de ter número maior", primeiro, segundo)
+	}
+
+	// E a época vai junto, senão o banco não sabe de que execução o número é.
+	if err := SalvarPar(context.Background(), pc, CharacterSave{AccountID: 42}, CargoSave{AccountID: 42},
+		true, nil, w.EpocaDoPar(), primeiro); err != nil {
+		t.Fatal(err)
+	}
+	epoca, seq := pc.ultimo()
+	if epoca != 9 || seq != primeiro {
+		t.Errorf("chegou (época %d, número %d), queria (9, %d)", epoca, seq, primeiro)
+	}
+}
+
+// capturaSeq guarda a época e o número que chegaram ao porto de persistência.
+type capturaSeq struct {
+	NopPersistence
+	mu            sync.Mutex
+	epoca, numero int64
+}
+
+func (c *capturaSeq) SalvarPersonagemComCarga(_ context.Context, _ CharacterSave, _ CargoSave,
+	_, _ []int64, epoca, seq int64,
+) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.epoca, c.numero = epoca, seq
+	return nil
+}
+
+func (c *capturaSeq) ultimo() (int64, int64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.epoca, c.numero
 }

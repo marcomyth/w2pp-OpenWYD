@@ -28,6 +28,9 @@ service AccountService {
   // existir nos dois lados. Nao ha ordem segura entre duas transacoes; a cura e
   // nao ter duas.
   rpc SalvarPersonagemComCarga(SalvarPersonagemComCargaRequest) returns (SaveCharacterResponse);
+  // NovaEpocaDePar entrega a esta execucao do tmServer o seu numero de epoca, para
+  // ordenar as gravacoes do par. Uma chamada por boot.
+  rpc NovaEpocaDePar(NovaEpocaDeParRequest) returns (NovaEpocaDeParResponse);
   rpc QuoteKingdomCape(QuoteKingdomCapeRequest) returns (QuoteKingdomCapeResponse);
   rpc PurchaseKingdomCape(PurchaseKingdomCapeRequest) returns (PurchaseKingdomCapeResponse);
   // TransferPlayerBalance moves Cash or RMT between two accounts in one
@@ -497,6 +500,9 @@ message SaveCharacterRequest {
 }
 message SaveCharacterResponse { bool ok = 1; }
 
+message NovaEpocaDeParRequest {}
+message NovaEpocaDeParResponse { int64 epoca = 1; }
+
 message SalvarPersonagemComCargaRequest {
   int64 account_id = 1;
   Character character = 2;
@@ -504,6 +510,14 @@ message SalvarPersonagemComCargaRequest {
   repeated Item cargo_items = 4;
   repeated int64 delivered_ids = 5; // entregas aplicadas nesta carga
   repeated int64 lost_ids = 6;      // entregas descartadas (a carga estava cheia)
+  // par_epoca e par_seq ordenam este par. O banco recusa gravar um par com
+  // (epoca, numero) menor que o ultimo gravado da conta: as gravacoes saem em
+  // goroutines independentes e podem chegar fora de ordem, e a velha apagaria a
+  // nova. A epoca vem de uma sequencia do BANCO, pegada no boot do tmServer, e nao
+  // do relogio: um contador que zera no reinicio ficaria abaixo do que o banco
+  // guardou e travaria tudo, calado. Epoca zero desliga a guarda.
+  int64 par_epoca = 7;
+  int64 par_seq = 8;
 }
 
 message QuoteKingdomCapeRequest {}

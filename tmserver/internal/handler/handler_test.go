@@ -83,14 +83,16 @@ type fakeDB struct {
 	saveErr           error                 // one-shot injected character-save failure
 	savedCargos       []world.CargoSave     // captured SaveCargo calls
 	paresSalvos       int                   // quantas vezes personagem e carga foram na MESMA transação
-	personagemSozinho int                   // gravações só do personagem
-	cargaSozinha      int                   // gravações só da carga
-	drainSaves        []drainSave           // captured SaveCargoWithDeliveries calls
-	blockedNames      map[string]bool       // captured SetAccountBlocked calls (GM ban/unban)
-	presence          map[string]bool       // captured SetCharacterPresence calls
-	duelResults       []duelResult          // captured RecordDuelResult calls (issue #118)
-	trades            []world.TradeRecord   // captured RecordTrade calls (0025_trade_log)
-	grounds           []world.GroundEvent   // captured RecordGround calls (0031_ground_log)
+	epocaDoPar        int64                 // época e número do último par, que ordenam as gravações
+	numeroDoPar       int64
+	personagemSozinho int                 // gravações só do personagem
+	cargaSozinha      int                 // gravações só da carga
+	drainSaves        []drainSave         // captured SaveCargoWithDeliveries calls
+	blockedNames      map[string]bool     // captured SetAccountBlocked calls (GM ban/unban)
+	presence          map[string]bool     // captured SetCharacterPresence calls
+	duelResults       []duelResult        // captured RecordDuelResult calls (issue #118)
+	trades            []world.TradeRecord // captured RecordTrade calls (0025_trade_log)
+	grounds           []world.GroundEvent // captured RecordGround calls (0031_ground_log)
 
 	createdGuilds            []world.GuildRecord
 	recusaDeGuilda           world.GuildRefusal
@@ -156,7 +158,7 @@ func (f *fakeDB) SaveCargo(_ context.Context, save world.CargoSave) error {
 // save que passou a ir pelo par sumiria dos dois contadores e todo teste que
 // confere gravação passaria sem gravar nada — verde por ausência.
 func (f *fakeDB) SalvarPersonagemComCarga(_ context.Context, personagem world.CharacterSave,
-	carga world.CargoSave, deliveredIDs, lostIDs []int64,
+	carga world.CargoSave, deliveredIDs, lostIDs []int64, epoca, seq int64,
 ) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -168,6 +170,7 @@ func (f *fakeDB) SalvarPersonagemComCarga(_ context.Context, personagem world.Ch
 	f.savedChars = append(f.savedChars, personagem)
 	f.savedCargos = append(f.savedCargos, carga)
 	f.paresSalvos++
+	f.epocaDoPar, f.numeroDoPar = epoca, seq
 	if len(deliveredIDs) > 0 || len(lostIDs) > 0 {
 		f.drainSaves = append(f.drainSaves, drainSave{save: carga, delivered: deliveredIDs, lost: lostIDs})
 	}

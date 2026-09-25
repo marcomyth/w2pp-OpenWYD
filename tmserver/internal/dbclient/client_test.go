@@ -80,6 +80,9 @@ func (f *fakeAPI) SaveCharacter(_ context.Context, req *dbv1.SaveCharacterReques
 	f.saved = req
 	return &dbv1.SaveCharacterResponse{Ok: true}, nil
 }
+func (f *fakeAPI) NovaEpocaDePar(_ context.Context, _ *dbv1.NovaEpocaDeParRequest, _ ...grpc.CallOption) (*dbv1.NovaEpocaDeParResponse, error) {
+	return &dbv1.NovaEpocaDeParResponse{Epoca: 7}, nil
+}
 func (f *fakeAPI) SalvarPersonagemComCarga(_ context.Context, req *dbv1.SalvarPersonagemComCargaRequest, _ ...grpc.CallOption) (*dbv1.SaveCharacterResponse, error) {
 	f.parSalvo = req
 	return &dbv1.SaveCharacterResponse{Ok: true}, nil

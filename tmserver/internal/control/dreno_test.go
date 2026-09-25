@@ -35,7 +35,7 @@ func (bancoQueRecusa) SaveCargoWithDeliveries(context.Context, world.CargoSave, 
 	return errors.New("o banco recusou")
 }
 
-func (bancoQueRecusa) SalvarPersonagemComCarga(context.Context, world.CharacterSave, world.CargoSave, []int64, []int64) error {
+func (bancoQueRecusa) SalvarPersonagemComCarga(context.Context, world.CharacterSave, world.CargoSave, []int64, []int64, int64, int64) error {
 	return errors.New("o banco recusou")
 }
 

@@ -265,6 +265,10 @@ type World struct {
 	// painel lê isto: esperar as gravações terminarem não é o mesmo que elas terem
 	// dado certo, e quem vai reiniciar precisa saber a diferença.
 	savesFalhados atomic.Int64
+	// parEpoca e parSeq ordenam as gravações do par. A época vem do banco, no boot;
+	// o número anda a cada instantâneo, dentro do laço.
+	parEpoca int64
+	parSeq   int64
 
 	// onTick is the periodic simulation hook (mob AI), run inside the loop; see
 	// tick.go. nil disables the ticker (e.g. in protocol/transport tests).
@@ -467,8 +471,8 @@ func (w *World) shutdown() {
 		// de uma ida ao banco — tem personagem carregado, e deixá-la de fora aqui
 		// faria a carga dela ou ser gravada sozinha embaixo, ou não ser gravada.
 		if w.temMochilaViva(s) {
-			cs, carga, unacked, temCarga := w.parDeSalvamento(s)
-			if err := SalvarPar(context.Background(), w.persist, cs, carga, temCarga, unacked); err != nil {
+			cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
+			if err := SalvarPar(context.Background(), w.persist, cs, carga, temCarga, unacked, w.parEpoca, seq); err != nil {
 				w.log.Warn("save on shutdown failed", "conn", s.Conn, "err", err)
 			} else {
 				saved++
@@ -522,24 +526,40 @@ func (w *World) shutdown() {
 //
 // temCarga é falso quando a conta não tem carga carregada na memória. Aí gravar
 // só o personagem é seguro: não há carga em jogo para discordar dele. Loop-only.
-func (w *World) parDeSalvamento(s *Session) (personagem CharacterSave, carga CargoSave, unacked []int64, temCarga bool) {
+func (w *World) parDeSalvamento(s *Session) (personagem CharacterSave, carga CargoSave, unacked []int64, temCarga bool, seq int64) {
 	personagem = w.characterSave(s)
 	if s.AccountID == 0 || w.cargo[s.AccountID] == nil {
-		return personagem, CargoSave{}, nil, false
+		return personagem, CargoSave{}, nil, false, 0
 	}
-	return personagem, w.cargoSave(s.AccountID), append([]int64(nil), w.deliveryUnacked[s.AccountID]...), true
+	return personagem, w.cargoSave(s.AccountID), append([]int64(nil), w.deliveryUnacked[s.AccountID]...), true, w.proximoNumeroDePar()
 }
+
+// proximoNumeroDePar numera o par no MOMENTO em que o instantâneo é tirado, e não
+// quando a gravação sai: é a ordem dos instantâneos que precisa ser respeitada, e
+// duas gravações podem sair na ordem certa e chegar na errada. Loop-only.
+func (w *World) proximoNumeroDePar() int64 {
+	w.parSeq++
+	return w.parSeq
+}
+
+// EpocaDoPar é o número desta execução, usado junto com o do par para ordenar as
+// gravações. Zero enquanto o boot não pegou um.
+func (w *World) EpocaDoPar() int64 { return w.parEpoca }
+
+// DefineEpocaDoPar guarda o número desta execução. Chamada na montagem, antes do
+// laço começar.
+func (w *World) DefineEpocaDoPar(n int64) { w.parEpoca = n }
 
 // SalvarPar grava personagem e carga na mesma transação, ou só o personagem
 // quando a conta não tem carga carregada. Seguro fora do laço: só toca nos
 // instantâneos que recebeu.
 func SalvarPar(ctx context.Context, p Persistence, personagem CharacterSave, carga CargoSave,
-	temCarga bool, unacked []int64,
+	temCarga bool, unacked []int64, epoca, seq int64,
 ) error {
 	if !temCarga {
 		return p.SaveOnShutdown(ctx, personagem)
 	}
-	return p.SalvarPersonagemComCarga(ctx, personagem, carga, unacked, nil)
+	return p.SalvarPersonagemComCarga(ctx, personagem, carga, unacked, nil, epoca, seq)
 }
 
 // SalvarEncenadoComCarga grava um personagem ENCENADO — um instantâneo montado
@@ -553,10 +573,10 @@ func SalvarPar(ctx context.Context, p Persistence, personagem CharacterSave, car
 // viu. O instantâneo do personagem é o encenado; o da carga é o de agora.
 // Loop-only.
 func (w *World) SalvarEncenadoComCarga(s *Session, personagem CharacterSave, depois func(*World, *Session, error)) {
-	carga, unacked, temCarga := w.CargaParaOPar(s.AccountID)
+	carga, unacked, temCarga, seq := w.CargaParaOPar(s.AccountID)
 	p := w.persist
 	w.Go(s, func() func(*World, *Session) {
-		err := SalvarPar(context.Background(), p, personagem, carga, temCarga, unacked)
+		err := SalvarPar(context.Background(), p, personagem, carga, temCarga, unacked, w.parEpoca, seq)
 		return func(w *World, s *Session) {
 			if err == nil && temCarga {
 				w.forgetAcked(personagem.AccountID, unacked)
@@ -570,11 +590,11 @@ func (w *World) SalvarEncenadoComCarga(s *Session, personagem CharacterSave, dep
 // CharacterSave. É para quem grava fora do laço por conta própria (GoDetached) e
 // não pode usar o SalvarEncenadoComCarga; junto com SalvarPar e EsqueceEntregues,
 // dá a mesma garantia. Loop-only.
-func (w *World) CargaParaOPar(accountID int64) (CargoSave, []int64, bool) {
+func (w *World) CargaParaOPar(accountID int64) (CargoSave, []int64, bool, int64) {
 	if accountID == 0 || w.cargo[accountID] == nil {
-		return CargoSave{}, nil, false
+		return CargoSave{}, nil, false, 0
 	}
-	return w.cargoSave(accountID), append([]int64(nil), w.deliveryUnacked[accountID]...), true
+	return w.cargoSave(accountID), append([]int64(nil), w.deliveryUnacked[accountID]...), true, w.proximoNumeroDePar()
 }
 
 // SaveCharacterAsync persists an in-play character's live state (Carry/Coin/stats)
@@ -591,12 +611,12 @@ func (w *World) SaveCharacterAsync(s *Session) {
 // salvarParAsync é o corpo do SaveCharacterAsync sem a exigência de UserPlay: ele
 // grava o par de qualquer sessão com mochila viva. Loop-only.
 func (w *World) salvarParAsync(s *Session) {
-	cs, carga, unacked, temCarga := w.parDeSalvamento(s)
+	cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
 	p := w.persist
 	w.saveWG.Add(1)
 	go func() {
 		defer w.saveWG.Done()
-		if err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked); err != nil {
+		if err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked, w.parEpoca, seq); err != nil {
 			w.savesFalhados.Add(1)
 			w.log.Warn("save character failed", "account", cs.AccountID, "slot", cs.Slot, "err", err)
 			return
@@ -633,7 +653,7 @@ func (w *World) LeaveCharacter(s *Session) {
 		return
 	}
 	name := e.Name
-	cs, carga, unacked, temCarga := w.parDeSalvamento(s)
+	cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
 	if temCarga {
 		// A CARGA SAI DA MEMÓRIA AQUI, junto com o instantâneo. O caminho de saída
 		// chamava LeaveCharacter e ReleaseCargo em seguida, cada um com a sua
@@ -664,7 +684,7 @@ func (w *World) LeaveCharacter(s *Session) {
 	go func() {
 		defer w.saveWG.Done()
 		defer w.releaseAccountLater(cs.AccountID)
-		if err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked); err != nil {
+		if err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked, w.parEpoca, seq); err != nil {
 			w.savesFalhados.Add(1)
 			w.log.Warn("save character failed", "account", cs.AccountID, "slot", cs.Slot, "err", err)
 			return
@@ -688,10 +708,10 @@ func (w *World) SaveCharacterThen(s *Session, then func(*World, *Session)) {
 		then(w, s)
 		return
 	}
-	cs, carga, unacked, temCarga := w.parDeSalvamento(s)
+	cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
 	p := w.persist
 	w.Go(s, func() func(*World, *Session) {
-		err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked)
+		err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked, w.parEpoca, seq)
 		return func(w *World, s *Session) {
 			if err != nil {
 				w.log.Warn("save character failed", "account", cs.AccountID, "slot", cs.Slot, "err", err)
