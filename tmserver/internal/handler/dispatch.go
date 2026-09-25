@@ -788,6 +788,8 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgMessageWhisper] = d.messageWhisper
 	d.routes[protocol.MsgApplyBonus] = d.applyBonus
 	d.routes[protocol.MsgPontosEmLote] = d.pontosEmLote
+	// Painel de up da montaria (montaria_lote.go): várias pilhas de âmago num pedido.
+	d.routes[protocol.MsgMontariaPede] = d.montariaLote
 	// Painel de Guilda (guildapainel.go). Os buffs não têm rota de ativação: quem
 	// liga um buff é um item de cash, pelo caminho normal de usar item.
 	d.routes[protocol.MsgGuildaPede] = d.guildaPede
