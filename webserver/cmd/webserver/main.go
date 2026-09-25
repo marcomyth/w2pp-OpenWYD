@@ -445,7 +445,10 @@ func run(logger *slog.Logger) error {
 	webv1.RegisterAccountWebServiceServer(srv, grpcsrv.New(contas))
 	webv1.RegisterRankingWebServiceServer(srv, grpcsrv.NewRanking(ranking.New(st)))
 	webv1.RegisterRmtWebServiceServer(srv, rmtSrv)
-	webv1.RegisterCharacterWebServiceServer(srv, grpcsrv.NewCharacters(characters.New(st)))
+	// O emblema de guilda vai no mesmo serviço: ele é do personagem, não da conta.
+	// O store atende as duas superfícies.
+	webv1.RegisterCharacterWebServiceServer(srv,
+		grpcsrv.NewCharacters(characters.New(st)).ComEmblemas(st))
 	webv1.RegisterItemCatalogServiceServer(srv, grpcsrv.NewItemCatalog(itemCatalog))
 	npcAdminSrv := grpcsrv.NewNpcAdmin(npcAdmin)
 	if spawnOrigins != nil {
