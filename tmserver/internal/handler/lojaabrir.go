@@ -150,6 +150,16 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 			sendClientMessage(w, s, msgPrecoMinimoRMT)
 			return
 		}
+		// E O TETO, pelo mesmo motivo e no mesmo lugar.
+		//
+		// Ele protege gente diferente do mínimo. O mínimo impede o vendedor de vender
+		// de graça; o TETO impede o comprador de pagar uma fortuna por um erro de
+		// digitação — R$ 50.000 num campo de preço é um engano plausível, e do outro
+		// lado dele sai um Pix de verdade da conta de alguém.
+		if p.Moeda == protocol.LojaMoedaRMT && int64(p.Preco) > store.TetoDaVendaRMTCentavos {
+			sendClientMessage(w, s, msgPrecoMaximoRMT)
+			return
+		}
 		// A RECONCILIAÇÃO DO LOGIN AINDA ESTÁ NO BANCO.
 		//
 		// Ela cancela todo anúncio ativo da conta, supondo que quem acabou de
@@ -415,7 +425,17 @@ func (d *Dispatcher) sobeBarraca(w *world.World, s *world.Session, e *world.Enti
 //
 // Diz o VALOR, e não só "muito baixo": o vendedor precisa saber para quanto subir, e
 // uma recusa que não diz o número obriga a tentativa e erro.
-const msgPrecoMinimoRMT = "O preço mínimo em dinheiro real é R$ 1,00."
+const msgPrecoMinimoRMT = "O preço mínimo em dinheiro real é R$ 5,00."
+
+// msgPrecoMaximoRMT é a recusa acima do teto.
+//
+// A FRASE É A DA HANNA, palavra por palavra, e ela manda falar com o suporte porque
+// quem esbarra no teto ou errou a digitação ou tem um caso que a regra não previu — e
+// os dois precisam de gente, não de outra tentativa.
+//
+// MEDIDA: 73 bytes em Windows-1252, dentro dos 94 que o painel corta. Os acentos de
+// "Preço" e "máximo" custam um byte cada.
+const msgPrecoMaximoRMT = "Preço máximo em RMT: R$ 500,00. Para valores maiores, fale com o suporte."
 
 const msgPilhaNaoVaiRMT = "Pilha não pode ser vendida por dinheiro real. Separe uma unidade e anuncie ela."
 
