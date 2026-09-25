@@ -2,8 +2,7 @@
 --
 -- O PROBLEMA QUE ISTO RESOLVE: o ranking do site e do bot mostrava a equipe no topo, no
 -- dia em que o servidor abriu. Filtrar por CARGO resolve a staff que tem cargo — e não
--- resolve quem está testando com conta comum, que é o caso das contas do FireBall e do
--- TheLenda.
+-- resolve quem está testando com conta comum.
 --
 -- POR QUE NÃO FILTRAR POR NOME. Depois do wipe de 25/09/2026 os nomes antigos ficaram
 -- livres, e um jogador de verdade pode ter criado um deles. Uma lista de nomes no código
