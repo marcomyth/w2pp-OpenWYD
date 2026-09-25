@@ -63,10 +63,11 @@ func TestApagarPassaQuandoSoHaRepassePago(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := idDoRepasse(ctx, t, s, venda.CobrancaID)
-	if err := s.MarcarRepasseEnviado(ctx, id, "saque-apagar-pago", precoEmCentavos); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MarcarRepassePago(ctx, "saque-apagar-pago", precoEmCentavos); err != nil {
+	// PAGO PELO CAMINHO DA STAFF, que desde 25/09/2026 é o único que existe: o par
+	// enviado/aviso-de-saque saiu junto com o saque automático. O teste ganhou com a
+	// troca — ele passou a chegar ao estado final pelo caminho de verdade, em vez de
+	// montá-lo com duas escritas que ninguém mais faz.
+	if err := s.MarcarRepassePagoAMao(ctx, id, staffQuePaga(), "pago no app, comprovante E1"); err != nil {
 		t.Fatal(err)
 	}
 
