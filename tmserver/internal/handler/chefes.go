@@ -116,6 +116,9 @@ func (d *Dispatcher) esperaDoRenascimento(w *world.World, idx int) uint32 {
 	if geradorDeChefeDaLava(w, idx) {
 		return lavaChefeHoras * msPorHora // os mini chefes da lava (dungeon_lava.go)
 	}
+	if geradorDoBossConjurador(w, idx) {
+		return conjuradorHoras * msPorHora // o Boss Conjurador (dungeon_caveiras.go)
+	}
 	if geradorDoFrenzy(w, idx) {
 		return frenzyHoras * msPorHora // o FrenzyDemonLord (submundo.go)
 	}

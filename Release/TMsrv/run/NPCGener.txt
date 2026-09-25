@@ -52411,8 +52411,8 @@
 // no2145 (0229�ʵ�E - DESATIVADO
 // ********************************************
 #	[1844]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -52557,7 +52557,7 @@
 // ********************************************
 #	[1849]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -52644,7 +52644,7 @@
 // ********************************************
 #	[1852]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -52846,8 +52846,8 @@
 // no2160 (0229�ʵ�E - DESATIVADO
 // ********************************************
 #	[1859]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -52905,7 +52905,7 @@
 // ********************************************
 #	[1861]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -52934,7 +52934,7 @@
 // ********************************************
 #	[1862]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -52963,7 +52963,7 @@
 // ********************************************
 #	[1863]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53021,7 +53021,7 @@
 // ********************************************
 #	[1865]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -53049,8 +53049,8 @@
 // no2167 (0229�ʵ�E - DESATIVADO
 // ********************************************
 #	[1866]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53079,7 +53079,7 @@
 // ********************************************
 #	[1867]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53107,8 +53107,8 @@
 // no2169 (0229�ʵ�E - DESATIVADO
 // ********************************************
 #	[1868]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53137,7 +53137,7 @@
 // ********************************************
 #	[1869]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53165,8 +53165,8 @@
 // no2171 (0229�ʵ�E - DESATIVADO
 // ********************************************
 #	[1870]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -53224,7 +53224,7 @@
 // ********************************************
 #	[1872]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53252,8 +53252,8 @@
 // no2174 (0229�ʵ�E - DESATIVADO
 // ********************************************
 #	[1873]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53427,7 +53427,7 @@
 // ********************************************
 #	[1879]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53485,7 +53485,7 @@
 // ********************************************
 #	[1881]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53514,7 +53514,7 @@
 // ********************************************
 #	[1882]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53543,7 +53543,7 @@
 // ********************************************
 #	[1883]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53572,7 +53572,7 @@
 // ********************************************
 #	[1884]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53601,7 +53601,7 @@
 // ********************************************
 #	[1885]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -53630,7 +53630,7 @@
 // ********************************************
 #	[1886]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53658,8 +53658,8 @@
 // no2188 (0229�ʵ�E - DESATIVADO
 // ********************************************
 #	[1887]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -53688,7 +53688,7 @@
 // ********************************************
 #	[1888]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53717,7 +53717,7 @@
 // ********************************************
 #	[1889]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -53746,7 +53746,7 @@
 // ********************************************
 #	[1890]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53775,7 +53775,7 @@
 // ********************************************
 #	[1891]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53804,7 +53804,7 @@
 // ********************************************
 #	[1892]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53832,8 +53832,8 @@
 // no2194 (0229�ʵ�E - DESATIVADO
 // ********************************************
 #	[1893]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53862,7 +53862,7 @@
 // ********************************************
 #	[1894]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -53891,7 +53891,7 @@
 // ********************************************
 #	[1895]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53919,8 +53919,8 @@
 // no2196 (0229�ʵ�E - DESATIVADO
 // ********************************************
 #	[1896]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -53948,8 +53948,8 @@
 // no2197 (0229�ʵ�E - DESATIVADO
 // ********************************************
 #	[1897]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -53978,7 +53978,7 @@
 // ********************************************
 #	[1898]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54006,8 +54006,8 @@
 // no2199 (0329�ʵ�E - DESATIVADO
 // ********************************************
 #	[1899]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54035,8 +54035,8 @@
 // no2200 (0329�ʵ�E - DESATIVADO
 // ********************************************
 #	[1900]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54064,8 +54064,8 @@
 // no2201 (0329�ʵ�E - DESATIVADO
 // ********************************************
 #	[1901]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54094,7 +54094,7 @@
 // ********************************************
 #	[1902]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54123,7 +54123,7 @@
 // ********************************************
 #	[1903]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54152,7 +54152,7 @@
 // ********************************************
 #	[1904]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54181,7 +54181,7 @@
 // ********************************************
 #	[1905]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -54210,7 +54210,7 @@
 // ********************************************
 #	[1906]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54239,7 +54239,7 @@
 // ********************************************
 #	[1907]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54268,7 +54268,7 @@
 // ********************************************
 #	[1908]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -54296,8 +54296,8 @@
 // no2209 (0329�ʵ�E - DESATIVADO
 // ********************************************
 #	[1909]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54326,7 +54326,7 @@
 // ********************************************
 #	[1910]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -54354,8 +54354,8 @@
 // no2211 (0329�ʵ�E - DESATIVADO
 // ********************************************
 #	[1911]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54384,7 +54384,7 @@
 // ********************************************
 #	[1912]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -54412,8 +54412,8 @@
 // no2213 (0329�ʵ�E - DESATIVADO
 // ********************************************
 #	[1913]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54442,7 +54442,7 @@
 // ********************************************
 #	[1914]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -54471,7 +54471,7 @@
 // ********************************************
 #	[1915]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54499,8 +54499,8 @@
 // no2216 (0329�ʵ�E - DESATIVADO
 // ********************************************
 #	[1916]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -54529,7 +54529,7 @@
 // ********************************************
 #	[1917]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54558,7 +54558,7 @@
 // ********************************************
 #	[1918]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54587,7 +54587,7 @@
 // ********************************************
 #	[1919]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -54616,7 +54616,7 @@
 // ********************************************
 #	[1920]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54645,7 +54645,7 @@
 // ********************************************
 #	[1921]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54674,7 +54674,7 @@
 // ********************************************
 #	[1922]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -54703,7 +54703,7 @@
 // ********************************************
 #	[1923]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -54731,8 +54731,8 @@
 // no2224 (0329�ʵ�E - DESATIVADO
 // ********************************************
 #	[1924]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54790,7 +54790,7 @@
 // ********************************************
 #	[1926]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Caveira_Lanc
@@ -54819,7 +54819,7 @@
 // ********************************************
 #	[1927]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -54848,7 +54848,7 @@
 // ********************************************
 #	[1928]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -54934,8 +54934,8 @@
 // no2231 (0329�ʵ�E - DESATIVADO
 // ********************************************
 #	[1931]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -54964,7 +54964,7 @@
 // ********************************************
 #	[1932]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -55050,8 +55050,8 @@
 // no2235 (0329�ʵ�E - DESATIVADO
 // ********************************************
 #	[1935]
-	MinuteGenerate:	-1
-	MaxNumMob:	1
+	MinuteGenerate:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -55080,7 +55080,7 @@
 // ********************************************
 #	[1936]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -55167,7 +55167,7 @@
 // ********************************************
 #	[1939]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -59832,7 +59832,7 @@
 // ********************************************
 #	[2100]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -59890,7 +59890,7 @@
 // ********************************************
 #	[2102]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -59948,7 +59948,7 @@
 // ********************************************
 #	[2104]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -60035,7 +60035,7 @@
 // ********************************************
 #	[2107]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -60180,7 +60180,7 @@
 // ********************************************
 #	[2112]
 	MinuteGenerate:	1
-	MaxNumMob:	2
+	MaxNumMob:	10
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -60325,7 +60325,7 @@
 // ********************************************
 #	[2117]
 	MinuteGenerate:	1
-	MaxNumMob:	1
+	MaxNumMob:	5
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Conj_Caveira
@@ -159753,5 +159753,28 @@
 	StartWait:	10
 	DestX:		976
 	DestY:		4056
+	DestRange:	2
+	DestWait:	10
+
+// Boss Conjurador - mini chefe do spot de Caveira Lanc e Conj Caveira (1o andar da
+// Dungeon): renasce 3 h depois da morte e some se ficar 30 min sem luta
+// (handler/dungeon_caveiras.go). Migracao 0144, 25/09/2026.
+// ********************************************
+
+#	[6149]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Boss_Conjurador
+	Follower:	Boss_Conjurador
+	RouteType:	0
+	Formation:	0
+	StartX:		352
+	StartY:		3758
+	StartRange:	2
+	StartWait:	10
+	DestX:		352
+	DestY:		3758
 	DestRange:	2
 	DestWait:	10

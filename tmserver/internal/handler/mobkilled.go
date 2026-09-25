@@ -135,6 +135,7 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 	d.bossManticoraSaque(w, reward, mob)
 	d.bossDragaoLichSaque(w, reward, mob)
 	d.chefeDaLavaSaque(w, reward, mob)
+	d.bossConjuradorSaque(w, reward, mob)
 	d.geloChefeSaque(w, reward, mob)
 
 	sendDieAction(w, mob)

@@ -55,11 +55,30 @@ var lavaChefePremios = []bossManticoraPremio{
 
 // lavaChefeVigia é o que o relógio de sumir guarda de um chefe de pé: qual
 // monstro (o ponteiro muda a cada nascimento, então um chefe novo no mesmo id
-// não herda o relógio do anterior), quando nasceu e a última vez que lutou.
+// não herda o relógio do anterior), quando nasceu, a última vez que lutou e o
+// ciclo dele em ms (cicloDoChefe).
 type lavaChefeVigia struct {
 	mob    *world.Entity
 	nasceu uint32
 	luta   uint32
+	ciclo  uint32
+}
+
+// cicloDoChefe devolve, em ms, o ciclo de um mini chefe que some sem luta — os
+// dois da lava e o Boss Conjurador do spot de caveiras (dungeon_caveiras.go) —,
+// ou 0 para qualquer outro monstro. Vale só no bloco dele: um "/gm criar" fica.
+func cicloDoChefe(w *world.World, e *world.Entity) uint32 {
+	if e.GenIndex < 0 {
+		return 0
+	}
+	idx := int(e.GenIndex)
+	switch {
+	case isChefeDaLava(e) && geradorDeChefeDaLava(w, idx):
+		return lavaChefeHoras * msPorHora
+	case isBossConjurador(e) && geradorDoBossConjurador(w, idx):
+		return conjuradorHoras * msPorHora
+	}
+	return 0
 }
 
 // isChefeDaLava diz se o monstro é um dos dois mini chefes, pelo nome do arquivo
@@ -109,7 +128,8 @@ func emLuta(e *world.Entity) bool {
 }
 
 // tickChefesDaLava tira do mapa o mini chefe que ficou lavaChefeSemLuta sem luta,
-// e o põe de volta na fila para nascer lavaChefeHoras depois de ter nascido.
+// e o põe de volta na fila para nascer um ciclo (cicloDoChefe) depois de ter
+// nascido.
 // Roda na passada do relógio de minuto (12 s), que é precisão de sobra para meia
 // hora.
 func (d *Dispatcher) tickChefesDaLava(w *world.World) {
@@ -119,7 +139,8 @@ func (d *Dispatcher) tickChefesDaLava(w *world.World) {
 	agora := w.Now()
 	var somem []int
 	w.ForEachMob(func(_ int, e *world.Entity) {
-		if e.HP <= 0 || e.GenIndex < 0 || !isChefeDaLava(e) || !geradorDeChefeDaLava(w, int(e.GenIndex)) {
+		ciclo := cicloDoChefe(w, e)
+		if e.HP <= 0 || ciclo == 0 {
 			return
 		}
 		idx := int(e.GenIndex)
@@ -128,7 +149,7 @@ func (d *Dispatcher) tickChefesDaLava(w *world.World) {
 		}
 		v, ok := d.lavaVigia[idx]
 		if !ok || v.mob != e {
-			v = lavaChefeVigia{mob: e, nasceu: agora, luta: agora}
+			v = lavaChefeVigia{mob: e, nasceu: agora, luta: agora, ciclo: ciclo}
 		}
 		if emLuta(e) {
 			v.luta = agora
@@ -142,12 +163,12 @@ func (d *Dispatcher) tickChefesDaLava(w *world.World) {
 	for _, idx := range somem {
 		v := d.lavaVigia[idx]
 		espera := uint32(lavaChefeVoltaMinima)
-		if resto := uint32(lavaChefeHoras*msPorHora) - min(agora-v.nasceu, uint32(lavaChefeHoras*msPorHora)); resto > espera {
+		if resto := v.ciclo - min(agora-v.nasceu, v.ciclo); resto > espera {
 			espera = resto
 		}
 		delete(d.lavaVigia, idx)
 		if w.DeferGenerator(idx, espera) > 0 {
-			d.log.Info("mini chefe da lava sumiu sem luta", "bloco", idx, "volta_em_min", espera/msPorMinuto)
+			d.log.Info("mini chefe sumiu sem luta", "bloco", idx, "volta_em_min", espera/msPorMinuto)
 		}
 	}
 }

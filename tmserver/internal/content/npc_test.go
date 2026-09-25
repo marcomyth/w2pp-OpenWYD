@@ -259,7 +259,7 @@ func TestBossDragaoLichBloco(t *testing.T) {
 }
 
 // TestChefesDaLavaBlocos pins the Dungeon 2nd floor lava hall (migration 0142): the
-// two mini bosses in blocks 6147 and 6148, the last ones, with no minute period —
+// two mini bosses in blocks 6147 and 6148, right before the Boss Conjurador, with no minute period —
 // the 2 h wait is the individual queue's (handler/dungeon_lava.go) — and the Golem
 // de Pedra and Anf Ninja blocks of the hall at five times the legacy count.
 func TestChefesDaLavaBlocos(t *testing.T) {
@@ -271,8 +271,9 @@ func TestChefesDaLavaBlocos(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(gens) != 6149 {
-		t.Fatalf("NPCGener has %d blocks, want 6149 with the lava bosses last", len(gens))
+	// 6150 desde 25/09/2026: o Boss Conjurador (migração 0144) entrou depois deles.
+	if len(gens) != 6150 {
+		t.Fatalf("NPCGener has %d blocks, want 6150 with the lava bosses before the Boss Conjurador", len(gens))
 	}
 	// Dungeon_2_Andar in Regions.txt: 632,3847 - 1022,4091.
 	dentro := func(x, y int16) bool { return x >= 632 && x <= 1022 && y >= 3847 && y <= 4091 }
@@ -335,5 +336,53 @@ func TestDungeonSalasPopulacao(t *testing.T) {
 		if got[nome] != n {
 			t.Errorf("%s nas salas: %d, want %d", nome, got[nome], n)
 		}
+	}
+}
+
+// TestCaveirasDoSpotBlocos pins the Caveira Lanc and Conj Caveira spot of the
+// Dungeon 1st floor (migration 0144): the Boss Conjurador alone in block 6149,
+// the last one, with no minute period — the 3 h wait is the individual queue's
+// (handler/dungeon_caveiras.go) — and the two monsters at five times the legacy
+// count, every block on the minute timer.
+func TestCaveirasDoSpotBlocos(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("NPCGener.txt unavailable: %v", err)
+	}
+	gens, err := LoadNPCGenerators(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gens) != 6150 {
+		t.Fatalf("NPCGener has %d blocks, want 6150 with the Boss Conjurador last", len(gens))
+	}
+	// O spot: x 300 a 490, y 3730 a 3880.
+	dentro := func(x, y int16) bool { return x >= 300 && x <= 490 && y >= 3730 && y <= 3880 }
+	g := gens[6149]
+	if g.Leader != "Boss_Conjurador" || g.MinuteGenerate != -1 || g.MaxNumMob != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
+		t.Errorf("bloco 6149 = %+v, want one Boss_Conjurador with MinuteGenerate -1", g)
+	}
+	if !dentro(g.SegX[0], g.SegY[0]) {
+		t.Errorf("Boss_Conjurador nasce em (%d,%d), fora do spot", g.SegX[0], g.SegY[0])
+	}
+	mobs := map[string]int{}
+	for i, g := range gens {
+		if g.Leader == "Boss_Conjurador" && i != 6149 {
+			t.Errorf("Boss_Conjurador também no bloco %d", i)
+		}
+		if g.Leader != "Caveira_Lanc" && g.Leader != "Conj_Caveira" {
+			continue
+		}
+		if !dentro(g.SegX[0], g.SegY[0]) {
+			t.Errorf("%s fora do spot em (%d,%d): a Mesa da 0144 vale por template", g.Leader, g.SegX[0], g.SegY[0])
+		}
+		if g.MinuteGenerate <= 0 {
+			t.Errorf("%s em (%d,%d) com MinuteGenerate %d: só o relógio de minuto enche o bloco até o teto", g.Leader, g.SegX[0], g.SegY[0], g.MinuteGenerate)
+		}
+		mobs[g.Leader] += g.MaxNumMob
+	}
+	// 45 e 30 antes da 0144.
+	if mobs["Caveira_Lanc"] != 225 || mobs["Conj_Caveira"] != 150 {
+		t.Errorf("Caveira Lanc %d e Conj Caveira %d, want 225 e 150 (5x)", mobs["Caveira_Lanc"], mobs["Conj_Caveira"])
 	}
 }

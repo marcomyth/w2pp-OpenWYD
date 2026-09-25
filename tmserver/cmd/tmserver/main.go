@@ -829,6 +829,7 @@ func run(logger *slog.Logger) error {
 	dispatch.ApplyFrenzyBoot(w)
 	dispatch.ApplyBossDragaoLichBoot(w)
 	dispatch.ApplyChefesDaLavaBoot(w)
+	dispatch.ApplyBossConjuradorBoot(w)
 	// The individual respawn queue takes its delay from the same area dial the
 	// minute timer does, so the desert's dozen blocks without a minute period
 	// are not left running at 15s while everything around them slows down. It is
