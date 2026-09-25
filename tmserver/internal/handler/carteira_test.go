@@ -103,7 +103,9 @@ func TestAVitrineAbreMesmoComOBancoMudo(t *testing.T) {
 	c := enterWorld(t, addr)
 	defer c.Close()
 
-	recusa := error(context.DeadlineExceeded)
+	// context.DeadlineExceeded já é declarado como error, então a variável sai
+	// com esse tipo e o &recusa serve ao atomic.Pointer[error] sem conversão.
+	recusa := context.DeadlineExceeded
 	carteira.erro.Store(&recusa)
 
 	lista := pedeVitrine(t, c, 0, protocol.LojaFiltroTodos)
