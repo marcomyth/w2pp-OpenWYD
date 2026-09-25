@@ -35,18 +35,18 @@ func haCobrancaAberta(ctx context.Context, tx pgx.Tx, accountID int64) (bool, er
 
 // haRepasseEmCurso diz se há dinheiro a caminho da chave daquele vendedor.
 //
-// SÓ A CONSULTA, e não a decisão de quando aplicá-la — essa fica com quem chama, e a
-// diferença entre os dois chamadores é deliberada:
+// HOJE SÓ O GRAVAR USA ESTA CONSULTA. O apagar usava, e passou a usar o
+// haRepasseAReceber por decisão da Hanna de 25/09/2026 — a regra dele é mais larga e
+// inclui o recusado. Os dois divergem de propósito, e o motivo é o parágrafo do recusado
+// aqui embaixo.
+//
+// SÓ A CONSULTA, e não a decisão de quando aplicá-la — essa fica com quem chama:
 //
 // O SalvarChavePix só confere quando a chave MUDA DE VALOR. Gravar a mesma chave não
 // desvia nada, e é o que faz um vendedor antigo, cadastrado antes de o CPF ser
 // obrigatório, conseguir preencher o documento que falta. Sem essa saída ele cai num nó
 // fechado: o repasse fica pendente por falta de documento, e o documento não pode ser
 // gravado porque o repasse está pendente.
-//
-// O APAGAR confere SEMPRE. Apagar não é gravar a mesma chave, é tirá-la — a saída de
-// cima não tem sentido ali, e herdá-la deixaria alguém apagar a chave com dinheiro já a
-// caminho dela.
 //
 // OS QUATRO ESTADOS que travam: pendente, enviado, incerto e SEM TAXA.
 //
@@ -68,6 +68,37 @@ func haRepasseEmCurso(ctx context.Context, tx pgx.Tx, accountID int64) (bool, er
 		accountID, repassePendente, repasseEnviado, repasseIncerto, repasseSemTaxa).
 		Scan(&repasses); err != nil {
 		return false, fmt.Errorf("store: contando repasses em curso a=%d: %w", accountID, err)
+	}
+	return repasses > 0, nil
+}
+
+// haRepasseAReceber diz se aquele vendedor tem dinheiro a receber, de qualquer forma.
+//
+// É A MESMA REGRA DO RepasseDoVendedor, e a igualdade é o ponto: "a receber" ali é todo
+// repasse com status diferente de PAGO, RECUSADO incluído, porque a recusa não apaga a
+// dívida - o dinheiro continua sendo do vendedor, só não achou o caminho. A tela dizia
+// "você tem R$ X a receber" e o botão Apagar funcionava assim mesmo (decisão da Hanna,
+// 25/09/2026: "não permitir que ele delete se tiver valores a receber; se não tiver
+// nada, ele pode remover tranquilamente").
+//
+// POR QUE NÃO UMA CONSULTA SÓ para os dois lugares, que seria o jeito óbvio de impedir
+// que voltem a divergir: o RepasseDoVendedor precisa do total e de três contagens
+// filtradas na MESMA consulta, para decidir o motivo da espera. Fatorar o predicado numa
+// string compartilhada esconderia a regra em vez de guardá-la. O que prende as duas é o
+// teste TestApagarRecusaComRepasseRecusado, que pergunta as duas coisas do mesmo
+// vendedor: a tela mostra valor a receber E o apagar recusa.
+//
+// O haRepasseEmCurso continua existindo e continua servindo o GRAVAR, com os quatro
+// estados dele. Os dois caminhos divergem de propósito, e o motivo está no comentário
+// dele: trocar a chave com um repasse recusado é o conserto da chave errada, que é a
+// causa mais comum da recusa. Travar isso prenderia o dinheiro até a staff agir.
+func haRepasseAReceber(ctx context.Context, tx pgx.Tx, accountID int64) (bool, error) {
+	var repasses int
+	if err := tx.QueryRow(ctx, `
+		SELECT count(*) FROM rmt_repasse
+		 WHERE vendedor_conta = $1 AND status <> $2`,
+		accountID, repassePago).Scan(&repasses); err != nil {
+		return false, fmt.Errorf("store: contando repasses a receber a=%d: %w", accountID, err)
 	}
 	return repasses > 0, nil
 }
@@ -110,7 +141,7 @@ func (s *Store) ApagarChavePix(ctx context.Context, accountID int64) error {
 		if venda {
 			return ErrVendaEmCurso
 		}
-		repasse, err := haRepasseEmCurso(ctx, tx, accountID)
+		repasse, err := haRepasseAReceber(ctx, tx, accountID)
 		if err != nil {
 			return err
 		}
