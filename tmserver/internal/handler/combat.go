@@ -1005,6 +1005,12 @@ func skillSameLeaderOrGuild(w *world.World, a, b *world.Entity) bool {
 	if s := w.Session(a.ID); s != nil && s.GuildDisable {
 		guild = 0
 	}
+	// Na Batalha Real ninguém tem guilda: quem ataca de dentro da arena conta
+	// como guilda -1 e só o próprio grupo continua protegido
+	// (_MSG_Attack.cpp:386-387; coliseu.go).
+	if world.IsPlayer(a.ID) && w.Anonimo(a.X, a.Y) {
+		guild = -1
+	}
 	targetGuild := int(b.Guild)
 	if s := w.Session(b.ID); s != nil && s.GuildDisable {
 		targetGuild = 0
@@ -1475,7 +1481,7 @@ func (d *Dispatcher) createVine(w *world.World, body *protocol.MsgAttackBody) bo
 	mob.SegProgress = 4
 	mob.Mode = world.MobPeace
 	mob.WaitTicks = vineLifeTicks
-	payload := protocol.EncodeCreateMobBody(createMobFrom(mob, 2))
+	payload := protocol.EncodeCreateMobBody(createMobFrom(w, mob, 2))
 	w.ForEachInView(id, func(vs *world.Session, _ *world.Entity) {
 		if w.MarkSeen(vs, id) {
 			w.SendTo(vs, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, payload)
@@ -1572,7 +1578,7 @@ func (d *Dispatcher) reviverAlvo(w *world.World, caster, target *world.Entity, t
 		d.sendSetHpMp(w, ts, target)
 		d.sendEtc(w, ts, target)
 	}
-	bodyPayload := protocol.EncodeCreateMobBody(createMobFrom(target, 0))
+	bodyPayload := protocol.EncodeCreateMobBody(createMobFrom(w, target, 0))
 	w.ForEachInView(tid, func(vs *world.Session, _ *world.Entity) {
 		w.SendTo(vs, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, bodyPayload)
 	})
@@ -1830,7 +1836,7 @@ func (d *Dispatcher) applyBookResurrection(w *world.World, s *world.Session, e *
 	d.sendScore(w, s, e)
 	d.sendSetHpMp(w, s, e)
 	d.sendEtc(w, s, e)
-	body := protocol.EncodeCreateMobBody(createMobFrom(e, 0))
+	body := protocol.EncodeCreateMobBody(createMobFrom(w, e, 0))
 	w.ForEachInView(s.Conn, func(vs *world.Session, _ *world.Entity) {
 		w.SendTo(vs, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, body)
 	})

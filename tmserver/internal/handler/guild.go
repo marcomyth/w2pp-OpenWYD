@@ -604,7 +604,7 @@ func (d *Dispatcher) refreshGuildTag(w *world.World, id int) {
 	if e == nil {
 		return
 	}
-	body := protocol.EncodeCreateMobBody(createMobFrom(e, 0))
+	body := protocol.EncodeCreateMobBody(createMobFrom(w, e, 0))
 	w.ForEachInView(id, func(vs *world.Session, _ *world.Entity) {
 		w.SendTo(vs, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, body)
 	})

@@ -64,6 +64,11 @@
 ✅ /gm guerra torre fim: encerra agora — a guilda com a torre ganha a fama, como no fim normal <br/>
 ✅ /gm guerra torre estado: fase, dono, horários e a agenda do painel <br/>
 ⏳ /gm guerra cidade / noatum: responde que ainda não existe; entram quando essas guerras forem portadas <br/>
+✅ /gm coliseu ligar / desligar: o Coliseu do legado (ondas das 20h, Batalha Real, Coliseu {N}). Nasce DESLIGADO a cada boot <br/>
+✅ /gm coliseu iniciar / fim: força o evento de ondas agora (entrada tranca, ondas nos minutos 4, 7, 9, 11 e 13, fim no 15) / encerra <br/>
+✅ /gm coliseu batalha [0|1|2] / batalha fim: força uma rodada da Batalha Real (Nv \< 100, \< 200, qualquer) / encerra; precisa de prêmio <br/>
+✅ /gm coliseu horas \<guilda\> [novato], horabatalha \<hora\>, premio \<item\>: as horas (padrão 20, 20 e 19) e o prêmio da Batalha Real (0 a desliga) <br/>
+✅ /gm coliseu estado: interruptor, fases, horas e prêmio <br/>
 
 > `notice` sai na linha de aviso do servidor (MSG_MessagePanel, ID 0 — o `SendNotice` do legado),
 > prefixada `[GM]`. A guerra forçada ignora a hora e o interruptor do painel até terminar, e passa

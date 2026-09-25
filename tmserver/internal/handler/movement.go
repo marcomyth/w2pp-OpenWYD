@@ -188,6 +188,9 @@ func (d *Dispatcher) action(w *world.World, s *world.Session, h protocol.Header,
 		w.SendTo(s, protocol.Header{Type: protocol.MsgAction3, ID: uint16(s.Conn)}, payload)
 		d.sendSetHpMp(w, s, e)
 	}
+	// Por último, como no legado: o limite de nível da arena do Coliseu olha a
+	// posição de chegada (_MSG_Action.cpp:309-337, coliseu.go).
+	d.coliseuDepoisDoPasso(w, s, e)
 }
 
 func outOfBounds(v, dim int16) bool { return v < 0 || v >= dim }

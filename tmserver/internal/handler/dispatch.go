@@ -500,6 +500,10 @@ type Dispatcher struct {
 	// per server. Loop-only.
 	events worldEventState
 
+	// coliseu é o Coliseu do legado: interruptor, horas e as duas máquinas de
+	// relógio (coliseu.go). Nasce desligado. Loop-only.
+	coliseu estadoDoColiseu
+
 	// eventRNG is a DEDICATED MSVC stream for world-event rolls. The legacy draws
 	// them from the single global rand(), but that stream is the one our
 	// drop/refine/critical goldens pin the call order of (refine_test.go,
@@ -667,6 +671,7 @@ func New(cfg Config) *Dispatcher {
 		heights:           cfg.Heights,
 		attributes:        cfg.Attributes,
 		now:               cfg.Now,
+		coliseu:           novoEstadoDoColiseu(),
 		maxNightmare:      cfg.MaxNightmare,
 		affectDur:         cfg.AffectDuration,
 		serverIndex:       cfg.ServerIndex,

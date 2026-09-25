@@ -124,6 +124,11 @@ func (d *Dispatcher) sendReqParty(w *world.World, s *world.Session, _ protocol.H
 		d.notify(w, s, NoticePartyLevelLimit)
 		return
 	}
+	// Na arena da Batalha Real não há grupo; o legado recusa calado
+	// (_MSG_SendReqParty.cpp:74, coliseu.go).
+	if d.batalhaTiraGrupo(e) {
+		return
+	}
 	te.LastReqParty = s.Conn // anti-forge gate for AcceptParty
 	out := d.reqPartyBody(e, s.Conn)
 	w.SendTo(other, protocol.Header{Type: protocol.MsgSendReqParty, ID: protocol.IDScene}, out.Encode())
@@ -169,6 +174,10 @@ func (d *Dispatcher) acceptParty(w *world.World, s *world.Session, _ protocol.He
 	}
 	if !partyLevelOK(le, e) {
 		d.notify(w, s, NoticePartyLevelLimit)
+		return
+	}
+	// Idem no aceite, olhando quem aceita (_MSG_AcceptParty.cpp:98).
+	if d.batalhaTiraGrupo(e) {
 		return
 	}
 	slot, ok := addMember(le, s.Conn)

@@ -3573,7 +3573,7 @@ func attackRunOf(e *world.Entity) uint8 {
 // which entity the score describes. Nothing here is private: gold/exp/free points
 // live in MSG_UpdateEtc (sendEtc), which stays unicast like the legacy SendEtc.
 func (d *Dispatcher) sendScore(w *world.World, s *world.Session, e *world.Entity) {
-	body := protocol.EncodeUpdateScore(d.computeScore(e))
+	body := protocol.EncodeUpdateScore(d.scoreParaEnvio(w, e))
 	w.SendTo(s, protocol.Header{Type: protocol.MsgUpdateScore, ID: uint16(s.Conn)}, body)
 	w.BroadcastInView(s.Conn, protocol.MsgUpdateScore, body) // excludes the source
 }
@@ -3584,7 +3584,7 @@ func (d *Dispatcher) sendScore(w *world.World, s *world.Session, e *world.Entity
 // all (ProcessDBMessage.cpp:1017-1037 unicasts the login blob, then GridMulticasts
 // CreateMob, which already carries Hp/MaxHp to observers).
 func (d *Dispatcher) sendScoreSelf(w *world.World, s *world.Session, e *world.Entity) {
-	w.SendTo(s, protocol.Header{Type: protocol.MsgUpdateScore, ID: uint16(s.Conn)}, protocol.EncodeUpdateScore(d.computeScore(e)))
+	w.SendTo(s, protocol.Header{Type: protocol.MsgUpdateScore, ID: uint16(s.Conn)}, protocol.EncodeUpdateScore(d.scoreParaEnvio(w, e)))
 }
 
 // sendEtc pushes the player's MSG_UpdateEtc (SendFunc.cpp SendEtc): gold, exp and —

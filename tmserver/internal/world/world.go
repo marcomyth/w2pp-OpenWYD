@@ -190,6 +190,10 @@ type World struct {
 	grid     *Grid
 	rng      *rng.MSVC // loop-owned MSVC LCG (parity; like the original global rand())
 
+	// anonimato é a caixa em que a Batalha Real do Coliseu esconde nome, capa e
+	// guilda (anonimato.go). Desligada no valor zero. Loop-owned.
+	anonimato anonimato
+
 	// nextMobSlot is where the next mob-id search starts, so ids are handed out
 	// in rotation instead of always reusing the lowest free slot. See SpawnMobAt.
 	nextMobSlot int
