@@ -17,7 +17,7 @@ import (
 // /pontos os mostrava, e não havia onde gastá-los. Esta é a saída.
 //
 // O NPC é reaproveitado, não criado. O God of War já está de pé em Armia
-// (NPCGener #[6063], em 2125,2114) com Merchant 104, e 104 não cai em nenhum
+// (NPCGener #[6063], em 2130,2088) com Merchant 104, e 104 não cai em nenhum
 // ramo do roteamento de clique em misc.go — clicar nele não fazia absolutamente
 // nada. É a mesma situação de onde saiu a loja do Unicórnio Puro
 // (loja_de_emblema.go), e o truque é o mesmo: o servidor continua vendo 104, que

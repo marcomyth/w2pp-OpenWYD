@@ -91,10 +91,15 @@ func montada(t *testing.T, nome string, b []byte, nivel int) {
 // vestir o set da própria classe (TestMestresDeSkillVestemOSetDaClasse), e o
 // Guarda Carga saiu em 22/09 para a aparência do Cav. Lugefer
 // (TestGuardaCargaVesteOLugefer).
+//
+// O God_of_War (a Honor Store) desceu do cavalo em 25/09/2026, a pedido: foi
+// para o canteiro cercado em 2130,2088, e montado ele não cabia ali. Continua de
+// Set Mortal E; só a vaga 14 ficou vazia.
 func TestArmiaVesteSetMortalMontado(t *testing.T) {
 	setMortalE := [5]int{1225, 1226, 1227, 1228, 1229}
 	// O Mestre Grifo monta um Grifo, que é o nome dele; ficou com o dele.
 	semCavalo := map[string]bool{"Mestre_Grifo": true}
+	aPe := map[string]bool{"God_of_War": true}
 
 	for _, nome := range []string{
 		"Galford", "Aki", "Guard", "Guard_", "Ferreiro",
@@ -116,7 +121,12 @@ func TestArmiaVesteSetMortalMontado(t *testing.T) {
 		if corpo, _ := peca(b, 0); corpo == 0 {
 			t.Errorf("%s ficou sem corpo no Equip[0]", nome)
 		}
-		if !semCavalo[nome] {
+		switch {
+		case aPe[nome]:
+			if idx, _ := peca(b, slotMontaria); idx != 0 {
+				t.Errorf("%s: vaga 14 tem %d, esperava vazia (a pé)", nome, idx)
+			}
+		case !semCavalo[nome]:
 			montada(t, nome, b, nivelDaMontaria)
 		}
 	}
@@ -236,27 +246,36 @@ func TestPerzenVesteCelestialSemPerderAQuest(t *testing.T) {
 // O TAMANHO DE UM NPC É A CON (pedido de 22/09/2026). O cliente escala o corpo
 // de um mob por (CON/2000 + 1) * 0,9 (WYD.exe 0x50D43F), e é só isso que a CON de
 // um mob faz: o servidor não a lê para HP, dano ou defesa — esses são campos
-// próprios do template. O God_of_War é a referência do servidor, com 3000, e o
+// próprios do template. O God_of_War era a referência do servidor, com 3000, e o
 // Guarda_Carga e o Dragão da praça dos Reinos passaram a acompanhá-lo.
+//
+// Em 25/09/2026 o God_of_War (a Honor Store) encolheu 30%: de 3000, escala
+// (1,5+1)*0,9 = 2,25, para 1500, escala (0,75+1)*0,9 = 1,575 — 2,25 * 0,7.
 //
 // A CON é escrita nos DOIS scores. O que o cliente recebe é o CurrentScore
 // (protocol/mob.go escreve Con em cs+38); o BaseScore é o que world/api.go copia
 // para a entidade. Gravar só um deixa o tamanho dependendo de qual caminho leu.
 func TestTamanhoDosNPCsGrandes(t *testing.T) {
 	const (
-		conGrande = 3000
-		offBase   = 44 + 38 // BaseScore.Con
-		offAtual  = 92 + 38 // CurrentScore.Con
+		offBase  = 44 + 38 // BaseScore.Con
+		offAtual = 92 + 38 // CurrentScore.Con
 	)
-	for _, nome := range []string{"God_of_War", "Guarda_Carga", "Dragao_Dourado"} {
-		b := templateNPC(t, nome)
+	for _, c := range []struct {
+		nome string
+		con  int16
+	}{
+		{"God_of_War", 1500},
+		{"Guarda_Carga", 3000},
+		{"Dragao_Dourado", 3000},
+	} {
+		b := templateNPC(t, c.nome)
 		base := int16(binary.LittleEndian.Uint16(b[offBase : offBase+2]))
 		atual := int16(binary.LittleEndian.Uint16(b[offAtual : offAtual+2]))
-		if base != conGrande {
-			t.Errorf("%s: CON do BaseScore = %d, esperava %d", nome, base, conGrande)
+		if base != c.con {
+			t.Errorf("%s: CON do BaseScore = %d, esperava %d", c.nome, base, c.con)
 		}
-		if atual != conGrande {
-			t.Errorf("%s: CON do CurrentScore = %d, esperava %d — é esta que o cliente lê", nome, atual, conGrande)
+		if atual != c.con {
+			t.Errorf("%s: CON do CurrentScore = %d, esperava %d — é esta que o cliente lê", c.nome, atual, c.con)
 		}
 	}
 }

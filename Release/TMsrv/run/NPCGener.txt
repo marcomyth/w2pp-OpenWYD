@@ -157404,10 +157404,10 @@
 	Follower:	God_of_War
 	RouteType:	2
 	Formation:	0
-	StartX:		2125
-	StartY:		2114
-	DestX:		2125
-	DestY:		2114
+	StartX:		2130
+	StartY:		2088
+	DestX:		2130
+	DestY:		2088
 	DestRange:	1
 	DestWait:	0
 	
