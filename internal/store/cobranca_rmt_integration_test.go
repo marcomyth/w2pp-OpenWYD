@@ -101,7 +101,7 @@ func TestConfirmarCobrancaCaminhoFeliz(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "feliz")
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestEntregaCarregaAFotografiaDoAnuncio(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "foto")
 
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0); err != nil {
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero()); err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
 
@@ -188,11 +188,11 @@ func TestConfirmarCobrancaDuasVezesEntregaUmaSo(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "dobrada")
 
-	res1, venda1, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res1, venda1, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("primeira: %v", err)
 	}
-	res2, venda2, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res2, venda2, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("segunda: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestPagamentoDepoisDoCancelamentoViraPagaSemItem(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -298,7 +298,7 @@ func TestPagamentoAtrasadoComItemAindaMarcadoEntrega(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -330,7 +330,7 @@ func TestMarcaDeOutroAnuncioNaoEntrega(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -348,7 +348,7 @@ func TestReferenciaDesconhecidaNaoFazNada(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "desconhecida")
 
-	res, _, err := s.ConfirmarCobrancaRMT(ctx, "ref-que-nao-existe", dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, _, err := s.ConfirmarCobrancaRMT(ctx, "ref-que-nao-existe", dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
 	}
@@ -378,7 +378,7 @@ func TestConfirmacaoNaoDependeDeNinguemEstarEmJogo(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "offline")
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -438,7 +438,7 @@ func TestSlotsVendidosPendentesNomeiaSoOQueVendeu(t *testing.T) {
 		t.Errorf("com tudo ativo veio %v, queria vazio", antes)
 	}
 
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0); err != nil {
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero()); err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
 
@@ -458,7 +458,7 @@ func TestSlotsVendidosNaoVazamEntreContas(t *testing.T) {
 	v := montaVenda(ctx, t, s, "vazamento")
 	outro := contaPix(ctx, t, s, "outro_vendedor")
 
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0); err != nil {
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero()); err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
 

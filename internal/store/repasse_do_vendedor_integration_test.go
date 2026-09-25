@@ -30,7 +30,7 @@ func TestRepasseDoVendedorSemDividaNaoInventaMotivo(t *testing.T) {
 func TestRepasseDoVendedorPendenteComCadastroEstaACaminho(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "a-caminho")
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos); err != nil {
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -55,7 +55,7 @@ func TestRepasseDoVendedorPendenteComCadastroEstaACaminho(t *testing.T) {
 func TestRepasseDoVendedorSemDocumentoPedeOCadastro(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "falta-cadastro")
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos); err != nil {
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.pool.Exec(ctx,
@@ -97,7 +97,7 @@ func TestRepasseDoVendedorRecusadoEIncertoMandamOlhar(t *testing.T) {
 		t.Run(c.nome, func(t *testing.T) {
 			s, ctx := freshStore(t)
 			v := montaVenda(ctx, t, s, "olhar-"+c.nome)
-			_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+			_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -125,7 +125,7 @@ func TestRepasseDoVendedorRecusadoEIncertoMandamOlhar(t *testing.T) {
 func TestRepasseDoVendedorPagoSaiDoTotal(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "pago-sai")
-	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestRepasseDoVendedorNaoSomaDividaDeOutro(t *testing.T) {
 	meu := montaVenda(ctx, t, s, "meu")
 	outro := montaVenda(ctx, t, s, "outro")
 	for _, v := range []vendaMontada{meu, outro} {
-		if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos); err != nil {
+		if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero()); err != nil {
 			t.Fatal(err)
 		}
 	}

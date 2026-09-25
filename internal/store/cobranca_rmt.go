@@ -127,8 +127,12 @@ const (
 	HoraDoServidor OrigemDaHora = "servidor"
 )
 
+// taxaCentavos é o que a processadora RETEVE do que entrou, e NULO NÃO É ZERO: nulo quer
+// dizer que ninguém sabe a taxa, e nesse caso o repasse ao vendedor nasce segurado, sem
+// sair com o valor cheio. A entrega ao comprador NÃO depende disso — ele pagou, e o item
+// é dele mesmo que a taxa seja um mistério; o que espera é só o pagamento ao vendedor.
 func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna string,
-	pagoEm time.Time, origem OrigemDaHora, valorObservado int64,
+	pagoEm time.Time, origem OrigemDaHora, valorObservado int64, taxaCentavos *int64,
 ) (ResultadoCobranca, VendaRMT, error) {
 	var res ResultadoCobranca
 	var venda VendaRMT
@@ -207,9 +211,10 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 			// até uma pessoa olhar.
 			if _, err := tx.Exec(ctx, `
 				UPDATE rmt_cobranca
-				   SET valor_divergente_centavos = $2, paga_em = $3, origem_da_hora = $4
+				   SET valor_divergente_centavos = $2, paga_em = $3, origem_da_hora = $4,
+				       taxa_centavos = $5
 				 WHERE id = $1`, venda.CobrancaID, valorObservado, pagoEm,
-				string(origem)); err != nil {
+				string(origem), taxaCentavos); err != nil {
 				return fmt.Errorf("store: confirmar cobranca: gravando a divergencia de %d: %w",
 					venda.CobrancaID, err)
 			}
@@ -279,9 +284,9 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 			if _, err := tx.Exec(ctx, `
 				UPDATE rmt_cobranca
 				   SET status = $2, paga_em = $4, encerrada_em = now(), pago_com_atraso = $3,
-				       origem_da_hora = $5
+				       origem_da_hora = $5, taxa_centavos = $6
 				 WHERE id = $1`, venda.CobrancaID, cobrancaPagaSemItem, venda.PagoComAtraso,
-				pagoEm, string(origem)); err != nil {
+				pagoEm, string(origem), taxaCentavos); err != nil {
 				return fmt.Errorf("store: confirmar cobranca: marcando sem item %d: %w", venda.CobrancaID, err)
 			}
 			res = CobrancaPagaSemItem
@@ -303,10 +308,11 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 		if _, err := tx.Exec(ctx, `
 			UPDATE rmt_cobranca
 			   SET status = $2, paga_em = $5, encerrada_em = now(),
-			       entrega_id = $3, pago_com_atraso = $4, origem_da_hora = $6
+			       entrega_id = $3, pago_com_atraso = $4, origem_da_hora = $6,
+			       taxa_centavos = $7
 			 WHERE id = $1`,
 			venda.CobrancaID, cobrancaPaga, venda.EntregaID, venda.PagoComAtraso,
-			pagoEm, string(origem)); err != nil {
+			pagoEm, string(origem), taxaCentavos); err != nil {
 			return fmt.Errorf("store: confirmar cobranca: marcando paga %d: %w", venda.CobrancaID, err)
 		}
 		// O anúncio sai da vitrine agora. A MARCA DO ESCROW FICA: ela é o que
@@ -333,7 +339,7 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 		// o dinheiro vai VOLTAR para o comprador, e o vendedor não tem nada a receber.
 		// Uma linha de dívida que não existe apareceria na fila, alguém tentaria pagar,
 		// e o dinheiro sairia duas vezes do mesmo lugar.
-		if err := abrirRepasse(ctx, tx, venda, valorCobrado); err != nil {
+		if err := abrirRepasse(ctx, tx, venda, valorCobrado, taxaCentavos); err != nil {
 			return err
 		}
 		res = CobrancaConfirmada

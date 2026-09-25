@@ -45,6 +45,14 @@ type Transacao struct {
 	// tem esse campo. Ponteiro e não zero porque time.Time{} diria "ano 1", que
 	// compararia como muito antigo e faria todo pagamento parecer dentro do prazo.
 	PagoEm *time.Time
+	// TaxaCentavos é o que a processadora RETEVE do que entrou, e NULO NÃO É ZERO.
+	//
+	// Nulo quer dizer que ninguém sabe a taxa: a fonte não trouxe, veio ilegível, ou a
+	// ponte ainda não foi atualizada. Zero é uma afirmação, "a taxa foi zero". Por isso
+	// é ponteiro: tratar nulo como zero faria o repasse ao vendedor nascer com o valor
+	// cheio, a casa bancaria a taxa em silêncio, e ninguém descobriria — um repasse de
+	// valor cheio parece certo.
+	TaxaCentavos *int64
 }
 
 // O VOCABULÁRIO DE STATUS DA PROCESSADORA É DOCUMENTAÇÃO, NÃO MEDIÇÃO, e isso muda
@@ -82,7 +90,8 @@ type Consultor interface {
 type Banco interface {
 	CobrancaDoIdentifier(ctx context.Context, identifier string) (referencia string, achou bool, err error)
 	ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna string, pagoEm time.Time,
-		origem store.OrigemDaHora, valorObservado int64) (store.ResultadoCobranca, store.VendaRMT, error)
+		origem store.OrigemDaHora, valorObservado int64,
+		taxaCentavos *int64) (store.ResultadoCobranca, store.VendaRMT, error)
 	MarcarReembolsoPendente(ctx context.Context, cobrancaID int64) error
 	// GravarIdentifierSeFaltar completa o id DELES quando a corrida no nascimento
 	// fez a confirmação acontecer antes de ele estar gravado.
@@ -216,7 +225,18 @@ func (s *Servico) ConferirEConcluir(ctx context.Context, identifier string) (Res
 		pagoEm, origem = *t.PagoEm, store.HoraDaProcessadora
 	}
 
-	res, venda, err := s.banco.ConfirmarCobrancaRMT(ctx, referencia, pagoEm, origem, t.ValorCentavos)
+	// A TAXA VAI COMO VEIO, inclusive nula. Nula faz o repasse ao vendedor nascer
+	// segurado em vez de sair cheio, e a ENTREGA ao comprador não espera por ela: ele
+	// pagou, o item é dele, e quem fica pendente é só o pagamento ao vendedor.
+	//
+	// Sai no log com o bruto ao lado porque é o par de números que a Hanna precisa para
+	// escolher o preço mínimo, e porque a primeira venda real é a primeira medição da
+	// taxa que existe — até aqui só houve documentação.
+	s.log.InfoContext(ctx, "confirmando a venda RMT",
+		"referencia", referencia, "bruto_centavos", t.ValorCentavos,
+		"taxa_conhecida", t.TaxaCentavos != nil, "taxa_centavos", taxaParaLog(t.TaxaCentavos))
+	res, venda, err := s.banco.ConfirmarCobrancaRMT(ctx, referencia, pagoEm, origem,
+		t.ValorCentavos, t.TaxaCentavos)
 	if err != nil {
 		return Resultado{}, err
 	}
@@ -462,4 +482,16 @@ func (s *Servico) AvisoDeSaida(ctx context.Context, identifier string, pedidoCen
 		"chegou_centavos", chegouCentavos,
 		"taxa_centavos", pedidoCentavos-chegouCentavos)
 	return Resultado{Tratado: true}, nil
+}
+
+// taxaParaLog mostra a taxa desconhecida como -1, e não como 0.
+//
+// Zero no log seria lido como "a taxa foi zero", que é a leitura errada exata que este
+// campo inteiro existe para evitar. Menos um não é um valor de taxa possível, então
+// quem lê o log sabe que está vendo ausência.
+func taxaParaLog(t *int64) int64 {
+	if t == nil {
+		return -1
+	}
+	return *t
 }

@@ -43,6 +43,11 @@ type bancofake struct {
 	pagoEm        time.Time
 	origem        store.OrigemDaHora
 	valorVisto    int64
+	// taxaVista guarda o PONTEIRO como chegou, e não o valor: é a única forma de o
+	// teste distinguir "taxa zero" de "taxa desconhecida", que é a distinção que vale
+	// dinheiro neste caminho.
+	taxaVista     *int64
+	taxaRecebida  bool
 	reembolsos    []int64
 	orfaos        []store.PagamentoOrfao
 	identGravados [][2]string
@@ -59,10 +64,11 @@ func (b *bancofake) CobrancaDoIdentifier(context.Context, string) (string, bool,
 }
 
 func (b *bancofake) ConfirmarCobrancaRMT(_ context.Context, ref string, pagoEm time.Time,
-	origem store.OrigemDaHora, valor int64,
+	origem store.OrigemDaHora, valor int64, taxa *int64,
 ) (store.ResultadoCobranca, store.VendaRMT, error) {
 	b.confirmou++
 	b.refConfirmada, b.pagoEm, b.origem, b.valorVisto = ref, pagoEm, origem, valor
+	b.taxaVista, b.taxaRecebida = taxa, true
 	return b.resultado, b.venda, b.erroConf
 }
 

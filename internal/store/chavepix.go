@@ -224,12 +224,19 @@ func (s *Store) SalvarChavePix(ctx context.Context, accountID int64, chave strin
 		//
 		// RECUSADO não trava, pelo mesmo motivo de sempre: a recusa mais comum é a
 		// chave estar errada, e travar a correção prenderia o dinheiro para sempre.
+		//
+		// SEGURADO POR TAXA DESCONHECIDA (0131) TRAVA, e é o oposto do recusado: ali o
+		// problema PODE ser a chave, então corrigi-la é o conserto; aqui a chave está
+		// boa e o que falta é um número nosso. Deixar trocar seria abrir exatamente o
+		// desvio que esta trava existe para impedir — vender, esperar o repasse
+		// segurar, e apontar o dinheiro para outra chave antes de ele sair.
 		if antigaChave != nil && *antigaChave != chave {
 			var repasses int
 			if err := tx.QueryRow(ctx, `
 				SELECT count(*) FROM rmt_repasse
-				 WHERE vendedor_conta = $1 AND status IN ($2, $3, $4)`,
-				accountID, repassePendente, repasseEnviado, repasseIncerto).Scan(&repasses); err != nil {
+				 WHERE vendedor_conta = $1 AND status IN ($2, $3, $4, $5)`,
+				accountID, repassePendente, repasseEnviado, repasseIncerto,
+				repasseSemTaxa).Scan(&repasses); err != nil {
 				return fmt.Errorf("store: chave pix: contando repasses a=%d: %w", accountID, err)
 			}
 			if repasses > 0 {

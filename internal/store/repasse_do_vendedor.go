@@ -56,7 +56,7 @@ func (s *Store) RepasseDoVendedor(ctx context.Context, accountID int64) (int64, 
 		                          AND (d.account_id IS NULL
 		                               OR d.chave IS NULL
 		                               OR d.documento IS NULL)),
-		       count(*) FILTER (WHERE r.status IN ($5, $6)),
+		       count(*) FILTER (WHERE r.status IN ($5, $6, $7)),
 		       count(*) FILTER (WHERE r.status = $3
 		                          OR (r.status = $2
 		                              AND d.documento IS NOT NULL
@@ -65,7 +65,7 @@ func (s *Store) RepasseDoVendedor(ctx context.Context, accountID int64) (int64, 
 		  LEFT JOIN rmt_recebedor d ON d.account_id = r.vendedor_conta
 		 WHERE r.vendedor_conta = $1 AND r.status <> $4`,
 		accountID, repassePendente, repasseEnviado, repassePago,
-		repasseRecusado, repasseIncerto).
+		repasseRecusado, repasseIncerto, repasseSemTaxa).
 		Scan(&total, &semCadastro, &precisaGente, &emAndamento)
 	if err != nil {
 		return 0, SemEspera, fmt.Errorf("store: repasse do vendedor a=%d: %w", accountID, err)
@@ -77,6 +77,15 @@ func (s *Store) RepasseDoVendedor(ctx context.Context, accountID int64) (int64, 
 	case semCadastro > 0:
 		return total, EsperaCadastro, nil
 	case precisaGente > 0:
+		// O SEGURADO POR TAXA DESCONHECIDA cai aqui, junto do recusado e do incerto, e
+		// é o balde certo: quem resolve é uma pessoa informando a taxa, não o tempo.
+		//
+		// O total dele é o BRUTO, porque sem a taxa não existe líquido para somar. É
+		// mais do que vai cair na conta, pela taxa, e é por isso que ele NÃO pode vir
+		// com "a caminho": o motivo diz que alguém está olhando, e é o motivo que
+		// impede a tela de prometer aquele número como valor final. A alternativa era
+		// deixá-lo fora da soma, e aí o vendedor veria zero com dinheiro a receber —
+		// a invisibilidade que RepasseEsperandoCadastro existe para não repetir.
 		return total, EsperaGente, nil
 	case emAndamento > 0:
 		return total, EsperaPagamento, nil

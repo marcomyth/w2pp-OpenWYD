@@ -542,7 +542,7 @@ func TestPagouNoPrazoComAvisoAtrasadoVePagaENaoPagaSemItem(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
