@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -241,7 +243,13 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	case protocol.LojaMoedaCash:
 		// Cash é a carteira de verdade: `account.donate_balance`, que a recarga
 		// credita. Ver lojasaldo.go.
-		if err := saldoContas.Transfere(s.AccountID, vendedor.AccountID, moeda, preco); err != nil {
+		// O ITEM VAI NO MOTIVO. A linha do diário já guarda quem pagou, quem
+		// recebeu e quanto; sem o item ela não diz o que foi vendido, e é isso
+		// que a staff procura quando alguém reclama de uma compra. O índice, e
+		// não o nome: o nome vem do catálogo, que muda, e o índice é o que ainda
+		// vai significar a mesma coisa daqui a um ano.
+		motivoDaVenda := fmt.Sprintf("loja do servidor: venda do item %d", itemCargo.Index)
+		if err := saldoContas.Transfere(s.AccountID, vendedor.AccountID, moeda, preco, motivoDaVenda); err != nil {
 			d.log.Info("loja: compra em cash recusada", "conn", s.Conn, "erro", err)
 			// A FRASE TEM DE DIZER A MOEDA CERTA. O _NN_Not_Enough_Money do cliente é
 			// "Não possui gold suficiente.", e quem tentava comprar em Rcoins lia isso

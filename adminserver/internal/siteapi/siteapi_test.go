@@ -555,6 +555,50 @@ func TestWalletTitlesSpeakDonationNotPurchase(t *testing.T) {
 	}
 }
 
+// TestALinhaDaLojinhaNaoLevaAOutraConta.
+//
+// Do outro lado de uma venda existe uma pessoa. O painel da staff mostra quem
+// foi, e deve mesmo; o site do jogador, não — o login é metade de uma
+// credencial, e o id da conta identifica alguém que não pediu para ser
+// identificado a este leitor.
+//
+// O evento entra ENVENENADO de propósito, com o id e o login da outra ponta
+// espalhados no título e no detalhe. Não é o formato que o painel escreve hoje:
+// é o formato que ele passaria a escrever no dia em que alguém achasse útil
+// dizer de quem foi a compra, que é uma melhoria razoável de se pedir. Este
+// teste é o que faz essa melhoria parar no site em vez de vazar por ele.
+func TestALinhaDaLojinhaNaoLevaAOutraConta(t *testing.T) {
+	const (
+		outroLogin = "ovelhas"
+		outroID    = "4821"
+	)
+	for _, tipo := range []donate.Tipo{donate.TipoLojinhaCompra, donate.TipoLojinhaVenda} {
+		t.Run(string(tipo), func(t *testing.T) {
+			envenenado := donate.Evento{
+				Tipo:     tipo,
+				Titulo:   "Compra na lojinha de " + outroLogin,
+				Detalhe:  "conta " + outroID + " · loja do servidor: venda",
+				Creditos: -250,
+			}
+			s, ok := eventoDoSite(envenenado)
+			if !ok {
+				t.Fatal("a linha da lojinha sumiu do historico do jogador")
+			}
+			texto := s.Titulo + " " + s.Detalhe
+			for _, vazou := range []string{outroLogin, outroID} {
+				if strings.Contains(texto, vazou) {
+					t.Errorf("a outra ponta vazou para o site: %q aparece em %q", vazou, texto)
+				}
+			}
+			// E a linha continua servindo para alguma coisa: o jogador tem de
+			// saber o que aconteceu e quanto custou.
+			if s.Titulo == "" || s.Creditos != -250 {
+				t.Errorf("a linha ficou inutil: titulo=%q creditos=%d", s.Titulo, s.Creditos)
+			}
+		})
+	}
+}
+
 func TestDeliveriesAreIsolatedAndHideStaffIDs(t *testing.T) {
 	c := novoCenario(t)
 	var e struct {
