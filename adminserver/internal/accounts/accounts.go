@@ -305,6 +305,10 @@ type Details struct {
 	// alguém mudar — um formulário que não diz o valor de agora convida a trocar o
 	// que já estava certo.
 	PasseNivel int16
+	// ForaDoRanking esconde a conta do ranking de EXP e de duelo (0161). Vem na
+	// leitura porque a tela mostra a caixa MARCADA ou não: um formulário que não diz
+	// o estado de agora convida a desmarcar o que já estava certo.
+	ForaDoRanking bool
 }
 
 // Get reads the panel-facing fields of one account.
@@ -315,11 +319,11 @@ func (s *Store) Get(ctx context.Context, id int64) (Details, error) {
 		       COALESCE((SELECT balance FROM shop_points WHERE account_id = account.id), 0),
 		       vip_until,
 		       is_blocked, block_reason, blocked_at, blocked_by, blocked_until,
-		       passe_nivel
+		       passe_nivel, fora_do_ranking
 		  FROM account WHERE id = $1`, id).
 		Scan(&d.Email, &d.DonateBalance, &d.ShopPoints, &d.VipUntil,
 			&d.Bloqueio.Blocked, &d.Bloqueio.Reason, &d.Bloqueio.At, &d.Bloqueio.By,
-			&d.Bloqueio.Until, &d.PasseNivel)
+			&d.Bloqueio.Until, &d.PasseNivel, &d.ForaDoRanking)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Details{}, ErrNotFound
 	}

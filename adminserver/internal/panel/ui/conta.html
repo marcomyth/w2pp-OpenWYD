@@ -160,6 +160,30 @@
       </form>
       {{end}}
 
+      {{if .IsAdmin}}
+      <form method="post" action="/contas/{{.Conta.Name}}/fora-do-ranking" class="acao-bloco">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <input type="hidden" name="fora" value="{{if .Conta.ForaDoRanking}}0{{else}}1{{end}}">
+        <label>Ranking</label>
+        <div class="linha">
+          <input name="observacao" type="text" maxlength="300"
+                 placeholder="por quê (opcional)" autocomplete="off">
+          <button type="submit">
+            {{if .Conta.ForaDoRanking}}Voltar ao ranking{{else}}Esconder do ranking{{end}}
+          </button>
+        </div>
+        <p class="dica">
+          {{if .Conta.ForaDoRanking}}
+            Esta conta <strong>não aparece</strong> no ranking do site nem no do bot.
+          {{else}}
+            Tira a conta do ranking do site e do bot. <strong>Não muda mais nada</strong>:
+            a pessoa continua jogando igual, sem cargo e sem poder nenhum a mais.
+          {{end}}
+          Quem tem cargo de admin ou moderador já fica fora, sem precisar disto.
+        </p>
+      </form>
+      {{end}}
+
       <form method="post" action="/contas/{{.Conta.Name}}/vip" class="acao-bloco">
         <input type="hidden" name="csrf" value="{{.CSRF}}">
         <label for="dias">VIP</label>

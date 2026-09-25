@@ -268,37 +268,50 @@ func newTestPanel(t *testing.T, acc Accounts) http.Handler {
 }
 
 // fakeWriter records the writes asked of it and can be made to refuse.
+// foraDoRankingPedido é uma chamada do "Esconder do ranking", como o handler a fez.
+type foraDoRankingPedido struct {
+	AtorConta  int64
+	AtorPainel int64
+	Papel      string
+	Alvo       int64
+	Fora       bool
+	Nota       string
+}
+
 type fakeWriter struct {
-	posse           accounts.Posse
-	posseSolta      []soltura
-	erroSoltarPosse error
-	mu              sync.Mutex
-	roleCall        []string
-	blkCall         []bool
-	lastActor       int64 // who the handler said was acting
-	lastTarget      int64 // and on whom
-	vipDays         []int
-	vipCleared      int
-	prevRole        string
-	pontos          []accounts.PontoDeLojinha
-	pontosErr       error
-	prevBlk         bool
-	prevVip         *time.Time
-	pendentes       int
-	ultimaEdicao    time.Time
-	details         accounts.Details
-	senhaHash       []string
-	criadas         []contaCriada // Criar calls
-	criarErr        error         // forces Criar to return this
-	motivos         []string
-	diasBan         []int
-	buscas          []string
-	achados         []accounts.Achado
-	buscaErr        error
-	prevMotivo      string
-	euBloqueado     bool // what Blocked() answers for the signed-in account
-	blockedErr      error
-	err             error
+	foraDoRanking      []foraDoRankingPedido
+	foraDoRankingMudou bool
+	erroForaDoRanking  error
+	posse              accounts.Posse
+	posseSolta         []soltura
+	erroSoltarPosse    error
+	mu                 sync.Mutex
+	roleCall           []string
+	blkCall            []bool
+	lastActor          int64 // who the handler said was acting
+	lastTarget         int64 // and on whom
+	vipDays            []int
+	vipCleared         int
+	prevRole           string
+	pontos             []accounts.PontoDeLojinha
+	pontosErr          error
+	prevBlk            bool
+	prevVip            *time.Time
+	pendentes          int
+	ultimaEdicao       time.Time
+	details            accounts.Details
+	senhaHash          []string
+	criadas            []contaCriada // Criar calls
+	criarErr           error         // forces Criar to return this
+	motivos            []string
+	diasBan            []int
+	buscas             []string
+	achados            []accounts.Achado
+	buscaErr           error
+	prevMotivo         string
+	euBloqueado        bool // what Blocked() answers for the signed-in account
+	blockedErr         error
+	err                error
 }
 
 func (f *fakeWriter) Buscar(_ context.Context, prefixo string, _ int) ([]accounts.Achado, error) {
@@ -5242,4 +5255,22 @@ func (f *fakeWriter) PontosDeLojinha(_ context.Context, _ int64, _ int) ([]accou
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.pontos, f.pontosErr
+}
+
+// ForaDoRanking guarda o pedido inteiro, e não só o alvo: o que este PR precisa provar é
+// que o ATOR chega à auditoria, e um fake que guardasse só o alvo passaria mesmo com o
+// ator perdido no caminho.
+func (f *fakeWriter) ForaDoRanking(_ context.Context, atorConta, atorPainel int64,
+	papel string, targetID int64, fora bool, nota string,
+) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.foraDoRanking = append(f.foraDoRanking, foraDoRankingPedido{
+		AtorConta: atorConta, AtorPainel: atorPainel, Papel: papel,
+		Alvo: targetID, Fora: fora, Nota: nota,
+	})
+	if f.erroForaDoRanking != nil {
+		return false, f.erroForaDoRanking
+	}
+	return f.foraDoRankingMudou, nil
 }
