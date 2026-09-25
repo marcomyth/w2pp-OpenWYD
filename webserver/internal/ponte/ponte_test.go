@@ -357,19 +357,6 @@ func TestDataVaziaContaComoNula(t *testing.T) {
 	}
 }
 
-// O MAPA DO TIPO DE CHAVE É EXPLÍCITO, e um tipo que ele não conhece devolve VAZIO.
-//
-// Vazio é o que faz quem chama recusar antes de mandar. Se um tipo desconhecido virasse
-// um texto qualquer, o dinheiro sairia para o tipo errado de chave e a processadora
-// recusaria sem dizer por quê — ou pior, encontraria outra chave.
-func TestTipoDeChaveNaPonte(t *testing.T) {
-	casos := map[int16]string{
-		1: "cpf", 2: "email", 3: "phone", 4: "evp",
-		0: "", 5: "", 99: "", -1: "",
-	}
-	for tipo, quer := range casos {
-		if got := TipoDeChaveNaPonte(tipo); got != quer {
-			t.Errorf("tipo %d = %q, quero %q", tipo, got, quer)
-		}
-	}
-}
+// AQUI HAVIA O TESTE DO MAPA DE TIPO DE CHAVE da rota /repasse. Ele saiu com a rota:
+// o tipo só era traduzido para mandar o saque, e o saque automático foi apagado em
+// 25/09/2026. Quem paga agora é a staff, olhando o tipo em português na tela.

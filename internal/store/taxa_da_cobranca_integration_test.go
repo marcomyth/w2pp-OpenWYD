@@ -92,12 +92,13 @@ func TestSemTaxaORepasseSeguraEmVezDeSairCheio(t *testing.T) {
 	// E NÃO APARECE NA FILA DE PAGAR. É a metade que vale dinheiro: um estado novo que
 	// a fila enxergasse por engano pagaria o valor cheio de qualquer forma, e o estado
 	// não teria servido para nada.
-	fila, err := s.RepassesAPagar(ctx, 50)
+	segurado := idDoRepasse(ctx, t, s, venda.CobrancaID)
+	fila, err := s.FilaDePagamentoAMao(ctx, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, r := range fila {
-		if r.CobrancaID == venda.CobrancaID {
+		if r.ID == segurado {
 			t.Errorf("o repasse segurado apareceu na fila de pagar por %d centavos", r.ValorCentavos)
 		}
 	}

@@ -87,7 +87,8 @@ func TestRepasseDoVendedorRecusadoEIncertoMandamOlhar(t *testing.T) {
 		marca func(*Store, context.Context, int64) error
 	}{
 		{"incerto", func(s *Store, ctx context.Context, id int64) error {
-			return s.MarcarRepasseIncerto(ctx, id, "a resposta nao voltou")
+			forcaEstadoDoRepasse(ctx, t, s, id, RepasseIncerto)
+			return nil
 		}},
 		{"recusado", func(s *Store, ctx context.Context, id int64) error {
 			http := int32(422)
@@ -130,7 +131,11 @@ func TestRepasseDoVendedorPagoSaiDoTotal(t *testing.T) {
 		t.Fatal(err)
 	}
 	id := idDoRepasse(ctx, t, s, venda.CobrancaID)
-	if err := s.MarcarRepasseEnviado(ctx, id, "saque-1", precoEmCentavos); err != nil {
+	// ENVIADO à força: nada mais escreve esse estado desde que o saque automático saiu,
+	// e o que este teste mede é o que a tela faz com uma linha que JÁ está nele.
+	forcaEstadoDoRepasse(ctx, t, s, id, RepasseEnviado)
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE rmt_repasse SET identifier_saque = $2 WHERE id = $1`, id, "saque-1"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.MarcarRepassePago(ctx, "saque-1", precoEmCentavos); err != nil {

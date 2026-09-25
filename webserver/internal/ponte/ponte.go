@@ -314,95 +314,19 @@ func (c *Cliente) PedirReembolso(ctx context.Context, identifier, referencia,
 	return r, err
 }
 
-type pedidoRepasse struct {
-	Referencia    string `json:"referencia"`
-	ValorCentavos int64  `json:"valorCentavos"`
-	ChavePix      string `json:"chavePix"`
-	TipoChave     string `json:"tipoChave"`
-	Documento     string `json:"documento"`
-}
-
-// RespostaRepasse é o que volta de /repasse.
+// A ROTA /repasse FOI APAGADA DAQUI, e não desligada.
 //
-// OS QUATRO ESTADOS NÃO SÃO GRAUS DE SUCESSO, são coisas diferentes, e confundir dois
-// deles custa um pagamento a mais:
+// Ela mandava o dinheiro da venda para a chave Pix do vendedor, e era chamada por uma
+// varredura de dois em dois minutos. Quem paga o vendedor agora é a staff, à mão, pela
+// fila do painel (decisão da Hanna, 25/09/2026), então o cliente, o serviço que o usava
+// e os tipos da resposta saíram juntos.
 //
-//	aceito    o saque foi criado. ChaveGateway é o id dele lá.
-//	repetido  esta referência já tinha sido usada. NÃO chamou a processadora de novo,
-//	          e devolve a ChaveGateway da primeira vez. É a idempotência funcionando.
-//	recusado  CERTEZA de que nada saiu. É o único estado em que tentar de novo é
-//	          seguro, e o único que libera a referência.
-//	incerto   a chamada saiu e a resposta não voltou. PODE TER PAGO. A referência
-//	          trava para sempre, e reenviar é a única coisa que não se desfaz.
-type RespostaRepasse struct {
-	Estado string `json:"estado"`
-	// ChaveGateway é o id do saque na processadora, e é por ele que o aviso de saque
-	// encontra o repasse depois. Vem no aceito e no repetido.
-	ChaveGateway string `json:"chaveGateway"`
-	Motivo       string `json:"motivo"`
-	// HTTPSyncpay NULO quer dizer que quem recusou foi a PRÓPRIA PONTE — teto, ou a
-	// trava do saque desligada — e isso não é culpa do vendedor. Com número, a recusa é
-	// da processadora, e o CodigoSyncpay passa intacto ao lado.
-	HTTPSyncpay   *int32 `json:"httpSyncpay"`
-	CodigoSyncpay string `json:"codigoSyncpay"`
-}
-
-// TipoDeChaveNaPonte traduz o tipo da chave para o texto que a ponte espera.
-//
-// Mapa explícito e não conversão: os dois conjuntos vivem em lados diferentes da rede e
-// mudam por motivos diferentes. Um cast passaria a mentir em silêncio no dia em que um
-// deles ganhasse um valor no meio — e aqui a mentira manda dinheiro para o tipo errado
-// de chave, que a processadora recusa sem dizer por quê.
-//
-// Devolve vazio para tipo desconhecido, e quem chama recusa antes de mandar: um tipo
-// vazio no corpo é 400, e é melhor falhar aqui, onde dá para dizer qual era o tipo.
-func TipoDeChaveNaPonte(tipo int16) string {
-	switch tipo {
-	case 1:
-		return "cpf"
-	case 2:
-		return "email"
-	case 3:
-		return "phone"
-	case 4:
-		return "evp"
-	}
-	return ""
-}
-
-// Repassar manda o dinheiro da venda para o vendedor.
-//
-// A REFERÊNCIA É A CHAVE DE IDEMPOTÊNCIA DELES, e é a única. Valor, chave e documento
-// são conferidos contra o que foi mandado da primeira vez: na mesma referência com
-// qualquer um deles diferente, a ponte recusa com alerta e NÃO paga uma segunda vez.
-//
-// Quem escolhe a referência é quem chama, e ela é por TENTATIVA e não por dívida — ver
-// store.ReferenciaDaTentativa, que explica o que isso custou.
-//
-// COMO OS QUATRO ESTADOS CHEGAM AQUI, porque dois deles NÃO vêm na resposta:
-//
-//	aceito, repetido  200, decodificados na resposta.
-//	recusado          422, TAMBÉM decodificado na resposta, e NÃO é erro Go. É
-//	                  informação: nada saiu, e o motivo está nos campos.
-//	incerto           5xx, e vem como ErrIncerta — erro Go, com a resposta VAZIA.
-//
-// Quem chama TEM de tratar o ErrIncerta como o estado incerto, e nunca como uma falha
-// qualquer que se possa repetir. É o caso em que o pagamento PODE ter saído: repetir é
-// a única coisa deste sistema que não se desfaz, e não há consulta de saque para
-// desempatar. A referência trava para sempre do lado da ponte.
-//
-// O `motivo` do incerto se perde nessa tradução, e é uma perda aceita: o que decide o
-// que fazer é o estado, e ele chega inteiro.
-func (c *Cliente) Repassar(ctx context.Context, referencia string, centavos int64,
-	chavePix, tipoChave, documento string,
-) (RespostaRepasse, error) {
-	var r RespostaRepasse
-	err := c.chama(ctx, "/repasse", pedidoRepasse{
-		Referencia: referencia, ValorCentavos: centavos,
-		ChavePix: chavePix, TipoChave: tipoChave, Documento: documento,
-	}, &r)
-	return r, err
-}
+// POR QUE APAGAR EM VEZ DE GUARDAR: código que move dinheiro e não tem chamador é uma
+// arma carregada em cima da mesa — basta alguém achar que "está aqui, então é para
+// usar". O histórico do git guarda a rota inteira, com os quatro estados dela (aceito,
+// repetido, recusado, incerto) e o cuidado do incerto, para quem um dia precisar dela
+// de volta. A ponte na VPS continua respondendo /repasse, com o SAQUE_LIBERADO
+// desligado.
 
 // chama monta, assina e envia.
 //

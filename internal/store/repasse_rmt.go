@@ -74,21 +74,6 @@ const (
 // ErrRepasseInexistente é mexer num repasse que não existe.
 var ErrRepasseInexistente = errors.New("store: repasse inexistente")
 
-// RepasseAPagar é uma dívida com um vendedor, do jeito que quem vai pagar precisa.
-type RepasseAPagar struct {
-	ID            int64
-	CobrancaID    int64
-	Referencia    string
-	VendedorConta int64
-	ValorCentavos int64
-	ChavePix      string
-	TipoChave     TipoChavePix
-	// Documento vai INTEIRO, e é o único lugar do código que o lê assim. A rota de
-	// repasse da ponte o exige, e é essa exigência que justifica a leitura — a nota da
-	// 0120 diz que só o repasse e a staff podem.
-	Documento string
-}
-
 // AbrirRepasse cria a dívida com o vendedor, DENTRO da transação que está marcando a
 // cobrança como paga.
 //
@@ -142,72 +127,6 @@ func abrirRepasse(ctx context.Context, tx pgx.Tx, venda VendaRMT, brutoCentavos 
 		return fmt.Errorf("store: abrindo o repasse da cobranca %d: %w", venda.CobrancaID, err)
 	}
 	return nil
-}
-
-// RepassesAPagar lista as dívidas que ninguém tentou pagar ainda, mais antiga primeiro.
-//
-// Traz a chave e o DOCUMENTO INTEIRO porque é o que a rota da ponte exige. É a única
-// consulta do código que lê o documento sem máscara, e ela existe só para isso.
-//
-// Repasse sem chave cadastrada NÃO aparece: o JOIN o exclui. Não é esquecimento — é que
-// não há para onde mandar, e uma linha sem destino na fila de pagamento faria quem
-// paga tropeçar numa por uma. Essas ficam pendentes até o vendedor cadastrar, que é o
-// que a tela dele pede.
-func (s *Store) RepassesAPagar(ctx context.Context, limite int) ([]RepasseAPagar, error) {
-	if limite <= 0 {
-		limite = 50
-	}
-	rows, err := s.pool.Query(ctx, `
-		SELECT r.id, r.cobranca_id, c.referencia_externa, r.vendedor_conta,
-		       r.valor_centavos, d.chave, d.tipo, coalesce(d.documento, '')
-		  FROM rmt_repasse r
-		  JOIN rmt_cobranca c   ON c.id = r.cobranca_id
-		  JOIN rmt_recebedor d  ON d.account_id = r.vendedor_conta
-		 WHERE r.status = $1 AND d.documento IS NOT NULL
-		 ORDER BY r.criado_em, r.id
-		 LIMIT $2`, repassePendente, limite)
-	if err != nil {
-		return nil, fmt.Errorf("store: repasses a pagar: %w", err)
-	}
-	defer rows.Close()
-	var fila []RepasseAPagar
-	for rows.Next() {
-		var r RepasseAPagar
-		var tipo int16
-		if err := rows.Scan(&r.ID, &r.CobrancaID, &r.Referencia, &r.VendedorConta,
-			&r.ValorCentavos, &r.ChavePix, &tipo, &r.Documento); err != nil {
-			return nil, fmt.Errorf("store: repasses a pagar: %w", err)
-		}
-		r.TipoChave = TipoChavePix(tipo)
-		fila = append(fila, r)
-	}
-	return fila, rows.Err()
-}
-
-// MarcarRepasseEnviado registra que a ponte ACEITOU, com o id do saque.
-//
-// SÓ SAI DE PENDENTE, e a condição no WHERE é o que impede o pior caso: dois
-// trabalhadores pegando a mesma linha, os dois mandando, e o vendedor recebendo duas
-// vezes. Quem perder a corrida não muda nada e vê que não mudou.
-func (s *Store) MarcarRepasseEnviado(ctx context.Context, id int64, identifierSaque string, enviadoCentavos int64) error {
-	return s.mudaRepasse(ctx, id, `
-		UPDATE rmt_repasse
-		   SET status = $2, identifier_saque = $3, enviado_centavos = $4, enviado_em = now()
-		 WHERE id = $1 AND status = $5`,
-		id, repasseEnviado, identifierSaque, enviadoCentavos, repassePendente)
-}
-
-// MarcarRepasseIncerto é a resposta que não se sabe: a chamada saiu e não voltou.
-//
-// A linha sai de pendente para NUNCA MAIS ser reenviada automaticamente. Ela vai para a
-// fila de gente, e é a fila mais urgente das duas — cada linha é um vendedor que talvez
-// já tenha o dinheiro e talvez não.
-func (s *Store) MarcarRepasseIncerto(ctx context.Context, id int64, motivo string) error {
-	return s.mudaRepasse(ctx, id, `
-		UPDATE rmt_repasse
-		   SET status = $2, recusa_texto = $3, enviado_em = now()
-		 WHERE id = $1 AND status = $4`,
-		id, repasseIncerto, motivo, repassePendente)
 }
 
 // MarcarRepasseRecusado registra a recusa COM CERTEZA de que nada saiu.
@@ -378,29 +297,4 @@ func (s *Store) ResolverRecusa(ctx context.Context, id int64, ator AtorDoRepasse
 		       recusa_http = NULL, recusa_codigo = NULL, recusa_texto = NULL
 		 WHERE id = $1 AND status = $4`,
 		id, repassePendente, ator.Nome, repasseRecusado)
-}
-
-// RepassesEsperandoCadastro conta as dívidas pendentes cujo vendedor não tem chave ou
-// não tem documento.
-//
-// EXISTE SÓ PARA O NÚMERO APARECER. Essas linhas não entram na fila de pagar — não há
-// para onde mandar —, e antes disso elas também não entravam em contador nenhum: uma
-// varredura com dez delas dizia "nada a fazer". A pessoa ficava esperando o dinheiro
-// dela e o log dizia que estava tudo certo.
-//
-// Consulta separada e não um JOIN na fila de pagar, porque são coisas diferentes: a
-// fila é "o que eu vou tentar mandar agora", e isto é "quanta gente está esperando o
-// próprio cadastro". Misturá-las faria a fila de pagar carregar linhas que ela nunca
-// vai processar.
-func (s *Store) RepassesEsperandoCadastro(ctx context.Context) (int, error) {
-	var n int
-	err := s.pool.QueryRow(ctx, `
-		SELECT count(*) FROM rmt_repasse r
-		  LEFT JOIN rmt_recebedor d ON d.account_id = r.vendedor_conta
-		 WHERE r.status = $1 AND (d.account_id IS NULL OR d.documento IS NULL)`,
-		repassePendente).Scan(&n)
-	if err != nil {
-		return 0, fmt.Errorf("store: contando repasses sem cadastro: %w", err)
-	}
-	return n, nil
 }

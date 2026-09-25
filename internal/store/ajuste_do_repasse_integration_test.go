@@ -97,7 +97,7 @@ func TestAjusteNaoDevolveParaAFilaDePagar(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fila, err := s.RepassesAPagar(ctx, 50)
+	fila, err := s.FilaDePagamentoAMao(ctx, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
