@@ -56,7 +56,7 @@ func TestPagouNoPrazoRecebeMesmoComOAvisoAtrasado(t *testing.T) {
 
 	// E só então o aviso chega, dizendo que o pagamento aconteceu ANTES do prazo.
 	pagoEm := time.Now().Add(-2 * time.Minute)
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, pagoEm, HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, pagoEm, HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestPagouForaDoPrazoNaoRecebeNemComItemDisponivel(t *testing.T) {
 
 	// Tudo ainda de pé: anúncio ativo, item marcado, cobrança ABERTA. Só o
 	// pagamento é que veio tarde.
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, foraDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, foraDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestSemAHoraDoPagamentoNaoConfirma(t *testing.T) {
 	s, ctx := freshStore(t)
 	_, _, ref := cobrancaPronta(ctx, t, s, "semhora")
 
-	_, _, err := s.ConfirmarCobrancaRMT(ctx, ref, time.Time{}, HoraDaProcessadora, 0)
+	_, _, err := s.ConfirmarCobrancaRMT(ctx, ref, time.Time{}, HoraDaProcessadora, 0, taxaZero())
 
 	if err == nil {
 		t.Fatal("confirmou sem saber quando o pagamento aconteceu")
@@ -163,11 +163,11 @@ func TestOMesmoAvisoDuasVezesEntregaUmaVez(t *testing.T) {
 	_, comprador, ref := cobrancaPronta(ctx, t, s, "repetido")
 	pagoEm := dentroDoPrazo()
 
-	res1, venda1, err := s.ConfirmarCobrancaRMT(ctx, ref, pagoEm, HoraDaProcessadora, 0)
+	res1, venda1, err := s.ConfirmarCobrancaRMT(ctx, ref, pagoEm, HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
-	res2, venda2, err := s.ConfirmarCobrancaRMT(ctx, ref, pagoEm, HoraDaProcessadora, 0)
+	res2, venda2, err := s.ConfirmarCobrancaRMT(ctx, ref, pagoEm, HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +209,7 @@ func TestDoisAvisosAoMesmoTempoEntregamUmaVez(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		go func() {
 			largada.Wait() // as duas partem juntas
-			res, _, err := s.ConfirmarCobrancaRMT(context.Background(), ref, pagoEm, HoraDaProcessadora, 0)
+			res, _, err := s.ConfirmarCobrancaRMT(context.Background(), ref, pagoEm, HoraDaProcessadora, 0, taxaZero())
 			fora <- saida{res, err}
 		}()
 	}
@@ -292,7 +292,7 @@ func TestCompradorQueSaiParaPagarNoCelularRecebe(t *testing.T) {
 	}
 
 	// 3: o Pix cai, DENTRO do prazo.
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -357,7 +357,7 @@ func TestValorDiferenteNaoEntregaENaoFechaACobranca(t *testing.T) {
 	_, comprador, ref := cobrancaPronta(ctx, t, s, "valorerrado")
 
 	// A cobrança pede 12345 centavos; a processadora diz ter recebido 100.
-	res, _, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(), HoraDaProcessadora, 100)
+	res, _, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(), HoraDaProcessadora, 100, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -421,7 +421,7 @@ func TestValorCertoPassa(t *testing.T) {
 	s, ctx := freshStore(t)
 	_, _, ref := cobrancaPronta(ctx, t, s, "valorcerto")
 
-	res, _, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(), HoraDaProcessadora, 12345)
+	res, _, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(), HoraDaProcessadora, 12345, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -441,7 +441,7 @@ func TestAOrigemDoRelogioFicaGravada(t *testing.T) {
 	_, _, ref := cobrancaPronta(ctx, t, s, "relogio")
 
 	if _, _, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(),
-		HoraDoServidor, 0); err != nil {
+		HoraDoServidor, 0, taxaZero()); err != nil {
 		t.Fatal(err)
 	}
 

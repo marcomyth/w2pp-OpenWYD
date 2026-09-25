@@ -45,7 +45,7 @@ func TestVendaConcluidaAbreORepasse(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "repasse-ok")
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestConfirmacaoRepetidaNaoDuplicaORepasse(t *testing.T) {
 	v := montaVenda(ctx, t, s, "repasse-repetido")
 
 	for i := 0; i < 3; i++ {
-		if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos); err != nil {
+		if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero()); err != nil {
 			t.Fatalf("confirmacao %d: %v", i, err)
 		}
 	}
@@ -105,7 +105,7 @@ func TestPagaSemItemNaoAbreRepasse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestValorDivergenteNaoAbreRepasse(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "repasse-divergente")
 
-	res, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos-1)
+	res, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos-1, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestRepassesAPagarTrazemODestinoEPulamQuemNaoTemDocumento(t *testing.T) {
 		`UPDATE rmt_recebedor SET documento = NULL WHERE account_id = $1`, v.vendedor); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos); err != nil {
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -203,7 +203,7 @@ func TestRepassesAPagarTrazemODestinoEPulamQuemNaoTemDocumento(t *testing.T) {
 func TestTransicoesDoRepasseSoSaemDoEstadoCerto(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "repasse-transicao")
-	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ func TestTransicoesDoRepasseSoSaemDoEstadoCerto(t *testing.T) {
 func TestIncertoSaiDaFilaDePagarEVaiParaADeGente(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "repasse-incerto")
-	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ func TestRecusaDaPonteSeDistingueDaRecusaDaProcessadora(t *testing.T) {
 
 	fazRepasse := func(sufixo string) int64 {
 		v := montaVenda(ctx, t, s, sufixo)
-		_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+		_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -347,7 +347,7 @@ func TestIncertoSoSaiPelaMaoDeUmaPessoa(t *testing.T) {
 
 	fazIncerto := func(sufixo string) int64 {
 		v := montaVenda(ctx, t, s, sufixo)
-		_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+		_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -424,7 +424,7 @@ func TestIncertoSoSaiPelaMaoDeUmaPessoa(t *testing.T) {
 func TestTentativaNovaSoNasceDePendente(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "tentativa-trava")
-	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -452,7 +452,7 @@ func TestTentativaNovaSoNasceDePendente(t *testing.T) {
 	// ter pago e ninguém sabe.
 	s2, ctx2 := freshStore(t)
 	v2 := montaVenda(ctx2, t, s2, "tentativa-incerta")
-	_, venda2, err := s2.ConfirmarCobrancaRMT(ctx2, v2.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	_, venda2, err := s2.ConfirmarCobrancaRMT(ctx2, v2.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -518,7 +518,7 @@ func TestTentativaNovaSoNasceDePendente(t *testing.T) {
 func TestTrocarChaveComRepasseEmAbertoERecusadoLiberaNoRecusado(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "trava-repasse")
-	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -545,7 +545,7 @@ func TestTrocarChaveComRepasseEmAbertoERecusadoLiberaNoRecusado(t *testing.T) {
 	// para a chave antiga, e trocar agora embaralharia quem recebeu o quê.
 	s2, ctx2 := freshStore(t)
 	v2 := montaVenda(ctx2, t, s2, "trava-incerto")
-	_, venda2, err := s2.ConfirmarCobrancaRMT(ctx2, v2.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	_, venda2, err := s2.ConfirmarCobrancaRMT(ctx2, v2.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -561,7 +561,7 @@ func TestTrocarChaveComRepasseEmAbertoERecusadoLiberaNoRecusado(t *testing.T) {
 	// corrigi-la, e o dinheiro dele ficaria preso para sempre.
 	s3, ctx3 := freshStore(t)
 	v3 := montaVenda(ctx3, t, s3, "trava-recusado")
-	_, venda3, err := s3.ConfirmarCobrancaRMT(ctx3, v3.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos)
+	_, venda3, err := s3.ConfirmarCobrancaRMT(ctx3, v3.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -588,7 +588,7 @@ func TestQuemNaoTemCadastroCompletoApareceNaFilaDeGente(t *testing.T) {
 		`UPDATE rmt_recebedor SET documento = NULL WHERE account_id = $1`, v.vendedor); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos); err != nil {
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -665,7 +665,7 @@ func TestVendedorAntigoConseguePreencherOCPFQueFalta(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos); err != nil {
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero()); err != nil {
 		t.Fatal(err)
 	}
 

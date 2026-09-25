@@ -136,6 +136,10 @@ func (p PonteDeVerdade) ConsultarTransacao(ctx context.Context, identifier strin
 		Status:        r.Status,
 		Referencia:    r.Referencia,
 		ValorCentavos: r.ValorCentavos,
+		// PASSA O PONTEIRO ADIANTE, sem trocar nulo por zero em lugar nenhum do
+		// caminho. Cada tradução que "simplifica" o nulo aqui custaria a taxa de uma
+		// venda, e a perda seria invisível.
+		TaxaCentavos: r.TaxaCentavos,
 	}
 	// "achada" é o único estado que diz que existe transação. Comparado em minúsculo
 	// e sem espaço porque a única coisa pior do que um contrato mudar é ele mudar de

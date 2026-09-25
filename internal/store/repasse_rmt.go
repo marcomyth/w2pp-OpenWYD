@@ -16,6 +16,9 @@ const (
 	repassePago     int16 = 3
 	repasseRecusado int16 = 4
 	repasseIncerto  int16 = 5
+	// repasseSemTaxa (0131): a venda foi paga e a taxa da processadora é
+	// desconhecida, então não se sabe o líquido e o repasse fica segurado.
+	repasseSemTaxa int16 = 6
 )
 
 // EstadoRepasse é o que aconteceu com a dívida com o vendedor.
@@ -49,6 +52,23 @@ const (
 	// duas vezes não se desfaz, e não existe consulta de saque para desempatar. Só uma
 	// pessoa olhando o painel da processadora resolve.
 	RepasseIncerto EstadoRepasse = EstadoRepasse(repasseIncerto)
+	// RepasseSemTaxa: a dívida existe, o valor líquido NÃO se sabe, e nada sai daqui
+	// sozinho.
+	//
+	// Nasce quando a confirmação do pagamento vem sem a taxa da processadora. As
+	// outras duas saídas possíveis eram piores: pagar o bruto faz a casa perder a
+	// taxa em silêncio, e um repasse de valor cheio PARECE certo, então ninguém
+	// descobre; e não criar o repasse deixa o vendedor invisível, que é o bug que a
+	// 0124 existe para ter consertado.
+	//
+	// NÃO É O INCERTO, e essa distinção vale dinheiro. Incerto quer dizer "a chamada
+	// saiu e pode ter pago", e por isso a staff tem uma ação que o resolve como PAGO.
+	// Um repasse segurado por taxa desconhecida nunca saiu: se caísse naquela ação,
+	// seria dado como pago sem nenhum centavo ter andado. A separação é o que impede
+	// isso, e é a razão de ser deste estado.
+	//
+	// A saída é InformarTaxaDaCobranca, que sabe o líquido e devolve à fila.
+	RepasseSemTaxa EstadoRepasse = EstadoRepasse(repasseSemTaxa)
 )
 
 // ErrRepasseInexistente é mexer num repasse que não existe.
@@ -80,12 +100,44 @@ type RepasseAPagar struct {
 // IDEMPOTENTE pelo índice único sobre a cobrança: a confirmação repetida encontra a
 // linha que já existe em vez de criar uma segunda dívida pela mesma venda. Vale mais
 // aqui do que em qualquer outro lugar, porque pagar duas vezes não se desfaz.
-func abrirRepasse(ctx context.Context, tx pgx.Tx, venda VendaRMT, valorCentavos int64) error {
+//
+// O VALOR É O LÍQUIDO, e taxaCentavos é o que a processadora reteve do que entrou.
+//
+// NULO NÃO É ZERO: nulo quer dizer que ninguém sabe a taxa, e nesse caso o repasse
+// nasce SEGURADO, em repasseSemTaxa. Tratar o nulo como zero seria o pior erro
+// possível aqui — o repasse sairia com o valor cheio, a casa bancaria a taxa em
+// silêncio, e ninguém descobriria, porque um repasse de valor cheio parece certo.
+//
+// O bruto fica gravado ao lado do líquido, mesmo quando os dois são iguais. Sem ele
+// ninguém responde "por que recebi menos do que o anúncio dizia" sem ir procurar a
+// cobrança e adivinhar que taxa valia naquele dia, e numa disputa sobre dinheiro a
+// resposta tem de estar na linha.
+func abrirRepasse(ctx context.Context, tx pgx.Tx, venda VendaRMT, brutoCentavos int64, taxaCentavos *int64) error {
+	liquido, status := brutoCentavos, repassePendente
+	switch {
+	case taxaCentavos == nil:
+		// Segurado: sem a taxa não há líquido, e o bruto fica em valor_centavos só
+		// para a dívida ser VISÍVEL enquanto espera. Não é o que se vai pagar — o
+		// estado 6 é o que diz isso, e nenhuma fila de pagamento lê este estado.
+		status = repasseSemTaxa
+	case *taxaCentavos < 0 || *taxaCentavos >= brutoCentavos:
+		// TAXA IMPOSSÍVEL, ou que come a venda inteira: também segura.
+		//
+		// Negativa não existe. Igual ou maior que o bruto daria líquido zero ou
+		// negativo, e nenhum dos dois é um pagamento: zero sairia na fila para a
+		// ponte tentar mandar nada, e negativo seria um saque ao contrário. Num
+		// sistema de dinheiro, o número absurdo para para uma pessoa olhar em vez
+		// de virar operação — e, com o preço mínimo em R$ 1,00, uma taxa que empata
+		// com a venda é um cenário alcançável, não hipótese.
+		status = repasseSemTaxa
+	default:
+		liquido = brutoCentavos - *taxaCentavos
+	}
 	_, err := tx.Exec(ctx, `
-		INSERT INTO rmt_repasse (cobranca_id, vendedor_conta, valor_centavos, status)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO rmt_repasse (cobranca_id, vendedor_conta, valor_centavos, bruto_centavos, status)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (cobranca_id) DO NOTHING`,
-		venda.CobrancaID, venda.VendedorConta, valorCentavos, repassePendente)
+		venda.CobrancaID, venda.VendedorConta, liquido, brutoCentavos, status)
 	if err != nil {
 		return fmt.Errorf("store: abrindo o repasse da cobranca %d: %w", venda.CobrancaID, err)
 	}

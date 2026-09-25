@@ -193,7 +193,7 @@ func TestVencerAConferidaRespeitaOEstadoDeAgora(t *testing.T) {
 		venceOPrazo(ctx, t, s, v.ref)
 		id := idDaCobranca(ctx, t, s, v.ref)
 		if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, time.Now().UTC(),
-			HoraDaProcessadora, precoEmCentavos); err != nil {
+			HoraDaProcessadora, precoEmCentavos, taxaZero()); err != nil {
 			t.Fatal(err)
 		}
 
@@ -370,7 +370,7 @@ func TestPagamentoDepoisDeVencerVaiPararNaFilaDeDevolucao(t *testing.T) {
 
 	// E a consulta acha o pagamento, dez minutos depois do prazo.
 	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, time.Now().UTC(),
-		HoraDaProcessadora, precoEmCentavos)
+		HoraDaProcessadora, precoEmCentavos, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
