@@ -624,6 +624,16 @@ func (h *Handler) Routes() http.Handler {
 	// AFIRMA o que aconteceu com o dinheiro de uma pessoa. "Foi pago" fecha uma
 	// dívida sem que nada tenha saído da conta, e "não foi pago" manda o dinheiro
 	// sair de novo. Nenhuma das duas é decisão de plantão.
+	// /dinheiro É A PORTA DA SEÇÃO, e ela não existia: o item do menu apontava para
+	// ela desde que a seção foi criada, e clicar dava 404.
+	//
+	// Ela não é uma tela: é um desvio para a primeira fila que este servidor tem. Uma
+	// tela própria seria uma quinta coisa para manter e não responderia nada que as
+	// abas já não digam; um link direto para /repasses no menu quebraria no servidor
+	// montado sem repasse. O desvio resolve os dois.
+	if h.cfg.Repasses != nil || h.cfg.FilasRMT != nil {
+		mux.Handle("GET /dinheiro", h.requireStaff(http.HandlerFunc(h.dinheiro)))
+	}
 	if h.cfg.Repasses != nil {
 		mux.Handle("GET /repasses", h.requireStaff(http.HandlerFunc(h.repasses)))
 		mux.Handle("POST /repasses/{repasse}/resolver",

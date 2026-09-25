@@ -26,6 +26,8 @@
   <h1>Valores divergentes</h1>
   <p class="sub">Entrou dinheiro com um valor diferente do que foi cobrado.</p>
 
+  {{template "abas-dinheiro" .}}
+
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
   <p class="nota">

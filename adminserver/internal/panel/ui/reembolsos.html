@@ -25,6 +25,8 @@
   <h1>Reembolsos parados</h1>
   <p class="sub">Dinheiro que devia ter voltado ao comprador e não voltou sozinho.</p>
 
+  {{template "abas-dinheiro" .}}
+
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
   <p class="nota">

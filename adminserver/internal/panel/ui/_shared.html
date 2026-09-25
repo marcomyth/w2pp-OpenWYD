@@ -453,7 +453,7 @@
          sem ele, saber se há dinheiro parado exigia abrir as quatro telas. */}}
     {{if and .IsAdmin (or .HasRepasse .HasFilasRMT)}}
     <span class="grupo">
-      <a href="/dinheiro" {{if eq .Nav "dinheiro"}}class="on"{{end}}>Dinheiro{{if .FilasDinheiro}} <span class="conta">{{.FilasDinheiro}}</span>{{end}}</a>
+      <a href="/dinheiro" {{if or (eq .Nav "dinheiro") (eq .Nav "repasses") (eq .Nav "reembolsos") (eq .Nav "orfaos") (eq .Nav "divergentes")}}class="on"{{end}}>Dinheiro{{if .FilasDinheiro}} <span class="conta">{{.FilasDinheiro}}</span>{{end}}</a>
     </span>
     {{end}}
 
@@ -661,11 +661,14 @@
      e quem procurava dinheiro varria o menu inteiro. O contador em cada aba é o
      que faz a seção valer: sem ele, saber onde há gente esperando exigia abrir
      as quatro. */}}
+{{/* A ABA ACESA SAI DO .Nav, e não de um campo próprio: cada uma das quatro
+     páginas já preenche o Nav com o nome da sua fila, e um segundo campo dizendo
+     a mesma coisa seria uma cópia que pode discordar. */}}
 <div class="abas-conta">
-  {{if .HasRepasse}}<a href="/repasses" {{if eq .Aba "repasses"}}class="on"{{end}}>Pagamentos a vendedor{{if .Filas.Repasses}} <span class="conta">{{.Filas.Repasses}}</span>{{end}}</a>{{end}}
-  {{if .HasFilasRMT}}<a href="/reembolsos" {{if eq .Aba "reembolsos"}}class="on"{{end}}>Reembolsos{{if .Filas.Reembolsos}} <span class="conta">{{.Filas.Reembolsos}}</span>{{end}}</a>{{end}}
-  {{if .HasFilasRMT}}<a href="/orfaos" {{if eq .Aba "orfaos"}}class="on"{{end}}>Pagamentos sem cobrança{{if .Filas.Orfaos}} <span class="conta">{{.Filas.Orfaos}}</span>{{end}}</a>{{end}}
-  {{if .HasFilasRMT}}<a href="/divergentes" {{if eq .Aba "divergentes"}}class="on"{{end}}>Valor divergente{{if .Filas.Divergentes}} <span class="conta">{{.Filas.Divergentes}}</span>{{end}}</a>{{end}}
+  {{if .HasRepasse}}<a href="/repasses" {{if eq .Nav "repasses"}}class="on"{{end}}>Pagamentos a vendedor{{if .Filas.Repasses}} <span class="conta">{{.Filas.Repasses}}</span>{{end}}</a>{{end}}
+  {{if .HasFilasRMT}}<a href="/reembolsos" {{if eq .Nav "reembolsos"}}class="on"{{end}}>Reembolsos{{if .Filas.Reembolsos}} <span class="conta">{{.Filas.Reembolsos}}</span>{{end}}</a>{{end}}
+  {{if .HasFilasRMT}}<a href="/orfaos" {{if eq .Nav "orfaos"}}class="on"{{end}}>Pagamentos sem cobrança{{if .Filas.Orfaos}} <span class="conta">{{.Filas.Orfaos}}</span>{{end}}</a>{{end}}
+  {{if .HasFilasRMT}}<a href="/divergentes" {{if eq .Nav "divergentes"}}class="on"{{end}}>Valor divergente{{if .Filas.Divergentes}} <span class="conta">{{.Filas.Divergentes}}</span>{{end}}</a>{{end}}
 </div>
 {{end}}
 
