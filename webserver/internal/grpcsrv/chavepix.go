@@ -197,10 +197,10 @@ func (s *ServerRmt) DeletePixKey(ctx context.Context, req *webv1.DeletePixKeyReq
 	case err == nil:
 		return &webv1.DeletePixKeyResponse{Result: webv1.PixKeyDeleteResult_PIX_KEY_DELETE_RESULT_OK}, nil
 	case errors.Is(err, store.ErrNotFound):
-		// O store devolve ErrNotFound tanto para conta sem chave quanto para conta
-		// que não existe, e para ESTE caminho as duas pedem a mesma resposta: não há
-		// o que apagar. O account_id vem da sessão, então "conta que não existe" não
-		// é um estado que o site alcance.
+		// CONTA SEM CHAVE E CONTA INEXISTENTE CAEM AQUI JUNTAS, e isso é escolha: o
+		// account_id vem da SESSÃO, então "conta que não existe" não é um estado que
+		// o site alcance — e para este caminho as duas pedem a mesma resposta, que é
+		// "não há o que apagar".
 		return &webv1.DeletePixKeyResponse{Result: webv1.PixKeyDeleteResult_PIX_KEY_DELETE_RESULT_NO_KEY}, nil
 	case errors.Is(err, store.ErrVendaEmCurso):
 		return &webv1.DeletePixKeyResponse{Result: webv1.PixKeyDeleteResult_PIX_KEY_DELETE_RESULT_SALE_IN_PROGRESS}, nil
