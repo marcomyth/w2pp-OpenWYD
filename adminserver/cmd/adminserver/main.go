@@ -73,6 +73,16 @@ const (
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	// O VERBO VEM ANTES DAS FLAGS, e é lido à mão de propósito: o flag padrão do Go pararia
+	// no primeiro argumento que não começa com "-", e um subcomando misturado com as flags
+	// do servidor faria "criar-usuario" virar um servidor subindo com argumento estranho.
+	if len(os.Args) > 1 && os.Args[1] == criarUsuarioCmd {
+		if err := criarUsuario(logger, os.Args[2:], os.Stdin); err != nil {
+			logger.Error(criarUsuarioCmd+" falhou", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(logger); err != nil {
 		logger.Error("adminserver failed", "err", err)
 		os.Exit(1)
@@ -120,6 +130,17 @@ func run(logger *slog.Logger) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	// A CHAVE QUE DESLIGA O CAMINHO ANTIGO. Vazia vale DESLIGADA, ou seja, os dois caminhos
+	// convivem — que é o que tem de valer na estreia. Valor que este código não entende é
+	// ERRO e o serviço não sobe: ligada por engano tranca todo mundo para fora, e desligada
+	// por engano deixa entrar quem já entrava. As duas merecem um erro alto em vez de um
+	// padrão adivinhado.
+	soUsuarioDoPainel, err := acesso.Ler(os.Getenv("W2PP_PAINEL_SO_USUARIO"))
+	if err != nil {
+		return fmt.Errorf("W2PP_PAINEL_SO_USUARIO: %w", err)
+	}
+	logger.Info(fraseDoLoginDoPainel(soUsuarioDoPainel))
 
 	pool, err := store.Pool(ctx, *dsn)
 	if err != nil {
@@ -227,36 +248,44 @@ func run(logger *slog.Logger) error {
 	sessoes := session.New(*sessionTTL)
 
 	handler, err := panel.New(panel.Config{
-		Platform:    plat,
-		Accounts:    store.New(pool),
-		GameData:    game,
-		Writer:      accounts.New(pool),
-		Entregas:    entrega.New(pool),
-		Personagens: personagem.New(pool),
-		Eventos:     store.New(pool),
-		MesaXP:      store.New(pool),
-		Masmorras:   store.New(pool),
-		Quests:      store.New(pool),
-		Spawn:       store.New(pool),
-		Combate:     store.New(pool),
-		BonusDrop:   store.New(pool),
-		Maquinas:    store.New(pool),
-		MesaDrops:   store.New(pool),
-		Denuncias:   store.New(pool),
-		Repasses:    store.New(pool),
-		FilasRMT:    store.New(pool),
-		Passe:       store.New(pool),
-		Guildas:     store.New(pool),
-		Carteira:    donate.New(pool),
-		Trocas:      store.New(pool),
-		Censo:       store.New(pool),
-		Chat:        store.New(pool),
-		Jogo:        live,
-		Blocos:      blocos,
-		Audit:       audit.New(pool),
-		Sessions:    sessoes,
-		Logger:      logger,
-		SecureOnly:  !*insecureCookies,
+		Platform: plat,
+		Accounts: store.New(pool),
+		// QUEM ADMINISTRA (0130). Sempre montado: a tabela existe desde a migração, e
+		// deixar isto opcional só criaria um jeito de subir o painel sem a tela que a
+		// Hanna pediu.
+		Painel: store.New(pool),
+		// SoUsuarioDoPainel desliga o login por conta de jogo com cargo. A Hanna liga
+		// quando tiver criado os usuários dela; ligar antes trancaria para fora a única
+		// pessoa que poderia criá-los.
+		SoUsuarioDoPainel: soUsuarioDoPainel,
+		GameData:          game,
+		Writer:            accounts.New(pool),
+		Entregas:          entrega.New(pool),
+		Personagens:       personagem.New(pool),
+		Eventos:           store.New(pool),
+		MesaXP:            store.New(pool),
+		Masmorras:         store.New(pool),
+		Quests:            store.New(pool),
+		Spawn:             store.New(pool),
+		Combate:           store.New(pool),
+		BonusDrop:         store.New(pool),
+		Maquinas:          store.New(pool),
+		MesaDrops:         store.New(pool),
+		Denuncias:         store.New(pool),
+		Repasses:          store.New(pool),
+		FilasRMT:          store.New(pool),
+		Passe:             store.New(pool),
+		Guildas:           store.New(pool),
+		Carteira:          donate.New(pool),
+		Trocas:            store.New(pool),
+		Censo:             store.New(pool),
+		Chat:              store.New(pool),
+		Jogo:              live,
+		Blocos:            blocos,
+		Audit:             audit.New(pool),
+		Sessions:          sessoes,
+		Logger:            logger,
+		SecureOnly:        !*insecureCookies,
 		// A MESMA variável do jogo e do site: um servidor trancado para entrar e
 		// aberto para cadastrar seria a porta que ninguém lembra de fechar.
 		SemCadastro: acessoRestrito,
@@ -385,4 +414,17 @@ func mandaChaveWeb(chave string) grpc.UnaryClientInterceptor {
 		}
 		return invoker(ctx, method, req, reply, cc, opts...)
 	}
+}
+
+// fraseDoLoginDoPainel escreve no boot qual caminho de login está valendo.
+//
+// OS DOIS ESTADOS SÃO ESCRITOS, pelo mesmo motivo das outras trancas deste sistema: um log
+// que só fala quando a chave liga faz do silêncio duas coisas diferentes — "está desligada"
+// e "esta versão nem tem a chave" —, e é isso que alguém precisa distinguir quando não
+// consegue entrar.
+func fraseDoLoginDoPainel(soUsuario bool) string {
+	if soUsuario {
+		return "login do painel: SÓ usuário do painel; conta de jogo com cargo NÃO entra mais"
+	}
+	return "login do painel: usuário do painel E conta de jogo com cargo (caminho antigo ainda ligado)"
 }

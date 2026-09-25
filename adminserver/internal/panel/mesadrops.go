@@ -130,7 +130,7 @@ func (h *Handler) setRegraDrop(w http.ResponseWriter, r *http.Request) {
 		velho = regraDropParaAudit(antes)
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetDropRule, Old: velho, New: regraDropParaAudit(regra),
 	}); err != nil {
 		h.auditoriaFalhou(w, err)
@@ -166,7 +166,7 @@ func (h *Handler) apagarRegraDrop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionDeleteDropRule, Old: regraDropParaAudit(antes),
 	}); err != nil {
 		h.auditoriaFalhou(w, err)

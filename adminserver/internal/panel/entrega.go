@@ -98,7 +98,7 @@ func (h *Handler) entregarItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionDeliverItem, TargetID: auth.ID,
 		New: map[string]any{
 			"entrega": ids[0], "entregas": ids, "item": indice, "nome": nomeItem, "dias": dias,
@@ -199,7 +199,7 @@ func (h *Handler) cancelarEntrega(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionCancelDelivery, TargetID: auth.ID,
 		Old: map[string]any{"entrega": id},
 	}); err != nil {

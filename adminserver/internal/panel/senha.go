@@ -84,7 +84,7 @@ func (h *Handler) setSenha(w http.ResponseWriter, r *http.Request) {
 	// the password nor its hash goes in: the log is readable by every admin, and
 	// a hash in it is a hash to attack offline.
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetPassword, TargetID: auth.ID,
 		New: map[string]any{"gerada": gerada, "sessoes_encerradas": encerradas},
 	}); err != nil {

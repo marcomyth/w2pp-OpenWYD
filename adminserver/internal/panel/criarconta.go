@@ -84,7 +84,7 @@ func (h *Handler) criarConta(w http.ResponseWriter, r *http.Request) {
 	// Neither the password nor its hash goes in the log: every admin can read
 	// the audit, and a hash sitting there is a hash to attack offline.
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionCreateAccount, TargetID: id,
 		New: map[string]any{"conta": nome, "senha_gerada": gerada},
 	}); err != nil {

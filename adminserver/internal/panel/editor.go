@@ -453,7 +453,7 @@ func (h *Handler) setSlot(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: acao, TargetID: auth.ID,
 		Old: registroItem(ficha.Nome, dest, slot, antes),
 		New: registroItem(ficha.Nome, dest, slot, novo),
@@ -588,7 +588,7 @@ func (h *Handler) setAtributos(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: acaoAtributos, TargetID: auth.ID,
 		Old: registroAtributos(ficha.Nome, antes),
 		New: registroAtributos(ficha.Nome, a),
@@ -762,7 +762,7 @@ func (h *Handler) ajustarDonate(w http.ResponseWriter, r *http.Request) {
 	// the account is auditable from either side; this entry is what makes the
 	// change visible in the panel's timeline alongside role and VIP changes.
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: acaoDonateAjustado, TargetID: auth.ID,
 		New: map[string]any{"delta": delta, "saldo": saldo, "motivo": motivo},
 	}); err != nil {

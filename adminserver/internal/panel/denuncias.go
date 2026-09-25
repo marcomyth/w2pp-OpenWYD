@@ -100,7 +100,7 @@ func (h *Handler) tratarDenuncia(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionHandleReport,
 		New:    map[string]any{"denuncia": id},
 	}); err != nil {
