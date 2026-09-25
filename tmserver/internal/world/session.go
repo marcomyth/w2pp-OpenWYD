@@ -122,8 +122,16 @@ type Session struct {
 	Slot          int
 	Mode          Mode
 	IP            string
-	CrackError    int  // anti-cheat violation count (CUser.NumError)
-	Whisper       bool // true blocks incoming whispers
+	// Maquina is MSG_AccountLogin.AdapterName, kept as the legacy kept it in
+	// CUser.Mac (_MSG_AccountLogin.cpp:70): the GUID of the client's first network
+	// adapter, parsed into four ints by the WYD.exe (0x4865DC-0x4866FD, sscanf
+	// "%x %x %x %x"). It is what tells two accounts on one computer apart from two
+	// players — IP cannot, because behind the Railway proxy every connection
+	// arrives from a different 100.64.0.x. Sent by the client, so it is a hint,
+	// not proof: see handler.maquinaConhecida.
+	Maquina    [4]int32
+	CrackError int  // anti-cheat violation count (CUser.NumError)
+	Whisper    bool // true blocks incoming whispers
 	// Snd is the status line "/snd" sets, shown to anyone who inspects this
 	// character (_MSG_MessageWhisper.cpp:591 sets it, :1640 shows it). Session
 	// scope is deliberate and matches the legacy, which clears Snd on every login

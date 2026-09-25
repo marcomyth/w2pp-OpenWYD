@@ -58,8 +58,10 @@ func (d *Dispatcher) accountLogin(w *world.World, s *world.Session, _ protocol.H
 	// that is still holding it (see accountInUse).
 	takeOver := body.DBNeedSave != 0
 	s.AccountName = name
+	s.Maquina = body.AdapterName
 	s.Mode = world.UserLogin
-	d.log.Info("account login: relaying to dbServer", "conn", s.Conn, "account", name)
+	d.log.Info("account login: relaying to dbServer", "conn", s.Conn, "account", name,
+		"maquina", maquinaTexto(body.AdapterName))
 
 	p := w.Persistence()
 	epoca := w.EpocaDoPar()

@@ -98,6 +98,15 @@ func (d *Dispatcher) creditShopPoints(w *world.World, s *world.Session) {
 		at.PaidUntil = now
 		return
 	}
+	// A second stall from the same computer does not earn while the first one
+	// does (maquina.go). Same treatment as the empty shop, for the same reason:
+	// the clock is pushed rather than held, so when the first stall closes this
+	// one starts earning from that moment — it does not cash in the hours it spent
+	// standing behind the other.
+	if precedidaNoMundo(w, s) {
+		at.PaidUntil = now
+		return
+	}
 	// Unsigned subtraction on purpose: the loop clock is a uint32 of milliseconds
 	// and wraps every ~49 days, and this is the arithmetic that survives the wrap.
 	elapsed := now - at.PaidUntil
@@ -148,6 +157,8 @@ func (d *Dispatcher) mostrarPontosDeLojinha(w *world.World, s *world.Session) {
 	if at := s.AutoTrade; at != nil {
 		if !shopStocked(at) {
 			sendClientMessage(w, s, "Sua lojinha está sem itens à venda e não está rendendo pontos.")
+		} else if precedidaNoMundo(w, s) {
+			sendClientMessage(w, s, msgOutraLojaRende)
 		} else {
 			porJanela := shopPointsPerWindow(w.Entity(s.Conn))
 			faltaMs := shopPointsWindowMs - (w.Now()-at.PaidUntil)%shopPointsWindowMs

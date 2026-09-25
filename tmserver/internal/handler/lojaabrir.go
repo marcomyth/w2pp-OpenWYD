@@ -399,6 +399,12 @@ func (d *Dispatcher) sobeBarraca(w *world.World, s *world.Session, e *world.Enti
 	d.mercadoMudou(w)
 	aviso := protocol.LojaAbriuBody{Barraca: int32(shopStallID(s))}
 	w.SendTo(s, protocol.Header{Type: protocol.MsgLojaAbriu, ID: protocol.IDScene}, aviso.Encode())
+	// Avisa na hora em que ele abre, e não só no /pontos: quem abre a segunda
+	// barraca para dobrar o prêmio precisa saber que não dobra antes de passar
+	// quinze minutos esperando um crédito que não vem.
+	if precedidaNoMundo(w, s) {
+		sendClientMessage(w, s, msgOutraLojaRende)
+	}
 	d.log.Info("loja: barraca montada pelo painel", "conn", s.Conn, "titulo", barraca.Title,
 		"imposto", barraca.Tax, "clone", barraca.CloneID)
 }
