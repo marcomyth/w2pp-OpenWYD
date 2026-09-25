@@ -72,6 +72,23 @@ type Accounts interface {
 	ListCharacters(ctx context.Context, accountID int64) ([]domain.Character, error)
 }
 
+// UsuariosDoPainel é a parte do store que cuida de quem administra sem ter personagem
+// (migração 0130).
+//
+// INTERFACE PRÓPRIA e não mais métodos em Accounts, porque são coisas diferentes: Accounts
+// fala de CONTA DE JOGO, e um usuário de painel não é uma. Misturar as duas no mesmo
+// contrato convidaria um handler a usar o método errado — e o método errado aqui é o que
+// deixa alguém entrar.
+type UsuariosDoPainel interface {
+	UsuarioDoPainelPorLogin(ctx context.Context, login string) (store.AutenticacaoDoPainel, error)
+	ExisteUsuarioDoPainel(ctx context.Context, login string) (bool, error)
+	ListarUsuariosDoPainel(ctx context.Context) ([]store.UsuarioDoPainel, error)
+	ContarUsuariosDoPainel(ctx context.Context) (total, adminsAtivos int, err error)
+	CriarUsuarioDoPainel(ctx context.Context, login, senha, papel string, criadoPor *int64) (store.UsuarioDoPainel, error)
+	DefinirAtivoDoPainel(ctx context.Context, id int64, ativo bool) error
+	TrocarSenhaDoPainel(ctx context.Context, id int64, senha string) error
+}
+
 // AuditLog is the panel's view of the action log.
 type AuditLog interface {
 	Write(ctx context.Context, r audit.Record) error
@@ -286,32 +303,43 @@ type Platform interface {
 
 // Config wires the handler.
 type Config struct {
-	Accounts    Accounts
-	Personagens Personagens
-	Eventos     Eventos
-	Denuncias   Denuncias
-	Guildas     Guildas
-	Carteira    Carteira
-	Platform    Platform
-	Entregas    Deliveries
-	Trocas      TradeLog
-	Censo       Censo
-	Chat        Chat
-	Jogo        Live
-	Blocos      BlocosDoJogo
-	GameData    GameData
-	Writer      Writer
-	Audit       AuditLog
-	MesaXP      MesaXP
-	Masmorras   Masmorras
-	Quests      Quests
-	Spawn       Spawn
-	Combate     Combate
-	BonusDrop   BonusDrop
-	Maquinas    Maquinas
-	MesaDrops   MesaDrops
-	Repasses    Repasses
-	FilasRMT    FilasRMT
+	Accounts Accounts
+	// Painel é quem administra sem ter personagem (0130). NULO quer dizer que esta
+	// montagem não tem a separação — o painel continua funcionando pelo caminho antigo, e
+	// as telas de usuário de painel não aparecem. É o que mantém o adminserver
+	// "deletável", como o CLAUDE.md pede.
+	Painel UsuariosDoPainel
+	// SoUsuarioDoPainel desliga o login por CONTA DE JOGO com cargo.
+	//
+	// A Hanna liga isto quando tiver criado os usuários dela. Enquanto estiver desligado,
+	// os dois caminhos convivem — e tem de ser assim na estreia, senão o deploy tranca
+	// para fora a única pessoa que poderia criar o primeiro usuário.
+	SoUsuarioDoPainel bool
+	Personagens       Personagens
+	Eventos           Eventos
+	Denuncias         Denuncias
+	Guildas           Guildas
+	Carteira          Carteira
+	Platform          Platform
+	Entregas          Deliveries
+	Trocas            TradeLog
+	Censo             Censo
+	Chat              Chat
+	Jogo              Live
+	Blocos            BlocosDoJogo
+	GameData          GameData
+	Writer            Writer
+	Audit             AuditLog
+	MesaXP            MesaXP
+	Masmorras         Masmorras
+	Quests            Quests
+	Spawn             Spawn
+	Combate           Combate
+	BonusDrop         BonusDrop
+	Maquinas          Maquinas
+	MesaDrops         MesaDrops
+	Repasses          Repasses
+	FilasRMT          FilasRMT
 	// Passe é a gravação do nível do passe de batalha. Opcional: sem ela a seção
 	// some da página da conta, em vez de aparecer e recusar.
 	Passe      PasseDaConta
@@ -400,6 +428,14 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("GET /contas", h.requireStaff(http.HandlerFunc(h.contas)))
 	mux.Handle("GET /contas/{nome}", h.requireStaff(http.HandlerFunc(h.conta)))
 	mux.Handle("GET /auditoria", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.auditoria))))
+	// QUEM ADMINISTRA (0130). Só admin, e não staff: criar usuário de painel é dar acesso
+	// ao painel, e é a única ação desta ferramenta que fabrica mais gente com poder sobre
+	// ela. As rotas existem mesmo sem a separação montada — o handler devolve 404 quando
+	// cfg.Painel é nulo, e assim o adminserver continua subindo em montagem antiga.
+	mux.Handle("GET /usuarios-do-painel", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.usuariosDoPainel))))
+	mux.Handle("POST /usuarios-do-painel", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.criarUsuarioDoPainel))))
+	mux.Handle("POST /usuarios-do-painel/{usuario}/ativo", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.mudarAtivoDoUsuarioDoPainel))))
+	mux.Handle("POST /usuarios-do-painel/{usuario}/senha", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.trocarSenhaDoUsuarioDoPainel))))
 	if h.cfg.MesaXP != nil {
 		// A Mesa de XP é a primeira aba de Rates, a seção que junta as mesas de
 		// balanceamento. Só para administrador, como era antes: estas tabelas
@@ -1127,6 +1163,40 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// O USUÁRIO DO PAINEL VEM PRIMEIRO, E SEM SEGUNDA CHANCE.
+	//
+	// Se o nome digitado é de um usuário de painel, este login termina aqui: certo ou
+	// errado, ele NÃO cai no caminho da conta de jogo. Sem isso, um usuário de painel que
+	// errasse a senha tentaria a conta de jogo homônima em seguida — e duas pessoas
+	// diferentes com o mesmo nome entrariam no mesmo painel com permissões diferentes,
+	// cada uma achando que é a dona daquele nome.
+	//
+	// A pergunta "existe?" é feita ANTES de verificar a senha, e de propósito: ela é o que
+	// decide o CAMINHO, e decidir o caminho pelo resultado da senha é o que criaria a
+	// segunda chance.
+	if h.cfg.Painel != nil {
+		ehDoPainel, err := h.cfg.Painel.ExisteUsuarioDoPainel(r.Context(), name)
+		if err != nil {
+			h.cfg.Logger.Error("login: procurando usuario de painel", "usuario", name, "err", err)
+			http.Error(w, "Erro interno.", http.StatusInternalServerError)
+			return
+		}
+		if ehDoPainel {
+			h.loginDoPainel(w, r, name, pass, ip)
+			return
+		}
+	}
+	// O CAMINHO ANTIGO, por conta de jogo com cargo. A Hanna desliga com
+	// W2PP_PAINEL_SO_USUARIO quando tiver criado os usuários dela; até lá os dois
+	// convivem, senão o deploy trancaria para fora quem criaria o primeiro usuário.
+	if h.cfg.SoUsuarioDoPainel {
+		// Gasta o mesmo tempo de uma verificação de verdade antes de recusar: sem isso, a
+		// resposta instantânea diria que aquele nome não é de usuário de painel.
+		_, _ = secret.VerifySecret(pass, h.decoy)
+		h.failLogin(w, r, "login por conta de jogo desligado", name)
+		return
+	}
+
 	auth, err := h.cfg.Accounts.AccountByName(r.Context(), name)
 	if errors.Is(err, store.ErrNotFound) {
 		// Spend the same time a real account would, then fail identically.
@@ -1170,6 +1240,57 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+// loginDoPainel verifica a senha de um usuário do painel.
+//
+// Já chega sabendo que o login existe: quem chama decidiu o caminho por isso. Daqui para
+// frente toda recusa é igual para quem está na frente da tela, e o motivo fica no log do
+// servidor — é a mesma regra do login antigo, e ela existe para o formulário não contar
+// quais logins existem, quais estão desativados e quais só erraram a senha.
+func (h *Handler) loginDoPainel(w http.ResponseWriter, r *http.Request, nome, senha, ip string) {
+	a, err := h.cfg.Painel.UsuarioDoPainelPorLogin(r.Context(), nome)
+	if errors.Is(err, store.ErrNotFound) {
+		// Corrida: existia quando a pergunta foi feita e não existe mais. Gasta o tempo
+		// de uma verificação e recusa igual.
+		_, _ = secret.VerifySecret(senha, h.decoy)
+		h.failLogin(w, r, "usuario de painel sumiu no meio do login", nome)
+		return
+	}
+	if err != nil {
+		h.cfg.Logger.Error("login de painel: leitura falhou", "usuario", nome, "err", err)
+		http.Error(w, "Erro interno.", http.StatusInternalServerError)
+		return
+	}
+
+	// A SENHA É VERIFICADA MESMO PARA USUÁRIO DESATIVADO, e só depois vem a recusa.
+	// Responder antes transformaria o formulário num revelador de quais logins existem e
+	// estão desligados — a diferença de tempo entre "não verifiquei" e "verifiquei" é
+	// medível de fora.
+	ok, err := secret.VerifySecret(senha, a.Hash)
+	if err != nil {
+		h.cfg.Logger.Error("login de painel: verificacao falhou", "usuario", nome, "err", err)
+		http.Error(w, "Erro interno.", http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		h.failLogin(w, r, "senha incorreta", nome)
+		return
+	}
+	if !a.Ativo {
+		h.failLogin(w, r, "usuario de painel desativado", nome)
+		return
+	}
+
+	token, _, err := h.cfg.Sessions.CreateDoPainel(a.ID, a.Login, a.Papel)
+	if err != nil {
+		h.cfg.Logger.Error("login de painel: sessao falhou", "usuario", nome, "err", err)
+		http.Error(w, "Erro interno.", http.StatusInternalServerError)
+		return
+	}
+	h.setCookie(w, token)
+	h.cfg.Logger.Info("login de painel ok", "usuario", a.Login, "id", a.ID, "papel", a.Papel, "ip", ip)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(cookieName); err == nil {
 		h.cfg.Sessions.Delete(c.Value)
@@ -1207,6 +1328,35 @@ func (h *Handler) requireStaff(next http.Handler) http.Handler {
 		token, sess, ok := h.currentSession(r)
 		if !ok {
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		// SESSÃO DE USUÁRIO DO PAINEL não passa pela conta de jogo.
+		//
+		// As três conferências abaixo — cargo, conta apagada, conta bloqueada — são todas
+		// sobre uma CONTA DE JOGO, e um usuário do painel não tem nenhuma. Sem esta saída,
+		// o AccountRole seria chamado com id 0, daria ErrNotFound e a sessão morreria no
+		// primeiro clique: quem entrou não conseguiria abrir uma página.
+		//
+		// O QUE SUBSTITUI A REVOGAÇÃO AO VIVO: o papel guardado na sessão, mais o TTL
+		// curto. Desativar um usuário não derruba a sessão dele na hora; ela morre no
+		// vencimento. É uma diferença real em relação ao caminho antigo, e a escolhi porque
+		// o contrário custaria uma ida ao banco por PEDIDO — e porque desativar quem já
+		// está dentro é caso raro, enquanto o clique é constante.
+		if sess.EhDoPainel() {
+			if !isStaff(sess.PainelPapel) {
+				// Papel que este código não conhece NÃO vira acesso. Só acontece se
+				// alguém escrever direto no banco, e aí a resposta certa é a porta
+				// fechada.
+				h.cfg.Logger.Warn("sessao de painel com papel desconhecido; encerrando",
+					"usuario", sess.AccountName, "papel", sess.PainelPapel)
+				h.cfg.Sessions.Delete(token)
+				h.clearCookie(w)
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				return
+			}
+			ctx := context.WithValue(r.Context(), ctxSession, sess)
+			ctx = context.WithValue(ctx, ctxRole, sess.PainelPapel)
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 		role, err := h.cfg.Accounts.AccountRole(r.Context(), sess.AccountID)
@@ -1416,7 +1566,7 @@ func (h *Handler) setCargo(w http.ResponseWriter, r *http.Request) {
 	// as a failure even though the write already landed — better a staff member
 	// who re-checks than a log with a hole in it.
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetRole, TargetID: auth.ID,
 		Old: map[string]any{"role": anterior}, New: map[string]any{"role": novo},
 	}); err != nil {
@@ -1496,7 +1646,7 @@ func (h *Handler) setBloqueio(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetBlocked, TargetID: auth.ID,
 		Old: map[string]any{"blocked": anterior.Blocked, "motivo": anterior.Reason},
 		New: map[string]any{"blocked": bloquear, "motivo": motivo, "dias": dias},
@@ -1632,7 +1782,7 @@ func (h *Handler) setVip(w http.ResponseWriter, r *http.Request) {
 // and sortable without knowing the panel's display format.
 func (h *Handler) auditVip(r *http.Request, sess session.Session, targetID int64, nome string, prev, next *time.Time) error {
 	err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetVip, TargetID: targetID,
 		Old: map[string]any{"vip_until": vipJSON(prev)},
 		New: map[string]any{"vip_until": vipJSON(next)},
@@ -1754,7 +1904,7 @@ func (h *Handler) setPreco(w http.ResponseWriter, r *http.Request) {
 		novo = nil
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetItemPrice,
 		New:    map[string]any{"item_index": indice, "price": novo},
 	}); err != nil {
@@ -1953,7 +2103,7 @@ func (h *Handler) reiniciar(w http.ResponseWriter, r *http.Request) {
 	// stop being able to tell anyone anything for a while, and an action nobody
 	// can explain is exactly what this log exists to prevent.
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionRestartGame,
 		New:    map[string]any{"deployment": dep.ID, "drenado": h.cfg.Jogo != nil},
 	}); err != nil {
@@ -2211,7 +2361,7 @@ func (h *Handler) apagarNPC(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) auditNPC(r *http.Request, sess session.Session, acao string, npcID int64, antes, depois any) error {
 	err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: acao,
 		Old:    map[string]any{"npc_id": npcID, "antes": antes},
 		New:    map[string]any{"npc_id": npcID, "depois": depois},

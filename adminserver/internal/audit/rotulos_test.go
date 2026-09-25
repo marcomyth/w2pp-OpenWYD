@@ -34,6 +34,8 @@ func TestTodaAcaoTemRotulo(t *testing.T) {
 		ActionBlockCommand,
 		ActionRepasseIncertoPago, ActionRepasseIncertoNaoPago, ActionRepasseRecusaResolvida,
 		ActionRepasseValorAjustado,
+		ActionPainelUsuarioCriado, ActionPainelUsuarioDesativado,
+		ActionPainelUsuarioReativado, ActionPainelSenhaTrocada,
 		ActionOrfaoResolvido, ActionReembolsoDeNovo, ActionReembolsoNaMao,
 		ActionReembolsoAchadoNoPainel, ActionDivergenteDevolvido, ActionSetPasse,
 	}

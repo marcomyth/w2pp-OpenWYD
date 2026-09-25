@@ -115,7 +115,7 @@ func (h *Handler) resolverOrfao(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionOrfaoResolvido,
 		New:    map[string]any{"orfao": id, "nota": nota},
 	}); err != nil {

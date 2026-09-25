@@ -51,7 +51,10 @@ var tabelasDeTeste = []string{
 	"player_report",
 	"trade_log",
 	"item_stat",
+	// admin_audit_log aponta para painel_usuario (0130), então vem ANTES dele. A ordem
+	// desta lista é a do DROP: filha primeiro, mãe depois.
 	"admin_audit_log",
+	"painel_usuario",
 	"sapphire_balance",
 	"world_event_audit",
 	"world_event_meta",

@@ -28,12 +28,31 @@ const tokenBytes = 32
 
 // Session is one signed-in staff member.
 type Session struct {
+	// AccountID é a CONTA DE JOGO, quando o login veio pelo caminho antigo. Fica 0 para
+	// um usuário do painel — ver PainelUsuarioID.
 	AccountID   int64
 	AccountName string // for audit lines and the panel header; never for authorization
+	// PainelUsuarioID é o usuário do painel (migração 0130), quando o login veio por ele.
+	// Fica 0 para uma conta de jogo.
+	//
+	// DOIS CAMPOS e não um só com uma bandeira do tipo: a auditoria grava em COLUNAS
+	// diferentes, com chaves estrangeiras para tabelas diferentes, e um id que muda de
+	// significado conforme uma bandeira é um id que um dia vai para a coluna errada.
+	PainelUsuarioID int64
+	// PainelPapel é o papel do usuário do painel. Para conta de jogo fica vazio, e quem
+	// autoriza usa o account.role como sempre.
+	PainelPapel string
 	CSRF        string // form token; see below
 	Created     time.Time
 	Expires     time.Time
 }
+
+// EhDoPainel diz se esta sessão é de um usuário do painel.
+//
+// UM MÉTODO e não uma comparação espalhada: a pergunta aparece na autorização, na
+// auditoria e no cabeçalho da página, e três comparações iguais é como uma delas fica para
+// trás.
+func (s Session) EhDoPainel() bool { return s.PainelUsuarioID != 0 }
 
 // Store keeps live sessions. Unlike the game's world state, this is touched from
 // many goroutines (one per request), so it is mutex-guarded — the single-owner
@@ -80,6 +99,28 @@ func (s *Store) Create(accountID int64, accountName string) (string, Session, er
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.live[token] = sess
+	return token, sess, nil
+}
+
+// CreateDoPainel emite a sessão de um usuário do painel.
+//
+// Guarda o PAPEL na sessão em vez de ir buscá-lo a cada pedido, igual ao que o caminho
+// antigo faz com o account.role: o papel que vale é o de QUANDO a pessoa entrou, e uma
+// busca por pedido faria a permissão mudar no meio de uma navegação. Tirar o acesso de
+// alguém é desativar o usuário, e a sessão dele morre no TTL — que é curto de propósito.
+func (s *Store) CreateDoPainel(id int64, login, papel string) (string, Session, error) {
+	token, sess, err := s.Create(0, login)
+	if err != nil {
+		return "", Session{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	// A sessão já está no mapa; completa-se o que só o login de painel sabe. Reusar o
+	// Create evita duas cópias da geração de token e de CSRF, que é a parte onde um erro
+	// não aparece em teste nenhum.
+	sess.PainelUsuarioID = id
+	sess.PainelPapel = papel
 	s.live[token] = sess
 	return token, sess, nil
 }

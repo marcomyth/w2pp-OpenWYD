@@ -271,7 +271,7 @@ func (h *Handler) setMontaria(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetMountGrowth,
 		New:    map[string]any{"montaria": indice, "taxas": taxas},
 	}); err != nil {
@@ -305,7 +305,7 @@ func (h *Handler) limparMontaria(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionClearMountGrowth,
 		New:    map[string]any{"montaria": indice},
 	}); err != nil {
@@ -354,7 +354,7 @@ func (h *Handler) setAbsorcao(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetMountAbsorb,
 		New:    map[string]any{"montaria": indice, "pvp": pvp, "pve": pve},
 	}); err != nil {
@@ -382,7 +382,7 @@ func (h *Handler) limparAbsorcao(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionClearMountAbsorb,
 		New:    map[string]any{"montaria": indice},
 	}); err != nil {
@@ -642,7 +642,7 @@ func (h *Handler) limparAtributosMontaria(w http.ResponseWriter, r *http.Request
 func (h *Handler) auditarMontaria(w http.ResponseWriter, r *http.Request, acao string, novo map[string]any) bool {
 	sess, _ := staffFrom(r.Context())
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()), Action: acao, New: novo,
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()), Action: acao, New: novo,
 	}); err != nil {
 		h.cfg.Logger.Error("mount change applied but NOT audited", "acao", acao, "err", err)
 		http.Error(w, "A mudança foi salva, mas a auditoria falhou. Avise quem cuida do servidor.",

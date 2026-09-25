@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Usuários do painel — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  .linha { border-left: 3px solid var(--rule); padding-left: 15px; margin-bottom: 22px; }
+  .linha.off { border-left-color: var(--ink-3); opacity: .72; }
+  .cab { display: flex; flex-wrap: wrap; align-items: baseline;
+         justify-content: space-between; gap: 6px 16px; margin-bottom: 6px; }
+  .login { font-size: 17px; color: var(--ink); }
+  .papel { font-size: 12px; color: var(--ink-3); text-transform: uppercase; letter-spacing: .07em; }
+  .quando { font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .acoes { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-end; }
+  .acoes form { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+  .acoes label { font-size: 12px; color: var(--ink-3); display: block; }
+  .novo { background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+          padding: 16px 18px; margin: 0 0 30px; max-width: 70ch; }
+  .novo .campos { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; }
+  .dois-botoes { border-left: 3px solid var(--warn); padding: 12px 16px; margin: 0 0 26px;
+                 background: var(--surface); max-width: 70ch; }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Usuários do painel</h1>
+  <p class="sub">
+    Quem administra, sem precisar de personagem no jogo.
+  </p>
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  <!-- O AVISO DOS DOIS BOTÕES. Ele existe porque a tela mostra duas coisas com nomes
+       parecidos, e confundi-las dá acesso a quem não devia ter. -->
+  <div class="dois-botoes">
+    <p><strong>Cuidado: são dois acessos diferentes, e esta tela só mexe em um.</strong></p>
+    <p>
+      <strong>Usuário do painel</strong> (esta tela) entra <em>aqui</em>, no painel. Não tem
+      personagem, não aparece no jogo e não pode jogar.
+    </p>
+    <p>
+      <strong>Cargo da conta</strong> (na tela de Contas) é do <em>jogo</em>: decide os
+      comandos de moderação dentro do jogo. Enquanto o login antigo estiver ligado, um cargo
+      também abre este painel — é o caminho que estamos deixando para trás.
+    </p>
+    <p class="nota">
+      Dar acesso ao painel a alguém é criar um usuário <em>aqui</em>. Dar cargo a uma conta
+      de jogo não é a mesma coisa, e tirar um não tira o outro.
+    </p>
+  </div>
+
+  <div class="novo">
+    <h2>Criar usuário</h2>
+    <form method="post" action="/usuarios-do-painel">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <div class="campos">
+        <div>
+          <label for="login">Login</label>
+          <input type="text" id="login" name="login" required autocomplete="off"
+                 placeholder="sem espaço, minúsculas">
+        </div>
+        <div>
+          <label for="senha">Senha (mínimo 12)</label>
+          <input type="password" id="senha" name="senha" required minlength="12"
+                 autocomplete="new-password">
+        </div>
+        <div>
+          <label for="papel">Papel</label>
+          <select id="papel" name="papel">
+            <option value="moderator">moderator</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+        <button type="submit">Criar</button>
+      </div>
+    </form>
+    <p class="nota">
+      A senha não aparece em lugar nenhum depois: combine com a pessoa e peça para ela
+      trocar. <strong>moderator</strong> vê e resolve o dia a dia; <strong>admin</strong>
+      também mexe em dinheiro, regras e nesta tela.
+    </p>
+  </div>
+
+  <h2>Quem tem acesso</h2>
+  {{if .Usuarios}}
+    {{range .Usuarios}}
+    <div class="linha{{if not .Ativo}} off{{end}}">
+      <div class="cab">
+        <span class="login">{{.Login}}{{if .Eu}} <span class="papel">(você)</span>{{end}}</span>
+        <span class="papel">{{.Papel}}{{if not .Ativo}} · desativado{{end}}</span>
+      </div>
+      <div class="quando">criado em {{.CriadoEm.Format "02/01/2006 15:04"}}</div>
+      <div class="acoes">
+        {{if .Ativo}}
+          {{if not .Eu}}
+          <form method="post" action="/usuarios-do-painel/{{.ID}}/ativo">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="ativo" value="0">
+            <button type="submit">Desativar</button>
+          </form>
+          {{end}}
+        {{else}}
+          <form method="post" action="/usuarios-do-painel/{{.ID}}/ativo">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="ativo" value="1">
+            <button type="submit">Reativar</button>
+          </form>
+        {{end}}
+        <form method="post" action="/usuarios-do-painel/{{.ID}}/senha">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <div>
+            <label for="senha-{{.ID}}">Senha nova</label>
+            <input type="password" id="senha-{{.ID}}" name="senha" required minlength="12"
+                   autocomplete="new-password">
+          </div>
+          <button type="submit">Trocar senha</button>
+        </form>
+      </div>
+    </div>
+    {{end}}
+    <p class="nota">
+      Admins ativos agora: {{.AdminsAtivos}}. O último admin ativo não pode ser desativado —
+      sem ele ninguém consegue mais criar usuários, e a saída seria entrar na máquina pela
+      linha de comando.
+    </p>
+  {{else}}
+    <div class="vazio">
+      Ninguém ainda. Crie o primeiro acima, ou pela linha de comando com
+      <code>adminserver criar-usuario</code> num ambiente sem painel.
+    </div>
+  {{end}}
+</main>
+</body>
+</html>

@@ -278,7 +278,7 @@ func (h *Handler) resolverRepasse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: acao, New: dados,
 	}); err != nil {
 		// A MUDANÇA JÁ ACONTECEU e a auditoria não. Erro visível, e não aviso de

@@ -98,6 +98,12 @@ const (
 	// O passe de batalha: quem deu, para quem e qual nível. É um cosmético
 	// comprado, então dar de graça é entregar o que alguém pagaria.
 	ActionSetPasse = "SET_PASSE"
+	// As ações sobre QUEM ADMINISTRA (migração 0130). São as mais sensíveis do log: não
+	// mexem em dinheiro nem em item, mexem em quem pode mexer em tudo.
+	ActionPainelUsuarioCriado     = "PAINEL_USUARIO_CRIADO"
+	ActionPainelUsuarioDesativado = "PAINEL_USUARIO_DESATIVADO"
+	ActionPainelUsuarioReativado  = "PAINEL_USUARIO_REATIVADO"
+	ActionPainelSenhaTrocada      = "PAINEL_SENHA_TROCADA"
 )
 
 // listLimit caps one page of the log.
@@ -322,6 +328,10 @@ var rotulos = map[string]string{
 	ActionRepasseIncertoNaoPago:   "Afirmou que um repasse incerto NAO foi pago",
 	ActionRepasseRecusaResolvida:  "Poe um repasse recusado de volta na fila",
 	ActionRepasseValorAjustado:    "Mudou QUANTO se deve a um vendedor",
+	ActionPainelUsuarioCriado:     "Criou um usuario do painel (deu acesso ao painel)",
+	ActionPainelUsuarioDesativado: "Desativou um usuario do painel",
+	ActionPainelUsuarioReativado:  "Reativou um usuario do painel",
+	ActionPainelSenhaTrocada:      "Trocou a senha de um usuario do painel",
 	ActionOrfaoResolvido:          "Marcou um pagamento orfao como resolvido",
 	ActionReembolsoDeNovo:         "Poe um reembolso de volta na fila para pedir",
 	ActionReembolsoNaMao:          "Afirmou que um reembolso foi resolvido na mao",

@@ -219,7 +219,7 @@ func (h *Handler) setBonusDrop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetDropBonus,
 		Old:    bonusParaAudit(antes, tinha), New: bonusParaAudit(b, true),
 	}); err != nil {
@@ -251,7 +251,7 @@ func (h *Handler) limparBonusDrop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionClearDropBonus, Old: bonusParaAudit(antes, tinha),
 	}); err != nil {
 		h.auditoriaFalhou(w, err)
@@ -279,7 +279,7 @@ func (h *Handler) ligarBonusDrop(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetDropBonusLigado,
 		Old:    map[string]any{"sorteio": bonusEstado(antes)},
 		New:    map[string]any{"sorteio": bonusEstado(ligado)},

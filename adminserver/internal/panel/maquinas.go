@@ -390,7 +390,7 @@ func (h *Handler) setMaquinaRate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetCombineRate,
 		Old:    combineParaAudit(antes, tinha), New: combineParaAudit(novo, true),
 	}); err != nil {
@@ -421,7 +421,7 @@ func (h *Handler) limparMaquinaRate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionClearCombineRate, Old: combineParaAudit(antes, tinha),
 	}); err != nil {
 		h.auditoriaFalhou(w, err)
@@ -500,7 +500,7 @@ func (h *Handler) setMaquinaFaixas(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetCombineBands,
 		New:    map[string]any{"tipo": tipo, "faixas": len(bands)},
 	}); err != nil {
@@ -546,7 +546,7 @@ func (h *Handler) setMaquinaEtiqueta(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetCombineTag,
 		Old:    map[string]any{"familia": familia, "chave": chave, "operacao": antes},
 		New:    map[string]any{"familia": familia, "chave": chave, "operacao": operacao},
