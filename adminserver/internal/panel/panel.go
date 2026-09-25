@@ -711,6 +711,11 @@ type page struct {
 	// HasPainelUsuarios: a tela de quem administra existe quando a separação (0130) está
 	// montada.
 	HasPainelUsuarios bool
+	// Filas é a contagem de cada fila do dinheiro real, para as abas da seção.
+	//
+	// Separado do FilasDinheiro (que é só o total, para o menu) porque são duas
+	// perguntas: o menu quer saber SE há algo parado, e a aba quer saber ONDE.
+	Filas store.FilasDeDinheiro
 	// FilasDinheiro é quanto está parado nas quatro filas do dinheiro real, somado.
 	//
 	// VAI NO MENU, então é lido em TODA página — por isso é uma consulta só, e por isso uma
@@ -754,21 +759,25 @@ func (f *falhas) nao(oque string) {
 //
 // SÓ PARA ADMIN, porque só admin vê a entrada de Dinheiro: contar para quem não vê seria
 // uma consulta por clique sem ninguém para ler o resultado.
-func (h *Handler) contaFilasDeDinheiro(r *http.Request) int {
+func (h *Handler) contaFilasDeDinheiro(r *http.Request) store.FilasDeDinheiro {
 	if h.cfg.FilasDeDinheiro == nil || roleFrom(r.Context()) != roleAdmin {
-		return 0
+		return store.FilasDeDinheiro{}
 	}
 	c, err := h.cfg.FilasDeDinheiro.ContarFilasDeDinheiro(r.Context())
 	if err != nil {
-		h.cfg.Logger.Warn("nao consegui contar as filas de dinheiro para o menu", "err", err)
-		return 0
+		h.cfg.Logger.Warn("nao consegui contar as filas de dinheiro", "err", err)
+		return store.FilasDeDinheiro{}
 	}
-	return c.Total()
+	return c
 }
 
 func (h *Handler) pageFor(r *http.Request, nav string) page {
 	sess, _ := staffFrom(r.Context())
 	role := roleFrom(r.Context())
+	// UMA consulta por página, e o total sai dela: o menu quer o total e as abas
+	// querem cada fila, e contar duas vezes seria duas idas ao banco pela mesma
+	// resposta.
+	filas := h.contaFilasDeDinheiro(r)
 	return page{
 		Account: sess.AccountName, AccountID: sess.AccountID, Role: role,
 		Nav: nav, IsAdmin: role == roleAdmin,
@@ -793,7 +802,8 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		HasRates:          primeiraAbaDeRates(h.cfg) != "",
 		HasMont:           h.cfg.GameData != nil,
 		HasPainelUsuarios: h.cfg.Painel != nil,
-		FilasDinheiro:     h.contaFilasDeDinheiro(r),
+		Filas:             filas,
+		FilasDinheiro:     filas.Total(),
 		CSRF:              sess.CSRF,
 	}
 }

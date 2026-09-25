@@ -21,6 +21,17 @@ service AccountWebService {
   // VerifyCredentials validates name + password so the BFF can mint a session
   // cookie. It is the web login path, independent of the CPSock game login.
   rpc VerifyCredentials(VerifyCredentialsRequest) returns (VerifyCredentialsResponse);
+  // SetMyDiscordLink guarda o Discord da pessoa depois do OAuth do site.
+  //
+  // UM DISCORD PARA UMA CONTA, garantido por indice UNICO PARCIAL onde o campo
+  // nao e vazio -- mais um CHECK proibindo string vazia. Os dois, e nao so o
+  // indice: em Postgres NULL nao conflita com NULL, entao sem o CHECK bastaria
+  // alguem gravar "" para o indice parar de valer.
+  //
+  // TROCAR o Discord de uma conta que ja tem OUTRO e RECUSADO, e so a staff
+  // desfaz. Sem isso, quem tomasse uma conta trocaria o vinculo em silencio e
+  // levaria junto o cargo que o Discord da.
+  rpc SetMyDiscordLink(SetMyDiscordLinkRequest) returns (SetMyDiscordLinkResponse);
 }
 
 // RmtWebService owns the player-to-player real-money trade surface: today the
@@ -45,6 +56,23 @@ service RmtWebService {
   // "you already registered ...1234", and a Pix key is personal payment data on a
   // public site.
   rpc GetPixKey(GetPixKeyRequest) returns (GetPixKeyResponse);
+  // DeletePixKey APAGA a chave e o CPF, os dois juntos.
+  //
+  // OS DOIS JUNTOS porque sao um cadastro so: chave sem documento nao paga, ja
+  // que a rota de repasse exige o CPF. Deixar o documento para tras guardaria
+  // dado pessoal que nao serve mais para nada -- e dado que nao serve e so o que
+  // vaza num incidente.
+  //
+  // Recusa pelas MESMAS duas travas do SavePixKey, e na mesma ordem: cobranca
+  // aberta primeiro, repasse depois. Quando as duas valem, a pessoa le a da
+  // venda, que e a que passa sozinha antes.
+  //
+  // UMA DIFERENCA DELIBERADA em relacao ao SavePixKey: gravar a MESMA chave passa
+  // mesmo com repasse a caminho, porque nao desvia nada -- e e o que deixa um
+  // vendedor antigo, cadastrado antes de o CPF ser obrigatorio, completar o
+  // documento que falta. Apagar nao e gravar a mesma chave: e tira-la, com
+  // dinheiro a caminho dela. Entao o apagar confere SEMPRE.
+  rpc DeletePixKey(DeletePixKeyRequest) returns (DeletePixKeyResponse);
   // GetMyCurrentPixCharge returns the real-money charge this account has as a
   // BUYER, so the site can show the Pix copy-and-paste code — and so it can say
   // what happened once the charge closes.
@@ -215,6 +243,44 @@ message VerifyCredentialsResponse {
   // authorization decision — NpcAdminService re-checks the role server-side on
   // every call, so a tampered session flag still gets ADMIN_RESULT_FORBIDDEN.
   string role = 4;
+  // discord_id e o Discord vinculado a esta conta, ou vazio quando nao ha.
+  //
+  // Sai na leitura que o site JA faz, em vez de numa chamada nova: a pagina
+  // precisa dele no mesmo instante em que precisa do papel, e uma segunda ida ao
+  // servidor para um campo seria uma ida a mais em todo login.
+  //
+  // DADO PESSOAL LEVE: nao entra em log nosso. Quando algo der errado no vinculo,
+  // o log diz a CONTA e nao o Discord -- para depurar serve, e para responder "de
+  // quem e este Discord" a staff consulta o banco.
+  string discord_id = 5;
+}
+
+message SetMyDiscordLinkRequest {
+  // Sempre da SESSAO. Um pedido que escolhe a conta vincula o Discord de outra
+  // pessoa.
+  int64 account_id = 1;
+  // O snowflake numerico do Discord, como texto.
+  string discord_id = 2;
+}
+
+message SetMyDiscordLinkResponse {
+  DiscordLinkResult result = 1;
+}
+
+// DiscordLinkResult e por que o vinculo passou ou nao.
+enum DiscordLinkResult {
+  DISCORD_LINK_RESULT_UNSPECIFIED = 0;
+  DISCORD_LINK_RESULT_OK = 1;
+  // ALREADY_LINKED_ELSEWHERE: este Discord ja esta em OUTRA conta.
+  //
+  // Ele conta a quem tentou que aquele Discord existe em alguma conta deste
+  // servidor. E pouco, e e inevitavel se a gente quer explicar a recusa -- fica
+  // dito aqui para ninguem descobrir depois que vazou sem ter sido decidido.
+  DISCORD_LINK_RESULT_ALREADY_LINKED_ELSEWHERE = 2;
+  // INVALID: nao e um snowflake numerico.
+  DISCORD_LINK_RESULT_INVALID = 3;
+  // ACCOUNT_HAS_ANOTHER: esta conta ja tem OUTRO Discord. So a staff desfaz.
+  DISCORD_LINK_RESULT_ACCOUNT_HAS_ANOTHER = 4;
 }
 
 // PixKeyType is the shape of the key, which the player's bank needs in order to
@@ -243,6 +309,20 @@ enum PixKeyResult {
   // The CPF is missing or malformed. Separate from INVALID, which is about the
   // KEY: the form has two fields and has to be able to point at the wrong one.
   PIX_KEY_RESULT_INVALID_TAX_ID = 5;
+  // PAYOUT_PENDING: ha REPASSE a caminho da chave, e por isso ela nao pode mudar.
+  //
+  // ACRESCENTADO NO FIM em 25/09/2026, sem renumerar nada: de 1 a 5 ficou igual.
+  //
+  // Ate aqui esta recusa e a de venda em curso devolviam o MESMO valor,
+  // SALE_IN_PROGRESS, e as duas pedem coisas diferentes de quem le: a cobranca
+  // aberta passa sozinha quando a compra fechar ou vencer, e o repasse so passa
+  // quando o dinheiro sair. A pessoa nao sabia se esperava minutos ou falava com
+  // a equipe.
+  //
+  // Travam: repasse PENDENTE, ENVIADO, INCERTO e SEM TAXA. Nao travam o RECUSADO
+  // (a recusa mais comum e a chave estar errada, e travar a correcao prenderia o
+  // dinheiro para sempre) nem o PAGO.
+  PIX_KEY_RESULT_PAYOUT_PENDING = 6;
 }
 
 message SavePixKeyRequest {
@@ -426,6 +506,32 @@ message GetPixKeyResponse {
   PayoutWaitReason payout_wait_reason = 7;
 }
 
+message DeletePixKeyRequest {
+  // Sempre da SESSAO, nunca do corpo, como no SavePixKey: um pedido que escolhe
+  // de quem e a chave e um pedido que apaga a chave dos outros.
+  int64 account_id = 1;
+}
+
+message DeletePixKeyResponse {
+  PixKeyDeleteResult result = 1;
+}
+
+// PixKeyDeleteResult e por que o apagar passou ou nao.
+enum PixKeyDeleteResult {
+  PIX_KEY_DELETE_RESULT_UNSPECIFIED = 0;
+  PIX_KEY_DELETE_RESULT_OK = 1;
+  // NO_KEY: nao havia chave para apagar.
+  //
+  // Separado do OK de proposito: a tela precisa distinguir "apaguei agora" de
+  // "nao havia nada", senao ela confirma uma acao que nao aconteceu.
+  PIX_KEY_DELETE_RESULT_NO_KEY = 2;
+  // SALE_IN_PROGRESS: ha cobranca ABERTA de um anuncio deste vendedor.
+  PIX_KEY_DELETE_RESULT_SALE_IN_PROGRESS = 3;
+  // PAYOUT_PENDING: ha repasse a caminho -- pendente, enviado, incerto ou
+  // segurado por taxa desconhecida. Recusado e pago nao travam.
+  PIX_KEY_DELETE_RESULT_PAYOUT_PENDING = 4;
+}
+
 // PayoutWaitReason answers the only question a seller with money owed actually
 // has: is this on me, or on you?
 //
@@ -483,11 +589,22 @@ enum PixChargeState {
   // money, and a screen that empties at that exact moment is the screen that
   // makes them open a ticket.
   PIX_CHARGE_STATE_PAID = 3;
-  // CANCELED: closed without payment, because the buyer LEFT THE GAME.
+  // CANCELED: a processadora RECUSOU gerar o codigo Pix desta cobranca (recusa
+  // definitiva da ponte, 4xx).
   //
-  // This one will happen for real, and often: people leave the game to pay on
-  // their phone. Without a state for it the page empties with no explanation and
-  // the buyer has no idea what they did wrong.
+  // A cobranca foi fechada sem codigo, entao NADA foi cobrado de ninguem. O
+  // anuncio continua ATIVO e o item segue a venda -- ele nunca saiu da barraca;
+  // quem e liberado e o COMPRADOR, que volta a poder comprar. Sem esse
+  // fechamento ele ficaria preso a uma cobranca morta.
+  //
+  // Hoje e a recusa definitiva da ponte que produz este estado
+  // (store.FecharCobrancaPorRecusaDefinitiva). Existe uma segunda funcao capaz
+  // de gravar CANCELED -- a desistencia do comprador, CancelarCobrancaRMT --,
+  // mas ela esta SEM CHAMADOR: medido em 25/09/2026, e por isso o texto diz
+  // "hoje" em vez de "o unico caminho".
+  //
+  // O site mostra: "Nao foi possivel gerar o pagamento. Nada foi cobrado. Tente
+  // comprar de novo no jogo."
   PIX_CHARGE_STATE_CANCELED = 4;
   // PAID_LATE: the money arrived AFTER the charge had closed; the item was not
   // delivered and the amount is refunded automatically through the processor.
@@ -574,6 +691,38 @@ message GetMyCurrentPixChargeResponse {
   // this date.
   int64 refund_requested_at = 10;
   RefundState refund_state = 11;
+  // Onde esta o item depois de pago: a caminho, ou segurado porque o bau esta
+  // cheio.
+  //
+  // A pagina mostrava "o item esta a caminho" para DUAS situacoes diferentes: a
+  // entrega que acontece no proximo login, e a que nao acontece nenhuma vez ate a
+  // pessoa esvaziar o bau. Quem estava na segunda esperava um dia que nao chega.
+  DeliveryState delivery_state = 12;
+}
+
+// DeliveryState diz onde esta o item de uma compra ja paga.
+//
+// CALCULADO NA LEITURA, e nao guardado: quem descobre que o item nao cabe e o
+// servidor de jogo, no seu proprio laco, e ele so fala com o banco por gRPC --
+// marcar uma coluna exigiria um RPC novo, e quando NADA e entregue o dreno nem
+// chega a chamar o banco. Alem disso o calculado e mais honesto: uma coluna diria
+// "nao cabia as 02h10" e envelheceria, enquanto isto diz "nao cabe agora".
+//
+// "SEM ESPACO LIVRE" NAO E "NAO CABE": item que empilha entra num bau lotado.
+// Por isso a tela afirma o FATO ("o bau esta sem espaco livre") e nao a previsao
+// -- assim a frase nao fica falsa quando o item empilhar e entrar.
+enum DeliveryState {
+  // UNSPECIFIED: nao ha linha de entrega. Ainda nao pago, ou sem entrega.
+  DELIVERY_STATE_UNSPECIFIED = 0;
+  // WAITING: pago e na fila. Chega no proximo dreno, que e o login ou a entrega
+  // imediata.
+  DELIVERY_STATE_WAITING = 1;
+  // HELD: esta na fila E o bau da conta nao tem espaco livre.
+  DELIVERY_STATE_HELD = 2;
+  // DELIVERED: o item entrou no bau.
+  DELIVERY_STATE_DELIVERED = 3;
+  // LOST: a linha foi encerrada sem entregar. Nao acontece sozinha.
+  DELIVERY_STATE_LOST = 4;
 }
 
 // RefundState is how far the money that arrived late has got on its way back.
@@ -689,6 +838,103 @@ service CharacterWebService {
   // account. It is cold-storage data and can be slightly stale while a character
   // is online; live state remains owned by tmServer's single goroutine.
   rpc ListMyCharacters(ListMyCharactersRequest) returns (ListMyCharactersResponse);
+
+  // O EMBLEMA DE GUILDA, 25/09/2026.
+  //
+  // Nao existia nada de emblema no servidor antes disto: nem coluna, nem campo,
+  // nem rota. A tabela guild (migracao 0012) tem id, name, clan, fame e citizen.
+  //
+  // LIDER e guild_member.guild_level = 9 (internal/domain, guildLeaderLevel), e e
+  // esse o criterio do NOT_LEADER -- nao "quem criou".
+  rpc ListMyLedGuilds(ListMyLedGuildsRequest) returns (ListMyLedGuildsResponse);
+  rpc SetMyGuildEmblem(SetMyGuildEmblemRequest) returns (SetMyGuildEmblemResponse);
+  rpc ClearMyGuildEmblem(ClearMyGuildEmblemRequest) returns (ClearMyGuildEmblemResponse);
+  // GetGuildEmblem e PUBLICO: e por ele que a pagina da guilda mostra a imagem.
+  rpc GetGuildEmblem(GetGuildEmblemRequest) returns (GetGuildEmblemResponse);
+}
+
+message ListMyLedGuildsRequest {
+  // Da SESSAO. Quem esta logado no site e a CONTA, e a lideranca e do
+  // PERSONAGEM: o servidor resolve isso procurando, entre os personagens daquela
+  // conta, os que tem guild_level 9. Assim o site nao precisa saber qual
+  // personagem lidera qual guilda.
+  int64 account_id = 1;
+}
+
+message ListMyLedGuildsResponse {
+  // PLURAL porque uma conta tem ate 4 personagens (guild_member.slot vai de 0 a
+  // 3), e nada impede dois deles liderarem guildas diferentes. Uma tela que
+  // assuma uma so erra no dia em que isso acontecer.
+  repeated LedGuild guilds = 1;
+}
+
+message LedGuild {
+  int32 guild_id = 1;
+  string name = 2;
+  bool has_emblem = 3;
+}
+
+message SetMyGuildEmblemRequest {
+  int64 account_id = 1;
+  int32 guild_id = 2;
+  // O BMP inteiro, exatamente como o cliente 1.0.0 le (medido pela dupla do
+  // cliente em gamepatch/emblema.cpp, LeBmpDoEmblema):
+  //
+  //   24 bits, 16x12, SEM transparencia, EXATAMENTE 630 bytes;
+  //   offset 0 "BM"; bfSize (u32 LE @2) = 630; bfOffBits (@10) = 54;
+  //   biSize (@14) = 40; biWidth (@18) = 16; biHeight (@22) = +12 (de baixo
+  //   para cima, positivo); biPlanes (@26) = 1; biBitCount (@28) = 24;
+  //   biCompression (@30) = 0 (BI_RGB);
+  //   pixels em BGR, 48 bytes por linha sem padding, 576 no total.
+  //
+  // Qualquer outra coisa e INVALID_IMAGE. O teto de 632 do cliente e folga dele;
+  // fechamos em 630. A VALIDACAO E NO SERVIDOR: um cliente remendado nao pode
+  // gravar imagem que o jogo nao desenha.
+  bytes image = 3;
+}
+
+message SetMyGuildEmblemResponse {
+  GuildEmblemResult result = 1;
+}
+
+message ClearMyGuildEmblemRequest {
+  int64 account_id = 1;
+  int32 guild_id = 2;
+}
+
+message ClearMyGuildEmblemResponse {
+  GuildEmblemResult result = 1;
+}
+
+message GetGuildEmblemRequest {
+  int32 guild_id = 1;
+}
+
+message GetGuildEmblemResponse {
+  // has_emblem separado de image porque, sem ele, "nao tem emblema" e "falhei ao
+  // ler" viram o mesmo bytes vazio -- e a pagina nao sabe se mostra o padrao ou
+  // um aviso.
+  bool has_emblem = 1;
+  bytes image = 2;
+  // Quando o emblema mudou pela ultima vez, em segundos Unix UTC. ZERO quando
+  // has_emblem e falso. E o que a rota de imagem do site usa para mandar o
+  // Last-Modified certo.
+  int64 updated_at_unix = 3;
+}
+
+// GuildEmblemResult e por que a troca passou ou nao.
+enum GuildEmblemResult {
+  GUILD_EMBLEM_RESULT_UNSPECIFIED = 0;
+  GUILD_EMBLEM_RESULT_OK = 1;
+  // NOT_LEADER: nenhum personagem desta conta lidera a guilda pedida.
+  GUILD_EMBLEM_RESULT_NOT_LEADER = 2;
+  // INVALID_IMAGE: o BMP nao bate com o formato descrito em SetMyGuildEmblem.
+  GUILD_EMBLEM_RESULT_INVALID_IMAGE = 3;
+  // RATE_LIMITED: uma troca (Set ou Clear) a cada 5 minutos POR GUILDA.
+  //
+  // Por guilda e nao por conta, porque o custo e a imagem trocando para todos os
+  // membros.
+  GUILD_EMBLEM_RESULT_RATE_LIMITED = 4;
 }
 
 message ListMyCharactersRequest {

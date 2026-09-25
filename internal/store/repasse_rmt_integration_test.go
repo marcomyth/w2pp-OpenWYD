@@ -529,16 +529,21 @@ func TestTrocarChaveComRepasseEmAbertoERecusadoLiberaNoRecusado(t *testing.T) {
 	}
 
 	// PENDENTE: travado. A venda já aconteceu e o dinheiro ainda não saiu.
-	if err := trocar(); !errors.Is(err, ErrVendaEmCurso) {
-		t.Errorf("pendente: erro = %v, quero ErrVendaEmCurso", err)
+	//
+	// ErrRepasseEmCurso e não ErrVendaEmCurso: os dois foram separados em 25/09/2026.
+	// Cobrança aberta e repasse a caminho pediam coisas diferentes de quem lê — uma
+	// passa sozinha quando a compra fechar, a outra só quando o dinheiro sair — e liam
+	// a mesma frase.
+	if err := trocar(); !errors.Is(err, ErrRepasseEmCurso) {
+		t.Errorf("pendente: erro = %v, quero ErrRepasseEmCurso", err)
 	}
 
 	// ENVIADO: travado. O saque está a caminho da chave que valia.
 	if err := s.MarcarRepasseEnviado(ctx, id, "saque-1", precoEmCentavos); err != nil {
 		t.Fatal(err)
 	}
-	if err := trocar(); !errors.Is(err, ErrVendaEmCurso) {
-		t.Errorf("enviado: erro = %v, quero ErrVendaEmCurso", err)
+	if err := trocar(); !errors.Is(err, ErrRepasseEmCurso) {
+		t.Errorf("enviado: erro = %v, quero ErrRepasseEmCurso", err)
 	}
 
 	// INCERTO: travado, e é o mais importante dos três — o dinheiro PODE já ter saído
@@ -553,8 +558,8 @@ func TestTrocarChaveComRepasseEmAbertoERecusadoLiberaNoRecusado(t *testing.T) {
 	if err := s2.MarcarRepasseIncerto(ctx2, id2, "a resposta nao voltou"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s2.SalvarChavePix(ctx2, v2.vendedor, "outra@exemplo.com", ChavePixEmail, "52998224725"); !errors.Is(err, ErrVendaEmCurso) {
-		t.Errorf("incerto: erro = %v, quero ErrVendaEmCurso", err)
+	if err := s2.SalvarChavePix(ctx2, v2.vendedor, "outra@exemplo.com", ChavePixEmail, "52998224725"); !errors.Is(err, ErrRepasseEmCurso) {
+		t.Errorf("incerto: erro = %v, quero ErrRepasseEmCurso", err)
 	}
 
 	// RECUSADO: LIBERA. Sem isto, o vendedor cuja chave estava errada nunca conseguiria
@@ -687,7 +692,10 @@ func TestVendedorAntigoConseguePreencherOCPFQueFalta(t *testing.T) {
 	}
 
 	// MAS trocar a CHAVE continua travado: é aí que o desvio seria possível.
-	if err := s.SalvarChavePix(ctx, v.vendedor, "ladrao@exemplo.com", ChavePixEmail, "52998224725"); !errors.Is(err, ErrVendaEmCurso) {
+	if err := s.SalvarChavePix(ctx, v.vendedor, "ladrao@exemplo.com", ChavePixEmail, "52998224725"); !errors.Is(err, ErrRepasseEmCurso) {
+		// ErrRepasseEmCurso e nao ErrVendaEmCurso: os dois foram separados em
+		// 25/09/2026 porque pediam coisas diferentes de quem le. A cobranca aberta
+		// passa sozinha quando a compra fechar; o repasse so quando o dinheiro sair.
 		t.Errorf("a troca de chave com divida pendente passou: erro = %v", err)
 	}
 }

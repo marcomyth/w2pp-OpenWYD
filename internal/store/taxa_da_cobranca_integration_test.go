@@ -246,7 +246,10 @@ func TestRepasseSeguradoTravaATrocaDeChave(t *testing.T) {
 	}
 
 	err := s.SalvarChavePix(ctx, v.vendedor, "outra-chave@exemplo.com", ChavePixEmail, "11144477735")
-	if !errors.Is(err, ErrVendaEmCurso) {
-		t.Errorf("erro = %v, queria ErrVendaEmCurso: o segurado nao pode deixar desviar", err)
+	// O erro é PRÓPRIO do repasse, e não o da cobrança aberta: os dois pedem coisas
+	// diferentes de quem vende — a cobrança aberta passa sozinha quando a compra
+	// fechar, o repasse só quando o dinheiro sair.
+	if !errors.Is(err, ErrRepasseEmCurso) {
+		t.Errorf("erro = %v, queria ErrRepasseEmCurso: o segurado nao pode deixar desviar", err)
 	}
 }

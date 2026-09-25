@@ -30,6 +30,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	AccountWebService_CreateAccount_FullMethodName     = "/web.v1.AccountWebService/CreateAccount"
 	AccountWebService_VerifyCredentials_FullMethodName = "/web.v1.AccountWebService/VerifyCredentials"
+	AccountWebService_SetMyDiscordLink_FullMethodName  = "/web.v1.AccountWebService/SetMyDiscordLink"
 )
 
 // AccountWebServiceClient is the client API for AccountWebService service.
@@ -45,6 +46,17 @@ type AccountWebServiceClient interface {
 	// VerifyCredentials validates name + password so the BFF can mint a session
 	// cookie. It is the web login path, independent of the CPSock game login.
 	VerifyCredentials(ctx context.Context, in *VerifyCredentialsRequest, opts ...grpc.CallOption) (*VerifyCredentialsResponse, error)
+	// SetMyDiscordLink guarda o Discord da pessoa depois do OAuth do site.
+	//
+	// UM DISCORD PARA UMA CONTA, garantido por indice UNICO PARCIAL onde o campo
+	// nao e vazio -- mais um CHECK proibindo string vazia. Os dois, e nao so o
+	// indice: em Postgres NULL nao conflita com NULL, entao sem o CHECK bastaria
+	// alguem gravar "" para o indice parar de valer.
+	//
+	// TROCAR o Discord de uma conta que ja tem OUTRO e RECUSADO, e so a staff
+	// desfaz. Sem isso, quem tomasse uma conta trocaria o vinculo em silencio e
+	// levaria junto o cargo que o Discord da.
+	SetMyDiscordLink(ctx context.Context, in *SetMyDiscordLinkRequest, opts ...grpc.CallOption) (*SetMyDiscordLinkResponse, error)
 }
 
 type accountWebServiceClient struct {
@@ -75,6 +87,16 @@ func (c *accountWebServiceClient) VerifyCredentials(ctx context.Context, in *Ver
 	return out, nil
 }
 
+func (c *accountWebServiceClient) SetMyDiscordLink(ctx context.Context, in *SetMyDiscordLinkRequest, opts ...grpc.CallOption) (*SetMyDiscordLinkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetMyDiscordLinkResponse)
+	err := c.cc.Invoke(ctx, AccountWebService_SetMyDiscordLink_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccountWebServiceServer is the server API for AccountWebService service.
 // All implementations must embed UnimplementedAccountWebServiceServer
 // for forward compatibility.
@@ -88,6 +110,17 @@ type AccountWebServiceServer interface {
 	// VerifyCredentials validates name + password so the BFF can mint a session
 	// cookie. It is the web login path, independent of the CPSock game login.
 	VerifyCredentials(context.Context, *VerifyCredentialsRequest) (*VerifyCredentialsResponse, error)
+	// SetMyDiscordLink guarda o Discord da pessoa depois do OAuth do site.
+	//
+	// UM DISCORD PARA UMA CONTA, garantido por indice UNICO PARCIAL onde o campo
+	// nao e vazio -- mais um CHECK proibindo string vazia. Os dois, e nao so o
+	// indice: em Postgres NULL nao conflita com NULL, entao sem o CHECK bastaria
+	// alguem gravar "" para o indice parar de valer.
+	//
+	// TROCAR o Discord de uma conta que ja tem OUTRO e RECUSADO, e so a staff
+	// desfaz. Sem isso, quem tomasse uma conta trocaria o vinculo em silencio e
+	// levaria junto o cargo que o Discord da.
+	SetMyDiscordLink(context.Context, *SetMyDiscordLinkRequest) (*SetMyDiscordLinkResponse, error)
 	mustEmbedUnimplementedAccountWebServiceServer()
 }
 
@@ -103,6 +136,9 @@ func (UnimplementedAccountWebServiceServer) CreateAccount(context.Context, *Crea
 }
 func (UnimplementedAccountWebServiceServer) VerifyCredentials(context.Context, *VerifyCredentialsRequest) (*VerifyCredentialsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method VerifyCredentials not implemented")
+}
+func (UnimplementedAccountWebServiceServer) SetMyDiscordLink(context.Context, *SetMyDiscordLinkRequest) (*SetMyDiscordLinkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetMyDiscordLink not implemented")
 }
 func (UnimplementedAccountWebServiceServer) mustEmbedUnimplementedAccountWebServiceServer() {}
 func (UnimplementedAccountWebServiceServer) testEmbeddedByValue()                           {}
@@ -161,6 +197,24 @@ func _AccountWebService_VerifyCredentials_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountWebService_SetMyDiscordLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetMyDiscordLinkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountWebServiceServer).SetMyDiscordLink(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountWebService_SetMyDiscordLink_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountWebServiceServer).SetMyDiscordLink(ctx, req.(*SetMyDiscordLinkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccountWebService_ServiceDesc is the grpc.ServiceDesc for AccountWebService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -176,6 +230,10 @@ var AccountWebService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "VerifyCredentials",
 			Handler:    _AccountWebService_VerifyCredentials_Handler,
 		},
+		{
+			MethodName: "SetMyDiscordLink",
+			Handler:    _AccountWebService_SetMyDiscordLink_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "api/web/v1/web.proto",
@@ -184,6 +242,7 @@ var AccountWebService_ServiceDesc = grpc.ServiceDesc{
 const (
 	RmtWebService_SavePixKey_FullMethodName            = "/web.v1.RmtWebService/SavePixKey"
 	RmtWebService_GetPixKey_FullMethodName             = "/web.v1.RmtWebService/GetPixKey"
+	RmtWebService_DeletePixKey_FullMethodName          = "/web.v1.RmtWebService/DeletePixKey"
 	RmtWebService_GetMyCurrentPixCharge_FullMethodName = "/web.v1.RmtWebService/GetMyCurrentPixCharge"
 	RmtWebService_ListMarketListings_FullMethodName    = "/web.v1.RmtWebService/ListMarketListings"
 )
@@ -214,6 +273,23 @@ type RmtWebServiceClient interface {
 	// "you already registered ...1234", and a Pix key is personal payment data on a
 	// public site.
 	GetPixKey(ctx context.Context, in *GetPixKeyRequest, opts ...grpc.CallOption) (*GetPixKeyResponse, error)
+	// DeletePixKey APAGA a chave e o CPF, os dois juntos.
+	//
+	// OS DOIS JUNTOS porque sao um cadastro so: chave sem documento nao paga, ja
+	// que a rota de repasse exige o CPF. Deixar o documento para tras guardaria
+	// dado pessoal que nao serve mais para nada -- e dado que nao serve e so o que
+	// vaza num incidente.
+	//
+	// Recusa pelas MESMAS duas travas do SavePixKey, e na mesma ordem: cobranca
+	// aberta primeiro, repasse depois. Quando as duas valem, a pessoa le a da
+	// venda, que e a que passa sozinha antes.
+	//
+	// UMA DIFERENCA DELIBERADA em relacao ao SavePixKey: gravar a MESMA chave passa
+	// mesmo com repasse a caminho, porque nao desvia nada -- e e o que deixa um
+	// vendedor antigo, cadastrado antes de o CPF ser obrigatorio, completar o
+	// documento que falta. Apagar nao e gravar a mesma chave: e tira-la, com
+	// dinheiro a caminho dela. Entao o apagar confere SEMPRE.
+	DeletePixKey(ctx context.Context, in *DeletePixKeyRequest, opts ...grpc.CallOption) (*DeletePixKeyResponse, error)
 	// GetMyCurrentPixCharge returns the real-money charge this account has as a
 	// BUYER, so the site can show the Pix copy-and-paste code — and so it can say
 	// what happened once the charge closes.
@@ -329,6 +405,16 @@ func (c *rmtWebServiceClient) GetPixKey(ctx context.Context, in *GetPixKeyReques
 	return out, nil
 }
 
+func (c *rmtWebServiceClient) DeletePixKey(ctx context.Context, in *DeletePixKeyRequest, opts ...grpc.CallOption) (*DeletePixKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeletePixKeyResponse)
+	err := c.cc.Invoke(ctx, RmtWebService_DeletePixKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *rmtWebServiceClient) GetMyCurrentPixCharge(ctx context.Context, in *GetMyCurrentPixChargeRequest, opts ...grpc.CallOption) (*GetMyCurrentPixChargeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetMyCurrentPixChargeResponse)
@@ -375,6 +461,23 @@ type RmtWebServiceServer interface {
 	// "you already registered ...1234", and a Pix key is personal payment data on a
 	// public site.
 	GetPixKey(context.Context, *GetPixKeyRequest) (*GetPixKeyResponse, error)
+	// DeletePixKey APAGA a chave e o CPF, os dois juntos.
+	//
+	// OS DOIS JUNTOS porque sao um cadastro so: chave sem documento nao paga, ja
+	// que a rota de repasse exige o CPF. Deixar o documento para tras guardaria
+	// dado pessoal que nao serve mais para nada -- e dado que nao serve e so o que
+	// vaza num incidente.
+	//
+	// Recusa pelas MESMAS duas travas do SavePixKey, e na mesma ordem: cobranca
+	// aberta primeiro, repasse depois. Quando as duas valem, a pessoa le a da
+	// venda, que e a que passa sozinha antes.
+	//
+	// UMA DIFERENCA DELIBERADA em relacao ao SavePixKey: gravar a MESMA chave passa
+	// mesmo com repasse a caminho, porque nao desvia nada -- e e o que deixa um
+	// vendedor antigo, cadastrado antes de o CPF ser obrigatorio, completar o
+	// documento que falta. Apagar nao e gravar a mesma chave: e tira-la, com
+	// dinheiro a caminho dela. Entao o apagar confere SEMPRE.
+	DeletePixKey(context.Context, *DeletePixKeyRequest) (*DeletePixKeyResponse, error)
 	// GetMyCurrentPixCharge returns the real-money charge this account has as a
 	// BUYER, so the site can show the Pix copy-and-paste code — and so it can say
 	// what happened once the charge closes.
@@ -476,6 +579,9 @@ func (UnimplementedRmtWebServiceServer) SavePixKey(context.Context, *SavePixKeyR
 func (UnimplementedRmtWebServiceServer) GetPixKey(context.Context, *GetPixKeyRequest) (*GetPixKeyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPixKey not implemented")
 }
+func (UnimplementedRmtWebServiceServer) DeletePixKey(context.Context, *DeletePixKeyRequest) (*DeletePixKeyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeletePixKey not implemented")
+}
 func (UnimplementedRmtWebServiceServer) GetMyCurrentPixCharge(context.Context, *GetMyCurrentPixChargeRequest) (*GetMyCurrentPixChargeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetMyCurrentPixCharge not implemented")
 }
@@ -539,6 +645,24 @@ func _RmtWebService_GetPixKey_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RmtWebService_DeletePixKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeletePixKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RmtWebServiceServer).DeletePixKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RmtWebService_DeletePixKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RmtWebServiceServer).DeletePixKey(ctx, req.(*DeletePixKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RmtWebService_GetMyCurrentPixCharge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetMyCurrentPixChargeRequest)
 	if err := dec(in); err != nil {
@@ -589,6 +713,10 @@ var RmtWebService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetPixKey",
 			Handler:    _RmtWebService_GetPixKey_Handler,
+		},
+		{
+			MethodName: "DeletePixKey",
+			Handler:    _RmtWebService_DeletePixKey_Handler,
 		},
 		{
 			MethodName: "GetMyCurrentPixCharge",
@@ -906,7 +1034,11 @@ var RankingWebService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	CharacterWebService_ListMyCharacters_FullMethodName = "/web.v1.CharacterWebService/ListMyCharacters"
+	CharacterWebService_ListMyCharacters_FullMethodName   = "/web.v1.CharacterWebService/ListMyCharacters"
+	CharacterWebService_ListMyLedGuilds_FullMethodName    = "/web.v1.CharacterWebService/ListMyLedGuilds"
+	CharacterWebService_SetMyGuildEmblem_FullMethodName   = "/web.v1.CharacterWebService/SetMyGuildEmblem"
+	CharacterWebService_ClearMyGuildEmblem_FullMethodName = "/web.v1.CharacterWebService/ClearMyGuildEmblem"
+	CharacterWebService_GetGuildEmblem_FullMethodName     = "/web.v1.CharacterWebService/GetGuildEmblem"
 )
 
 // CharacterWebServiceClient is the client API for CharacterWebService service.
@@ -921,6 +1053,18 @@ type CharacterWebServiceClient interface {
 	// account. It is cold-storage data and can be slightly stale while a character
 	// is online; live state remains owned by tmServer's single goroutine.
 	ListMyCharacters(ctx context.Context, in *ListMyCharactersRequest, opts ...grpc.CallOption) (*ListMyCharactersResponse, error)
+	// O EMBLEMA DE GUILDA, 25/09/2026.
+	//
+	// Nao existia nada de emblema no servidor antes disto: nem coluna, nem campo,
+	// nem rota. A tabela guild (migracao 0012) tem id, name, clan, fame e citizen.
+	//
+	// LIDER e guild_member.guild_level = 9 (internal/domain, guildLeaderLevel), e e
+	// esse o criterio do NOT_LEADER -- nao "quem criou".
+	ListMyLedGuilds(ctx context.Context, in *ListMyLedGuildsRequest, opts ...grpc.CallOption) (*ListMyLedGuildsResponse, error)
+	SetMyGuildEmblem(ctx context.Context, in *SetMyGuildEmblemRequest, opts ...grpc.CallOption) (*SetMyGuildEmblemResponse, error)
+	ClearMyGuildEmblem(ctx context.Context, in *ClearMyGuildEmblemRequest, opts ...grpc.CallOption) (*ClearMyGuildEmblemResponse, error)
+	// GetGuildEmblem e PUBLICO: e por ele que a pagina da guilda mostra a imagem.
+	GetGuildEmblem(ctx context.Context, in *GetGuildEmblemRequest, opts ...grpc.CallOption) (*GetGuildEmblemResponse, error)
 }
 
 type characterWebServiceClient struct {
@@ -941,6 +1085,46 @@ func (c *characterWebServiceClient) ListMyCharacters(ctx context.Context, in *Li
 	return out, nil
 }
 
+func (c *characterWebServiceClient) ListMyLedGuilds(ctx context.Context, in *ListMyLedGuildsRequest, opts ...grpc.CallOption) (*ListMyLedGuildsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMyLedGuildsResponse)
+	err := c.cc.Invoke(ctx, CharacterWebService_ListMyLedGuilds_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *characterWebServiceClient) SetMyGuildEmblem(ctx context.Context, in *SetMyGuildEmblemRequest, opts ...grpc.CallOption) (*SetMyGuildEmblemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetMyGuildEmblemResponse)
+	err := c.cc.Invoke(ctx, CharacterWebService_SetMyGuildEmblem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *characterWebServiceClient) ClearMyGuildEmblem(ctx context.Context, in *ClearMyGuildEmblemRequest, opts ...grpc.CallOption) (*ClearMyGuildEmblemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearMyGuildEmblemResponse)
+	err := c.cc.Invoke(ctx, CharacterWebService_ClearMyGuildEmblem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *characterWebServiceClient) GetGuildEmblem(ctx context.Context, in *GetGuildEmblemRequest, opts ...grpc.CallOption) (*GetGuildEmblemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGuildEmblemResponse)
+	err := c.cc.Invoke(ctx, CharacterWebService_GetGuildEmblem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CharacterWebServiceServer is the server API for CharacterWebService service.
 // All implementations must embed UnimplementedCharacterWebServiceServer
 // for forward compatibility.
@@ -953,6 +1137,18 @@ type CharacterWebServiceServer interface {
 	// account. It is cold-storage data and can be slightly stale while a character
 	// is online; live state remains owned by tmServer's single goroutine.
 	ListMyCharacters(context.Context, *ListMyCharactersRequest) (*ListMyCharactersResponse, error)
+	// O EMBLEMA DE GUILDA, 25/09/2026.
+	//
+	// Nao existia nada de emblema no servidor antes disto: nem coluna, nem campo,
+	// nem rota. A tabela guild (migracao 0012) tem id, name, clan, fame e citizen.
+	//
+	// LIDER e guild_member.guild_level = 9 (internal/domain, guildLeaderLevel), e e
+	// esse o criterio do NOT_LEADER -- nao "quem criou".
+	ListMyLedGuilds(context.Context, *ListMyLedGuildsRequest) (*ListMyLedGuildsResponse, error)
+	SetMyGuildEmblem(context.Context, *SetMyGuildEmblemRequest) (*SetMyGuildEmblemResponse, error)
+	ClearMyGuildEmblem(context.Context, *ClearMyGuildEmblemRequest) (*ClearMyGuildEmblemResponse, error)
+	// GetGuildEmblem e PUBLICO: e por ele que a pagina da guilda mostra a imagem.
+	GetGuildEmblem(context.Context, *GetGuildEmblemRequest) (*GetGuildEmblemResponse, error)
 	mustEmbedUnimplementedCharacterWebServiceServer()
 }
 
@@ -965,6 +1161,18 @@ type UnimplementedCharacterWebServiceServer struct{}
 
 func (UnimplementedCharacterWebServiceServer) ListMyCharacters(context.Context, *ListMyCharactersRequest) (*ListMyCharactersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListMyCharacters not implemented")
+}
+func (UnimplementedCharacterWebServiceServer) ListMyLedGuilds(context.Context, *ListMyLedGuildsRequest) (*ListMyLedGuildsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMyLedGuilds not implemented")
+}
+func (UnimplementedCharacterWebServiceServer) SetMyGuildEmblem(context.Context, *SetMyGuildEmblemRequest) (*SetMyGuildEmblemResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetMyGuildEmblem not implemented")
+}
+func (UnimplementedCharacterWebServiceServer) ClearMyGuildEmblem(context.Context, *ClearMyGuildEmblemRequest) (*ClearMyGuildEmblemResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearMyGuildEmblem not implemented")
+}
+func (UnimplementedCharacterWebServiceServer) GetGuildEmblem(context.Context, *GetGuildEmblemRequest) (*GetGuildEmblemResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGuildEmblem not implemented")
 }
 func (UnimplementedCharacterWebServiceServer) mustEmbedUnimplementedCharacterWebServiceServer() {}
 func (UnimplementedCharacterWebServiceServer) testEmbeddedByValue()                             {}
@@ -1005,6 +1213,78 @@ func _CharacterWebService_ListMyCharacters_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CharacterWebService_ListMyLedGuilds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMyLedGuildsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharacterWebServiceServer).ListMyLedGuilds(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharacterWebService_ListMyLedGuilds_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharacterWebServiceServer).ListMyLedGuilds(ctx, req.(*ListMyLedGuildsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharacterWebService_SetMyGuildEmblem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetMyGuildEmblemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharacterWebServiceServer).SetMyGuildEmblem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharacterWebService_SetMyGuildEmblem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharacterWebServiceServer).SetMyGuildEmblem(ctx, req.(*SetMyGuildEmblemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharacterWebService_ClearMyGuildEmblem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearMyGuildEmblemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharacterWebServiceServer).ClearMyGuildEmblem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharacterWebService_ClearMyGuildEmblem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharacterWebServiceServer).ClearMyGuildEmblem(ctx, req.(*ClearMyGuildEmblemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharacterWebService_GetGuildEmblem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGuildEmblemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharacterWebServiceServer).GetGuildEmblem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharacterWebService_GetGuildEmblem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharacterWebServiceServer).GetGuildEmblem(ctx, req.(*GetGuildEmblemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CharacterWebService_ServiceDesc is the grpc.ServiceDesc for CharacterWebService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1015,6 +1295,22 @@ var CharacterWebService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListMyCharacters",
 			Handler:    _CharacterWebService_ListMyCharacters_Handler,
+		},
+		{
+			MethodName: "ListMyLedGuilds",
+			Handler:    _CharacterWebService_ListMyLedGuilds_Handler,
+		},
+		{
+			MethodName: "SetMyGuildEmblem",
+			Handler:    _CharacterWebService_SetMyGuildEmblem_Handler,
+		},
+		{
+			MethodName: "ClearMyGuildEmblem",
+			Handler:    _CharacterWebService_ClearMyGuildEmblem_Handler,
+		},
+		{
+			MethodName: "GetGuildEmblem",
+			Handler:    _CharacterWebService_GetGuildEmblem_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
