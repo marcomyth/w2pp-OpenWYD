@@ -100,8 +100,10 @@ func montada(t *testing.T, nome string, b []byte, nivel int) {
 // e a Rainy continuam aqui e só ganharam arma.
 func TestArmiaVesteSetMortalMontado(t *testing.T) {
 	setMortalE := [5]int{1225, 1226, 1227, 1228, 1229}
-	// O Mestre Grifo monta um Grifo, que é o nome dele; ficou com o dele.
-	semCavalo := map[string]bool{"Mestre_Grifo": true}
+	// O Mestre Grifo monta um Grifo, que é o nome dele; ficou com o dele. A Kibita
+	// trocou o cavalo por um Unicórnio de nível 70 em 25/09/2026, conferido em
+	// TestArmasDeArmia.
+	semCavalo := map[string]bool{"Mestre_Grifo": true, "Kibita": true}
 	aPe := map[string]bool{"God_of_War": true}
 
 	for _, nome := range []string{
@@ -193,7 +195,8 @@ func TestMestresDeSkillVestemOSetDaClasse(t *testing.T) {
 // Templário que o Foema_Ancian usa — com a Fúria Divina; a Rainy empunha o Arco
 // Divino, o Ferreiro a Solaris e o Arnod, que estava de mãos vazias, a Lança do
 // Triunfo. A Kibita leva o Cajado de Âmbar e o Escudo de Runas. Tudo a +11: a
-// arma na vaga 6 e, só na Kibita, o escudo na 7 (nPos 128 = vaga 7).
+// arma na vaga 6 e, só na Kibita, o escudo na 7 (nPos 128 = vaga 7). E a Kibita
+// desceu do cavalo para um Unicórnio (2381) de nível 70.
 //
 // O mestre BM (Mestre_Archi) NÃO entra aqui: fica com a Gleipnir dele, intocado
 // (TestMestresDeSkillVestemOSetDaClasse).
@@ -204,15 +207,17 @@ func TestMestresDeSkillVestemOSetDaClasse(t *testing.T) {
 func TestArmasDeArmia(t *testing.T) {
 	templario := [5]int{1360, 1361, 1362, 1363, 1364}
 	casos := []struct {
-		nome   string
-		arma   int
-		escudo int
+		nome     string
+		arma     int
+		escudo   int
+		montaria int // 0 = o Cavalo Equipado da apresentação, sem conferir o índice
+		nivel    int
 	}{
-		{"Rapein", 900, 0},    // Fúria_Divina
-		{"Rainy", 825, 0},     // Arco_Divino
-		{"Ferreiro", 911, 0},  // Solaris
-		{"Arnod", 855, 0},     // Lança_do_Triunfo
-		{"Kibita", 902, 1710}, // Cajado_de_Âmbar + Escudo_de_Runas
+		{"Rapein", 900, 0, 0, nivelDaMontaria},   // Fúria_Divina
+		{"Rainy", 825, 0, 0, nivelDaMontaria},    // Arco_Divino
+		{"Ferreiro", 911, 0, 0, nivelDaMontaria}, // Solaris
+		{"Arnod", 855, 0, 0, nivelDaMontaria},    // Lança_do_Triunfo
+		{"Kibita", 902, 1710, 2381, 70},          // Cajado_de_Âmbar + Escudo_de_Runas, Unicórnio 70
 	}
 	for _, c := range casos {
 		b := templateNPC(t, c.nome)
@@ -232,7 +237,12 @@ func TestArmasDeArmia(t *testing.T) {
 				t.Errorf("%s: escudo com EF_SANC %d, esperava %d (+11)", c.nome, v, sanc11)
 			}
 		}
-		montada(t, c.nome, b, nivelDaMontaria)
+		montada(t, c.nome, b, c.nivel)
+		if c.montaria != 0 {
+			if idx, _ := peca(b, slotMontaria); idx != c.montaria {
+				t.Errorf("%s: montaria %d, esperava %d", c.nome, idx, c.montaria)
+			}
+		}
 	}
 
 	b := templateNPC(t, "Rapein")
