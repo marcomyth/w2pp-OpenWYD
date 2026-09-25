@@ -12,6 +12,7 @@ package handler
 
 import (
 	"fmt"
+	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
 	"log/slog"
 	"sync/atomic"
 	"time"
@@ -49,6 +50,12 @@ type Config struct {
 	//
 	// Desligado é o normal, e é o que a produção usa. Ver completeAccountLogin.
 	AcessoRestrito bool
+	// RMT diz quem pode anunciar e comprar por dinheiro real.
+	//
+	// O ZERO VALE FECHADO, e isso é desenho e não acidente: acesso.RMTFechado é o zero do
+	// tipo, então um Config montado sem este campo — num teste, numa montagem nova amanhã
+	// — trava o mercado em vez de abri-lo. Falhar fechado é a regra deste sistema.
+	RMT acesso.EstadoRMT
 
 	// PrazoDaRecusa é quanto o socket de uma recusa de acesso fica de pé. Zero
 	// escolhe o padrão (prazoDaRecusa); o teste o encurta.

@@ -120,6 +120,17 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 		//
 		// A recusa é aqui, na montagem, e não na compra: é o vendedor que pode
 		// consertar — separando a pilha — e ele está na frente da tela agora.
+		// O MERCADO EM DINHEIRO REAL PODE ESTAR FECHADO, e esta é a primeira pergunta
+		// entre as de dinheiro real: antes dela, recusar por pilha ou por preço mínimo
+		// explicaria uma regra de um mercado que nem está aberto.
+		//
+		// A RECUSA É AQUI, na montagem da barraca. O jogador ainda não anunciou nada, não
+		// há cobrança, não há escrow, e ele descobre agora em vez de descobrir quando
+		// alguém tentar comprar.
+		if p.Moeda == protocol.LojaMoedaRMT && !d.podeUsarRMT(s) {
+			sendClientMessage(w, s, msgRMTNaoEstaAberta)
+			return
+		}
 		if p.Moeda == protocol.LojaMoedaRMT && itemAmount(item) > 1 {
 			sendClientMessage(w, s, msgPilhaNaoVaiRMT)
 			return

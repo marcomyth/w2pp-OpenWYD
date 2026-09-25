@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
 	"io"
 	"log/slog"
 	"net"
@@ -39,7 +40,12 @@ func startServerClock(t *testing.T, persist world.Persistence) (string, func(), 
 	clock := &atomic.Uint32{}
 	clock.Store(serverTime)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	d := New(Config{Log: log, Now: func() time.Time { return time.Unix(0, 0) }, CombatRules: regraSemEscala()})
+	// RMT ABERTO NO HARNESS, e é declaração e não descuido: em produção o padrão é
+	// FECHADO, e os testes que montam barraca em dinheiro real precisam de um servidor
+	// configurado com o mercado aberto. Quem testa a trava passa o estado por conta
+	// própria, em startServerRMT.
+	d := New(Config{Log: log, Now: func() time.Time { return time.Unix(0, 0) },
+		CombatRules: regraSemEscala(), RMT: acesso.RMTAberto})
 	w := world.New(world.Config{GridDim: 16, Now: clock.Load}, log, persist, d.Handle)
 	w.SetSessionEndHandler(d.SessionEnd) // party unlink on disconnect, as in main.go
 	ctx, cancel := context.WithCancel(context.Background())

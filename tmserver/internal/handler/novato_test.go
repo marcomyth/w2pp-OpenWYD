@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
 	"io"
 	"log/slog"
 	"net"
@@ -25,7 +26,10 @@ func startServerNovato(t *testing.T, persist world.Persistence) (string, func(),
 	clock := &atomic.Uint32{}
 	clock.Store(serverTime)
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	d := New(Config{Log: log, Now: func() time.Time { return time.Unix(0, 0) }})
+	// RMT ABERTO NO HARNESS: em produção o padrão é FECHADO, e os testes de mercado em
+	// dinheiro real precisam de um servidor configurado com ele aberto.
+	d := New(Config{Log: log, Now: func() time.Time { return time.Unix(0, 0) },
+		RMT: acesso.RMTAberto})
 	w := world.New(world.Config{GridDim: 16, Now: clock.Load}, log, persist, d.Handle)
 	w.SetSessionEndHandler(d.SessionEnd)
 	ctx, cancel := context.WithCancel(context.Background())

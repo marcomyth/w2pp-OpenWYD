@@ -68,3 +68,72 @@ func Frase(restrito bool) string {
 	}
 	return "acesso restrito DESLIGADO: o servidor está aberto"
 }
+
+// VariavelRMT é a chave que tranca a venda por dinheiro real.
+//
+// SEPARADA da tranca do servidor, e não um quarto valor dela, porque as duas respondem
+// perguntas diferentes: uma é "quem pode entrar no jogo" e a outra é "quem pode vender
+// por dinheiro". Juntá-las faria abrir o servidor para jogador abrir o mercado junto, que
+// é exatamente o que não se quer no lançamento.
+const VariavelRMT = "W2PP_RMT"
+
+// EstadoRMT diz quem pode anunciar e comprar por dinheiro real.
+type EstadoRMT int
+
+const (
+	// RMTFechado: ninguém anuncia nem compra. É o PADRÃO, e o padrão é o ponto.
+	//
+	// Com o padrão fechado, subir a versão JÁ tranca — não há variável para lembrar de
+	// pôr em produção, e esquecer de configurar não deixa o mercado aberto. É a mesma
+	// escolha do resto deste pacote: falhar fechado.
+	RMTFechado EstadoRMT = iota
+	// RMTStaff: só conta com cargo de moderador para cima. É o estado de teste.
+	RMTStaff
+	// RMTAberto: qualquer jogador.
+	RMTAberto
+)
+
+var palavrasRMT = map[string]EstadoRMT{
+	"fechado": RMTFechado,
+	"staff":   RMTStaff,
+	"aberto":  RMTAberto,
+}
+
+// RMT lê a variável do ambiente.
+func RMT() (EstadoRMT, error) { return LerRMT(os.Getenv(VariavelRMT)) }
+
+// LerRMT entende o valor, ou recusa dizendo o que aceita.
+//
+// VAZIO É FECHADO, e valor desconhecido é ERRO — as duas metades importam. Vazio ser
+// fechado é o que faz a trava valer sem ninguém configurar nada. E desconhecido ser erro
+// é o que impede o caso pior: alguém escreve "closed" ou "off" achando que trancou, o
+// código não reconhece, e o mercado fica ABERTO enquanto todo mundo acha que está
+// trancado. Servidor que não sobe alguém conserta em dois minutos; mercado aberto por
+// engano move dinheiro de verdade e não se desfaz.
+func LerRMT(valor string) (EstadoRMT, error) {
+	v := strings.ToLower(strings.TrimSpace(valor))
+	if v == "" {
+		return RMTFechado, nil
+	}
+	if e, ok := palavrasRMT[v]; ok {
+		return e, nil
+	}
+	return RMTFechado, fmt.Errorf("%s=%q nao e um valor que eu entenda; "+
+		"use fechado, staff ou aberto; vazio vale fechado", VariavelRMT, valor)
+}
+
+// FraseRMT é o que vai no log do boot.
+//
+// OS TRÊS ESTADOS SÃO ESCRITOS, inclusive o fechado, pelo mesmo motivo da Frase de cima:
+// um log que só fala quando o mercado abre faz do silêncio duas coisas diferentes —
+// "está fechado" e "esta versão nem tem a trava".
+func FraseRMT(e EstadoRMT) string {
+	switch e {
+	case RMTAberto:
+		return "mercado em dinheiro real ABERTO para todos os jogadores"
+	case RMTStaff:
+		return "mercado em dinheiro real só para a STAFF (moderador ou acima)"
+	default:
+		return "mercado em dinheiro real FECHADO: ninguém anuncia nem compra"
+	}
+}

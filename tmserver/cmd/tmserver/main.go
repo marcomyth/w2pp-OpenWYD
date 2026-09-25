@@ -157,6 +157,19 @@ func run(logger *slog.Logger) error {
 	}
 	logger.Info(acesso.Frase(acessoRestrito))
 
+	// A TRAVA DO MERCADO EM DINHEIRO REAL, pelo mesmo caminho e pelo mesmo motivo: valor
+	// que ninguém entende NÃO vira aberto, o servidor não sobe. Aqui o argumento é ainda
+	// mais forte do que na tranca de cima, porque um mercado aberto por engano move
+	// dinheiro de verdade, e dinheiro que saiu não volta por conserto de configuração.
+	//
+	// Vazio vale FECHADO, então subir esta versão já trancou: não há variável para pôr em
+	// produção e não há como esquecer de trancar.
+	estadoRMT, err := acesso.RMT()
+	if err != nil {
+		return err
+	}
+	logger.Info(acesso.FraseRMT(estadoRMT))
+
 	// Echo the effective wiring at boot: the client-version and the resolved
 	// dbServer/binServer addresses are the knobs most often misconfigured in a
 	// container deploy (version-mismatch drops, or "produced zero addresses" when
@@ -655,7 +668,7 @@ func run(logger *slog.Logger) error {
 		eventSeed = 1
 	}
 	dispatch := handler.New(handler.Config{
-		Log: logger, ClientVersion: int32(*clientVersion), AcessoRestrito: acessoRestrito, BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, CasteloOrcNPC: casteloOrcNPC, AcampamentoTrollNPC: acampamentoTrollNPC, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemKeyIDs: itemKeyIDs, ItemClasses: itemClasses, ItemReqs: itemReqs,
+		Log: logger, ClientVersion: int32(*clientVersion), AcessoRestrito: acessoRestrito, RMT: estadoRMT, BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, CasteloOrcNPC: casteloOrcNPC, AcampamentoTrollNPC: acampamentoTrollNPC, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemKeyIDs: itemKeyIDs, ItemClasses: itemClasses, ItemReqs: itemReqs,
 		ItemVolatiles: itemVolatiles, ItemDonates: itemDonates, ItemDurations: itemDurations, MountRates: mountRates, MountAbsorb: mountAbsorb, MountBonus: mountBonus, ItemPos: itemPos, ItemUnique: itemUnique, ItemGrades: itemGrades, ItemExtra: itemExtra, Spells: spells, Heights: heights, Attributes: attributes,
 		SancRate:        sancRate,
 		ExpEvents:       level.ExpEvents{DoubleMode: *doubleExp, NewbieEvent: *newbieEvent, KefraLive: *kefraLive},
