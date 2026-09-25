@@ -32,6 +32,35 @@ import (
 // O cofre é o TaxVault da zona, o mesmo que o líder da guilda dona da cidade
 // saca em guild.go. Até aqui NADA depositava nele: o imposto da lojinha era
 // descontado do vendedor e desaparecia no ar. Agora ele tem para onde ir.
+
+// msgSemRcoins é a recusa de compra por falta de Rcoins.
+//
+// ELA É LITERAL, e não uma entrada da tabela do cliente, porque o legado não tem a
+// moeda: o _NN_Not_Enough_Money fala em gold, e não existe chave para Rcoins no
+// Language.txt. Inventar uma chave não adiantaria — o cliente resolve contra o
+// arquivo DELE, e uma chave que ele não conhece não desenha nada.
+//
+// "Rcoins" é o nome que o jogador vê no site e no painel (a tela de conta diz "Saldo
+// de Rcoins"), e é o nome que ele precisa reconhecer aqui.
+const msgSemRcoins = "Você não possui Rcoins suficientes."
+
+// msgPrecoMudou e msgItemReservado substituem o _NN_CantWhenAutoTrade em dois
+// caminhos onde ele MENTIA.
+//
+// A frase do cliente é "Não é possível durante a auto venda.", e nos dois casos o
+// comprador não está em auto venda nenhuma: num deles a oferta continua lá e só o
+// que ele vai pagar mudou; no outro o item está preso a uma venda em dinheiro real
+// de outra pessoa. Dizer "auto venda" mandava procurar um problema que não existe.
+//
+// O _NN_CantWhenAutoTrade continua onde ele é verdade — quem tem a barraca aberta e
+// tenta mexer no item (item.go, shopPinsOwner) e quem tenta montar barraca no meio
+// de uma troca.
+//
+// "Preço" e não "moeda": para quem clica, o que mudou foi o que ele vai pagar.
+const msgPrecoMudou = "O vendedor mudou o preço deste item. Abra a loja de novo para ver o valor atual."
+
+const msgItemReservado = "Este item está reservado para outra compra em andamento."
+
 func (d *Dispatcher) repartirImposto(w *world.World, s *world.Session, imposto int32,
 	cidadeDaBarraca, cidadeDoComprador int) {
 	if imposto <= 0 {
@@ -81,9 +110,25 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 		return
 	}
 
+	// A OFERTA QUE SUMIU PASSA A FALAR, e essa era a recusa muda que mais doía.
+	//
+	// A vitrine é uma fotografia: entre ela e o clique, outra pessoa compra, o
+	// vendedor recolhe o item ou fecha a barraca. Todos esses caminhos devolviam
+	// NADA — o botão não fazia coisa nenhuma —, e quem estava do outro lado clicava
+	// de novo achando que o clique tinha falhado.
+	//
+	// A frase é a do próprio cliente (_NN_ItemSold, "O item foi vendido."), que
+	// descreve o que a pessoa precisa saber: aquela oferta não está mais lá. Ela
+	// serve às três causas, porque para quem compra as três são a mesma coisa.
 	vendedor, barraca := shopAt(w, int(pedido.Vendedor))
-	if vendedor == nil || vendedor.Conn == s.Conn {
-		return // barraca que não existe, ou a própria
+	if vendedor == nil {
+		d.notify(w, s, NoticeItemSold)
+		return
+	}
+	if vendedor.Conn == s.Conn {
+		// A própria barraca. O painel não oferece isso, então é cliente remendado:
+		// continua mudo, como todo pedido que o jogo não produz.
+		return
 	}
 	pos := int(pedido.Slot)
 	if pos < 0 || pos >= world.MaxAutoTrade {
@@ -92,16 +137,21 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	slot := &vendedor.AutoTrade.Slots[pos]
 	cpos := slot.CargoPos
 	if cpos < 0 || cpos >= world.MaxCargo || slot.Item.Empty() {
-		return // vendido enquanto o painel olhava
+		d.notify(w, s, NoticeItemSold) // vendido enquanto o painel olhava
+		return
 	}
 	cargoVendedor := w.Cargo(vendedor.AccountID)
 	if cargoVendedor == nil {
+		// O baú do vendedor não está carregado: a barraca existe na tela e não tem
+		// nada atrás. Para quem compra é o mesmo que ter sumido.
+		d.notify(w, s, NoticeItemSold)
 		return
 	}
 	// O item precisa continuar sendo o mesmo que foi anunciado: entre a montagem
 	// da barraca e este instante o Cargo pode ter mudado.
 	itemCargo := cargoVendedor.Items[cpos]
 	if !itemsEqual(slot.Item, itemCargo) {
+		d.notify(w, s, NoticeItemSold)
 		return
 	}
 	preco := slot.Price
@@ -126,13 +176,13 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	// DIRETAMENTE, sem passar por la. Armadilha que nao cobre todos os caminhos nao
 	// e armadilha.
 	if itemCargo.AnuncioRMT != 0 && moeda != protocol.LojaMoedaRMT {
-		d.notify(w, s, NoticeCantAutoTrade)
+		sendClientMessage(w, s, msgItemReservado)
 		return
 	}
 	// O painel manda a moeda que ele mostrou ao jogador; se o vendedor trocou
 	// nesse meio-tempo, a compra não sai — ninguém paga em moeda que não viu.
 	if pedido.Moeda != moeda {
-		d.notify(w, s, NoticeCantAutoTrade)
+		sendClientMessage(w, s, msgPrecoMudou)
 		return
 	}
 
@@ -193,7 +243,10 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 		// credita. Ver lojasaldo.go.
 		if err := saldoContas.Transfere(s.AccountID, vendedor.AccountID, moeda, preco); err != nil {
 			d.log.Info("loja: compra em cash recusada", "conn", s.Conn, "erro", err)
-			d.notify(w, s, NoticeNotEnoughMoney)
+			// A FRASE TEM DE DIZER A MOEDA CERTA. O _NN_Not_Enough_Money do cliente é
+			// "Não possui gold suficiente.", e quem tentava comprar em Rcoins lia isso
+			// com a bolsa cheia de ouro — a recusa mandava conferir a moeda errada.
+			sendClientMessage(w, s, msgSemRcoins)
 			return
 		}
 		// O banco é a verdade, mas quem mostra o saldo no painel é a sessão: ela
