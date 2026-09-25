@@ -493,3 +493,88 @@ func TestCobrancaRecusaAnuncioAbaixoDoMinimo(t *testing.T) {
 		t.Errorf("valor = %d, queria %d", cob.ValorCentavos, PrecoMinimoRMTCentavos)
 	}
 }
+
+// A VARREDURA FECHA A COBRANÇA SEM CÓDIGO E VENCIDA, mesmo com a criação tentando.
+//
+// O caso real de 24/09/2026: a referência saía num formato que a ponte recusava, e
+// CADA clique de comprar abria uma cobrança que nunca ia nascer. Ela ficava aberta os
+// cinco minutos inteiros da janela, e durante esse tempo o índice de uma-aberta-por-
+// comprador recusava qualquer outra compra — a página dizia PRAZO ENCERRADO (derivado
+// de expira_em) e o jogo dizia "você já tem um pagamento aberto" (derivado do status).
+// As duas estavam certas sobre coisas diferentes.
+//
+// Este teste prende as duas metades do que a varredura promete: ela FECHA o que
+// ninguém poderia ter pagado, e NÃO fecha o que alguém pode estar pagando. A segunda
+// metade é a que importa mais: uma varredura agressiva demais devolveria dinheiro de
+// gente que pagou.
+func TestVarreduraFechaCobrancaSemCodigoEVencida(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor, comprador, anuncio := anuncioPronto(ctx, t, s, "varre")
+
+	res, cob, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-varre-1", 0)
+	if err != nil || res != CobrancaAbertaOK {
+		t.Fatalf("abrir: res=%v err=%v", res, err)
+	}
+
+	// Enquanto o prazo corre, a varredura NÃO a toca: ela pode estar sendo paga.
+	if venceram, err := s.ExpirarCobrancasRMT(ctx); err != nil {
+		t.Fatal(err)
+	} else if len(venceram) != 0 {
+		t.Fatalf("a varredura fechou uma cobranca no prazo: %v", venceram)
+	}
+
+	// O prazo acaba. Sem código, ninguém poderia ter pagado.
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE rmt_cobranca SET expira_em = now() - interval '1 second' WHERE id = $1`,
+		cob.CobrancaID); err != nil {
+		t.Fatal(err)
+	}
+	venceram, err := s.ExpirarCobrancasRMT(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(venceram) != 1 || venceram[0] != anuncio {
+		t.Fatalf("venceram = %v, queria [%d]", venceram, anuncio)
+	}
+
+	// E AGORA O COMPRADOR ESTÁ LIVRE, que é o efeito que ele sente. Sem isto, o
+	// teste provaria que a linha mudou de status sem provar que a pessoa
+	// desbloqueou — e era o bloqueio que doía.
+	anuncio2 := anuncioAtivoSimples(ctx, t, s, vendedor, 1)
+	itemMarcado(ctx, t, s, vendedor, 1, anuncio2)
+	res, _, err = s.AbrirCobrancaRMT(ctx, anuncio2, comprador, "ref-varre-2", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != CobrancaAbertaOK {
+		t.Errorf("depois da varredura o comprador continuou preso: res=%v", res)
+	}
+}
+
+// E A VARREDURA NÃO FECHA QUEM TEM IDENTIFIER, porque ali existe cobrança do lado da
+// processadora e o dinheiro pode estar a caminho. É a metade que protege o jogador.
+func TestVarreduraNaoFechaCobrancaComIdentifier(t *testing.T) {
+	s, ctx := freshStore(t)
+	_, comprador, anuncio := anuncioPronto(ctx, t, s, "varre_ident")
+
+	res, cob, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-varre-3", 0)
+	if err != nil || res != CobrancaAbertaOK {
+		t.Fatalf("abrir: res=%v err=%v", res, err)
+	}
+	if _, err := s.pool.Exec(ctx, `
+		UPDATE rmt_cobranca
+		   SET expira_em = now() - interval '1 second',
+		       codigo_pix = 'codigo-de-teste',
+		       identifier_syncpay = 'ident-de-teste'
+		 WHERE id = $1`, cob.CobrancaID); err != nil {
+		t.Fatal(err)
+	}
+
+	venceram, err := s.ExpirarCobrancasRMT(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(venceram) != 0 {
+		t.Errorf("a varredura fechou uma cobranca COM identifier: %v — o dinheiro pode estar a caminho", venceram)
+	}
+}
