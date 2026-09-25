@@ -38,6 +38,15 @@ permissions:
 # andar para tras. Pelo ref, as corridas ficam na fila e sobem em ORDEM DE COMMIT. O
 # preco e espera: com varios pushes seguidos, o ultimo deploy sai depois de todas as
 # CIs anteriores. E o preco certo - ordem vale mais que pressa num deploy.
+#
+# O QUE ISTO NAO CONSERTA, para ninguem estranhar depois: o GitHub guarda so UMA
+# corrida PENDENTE por group. Com tres pushes seguidos, a 1 roda, a 2 fica pendente e
+# a 3 SUBSTITUI a 2 - a pendente e cancelada mesmo com cancel-in-progress false. Ou
+# seja, o deploy de um commit DO MEIO ainda pode sair SKIPPED.
+#
+# A diferenca e o que importa: a corrida que esta RODANDO nao morre mais, e a ULTIMA
+# sempre roda. Como a ultima contem os commits do meio, nada deixa de ir ao ar - o
+# commit do meio so nao ganha um deploy proprio.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
