@@ -116,6 +116,11 @@ func (d *Dispatcher) esperaDoRenascimento(w *world.World, idx int) uint32 {
 	if geradorDeChefeDaLava(w, idx) {
 		return lavaChefeHoras * msPorHora // os mini chefes da lava (dungeon_lava.go)
 	}
+	if geradorDaSalaDaLava(w, idx) {
+		// Os bichos da sala da lava: no máximo 10 s, ou menos se o painel da área
+		// pedir menos (dungeon_lava.go).
+		return min(lavaSalaRenasce, spawnrate.ScaleMillis(world.DefaultRespawnDelay, d.spawnPercentFor(w, idx)))
+	}
 	if geradorDoBossConjurador(w, idx) {
 		return conjuradorHoras * msPorHora // o Boss Conjurador (dungeon_caveiras.go)
 	}

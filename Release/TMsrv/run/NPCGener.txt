@@ -64240,7 +64240,7 @@
 // ********************************************
 #	[2252]
 	MinuteGenerate:	1
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64268,8 +64268,8 @@
 // no2576 (0731�ʵ�E - DESATIVADO
 // ********************************************
 #	[2253]
-	MinuteGenerate:	1
-	MaxNumMob:	10
+	MinuteGenerate:	-1
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64298,7 +64298,7 @@
 // ********************************************
 #	[2254]
 	MinuteGenerate:	1
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64443,7 +64443,7 @@
 // ********************************************
 #	[2259]
 	MinuteGenerate:	1
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64472,7 +64472,7 @@
 // ********************************************
 #	[2260]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64501,7 +64501,7 @@
 // ********************************************
 #	[2261]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64530,7 +64530,7 @@
 // ********************************************
 #	[2262]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64559,7 +64559,7 @@
 // ********************************************
 #	[2263]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64588,7 +64588,7 @@
 // ********************************************
 #	[2264]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64617,7 +64617,7 @@
 // ********************************************
 #	[2265]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64646,7 +64646,7 @@
 // ********************************************
 #	[2266]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64675,7 +64675,7 @@
 // ********************************************
 #	[2267]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64703,8 +64703,8 @@
 // no2591 (0731�ʵ�E - DESATIVADO
 // ********************************************
 #	[2268]
-	MinuteGenerate:	1
-	MaxNumMob:	10
+	MinuteGenerate:	-1
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64733,7 +64733,7 @@
 // ********************************************
 #	[2269]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64762,7 +64762,7 @@
 // ********************************************
 #	[2270]
 	MinuteGenerate:	1
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64791,7 +64791,7 @@
 // ********************************************
 #	[2271]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64820,7 +64820,7 @@
 // ********************************************
 #	[2272]
 	MinuteGenerate:	1
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64849,7 +64849,7 @@
 // ********************************************
 #	[2273]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64878,7 +64878,7 @@
 // ********************************************
 #	[2274]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64907,7 +64907,7 @@
 // ********************************************
 #	[2275]
 	MinuteGenerate:	2
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -64936,7 +64936,7 @@
 // ********************************************
 #	[2276]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64965,7 +64965,7 @@
 // ********************************************
 #	[2277]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -64994,7 +64994,7 @@
 // ********************************************
 #	[2278]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65022,8 +65022,8 @@
 // no2602 (0731�ʵ�E - DESATIVADO
 // ********************************************
 #	[2279]
-	MinuteGenerate:	1
-	MaxNumMob:	5
+	MinuteGenerate:	-1
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65052,7 +65052,7 @@
 // ********************************************
 #	[2280]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65081,7 +65081,7 @@
 // ********************************************
 #	[2281]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65110,7 +65110,7 @@
 // ********************************************
 #	[2282]
 	MinuteGenerate:	1
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65139,7 +65139,7 @@
 // ********************************************
 #	[2283]
 	MinuteGenerate:	1
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65168,7 +65168,7 @@
 // ********************************************
 #	[2284]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65197,7 +65197,7 @@
 // ********************************************
 #	[2285]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65226,7 +65226,7 @@
 // ********************************************
 #	[2286]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65254,8 +65254,8 @@
 // no2610 (0731�ʵ�E - DESATIVADO
 // ********************************************
 #	[2287]
-	MinuteGenerate:	1
-	MaxNumMob:	5
+	MinuteGenerate:	-1
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65284,7 +65284,7 @@
 // ********************************************
 #	[2288]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65313,7 +65313,7 @@
 // ********************************************
 #	[2289]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -65342,7 +65342,7 @@
 // ********************************************
 #	[2290]
 	MinuteGenerate:	1
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -65371,7 +65371,7 @@
 // ********************************************
 #	[2291]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65400,7 +65400,7 @@
 // ********************************************
 #	[2292]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65429,7 +65429,7 @@
 // ********************************************
 #	[2293]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65458,7 +65458,7 @@
 // ********************************************
 #	[2294]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65487,7 +65487,7 @@
 // ********************************************
 #	[2295]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65515,12 +65515,12 @@
 // no2619 (0731�ʵ�E
 // ********************************************
 #	[2296]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	10
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Anf_Ninja
-	Follower:	Anf_Ninja
+	MinGroup:	9
+	MaxGroup:	9
+	Leader:		Anf_Ninja_Lava
+	Follower:	Anf_Ninja_Lava
 	RouteType:	2
 	Formation:	0
 	StartX:		980
@@ -65544,12 +65544,12 @@
 // no2620 (0731�ʵ�E
 // ********************************************
 #	[2297]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	10
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Anf_Ninja
-	Follower:	Anf_Ninja
+	MinGroup:	9
+	MaxGroup:	9
+	Leader:		Anf_Ninja_Lava
+	Follower:	Anf_Ninja_Lava
 	RouteType:	2
 	Formation:	0
 	StartX:		980
@@ -65573,12 +65573,12 @@
 // no2621 (0731�ʵ�E
 // ********************************************
 #	[2298]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	10
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Golem_de_Pedra
-	Follower:	Golem_de_Pedra
+	MinGroup:	9
+	MaxGroup:	9
+	Leader:		Golem_Lava
+	Follower:	Golem_Lava
 	RouteType:	2
 	Formation:	0
 	StartX:		970
@@ -65602,12 +65602,12 @@
 // no2622 (0731�ʵ�E
 // ********************************************
 #	[2299]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	10
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Golem_de_Pedra
-	Follower:	Golem_de_Pedra
+	MinGroup:	9
+	MaxGroup:	9
+	Leader:		Golem_Lava
+	Follower:	Golem_Lava
 	RouteType:	2
 	Formation:	0
 	StartX:		970
@@ -65632,7 +65632,7 @@
 // ********************************************
 #	[2300]
 	MinuteGenerate:	2
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65661,7 +65661,7 @@
 // ********************************************
 #	[2301]
 	MinuteGenerate:	2
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -65689,8 +65689,8 @@
 // no2625 (0731�ʵ�E - DESATIVADO
 // ********************************************
 #	[2302]
-	MinuteGenerate:	1
-	MaxNumMob:	10
+	MinuteGenerate:	-1
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65719,7 +65719,7 @@
 // ********************************************
 #	[2303]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65748,7 +65748,7 @@
 // ********************************************
 #	[2304]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65777,7 +65777,7 @@
 // ********************************************
 #	[2305]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -65806,7 +65806,7 @@
 // ********************************************
 #	[2306]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -65834,8 +65834,8 @@
 // no2630 (0731�ʵ�E - DESATIVADO
 // ********************************************
 #	[2307]
-	MinuteGenerate:	1
-	MaxNumMob:	5
+	MinuteGenerate:	-1
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65864,7 +65864,7 @@
 // ********************************************
 #	[2308]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65893,7 +65893,7 @@
 // ********************************************
 #	[2309]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65922,7 +65922,7 @@
 // ********************************************
 #	[2310]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Anf_Ninja
@@ -65951,7 +65951,7 @@
 // ********************************************
 #	[2311]
 	MinuteGenerate:	2
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -65980,7 +65980,7 @@
 // ********************************************
 #	[2312]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66009,7 +66009,7 @@
 // ********************************************
 #	[2313]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66096,7 +66096,7 @@
 // ********************************************
 #	[2316]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66125,7 +66125,7 @@
 // ********************************************
 #	[2317]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66154,7 +66154,7 @@
 // ********************************************
 #	[2318]
 	MinuteGenerate:	2
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66241,7 +66241,7 @@
 // ********************************************
 #	[2321]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66270,7 +66270,7 @@
 // ********************************************
 #	[2322]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66299,7 +66299,7 @@
 // ********************************************
 #	[2323]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66328,7 +66328,7 @@
 // ********************************************
 #	[2324]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66357,7 +66357,7 @@
 // ********************************************
 #	[2325]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66386,7 +66386,7 @@
 // ********************************************
 #	[2326]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66415,7 +66415,7 @@
 // ********************************************
 #	[2327]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66444,7 +66444,7 @@
 // ********************************************
 #	[2328]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66473,7 +66473,7 @@
 // ********************************************
 #	[2329]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66502,7 +66502,7 @@
 // ********************************************
 #	[2330]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66676,7 +66676,7 @@
 // ********************************************
 #	[2336]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66705,7 +66705,7 @@
 // ********************************************
 #	[2337]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66734,7 +66734,7 @@
 // ********************************************
 #	[2338]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66763,7 +66763,7 @@
 // ********************************************
 #	[2339]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66792,7 +66792,7 @@
 // ********************************************
 #	[2340]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66821,7 +66821,7 @@
 // ********************************************
 #	[2341]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66850,7 +66850,7 @@
 // ********************************************
 #	[2342]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66879,7 +66879,7 @@
 // ********************************************
 #	[2343]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66908,7 +66908,7 @@
 // ********************************************
 #	[2344]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66937,7 +66937,7 @@
 // ********************************************
 #	[2345]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66966,7 +66966,7 @@
 // ********************************************
 #	[2346]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -66995,7 +66995,7 @@
 // ********************************************
 #	[2347]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -67024,7 +67024,7 @@
 // ********************************************
 #	[2348]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -67053,7 +67053,7 @@
 // ********************************************
 #	[2349]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -67314,7 +67314,7 @@
 // ********************************************
 #	[2358]
 	MinuteGenerate:	2
-	MaxNumMob:	10
+	MaxNumMob:	2
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -67343,7 +67343,7 @@
 // ********************************************
 #	[2359]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -67372,7 +67372,7 @@
 // ********************************************
 #	[2360]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -67401,7 +67401,7 @@
 // ********************************************
 #	[2361]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -67430,7 +67430,7 @@
 // ********************************************
 #	[2362]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -67459,7 +67459,7 @@
 // ********************************************
 #	[2363]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -67488,7 +67488,7 @@
 // ********************************************
 #	[2364]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -67517,7 +67517,7 @@
 // ********************************************
 #	[2365]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -67546,7 +67546,7 @@
 // ********************************************
 #	[2366]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -67575,7 +67575,7 @@
 // ********************************************
 #	[2367]
 	MinuteGenerate:	1
-	MaxNumMob:	5
+	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
 	Leader:		Golem_de_Pedra
@@ -159713,7 +159713,7 @@
 	DestWait:	10
 
 // Boss Golem - mini chefe do 2o andar da Dungeon (lava): renasce 2 h depois da morte
-// e some se ficar 30 min sem luta (handler/dungeon_lava.go). Migracao 0142, 25/09/2026.
+// e some se ficar 30 min sem luta (handler/dungeon_lava.go). Migracao 0142; na sala da foto desde a 0148.
 // ********************************************
 
 #	[6147]
@@ -159725,17 +159725,17 @@
 	Follower:	Boss_Golem
 	RouteType:	0
 	Formation:	0
-	StartX:		962
-	StartY:		4018
+	StartX:		968
+	StartY:		3995
 	StartRange:	2
 	StartWait:	10
-	DestX:		962
-	DestY:		4018
+	DestX:		968
+	DestY:		3995
 	DestRange:	2
 	DestWait:	10
 
 // Boss Anf Ninja - mini chefe do 2o andar da Dungeon (lava): renasce 2 h depois da morte
-// e some se ficar 30 min sem luta (handler/dungeon_lava.go). Migracao 0142, 25/09/2026.
+// e some se ficar 30 min sem luta (handler/dungeon_lava.go). Migracao 0142; na sala da foto desde a 0148.
 // ********************************************
 
 #	[6148]
@@ -159747,12 +159747,12 @@
 	Follower:	Boss_Anf_Ninja
 	RouteType:	0
 	Formation:	0
-	StartX:		976
-	StartY:		4056
+	StartX:		983
+	StartY:		3995
 	StartRange:	2
 	StartWait:	10
-	DestX:		976
-	DestY:		4056
+	DestX:		983
+	DestY:		3995
 	DestRange:	2
 	DestWait:	10
 

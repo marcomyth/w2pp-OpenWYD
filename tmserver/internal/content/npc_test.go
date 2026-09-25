@@ -258,10 +258,13 @@ func TestBossDragaoLichBloco(t *testing.T) {
 	}
 }
 
-// TestChefesDaLavaBlocos pins the Dungeon 2nd floor lava hall (migration 0142): the
-// two mini bosses in blocks 6147 and 6148, right before the Boss Conjurador, with no minute period —
-// the 2 h wait is the individual queue's (handler/dungeon_lava.go) — and the Golem
-// de Pedra and Anf Ninja blocks of the hall at five times the legacy count.
+// TestChefesDaLavaBlocos pins the lava room of the Dungeon's 2nd floor (migrations
+// 0142 and 0148): ONLY the room in the photos, x 964-985 × y 3984-4005, between
+// the HeightMap walls. Its four blocks (2296-2299) use the room's own template
+// copies, each born as a full group of 10 with no minute period — the individual
+// queue brings each one back in 10 s (handler/dungeon_lava.go) —, the two mini
+// bosses (6147, 6148) are inside it, and every other Golem de Pedra and Anf Ninja
+// of the floor is back at its legacy count and period.
 func TestChefesDaLavaBlocos(t *testing.T) {
 	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
 	if _, err := os.Stat(path); err != nil {
@@ -275,33 +278,47 @@ func TestChefesDaLavaBlocos(t *testing.T) {
 	if len(gens) < 6150 {
 		t.Fatalf("NPCGener has %d blocks, want 6150 or more", len(gens))
 	}
-	// Dungeon_2_Andar in Regions.txt: 632,3847 - 1022,4091.
-	dentro := func(x, y int16) bool { return x >= 632 && x <= 1022 && y >= 3847 && y <= 4091 }
+	naSala := func(x, y int16) bool { return x >= 964 && x <= 985 && y >= 3984 && y <= 4005 }
 	for idx, nome := range map[int]string{6147: "Boss_Golem", 6148: "Boss_Anf_Ninja"} {
 		g := gens[idx]
 		if g.Leader != nome || g.MinuteGenerate != -1 || g.MaxNumMob != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
 			t.Errorf("bloco %d = %+v, want one %s with MinuteGenerate -1", idx, g, nome)
 		}
-		if !dentro(g.SegX[0], g.SegY[0]) {
-			t.Errorf("%s nasce em (%d,%d), fora do Dungeon_2_Andar", nome, g.SegX[0], g.SegY[0])
+		if !naSala(g.SegX[0], g.SegY[0]) {
+			t.Errorf("%s nasce em (%d,%d), fora da sala da lava", nome, g.SegX[0], g.SegY[0])
 		}
 	}
-	mobs := map[string]int{}
-	for _, g := range gens {
-		if g.Leader != "Anf_Ninja" && g.Leader != "Golem_de_Pedra" {
-			continue
+	sala := map[string]int{}
+	for idx := 2296; idx <= 2299; idx++ {
+		g := gens[idx]
+		if g.Leader != "Golem_Lava" && g.Leader != "Anf_Ninja_Lava" {
+			t.Errorf("bloco %d é %s, want a cópia da sala", idx, g.Leader)
 		}
-		if !dentro(g.SegX[0], g.SegY[0]) {
-			t.Errorf("%s fora do 2º andar em (%d,%d): a Mesa da 0142 vale por template", g.Leader, g.SegX[0], g.SegY[0])
+		if g.Follower != g.Leader || g.MinuteGenerate != -1 || g.MaxNumMob != 10 || g.MinGroup != 9 || g.MaxGroup != 9 {
+			t.Errorf("bloco %d = %+v, want um grupo cheio de 10 sem período", idx, g)
 		}
-		if g.MinuteGenerate <= 0 {
-			t.Errorf("%s em (%d,%d) com MinuteGenerate %d: só o relógio de minuto enche o bloco até o teto", g.Leader, g.SegX[0], g.SegY[0], g.MinuteGenerate)
-		}
-		mobs[g.Leader] += g.MaxNumMob
+		sala[g.Leader] += g.MaxNumMob
 	}
-	// 60 e 56 antes da 0142.
-	if mobs["Anf_Ninja"] != 300 || mobs["Golem_de_Pedra"] != 280 {
-		t.Errorf("Anf Ninja %d e Golem de Pedra %d, want 300 e 280 (5x)", mobs["Anf_Ninja"], mobs["Golem_de_Pedra"])
+	andar := map[string]int{}
+	for idx, g := range gens {
+		switch g.Leader {
+		case "Golem_Lava", "Anf_Ninja_Lava":
+			if idx < 2296 || idx > 2299 || !naSala(g.SegX[0], g.SegY[0]) {
+				t.Errorf("%s no bloco %d em (%d,%d): a cópia é só da sala", g.Leader, idx, g.SegX[0], g.SegY[0])
+			}
+		case "Anf_Ninja", "Golem_de_Pedra":
+			if naSala(g.SegX[0], g.SegY[0]) {
+				t.Errorf("%s ainda na sala, no bloco %d", g.Leader, idx)
+			}
+			andar[g.Leader] += g.MaxNumMob
+		}
+	}
+	// A sala tinha 4 Anf e 4 Golens: 5x. O resto do andar é o legado (60 e 56 menos a sala).
+	if sala["Anf_Ninja_Lava"] != 20 || sala["Golem_Lava"] != 20 {
+		t.Errorf("sala com %v, want 20 de cada", sala)
+	}
+	if andar["Anf_Ninja"] != 56 || andar["Golem_de_Pedra"] != 52 {
+		t.Errorf("resto do andar com %v, want 56 Anf Ninja e 52 Golens, os do legado", andar)
 	}
 }
 

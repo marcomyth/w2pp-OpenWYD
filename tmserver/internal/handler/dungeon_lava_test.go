@@ -14,7 +14,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
-const lavaMigracao = "0142_lava_golem_e_ninja.up.sql"
+const lavaMigracao = "0148_lava_so_na_sala.up.sql"
 
 // mundoDaLava tem o bloco 30 com um mini chefe e o 31 com um Golem comum, e o
 // relógio na mão do teste.
@@ -248,8 +248,8 @@ func TestChefeDaLavaSoltaUmPremio(t *testing.T) {
 	}
 }
 
-// Os templates: o corpo do monstro comum, maior; 3 milhões de vida real pelo
-// divisor ÷50; mais forte que o comum; XP no teto da Dungeon; Carry vazio.
+// Os templates: o corpo do monstro comum, maior; 300 mil de vida real pelo
+// divisor ÷5 (eram 3 milhões, "vida infinita"); mais forte que o comum; XP no teto da Dungeon; Carry vazio.
 func TestChefesDaLavaTemplates(t *testing.T) {
 	root := releaseDir(t)
 	ler := func(nome string) savefmt.Mob {
@@ -274,11 +274,11 @@ func TestChefesDaLavaTemplates(t *testing.T) {
 		if b.CurrentScore.Con <= c.CurrentScore.Con {
 			t.Errorf("%s: CON %d, want maior que a do %s (%d), que é o tamanho", boss, b.CurrentScore.Con, comum, c.CurrentScore.Con)
 		}
-		if b.Equip[13].Index != itemDivisorDobro || b.Equip[13].Effects[0].Value != 50 {
-			t.Errorf("%s: slot 13 = %d/%d, want o divisor %d a 50", boss, b.Equip[13].Index, b.Equip[13].Effects[0].Value, itemDivisorDobro)
+		if b.Equip[13].Index != itemDivisorDobro || b.Equip[13].Effects[0].Value != 5 {
+			t.Errorf("%s: slot 13 = %d/%d, want o divisor %d a 5", boss, b.Equip[13].Index, b.Equip[13].Effects[0].Value, itemDivisorDobro)
 		}
-		if vidaReal := int64(b.CurrentScore.MaxHp) * 50; vidaReal != 3_000_000 {
-			t.Errorf("%s: vida real %d, want 3 milhões", boss, vidaReal)
+		if vidaReal := int64(b.CurrentScore.MaxHp) * 5; vidaReal != 300_000 {
+			t.Errorf("%s: vida real %d, want 300 mil", boss, vidaReal)
 		}
 		if b.CurrentScore.Damage <= c.CurrentScore.Damage || b.CurrentScore.AC <= c.CurrentScore.AC {
 			t.Errorf("%s: dano %d e defesa %d, want acima do %s (%d e %d)", boss,
@@ -298,8 +298,9 @@ func TestChefesDaLavaTemplates(t *testing.T) {
 	}
 }
 
-// A 0142 só cita templates e itens que existem; o Sem Sela é o mais difícil; e
-// tudo o que o template dos dois soltava vai a 0%.
+// A 0148 só cita templates e itens que existem. Nas cópias da sala o Sem Sela é o
+// mais difícil e tudo o que o template soltava vai a 0%; o Golem de Pedra e o Anf
+// Ninja do resto do andar voltam ao template, com o Sem Sela da 0091 (33 e 29).
 func TestLavaMigracaoSaqueDeCampo(t *testing.T) {
 	root := releaseDir(t)
 	items, err := content.LoadItemList(filepath.Join(root, "Common", "ItemList.csv"))
@@ -320,6 +321,11 @@ func TestLavaMigracaoSaqueDeCampo(t *testing.T) {
 	pedidos := []int16{2392, 2394, 2395, 2441, 4019, 4018, 4026}
 	semSela := []int16{2396, 2401}
 	for _, mob := range []string{"Anf_Ninja", "Golem_de_Pedra"} {
+		if got := linhas[mob]; len(got) != 2 || got[2396] != 33 || got[2401] != 29 {
+			t.Errorf("%s fora da sala: %v, want só o Sem Sela da 0091 (2396 a 33, 2401 a 29)", mob, got)
+		}
+	}
+	for _, mob := range []string{anfDaSalaTemplate, golemDaSalaTemplate} {
 		porItem := linhas[mob]
 		menor := int32(1 << 30)
 		for _, item := range pedidos {
@@ -362,4 +368,40 @@ func isPedido(item int16, listas ...[]int16) bool {
 		}
 	}
 	return false
+}
+
+// As cópias da sala são o monstro comum byte a byte: só o nome do arquivo muda,
+// para a Mesa, e o jogador vê o mesmo Golem de Pedra e o mesmo Anf Ninja.
+func TestSalaDaLavaCopiasDosTemplates(t *testing.T) {
+	root := releaseDir(t)
+	for copia, original := range map[string]string{golemDaSalaTemplate: "Golem_de_Pedra", anfDaSalaTemplate: "Anf_Ninja"} {
+		a, _, err := npctemplate.Load(root, copia)
+		if err != nil {
+			t.Fatalf("%s: %v", copia, err)
+		}
+		b, _, err := npctemplate.Load(root, original)
+		if err != nil {
+			t.Fatalf("%s: %v", original, err)
+		}
+		if !bytes.Equal(a, b) {
+			t.Errorf("%s difere de %s", copia, original)
+		}
+	}
+}
+
+// Os bichos da sala voltam em 10 s; o mesmo Golem fora dela segue os 15 s da fila.
+func TestSalaDaLavaRenasceEm10Segundos(t *testing.T) {
+	sala := geradorSozinho(10_000, 10)
+	sala.LeaderName = golemDaSalaTemplate
+	fora := geradorSozinho(10_000, 12)
+	fora.LeaderName = "Golem_de_Pedra"
+	w := world.New(world.Config{GridDim: 64}, slog.New(slog.NewTextHandler(io.Discard, nil)), world.NopPersistence{}, nil)
+	w.RegisterGenerators([]*world.Generator{30: sala, 31: fora})
+	d := dispatcherQuieto()
+	if got := d.esperaDoRenascimento(w, 30); got != lavaSalaRenasce || got > 10_000 {
+		t.Errorf("bicho da sala volta em %d ms, want %d", got, lavaSalaRenasce)
+	}
+	if got := d.esperaDoRenascimento(w, 31); got != world.DefaultRespawnDelay {
+		t.Errorf("Golem fora da sala volta em %d ms, want os %d da fila", got, world.DefaultRespawnDelay)
+	}
 }

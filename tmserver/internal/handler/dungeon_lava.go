@@ -7,14 +7,22 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
-// Os mini chefes do salão de lava do 2º andar da Dungeon, pedido do Marco em
-// 25/09/2026 junto com o campo de XP da 0142 (cinco vezes mais Golem de Pedra e
-// Anf Ninja no mesmo salão).
+// A sala de lava do 2º andar da Dungeon, pedido do Marco em 25/09/2026 com fotos
+// em (972,3994): a sala x 964-985, y 3984-4005, entre as paredes do HeightMap.
+// SÓ ela — a primeira versão (0142) mexeu no andar inteiro, e a 0148 devolveu o
+// resto.
 //
-// São dois, um de cada, nos blocos 6147 (Boss_Golem) e 6148 (Boss_Anf_Ninja): o
-// corpo do monstro comum, maior (CON), com 60.000 de vida e o divisor ÷50 no
-// slot 13 — 3 milhões de vida real —, dano 1.800 e a XP no teto de 10.000 da
-// Dungeon (0091). Carry vazio: o saque é todo daqui.
+// Os quatro blocos dela (2296 a 2299) usam cópias dos templates, Golem_Lava e
+// Anf_Ninja_Lava, para o saque da Mesa valer só aqui (a Mesa vale por template).
+// Cada bloco nasce como um grupo cheio de 10, e cada bicho que morre volta sozinho
+// em no máximo 10 s (esperaDoRenascimento) — pedido do Marco: o relógio de minuto
+// repunha um bicho a cada 24 s.
+//
+// Os mini chefes são dois, um de cada, nos blocos 6147 (Boss_Golem) e 6148
+// (Boss_Anf_Ninja), dentro da sala: o corpo do monstro comum, maior (CON), com
+// 60.000 de vida e o divisor ÷5 no slot 13 — 300 mil de vida real; eram ÷50 e 3
+// milhões, que o Marco achou vida infinita —, dano 1.800 e a XP no teto de 10.000
+// da Dungeon (0091). Carry vazio: o saque é todo daqui.
 //
 // Voltam 2 horas depois da morte, e ficam 2 horas de fora depois do boot, como os
 // outros chefes. E somem se ninguém lutar com eles: 30 minutos sem luta e o chefe
@@ -23,6 +31,8 @@ import (
 const (
 	bossGolemTemplate    = "Boss_Golem"
 	bossAnfNinjaTemplate = "Boss_Anf_Ninja"
+	golemDaSalaTemplate  = "Golem_Lava"
+	anfDaSalaTemplate    = "Anf_Ninja_Lava"
 
 	// lavaChefeHoras é a espera entre a morte e a volta (esperaDoRenascimento),
 	// a espera depois do boot (ApplyChefesDaLavaBoot) e o ciclo de quem some.
@@ -34,6 +44,9 @@ const (
 	lavaChefeVoltaMinima = 10 * msPorMinuto
 
 	msPorMinuto = 60_000
+
+	// lavaSalaRenasce é o teto da espera de um bicho da sala, em ms.
+	lavaSalaRenasce = 10_000
 
 	// lavaChefeBase é a base do sorteio. 32768 % 12 = 8: os valores de 0 a 7
 	// saem 2.731 vezes e os outros 2.730, um desvio de 0,04%.
@@ -96,6 +109,17 @@ func geradorDeChefeDaLava(w *world.World, idx int) bool {
 	}
 	n := droprule.Canonical(g.LeaderName)
 	return n == droprule.Canonical(bossGolemTemplate) || n == droprule.Canonical(bossAnfNinjaTemplate)
+}
+
+// geradorDaSalaDaLava diz se o bloco idx é um dos da sala: os que usam as cópias
+// dos templates, que só existem ali.
+func geradorDaSalaDaLava(w *world.World, idx int) bool {
+	g := w.GeneratorAt(idx)
+	if g == nil {
+		return false
+	}
+	n := droprule.Canonical(g.LeaderName)
+	return n == droprule.Canonical(golemDaSalaTemplate) || n == droprule.Canonical(anfDaSalaTemplate)
 }
 
 // chefeDaLavaSaque entrega o prêmio da morte na bolsa de quem mata
