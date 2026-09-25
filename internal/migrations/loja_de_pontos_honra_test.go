@@ -68,3 +68,26 @@ func TestLojaDePontosTemplateSemEstoque(t *testing.T) {
 		}
 	}
 }
+
+// A 0155 desfaz a 0150: a vitrine pedida era a da Loja de Honra (God of War), e o
+// NPC Loja_de_Pontos volta a ficar fora do mundo, sem estoque. O template segue
+// vazio (TestLojaDePontosTemplateSemEstoque), então o boot não recoloca nada.
+func TestLojaDePontosSaiDeNovo(t *testing.T) {
+	b, err := migrations.FS.ReadFile("0155_loja_de_pontos_sai_de_novo.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := semComentariosSQL(string(b))
+	for _, quer := range []string{
+		"UPDATE npc_definition SET enabled = FALSE WHERE template_name = 'Loja_de_Pontos'",
+		"DELETE FROM npc_shop_item WHERE npc_id IN (SELECT id FROM npc_definition WHERE template_name = 'Loja_de_Pontos')",
+		"UPDATE npc_config_meta SET version = version + 1",
+	} {
+		if !strings.Contains(sql, quer) {
+			t.Errorf("a 0155 não tem %q", quer)
+		}
+	}
+	if strings.Contains(sql, "DELETE FROM npc_definition") {
+		t.Error("a 0155 apaga a definição do NPC; ela só pode desativar")
+	}
+}

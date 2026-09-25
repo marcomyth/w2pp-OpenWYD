@@ -64,10 +64,25 @@ const (
 )
 
 // itemDeHonra é uma troca oferecida pela loja.
+//
+// Efeitos vai no item entregue como está: é por ele que uma pilha sai com
+// EF_AMOUNT (61 N) e uma fada sai com o prazo dela (106 1 = 24 horas, que só
+// começa a correr quando ela é equipada — timeditem.go).
 type itemDeHonra struct {
-	Indice int16
-	Preco  int32 // em pontos de lojinha
-	Cat    uint8 // a aba do painel: protocol.HonraCat*
+	Indice  int16
+	Preco   int32 // em pontos de lojinha, por compra (a pilha inteira)
+	Cat     uint8 // a aba do painel: protocol.HonraCat*
+	Efeitos [3]world.Effect
+}
+
+// pilhaDe é o EF_AMOUNT de uma pilha de n unidades.
+func pilhaDe(n uint8) [3]world.Effect {
+	return [3]world.Effect{{Effect: efAmount, Value: n}}
+}
+
+// prazoEmDias é a duração de um item temporário, em dias, ainda não iniciada.
+func prazoEmDias(n uint8) [3]world.Effect {
+	return [3]world.Effect{{Effect: efWDay, Value: n}}
 }
 
 // estoqueDaLojaDeHonra é o que o God of War oferece, na ordem em que aparece no
@@ -75,8 +90,11 @@ type itemDeHonra struct {
 // refere ao item, então acrescentar no fim é seguro e reordenar troca o que cada
 // jogador com o painel aberto vai comprar.
 //
-// Preços de partida, a calibrar: uma lojinha cheia rende 3 pontos por quinze
-// minutos, ou 12 por hora — 288 por dia de barraca de pé, 672 com Fada Azul.
+// Preços combinados em 25/09/2026, medidos em DIAS de barraca aberta 20 horas
+// por dia: 240 pontos sem fada (3 por quinze minutos) e 560 com a Fada Azul (7).
+// A régua é a fada — quem ainda não tem uma junta 4 dias para a de 24 horas, e
+// ela rende 320 pontos a mais por dia, então não se paga sozinha. O preço é por
+// COMPRA: a pilha de três sai pelo número da tabela.
 // Todo índice aqui foi conferido no Release/Common/ItemList.csv.
 //
 // Mora em código, como o estoque do Unicórnio Puro, e pelo mesmo motivo: com
@@ -88,20 +106,17 @@ type itemDeHonra struct {
 // escolhido a dedo: quem escolhe o item escolhe a aba, e uma dedução errada
 // colocaria uma fada na aba de armas sem ninguém notar.
 //
-// Os nove de partida são materiais e itens de tempo, então caem todos em Consumo:
-// as abas Armas e Set existem no painel e ficam vazias até o estoque ganhar uma
-// arma e uma peça de set. Foi decidido em 21/09/2026 que os itens continuam sendo
-// só exemplos, então isto é para revisar depois, não um erro.
+// Os sete são materiais, consumíveis e itens de tempo, então caem todos em
+// Consumo: as abas Armas e Set existem no painel e ficam vazias até o estoque
+// ganhar uma arma e uma peça de set.
 var estoqueDaLojaDeHonra = []itemDeHonra{
-	{3901, 150, protocol.HonraCatConsumo}, // Fada_Azul(3dias) - a fada que dobra o próprio ganho
-	{3904, 240, protocol.HonraCatConsumo}, // Fada_Azul(5dias)
-	{3907, 320, protocol.HonraCatConsumo}, // Fada_Azul(7dias)
-	{412, 40, protocol.HonraCatConsumo},   // Poeira_de_Oriharucon
-	{413, 40, protocol.HonraCatConsumo},   // Poeira_de_Lactolerium
-	{414, 60, protocol.HonraCatConsumo},   // Poeira_de_Fada
-	{774, 80, protocol.HonraCatConsumo},   // Pedra_da_Troca_Maior
-	{775, 30, protocol.HonraCatConsumo},   // Pedra_da_Troca_Menor
-	{3909, 100, protocol.HonraCatConsumo}, // Mapa_Vale_Escondido(24h)
+	{413, 100, protocol.HonraCatConsumo, [3]world.Effect{}},   // Poeira_de_Lactolerium x1 (~8 h sem fada)
+	{3438, 360, protocol.HonraCatConsumo, [3]world.Effect{}},  // Acelerador_de_Nascimento x1 (1,5 dia)
+	{412, 480, protocol.HonraCatConsumo, pilhaDe(3)},          // Poeira_de_Oriharucon x3 (2 dias)
+	{3901, 960, protocol.HonraCatConsumo, prazoEmDias(1)},     // Fada_Azul 24 h (4 dias)
+	{4140, 1440, protocol.HonraCatConsumo, [3]world.Effect{}}, // Baú_de_Experiência x1 (6 dias)
+	{3173, 1440, protocol.HonraCatConsumo, pilhaDe(3)},        // Pergaminho_da_Água(N)LV1 x3 (6 dias)
+	{3467, 2400, protocol.HonraCatConsumo, [3]world.Effect{}}, // Bolsa_do_Andarilho x1 (10 dias)
 }
 
 // ehLojaDeHonra diz se npc é a loja de honra.
@@ -135,6 +150,7 @@ func itensDeHonraParaOPainel() []protocol.HonraItem {
 		itens = append(itens, protocol.HonraItem{
 			Slot:      int16(i),
 			Indice:    it.Indice,
+			Qtd:       uint8(itemAmount(world.Item{Index: it.Indice, Effects: it.Efeitos})),
 			Preco:     it.Preco,
 			Categoria: it.Cat,
 		})
@@ -293,6 +309,7 @@ func (d *Dispatcher) honraCompra(w *world.World, s *world.Session, _ protocol.He
 	nome := e.Name
 	preco := item.Preco
 	indice := item.Indice
+	efeitos := item.Efeitos
 	p := w.Persistence()
 	d.log.Info("loja de honra: cobrando", "conn", s.Conn, "conta", accountID,
 		"item", indice, "pontos", preco)
@@ -311,7 +328,7 @@ func (d *Dispatcher) honraCompra(w *world.World, s *world.Session, _ protocol.He
 				sendClientMessage(w, s, "A loja de honra está indisponível agora. Tente de novo.")
 				return
 			}
-			d.entregaDeHonra(w, s, accountID, nome, indice, preco, saldo)
+			d.entregaDeHonra(w, s, accountID, nome, indice, efeitos, preco, saldo)
 		}
 	})
 }
@@ -323,7 +340,7 @@ func (d *Dispatcher) honraCompra(w *world.World, s *world.Session, _ protocol.He
 // pedido e esta linha o jogador pode ter morrido, deslogado e voltado, ou enchido
 // a mochila.
 func (d *Dispatcher) entregaDeHonra(w *world.World, s *world.Session, accountID int64,
-	nome string, indice int16, preco, saldo int32) {
+	nome string, indice int16, efeitos [3]world.Effect, preco, saldo int32) {
 	e := w.Entity(s.Conn)
 	destino := -1
 	if e != nil && s.Mode == world.UserPlay {
@@ -346,7 +363,7 @@ func (d *Dispatcher) entregaDeHonra(w *world.World, s *world.Session, accountID 
 		d.notify(w, s, NoticeNoSpaceToTrade)
 		return
 	}
-	item := world.Item{Index: indice}
+	item := world.Item{Index: indice, Effects: efeitos}
 	e.Carry[destino] = item
 	d.sendSlot(w, s, world.ItemPlaceCarry, destino, item)
 	w.Send(s, protocol.MsgHonraSaldo, protocol.EncodeHonraSaldo(saldo))

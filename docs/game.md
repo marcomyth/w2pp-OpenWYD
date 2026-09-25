@@ -223,26 +223,27 @@ O débito é atômico no banco: quem não tem saldo não leva o item, e se a bol
 entre a cobrança e a entrega os pontos voltam sozinhos. Comprar em pontos **não
 encosta no ouro** do personagem.
 
-A **Loja de Pontos** fica em Armia (2139, 2104), ao lado da Kibita. Saiu do mundo na
-0096 e voltou na 0150 (25/09/2026) com sete itens, cada preço medido em dias de
-barraca aberta 20 h por dia (240 pontos sem fada, 560 com a Fada Azul):
+O NPC **Loja de Pontos** (Armia, 2139, 2104) está fora do mundo: a 0096 o tirou,
+a 0150 o trouxe de volta por engano e a 0155 o tirou de novo. O template fica sem
+estoque, para a seed do boot não recolocar nada nele.
 
-| Item | Qtd | Pontos | Dias sem / com fada |
+**A loja de pontos do jogo é a Loja de Honra** — o God of War, "Honor Store", com o
+painel próprio do cliente (`handler/loja_de_honra.go`). O estoque mora no código
+(`estoqueDaLojaDeHonra`) e, desde 25/09/2026, cada preço é medido em dias de barraca
+aberta 20 h por dia (240 pontos sem fada, 560 com a Fada Azul):
+
+| Item | Entrega | Pontos | Dias sem / com fada |
 |---|---|---|---|
 | Poeira de Lactolerium (413) | 1 | 100 | ~8 h / ~3,5 h |
 | Acelerador de Nascimento (3438) | 1 | 360 | 1,5 / 0,6 |
-| Poeira de Oriharucon (412) | 3 | 480 | 2 / 0,9 |
-| Fada Azul 24 h (3901, `106 1`) | 1 | 960 | 4 / 1,7 |
+| Poeira de Oriharucon (412) | `61 3` | 480 | 2 / 0,9 |
+| Fada Azul 24 h (3901) | `106 1` | 960 | 4 / 1,7 |
 | Baú de Experiência (4140) | 1 | 1440 | 6 / 2,6 |
-| Pergaminho da Água (N) LV1 (3173) | 3 | 1440 | 6 / 2,6 |
+| Pergaminho da Água (N) LV1 (3173) | `61 3` | 1440 | 6 / 2,6 |
 | Bolsa do Andarilho (3467) | 1 | 2400 | 10 / 4,3 |
 
-O preço é por compra: a pilha de três sai pelo número da tabela, e chega ao jogador
-com `61 3`. A fada é a única exceção à regra "nenhum comerciante vende fada" (0107):
-é por pontos de tempo online e só por 24 horas. O template do NPC fica **sem
-estoque** de propósito — a seed recoloca item do template em vaga livre, sem preço em
-pontos, e ele voltaria sendo vendido por ouro. Mudar preço ou vitrine é pelo painel
-de NPCs.
+O preço é por compra (a pilha inteira), e o item chega com os efeitos da tabela: a
+pilha com EF_AMOUNT, a fada com o prazo, que só corre depois de equipada.
 
 > O cliente não sabe dessa moeda. A janela de loja desenha o preço em **ouro** que
 > está no `ItemList.bin` dele, que não tem nada a ver com o custo em pontos — por

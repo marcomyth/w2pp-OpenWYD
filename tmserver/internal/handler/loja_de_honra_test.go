@@ -257,7 +257,7 @@ func TestLojaDeHonraContaOGanhoDaFadaAzul(t *testing.T) {
 // está na mochila, com os pontos debitados da CONTA e o saldo novo de volta no
 // painel.
 func TestLojaDeHonraTrocaPontosPorItem(t *testing.T) {
-	db := contaComPontos(100, 5, 5)
+	db := contaComPontos(1000, 5, 5)
 	addr, stop := startServerHonra(t, db)
 	defer stop()
 	c := enterWorld(t, addr)
@@ -266,12 +266,12 @@ func TestLojaDeHonraTrocaPontosPorItem(t *testing.T) {
 	clicaNoGodOfWar(t, c)
 	expect(t, c, protocol.MsgHonraAbre)
 
-	// Casa 3 do estoque: Poeira_de_Oriharucon por 40 pontos.
-	const casa = 3
+	// Casa 2 do estoque: a pilha de três Poeiras de Oriharucon, por 480 pontos.
+	const casa = 2
 	quer := estoqueDaLojaDeHonra[casa]
 	compraDeHonra(t, c, casa)
 
-	chegou, saldoNoPainel := false, int32(-1)
+	chegou, pilha, saldoNoPainel := false, [2]byte{}, int32(-1)
 	for i := 0; i < 8; i++ {
 		ty, p, ok := readMaybe(t, c)
 		if !ok {
@@ -281,6 +281,7 @@ func TestLojaDeHonraTrocaPontosPorItem(t *testing.T) {
 		case protocol.MsgSendItem:
 			if int16(le16(p[4:6])) == quer.Indice {
 				chegou = true
+				pilha = [2]byte{p[6], p[7]}
 			}
 		case protocol.MsgHonraSaldo:
 			saldo, err := protocol.DecodeHonraSaldo(p)
@@ -293,11 +294,57 @@ func TestLojaDeHonraTrocaPontosPorItem(t *testing.T) {
 	if !chegou {
 		t.Errorf("o item %d não chegou à mochila", quer.Indice)
 	}
-	if saldoNoPainel != 100-quer.Preco {
-		t.Errorf("saldo devolvido ao painel = %d, esperado %d", saldoNoPainel, 100-quer.Preco)
+	// A pilha é o item, não um detalhe da vitrine: sem o 61 3 o jogador pagaria
+	// por três e levaria uma.
+	if pilha != [2]byte{efAmount, 3} {
+		t.Errorf("a Poeira chegou com o efeito %d/%d, esperado %d/3", pilha[0], pilha[1], efAmount)
 	}
-	if got := db.pontosLojinha0(); got != 100-quer.Preco {
-		t.Errorf("carteira da conta = %d, esperado %d", got, 100-quer.Preco)
+	if saldoNoPainel != 1000-quer.Preco {
+		t.Errorf("saldo devolvido ao painel = %d, esperado %d", saldoNoPainel, 1000-quer.Preco)
+	}
+	if got := db.pontosLojinha0(); got != 1000-quer.Preco {
+		t.Errorf("carteira da conta = %d, esperado %d", got, 1000-quer.Preco)
+	}
+}
+
+// TestLojaDeHonraFadaSaiComVinteEQuatroHoras: a Fada Azul da loja é a de 24
+// horas, e o que diz isso é o 106 1 no próprio item. Sem ele o prazo cairia no
+// padrão da 3901, que é de três dias — o triplo do que o jogador pagou.
+func TestLojaDeHonraFadaSaiComVinteEQuatroHoras(t *testing.T) {
+	db := contaComPontos(1000, 5, 5)
+	addr, stop := startServerHonra(t, db)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	clicaNoGodOfWar(t, c)
+	expect(t, c, protocol.MsgHonraAbre)
+
+	const casa = 3 // Fada Azul 24 h, 960 pontos
+	quer := estoqueDaLojaDeHonra[casa]
+	if quer.Indice != 3901 {
+		t.Fatalf("a casa %d é o item %d, esperado a Fada Azul 3901", casa, quer.Indice)
+	}
+	compraDeHonra(t, c, casa)
+
+	var prazo *[2]byte
+	for i := 0; i < 8 && prazo == nil; i++ {
+		ty, p, ok := readMaybe(t, c)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgSendItem && int16(le16(p[4:6])) == quer.Indice {
+			prazo = &[2]byte{p[6], p[7]}
+		}
+	}
+	if prazo == nil {
+		t.Fatal("a fada não chegou à mochila")
+	}
+	if *prazo != [2]byte{efWDay, 1} {
+		t.Errorf("a fada chegou com o efeito %d/%d, esperado %d/1", prazo[0], prazo[1], efWDay)
+	}
+	if got := db.pontosLojinha0(); got != 1000-quer.Preco {
+		t.Errorf("carteira da conta = %d, esperado %d", got, 1000-quer.Preco)
 	}
 }
 
@@ -313,7 +360,7 @@ func TestLojaDeHonraSemPontosNaoEntrega(t *testing.T) {
 	clicaNoGodOfWar(t, c)
 	expect(t, c, protocol.MsgHonraAbre)
 
-	const casa = 3 // 40 pontos, e a conta tem 10
+	const casa = 3 // a Fada Azul, 960 pontos, e a conta tem 10
 	compraDeHonra(t, c, casa)
 
 	avisou, entregou := false, false
@@ -344,7 +391,9 @@ func TestLojaDeHonraSemPontosNaoEntrega(t *testing.T) {
 // personagem do outro lado do mapa, a compra é recusada — senão um cliente
 // remendado compraria de qualquer lugar do mundo.
 func TestLojaDeHonraLongeDoNPCNaoVende(t *testing.T) {
-	db := contaComPontos(500, 200, 200) // o God of War está em 5,5
+	// Saldo de sobra para qualquer casa: o que recusa aqui é a distância, não o
+	// preço.
+	db := contaComPontos(5000, 200, 200) // o God of War está em 5,5
 	addr, stop := startServerHonra(t, db)
 	defer stop()
 	c := enterWorld(t, addr)
@@ -367,8 +416,8 @@ func TestLojaDeHonraLongeDoNPCNaoVende(t *testing.T) {
 	if entregou {
 		t.Error("a compra saiu com o personagem longe do NPC")
 	}
-	if got := db.pontosLojinha0(); got != 500 {
-		t.Errorf("carteira mexeu numa compra de longe: %d, esperado 500", got)
+	if got := db.pontosLojinha0(); got != 5000 {
+		t.Errorf("carteira mexeu numa compra de longe: %d, esperado 5000", got)
 	}
 }
 
