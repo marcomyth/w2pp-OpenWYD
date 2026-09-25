@@ -269,6 +269,10 @@ type World struct {
 	// o número anda a cada instantâneo, dentro do laço.
 	parEpoca int64
 	parSeq   int64
+	// O batimento da posse: quando o último saiu, e se ele já foi desligado (o
+	// desligamento para o batimento ANTES de esvaziar o servidor).
+	ultimoBatimento time.Time
+	batimentoParado bool
 
 	// onTick is the periodic simulation hook (mob AI), run inside the loop; see
 	// tick.go. nil disables the ticker (e.g. in protocol/transport tests).
@@ -472,7 +476,7 @@ func (w *World) shutdown() {
 		// faria a carga dela ou ser gravada sozinha embaixo, ou não ser gravada.
 		if w.temMochilaViva(s) {
 			cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
-			if err := SalvarPar(context.Background(), w.persist, cs, carga, temCarga, unacked, w.parEpoca, seq); err != nil {
+			if err := SalvarPar(context.Background(), w.persist, cs, carga, temCarga, unacked, w.parEpoca, seq, false); err != nil {
 				w.log.Warn("save on shutdown failed", "conn", s.Conn, "err", err)
 			} else {
 				saved++
@@ -557,12 +561,12 @@ func (w *World) DefineEpocaDoPar(n int64) { w.parEpoca = n }
 // quando a conta não tem carga carregada. Seguro fora do laço: só toca nos
 // instantâneos que recebeu.
 func SalvarPar(ctx context.Context, p Persistence, personagem CharacterSave, carga CargoSave,
-	temCarga bool, unacked []int64, epoca, seq int64,
+	temCarga bool, unacked []int64, epoca, seq int64, soltarPosse bool,
 ) error {
 	if !temCarga {
-		return p.SaveOnShutdown(ctx, personagem, epoca, seq)
+		return p.SaveOnShutdown(ctx, personagem, epoca, seq, soltarPosse)
 	}
-	return p.SalvarPersonagemComCarga(ctx, personagem, carga, unacked, nil, epoca, seq)
+	return p.SalvarPersonagemComCarga(ctx, personagem, carga, unacked, nil, epoca, seq, soltarPosse)
 }
 
 // SalvarEncenadoComCarga grava um personagem ENCENADO — um instantâneo montado
@@ -579,7 +583,7 @@ func (w *World) SalvarEncenadoComCarga(s *Session, personagem CharacterSave, dep
 	carga, unacked, temCarga, seq := w.CargaParaOPar(s.AccountID)
 	p := w.persist
 	w.Go(s, func() func(*World, *Session) {
-		err := SalvarPar(context.Background(), p, personagem, carga, temCarga, unacked, w.parEpoca, seq)
+		err := SalvarPar(context.Background(), p, personagem, carga, temCarga, unacked, w.parEpoca, seq, false)
 		return func(w *World, s *Session) {
 			if err == nil && temCarga {
 				w.forgetAcked(personagem.AccountID, unacked)
@@ -620,7 +624,8 @@ func (w *World) salvarParAsync(s *Session) {
 	w.saveWG.Add(1)
 	go func() {
 		defer w.saveWG.Done()
-		if err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked, w.parEpoca, seq); err != nil {
+		// soltarPosse=false: este é um save de meio de jogo, a conta continua minha.
+		if err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked, w.parEpoca, seq, false); err != nil {
 			w.savesFalhados.Add(1)
 			w.log.Warn("save character failed", "account", cs.AccountID, "slot", cs.Slot, "err", err)
 			return
@@ -648,13 +653,13 @@ func (w *World) salvarParAsync(s *Session) {
 //
 // Safe to call for a session that never entered play: nothing to save, nothing
 // to clear.
-func (w *World) LeaveCharacter(s *Session) {
+func (w *World) LeaveCharacter(s *Session) bool {
 	if s == nil || s.Mode != UserPlay || s.AccountID == 0 {
-		return
+		return false
 	}
 	e := w.entities[s.Conn]
 	if e == nil {
-		return
+		return false
 	}
 	name := e.Name
 	cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
@@ -688,7 +693,10 @@ func (w *World) LeaveCharacter(s *Session) {
 	go func() {
 		defer w.saveWG.Done()
 		defer w.releaseAccountLater(cs.AccountID)
-		if err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked, w.parEpoca, seq); err != nil {
+		// soltarPosse=TRUE: este é o save de SAÍDA. A posse da conta sai na mesma
+		// transação, então "a marca só sai depois que o save confirma" deixa de ser
+		// uma ordem entre duas chamadas e passa a ser uma coisa só.
+		if err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked, w.parEpoca, seq, true); err != nil {
 			w.savesFalhados.Add(1)
 			w.log.Warn("save character failed", "account", cs.AccountID, "slot", cs.Slot, "err", err)
 			return
@@ -700,6 +708,7 @@ func (w *World) LeaveCharacter(s *Session) {
 			w.log.Warn("clear presence failed", "character", name, "err", err)
 		}
 	}()
+	return true
 }
 
 // SaveCharacterThen persists the character and runs then (back in the loop) only
@@ -715,7 +724,8 @@ func (w *World) SaveCharacterThen(s *Session, then func(*World, *Session)) {
 	cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
 	p := w.persist
 	w.Go(s, func() func(*World, *Session) {
-		err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked, w.parEpoca, seq)
+		// soltarPosse=false: a troca de personagem não encerra a sessão da conta.
+		err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked, w.parEpoca, seq, false)
 		return func(w *World, s *Session) {
 			if err != nil {
 				w.log.Warn("save character failed", "account", cs.AccountID, "slot", cs.Slot, "err", err)
@@ -1188,8 +1198,46 @@ func (w *World) cargoSave(accountID int64) CargoSave {
 // vault does not leak and the latest deposits survive. The save runs off the loop
 // (tracked by saveWG, like SaveCharacterAsync) so a shutdown never loses it.
 // Loop-only (snapshots state before going async).
-func (w *World) ReleaseCargo(accountID int64) {
-	if accountID == 0 || w.cargo[accountID] == nil {
+func (w *World) ReleaseCargo(accountID int64) { w.releaseCargo(accountID, false) }
+
+// EncerrarSessaoDaConta é o fim da sessão de uma conta, e é o único lugar de onde a
+// posse sai quando não houve save de saída.
+//
+// A ORDEM IMPORTA E É POR ISSO QUE ISTO É UMA FUNÇÃO SÓ. Com personagem em jogo, o
+// LeaveCharacter grava o par e a posse sai DENTRO daquela transação. Sem
+// personagem — a conta que logou, ficou na tela de seleção e desconectou — não há
+// save de saída nenhum, e sem esta soltura a pessoa ficaria presa até o prazo
+// vencer, a cada vez. Aí a posse sai depois que a carga confirmar: soltar antes
+// deixaria um login novo entrar enquanto a gravação da carga velha ainda está a
+// caminho. Loop-only.
+func (w *World) EncerrarSessaoDaConta(s *Session) {
+	if s == nil {
+		return
+	}
+	accountID := s.AccountID
+	if w.LeaveCharacter(s) {
+		// O save de saída leva a posse junto; a carga já saiu da memória com ele.
+		w.releaseCargo(accountID, false)
+		return
+	}
+	// OUTRA SESSÃO DA MESMA CONTA AINDA VIVA não solta nada: a posse é da conta.
+	if accountID != 0 && w.AccountSession(accountID, s) != nil {
+		w.releaseCargo(accountID, false)
+		return
+	}
+	w.releaseCargo(accountID, true)
+}
+
+func (w *World) releaseCargo(accountID int64, soltarPosse bool) {
+	if accountID == 0 {
+		return
+	}
+	if w.cargo[accountID] == nil {
+		// Sem carga carregada não há o que gravar, mas a posse ainda pode ser minha:
+		// é a conta que caiu antes mesmo de a carga entrar na memória.
+		if soltarPosse {
+			w.soltarPosseAsync(accountID)
+		}
 		return
 	}
 	cs := w.cargoSave(accountID)
@@ -1209,6 +1257,31 @@ func (w *World) ReleaseCargo(accountID int64) {
 		if err := saveCargoFor(context.Background(), w.persist, cs, unacked); err != nil {
 			w.savesFalhados.Add(1)
 			w.log.Warn("save cargo failed", "account", cs.AccountID, "err", err)
+			// A POSSE FICA quando a gravação não caiu, como no par: conta cujo
+			// último save não confirmou é a que ninguém deve carregar. O prazo do
+			// batimento a libera depois.
+			return
+		}
+		if soltarPosse {
+			if err := w.persist.SoltarPosseDaConta(context.Background(), accountID, w.parEpoca); err != nil {
+				w.log.Warn("soltar posse da conta falhou", "account", accountID, "err", err)
+			}
+		}
+	}()
+}
+
+// soltarPosseAsync devolve a conta fora do laço, sem ter o que gravar antes.
+// Loop-only (lê a época).
+func (w *World) soltarPosseAsync(accountID int64) {
+	if w.parEpoca <= 0 {
+		return
+	}
+	p, epoca := w.persist, w.parEpoca
+	w.saveWG.Add(1)
+	go func() {
+		defer w.saveWG.Done()
+		if err := p.SoltarPosseDaConta(context.Background(), accountID, epoca); err != nil {
+			w.log.Warn("soltar posse da conta falhou", "account", accountID, "err", err)
 		}
 	}()
 }

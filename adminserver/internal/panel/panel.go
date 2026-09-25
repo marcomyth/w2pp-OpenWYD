@@ -122,6 +122,11 @@ type Writer interface {
 	SetRole(ctx context.Context, actorID, targetID int64, role string) (string, error)
 	SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool, motivo string, dias int) (accounts.Bloqueio, error)
 	Blocked(ctx context.Context, id int64) (bool, error)
+	// A posse da conta: quem a lê é a tela, e quem a solta é a válvula de admin.
+	// A soltura grava a auditoria na MESMA transação, por isso não passa pelo
+	// caminho comum de auditoria.
+	PosseDaConta(ctx context.Context, accountID int64) (accounts.Posse, error)
+	SoltarPosse(ctx context.Context, atorConta, atorPainel int64, papel string, accountID int64, nota string) error
 	AddVipDays(ctx context.Context, actorID, targetID int64, days int) (prev, next *time.Time, err error)
 	ClearVip(ctx context.Context, actorID, targetID int64) (*time.Time, error)
 }
@@ -575,6 +580,10 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("POST /contas/{nome}/passe", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setPasse))))
 	}
 	mux.Handle("POST /contas/{nome}/bloqueio", h.requireStaff(http.HandlerFunc(h.setBloqueio)))
+	// A VÁLVULA DA POSSE É ADMIN. Soltar a posse é afirmar que o dono da conta não
+	// existe mais, e se a afirmação estiver errada duas cópias do mesmo personagem
+	// entram em jogo — que é o defeito que a posse existe para impedir.
+	mux.Handle("POST /contas/{nome}/posse", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.soltarPosse))))
 	mux.Handle("POST /contas/{nome}/vip", h.requireStaff(http.HandlerFunc(h.setVip)))
 	mux.Handle("POST /contas/{nome}/senha", h.requireStaff(http.HandlerFunc(h.setSenha)))
 	// Creating an account hands out a login; admin-only, like the other writes
@@ -1003,6 +1012,16 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		aba = "conta"
 	}
 
+	// A posse não pode apagar a página por falhar, pelo mesmo motivo do resto: o
+	// que traz a maioria das visitas é o cargo e o bloqueio.
+	var posse posseView
+	if pp, perr := h.cfg.Writer.PosseDaConta(r.Context(), auth.ID); perr != nil {
+		h.cfg.Logger.Error("leitura da posse falhou", "account", nome, "id", auth.ID, "err", perr)
+		naoLeu.nao("posse")
+	} else {
+		posse = posseParaTela(pp, time.Now())
+	}
+
 	p := h.pageFor(r, "contas")
 	h.render(w, "conta.html", struct {
 		page
@@ -1016,6 +1035,7 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		Aviso        string
 		EhVoce       bool
 		Pontos       []accounts.PontoDeLojinha
+		Posse        posseView
 	}{
 		p,
 		contaView{
@@ -1037,7 +1057,38 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		// that always fails is worse than not offering it.
 		p.AccountID == auth.ID,
 		pontos,
+		posse,
 	})
+}
+
+// posseView é a posse como a tela precisa dela: o texto do último batimento é o
+// que decide o clique, então ele vem pronto em vez de a página fazer conta.
+type posseView struct {
+	Presa          bool
+	BatimentoTexto string
+}
+
+// posseParaTela transforma o último batimento em "há quanto tempo", que é a
+// pergunta de quem está olhando: o dono está vivo?
+func posseParaTela(p accounts.Posse, agora time.Time) posseView {
+	if !p.Presa {
+		return posseView{}
+	}
+	if p.UltimoBatimento == nil {
+		return posseView{Presa: true, BatimentoTexto: "nenhum registrado"}
+	}
+	d := agora.Sub(*p.UltimoBatimento).Round(time.Second)
+	if d < 0 {
+		d = 0
+	}
+	switch {
+	case d < time.Minute:
+		return posseView{Presa: true, BatimentoTexto: fmt.Sprintf("há %d segundo(s)", int(d.Seconds()))}
+	case d < time.Hour:
+		return posseView{Presa: true, BatimentoTexto: fmt.Sprintf("há %d minuto(s)", int(d.Minutes()))}
+	default:
+		return posseView{Presa: true, BatimentoTexto: fmt.Sprintf("há %d hora(s)", int(d.Hours()))}
+	}
 }
 
 // The rule, in one sentence: a MODERATOR acts on one person; an ADMIN acts on

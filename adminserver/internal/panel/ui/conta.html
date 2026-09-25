@@ -240,6 +240,29 @@
         </p>
       </form>
       {{end}}
+
+      {{if .Posse.Presa}}
+      <form method="post" action="/contas/{{.Conta.Name}}/posse" class="acao-bloco">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <label for="observacao">Conta presa a uma execução do jogo</label>
+        <p class="dica">
+          Enquanto está presa, esta conta não entra em outro servidor — é o que
+          impede o mesmo personagem de existir em dois lugares. Ela se solta
+          sozinha quando o jogador sai. Último sinal de vida do dono:
+          <strong>{{.Posse.BatimentoTexto}}</strong>. Sinal de segundos atrás é
+          servidor rodando; de minutos, é processo que se foi.
+        </p>
+        <div class="linha">
+          <input type="text" id="observacao" name="observacao" maxlength="500"
+                 placeholder="O que você conferiu antes de soltar" required>
+          <button type="submit">Soltar posse</button>
+        </div>
+        <p class="dica">
+          Se o jogador estiver mesmo em jogo em outro servidor, o que ele fizer de
+          lá pode se perder. A observação fica na auditoria.
+        </p>
+      </form>
+      {{end}}
     </div>
   {{end}}
 

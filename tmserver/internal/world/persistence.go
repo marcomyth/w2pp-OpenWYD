@@ -459,10 +459,13 @@ type Persistence interface {
 	// epoca e seq ordenam esta gravação contra as outras da mesma conta, do mesmo
 	// jeito que ordenam o par: um save velho só do personagem passa por cima do par
 	// novo se ninguém conferir. Zero desliga a guarda.
-	SaveOnShutdown(ctx context.Context, save CharacterSave, epoca, seq int64) error
+	SaveOnShutdown(ctx context.Context, save CharacterSave, epoca, seq int64, soltarPosse bool) error
 	QuoteKingdomCape(ctx context.Context) (KingdomCapeQuote, error)
 	PurchaseKingdomCape(ctx context.Context, expectedRevision int64, kingdom uint8, save CharacterSave) (KingdomCapeQuote, bool, error)
-	AccountLogin(ctx context.Context, name, password string) (LoginOutcome, error)
+	// epoca é esta execução: o login TOMA A POSSE da conta no banco, no mesmo
+	// round trip, e devolve LoginAlreadyPlaying quando outra execução viva está com
+	// ela. Zero desliga a posse.
+	AccountLogin(ctx context.Context, name, password string, epoca int64) (LoginOutcome, error)
 	ListCharacters(ctx context.Context, accountID int64) ([]CharSummary, error)
 	CreateCharacter(ctx context.Context, accountID int64, slot int, name string, class int) (bool, error)
 	CreateArchCharacter(ctx context.Context, accountID int64, name string, class, mortalFace, mortalSlot, mortalLevel int) (int, bool, error)
@@ -512,8 +515,26 @@ type Persistence interface {
 	// metades trocam ouro e itens entre si, e enquanto eram duas transações havia
 	// uma janela em que uma queda deixava a mesma coisa nos dois lados — foi
 	// medido. Não existe ordem segura entre duas transações; a cura é não ter duas.
+	// soltarPosse diz que este é o save de SAÍDA: a posse da conta sai na mesma
+	// transação em que o personagem e a carga entram.
 	SalvarPersonagemComCarga(ctx context.Context, personagem CharacterSave, carga CargoSave,
-		deliveredIDs, lostIDs []int64, epoca, seq int64) error
+		deliveredIDs, lostIDs []int64, epoca, seq int64, soltarPosse bool) error
+
+	// TomarPosseDaConta marca esta execução como dona da conta no BANCO, ou devolve
+	// false porque outra execução viva está com ela.
+	//
+	// É o que impede a mesma conta de estar em jogo em dois tmServers — a
+	// sobreposição de um deploy —, coisa que a trava de dentro do processo
+	// (handler.accountInUse) não alcança.
+	TomarPosseDaConta(ctx context.Context, accountID, epoca int64) (bool, error)
+
+	// SoltarPosseDaConta devolve a conta quando não houve save de saída para levar
+	// a soltura junto: a conta que ficou na seleção de personagem e desconectou.
+	SoltarPosseDaConta(ctx context.Context, accountID, epoca int64) error
+
+	// BaterPelasContas renova a posse e devolve QUAIS contas continuam desta
+	// execução. Quem não volta deixou de ser minha.
+	BaterPelasContas(ctx context.Context, epoca int64, contas []int64) ([]int64, error)
 
 	// NovaEpocaDePar entrega a esta execução o seu número de época, que ordena as
 	// gravações do par. Uma chamada por boot. A época vem do BANCO e não do
@@ -641,7 +662,7 @@ var errNoPersistence = errors.New("world: no persistence backend configured")
 type NopPersistence struct{}
 
 // SaveOnShutdown does nothing.
-func (NopPersistence) SaveOnShutdown(context.Context, CharacterSave, int64, int64) error {
+func (NopPersistence) SaveOnShutdown(context.Context, CharacterSave, int64, int64, bool) error {
 	return nil
 }
 
@@ -656,7 +677,7 @@ func (NopPersistence) PurchaseKingdomCape(context.Context, int64, uint8, Charact
 }
 
 // AccountLogin always reports no account.
-func (NopPersistence) AccountLogin(context.Context, string, string) (LoginOutcome, error) {
+func (NopPersistence) AccountLogin(context.Context, string, string, int64) (LoginOutcome, error) {
 	return LoginOutcome{Result: LoginNoAccount}, nil
 }
 
@@ -734,13 +755,26 @@ func (NopPersistence) ReconcileRmtEscrow(context.Context, int64) ([]int16, error
 }
 
 // SalvarPersonagemComCarga drops both snapshots (no backend to persist to).
-func (NopPersistence) SalvarPersonagemComCarga(context.Context, CharacterSave, CargoSave, []int64, []int64, int64, int64) error {
+func (NopPersistence) SalvarPersonagemComCarga(context.Context, CharacterSave, CargoSave, []int64, []int64, int64, int64, bool) error {
 	return nil
 }
 
 // NovaEpocaDePar devolve zero, que desliga a guarda de ordem (sem banco não há o
 // que ordenar).
 func (NopPersistence) NovaEpocaDePar(context.Context) (int64, error) { return 0, nil }
+
+// TomarPosseDaConta deixa passar: sem banco não há posse a disputar.
+func (NopPersistence) TomarPosseDaConta(context.Context, int64, int64) (bool, error) {
+	return true, nil
+}
+
+// SoltarPosseDaConta não faz nada.
+func (NopPersistence) SoltarPosseDaConta(context.Context, int64, int64) error { return nil }
+
+// BaterPelasContas devolve as mesmas contas: sem banco, nenhuma muda de dono.
+func (NopPersistence) BaterPelasContas(_ context.Context, _ int64, contas []int64) ([]int64, error) {
+	return contas, nil
+}
 
 // SaveCargoWithDeliveries drops the snapshot (no backend to persist to).
 func (NopPersistence) SaveCargoWithDeliveries(context.Context, CargoSave, []int64, []int64) error {

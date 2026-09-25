@@ -30,6 +30,9 @@ func (tickEvent) apply(w *World) {
 	// Before the game hook, and unconditionally: the chat buffer has to drain on
 	// a quiet server too, and a world with no tick handler still logs chat.
 	w.chatTick(time.Now())
+	// A posse, pela mesma razão de estar aqui e não no gancho do jogo: ela tem de
+	// bater num servidor parado também.
+	w.posseTick(time.Now())
 	if w.onTick != nil {
 		w.onTick(w)
 	}

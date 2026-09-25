@@ -37,6 +37,7 @@ var ErrParVelho = errors.New("store: ha par mais novo gravado; este nao entra")
 // 'pending' e a carga como estava, e o próximo login entrega uma vez só.
 func (s *Store) SalvarPersonagemComCarga(ctx context.Context, accountID int64, ch domain.Character,
 	cargoCoin int32, cargoItems []domain.Item, deliveredIDs, lostIDs []int64, epoca, seq int64,
+	soltarPosse bool,
 ) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		if err := tomaAOrdemDoPar(ctx, tx, accountID, epoca, seq); err != nil {
@@ -45,7 +46,19 @@ func (s *Store) SalvarPersonagemComCarga(ctx context.Context, accountID int64, c
 		if err := salvarPersonagemTx(ctx, tx, accountID, ch); err != nil {
 			return err
 		}
-		return salvarCargaTx(ctx, tx, accountID, cargoCoin, cargoItems, deliveredIDs, lostIDs)
+		if err := salvarCargaTx(ctx, tx, accountID, cargoCoin, cargoItems, deliveredIDs, lostIDs); err != nil {
+			return err
+		}
+		// A POSSE SAI AQUI, NA MESMA TRANSAÇÃO, quando este é o save de saída.
+		//
+		// Assim "a marca só sai depois que o save confirma" deixa de ser uma ordem
+		// entre duas chamadas e passa a ser uma coisa só. E save que falha MANTÉM a
+		// posse, que é o certo: conta cujo último save não caiu é justamente a que
+		// ninguém deve carregar.
+		if !soltarPosse {
+			return nil
+		}
+		return soltarPosseTx(ctx, tx, accountID, epoca)
 	})
 }
 

@@ -659,6 +659,11 @@ func (s *Server) Drain(ctx context.Context, req *gamev1.DrainRequest) (*gamev1.D
 	falhasAntes := s.world.SavesFalhados()
 
 	n, err := noLoop(ctx, s.world, func(w *world.World) int32 {
+		// O BATIMENTO PARA ANTES DE DERRUBAR NINGUÉM. Um batimento atrasado
+		// re-carimbaria contas que este dreno acabou de soltar, e elas ficariam
+		// presas a um processo que já saiu — até o prazo vencer, com o jogador
+		// batendo na porta.
+		w.PararOBatimento()
 		var alvos []*world.Session
 		w.ForEachSession(func(sess *world.Session, _ *world.Entity) {
 			alvos = append(alvos, sess)

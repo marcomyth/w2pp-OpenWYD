@@ -269,33 +269,36 @@ func newTestPanel(t *testing.T, acc Accounts) http.Handler {
 
 // fakeWriter records the writes asked of it and can be made to refuse.
 type fakeWriter struct {
-	mu           sync.Mutex
-	roleCall     []string
-	blkCall      []bool
-	lastActor    int64 // who the handler said was acting
-	lastTarget   int64 // and on whom
-	vipDays      []int
-	vipCleared   int
-	prevRole     string
-	pontos       []accounts.PontoDeLojinha
-	pontosErr    error
-	prevBlk      bool
-	prevVip      *time.Time
-	pendentes    int
-	ultimaEdicao time.Time
-	details      accounts.Details
-	senhaHash    []string
-	criadas      []contaCriada // Criar calls
-	criarErr     error         // forces Criar to return this
-	motivos      []string
-	diasBan      []int
-	buscas       []string
-	achados      []accounts.Achado
-	buscaErr     error
-	prevMotivo   string
-	euBloqueado  bool // what Blocked() answers for the signed-in account
-	blockedErr   error
-	err          error
+	posse           accounts.Posse
+	posseSolta      []soltura
+	erroSoltarPosse error
+	mu              sync.Mutex
+	roleCall        []string
+	blkCall         []bool
+	lastActor       int64 // who the handler said was acting
+	lastTarget      int64 // and on whom
+	vipDays         []int
+	vipCleared      int
+	prevRole        string
+	pontos          []accounts.PontoDeLojinha
+	pontosErr       error
+	prevBlk         bool
+	prevVip         *time.Time
+	pendentes       int
+	ultimaEdicao    time.Time
+	details         accounts.Details
+	senhaHash       []string
+	criadas         []contaCriada // Criar calls
+	criarErr        error         // forces Criar to return this
+	motivos         []string
+	diasBan         []int
+	buscas          []string
+	achados         []accounts.Achado
+	buscaErr        error
+	prevMotivo      string
+	euBloqueado     bool // what Blocked() answers for the signed-in account
+	blockedErr      error
+	err             error
 }
 
 func (f *fakeWriter) Buscar(_ context.Context, prefixo string, _ int) ([]accounts.Achado, error) {
@@ -345,6 +348,38 @@ func (f *fakeWriter) Criar(_ context.Context, nome, hash, email string) (int64, 
 }
 
 func newFakeWriter() *fakeWriter { return &fakeWriter{prevRole: "player"} }
+
+// PosseDaConta e SoltarPosse: a válvula da posse (0137).
+func (f *fakeWriter) PosseDaConta(context.Context, int64) (accounts.Posse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.posse, nil
+}
+
+func (f *fakeWriter) SoltarPosse(_ context.Context, atorConta, atorPainel int64, papel string,
+	accountID int64, nota string,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.erroSoltarPosse != nil {
+		return f.erroSoltarPosse
+	}
+	f.posseSolta = append(f.posseSolta, soltura{
+		atorConta: atorConta, atorPainel: atorPainel, papel: papel,
+		conta: accountID, nota: nota,
+	})
+	f.posse = accounts.Posse{}
+	return nil
+}
+
+// soltura guarda uma chamada da válvula, para o teste conferir quem soltou e com
+// que observação — que é o que a auditoria precisa carregar.
+type soltura struct {
+	atorConta, atorPainel int64
+	papel                 string
+	conta                 int64
+	nota                  string
+}
 
 func (f *fakeWriter) SetRole(_ context.Context, actorID, targetID int64, role string) (string, error) {
 	f.mu.Lock()

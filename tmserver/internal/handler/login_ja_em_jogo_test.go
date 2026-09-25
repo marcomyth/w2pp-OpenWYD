@@ -225,12 +225,26 @@ func TestLoginRefusedWhileQuitSaveInFlight(t *testing.T) {
 // TestLoginAlreadyPlayingFromDB: a dbServer that answers "already playing"
 // itself gets the legacy TM's reply to _MSG_DBAlreadyPlaying, and the
 // connection is closed rather than left stuck in USER_LOGIN.
+//
+// A FRASE VEM ANTES DA JANELA, e a ordem é escolha. Desde a posse da conta
+// (0137), este caminho é quase sempre a própria pessoa tentando voltar durante a
+// sobreposição de um deploy: a janela do legado sozinha não explica nada e se lê
+// como ban. O texto sai primeiro porque a janela é o que encerra a conversa — e a
+// conexão cai logo atrás.
 func TestLoginAlreadyPlayingFromDB(t *testing.T) {
 	addr, stop := startServer(t, newDB())
 	defer stop()
 	c := dial(t, addr)
 	defer c.Close()
 	send(t, c, protocol.MsgAccountLogin, loginBody("online", "x", protocol.AppVersion))
+
+	h, corpo, ok := readMaybeHeader(t, c)
+	if !ok || h.Type != protocol.MsgMessagePanel {
+		t.Fatalf("primeiro quadro = %#x ok=%v, queria a frase que manda esperar", h.Type, ok)
+	}
+	if linha := decodePanel(corpo); linha != msgContaAindaSaindo {
+		t.Errorf("frase = %q, queria %q", linha, msgContaAindaSaindo)
+	}
 	if h := readHeader(t, c); h.Type != protocol.MsgAlreadyPlaying || h.ID != protocol.IDSelChar {
 		t.Fatalf("got %#x id %d, want AlreadyPlaying id %d", h.Type, h.ID, protocol.IDSelChar)
 	}

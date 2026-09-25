@@ -164,11 +164,10 @@ func (w *World) removeSession(s *Session) {
 	// LeaveCharacter rather than SaveCharacterAsync: it does the same save and
 	// then releases the presence mark, in that order — see LeaveCharacter for why
 	// the two cannot be independent async calls.
-	w.LeaveCharacter(s)
-	// The account session ends with the connection, so persist and evict the
-	// account-shared cargo too (it outlives individual characters but not the
-	// connection). No-op if no cargo was loaded.
-	w.ReleaseCargo(s.AccountID)
+	// EncerrarSessaoDaConta faz os dois: o save de saída (que leva a posse da conta
+	// junto, na mesma transação) e, quando não houve personagem para salvar, a
+	// gravação da carga e a soltura da posse depois que ela confirmar.
+	w.EncerrarSessaoDaConta(s)
 	// Tell in-view players this entity left (logout), so their clients despawn it.
 	if e := w.entities[s.Conn]; e != nil && e.Mode == MobUser {
 		body := protocol.EncodeRemoveMobBody(2) // 2 = logout
