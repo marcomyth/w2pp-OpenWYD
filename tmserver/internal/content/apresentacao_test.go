@@ -158,7 +158,7 @@ func TestMestresDeSkillVestemOSetDaClasse(t *testing.T) {
 	}{
 		{"Cap.Cavaleiros", [5]int{1225, 1226, 1227, 1228, 1229}, 912, 60}, // TK: Set Mortal + Thrasytes
 		{"Foema_Ancian", [5]int{1360, 1361, 1362, 1363, 1364}, 903, 61},   // FM: Templário + Eirenus
-		{"Mestre_Archi", [5]int{1510, 1511, 1512, 1513, 1514}, 855, 63},   // BM: do Corvo + Lança do Triunfo (25/09; era a Gleipnir)
+		{"Mestre_Archi", [5]int{1510, 1511, 1512, 1513, 1514}, 856, 63},   // BM: do Corvo + Gleipnir
 		{"ForeLearner", [5]int{1660, 1661, 1662, 1663, 1664}, 826, 51},    // HT: Legionário + Skytalos
 	}
 
@@ -191,22 +191,28 @@ func TestMestresDeSkillVestemOSetDaClasse(t *testing.T) {
 
 // AS ARMAS DE ARMIA (pedido de 25/09/2026). O Rapein veste o set da Foema — o
 // Templário que o Foema_Ancian usa — com a Fúria Divina; a Rainy empunha o Arco
-// Divino, o Ferreiro a Solaris e o mestre BM a Lança do Triunfo. Tudo a +11, na
-// vaga 6, com a 7 vazia.
+// Divino, o Ferreiro a Solaris e o Arnod, que estava de mãos vazias, a Lança do
+// Triunfo. A Kibita leva o Cajado de Âmbar e o Escudo de Runas. Tudo a +11: a
+// arma na vaga 6 e, só na Kibita, o escudo na 7 (nPos 128 = vaga 7).
 //
-// É aparência: os quatro são Merchant, então o EF_RANGE da arma, que o spawn lê,
-// não vira alcance de ataque (world/city.go). E os quatro templates só nascem em
-// Armia — vestir o arquivo não alcança outro mapa.
+// O mestre BM (Mestre_Archi) NÃO entra aqui: fica com a Gleipnir dele, intocado
+// (TestMestresDeSkillVestemOSetDaClasse).
+//
+// É aparência: todos são Merchant, então o EF_RANGE da arma, que o spawn lê, não
+// vira alcance de ataque (world/city.go). E os templates só nascem em Armia —
+// vestir o arquivo não alcança outro mapa.
 func TestArmasDeArmia(t *testing.T) {
 	templario := [5]int{1360, 1361, 1362, 1363, 1364}
 	casos := []struct {
-		nome string
-		arma int
+		nome   string
+		arma   int
+		escudo int
 	}{
-		{"Rapein", 900},       // Fúria_Divina
-		{"Rainy", 825},        // Arco_Divino
-		{"Ferreiro", 911},     // Solaris
-		{"Mestre_Archi", 855}, // Lança_do_Triunfo
+		{"Rapein", 900, 0},    // Fúria_Divina
+		{"Rainy", 825, 0},     // Arco_Divino
+		{"Ferreiro", 911, 0},  // Solaris
+		{"Arnod", 855, 0},     // Lança_do_Triunfo
+		{"Kibita", 902, 1710}, // Cajado_de_Âmbar + Escudo_de_Runas
 	}
 	for _, c := range casos {
 		b := templateNPC(t, c.nome)
@@ -217,8 +223,14 @@ func TestArmasDeArmia(t *testing.T) {
 		if v, ok := efeito(ef, efSancVisual); !ok || v != sanc11 {
 			t.Errorf("%s: arma com EF_SANC %d, esperava %d (+11)", c.nome, v, sanc11)
 		}
-		if idx, _ := peca(b, 7); idx != 0 {
-			t.Errorf("%s: vaga 7 tem %d; com a arma na 6 ele empunha duas", c.nome, idx)
+		idx, ef = peca(b, 7)
+		if idx != c.escudo {
+			t.Errorf("%s: vaga 7 tem %d, esperava %d", c.nome, idx, c.escudo)
+		}
+		if c.escudo != 0 {
+			if v, ok := efeito(ef, efSancVisual); !ok || v != sanc11 {
+				t.Errorf("%s: escudo com EF_SANC %d, esperava %d (+11)", c.nome, v, sanc11)
+			}
 		}
 		montada(t, c.nome, b, nivelDaMontaria)
 	}
