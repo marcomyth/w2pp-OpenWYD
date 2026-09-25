@@ -505,7 +505,7 @@ func TestBossHidraDouradaBloco(t *testing.T) {
 // TestGargulaSabioBlocos pins the Gárgula Sábio of the photo (migration 0151),
 // 2nd floor of the Dungeon: block 2540 is the boss copy alone, with no minute
 // period — the 1 h wait is the individual queue's (handler/gargula_sabio.go) —,
-// block 6162, the last, is its five Golem guards on the same point, and the
+// block 6162 is its five Golem guards on the same point, and the
 // other Gárgula Sábio of the floor (block 2478) is untouched.
 func TestGargulaSabioBlocos(t *testing.T) {
 	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
@@ -517,8 +517,8 @@ func TestGargulaSabioBlocos(t *testing.T) {
 		t.Fatal(err)
 	}
 	const chefe, guardas, outra = 2540, 6162, 2478
-	if guardas != len(gens)-1 {
-		t.Fatalf("NPCGener has %d blocks, want block %d to be the last", len(gens), guardas)
+	if guardas >= len(gens) {
+		t.Fatalf("NPCGener has %d blocks, want block %d", len(gens), guardas)
 	}
 	g := gens[chefe]
 	if g.Leader != "Gargula_Sabio_Chefe" || g.Follower != g.Leader || g.MinuteGenerate != -1 || g.MaxNumMob != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
@@ -540,5 +540,58 @@ func TestGargulaSabioBlocos(t *testing.T) {
 				t.Errorf("%s no bloco %d: a cópia é só do bloco da foto", n, idx)
 			}
 		}
+	}
+}
+
+// TestSalaGolemDeFogoBlocos pins the Golem de Fogo room of the Dungeon's 2nd floor
+// (migration 0152): ONLY the room in the photo, x 841-868 × y 3913-3941. Its six
+// blocks use the room's template copies at 3x, each born as a full group of 6
+// with no minute period — the individual queue brings each one back in 10 s
+// (handler/dungeon_lava.go) —, and the Boss Golem de Fogo, block 6163, the last,
+// stands inside it.
+func TestSalaGolemDeFogoBlocos(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("NPCGener.txt unavailable: %v", err)
+	}
+	gens, err := LoadNPCGenerators(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const chefe = 6163
+	if chefe != len(gens)-1 {
+		t.Fatalf("NPCGener has %d blocks, want block %d to be the last", len(gens), chefe)
+	}
+	naSala := func(x, y int16) bool { return x >= 841 && x <= 868 && y >= 3913 && y <= 3941 }
+	g := gens[chefe]
+	if g.Leader != "Boss_Golem_Fogo" || g.MinuteGenerate != -1 || g.MaxNumMob != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
+		t.Errorf("bloco %d = %+v, want one Boss_Golem_Fogo with MinuteGenerate -1", chefe, g)
+	}
+	if !naSala(g.SegX[0], g.SegY[0]) {
+		t.Errorf("Boss_Golem_Fogo nasce em (%d,%d), fora da sala", g.SegX[0], g.SegY[0])
+	}
+	blocos := map[int]string{2515: "Golem_Fogo_Lava", 2516: "Golem_Fogo_Lava", 2517: "Golem_Fogo_Lava", 2520: "Golem_Fogo_Lava", 2496: "Gargula_Lava", 2497: "Gargula_Lava"}
+	mobs := map[string]int{}
+	for idx, g := range gens {
+		nome, daSala := blocos[idx]
+		for _, n := range []string{g.Leader, g.Follower} {
+			if (n == "Golem_Fogo_Lava" || n == "Gargula_Lava") && !daSala {
+				t.Errorf("%s no bloco %d: a cópia é só da sala", n, idx)
+			}
+		}
+		if !daSala {
+			continue
+		}
+		if g.Leader != nome || g.Follower != nome || g.MinuteGenerate != -1 || g.MaxNumMob != 6 || g.MinGroup != 5 || g.MaxGroup != 5 {
+			t.Errorf("bloco %d = %+v, want um grupo cheio de 6 %s sem período", idx, g, nome)
+		}
+		if !naSala(g.SegX[0], g.SegY[0]) {
+			t.Errorf("bloco %d em (%d,%d), fora da sala", idx, g.SegX[0], g.SegY[0])
+		}
+		mobs[nome] += g.MaxNumMob
+	}
+	// 8 Golens de Fogo e 4 Gárgulas antes da 0152: 3x.
+	if mobs["Golem_Fogo_Lava"] != 24 || mobs["Gargula_Lava"] != 12 {
+		t.Errorf("sala com %v, want 24 Golens de Fogo e 12 Gárgulas", mobs)
 	}
 }

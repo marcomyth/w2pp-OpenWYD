@@ -34,6 +34,16 @@ const (
 	golemDaSalaTemplate  = "Golem_Lava"
 	anfDaSalaTemplate    = "Anf_Ninja_Lava"
 
+	// A sala do Golem de Fogo, também no 2º andar (pedido do Marco em 25/09/2026,
+	// print em (854,3931)): x 841-868, y 3913-3941. Os seis blocos dela (2496,
+	// 2497, 2515, 2516, 2517 e 2520) usam cópias do Golem de Fogo e da Gárgula,
+	// 3x, com o mesmo renascimento de 10 s e o saque pela Mesa (migração 0152); o
+	// Boss Golem de Fogo (bloco 6163) é o terceiro mini chefe, no ciclo dos dois
+	// da lava, com o prêmio dele (golemFogoPremios).
+	golemFogoDaSalaTemplate = "Golem_Fogo_Lava"
+	gargulaDaSalaTemplate   = "Gargula_Lava"
+	bossGolemFogoTemplate   = "Boss_Golem_Fogo"
+
 	// lavaChefeHoras é a espera entre a morte e a volta (esperaDoRenascimento),
 	// a espera depois do boot (ApplyChefesDaLavaBoot) e o ciclo de quem some.
 	lavaChefeHoras = 2
@@ -94,38 +104,57 @@ func cicloDoChefe(w *world.World, e *world.Entity) uint32 {
 	return 0
 }
 
-// isChefeDaLava diz se o monstro é um dos dois mini chefes, pelo nome do arquivo
+// golemFogoPremios são os do Boss Golem de Fogo, UM por morte, metade cada: 20
+// âmagos de Sem Sela (N ou B, metade cada) ou 30 de Dente de Sabre. Base 2, e
+// 32768 é par: sem viés.
+var golemFogoPremios = []bossManticoraPremio{
+	{"Pacote de Sem Sela", 1, 2396, 2401, 20},
+	{"Pacote de Dente de Sabre", 1, 2395, 0, 30},
+}
+
+// chefesDaLava são os três mini chefes do 2º andar, pelo nome do arquivo do
+// template: os dois da sala de lava e o da sala do Golem de Fogo.
+var chefesDaLava = map[string]bool{
+	droprule.Canonical(bossGolemTemplate):     true,
+	droprule.Canonical(bossAnfNinjaTemplate):  true,
+	droprule.Canonical(bossGolemFogoTemplate): true,
+}
+
+// bichosDasSalas são as cópias de template das duas salas, que só nascem nelas.
+var bichosDasSalas = map[string]bool{
+	droprule.Canonical(golemDaSalaTemplate):     true,
+	droprule.Canonical(anfDaSalaTemplate):       true,
+	droprule.Canonical(golemFogoDaSalaTemplate): true,
+	droprule.Canonical(gargulaDaSalaTemplate):   true,
+}
+
+// isChefeDaLava diz se o monstro é um dos três mini chefes, pelo nome do arquivo
 // do template, como a Mesa: um "/gm criar Boss_Golem" também paga.
 func isChefeDaLava(mob *world.Entity) bool {
-	n := droprule.Canonical(mob.TemplateName)
-	return n == droprule.Canonical(bossGolemTemplate) || n == droprule.Canonical(bossAnfNinjaTemplate)
+	return chefesDaLava[droprule.Canonical(mob.TemplateName)]
 }
 
-// geradorDeChefeDaLava diz se o bloco idx é o de um dos dois mini chefes.
+// geradorDeChefeDaLava diz se o bloco idx é o de um dos três mini chefes.
 func geradorDeChefeDaLava(w *world.World, idx int) bool {
 	g := w.GeneratorAt(idx)
-	if g == nil {
-		return false
-	}
-	n := droprule.Canonical(g.LeaderName)
-	return n == droprule.Canonical(bossGolemTemplate) || n == droprule.Canonical(bossAnfNinjaTemplate)
+	return g != nil && chefesDaLava[droprule.Canonical(g.LeaderName)]
 }
 
-// geradorDaSalaDaLava diz se o bloco idx é um dos da sala: os que usam as cópias
-// dos templates, que só existem ali.
+// geradorDaSalaDaLava diz se o bloco idx é um dos das duas salas: os que usam as
+// cópias dos templates, que só existem ali.
 func geradorDaSalaDaLava(w *world.World, idx int) bool {
 	g := w.GeneratorAt(idx)
-	if g == nil {
-		return false
-	}
-	n := droprule.Canonical(g.LeaderName)
-	return n == droprule.Canonical(golemDaSalaTemplate) || n == droprule.Canonical(anfDaSalaTemplate)
+	return g != nil && bichosDasSalas[droprule.Canonical(g.LeaderName)]
 }
 
 // chefeDaLavaSaque entrega o prêmio da morte na bolsa de quem mata
 // (entregaPremioDeChefe).
 func (d *Dispatcher) chefeDaLavaSaque(w *world.World, reward, mob *world.Entity) {
 	if !isChefeDaLava(mob) {
+		return
+	}
+	if droprule.Canonical(mob.TemplateName) == droprule.Canonical(bossGolemFogoTemplate) {
+		d.entregaPremioDeChefe(w, reward, mob, golemFogoPremios, len(golemFogoPremios))
 		return
 	}
 	d.entregaPremioDeChefe(w, reward, mob, lavaChefePremios, lavaChefeBase)

@@ -231,10 +231,11 @@ func TestReinosBlocosDoNPCGener(t *testing.T) {
 	// dele, 6151-6160 (migração 0147).
 	// +23 no mesmo dia: o Boss Hidra Dourada da Dungeon (migração 0149), no 6161.
 	// +24 no mesmo dia: os guardas da Gárgula Sábio do 2º andar (migração 0151), no 6162.
+	// +25 no mesmo dia: o Boss Golem de Fogo da sala do Golem de Fogo (migração 0152), no 6163.
 	// As Lendas continuam onde estavam — são lidas por índice absoluto logo
 	// acima —, e é justamente por isso que bloco novo vai sempre no FIM.
-	if len(gens) != world.EscoltaDoTronoGenLast+24 {
-		t.Errorf("%d blocos, want %d: bloco novo entra no fim, depois das Lendas", len(gens), world.EscoltaDoTronoGenLast+24)
+	if len(gens) != world.EscoltaDoTronoGenLast+25 {
+		t.Errorf("%d blocos, want %d: bloco novo entra no fim, depois das Lendas", len(gens), world.EscoltaDoTronoGenLast+25)
 	}
 }
 
