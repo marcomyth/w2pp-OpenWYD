@@ -114,6 +114,21 @@ var defaultLifetimeDays = map[int16]int{
 	3981: 3, // Thoroughbred
 	3982: 3, // Klazedale
 
+	// Every mount that lends XP runs out, the rule TestMontariaComXPTemPrazo
+	// holds. These never had a "(Ndias)" in the name, so without a row here one
+	// handed out with no duration was permanent XP. The Tigre and the Dragão take
+	// what the supporter packs deliver (0123: 7 and 15); the Esferas carry the
+	// Tigre's line (350/50, +12%), so they take its 7.
+	3990: 7,  // Tigre de Fogo da loja
+	3991: 15, // Dragão Vermelho da loja
+	2969: 7,  // Tigre de Cristal (Esfera)
+	2970: 7,  // Tigre Negro (Esfera)
+	2971: 7,  // Rinoceronte Espectral (Esfera)
+	2972: 7,  // Unicórnio de Gelo (Esfera)
+	2973: 7,  // Tigre de Gelo (Esfera)
+	2974: 7,  // Fenrir Sombrio (Esfera)
+	2975: 7,  // Dragão de Gelo (Esfera)
+
 	3900: 3,  // Fada Verde
 	3901: 3,  // Fada Azul
 	3902: 3,  // Fada Vermelha

@@ -5,10 +5,14 @@ import (
 	"encoding/binary"
 	"io"
 	"log/slog"
+	"math"
 	"net"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/mountbonus"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -168,5 +172,33 @@ func TestPulsoTiraDaBolsaAMontariaVencida(t *testing.T) {
 	it, ok := quadroDoSlot(t, c, world.ItemPlaceCarry, 3, 6*time.Second)
 	if !ok || !it.Empty() {
 		t.Fatalf("a montaria vencida continuou na bolsa (quadro=%v, item %d)", ok, it.Index)
+	}
+}
+
+// TestMontariaComXPTemPrazo varre toda montaria que dá XP (mountbonus.TempExtra)
+// contra o catálogo real: cada uma tem de acabar, venha ou não com os dias no
+// item. É o teste que pega a próxima montaria de XP que entrar sem prazo — o
+// Tigre de Fogo, o Dragão Vermelho e as Esferas eram XP permanente quando
+// chegavam sem "106 N".
+func TestMontariaComXPTemPrazo(t *testing.T) {
+	items, err := content.LoadItemList(filepath.Join(releaseDir(t), "Common", "ItemList.csv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := New(Config{ItemDurations: items.Durations()})
+	achadas := 0
+	for idx := 0; idx <= math.MaxInt16; idx++ {
+		extra, ok := mountbonus.TempExtra(int16(idx))
+		if !ok || extra.ExpPct <= 0 {
+			continue
+		}
+		achadas++
+		if d.itemLifetime(world.Item{Index: int16(idx)}) <= 0 {
+			t.Errorf("montaria %d dá +%d%% de XP e não tem prazo: sem dias no item, seria permanente", idx, extra.ExpPct)
+		}
+	}
+	// Shire, Thoroughbred e Klazedale (9), Tigre e Dragão (2), Esferas (7).
+	if achadas < 18 {
+		t.Errorf("só %d montarias com XP na varredura, queria ao menos 18", achadas)
 	}
 }
