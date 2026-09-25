@@ -21,9 +21,26 @@ permissions:
   contents: read
 
 # One CI run per ref; cancel superseded runs to save minutes.
+# CANCELAR SO EM PR. Na main, cada commit tem de terminar a PROPRIA CI.
+#
+# O QUE ACONTECIA: o group e por ref, e dois pushes seguidos na main caem no mesmo
+# group. O segundo CANCELAVA o primeiro, e a Railway PULA o deploy de uma corrida
+# cancelada - o commit ficava na main sem nunca subir. Foi o que aconteceu com o
+# 8e877298 (a migracao 0149, que a Hanna estava esperando): ele foi cancelado pelo
+# e673247a e o deploy dele virou SKIPPED, em silencio.
+#
+# Em PR, cancelar continua certo: o que interessa e o ultimo push da branch, e a
+# corrida anterior ja nao responde nada.
+#
+# O GROUP CONTINUA POR REF DE PROPOSITO, e nao por SHA. Com group por SHA os pushes
+# rodariam em paralelo e terminariam fora de ordem - a CI de um commit ANTIGO podendo
+# fechar depois, e a Railway subindo o antigo por cima do novo, fazendo a producao
+# andar para tras. Pelo ref, as corridas ficam na fila e sobem em ORDEM DE COMMIT. O
+# preco e espera: com varios pushes seguidos, o ultimo deploy sai depois de todas as
+# CIs anteriores. E o preco certo - ordem vale mais que pressa num deploy.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
