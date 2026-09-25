@@ -124,7 +124,10 @@ func TestDonateCreditAndBuy(t *testing.T) {
 		t.Fatalf("pending = %+v (err %v), want 1", pending, err)
 	}
 	d := pending[0]
-	if d.Item.Index != 1234 || d.Item.Eff1 != 2 || d.Item.EffV1 != 5 || d.Item.ExpiresAt == 0 {
+	// The 7 days ride un-started, as EF_WDAY in the first free slot: the clock
+	// starts when the player equips it, not at the purchase.
+	if d.Item.Index != 1234 || d.Item.Eff1 != 2 || d.Item.EffV1 != 5 ||
+		d.Item.Eff2 != efWDay || d.Item.EffV2 != 7 || d.Item.ExpiresAt != 0 {
 		t.Errorf("delivery payload mismatch: %+v", d.Item)
 	}
 

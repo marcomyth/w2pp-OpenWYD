@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
+	"github.com/jeanluca/w2pp-openwyd/internal/pilha"
 )
 
 // Donate web shop persistence (issue #34). Postgres owns the shop catalog
@@ -282,11 +284,7 @@ func (s *Store) BuyDonateItem(ctx context.Context, accountID, shopItemID int64) 
 			return fmt.Errorf("store: buy: debit a=%d: %w", accountID, err)
 		}
 
-		payload, err := json.Marshal(itemPayload{
-			ItemIndex: it.ItemIndex,
-			Eff1:      it.Eff1, EffV1: it.EffV1, Eff2: it.Eff2, EffV2: it.EffV2, Eff3: it.Eff3, EffV3: it.EffV3,
-			ExpiresAt: expiresDaysToUnix(it.ExpiresDays),
-		})
+		payload, err := json.Marshal(donateShopPayload(it))
 		if err != nil {
 			return fmt.Errorf("store: buy: marshal payload: %w", err)
 		}
@@ -391,6 +389,69 @@ func markDeliveries(ctx context.Context, tx pgx.Tx, status string, ids []int64) 
 }
 
 // --- helpers ---
+
+// efWDay is EF_WDAY (ItemEffect.h): the days of an un-started temporary item.
+// The tmServer reads it back as the item's lifetime and starts the clock on the
+// first equip (tmserver/internal/handler/timeditem.go).
+const efWDay = 106
+
+// donateShopPayload is what a purchase puts in the mailbox.
+//
+// expires_days goes in the UN-STARTED form — EF_WDAY in a free effect slot, no
+// expires_at — the form the donation packs already use (payloadDoBrinde) and the
+// one the game gives every temporary item before it is used. An absolute
+// expires_at would start the clock at the purchase: a mount bought on a Friday
+// by someone who travels for two weeks would arrive expired, and a fairy — which
+// burns only while worn — would be deleted on a date that has nothing to do with
+// its wear.
+//
+// An offer that already carries EF_WDAY keeps its own and gets no deadline on
+// top: the two would disagree, and the deadline would win in the bag. Only when
+// there is no free slot, or the days do not fit a byte, does the old absolute
+// deadline remain — an item with three effects in use has nowhere to hold it.
+//
+// A stackable offer written with no quantity gets EF_AMOUNT 1 first. The server
+// reads a missing amount as one, but the client does not: a stackable stored
+// without it kills the client when it arrives (countStacksMissingAmount in the
+// tmServer), and the cargo drain places the item exactly as it is queued. The
+// legacy stamps the amount wherever a stackable is created; an offer typed in
+// the panel is one more such place.
+func donateShopPayload(it domain.DonateShopItem) itemPayload {
+	p := itemPayload{
+		ItemIndex: it.ItemIndex,
+		Eff1:      it.Eff1, EffV1: it.EffV1, Eff2: it.Eff2, EffV2: it.EffV2, Eff3: it.Eff3, EffV3: it.EffV3,
+	}
+	if pilha.Empilha(int16(it.ItemIndex)) && !p.hasEffect(pilha.EfAmount) {
+		p.claimFreeSlot(pilha.EfAmount, 1)
+	}
+	if it.ExpiresDays <= 0 || p.hasEffect(efWDay) {
+		return p
+	}
+	if it.ExpiresDays > math.MaxUint8 || !p.claimFreeSlot(efWDay, uint8(it.ExpiresDays)) {
+		p.ExpiresAt = expiresDaysToUnix(it.ExpiresDays)
+	}
+	return p
+}
+
+func (p *itemPayload) hasEffect(ef uint8) bool {
+	return p.Eff1 == ef || p.Eff2 == ef || p.Eff3 == ef
+}
+
+// claimFreeSlot writes ef/val into the first empty effect slot, reporting
+// whether there was one.
+func (p *itemPayload) claimFreeSlot(ef, val uint8) bool {
+	switch {
+	case p.Eff1 == 0:
+		p.Eff1, p.EffV1 = ef, val
+	case p.Eff2 == 0:
+		p.Eff2, p.EffV2 = ef, val
+	case p.Eff3 == 0:
+		p.Eff3, p.EffV3 = ef, val
+	default:
+		return false
+	}
+	return true
+}
 
 // expiresDaysToUnix converts a shop offer's expires_days into an absolute expiry
 // timestamp (Unix seconds); 0 days = permanent (0).

@@ -531,6 +531,10 @@ const (
 	// worn in the mount slot: it grows it into the adult at once, if the catalyst
 	// serves that lineage (_MSG_UseItem.cpp:5013).
 	volCatalisador = 94
+	// volRestaurador is the Restaurador group (3351..3357), applied to the ADULT
+	// worn in the mount slot: it gives back one or two points of vitality
+	// (_MSG_UseItem.cpp:5101).
+	volRestaurador = 93
 	// volBirthAccelerator is the Acelerador de Nascimento (3438). It has NO legacy
 	// counterpart — _MSG_UseItem.cpp has no branch for EF_VOLATILE 196 — so the
 	// behaviour comes from the tooltip the shipped client draws for it: "Aumenta o
@@ -745,6 +749,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useAmago(w, s, e, body, src)
 	case vol == volCatalisador:
 		d.useCatalisador(w, s, e, body, src)
+	case vol == volRestaurador:
+		d.useRestaurador(w, s, e, body, src)
 	case isWaterScrollVolatile(vol):
 		d.useWaterScroll(w, s, e, src, vol)
 	case isPesadeloVolatile(vol):
