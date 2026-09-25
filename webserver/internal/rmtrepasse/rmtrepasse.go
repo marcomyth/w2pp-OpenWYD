@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strconv"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ponte"
@@ -227,7 +228,8 @@ func (s *Servico) pagarUm(ctx context.Context, r store.RepasseAPagar) (store.Est
 		// trava do saque desligada — e isso não é culpa do vendedor. Enquanto a trava
 		// estiver fechada, TODA linha cai aqui assim.
 		s.log.Warn("repasse: recusado", "repasse", r.ID, "vendedor", r.VendedorConta,
-			"http_syncpay", resp.HTTPSyncpay, "codigo", resp.CodigoSyncpay, "motivo", resp.Motivo)
+			"http_syncpay", quemRecusou(resp.HTTPSyncpay),
+			"codigo", resp.CodigoSyncpay, "motivo", resp.Motivo)
 		if err := s.banco.FecharTentativa(ctx, t.ID, store.RepasseRecusado, "",
 			resp.HTTPSyncpay, resp.CodigoSyncpay, resp.Motivo); err != nil {
 			return 0, err
@@ -250,4 +252,24 @@ func (s *Servico) pagarUm(ctx context.Context, r store.RepasseAPagar) (store.Est
 		}
 		return store.RepasseIncerto, s.banco.MarcarRepasseIncerto(ctx, r.ID, "estado desconhecido: "+resp.Estado)
 	}
+}
+
+// quemRecusou traduz o HTTP da processadora para o log, e existe por causa de um
+// defeito medido em produção.
+//
+// O campo é *int32, e passá-lo direto ao slog imprimia o ENDEREÇO —
+// "http_syncpay=0x3726df7a9b60" na recusa da primeira venda real. O valor estava certo
+// na coluna, porque o pgx desreferencia o ponteiro; era só o log que mentia. E foi o
+// par do site que descobriu, lendo o meu log para entender por que o saque falhou:
+// custou tempo de outra pessoa, que é o preço de um instrumento quebrado.
+//
+// NULO DIZ QUEM RECUSOU, e é a metade que vale mais do que o número. Nulo quer dizer
+// que a recusa veio da PRÓPRIA PONTE — teto diário estourado, ou a trava do saque
+// desligada — e não da processadora. Imprimir "<nil>" ou, pior, 0, faria quem lê o log
+// procurar um erro HTTP 0 que não existe, em vez de ir olhar a ponte.
+func quemRecusou(http *int32) string {
+	if http == nil {
+		return "ponte (teto ou trava do saque)"
+	}
+	return strconv.Itoa(int(*http))
 }
