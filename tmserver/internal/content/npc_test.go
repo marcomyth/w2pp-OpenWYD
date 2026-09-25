@@ -138,6 +138,9 @@ func TestBlocosDesligadosPorIndice(t *testing.T) {
 		// Migration 0129: the Terras Místicas NPC, whose spot is kept for another
 		// quest. Switched off in npc_generator_off.
 		985: "Cap.Mercenario",
+		// Migration 0139: the FrenzyDemonLord's second block, on the same spot as
+		// 3134, which came back every 15 s. Switched off in npc_generator_off.
+		3135: "FrenzyDemonLord",
 		// The two the square keeps.
 		3442: "Perzen", 3809: "GodGovernment",
 	}

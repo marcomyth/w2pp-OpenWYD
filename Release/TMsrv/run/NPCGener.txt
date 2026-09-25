@@ -89614,7 +89614,7 @@
 // no3527 (1129�ʵ�E
 // ********************************************
 #	[3134]
-	MinuteGenerate:	240
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	8
