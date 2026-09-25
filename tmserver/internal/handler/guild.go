@@ -185,7 +185,7 @@ const (
 	msgGuildDomingoConvite  = "Não é possivel utilizar domingo."
 	msgGuildUso             = "Use: /create NomeDaGuilda (até 16 letras)."
 	msgGuildJaTem           = "Você já pertence a uma guilda."
-	msgGuildCriacaoRecusada = "Não foi possível criar a guilda. Confira se o nome já não existe e tente outro."
+	msgGuildCriacaoRecusada = "Não foi possível criar a guilda agora. Tente de novo."
 	msgGuildNomeEmUso       = "Já existe uma guilda com esse nome. Escolha outro."
 	msgGuildSemOuro         = "Você não tem ouro suficiente para criar a guilda."
 	msgGuildJaTemGuilda     = "Você já está numa guilda. Saia dela antes de criar outra."
@@ -653,6 +653,10 @@ func (d *Dispatcher) persistGuildZone(w *world.World, s *world.Session, z world.
 // um motivo que esta versão não conhece, e nesse caso é melhor não afirmar nada do que
 // afirmar o motivo errado. Foi exatamente o motivo errado — "confira o nome" — que custou
 // horas de procura no dia em que o problema era o ouro.
+//
+// E POR ISSO A FRASE GERAL NÃO FALA EM NOME. Ela sobrou para o motivo desconhecido e para
+// o CharacterGone, e em nenhum dos dois o nome é o problema; mandar conferir o nome ali
+// seria a mesma mentira, só menor.
 func msgDaRecusaDeGuilda(m world.GuildRefusal) string {
 	switch m {
 	case world.GuildRefusalNameTaken:

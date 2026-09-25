@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -94,4 +95,25 @@ func criouGuilda(db *fakeDB, nome string) bool {
 		}
 	}
 	return false
+}
+
+// TestFraseGeralDeGuildaNaoFalaEmNome: a frase geral sobrou para o motivo
+// desconhecido e para o CharacterGone, e em nenhum dos dois o nome é o problema.
+// Mandar conferir o nome ali seria a mesma mentira que custou horas no dia do
+// defeito de ouro, só em escala menor.
+func TestFraseGeralDeGuildaNaoFalaEmNome(t *testing.T) {
+	for _, m := range []world.GuildRefusal{world.GuildRefusalUnknown, world.GuildRefusalCharacterGone} {
+		frase := msgDaRecusaDeGuilda(m)
+		if frase != msgGuildCriacaoRecusada {
+			t.Fatalf("motivo %v caiu em %q, esperava a frase geral", m, frase)
+		}
+		if strings.Contains(strings.ToLower(frase), "nome") {
+			t.Errorf("a frase geral fala em nome: %q", frase)
+		}
+	}
+	// E a do nome repetido continua falando em nome, senão a troca teria levado
+	// junto a única frase em que o nome É o problema.
+	if !strings.Contains(strings.ToLower(msgDaRecusaDeGuilda(world.GuildRefusalNameTaken)), "nome") {
+		t.Error("a recusa por nome repetido deixou de falar em nome")
+	}
 }
