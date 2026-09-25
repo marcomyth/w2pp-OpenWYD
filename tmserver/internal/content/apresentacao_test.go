@@ -95,6 +95,9 @@ func montada(t *testing.T, nome string, b []byte, nivel int) {
 // O God_of_War (a Honor Store) desceu do cavalo em 25/09/2026, a pedido: foi
 // para o canteiro cercado em 2130,2088, e montado ele não cabia ali. Continua de
 // Set Mortal E; só a vaga 14 ficou vazia.
+//
+// O Rapein saiu em 25/09/2026 para o set da Foema (TestArmasDeArmia); o Ferreiro
+// e a Rainy continuam aqui e só ganharam arma.
 func TestArmiaVesteSetMortalMontado(t *testing.T) {
 	setMortalE := [5]int{1225, 1226, 1227, 1228, 1229}
 	// O Mestre Grifo monta um Grifo, que é o nome dele; ficou com o dele.
@@ -103,7 +106,7 @@ func TestArmiaVesteSetMortalMontado(t *testing.T) {
 
 	for _, nome := range []string{
 		"Galford", "Aki", "Guard", "Guard_", "Ferreiro",
-		"Rapein", "Rainy", "Mestre_Haby", "Balmus",
+		"Rainy", "Mestre_Haby", "Balmus",
 		"Gate_Keeper", "Martin", "Arnod", "Kibita", "Mestre_Grifo",
 		"God_of_War", "Curandeiro",
 	} {
@@ -155,7 +158,7 @@ func TestMestresDeSkillVestemOSetDaClasse(t *testing.T) {
 	}{
 		{"Cap.Cavaleiros", [5]int{1225, 1226, 1227, 1228, 1229}, 912, 60}, // TK: Set Mortal + Thrasytes
 		{"Foema_Ancian", [5]int{1360, 1361, 1362, 1363, 1364}, 903, 61},   // FM: Templário + Eirenus
-		{"Mestre_Archi", [5]int{1510, 1511, 1512, 1513, 1514}, 856, 63},   // BM: do Corvo + Gleipnir
+		{"Mestre_Archi", [5]int{1510, 1511, 1512, 1513, 1514}, 855, 63},   // BM: do Corvo + Lança do Triunfo (25/09; era a Gleipnir)
 		{"ForeLearner", [5]int{1660, 1661, 1662, 1663, 1664}, 826, 51},    // HT: Legionário + Skytalos
 	}
 
@@ -183,6 +186,56 @@ func TestMestresDeSkillVestemOSetDaClasse(t *testing.T) {
 			t.Errorf("%s: corpo virou %d, esperava %d", c.nome, idx, c.corpo)
 		}
 		montada(t, c.nome, b, nivelDaMontaria)
+	}
+}
+
+// AS ARMAS DE ARMIA (pedido de 25/09/2026). O Rapein veste o set da Foema — o
+// Templário que o Foema_Ancian usa — com a Fúria Divina; a Rainy empunha o Arco
+// Divino, o Ferreiro a Solaris e o mestre BM a Lança do Triunfo. Tudo a +11, na
+// vaga 6, com a 7 vazia.
+//
+// É aparência: os quatro são Merchant, então o EF_RANGE da arma, que o spawn lê,
+// não vira alcance de ataque (world/city.go). E os quatro templates só nascem em
+// Armia — vestir o arquivo não alcança outro mapa.
+func TestArmasDeArmia(t *testing.T) {
+	templario := [5]int{1360, 1361, 1362, 1363, 1364}
+	casos := []struct {
+		nome string
+		arma int
+	}{
+		{"Rapein", 900},       // Fúria_Divina
+		{"Rainy", 825},        // Arco_Divino
+		{"Ferreiro", 911},     // Solaris
+		{"Mestre_Archi", 855}, // Lança_do_Triunfo
+	}
+	for _, c := range casos {
+		b := templateNPC(t, c.nome)
+		idx, ef := peca(b, 6)
+		if idx != c.arma {
+			t.Errorf("%s: vaga 6 tem %d, esperava %d", c.nome, idx, c.arma)
+		}
+		if v, ok := efeito(ef, efSancVisual); !ok || v != sanc11 {
+			t.Errorf("%s: arma com EF_SANC %d, esperava %d (+11)", c.nome, v, sanc11)
+		}
+		if idx, _ := peca(b, 7); idx != 0 {
+			t.Errorf("%s: vaga 7 tem %d; com a arma na 6 ele empunha duas", c.nome, idx)
+		}
+		montada(t, c.nome, b, nivelDaMontaria)
+	}
+
+	b := templateNPC(t, "Rapein")
+	for i, quer := range templario {
+		idx, ef := peca(b, i+1)
+		if idx != quer {
+			t.Errorf("Rapein: vaga %d tem %d, esperava %d (Templário)", i+1, idx, quer)
+			continue
+		}
+		if v, ok := efeito(ef, efSancVisual); !ok || v != sanc11 {
+			t.Errorf("Rapein: vaga %d com EF_SANC %d, esperava %d (+11)", i+1, v, sanc11)
+		}
+	}
+	if corpo, _ := peca(b, 0); corpo != 59 {
+		t.Errorf("Rapein: corpo virou %d, esperava 59 — o corpo é a identidade dele", corpo)
 	}
 }
 
