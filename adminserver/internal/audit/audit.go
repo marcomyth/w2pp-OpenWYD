@@ -40,6 +40,7 @@ const (
 	ActionClearItemStat      = "CLEAR_ITEM_STAT"
 	ActionDeliverItem        = "DELIVER_ITEM"
 	ActionCancelDelivery     = "CANCEL_DELIVERY"
+	ActionSendSupporterPack  = "SEND_SUPPORTER_PACK"
 	ActionSetPassword        = "SET_PASSWORD"
 	ActionCreateAccount      = "CREATE_ACCOUNT"
 	ActionKick               = "KICK"
@@ -326,6 +327,7 @@ var rotulos = map[string]string{
 	ActionClearItemStat:                        "Restaurou um item",
 	ActionDeliverItem:                          "Entregou um item",
 	ActionCancelDelivery:                       "Cancelou uma entrega",
+	ActionSendSupporterPack:                    "Enviou um pacote de apoiador",
 	ActionKick:                                 "Derrubou uma conta",
 	ActionUnstuck:                              "Desatolou um personagem",
 	ActionSetWorldEvent:                        "Mexeu nos eventos do servidor",

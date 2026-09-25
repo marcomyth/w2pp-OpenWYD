@@ -221,6 +221,10 @@ type Carteira interface {
 	Saldo(ctx context.Context, accountID int64) (int32, error)
 	Historico(ctx context.Context, accountID int64, limite int) ([]donate.Evento, error)
 	Ajustar(ctx context.Context, actorID, accountID int64, delta int32, motivo string) (int32, error)
+	// Os pacotes de apoiador do site, enviados sem pagamento: Rcoins e brindes
+	// numa transação só (donate/pacote.go).
+	Pacotes(ctx context.Context) ([]donate.Pacote, error)
+	EnviarPacote(ctx context.Context, actorID, accountID int64, pacoteID, motivo string) (donate.Envio, error)
 }
 
 type Deliveries interface {
@@ -603,6 +607,7 @@ func (h *Handler) Routes() http.Handler {
 	if h.cfg.Carteira != nil {
 		mux.Handle("GET /contas/{nome}/donate", h.requireStaff(http.HandlerFunc(h.carteira)))
 		mux.Handle("POST /contas/{nome}/donate", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.ajustarDonate))))
+		mux.Handle("POST /contas/{nome}/pacote", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.enviarPacote))))
 	}
 
 	// The character editor. Every write is admin-only: these hand out items.
@@ -1040,6 +1045,20 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p := h.pageFor(r, "contas")
+
+	// Os pacotes de apoiador só são lidos onde o cartão aparece: aba Itens, admin,
+	// conta de outra pessoa. Nas outras abas a leitura seria trabalho jogado fora.
+	var pacotes []pacoteView
+	podePacote := h.cfg.Carteira != nil && p.IsAdmin && aba == "itens" && p.AccountID != auth.ID
+	if podePacote {
+		if pv, perr := h.pacotesParaTela(r, p.AccountID); perr != nil {
+			h.cfg.Logger.Error("supporter packs failed", "account", nome, "err", perr)
+			naoLeu.nao("pacotes")
+		} else {
+			pacotes = pv
+		}
+	}
+
 	h.render(w, "conta.html", struct {
 		page
 		Conta        contaView
@@ -1053,6 +1072,8 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		EhVoce       bool
 		Pontos       []accounts.PontoDeLojinha
 		Posse        posseView
+		PodePacote   bool
+		Pacotes      []pacoteView
 	}{
 		p,
 		contaView{
@@ -1075,6 +1096,8 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		p.AccountID == auth.ID,
 		pontos,
 		posse,
+		podePacote,
+		pacotes,
 	})
 }
 

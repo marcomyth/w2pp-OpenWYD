@@ -19,7 +19,7 @@ func TestTodaAcaoTemRotulo(t *testing.T) {
 		ActionSetRole, ActionSetBlocked, ActionSetVip, ActionSetPassword,
 		ActionSetItemPrice, ActionSetNpcShop, ActionSetNpc, ActionDeleteNpc,
 		ActionSetMobStat, ActionClearMobStat, ActionSetItemStat, ActionClearItemStat,
-		ActionDeliverItem, ActionCancelDelivery, ActionKick, ActionBroadcast, ActionUnstuck, ActionSetWorldEvent, ActionSetKefra, ActionHandleReport,
+		ActionDeliverItem, ActionCancelDelivery, ActionSendSupporterPack, ActionKick, ActionBroadcast, ActionUnstuck, ActionSetWorldEvent, ActionSetKefra, ActionHandleReport,
 		ActionRestartGame, ActionSafeRestart, ActionSoltarPosse, ActionStopGame, ActionStartGame,
 		ActionCreateAccount, ActionSetXPRule, ActionClearXPRule, ActionSetDungeonGate,
 		ActionSetQuestReward, ActionClearQuestReward,

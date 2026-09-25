@@ -306,7 +306,71 @@
       </p>
     </form>
   </div>
+  {{end}}
 
+  {{if .PodePacote}}
+  <h2>Enviar pacote de apoiador</h2>
+  {{if .NaoLeu.pacotes}}
+  {{template "falha-de-leitura" "os pacotes de apoiador"}}
+  {{else if .Pacotes}}
+  <p class="sub" style="margin-bottom:14px">
+    O mesmo pacote que o site vende, sem pagamento: os <strong>Rcoins</strong> entram
+    no saldo na hora e os <strong>brindes</strong> vão para a fila de entrega, como
+    um item enviado acima. Não conta como venda: fica na carteira como crédito da
+    equipe, com o seu nome e o motivo.
+  </p>
+  <div class="acoes">
+    <form method="post" action="/contas/{{.Conta.Name}}/pacote" class="acao-bloco">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label for="pacote">Pacote</label>
+      <div class="linha">
+        <select id="pacote" name="pacote" required>
+          {{range .Pacotes}}
+          <option value="{{.ID}}">{{.Nome}} — {{.Creditos}} Rcoins</option>
+          {{end}}
+        </select>
+      </div>
+      <div style="height:9px"></div>
+      <label for="motivo-pacote">Motivo</label>
+      <div class="linha">
+        <input id="motivo-pacote" name="motivo" required placeholder="ex.: parceria com o influencer Fulano">
+        <button type="submit">Enviar pacote</button>
+      </div>
+      <p class="dica">
+        O motivo é obrigatório. O mesmo pacote para a mesma conta é recusado por
+        um minuto, para um clique duplo não mandar dois.
+      </p>
+    </form>
+  </div>
+
+  <div class="tw">
+    <table>
+      <thead>
+        <tr>
+          <th>Pacote</th>
+          <th class="num">Rcoins</th>
+          <th>Brindes</th>
+          <th class="num">Espaços no baú</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Pacotes}}
+        <tr>
+          <td>{{.Nome}}</td>
+          <td class="num">{{.Creditos}}</td>
+          <td>{{range $i, $b := .Brindes}}{{if $i}} · {{end}}{{$b}}{{else}}&mdash;{{end}}</td>
+          <td class="num">{{.Espacos}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <div class="vazio">Nenhum pacote de apoiador está à venda agora.</div>
+  {{end}}
+  {{end}}
+
+  {{if .PodeEntregar}}
   {{if .NaoLeu.entregas}}
   <h2>Na fila</h2>
   {{template "falha-de-leitura" "a fila de entrega"}}
