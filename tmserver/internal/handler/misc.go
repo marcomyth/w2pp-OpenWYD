@@ -325,10 +325,12 @@ func (d *Dispatcher) quest(w *world.World, s *world.Session, _ protocol.Header, 
 		d.jeffi(w, s, e, npc)
 		return
 	}
-	// KIBITA (Merchant 74): permanently unlocks Mortal Soul with the
-	// class-specific Secreta stone (_MSG_Quest.cpp:2518-2558).
+	// KIBITA (Merchant 74): vende a cidadania do servidor e, para quem já a tem,
+	// destrava a Alma Mortal com a pedra Secreta da classe. UM case no legado, com
+	// a cidadania primeiro e a Alma como continuação — ver cidadania.go, que explica
+	// por que a ordem é a regra (_MSG_Quest.cpp:2431 e :2518-2558).
 	if npc.Merchant == 74 {
-		d.kibitaSoul(w, s, e)
+		d.kibita(w, s, e)
 		return
 	}
 	if isKingQuestNPC(npc) {
@@ -586,17 +588,19 @@ const (
 
 var kibitaSoulStones = [...]int16{5334, 5336, 5335, 5337}
 
-// kibitaSoul ports the permanent Soul branch of KIBITA. The citizenship branch
-// and the compile-time KIBITA_SOUL event buff are separate legacy services and
-// intentionally remain disabled until their own state and scheduling are ported.
-func (d *Dispatcher) kibitaSoul(w *world.World, s *world.Session, e *world.Entity) {
+// kibitaSoul ports the permanent Soul branch of KIBITA. A cidadania, que era o
+// outro serviço deste NPC e estava desligada, entrou em cidadania.go — e é ela que
+// roda primeiro, como no legado. O buff de evento por trás do #ifdef KIBITA_SOUL
+// continua de fora: ele depende de agenda (dia da semana e hora) que ainda não foi
+// portada.
+func (d *Dispatcher) kibitaSoul(w *world.World, s *world.Session, e *world.Entity) bool {
 	if e.ClassMaster != classMasterMortal || e.Level < kibitaSoulMinLevel || e.LearnedSkill&kibitaSoulSkillBit != 0 {
 		d.notify(w, s, NoticeReqNotMet)
-		return
+		return false
 	}
 	if int(e.Class) >= len(kibitaSoulStones) {
 		d.notify(w, s, NoticeReqNotMet)
-		return
+		return false
 	}
 
 	stone := kibitaSoulStones[e.Class]
@@ -609,7 +613,7 @@ func (d *Dispatcher) kibitaSoul(w *world.World, s *world.Session, e *world.Entit
 	}
 	if slot < 0 {
 		d.notify(w, s, NoticeReqNotMet)
-		return
+		return false
 	}
 
 	e.Carry[slot] = world.Item{}
@@ -633,6 +637,7 @@ func (d *Dispatcher) kibitaSoul(w *world.World, s *world.Session, e *world.Entit
 		w.SendTo(s, protocol.Header{Type: protocol.MsgSendArchEffect, ID: protocol.IDScene},
 			protocol.EncodeStandardParm(int32(s.Slot)))
 	})
+	return true
 }
 
 func isKingQuestNPC(npc *world.Entity) bool {

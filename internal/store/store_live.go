@@ -382,9 +382,19 @@ func (s *Store) DeleteCharacter(ctx context.Context, accountID int64, slot int) 
 // fame, special, skill_bar, short_skill), and the tier state (class_master + the
 // celestial quest gates celestial_lv40/90/circle + the terra_mistica gate), and
 // the PK/karma state (pk_point, guilty, cur_kill, tot_kill — issue #210).
-// Everything else (class,
-// regen/resist, magic, citizen) is left UNTOUCHED so an in-game save never wipes
-// imported data the world does not simulate.
+// Everything else (class, regen/resist, magic) is left UNTOUCHED so an in-game save
+// never wipes imported data the world does not simulate.
+//
+// CITIZEN SAIU DESTA LISTA em 24/09/2026, e vale dizer por que: ele estava aqui com
+// razao enquanto NADA em jogo o escrevia. A Kibita passou a vender cidadania por
+// 4.000.000 de ouro (handler/cidadania.go), e no instante em que o mundo comecou a
+// escrever um campo, deixa-lo fora do save deixou de proteger dado importado e passou
+// a apagar dado comprado: o ouro era debitado e gravado, a cidadania nao, e o jogador
+// perdia a compra no relogin.
+//
+// A LICAO PARA O PROXIMO CAMPO: esta lista e uma promessa de que o mundo NAO simula
+// aquilo. Quem fizer o mundo simular tem de tirar o campo daqui no MESMO PR — senao o
+// comentario continua verdadeiro sobre a intencao e falso sobre o efeito.
 // skill_bonus is also untouched: the tmServer re-derives it at login
 // (BASE_GetBonusSkillPoint) instead of trusting the stored value.
 func (s *Store) SaveCharacter(ctx context.Context, accountID int64, ch domain.Character) error {
@@ -419,7 +429,11 @@ func (s *Store) SaveCharacter(ctx context.Context, accountID int64, ch domain.Ch
 			kefra_ticket=$49,
 			-- O Molar de Gargula ja usado (0092). Mesmo motivo do de cima: numero
 			-- novo no FIM, nunca renumerando os anteriores.
-			molar_gargula=$50
+			molar_gargula=$50,
+			-- A cidadania saiu da lista de "untouched" em 24/09/2026, quando a Kibita
+			-- passou a vende-la em jogo por 4.000.000 de ouro. Numero novo no FIM,
+			-- pela mesma regra dos de cima.
+			citizen=$51
 		WHERE account_id=$1 AND slot=$2
 		RETURNING id`,
 		accountID, ch.Slot, ch.Clan, ch.GuildID, ch.GuildLevel, ch.Level, ch.Coin,
@@ -433,7 +447,7 @@ func (s *Store) SaveCharacter(ctx context.Context, accountID int64, ch domain.Ch
 		ch.PKPoint, ch.Guilty, ch.CurKill, ch.TotKill, ch.MortalLevel, ch.CelestialArchLevel, ch.ArchCristal,
 		ch.NightmareTickets, ch.NewbieQuest,
 		ch.SubCelestialGuardada, ch.SubCelestialLevel, ch.SubCelestialAtivo, ch.CelestialReset,
-		ch.KefraTicket, ch.MolarGargula,
+		ch.KefraTicket, ch.MolarGargula, ch.Citizen,
 	).Scan(&charID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound

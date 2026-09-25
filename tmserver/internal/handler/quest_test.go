@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -290,8 +291,26 @@ func TestKibitaSoulRejectsInvalidRequirementsWithoutMutation(t *testing.T) {
 			if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticeReqNotMet {
 				t.Fatalf("notice=%d, want NoticeReqNotMet", code)
 			}
+			// DEPOIS DO AVISO DA ALMA VEM A LINHA DA CIDADANIA, e esta expectativa
+			// mudou de proposito em 24/09/2026.
+			//
+			// Antes, a Kibita tinha UM servico e uma recusa era uma mensagem so. Agora
+			// ela tem dois (cidadania.go): a cidadania e tentada primeiro, a Alma
+			// depois, e quando NENHUM dos dois faz nada a cidadania explica por que —
+			// que era o pedido da Hanna, porque o clique mudo era lido como bug.
+			//
+			// Estes personagens tem zero de ouro e nenhuma cidadania, entao a linha e a
+			// do preco. Conferir o TEXTO, e nao so que "veio algo", e o que impede esta
+			// assercao de passar a aceitar qualquer quadro extra no futuro.
+			ty, payload, ok := readMaybe(t, c)
+			if !ok {
+				t.Fatal("a recusa nao explicou a cidadania; o clique ficou mudo sobre ela")
+			}
+			if texto := decodePanel(payload); !strings.Contains(texto, "4000000") {
+				t.Fatalf("depois do aviso veio %#x com %q, queria a linha do preco da cidadania", ty, texto)
+			}
 			if ty, _, ok := readMaybe(t, c); ok {
-				t.Fatalf("rejected Kibita interaction produced %#x after notice", ty)
+				t.Fatalf("veio um terceiro quadro depois das duas respostas: %#x", ty)
 			}
 
 			send(t, c, protocol.MsgCharacterLogout, nil)

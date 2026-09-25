@@ -323,6 +323,16 @@ type CharacterSave struct {
 
 	Carry []SavedItem
 	Equip []SavedItem
+	// Citizen ENTRA NO SAVE desde 24/09/2026, e ele era a exceção que virou buraco.
+	//
+	// A lista de campos que o save NÃO toca (store_live.go, no comentário do
+	// SaveCharacter) existe para um save em jogo não apagar dado importado que o
+	// mundo não simula — e a cidadania estava lá com razão, porque nada em jogo a
+	// escrevia. A Kibita passou a vendê-la (handler/cidadania.go), e no instante em
+	// que o mundo começou a escrever um campo, deixá-lo fora do save virou o pior
+	// defeito possível: o jogador paga 4.000.000 de ouro, o OURO é gravado, e a
+	// cidadania some no relogin. Dinheiro cobrado por nada.
+	Citizen uint8
 }
 
 // KingdomCapeQuote is one durable pricing revision shared by both kingdoms.
