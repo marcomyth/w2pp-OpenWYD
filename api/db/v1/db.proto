@@ -958,6 +958,34 @@ message CreateGuildRequest {
 message CreateGuildResponse {
   bool ok = 1;
   Guild guild = 2;
+  // POR QUE NAO DEU, quando ok e falso.
+  //
+  // Ate 25/09/2026 as quatro recusas viravam um `ok: false` sem motivo, e o jogo
+  // dizia a mesma frase para todas: "confira se o nome ja nao existe". Para tres
+  // delas isso era MENTIRA -- e foi essa mentira que escondeu um defeito de ouro
+  // por horas, porque a pessoa ficou procurando nome repetido.
+  //
+  // Este proto e INTERNO (tmserver <-> dbserver). Nao passa pelo handshake do
+  // site, que consome api/web/v1.
+  CreateGuildRefusal refusal = 3;
+}
+
+// CreateGuildRefusal diz qual das recusas aconteceu.
+enum CreateGuildRefusal {
+  // UNSPECIFIED: sem motivo informado. E o que uma versao antiga do dbserver
+  // manda, entao quem le trata como "motivo desconhecido" e cai na frase geral --
+  // nunca como "deu certo".
+  CREATE_GUILD_REFUSAL_UNSPECIFIED = 0;
+  // NAME_TAKEN: ja existe guilda com esse nome (violacao do indice unico).
+  CREATE_GUILD_REFUSAL_NAME_TAKEN = 1;
+  // NOT_ENOUGH_COIN: o personagem nao tem o ouro no BANCO.
+  CREATE_GUILD_REFUSAL_NOT_ENOUGH_COIN = 2;
+  // ALREADY_IN_GUILD: o personagem ja esta numa guilda.
+  CREATE_GUILD_REFUSAL_ALREADY_IN_GUILD = 3;
+  // NO_FREE_SLOT: acabaram os ids de guilda deste servidor.
+  CREATE_GUILD_REFUSAL_NO_FREE_SLOT = 4;
+  // CHARACTER_GONE: o personagem nao existe mais no banco.
+  CREATE_GUILD_REFUSAL_CHARACTER_GONE = 5;
 }
 
 message SetGuildMemberRequest {

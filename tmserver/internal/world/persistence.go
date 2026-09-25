@@ -578,7 +578,7 @@ type Persistence interface {
 
 	// Guild lifecycle/state (issue #114). These calls block on dbServer and must
 	// be made through World.Go/GoDetached by loop handlers.
-	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (GuildRecord, bool, error)
+	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (GuildRecord, bool, GuildRefusal, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
 	LeaveGuild(ctx context.Context, accountID int64, slot int) error
 	PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, bool, error)
@@ -794,8 +794,8 @@ func (NopPersistence) ClaimNewbieKit(context.Context, int64, string) (bool, erro
 }
 
 // CreateGuild is unsupported without a backend.
-func (NopPersistence) CreateGuild(context.Context, int64, int, string, string, uint8, uint8, int, int32) (GuildRecord, bool, error) {
-	return GuildRecord{}, false, errNoPersistence
+func (NopPersistence) CreateGuild(context.Context, int64, int, string, string, uint8, uint8, int, int32) (GuildRecord, bool, GuildRefusal, error) {
+	return GuildRecord{}, false, GuildRefusalUnknown, errNoPersistence
 }
 
 // SetGuildMember is unsupported without a backend.
@@ -1001,3 +1001,24 @@ type TradeRecord struct {
 	ItemsA   []TradeItem
 	ItemsB   []TradeItem
 }
+
+// GuildRefusal é POR QUE a criação de guilda foi recusada.
+//
+// Um tipo do mundo e não o enum do proto: o pacote world não importa gRPC, e um tipo
+// próprio é o que mantém essa fronteira. O dbclient traduz.
+//
+// Existe porque as quatro recusas viravam um "não deu" mudo, e o jogo dizia a mesma
+// frase para todas — "confira se o nome já não existe". Para três delas isso era mentira,
+// e foi essa mentira que escondeu um defeito de ouro por horas em 25/09/2026.
+type GuildRefusal uint8
+
+const (
+	// GuildRefusalUnknown: o dbServer não disse, ou disse algo que esta versão não
+	// conhece. O jogo cai na frase geral — nunca afirma um motivo que não recebeu.
+	GuildRefusalUnknown GuildRefusal = iota
+	GuildRefusalNameTaken
+	GuildRefusalNotEnoughCoin
+	GuildRefusalAlreadyInGuild
+	GuildRefusalNoFreeSlot
+	GuildRefusalCharacterGone
+)

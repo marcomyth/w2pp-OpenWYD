@@ -89,11 +89,14 @@ type fakeDB struct {
 	trades        []world.TradeRecord   // captured RecordTrade calls (0025_trade_log)
 	grounds       []world.GroundEvent   // captured RecordGround calls (0031_ground_log)
 
-	createdGuilds []world.GuildRecord
-	guildCosts    []int32
-	promoted      []uint8
-	promoteCosts  []int32
-	transfers     int
+	createdGuilds            []world.GuildRecord
+	recusaDeGuilda           world.GuildRefusal
+	guildaConfereOuroGravado bool
+	recusaGuilda             bool
+	guildCosts               []int32
+	promoted                 []uint8
+	promoteCosts             []int32
+	transfers                int
 }
 
 // duelResult captures one RecordDuelResult call for assertions.
@@ -296,13 +299,33 @@ func (f *fakeDB) SetAccountBlocked(_ context.Context, name string, blocked bool)
 	return nil
 }
 
-func (f *fakeDB) CreateGuild(_ context.Context, _ int64, _ int, _, guildName string, clan, citizen uint8, _ int, cost int32) (world.GuildRecord, bool, error) {
+func (f *fakeDB) CreateGuild(_ context.Context, accountID int64, slot int, _, guildName string, clan, citizen uint8, _ int, cost int32) (world.GuildRecord, bool, world.GuildRefusal, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	// recusaDeGuilda deixa o teste mandar o dbServer recusar, com o motivo que ele
+	// quiser: é assim que se prova que cada motivo produz a sua frase.
+	if f.recusaDeGuilda != world.GuildRefusalUnknown || f.recusaGuilda {
+		return world.GuildRecord{}, false, f.recusaDeGuilda, nil
+	}
+	// O BANCO SÓ SABE O QUE FOI GRAVADO. O store confere o custo contra
+	// character.coin, e não contra um número vindo de quem chama; o fake faz o
+	// mesmo para que um /create feito com ouro que só existe na memória seja
+	// recusado aqui — como era em produção antes de 25/09/2026.
+	if f.guildaConfereOuroGravado {
+		coin := int32(-1)
+		for _, sv := range f.savedChars {
+			if sv.AccountID == accountID && sv.Slot == slot {
+				coin = sv.Coin
+			}
+		}
+		if coin < cost {
+			return world.GuildRecord{}, false, world.GuildRefusalNotEnoughCoin, nil
+		}
+	}
 	g := world.GuildRecord{ID: uint16(100 + len(f.createdGuilds)), Name: guildName, Clan: clan, Citizen: citizen}
 	f.createdGuilds = append(f.createdGuilds, g)
 	f.guildCosts = append(f.guildCosts, cost)
-	return g, true, nil
+	return g, true, world.GuildRefusalUnknown, nil
 }
 
 func (f *fakeDB) SetGuildMember(context.Context, int64, int, string, uint16, uint8) error {
