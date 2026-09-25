@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -260,6 +261,10 @@ type World struct {
 	// from events so a long mob-AI tick cannot block login/db callbacks on the main queue.
 	done   chan struct{}  // closed when the loop stops; unblocks conn goroutines
 	saveWG sync.WaitGroup // tracks in-flight async character saves (logout/disconnect)
+	// savesFalhados conta as gravações de saída que NÃO confirmaram. O dreno do
+	// painel lê isto: esperar as gravações terminarem não é o mesmo que elas terem
+	// dado certo, e quem vai reiniciar precisa saber a diferença.
+	savesFalhados atomic.Int64
 
 	// onTick is the periodic simulation hook (mob AI), run inside the loop; see
 	// tick.go. nil disables the ticker (e.g. in protocol/transport tests).
@@ -458,7 +463,10 @@ func (w *World) shutdown() {
 		if s == nil {
 			continue
 		}
-		if s.Mode == UserPlay && s.AccountID != 0 {
+		// A MOCHILA VIVA, e não o modo: uma sessão apanhada em UserWaitDB — no meio
+		// de uma ida ao banco — tem personagem carregado, e deixá-la de fora aqui
+		// faria a carga dela ou ser gravada sozinha embaixo, ou não ser gravada.
+		if w.temMochilaViva(s) {
 			cs, carga, unacked, temCarga := w.parDeSalvamento(s)
 			if err := SalvarPar(context.Background(), w.persist, cs, carga, temCarga, unacked); err != nil {
 				w.log.Warn("save on shutdown failed", "conn", s.Conn, "err", err)
@@ -473,13 +481,15 @@ func (w *World) shutdown() {
 		}
 		s.close()
 	}
-	// As cargas que sobraram: contas carregadas sem personagem em jogo, e as das
-	// contas cujo par acima falhou — para essas, gravar a carga sozinha é pior que
-	// nada? Não: o personagem não foi gravado, então a carga sozinha volta a ser
-	// duas metades em desacordo. Por isso o par que falha NÃO deixa a carga aqui;
-	// ela só fica quando o par nem foi tentado.
+	// As cargas que sobraram: contas carregadas SEM mochila viva — a conta na tela
+	// de seleção —, onde não há personagem para discordar delas.
+	//
+	// A conta cujo par falhou acima fica de fora de propósito. Gravar a carga dela
+	// sozinha recriaria as duas metades em desacordo. Ficando de fora, o banco
+	// mantém o par ANTIGO inteiro, que é consistente: perde-se o progresso desde o
+	// último save, mas nas duas metades JUNTAS, e nada duplica.
 	for accountID := range w.cargo {
-		if w.jogandoNaConta(accountID) != nil {
+		if w.personagemVivoNaConta(accountID) != nil {
 			continue
 		}
 		if err := saveCargoFor(context.Background(), w.persist, w.cargoSave(accountID), w.deliveryUnacked[accountID]); err != nil {
@@ -575,12 +585,19 @@ func (w *World) SaveCharacterAsync(s *Session) {
 	if s == nil || s.Mode != UserPlay || s.AccountID == 0 {
 		return
 	}
+	w.salvarParAsync(s)
+}
+
+// salvarParAsync é o corpo do SaveCharacterAsync sem a exigência de UserPlay: ele
+// grava o par de qualquer sessão com mochila viva. Loop-only.
+func (w *World) salvarParAsync(s *Session) {
 	cs, carga, unacked, temCarga := w.parDeSalvamento(s)
 	p := w.persist
 	w.saveWG.Add(1)
 	go func() {
 		defer w.saveWG.Done()
 		if err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked); err != nil {
+			w.savesFalhados.Add(1)
 			w.log.Warn("save character failed", "account", cs.AccountID, "slot", cs.Slot, "err", err)
 			return
 		}
@@ -623,9 +640,23 @@ func (w *World) LeaveCharacter(s *Session) {
 		// goroutine e a sua transação — que é exatamente a janela do dupe. Agora a
 		// dupla vai numa transação só, e o ReleaseCargo que vem depois não acha mais
 		// carga para gravar e não faz nada.
-		delete(w.cargo, cs.AccountID)
-		delete(w.deliveryPlaced, cs.AccountID)
-		delete(w.deliveryUnacked, cs.AccountID)
+		//
+		// SÓ QUE A CARGA É DA CONTA, não do personagem: se outra sessão da mesma
+		// conta ainda estiver com personagem carregado, tirá-la da memória aqui
+		// arrancaria o baú debaixo de quem continua jogando. Hoje isto só é chamado
+		// na desconexão, então não acontece; se acontecer, é erro alto e a carga
+		// fica, porque uma carga sumida calada é muito pior.
+		if outra := w.outraSessaoComMochilaViva(cs.AccountID, s); outra != nil {
+			w.log.Error("LeaveCharacter com outra sessão viva na conta: a carga NÃO foi retirada da memória",
+				"account", cs.AccountID, "saindo", s.Conn, "ficando", outra.Conn)
+			temCarga = false
+			carga = CargoSave{}
+			unacked = nil
+		} else {
+			delete(w.cargo, cs.AccountID)
+			delete(w.deliveryPlaced, cs.AccountID)
+			delete(w.deliveryUnacked, cs.AccountID)
+		}
 	}
 	p := w.persist
 	w.holdAccount(cs.AccountID)
@@ -634,6 +665,7 @@ func (w *World) LeaveCharacter(s *Session) {
 		defer w.saveWG.Done()
 		defer w.releaseAccountLater(cs.AccountID)
 		if err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked); err != nil {
+			w.savesFalhados.Add(1)
 			w.log.Warn("save character failed", "account", cs.AccountID, "slot", cs.Slot, "err", err)
 			return
 		}
@@ -1002,8 +1034,11 @@ func (w *World) saveCargoAcking(accountID int64) {
 	// SE A CONTA TEM PERSONAGEM EM JOGO, o personagem vai junto. Gravar só a carga
 	// enquanto o dono está jogando é a metade que duplica: o item que saiu da carga
 	// já está na mochila da memória, e a mochila do banco ainda não sabe.
-	if s := w.jogandoNaConta(accountID); s != nil {
-		w.SaveCharacterAsync(s)
+	if s := w.personagemVivoNaConta(accountID); s != nil {
+		// salvarParAsync, e não SaveCharacterAsync: aquele recusa sessão fora de
+		// UserPlay, e aqui a sessão pode estar em UserWaitDB. Cair no guard faria
+		// esta gravação simplesmente não acontecer — pior que o dupe, porque some.
+		w.salvarParAsync(s)
 		return
 	}
 	cs := w.cargoSave(accountID)
@@ -1021,18 +1056,56 @@ func (w *World) saveCargoAcking(accountID int64) {
 	})
 }
 
-// jogandoNaConta devolve a sessão desta conta que está EM JOGO, ou nil. É ela que
-// decide se uma gravação de carga precisa levar o personagem junto. Loop-only.
-func (w *World) jogandoNaConta(accountID int64) *Session {
+// personagemVivoNaConta devolve a sessão desta conta que tem MOCHILA VIVA na
+// memória, ou nil. É ela que decide se uma gravação de carga precisa levar o
+// personagem junto.
+//
+// O CRITÉRIO É A ENTIDADE, E NÃO O MODO, e a diferença é um dupe.
+//
+// A primeira versão perguntava por Mode == UserPlay. Só que o personagem continua
+// vivo na memória em UserWaitDB, que é justamente o modo de quem está no meio de
+// uma ida ao banco — criar guilda, promover, e as outras operações em w.Go. Uma
+// entrega que chegasse nessa janela veria "ninguém jogando" e gravaria a carga
+// SOZINHA, com a mochila do banco atrasada. É a janela mais provável de todas: a
+// pessoa saca da carga e cria a guilda. O mesmo valeria para o UserCharWait se
+// houver mochila viva nele.
+//
+// Loop-only.
+func (w *World) personagemVivoNaConta(accountID int64) *Session {
 	if accountID == 0 {
 		return nil
 	}
 	for _, s := range w.sessions {
-		if s != nil && s.AccountID == accountID && s.Mode == UserPlay {
+		if s != nil && s.AccountID == accountID && w.temMochilaViva(s) {
 			return s
 		}
 	}
 	return nil
+}
+
+// outraSessaoComMochilaViva é a personagemVivoNaConta ignorando uma sessão — a que
+// está saindo. Loop-only.
+func (w *World) outraSessaoComMochilaViva(accountID int64, exceto *Session) *Session {
+	for _, s := range w.sessions {
+		if s != nil && s != exceto && s.AccountID == accountID && w.temMochilaViva(s) {
+			return s
+		}
+	}
+	return nil
+}
+
+// temMochilaViva diz se a sessão tem um personagem carregado cuja mochila pode
+// discordar da carga da conta.
+//
+// Entidade DOCADA não conta: ela é o resto de um personagem que já voltou para a
+// tela de seleção e já foi gravado. Gravá-la de novo seria republicar estado
+// velho por cima de um instantâneo mais novo. Loop-only.
+func (w *World) temMochilaViva(s *Session) bool {
+	if s == nil || s.AccountID == 0 {
+		return false
+	}
+	e := w.entities[s.Conn]
+	return e != nil && e.Mode != MobUserDock
 }
 
 // EsqueceEntregues é o forgetAcked para quem grava o par por conta própria: as
@@ -1110,6 +1183,7 @@ func (w *World) ReleaseCargo(accountID int64) {
 		defer w.saveWG.Done()
 		defer w.releaseAccountLater(accountID)
 		if err := saveCargoFor(context.Background(), w.persist, cs, unacked); err != nil {
+			w.savesFalhados.Add(1)
 			w.log.Warn("save cargo failed", "account", cs.AccountID, "err", err)
 		}
 	}()
@@ -1159,41 +1233,6 @@ func (w *World) AccountSession(accountID int64, except *Session) *Session {
 // teardown saves in flight. Loop-only.
 func (w *World) AccountSaving(accountID int64) bool {
 	return w.quitSaves[accountID] > 0
-}
-
-// SaveCargoThen persists the account cargo WITHOUT evicting it (the account
-// session continues, e.g. returning to character selection) and runs then back in
-// the loop after the save commits. This is the anti-dup boundary for character
-// switches: deposits/withdrawals move items between a character's carry and the
-// shared cargo, so the cargo must be persisted alongside the character save —
-// otherwise an item withdrawn into the carry is saved on the character row while
-// the stale account_cargo row still holds it, duplicating it on the next load.
-// then always runs, even when there is no cargo to save. Loop-only.
-func (w *World) SaveCargoThen(s *Session, then func(*World, *Session)) {
-	if s == nil || s.AccountID == 0 || w.cargo[s.AccountID] == nil {
-		then(w, s)
-		return
-	}
-	// NÃO DESVIA PARA O PAR AQUI, e isso é escolha.
-	//
-	// O returnPersistedCharacterToSelection chama este caminho DEPOIS de já ter
-	// publicado o instantâneo do personagem no banco, e regravá-lo a partir da
-	// entidade viva desfaria o que foi publicado. Quem tem personagem em jogo e
-	// quer os dois grava pelo SaveCharacterThen, que leva a carga junto.
-	cs := w.cargoSave(s.AccountID)
-	unacked := append([]int64(nil), w.deliveryUnacked[s.AccountID]...)
-	p := w.persist
-	w.Go(s, func() func(*World, *Session) {
-		err := saveCargoFor(context.Background(), p, cs, unacked)
-		return func(w *World, s *Session) {
-			if err != nil {
-				w.log.Warn("save cargo failed", "account", cs.AccountID, "err", err)
-			} else {
-				w.forgetAcked(cs.AccountID, unacked)
-			}
-			then(w, s)
-		}
-	})
 }
 
 // send queues an outbound message to the session's writer goroutine. It never

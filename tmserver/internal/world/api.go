@@ -574,6 +574,15 @@ func (w *World) ForEachSession(fn func(*Session, *Entity)) {
 // the shutdown then finds nothing left to do.
 func (w *World) WaitSaves() { w.saveWG.Wait() }
 
+// SavesFalhados é quantas gravações de saída não confirmaram desde que o processo
+// subiu.
+//
+// ESPERAR NÃO É O MESMO QUE TER DADO CERTO. O dreno esperava as gravações
+// terminarem e dizia "pronto" mesmo quando alguma tinha falhado — e o painel, que
+// promete não reiniciar sem tudo gravado, reiniciava. Quem for reiniciar compara
+// este número antes e depois. Seguro fora do laço.
+func (w *World) SavesFalhados() int64 { return w.savesFalhados.Load() }
+
 // Close tears down a session (e.g. after a fatal validation failure).
 func (w *World) Close(s *Session) { w.removeSession(s) }
 

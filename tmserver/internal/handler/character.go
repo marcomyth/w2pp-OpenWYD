@@ -863,32 +863,33 @@ func (d *Dispatcher) returnToCharacterSelection(w *world.World, s *world.Session
 // snapshot was already committed off-loop. It deliberately does not save the
 // character again, avoiding a second failure point after publishing the snapshot.
 //
-// É A ÚNICA GRAVAÇÃO DE CARGA SOZINHA QUE SOBROU com personagem em jogo, e é
-// deliberada: regravar o personagem a partir da entidade viva desfaria o
-// instantâneo já publicado, que é o ponto desta transição. Ela é segura porque a
-// transição não move nada entre a mochila e a carga — é troca de classe. Quem
-// fizer uma transição que MEXA na carga tem de trocar isto pelo par.
+// E NÃO GRAVA A CARGA TAMPOUCO, desde o conserto do dupe. Os dois caminhos que
+// chegam aqui — a Pedra Ideal e o Sub Celestial — publicam o instantâneo pelo
+// SalvarEncenadoComCarga, que já gravou o PAR. A gravação de carga que existia
+// aqui era a segunda metade de um par já gravado: redundante, e uma transação a
+// mais entre duas coisas que precisam andar juntas.
+//
+// Quem trouxer um caminho novo para cá tem de publicar o par, e não o personagem
+// sozinho: a carga não é mais gravada depois.
 func (d *Dispatcher) returnPersistedCharacterToSelection(w *world.World, s *world.Session, after func(*world.World, *world.Session)) {
 	d.SessionEnd(w, s)
 	body := protocol.EncodeRemoveMobBody(2)
 	w.ForEachInView(s.Conn, func(vs *world.Session, _ *world.Entity) {
 		w.SendTo(vs, protocol.Header{Type: protocol.MsgRemoveMob, ID: uint16(s.Conn)}, body)
 	})
-	w.SaveCargoThen(s, func(w *world.World, s *world.Session) {
-		if e := w.Entity(s.Conn); e != nil {
-			e.Mode = world.MobUserDock
-			e.ResetAffects()
-		}
-		// Same reason as the sibling path above: closeAutoTrade, so a shop clone
-		// standing in the world comes down with its owner instead of being
-		// stranded by a field assignment.
-		d.closeAutoTrade(w, s)
-		s.Mode = world.UserSelChar
-		w.Send(s, protocol.MsgCNFCharacterLogout, nil)
-		if after != nil {
-			after(w, s)
-		}
-	})
+	if e := w.Entity(s.Conn); e != nil {
+		e.Mode = world.MobUserDock
+		e.ResetAffects()
+	}
+	// Same reason as the sibling path above: closeAutoTrade, so a shop clone
+	// standing in the world comes down with its owner instead of being
+	// stranded by a field assignment.
+	d.closeAutoTrade(w, s)
+	s.Mode = world.UserSelChar
+	w.Send(s, protocol.MsgCNFCharacterLogout, nil)
+	if after != nil {
+		after(w, s)
+	}
 }
 
 // restart handles _MSG_Restart (0x0289): the death-respawn / town-recall button
