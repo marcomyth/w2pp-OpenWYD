@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/binary"
 	"errors"
 	"strings"
 	"testing"
@@ -79,5 +80,56 @@ func TestAFraseDeRcoinsNaoFalaDeGold(t *testing.T) {
 	}
 	if !strings.Contains(msgSemRcoins, "Rcoins") {
 		t.Errorf("a frase não nomeia a moeda: %q", msgSemRcoins)
+	}
+}
+
+// TestOfertaQueSumiuFalaComQuemClicou.
+//
+// A vitrine é uma fotografia: entre ela e o clique, outra pessoa compra ou o vendedor
+// recolhe o item. Antes disto o servidor não devolvia NADA — o botão não fazia coisa
+// nenhuma —, e quem estava do outro lado clicava de novo achando que o clique tinha
+// falhado.
+func TestOfertaQueSumiuFalaComQuemClicou(t *testing.T) {
+	const item = int16(1030)
+	const preco = int32(300)
+	addr, stop, _ := startServerClock(t, autotradeDB(item))
+	defer stop()
+	vendedor := enterWorldAs(t, addr, "tester")
+	defer vendedor.Close()
+	comprador := enterWorldAs(t, addr, "tradeb")
+	defer comprador.Close()
+
+	abreBarraca(t, vendedor, "Minha Loja", 0, preco, protocol.LojaMoedaOuro)
+	lista := pedeVitrine(t, comprador, 0, protocol.LojaFiltroTodos)
+	o := lista.Ofertas[0]
+
+	// A barraca desce depois de a vitrine ter sido tirada: é a corrida real. O
+	// /fecharloja é o caminho que o dono tem para derrubá-la.
+	whisperFrame(t, vendedor, "fecharloja", "")
+	pedeVitrine(t, vendedor, 0, protocol.LojaFiltroMeus) // garante a ordem entre os sockets
+
+	drena(t, comprador)
+	compra := protocol.LojaCompraBody{Vendedor: o.Vendedor, Slot: o.Slot, Moeda: o.Moeda}
+	send(t, comprador, protocol.MsgLojaCompra, compra.Encode())
+
+	avisado, levou := false, false
+	for {
+		ty, payload, ok := readMaybe(t, comprador)
+		if !ok {
+			break
+		}
+		switch {
+		case ty == protocol.MsgSendItem:
+			levou = true
+		case ty == protocol.MsgMessageBoxOk && len(payload) >= 4 &&
+			Notice(binary.LittleEndian.Uint32(payload[0:4])) == NoticeItemSold:
+			avisado = true
+		}
+	}
+	if levou {
+		t.Fatal("comprou de uma barraca que já tinha descido")
+	}
+	if !avisado {
+		t.Fatal("a oferta sumiu e o jogador não foi avisado: o botão não fez nada")
 	}
 }

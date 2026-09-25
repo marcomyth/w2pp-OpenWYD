@@ -93,9 +93,25 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 		return
 	}
 
+	// A OFERTA QUE SUMIU PASSA A FALAR, e essa era a recusa muda que mais doía.
+	//
+	// A vitrine é uma fotografia: entre ela e o clique, outra pessoa compra, o
+	// vendedor recolhe o item ou fecha a barraca. Todos esses caminhos devolviam
+	// NADA — o botão não fazia coisa nenhuma —, e quem estava do outro lado clicava
+	// de novo achando que o clique tinha falhado.
+	//
+	// A frase é a do próprio cliente (_NN_ItemSold, "O item foi vendido."), que
+	// descreve o que a pessoa precisa saber: aquela oferta não está mais lá. Ela
+	// serve às três causas, porque para quem compra as três são a mesma coisa.
 	vendedor, barraca := shopAt(w, int(pedido.Vendedor))
-	if vendedor == nil || vendedor.Conn == s.Conn {
-		return // barraca que não existe, ou a própria
+	if vendedor == nil {
+		d.notify(w, s, NoticeItemSold)
+		return
+	}
+	if vendedor.Conn == s.Conn {
+		// A própria barraca. O painel não oferece isso, então é cliente remendado:
+		// continua mudo, como todo pedido que o jogo não produz.
+		return
 	}
 	pos := int(pedido.Slot)
 	if pos < 0 || pos >= world.MaxAutoTrade {
@@ -104,16 +120,21 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 	slot := &vendedor.AutoTrade.Slots[pos]
 	cpos := slot.CargoPos
 	if cpos < 0 || cpos >= world.MaxCargo || slot.Item.Empty() {
-		return // vendido enquanto o painel olhava
+		d.notify(w, s, NoticeItemSold) // vendido enquanto o painel olhava
+		return
 	}
 	cargoVendedor := w.Cargo(vendedor.AccountID)
 	if cargoVendedor == nil {
+		// O baú do vendedor não está carregado: a barraca existe na tela e não tem
+		// nada atrás. Para quem compra é o mesmo que ter sumido.
+		d.notify(w, s, NoticeItemSold)
 		return
 	}
 	// O item precisa continuar sendo o mesmo que foi anunciado: entre a montagem
 	// da barraca e este instante o Cargo pode ter mudado.
 	itemCargo := cargoVendedor.Items[cpos]
 	if !itemsEqual(slot.Item, itemCargo) {
+		d.notify(w, s, NoticeItemSold)
 		return
 	}
 	preco := slot.Price
