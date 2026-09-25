@@ -45,22 +45,22 @@ func TestOsPacotesDoSiteEstaoNaTabela(t *testing.T) {
 		soStaff  bool
 		brindes  int
 	}{
-		// OS PREÇOS ESTÃO TODOS EM 100 por decisão da Hanna de 25/09/2026 (migração
-		// 0158), e não porque a tabela do site mudou. Os RCOINS e os BRINDES continuam
-		// sendo os de lá: é o par preço/crédito que o `ConferirPacote` compara com o
-		// pedido, e é ele que este teste liga ao site.
+		// OS PREÇOS SÃO OS DA TABELA DO SITE, de volta em 25/09/2026 pela migração
+		// 0159. Eles passaram parte do dia em 100, pela 0158, para testar a entrega dos
+		// brindes sem gastar R$ 3.500; acabado o teste, voltaram aos valores da 0123.
 		//
-		// Quando os preços voltarem, voltam para 2990, 4990, 9990, 14990, 19990, 29990,
-		// 39990, 49990 e 79990.
-		{"apoiador-iniciante", 300, 100, false, 4},
-		{"apoiador-bronze", 575, 100, false, 4},
-		{"apoiador-prata", 1250, 100, false, 4},
-		{"apoiador-ouro", 2100, 100, false, 4},
-		{"apoiador-platina", 3000, 100, false, 4},
-		{"apoiador-diamante", 4950, 100, false, 4},
-		{"apoiador-mestre", 7000, 100, false, 5},
-		{"apoiador-lenda", 10000, 100, false, 6},
-		{"apoiador-supremo", 20000, 100, false, 6},
+		// É o par preço/crédito que o `ConferirPacote` compara com o pedido, e é ele que
+		// este teste liga ao site: divergir aqui é o site pedir um valor e o servidor
+		// recusar antes do Pix.
+		{"apoiador-iniciante", 300, 2990, false, 4},
+		{"apoiador-bronze", 575, 4990, false, 4},
+		{"apoiador-prata", 1250, 9990, false, 4},
+		{"apoiador-ouro", 2100, 14990, false, 4},
+		{"apoiador-platina", 3000, 19990, false, 4},
+		{"apoiador-diamante", 4950, 29990, false, 4},
+		{"apoiador-mestre", 7000, 39990, false, 5},
+		{"apoiador-lenda", 10000, 49990, false, 6},
+		{"apoiador-supremo", 20000, 79990, false, 6},
 		// Sem brinde, e é a ausência que o define: um brinde de teste entregaria item
 		// de verdade num teste de pagamento.
 		{"teste-real", 10, 100, true, 0},
@@ -166,7 +166,7 @@ func TestConfirmarPacoteEnfileiraOsBrindesComOCredito(t *testing.T) {
 
 	if _, err := s.CreateTopupOrder(ctx, domain.TopupOrder{
 		ExternalReference: "ref-supremo", AccountID: conta,
-		Credits: 20000, AmountCents: 100, PaymentMethod: 1, PacoteID: "apoiador-supremo",
+		Credits: 20000, AmountCents: 79990, PaymentMethod: 1, PacoteID: "apoiador-supremo",
 	}); err != nil {
 		t.Fatalf("criando a ordem: %v", err)
 	}
@@ -240,7 +240,7 @@ func TestConfirmarPacoteDuasVezesNaoDuplicaOsBrindes(t *testing.T) {
 
 	if _, err := s.CreateTopupOrder(ctx, domain.TopupOrder{
 		ExternalReference: "ref-repetida", AccountID: conta,
-		Credits: 300, AmountCents: 100, PaymentMethod: 1, PacoteID: "apoiador-iniciante",
+		Credits: 300, AmountCents: 2990, PaymentMethod: 1, PacoteID: "apoiador-iniciante",
 	}); err != nil {
 		t.Fatal(err)
 	}
