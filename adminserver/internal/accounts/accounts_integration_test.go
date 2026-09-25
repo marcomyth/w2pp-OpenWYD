@@ -817,6 +817,46 @@ func TestBuscarRespeitaOPrazoDoBan(t *testing.T) {
 	}
 }
 
+// TestBuscarEscondeAsArquivadas: a conta "~nome" do wipe não aparece na lista nem
+// numa busca comum, e aparece quando o termo começa com "~".
+func TestBuscarEscondeAsArquivadas(t *testing.T) {
+	ctx := context.Background()
+	pool := testPool(t)
+	s := New(pool)
+	seed(t, pool, "arqviva", RolePlayer)
+	seed(t, pool, "~arqviva", RolePlayer)
+
+	temNome := func(achados []Achado, nome string) bool {
+		for _, a := range achados {
+			if a.Name == nome {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, termo := range []string{"", "arq"} {
+		achados, err := s.Buscar(ctx, termo, 200)
+		if err != nil {
+			t.Fatalf("Buscar(%q): %v", termo, err)
+		}
+		if temNome(achados, "~arqviva") {
+			t.Errorf("Buscar(%q) trouxe a conta arquivada", termo)
+		}
+		if termo == "arq" && !temNome(achados, "arqviva") {
+			t.Errorf("Buscar(%q) perdeu a conta viva", termo)
+		}
+	}
+
+	achados, err := s.Buscar(ctx, "~arq", 200)
+	if err != nil {
+		t.Fatalf("Buscar(~arq): %v", err)
+	}
+	if !temNome(achados, "~arqviva") {
+		t.Errorf("Buscar(\"~arq\") não trouxe a conta arquivada")
+	}
+}
+
 func TestBuscarVaziaListaTudoAteOLimite(t *testing.T) {
 	ctx := context.Background()
 	pool := testPool(t)
