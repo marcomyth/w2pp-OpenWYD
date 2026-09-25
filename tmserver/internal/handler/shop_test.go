@@ -216,3 +216,38 @@ func TestShopListIndexBounds(t *testing.T) {
 		})
 	}
 }
+
+// TestBuySemOuroAvisa.
+//
+// O DEFEITO QUE ISTO PRENDE: comprar poção no Aki sem ouro não fazia nada. Nem item, nem
+// mensagem — o clique parecia não ter funcionado, e a pessoa clicava de novo. O servidor
+// registrava "buy denied" no log e voltava calado, e o log não é lido por quem joga.
+//
+// O cliente NÃO confere o ouro antes de mandar a compra (WYD.exe 0x410902-0x410c77),
+// então o servidor é o único que pode dizer isso.
+//
+// A frase é o _NN_Not_Enough_Money, a MESMA que a barraca, a Loja do Servidor, o mestre
+// de montaria e o teleporte pago já usam. Uma segunda frase para o mesmo problema faria o
+// jogador achar que são coisas diferentes.
+func TestBuySemOuroAvisa(t *testing.T) {
+	// 100 de ouro na bolsa, item de 5000: falta, e falta com folga.
+	addr, stop := startServerShop(t, shopDB(100), map[int]int32{1100: 5000})
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	buyFrame(t, c, shopNPCID, 0, 3)
+
+	// O aviso TEM de chegar, e tem de ser O CERTO. Conferir só que "chegou alguma
+	// coisa" deixaria passar um aviso de outro assunto — e um aviso errado manda a
+	// pessoa procurar o problema no lugar errado.
+	if code := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); code != NoticeNotEnoughMoney {
+		t.Fatalf("aviso = %d, queria NoticeNotEnoughMoney (%d)", code, NoticeNotEnoughMoney)
+	}
+
+	// E NADA PODE TER MUDADO. Um aviso com o ouro debitado seria pior que o silêncio:
+	// a pessoa leria "não tem ouro" e teria pagado.
+	if ty, _, ok := readMaybe(t, c); ok && ty == protocol.MsgSendItem {
+		t.Error("a compra sem ouro entregou o item")
+	}
+}
