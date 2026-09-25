@@ -222,3 +222,38 @@ func TestBossManticoraBloco(t *testing.T) {
 		t.Errorf("Boss_Manticora em %d blocos, want 1", n)
 	}
 }
+
+// TestBossDragaoLichBloco pins the Dungeon's 3rd-floor boss (migration 0140): one
+// Boss_Dragao_Lich in block 6146, the last one, with no minute period — the 4 h
+// wait after its death is the individual queue's (handler/dungeon.go).
+func TestBossDragaoLichBloco(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("NPCGener.txt unavailable: %v", err)
+	}
+	gens, err := LoadNPCGenerators(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const idx = 6146
+	if idx != len(gens)-1 {
+		t.Fatalf("NPCGener has %d blocks, want block %d to be the last", len(gens), idx)
+	}
+	g := gens[idx]
+	if g.Leader != "Boss_Dragao_Lich" || g.MinuteGenerate != -1 || g.MaxNumMob != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
+		t.Errorf("bloco %d = %+v, want one Boss_Dragao_Lich with MinuteGenerate -1", idx, g)
+	}
+	// Dungeon_3_Andar in Regions.txt: 898,3712 - 1143,3830.
+	if x, y := g.SegX[0], g.SegY[0]; x < 898 || x > 1143 || y < 3712 || y > 3830 {
+		t.Errorf("Boss_Dragao_Lich nasce em (%d,%d), fora do Dungeon_3_Andar", x, y)
+	}
+	n := 0
+	for _, g := range gens {
+		if g.Leader == "Boss_Dragao_Lich" || g.Follower == "Boss_Dragao_Lich" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("Boss_Dragao_Lich em %d blocos, want 1", n)
+	}
+}

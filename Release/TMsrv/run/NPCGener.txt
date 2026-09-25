@@ -159689,3 +159689,25 @@
 	DestY:		1742
 	DestRange:	2
 	DestWait:	10
+
+// Boss Dragao Lich - chefe do 3o andar da Dungeon: renasce 4 h depois da morte
+// (handler/dungeon.go), saque no codigo e na Mesa. Migracao 0140, 25/09/2026.
+// ********************************************
+
+#	[6146]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Boss_Dragao_Lich
+	Follower:	Boss_Dragao_Lich
+	RouteType:	0
+	Formation:	0
+	StartX:		1062
+	StartY:		3743
+	StartRange:	2
+	StartWait:	10
+	DestX:		1062
+	DestY:		3743
+	DestRange:	2
+	DestWait:	10
