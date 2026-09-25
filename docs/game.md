@@ -223,8 +223,26 @@ O débito é atômico no banco: quem não tem saldo não leva o item, e se a bol
 entre a cobrança e a entrega os pontos voltam sozinhos. Comprar em pontos **não
 encosta no ouro** do personagem.
 
-A **Loja de Pontos** fica em Armia (2139, 2104), ao lado da Kibita. Ela nasce sem
-estoque: o que ela vende e por quanto se define no painel de NPCs.
+A **Loja de Pontos** fica em Armia (2139, 2104), ao lado da Kibita. Saiu do mundo na
+0096 e voltou na 0150 (25/09/2026) com sete itens, cada preço medido em dias de
+barraca aberta 20 h por dia (240 pontos sem fada, 560 com a Fada Azul):
+
+| Item | Qtd | Pontos | Dias sem / com fada |
+|---|---|---|---|
+| Poeira de Lactolerium (413) | 1 | 100 | ~8 h / ~3,5 h |
+| Acelerador de Nascimento (3438) | 1 | 360 | 1,5 / 0,6 |
+| Poeira de Oriharucon (412) | 3 | 480 | 2 / 0,9 |
+| Fada Azul 24 h (3901, `106 1`) | 1 | 960 | 4 / 1,7 |
+| Baú de Experiência (4140) | 1 | 1440 | 6 / 2,6 |
+| Pergaminho da Água (N) LV1 (3173) | 3 | 1440 | 6 / 2,6 |
+| Bolsa do Andarilho (3467) | 1 | 2400 | 10 / 4,3 |
+
+O preço é por compra: a pilha de três sai pelo número da tabela, e chega ao jogador
+com `61 3`. A fada é a única exceção à regra "nenhum comerciante vende fada" (0107):
+é por pontos de tempo online e só por 24 horas. O template do NPC fica **sem
+estoque** de propósito — a seed recoloca item do template em vaga livre, sem preço em
+pontos, e ele voltaria sendo vendido por ouro. Mudar preço ou vitrine é pelo painel
+de NPCs.
 
 > O cliente não sabe dessa moeda. A janela de loja desenha o preço em **ouro** que
 > está no `ItemList.bin` dele, que não tem nada a ver com o custo em pontos — por
