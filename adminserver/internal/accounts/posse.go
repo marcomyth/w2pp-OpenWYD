@@ -59,6 +59,16 @@ func (s *Store) PosseDaConta(ctx context.Context, accountID int64) (Posse, error
 // conta esperando um conserto que só um deploy traria. Com o botão, a staff
 // destrava agora.
 //
+// ELA NÃO É SEGURA SOZINHA, e isto tem de estar escrito. Soltar à mão a posse de um
+// processo VIVO abre a porta para um segundo login na mesma conta — exatamente o que
+// a posse existe para impedir. Quem fecha essa porta é o BATIMENTO do lado do jogo: o
+// processo que perdeu a conta descobre no próximo batimento (ela não volta no
+// RETURNING), grava o que dá e derruba a sessão. Sem esse par, esta função seria uma
+// maneira de produzir o defeito à mão.
+//
+// É por isso que a tela mostra há quanto tempo foi o último batimento: o clique só é
+// seguro quando o dono não está mais batendo.
+//
 // A OBSERVAÇÃO É OBRIGATÓRIA e a auditoria vai na MESMA transação. Soltar uma posse
 // é dizer "o dono desta conta não existe mais", e essa afirmação pode estar errada:
 // se estiver, alguém precisa poder ler depois quem disse e por quê. Auditoria
