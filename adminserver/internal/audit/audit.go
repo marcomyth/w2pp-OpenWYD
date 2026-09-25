@@ -50,6 +50,7 @@ const (
 	ActionBroadcast          = "BROADCAST"
 	ActionSafeRestart        = "SAFE_RESTART"
 	ActionSoltarPosse        = "SOLTAR_POSSE_DA_CONTA"
+	ActionDesvincularDiscord = "DESVINCULAR_DISCORD"
 	ActionStopGame           = "STOP_GAME"
 	ActionStartGame          = "START_GAME"
 	ActionSetXPRule          = "SET_XP_RULE"
@@ -350,6 +351,7 @@ var rotulos = map[string]string{
 	ActionRestartGame:                          "Reiniciou o servidor",
 	ActionSafeRestart:                          "Reiniciou com segurança",
 	ActionSoltarPosse:                          "Soltou a posse da conta",
+	ActionDesvincularDiscord:                   "Desvinculou o Discord",
 	ActionStopGame:                             "Desligou o servidor",
 	ActionStartGame:                            "Ligou o servidor",
 	ActionSetXPRule:                            "Mexeu na Mesa de XP",
