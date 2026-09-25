@@ -165,7 +165,7 @@ const (
 	MsgWar              Type = 0x0E0E // 3598 declare guild war (MSG_STANDARDPARM2)
 	MsgChallange        Type = 0x028E // 654  zone challenge / tax (MSG_STANDARDPARM)
 	MsgChallangeConfirm Type = 0x028F // 655  confirm challenge (MSG_STANDARDPARM2)
-	MsgPing             Type = 0x03A0 // 928  keepalive — no-op on receive (§2)
+	MsgPing             Type = 0x03A0 // 928  keepalive — ecoado de volta a quem mandou (world/event.go)
 
 	// Personal shop / autotrade (issue #115, Basedef.h:2165-2325). SendAutoTrade is
 	// bidirectional: C→S opens the shop, S→C (SendAutoTrade) lists it back.

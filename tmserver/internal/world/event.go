@@ -84,11 +84,30 @@ func (e frameEvent) apply(w *World) {
 	if w.sessions[e.s.Conn] != e.s {
 		return
 	}
-	// Global dispatcher guards (protocol-spec.md §2): Ping is a no-op; the
-	// internal SkipCheckTick must never come from a client.
+	// O PING VOLTA, E SÓ PARA QUEM MANDOU.
+	//
+	// O legado tratava o 0x3A0 como no-op (protocol-spec.md §2), e por isso o
+	// servidor nunca respondia nada. O cliente do jogo (GamePatch 1.0.2) usa o eco
+	// para saber que o servidor está vivo durante um silêncio: ele manda o ping
+	// depois de 15 s sem receber NENHUM pacote, e repete a cada 15 s enquanto o
+	// silêncio durar.
+	//
+	// A REGRA DE QUEDA DELE SÓ LIGA DEPOIS DO PRIMEIRO ECO: sem nenhum 0x3A0
+	// recebido, ele nem considera silêncio como queda. Com o eco ligado, 40 s sem
+	// pacote nenhum viram queda — e o eco tem ~25 s de folga depois de cada ping,
+	// que é bastante para um servidor carregado. Por isso a resposta sai na chegada,
+	// sem fila própria.
+	//
+	// A FORMA É O CABEÇALHO SOZINHO, medida no cliente pela dupla dele: 12 bytes,
+	// tipo 0x3A0, corpo vazio. Na recepção o cliente olha SÓ o tipo — não confere o
+	// id nem o tick —, mas o id volta como veio, que é o mais fiel ao que ele mandou.
+	// O cliente 7662 sem remendo e o robô das lojinhas ignoram um 0x3A0 recebido,
+	// então responder a todos é seguro.
 	if e.header.Type == protocol.MsgPing {
+		w.SendTo(e.s, protocol.Header{Type: protocol.MsgPing, ID: e.header.ID}, nil)
 		return
 	}
+	// A outra guarda: o SkipCheckTick interno nunca pode vir de um cliente.
 	if e.header.ClientTick == protocol.SkipCheckTick {
 		return
 	}
