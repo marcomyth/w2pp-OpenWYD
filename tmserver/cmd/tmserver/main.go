@@ -828,6 +828,7 @@ func run(logger *slog.Logger) error {
 	// O FrenzyDemonLord também, pelo mesmo motivo (submundo.go).
 	dispatch.ApplyFrenzyBoot(w)
 	dispatch.ApplyBossDragaoLichBoot(w)
+	dispatch.ApplyBossHidraDouradaBoot(w)
 	dispatch.ApplyChefesDaLavaBoot(w)
 	dispatch.ApplyBossConjuradorBoot(w)
 	dispatch.ApplyReiTrollZumbiBoot(w)

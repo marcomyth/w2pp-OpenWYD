@@ -59803,11 +59803,11 @@
 // ********************************************
 #	[2099]
 	MinuteGenerate:	100
-	MaxNumMob:	6
-	MinGroup:	5
-	MaxGroup:	5
-	Leader:		Hidra_Dourada_
-	Follower:	Guer_Caveira
+	MaxNumMob:	5
+	MinGroup:	4
+	MaxGroup:	4
+	Leader:		Guer_Caveira_Escolta
+	Follower:	Guer_Caveira_Escolta
 	RouteType:	2
 	Formation:	0
 	StartX:		740
@@ -160005,3 +160005,25 @@
 	DestY:		3795
 	DestRange:	3
 	DestWait:	9
+
+// Boss Hidra Dourada - chefe do 2o andar da Dungeon, com a escolta de Guer Caveira
+// do bloco 2099: renasce 4 h depois da morte (handler/dungeon.go). Migracao 0149.
+// ********************************************
+
+#	[6161]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Boss_Hidra_Dourada
+	Follower:	Boss_Hidra_Dourada
+	RouteType:	0
+	Formation:	0
+	StartX:		740
+	StartY:		3776
+	StartRange:	2
+	StartWait:	10
+	DestX:		740
+	DestY:		3776
+	DestRange:	2
+	DestWait:	10

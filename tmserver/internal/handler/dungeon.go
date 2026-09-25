@@ -68,3 +68,57 @@ func (d *Dispatcher) ApplyBossDragaoLichBoot(w *world.World) {
 	}
 	d.log.Info("Boss Dragão Lich nasce horas depois do boot", "horas", bossDragaoLichHoras, "blocos", blocos)
 }
+
+// O Boss Hidra Dourada (template Boss_Hidra_Dourada, bloco 6161 do NPCGener) é o
+// chefe do 2º andar da Dungeon, pedido do Marco em 25/09/2026 no molde do Boss
+// Dragão Lich: o corpo da Hidra Dourada, maior (CON 2000), com os números do Boss
+// Mantícora — nível, defesa, vida (64.000 ÷250 = 16 mi reais) e dano 6.000 —, a
+// XP no teto de 10.000 da Dungeon (0091) e o Carry vazio. Nasce em (740,3776),
+// onde a Hidra comum liderava cinco Guer Caveira; o bloco 2099 ficou só com a
+// escolta, o Guer_Caveira_Escolta, com 6x a vida e o dano do comum. Volta de 4 em
+// 4 horas e fica 4 horas de fora depois do boot.
+//
+// O saque é o do Boss Mantícora trocando a pedra: a Pedra do Esqueleto pela Mesa
+// a 0,99% por morte (0149), a régua das Pedras Arch, e UM dos quatro prêmios do
+// código a 25% cada (bossDragaoLichPremios).
+const (
+	bossHidraDouradaTemplate = "Boss_Hidra_Dourada"
+	// bossHidraDouradaHoras é a espera entre a morte e a volta
+	// (esperaDoRenascimento), e a espera depois do boot (ApplyBossHidraDouradaBoot).
+	bossHidraDouradaHoras = 4
+
+	itemPedraDoEsqueleto = 1753
+)
+
+// isBossHidraDourada diz se o monstro é o Boss Hidra Dourada, pelo nome do
+// arquivo do template, como a Mesa: um "/gm criar Boss_Hidra_Dourada" também paga.
+func isBossHidraDourada(mob *world.Entity) bool {
+	return droprule.Canonical(mob.TemplateName) == droprule.Canonical(bossHidraDouradaTemplate)
+}
+
+// geradorDoBossHidraDourada diz se o bloco idx é o do Boss Hidra Dourada.
+func geradorDoBossHidraDourada(w *world.World, idx int) bool {
+	g := w.GeneratorAt(idx)
+	return g != nil && droprule.Canonical(g.LeaderName) == droprule.Canonical(bossHidraDouradaTemplate)
+}
+
+// bossHidraDouradaSaque entrega o prêmio da morte do Boss Hidra Dourada na bolsa
+// de quem mata (entregaPremioDeChefe). A pedra não passa por aqui: é a Mesa.
+func (d *Dispatcher) bossHidraDouradaSaque(w *world.World, reward, mob *world.Entity) {
+	if !isBossHidraDourada(mob) {
+		return
+	}
+	d.entregaPremioDeChefe(w, reward, mob, bossDragaoLichPremios, bossDragaoLichBase)
+}
+
+// ApplyBossHidraDouradaBoot segura o Boss Hidra Dourada por bossHidraDouradaHoras
+// depois que o servidor sobe, como o Boss Dragão Lich (ApplyBossDragaoLichBoot).
+func (d *Dispatcher) ApplyBossHidraDouradaBoot(w *world.World) {
+	var blocos []int
+	for idx := 0; idx < w.GeneratorCount(); idx++ {
+		if geradorDoBossHidraDourada(w, idx) && w.DeferGenerator(idx, bossHidraDouradaHoras*msPorHora) > 0 {
+			blocos = append(blocos, idx)
+		}
+	}
+	d.log.Info("Boss Hidra Dourada nasce horas depois do boot", "horas", bossHidraDouradaHoras, "blocos", blocos)
+}

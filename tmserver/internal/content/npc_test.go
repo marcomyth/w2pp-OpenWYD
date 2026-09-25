@@ -420,8 +420,9 @@ func TestReiTrollZumbiBloco(t *testing.T) {
 		t.Fatal(err)
 	}
 	const idx, primeiro, ultimo = 6150, 6151, 6160
-	if ultimo != len(gens)-1 {
-		t.Fatalf("NPCGener has %d blocks, want block %d to be the last", len(gens), ultimo)
+	// Não é mais o último desde 25/09/2026: o Boss Hidra Dourada (0149) entrou no 6161.
+	if ultimo >= len(gens) {
+		t.Fatalf("NPCGener has %d blocks, want block %d", len(gens), ultimo)
 	}
 	g := gens[idx]
 	if g.Leader != "Rei_Troll_Zumbi" || g.MinuteGenerate != -1 || g.MaxNumMob != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
@@ -457,5 +458,46 @@ func TestReiTrollZumbiBloco(t *testing.T) {
 	}
 	if mobs["Troll_Zumbi"] != 19 || mobs["Arq_Caveira"] != 2 {
 		t.Errorf("caça nova: %v, want 19 Troll_Zumbi e 2 Arq_Caveira", mobs)
+	}
+}
+
+// TestBossHidraDouradaBloco pins the Dungeon 2nd-floor boss (migration 0149): one
+// Boss_Hidra_Dourada in block 6161 with no minute period — the 4 h wait is the
+// individual queue's (handler/dungeon.go) — on the spot of block 2099, which kept
+// only the escort: five Guer_Caveira_Escolta raised as one full group.
+func TestBossHidraDouradaBloco(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("NPCGener.txt unavailable: %v", err)
+	}
+	gens, err := LoadNPCGenerators(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const chefe, escolta = 6161, 2099
+	if chefe >= len(gens) {
+		t.Fatalf("NPCGener has %d blocks, want block %d", len(gens), chefe)
+	}
+	g := gens[chefe]
+	if g.Leader != "Boss_Hidra_Dourada" || g.MinuteGenerate != -1 || g.MaxNumMob != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
+		t.Errorf("bloco %d = %+v, want one Boss_Hidra_Dourada with MinuteGenerate -1", chefe, g)
+	}
+	e := gens[escolta]
+	if e.Leader != "Guer_Caveira_Escolta" || e.Follower != "Guer_Caveira_Escolta" || e.MaxNumMob != 5 || e.MinGroup != 4 || e.MaxGroup != 4 {
+		t.Errorf("bloco %d = %+v, want five Guer_Caveira_Escolta in one full group", escolta, e)
+	}
+	if g.SegX[0] != e.SegX[0] || g.SegY[0] != e.SegY[0] || g.SegX[0] != 740 || g.SegY[0] != 3776 {
+		t.Errorf("chefe em (%d,%d) e escolta em (%d,%d), want os dois em (740,3776)", g.SegX[0], g.SegY[0], e.SegX[0], e.SegY[0])
+	}
+	n := map[string]int{}
+	for _, g := range gens {
+		for _, nome := range []string{"Boss_Hidra_Dourada", "Guer_Caveira_Escolta"} {
+			if g.Leader == nome || g.Follower == nome {
+				n[nome]++
+			}
+		}
+	}
+	if n["Boss_Hidra_Dourada"] != 1 || n["Guer_Caveira_Escolta"] != 1 {
+		t.Errorf("chefe em %d blocos e escolta em %d, want 1 e 1", n["Boss_Hidra_Dourada"], n["Guer_Caveira_Escolta"])
 	}
 }
