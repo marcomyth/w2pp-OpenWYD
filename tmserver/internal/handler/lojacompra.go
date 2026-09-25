@@ -32,6 +32,18 @@ import (
 // O cofre é o TaxVault da zona, o mesmo que o líder da guilda dona da cidade
 // saca em guild.go. Até aqui NADA depositava nele: o imposto da lojinha era
 // descontado do vendedor e desaparecia no ar. Agora ele tem para onde ir.
+
+// msgSemRcoins é a recusa de compra por falta de Rcoins.
+//
+// ELA É LITERAL, e não uma entrada da tabela do cliente, porque o legado não tem a
+// moeda: o _NN_Not_Enough_Money fala em gold, e não existe chave para Rcoins no
+// Language.txt. Inventar uma chave não adiantaria — o cliente resolve contra o
+// arquivo DELE, e uma chave que ele não conhece não desenha nada.
+//
+// "Rcoins" é o nome que o jogador vê no site e no painel (a tela de conta diz "Saldo
+// de Rcoins"), e é o nome que ele precisa reconhecer aqui.
+const msgSemRcoins = "Você não possui Rcoins suficientes."
+
 func (d *Dispatcher) repartirImposto(w *world.World, s *world.Session, imposto int32,
 	cidadeDaBarraca, cidadeDoComprador int) {
 	if imposto <= 0 {
@@ -193,7 +205,10 @@ func (d *Dispatcher) lojaCompra(w *world.World, s *world.Session, _ protocol.Hea
 		// credita. Ver lojasaldo.go.
 		if err := saldoContas.Transfere(s.AccountID, vendedor.AccountID, moeda, preco); err != nil {
 			d.log.Info("loja: compra em cash recusada", "conn", s.Conn, "erro", err)
-			d.notify(w, s, NoticeNotEnoughMoney)
+			// A FRASE TEM DE DIZER A MOEDA CERTA. O _NN_Not_Enough_Money do cliente é
+			// "Não possui gold suficiente.", e quem tentava comprar em Rcoins lia isso
+			// com a bolsa cheia de ouro — a recusa mandava conferir a moeda errada.
+			sendClientMessage(w, s, msgSemRcoins)
 			return
 		}
 		// O banco é a verdade, mas quem mostra o saldo no painel é a sessão: ela
