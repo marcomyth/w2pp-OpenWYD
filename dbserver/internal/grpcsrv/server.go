@@ -493,13 +493,54 @@ func (s *Server) RecordDuelResult(ctx context.Context, req *dbv1.RecordDuelResul
 func (s *Server) CreateGuild(ctx context.Context, req *dbv1.CreateGuildRequest) (*dbv1.CreateGuildResponse, error) {
 	g, err := s.store.CreateGuild(ctx, req.GetAccountId(), int(req.GetSlot()), req.GetCharacterName(),
 		req.GetGuildName(), uint8(req.GetClan()), uint8(req.GetCitizen()), int(req.GetServerIndex()), req.GetCost())
-	if errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrConflict) || errors.Is(err, store.ErrNoFreeSlot) || isUniqueViolation(err) {
-		return &dbv1.CreateGuildResponse{Ok: false}, nil
+	if motivo, recusa := motivoDaRecusaDeGuilda(err); recusa {
+		return &dbv1.CreateGuildResponse{Ok: false, Refusal: motivo}, nil
 	}
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create guild: %v", err)
 	}
 	return &dbv1.CreateGuildResponse{Ok: true, Guild: guildToProto(g)}, nil
+}
+
+// motivoDaRecusaDeGuilda diz QUAL recusa foi, ou UNSPECIFIED quando não é recusa.
+//
+// As quatro viravam um `ok: false` mudo, e o jogo dizia a mesma frase para todas:
+// "confira se o nome já não existe". Para três delas isso era MENTIRA — e foi essa
+// mentira que escondeu um defeito de ouro por horas em 25/09/2026, porque a pessoa ficou
+// procurando nome repetido enquanto o banco recusava por saldo.
+//
+// A ORDEM IMPORTA: o nome duplicado é conferido ANTES do ErrConflict genérico, porque a
+// violação de unicidade vem embrulhada e cairia no genérico se o genérico viesse antes.
+// DEVOLVE DOIS VALORES, e o segundo é o que importa: "isto é uma recusa?".
+//
+// Com um valor só, o UNSPECIFIED teria de significar três coisas ao mesmo tempo — sem
+// erro, recusa sem motivo conhecido, e erro de verdade — e o conflito desconhecido, que
+// HOJE é recusa, viraria erro interno. Eu escrevi assim na primeira versão e peguei
+// relendo: teria sido uma regressão silenciosa num caminho que já funcionava.
+func motivoDaRecusaDeGuilda(err error) (dbv1.CreateGuildRefusal, bool) {
+	const semMotivo = dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_UNSPECIFIED
+	switch {
+	case err == nil:
+		return semMotivo, false
+	case isUniqueViolation(err):
+		return dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_NAME_TAKEN, true
+	case errors.Is(err, store.ErrJaTemGuilda):
+		return dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_ALREADY_IN_GUILD, true
+	case errors.Is(err, store.ErrSemOuro):
+		return dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_NOT_ENOUGH_COIN, true
+	case errors.Is(err, store.ErrNoFreeSlot):
+		return dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_NO_FREE_SLOT, true
+	case errors.Is(err, store.ErrNotFound):
+		return dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_CHARACTER_GONE, true
+	case errors.Is(err, store.ErrConflict):
+		// Conflito que não é nenhum dos conhecidos. É RECUSA, como sempre foi, mas sem
+		// motivo: o jogo cai na frase geral em vez de afirmar algo que ninguém apurou.
+		return semMotivo, true
+	default:
+		// NÃO é recusa: é erro de verdade, e quem chama devolve Internal. Tratar como
+		// recusa faria um banco fora do ar virar "não deu, tente outro nome".
+		return semMotivo, false
+	}
 }
 
 // SetGuildMember sets or clears one character's guild membership.

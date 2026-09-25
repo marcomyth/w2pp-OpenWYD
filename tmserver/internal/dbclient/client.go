@@ -448,7 +448,7 @@ func (c *Client) RecordDuelResult(ctx context.Context, winnerName, loserName str
 
 // CreateGuild allocates a persistent legacy guild id, charges the creation cost,
 // and makes the character leader.
-func (c *Client) CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (world.GuildRecord, bool, error) {
+func (c *Client) CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (world.GuildRecord, bool, world.GuildRefusal, error) {
 	resp, err := c.api.CreateGuild(ctx, &dbv1.CreateGuildRequest{
 		AccountId:     accountID,
 		Slot:          int32(slot),
@@ -460,9 +460,32 @@ func (c *Client) CreateGuild(ctx context.Context, accountID int64, slot int, cha
 		Cost:          cost,
 	})
 	if err != nil {
-		return world.GuildRecord{}, false, fmt.Errorf("dbclient: create guild: %w", err)
+		return world.GuildRecord{}, false, world.GuildRefusalUnknown,
+			fmt.Errorf("dbclient: create guild: %w", err)
 	}
-	return guildFromProto(resp.GetGuild()), resp.GetOk(), nil
+	return guildFromProto(resp.GetGuild()), resp.GetOk(), recusaDeGuilda(resp.GetRefusal()), nil
+}
+
+// recusaDeGuilda traduz o motivo do proto para o tipo do mundo.
+//
+// O DESCONHECIDO CAI EM Unknown, e não em algum motivo plausível: um dbServer mais novo
+// pode mandar um valor que esta versão não conhece, e nesse caso o jogo tem de cair na
+// frase geral em vez de afirmar o motivo errado com segurança.
+func recusaDeGuilda(r dbv1.CreateGuildRefusal) world.GuildRefusal {
+	switch r {
+	case dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_NAME_TAKEN:
+		return world.GuildRefusalNameTaken
+	case dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_NOT_ENOUGH_COIN:
+		return world.GuildRefusalNotEnoughCoin
+	case dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_ALREADY_IN_GUILD:
+		return world.GuildRefusalAlreadyInGuild
+	case dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_NO_FREE_SLOT:
+		return world.GuildRefusalNoFreeSlot
+	case dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_CHARACTER_GONE:
+		return world.GuildRefusalCharacterGone
+	default:
+		return world.GuildRefusalUnknown
+	}
 }
 
 // SetGuildMember persists one character's guild membership/rank.

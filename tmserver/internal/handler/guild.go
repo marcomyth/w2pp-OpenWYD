@@ -95,10 +95,39 @@ func (d *Dispatcher) createGuild(w *world.World, s *world.Session, args []byte) 
 		return
 	}
 	accountID, slot, charName, clan, citizen, serverIndex := s.AccountID, s.Slot, e.Name, e.Clan, e.Citizen, d.serverIndex
+	// O OURO VIVO É DA MEMÓRIA, E O BANCO PRECISA VÊ-LO ANTES DE CONFERIR.
+	//
+	// O CreateGuild reconfere `coin < cost` contra character.coin NO BANCO, e faz bem:
+	// é a última barreira contra sair devendo. O problema é que o ouro que a pessoa
+	// acabou de sacar da carga só existe na memória até o próximo save — então o banco
+	// via o valor VELHO e recusava. Em produção, 25/09/2026: a Hanna sacou um bilhão da
+	// carga e levou nove recusas seguidas, com a frase que fala em nome repetido.
+	//
+	// A SAÍDA É GRAVAR ANTES, e não afrouxar a conferência. Passar o ouro da memória
+	// como parâmetro faria o store confiar num número de quem chama, e aí a barreira
+	// que impede o saldo negativo deixaria de ser barreira. Salvar primeiro mantém o
+	// banco como dono da verdade e só o põe em dia.
+	//
+	// O snapshot é tirado AQUI, no laço, e o save acontece lá fora, na ordem: sem isso,
+	// o CreateGuild correria contra um save que ainda nem começou.
+	save := w.CharacterSaveFor(s, e)
 	p := w.Persistence()
 	s.Mode = world.UserWaitDB
 	w.Go(s, func() func(*world.World, *world.Session) {
-		guild, ok, err := p.CreateGuild(context.Background(), accountID, slot, charName, name, clan, citizen, serverIndex, guildCreateCost)
+		// SE O SAVE FALHAR, NÃO SE CRIA GUILDA. Seguir adiante deixaria o banco decidir
+		// com ouro velho de novo — que é exatamente o defeito — e, pior, poderia criar
+		// a guilda cobrando de um saldo que não existe lá.
+		if err := p.SaveOnShutdown(context.Background(), save); err != nil {
+			return func(w *world.World, s *world.Session) {
+				if s.Mode == world.UserWaitDB {
+					s.Mode = world.UserPlay
+				}
+				d.log.Warn("create guild: save do personagem falhou", "conn", s.Conn,
+					"guild", name, "err", err)
+				d.notify(w, s, NoticeDBError)
+			}
+		}
+		guild, ok, motivo, err := p.CreateGuild(context.Background(), accountID, slot, charName, name, clan, citizen, serverIndex, guildCreateCost)
 		return func(w *world.World, s *world.Session) {
 			if s.Mode == world.UserWaitDB {
 				s.Mode = world.UserPlay
@@ -113,11 +142,15 @@ func (d *Dispatcher) createGuild(w *world.World, s *world.Session, args []byte) 
 				return
 			}
 			if !ok || guild.ID == 0 {
-				// dbServer folds a taken name, a full server and a stale character
-				// into ok=false. The name is by far the likeliest: the in-memory
-				// check above only knows the guilds this process has seen.
-				d.log.Info("create guild refused by dbServer", "conn", s.Conn, "guild", name)
-				sendClientMessage(w, s, msgGuildCriacaoRecusada)
+				// CADA RECUSA TEM A SUA FRASE, desde 25/09/2026.
+				//
+				// Antes as quatro viravam "confira se o nome já não existe", e para três
+				// delas isso era MENTIRA. Foi essa frase que escondeu um defeito de ouro
+				// por horas: a Hanna tentou nove vezes procurando nome repetido enquanto
+				// o banco recusava por saldo.
+				d.log.Info("create guild refused by dbServer", "conn", s.Conn,
+					"guild", name, "motivo", motivo)
+				sendClientMessage(w, s, msgDaRecusaDeGuilda(motivo))
 				return
 			}
 			if e.Guild != 0 {
@@ -153,6 +186,10 @@ const (
 	msgGuildUso             = "Use: /create NomeDaGuilda (até 16 letras)."
 	msgGuildJaTem           = "Você já pertence a uma guilda."
 	msgGuildCriacaoRecusada = "Não foi possível criar a guilda. Confira se o nome já não existe e tente outro."
+	msgGuildNomeEmUso       = "Já existe uma guilda com esse nome. Escolha outro."
+	msgGuildSemOuro         = "Você não tem ouro suficiente para criar a guilda."
+	msgGuildJaTemGuilda     = "Você já está numa guilda. Saia dela antes de criar outra."
+	msgGuildSemVaga         = "O servidor está sem números de guilda livres. Avise a equipe."
 )
 
 // guildCreateRefusal is the first rule /create breaks, as the line the player
@@ -222,9 +259,39 @@ func (d *Dispatcher) subcreate(w *world.World, s *world.Session, args []byte) {
 	leaderSession, memberSession := s, targetSession
 	leaderAccountID, leaderSlot := s.AccountID, s.Slot
 	accountID, slot, targetName := targetSession.AccountID, targetSession.Slot, target.Name
+	// O MESMO BURACO DO /create MORA AQUI: o PromoteGuildMember reconfere o custo
+	// contra character.coin NO BANCO, e o ouro recém-sacado da carga só existe na
+	// memória. Sem gravar antes, o líder com um bilhão na tela leva uma recusa muda.
+	// O snapshot sai daqui, do laço; o save vai lá fora, antes da cobrança.
+	save := w.CharacterSaveFor(s, e)
 	s.Mode = world.UserWaitDB
 	targetSession.Mode = world.UserWaitDB
 	w.GoDetached(func() func(*world.World) {
+		// Save que falha cancela a promoção, pelo mesmo motivo do /create: seguir
+		// adiante devolveria o banco a decidir com ouro velho.
+		if err := p.SaveOnShutdown(context.Background(), save); err != nil {
+			return func(w *world.World) {
+				ls := w.Session(leaderConn)
+				if ls != leaderSession {
+					ls = nil
+				}
+				ts := w.Session(targetConn)
+				if ts != memberSession {
+					ts = nil
+				}
+				if ls != nil && ls.Mode == world.UserWaitDB {
+					ls.Mode = world.UserPlay
+				}
+				if ts != nil && ts.Mode == world.UserWaitDB {
+					ts.Mode = world.UserPlay
+				}
+				d.log.Warn("subcreate: save do personagem falhou", "conn", leaderConn,
+					"target", targetName, "err", err)
+				if ls != nil {
+					d.notify(w, ls, NoticeDBError)
+				}
+			}
+		}
 		level, ok, err := p.PromoteGuildMember(context.Background(), guildID, leaderAccountID, leaderSlot, accountID, slot, guildSubCost)
 		return func(w *world.World) {
 			ls := w.Session(leaderConn)
@@ -578,4 +645,27 @@ func (d *Dispatcher) persistGuildZone(w *world.World, s *world.Session, z world.
 			}
 		}
 	})
+}
+
+// msgDaRecusaDeGuilda escolhe a frase pelo motivo que o dbServer deu.
+//
+// O DESCONHECIDO CAI NA FRASE GERAL, e é de propósito: um dbServer mais novo pode mandar
+// um motivo que esta versão não conhece, e nesse caso é melhor não afirmar nada do que
+// afirmar o motivo errado. Foi exatamente o motivo errado — "confira o nome" — que custou
+// horas de procura no dia em que o problema era o ouro.
+func msgDaRecusaDeGuilda(m world.GuildRefusal) string {
+	switch m {
+	case world.GuildRefusalNameTaken:
+		return msgGuildNomeEmUso
+	case world.GuildRefusalNotEnoughCoin:
+		return msgGuildSemOuro
+	case world.GuildRefusalAlreadyInGuild:
+		return msgGuildJaTemGuilda
+	case world.GuildRefusalNoFreeSlot:
+		return msgGuildSemVaga
+	default:
+		// Inclui o CharacterGone, que é raro e que a pessoa não consegue consertar
+		// sozinha: a frase geral manda tentar de novo, e é o que resolve.
+		return msgGuildCriacaoRecusada
+	}
 }

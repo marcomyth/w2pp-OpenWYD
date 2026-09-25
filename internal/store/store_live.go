@@ -24,6 +24,19 @@ var ErrNoFreeSlot = errors.New("store: no free character slot")
 // guild/account state, such as creating a guild while already in one.
 var ErrConflict = errors.New("store: conflict")
 
+// As duas metades do antigo ErrConflict na criacao de guilda, separadas em
+// 25/09/2026. Elas viravam a MESMA frase no jogo — a do nome repetido — e foi
+// essa frase que escondeu um defeito de ouro por horas: a pessoa procurava nome
+// repetido enquanto o banco recusava por saldo.
+//
+// Os dois EMBRULHAM o ErrConflict, entao quem ja tratava o conflito generico
+// continua funcionando. Sem isso, cada chamador antigo teria de ser achado e
+// mudado, e o que ficasse para tras passaria a receber erro de servidor.
+var (
+	ErrJaTemGuilda = fmt.Errorf("%w: o personagem ja esta numa guilda", ErrConflict)
+	ErrSemOuro     = fmt.Errorf("%w: ouro insuficiente no banco", ErrConflict)
+)
+
 // AccountAuth is the minimum account data needed to authenticate a login: the
 // id, the stored argon2id password hash and the blocked flag. The caller
 // verifies the password (store never sees plaintext beyond the hash).
