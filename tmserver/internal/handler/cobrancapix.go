@@ -68,8 +68,16 @@ func UsaCobradorPix(c CobradorPix) {
 
 // JanelaDeCobranca é quanto tempo o comprador tem para pagar.
 //
-// CONFIGURAÇÃO E NÃO CONSTANTE, e a diferença é o que se pode fazer com ela: cinco
-// minutos é o ponto de partida que a Hanna escolheu, e é número para MEDIR. A troca
+// CONFIGURAÇÃO E NÃO CONSTANTE, e a diferença é o que se pode fazer com ela.
+//
+// QUINZE MINUTOS desde 25/09/2026, e a troca tem motivo medido: eram cinco, e cinco
+// é apertado para uma pessoa pagando Pix DE VERDADE — abrir o aplicativo do banco,
+// achar o Pix, colar o código, confirmar. Um pagamento que cai em 5min30 não entrega
+// o item: ele vai para o caminho do PAGO COM ATRASO, com reembolso, e a pessoa vê
+// "venceu" tendo pagado. Com dinheiro real no meio, esse susto custa mais do que o
+// item do vendedor ficar preso dez minutos a mais.
+//
+// É número para MEDIR, e o que responde é o volume de `pago_com_atraso`. A troca
 // é dos dois lados — janela curta prende menos o item do vendedor e faz o
 // pagamento atrasado ser mais comum; janela longa faz o contrário. Quem responde é
 // o volume de `pago_com_atraso`, que a 0105 guarda para esta pergunta.
@@ -78,7 +86,7 @@ func UsaCobradorPix(c CobradorPix) {
 // a expiração do lado do banco, que roda noutro processo: os dois leem a mesma
 // variável de ambiente, e um valor que morasse só na Config do tmServer sairia de
 // sincronia sem ninguém notar.
-var JanelaDeCobranca = 5 * time.Minute
+var JanelaDeCobranca = 15 * time.Minute
 
 // DefineJanelaDeCobranca ajusta o prazo na montagem do servidor. Valor inválido é
 // ignorado: um prazo zero faria toda cobrança nascer vencida.

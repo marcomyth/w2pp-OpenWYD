@@ -67,12 +67,21 @@ type CobrancaRMT struct {
 
 // JanelaPadraoCobranca é quanto tempo o comprador tem para pagar.
 //
-// Cinco minutos é o ponto de partida escolhido pela Hanna, e é um número para
-// MEDIR e não para defender. A troca é dos dois lados: janela curta prende menos
-// o item do vendedor, e faz o Pix atrasado — que ainda entrega — ser mais comum.
-// Janela longa faz o contrário. Quem decide é o volume de `pago_com_atraso`, que
-// a 0105 guarda justamente para esta pergunta ter resposta.
-const JanelaPadraoCobranca = 5 * time.Minute
+// QUINZE MINUTOS desde 25/09/2026, e antes eram cinco. A troca é dos dois lados:
+// janela curta prende menos o item do vendedor e faz o Pix atrasado — que ainda
+// entrega — ser mais comum; janela longa faz o contrário. Quem decide é o volume de
+// `pago_com_atraso`, que a 0105 guarda justamente para esta pergunta ter resposta.
+//
+// Cinco era apertado para alguém pagando Pix de verdade, e um pagamento que cai
+// pouco depois do prazo não entrega o item na hora: vai para reembolso, e a pessoa vê
+// "venceu" tendo pagado.
+//
+// ESTE VALOR TEM DE CASAR COM handler.JanelaDeCobranca, do tmServer. Os dois são
+// padrões do MESMO prazo, lidos em processos diferentes: o jogo promete o tempo na
+// mensagem ao comprador, e é este lado que grava o expira_em. Se discordarem, a
+// mensagem mente — e mentir sobre prazo de pagamento é a mentira mais cara que esta
+// tela pode contar.
+const JanelaPadraoCobranca = 15 * time.Minute
 
 // Método de pagamento (0105). Coluna e nunca parte de nome, para cartão reusar a
 // mesma tabela.
