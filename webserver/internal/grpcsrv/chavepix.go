@@ -413,6 +413,11 @@ func (s *ServerRmt) GetMyCurrentPixCharge(ctx context.Context, req *webv1.GetMyC
 		// página conta os até dois dias úteis a partir desta data.
 		RefundRequestedAt: unixOuZero(cob.ReembolsoPedidoEm),
 		RefundState:       reembolsoParaProto(cob.Reembolso),
+		// Onde está o item depois de pago. A página mostrava "a caminho" para duas
+		// situações diferentes — a entrega que acontece no próximo login e a que não
+		// acontece nenhuma vez até a pessoa esvaziar o baú — e quem estava na segunda
+		// esperava um dia que não chega.
+		DeliveryState: entregaParaProto(cob.Entrega),
 	}, nil
 }
 
@@ -485,6 +490,23 @@ func reembolsoParaProto(e store.EstadoReembolso) webv1.RefundState {
 		return webv1.RefundState_REFUND_STATE_FAILED
 	}
 	return webv1.RefundState_REFUND_STATE_UNSPECIFIED
+}
+
+// entregaParaProto mapeia o estado da entrega no do contrato, explícito pelo mesmo
+// motivo dos outros dois: os enums mudam por motivos diferentes, e um deles ganhar um
+// valor no meio não pode deslocar o outro em silêncio.
+func entregaParaProto(e store.EstadoEntrega) webv1.DeliveryState {
+	switch e {
+	case store.EntregaNaFila:
+		return webv1.DeliveryState_DELIVERY_STATE_WAITING
+	case store.EntregaPresa:
+		return webv1.DeliveryState_DELIVERY_STATE_HELD
+	case store.EntregaFeita:
+		return webv1.DeliveryState_DELIVERY_STATE_DELIVERED
+	case store.EntregaPerdida:
+		return webv1.DeliveryState_DELIVERY_STATE_LOST
+	}
+	return webv1.DeliveryState_DELIVERY_STATE_UNSPECIFIED
 }
 
 // recusaDefinitiva diz se a processadora recusou de um jeito que repetir não conserta.
