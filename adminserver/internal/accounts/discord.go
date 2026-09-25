@@ -33,9 +33,13 @@ var ErrSemDiscord = errors.New("accounts: a conta nao tem discord vinculado")
 // esta linha. Auditoria gravada fora da transação é auditoria que pode faltar
 // justamente na vez em que a decisão deu errado.
 //
-// O DISCORD ANTIGO VAI PARA A AUDITORIA, e é a única exceção à regra de não registrar
-// o dado pessoal: aqui ele É o objeto da decisão. Sem ele a linha diria "alguém
-// desvinculou algo", que não responde nada.
+// O DISCORD ANTIGO VAI PARA A AUDITORIA, e é EXCEÇÃO DELIBERADA à regra do 0141 de
+// que o id não entra em registro nosso. Não é descuido: a auditoria só a staff lê, e
+// ali o número É o objeto da decisão — sem ele a linha diria "alguém desvinculou algo",
+// que daqui a um mês não responde nada.
+//
+// O log de aplicação continua dizendo só a CONTA, como manda o 0141. A diferença entre
+// os dois é quem lê: o log vai para a plataforma, a auditoria fica no banco e tem dono.
 func (s *Store) DesvincularDiscord(ctx context.Context, atorConta, atorPainel int64, papel string,
 	accountID int64, nota string,
 ) error {
