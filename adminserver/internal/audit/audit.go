@@ -81,6 +81,7 @@ const (
 	ActionRepasseIncertoPago     = "REPASSE_INCERTO_PAGO"
 	ActionRepasseIncertoNaoPago  = "REPASSE_INCERTO_NAO_PAGO"
 	ActionRepasseRecusaResolvida = "REPASSE_RECUSA_RESOLVIDA"
+	ActionRepasseValorAjustado   = "REPASSE_VALOR_AJUSTADO"
 	// As outras tres filas de gente do dinheiro real. Mesma especie das de cima:
 	// nenhuma muda configuracao de jogo, todas afirmam o que aconteceu com o
 	// dinheiro de alguem.
@@ -286,6 +287,7 @@ var rotulos = map[string]string{
 	ActionRepasseIncertoPago:      "Afirmou que um repasse incerto FOI pago",
 	ActionRepasseIncertoNaoPago:   "Afirmou que um repasse incerto NAO foi pago",
 	ActionRepasseRecusaResolvida:  "Poe um repasse recusado de volta na fila",
+	ActionRepasseValorAjustado:    "Mudou QUANTO se deve a um vendedor",
 	ActionOrfaoResolvido:          "Marcou um pagamento orfao como resolvido",
 	ActionReembolsoDeNovo:         "Poe um reembolso de volta na fila para pedir",
 	ActionReembolsoNaMao:          "Afirmou que um reembolso foi resolvido na mao",

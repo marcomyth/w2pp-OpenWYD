@@ -23,6 +23,19 @@ type fakeRepasses struct {
 	naoPago  map[int64]string
 	recusa   []int64
 	erroAcao error
+
+	// ajustes guarda o que a tela pediu, e o valor ANTIGO devolvido, para o teste poder
+	// conferir que a auditoria recebe de-para e nao so o numero novo.
+	ajustes    []ajustePedido
+	antigoFake int64
+	erroAjuste error
+}
+
+type ajustePedido struct {
+	ID   int64
+	Novo int64
+	Nota string
+	Ator string
 }
 
 func novoFakeRepasses(fila ...store.RepasseNaFila) *fakeRepasses {
@@ -56,6 +69,16 @@ func (f *fakeRepasses) ResolverIncertoComoNaoPago(_ context.Context, id int64,
 func (f *fakeRepasses) ResolverRecusa(_ context.Context, id int64, _ store.AtorDoRepasse) error {
 	f.recusa = append(f.recusa, id)
 	return f.erroAcao
+}
+
+func (f *fakeRepasses) AjustarValorDoRepasse(_ context.Context, id int64, novo int64,
+	ator store.AtorDoRepasse, nota string,
+) (int64, error) {
+	if f.erroAjuste != nil {
+		return 0, f.erroAjuste
+	}
+	f.ajustes = append(f.ajustes, ajustePedido{ID: id, Novo: novo, Nota: nota, Ator: ator.Nome})
+	return f.antigoFake, nil
 }
 
 // umaFilaDeRepasse tem um de cada espécie, para a página mostrar os três textos.

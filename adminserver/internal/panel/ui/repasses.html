@@ -115,11 +115,33 @@
           </form>
         </div>
         {{else if .Recusa}}
-        <form method="post" action="/repasses/{{.ID}}/resolver">
-          <input type="hidden" name="csrf" value="{{$.CSRF}}">
-          <input type="hidden" name="decisao" value="tentar-de-novo">
-          <button type="submit">Devolver para a fila</button>
-        </form>
+        <div class="acoes">
+          <form method="post" action="/repasses/{{.ID}}/resolver">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="decisao" value="tentar-de-novo">
+            <button type="submit">Devolver para a fila</button>
+          </form>
+          <!-- AJUSTAR O VALOR É OUTRA DECISÃO, e por isso é outro botão. "O valor está
+               errado" e "já dá para tentar de novo" são coisas diferentes: no caso que
+               criou esta tela, a recusa foi de credencial, e devolver à fila só faria a
+               varredura tomar o mesmo erro de dois em dois minutos. Ajustar NÃO devolve
+               para a fila. -->
+          <form method="post" action="/repasses/{{.ID}}/resolver">
+            <input type="hidden" name="csrf" value="{{$.CSRF}}">
+            <input type="hidden" name="decisao" value="ajustar-valor">
+            <div>
+              <label for="novo-{{.ID}}">Novo valor, em reais</label>
+              <input type="text" id="novo-{{.ID}}" name="novo_valor"
+                     placeholder="0,20" required>
+            </div>
+            <div>
+              <label for="ajuste-nota-{{.ID}}">Por que o valor muda</label>
+              <input type="text" class="nota" id="ajuste-nota-{{.ID}}" name="nota"
+                     placeholder="ordem da Hanna, líquido medido, net_amount 0.2" required>
+            </div>
+            <button type="submit">Ajustar valor (continua recusado)</button>
+          </form>
+        </div>
         {{end}}
       {{else if .Espera2}}
         <p class="nota">Nada a fazer: o pagamento anda sozinho quando o vendedor completar o cadastro.</p>
