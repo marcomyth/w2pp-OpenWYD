@@ -289,3 +289,54 @@ func TestGetPixKeyNaoCaiQuandoOTotalFalha(t *testing.T) {
 			r.GetPendingPayoutCents(), r.GetPayoutWaitReason())
 	}
 }
+
+// CADA ERRO DO STORE TEM UM RESULTADO PRÓPRIO, e o desconhecido vira Internal.
+//
+// Este teste nasce de um defeito que eu quase subi: separei ErrRepasseEmCurso de
+// ErrVendaEmCurso no store e não mapeei o novo aqui. O erro caía no default e virava
+// codes.Internal — ou seja, o vendedor com repasse a caminho, que antes lia "venda em
+// curso", passaria a receber ERRO DE SERVIDOR. Regressão em produção num caminho que
+// funcionava, no minuto do deploy.
+//
+// A TABELA É O CONSERTO DURÁVEL, e não o caso que faltava. Dividir um erro em dois
+// obriga a percorrer todos os lugares que traduziam o antigo, e é aí que se esquece um.
+// Com a tabela, o próximo erro novo que ninguém mapear aparece como falha e não como
+// "erro interno" na tela de alguém.
+func TestCadaErroDoStoreTemSeuResultado(t *testing.T) {
+	casos := []struct {
+		nome string
+		erro error
+		quer webv1.PixKeyResult
+		grpc bool // true = espera erro gRPC em vez de resultado
+	}{
+		{"chave invalida", store.ErrChavePixInvalida, webv1.PixKeyResult_PIX_KEY_RESULT_INVALID, false},
+		{"documento invalido", store.ErrDocumentoInvalido, webv1.PixKeyResult_PIX_KEY_RESULT_INVALID_TAX_ID, false},
+		{"venda em curso", store.ErrVendaEmCurso, webv1.PixKeyResult_PIX_KEY_RESULT_SALE_IN_PROGRESS, false},
+		{"repasse em curso", store.ErrRepasseEmCurso, webv1.PixKeyResult_PIX_KEY_RESULT_PAYOUT_PENDING, false},
+		{"conta inexistente", store.ErrNotFound, webv1.PixKeyResult_PIX_KEY_RESULT_NO_ACCOUNT, false},
+		{"sem erro", nil, webv1.PixKeyResult_PIX_KEY_RESULT_OK, false},
+		// O DESCONHECIDO TEM DE VIRAR ERRO, e não um resultado qualquer: um erro que
+		// ninguém previu virando "ok" ou "inválido" é o que faz a tela mentir.
+		{"erro que ninguem previu", errors.New("o banco pegou fogo"), 0, true},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			f := &fakePix{erro: c.erro}
+			res, err := NewRmt(f).SavePixKey(context.Background(),
+				&webv1.SavePixKeyRequest{AccountId: 1, Key: "a@b.com",
+					Type: webv1.PixKeyType_PIX_KEY_TYPE_EMAIL, TaxId: "11144477735"})
+			if c.grpc {
+				if err == nil {
+					t.Fatalf("erro desconhecido virou resultado %v em vez de falhar", res.GetResult())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("erro inesperado: %v", err)
+			}
+			if res.GetResult() != c.quer {
+				t.Errorf("resultado = %v, queria %v", res.GetResult(), c.quer)
+			}
+		})
+	}
+}

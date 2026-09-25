@@ -155,6 +155,18 @@ func (s *ServerRmt) SavePixKey(ctx context.Context, req *webv1.SavePixKeyRequest
 		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_INVALID_TAX_ID}, nil
 	case errors.Is(err, store.ErrVendaEmCurso):
 		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_SALE_IN_PROGRESS}, nil
+	case errors.Is(err, store.ErrRepasseEmCurso):
+		// SEM ESTE CASO, O ERRO NOVO CAIRIA NO default E VIRARIA codes.Internal.
+		//
+		// Eu separei ErrRepasseEmCurso de ErrVendaEmCurso no store e quase subi sem
+		// mapear aqui: o vendedor com repasse a caminho, que antes lia "venda em curso",
+		// passaria a receber ERRO DE SERVIDOR — regressão em produção no minuto do
+		// deploy, num caminho que funcionava.
+		//
+		// É o preço de dividir um erro em dois: quem divide tem de percorrer TODOS os
+		// lugares que traduziam o antigo. O teste-tabela abaixo deste handler existe para
+		// o próximo erro novo não passar calado.
+		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_PAYOUT_PENDING}, nil
 	case errors.Is(err, store.ErrNotFound):
 		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_NO_ACCOUNT}, nil
 	default:
