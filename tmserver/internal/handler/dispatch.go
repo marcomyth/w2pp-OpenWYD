@@ -12,11 +12,11 @@ package handler
 
 import (
 	"fmt"
-	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
 	"log/slog"
 	"sync/atomic"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
 	"github.com/jeanluca/w2pp-openwyd/internal/combatrule"
 	"github.com/jeanluca/w2pp-openwyd/internal/droprule"
 	"github.com/jeanluca/w2pp-openwyd/internal/dungeon"
