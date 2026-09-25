@@ -247,6 +247,22 @@ type RespostaConsulta struct {
 	// do ano 1", que compararia como muito antigo e entregaria tudo.
 	PagoEm      *horaOpcional `json:"pagoEm"`
 	DevolvidoEm *horaOpcional `json:"devolvidoEm"`
+	// TaxaCentavos é o que a processadora RETEVE do que entrou, em centavos.
+	//
+	// PONTEIRO, E O NULO NÃO É ZERO. É a regra inteira deste campo: nulo quer dizer
+	// "a ponte não sabe a taxa" — a fonte V1 não traz, o campo veio vazio ou
+	// ilegível, ou a ponte ainda não foi atualizada. Zero quer dizer "a taxa foi
+	// zero", que é uma afirmação.
+	//
+	// Tratar nulo como zero seria o pior erro possível aqui: o repasse ao vendedor
+	// nasceria com o valor CHEIO, a casa bancaria a taxa em silêncio, e ninguém
+	// descobriria — porque um repasse de valor cheio parece certo. Por isso o nulo
+	// SEGURA o repasse em vez de deixá-lo passar.
+	//
+	// E o nome é NOSSO, não da SyncPay: a ponte é o nosso serviço e ela traduz. O
+	// nome que a processadora usa para a taxa ainda não foi medido, e é a ponte que
+	// resolve isso — este lado só precisa de um alvo fixo.
+	TaxaCentavos *int64 `json:"taxaCentavos"`
 }
 
 type pedidoReembolso struct {
