@@ -149,7 +149,7 @@ func TestValorDivergenteNaoAbreRepasse(t *testing.T) {
 // por uma.
 //
 // (Sem CHAVE não existe: o AbrirAnunciosRMT recusa anunciar sem ela.)
-func TestRepassesAPagarTrazemODestinoEPulamQuemNaoTemDocumento(t *testing.T) {
+func TestAFilaDePagarTrazMascaraEPulaQuemNaoTemDocumento(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "repasse-fila")
 
@@ -162,19 +162,19 @@ func TestRepassesAPagarTrazemODestinoEPulamQuemNaoTemDocumento(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fila, err := s.RepassesAPagar(ctx, 10)
+	fila, err := s.FilaDePagamentoAMao(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(fila) != 0 {
-		t.Fatalf("a fila tem %d linha(s) sem documento; a ponte recusaria cada uma", len(fila))
+		t.Fatalf("a fila tem %d linha(s) sem documento; nao ha onde pagar nenhuma delas", len(fila))
 	}
 
-	// Preenchendo o documento, com a MESMA chave, a dívida aparece com o destino.
+	// Preenchendo o documento, com a MESMA chave, a dívida aparece na fila.
 	if err := s.SalvarChavePix(ctx, v.vendedor, "vendedor@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
 		t.Fatalf("preencher o documento foi barrado: %v", err)
 	}
-	fila, err = s.RepassesAPagar(ctx, 10)
+	fila, err = s.FilaDePagamentoAMao(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,72 +182,50 @@ func TestRepassesAPagarTrazemODestinoEPulamQuemNaoTemDocumento(t *testing.T) {
 		t.Fatalf("a fila tem %d linha(s), quero 1", len(fila))
 	}
 	r := fila[0]
-	if r.ChavePix != "vendedor@exemplo.com" || r.TipoChave != ChavePixEmail {
-		t.Errorf("destino = %q tipo %d", r.ChavePix, r.TipoChave)
+	// NA FILA, SÓ MÁSCARA. O destino inteiro vem da outra porta, e essa diferença é o
+	// conserto de privacidade que veio com o pagamento à mão: a lista abre em toda
+	// visita, e o dado inteiro ali seria a chave de todos os vendedores de graça.
+	if r.TipoChave != ChavePixEmail {
+		t.Errorf("tipo = %d, quero email", r.TipoChave)
 	}
-	if r.Documento != "11144477735" {
-		t.Errorf("documento = %q, a ponte exige os 11 digitos", r.Documento)
+	if r.ChaveMascarada == "vendedor@exemplo.com" {
+		t.Error("a fila trouxe a chave INTEIRA")
 	}
-	if r.Referencia != v.ref {
-		t.Errorf("referencia = %q, quero a da cobranca %q", r.Referencia, v.ref)
+	if r.DocMascarado == "11144477735" {
+		t.Error("a fila trouxe o CPF INTEIRO")
 	}
 	if r.ValorCentavos != precoEmCentavos {
 		t.Errorf("valor = %d", r.ValorCentavos)
 	}
-}
+	// E o "vence em" é a venda mais 48 horas corridas, que é a promessa ao vendedor.
+	if quero := r.CriadoEm.Add(PrazoDoPagamento); !r.VenceEm.Equal(quero) {
+		t.Errorf("vence em %v, quero %v", r.VenceEm, quero)
+	}
 
-// AS TRANSIÇÕES SÓ SAEM DO ESTADO CERTO, e zero linhas afetadas é ERRO e não silêncio.
-//
-// É o que impede o pior caso: dois trabalhadores pegando a mesma linha, os dois
-// mandando, e o vendedor recebendo duas vezes. Quem perder a corrida vê que perdeu.
-func TestTransicoesDoRepasseSoSaemDoEstadoCerto(t *testing.T) {
-	s, ctx := freshStore(t)
-	v := montaVenda(ctx, t, s, "repasse-transicao")
-	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
+	// A outra porta: o destino inteiro, para quem vai pagar, com a leitura registrada.
+	inteira, err := s.ChaveParaPagar(ctx, r.ID, staffQuePaga())
 	if err != nil {
 		t.Fatal(err)
 	}
-	id := idDoRepasse(ctx, t, s, venda.CobrancaID)
-
-	// Pendente -> enviado funciona.
-	if err := s.MarcarRepasseEnviado(ctx, id, "saque-1", precoEmCentavos); err != nil {
-		t.Fatalf("enviando: %v", err)
+	if inteira.ChavePix != "vendedor@exemplo.com" || inteira.TipoChave != ChavePixEmail {
+		t.Errorf("destino = %q tipo %d", inteira.ChavePix, inteira.TipoChave)
 	}
-	// E a SEGUNDA tentativa falha: a linha já saiu de pendente. Se ela passasse, o
-	// segundo trabalhador mandaria o mesmo pagamento de novo.
-	if err := s.MarcarRepasseEnviado(ctx, id, "saque-2", precoEmCentavos); err == nil {
-		t.Error("enviou duas vezes a mesma linha; o vendedor receberia dobrado")
-	}
-	// Recusar depois de enviado também não pega.
-	if err := s.MarcarRepasseRecusado(ctx, id, nil, "", "tarde demais"); err == nil {
-		t.Error("recusou uma linha ja enviada")
-	}
-
-	// O aviso do saque fecha, e só de ENVIADO.
-	if err := s.MarcarRepassePago(ctx, "saque-1", precoEmCentavos-100); err != nil {
-		t.Fatalf("pagando: %v", err)
-	}
-	if err := s.MarcarRepassePago(ctx, "saque-1", precoEmCentavos-100); err == nil {
-		t.Error("pagou duas vezes o mesmo saque")
-	}
-	// Um aviso de saque que ninguém conhece não fecha nada.
-	if err := s.MarcarRepassePago(ctx, "saque-de-outro", 100); err == nil {
-		t.Error("um saque desconhecido fechou uma linha")
-	}
-
-	var chegou int64
-	if err := s.pool.QueryRow(ctx,
-		`SELECT chegou_centavos FROM rmt_repasse WHERE id = $1`, id).Scan(&chegou); err != nil {
-		t.Fatal(err)
-	}
-	if chegou != precoEmCentavos-100 {
-		t.Errorf("chegou = %d; a taxa do saque so se sabe por esta diferenca", chegou)
+	if inteira.Documento != "11144477735" {
+		t.Errorf("documento = %q, o Pix a terceiros exige os 11 digitos", inteira.Documento)
 	}
 }
 
+// AQUI HAVIA O TESTE DAS TRANSICOES AUTOMATICAS (pendente -> enviado -> pago, e a
+// corrida entre dois trabalhadores). Ele saiu com o que testava: o saque automatico foi
+// apagado em 25/09/2026, e nao existe mais quem escreva ENVIADO.
+//
+// A regra que ele protegia continua viva em outro lugar: "so sai do estado certo" agora
+// e medida no pagamento a mao (repasse_pago_a_mao_integration_test.go), onde o segundo
+// clique da staff e a corrida que importa.
+
 // O INCERTO SAI DE PENDENTE E NÃO VOLTA, que é a razão de ele existir: reenviar um
 // pagamento que PODE ter saído é a única coisa que não se desfaz.
-func TestIncertoSaiDaFilaDePagarEVaiParaADeGente(t *testing.T) {
+func TestIncertoNaoApareceParaPagarEVaiParaADeGente(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "repasse-incerto")
 	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
@@ -256,17 +234,18 @@ func TestIncertoSaiDaFilaDePagarEVaiParaADeGente(t *testing.T) {
 	}
 	id := idDoRepasse(ctx, t, s, venda.CobrancaID)
 
-	if err := s.MarcarRepasseIncerto(ctx, id, "a chamada saiu e a resposta nao voltou"); err != nil {
-		t.Fatal(err)
-	}
+	// INCERTO à força: nada mais escreve esse estado desde que o saque automático saiu.
+	// O que este teste mede continua valendo, e passou a valer para a fila da STAFF:
+	// uma linha incerta não pode aparecer para alguém pagar à mão, porque o dinheiro
+	// dela pode já ter saído.
+	forcaEstadoDoRepasse(ctx, t, s, id, RepasseIncerto)
 
-	// Saiu da fila de pagar: nenhuma varredura vai mandar de novo.
-	fila, err := s.RepassesAPagar(ctx, 10)
+	fila, err := s.FilaDePagamentoAMao(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(fila) != 0 {
-		t.Error("o incerto continua na fila de pagar: seria reenviado e pagaria duas vezes")
+		t.Error("o incerto apareceu na fila de pagar: a staff pagaria o que talvez ja tenha saido")
 	}
 
 	// E entrou na fila de gente, que é onde ele se resolve.
@@ -352,23 +331,20 @@ func TestIncertoSoSaiPelaMaoDeUmaPessoa(t *testing.T) {
 			t.Fatal(err)
 		}
 		id := idDoRepasse(ctx, t, s, venda.CobrancaID)
-		if err := s.MarcarRepasseIncerto(ctx, id, "a resposta nao voltou"); err != nil {
-			t.Fatal(err)
-		}
+		forcaEstadoDoRepasse(ctx, t, s, id, RepasseIncerto)
 		return id
 	}
 
-	// NENHUMA transição automática pega num incerto. Se alguma pegasse, a linha
-	// voltaria para a fila de pagar e o vendedor receberia duas vezes.
+	// NADA MEXE NUM INCERTO por conta própria. As transições automáticas que podiam
+	// fazer isso foram apagadas com o saque automático; o que sobrou e ainda precisa ser
+	// provado é que ele NÃO aparece para a staff pagar à mão, e que o pagamento à mão o
+	// recusa se alguém tentar pelo id.
 	travado := fazIncerto("incerto-travado")
-	if err := s.MarcarRepasseEnviado(ctx, travado, "saque-x", precoEmCentavos); err == nil {
-		t.Error("um incerto foi reenviado; o vendedor poderia receber duas vezes")
+	if err := s.MarcarRepassePagoAMao(ctx, travado, staffQuePaga(), "quis fechar o incerto"); err == nil {
+		t.Error("a staff fechou um incerto a mao; o dinheiro dele pode ja ter saido")
 	}
 	if err := s.MarcarRepasseRecusado(ctx, travado, nil, "", "x"); err == nil {
 		t.Error("um incerto virou recusado sem ninguem ter olhado")
-	}
-	if err := s.MarcarRepassePago(ctx, "saque-x", precoEmCentavos); err == nil {
-		t.Error("um aviso de saque fechou um incerto que nao tem id de saque")
 	}
 
 	// A pessoa olhou e viu que PAGOU: a linha fecha, com o nome de quem disse.
@@ -392,7 +368,7 @@ func TestIncertoSoSaiPelaMaoDeUmaPessoa(t *testing.T) {
 	if err := s.ResolverIncertoComoNaoPago(ctx, naoPago, AtorDoRepasse{Nome: "hanna"}, "nao saiu"); err != nil {
 		t.Fatalf("resolvendo como nao pago: %v", err)
 	}
-	fila, err := s.RepassesAPagar(ctx, 10)
+	fila, err := s.FilaDePagamentoAMao(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,96 +389,8 @@ func TestIncertoSoSaiPelaMaoDeUmaPessoa(t *testing.T) {
 	}
 }
 
-// A TRAVA DE "UM PAGAMENTO POR VENDA" PASSOU A SER NOSSA, e este teste é o que a amarra.
-//
-// Enquanto a referência era a da cobrança, a PONTE sabia que duas chamadas eram a mesma
-// dívida e recusava a segunda sozinha. Com uma referência por TENTATIVA ela não sabe
-// mais: para ela, cada tentativa é um repasse diferente, e ela paga as duas.
-//
-// A trava agora é o estado PENDENTE, e ela tem de segurar o caso que mais dói: uma
-// dívida INCERTA, que pode já ter sido paga.
-func TestTentativaNovaSoNasceDePendente(t *testing.T) {
-	s, ctx := freshStore(t)
-	v := montaVenda(ctx, t, s, "tentativa-trava")
-	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
-	if err != nil {
-		t.Fatal(err)
-	}
-	id := idDoRepasse(ctx, t, s, venda.CobrancaID)
-
-	// A primeira nasce sem ninguém autorizar: ela é automática.
-	t1, err := s.AbrirTentativa(ctx, id, "")
-	if err != nil {
-		t.Fatalf("primeira tentativa: %v", err)
-	}
-	if t1.Numero != 1 || t1.Referencia != ReferenciaDaTentativa(id, 1) {
-		t.Errorf("primeira tentativa = %+v", t1)
-	}
-
-	// Mandada, a dívida sai de pendente — e NENHUMA tentativa nova nasce.
-	if err := s.MarcarRepasseEnviado(ctx, id, "saque-1", precoEmCentavos); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.AbrirTentativa(ctx, id, ""); !errors.Is(err, ErrRepasseNaoPendente) {
-		t.Errorf("abriu tentativa numa divida ja enviada: %v", err)
-	}
-
-	// E o caso que mais importa: a dívida vira INCERTA e continua travada. Uma
-	// tentativa aqui é o caminho direto para pagar duas vezes, porque o incerto PODE
-	// ter pago e ninguém sabe.
-	s2, ctx2 := freshStore(t)
-	v2 := montaVenda(ctx2, t, s2, "tentativa-incerta")
-	_, venda2, err := s2.ConfirmarCobrancaRMT(ctx2, v2.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
-	if err != nil {
-		t.Fatal(err)
-	}
-	id2 := idDoRepasse(ctx2, t, s2, venda2.CobrancaID)
-	if _, err := s2.AbrirTentativa(ctx2, id2, ""); err != nil {
-		t.Fatal(err)
-	}
-	if err := s2.MarcarRepasseIncerto(ctx2, id2, "a resposta nao voltou"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s2.AbrirTentativa(ctx2, id2, ""); !errors.Is(err, ErrRepasseNaoPendente) {
-		t.Errorf("abriu tentativa num INCERTO; seria o segundo pagamento da mesma divida: %v", err)
-	}
-
-	// Só depois de uma PESSOA conferir no painel que não pagou é que a segunda nasce —
-	// e ela carrega o nome de quem autorizou, senão pareceria um bug.
-	if err := s2.ResolverIncertoComoNaoPago(ctx2, id2, AtorDoRepasse{Nome: "hanna"}, "nao saiu"); err != nil {
-		t.Fatal(err)
-	}
-	t2, err := s2.AbrirTentativa(ctx2, id2, "hanna")
-	if err != nil {
-		t.Fatalf("segunda tentativa depois da conferencia: %v", err)
-	}
-	if t2.Numero != 2 {
-		t.Errorf("numero da segunda = %d, quero 2", t2.Numero)
-	}
-	// A REFERÊNCIA MUDOU, que é a razão de tudo isto: a da primeira ficou travada para
-	// sempre na ponte, e reenviar com ela devolveria o resultado que ninguem sabe.
-	if t2.Referencia == ReferenciaDaTentativa(id2, 1) {
-		t.Error("a segunda tentativa repetiu a referencia da primeira; a ponte devolveria o resultado velho")
-	}
-
-	// E o histórico guarda as duas, que é o que uma disputa pergunta.
-	hist, err := s2.TentativasDoRepasse(ctx2, id2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(hist) != 2 {
-		t.Errorf("historico tem %d tentativas, quero 2", len(hist))
-	}
-	var liberado string
-	if err := s2.pool.QueryRow(ctx2,
-		`SELECT coalesce(liberado_por, '') FROM rmt_repasse_tentativa
-		  WHERE repasse_id = $1 AND tentativa = 2`, id2).Scan(&liberado); err != nil {
-		t.Fatal(err)
-	}
-	if liberado != "hanna" {
-		t.Errorf("a segunda tentativa nao registrou quem a autorizou: %q", liberado)
-	}
-}
+// AQUI HAVIA O TESTE DAS TENTATIVAS DE REPASSE. Ele saiu junto com elas: a tentativa
+// existia para dar idempotencia a chamada da ponte, e nao ha mais chamada.
 
 // A TRAVA DA CHAVE VALE ATÉ O DINHEIRO SAIR, e LIBERA quem precisa corrigir.
 //
@@ -539,9 +427,9 @@ func TestTrocarChaveComRepasseEmAbertoERecusadoLiberaNoRecusado(t *testing.T) {
 	}
 
 	// ENVIADO: travado. O saque está a caminho da chave que valia.
-	if err := s.MarcarRepasseEnviado(ctx, id, "saque-1", precoEmCentavos); err != nil {
-		t.Fatal(err)
-	}
+	// À força: nada escreve ENVIADO desde que o saque automático saiu, e a trava tem de
+	// continuar valendo para as linhas que já estão nesse estado.
+	forcaEstadoDoRepasse(ctx, t, s, id, RepasseEnviado)
 	if err := trocar(); !errors.Is(err, ErrRepasseEmCurso) {
 		t.Errorf("enviado: erro = %v, quero ErrRepasseEmCurso", err)
 	}
@@ -555,9 +443,7 @@ func TestTrocarChaveComRepasseEmAbertoERecusadoLiberaNoRecusado(t *testing.T) {
 		t.Fatal(err)
 	}
 	id2 := idDoRepasse(ctx2, t, s2, venda2.CobrancaID)
-	if err := s2.MarcarRepasseIncerto(ctx2, id2, "a resposta nao voltou"); err != nil {
-		t.Fatal(err)
-	}
+	forcaEstadoDoRepasse(ctx2, t, s2, id2, RepasseIncerto)
 	if err := s2.SalvarChavePix(ctx2, v2.vendedor, "outra@exemplo.com", ChavePixEmail, "52998224725"); !errors.Is(err, ErrRepasseEmCurso) {
 		t.Errorf("incerto: erro = %v, quero ErrRepasseEmCurso", err)
 	}
@@ -598,7 +484,7 @@ func TestQuemNaoTemCadastroCompletoApareceNaFilaDeGente(t *testing.T) {
 	}
 
 	// Não está na fila de pagar: a ponte recusaria por falta de documento.
-	pagar, err := s.RepassesAPagar(ctx, 10)
+	pagar, err := s.FilaDePagamentoAMao(ctx, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -621,27 +507,18 @@ func TestQuemNaoTemCadastroCompletoApareceNaFilaDeGente(t *testing.T) {
 		t.Error("a linha nao diz por que esta parada")
 	}
 
-	// E o contador existe, para o número aparecer no log da varredura.
-	n, err := s.RepassesEsperandoCadastro(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n != 1 {
-		t.Errorf("contador = %d, quero 1", n)
-	}
-
 	// Completando, ela sai da fila de gente e entra na de pagar. É o que prova que a
 	// espera é do cadastro e não de outra coisa — e é o que permite ao site dizer
 	// "cadastre e o pagamento entra na fila".
 	if err := s.SalvarChavePix(ctx, v.vendedor, "vendedor@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
-	if pagar, err = s.RepassesAPagar(ctx, 10); err != nil || len(pagar) != 1 {
+	if pagar, err = s.FilaDePagamentoAMao(ctx, 10); err != nil || len(pagar) != 1 {
 		t.Errorf("depois do cadastro: fila de pagar = %d, err = %v", len(pagar), err)
 	}
-	if n, err = s.RepassesEsperandoCadastro(ctx); err != nil || n != 0 {
-		t.Errorf("depois do cadastro: contador = %d, err = %v", n, err)
-	}
+	// O contador de quem esperava cadastro saiu com a varredura: ele existia para o
+	// número aparecer no log dela. Quem mostra esse caso agora é a fila de gente, logo
+	// acima, que a staff lê.
 }
 
 // O VENDEDOR ANTIGO TEM DE CONSEGUIR PREENCHER O CPF QUE FALTA, e este teste existe
@@ -675,7 +552,7 @@ func TestVendedorAntigoConseguePreencherOCPFQueFalta(t *testing.T) {
 	}
 
 	// Sem documento, a dívida não entra na fila de pagar — não há como mandar.
-	if fila, err := s.RepassesAPagar(ctx, 10); err != nil || len(fila) != 0 {
+	if fila, err := s.FilaDePagamentoAMao(ctx, 10); err != nil || len(fila) != 0 {
 		t.Fatalf("fila de pagar = %d, err = %v", len(fila), err)
 	}
 
@@ -686,7 +563,7 @@ func TestVendedorAntigoConseguePreencherOCPFQueFalta(t *testing.T) {
 	}
 
 	// E aí a dívida entra na fila sozinha.
-	fila, err := s.RepassesAPagar(ctx, 10)
+	fila, err := s.FilaDePagamentoAMao(ctx, 10)
 	if err != nil || len(fila) != 1 {
 		t.Fatalf("depois do CPF: fila = %d, err = %v", len(fila), err)
 	}

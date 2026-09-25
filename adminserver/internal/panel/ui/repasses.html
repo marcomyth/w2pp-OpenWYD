@@ -42,9 +42,15 @@
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
   <p class="nota">
-    O pagamento ao vendedor sai numa varredura, sozinho, a cada poucos minutos. Só
-    chega aqui o que ela não consegue resolver — e são três casos diferentes, que
-    pedem coisas diferentes de você.
+    <strong>Quem paga o vendedor é você.</strong> O saque automático saiu em
+    25/09/2026: o dinheiro sai da conta da casa, à mão, e você marca aqui. A promessa
+    ao vendedor é 48 horas, e os pagamentos acontecem das 15h às 21h (horário de
+    Brasília), em dias úteis — o "vence em" de cada linha conta 48 horas corridas
+    desde a venda, sem descontar fim de semana.
+    <br><br>
+    Abaixo da fila de pagar ficam os casos que <em>travaram</em>, que são três e pedem
+    coisas diferentes de você. Eles vêm de quando o pagamento era automático; nada
+    novo entra neles.
     <br><br>
     <strong>INCERTO é o único urgente.</strong> Nele a chamada saiu e a resposta não
     voltou, então o dinheiro <em>pode já ter sido pago</em>. Não existe consulta de
@@ -61,6 +67,58 @@
     chave ou o CPF do vendedor. Ele aparece aqui só para ninguém achar que a fila está
     vazia — no instante em que a pessoa completar o cadastro, o pagamento anda sozinho.
   </p>
+
+  <h2 class="secao">A pagar ({{len .Pagar}})</h2>
+  {{if .Pagar}}
+    {{range .Pagar}}
+    <div class="linha{{if .Atrasou}} incerto{{end}}">
+      <div class="cab">
+        <div class="valor">
+          <strong>{{.Valor}}</strong>
+          {{if .Atrasou}}<span class="bloq">venceu</span>{{end}}
+        </div>
+        <div class="meta">
+          repasse #{{.ID}} &middot; conta {{.VendedorConta}} &middot;
+          esperando {{.Espera}} &middot; vence em {{.Vence}}
+        </div>
+      </div>
+      <div class="corpo">
+        <div class="campo">
+          <span class="rot">Chave {{.TipoChave}}</span>
+          {{if .Chave}}<code class="inteiro">{{.Chave}}</code>{{else}}<code>{{.ChaveMascarada}}</code>{{end}}
+        </div>
+        <div class="campo">
+          <span class="rot">CPF</span>
+          {{if .Doc}}<code class="inteiro">{{.Doc}}</code>{{else}}<code>{{.DocMascarado}}</code>{{end}}
+        </div>
+        {{if $.IsAdmin}}
+        {{if not .Chave}}
+        <form method="post" action="/repasses/{{.ID}}/chave">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <button type="submit">Mostrar a chave inteira</button>
+          <span class="dica">
+            Fica registrado quem leu e quando. Some quando você recarregar a página.
+          </span>
+        </form>
+        {{end}}
+        <form method="post" action="/repasses/{{.ID}}/pagar">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <label>
+            Onde você pagou e como achar o comprovante
+            <input type="text" name="nota" maxlength="500" required
+                   placeholder="ex.: app do banco, comprovante E1234...">
+          </label>
+          <button type="submit">Marcar como pago</button>
+        </form>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+  {{else}}
+    <p class="vazio">Ninguém esperando pagamento.</p>
+  {{end}}
+
+  <h2 class="secao">Travados</h2>
 
   {{if .Incertos}}
   <div class="numeros">
