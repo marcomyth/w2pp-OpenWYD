@@ -48178,9 +48178,9 @@
 // ********************************************
 #	[1698]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -48207,9 +48207,9 @@
 // ********************************************
 #	[1699]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -48265,9 +48265,9 @@
 // ********************************************
 #	[1701]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -48294,9 +48294,9 @@
 // ********************************************
 #	[1702]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -48381,9 +48381,9 @@
 // ********************************************
 #	[1705]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -48468,9 +48468,9 @@
 // ********************************************
 #	[1708]
 	MinuteGenerate:	10
-	MaxNumMob:	10
-	MinGroup:	9
-	MaxGroup:	9
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -48584,9 +48584,9 @@
 // ********************************************
 #	[1712]
 	MinuteGenerate:	10
-	MaxNumMob:	10
-	MinGroup:	9
-	MaxGroup:	9
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -48613,9 +48613,9 @@
 // ********************************************
 #	[1713]
 	MinuteGenerate:	-1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -48642,9 +48642,9 @@
 // ********************************************
 #	[1714]
 	MinuteGenerate:	2
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -48671,9 +48671,9 @@
 // ********************************************
 #	[1715]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -48700,9 +48700,9 @@
 // ********************************************
 #	[1716]
 	MinuteGenerate:	2
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -48729,9 +48729,9 @@
 // ********************************************
 #	[1717]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -48758,9 +48758,9 @@
 // ********************************************
 #	[1718]
 	MinuteGenerate:	2
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -48787,9 +48787,9 @@
 // ********************************************
 #	[1719]
 	MinuteGenerate:	2
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -48816,9 +48816,9 @@
 // ********************************************
 #	[1720]
 	MinuteGenerate:	10
-	MaxNumMob:	4
-	MinGroup:	3
-	MaxGroup:	3
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -48845,9 +48845,9 @@
 // ********************************************
 #	[1721]
 	MinuteGenerate:	4
-	MaxNumMob:	10
-	MinGroup:	9
-	MaxGroup:	9
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -48874,9 +48874,9 @@
 // ********************************************
 #	[1722]
 	MinuteGenerate:	10
-	MaxNumMob:	4
-	MinGroup:	3
-	MaxGroup:	3
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -48903,9 +48903,9 @@
 // ********************************************
 #	[1723]
 	MinuteGenerate:	4
-	MaxNumMob:	10
-	MinGroup:	9
-	MaxGroup:	9
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -48932,9 +48932,9 @@
 // ********************************************
 #	[1724]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Arq_Caveira
 	Follower:	Arq_Caveira
 	RouteType:	2
@@ -48961,9 +48961,9 @@
 // ********************************************
 #	[1725]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -48990,9 +48990,9 @@
 // ********************************************
 #	[1726]
 	MinuteGenerate:	2
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Arq_Caveira
 	Follower:	Arq_Caveira
 	RouteType:	2
@@ -49019,9 +49019,9 @@
 // ********************************************
 #	[1727]
 	MinuteGenerate:	2
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -49048,9 +49048,9 @@
 // ********************************************
 #	[1728]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -49077,9 +49077,9 @@
 // ********************************************
 #	[1729]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -49106,9 +49106,9 @@
 // ********************************************
 #	[1730]
 	MinuteGenerate:	2
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -49135,9 +49135,9 @@
 // ********************************************
 #	[1731]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -49164,9 +49164,9 @@
 // ********************************************
 #	[1732]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -49193,9 +49193,9 @@
 // ********************************************
 #	[1733]
 	MinuteGenerate:	2
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -49222,9 +49222,9 @@
 // ********************************************
 #	[1734]
 	MinuteGenerate:	10
-	MaxNumMob:	4
-	MinGroup:	3
-	MaxGroup:	3
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -49251,9 +49251,9 @@
 // ********************************************
 #	[1735]
 	MinuteGenerate:	4
-	MaxNumMob:	10
-	MinGroup:	9
-	MaxGroup:	9
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -49280,9 +49280,9 @@
 // ********************************************
 #	[1736]
 	MinuteGenerate:	10
-	MaxNumMob:	4
-	MinGroup:	3
-	MaxGroup:	3
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -49309,9 +49309,9 @@
 // ********************************************
 #	[1737]
 	MinuteGenerate:	4
-	MaxNumMob:	10
-	MinGroup:	9
-	MaxGroup:	9
+	MaxNumMob:	2
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -49338,9 +49338,9 @@
 // ********************************************
 #	[1738]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Arq_Caveira
 	Follower:	Arq_Caveira
 	RouteType:	2
@@ -49367,9 +49367,9 @@
 // ********************************************
 #	[1739]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -49396,9 +49396,9 @@
 // ********************************************
 #	[1740]
 	MinuteGenerate:	2
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Arq_Caveira
 	Follower:	Arq_Caveira
 	RouteType:	2
@@ -50063,9 +50063,9 @@
 // ********************************************
 #	[1763]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50092,9 +50092,9 @@
 // ********************************************
 #	[1764]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50121,9 +50121,9 @@
 // ********************************************
 #	[1765]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50150,9 +50150,9 @@
 // ********************************************
 #	[1766]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50179,9 +50179,9 @@
 // ********************************************
 #	[1767]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50208,9 +50208,9 @@
 // ********************************************
 #	[1768]
 	MinuteGenerate:	-1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50237,9 +50237,9 @@
 // ********************************************
 #	[1769]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50266,9 +50266,9 @@
 // ********************************************
 #	[1770]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50295,9 +50295,9 @@
 // ********************************************
 #	[1771]
 	MinuteGenerate:	-1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50440,9 +50440,9 @@
 // ********************************************
 #	[1776]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -50527,9 +50527,9 @@
 // ********************************************
 #	[1779]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50556,9 +50556,9 @@
 // ********************************************
 #	[1780]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50585,9 +50585,9 @@
 // ********************************************
 #	[1781]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -50614,9 +50614,9 @@
 // ********************************************
 #	[1782]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -50759,9 +50759,9 @@
 // ********************************************
 #	[1787]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50788,9 +50788,9 @@
 // ********************************************
 #	[1788]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50817,9 +50817,9 @@
 // ********************************************
 #	[1789]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -50846,9 +50846,9 @@
 // ********************************************
 #	[1790]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -50904,9 +50904,9 @@
 // ********************************************
 #	[1792]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50933,9 +50933,9 @@
 // ********************************************
 #	[1793]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -50962,9 +50962,9 @@
 // ********************************************
 #	[1794]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -50991,9 +50991,9 @@
 // ********************************************
 #	[1795]
 	MinuteGenerate:	-1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -51020,9 +51020,9 @@
 // ********************************************
 #	[1796]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -51049,9 +51049,9 @@
 // ********************************************
 #	[1797]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -51078,9 +51078,9 @@
 // ********************************************
 #	[1798]
 	MinuteGenerate:	1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -51107,9 +51107,9 @@
 // ********************************************
 #	[1799]
 	MinuteGenerate:	-1
-	MaxNumMob:	2
-	MinGroup:	1
-	MaxGroup:	1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Caveira
 	Follower:	Caveira
 	RouteType:	2
@@ -51484,9 +51484,9 @@
 // ********************************************
 #	[1812]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2
@@ -51513,9 +51513,9 @@
 // ********************************************
 #	[1813]
 	MinuteGenerate:	1
-	MaxNumMob:	5
-	MinGroup:	4
-	MaxGroup:	4
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
 	Leader:		Urso_Zumbi
 	Follower:	Urso_Zumbi
 	RouteType:	2

@@ -323,11 +323,15 @@ func TestChefesDaLavaBlocos(t *testing.T) {
 	}
 }
 
-// TestDungeonSalasPopulacao pins the rooms at the start of the Dungeon's 1st
-// floor (migration 0143, x 127-260 × y 3700-3860): Urso_Zumbi and Arq_Caveira
-// 5x, Caveira 2x, each block born as one full group of its own template — the
-// generator raises ONE group per call, so a bigger MaxNumMob alone would leave
-// the -1 blocks at one mob forever.
+// TestDungeonSalasPopulacao pins the grid rooms of the Dungeon's 1st floor that
+// the Marco photographed (migration 0143, fixed on 25/09/2026): two lava rooms
+// at x 144-195 (y 3736-3764 and 3789-3817) and two grid rooms at x 197-239 (y
+// 3743-3759 and 3790-3808). Inside them Urso_Zumbi and Arq_Caveira are 5x and
+// Caveira 2x, each block born as one full group of its own template — the
+// generator raises ONE group per call. The corridors and halls between them
+// keep the legacy count: the first version of 0143 multiplied the whole box
+// (x 127-260, y 3700-3860) and filled the corridors too. The Arq_Caveira of the
+// Rei Troll Zumbi's west hall and south corridor stay 5x: 0147 counts on them.
 func TestDungeonSalasPopulacao(t *testing.T) {
 	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
 	if _, err := os.Stat(path); err != nil {
@@ -337,23 +341,47 @@ func TestDungeonSalasPopulacao(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]int{"Caveira": 132, "Urso_Zumbi": 285, "Arq_Caveira": 75}
+	salas := [][4]int16{{144, 3736, 195, 3764}, {144, 3789, 195, 3817}, {197, 3743, 239, 3759}, {197, 3790, 239, 3808}}
+	naSala := func(x, y int16) bool {
+		for _, r := range salas {
+			if x >= r[0] && x <= r[2] && y >= r[1] && y <= r[3] {
+				return true
+			}
+		}
+		return false
+	}
+	doRei := func(x, y int16) bool { return x >= 245 && x <= 261 && y >= 3745 && y <= 3815 }
+	want := map[string]int{"Caveira": 60, "Urso_Zumbi": 120, "Arq_Caveira": 20}
 	got := map[string]int{}
+	rei := 0
 	for i, g := range gens {
 		x, y := g.SegX[0], g.SegY[0]
-		if _, ok := want[g.Leader]; !ok || x < 127 || x > 260 || y < 3700 || y > 3860 {
+		if _, ok := want[g.Leader]; !ok || g.Follower != g.Leader || x < 127 || x > 260 || y < 3700 || y > 3860 {
 			continue
 		}
-		got[g.Leader] += g.MaxNumMob
-		if g.Follower != g.Leader || g.MinGroup != g.MaxNumMob-1 || g.MaxGroup != g.MaxNumMob-1 {
-			t.Errorf("bloco %d (%s): max %d, grupo %d-%d, seguidor %q; want um grupo cheio do mesmo template",
-				i, g.Leader, g.MaxNumMob, g.MinGroup, g.MaxGroup, g.Follower)
+		switch {
+		case naSala(x, y):
+			got[g.Leader] += g.MaxNumMob
+			if g.MinGroup != g.MaxNumMob-1 || g.MaxGroup != g.MaxNumMob-1 {
+				t.Errorf("bloco %d (%s) na sala: max %d, grupo %d-%d; want um grupo cheio",
+					i, g.Leader, g.MaxNumMob, g.MinGroup, g.MaxGroup)
+			}
+		case g.Leader == "Arq_Caveira" && doRei(x, y):
+			rei += g.MaxNumMob
+		default:
+			if g.MinGroup != 0 || g.MaxGroup != 0 || g.MaxNumMob > 2 {
+				t.Errorf("bloco %d (%s) em (%d,%d), fora das salas: max %d, grupo %d-%d; want o número do legado",
+					i, g.Leader, x, y, g.MaxNumMob, g.MinGroup, g.MaxGroup)
+			}
 		}
 	}
 	for nome, n := range want {
 		if got[nome] != n {
 			t.Errorf("%s nas salas: %d, want %d", nome, got[nome], n)
 		}
+	}
+	if rei != 35 {
+		t.Errorf("Arq_Caveira no salão oeste e no corredor sul do Rei: %d, want 35 (0147)", rei)
 	}
 }
 
