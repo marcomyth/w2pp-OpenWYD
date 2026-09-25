@@ -146,7 +146,18 @@ func (d *Dispatcher) lojaPede(w *world.World, s *world.Session, _ protocol.Heade
 	s.LojaAberta = true
 	s.LojaPagina = pede.Pagina
 	s.LojaFiltro = pede.Filtro
-	d.mandaVitrine(w, s, e, pede.Pagina, pede.Filtro)
+	// A carteira é relida ANTES de a vitrine ir para a tela: é aqui que o jogador
+	// olha o saldo para decidir o que consegue pagar, e era aqui que ele lia o
+	// número do login. A entidade é buscada DE NOVO na volta — entre o pedido e a
+	// resposta do banco o jogador pode ter morrido, trocado de personagem ou saído.
+	pagina, filtro := pede.Pagina, pede.Filtro
+	d.relerCash(w, s, func(w *world.World, s *world.Session) {
+		e := w.Entity(s.Conn)
+		if e == nil || s.Mode != world.UserPlay {
+			return
+		}
+		d.mandaVitrine(w, s, e, pagina, filtro)
+	})
 }
 
 // mandaVitrine monta e envia uma pagina da vitrine. Serve ao pedido do painel e

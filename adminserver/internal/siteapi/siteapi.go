@@ -416,6 +416,13 @@ func eventoDoSite(e donate.Evento) (eventoSite, bool) {
 		s.Detalhe = ""
 	case donate.TipoAjuste:
 		s.Titulo, s.Detalhe = "Ajuste da equipe", ""
+	case donate.TipoLojinhaCompra, donate.TipoLojinhaVenda:
+		// O detalhe morre aqui de propósito: o motivo que o servidor escreve é
+		// "loja do servidor: venda", uma frase de diário, e o jogador já está
+		// lendo o título. O título fica como o painel escreveu — "Compra na
+		// lojinha" e "Venda na lojinha" são a mesma coisa nas duas telas, e é o
+		// jogador que se confunde quando a staff chama de outro nome.
+		s.Detalhe = ""
 	default:
 		return eventoSite{}, false
 	}

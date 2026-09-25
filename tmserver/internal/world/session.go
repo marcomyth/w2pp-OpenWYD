@@ -67,10 +67,27 @@ type Session struct {
 	AccountName string
 	AccountID   int64
 	AccessLevel AccessLevel // account.role tier; gates in-game GM commands (issue #122)
-	// Cash e RMT da conta, como estavam no login e corrigidos a cada compra da
-	// Loja do Servidor. É o que o painel mostra no rodapé.
+	// Cash e RMT da conta. É o que o painel da Loja do Servidor mostra no rodapé.
+	//
+	// SÃO CÓPIA, E CÓPIA ENVELHECE: a carteira mora na conta, no banco, e muda
+	// por caminhos que não passam por esta sessão — a recarga pelo site, um
+	// ajuste da staff, outra sessão da mesma conta. Por isso o Cash é RELIDO do
+	// banco antes de a vitrine ir para a tela (ver carteira.go), e não apenas
+	// somado e subtraído aqui.
+	//
+	// Isso é só a TELA. Gastar não usa este número: a compra em Cash bate no
+	// banco, com FOR UPDATE, e é o banco que recusa (ver lojacompra.go). Uma
+	// cópia adiantada nunca virou dinheiro que não existe.
+	//
+	// O Rmt ainda é só do login: não existe RPC que leia a carteira de RMT
+	// sozinha, e inventar um é maior que este conserto. Enquanto não existir,
+	// o RMT no rodapé pode estar velho pelo mesmo motivo que o Cash estava.
 	Cash int32
 	Rmt  int32
+	// CashEmLeitura marca que já há uma releitura da carteira a caminho do banco.
+	// Sem isso, abrir e fechar a vitrine depressa viraria uma ida ao banco por
+	// clique, e a última a voltar mandaria na tela — que nem sempre é a mais nova.
+	CashEmLeitura bool
 	// PasseNivel é o nível do passe da CONTA, lido no login e copiado para cada
 	// personagem que entrar (ver character.go). Fica na sessão porque é da conta, e
 	// porque é aqui que o SetPassLevel o atualiza sem esperar relogin.
