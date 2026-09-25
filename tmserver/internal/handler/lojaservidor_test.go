@@ -449,7 +449,7 @@ type saldoDeMentira struct {
 	fn func(de, para int64, moeda uint8, valor int32) error
 }
 
-func (s saldoDeMentira) Transfere(de, para int64, moeda uint8, valor int32) error {
+func (s saldoDeMentira) Transfere(de, para int64, moeda uint8, valor int32, _ string) error {
 	return s.fn(de, para, moeda, valor)
 }
 

@@ -23,8 +23,13 @@ import (
 
 // SaldoDeConta move Cash ou RMT entre contas. O valor é sempre positivo e a
 // moeda é protocol.LojaMoedaCash ou protocol.LojaMoedaRMT.
+//
+// O `motivo` vai inteiro para o diário do banco e é o que a staff lê quando
+// alguém reclama de uma compra. Era uma frase fixa aqui dentro, igual para toda
+// venda; quem sabe QUAL item foi vendido é quem chama, então é ele que a
+// escreve. Nada de dado pessoal nessa frase: ela aparece na tela da staff.
 type SaldoDeConta interface {
-	Transfere(deConta, paraConta int64, moeda uint8, valor int32) error
+	Transfere(deConta, paraConta int64, moeda uint8, valor int32, motivo string) error
 }
 
 // ErrSaldoNaoLigado é o que sai enquanto a emenda acima não foi feita.
@@ -32,7 +37,7 @@ var ErrSaldoNaoLigado = errors.New("loja: saldo de cash/rmt ainda nao esta ligad
 
 type saldoNaoLigado struct{}
 
-func (saldoNaoLigado) Transfere(int64, int64, uint8, int32) error {
+func (saldoNaoLigado) Transfere(int64, int64, uint8, int32, string) error {
 	return ErrSaldoNaoLigado
 }
 
@@ -64,9 +69,8 @@ type saldoNoBanco struct {
 	b BancoDeSaldo
 }
 
-func (s saldoNoBanco) Transfere(deConta, paraConta int64, moeda uint8, valor int32) error {
+func (s saldoNoBanco) Transfere(deConta, paraConta int64, moeda uint8, valor int32, motivo string) error {
 	ctx, cancela := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancela()
-	return s.b.TransferePlayerBalance(ctx, deConta, paraConta, moeda, valor,
-		"loja do servidor: venda")
+	return s.b.TransferePlayerBalance(ctx, deConta, paraConta, moeda, valor, motivo)
 }
