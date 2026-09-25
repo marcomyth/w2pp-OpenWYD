@@ -421,6 +421,9 @@ type Dispatcher struct {
 	// until the first config arrives (read as the decided default).
 	genChefe   []bool
 	chefeHoras int32
+	// lavaVigia guarda, por bloco, o relógio de sumir dos mini chefes da lava
+	// (dungeon_lava.go).
+	lavaVigia map[int]lavaChefeVigia
 	// reiAvisado marca, por reino (0 Hekalotia, 1 Akelonia), que o aviso de Rei sob
 	// ataque já saiu nesta luta (reinos.go).
 	reiAvisado [2]bool

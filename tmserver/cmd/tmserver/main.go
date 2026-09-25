@@ -828,6 +828,7 @@ func run(logger *slog.Logger) error {
 	// O FrenzyDemonLord também, pelo mesmo motivo (submundo.go).
 	dispatch.ApplyFrenzyBoot(w)
 	dispatch.ApplyBossDragaoLichBoot(w)
+	dispatch.ApplyChefesDaLavaBoot(w)
 	// The individual respawn queue takes its delay from the same area dial the
 	// minute timer does, so the desert's dozen blocks without a minute period
 	// are not left running at 15s while everything around them slows down. It is

@@ -236,8 +236,8 @@ func TestBossDragaoLichBloco(t *testing.T) {
 		t.Fatal(err)
 	}
 	const idx = 6146
-	if idx != len(gens)-1 {
-		t.Fatalf("NPCGener has %d blocks, want block %d to be the last", len(gens), idx)
+	if idx >= len(gens) {
+		t.Fatalf("NPCGener has %d blocks, want block %d", len(gens), idx)
 	}
 	g := gens[idx]
 	if g.Leader != "Boss_Dragao_Lich" || g.MinuteGenerate != -1 || g.MaxNumMob != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
@@ -255,5 +255,51 @@ func TestBossDragaoLichBloco(t *testing.T) {
 	}
 	if n != 1 {
 		t.Errorf("Boss_Dragao_Lich em %d blocos, want 1", n)
+	}
+}
+
+// TestChefesDaLavaBlocos pins the Dungeon 2nd floor lava hall (migration 0142): the
+// two mini bosses in blocks 6147 and 6148, the last ones, with no minute period —
+// the 2 h wait is the individual queue's (handler/dungeon_lava.go) — and the Golem
+// de Pedra and Anf Ninja blocks of the hall at five times the legacy count.
+func TestChefesDaLavaBlocos(t *testing.T) {
+	path := filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "NPCGener.txt")
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("NPCGener.txt unavailable: %v", err)
+	}
+	gens, err := LoadNPCGenerators(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(gens) != 6149 {
+		t.Fatalf("NPCGener has %d blocks, want 6149 with the lava bosses last", len(gens))
+	}
+	// Dungeon_2_Andar in Regions.txt: 632,3847 - 1022,4091.
+	dentro := func(x, y int16) bool { return x >= 632 && x <= 1022 && y >= 3847 && y <= 4091 }
+	for idx, nome := range map[int]string{6147: "Boss_Golem", 6148: "Boss_Anf_Ninja"} {
+		g := gens[idx]
+		if g.Leader != nome || g.MinuteGenerate != -1 || g.MaxNumMob != 1 || g.MinGroup != 0 || g.MaxGroup != 0 {
+			t.Errorf("bloco %d = %+v, want one %s with MinuteGenerate -1", idx, g, nome)
+		}
+		if !dentro(g.SegX[0], g.SegY[0]) {
+			t.Errorf("%s nasce em (%d,%d), fora do Dungeon_2_Andar", nome, g.SegX[0], g.SegY[0])
+		}
+	}
+	mobs := map[string]int{}
+	for _, g := range gens {
+		if g.Leader != "Anf_Ninja" && g.Leader != "Golem_de_Pedra" {
+			continue
+		}
+		if !dentro(g.SegX[0], g.SegY[0]) {
+			t.Errorf("%s fora do 2º andar em (%d,%d): a Mesa da 0142 vale por template", g.Leader, g.SegX[0], g.SegY[0])
+		}
+		if g.MinuteGenerate <= 0 {
+			t.Errorf("%s em (%d,%d) com MinuteGenerate %d: só o relógio de minuto enche o bloco até o teto", g.Leader, g.SegX[0], g.SegY[0], g.MinuteGenerate)
+		}
+		mobs[g.Leader] += g.MaxNumMob
+	}
+	// 60 e 56 antes da 0142.
+	if mobs["Anf_Ninja"] != 300 || mobs["Golem_de_Pedra"] != 280 {
+		t.Errorf("Anf Ninja %d e Golem de Pedra %d, want 300 e 280 (5x)", mobs["Anf_Ninja"], mobs["Golem_de_Pedra"])
 	}
 }
