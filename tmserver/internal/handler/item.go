@@ -3485,6 +3485,21 @@ func (d *Dispatcher) computeScore(e *world.Entity) protocol.ScoreData {
 	for i := range special {
 		special[i] = int16(effectiveSpecial(e, i))
 	}
+	// O TETO NÃO DEVIA SER ALCANÇADO por jogador nenhum, e quando é, é defeito: o
+	// relato da Hanna é "HP de uns 1 bilhão", e 1 bilhão É o teto (level.MaxHPCap).
+	//
+	// O aviso fica AQUI, no ponto em que o número sai para a rede, e não dentro do
+	// effectiveMaxHP: aquele é lido no tick (combate, regen, display), e avisar lá seria
+	// uma linha por pulso — log afogado e peso no laço, que é de uma thread só. O score
+	// sai por evento (equipar, curar montaria, entrar no campo de visão), então aqui o
+	// aviso é raro e ainda pega o caso mesmo que a causa não seja a montaria.
+	if maxHP := effectiveMaxHP(e); maxHP >= level.MaxHPCap {
+		d.log.Warn("hp no teto do legado",
+			"id", e.ID, "char", e.Name, "level", e.Level,
+			"base_max_hp", e.BaseMaxHP, "max_hp", e.MaxHP,
+			"con", e.Con, "base_con", e.BaseCon, "aff_max_hp", e.AffMaxHP,
+			"hp_add_pct", e.HpAddPct, "effective_max_hp", maxHP, "teto", level.MaxHPCap)
+	}
 	sc := protocol.ScoreData{
 		// A moldura do passe vai no score também: sem ela, a primeira troca de
 		// equipamento depois de entrar no campo de visão apagava a moldura de quem
