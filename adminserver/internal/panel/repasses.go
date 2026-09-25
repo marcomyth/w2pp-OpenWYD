@@ -30,7 +30,7 @@ type Repasses interface {
 	// quanto para quanto — a tela não sabe o número velho, e perguntá-lo ao formulário
 	// deixaria o registro depender do que o navegador mandou.
 	AjustarValorDoRepasse(ctx context.Context, id int64, novoCentavos int64,
-		ator store.AtorDoRepasse, nota string) (int64, error)
+		ator store.AtorDoAjuste, nota string) (int64, error)
 }
 
 // repasseView é uma linha da fila do jeito que a página mostra.
@@ -168,6 +168,11 @@ func (h *Handler) resolverRepasse(w http.ResponseWriter, r *http.Request) {
 
 	var acao, aviso string
 	var dados map[string]any
+	// jaAuditado é para a ação que grava a própria linha de auditoria na MESMA transação
+	// da mudança. As outras três auditam aqui, depois; o ajuste de valor não pode, porque
+	// muda quanto uma pessoa recebe e uma mudança de dinheiro sem registro é a que
+	// ninguém explica depois.
+	var jaAuditado bool
 	switch r.PostFormValue("decisao") {
 	case "pago":
 		// O VALOR VEM DIGITADO, e não copiado da dívida, porque a pessoa está
@@ -224,7 +229,14 @@ func (h *Handler) resolverRepasse(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var antigo int64
-		antigo, err = h.cfg.Repasses.AjustarValorDoRepasse(r.Context(), id, novo, ator, nota)
+		antigo, err = h.cfg.Repasses.AjustarValorDoRepasse(r.Context(), id, novo,
+			store.AtorDoAjuste{
+				ContaID: sess.AccountID, Papel: roleFrom(r.Context()), Nome: sess.AccountName,
+			}, nota)
+		// A AUDITORIA DESTA AÇÃO JÁ FOI ESCRITA, dentro da transação do UPDATE. Escrever
+		// de novo aqui daria duas linhas para uma mudança — e a segunda, se falhasse,
+		// pediria socorro por um registro que já existe.
+		jaAuditado = true
 		// A DÍVIDA CONTINUA RECUSADA, e o aviso diz isso em voz alta. Quem ajusta um
 		// valor costuma achar que já mandou de novo; aqui não mandou, e a tela avisa
 		// para ninguém ficar esperando um pagamento que não foi pedido.
@@ -259,6 +271,12 @@ func (h *Handler) resolverRepasse(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if jaAuditado {
+		h.cfg.Logger.Info("repasse resolvido", "ator", sess.AccountName, "repasse", id,
+			"acao", acao, "auditoria", "na mesma transacao")
+		http.Redirect(w, r, "/repasses?aviso="+urlQuery(aviso), http.StatusSeeOther)
+		return
+	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
 		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
 		Action: acao, New: dados,

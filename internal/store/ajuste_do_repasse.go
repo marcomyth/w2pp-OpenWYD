@@ -14,6 +14,23 @@ var ErrAjusteInvalido = errors.New("store: valor de ajuste invalido")
 // ErrAjusteSemNota é o ajuste sem explicação.
 var ErrAjusteSemNota = errors.New("store: ajuste de valor exige nota")
 
+// AcaoAjusteDeRepasse é o nome desta ação no log de auditoria.
+//
+// Mora aqui e não no pacote do painel porque é ESTA função que escreve a linha, dentro
+// da transação. Um nome definido longe de quem o grava é um nome que muda num lado só.
+const AcaoAjusteDeRepasse = "REPASSE_VALOR_AJUSTADO"
+
+// AtorDoAjuste é quem mexeu no valor.
+//
+// Traz conta e papel para a linha da auditoria, e o nome para a coluna da linha do
+// repasse. São três porque a auditoria pede id e a tela mostra nome, e resolver isso
+// buscando um a partir do outro faria a escrita de dinheiro depender de outra consulta.
+type AtorDoAjuste struct {
+	ContaID int64
+	Papel   string
+	Nome    string
+}
+
 // AjustarValorDoRepasse corrige quanto se deve a um vendedor, e NÃO devolve a dívida
 // para a fila.
 //
@@ -40,9 +57,17 @@ var ErrAjusteSemNota = errors.New("store: ajuste de valor exige nota")
 // O teto é lido da cobrança na mesma transação, e não recebido de fora: um limite que
 // quem chama informa não é limite.
 //
-// Devolve o valor ANTIGO, para quem chama poder auditar de quanto para quanto.
+// A AUDITORIA VAI NA MESMA TRANSAÇÃO, como no transicaoDaStaff do reembolso. Duas
+// escritas não servem aqui: esta ação muda QUANTO uma pessoa recebe, e uma mudança de
+// dinheiro aplicada sem registro é a que ninguém consegue explicar depois. Se a auditoria
+// falhar, o ajuste não acontece.
+//
+// É por isso que o ator traz conta e papel, e não só o nome: a linha da auditoria precisa
+// de quem, e "quem" num sistema de dinheiro é um id, não um texto que se digita.
+//
+// Devolve o valor ANTIGO, para quem chama poder mostrar de quanto para quanto.
 func (s *Store) AjustarValorDoRepasse(ctx context.Context, id int64, novoCentavos int64,
-	ator AtorDoRepasse, nota string,
+	ator AtorDoAjuste, nota string,
 ) (int64, error) {
 	if nota == "" {
 		// A NOTA É OBRIGATÓRIA, e a regra mora aqui e não só na tela. Um número de
@@ -57,13 +82,16 @@ func (s *Store) AjustarValorDoRepasse(ctx context.Context, id int64, novoCentavo
 
 	var antigo int64
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		var teto int64
+		var teto, vendedor int64
+		// O VENDEDOR SAI DAQUI para ser o alvo da auditoria: o dinheiro é dele, e uma
+		// linha de auditoria que não diz de quem era o dinheiro não responde a pergunta
+		// que se faz numa disputa.
 		err := tx.QueryRow(ctx, `
-			SELECT r.valor_centavos, c.valor_centavos
+			SELECT r.valor_centavos, c.valor_centavos, r.vendedor_conta
 			  FROM rmt_repasse r
 			  JOIN rmt_cobranca c ON c.id = r.cobranca_id
 			 WHERE r.id = $1 AND r.status = $2
-			 FOR UPDATE OF r`, id, repasseRecusado).Scan(&antigo, &teto)
+			 FOR UPDATE OF r`, id, repasseRecusado).Scan(&antigo, &teto, &vendedor)
 		if errors.Is(err, pgx.ErrNoRows) {
 			// Não existe, ou não está recusado. É a mesma resposta de propósito: a
 			// tela não deve poder descobrir o estado de uma linha tentando mexer nela.
@@ -93,6 +121,15 @@ func (s *Store) AjustarValorDoRepasse(ctx context.Context, id int64, novoCentavo
 			 WHERE id = $1 AND status = $6`,
 			id, novoCentavos, antigo, nota, ator.Nome, repasseRecusado); err != nil {
 			return fmt.Errorf("store: ajustando o valor do repasse %d: %w", id, err)
+		}
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO admin_audit_log
+			    (actor_account_id, actor_role, action, target_account_id, old_value, new_value)
+			VALUES ($1, $2, $3, $4, $5, $6)`,
+			ator.ContaID, ator.Papel, AcaoAjusteDeRepasse, vendedor,
+			fmt.Sprintf(`{"repasse":%d,"centavos":%d}`, id, antigo),
+			fmt.Sprintf(`{"repasse":%d,"centavos":%d,"nota":%q}`, id, novoCentavos, nota)); err != nil {
+			return fmt.Errorf("store: ajuste do repasse %d: registrando na auditoria: %w", id, err)
 		}
 		return nil
 	})

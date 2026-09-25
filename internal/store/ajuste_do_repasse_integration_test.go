@@ -8,6 +8,7 @@ package store
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -32,6 +33,12 @@ func repasseRecusadoParaAjuste(ctx context.Context, t *testing.T, s *Store, sufi
 	return repasseID
 }
 
+// atorAjuste é a staff do teste, com conta e papel: a auditoria é escrita dentro da
+// transação e ela exige um id.
+func atorAjuste() AtorDoAjuste {
+	return AtorDoAjuste{ContaID: 1, Papel: "admin", Nome: "hanna"}
+}
+
 func valorEAjuste(ctx context.Context, t *testing.T, s *Store, id int64) (valor int64, de *int64, nota, por *string) {
 	t.Helper()
 	if err := s.pool.QueryRow(ctx, `
@@ -53,7 +60,7 @@ func TestAjusteGravaONovoEGuardaOAntigo(t *testing.T) {
 	id := repasseRecusadoParaAjuste(ctx, t, s, "ajuste_ok")
 
 	antigo, err := s.AjustarValorDoRepasse(ctx, id, 20,
-		AtorDoRepasse{Nome: "hanna"}, "ordem da Hanna, liquido medido, net_amount 0.2")
+		atorAjuste(), "ordem da Hanna, liquido medido, net_amount 0.2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +92,7 @@ func TestAjusteNaoDevolveParaAFilaDePagar(t *testing.T) {
 	s, ctx := freshStore(t)
 	id := repasseRecusadoParaAjuste(ctx, t, s, "ajuste_fila")
 
-	if _, err := s.AjustarValorDoRepasse(ctx, id, 20, AtorDoRepasse{Nome: "hanna"}, "nota"); err != nil {
+	if _, err := s.AjustarValorDoRepasse(ctx, id, 20, atorAjuste(), "nota"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -107,7 +114,7 @@ func TestAjusteAcimaDaCobrancaNaoPassa(t *testing.T) {
 	s, ctx := freshStore(t)
 	id := repasseRecusadoParaAjuste(ctx, t, s, "ajuste_teto")
 
-	_, err := s.AjustarValorDoRepasse(ctx, id, precoEmCentavos+1, AtorDoRepasse{Nome: "hanna"}, "nota")
+	_, err := s.AjustarValorDoRepasse(ctx, id, precoEmCentavos+1, atorAjuste(), "nota")
 	if !errors.Is(err, ErrAjusteInvalido) {
 		t.Fatalf("erro = %v, queria ErrAjusteInvalido", err)
 	}
@@ -123,7 +130,7 @@ func TestAjusteZeroOuNegativoNaoPassa(t *testing.T) {
 	id := repasseRecusadoParaAjuste(ctx, t, s, "ajuste_zero")
 
 	for _, v := range []int64{0, -1} {
-		if _, err := s.AjustarValorDoRepasse(ctx, id, v, AtorDoRepasse{Nome: "hanna"}, "nota"); !errors.Is(err, ErrAjusteInvalido) {
+		if _, err := s.AjustarValorDoRepasse(ctx, id, v, atorAjuste(), "nota"); !errors.Is(err, ErrAjusteInvalido) {
 			t.Errorf("valor %d: erro = %v, queria ErrAjusteInvalido", v, err)
 		}
 	}
@@ -135,7 +142,7 @@ func TestAjusteSemNotaNaoPassa(t *testing.T) {
 	s, ctx := freshStore(t)
 	id := repasseRecusadoParaAjuste(ctx, t, s, "ajuste_nota")
 
-	if _, err := s.AjustarValorDoRepasse(ctx, id, 20, AtorDoRepasse{Nome: "hanna"}, ""); !errors.Is(err, ErrAjusteSemNota) {
+	if _, err := s.AjustarValorDoRepasse(ctx, id, 20, atorAjuste(), ""); !errors.Is(err, ErrAjusteSemNota) {
 		t.Fatalf("erro = %v, queria ErrAjusteSemNota", err)
 	}
 	if valor, _, _, _ := valorEAjuste(ctx, t, s, id); valor != precoEmCentavos {
@@ -158,7 +165,7 @@ func TestAjusteSoMexeNoRecusado(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err := s.AjustarValorDoRepasse(ctx, id, 20, AtorDoRepasse{Nome: "hanna"}, "nota")
+	_, err := s.AjustarValorDoRepasse(ctx, id, 20, atorAjuste(), "nota")
 	if !errors.Is(err, ErrRepasseInexistente) {
 		t.Fatalf("erro = %v, queria ErrRepasseInexistente num repasse PENDENTE", err)
 	}
@@ -176,10 +183,10 @@ func TestDoisAjustesGuardamOPrimeiroValor(t *testing.T) {
 	s, ctx := freshStore(t)
 	id := repasseRecusadoParaAjuste(ctx, t, s, "ajuste_dois")
 
-	if _, err := s.AjustarValorDoRepasse(ctx, id, 50, AtorDoRepasse{Nome: "hanna"}, "primeira"); err != nil {
+	if _, err := s.AjustarValorDoRepasse(ctx, id, 50, atorAjuste(), "primeira"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.AjustarValorDoRepasse(ctx, id, 20, AtorDoRepasse{Nome: "hanna"}, "segunda"); err != nil {
+	if _, err := s.AjustarValorDoRepasse(ctx, id, 20, atorAjuste(), "segunda"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -192,5 +199,77 @@ func TestDoisAjustesGuardamOPrimeiroValor(t *testing.T) {
 	}
 	if nota == nil || *nota != "segunda" {
 		t.Errorf("nota = %v, queria a mais recente", nota)
+	}
+}
+
+// A AUDITORIA E O VALOR ANDAM JUNTOS, e se a auditoria falhar o valor NÃO muda.
+//
+// Exigência da planejadora, e ela está certa: "auditoria escrita depois" serve para ação
+// de painel sem dinheiro, não para uma que muda quanto uma pessoa recebe. Este teste
+// prova a transação, e a forma de provar é fazer a escrita da auditoria falhar de
+// verdade — aqui, apagando a tabela dentro do teste, para o INSERT não ter para onde ir.
+func TestSeAAuditoriaFalhaOValorNaoMuda(t *testing.T) {
+	s, ctx := freshStore(t)
+	id := repasseRecusadoParaAjuste(ctx, t, s, "ajuste_audit")
+
+	// A tabela de auditoria deixa de existir: é o jeito honesto de fazer o INSERT dela
+	// falhar sem mexer no código que está sendo testado.
+	if _, err := s.pool.Exec(ctx, `ALTER TABLE admin_audit_log RENAME TO admin_audit_log_escondida`); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := s.AjustarValorDoRepasse(ctx, id, 20, atorAjuste(), "com a auditoria quebrada")
+	if err == nil {
+		t.Fatal("ajustou com a auditoria quebrada; a transacao nao esta prendendo as duas escritas")
+	}
+
+	if _, e := s.pool.Exec(ctx, `ALTER TABLE admin_audit_log_escondida RENAME TO admin_audit_log`); e != nil {
+		t.Fatal(e)
+	}
+	if valor, de, _, _ := valorEAjuste(ctx, t, s, id); valor != precoEmCentavos || de != nil {
+		t.Errorf("o valor virou %d (ajuste_de=%v) mesmo com a auditoria falhando", valor, de)
+	}
+}
+
+// E A LINHA DA AUDITORIA DIZ DE QUANTO PARA QUANTO, e de quem era o dinheiro.
+//
+// Um registro que diga só "valor ajustado" não responde a pergunta que se faz numa
+// disputa. O alvo é o VENDEDOR, porque o dinheiro é dele.
+func TestAAuditoriaDizDeQuantoParaQuantoEDeQuem(t *testing.T) {
+	s, ctx := freshStore(t)
+	v := montaVenda(ctx, t, s, "ajuste_log")
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora,
+		precoEmCentavos, taxaZero()); err != nil {
+		t.Fatal(err)
+	}
+	var id int64
+	if err := s.pool.QueryRow(ctx,
+		`SELECT id FROM rmt_repasse WHERE vendedor_conta = $1`, v.vendedor).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	http := int32(403)
+	if err := s.MarcarRepasseRecusado(ctx, id, &http, "", "403 token type"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AjustarValorDoRepasse(ctx, id, 20, atorAjuste(), "ordem da Hanna"); err != nil {
+		t.Fatal(err)
+	}
+
+	var acao, antigo, novo string
+	var alvo *int64
+	if err := s.pool.QueryRow(ctx, `
+		SELECT action, old_value, new_value, target_account_id
+		  FROM admin_audit_log WHERE action = $1 ORDER BY id DESC LIMIT 1`,
+		AcaoAjusteDeRepasse).Scan(&acao, &antigo, &novo, &alvo); err != nil {
+		t.Fatalf("nao achei a linha da auditoria: %v", err)
+	}
+	if !strings.Contains(antigo, "100") {
+		t.Errorf("old_value = %s, queria conter o valor antigo 100", antigo)
+	}
+	if !strings.Contains(novo, "20") || !strings.Contains(novo, "Hanna") {
+		t.Errorf("new_value = %s, queria conter o valor novo e a nota", novo)
+	}
+	if alvo == nil || *alvo != v.vendedor {
+		t.Errorf("target_account_id = %v, queria o VENDEDOR %d", alvo, v.vendedor)
 	}
 }

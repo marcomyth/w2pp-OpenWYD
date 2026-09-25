@@ -42,6 +42,13 @@ func TestAjusteChegaEmCentavosComANota(t *testing.T) {
 	if a.Ator == "" {
 		t.Error("o ator nao chegou; um numero de dinheiro que muda sem dono nao se explica")
 	}
+	// A CONTA E O PAPEL TAMBÉM, porque a auditoria é escrita DENTRO da transação do
+	// banco, e ela precisa de um id: "quem" num sistema de dinheiro é uma conta, não um
+	// texto que se digita.
+	if a.AtorConta == 0 || a.AtorPapel == "" {
+		t.Errorf("ator incompleto: conta=%d papel=%q; a auditoria na transacao precisa dos dois",
+			a.AtorConta, a.AtorPapel)
+	}
 }
 
 // O AVISO DIZ QUE A LINHA CONTINUA RECUSADA.
