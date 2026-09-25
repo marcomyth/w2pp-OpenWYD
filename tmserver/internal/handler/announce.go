@@ -50,8 +50,8 @@ func (d *Dispatcher) announceCelestial(w *world.World, name string) {
 	d.log.Info("announce celestial", "name", name)
 }
 
-// The three machines players gather around — the +10, the compositor and the
-// Agatha — announce EVERY roll to the whole server, win or lose, with the number
+// The machines players gather around — the +10, the compositor, the Agatha and
+// the Tiny — announce EVERY roll to the whole server, win or lose, with the number
 // drawn against the chance it had to beat: "Fulano falhou em 47/41 ao passar
 // Espada para +10."
 //
@@ -130,6 +130,15 @@ func (d *Dispatcher) announceComposicao(w *world.World, name string, item int16,
 // ADD and never the ADD itself: which bonus a player just moved onto their
 // weapon is theirs to show, not the server's to publish.
 func (d *Dispatcher) announceAgatha(w *world.World, name string, item int16, roll, chance, bonus int, success bool) {
+	d.announceRoll(w, name, "passar o ADD para "+d.itemName(item), roll, chance, bonus, success)
+}
+
+// announceTiny is the Ancient ADD machine's line, worded like the Agatha's: the Tiny
+// also moves the ADD of a +9 onto another weapon, only the one receiving it is an
+// Ancient. On a failure that Ancient is the item lost, so it is the one named
+// either way. The Tiny was the one roll left silent until 24/09/2026, when the
+// staff asked for it.
+func (d *Dispatcher) announceTiny(w *world.World, name string, item int16, roll, chance, bonus int, success bool) {
 	d.announceRoll(w, name, "passar o ADD para "+d.itemName(item), roll, chance, bonus, success)
 }
 
