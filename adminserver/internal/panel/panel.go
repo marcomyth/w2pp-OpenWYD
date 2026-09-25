@@ -638,6 +638,13 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("GET /repasses", h.requireStaff(http.HandlerFunc(h.repasses)))
 		mux.Handle("POST /repasses/{repasse}/resolver",
 			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.resolverRepasse))))
+		// PAGAR À MÃO e LER A CHAVE: as duas só admin, como as outras decisões de
+		// dinheiro. Ler a chave é só-admin porque quem não pode pagar não tem por que
+		// ver o dado pessoal de um vendedor.
+		mux.Handle("POST /repasses/{repasse}/pagar",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.pagarRepasse))))
+		mux.Handle("POST /repasses/{repasse}/chave",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.chaveDoRepasse))))
 	}
 	// AS OUTRAS TRÊS FILAS DO DINHEIRO REAL. Mesma divisão da do repasse: ler é
 	// staff, decidir é admin.

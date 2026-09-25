@@ -29,6 +29,48 @@ type fakeRepasses struct {
 	ajustes    []ajustePedido
 	antigoFake int64
 	erroAjuste error
+
+	// A fila de pagar a mao e as duas acoes dela.
+	aPagar       []store.PagamentoNaFila
+	erroAPagar   error
+	pagosAMao    []pagamentoAMaoPedido
+	erroPagarMao error
+	chaveInteira store.ChaveInteira
+	chavesLidas  []int64
+	erroChave    error
+}
+
+type pagamentoAMaoPedido struct {
+	ID        int64
+	Nota      string
+	Ator      string
+	AtorConta int64
+	AtorPapel string
+}
+
+func (f *fakeRepasses) FilaDePagamentoAMao(context.Context, int) ([]store.PagamentoNaFila, error) {
+	return f.aPagar, f.erroAPagar
+}
+
+func (f *fakeRepasses) MarcarRepassePagoAMao(_ context.Context, id int64,
+	ator store.AtorDoAjuste, nota string,
+) error {
+	if f.erroPagarMao != nil {
+		return f.erroPagarMao
+	}
+	f.pagosAMao = append(f.pagosAMao, pagamentoAMaoPedido{
+		ID: id, Nota: nota, Ator: ator.Nome, AtorConta: ator.ContaID, AtorPapel: ator.Papel,
+	})
+	return nil
+}
+
+func (f *fakeRepasses) ChaveParaPagar(_ context.Context, id int64, _ store.AtorDoAjuste,
+) (store.ChaveInteira, error) {
+	if f.erroChave != nil {
+		return store.ChaveInteira{}, f.erroChave
+	}
+	f.chavesLidas = append(f.chavesLidas, id)
+	return f.chaveInteira, nil
 }
 
 type ajustePedido struct {

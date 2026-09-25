@@ -31,6 +31,15 @@ type Repasses interface {
 	// deixaria o registro depender do que o navegador mandou.
 	AjustarValorDoRepasse(ctx context.Context, id int64, novoCentavos int64,
 		ator store.AtorDoAjuste, nota string) (int64, error)
+
+	// A FILA DE PAGAR À MÃO, que é outra coisa da fila de cima: aqui ninguém travou, a
+	// linha está pendente e esperando a staff pagar. Ela existe desde que o saque
+	// automático saiu (decisão da Hanna, 25/09/2026).
+	FilaDePagamentoAMao(ctx context.Context, limite int) ([]store.PagamentoNaFila, error)
+	MarcarRepassePagoAMao(ctx context.Context, id int64, ator store.AtorDoAjuste, nota string) error
+	// ChaveParaPagar devolve a chave e o CPF inteiros e REGISTRA a leitura, na mesma
+	// transação. É por isso que ela é do store e não uma leitura qualquer da tela.
+	ChaveParaPagar(ctx context.Context, repasseID int64, ator store.AtorDoAjuste) (store.ChaveInteira, error)
 }
 
 // repasseView é uma linha da fila do jeito que a página mostra.
@@ -43,8 +52,22 @@ type repasseView struct {
 	Espera2 bool
 }
 
-// repasses mostra a fila.
+// repasses mostra as duas filas: a de quem travou e a de quem espera pagamento.
 func (h *Handler) repasses(w http.ResponseWriter, r *http.Request) {
+	h.renderRepasses(w, r, r.URL.Query().Get("aviso"), 0, store.ChaveInteira{})
+}
+
+// renderRepasses desenha a pagina.
+//
+// COMPARTILHADO com o clique que revela a chave, e é por isso que ele existe: aquele
+// responde renderizando, e não com redirect, para a chave não viajar na URL. Sem esta
+// função, o caminho da chave teria uma segunda cópia da montagem da página — e cópia é
+// como uma das duas deixa de mascarar.
+//
+// revelado é o id da linha cuja chave foi pedida (0 quando nenhuma).
+func (h *Handler) renderRepasses(w http.ResponseWriter, r *http.Request, aviso string,
+	revelado int64, chave store.ChaveInteira,
+) {
 	fila, err := h.cfg.Repasses.RepassesQuePrecisamDeGente(r.Context())
 	if err != nil {
 		h.cfg.Logger.Error("fila de repasses falhou", "err", err)
@@ -70,12 +93,31 @@ func (h *Handler) repasses(w http.ResponseWriter, r *http.Request) {
 		vistas = append(vistas, v)
 	}
 
+	pagar, err := h.filaDePagamento(r)
+	if err != nil {
+		h.cfg.Logger.Error("fila de pagamento falhou", "err", err)
+		http.Error(w, "Erro ao ler a fila de pagamento.", http.StatusInternalServerError)
+		return
+	}
+	// A CHAVE INTEIRA ENTRA NUMA LINHA SÓ, a que foi pedida. Preencher no laço evita o
+	// que seria o erro caro aqui: um campo da struct de linha que alguém mais tarde
+	// preenche para todas "porque já está lá".
+	if revelado != 0 {
+		for i := range pagar {
+			if pagar[i].ID == revelado {
+				pagar[i].Chave = chave.ChavePix
+				pagar[i].Doc = chave.Documento
+			}
+		}
+	}
+
 	h.render(w, "repasses.html", struct {
 		page
 		Fila     []repasseView
+		Pagar    []pagamentoView
 		Incertos int
 		Aviso    string
-	}{h.pageFor(r, "repasses"), vistas, incertos, r.URL.Query().Get("aviso")})
+	}{h.pageFor(r, "repasses"), vistas, pagar, incertos, aviso})
 }
 
 // emReais escreve os centavos como a pessoa lê.
