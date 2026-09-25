@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -22,11 +23,12 @@ type fakePainel struct {
 	erroLer  error
 
 	// Observado.
-	criados  []string
-	ativados map[int64]bool
-	senhas   []int64
-	erroCria error
-	erroAtiv error
+	criados    []string
+	ativados   map[int64]bool
+	senhas     []int64
+	erroCria   error
+	erroAtiv   error
+	erroEstado error
 }
 
 func novoFakePainel() *fakePainel {
@@ -106,6 +108,32 @@ func (f *fakePainel) DefinirAtivoDoPainel(_ context.Context, id int64, ativo boo
 	}
 	f.ativados[id] = ativo
 	return nil
+}
+
+func (f *fakePainel) EstadoDoUsuarioDoPainel(_ context.Context, id int64) (bool, string, error) {
+	if f.erroEstado != nil {
+		return false, "", f.erroEstado
+	}
+	for _, a := range f.porLogin {
+		if a.ID == id {
+			return a.Ativo, a.Papel, nil
+		}
+	}
+	return false, "", store.ErrNotFound
+}
+
+// desativa muda o estado JÁ com a sessão aberta, que é o cenário da revogação imediata.
+func (f *fakePainel) desativa(login string) {
+	a := f.porLogin[login]
+	a.Ativo = false
+	f.porLogin[login] = a
+}
+
+// rebaixa troca o papel com a sessão aberta.
+func (f *fakePainel) rebaixa(login, papel string) {
+	a := f.porLogin[login]
+	a.Papel = papel
+	f.porLogin[login] = a
 }
 
 func (f *fakePainel) TrocarSenhaDoPainel(_ context.Context, id int64, _ string) error {
@@ -252,4 +280,91 @@ func contaDeJogo(t *testing.T, nome, senha, papel string) *fakeAccounts {
 	acc := newFakeAccounts(papel)
 	acc.rows[nome] = store.AccountAuth{ID: 42, PassHash: h, Role: papel}
 	return acc
+}
+
+// DESATIVAR DERRUBA A SESSÃO ABERTA, no clique seguinte.
+//
+// Exigência da planejadora, e o caso que a motiva é concreto: a senha de alguém vazou e essa
+// pessoa JÁ está dentro. Uma sessão que só morresse no vencimento a deixaria administrando
+// por até duas horas depois de a decisão ter sido tomada — num painel que mexe em dinheiro e
+// em conta de gente.
+func TestDesativarDerrubaASessaoAberta(t *testing.T) {
+	f := novoFakePainel()
+	f.comUsuario(t, 7, "hanna", "uma-senha-bem-longa", roleAdmin, true)
+	h := painelComUsuarios(t, f, false)
+
+	entrada := postLogin(h, "hanna", "uma-senha-bem-longa")
+	cookie := sessionCookie(entrada)
+	if cookie == nil {
+		t.Fatal("nao entrou")
+	}
+	// Antes: a sessão abre uma página.
+	if res := pedeCom(t, h, "/", cookie); res.Code != http.StatusOK {
+		t.Fatalf("antes de desativar, a pagina deu %d", res.Code)
+	}
+
+	f.desativa("hanna")
+
+	res := pedeCom(t, h, "/", cookie)
+	if res.Code == http.StatusOK {
+		t.Error("a sessao continuou funcionando depois de o usuario ser desativado")
+	}
+	if res.Code != http.StatusSeeOther {
+		t.Errorf("codigo = %d, queria 303 para o login", res.Code)
+	}
+}
+
+// E REBAIXAR VALE NO CLIQUE SEGUINTE: o papel de AGORA manda, não o de quando entrou.
+//
+// Sem isto, rebaixar um admin para moderator deixaria a sessão aberta continuar abrindo as
+// telas de dinheiro até o vencimento.
+func TestRebaixarValeNoCliqueSeguinte(t *testing.T) {
+	f := novoFakePainel()
+	f.comUsuario(t, 7, "hanna", "uma-senha-bem-longa", roleAdmin, true)
+	h := painelComUsuarios(t, f, false)
+
+	cookie := sessionCookie(postLogin(h, "hanna", "uma-senha-bem-longa"))
+	if cookie == nil {
+		t.Fatal("nao entrou")
+	}
+	// Como admin, a tela de usuários do painel abre.
+	if res := pedeCom(t, h, "/usuarios-do-painel", cookie); res.Code != http.StatusOK {
+		t.Fatalf("como admin, a tela deu %d", res.Code)
+	}
+
+	f.rebaixa("hanna", roleModerator)
+
+	if res := pedeCom(t, h, "/usuarios-do-painel", cookie); res.Code == http.StatusOK {
+		t.Error("moderator abriu a tela de usuarios do painel, que e so de admin")
+	}
+}
+
+// FALHA NA LEITURA DO ESTADO DERRUBA, em vez de deixar passar com o papel guardado.
+//
+// Seguir adiante quando o banco não responde é exatamente o momento em que uma revogação
+// recente seria ignorada — e é o momento em que ninguém está olhando.
+func TestFalhaNaLeituraDoEstadoDerrubaASessao(t *testing.T) {
+	f := novoFakePainel()
+	f.comUsuario(t, 7, "hanna", "uma-senha-bem-longa", roleAdmin, true)
+	h := painelComUsuarios(t, f, false)
+
+	cookie := sessionCookie(postLogin(h, "hanna", "uma-senha-bem-longa"))
+	if cookie == nil {
+		t.Fatal("nao entrou")
+	}
+	f.erroEstado = errors.New("banco caiu")
+
+	if res := pedeCom(t, h, "/", cookie); res.Code == http.StatusOK {
+		t.Error("a sessao passou com a leitura do estado falhando")
+	}
+}
+
+// pedeCom faz um GET levando o cookie da sessão.
+func pedeCom(t *testing.T, h http.Handler, caminho string, c *http.Cookie) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, caminho, nil)
+	req.AddCookie(c)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec
 }

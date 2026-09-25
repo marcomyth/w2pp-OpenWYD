@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
 
@@ -95,7 +96,8 @@ ainda. Depois disso, use a tela Usuários do painel.
 	// último admin perder a senha, a saída seria mexer no banco à mão. E quem roda isto já
 	// tem shell na máquina e o DSN, ou seja, já pode tudo — a recusa não protegeria nada,
 	// só atrapalharia no pior momento.
-	if total > 0 {
+	painelJaMontado := total > 0
+	if painelJaMontado {
 		logger.Warn("já existem usuários do painel; este comando é para ambiente novo",
 			"total", total, "admins_ativos", adminsAtivos)
 	}
@@ -111,6 +113,36 @@ ainda. Depois disso, use a tela Usuários do painel.
 	// O LOG NÃO DIZ A SENHA nem o tamanho dela. Diz o que a pessoa precisa para conferir
 	// que deu certo, e nada que ajude quem estiver lendo o terminal por cima do ombro.
 	logger.Info("usuário do painel criado", "id", u.ID, "login", u.Login, "papel", u.Papel)
+
+	// COM O PAINEL JÁ MONTADO, ISTO VAI PARA A AUDITORIA, e não só para o aviso.
+	//
+	// Exigência da planejadora, e ela está certa: enquanto o ambiente está vazio este
+	// comando é o único caminho e não há painel para auditar. Depois disso, ele passa a ser
+	// uma porta lateral — alguém com shell na máquina dando acesso ao painel sem clicar em
+	// nada. Sem registro, essa porta é SILENCIOSA, e a auditoria estaria mentindo por
+	// omissão para quem fosse conferir depois quem deu acesso a quem.
+	//
+	// O ATOR É O USUÁRIO CRIADO, e não quem rodou o comando: a linha de comando não tem ator
+	// de painel para apontar, e o CHECK do banco exige exatamente um. Apontar para o
+	// recém-criado é o registro honesto do que aconteceu — "este usuário nasceu por fora da
+	// tela" —, e o nome da ação diz o resto.
+	if painelJaMontado {
+		if err := audit.New(pool).Write(ctx, audit.Record{
+			AtorPainelID: u.ID, ActorRole: u.Papel,
+			Action: audit.ActionPainelUsuarioCriadoPorLinhaDeComando,
+			New: map[string]any{
+				"painel_usuario": u.ID, "login": u.Login, "papel": u.Papel,
+				"usuarios_antes": total,
+			},
+		}); err != nil {
+			// O USUÁRIO JÁ EXISTE e a auditoria não. Erro visível, e não aviso de rodapé:
+			// num comando que dá acesso ao painel, a criação sem registro é justamente a que
+			// ninguém consegue explicar depois. Quem rodar vê o erro e pode registrar à mão;
+			// o silêncio não daria essa chance.
+			return fmt.Errorf("o usuário %q foi criado, mas a auditoria FALHOU — "+
+				"registre isto à mão e avise quem cuida do servidor: %w", u.Login, err)
+		}
+	}
 	fmt.Printf("Usuário %q criado como %s. Entre no painel e troque a senha.\n", u.Login, u.Papel)
 	return nil
 }

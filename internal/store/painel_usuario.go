@@ -264,3 +264,26 @@ func (s *Store) TrocarSenhaDoPainel(ctx context.Context, id int64, senha string)
 	}
 	return nil
 }
+
+// EstadoDoUsuarioDoPainel lê o que a autorização precisa reconferir a cada pedido.
+//
+// SEM O HASH DA SENHA, e é o ponto de existir separada da leitura do login: esta roda a
+// cada clique de cada pessoa, e um hash que viaja a cada pedido é um hash que um dia
+// aparece num log de depuração.
+//
+// EXISTE PARA A REVOGAÇÃO SER IMEDIATA. O caminho antigo relê cargo e bloqueio por pedido,
+// e o motivo é o caso que importa: desativar alguém cuja senha vazou e que JÁ está dentro.
+// Uma sessão que só morre no vencimento deixaria essa pessoa administrando por até duas
+// horas depois de a decisão ter sido tomada. Num painel de meia dúzia de usuários, uma
+// leitura por pedido não custa nada.
+func (s *Store) EstadoDoUsuarioDoPainel(ctx context.Context, id int64) (ativo bool, papel string, err error) {
+	err = s.pool.QueryRow(ctx,
+		`SELECT ativo, papel FROM painel_usuario WHERE id = $1`, id).Scan(&ativo, &papel)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, "", ErrNotFound
+	}
+	if err != nil {
+		return false, "", fmt.Errorf("store: lendo o estado do usuario de painel %d: %w", id, err)
+	}
+	return ativo, papel, nil
+}

@@ -82,6 +82,8 @@ type Accounts interface {
 type UsuariosDoPainel interface {
 	UsuarioDoPainelPorLogin(ctx context.Context, login string) (store.AutenticacaoDoPainel, error)
 	ExisteUsuarioDoPainel(ctx context.Context, login string) (bool, error)
+	// EstadoDoUsuarioDoPainel é relido a CADA pedido, para a revogação ser imediata.
+	EstadoDoUsuarioDoPainel(ctx context.Context, id int64) (ativo bool, papel string, err error)
 	ListarUsuariosDoPainel(ctx context.Context) ([]store.UsuarioDoPainel, error)
 	ContarUsuariosDoPainel(ctx context.Context) (total, adminsAtivos int, err error)
 	CriarUsuarioDoPainel(ctx context.Context, login, senha, papel string, criadoPor *int64) (store.UsuarioDoPainel, error)
@@ -516,7 +518,11 @@ func (h *Handler) Routes() http.Handler {
 	}
 	// /rates entra na primeira aba que existe.
 	if destino := primeiraAbaDeRates(h.cfg); destino != "" {
-		mux.Handle("GET /rates", h.requireStaff(http.RedirectHandler(destino, http.StatusFound)))
+		// ADMIN e não staff, para casar com o destino. Todas as abas por trás deste
+		// redirecionamento já pedem admin, então um moderator só chegava a um desvio que
+		// terminava em recusa — ele descobria que não podia depois de ser mandado para
+		// outra página. Não tira nada de ninguém: alinha a porta com o que há atrás dela.
+		mux.Handle("GET /rates", h.requireStaff(h.onlyAdmin(http.RedirectHandler(destino, http.StatusFound))))
 	}
 	if h.cfg.Trocas != nil {
 		mux.Handle("GET /trocas", h.requireStaff(http.HandlerFunc(h.trocas)))
@@ -1343,6 +1349,37 @@ func (h *Handler) requireStaff(next http.Handler) http.Handler {
 		// o contrário custaria uma ida ao banco por PEDIDO — e porque desativar quem já
 		// está dentro é caso raro, enquanto o clique é constante.
 		if sess.EhDoPainel() {
+			// O ESTADO É RELIDO A CADA PEDIDO, e não é zelo: o caso que importa é
+			// desativar alguém cuja senha vazou e que JÁ está dentro. Uma sessão que só
+			// morresse no vencimento deixaria essa pessoa administrando por até duas horas
+			// depois de a decisão ter sido tomada. Num painel de meia dúzia de usuários,
+			// uma leitura por pedido não custa nada — e é o que o caminho antigo já faz
+			// com o cargo e o bloqueio da conta de jogo.
+			ativo, papel, err := h.cfg.Painel.EstadoDoUsuarioDoPainel(r.Context(), sess.PainelUsuarioID)
+			if err != nil {
+				// Inclui ErrNotFound: usuário apagado no meio da sessão não administra.
+				// E FALHA DE LEITURA TAMBÉM DERRUBA, em vez de deixar passar com o papel
+				// guardado: seguir adiante quando o banco não responde é exatamente o
+				// momento em que uma revogação recente seria ignorada.
+				h.cfg.Logger.Warn("sessao de painel: leitura do estado falhou; encerrando",
+					"usuario", sess.AccountName, "id", sess.PainelUsuarioID, "err", err)
+				h.cfg.Sessions.Delete(token)
+				h.clearCookie(w)
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				return
+			}
+			if !ativo {
+				h.cfg.Logger.Info("sessao encerrada: usuario de painel desativado",
+					"usuario", sess.AccountName, "id", sess.PainelUsuarioID)
+				h.cfg.Sessions.Delete(token)
+				h.clearCookie(w)
+				http.Redirect(w, r, "/login?erro=Seu+acesso+foi+revogado.", http.StatusSeeOther)
+				return
+			}
+			// O PAPEL DE AGORA MANDA, e não o de quando a pessoa entrou. Rebaixar um admin
+			// para moderator tem de valer no clique seguinte, senão a sessão aberta
+			// continua abrindo as telas de dinheiro.
+			sess.PainelPapel = papel
 			if !isStaff(sess.PainelPapel) {
 				// Papel que este código não conhece NÃO vira acesso. Só acontece se
 				// alguém escrever direto no banco, e aí a resposta certa é a porta
