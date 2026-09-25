@@ -497,6 +497,11 @@ message LoadCharacterResponse { Character character = 1; }
 message SaveCharacterRequest {
   int64 account_id = 1;
   Character character = 2;
+  // A mesma dupla de ordem do par, e pelo mesmo motivo: um save velho so do
+  // personagem passa por cima do par novo do mesmo jeito. As duas formas de gravar
+  // conferem as MESMAS colunas da conta, entao compartilham uma ordem so.
+  int64 par_epoca = 3;
+  int64 par_seq = 4;
 }
 message SaveCharacterResponse { bool ok = 1; }
 

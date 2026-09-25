@@ -102,3 +102,125 @@ func TestEpocaDoBancoSobe(t *testing.T) {
 		t.Errorf("épocas %d e %d: a segunda tem de ser maior", primeira, segunda)
 	}
 }
+
+// TestDeployComSobreposicaoNaoPerdeOSaveDoVelho é o cenário do deploy, e é o que
+// sustenta a época vir do boot.
+//
+// O container novo sobe e pega uma época maior, mas isso NÃO escreve nada em conta
+// nenhuma: a época é comparada contra a que está gravada na LINHA DA CONTA. Então o
+// save final do container velho, de um jogador que nunca chegou a logar no novo,
+// passa. Perder esse save seria perder tudo desde o último save, a cada deploy, e
+// em silêncio.
+func TestDeployComSobreposicaoNaoPerdeOSaveDoVelho(t *testing.T) {
+	s, ctx := freshStore(t)
+	conta := contaComPersonagem(ctx, t, s, "deploy_sobrepoe", 0, 0)
+	const velho, novo = int64(5), int64(6)
+
+	// O container velho vinha gravando esta conta.
+	if err := s.SalvarPersonagemComCarga(ctx, conta,
+		personagemDoPar("deploy_sobrepoe_p", 100, nil), 0, nil, nil, nil, velho, 40); err != nil {
+		t.Fatal(err)
+	}
+	// O novo subiu (época 6) e NÃO tocou nesta conta: o jogador continua no velho.
+	// O save de desligamento do velho chega agora.
+	if err := s.SalvarPersonagemComCarga(ctx, conta,
+		personagemDoPar("deploy_sobrepoe_p", 999, nil), 0, nil, nil, nil, velho, 41); err != nil {
+		t.Fatalf("o save final do container velho foi recusado: %v", err)
+	}
+	if p, _ := leOuro(ctx, t, s, conta); p != 999 {
+		t.Errorf("ouro = %d, queria 999 — o save do velho tinha de passar", p)
+	}
+	_ = novo
+}
+
+// TestSessaoNovaGanhaDaVelhaAtrasada: depois que a sessão nova gravou, o par
+// atrasado da velha é recusado e o que a nova pôs continua lá.
+func TestSessaoNovaGanhaDaVelhaAtrasada(t *testing.T) {
+	s, ctx := freshStore(t)
+	const item = int16(4321)
+	conta := contaComPersonagem(ctx, t, s, "sessao_nova", 0, 0)
+
+	// A sessão velha, época 5.
+	if err := s.SalvarPersonagemComCarga(ctx, conta,
+		personagemDoPar("sessao_nova_p", 10, nil), 0, nil, nil, nil, 5, 100); err != nil {
+		t.Fatal(err)
+	}
+	// A nova, época 6, põe o item na carga.
+	if err := s.SalvarPersonagemComCarga(ctx, conta,
+		personagemDoPar("sessao_nova_p", 20, nil),
+		50, []domain.Item{{Slot: 0, Index: item}}, nil, nil, 6, 1); err != nil {
+		t.Fatal(err)
+	}
+	// O par atrasado da velha chega depois.
+	if err := s.SalvarPersonagemComCarga(ctx, conta,
+		personagemDoPar("sessao_nova_p", 10, nil), 0, nil, nil, nil, 5, 101); !errors.Is(err, ErrParVelho) {
+		t.Fatalf("erro = %v, queria ErrParVelho", err)
+	}
+	p, c := leOuro(ctx, t, s, conta)
+	if p != 20 || c != 50 {
+		t.Errorf("personagem %d, carga %d; queria 20 e 50", p, c)
+	}
+	if n := contaItens(ctx, t, s, conta, item); n != 1 {
+		t.Errorf("o item da sessão nova existe %d vezes, queria 1", n)
+	}
+}
+
+// TestCargaSozinhaNaoCarimbaAOrdem é a regra que mantém o deploy seguro.
+//
+// O container novo drena uma entrega para uma conta que ELE acha offline, porque o
+// personagem está no container velho. Se essa gravação carimbasse a época dele na
+// conta, roubaria a conta de quem ainda está jogando, e o save de saída do velho
+// seria recusado — em silêncio, que é o pior jeito.
+func TestCargaSozinhaNaoCarimbaAOrdem(t *testing.T) {
+	s, ctx := freshStore(t)
+	conta := contaComPersonagem(ctx, t, s, "carga_nao_carimba", 0, 0)
+
+	if err := s.SalvarPersonagemComCarga(ctx, conta,
+		personagemDoPar("carga_nao_carimba_p", 100, nil), 0, nil, nil, nil, 5, 40); err != nil {
+		t.Fatal(err)
+	}
+	// A carga sozinha, vinda do container novo.
+	if err := s.SaveCargoWithDeliveries(ctx, conta, 777, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	var epoca, seq int64
+	if err := s.pool.QueryRow(ctx,
+		`SELECT par_epoca, par_seq FROM account WHERE id = $1`, conta).Scan(&epoca, &seq); err != nil {
+		t.Fatal(err)
+	}
+	if epoca != 5 || seq != 40 {
+		t.Errorf("a carga sozinha carimbou a ordem: (%d, %d), queria (5, 40)", epoca, seq)
+	}
+	// E o save do container velho continua passando depois dela.
+	if err := s.SalvarPersonagemComCarga(ctx, conta,
+		personagemDoPar("carga_nao_carimba_p", 999, nil), 0, nil, nil, nil, 5, 41); err != nil {
+		t.Fatalf("o save do velho foi recusado depois da carga sozinha: %v", err)
+	}
+}
+
+// TestSavePersonagemSozinhoRespeitaAOrdem: um save velho só do personagem passa por
+// cima do par novo do mesmo jeito, então ele confere as MESMAS colunas.
+func TestSavePersonagemSozinhoRespeitaAOrdem(t *testing.T) {
+	s, ctx := freshStore(t)
+	conta := contaComPersonagem(ctx, t, s, "so_personagem", 0, 0)
+
+	if err := s.SalvarPersonagemComCarga(ctx, conta,
+		personagemDoPar("so_personagem_p", 500, nil), 0, nil, nil, nil, 7, 30); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SalvarPersonagemOrdenado(ctx, conta,
+		personagemDoPar("so_personagem_p", 1, nil), 7, 29); !errors.Is(err, ErrParVelho) {
+		t.Fatalf("erro = %v, queria ErrParVelho", err)
+	}
+	if p, _ := leOuro(ctx, t, s, conta); p != 500 {
+		t.Errorf("ouro = %d, queria 500 — o save velho de personagem passou por cima", p)
+	}
+	// E o mais novo passa.
+	if err := s.SalvarPersonagemOrdenado(ctx, conta,
+		personagemDoPar("so_personagem_p", 900, nil), 7, 31); err != nil {
+		t.Fatal(err)
+	}
+	if p, _ := leOuro(ctx, t, s, conta); p != 900 {
+		t.Errorf("ouro = %d, queria 900", p)
+	}
+}

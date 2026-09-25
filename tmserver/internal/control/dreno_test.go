@@ -23,7 +23,7 @@ type bancoQueRecusa struct {
 	world.NopPersistence
 }
 
-func (bancoQueRecusa) SaveOnShutdown(context.Context, world.CharacterSave) error {
+func (bancoQueRecusa) SaveOnShutdown(context.Context, world.CharacterSave, int64, int64) error {
 	return errors.New("o banco recusou")
 }
 

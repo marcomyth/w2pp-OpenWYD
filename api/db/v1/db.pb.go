@@ -1682,9 +1682,14 @@ func (x *LoadCharacterResponse) GetCharacter() *Character {
 }
 
 type SaveCharacterRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	Character     *Character             `protobuf:"bytes,2,opt,name=character,proto3" json:"character,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	AccountId int64                  `protobuf:"varint,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Character *Character             `protobuf:"bytes,2,opt,name=character,proto3" json:"character,omitempty"`
+	// A mesma dupla de ordem do par, e pelo mesmo motivo: um save velho so do
+	// personagem passa por cima do par novo do mesmo jeito. As duas formas de gravar
+	// conferem as MESMAS colunas da conta, entao compartilham uma ordem so.
+	ParEpoca      int64 `protobuf:"varint,3,opt,name=par_epoca,json=parEpoca,proto3" json:"par_epoca,omitempty"`
+	ParSeq        int64 `protobuf:"varint,4,opt,name=par_seq,json=parSeq,proto3" json:"par_seq,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1731,6 +1736,20 @@ func (x *SaveCharacterRequest) GetCharacter() *Character {
 		return x.Character
 	}
 	return nil
+}
+
+func (x *SaveCharacterRequest) GetParEpoca() int64 {
+	if x != nil {
+		return x.ParEpoca
+	}
+	return 0
+}
+
+func (x *SaveCharacterRequest) GetParSeq() int64 {
+	if x != nil {
+		return x.ParSeq
+	}
+	return 0
 }
 
 type SaveCharacterResponse struct {
@@ -13962,11 +13981,13 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x05level\x18\x03 \x01(\x05R\x05level\x12\x12\n" +
 	"\x04time\x18\x04 \x01(\rR\x04time\"G\n" +
 	"\x15LoadCharacterResponse\x12.\n" +
-	"\tcharacter\x18\x01 \x01(\v2\x10.db.v1.CharacterR\tcharacter\"e\n" +
+	"\tcharacter\x18\x01 \x01(\v2\x10.db.v1.CharacterR\tcharacter\"\x9b\x01\n" +
 	"\x14SaveCharacterRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12.\n" +
-	"\tcharacter\x18\x02 \x01(\v2\x10.db.v1.CharacterR\tcharacter\"'\n" +
+	"\tcharacter\x18\x02 \x01(\v2\x10.db.v1.CharacterR\tcharacter\x12\x1b\n" +
+	"\tpar_epoca\x18\x03 \x01(\x03R\bparEpoca\x12\x17\n" +
+	"\apar_seq\x18\x04 \x01(\x03R\x06parSeq\"'\n" +
 	"\x15SaveCharacterResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\"\x17\n" +
 	"\x15NovaEpocaDeParRequest\".\n" +

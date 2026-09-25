@@ -131,7 +131,7 @@ type drainSave struct {
 	lost      []int64
 }
 
-func (f *fakeDB) SaveOnShutdown(_ context.Context, save world.CharacterSave) error {
+func (f *fakeDB) SaveOnShutdown(_ context.Context, save world.CharacterSave, _, _ int64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.saveErr != nil {

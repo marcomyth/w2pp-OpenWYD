@@ -456,7 +456,10 @@ type CastleQuestState struct {
 // DeleteCharacter/LoadCharacter are called OFF the loop via World.Go (blocking
 // I/O); SaveOnShutdown is called inline during the shutdown drain.
 type Persistence interface {
-	SaveOnShutdown(ctx context.Context, save CharacterSave) error
+	// epoca e seq ordenam esta gravação contra as outras da mesma conta, do mesmo
+	// jeito que ordenam o par: um save velho só do personagem passa por cima do par
+	// novo se ninguém conferir. Zero desliga a guarda.
+	SaveOnShutdown(ctx context.Context, save CharacterSave, epoca, seq int64) error
 	QuoteKingdomCape(ctx context.Context) (KingdomCapeQuote, error)
 	PurchaseKingdomCape(ctx context.Context, expectedRevision int64, kingdom uint8, save CharacterSave) (KingdomCapeQuote, bool, error)
 	AccountLogin(ctx context.Context, name, password string) (LoginOutcome, error)
@@ -638,7 +641,9 @@ var errNoPersistence = errors.New("world: no persistence backend configured")
 type NopPersistence struct{}
 
 // SaveOnShutdown does nothing.
-func (NopPersistence) SaveOnShutdown(context.Context, CharacterSave) error { return nil }
+func (NopPersistence) SaveOnShutdown(context.Context, CharacterSave, int64, int64) error {
+	return nil
+}
 
 // QuoteKingdomCape returns the balanced development price without persistence.
 func (NopPersistence) QuoteKingdomCape(context.Context) (KingdomCapeQuote, error) {

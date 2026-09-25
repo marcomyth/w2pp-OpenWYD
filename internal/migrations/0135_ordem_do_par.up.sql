@@ -25,6 +25,19 @@ ALTER TABLE account
   ADD COLUMN par_epoca BIGINT NOT NULL DEFAULT 0,
   ADD COLUMN par_seq   BIGINT NOT NULL DEFAULT 0;
 
+-- SÓ O PAR E O SAVE DE PERSONAGEM CARIMBAM ESTAS COLUNAS. A gravação de carga
+-- SOZINHA não encosta nelas, e isso é regra, não detalhe.
+--
+-- O motivo é o deploy com sobreposição. A época é comparada contra a que está
+-- GRAVADA NA LINHA DA CONTA, e não contra a época do processo: o container novo
+-- pegar um número maior no boot não escreve nada em conta nenhuma, então o save
+-- final do container velho ainda passa. Isso só continua verdade enquanto nenhuma
+-- escrita do container novo carimbar a conta de alguém que ainda está jogando no
+-- velho — e o candidato óbvio é a carga sozinha: o container novo drena uma entrega
+-- para uma conta que ELE acha offline, porque o personagem está do outro lado.
+-- Carimbar ali roubaria a conta de quem ainda está jogando, e o save de saída dele
+-- seria recusado em silêncio.
+
 COMMENT ON COLUMN account.par_epoca IS
   'Epoca (boot do tmServer) do ultimo par personagem+carga gravado. Ver par_seq.';
 COMMENT ON COLUMN account.par_seq IS

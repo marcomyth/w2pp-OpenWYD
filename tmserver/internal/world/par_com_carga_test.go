@@ -46,7 +46,7 @@ func (c *capturaPar) SaveCargoWithDeliveries(context.Context, CargoSave, []int64
 	return nil
 }
 
-func (c *capturaPar) SaveOnShutdown(context.Context, CharacterSave) error {
+func (c *capturaPar) SaveOnShutdown(context.Context, CharacterSave, int64, int64) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.soPessoa++

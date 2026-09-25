@@ -290,10 +290,12 @@ func (c *Client) LoadCharacter(ctx context.Context, accountID int64, slot int) (
 }
 
 // SaveOnShutdown persists the world's snapshot of a character.
-func (c *Client) SaveOnShutdown(ctx context.Context, save world.CharacterSave) error {
+func (c *Client) SaveOnShutdown(ctx context.Context, save world.CharacterSave, epoca, seq int64) error {
 	_, err := c.api.SaveCharacter(ctx, &dbv1.SaveCharacterRequest{
 		AccountId: save.AccountID,
 		Character: characterSaveToProto(save),
+		ParEpoca:  epoca,
+		ParSeq:    seq,
 	})
 	if err != nil {
 		return fmt.Errorf("dbclient: save character: %w", err)

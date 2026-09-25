@@ -190,7 +190,8 @@ func (f *fakeStore) SalvarPersonagemComCarga(_ context.Context, _ int64, ch doma
 	return f.saveResult
 }
 
-func (f *fakeStore) SaveCharacter(_ context.Context, _ int64, ch domain.Character) error {
+func (f *fakeStore) SalvarPersonagemOrdenado(_ context.Context, _ int64, ch domain.Character, epoca, seq int64) error {
+	f.parEpoca, f.parSeq = epoca, seq
 	if f.saveErr != nil {
 		return f.saveErr
 	}

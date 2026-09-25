@@ -528,10 +528,13 @@ func (w *World) shutdown() {
 // só o personagem é seguro: não há carga em jogo para discordar dele. Loop-only.
 func (w *World) parDeSalvamento(s *Session) (personagem CharacterSave, carga CargoSave, unacked []int64, temCarga bool, seq int64) {
 	personagem = w.characterSave(s)
+	// O NÚMERO SAI MESMO SEM CARGA. O save só do personagem entra na MESMA ordem:
+	// um velho dele passa por cima do par novo do mesmo jeito.
+	seq = w.proximoNumeroDePar()
 	if s.AccountID == 0 || w.cargo[s.AccountID] == nil {
-		return personagem, CargoSave{}, nil, false, 0
+		return personagem, CargoSave{}, nil, false, seq
 	}
-	return personagem, w.cargoSave(s.AccountID), append([]int64(nil), w.deliveryUnacked[s.AccountID]...), true, w.proximoNumeroDePar()
+	return personagem, w.cargoSave(s.AccountID), append([]int64(nil), w.deliveryUnacked[s.AccountID]...), true, seq
 }
 
 // proximoNumeroDePar numera o par no MOMENTO em que o instantâneo é tirado, e não
@@ -557,7 +560,7 @@ func SalvarPar(ctx context.Context, p Persistence, personagem CharacterSave, car
 	temCarga bool, unacked []int64, epoca, seq int64,
 ) error {
 	if !temCarga {
-		return p.SaveOnShutdown(ctx, personagem)
+		return p.SaveOnShutdown(ctx, personagem, epoca, seq)
 	}
 	return p.SalvarPersonagemComCarga(ctx, personagem, carga, unacked, nil, epoca, seq)
 }
@@ -591,10 +594,11 @@ func (w *World) SalvarEncenadoComCarga(s *Session, personagem CharacterSave, dep
 // não pode usar o SalvarEncenadoComCarga; junto com SalvarPar e EsqueceEntregues,
 // dá a mesma garantia. Loop-only.
 func (w *World) CargaParaOPar(accountID int64) (CargoSave, []int64, bool, int64) {
+	seq := w.proximoNumeroDePar()
 	if accountID == 0 || w.cargo[accountID] == nil {
-		return CargoSave{}, nil, false, 0
+		return CargoSave{}, nil, false, seq
 	}
-	return w.cargoSave(accountID), append([]int64(nil), w.deliveryUnacked[accountID]...), true, w.proximoNumeroDePar()
+	return w.cargoSave(accountID), append([]int64(nil), w.deliveryUnacked[accountID]...), true, seq
 }
 
 // SaveCharacterAsync persists an in-play character's live state (Carry/Coin/stats)
