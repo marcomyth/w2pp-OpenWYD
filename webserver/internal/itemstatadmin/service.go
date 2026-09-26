@@ -20,6 +20,8 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/itemeffect"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemcatalog"
+
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/painelator"
 )
 
 // Store is the persistence surface the service needs (satisfied by *store.Store).
@@ -155,6 +157,19 @@ func (s *Service) lookup(itemIndex int32) (itemcatalog.Entry, bool) {
 // service is reachable by any client of the web API, so the check belongs here
 // as well rather than only at the edge.
 func (s *Service) authorize(ctx context.Context, moderatorID int64) (Result, error) {
+	// O PAINEL PRIMEIRO, quando não há conta de jogo. Este serviço não tinha a guarda
+	// de `moderatorID <= 0` dos outros sete: ele ia direto ao banco procurar a conta
+	// zero, não achava e caía em Forbidden pelo ErrNotFound. O sintoma era o mesmo, o
+	// caminho não — e é por isso que ele não apareceu na primeira varredura.
+	if moderatorID <= 0 {
+		if pode, doPainel := painelator.AutorizaPeloPainel(ctx); doPainel {
+			if !pode {
+				return Forbidden, nil
+			}
+			return OK, nil
+		}
+		return Forbidden, nil
+	}
 	role, err := s.store.AccountRole(ctx, moderatorID)
 	if errors.Is(err, store.ErrNotFound) {
 		return Forbidden, nil
