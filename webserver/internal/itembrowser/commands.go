@@ -224,9 +224,17 @@ func CommandReference() CommandBus {
 			},
 			{
 				Name: "recarregar", Aliases: []string{"reloadnpc"}, Args: "", Target: "mundo",
-				Summary: "Relê do banco as chaves dos blocos e o painel de NPCs, e repõe o que falta em cada bloco.",
+				Summary: "Relê do banco as chaves dos blocos, as receitas de bloco e o painel de NPCs, e repõe o que falta em cada bloco.",
 				Notes: []string{
 					"O \"reloadnpc\" do legado relia o NPCGener.txt; aqui o arquivo vem na imagem do deploy, então o que se recarrega é o banco.",
+				},
+			},
+			{
+				Name: "renovar", Aliases: []string{"renew"}, Args: "<bloco>", Target: "mundo",
+				Summary: "Tira os mobs vivos do bloco e gera de novo pela receita que ele tem agora.",
+				Notes: []string{
+					"Receita mudada no painel (/blocos) vale para quem nascer depois; os que já estão no mapa ficam até morrer. Renovar troca os vivos na hora.",
+					"Recusa bloco desligado, NPC do painel e bloco de evento ou masmorra — esses quem gera é o evento.",
 				},
 			},
 			{

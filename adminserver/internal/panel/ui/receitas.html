@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<title>Zonas de caça — Painel OpenWYD</title>
+{{template "head" .}}
+<style>
+  form.abrir {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin: 0 0 22px;
+  }
+  form.abrir label {
+    display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 4px;
+  }
+  form.abrir input {
+    width: 110px; box-sizing: border-box; padding: 7px 9px; font: inherit; font-size: 13.5px;
+    color: var(--ink); background: var(--ground); border: 1px solid var(--rule); border-radius: 3px;
+  }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .marca {
+    font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 9px; white-space: nowrap;
+    color: var(--ink-2); background: var(--chip-bg);
+  }
+  .de { color: var(--ink-3); font-size: 12.5px; }
+  td.quando { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.mudanca { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
+  td.mudanca .de { color: var(--ink-3); }
+  .acao {
+    font-size: 11px; letter-spacing: .06em; font-family: ui-monospace, Consolas, monospace;
+    color: var(--ink); background: var(--chip-bg); padding: 2px 6px; border-radius: 3px;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+{{template "topbar" .}}
+
+<main>
+  <h1>Zonas de caça</h1>
+  <p class="sub">
+    Quem nasce em cada bloco do NPCGener, quantos e onde. Uma receita gravada aqui
+    <strong>substitui</strong> o que o arquivo diz daquele bloco; apagar a receita
+    devolve o bloco ao arquivo. Blocos novos, que o arquivo não tem, ficam do
+    {{.Base}} para cima.
+  </p>
+
+  {{template "quando-vale" "segundos"}}
+  <p class="sub">
+    A receita nova vale para quem <strong>nascer</strong> depois; os monstros que já
+    estão no mapa ficam até morrer. Para trocar os vivos na hora, marque
+    <em>trocar os vivos agora</em> ao gravar.
+  </p>
+
+  {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
+
+  <form class="abrir" method="get" action="/blocos/receita">
+    <div>
+      <label for="r-bloco">Abrir o bloco</label>
+      <input id="r-bloco" name="bloco" inputmode="numeric" placeholder="0 a {{.Arquivo}}">
+    </div>
+    <div><button type="submit">Abrir</button></div>
+  </form>
+  {{if .IsAdmin}}
+  <form class="abrir" method="get" action="/blocos/receita">
+    <input type="hidden" name="novo" value="1">
+    <div>
+      <label for="r-de">Copiar do bloco (opcional)</label>
+      <input id="r-de" name="de" inputmode="numeric" placeholder="nº">
+    </div>
+    <div><button type="submit" class="principal">Criar bloco novo</button></div>
+  </form>
+  {{end}}
+
+  <div class="caixa">
+    <h2>Blocos com receita no banco</h2>
+    {{if .Linhas}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th class="num">Bloco</th><th>Líder</th><th>Seguidor</th>
+            <th class="num">Teto</th><th class="num">Onde nasce</th><th>Nota</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Linhas}}
+          <tr>
+            <td class="num"><a href="/blocos/receita?bloco={{.Bloco}}">#{{.Bloco}}</a></td>
+            <td>
+              {{.Leader}}
+              {{if .Novo}}<span class="marca" title="O arquivo não tem este bloco: ele só existe no banco">novo</span>{{end}}
+              {{if .Arquivo}}<div class="de">no arquivo: {{.Arquivo}}</div>{{end}}
+            </td>
+            <td>{{if .Follower}}{{.Follower}}{{else}}—{{end}}</td>
+            <td class="num">{{.Vivos}}</td>
+            <td class="num">{{.X}}, {{.Y}}</td>
+            <td>{{.Nota}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="vazio">Nenhum bloco mexido: todos nascem como o NPCGener diz.</div>
+    {{end}}
+  </div>
+
+  <div class="caixa">
+    <h2>Histórico</h2>
+    {{if .Historico}}
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th>Quando</th><th>Quem</th><th>Ação</th><th>Mudança</th></tr>
+        </thead>
+        <tbody>
+          {{range .Historico}}
+          <tr>
+            <td class="quando">{{.CreatedAt.Format "02/01 15:04"}}</td>
+            <td>
+              {{if .ActorName}}{{.ActorName}}{{else}}conta {{.ActorID}}{{end}}
+              <span class="cargo">{{.ActorRole}}</span>
+            </td>
+            <td><span class="acao" title="{{.Action}}">{{.Rotulo}}</span></td>
+            <td class="mudanca">
+              {{if .Old}}<span class="de">{{.Old}}</span> &rarr; {{end}}
+              {{if .New}}{{.New}}{{else if not .Old}}—{{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="vazio">Nenhuma receita foi gravada ainda.</div>
+    {{end}}
+  </div>
+</main>
+</body>
+</html>

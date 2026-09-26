@@ -5038,6 +5038,164 @@ var NpcGeneratorService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	NpcRecipeService_GeneratorRecipeVersion_FullMethodName = "/db.v1.NpcRecipeService/GeneratorRecipeVersion"
+	NpcRecipeService_GetGeneratorRecipes_FullMethodName    = "/db.v1.NpcRecipeService/GetGeneratorRecipes"
+)
+
+// NpcRecipeServiceClient is the client API for NpcRecipeService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// NpcRecipeService serves the block recipes kept in the database
+// (0165_receita_de_bloco) to tmServer: a row replaces what NPCGener.txt says for
+// one block, and a block from 20000 up exists only there. POLLED like
+// NpcGeneratorService, so a zone edited in the panel lands without a restart.
+// Read-only here: the panel writes the table directly.
+type NpcRecipeServiceClient interface {
+	// GeneratorRecipeVersion returns the monotonic version. Asked every few seconds.
+	GeneratorRecipeVersion(ctx context.Context, in *GeneratorRecipeVersionRequest, opts ...grpc.CallOption) (*GeneratorRecipeVersionResponse, error)
+	// GetGeneratorRecipes returns every block with a recipe in the database. Blocks
+	// absent from the reply spawn as the file says.
+	GetGeneratorRecipes(ctx context.Context, in *GetGeneratorRecipesRequest, opts ...grpc.CallOption) (*GetGeneratorRecipesResponse, error)
+}
+
+type npcRecipeServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewNpcRecipeServiceClient(cc grpc.ClientConnInterface) NpcRecipeServiceClient {
+	return &npcRecipeServiceClient{cc}
+}
+
+func (c *npcRecipeServiceClient) GeneratorRecipeVersion(ctx context.Context, in *GeneratorRecipeVersionRequest, opts ...grpc.CallOption) (*GeneratorRecipeVersionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GeneratorRecipeVersionResponse)
+	err := c.cc.Invoke(ctx, NpcRecipeService_GeneratorRecipeVersion_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *npcRecipeServiceClient) GetGeneratorRecipes(ctx context.Context, in *GetGeneratorRecipesRequest, opts ...grpc.CallOption) (*GetGeneratorRecipesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGeneratorRecipesResponse)
+	err := c.cc.Invoke(ctx, NpcRecipeService_GetGeneratorRecipes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// NpcRecipeServiceServer is the server API for NpcRecipeService service.
+// All implementations must embed UnimplementedNpcRecipeServiceServer
+// for forward compatibility.
+//
+// NpcRecipeService serves the block recipes kept in the database
+// (0165_receita_de_bloco) to tmServer: a row replaces what NPCGener.txt says for
+// one block, and a block from 20000 up exists only there. POLLED like
+// NpcGeneratorService, so a zone edited in the panel lands without a restart.
+// Read-only here: the panel writes the table directly.
+type NpcRecipeServiceServer interface {
+	// GeneratorRecipeVersion returns the monotonic version. Asked every few seconds.
+	GeneratorRecipeVersion(context.Context, *GeneratorRecipeVersionRequest) (*GeneratorRecipeVersionResponse, error)
+	// GetGeneratorRecipes returns every block with a recipe in the database. Blocks
+	// absent from the reply spawn as the file says.
+	GetGeneratorRecipes(context.Context, *GetGeneratorRecipesRequest) (*GetGeneratorRecipesResponse, error)
+	mustEmbedUnimplementedNpcRecipeServiceServer()
+}
+
+// UnimplementedNpcRecipeServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedNpcRecipeServiceServer struct{}
+
+func (UnimplementedNpcRecipeServiceServer) GeneratorRecipeVersion(context.Context, *GeneratorRecipeVersionRequest) (*GeneratorRecipeVersionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GeneratorRecipeVersion not implemented")
+}
+func (UnimplementedNpcRecipeServiceServer) GetGeneratorRecipes(context.Context, *GetGeneratorRecipesRequest) (*GetGeneratorRecipesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGeneratorRecipes not implemented")
+}
+func (UnimplementedNpcRecipeServiceServer) mustEmbedUnimplementedNpcRecipeServiceServer() {}
+func (UnimplementedNpcRecipeServiceServer) testEmbeddedByValue()                          {}
+
+// UnsafeNpcRecipeServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to NpcRecipeServiceServer will
+// result in compilation errors.
+type UnsafeNpcRecipeServiceServer interface {
+	mustEmbedUnimplementedNpcRecipeServiceServer()
+}
+
+func RegisterNpcRecipeServiceServer(s grpc.ServiceRegistrar, srv NpcRecipeServiceServer) {
+	// If the following call panics, it indicates UnimplementedNpcRecipeServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&NpcRecipeService_ServiceDesc, srv)
+}
+
+func _NpcRecipeService_GeneratorRecipeVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GeneratorRecipeVersionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NpcRecipeServiceServer).GeneratorRecipeVersion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NpcRecipeService_GeneratorRecipeVersion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NpcRecipeServiceServer).GeneratorRecipeVersion(ctx, req.(*GeneratorRecipeVersionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NpcRecipeService_GetGeneratorRecipes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGeneratorRecipesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NpcRecipeServiceServer).GetGeneratorRecipes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NpcRecipeService_GetGeneratorRecipes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NpcRecipeServiceServer).GetGeneratorRecipes(ctx, req.(*GetGeneratorRecipesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// NpcRecipeService_ServiceDesc is the grpc.ServiceDesc for NpcRecipeService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var NpcRecipeService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "db.v1.NpcRecipeService",
+	HandlerType: (*NpcRecipeServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GeneratorRecipeVersion",
+			Handler:    _NpcRecipeService_GeneratorRecipeVersion_Handler,
+		},
+		{
+			MethodName: "GetGeneratorRecipes",
+			Handler:    _NpcRecipeService_GetGeneratorRecipes_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/db/v1/db.proto",
+}
+
+const (
 	DropRuleService_DropRuleVersion_FullMethodName = "/db.v1.DropRuleService/DropRuleVersion"
 	DropRuleService_ListDropRules_FullMethodName   = "/db.v1.DropRuleService/ListDropRules"
 )

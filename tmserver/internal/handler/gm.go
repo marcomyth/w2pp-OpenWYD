@@ -87,7 +87,7 @@ func (d *Dispatcher) runGMCommand(w *world.World, s *world.Session, args []byte)
 		d.gmGuerra(w, s, rest) // gmguerra.go
 	case "coliseu":
 		d.gmColiseu(w, s, rest) // gmcoliseu.go
-	case "npc", "gerar", "generate", "criar", "create", "matar", "kill", "recarregar", "reloadnpc":
+	case "npc", "gerar", "generate", "criar", "create", "matar", "kill", "recarregar", "reloadnpc", "renovar", "renew":
 		d.gmBloco(w, s, sub, rest) // gmnpc.go — the same commands the staff panel sends
 	default:
 		d.log.Warn("gm command: unknown subcommand", "account", s.AccountName, "cmd", sub)

@@ -32,6 +32,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
+	"github.com/jeanluca/w2pp-openwyd/internal/npcgener"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
@@ -355,6 +356,14 @@ type Config struct {
 	MesaDrops         MesaDrops
 	Repasses          Repasses
 	FilasRMT          FilasRMT
+	// Receitas, NPCGener, MoldeExiste and CorpoConhecido are the block recipes
+	// (receita.go): the table, the file's blocks the form starts from, the
+	// template check and the body check. The page exists when both the table and
+	// the file are there.
+	Receitas       Receitas
+	NPCGener       []npcgener.Generator
+	MoldeExiste    MoldeExiste
+	CorpoConhecido CorpoConhecido
 	// Passe é a gravação do nível do passe de batalha. Opcional: sem ela a seção
 	// some da página da conta, em vez de aparecer e recusar.
 	Passe      PasseDaConta
@@ -575,6 +584,14 @@ func (h *Handler) Routes() http.Handler {
 	if h.cfg.Platform != nil {
 		mux.Handle("POST /servidor/reiniciar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.reiniciar))))
 	}
+	if h.temReceitas() {
+		// Reading is staff, saving is admin: a recipe changes a whole zone for
+		// everybody, which is the same weight as the other tables of the game.
+		mux.Handle("GET /blocos/receitas", h.requireStaff(http.HandlerFunc(h.receitas)))
+		mux.Handle("GET /blocos/receita", h.requireStaff(http.HandlerFunc(h.receita)))
+		mux.Handle("POST /blocos/receita", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setReceita))))
+		mux.Handle("POST /blocos/receita/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparReceita))))
+	}
 	if h.cfg.Blocos != nil {
 		// Staff, not admin: the same commands a moderator already has in game
 		// with /gm, so refusing them here would only send them to the client.
@@ -733,6 +750,7 @@ type page struct {
 	HasChat      bool // o registro de conversa precisa da leitura do banco
 	HasJogo      bool // the live pages exist only when the game link is configured
 	HasBlocos    bool // the block page needs the game link with block commands
+	HasReceitas  bool // the block recipes need the database and the NPCGener file
 	HasSeguro    bool // the safe restart needs BOTH the game link and the hosting API
 	HasEvento    bool // the event switches need the database read
 	HasRepasse   bool // a fila do repasse ao vendedor precisa da leitura do banco
@@ -826,6 +844,7 @@ func (h *Handler) pageFor(r *http.Request, nav string) page {
 		HasChat:           h.cfg.Chat != nil,
 		HasJogo:           h.cfg.Jogo != nil,
 		HasBlocos:         h.cfg.Blocos != nil,
+		HasReceitas:       h.temReceitas(),
 		HasSeguro:         h.cfg.Jogo != nil && h.cfg.Platform != nil,
 		HasEvento:         h.cfg.Eventos != nil,
 		HasRepasse:        h.cfg.Repasses != nil,

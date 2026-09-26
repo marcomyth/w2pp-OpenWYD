@@ -31,6 +31,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -52,6 +53,8 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/siteapi"
 	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
+	"github.com/jeanluca/w2pp-openwyd/internal/npcgener"
+	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
@@ -105,6 +108,10 @@ func run(logger *slog.Logger) error {
 	// The player site's API. A second listener, meant for the private network
 	// only; empty leaves it off and the panel exactly as it was.
 	siteAddr := flag.String("site-api", os.Getenv("SITE_API_ADDR"), "private listen address for the player site's API, e.g. :8090 (empty = off). Needs W2PP_PAINEL_TOKEN_SITE")
+	// The content tree, for the block recipes (Zonas de caça): the form starts
+	// from NPCGener.txt and checks each name against npc/. The image bakes it at
+	// /Release, which is the default; empty or missing hides the recipe pages.
+	contentDir := flag.String("content", envOr("W2PP_CONTENT", "/Release"), "game content tree (Release/) for the block recipe pages (empty = hide them)")
 	flag.Parse()
 
 	// A MESMA tranca dos outros dois, pelo mesmo pacote. Valor desconhecido não sobe:
@@ -141,6 +148,8 @@ func run(logger *slog.Logger) error {
 		return fmt.Errorf("W2PP_PAINEL_SO_USUARIO: %w", err)
 	}
 	logger.Info(fraseDoLoginDoPainel(soUsuarioDoPainel))
+
+	gens, moldeExiste, corpoConhecido := carregarNPCGener(*contentDir, logger)
 
 	pool, err := store.Pool(ctx, *dsn)
 	if err != nil {
@@ -275,6 +284,10 @@ func run(logger *slog.Logger) error {
 		Masmorras:         store.New(pool),
 		Quests:            store.New(pool),
 		Spawn:             store.New(pool),
+		Receitas:          store.New(pool),
+		NPCGener:          gens,
+		MoldeExiste:       moldeExiste,
+		CorpoConhecido:    corpoConhecido,
 		Combate:           store.New(pool),
 		BonusDrop:         store.New(pool),
 		Maquinas:          store.New(pool),
@@ -434,4 +447,37 @@ func fraseDoLoginDoPainel(soUsuario bool) string {
 		return "login do painel: SÓ usuário do painel; conta de jogo com cargo NÃO entra mais"
 	}
 	return "login do painel: usuário do painel E conta de jogo com cargo (caminho antigo ainda ligado)"
+}
+
+// carregarNPCGener reads the file's blocks and builds the template check for the
+// recipe pages. A missing tree is not an error: the pages are hidden and every
+// other one works, as with the other optional dependencies.
+func carregarNPCGener(dir string, logger *slog.Logger) ([]npcgener.Generator, panel.MoldeExiste, panel.CorpoConhecido) {
+	if dir == "" {
+		return nil, nil, nil
+	}
+	gens, err := npcgener.Load(filepath.Join(dir, "TMsrv", "run", "NPCGener.txt"))
+	if err != nil {
+		logger.Warn("NPCGener not loaded; the block recipe pages are hidden", "content", dir, "err", err)
+		return nil, nil, nil
+	}
+	nomes := make([]string, 0, 2*len(gens))
+	for _, g := range gens {
+		nomes = append(nomes, g.Leader, g.Follower)
+	}
+	corpos := npctemplate.CorposDoArquivo(dir, nomes)
+	logger.Info("NPCGener loaded for the block recipe pages", "blocks", len(gens), "corpos", len(corpos))
+	moldeExiste := func(name string) (string, bool) {
+		res, err := npctemplate.Resolve(dir, name)
+		return res.Name, err == nil
+	}
+	corpoConhecido := func(name string) (int16, bool) {
+		raw, _, err := npctemplate.Load(dir, name)
+		if err != nil {
+			return 0, false
+		}
+		corpo, ok, err := corpos.Conhece(raw)
+		return corpo, ok && err == nil
+	}
+	return gens, moldeExiste, corpoConhecido
 }
