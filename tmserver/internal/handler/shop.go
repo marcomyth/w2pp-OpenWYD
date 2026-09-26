@@ -323,12 +323,18 @@ func (d *Dispatcher) sell(w *world.World, s *world.Session, _ protocol.Header, p
 		return
 	}
 	price := d.itemPrices[int(e.Carry[myPos].Index)]
-	sp := price / 4
-	if sp > 10000 {
-		sp /= 2
-	} else if sp > 5000 {
-		sp = 2 * sp / 3
+	sp := precoDeVendaNoNPC(price)
+	// int64 no meio: 120 Restos de Lactolerium são 12 milhões, e o Coin é int32.
+	total := int64(sp) * int64(unidadesVendidas(e.Carry[myPos]))
+	if int64(e.Coin)+total > maxCoin {
+		// O legado encosta o ouro no teto e o resto some (_MSG_Sell.cpp:216-219).
+		// Aqui a venda é recusada com aviso: sumir com item e ouro de uma vez é
+		// pior que não vender.
+		sendClientMessage(w, s, msgVendaPassaDoTeto)
+		d.sendSlot(w, s, world.ItemPlaceCarry, myPos, e.Carry[myPos])
+		return
 	}
+	sp = int32(total)
 	e.Coin += sp
 	e.Carry[myPos] = world.Item{}
 	d.log.Info("sell ok", "conn", s.Conn, "slot", myPos, "gain", sp, "gold", e.Coin)
@@ -380,3 +386,49 @@ func absoluteDateFromEffects(eff [3]world.Effect, now time.Time) (int64, bool) {
 // item table from the same catalog, so a shop row past this points at nothing
 // and takes the client down with it.
 const maxCatalogItemIndex = 5750
+
+// precoDeVendaNoNPC é quanto o NPC paga por UMA venda de um item de preço price:
+// um quarto, e acima de 10.000 a metade disso; entre 5.000 e 10.000, dois terços
+// (_MSG_Sell.cpp:142-153).
+func precoDeVendaNoNPC(price int32) int32 {
+	sp := price / 4
+	if sp > 10000 {
+		sp /= 2
+	} else if sp > 5000 {
+		sp = 2 * sp / 3
+	}
+	return sp
+}
+
+// vendidasPorUnidade são os itens que o NPC paga POR UNIDADE da pilha.
+//
+// Em todo o resto a venda paga uma vez pelo item inteiro, como o legado
+// (_MSG_Sell.cpp:142 lê o Price e não olha a quantidade): 120 Restos de
+// Oriharucon rendiam os mesmos 60.000 que um só. Pedido do Marco em 26/09/2026:
+// o pacote de Restos vale 120 vezes.
+//
+// DIVERGÊNCIA ESTREITA, e tem de continuar assim. A COMPRA no NPC também é por
+// compra e não por unidade (unidadesCobradas): o Bardes vende dez Poeiras pelo
+// preço de uma. Se a venda de TODO item pagasse por unidade, comprar a pilha e
+// revendê-la renderia 1,25 vez o preço — ouro sem fim. Os dois Restos só caem de
+// monstro (0053, 0065) e nenhuma loja os vende; um item só entra aqui depois de
+// conferir que nenhuma loja o vende em pilha.
+var vendidasPorUnidade = map[int16]bool{
+	419: true, // Resto_de_Oriharucon
+	420: true, // Resto_de_Lactolerium
+}
+
+// unidadesVendidas é por quantas unidades esta venda paga: a quantidade da pilha
+// para os itens acima, 1 para todo o resto.
+func unidadesVendidas(it world.Item) int {
+	if !vendidasPorUnidade[it.Index] {
+		return 1
+	}
+	if n := itemAmount(it); n > 1 {
+		return n
+	}
+	return 1
+}
+
+// msgVendaPassaDoTeto é a recusa de uma venda que passaria o ouro do teto.
+const msgVendaPassaDoTeto = "Você não pode carregar mais ouro. Guarde parte no banco e venda de novo."
