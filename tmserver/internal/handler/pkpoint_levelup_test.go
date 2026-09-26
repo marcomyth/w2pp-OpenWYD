@@ -133,10 +133,18 @@ func TestLevelUpPKPointNotifiesAndRecolorsNick(t *testing.T) {
 	}
 }
 
-// TestLevelUpPKPointSilentAtNeutral: a clean character gets no Chaos Point chat
-// spam on every level-up — the notice only fires when there is chaos to pay back.
-func TestLevelUpPKPointSilentAtNeutral(t *testing.T) {
-	addr, stop, _ := startServerClock(t, pkLevelUpDB(pkPointNeutral))
+// TestLevelUpPKPointCaladoNoTeto: quem já está no teto não recebe linha de chat a cada
+// nível — o aviso só sai quando há ponto a pagar.
+//
+// ESTE TESTE PERGUNTAVA NO NEUTRO (75) e passou a perguntar no TETO (150). A pergunta não
+// mudou: "não encher o chat quando não há nada a dar". O que mudou foi ONDE isso é
+// verdade — com o +5 até 150, quem está no neutro AINDA GANHA, e o silêncio ali passou a
+// ser o comportamento errado.
+//
+// Mover em vez de apagar importa: sem ele, um ganho de zero passaria a mandar "+0" a cada
+// nível para todo personagem no teto, e ninguém veria isso num teste.
+func TestLevelUpPKPointCaladoNoTeto(t *testing.T) {
+	addr, stop, _ := startServerClock(t, pkLevelUpDB(pkPointPardon))
 	defer stop()
 
 	c := enterWorldAs(t, addr, "mod")
@@ -151,7 +159,7 @@ func TestLevelUpPKPointSilentAtNeutral(t *testing.T) {
 			break
 		}
 		if ty == protocol.MsgMessageChat {
-			t.Errorf("unexpected chat line %q on a level-up at neutral PKPoint", cstr(payload))
+			t.Errorf("linha de chat inesperada (%q) subindo de nivel ja no teto", cstr(payload))
 		}
 	}
 }
