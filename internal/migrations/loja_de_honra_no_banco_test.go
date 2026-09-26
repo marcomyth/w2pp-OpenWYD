@@ -65,3 +65,37 @@ func TestGodOfWarTemplateSemEstoque(t *testing.T) {
 		}
 	}
 }
+
+// A 0165 é a vitrine pedida em 26/09/2026: os sete itens de antes com 30% a
+// menos, e três novos — a Chave da Caçada Orc (465), a Repletion D (4019) em
+// pilha de cinco e o Ovo de Dente de Sabre (2305), o mais caro da loja.
+func TestLojaDeHonraVitrineNova(t *testing.T) {
+	b, err := migrations.FS.ReadFile("0165_loja_de_honra_vitrine_nova.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := semComentariosSQL(string(b))
+	for _, quer := range []string{
+		"DELETE FROM npc_shop_item WHERE npc_id IN (SELECT id FROM npc_definition WHERE lower(btrim(template_name)) = 'god_of_war')",
+		"WHERE lower(btrim(d.template_name)) = 'god_of_war'",
+		"UPDATE npc_config_meta SET version = version + 1",
+		// vaga, item, quantidade, efeito, valor, pontos
+		"(0::smallint, 413, 1::smallint, 0::smallint, 0::smallint, 70)",
+		"(1::smallint, 3438, 1::smallint, 0::smallint, 0::smallint, 252)",
+		"(2::smallint, 412, 3::smallint, 0::smallint, 0::smallint, 336)",
+		"(3::smallint, 465, 1::smallint, 0::smallint, 0::smallint, 480)",
+		"(4::smallint, 4019, 5::smallint, 0::smallint, 0::smallint, 500)",
+		"(5::smallint, 3901, 1::smallint, 106::smallint, 1::smallint, 672)", // Fada Azul 24 h
+		"(6::smallint, 4140, 1::smallint, 0::smallint, 0::smallint, 1008)",
+		"(7::smallint, 3173, 3::smallint, 0::smallint, 0::smallint, 1008)",
+		"(8::smallint, 3467, 1::smallint, 0::smallint, 0::smallint, 1680)",
+		"(9::smallint, 2305, 1::smallint, 0::smallint, 0::smallint, 3600)",
+	} {
+		if !strings.Contains(sql, quer) {
+			t.Errorf("a 0165 não tem %q", quer)
+		}
+	}
+	if strings.Contains(sql, "DELETE FROM npc_definition") {
+		t.Error("a 0165 apaga a definição do NPC")
+	}
+}
