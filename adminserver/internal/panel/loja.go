@@ -61,6 +61,7 @@ func (h *Handler) npc(w http.ResponseWriter, r *http.Request) {
 func gradeLoja(shop []gamedata.ShopItem, catalogo map[int32]gamedata.Item) []itemView {
 	itens := make([]personagem.Item, gamedata.MaxShopSlot()+1)
 	qtd := make([]int, len(itens))
+	pontos := make([]*int32, len(itens))
 	for i := range itens {
 		itens[i].Slot = i
 	}
@@ -70,10 +71,14 @@ func gradeLoja(shop []gamedata.ShopItem, catalogo map[int32]gamedata.Item) []ite
 		}
 		itens[s.Slot] = itemDaLoja(s)
 		qtd[s.Slot] = int(s.Quantity)
+		pontos[s.Slot] = s.PricePoints
 	}
 	linhas := grade(itens, catalogo, 0, false)
 	for i := range linhas {
 		linhas[i].Qtd = qtd[i]
+		if pontos[i] != nil {
+			linhas[i].Pontos, linhas[i].EmPontos = *pontos[i], true
+		}
 	}
 	return linhas
 }
@@ -104,6 +109,10 @@ func selecaoLoja(r *http.Request, linhas []itemView, catalogo map[int32]gamedata
 	if q := r.URL.Query().Get("indice"); q != "" {
 		if n, err := strconv.Atoi(q); err == nil && n > 0 && n <= 32767 && int16(n) != it.Index {
 			it = grade([]personagem.Item{{Slot: slot, Index: int16(n)}}, catalogo, 0, false)[0]
+			// The price stays: it belongs to the slot, not to the item. Dropping it
+			// would put the new item on sale for gold the moment it is saved — and
+			// in the Loja de Honra, which only sells for points, make it vanish.
+			it.Pontos, it.EmPontos = linhas[slot].Pontos, linhas[slot].EmPontos
 		}
 	}
 	if !it.Vazio && it.Qtd < 1 {
@@ -138,6 +147,7 @@ func (h *Handler) setLoja(w http.ResponseWriter, r *http.Request) {
 	remover := r.PostFormValue("remover") == "1"
 	var novo personagem.Item
 	qtd := 1
+	var pontos *int32
 	if !remover {
 		if novo, err = itemDoForm(r, slot); err != nil {
 			erroDeForma(w, err)
@@ -149,6 +159,12 @@ func (h *Handler) setLoja(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, fmt.Sprintf("Quantidade inválida: vai de 1 a %d.", maxQtdLoja), http.StatusBadRequest)
 				return
 			}
+		}
+		var ok bool
+		if pontos, ok = pontosDoForm(r); !ok {
+			http.Error(w, fmt.Sprintf("Preço em pontos inválido: vai de 0 a %d, ou vazio para vender por ouro.",
+				maxPontosLoja), http.StatusBadRequest)
+			return
 		}
 		// An empty index is how the character editor clears a slot; here it
 		// would be a silent removal behind the "Gravar" button.
@@ -166,10 +182,11 @@ func (h *Handler) setLoja(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var antes int32
+	var pontosAntes *int32
 	itens := make([]gamedata.ShopItem, 0, len(n.Shop)+1)
 	for _, s := range n.Shop {
 		if int(s.Slot) == slot {
-			antes = s.ItemIndex
+			antes, pontosAntes = s.ItemIndex, s.PricePoints
 			continue
 		}
 		itens = append(itens, s)
@@ -182,6 +199,7 @@ func (h *Handler) setLoja(w http.ResponseWriter, r *http.Request) {
 				{int32(novo.Eff2), int32(novo.EffV2)},
 				{int32(novo.Eff3), int32(novo.EffV3)},
 			},
+			PricePoints: pontos,
 		})
 	}
 
@@ -193,8 +211,8 @@ func (h *Handler) setLoja(w http.ResponseWriter, r *http.Request) {
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
 		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetNpcShop,
-		Old:    map[string]any{"npc_id": id, "slot": slot, "item": antes},
-		New:    map[string]any{"npc_id": id, "slot": slot, "item": novo.Index, "qtd": qtd},
+		Old:    map[string]any{"npc_id": id, "slot": slot, "item": antes, "pontos": pontosAntes},
+		New:    map[string]any{"npc_id": id, "slot": slot, "item": novo.Index, "qtd": qtd, "pontos": pontos},
 	}); err != nil {
 		h.cfg.Logger.Error("shop changed but NOT audited", "npc", id, "err", err)
 		http.Error(w, "A loja foi alterada, mas a auditoria falhou. Avise quem cuida do servidor.",
@@ -210,4 +228,25 @@ func (h *Handler) setLoja(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Redirect(w, r, fmt.Sprintf("/npcs/%d?slot=%d&aviso=%s", id, slot, url.QueryEscape(msg)),
 		http.StatusSeeOther)
+}
+
+// maxPontosLoja é o maior preço em pontos que uma vaga aceita. Folgado de
+// propósito — o item mais caro da Loja de Honra custa 2.400 —, mas finito, para
+// um zero a mais digitado por engano ser recusado em vez de gravado.
+const maxPontosLoja = 1_000_000
+
+// pontosDoForm lê o preço em pontos da vaga. Vazio é ouro (nil); zero é um preço
+// de verdade, e só a Loja de Honra o recusa, na hora de vender. ok é false para
+// um valor que não é número ou está fora da faixa.
+func pontosDoForm(r *http.Request) (pontos *int32, ok bool) {
+	bruto := strings.TrimSpace(r.PostFormValue("pontos"))
+	if bruto == "" {
+		return nil, true
+	}
+	n, err := strconv.Atoi(bruto)
+	if err != nil || n < 0 || n > maxPontosLoja {
+		return nil, false
+	}
+	v := int32(n)
+	return &v, true
 }

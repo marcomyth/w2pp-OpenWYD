@@ -233,9 +233,17 @@ a 0150 o trouxe de volta por engano e a 0155 o tirou de novo. O template fica se
 estoque, para a seed do boot não recolocar nada nele.
 
 **A loja de pontos do jogo é a Loja de Honra** — o God of War, "Honor Store", com o
-painel próprio do cliente (`handler/loja_de_honra.go`). O estoque mora no código
-(`estoqueDaLojaDeHonra`) e, desde 25/09/2026, cada preço é medido em dias de barraca
-aberta 20 h por dia (240 pontos sem fada, 560 com a Fada Azul):
+painel próprio do cliente (`handler/loja_de_honra.go`). Desde 26/09/2026 o estoque
+mora **nas vagas do God of War no painel** (`/npcs`, busca "Honor Store"), e mudar um
+item ou preço entra em jogo em até 15 segundos, sem reiniciar o servidor. Cada vaga
+com **preço em pontos maior que zero** é uma troca; vaga em ouro ou a zero ponto não
+aparece na loja (e o tmServer avisa no log a cada recarga). A aba da janela sai do
+tipo do item: arma em Armas, peça de armadura em Set, o resto em Consumo. Quem está
+com o painel aberto durante uma mudança no estoque recebe aviso e o painel fecha.
+
+A vitrine atual veio da 0164, que copiou para o banco a tabela que estava no código.
+Desde 25/09/2026 cada preço é medido em dias de barraca aberta 20 h por dia (240
+pontos sem fada, 560 com a Fada Azul):
 
 | Item | Entrega | Pontos | Dias sem / com fada |
 |---|---|---|---|
