@@ -64,11 +64,15 @@ func TestTodoServicoFoiClassificado(t *testing.T) {
 	}
 }
 
+// O leitor do usuário do painel vai NULO nestes testes, e é o certo: eles medem a chave
+// e a lista de serviços, e nenhum deles manda o cabeçalho do painel. Com o cabeçalho
+// ausente, o leitor nem é consultado — e um leitor de mentira aqui esconderia isso.
+
 // TestSemChaveDeixaPassar is the migration step, and only that: the web-api has
 // to be deployable to a running server before the keys exist on either side.
 func TestSemChaveDeixaPassar(t *testing.T) {
 	chamou := false
-	_, err := Interceptor(Chaves{})(context.Background(), nil,
+	_, err := Interceptor(Chaves{}, nil)(context.Background(), nil,
 		&grpc.UnaryServerInfo{FullMethod: "/web.v1.NpcAdminService/DeleteNpc"},
 		func(context.Context, any) (any, error) { chamou = true; return nil, nil })
 	if err != nil || !chamou {
@@ -99,7 +103,7 @@ func TestChaves(t *testing.T) {
 		t.Run(caso.nome, func(t *testing.T) {
 			ctx := metadata.NewIncomingContext(context.Background(),
 				metadata.Pairs(TokenHeader, caso.token))
-			_, err := Interceptor(c)(ctx, nil,
+			_, err := Interceptor(c, nil)(ctx, nil,
 				&grpc.UnaryServerInfo{FullMethod: caso.metodo},
 				func(context.Context, any) (any, error) { return "ok", nil })
 			if got := status.Code(err); got != caso.quer {
@@ -112,7 +116,7 @@ func TestChaves(t *testing.T) {
 // TestSemMetadadoNaoPassa: a caller that sends nothing must be refused, not
 // treated as the site.
 func TestSemMetadadoNaoPassa(t *testing.T) {
-	_, err := Interceptor(Chaves{Painel: "x"})(context.Background(), nil,
+	_, err := Interceptor(Chaves{Painel: "x"}, nil)(context.Background(), nil,
 		&grpc.UnaryServerInfo{FullMethod: "/web.v1.RankingWebService/ListExpRanking"},
 		func(context.Context, any) (any, error) { return nil, nil })
 	if status.Code(err) != codes.Unauthenticated {
@@ -127,7 +131,7 @@ func TestChaveVaziaNaoAbreNada(t *testing.T) {
 	c := Chaves{Painel: "chave-do-painel"} // Site vazia, como hoje
 	ctx := metadata.NewIncomingContext(context.Background(),
 		metadata.Pairs(TokenHeader, ""))
-	_, err := Interceptor(c)(ctx, nil,
+	_, err := Interceptor(c, nil)(ctx, nil,
 		&grpc.UnaryServerInfo{FullMethod: "/web.v1.RankingWebService/ListExpRanking"},
 		func(context.Context, any) (any, error) { return nil, nil })
 	if status.Code(err) != codes.Unauthenticated {

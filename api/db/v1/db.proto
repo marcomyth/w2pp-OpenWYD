@@ -485,6 +485,10 @@ message Character {
   // marca tem de sobreviver ao relog — é o que distingue esta quest do teleporte
   // do mesmo NPC, que não guarda estado nenhum.
   int32 mortal_molar = 56;
+  // Até onde o personagem recebeu as peças de nível que o jogo deixou de
+  // entregar (0172): 0 nada, 1-399 até aquele nível, 1000 concluído. A entrega
+  // é no login, e a marca tem de sobreviver ao relog para não repetir.
+  int32 nivel_retroativo = 57;
 }
 
 message Item {
@@ -1967,6 +1971,49 @@ message SetGeneratorOffRequest {
   string by = 3;
 }
 message SetGeneratorOffResponse {}
+
+// NpcRecipeService serves the block recipes kept in the database
+// (0165_receita_de_bloco) to tmServer: a row replaces what NPCGener.txt says for
+// one block, and a block from 20000 up exists only there. POLLED like
+// NpcGeneratorService, so a zone edited in the panel lands without a restart.
+// Read-only here: the panel writes the table directly.
+service NpcRecipeService {
+  // GeneratorRecipeVersion returns the monotonic version. Asked every few seconds.
+  rpc GeneratorRecipeVersion(GeneratorRecipeVersionRequest) returns (GeneratorRecipeVersionResponse);
+  // GetGeneratorRecipes returns every block with a recipe in the database. Blocks
+  // absent from the reply spawn as the file says.
+  rpc GetGeneratorRecipes(GetGeneratorRecipesRequest) returns (GetGeneratorRecipesResponse);
+}
+
+message GeneratorRecipeVersionRequest {}
+message GeneratorRecipeVersionResponse { int64 version = 1; }
+
+message GetGeneratorRecipesRequest {}
+message GetGeneratorRecipesResponse {
+  int64 version = 1;
+  repeated GeneratorRecipe recipes = 2;
+}
+
+// GeneratorRecipe is one block's whole spawn recipe. The seg_* lists hold the
+// five legacy waypoints in order: Start, Segment1..3, Dest.
+message GeneratorRecipe {
+  int32 index = 1;
+  string leader = 2;
+  // Empty = leader-only groups.
+  string follower = 3;
+  int32 minute_generate = 4;
+  int32 min_group = 5;
+  int32 max_group = 6;
+  int32 max_num_mob = 7;
+  int32 route_type = 8;
+  int32 formation = 9;
+  repeated int32 seg_x = 10;
+  repeated int32 seg_y = 11;
+  repeated int32 seg_range = 12;
+  repeated int32 seg_wait = 13;
+  // Moves when the panel asks to replace the block's live mobs now.
+  int64 renovar = 14;
+}
 // DropRuleService serves the Mesa de Drops (internal/droprule) to tmServer: the
 // exact chance, set in the panel, for one item to fall from one monster. A rule
 // for (monster, item) replaces what the monster's template does with that item;

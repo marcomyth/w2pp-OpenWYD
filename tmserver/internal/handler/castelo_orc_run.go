@@ -185,7 +185,7 @@ func (d *Dispatcher) casteloOrcTryOpen(w *world.World, s *world.Session, e *worl
 func (d *Dispatcher) openCasteloOrc(w *world.World, e *world.Entity) {
 	party := []int{e.ID}
 	for _, id := range e.PartyList {
-		// Pets live in the PartyList too; only players are admitted.
+		// Only players are admitted (pets lived here until 26/09; the guard stays).
 		if id <= 0 || id == e.ID || !world.IsPlayer(id) {
 			continue
 		}

@@ -42734,11 +42734,11 @@
 // ********************************************
 #	[1495]
 	MinuteGenerate:	-1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2224
@@ -42821,11 +42821,11 @@
 // ********************************************
 #	[1498]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2252
@@ -42937,11 +42937,11 @@
 // ********************************************
 #	[1502]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2278
@@ -43082,11 +43082,11 @@
 // ********************************************
 #	[1507]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2196
@@ -43140,11 +43140,11 @@
 // ********************************************
 #	[1509]
 	MinuteGenerate:	-1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2202
@@ -43169,11 +43169,11 @@
 // ********************************************
 #	[1510]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2212
@@ -43198,11 +43198,11 @@
 // ********************************************
 #	[1511]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2214
@@ -43227,11 +43227,11 @@
 // ********************************************
 #	[1512]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2224
@@ -43256,11 +43256,11 @@
 // ********************************************
 #	[1513]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2234
@@ -43285,11 +43285,11 @@
 // ********************************************
 #	[1514]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2244
@@ -43314,11 +43314,11 @@
 // ********************************************
 #	[1515]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2254
@@ -43343,11 +43343,11 @@
 // ********************************************
 #	[1516]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2254
@@ -43372,11 +43372,11 @@
 // ********************************************
 #	[1517]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2264
@@ -43401,11 +43401,11 @@
 // ********************************************
 #	[1518]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2272
@@ -43430,11 +43430,11 @@
 // ********************************************
 #	[1519]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2278
@@ -43459,11 +43459,11 @@
 // ********************************************
 #	[1520]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2272
@@ -43488,11 +43488,11 @@
 // ********************************************
 #	[1521]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2272
@@ -43520,7 +43520,7 @@
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops_
 	RouteType:	2
 	Formation:	0
@@ -43549,7 +43549,7 @@
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops
 	RouteType:	2
 	Formation:	0
@@ -43575,11 +43575,11 @@
 // ********************************************
 #	[1524]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2264
@@ -43604,11 +43604,11 @@
 // ********************************************
 #	[1525]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2264
@@ -43636,7 +43636,7 @@
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops
 	RouteType:	2
 	Formation:	0
@@ -43662,11 +43662,11 @@
 // ********************************************
 #	[1527]
 	MinuteGenerate:	-1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2232
@@ -43691,11 +43691,11 @@
 // ********************************************
 #	[1528]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2232
@@ -43723,7 +43723,7 @@
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops
 	RouteType:	2
 	Formation:	0
@@ -43752,7 +43752,7 @@
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops
 	RouteType:	2
 	Formation:	0
@@ -43781,7 +43781,7 @@
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops_
 	RouteType:	2
 	Formation:	0
@@ -43807,11 +43807,11 @@
 // ********************************************
 #	[1532]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2208
@@ -43836,11 +43836,11 @@
 // ********************************************
 #	[1533]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2224
@@ -43865,11 +43865,11 @@
 // ********************************************
 #	[1534]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2240
@@ -43894,11 +43894,11 @@
 // ********************************************
 #	[1535]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2240
@@ -43923,11 +43923,11 @@
 // ********************************************
 #	[1536]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2256
@@ -43952,11 +43952,11 @@
 // ********************************************
 #	[1537]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2200
@@ -43981,11 +43981,11 @@
 // ********************************************
 #	[1538]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2212
@@ -44010,11 +44010,11 @@
 // ********************************************
 #	[1539]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2216
@@ -44039,11 +44039,11 @@
 // ********************************************
 #	[1540]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2244
@@ -44068,11 +44068,11 @@
 // ********************************************
 #	[1541]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2252
@@ -44100,7 +44100,7 @@
 	MaxNumMob:	3
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops
 	RouteType:	2
 	Formation:	0
@@ -44129,7 +44129,7 @@
 	MaxNumMob:	3
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops
 	RouteType:	2
 	Formation:	0
@@ -82186,9 +82186,9 @@
 // ********************************************
 #	[2876]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82244,9 +82244,9 @@
 // ********************************************
 #	[2878]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82273,9 +82273,9 @@
 // ********************************************
 #	[2879]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82389,9 +82389,9 @@
 // ********************************************
 #	[2883]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82418,9 +82418,9 @@
 // ********************************************
 #	[2884]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82476,9 +82476,9 @@
 // ********************************************
 #	[2886]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82505,9 +82505,9 @@
 // ********************************************
 #	[2887]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82534,9 +82534,9 @@
 // ********************************************
 #	[2888]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82563,9 +82563,9 @@
 // ********************************************
 #	[2889]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82592,9 +82592,9 @@
 // ********************************************
 #	[2890]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82621,9 +82621,9 @@
 // ********************************************
 #	[2891]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82650,9 +82650,9 @@
 // ********************************************
 #	[2892]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82679,9 +82679,9 @@
 // ********************************************
 #	[2893]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82708,9 +82708,9 @@
 // ********************************************
 #	[2894]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82737,9 +82737,9 @@
 // ********************************************
 #	[2895]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82766,9 +82766,9 @@
 // ********************************************
 #	[2896]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82795,9 +82795,9 @@
 // ********************************************
 #	[2897]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82853,9 +82853,9 @@
 // ********************************************
 #	[2899]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82882,9 +82882,9 @@
 // ********************************************
 #	[2900]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82940,9 +82940,9 @@
 // ********************************************
 #	[2902]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83056,9 +83056,9 @@
 // ********************************************
 #	[2906]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83085,9 +83085,9 @@
 // ********************************************
 #	[2907]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83114,9 +83114,9 @@
 // ********************************************
 #	[2908]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83143,9 +83143,9 @@
 // ********************************************
 #	[2909]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83204,9 +83204,9 @@
 // ********************************************
 #	[2911]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83233,9 +83233,9 @@
 // ********************************************
 #	[2912]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83349,9 +83349,9 @@
 // ********************************************
 #	[2916]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83407,9 +83407,9 @@
 // ********************************************
 #	[2918]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83436,9 +83436,9 @@
 // ********************************************
 #	[2919]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83465,9 +83465,9 @@
 // ********************************************
 #	[2920]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83552,9 +83552,9 @@
 // ********************************************
 #	[2923]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83581,9 +83581,9 @@
 // ********************************************
 #	[2924]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83610,9 +83610,9 @@
 // ********************************************
 #	[2925]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83639,9 +83639,9 @@
 // ********************************************
 #	[2926]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83755,9 +83755,9 @@
 // ********************************************
 #	[2930]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -86423,9 +86423,9 @@
 // ********************************************
 #	[3022]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -86452,9 +86452,9 @@
 // ********************************************
 #	[3023]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -86539,9 +86539,9 @@
 // ********************************************
 #	[3026]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -86568,9 +86568,9 @@
 // ********************************************
 #	[3027]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -86655,9 +86655,9 @@
 // ********************************************
 #	[3030]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -86684,9 +86684,9 @@
 // ********************************************
 #	[3031]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -86916,9 +86916,9 @@
 // ********************************************
 #	[3039]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -86945,9 +86945,9 @@
 // ********************************************
 #	[3040]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -86974,9 +86974,9 @@
 // ********************************************
 #	[3041]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87061,9 +87061,9 @@
 // ********************************************
 #	[3044]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87119,9 +87119,9 @@
 // ********************************************
 #	[3046]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87148,9 +87148,9 @@
 // ********************************************
 #	[3047]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87206,9 +87206,9 @@
 // ********************************************
 #	[3049]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87235,9 +87235,9 @@
 // ********************************************
 #	[3050]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87293,9 +87293,9 @@
 // ********************************************
 #	[3052]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87322,9 +87322,9 @@
 // ********************************************
 #	[3053]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87351,9 +87351,9 @@
 // ********************************************
 #	[3054]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87438,9 +87438,9 @@
 // ********************************************
 #	[3057]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87467,9 +87467,9 @@
 // ********************************************
 #	[3058]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87554,9 +87554,9 @@
 // ********************************************
 #	[3061]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87641,9 +87641,9 @@
 // ********************************************
 #	[3064]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87670,9 +87670,9 @@
 // ********************************************
 #	[3065]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87699,9 +87699,9 @@
 // ********************************************
 #	[3066]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87728,9 +87728,9 @@
 // ********************************************
 #	[3067]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87886,9 +87886,9 @@
 // ********************************************
 #	[3073]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87915,9 +87915,9 @@
 // ********************************************
 #	[3074]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87944,9 +87944,9 @@
 // ********************************************
 #	[3075]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -87973,9 +87973,9 @@
 // ********************************************
 #	[3076]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88002,9 +88002,9 @@
 // ********************************************
 #	[3077]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88031,9 +88031,9 @@
 // ********************************************
 #	[3078]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88060,9 +88060,9 @@
 // ********************************************
 #	[3079]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88089,9 +88089,9 @@
 // ********************************************
 #	[3080]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88118,9 +88118,9 @@
 // ********************************************
 #	[3081]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88147,9 +88147,9 @@
 // ********************************************
 #	[3082]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88176,9 +88176,9 @@
 // ********************************************
 #	[3083]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88205,9 +88205,9 @@
 // ********************************************
 #	[3084]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88234,9 +88234,9 @@
 // ********************************************
 #	[3085]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88263,9 +88263,9 @@
 // ********************************************
 #	[3086]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88292,9 +88292,9 @@
 // ********************************************
 #	[3087]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88350,9 +88350,9 @@
 // ********************************************
 #	[3089]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88379,9 +88379,9 @@
 // ********************************************
 #	[3090]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88408,9 +88408,9 @@
 // ********************************************
 #	[3091]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88466,9 +88466,9 @@
 // ********************************************
 #	[3093]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88495,9 +88495,9 @@
 // ********************************************
 #	[3094]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88524,9 +88524,9 @@
 // ********************************************
 #	[3095]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88553,9 +88553,9 @@
 // ********************************************
 #	[3096]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88582,9 +88582,9 @@
 // ********************************************
 #	[3097]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88611,9 +88611,9 @@
 // ********************************************
 #	[3098]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88640,9 +88640,9 @@
 // ********************************************
 #	[3099]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88669,9 +88669,9 @@
 // ********************************************
 #	[3100]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88698,9 +88698,9 @@
 // ********************************************
 #	[3101]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -88756,9 +88756,9 @@
 // ********************************************
 #	[3103]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	2
+	MinGroup:	1
+	MaxGroup:	1
 	Leader:		Morlock
 	Follower:	Morlock
 	RouteType:	2
@@ -160071,5 +160071,28 @@
 	StartWait:	10
 	DestX:		852
 	DestY:		3928
+	DestRange:	2
+	DestWait:	10
+
+// Ciclope Tirano - chefe do spot dos Ciclopes Cruéis (2239,1333): o corpo do
+// Ciclope Cruel com os números do Troll Enigma. Volta 4 h depois da morte e 4 h
+// depois do boot (handler/ciclopes.go). Pedido do Marco em 26/09/2026.
+// ********************************************
+
+#	[6164]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Ciclope_Tirano
+	Follower:	Ciclope_Tirano
+	RouteType:	0
+	Formation:	0
+	StartX:		2238
+	StartY:		1334
+	StartRange:	2
+	StartWait:	10
+	DestX:		2238
+	DestY:		1334
 	DestRange:	2
 	DestWait:	10

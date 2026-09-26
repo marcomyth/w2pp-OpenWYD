@@ -493,8 +493,8 @@ func TestEvocationSpawnsScaledSummons(t *testing.T) {
 // (Server.cpp:3224-3229) — e é justamente o que enchia os doze slots de membro
 // com os bichos do próprio dono, sem sobrar lugar para gente.
 //
-// O pet continua na PartyList do líder no servidor: é lá que mora o vínculo, e
-// a contagem da re-invocação depende dele. O que mudou é só o que sai no fio.
+// E desde 26/09 o pet também não ocupa vaga no servidor: mora no bando do dono
+// (world.Entity.Evocacoes), fora do grupo.
 func TestEvocationNaoOcupaSlotDeMembro(t *testing.T) {
 	addr, stop, _ := startServerSummon(t, summonDB(30), nil, 0, 0)
 	defer stop()
@@ -746,16 +746,12 @@ func summonPartySrv(t *testing.T, db world.Persistence) (string, func()) {
 	return addr, stop
 }
 
-// summonPartyDB gives the leader (account 7) Evocação 30 → 1 pet and the member
-// (account 11) 60 → 2. The pet budget is shared party-wide — generateSummon counts
-// EVERY pet in the leader's PartyList, whoever evoked it (Server.cpp:2991-2997) —
-// so the member needs the larger allowance to fit one pet of its own alongside
-// the leader's.
+// summonPartyDB gives the leader (account 7) and the member (account 11)
+// Evocação 30 → 1 pet each. Each BM has its own bando now (world.Entity.Evocacoes);
+// the legacy shared one budget across the party (Server.cpp:2991-2997).
 func summonPartyDB() *fakeDB {
 	db := summonDB(30)
-	member := db.loadResult
-	member.BaseSpecial[2] = 60
-	db.loads = map[int64]world.CharacterState{7: db.loadResult, 11: member}
+	db.loads = map[int64]world.CharacterState{7: db.loadResult, 11: db.loadResult}
 	return db
 }
 
@@ -773,26 +769,12 @@ func evokeOne(t *testing.T, c net.Conn, conn int) int {
 	return 0
 }
 
-// TestSoloSummonDespawnsOnRemoveParty is the issue-234 repro. A BM holding pets
-// has Leader == 0 with the pets in its OWN PartyList, so the leave button routes
-// to leaderLeaveParty — which used to zero the list and orphan them.
-func TestSoloSummonDespawnsOnRemoveParty(t *testing.T) {
-	addr, stop := summonPartySrv(t, summonDB(30))
-	defer stop()
-	c := enterWorld(t, addr)
-	defer c.Close()
-
-	pet := evokeOne(t, c, 1)
-	removePartyFrame(t, c, 1)
-	// The 5s tick puts expiry (20 decrements, one per 8 ticks) ~13min out, so this
-	// RemoveMob can only be the leave.
-	expectPetRemove(t, c, pet)
-}
-
-// TestEvocationAfterLeavingPartyStaysCapped is the second half of the report
-// ("...e fazer novas evocações"): the orphans used to be invisible to
-// generateSummon's head count, so a re-cast stacked a whole new set on top.
-func TestEvocationAfterLeavingPartyStaysCapped(t *testing.T) {
+// TestRemovePartySozinhoNaoDispensaOBando: o bando não é grupo. No #234 o BM
+// sozinho com pets tinha Leader == 0 e os pets na PRÓPRIA PartyList, o botão de
+// sair do grupo caía em leaderLeaveParty e os órfãos ficavam no mundo; o
+// conserto de então apagava o bando. Com o bando fora do grupo (26/09), sair de
+// um grupo que não existe não faz nada com ele.
+func TestRemovePartySozinhoNaoDispensaOBando(t *testing.T) {
 	addr, stop := summonPartySrv(t, summonDB(30))
 	defer stop()
 	c := enterWorld(t, addr)
@@ -801,9 +783,22 @@ func TestEvocationAfterLeavingPartyStaysCapped(t *testing.T) {
 	live := map[int]bool{evokeOne(t, c, 1): true}
 	removePartyFrame(t, c, 1)
 	trackPets(t, c, 400*time.Millisecond, live)
-	if len(live) != 0 {
-		t.Fatalf("pets alive after leaving = %v, want none", live)
+	if len(live) != 1 {
+		t.Fatalf("pets vivos depois do RemoveParty = %v, esperado o bando intacto", live)
 	}
+}
+
+// TestEvocationAfterLeavingPartyStaysCapped is the second half of #234 ("...e
+// fazer novas evocações"): a re-cast after the leave must replace the set, never
+// stack a whole new one on top of it.
+func TestEvocationAfterLeavingPartyStaysCapped(t *testing.T) {
+	addr, stop := summonPartySrv(t, summonDB(30))
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	live := map[int]bool{evokeOne(t, c, 1): true}
+	removePartyFrame(t, c, 1)
 	skillAttackFrame(t, c, serverTime+1000, 1, 56, damSkill)
 	trackPets(t, c, 400*time.Millisecond, live)
 	if len(live) != 1 {
@@ -837,62 +832,39 @@ func partyWithPets(t *testing.T, addr string) (a, b net.Conn, petA, petB int) {
 	return a, b, petA, petB
 }
 
-// TestSummonDespawnsWhenOwnerLeavesParty: a member's pets sit in the LEADER's
-// PartyList, so leaving must take them along — and only them (Server.cpp:8185).
-func TestSummonDespawnsWhenOwnerLeavesParty(t *testing.T) {
-	addr, stop := summonPartySrv(t, summonPartyDB())
-	defer stop()
-	a, b, petA, petB := partyWithPets(t, addr)
-	defer a.Close()
-	defer b.Close()
-
-	removePartyFrame(t, b, 2)
-	live := trackPets(t, a, 600*time.Millisecond, map[int]bool{petA: true, petB: true})
-	if live[petB] {
-		t.Errorf("leaver's pet %d survived the party leave", petB)
+// TestBandoFicaEmTodaSaidaDeGrupo: o bando fica com o dono em toda saída de
+// grupo — sair, ser expulso, o grupo se desfazer. No legado os pets de um membro
+// moravam na lista do LÍDER e saíam com o vínculo (Server.cpp:8185, 8242); desde
+// 26/09 o bando não é grupo.
+func TestBandoFicaEmTodaSaidaDeGrupo(t *testing.T) {
+	casos := []struct {
+		nome string
+		sair func(t *testing.T, a, b net.Conn)
+	}{
+		{"o membro sai", func(t *testing.T, _, b net.Conn) { removePartyFrame(t, b, 2) }},
+		{"o líder expulsa o membro", func(t *testing.T, a, _ net.Conn) { removePartyFrame(t, a, 2) }},
+		{"o líder desfaz o grupo", func(t *testing.T, a, _ net.Conn) { removePartyFrame(t, a, 1) }},
 	}
-	if !live[petA] {
-		t.Errorf("leader's own pet %d was removed; only the leaver's should go", petA)
-	}
-}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			addr, stop := summonPartySrv(t, summonPartyDB())
+			defer stop()
+			a, b, petA, petB := partyWithPets(t, addr)
+			defer a.Close()
+			defer b.Close()
 
-// TestSummonDespawnsWhenKicked is the kick side of the same sweep.
-func TestSummonDespawnsWhenKicked(t *testing.T) {
-	addr, stop := summonPartySrv(t, summonPartyDB())
-	defer stop()
-	a, b, petA, petB := partyWithPets(t, addr)
-	defer a.Close()
-	defer b.Close()
-
-	removePartyFrame(t, a, 2) // leader kicks the member
-	live := trackPets(t, a, 600*time.Millisecond, map[int]bool{petA: true, petB: true})
-	if live[petB] {
-		t.Errorf("kicked member's pet %d survived", petB)
-	}
-	if !live[petA] {
-		t.Errorf("leader's own pet %d was removed by the kick", petA)
+			c.sair(t, a, b)
+			live := trackPets(t, a, 600*time.Millisecond, map[int]bool{petA: true, petB: true})
+			if !live[petA] || !live[petB] {
+				t.Errorf("a saída do grupo levou pets: vivos %v, esperado %d e %d", live, petA, petB)
+			}
+		})
 	}
 }
 
-// TestSummonDespawnsOnPartyDisband: dissolving takes every pet in the list, not
-// just the leader's — the deliberate divergence from Server.cpp:8242, which only
-// zeroes Summoner and would leak ownerless mobs here (party.go leaderLeaveParty).
-func TestSummonDespawnsOnPartyDisband(t *testing.T) {
-	addr, stop := summonPartySrv(t, summonPartyDB())
-	defer stop()
-	a, b, petA, petB := partyWithPets(t, addr)
-	defer a.Close()
-	defer b.Close()
-
-	removePartyFrame(t, a, 1) // leader leaves → party dissolves
-	live := trackPets(t, a, 600*time.Millisecond, map[int]bool{petA: true, petB: true})
-	if len(live) != 0 {
-		t.Fatalf("pets alive after the party dissolved = %v, want none", live)
-	}
-}
-
-// TestSummonPartySlotClearedOnDespawn: o pet sai do mundo quando o vínculo
-// acaba, e a linha de grupo sai junto SE ela tiver sido mandada.
+// TestSummonPartySlotClearedOnDespawn: o pet sai do mundo quando é substituído
+// (re-evocar refaz o bando), e a linha de grupo sai junto SE ela tiver sido
+// mandada.
 //
 // As duas metades andam com petsNoPainelDeGrupo: com os pets fora do painel não
 // há linha para derrubar, e exigir o RemoveParty seria exigir um pacote que
@@ -905,7 +877,7 @@ func TestSummonPartySlotClearedOnDespawn(t *testing.T) {
 	defer c.Close()
 
 	pet := evokeOne(t, c, 1)
-	removePartyFrame(t, c, 1)
+	skillAttackFrame(t, c, serverTime+1000, 1, 56, damSkill) // re-evocar dispensa o anterior
 
 	saiuDoChao, saiuDoGrupo := false, false
 	deadline := time.Now().Add(time.Second)
@@ -926,7 +898,7 @@ func TestSummonPartySlotClearedOnDespawn(t *testing.T) {
 		}
 	}
 	if !saiuDoChao {
-		t.Errorf("o pet %d ficou no chão depois de o vínculo acabar", pet)
+		t.Errorf("o pet %d ficou no chão depois de substituído", pet)
 	}
 	if petsNoPainelDeGrupo && !saiuDoGrupo {
 		t.Errorf("o pet %d saiu do chão e continuou no painel de grupo", pet)
@@ -1135,8 +1107,8 @@ func temInimigo(e *world.Entity, targetID int) bool {
 // quem bater fica com a seleção de alvo, que pega o mais perto.
 //
 // O "dono" aqui é um mob e não um jogador porque commandSummons não distingue os
-// dois — ela só lê Leader/PartyList —, e o mundo não deixa um teste unitário
-// fabricar entidade de jogador.
+// dois — ela só lê o bando do dono (Evocacoes) —, e o mundo não deixa um teste
+// unitário fabricar entidade de jogador.
 func TestPetOcupadoAindaRecebeOAtacanteDoDono(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	d := New(Config{Log: log})
@@ -1158,7 +1130,7 @@ func TestPetOcupadoAindaRecebeOAtacanteDoDono(t *testing.T) {
 	pet.Summoner = donoID
 	pet.Leader = donoID
 	pet.Target = atacanteID + 1 // ocupado com outra coisa
-	dono.PartyList[0] = petID
+	dono.Evocacoes[0] = petID
 	atacante.Clan = 5
 
 	d.commandSummons(w, donoID, atacante)
@@ -1309,17 +1281,12 @@ func TestEvocacaoSobreviveAoRefreshScore(t *testing.T) {
 	})
 	w := world.New(world.Config{GridDim: 32}, log, nil, d.Handle)
 
-	// generateSummon guarda os pets na PartyList do LÍDER, e resolve o líder pelo
-	// mundo. Um teste unitário não consegue fabricar entidade de jogador, então o
-	// líder aqui é um mob de verdade — a função não distingue os dois, ela só lê
-	// Leader e PartyList.
-	liderID := w.SpawnMobAt(world.MobSpawn{Template: plainMobTemplate("Lider"), X: 5, Y: 5, GenIndex: -1})
-	if liderID < 0 {
-		t.Fatal("não consegui criar o líder")
-	}
+	// generateSummon guarda os pets no bando do dono (Evocacoes). Um teste
+	// unitário não consegue fabricar entidade de jogador no mundo, e não precisa:
+	// o bando mora na entidade que a função recebe.
 	dono := &world.Entity{
 		ID: 0, Mode: world.MobUser, Name: "Beast", X: 5, Y: 5,
-		HP: 1000, MaxHP: 1000, Level: 50, Int: 100, Leader: liderID,
+		HP: 1000, MaxHP: 1000, Level: 50, Int: 100,
 		BaseSpecial: [4]int16{0, 0, 320, 0}, Special: [4]int16{0, 0, 320, 0},
 	}
 	s := &world.Session{Conn: 0, Mode: world.UserPlay}
@@ -1328,13 +1295,11 @@ func TestEvocacaoSobreviveAoRefreshScore(t *testing.T) {
 	}
 
 	var pet *world.Entity
-	for _, m := range w.Entity(liderID).PartyList {
-		if m >= world.MaxUser {
-			pet = w.Entity(m)
-		}
+	for _, m := range bandoDe(dono) {
+		pet = w.Entity(m)
 	}
 	if pet == nil {
-		t.Fatal("o pet não entrou na PartyList")
+		t.Fatal("o pet não entrou no bando do dono")
 	}
 
 	danoAoNascer, acAoNascer, hpAoNascer := pet.Damage, pet.AC, pet.MaxHP
@@ -1374,25 +1339,18 @@ func TestTrocarDeCriaturaDispensaOBandoAnterior(t *testing.T) {
 	d := New(Config{Log: log, SummonMobs: [][]byte{condor, tigre}})
 	w := world.New(world.Config{GridDim: 32}, log, nil, d.Handle)
 
-	liderID := w.SpawnMobAt(world.MobSpawn{Template: plainMobTemplate("Lider"), X: 5, Y: 5, GenIndex: -1})
-	if liderID < 0 {
-		t.Fatal("não consegui criar o líder")
-	}
 	dono := &world.Entity{
 		ID: 0, Mode: world.MobUser, X: 5, Y: 5, HP: 1000, MaxHP: 1000, Level: 50, Int: 100,
-		Leader: liderID, BaseSpecial: [4]int16{0, 0, 320, 0}, Special: [4]int16{0, 0, 320, 0},
+		BaseSpecial: [4]int16{0, 0, 320, 0}, Special: [4]int16{0, 0, 320, 0},
 	}
 	s := &world.Session{Conn: 0, Mode: world.UserPlay}
-	lider := w.Entity(liderID)
 
 	if !d.generateSummon(w, s, dono, 0, 2) {
 		t.Fatal("a primeira evocação não saiu")
 	}
 	primeiros := map[int]bool{}
-	for _, m := range lider.PartyList {
-		if m >= world.MaxUser {
-			primeiros[m] = true
-		}
+	for _, m := range bandoDe(dono) {
+		primeiros[m] = true
 	}
 	if len(primeiros) == 0 {
 		t.Fatal("nenhum pet na primeira evocação")
@@ -1402,10 +1360,7 @@ func TestTrocarDeCriaturaDispensaOBandoAnterior(t *testing.T) {
 	if !d.generateSummon(w, s, dono, 1, 2) {
 		t.Fatal("trocar de criatura foi recusado — é o clique morto que o jogador vê")
 	}
-	for _, m := range lider.PartyList {
-		if m < world.MaxUser {
-			continue
-		}
+	for _, m := range bandoDe(dono) {
 		if primeiros[m] {
 			t.Errorf("o pet %d da criatura anterior sobreviveu à troca", m)
 		}

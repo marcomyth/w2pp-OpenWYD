@@ -145,6 +145,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.tickWeather(w)
 	d.pollNPCConfig(w) // hot-reload moderator NPC edits (npc-editing-plan.md)
 	d.pollGeneratorOff(w)
+	d.pollGeneratorRecipes(w)
 	d.pollWorldEventConfig(w)
 	d.pollDungeonGates(w)
 	d.pollSpawnRates(w)
@@ -241,6 +242,13 @@ func setGroupBattle(w *world.World, id int, e, target *world.Entity) {
 			continue // empty slot (0) or a player id — mob groups only
 		}
 		drag(m, w.Entity(m))
+	}
+	// Um pet atingido arrasta o bando: o Leader dele é o dono, e os irmãos moram
+	// em Evocacoes, não na PartyList (world.Entity.Evocacoes). Vazio para monstro.
+	for _, m := range le.Evocacoes {
+		if m > 0 {
+			drag(m, w.Entity(m))
+		}
 	}
 }
 
@@ -809,11 +817,38 @@ func validTarget(w *world.World, e, target *world.Entity) bool {
 		if !naEnemyList(e, target.ID) {
 			return false
 		}
+		// O dono, o grupo e a guilda dele (medalha levantada) nunca, nem por
+		// revide. Quem entra na lista é commandSummons, e ele já recusa; esta é a
+		// segunda porta, para quem entrou antes de aceitar o grupo ou de levantar
+		// a medalha.
+		if companheiroDaEvocacao(w, e, target) {
+			return false
+		}
 		// A trela dela é a distância ao DONO, não ao ponto de origem, e quem a
 		// cobra é summonTick antes do mobBattle rodar.
 		return true
 	}
 	return chebyshev(e.SegmentX, e.SegmentY, target.X, target.Y) <= leashRadius
+}
+
+// companheiroDaEvocacao diz se o jogador alvo está do lado do dono do pet: o
+// próprio dono, alguém do grupo dele, ou da guilda dele com a medalha levantada
+// dos dois lados. É o `if (leader == mobleader || Guild == MobGuild) dam = 0;`
+// do legado (_MSG_Attack.cpp:1334) pelo lado do pet, com a regra da medalha de
+// skillSameLeaderOrGuild — "só é permitido se baixar a medalha" (Marco, 26/09).
+//
+// Sem isto o revide, ligado desde 62a5abe3, voltava o bando contra o próprio
+// grupo: basta o companheiro entrar na lista de inimigos de um pet — um golpe
+// trocado com o dono em modo PK já faz isso — e o bando o atacava.
+func companheiroDaEvocacao(w *world.World, pet, alvo *world.Entity) bool {
+	if pet == nil || alvo == nil || pet.Summoner == 0 || !world.IsPlayer(alvo.ID) {
+		return false
+	}
+	dono := w.Entity(pet.Summoner)
+	if dono == nil {
+		return false
+	}
+	return skillSameLeaderOrGuild(w, dono, alvo)
 }
 
 // naEnemyList diz se target já está na lista de inimigos de e.

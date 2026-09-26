@@ -2,6 +2,7 @@ package world
 
 import (
 	"github.com/jeanluca/w2pp-openwyd/internal/campotreino"
+	"github.com/jeanluca/w2pp-openwyd/internal/ciclopes"
 	"github.com/jeanluca/w2pp-openwyd/internal/mapaevento"
 	"github.com/jeanluca/w2pp-openwyd/internal/reinos"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -90,6 +91,10 @@ type MobSpawn struct {
 	// with three loot tables and one name on screen. Empty for spawns that have
 	// no file (summons, the Vine).
 	TemplateName string
+	// GenRev is Generator.Rev of GenIndex when this spawn was built. The respawn
+	// queue compares it to the block's current one: a monster born under a recipe
+	// the panel has since changed comes back from the new recipe, not as itself.
+	GenRev uint32
 }
 
 // SpawnMob creates a stationary NPC/monster from a raw STRUCT_MOB template at
@@ -152,7 +157,7 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 		Template:     template,   // retained for runtime respawn (world/respawn.go)
 		TemplateName: sp.TemplateName,
 		RouteType:    sp.RouteType, SegListX: sp.SegX, SegListY: sp.SegY, SegWait: sp.SegWait,
-		GenIndex: sp.GenIndex,
+		GenIndex: sp.GenIndex, GenRev: sp.GenRev,
 		// The current waypoint doubles as the aggro/leash anchor (CMob.cpp:292);
 		// it starts at waypoint 0 = the spawn point (GenerateMob Server.cpp:3649).
 		// The initial waypoint pause comes pre-armed (WaitSec = SegmentWait[0],
@@ -176,10 +181,14 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 	//
 	// The Reinos city is the third such exception (internal/reinos): the kings
 	// and their army carry a shop byte on 104, and the legacy lets them be hit.
+	//
+	// E o Ciclope Cruel e as cópias do spot dele (internal/ciclopes): o mesmo 64
+	// no byte que este port lê, 0 no do legado.
 	e.NonCombatNPC = nonCombatNPC(e.Merchant, e.Clan, e.X, e.Y) &&
 		!IsWaterDungeonGenerator(int(sp.GenIndex)) &&
 		!campotreino.MonstroNoCampo(b.MobMerchant, int(x), int(y)) &&
-		!reinos.MonstroDoReino(b.MobMerchant, b.Clan, int(x), int(y))
+		!reinos.MonstroDoReino(b.MobMerchant, b.Clan, int(x), int(y)) &&
+		!ciclopes.MonstroDeCombate(sp.TemplateName, b.MobMerchant)
 	for i, r := range b.Resist {
 		e.Resist[i] = int16(r)
 	}
@@ -325,6 +334,17 @@ func (w *World) DespawnMob(id int, removeType int32) {
 		if m >= MaxUser {
 			if fe := w.Entity(m); fe != nil && fe.Leader == id {
 				fe.Leader = 0
+			}
+		}
+	}
+	// Um pet que sai libera a vaga no bando do dono (Entity.Evocacoes), pelo
+	// mesmo motivo: o id vai ser reusado por outro monstro.
+	if e.Summoner != 0 {
+		if dono := w.Entity(e.Summoner); dono != nil {
+			for i, m := range dono.Evocacoes {
+				if m == id {
+					dono.Evocacoes[i] = 0
+				}
 			}
 		}
 	}

@@ -32,6 +32,8 @@ func TestTodaAcaoTemRotulo(t *testing.T) {
 		ActionSetMountBonus, ActionClearMountBonus,
 		ActionSetCombineRate, ActionClearCombineRate, ActionSetCombineBands, ActionSetCombineTag,
 		ActionBlockCommand,
+		ActionSetBlockRecipe,
+		ActionClearBlockRecipe,
 		ActionRepasseIncertoPago, ActionRepasseIncertoNaoPago, ActionRepasseRecusaResolvida,
 		ActionRepasseValorAjustado,
 		ActionPainelUsuarioCriado, ActionPainelUsuarioDesativado,

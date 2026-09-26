@@ -331,3 +331,44 @@ Este plano é **irmão** de `web-platform-plan.md` e reusa toda a sua infraestru
 a loja-web — é que **definição de NPC não é estado de jogador**: o fluxo é de via única
 (web escreve config fria; tmServer materializa), sem o risco de clobber que exige o `delivery_queue` para
 concessões de item/cash.
+
+## 12. Receita de bloco ao vivo — zonas de caça sem reiniciar (25/09/2026)
+
+O overlay acima cobre só os **mercadores**. Monstros continuavam presos ao `NPCGener.txt`, que vem
+dentro da imagem: mexer numa zona de caça era deploy, e deploy derruba todo mundo. A receita de bloco
+estende a mesma ideia a **qualquer bloco**, com a regra da Mesa de Drops:
+
+- **Tabela `npc_generator_recipe`** (`0165_receita_de_bloco`). Uma linha é a receita **inteira** de um
+  bloco (líder, seguidor, grupo, teto, ritmo, rota, formação, os cinco pontos) e **substitui** o que o
+  arquivo diz dele. Apagar a linha devolve o bloco ao arquivo. As falas de luta/morte continuam as do
+  arquivo.
+- **Índices.** Abaixo do total do arquivo, a linha troca um bloco que existe. **Bloco novo** mora de
+  `domain.NewGeneratorIndexBase` (20000) até 32767 — longe do fim do arquivo, que cresce toda semana.
+  Entre os dois, nada é aceito (nem pelo painel, nem pelo jogo).
+- **Leitura ao vivo.** `NpcRecipeService` no dbServer; o tmServer pergunta a versão a cada 15 tiques
+  (`handler/receita.go`), lê os moldes fora do laço e troca a receita dentro dele. No boot a receita
+  entra logo depois do populate e **substitui** o que ele gerou do arquivo.
+- **O que a mudança alcança.** A receita troca no lugar e o `Generator.Rev` sobe; ninguém que está de
+  pé é mexido. O próximo grupo já nasce da receita nova, e um monstro da receita velha que morre
+  **volta pela receita nova** (`world.SpawnDueRespawns` compara o `GenRev` do mob com o do bloco). A
+  zona vira conforme é caçada. `renovar` (caixa "trocar os vivos agora" no painel, ou `/gm renovar
+  <bloco>`) tira os vivos e gera de novo na hora; recusa bloco desligado, NPC do painel e bloco de
+  evento/masmorra.
+- **Ficha de monstro na fila de 15 s.** A fila de respawn trazia de volta a **cópia** dos bytes com que
+  o mob morreu, então uma ficha editada em /monstros nunca chegava aos blocos sem `MinuteGenerate`.
+  Agora a fila pega os bytes atuais do bloco pelo nome do arquivo (`world.liveTemplate`).
+- **Painel.** Menu "Zonas de caça" (`/blocos/receitas`): lista o que o banco mudou, abre qualquer bloco
+  pelo número, cria bloco novo (opcionalmente copiando outro), mostra o valor do arquivo ao lado de cada
+  campo e confere o nome do molde contra `npc/`. Ler é staff; gravar é admin; tudo auditado. O
+  adminserver lê o `NPCGener.txt` de `-content` (`W2PP_CONTENT`, padrão `/Release`, que já vem na
+  imagem); sem ele a tela some.
+- **Trava de corpo (26/09/2026).** A receita só aceita líder e seguidor cujo corpo (`Equip[0]`, o que
+  escolhe a malha no cliente) algum monstro do `NPCGener.txt` já usa: esse corpo o cliente de todo
+  jogador já desenhou. Corpo que ninguém usa pode ser malha que o cliente não abre, e isso fecha o
+  cliente de quem chegar perto (o caso MSAPROT, do lado dos itens). O jogo recusa a receita inteira e
+  deixa o bloco como estava (`handler/receita.go`, `corpoConhecido`); o painel recusa antes, com o
+  motivo na tela (`npctemplate.Corpos`). No conteúdo de 26/09: 128 corpos conhecidos, 1.849 moldes
+  liberados, 182 barrados (71 corpos). A ficha de `/monstros` ainda pode trocar o `Equip[0]` de um
+  molde sem essa trava.
+- **Molde novo continua sendo deploy.** A receita escolhe entre os moldes que existem em `npc/`; criar
+  um molde (um arquivo novo) ainda é conteúdo da imagem.

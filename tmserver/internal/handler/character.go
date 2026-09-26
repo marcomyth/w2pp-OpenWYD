@@ -232,6 +232,11 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 	// Drop any timed items (e.g. an expired 30-day Perzen mount) before injecting
 	// the character — the expiry is enforced here on load.
 	now := time.Now().Unix()
+	// Antes do vencimento: a montaria e o corpo que ganharam prazo por engano
+	// (itemLifetime) não podem sumir no login.
+	if n := d.desfazerPrazosIndevidos(st.Equip[:], true, st.ClassMaster) + d.desfazerPrazosIndevidos(st.Carry[:], false, 0); n > 0 {
+		d.log.Warn("prazo indevido desfeito no login", "conn", s.Conn, "account", s.AccountName, "char", st.Name, "itens", n)
+	}
 	dropExpired(st.Equip[:], now)
 	dropExpired(st.Carry[:], now)
 	// A stackable with no EF_AMOUNT crashes the client, but it is NOT repaired
@@ -366,6 +371,7 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		e.TerraMistica = st.TerraMistica
 		e.NewbieQuest = st.NewbieQuest
 		e.MolarGargula = st.MolarGargula
+		e.NivelRetroativo = st.NivelRetroativo
 		e.Str, e.Int, e.Dex, e.Con, e.ScoreBonus = st.Str, st.Int, st.Dex, st.Con, st.ScoreBonus
 		// Skill state: the learned mask, allocated mastery and the hotbar come
 		// straight from the DB; SkillBonus is re-derived from level + learned
@@ -454,7 +460,9 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 	if tmpl, ok := d.baseMobs[st.Class]; ok && len(tmpl) == content.BaseMobSize {
 		var equip [16]protocol.SelItem
 		for i := range st.Equip {
-			equip[i] = itemToSel(st.Equip[i])
+			// O LOGIN TAMBEM, e nao so os avisos de slot: quem entra com a montaria
+			// vestida receberia a pele errada ja no primeiro quadro.
+			equip[i] = selDoSlot(world.ItemPlaceEquip, i, st.Equip[i])
 		}
 		// Um BM que volta com a transformação ainda ativa nasce com o corpo da fera
 		// para ELE MESMO. O próprio cliente desenha o personagem pelo Equip[0]
@@ -487,6 +495,7 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 			d.refreshBabyMountSummon(w, s, e)
 		}
 		d.sendLoginAffects(w, s)
+		d.entregaRetroativaNoLogin(w, s)
 		return
 	}
 	d.log.Info("char login: sending CNFCharacterLogin (fallback, no template)",
@@ -531,6 +540,7 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		d.refreshBabyMountSummon(w, s, e)
 	}
 	d.sendLoginAffects(w, s)
+	d.entregaRetroativaNoLogin(w, s)
 }
 
 func (d *Dispatcher) logCNFCharacterLogin(path string, s *world.Session, st world.CharacterState, spawnX, spawnY int16, body []byte) {

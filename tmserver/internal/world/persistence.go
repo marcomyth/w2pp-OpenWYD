@@ -188,12 +188,13 @@ type CharacterState struct {
 	GuildLevel         uint8
 	Citizen            uint8 // MobExtra.Citizen; city allegiance and guild creation metadata
 	ClassMaster        uint8
-	CelLv40            uint8 // QuestInfo.Celestial.Lv40 gate
-	CelLv90            uint8 // QuestInfo.Celestial.Lv90 gate
-	CelCircle          uint8 // QuestInfo.Circle (Arcana quest done)
-	TerraMistica       uint8 // QuestInfo.Mortal.TerraMistica gate (AMU_MISTICO, issue #139)
-	NewbieQuest        uint8 // QuestInfo.Mortal.Newbie: training-field trainer step (0..4)
-	MolarGargula       uint8 // QuestInfo.Mortal: Molar de Gargula ja usado (0093)
+	CelLv40            uint8  // QuestInfo.Celestial.Lv40 gate
+	CelLv90            uint8  // QuestInfo.Celestial.Lv90 gate
+	CelCircle          uint8  // QuestInfo.Circle (Arcana quest done)
+	TerraMistica       uint8  // QuestInfo.Mortal.TerraMistica gate (AMU_MISTICO, issue #139)
+	NewbieQuest        uint8  // QuestInfo.Mortal.Newbie: training-field trainer step (0..4)
+	MolarGargula       uint8  // QuestInfo.Mortal: Molar de Gargula ja usado (0093)
+	NivelRetroativo    uint16 // pecas de nivel retroativas entregues ate este nivel (0172)
 	ArchLv355          uint8
 	ArchLv370          uint8
 	MortalLevel        uint16
@@ -314,6 +315,7 @@ type CharacterSave struct {
 	TerraMistica       uint8
 	NewbieQuest        uint8
 	MolarGargula       uint8
+	NivelRetroativo    uint16
 	ArchLv355          uint8
 	ArchLv370          uint8
 	MortalLevel        uint16

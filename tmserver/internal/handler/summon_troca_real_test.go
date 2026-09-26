@@ -49,13 +49,12 @@ func TestTrocarDeCriaturaComOsTemplatesDeVerdade(t *testing.T) {
 		Leader: liderID, BaseSpecial: [4]int16{0, 0, 320, 0}, Special: [4]int16{0, 0, 320, 0},
 	}
 	s := &world.Session{Conn: 0, Mode: world.UserPlay}
-	lider := w.Entity(liderID)
 
 	// Primeiro os gorilas.
 	if !d.generateSummon(w, s, dono, gorila, 6) {
 		t.Fatal("a evocação do Gorila não saiu")
 	}
-	gorilas := petsDoLider(lider)
+	gorilas := petsDoLider(dono)
 	if len(gorilas) == 0 {
 		t.Fatal("nenhum gorila em campo")
 	}
@@ -66,7 +65,7 @@ func TestTrocarDeCriaturaComOsTemplatesDeVerdade(t *testing.T) {
 		t.Fatal("a troca para Condor foi recusada")
 	}
 
-	depois := petsDoLider(lider)
+	depois := petsDoLider(dono)
 	if len(depois) == 0 {
 		t.Fatal("nenhum pet em campo depois da troca")
 	}
@@ -76,7 +75,7 @@ func TestTrocarDeCriaturaComOsTemplatesDeVerdade(t *testing.T) {
 	for _, id := range depois {
 		pet := w.Entity(id)
 		if pet == nil {
-			t.Errorf("a PartyList do líder aponta para o id %d, que não existe mais", id)
+			t.Errorf("o bando do dono aponta para o id %d, que não existe mais", id)
 			continue
 		}
 		t.Logf("pet %d: face %d, NonCombatNPC=%v, Clan=%d, Summoner=%d, Leader=%d",
@@ -92,8 +91,8 @@ func TestTrocarDeCriaturaComOsTemplatesDeVerdade(t *testing.T) {
 		if pet.Summoner != s.Conn {
 			t.Errorf("o pet %d não está ligado ao dono (Summoner=%d)", id, pet.Summoner)
 		}
-		if !petIsListed(w, id, pet) {
-			t.Errorf("o pet %d não está na PartyList do seu líder: o summonTick vai reapá-lo", id)
+		if !noBando(dono, id) {
+			t.Errorf("o pet %d não está no bando do dono: o summonTick vai reapá-lo", id)
 		}
 	}
 	if sobrouGorila > 0 {
@@ -101,12 +100,8 @@ func TestTrocarDeCriaturaComOsTemplatesDeVerdade(t *testing.T) {
 	}
 }
 
-func petsDoLider(lider *world.Entity) []int {
-	var out []int
-	for _, m := range lider.PartyList {
-		if m >= world.MaxUser {
-			out = append(out, m)
-		}
-	}
-	return out
+// petsDoLider lista o bando de dono (world.Entity.Evocacoes). O nome ficou do
+// tempo em que os pets moravam na PartyList do líder.
+func petsDoLider(dono *world.Entity) []int {
+	return bandoDe(dono)
 }

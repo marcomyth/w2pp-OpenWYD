@@ -233,19 +233,32 @@ a 0150 o trouxe de volta por engano e a 0155 o tirou de novo. O template fica se
 estoque, para a seed do boot não recolocar nada nele.
 
 **A loja de pontos do jogo é a Loja de Honra** — o God of War, "Honor Store", com o
-painel próprio do cliente (`handler/loja_de_honra.go`). O estoque mora no código
-(`estoqueDaLojaDeHonra`) e, desde 25/09/2026, cada preço é medido em dias de barraca
-aberta 20 h por dia (240 pontos sem fada, 560 com a Fada Azul):
+painel próprio do cliente (`handler/loja_de_honra.go`). Desde 26/09/2026 o estoque
+mora **nas vagas do God of War no painel** (`/npcs`, busca "Honor Store"), e mudar um
+item ou preço entra em jogo em até 15 segundos, sem reiniciar o servidor. Cada vaga
+com **preço em pontos maior que zero** é uma troca; vaga em ouro ou a zero ponto não
+aparece na loja (e o tmServer avisa no log a cada recarga). A aba da janela sai do
+tipo do item: arma em Armas, peça de armadura em Set, o resto em Consumo. Quem está
+com o painel aberto durante uma mudança no estoque recebe aviso e o painel fecha.
 
-| Item | Entrega | Pontos | Dias sem / com fada |
-|---|---|---|---|
-| Poeira de Lactolerium (413) | 1 | 100 | ~8 h / ~3,5 h |
-| Acelerador de Nascimento (3438) | 1 | 360 | 1,5 / 0,6 |
-| Poeira de Oriharucon (412) | `61 3` | 480 | 2 / 0,9 |
-| Fada Azul 24 h (3901) | `106 1` | 960 | 4 / 1,7 |
-| Baú de Experiência (4140) | 1 | 1440 | 6 / 2,6 |
-| Pergaminho da Água (N) LV1 (3173) | `61 3` | 1440 | 6 / 2,6 |
-| Bolsa do Andarilho (3467) | 1 | 2400 | 10 / 4,3 |
+A vitrine com que a loja volta do reinício é a da 0167 (26/09/2026): os sete itens de
+25/09 com 30% a menos, e três novos. O preço é medido em dias de barraca aberta 20 h
+por dia (240 pontos sem fada, 560 com a Fada Azul):
+
+| Vaga | Item | Entrega | Pontos | Dias sem / com fada |
+|---|---|---|---|---|
+| 0 | Poeira de Lactolerium (413) | 1 | 70 | 0,3 / 0,1 |
+| 1 | Acelerador de Nascimento (3438) | 1 | 252 | 1,1 / 0,5 |
+| 2 | Poeira de Oriharucon (412) | `61 3` | 336 | 1,4 / 0,6 |
+| 3 | Chave da Caçada Orc (465, `Chave_do_Rei_Orc`) | 1 | 480 | 2 / 0,9 |
+| 4 | Repletion D (4019, `Classe_D`) | `61 5` | 500 | 2,1 / 0,9 |
+| 5 | Fada Azul 24 h (3901) | `106 1` | 672 | 2,8 / 1,2 |
+| 6 | Baú de Experiência (4140) | 1 | 1008 | 4,2 / 1,8 |
+| 7 | Pergaminho da Água (N) LV1 (3173) | `61 3` | 1008 | 4,2 / 1,8 |
+| 8 | Bolsa do Andarilho (3467) | 1 | 1680 | 7 / 3 |
+| 9 | Ovo de Dente de Sabre (2305) | 1 | 3600 | 15 / 6,4 |
+
+Depois do reinício a tabela é só o ponto de partida: quem manda é o painel.
 
 O preço é por compra (a pilha inteira), e o item chega com os efeitos da tabela: a
 pilha com EF_AMOUNT, a fada com o prazo, que só corre depois de equipada.

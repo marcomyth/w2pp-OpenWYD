@@ -17,7 +17,7 @@ import (
 // TestPetNaoRecebeXPDoAbate: quando o dono mata um monstro, a XP do grupo paga só
 // jogadores. O legado filtra `party > 0 && party < MAX_USER` (MobKilled.cpp:444).
 //
-// Os pets moram na PartyList do líder, e o laço de pagamento pagava a lista
+// Os pets moravam na PartyList do líder (até 26/09), e o laço de pagamento pagava a lista
 // inteira: cada pet perto do corpo ganhava XP, subia de nível e recebia o
 // MsgMotion de comemoração, que o cliente anima parando o bicho. A cada monstro
 // morto os pets "travavam" no meio da luta.

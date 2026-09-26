@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -63,60 +65,128 @@ const (
 	honraMotivo = "loja de honra"
 )
 
-// itemDeHonra é uma troca oferecida pela loja.
+// msgHonraItemSaiu responde à compra de uma vaga que deixou de vender entre a
+// abertura do painel e o clique.
+const msgHonraItemSaiu = "Este item não está mais à venda. Abra a loja de novo."
+
+// msgHonraAtualizada é o aviso a quem estava com o painel aberto quando a equipe
+// mudou o estoque.
+const msgHonraAtualizada = "A Loja de Honra foi atualizada. Abra a loja de novo para ver os preços novos."
+
+// itemDeHonra é uma troca oferecida pela loja: uma vaga do estoque do God of War.
 //
 // Efeitos vai no item entregue como está: é por ele que uma pilha sai com
 // EF_AMOUNT (61 N) e uma fada sai com o prazo dela (106 1 = 24 horas, que só
 // começa a correr quando ela é equipada — timeditem.go).
 type itemDeHonra struct {
+	Slot    int16 // a vaga no painel de NPC (0..26), e é por ela que a compra aponta o item
 	Indice  int16
 	Preco   int32 // em pontos de lojinha, por compra (a pilha inteira)
 	Cat     uint8 // a aba do painel: protocol.HonraCat*
 	Efeitos [3]world.Effect
 }
 
-// pilhaDe é o EF_AMOUNT de uma pilha de n unidades.
-func pilhaDe(n uint8) [3]world.Effect {
-	return [3]world.Effect{{Effect: efAmount, Value: n}}
+// estoqueDeHonra é o que o God of War vende: as vagas da loja dele que têm preço
+// em pontos, na ordem das vagas.
+//
+// O estoque mora no BANCO desde 26/09/2026, nas vagas do NPC (npc_shop_item, com
+// price_points da 0078), e é editado no painel como qualquer lojista. Antes
+// morava numa tabela neste arquivo, e mudar um preço exigia deploy — que reinicia
+// o servidor e derruba todo mundo. Agora a recarga das lojas de NPC (npcconfig.go,
+// a cada 15 s) reescreve as vagas do God of War em npc.Carry e os preços em
+// npc.ShopPointPrice (applyShop), e esta função só lê o que está no NPC. Não há
+// cópia do estoque em lugar nenhum para ficar velha.
+//
+// Uma vaga cobrada em OURO não entra: esta loja só sabe cobrar ponto, e mostrar o
+// item com um preço que ela não cobra seria pior que escondê-lo. Preço zero
+// também não: item de graça na loja de honra é engano de cadastro, e não uma
+// promoção. Os dois casos são avisados no log a cada recarga
+// (auditaEstoqueDeHonra), para quem cadastrou descobrir por que o item sumiu.
+func (d *Dispatcher) estoqueDeHonra(npc *world.Entity) []itemDeHonra {
+	if !ehLojaDeHonra(npc) {
+		return nil
+	}
+	var estoque []itemDeHonra
+	for slot := 0; slot < maxShopSlots && len(estoque) < protocol.HonraMaxItens; slot++ {
+		pos := protocol.ShopSlot(slot)
+		it := npc.Carry[pos]
+		if it.Index <= 0 {
+			continue
+		}
+		preco, emPontos := npc.ShopPointPrice[pos]
+		if !emPontos || preco <= 0 {
+			continue
+		}
+		estoque = append(estoque, itemDeHonra{
+			Slot:    int16(slot),
+			Indice:  it.Index,
+			Preco:   preco,
+			Cat:     d.categoriaDeHonra(it.Index),
+			Efeitos: it.Effects,
+		})
+	}
+	return estoque
 }
 
-// prazoEmDias é a duração de um item temporário, em dias, ainda não iniciada.
-func prazoEmDias(n uint8) [3]world.Effect {
-	return [3]world.Effect{{Effect: efWDay, Value: n}}
+// itemDeHonraNaVaga é a troca da vaga slot, se o God of War vende alguma ali.
+func (d *Dispatcher) itemDeHonraNaVaga(npc *world.Entity, slot int) (itemDeHonra, bool) {
+	for _, it := range d.estoqueDeHonra(npc) {
+		if int(it.Slot) == slot {
+			return it, true
+		}
+	}
+	return itemDeHonra{}, false
 }
 
-// estoqueDaLojaDeHonra é o que o God of War oferece, na ordem em que aparece no
-// painel. As casas são a POSIÇÃO nesta tabela, e é por elas que a compra se
-// refere ao item, então acrescentar no fim é seguro e reordenar troca o que cada
-// jogador com o painel aberto vai comprar.
+// categoriaDeHonra é a aba do item, tirada da casa de equipar dele no ItemList
+// (nPos): arma vai para Armas, peça de armadura para Set, e o resto — material,
+// consumível, fada, montaria — para Consumo.
 //
-// Preços combinados em 25/09/2026, medidos em DIAS de barraca aberta 20 horas
-// por dia: 240 pontos sem fada (3 por quinze minutos) e 560 com a Fada Azul (7).
-// A régua é a fada — quem ainda não tem uma junta 4 dias para a de 24 horas, e
-// ela rende 320 pontos a mais por dia, então não se paga sozinha. O preço é por
-// COMPRA: a pilha de três sai pelo número da tabela.
-// Todo índice aqui foi conferido no Release/Common/ItemList.csv.
+// Deduzida, e não cadastrada, porque o painel de NPC não tem onde escrever a aba:
+// ele só conhece item, quantidade e preço. A classificação é a mesma que o
+// compositor usa (combine.SlotKindForPos), e é estreita de propósito: só as cinco
+// casas de armadura (2..32) e as três de arma (64, 128, 192) saem de Consumo.
+// Fada (casa 16384 no ItemList) e montaria caem em Consumo, que é onde as abas
+// antigas, escritas à mão, já as punham.
 //
-// Mora em código, como o estoque do Unicórnio Puro, e pelo mesmo motivo: com
-// -npc-editing ligado o Carry do template não chega ao jogo. Se um dia a equipe
-// tiver de mexer nisto pelo site, o lugar é uma tabela nova ao lado de
-// npc_shop_item — o preço aqui é em pontos, e item_price só sabe de ouro.
-// A categoria é curada junto com o item, e não deduzida do ItemList.csv. O
-// servidor até saberia adivinhar pela casa de equipar, mas o estoque desta loja é
-// escolhido a dedo: quem escolhe o item escolhe a aba, e uma dedução errada
-// colocaria uma fada na aba de armas sem ninguém notar.
-//
-// Os sete são materiais, consumíveis e itens de tempo, então caem todos em
-// Consumo: as abas Armas e Set existem no painel e ficam vazias até o estoque
-// ganhar uma arma e uma peça de set.
-var estoqueDaLojaDeHonra = []itemDeHonra{
-	{413, 100, protocol.HonraCatConsumo, [3]world.Effect{}},   // Poeira_de_Lactolerium x1 (~8 h sem fada)
-	{3438, 360, protocol.HonraCatConsumo, [3]world.Effect{}},  // Acelerador_de_Nascimento x1 (1,5 dia)
-	{412, 480, protocol.HonraCatConsumo, pilhaDe(3)},          // Poeira_de_Oriharucon x3 (2 dias)
-	{3901, 960, protocol.HonraCatConsumo, prazoEmDias(1)},     // Fada_Azul 24 h (4 dias)
-	{4140, 1440, protocol.HonraCatConsumo, [3]world.Effect{}}, // Baú_de_Experiência x1 (6 dias)
-	{3173, 1440, protocol.HonraCatConsumo, pilhaDe(3)},        // Pergaminho_da_Água(N)LV1 x3 (6 dias)
-	{3467, 2400, protocol.HonraCatConsumo, [3]world.Effect{}}, // Bolsa_do_Andarilho x1 (10 dias)
+// Sem catálogo (tmServer sem -content) tudo vai para Consumo, e continua
+// aparecendo na aba Todos.
+func (d *Dispatcher) categoriaDeHonra(indice int16) uint8 {
+	switch combine.SlotKindForPos(int32(d.combineCatalog.Pos[int(indice)])) {
+	case combine.SlotWeapon:
+		return protocol.HonraCatArmas
+	case combine.SlotArmour:
+		return protocol.HonraCatSet
+	default:
+		return protocol.HonraCatConsumo
+	}
+}
+
+// auditaEstoqueDeHonra avisa, no log, das vagas do God of War que ele não vai
+// vender: cobradas em ouro ou a preço zero. Roda a cada recarga das lojas
+// (npcconfig.go), que é quando o estoque muda.
+func (d *Dispatcher) auditaEstoqueDeHonra(npc *world.Entity) {
+	if !ehLojaDeHonra(npc) {
+		return
+	}
+	var emOuro, deGraca []int
+	for slot := 0; slot < maxShopSlots; slot++ {
+		pos := protocol.ShopSlot(slot)
+		if npc.Carry[pos].Index <= 0 {
+			continue
+		}
+		preco, emPontos := npc.ShopPointPrice[pos]
+		switch {
+		case !emPontos:
+			emOuro = append(emOuro, slot)
+		case preco <= 0:
+			deGraca = append(deGraca, slot)
+		}
+	}
+	if len(emOuro) > 0 || len(deGraca) > 0 {
+		d.log.Warn("loja de honra: vagas fora da venda, cadastre o preço em pontos",
+			"npc", npc.ID, "vagas_em_ouro", emOuro, "vagas_a_zero", deGraca)
+	}
 }
 
 // ehLojaDeHonra diz se npc é a loja de honra.
@@ -139,16 +209,11 @@ func marcaLojaDeHonra(e *world.Entity, templateName string) {
 }
 
 // itensDeHonraParaOPainel monta o estoque na forma da linha.
-func itensDeHonraParaOPainel() []protocol.HonraItem {
-	n := len(estoqueDaLojaDeHonra)
-	if n > protocol.HonraMaxItens {
-		n = protocol.HonraMaxItens
-	}
-	itens := make([]protocol.HonraItem, 0, n)
-	for i := 0; i < n; i++ {
-		it := estoqueDaLojaDeHonra[i]
+func itensDeHonraParaOPainel(estoque []itemDeHonra) []protocol.HonraItem {
+	itens := make([]protocol.HonraItem, 0, len(estoque))
+	for _, it := range estoque {
 		itens = append(itens, protocol.HonraItem{
-			Slot:      int16(i),
+			Slot:      it.Slot,
 			Indice:    it.Indice,
 			Qtd:       uint8(itemAmount(world.Item{Index: it.Indice, Effects: it.Efeitos})),
 			Preco:     it.Preco,
@@ -168,7 +233,7 @@ func (d *Dispatcher) abrirLojaDeHonra(w *world.World, s *world.Session, npc *wor
 	// Guardar qual NPC abriu a loja é o que faz a compra poder exigir presença:
 	// sem isto, um cliente remendado compraria de qualquer lugar do mundo.
 	s.LojaHonraNPC = npc.ID
-	itens := itensDeHonraParaOPainel()
+	itens := itensDeHonraParaOPainel(d.estoqueDeHonra(npc))
 	// O quanto a lojinha rende vai junto, para o painel poder dizer de onde sai a
 	// moeda que ele cobra. É lido agora, e para ESTE jogador: quem está com uma
 	// Fada Azul ganha mais, e o painel não teria como saber disso sozinho.
@@ -291,12 +356,15 @@ func (d *Dispatcher) honraCompra(w *world.World, s *world.Session, _ protocol.He
 		d.fechaLojaDeHonra(w, s)
 		return
 	}
-	pos := int(pedido.Slot)
-	if pos < 0 || pos >= len(estoqueDaLojaDeHonra) {
-		return
-	}
-	item := estoqueDaLojaDeHonra[pos]
-	if item.Indice <= 0 || item.Preco <= 0 {
+	// A vaga é lida do NPC AGORA, e não do que o painel mostrou: se a equipe
+	// trocou o estoque entre a abertura e o clique, vale o estoque de agora. Uma
+	// vaga que deixou de vender responde e fecha o painel, em vez de sumir calada
+	// — o jogador está olhando para um item que clicou e precisa saber por que
+	// não veio.
+	item, ok := d.itemDeHonraNaVaga(npc, int(pedido.Slot))
+	if !ok {
+		sendClientMessage(w, s, msgHonraItemSaiu)
+		d.fechaLojaDeHonra(w, s)
 		return
 	}
 	if firstFreeTradeSlot(e) < 0 {
@@ -369,4 +437,66 @@ func (d *Dispatcher) entregaDeHonra(w *world.World, s *world.Session, accountID 
 	w.Send(s, protocol.MsgHonraSaldo, protocol.EncodeHonraSaldo(saldo))
 	d.log.Info("loja de honra: entregue", "conn", s.Conn, "conta", accountID,
 		"item", indice, "pontos", preco, "saldo", saldo, "slot", destino)
+}
+
+// honraAberta é o que um painel aberto mostrava antes de uma recarga das lojas:
+// de qual NPC gerido ele era (o slug, que sobrevive à recarga) e o estoque.
+type honraAberta struct {
+	slug    string
+	estoque []itemDeHonra
+}
+
+// guardaLojasDeHonraAbertas anota, antes de a recarga tirar os NPCs do mundo, o
+// que cada painel de honra aberto estava mostrando. A chave é o id do God of War
+// de antes da recarga, que é o que as sessões guardam em LojaHonraNPC.
+//
+// Loop-only; devolve nil quando ninguém está com o painel aberto, que é o caso
+// comum.
+func (d *Dispatcher) guardaLojasDeHonraAbertas(w *world.World) map[int]honraAberta {
+	var antes map[int]honraAberta
+	w.ForEachSession(func(s *world.Session, _ *world.Entity) {
+		if s.LojaHonraNPC == 0 {
+			return
+		}
+		if antes == nil {
+			antes = make(map[int]honraAberta)
+		}
+		if _, ja := antes[s.LojaHonraNPC]; ja {
+			return
+		}
+		for slug, id := range d.managedNPCs {
+			if id == s.LojaHonraNPC {
+				antes[id] = honraAberta{slug: slug, estoque: d.estoqueDeHonra(w.Entity(id))}
+				break
+			}
+		}
+	})
+	return antes
+}
+
+// religaLojasDeHonraAbertas acerta os painéis abertos depois da recarga.
+//
+// A recarga tira todo NPC gerido do mundo e o põe de volta, e o God of War volta
+// com OUTRO id. Um painel que continuasse apontando para o id antigo recusaria
+// toda compra (o NPC não existe mais, ou é outro). Então: se o estoque do God of
+// War é o mesmo de antes — a equipe mexeu em outra loja —, o painel passa a
+// apontar para o id novo e o jogador nem percebe. Se mudou, o painel fecha com um
+// aviso, porque os preços que ele mostra não são mais os que a loja cobra.
+func (d *Dispatcher) religaLojasDeHonraAbertas(w *world.World, antes map[int]honraAberta) {
+	w.ForEachSession(func(s *world.Session, _ *world.Entity) {
+		if s.LojaHonraNPC == 0 {
+			return
+		}
+		if a, ok := antes[s.LojaHonraNPC]; ok {
+			if id, ok := d.managedNPCs[a.slug]; ok {
+				npc := w.Entity(id)
+				if ehLojaDeHonra(npc) && slices.Equal(d.estoqueDeHonra(npc), a.estoque) {
+					s.LojaHonraNPC = id
+					return
+				}
+			}
+		}
+		d.fechaLojaDeHonra(w, s)
+		sendClientMessage(w, s, msgHonraAtualizada)
+	})
 }

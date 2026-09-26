@@ -358,6 +358,12 @@
     position: absolute; bottom: 2px; right: 3px; font-size: 10px; font-weight: 700;
     color: var(--ink); background: var(--surface); padding: 0 2px; font-variant-numeric: tabular-nums;
   }
+  /* Price in shop points, only on NPC shop slots that charge points: bottom left,
+     away from the stack count. */
+  .slot .pts {
+    position: absolute; bottom: 2px; left: 3px; font-size: 9.5px; font-weight: 700;
+    color: var(--accent); background: var(--surface); padding: 0 2px; font-variant-numeric: tabular-nums;
+  }
   .slot img { width: 100%; height: auto; image-rendering: pixelated; }
   .slot.travado {
     cursor: not-allowed; opacity: .5;
@@ -458,7 +464,7 @@
     {{end}}
 
     {{/* MUNDO: o conteúdo que o jogo carrega. */}}
-    {{if or .HasItems (and .IsAdmin .HasMasm)}}
+    {{if or .HasItems (or (and .IsAdmin .HasMasm) .HasReceitas)}}
     <span class="grupo">
       {{if .HasItems}}
       <a href="/itens" {{if eq .Nav "itens"}}class="on"{{end}}>Itens</a>
@@ -466,6 +472,9 @@
       <a href="/monstros" {{if eq .Nav "monstros"}}class="on"{{end}}>Monstros</a>
       <a href="/drops" {{if eq .Nav "drops"}}class="on"{{end}}>Drops</a>
       {{end}}
+      {{/* Zonas de caça: quem nasce em cada bloco do NPCGener, quantos e onde.
+           Fica com o conteúdo porque é o arquivo que ela substitui. */}}
+      {{if .HasReceitas}}<a href="/blocos/receitas" {{if eq .Nav "receitas"}}class="on"{{end}}>Zonas de caça</a>{{end}}
       {{/* Masmorras fica com o conteúdo, e não com "Agora", porque a maior parte
            dela é ajuste frio — quem entra, quanto paga. O que ela tem de vivo é
            a porta, que vale na hora. */}}
