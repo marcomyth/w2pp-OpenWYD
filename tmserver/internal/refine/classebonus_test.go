@@ -59,9 +59,9 @@ func TestClasseBonusTablePerSlot(t *testing.T) {
 		size int
 	}{
 		{"helm", nPosHelm, len(bonusValue3)},
-		{"chest", nPosChest, len(bonusValue2)},
-		{"legs", nPosLegs, len(bonusValue2)},
-		{"glove", nPosGlove, len(bonusValue4)},
+		{"chest", nPosChest, pesoTotal(classeDanoPeito)},
+		{"legs", nPosLegs, pesoTotal(classeDanoPeito)},
+		{"glove", nPosGlove, pesoTotal(classeDanoLuva)},
 		{"boot", nPosBoot, len(bonusValue5)},
 	}
 	for _, c := range cases {
@@ -127,7 +127,9 @@ func TestClasseBonusSanc(t *testing.T) {
 			dest := world.Item{Index: 100, Effects: [3]world.Effect{c.effect0}}
 			roll, mods := scriptedRoll(0, c.roll)
 
-			ClasseBonus(&dest, nPosChest, roll, noAbility)
+			// The helm keeps the legacy single draw, so the sanc roll is the
+			// second call.
+			ClasseBonus(&dest, nPosHelm, roll, noAbility)
 
 			if dest.Effects[0].Effect != efSanc {
 				t.Errorf("Effects[0] = %+v, want EF_SANC", dest.Effects[0])
@@ -197,5 +199,103 @@ func TestClasseBonusBootDamageClamp(t *testing.T) {
 	}
 	if got := dest.Effects[1].Value; got != bootDamageCap-catalogDamage {
 		t.Errorf("rolled EF_DAMAGE value = %d, want %d", got, bootDamageCap-catalogDamage)
+	}
+}
+
+func pesoTotal(pool []classeValor) int {
+	total := 0
+	for _, v := range pool {
+		total += v.weight
+	}
+	return total
+}
+
+// classeChances runs every combination of draws classeAdds can make and
+// returns the exact odds of each second add, keyed by {effect, value}.
+func classeChances(t *testing.T, nPos int) map[world.Effect]float64 {
+	t.Helper()
+	chances := map[world.Effect]float64{}
+	var anda func(prefixo []int, prob float64)
+	anda = func(prefixo []int, prob float64) {
+		i := 0
+		var mods []int
+		funda := false
+		roll := func(n int) int {
+			mods = append(mods, n)
+			if i < len(prefixo) {
+				v := prefixo[i]
+				i++
+				return v
+			}
+			funda = true
+			return 0
+		}
+		_, add2 := classeAdds(nPos, roll)
+		if !funda {
+			chances[add2] += prob
+			return
+		}
+		n := mods[len(prefixo)]
+		for v := 0; v < n; v++ {
+			anda(append(append([]int{}, prefixo...), v), prob/float64(n))
+		}
+	}
+	anda(nil, 1)
+	return chances
+}
+
+// The team's odds (26/09/2026): chest and legs roll defense or crit half and
+// half; defense 35/40/45/50 at 50/30/20/5 (of 105), crit 1% or 2%. The glove
+// rolls skill or defense half and half; skill 12/15/18 with 18 at 5%, defense
+// 40/45/50 at 30/20/5 on EF_AC — never the EF_ACADD2 this port does not read.
+func TestClasseAddsSegueAsChancesDaEquipe(t *testing.T) {
+	const tol = 1e-9
+	cases := []struct {
+		nome string
+		nPos int
+		want map[world.Effect]float64
+	}{
+		{"peito", nPosChest, map[world.Effect]float64{
+			{Effect: efAC, Value: 35}: 0.5 * 50 / 105, {Effect: efAC, Value: 40}: 0.5 * 30 / 105,
+			{Effect: efAC, Value: 45}: 0.5 * 20 / 105, {Effect: efAC, Value: 50}: 0.5 * 5 / 105,
+			{Effect: efCritical2, Value: 10}: 0.25, {Effect: efCritical2, Value: 20}: 0.25,
+		}},
+		{"calça", nPosLegs, map[world.Effect]float64{
+			{Effect: efAC, Value: 35}: 0.5 * 50 / 105, {Effect: efAC, Value: 40}: 0.5 * 30 / 105,
+			{Effect: efAC, Value: 45}: 0.5 * 20 / 105, {Effect: efAC, Value: 50}: 0.5 * 5 / 105,
+			{Effect: efCritical2, Value: 10}: 0.25, {Effect: efCritical2, Value: 20}: 0.25,
+		}},
+		{"luva", nPosGlove, map[world.Effect]float64{
+			{Effect: efSpecialAll, Value: 12}: 0.5 * 55 / 100, {Effect: efSpecialAll, Value: 15}: 0.5 * 40 / 100,
+			{Effect: efSpecialAll, Value: 18}: 0.5 * 5 / 100,
+			{Effect: efAC, Value: 40}:         0.5 * 30 / 55, {Effect: efAC, Value: 45}: 0.5 * 20 / 55,
+			{Effect: efAC, Value: 50}: 0.5 * 5 / 55,
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.nome, func(t *testing.T) {
+			got := classeChances(t, c.nPos)
+			if len(got) != len(c.want) {
+				t.Fatalf("segundo add sai em %d formas (%v), want %d", len(got), got, len(c.want))
+			}
+			for ef, p := range c.want {
+				if d := got[ef] - p; d > tol || d < -tol {
+					t.Errorf("%+v: chance %.5f, want %.5f", ef, got[ef], p)
+				}
+			}
+		})
+	}
+}
+
+// Every draw stays under the MSVC rand() ceiling: a modulus above 32767 would
+// make the top values unreachable in production.
+func TestClasseAddsCabemNoRand(t *testing.T) {
+	for _, pool := range [][]classeValor{
+		classeDanoPeito, classeDanoLuva, classeDefesaPeito, classeCriticoPeito,
+		classeSkillLuva, classeDefesaLuva,
+	} {
+		if n := pesoTotal(pool); n > 32767 {
+			t.Errorf("peso total %d passa do rand() do MSVC", n)
+		}
 	}
 }

@@ -2,9 +2,10 @@ package refine
 
 import "github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 
-// bonusValue3/2/4/5 are g_pBonusValue3/2/4/5 (Basedef.cpp:432/467/396/353):
-// SetItemBonus2's reroll pools, one per equip slot class. Each row is
-// {effect1, value1, effect2, value2}.
+// bonusValue3/5 are g_pBonusValue3/5 (Basedef.cpp:432/353): SetItemBonus2's
+// reroll pools for helm and boot. Each row is {effect1, value1, effect2,
+// value2}. Chest, legs and glove no longer use the legacy g_pBonusValue2/4 —
+// see classeAdds below.
 var (
 	bonusValue3 = [25][4]int{ // Elmo (nPos 2)
 		{4, 60, 26, 18}, {4, 60, 26, 15}, {4, 60, 26, 12},
@@ -14,31 +15,6 @@ var (
 		{4, 60, 60, 12}, {4, 60, 60, 10}, {4, 60, 60, 8}, {4, 60, 60, 6},
 		{4, 50, 60, 12}, {4, 50, 60, 10}, {4, 50, 60, 8}, {4, 50, 60, 6},
 		{4, 40, 60, 12}, {4, 40, 60, 10}, {4, 40, 60, 8}, {4, 40, 60, 6}, {4, 40, 60, 4},
-	}
-
-	bonusValue2 = [48][4]int{ // Peito/Calça (nPos 4|8)
-		{2, 30, 3, 30}, {2, 30, 3, 25}, {2, 30, 3, 20}, {2, 30, 3, 10},
-		{2, 24, 3, 30}, {2, 24, 3, 25}, {2, 24, 3, 20}, {2, 24, 3, 15},
-		{2, 18, 3, 30}, {2, 18, 3, 25}, {2, 18, 3, 20}, {2, 18, 3, 15},
-		{2, 30, 71, 50}, {2, 30, 71, 60}, {2, 30, 71, 70},
-		{2, 24, 71, 50}, {2, 24, 71, 60}, {2, 24, 71, 70},
-		{2, 18, 71, 50}, {2, 18, 71, 60}, {2, 18, 71, 70},
-		{60, 10, 3, 30}, {60, 10, 3, 25}, {60, 10, 3, 20}, {60, 10, 3, 15}, {60, 10, 3, 10},
-		{60, 8, 3, 30}, {60, 8, 3, 25}, {60, 8, 3, 20}, {60, 8, 3, 15}, {60, 8, 3, 10},
-		{60, 6, 3, 30}, {60, 6, 3, 25}, {60, 6, 3, 20}, {60, 6, 3, 15}, {60, 6, 3, 10},
-		{60, 10, 71, 50}, {60, 10, 71, 60}, {60, 10, 71, 70},
-		{60, 8, 71, 50}, {60, 8, 71, 60}, {60, 8, 71, 70},
-		{60, 6, 71, 50}, {60, 6, 71, 60}, {60, 6, 71, 70},
-		{60, 4, 71, 50}, {60, 4, 71, 60}, {60, 4, 71, 70},
-	}
-
-	bonusValue4 = [30][4]int{ // Luva (nPos 16)
-		{2, 30, 72, 30}, {2, 30, 72, 25}, {2, 30, 72, 20}, {2, 30, 72, 15}, {2, 30, 72, 10},
-		{2, 24, 72, 30}, {2, 24, 72, 25}, {2, 24, 72, 20}, {2, 24, 72, 15}, {2, 24, 72, 10},
-		{2, 18, 72, 30}, {2, 18, 72, 25}, {2, 18, 72, 20}, {2, 18, 72, 15}, {2, 18, 72, 10},
-		{60, 10, 72, 30}, {60, 10, 72, 25}, {60, 10, 72, 20}, {60, 10, 72, 15},
-		{60, 8, 72, 30}, {60, 8, 72, 25}, {60, 8, 72, 20}, {60, 8, 72, 15},
-		{60, 6, 72, 30}, {60, 6, 72, 25}, {60, 6, 72, 20}, {60, 6, 72, 15},
 	}
 
 	bonusValue5 = [30][4]int{ // Bota (nPos 32)
@@ -54,6 +30,94 @@ var (
 		{2, 6, 60, 10}, {2, 6, 60, 8}, {2, 6, 60, 6},
 	}
 )
+
+// SERVER RULE, NOT PARITY (Marco, 26/09/2026): the Classe adds of chest, legs
+// and glove. The legacy pools (g_pBonusValue2/4) topped defense at 30, gave
+// chest crit as EF_CRITICAL2 50-70, and put the glove's defense on EF_ACADD2,
+// which this port does not read — the glove add counted for nothing.
+//
+// Each add is drawn on its own, with a weight per value, instead of one row out
+// of a flat table: the team's odds (5% for the top defense) would need a table
+// of thousands of rows, and a single rand() draw over it would pass the 32767
+// ceiling of the MSVC rand() this port reproduces.
+type classeValor struct {
+	effect, value, weight int
+}
+
+// classeDanoPeito and classeDanoLuva keep the legacy first add of chest/legs and of glove: damage or
+// magic, with the weight each value had as rows of g_pBonusValue2/4.
+var (
+	classeDanoPeito = []classeValor{
+		{efDamageBonus, 30, 7}, {efDamageBonus, 24, 7}, {efDamageBonus, 18, 7},
+		{efMagic, 10, 8}, {efMagic, 8, 8}, {efMagic, 6, 8}, {efMagic, 4, 3},
+	}
+	classeDanoLuva = []classeValor{
+		{efDamageBonus, 30, 5}, {efDamageBonus, 24, 5}, {efDamageBonus, 18, 5},
+		{efMagic, 10, 4}, {efMagic, 8, 4}, {efMagic, 6, 4},
+	}
+
+	// The second add of chest/legs: defense or crit, half and half. Defense is
+	// 35/40/45/50 at the team's 50/30/20/5 (they sum 105, taken as weights).
+	// Crit is 1% or 2% — 10 or 20 on the byte, which the tooltip divides by ten.
+	classeDefesaPeito = []classeValor{
+		{efAC, 35, 50}, {efAC, 40, 30}, {efAC, 45, 20}, {efAC, 50, 5},
+	}
+	classeCriticoPeito = []classeValor{
+		{efCritical2, 10, 1}, {efCritical2, 20, 1},
+	}
+
+	// The second add of the glove: skill or defense, half and half. Skill is
+	// the boot's 12/15/18 with 18 very rare; defense is the chest's odds from
+	// 40 up, on EF_AC so the server counts it.
+	classeSkillLuva = []classeValor{
+		{efSpecialAll, 12, 55}, {efSpecialAll, 15, 40}, {efSpecialAll, 18, 5},
+	}
+	classeDefesaLuva = []classeValor{
+		{efAC, 40, 30}, {efAC, 45, 20}, {efAC, 50, 5},
+	}
+)
+
+// Effect ids the Classe adds write (ItemEffect.h).
+const (
+	efAC         = 3
+	efMagic      = 60
+	efCritical2  = 71
+	efSpecialAll = 74
+)
+
+// classeSorteia draws one value out of pool by weight.
+func classeSorteia(pool []classeValor, roll func(int) int) world.Effect {
+	total := 0
+	for _, v := range pool {
+		total += v.weight
+	}
+	n := roll(total)
+	for _, v := range pool {
+		if n < v.weight {
+			return world.Effect{Effect: uint8(v.effect), Value: uint8(v.value)}
+		}
+		n -= v.weight
+	}
+	last := pool[len(pool)-1]
+	return world.Effect{Effect: uint8(last.effect), Value: uint8(last.value)}
+}
+
+// classeAdds draws the two adds of a chest, legs or glove piece: the first,
+// then which kind the second is, then its value.
+func classeAdds(nPos int, roll func(int) int) (world.Effect, world.Effect) {
+	if nPos == nPosGlove {
+		primeiro := classeSorteia(classeDanoLuva, roll)
+		if roll(2) == 0 {
+			return primeiro, classeSorteia(classeSkillLuva, roll)
+		}
+		return primeiro, classeSorteia(classeDefesaLuva, roll)
+	}
+	primeiro := classeSorteia(classeDanoPeito, roll)
+	if roll(2) == 0 {
+		return primeiro, classeSorteia(classeDefesaPeito, roll)
+	}
+	return primeiro, classeSorteia(classeCriticoPeito, roll)
+}
 
 // classeSancCap is the +6 ceiling SetItemBonus2 puts on the sanc it bumps
 // (Server.cpp:2727-2739 and its three siblings) — distinct from the dust
@@ -89,25 +153,25 @@ const (
 // the caller does not need to branch on it (an uncovered item is left
 // unchanged, matching the legacy exactly), but tests find it useful.
 func ClasseBonus(dest *world.Item, nPos int, roll func(int) int, itemAbility func(world.Item, uint8) int) bool {
-	var table [][4]int
+	// The adds are drawn BEFORE any sanc roll: every branch of SetItemBonus2
+	// opens with `int _rand = rand()%N;` and only then touches stEffect[0]
+	// (Server.cpp:2723-2726 and its three siblings). Helm and boot keep the
+	// legacy single draw, so a captured rand() sequence still reproduces there.
+	var add1, add2 world.Effect
 	switch nPos {
-	case nPosHelm:
-		table = bonusValue3[:]
-	case nPosChest, nPosLegs:
-		table = bonusValue2[:]
-	case nPosGlove:
-		table = bonusValue4[:]
-	case nPosBoot:
-		table = bonusValue5[:]
+	case nPosHelm, nPosBoot:
+		table := bonusValue3[:]
+		if nPos == nPosBoot {
+			table = bonusValue5[:]
+		}
+		row := table[roll(len(table))]
+		add1 = world.Effect{Effect: uint8(row[0]), Value: uint8(row[1])}
+		add2 = world.Effect{Effect: uint8(row[2]), Value: uint8(row[3])}
+	case nPosChest, nPosLegs, nPosGlove:
+		add1, add2 = classeAdds(nPos, roll)
 	default:
 		return false
 	}
-
-	// The table index is drawn BEFORE any sanc roll: every branch of
-	// SetItemBonus2 opens with `int _rand = rand()%N;` and only then touches
-	// stEffect[0] (Server.cpp:2723-2726 and its three siblings). Keeping that
-	// order is what makes a captured rand() sequence reproduce byte-for-byte.
-	row := table[roll(len(table))]
 
 	if dest.Effects[0].Effect == classeSancEffect {
 		lvl := Level(*dest)
@@ -122,8 +186,8 @@ func ClasseBonus(dest *world.Item, nPos int, roll func(int) int, itemAbility fun
 		dest.Effects[0] = world.Effect{Effect: classeSancEffect, Value: uint8(roll(2))}
 	}
 
-	dest.Effects[1] = world.Effect{Effect: uint8(row[0]), Value: uint8(row[1])}
-	dest.Effects[2] = world.Effect{Effect: uint8(row[2]), Value: uint8(row[3])}
+	dest.Effects[1] = add1
+	dest.Effects[2] = add2
 
 	if nPos == nPosBoot {
 		clampBootDamage(dest, itemAbility)
