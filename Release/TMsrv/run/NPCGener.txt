@@ -82186,9 +82186,9 @@
 // ********************************************
 #	[2876]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82244,9 +82244,9 @@
 // ********************************************
 #	[2878]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82273,9 +82273,9 @@
 // ********************************************
 #	[2879]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82389,9 +82389,9 @@
 // ********************************************
 #	[2883]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82418,9 +82418,9 @@
 // ********************************************
 #	[2884]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82476,9 +82476,9 @@
 // ********************************************
 #	[2886]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82505,9 +82505,9 @@
 // ********************************************
 #	[2887]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82534,9 +82534,9 @@
 // ********************************************
 #	[2888]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82563,9 +82563,9 @@
 // ********************************************
 #	[2889]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82592,9 +82592,9 @@
 // ********************************************
 #	[2890]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82621,9 +82621,9 @@
 // ********************************************
 #	[2891]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82650,9 +82650,9 @@
 // ********************************************
 #	[2892]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82679,9 +82679,9 @@
 // ********************************************
 #	[2893]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82708,9 +82708,9 @@
 // ********************************************
 #	[2894]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82737,9 +82737,9 @@
 // ********************************************
 #	[2895]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82766,9 +82766,9 @@
 // ********************************************
 #	[2896]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82795,9 +82795,9 @@
 // ********************************************
 #	[2897]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82853,9 +82853,9 @@
 // ********************************************
 #	[2899]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82882,9 +82882,9 @@
 // ********************************************
 #	[2900]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -82940,9 +82940,9 @@
 // ********************************************
 #	[2902]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83056,9 +83056,9 @@
 // ********************************************
 #	[2906]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83085,9 +83085,9 @@
 // ********************************************
 #	[2907]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83114,9 +83114,9 @@
 // ********************************************
 #	[2908]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83143,9 +83143,9 @@
 // ********************************************
 #	[2909]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83204,9 +83204,9 @@
 // ********************************************
 #	[2911]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83233,9 +83233,9 @@
 // ********************************************
 #	[2912]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83349,9 +83349,9 @@
 // ********************************************
 #	[2916]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83407,9 +83407,9 @@
 // ********************************************
 #	[2918]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83436,9 +83436,9 @@
 // ********************************************
 #	[2919]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83465,9 +83465,9 @@
 // ********************************************
 #	[2920]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83552,9 +83552,9 @@
 // ********************************************
 #	[2923]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83581,9 +83581,9 @@
 // ********************************************
 #	[2924]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83610,9 +83610,9 @@
 // ********************************************
 #	[2925]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83639,9 +83639,9 @@
 // ********************************************
 #	[2926]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
@@ -83755,9 +83755,9 @@
 // ********************************************
 #	[2930]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
 	Leader:		Aqua_Golem
 	Follower:	Aqua_Golem
 	RouteType:	2
