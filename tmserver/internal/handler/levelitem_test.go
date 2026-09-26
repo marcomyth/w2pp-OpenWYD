@@ -148,3 +148,54 @@ func TestLuvaDaHTSemCritico(t *testing.T) {
 		}
 	}
 }
+
+// TestLuvaFisicaSemCritico: a luva do lado físico de TODAS as classes sai sem
+// crítico (Marco, 26/09: "todas as luvas sem crítico em lado físico, TODAS").
+// A do TK, da FM e do BM de Força vinha com Dano 20 + Crítico 4%; passa a Dano
+// 20 + Defesa 20, como a da Huntress. Vale também para a entrega retroativa,
+// que entrega essas mesmas luvas de novo.
+func TestLuvaFisicaSemCritico(t *testing.T) {
+	tab, _, err := content.LoadLevelItems(filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "LevelItem.txt"))
+	if err != nil {
+		t.Skipf("LevelItem.txt indisponível: %v", err)
+	}
+	const refino, dano, defesa = 43, 2, 3
+	quer := [3][2]uint8{{refino, 3}, {dano, 20}, {defesa, 20}}
+	luvas := map[uint8]map[int32]int16{
+		0: {29: 1147, 84: 1186, 119: 1201, 159: 1216}, // TK
+		1: {29: 1297, 84: 1321, 119: 1336, 159: 1351}, // FM
+		2: {29: 1456, 84: 1471, 119: 1486, 159: 1501}, // BM
+	}
+	for classe, porNivel := range luvas {
+		for nivel, luva := range porNivel {
+			e := &world.Entity{Class: classe, Level: nivel, BaseStr: 60, BaseInt: 12, BaseDex: 12, BaseCon: 12}
+			item, _ := pecaDoNivel(tab, e)
+			if item.Index != luva || item.Effects != quer {
+				t.Errorf("classe %d nível %d: %d %v, queria %d %v", classe, nivel, item.Index, item.Effects, luva, quer)
+			}
+		}
+	}
+	// Nenhuma peça do arquivo, em classe, construção ou nível algum, sai com
+	// crítico numa luva.
+	for classe := 0; classe < 4; classe++ {
+		for construcao := 0; construcao < content.LevelItemBuilds; construcao++ {
+			for nivel := int32(1); nivel < 400; nivel++ {
+				item := tab.Para(classe, construcao, nivel)
+				for _, ef := range item.Effects {
+					if (ef[0] == 42 || ef[0] == 71) && ehLuvaDeNivel(item.Index) {
+						t.Errorf("classe %d construção %d nível %d: luva %d com crítico %v", classe, construcao, nivel, item.Index, item.Effects)
+					}
+				}
+			}
+		}
+	}
+}
+
+// ehLuvaDeNivel são as dezesseis luvas que o LevelItem.txt entrega.
+func ehLuvaDeNivel(idx int16) bool {
+	switch idx {
+	case 1147, 1186, 1201, 1216, 1297, 1321, 1336, 1351, 1456, 1471, 1486, 1501, 1606, 1621, 1636, 1651:
+		return true
+	}
+	return false
+}
