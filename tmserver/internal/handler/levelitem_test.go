@@ -92,3 +92,59 @@ func TestSemPontosRecebePeloLadoMago(t *testing.T) {
 		t.Errorf("a luva do TK sem pontos veio com o efeito %d, queria o Mágico (60)", item.Effects[1][0])
 	}
 }
+
+// TestDestrezaSemColunaRecebePeloDN: só a Huntress tem coluna de Destreza no
+// LevelItem.txt, então o TK, a FM e o BM de Destreza não recebiam set nem arma.
+// Decisão do Marco em 26/09: recebem pelo lado DN. A Huntress de Destreza fica
+// com a coluna dela.
+func TestDestrezaSemColunaRecebePeloDN(t *testing.T) {
+	tab, _, err := content.LoadLevelItems(filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "LevelItem.txt"))
+	if err != nil {
+		t.Skipf("LevelItem.txt indisponível: %v", err)
+	}
+	destreza := func(classe uint8, nivel int32) *world.Entity {
+		return &world.Entity{Class: classe, Level: nivel, BaseStr: 12, BaseInt: 12, BaseDex: 60, BaseCon: 12}
+	}
+	casos := []struct {
+		nome       string
+		e          *world.Entity
+		item       int16
+		construcao int
+	}{
+		{"TK de destreza no 29", destreza(0, 29), 1147, construcaoForca},
+		{"BM de destreza na arma do 154", destreza(2, 154), 884, construcaoForca},
+		{"FM de destreza na arma do 254", destreza(1, 254), 3556, construcaoForca},
+		{"HT de destreza fica com a coluna dela", destreza(3, 154), 839, construcaoDestreza},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			item, construcao := pecaDoNivel(tab, c.e)
+			if item.Index != c.item || construcao != c.construcao {
+				t.Errorf("peça %d pela construção %d, queria %d pela %d", item.Index, construcao, c.item, c.construcao)
+			}
+		})
+	}
+	if item, _ := pecaDoNivel(tab, destreza(0, 29)); item.Effects[1][0] != 2 {
+		t.Errorf("a luva do TK de destreza veio com o efeito %d, queria o Dano (2)", item.Effects[1][0])
+	}
+}
+
+// TestLuvaDaHTSemCritico: a luva dos quatro sets da Huntress vinha com o
+// adicional da luva DN de todas as classes (Dano 20 + Crítico 4%). Decisão do
+// Marco em 26/09: Dano 20 + Defesa 20.
+func TestLuvaDaHTSemCritico(t *testing.T) {
+	tab, _, err := content.LoadLevelItems(filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "LevelItem.txt"))
+	if err != nil {
+		t.Skipf("LevelItem.txt indisponível: %v", err)
+	}
+	const refino, dano, defesa = 43, 2, 3
+	quer := [3][2]uint8{{refino, 3}, {dano, 20}, {defesa, 20}}
+	for nivel, luva := range map[int32]int16{29: 1606, 84: 1621, 119: 1636, 159: 1651} {
+		for construcao := 0; construcao < content.LevelItemBuilds; construcao++ {
+			item := tab.Para(3, construcao, nivel)
+			if item.Index != luva || item.Effects != quer {
+				t.Errorf("nível %d, construção %d: %d %v, queria %d %v", nivel, construcao, item.Index, item.Effects, luva, quer)
+			}
+		}
+	}
+}
