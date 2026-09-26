@@ -34,17 +34,23 @@ const (
 	pkPointChaos   uint8 = 0  // red blinking nick
 )
 
-// pkPointPerLevel is the Chaos Point paid back per level gained (issue #279).
+// pkPointPerLevel são os Chaos Points pagos por nível subido.
 //
-// DELIBERATE DIVERGENCE FROM THE LEGACY — do not "fix" this back to parity
-// without reading the issue. The original never tied PKPoint to leveling: its
-// only natural recovery is the hourly RegenMob gate (Server.cpp:4872-4881,
-// ported below as pkPointRecoverPeriod), which is why issue #210 was closed
-// without this. Issue #279 reopened it as a design decision for this server:
-// leveling must also pay chaos back, so a character grinding out of chaos sees
-// the nick go white. Same +1 step and same 75 ceiling as the hourly gate, and it
-// stacks with it rather than replacing it.
-const pkPointPerLevel = 1
+// CINCO, E NÃO UM, POR DECISÃO DA HANNA de 25/09/2026, e o teto passou de 75 para 150.
+//
+// ISTO REVERTE O QUE ESTAVA ESCRITO AQUI. O comentário anterior dizia "divergência
+// deliberada do legado, não conserte de volta para paridade sem ler a issue": o #279
+// tinha escolhido +1 e teto 75, o mesmo passo e o mesmo teto da recuperação por hora.
+// A decisão nova vai ao encontro do LEGADO, que paga +5 por nível até 150
+// (SendFunc.cpp:1061, _MSG_Attack.cpp:1791) — é lá que o /cp chega a +75.
+//
+// O QUE MUDA NA PRÁTICA: quem está em chaos sai dele subindo de nível, e bem mais
+// rápido. E, passado o neutro, o excesso vira a faixa 76..150 — uma folga acima do
+// branco, que aguenta os próximos atos caóticos antes de o apelido voltar a vermelho.
+// Antes o ganho PARAVA no 75 e a faixa de cima só vinha de quest e de item.
+//
+// Continua empilhando com a recuperação por hora, e não a substitui.
+const pkPointPerLevel = 5
 
 // pkGuilty reports whether e is currently in the chaotic (red-blinking-nick)
 // state: its Guilty decay counter (GetFunc.cpp KILL_MARK slot) hasn't reached 0.
@@ -103,10 +109,13 @@ func (d *Dispatcher) markGuilty(w *world.World, s *world.Session, e *world.Entit
 	}
 }
 
-// grantLevelUpPKPoint pays levels × pkPointPerLevel back toward the neutral 75
-// after a level-up (issue #279). It never pushes past 75: the 76..150 range only
-// comes from the quest/item paths (_MSG_Quest.cpp:2569-2579, _MSG_UseItem.cpp:3867)
-// and leveling must not top those up — same ceiling the hourly recovery uses.
+// grantLevelUpPKPoint paga levels × pkPointPerLevel a cada subida de nível, até o teto
+// de 150 que o clampPKPoint já guarda (GetFunc.cpp:2271-2285, a mesma faixa 1..150 do
+// SetPKPoint do legado).
+//
+// ELE JÁ PAROU NO 75, e o teto subiu junto com o passo: a faixa 76..150 deixou de ser
+// exclusiva de quest e de item. Quem sobe de nível agora atravessa o neutro e acumula a
+// folga, que é o que o legado faz.
 //
 // The gain is reported once, not per level, so a multi-level jump (Poeira de
 // Fada, GM /setlevel) produces a single chat line, and the PK state is
@@ -115,16 +124,24 @@ func (d *Dispatcher) markGuilty(w *world.World, s *world.Session, e *world.Entit
 // — skip the broadcast then and let the Guilty decay in sweepGuilty do it.
 // s may be nil (the GM/offline applyLevelUps callers).
 func (d *Dispatcher) grantLevelUpPKPoint(w *world.World, s *world.Session, e *world.Entity, levels int32) {
-	if levels <= 0 || e.PKPoint >= pkPointNeutral {
+	if levels <= 0 {
 		return
 	}
-	// int arithmetic first: levels can be in the hundreds (/setlevel), which would
-	// overflow the uint8 counter.
-	gain := int(levels) * pkPointPerLevel
-	if room := int(pkPointNeutral - e.PKPoint); gain > room {
-		gain = room
+	// A CONTA EM int ANTES DO uint8, e isto não é preciosismo: levels chega às centenas
+	// pelo /setlevel, e 300 × 5 estoura o contador de um byte com folga. Somar em uint8
+	// daria a volta e devolveria um número pequeno — um jogador em chaos ganharia menos
+	// que um que subiu um nível.
+	//
+	// Quem guarda o teto é o clampPKPoint, o mesmo do resto do arquivo: uma segunda
+	// conta de teto aqui é como as duas ficam diferentes no dia em que uma mudar.
+	antes := e.PKPoint
+	e.PKPoint = clampPKPoint(int(e.PKPoint) + int(levels)*pkPointPerLevel)
+	gain := int(e.PKPoint) - int(antes)
+	// JÁ ESTAVA NO TETO: não há o que dizer nem o que redesenhar, e uma linha de chat
+	// dizendo "+0" em cada nível seria barulho em quem já está branco.
+	if gain <= 0 {
+		return
 	}
-	e.PKPoint += uint8(gain)
 	if s == nil {
 		return
 	}
