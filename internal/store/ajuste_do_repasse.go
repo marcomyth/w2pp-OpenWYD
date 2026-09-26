@@ -26,9 +26,38 @@ const AcaoAjusteDeRepasse = "REPASSE_VALOR_AJUSTADO"
 // repasse. São três porque a auditoria pede id e a tela mostra nome, e resolver isso
 // buscando um a partir do outro faria a escrita de dinheiro depender de outra consulta.
 type AtorDoAjuste struct {
-	ContaID int64
-	Papel   string
-	Nome    string
+	// ContaID é a conta DE JOGO de quem agiu, e PainelID é o usuário do painel.
+	//
+	// OS DOIS EXISTEM PORQUE HÁ DUAS PORTAS. Desde o #130 a staff entra no painel como
+	// usuário do painel, e essa pessoa NÃO tem conta de jogo — o AccountID dela é 0.
+	//
+	// A admin_audit_log exige EXATAMENTE UM dos dois (o CHECK admin_audit_log_um_ator,
+	// migração 0130) e a coluna da conta tem chave estrangeira. Mandar zero não vira
+	// "sem ator": vira uma busca pela conta de id 0, que não existe, e a escrita inteira
+	// falha. Era isso que acontecia nas cinco ações de dinheiro desta pasta.
+	ContaID  int64
+	PainelID int64
+	Papel    string
+	Nome     string
+}
+
+// paraAuditoria devolve os dois atores no formato que a tabela aceita: zero vira nulo, e
+// exatamente um sobra preenchido.
+//
+// É a MESMA regra do audit.Write do adminserver, escrita aqui porque estas cinco escritas
+// vivem dentro da transação do dinheiro e não passam por lá. Duas cópias da regra é o
+// preço de a auditoria ser gravada junto com o que ela audita — e vale o preço, porque
+// gravar depois abre a janela em que o dinheiro se move sem dono.
+func (a AtorDoAjuste) paraAuditoria() (conta, painel *int64) {
+	if a.ContaID != 0 {
+		c := a.ContaID
+		conta = &c
+	}
+	if a.PainelID != 0 {
+		p := a.PainelID
+		painel = &p
+	}
+	return conta, painel
 }
 
 // AjustarValorDoRepasse corrige quanto se deve a um vendedor, e NÃO devolve a dívida
@@ -122,11 +151,16 @@ func (s *Store) AjustarValorDoRepasse(ctx context.Context, id int64, novoCentavo
 			id, novoCentavos, antigo, nota, ator.Nome, repasseRecusado); err != nil {
 			return fmt.Errorf("store: ajustando o valor do repasse %d: %w", id, err)
 		}
+		// Zero vira NULO: a tabela exige exatamente um ator, e a coluna da conta tem
+		// chave estrangeira — mandar zero procuraria a conta de id 0 e derrubaria a
+		// transação inteira, junto com o dinheiro que ela move.
+		atorConta, atorPainel := ator.paraAuditoria()
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO admin_audit_log
-			    (actor_account_id, actor_role, action, target_account_id, old_value, new_value)
-			VALUES ($1, $2, $3, $4, $5, $6)`,
-			ator.ContaID, ator.Papel, AcaoAjusteDeRepasse, vendedor,
+			    (actor_account_id, actor_painel_usuario_id, actor_role, action,
+			     target_account_id, old_value, new_value)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			atorConta, atorPainel, ator.Papel, AcaoAjusteDeRepasse, vendedor,
 			fmt.Sprintf(`{"repasse":%d,"centavos":%d}`, id, antigo),
 			fmt.Sprintf(`{"repasse":%d,"centavos":%d,"nota":%q}`, id, novoCentavos, nota)); err != nil {
 			return fmt.Errorf("store: ajuste do repasse %d: registrando na auditoria: %w", id, err)

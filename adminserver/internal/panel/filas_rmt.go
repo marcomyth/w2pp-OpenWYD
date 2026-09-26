@@ -183,7 +183,7 @@ func (h *Handler) resolverReembolso(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	ator := store.AtorDaStaff{ContaID: sess.AccountID, Papel: roleFrom(r.Context())}
+	ator := store.AtorDaStaff{ContaID: sess.AccountID, PainelID: sess.PainelUsuarioID, Papel: roleFrom(r.Context())}
 
 	var acao, aviso string
 	switch r.PostFormValue("decisao") {
@@ -308,7 +308,7 @@ func (h *Handler) resolverDivergente(w http.ResponseWriter, r *http.Request) {
 			"Escreva o que foi feito com este dinheiro."), http.StatusSeeOther)
 		return
 	}
-	ator := store.AtorDaStaff{ContaID: sess.AccountID, Papel: roleFrom(r.Context())}
+	ator := store.AtorDaStaff{ContaID: sess.AccountID, PainelID: sess.PainelUsuarioID, Papel: roleFrom(r.Context())}
 
 	if err := h.cfg.FilasRMT.ResolverDivergenteDevolvido(r.Context(), id, ator, nota); err != nil {
 		if errors.Is(err, store.ErrDivergenteNaoEstaAberta) {
