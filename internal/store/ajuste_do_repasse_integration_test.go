@@ -65,16 +65,16 @@ func TestAjusteGravaONovoEGuardaOAntigo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if antigo != precoEmCentavos {
-		t.Errorf("devolveu antigo = %d, queria %d", antigo, precoEmCentavos)
+	if antigo != liquidoDaVendaDeTeste() {
+		t.Errorf("devolveu antigo = %d, queria %d", antigo, liquidoDaVendaDeTeste())
 	}
 
 	valor, de, nota, por := valorEAjuste(ctx, t, s, id)
 	if valor != 20 {
 		t.Errorf("valor gravado = %d, queria 20", valor)
 	}
-	if de == nil || *de != precoEmCentavos {
-		t.Errorf("ajuste_de_centavos = %v, queria %d", de, precoEmCentavos)
+	if de == nil || *de != liquidoDaVendaDeTeste() {
+		t.Errorf("ajuste_de_centavos = %v, queria %d", de, liquidoDaVendaDeTeste())
 	}
 	if nota == nil || *nota == "" {
 		t.Error("a nota nao foi gravada")
@@ -119,7 +119,7 @@ func TestAjusteAcimaDaCobrancaNaoPassa(t *testing.T) {
 	if !errors.Is(err, ErrAjusteInvalido) {
 		t.Fatalf("erro = %v, queria ErrAjusteInvalido", err)
 	}
-	if valor, _, _, _ := valorEAjuste(ctx, t, s, id); valor != precoEmCentavos {
+	if valor, _, _, _ := valorEAjuste(ctx, t, s, id); valor != liquidoDaVendaDeTeste() {
 		t.Errorf("o valor mudou para %d mesmo com o ajuste recusado", valor)
 	}
 }
@@ -146,7 +146,7 @@ func TestAjusteSemNotaNaoPassa(t *testing.T) {
 	if _, err := s.AjustarValorDoRepasse(ctx, id, 20, atorAjuste(), ""); !errors.Is(err, ErrAjusteSemNota) {
 		t.Fatalf("erro = %v, queria ErrAjusteSemNota", err)
 	}
-	if valor, _, _, _ := valorEAjuste(ctx, t, s, id); valor != precoEmCentavos {
+	if valor, _, _, _ := valorEAjuste(ctx, t, s, id); valor != liquidoDaVendaDeTeste() {
 		t.Errorf("o valor mudou para %d sem nota", valor)
 	}
 }
@@ -170,7 +170,7 @@ func TestAjusteSoMexeNoRecusado(t *testing.T) {
 	if !errors.Is(err, ErrRepasseInexistente) {
 		t.Fatalf("erro = %v, queria ErrRepasseInexistente num repasse PENDENTE", err)
 	}
-	if valor, _, _, _ := valorEAjuste(ctx, t, s, id); valor != precoEmCentavos {
+	if valor, _, _, _ := valorEAjuste(ctx, t, s, id); valor != liquidoDaVendaDeTeste() {
 		t.Errorf("mexeu num repasse pendente: valor = %d", valor)
 	}
 }
@@ -195,8 +195,8 @@ func TestDoisAjustesGuardamOPrimeiroValor(t *testing.T) {
 	if valor != 20 {
 		t.Errorf("valor = %d, queria 20", valor)
 	}
-	if de == nil || *de != precoEmCentavos {
-		t.Errorf("ajuste_de_centavos = %v, queria o PRIMEIRO valor %d", de, precoEmCentavos)
+	if de == nil || *de != liquidoDaVendaDeTeste() {
+		t.Errorf("ajuste_de_centavos = %v, queria o PRIMEIRO valor %d", de, liquidoDaVendaDeTeste())
 	}
 	if nota == nil || *nota != "segunda" {
 		t.Errorf("nota = %v, queria a mais recente", nota)
@@ -227,7 +227,7 @@ func TestSeAAuditoriaFalhaOValorNaoMuda(t *testing.T) {
 	if _, e := s.pool.Exec(ctx, `ALTER TABLE admin_audit_log_escondida RENAME TO admin_audit_log`); e != nil {
 		t.Fatal(e)
 	}
-	if valor, de, _, _ := valorEAjuste(ctx, t, s, id); valor != precoEmCentavos || de != nil {
+	if valor, de, _, _ := valorEAjuste(ctx, t, s, id); valor != liquidoDaVendaDeTeste() || de != nil {
 		t.Errorf("o valor virou %d (ajuste_de=%v) mesmo com a auditoria falhando", valor, de)
 	}
 }
@@ -267,8 +267,8 @@ func TestAAuditoriaDizDeQuantoParaQuantoEDeQuem(t *testing.T) {
 	// O NÚMERO VEM DA CONSTANTE, e não escrito à mão: eu havia posto "100" aqui e o
 	// cenário cobra precoEmCentavos, que é 5000. O teste falhou na CI por isso — o tipo
 	// de erro que acontece quando a afirmação repete um valor em vez de apontar para ele.
-	if !strings.Contains(antigo, fmt.Sprint(precoEmCentavos)) {
-		t.Errorf("old_value = %s, queria conter o valor antigo %d", antigo, precoEmCentavos)
+	if !strings.Contains(antigo, fmt.Sprint(liquidoDaVendaDeTeste())) {
+		t.Errorf("old_value = %s, queria conter o valor antigo %d", antigo, liquidoDaVendaDeTeste())
 	}
 	if !strings.Contains(novo, "20") || !strings.Contains(novo, "Hanna") {
 		t.Errorf("new_value = %s, queria conter o valor novo e a nota", novo)

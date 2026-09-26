@@ -142,50 +142,82 @@ func TestLojaMoedaAindaTrocaEntreOuroECash(t *testing.T) {
 	}
 }
 
-// O PREÇO MÍNIMO EM DINHEIRO REAL É R$ 1,00, e a recusa é na montagem.
+// O PREÇO MÍNIMO EM DINHEIRO REAL É R$ 5,00, e a recusa é na montagem.
 //
-// Um centavo não é preço: a processadora cobra taxa por cobrança, então o item
-// custaria mais para vender do que rende e o repasse sairia negativo. O cliente novo
-// também trava, mas quem manda é o servidor — um cliente remendado não pode criar
-// anúncio de um centavo.
+// SUBIU DE R$ 1,00 quando a taxa da casa entrou: com R$ 0,80 fixos por venda, R$ 1,00
+// deixaria o vendedor com R$ 0,15 — uma venda que entrega quinze centavos é uma
+// reclamação, não uma venda. O cliente novo também trava, mas quem manda é o servidor:
+// um cliente remendado não pode criar anúncio de um centavo.
 //
-// 99 e 100 são os dois lados exatos da linha. Testar 1 e 1000 não provaria onde ela
+// 499 e 500 são os dois lados exatos da linha. Testar 1 e 1000 não provaria onde ela
 // está, e "onde está a linha" é a única coisa que pode sair errada num mínimo.
 func TestLojaAbrirRecusaPrecoAbaixoDoMinimoEmRMT(t *testing.T) {
 	const solto, pilha = int16(1030), int16(2020)
 
-	t.Run("99 centavos recusa", func(t *testing.T) {
+	t.Run("499 centavos recusa", func(t *testing.T) {
 		addr, stop, _ := startServerClock(t, lojaRMTdb(solto, pilha, 1))
 		defer stop()
 		c := enterWorldAs(t, addr, "tester")
 		defer c.Close()
 		drena(t, c)
 
-		mandaAbrirBarraca(t, c, "Loja", 0, 99, protocol.LojaMoedaRMT)
+		mandaAbrirBarraca(t, c, "Loja", 0, 499, protocol.LojaMoedaRMT)
 
 		if !recebeu(t, c, msgPrecoMinimoRMT) {
-			t.Error("99 centavos passou, ou foi recusado em silêncio")
+			t.Error("499 centavos passou, ou foi recusado em silêncio")
 		}
 	})
 
-	t.Run("100 centavos aceita", func(t *testing.T) {
+	t.Run("500 centavos aceita", func(t *testing.T) {
 		addr, stop, _ := startServerClock(t, lojaRMTdb(solto, pilha, 1))
 		defer stop()
 		c := enterWorldAs(t, addr, "tester")
 		defer c.Close()
 		drena(t, c)
 
-		mandaAbrirBarraca(t, c, "Loja", 0, 100, protocol.LojaMoedaRMT)
+		mandaAbrirBarraca(t, c, "Loja", 0, 500, protocol.LojaMoedaRMT)
 
 		// O MÍNIMO NÃO PODE RECUSAR O PRÓPRIO MÍNIMO. É o erro de um a menos que um
 		// teste de "1 recusa, 1000 aceita" nunca encontraria.
 		if recebeu(t, c, msgPrecoMinimoRMT) {
-			t.Error("100 centavos foi recusado; o mínimo está excluindo o próprio valor")
+			t.Error("500 centavos foi recusado; o mínimo está excluindo o próprio valor")
 		}
 	})
 
-	// E O OURO NÃO É TOCADO: o mínimo é do dinheiro real, e uma prateleira de um
-	// gold continua valendo.
+	// O TETO, pelos dois lados. Ele NASCEU com a taxa da casa e antes não existia
+	// nenhum — a falta dele era mais perigosa que a falta do mínimo, porque R$ 50.000
+	// num campo de preço é um erro de digitação plausível e do outro lado sai um Pix
+	// de verdade da conta de alguém.
+	t.Run("50000 centavos aceita", func(t *testing.T) {
+		addr, stop, _ := startServerClock(t, lojaRMTdb(solto, pilha, 1))
+		defer stop()
+		c := enterWorldAs(t, addr, "tester")
+		defer c.Close()
+		drena(t, c)
+
+		mandaAbrirBarraca(t, c, "Loja", 0, 50_000, protocol.LojaMoedaRMT)
+
+		if recebeu(t, c, msgPrecoMaximoRMT) {
+			t.Error("R$ 500,00 foi recusado; o teto está excluindo o próprio valor")
+		}
+	})
+
+	t.Run("50001 centavos recusa", func(t *testing.T) {
+		addr, stop, _ := startServerClock(t, lojaRMTdb(solto, pilha, 1))
+		defer stop()
+		c := enterWorldAs(t, addr, "tester")
+		defer c.Close()
+		drena(t, c)
+
+		mandaAbrirBarraca(t, c, "Loja", 0, 50_001, protocol.LojaMoedaRMT)
+
+		if !recebeu(t, c, msgPrecoMaximoRMT) {
+			t.Error("um centavo acima do teto passou, ou foi recusado em silêncio")
+		}
+	})
+
+	// E O OURO NÃO É TOCADO: o mínimo e o teto são do dinheiro real, e uma prateleira
+	// de um gold — ou de dois milhões — continua valendo.
 	t.Run("ouro de 1 continua valendo", func(t *testing.T) {
 		addr, stop, _ := startServerClock(t, lojaRMTdb(solto, pilha, 1))
 		defer stop()

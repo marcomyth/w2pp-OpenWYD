@@ -97,32 +97,32 @@ var ErrRepasseInexistente = errors.New("store: repasse inexistente")
 // ninguém responde "por que recebi menos do que o anúncio dizia" sem ir procurar a
 // cobrança e adivinhar que taxa valia naquele dia, e numa disputa sobre dinheiro a
 // resposta tem de estar na linha.
-func abrirRepasse(ctx context.Context, tx pgx.Tx, venda VendaRMT, brutoCentavos int64, taxaCentavos *int64) error {
-	liquido, status := brutoCentavos, repassePendente
-	switch {
-	case taxaCentavos == nil:
-		// Segurado: sem a taxa não há líquido, e o bruto fica em valor_centavos só
-		// para a dívida ser VISÍVEL enquanto espera. Não é o que se vai pagar — o
-		// estado 6 é o que diz isso, e nenhuma fila de pagamento lê este estado.
-		status = repasseSemTaxa
-	case *taxaCentavos < 0 || *taxaCentavos >= brutoCentavos:
-		// TAXA IMPOSSÍVEL, ou que come a venda inteira: também segura.
-		//
-		// Negativa não existe. Igual ou maior que o bruto daria líquido zero ou
-		// negativo, e nenhum dos dois é um pagamento: zero sairia na fila para a
-		// ponte tentar mandar nada, e negativo seria um saque ao contrário. Num
-		// sistema de dinheiro, o número absurdo para para uma pessoa olhar em vez
-		// de virar operação — e, com o preço mínimo em R$ 1,00, uma taxa que empata
-		// com a venda é um cenário alcançável, não hipótese.
-		status = repasseSemTaxa
-	default:
-		liquido = brutoCentavos - *taxaCentavos
-	}
+func abrirRepasse(ctx context.Context, tx pgx.Tx, venda VendaRMT, brutoCentavos int64) error {
+	// QUEM DECIDE O LÍQUIDO É A TAXA DA CASA, e não mais a da processadora.
+	//
+	// Nas palavras da Hanna: "5% da venda + R$ 0,80, descontados do que o vendedor
+	// recebe". A taxa da processadora passou a ser CUSTO DA CASA — ela continua sendo
+	// registrada quando chega, para a contabilidade ver a margem, e não entra mais na
+	// conta de quem vendeu.
+	//
+	// ISSO APAGA O MOTIVO DO repasseSemTaxa PARA VENDAS NOVAS. Aquele estado existia
+	// porque o líquido dependia de um número que só se conhecia depois do pagamento:
+	// sem ele, pagar o bruto faria a casa bancar a taxa em silêncio. Agora o líquido é
+	// conhecido ANTES de o anúncio subir, então não há o que esperar — a venda nasce
+	// PENDENTE mesmo com a taxa da processadora nula.
+	//
+	// O estado continua existindo para as linhas ANTIGAS, que foram gravadas sob a
+	// regra anterior e ainda precisam sair da espera pelo caminho de lá
+	// (InformarTaxaDaCobranca). Apagá-lo agora deixaria aquelas linhas sem saída.
+	taxaCasa, bps, fixo := TaxaDaVendaRMT(brutoCentavos)
+	liquido := brutoCentavos - taxaCasa
 	_, err := tx.Exec(ctx, `
-		INSERT INTO rmt_repasse (cobranca_id, vendedor_conta, valor_centavos, bruto_centavos, status)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO rmt_repasse (cobranca_id, vendedor_conta, valor_centavos, bruto_centavos,
+		                         status, taxa_casa_centavos, taxa_casa_bps, taxa_casa_fixa)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (cobranca_id) DO NOTHING`,
-		venda.CobrancaID, venda.VendedorConta, liquido, brutoCentavos, status)
+		venda.CobrancaID, venda.VendedorConta, liquido, brutoCentavos, repassePendente,
+		taxaCasa, bps, fixo)
 	if err != nil {
 		return fmt.Errorf("store: abrindo o repasse da cobranca %d: %w", venda.CobrancaID, err)
 	}

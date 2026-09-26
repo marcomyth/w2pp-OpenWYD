@@ -339,7 +339,12 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 		// o dinheiro vai VOLTAR para o comprador, e o vendedor não tem nada a receber.
 		// Uma linha de dívida que não existe apareceria na fila, alguém tentaria pagar,
 		// e o dinheiro sairia duas vezes do mesmo lugar.
-		if err := abrirRepasse(ctx, tx, venda, valorCobrado, taxaCentavos); err != nil {
+		// A TAXA DA PROCESSADORA NÃO ENTRA MAIS AQUI. Ela continua gravada na
+		// cobrança logo acima, como informação para a contabilidade ver a margem;
+		// quem decide o que o vendedor recebe é a taxa da casa, conhecida antes de
+		// o anúncio subir. Passá-la para o repasse seria oferecer um número que a
+		// função não usa, e um argumento que mente é como alguém volta a usá-lo.
+		if err := abrirRepasse(ctx, tx, venda, valorCobrado); err != nil {
 			return err
 		}
 		res = CobrancaConfirmada
