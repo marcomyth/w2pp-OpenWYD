@@ -443,21 +443,25 @@ func (s *Store) ListDonateLedger(ctx context.Context, w RevenueWindow, actions [
 		WITH led AS (
 			SELECT au.id, au.action, au.created_at, au.shop_item_id, au.after,
 			       au.account_id AS actor_account_id,
-			       au.actor_painel_usuario_id AS actor_painel_id,
 			       `+ledgerSubjectExpr+` AS subject_account_id`+body+`
 		)
 		SELECT l.id, l.action, l.created_at,
 		       l.subject_account_id, COALESCE(subj.name, ''),
 		       l.actor_account_id,
-		       -- O AUTOR PODE SER UM USUÁRIO DO PAINEL, e não uma conta de jogo.
-		       -- Desde o #130 a staff entra assim, sem conta de jogo, e ler só o
-		       -- actor_account_id deixava a coluna "quem fez" VAZIA justamente nas
-		       -- ações mais recentes. Numa tela de receita, autor em branco é o
-		       -- mesmo que não ter registro.
+		       -- O AUTOR AQUI É SEMPRE UMA CONTA DE JOGO, e não há de onde tirar outro.
 		       --
-		       -- O prefixo "painel: " diz de que porta veio, porque os dois nomes
-		       -- vivem em tabelas diferentes e podem coincidir.
-		       COALESCE(actor.name, 'painel: ' || pu.login, ''),
+		       -- Eu tentei acrescentar o usuário do painel nesta linha e estava ERRADO:
+		       -- esta consulta lê só o donate_shop_audit, que NÃO TEM a coluna de
+		       -- painel — ela existe apenas na admin_audit_log. O código referenciava
+		       -- uma coluna inexistente e derrubava a tela de receita inteira.
+		       --
+		       -- FICA UM BURACO DE VERDADE, e ele precisa de migração: quando a staff
+		       -- do painel dá crédito pela loja de donate, o donateAudit grava
+		       -- account_id = 0, e aqui o autor sai em branco. A tabela não tem FK
+		       -- nessa coluna, então o zero passa sem reclamar. Consertar isso é
+		       -- acrescentar a coluna de painel ao donate_shop_audit, e não cabe numa
+		       -- janela de release.
+		       COALESCE(actor.name, ''),
 		       CASE l.action
 		           WHEN '`+LedgerActionPurchase+`' THEN -COALESCE((l.after->>'price')::bigint, 0)
 		           WHEN '`+LedgerActionCredit+`'   THEN  COALESCE((l.after->>'amount')::bigint, 0)
@@ -471,7 +475,6 @@ func (s *Store) ListDonateLedger(ctx context.Context, w RevenueWindow, actions [
 		FROM led l
 		LEFT JOIN account          subj  ON subj.id  = l.subject_account_id
 		LEFT JOIN account          actor ON actor.id = l.actor_account_id
-		LEFT JOIN painel_usuario   pu    ON pu.id    = l.actor_painel_id
 		LEFT JOIN donate_shop_item si    ON si.id    = l.shop_item_id
 		ORDER BY l.created_at DESC, l.id DESC
 		LIMIT $5 OFFSET $6`,

@@ -57,9 +57,13 @@ func TestRepasseNasceLiquidoEGuardaOBruto(t *testing.T) {
 	}
 
 	liquido, bruto, status := repasseDaCobranca(ctx, t, s, venda.CobrancaID)
-	if liquido != precoEmCentavos-137 {
-		t.Errorf("liquido = %d, queria %d (bruto %d menos a taxa 137)",
-			liquido, precoEmCentavos-137, precoEmCentavos)
+	// O LÍQUIDO SAI DA TAXA DA CASA, e não da taxa da processadora que este teste
+	// informa. A conta prova a diferença: com desconto duplo daria 4533
+	// (5000 − 137 − 330), e o que se espera é 4670 (5000 − 330). A taxa da
+	// processadora virou custo da casa em 25/09/2026.
+	if liquido != liquidoDaVendaDeTeste() {
+		t.Errorf("liquido = %d, queria %d (bruto %d menos a taxa DA CASA)",
+			liquido, liquidoDaVendaDeTeste(), precoEmCentavos)
 	}
 	if bruto == nil || *bruto != precoEmCentavos {
 		t.Errorf("bruto gravado = %v, queria %d", bruto, precoEmCentavos)
@@ -69,14 +73,21 @@ func TestRepasseNasceLiquidoEGuardaOBruto(t *testing.T) {
 	}
 }
 
-// SEM A TAXA, O REPASSE SEGURA — e NÃO sai com o valor cheio.
+// SEM A TAXA DA PROCESSADORA, O REPASSE NÃO SEGURA MAIS — e este teste MUDOU DE LADO.
 //
-// As duas outras saídas possíveis eram piores. Pagar o bruto faz a casa perder a taxa
-// sem ninguém notar, porque um repasse de valor cheio tem a cara de um repasse certo.
-// Não criar o repasse deixa o vendedor invisível, que é o bug que a 0124 consertou.
-func TestSemTaxaORepasseSeguraEmVezDeSairCheio(t *testing.T) {
+// ELE DIZIA O CONTRÁRIO, e estava certo na regra de então: o líquido era o bruto menos a
+// taxa da processadora, então sem ela não havia líquido, e pagar o bruto faria a casa
+// perder a taxa sem ninguém notar.
+//
+// A regra mudou em 25/09/2026: quem decide o líquido é a taxa DA CASA, conhecida antes de
+// o anúncio subir. Não há mais o que esperar, e segurar aqui deixaria o vendedor
+// aguardando um número que já não interessa a ele.
+//
+// O ESTADO repasseSemTaxa CONTINUA EXISTINDO para as linhas antigas, e o teste da porta
+// de saída delas está logo abaixo.
+func TestSemTaxaDaProcessadoraORepasseNaoSegura(t *testing.T) {
 	s, ctx := freshStore(t)
-	v := montaVenda(ctx, t, s, "taxa_segura")
+	v := montaVenda(ctx, t, s, "taxa_nao_segura")
 
 	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora,
 		precoEmCentavos, nil)
@@ -84,35 +95,49 @@ func TestSemTaxaORepasseSeguraEmVezDeSairCheio(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, status := repasseDaCobranca(ctx, t, s, venda.CobrancaID)
-	if status != repasseSemTaxa {
-		t.Fatalf("status = %d, queria %d (segurado por taxa desconhecida)", status, repasseSemTaxa)
+	liquido, _, status := repasseDaCobranca(ctx, t, s, venda.CobrancaID)
+	if status == repasseSemTaxa {
+		t.Fatal("a venda nova ficou segurada esperando a taxa da processadora, que ja nao decide nada")
+	}
+	if status != repassePendente {
+		t.Errorf("status = %d, queria pendente", status)
+	}
+	if liquido != liquidoDaVendaDeTeste() {
+		t.Errorf("liquido = %d, queria %d", liquido, liquidoDaVendaDeTeste())
 	}
 
-	// E NÃO APARECE NA FILA DE PAGAR. É a metade que vale dinheiro: um estado novo que
-	// a fila enxergasse por engano pagaria o valor cheio de qualquer forma, e o estado
-	// não teria servido para nada.
-	segurado := idDoRepasse(ctx, t, s, venda.CobrancaID)
+	// E APARECE NA FILA DE PAGAR, que é a outra metade: um repasse pendente que a fila
+	// não enxergasse seria dinheiro parado sem ninguém saber.
+	id := idDoRepasse(ctx, t, s, venda.CobrancaID)
 	fila, err := s.FilaDePagamentoAMao(ctx, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
+	achou := false
 	for _, r := range fila {
-		if r.ID == segurado {
-			t.Errorf("o repasse segurado apareceu na fila de pagar por %d centavos", r.ValorCentavos)
+		if r.ID == id {
+			achou = true
 		}
+	}
+	if !achou {
+		t.Error("o repasse nao apareceu na fila de pagar")
 	}
 }
 
-// TAXA QUE COME A VENDA INTEIRA TAMBÉM SEGURA. Líquido zero ou negativo não é
-// pagamento: zero manda a ponte transferir nada, e negativo seria um saque ao contrário.
+// TAXA ABSURDA DA PROCESSADORA TAMBÉM NÃO SEGURA MAIS, e este teste mudou de lado pelo
+// mesmo motivo do anterior.
 //
-// Com o preço mínimo em R$ 1,00, uma taxa que empata com a venda é cenário alcançável,
-// e não hipótese de laboratório.
-func TestTaxaQueComeAVendaSegura(t *testing.T) {
+// Ele existia porque uma taxa igual ou maior que a venda daria líquido zero ou negativo —
+// nenhum dos dois é pagamento. Com a taxa da casa decidindo, o líquido não depende mais
+// desse número, e um valor absurdo vindo da processadora é problema de MARGEM da casa, e
+// não do vendedor: ele recebe o que foi prometido.
+//
+// O que este teste passa a provar é justamente isso: o vendedor não é punido por um
+// número que não é dele.
+func TestTaxaAbsurdaDaProcessadoraNaoAfetaOVendedor(t *testing.T) {
 	for _, taxa := range []int64{precoEmCentavos, precoEmCentavos + 1} {
 		s, ctx := freshStore(t)
-		v := montaVenda(ctx, t, s, "taxa_come")
+		v := montaVenda(ctx, t, s, "taxa_absurda")
 
 		_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora,
 			precoEmCentavos, taxaDe(taxa))
@@ -120,25 +145,49 @@ func TestTaxaQueComeAVendaSegura(t *testing.T) {
 			t.Fatal(err)
 		}
 		liquido, _, status := repasseDaCobranca(ctx, t, s, venda.CobrancaID)
-		if status != repasseSemTaxa {
-			t.Errorf("taxa %d: status = %d, queria segurado", taxa, status)
+		if status != repassePendente {
+			t.Errorf("taxa %d: status = %d, queria pendente", taxa, status)
 		}
-		if liquido <= 0 {
-			t.Errorf("taxa %d: gravou liquido %d, que nao e pagamento nenhum", taxa, liquido)
+		if liquido != liquidoDaVendaDeTeste() {
+			t.Errorf("taxa %d: liquido = %d, queria %d: a taxa da processadora nao sai do "+
+				"bolso do vendedor", taxa, liquido, liquidoDaVendaDeTeste())
 		}
 	}
 }
 
-// A PORTA DE SAÍDA FUNCIONA: informada a taxa, o repasse vira pendente com o líquido.
+// A PORTA DE SAÍDA DAS LINHAS ANTIGAS CONTINUA FUNCIONANDO, e este teste NÃO foi apagado
+// quando a regra mudou.
 //
-// Um estado que segura dinheiro sem saída é armadilha e não proteção — o vendedor
-// esperaria um dia que não chega. É por isso que a saída nasce no mesmo commit.
+// Vendas novas já não nascem seguradas, mas as que foram gravadas sob a regra anterior
+// estão no banco de produção agora, esperando. Apagar este teste junto com a regra velha
+// deixaria aquelas linhas sem caminho de saída e ninguém saberia — o vendedor esperaria
+// um dia que não chega.
+//
+// O líquido aqui sai do desconto da PROCESSADORA de propósito: é a conta da regra antiga,
+// que é a regra sob a qual aquelas linhas foram criadas.
 func TestInformarATaxaLiberaORepasseComOLiquido(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "taxa_informa")
 	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora,
 		precoEmCentavos, nil)
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A LINHA SEGURADA É MONTADA À MÃO, e antes ela nascia assim sozinha.
+	//
+	// Desde 25/09/2026 uma venda nova NUNCA nasce em repasseSemTaxa: quem decide o
+	// líquido é a taxa da casa, conhecida antes do anúncio. Mas as linhas gravadas sob a
+	// regra ANTIGA continuam no banco de produção, e a porta de saída delas tem de
+	// continuar funcionando — um estado que segura dinheiro sem saída é armadilha, não
+	// proteção.
+	//
+	// Por isso o estado é escrito por SQL, num arquivo de TESTE: uma função de produção
+	// capaz de empurrar um repasse de volta para segurado seria exatamente o caminho
+	// morto que este PR fecha.
+	if _, err := s.pool.Exec(ctx, `
+		UPDATE rmt_repasse SET status = $2, valor_centavos = $3
+		 WHERE cobranca_id = $1`, venda.CobrancaID, repasseSemTaxa, precoEmCentavos); err != nil {
 		t.Fatal(err)
 	}
 
