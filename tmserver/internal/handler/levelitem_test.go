@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"path/filepath"
 	"testing"
 
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -46,4 +48,47 @@ func TestEntregaSemTabelaNaoFazNada(t *testing.T) {
 	}
 	// não deve entrar em pânico nem tocar em nada
 	d.entregaItemDeNivel(nil, nil, nil)
+}
+
+// TestSemPontosRecebePeloLadoMago: o personagem nasce 12/12/12/12 e subir de
+// nível não mexe nesses quatro, então quem é upado sem distribuir fica sem
+// construção — e o LevelItem.txt não tem peça para ela. Pedido do Marco em
+// 26/09: "precisa receber, podemos optar nesse caso pelo lado mago". Lido do
+// arquivo de verdade, para o teste quebrar se o conteúdo mudar a coluna MAG.
+func TestSemPontosRecebePeloLadoMago(t *testing.T) {
+	tab, _, err := content.LoadLevelItems(filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "LevelItem.txt"))
+	if err != nil {
+		t.Skipf("LevelItem.txt indisponível: %v", err)
+	}
+	semPontos := func(classe uint8, nivel int32) *world.Entity {
+		return &world.Entity{Class: classe, Level: nivel, BaseStr: 12, BaseInt: 12, BaseDex: 12, BaseCon: 12}
+	}
+	casos := []struct {
+		nome       string
+		e          *world.Entity
+		item       int16
+		construcao int
+	}{
+		// "#TK MAG SET MALHA": a luva mágica, com Mágico 6 em vez de Dano 20.
+		{"TK sem pontos no 29", semPontos(0, 29), 1147, construcaoInt},
+		{"FM sem pontos na arma do 154", semPontos(1, 154), 899, construcaoInt},
+		{"BM sem pontos na arma do 254", semPontos(2, 254), 3566, construcaoInt},
+		// A HT não tem coluna de Int; o "MAG" dela é o TYPE 3 do arquivo.
+		{"HT sem pontos na arma do 154", semPontos(3, 154), 839, construcaoDestreza},
+		// Quem tem construção fica com a dela.
+		{"TK de força continua no DN", &world.Entity{Class: 0, Level: 29, BaseStr: 60, BaseInt: 12, BaseDex: 12, BaseCon: 12}, 1147, 0},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			item, construcao := pecaDoNivel(tab, c.e)
+			if item.Index != c.item || construcao != c.construcao {
+				t.Errorf("peça %d pela construção %d, queria %d pela %d", item.Index, construcao, c.item, c.construcao)
+			}
+		})
+	}
+	// O set MAG e o DN da luva do TK são o mesmo item com adições diferentes: o
+	// lado mago é o do Mágico (60), não o do Dano (2).
+	if item, _ := pecaDoNivel(tab, semPontos(0, 29)); item.Effects[1][0] != 60 {
+		t.Errorf("a luva do TK sem pontos veio com o efeito %d, queria o Mágico (60)", item.Effects[1][0])
+	}
 }

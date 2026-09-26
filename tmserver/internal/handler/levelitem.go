@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -65,7 +66,7 @@ func (d *Dispatcher) entregaItemDeNivel(w *world.World, s *world.Session, e *wor
 	if e.ClassMaster != classMasterMortal {
 		return
 	}
-	item := d.levelItems.Para(int(e.Class), construcaoDoPersonagem(e), e.Level)
+	item, construcao := pecaDoNivel(d.levelItems, e)
 	if item.Empty() {
 		return
 	}
@@ -91,7 +92,48 @@ func (d *Dispatcher) entregaItemDeNivel(w *world.World, s *world.Session, e *wor
 	sendClientMessage(w, s, "Um item chegou ao seu armazém. ["+d.itemName(item.Index)+"]")
 	d.log.Info("item de nível entregue",
 		"conn", s.Conn, "conta", s.AccountID, "personagem", e.Name, "classe", e.Class,
-		"construcao", construcaoDoPersonagem(e), "nivel", e.Level, "item", item.Index, "vaga", vaga)
+		"construcao", construcao, "nivel", e.Level, "item", item.Index, "vaga", vaga)
+}
+
+// As construções que o LevelItem conhece (content.LevelItems): 0 Força, 1 Int,
+// 2 Destreza e 3 o resto.
+const (
+	construcaoInt        = 1
+	construcaoDestreza   = 2
+	construcaoIndefinida = 3
+)
+
+// ladoMago é para onde vai quem não tem construção definida: a coluna de Int, e
+// depois a de Destreza, que é onde o arquivo guarda o lado "MAG" da Huntress
+// ("#ARMA HT MAG NO LEVEL 155" é TYPE 3 — as Presas de Behemoth e o Dianus).
+var ladoMago = []int{construcaoInt, construcaoDestreza}
+
+// pecaDoNivel escolhe a peça do nível pela construção do personagem, e devolve
+// também a construção que acabou valendo, para o log.
+//
+// DIVERGÊNCIA DELIBERADA, pedida pelo Marco em 26/09/2026: quem não tem
+// construção definida recebe pelo lado mago. O personagem nasce com os quatro
+// atributos iguais (12/12/12/12, dbserver CreateCharacter) e subir de nível não
+// mexe neles — só dá pontos livres. Quem é upado sem distribuir fica empatado,
+// cai no balde 3, e o arquivo não tem peça nenhuma para o 3: no legado ele
+// passava do 29 ao 254 sem receber um set nem uma arma. "Precisa receber, podemos
+// optar nesse caso pelo lado mago."
+//
+// Só o balde 3 cai para o lado mago. Quem tem construção (Força, Int ou
+// Destreza) recebe o que a tabela dá a ela, inclusive nada — o TK, a FM e o BM
+// de Destreza não têm coluna no arquivo, e isso é decisão de conteúdo, não daqui.
+func pecaDoNivel(t *content.LevelItems, e *world.Entity) (content.LevelItem, int) {
+	construcao := construcaoDoPersonagem(e)
+	item := t.Para(int(e.Class), construcao, e.Level)
+	if !item.Empty() || construcao != construcaoIndefinida {
+		return item, construcao
+	}
+	for _, lado := range ladoMago {
+		if item := t.Para(int(e.Class), lado, e.Level); !item.Empty() {
+			return item, lado
+		}
+	}
+	return item, construcao
 }
 
 // vagaParaItemDeNivel é a primeira vaga livre do armazém entre as que o legado
