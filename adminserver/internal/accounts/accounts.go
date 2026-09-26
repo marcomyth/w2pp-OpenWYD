@@ -582,6 +582,13 @@ type Achado struct {
 // It lives here rather than in internal/store beside the account-name search for
 // the reason the account writes do: every service embeds internal/, so adding
 // there redeploys the game to ship a panel change.
+//
+// AS CONTAS ARQUIVADAS FICAM DE FORA, a menos que o termo comece com "~". O wipe de
+// lançamento (25/09/2026) não apagou as contas antigas — apagar levaria em cascata os
+// pagamentos delas (donate_topup_order) e esbarra na auditoria append-only —, e sim
+// as renomeou para "~nome". Elas não servem para nada no dia a dia e enchiam a lista;
+// quem precisa delas (contabilidade, auditoria) digita "~" e elas aparecem. O cadastro
+// só aceita letras e números, então nenhuma conta viva começa com "~".
 func (s *Store) Buscar(ctx context.Context, prefixo string, limite int) ([]Achado, error) {
 	if limite <= 0 || limite > 200 {
 		limite = 50
@@ -610,7 +617,8 @@ func (s *Store) Buscar(ctx context.Context, prefixo string, limite int) ([]Achad
 		       coalesce(c.name, '')
 		  FROM account a
 		  LEFT JOIN character c ON c.account_id = a.id AND c.name ILIKE $1
-		 WHERE a.name LIKE $1 OR c.id IS NOT NULL
+		 WHERE (a.name LIKE $1 OR c.id IS NOT NULL)
+		   AND (a.name NOT LIKE '~%' OR left($1, 1) = '~')
 		 ORDER BY a.id, c.name
 		 LIMIT $2`, padrao, limite)
 	if err != nil {
