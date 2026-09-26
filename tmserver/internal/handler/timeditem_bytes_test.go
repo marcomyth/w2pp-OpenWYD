@@ -70,7 +70,28 @@ func TestPrazoIndevidoSoNaMontariaENoCorpo(t *testing.T) {
 	}
 
 	equip := []world.Item{{Index: 16, ExpiresAt: prazo}, {Index: 1100, ExpiresAt: prazo}}
-	if n := d.desfazerPrazosIndevidos(equip, true); n != 1 || equip[0].ExpiresAt != 0 || equip[1].ExpiresAt != prazo {
+	if n := d.desfazerPrazosIndevidos(equip, true, classMasterMortal); n != 1 || equip[0].ExpiresAt != 0 || equip[1].ExpiresAt != prazo {
 		t.Errorf("desfez %d; corpo %d, item do GM %d — queria só o corpo", n, equip[0].ExpiresAt, equip[1].ExpiresAt)
+	}
+	if equip[0].Effects != ([3]world.Effect{}) {
+		t.Errorf("o corpo de um Mortal ganhou efeitos no reparo: %v", equip[0].Effects)
+	}
+}
+
+// O CORPO DO CELESTIAL. A evolução grava {98,3} e {106, índice do corpo} nele, e o
+// 106 é o EF_WDAY: todo Celestial tinha o corpo lido como item de N dias, e o
+// pulso apagava os dois pares. O reparo desfaz o prazo e os devolve.
+func TestCorpoDoCelestialNaoGanhaPrazoEVolta(t *testing.T) {
+	d := New(Config{})
+	corpo := world.Item{Index: 16, Effects: [3]world.Effect{{}, {Effect: 98, Value: 3}, {Effect: efWDay, Value: 16}}}
+	intacto := corpo
+	if d.startTimedItem(&corpo, time.Unix(1_800_000_000, 0)) || corpo != intacto {
+		t.Fatalf("o corpo do Celestial ganhou prazo: %+v", corpo)
+	}
+
+	apagado := []world.Item{{Index: 16, ExpiresAt: 1_800_000_000}}
+	d.desfazerPrazosIndevidos(apagado, true, classMasterCelestial)
+	if apagado[0] != intacto {
+		t.Errorf("o reparo deixou o corpo %+v, queria %+v", apagado[0], intacto)
 	}
 }

@@ -234,7 +234,7 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 	now := time.Now().Unix()
 	// Antes do vencimento: a montaria e o corpo que ganharam prazo por engano
 	// (itemLifetime) não podem sumir no login.
-	if n := d.desfazerPrazosIndevidos(st.Equip[:], true) + d.desfazerPrazosIndevidos(st.Carry[:], false); n > 0 {
+	if n := d.desfazerPrazosIndevidos(st.Equip[:], true, st.ClassMaster) + d.desfazerPrazosIndevidos(st.Carry[:], false, 0); n > 0 {
 		d.log.Warn("prazo indevido desfeito no login", "conn", s.Conn, "account", s.AccountName, "char", st.Name, "itens", n)
 	}
 	dropExpired(st.Equip[:], now)

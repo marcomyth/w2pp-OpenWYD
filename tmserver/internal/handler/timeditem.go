@@ -174,16 +174,39 @@ func (d *Dispatcher) prazoIndevido(it world.Item, noCorpo bool) bool {
 
 // desfazerPrazosIndevidos aplica prazoIndevido a uma lista de itens carregada do
 // banco, antes do dropExpired do login, e devolve quantos desfez. corpo diz se o
-// primeiro item da lista é o do slot 0 (a lista é o Equip).
-func (d *Dispatcher) desfazerPrazosIndevidos(items []world.Item, corpo bool) int {
+// primeiro item da lista é o do slot 0 (a lista é o Equip); classMaster é a
+// evolução do personagem, para restaurarCorpoCelestial.
+func (d *Dispatcher) desfazerPrazosIndevidos(items []world.Item, corpo bool, classMaster uint8) int {
 	n := 0
 	for i := range items {
 		if d.prazoIndevido(items[i], corpo && i == 0) {
 			items[i].ExpiresAt = 0
+			if corpo && i == 0 {
+				restaurarCorpoCelestial(&items[i], classMaster)
+			}
 			n++
 		}
 	}
 	return n
+}
+
+// restaurarCorpoCelestial devolve ao corpo de um Celestial os dois pares que a
+// evolução grava nele (buildCelestialSnapshot, _MSG_UseItem.cpp:3160-3163):
+// {98, 3} e {106, índice do corpo}. O servidor não os lê; o cliente sim. O 106
+// é justamente o EF_WDAY, e foi por ele que o pulso tomou o corpo de todo
+// Celestial por um item de "N dias" e apagou os dois. Só regrava o que foi
+// apagado — um corpo com os pares no lugar fica como está.
+func restaurarCorpoCelestial(corpo *world.Item, classMaster uint8) {
+	switch classMaster {
+	case classMasterCelestial, classMasterCelestialCS, classMasterSCelestial:
+	default:
+		return
+	}
+	if corpo.Effects[1] != (world.Effect{}) || corpo.Effects[2] != (world.Effect{}) {
+		return
+	}
+	corpo.Effects[1] = world.Effect{Effect: 98, Value: 3}
+	corpo.Effects[2] = world.Effect{Effect: efWDay, Value: uint8(corpo.Index)}
 }
 
 // startTimedItem begins a temporary item's life the first time it is equipped,
@@ -255,6 +278,9 @@ func (d *Dispatcher) pulseTimedItems(w *world.World, s *world.Session, e *world.
 		switch {
 		case d.prazoIndevido(*it, slot == 0):
 			it.ExpiresAt = 0
+			if slot == 0 {
+				restaurarCorpoCelestial(it, e.ClassMaster)
+			}
 			d.log.Warn("prazo indevido desfeito", "account", s.AccountName, "conn", s.Conn, "slot", slot, "item", it.Index)
 		case it.ExpiresAt == 0:
 			if !d.startTimedItem(it, now) {
