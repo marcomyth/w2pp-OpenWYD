@@ -59,3 +59,15 @@ func TestItemVazioAtravessaVazio(t *testing.T) {
 		t.Errorf("o item vazio voltou diferente: %+v", voltou)
 	}
 }
+
+// As marcas de "já feito" do personagem têm de atravessar o dbServer nos dois
+// sentidos: uma que se perde na ida volta zerada no próximo login, e o que ela
+// guardava acontece de novo. O Molar de Gárgula não atravessava: o tmServer
+// mandava a marca, e o conversor a deixava para trás.
+func TestMarcasDoPersonagemAtravessamAFronteira(t *testing.T) {
+	ch := domain.Character{MolarGargula: 1}
+	got := protoToCharacter(characterToProto(ch))
+	if got.MolarGargula != ch.MolarGargula {
+		t.Errorf("MolarGargula = %d, queria %d", got.MolarGargula, ch.MolarGargula)
+	}
+}
