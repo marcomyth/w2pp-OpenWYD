@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"log/slog"
 	"testing"
 
@@ -229,6 +230,52 @@ func TestClasseGates(t *testing.T) {
 			// handler never destroys it on a gate failure.
 			if f.e.Carry[0].Empty() {
 				t.Errorf("classe item unexpectedly consumed on a gate failure")
+			}
+		})
+	}
+}
+
+// A Classe stops at +6: a +7 and up keeps its adds and the Classe, and the
+// player is told why. +6 itself still rerolls — the sanc stays and the adds
+// change, as before. Before the rule the legacy's `sanc > 9` let +7..+9 through
+// and spent the Classe on an add reroll.
+func TestClasseRecusaAcimaDeMais6(t *testing.T) {
+	for _, c := range []struct {
+		nivel  int
+		recusa bool
+	}{
+		{6, false},
+		{7, true},
+		{9, true},
+		{10, true},
+	} {
+		t.Run(fmt.Sprintf("+%d", c.nivel), func(t *testing.T) {
+			pos, effects := classeCatalog()
+			f := newClasseFixture(t, pos, effects)
+			alvo := world.Item{Index: itemChestT1, Effects: [3]world.Effect{{Effect: efSanc}}}
+			refine.Set(&alvo, c.nivel, 0)
+			f.e.Carry[1] = alvo
+
+			f.use(itemClasseA)
+
+			avisos := f.w.SentOfType(f.s, protocol.MsgMessagePanel)
+			if !c.recusa {
+				if !f.e.Carry[0].Empty() {
+					t.Errorf("+%d: a Classe não foi gasta", c.nivel)
+				}
+				if avisos != 0 {
+					t.Errorf("+%d: %d avisos, want nenhum", c.nivel, avisos)
+				}
+				return
+			}
+			if got := f.target(); got != alvo {
+				t.Errorf("+%d: item mudou na recusa: %+v -> %+v", c.nivel, alvo, got)
+			}
+			if f.e.Carry[0].Empty() {
+				t.Errorf("+%d: a Classe foi gasta na recusa", c.nivel)
+			}
+			if avisos != 1 {
+				t.Errorf("+%d: %d avisos, want 1 (%q)", c.nivel, avisos, msgClasseNoMaximo)
 			}
 		})
 	}
