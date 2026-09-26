@@ -243,6 +243,16 @@ func (c *Client) MobTemplates(ctx context.Context, moderatorID int64, query stri
 	if err != nil {
 		return nil, fmt.Errorf("gamedata: list mob templates: %w", err)
 	}
+	// O RESULTADO TEM DE SER LIDO, e não era.
+	//
+	// O webServer recusa por permissão devolvendo Result=FORBIDDEN com a lista VAZIA e
+	// SEM erro de gRPC. Ignorando o campo, a recusa chegava aqui como "veio zero
+	// modelo", e a tela dizia "Nenhum modelo veio do webServer. Ele pode estar sem a
+	// pasta de conteúdo." — mandando procurar o problema no lugar errado, num servidor
+	// que tinha 2031 modelos carregados.
+	if err := resultErr(resp.GetResult()); err != nil {
+		return nil, fmt.Errorf("gamedata: list mob templates: %w", err)
+	}
 	q := strings.ToLower(strings.TrimSpace(query))
 	out := make([]MobTemplate, 0, len(resp.GetTemplates()))
 	for _, t := range resp.GetTemplates() {

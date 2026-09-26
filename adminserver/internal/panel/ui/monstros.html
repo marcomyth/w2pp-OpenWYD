@@ -19,11 +19,10 @@
 
   {{if .Aviso}}<div class="aviso">{{.Aviso}}</div>{{end}}
 
-  {{template "quando-vale" "reiniciar"}}
+  {{template "quando-vale" "segundos"}}
   <p class="dica" style="margin-bottom:18px">
-    Diferente de item e NPC: os números do monstro são lidos uma vez só, quando
-    o jogo sobe. A página inicial mostra quantas edições estão esperando
-    reinício.
+    O jogo relê a ficha do monstro sozinho, sem reiniciar. Um monstro que já está
+    no mapa só pega os números novos quando nascer de novo.
   </p>
 
   <form class="busca" method="get" action="/monstros">
@@ -60,7 +59,7 @@
   {{else}}
     <div class="vazio">
       {{if .Query}}Nenhum monstro com “{{.Query}}” no nome.
-      {{else}}Nenhum modelo veio do webServer. Ele pode estar sem a pasta de conteúdo.{{end}}
+      {{else}}Nenhum modelo veio do webServer.{{end}}
     </div>
   {{end}}
 </main>

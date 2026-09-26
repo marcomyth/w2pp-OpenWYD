@@ -161,7 +161,13 @@ func run(logger *slog.Logger) error {
 		chave := os.Getenv("W2PP_WEB_TOKEN_PAINEL")
 		conn, err := grpc.NewClient(*webAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithUnaryInterceptor(mandaChaveWeb(chave)))
+			grpc.WithChainUnaryInterceptor(
+				mandaChaveWeb(chave),
+				// O ator do painel, quando houver. Em cadeia e nao substituindo: o
+				// token do painel continua sendo o que AUTENTICA a chamada, e este
+				// so diz QUEM esta agindo por tras dele.
+				gamedata.MandaAtorDoPainel(),
+			))
 		if err != nil {
 			return fmt.Errorf("webserver dial: %w", err)
 		}

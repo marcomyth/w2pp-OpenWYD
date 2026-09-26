@@ -51,6 +51,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mountgrowth"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/npcadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/npctemplates"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/painelator"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ponte"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ranking"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/rmtpagamento"
@@ -189,7 +190,9 @@ func run(logger *slog.Logger) error {
 	}
 	srv := grpc.NewServer(
 		grpc.Creds(creds),
-		grpc.UnaryInterceptor(authz.Interceptor(chaves)),
+		// O leitor do usuario do painel vai junto: e o interceptador que confere,
+		// na hora, se quem esta agindo pelo painel ainda existe e esta ativo.
+		grpc.UnaryInterceptor(authz.Interceptor(chaves, painelator.Novo(pool))),
 		grpc.StreamInterceptor(authz.StreamInterceptor(chaves)),
 	)
 	st := store.New(pool)

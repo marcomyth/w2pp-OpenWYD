@@ -22,6 +22,8 @@ package authz
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
+	"strconv"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -30,6 +32,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/painelator"
 )
 
 // TokenHeader is the metadata key carrying the caller's key. Re-exported from
@@ -130,7 +133,7 @@ func (c Chaves) Configurada() bool {
 // the two deploys. Once the keys are set, the follow-up change makes an
 // unconfigured web-api refuse to start at all, which is the end state — the
 // pass-through above is precisely the behaviour being removed.
-func Interceptor(c Chaves) grpc.UnaryServerInterceptor {
+func Interceptor(c Chaves, painel *painelator.Leitor) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (any, error) {
@@ -143,7 +146,25 @@ func Interceptor(c Chaves) grpc.UnaryServerInterceptor {
 		}
 		switch {
 		case confere(token, c.Painel):
-			return handler(ctx, req)
+			// SÓ NO RAMO DO PAINEL se lê o ator, e isso é a metade que importa da
+			// segurança: o cabeçalho é um texto que qualquer chamador pode inventar.
+			// Aqui ele só é olhado DEPOIS de a chamada já estar autenticada com a
+			// chave do painel, que é um segredo. Lido no ramo do site, ele seria uma
+			// porta para o site se dizer admin.
+			ctx2, err := comAtorDoPainel(ctx, painel)
+			if err != nil {
+				return nil, err
+			}
+			// ENQUANTO A AUDITORIA NÃO CONHECE O USUÁRIO DO PAINEL, ele só lê.
+			//
+			// As escritas gravam o autor no internal/store com a conta de jogo, e as
+			// tabelas de auditoria guardam esse número SEM chave estrangeira — a
+			// escrita passaria e registraria "conta 0" como autor. Edição que funciona
+			// e mente sobre quem a fez é pior que edição recusada.
+			if _, doPainel := painelator.Do(ctx2); doPainel && !PainelPodeChamar(info.FullMethod) {
+				return nil, status.Error(codes.PermissionDenied, MsgEscritaAindaNao)
+			}
+			return handler(ctx2, req)
 		case confere(token, c.Site):
 			if !DoJogador(servicoDe(info.FullMethod)) {
 				// Named in the message on purpose: this is the line that says
@@ -237,4 +258,43 @@ func servicoDe(fullMethod string) string {
 		return partes[0][i+1:]
 	}
 	return partes[0]
+}
+
+// comAtorDoPainel lê o cabeçalho do usuário do painel e o confere no banco.
+//
+// SEM CABEÇALHO NÃO É ERRO: continua existindo quem entra no painel com conta de jogo, e
+// essas chamadas seguem pelo caminho do moderator_id. O cabeçalho é um acréscimo, não uma
+// exigência — exigi-lo quebraria o login por conta de jogo no mesmo dia.
+//
+// COM CABEÇALHO INVÁLIDO É ERRO, e na hora. Um id que não existe, ou de alguém
+// DESATIVADO, não pode simplesmente "seguir sem ator": seguiria como conta zero e cairia
+// na mesma recusa de hoje, com uma mensagem que não explica nada. Recusar aqui diz a
+// verdade — quem foi desativado para de editar o jogo no próximo clique.
+func comAtorDoPainel(ctx context.Context, leitor *painelator.Leitor) (context.Context, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return ctx, nil
+	}
+	vals := md.Get(painelator.HeaderPainelUsuario)
+	if len(vals) == 0 {
+		return ctx, nil
+	}
+	id, err := strconv.ParseInt(vals[0], 10, 64)
+	if err != nil || id <= 0 {
+		return nil, status.Error(codes.Unauthenticated, "painel: id de usuario invalido")
+	}
+	if leitor == nil {
+		// Sem banco ligado não há como conferir, e seguir sem conferir seria aceitar
+		// um "sou admin" escrito pelo chamador.
+		return nil, status.Error(codes.Unauthenticated, "painel: sem como conferir o usuario")
+	}
+	ator, err := leitor.Confere(ctx, id)
+	if errors.Is(err, painelator.ErrNaoServe) {
+		return nil, status.Error(codes.PermissionDenied,
+			"painel: usuario invalido ou desativado")
+	}
+	if err != nil {
+		return nil, status.Error(codes.Internal, "painel: nao consegui conferir o usuario")
+	}
+	return painelator.NoContexto(ctx, ator), nil
 }

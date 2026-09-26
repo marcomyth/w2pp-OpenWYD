@@ -1523,6 +1523,13 @@ func (h *Handler) requireStaff(next http.Handler) http.Handler {
 			}
 			ctx := context.WithValue(r.Context(), ctxSession, sess)
 			ctx = context.WithValue(ctx, ctxRole, sess.PainelPapel)
+			// O ATOR DO PAINEL VIAJA DAQUI, e é o único lugar onde ele é marcado.
+			//
+			// Quem entra como usuário do painel não tem conta de jogo, e o webServer
+			// autoriza por conta. Sem esta marca, todas as páginas que falam com ele —
+			// NPC, Monstros, Atributos, Recompensa Diária, Loja de Donate, Receita,
+			// Eventos do Mundo e Preços de item — recusam. Ver gamedata/ator_do_painel.go.
+			ctx = gamedata.ComAtorDoPainel(ctx, sess.PainelUsuarioID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
