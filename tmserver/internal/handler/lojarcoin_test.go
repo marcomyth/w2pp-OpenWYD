@@ -119,8 +119,15 @@ func TestLojaDeRcoinMandaAPaginaDaAbaComOSaldo(t *testing.T) {
 	if pag.Pagina != 1 || pag.Paginas != 2 || pag.Qtd != 5 || pag.Saldo != 777 {
 		t.Fatalf("página = %d de %d, qtd %d, saldo %d; quero 1 de 2, 5, 777", pag.Pagina, pag.Paginas, pag.Qtd, pag.Saldo)
 	}
-	if o := pag.Ofertas[0]; o.ID != 120 || o.Titulo != "Poção 20" || o.Preco != 50 || o.Categoria != 1 {
+	if o := pag.Ofertas[0]; o.ID != 120 || o.Titulo != "Poção 20" || o.Preco != 50 {
 		t.Errorf("primeira oferta da página = %+v", o)
+	}
+	// O byte +12 de cada oferta é a aba pedida: o cliente descarta a página se a
+	// primeira disser outra (lojarcoins.cpp:193).
+	for i := range int(pag.Qtd) {
+		if pag.Ofertas[i].Categoria != 1 {
+			t.Errorf("oferta %d veio com categoria %d, pedi a aba 1", i, pag.Ofertas[i].Categoria)
+		}
 	}
 
 	// Aba fora da faixa: página vazia, sem ir ao banco.

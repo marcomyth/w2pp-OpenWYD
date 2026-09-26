@@ -36,6 +36,20 @@ func TestLojaDeRcoinListaPorAbaECompraComPrecoVisto(t *testing.T) {
 			t.Errorf("aba %d = %d ofertas, want %d", c, quantas[c], n)
 		}
 	}
+	// O CONTRATO COM O CLIENTE: toda oferta de uma aba volta com a categoria
+	// PEDIDA, porque ela vai no byte +12 e o cliente descarta a página inteira se
+	// a primeira oferta disser outra aba (lojarcoins.cpp:193).
+	for aba := int32(1); aba <= 6; aba++ {
+		ofertas, err := s.ListRcoinOffers(ctx, aba)
+		if err != nil || len(ofertas) != want[int16(aba)] {
+			t.Fatalf("aba %d = %d ofertas (err %v), want %d", aba, len(ofertas), err, want[int16(aba)])
+		}
+		for _, o := range ofertas {
+			if int32(o.Category) != aba {
+				t.Errorf("aba %d devolveu %q com categoria %d", aba, o.Title, o.Category)
+			}
+		}
+	}
 	fadas, err := s.ListRcoinOffers(ctx, 5)
 	if err != nil || len(fadas) != 9 {
 		t.Fatalf("fadas = %d (err %v), want 9", len(fadas), err)
