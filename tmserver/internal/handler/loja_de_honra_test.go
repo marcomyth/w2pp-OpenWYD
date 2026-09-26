@@ -49,6 +49,9 @@ func startServerHonra(t *testing.T, persist world.Persistence) (string, func()) 
 	if id := w.SpawnMob(godOfWarTemplate(), 5, 5); id != shopNPCID {
 		t.Fatalf("o God of War nasceu como %d, esperado %d", id, shopNPCID)
 	}
+	// O estoque chega como em produção: pelas vagas do NPC, escritas pelo applyShop
+	// da recarga das lojas. Antes do Serve, então ainda sem laço para disputar.
+	applyShop(w.Entity(shopNPCID), estoqueDeHonraDeTeste())
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { _ = w.Serve(ctx, ln); close(done) }()
@@ -78,6 +81,9 @@ func startServerHonraAndando(t *testing.T, persist world.Persistence) (string, f
 	if id := w.SpawnMob(godOfWarTemplate(), 5, 5); id != shopNPCID {
 		t.Fatalf("o God of War nasceu como %d, esperado %d", id, shopNPCID)
 	}
+	// O estoque chega como em produção: pelas vagas do NPC, escritas pelo applyShop
+	// da recarga das lojas. Antes do Serve, então ainda sem laço para disputar.
+	applyShop(w.Entity(shopNPCID), estoqueDeHonraDeTeste())
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { _ = w.Serve(ctx, ln); close(done) }()
@@ -184,11 +190,11 @@ func TestLojaDeHonraAbreComEstoqueESaldo(t *testing.T) {
 	if abre.MinutosJanela != shopPointsWindowMs/60000 {
 		t.Errorf("janela de %d min, esperado %d", abre.MinutosJanela, shopPointsWindowMs/60000)
 	}
-	if len(abre.Itens) != len(estoqueDaLojaDeHonra) {
-		t.Fatalf("a loja abriu com %d itens, esperado %d", len(abre.Itens), len(estoqueDaLojaDeHonra))
+	if len(abre.Itens) != len(estoqueDeHonraDeTeste()) {
+		t.Fatalf("a loja abriu com %d itens, esperado %d", len(abre.Itens), len(estoqueDeHonraDeTeste()))
 	}
 	for i, it := range abre.Itens {
-		quer := estoqueDaLojaDeHonra[i]
+		quer := honraEsperada(t, i)
 		if it.Slot != int16(i) || it.Indice != quer.Indice || it.Preco != quer.Preco {
 			t.Errorf("casa %d = slot %d item %d por %d; esperado slot %d item %d por %d",
 				i, it.Slot, it.Indice, it.Preco, i, quer.Indice, quer.Preco)
@@ -207,24 +213,6 @@ func TestLojaDeHonraAbreComEstoqueESaldo(t *testing.T) {
 		}
 		if ty == protocol.MsgShopList {
 			t.Fatal("o God of War mandou a janela de loja do cliente junto com o painel")
-		}
-	}
-}
-
-// TestEstoqueDeHonraTemCategoriaConhecida: a aba de cada item é escrita a mão na
-// tabela, e um número fora das quatro abas faria o item desaparecer de todas menos
-// a Todos. É o tipo de erro de digitação que não aparece na tela.
-func TestEstoqueDeHonraTemCategoriaConhecida(t *testing.T) {
-	for i, it := range estoqueDaLojaDeHonra {
-		switch it.Cat {
-		case protocol.HonraCatNenhuma, protocol.HonraCatArmas,
-			protocol.HonraCatSet, protocol.HonraCatConsumo:
-		default:
-			t.Errorf("casa %d (item %d) tem categoria %d, que não é aba nenhuma",
-				i, it.Indice, it.Cat)
-		}
-		if it.Preco <= 0 {
-			t.Errorf("casa %d (item %d) custa %d pontos", i, it.Indice, it.Preco)
 		}
 	}
 }
@@ -268,7 +256,7 @@ func TestLojaDeHonraTrocaPontosPorItem(t *testing.T) {
 
 	// Casa 2 do estoque: a pilha de três Poeiras de Oriharucon, por 480 pontos.
 	const casa = 2
-	quer := estoqueDaLojaDeHonra[casa]
+	quer := honraEsperada(t, casa)
 	compraDeHonra(t, c, casa)
 
 	chegou, pilha, saldoNoPainel := false, [2]byte{}, int32(-1)
@@ -321,7 +309,7 @@ func TestLojaDeHonraFadaSaiComVinteEQuatroHoras(t *testing.T) {
 	expect(t, c, protocol.MsgHonraAbre)
 
 	const casa = 3 // Fada Azul 24 h, 960 pontos
-	quer := estoqueDaLojaDeHonra[casa]
+	quer := honraEsperada(t, casa)
 	if quer.Indice != 3901 {
 		t.Fatalf("a casa %d é o item %d, esperado a Fada Azul 3901", casa, quer.Indice)
 	}

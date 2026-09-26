@@ -213,10 +213,11 @@
 {{define "slot"}}
 <a class="slot{{if not .It.Vazio}} cheio{{end}}{{if not .It.Alcancavel}} travado{{end}}{{if .It.Marcador}} marcador{{end}}{{if .Sel}} escolhido{{end}}"
    href="{{.Href}}"
-   title="Slot {{.It.Slot}}{{if not .It.Vazio}} — {{.It.Nome}}{{end}}{{if not .It.Alcancavel}} (fora da faixa liberada){{end}}">
+   title="Slot {{.It.Slot}}{{if not .It.Vazio}} — {{.It.Nome}}{{end}}{{if .It.EmPontos}} — {{.It.Pontos}} pontos{{end}}{{if not .It.Alcancavel}} (fora da faixa liberada){{end}}">
   <span class="idx">{{.It.Slot}}</span>
   {{if gt .It.Refino 0}}<span class="sanc">+{{.It.Refino}}</span>{{end}}
   {{if gt .It.Qtd 1}}<span class="qtd">{{.It.Qtd}}</span>{{end}}
+  {{if .It.EmPontos}}<span class="pts">{{.It.Pontos}} pts</span>{{end}}
   <span class="nome">{{.It.Nome}}</span>
 </a>
 {{end}}

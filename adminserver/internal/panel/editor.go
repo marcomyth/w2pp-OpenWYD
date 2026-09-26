@@ -104,6 +104,11 @@ type itemView struct {
 	// Qtd is the stack a shop sells in one purchase. Only the NPC shop grid sets
 	// it; everywhere else it stays 0 and the cell shows no count.
 	Qtd int
+	// Pontos is the slot price in shop points, and EmPontos says there is one — a
+	// zero price is a real price, so the flag cannot be Pontos != 0. Only the NPC
+	// shop grid sets them.
+	Pontos   int32
+	EmPontos bool
 }
 
 type efeitoView struct {
