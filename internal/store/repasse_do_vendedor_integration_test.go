@@ -38,8 +38,8 @@ func TestRepasseDoVendedorPendenteComCadastroEstaACaminho(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total != precoEmCentavos {
-		t.Errorf("total = %d, quero %d", total, precoEmCentavos)
+	if total != liquidoDaVendaDeTeste() {
+		t.Errorf("total = %d, quero %d", total, liquidoDaVendaDeTeste())
 	}
 	if motivo != EsperaPagamento {
 		t.Errorf("motivo = %d, quero EsperaPagamento", motivo)
@@ -67,8 +67,8 @@ func TestRepasseDoVendedorSemDocumentoPedeOCadastro(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total != precoEmCentavos {
-		t.Errorf("total = %d, quero %d", total, precoEmCentavos)
+	if total != liquidoDaVendaDeTeste() {
+		t.Errorf("total = %d, quero %d", total, liquidoDaVendaDeTeste())
 	}
 	if motivo != EsperaCadastro {
 		t.Errorf("motivo = %d, quero EsperaCadastro", motivo)
@@ -110,8 +110,8 @@ func TestRepasseDoVendedorRecusadoEIncertoMandamOlhar(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if total != precoEmCentavos {
-				t.Errorf("total = %d, quero %d: a divida nao deixou de existir", total, precoEmCentavos)
+			if total != liquidoDaVendaDeTeste() {
+				t.Errorf("total = %d, quero %d: a divida nao deixou de existir", total, liquidoDaVendaDeTeste())
 			}
 			if motivo != EsperaGente {
 				t.Errorf("motivo = %d, quero EsperaGente", motivo)
@@ -166,7 +166,7 @@ func TestRepasseDoVendedorNaoSomaDividaDeOutro(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total != precoEmCentavos {
-		t.Errorf("total = %d, quero %d: entrou divida de outra conta", total, precoEmCentavos)
+	if total != liquidoDaVendaDeTeste() {
+		t.Errorf("total = %d, quero %d: entrou divida de outra conta", total, liquidoDaVendaDeTeste())
 	}
 }

@@ -155,3 +155,19 @@ func TestOSiteEAFilaMostramOMesmoQueOJogoPrometeu(t *testing.T) {
 			fila[0].ValorCentavos, prometidoNoJogo)
 	}
 }
+
+// liquidoDaVendaDeTeste é o que o vendedor recebe da venda que os testes montam.
+//
+// EXISTE PARA OS TESTES ANTIGOS, escritos quando o líquido era o bruto e que por isso
+// esperavam precoEmCentavos. A regra mudou — a taxa da casa desconta 5% + R$ 0,80 — e eles
+// passaram a falhar dizendo "total = 4670, quero 5000". É a regra velha presa no teste, e
+// não um defeito no código: conferi as vinte falhas uma a uma e todas são esta.
+//
+// CALCULA PELA MESMA FUNÇÃO em vez de trazer 4670 escrito. Com o número digitado, mudar a
+// taxa quebraria vinte testes de uma vez, o conserto seria reescrever vinte números, e um
+// deles ficaria para trás sem ninguém saber qual.
+//
+// O que NÃO virou isto, de propósito: as chamadas que dizem quanto foi COBRADO. Ali o
+// número continua sendo o preço cheio, porque é o que o comprador paga — e é justamente a
+// diferença entre os dois que este PR introduz.
+func liquidoDaVendaDeTeste() int64 { return LiquidoDoVendedorRMT(precoEmCentavos) }
