@@ -347,9 +347,9 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			continue
 		}
 		// Evocação do próprio grupo não apanha de quem a evocou nem dos
-		// companheiros de grupo. O cliente em modo PK põe os pets do BM na lista de
-		// alvos da magia de área, e o BM matava as próprias criaturas.
-		if combatHit && evocacaoDoMesmoGrupo(e, target) {
+		// companheiros de grupo e de guilda. O cliente em modo PK põe os pets do BM
+		// na lista de alvos da magia de área, e o BM matava as próprias criaturas.
+		if combatHit && evocacaoDoMesmoGrupo(w, e, target, w.Entity(target.Summoner)) {
 			writeDamage(payload, i, 0)
 			continue
 		}
@@ -645,9 +645,13 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			// as a chaos-relevant PvP kill — a duel death must not grant/cost PKPoint
 			// or EXP (same exclusion as the Guilty-set gate above).
 			d.pvpKilled(w, e, target)
-		} else if pvpHit {
+		} else if pvpHit && dmg > 0 {
 			// O REVIDE DO LEGADO, agora também em PvP (_MSG_Attack.cpp:1699 e
-			// :1721). São os dois lados, e os dois importam:
+			// :1721). Só com dano de verdade: o legado sai antes com
+			// `if (dam <= 0) continue;` (:1292). A Cura chega por este mesmo
+			// pacote como dano NEGATIVO, e sem o dmg > 0 curar alguém era revide —
+			// a FM que curava o BM virava alvo dos tigres dele, dentro do grupo.
+			// São os dois lados, e os dois importam:
 			//
 			//   - as evocações de QUEM BATE entram contra o alvo, porque elas nunca
 			//     escolhem um jogador sozinhas (validTarget, mobai.go);
@@ -965,31 +969,30 @@ func foemaMultiBuffTargetCap(special int) int {
 	return n
 }
 
-// evocacaoDoMesmoGrupo diz se target é uma evocação do grupo do atacante: a
-// criatura do próprio BM, ou a de um companheiro de grupo.
+// evocacaoDoMesmoGrupo diz se target é uma evocação do lado do atacante: a
+// criatura do próprio BM, a de um companheiro de grupo, ou a de alguém da mesma
+// guilda com a medalha levantada. dono é o dono do pet (w.Entity(Summoner)),
+// passado à parte para a regra ser testável sem sessão.
 //
 // É o recorte, para evocações, da regra do legado
 // `if (leader == mobleader || Guild == MobGuild) dam = 0;`
-// (_MSG_Attack.cpp:1334). Ali o pet tem como líder o líder do grupo do dono
-// (summon.go), então cai no `leader == mobleader`. O port só levou essa regra aos
-// afetos (applyCastAffect), não ao dano. A regra inteira, que também protege
-// companheiros de grupo e de guilda em PvP, fica de fora de propósito: mudaria o
-// PK entre jogadores, e o pedido foi só sobre as evocações.
-func evocacaoDoMesmoGrupo(a, b *world.Entity) bool {
-	if b.Summoner == 0 || world.IsPlayer(b.ID) {
+// (_MSG_Attack.cpp:1334): bater no pet é bater no dono, e o grupo e a guilda do
+// pet são os dele. O port só levou essa regra aos afetos (applyCastAffect), não
+// ao dano. A regra inteira, entre jogadores, fica de fora de propósito: mudaria
+// o PK entre jogadores, e o pedido foi só sobre as evocações.
+func evocacaoDoMesmoGrupo(w *world.World, a, b, dono *world.Entity) bool {
+	if b.Summoner == 0 || world.IsPlayer(b.ID) || dono == nil {
 		return false
 	}
-	if b.Summoner == a.ID {
-		return true
-	}
-	leader := a.Leader
-	if leader == 0 {
-		leader = a.ID
-	}
-	return b.Leader != 0 && b.Leader == leader
+	return skillSameLeaderOrGuild(w, a, dono)
 }
 
+// skillSameLeaderOrGuild é o `leader == mobleader || Guild == MobGuild` do
+// legado (_MSG_Attack.cpp:1178/1334). Evocação responde pelo dono: o bando fica
+// fora do grupo (world.Entity.Evocacoes), então o grupo e a guilda dela são os
+// de quem a evocou.
 func skillSameLeaderOrGuild(w *world.World, a, b *world.Entity) bool {
+	a, b = donoDaEvocacao(w, a), donoDaEvocacao(w, b)
 	leader := a.Leader
 	if leader == 0 {
 		leader = a.ID

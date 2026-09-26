@@ -328,6 +328,17 @@ func (w *World) DespawnMob(id int, removeType int32) {
 			}
 		}
 	}
+	// Um pet que sai libera a vaga no bando do dono (Entity.Evocacoes), pelo
+	// mesmo motivo: o id vai ser reusado por outro monstro.
+	if e.Summoner != 0 {
+		if dono := w.Entity(e.Summoner); dono != nil {
+			for i, m := range dono.Evocacoes {
+				if m == id {
+					dono.Evocacoes[i] = 0
+				}
+			}
+		}
+	}
 	// A slain monster respawns at its spawn point after a delay, keeping its
 	// instance route (waypoints/RouteType) so a patrol resumes patrolling —
 	// UNLESS its generator regenerates on the minute timer (MinuteGenerate>0):

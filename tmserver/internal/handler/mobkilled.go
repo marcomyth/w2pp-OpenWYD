@@ -788,8 +788,8 @@ func (d *Dispatcher) grantPartyExp(w *world.World, ks *world.Session, killer, mo
 		visto[id] = true
 		e := w.Entity(id)
 		// Pet não recebe. O legado paga só `party > 0 && party < MAX_USER`
-		// (MobKilled.cpp:444), e em jogo o que mora na PartyList fora dessa faixa
-		// são os pets. Pagá-los fazia cada um subir de nível e receber o MsgMotion
+		// (MobKilled.cpp:444), e em jogo o que morava na PartyList fora dessa faixa
+		// eram os pets (até 26/09). Pagá-los fazia cada um subir de nível e receber o MsgMotion
 		// de comemoração, que o cliente anima parando o bicho: os pets
 		// "travavam" a cada abate. O filtro é pelo dono e não pelo id porque os
 		// testes de grupo montam os jogadores com entidades de mob.
