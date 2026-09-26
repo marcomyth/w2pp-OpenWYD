@@ -1,4 +1,4 @@
--- 0164_loja_de_honra_no_banco — o estoque da Loja de Honra sai do código e vai
+-- 0166_loja_de_honra_no_banco — o estoque da Loja de Honra sai do código e vai
 -- para as vagas do God of War, editáveis no painel (pedido de 26/09/2026).
 --
 -- Até aqui os sete itens e os preços moravam em handler/loja_de_honra.go, e

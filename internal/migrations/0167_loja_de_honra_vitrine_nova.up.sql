@@ -1,8 +1,8 @@
--- 0166_loja_de_honra_vitrine_nova — a vitrine da Loja de Honra muda (pedido de
+-- 0167_loja_de_honra_vitrine_nova — a vitrine da Loja de Honra muda (pedido de
 -- 26/09/2026): os sete itens de antes ficam 30% mais baratos, e entram a
 -- Repletion D em pilha de cinco, a Chave da Caçada Orc e o Ovo de Dente de Sabre.
 --
--- Roda logo depois da 0164, que passou o estoque do código para as vagas do God
+-- Roda logo depois da 0166, que passou o estoque do código para as vagas do God
 -- of War. Daqui para frente o estoque se muda pelo painel, sem migração e sem
 -- reiniciar; esta é só a vitrine com que a loja volta do reinício.
 --

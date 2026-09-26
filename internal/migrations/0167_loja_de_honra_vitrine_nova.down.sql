@@ -1,4 +1,4 @@
--- Volta a vitrine da Loja de Honra à da 0164: os sete itens pelos preços de 25/09.
+-- Volta a vitrine da Loja de Honra à da 0166: os sete itens pelos preços de 25/09.
 DELETE FROM npc_shop_item
 WHERE npc_id IN (SELECT id FROM npc_definition WHERE lower(btrim(template_name)) = 'god_of_war');
 
