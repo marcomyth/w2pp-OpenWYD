@@ -241,7 +241,7 @@ aparece na loja (e o tmServer avisa no log a cada recarga). A aba da janela sai 
 tipo do item: arma em Armas, peça de armadura em Set, o resto em Consumo. Quem está
 com o painel aberto durante uma mudança no estoque recebe aviso e o painel fecha.
 
-A vitrine com que a loja volta do reinício é a da 0166 (26/09/2026): os sete itens de
+A vitrine com que a loja volta do reinício é a da 0167 (26/09/2026): os sete itens de
 25/09 com 30% a menos, e três novos. O preço é medido em dias de barraca aberta 20 h
 por dia (240 pontos sem fada, 560 com a Fada Azul):
 

@@ -10,11 +10,11 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/migrations"
 )
 
-// A 0164 passa o estoque da Loja de Honra do código para as vagas do God of War.
+// A 0166 passa o estoque da Loja de Honra do código para as vagas do God of War.
 // O que este teste segura é a vitrine de 25/09 — a mesma que estava no código —,
 // com as pilhas de três na coluna quantity e a Fada Azul com o prazo de 24 horas.
 func TestLojaDeHonraNoBanco(t *testing.T) {
-	b, err := migrations.FS.ReadFile("0164_loja_de_honra_no_banco.up.sql")
+	b, err := migrations.FS.ReadFile("0166_loja_de_honra_no_banco.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,11 +36,11 @@ func TestLojaDeHonraNoBanco(t *testing.T) {
 		"(6::smallint, 3467, 1::smallint, 0::smallint, 0::smallint, 2400)",
 	} {
 		if !strings.Contains(sql, quer) {
-			t.Errorf("a 0164 não tem %q", quer)
+			t.Errorf("a 0166 não tem %q", quer)
 		}
 	}
 	if strings.Contains(sql, "DELETE FROM npc_definition") {
-		t.Error("a 0164 apaga a definição do NPC")
+		t.Error("a 0166 apaga a definição do NPC")
 	}
 }
 
@@ -66,11 +66,11 @@ func TestGodOfWarTemplateSemEstoque(t *testing.T) {
 	}
 }
 
-// A 0166 é a vitrine pedida em 26/09/2026: os sete itens de antes com 30% a
+// A 0167 é a vitrine pedida em 26/09/2026: os sete itens de antes com 30% a
 // menos, e três novos — a Chave da Caçada Orc (465), a Repletion D (4019) em
 // pilha de cinco e o Ovo de Dente de Sabre (2305), o mais caro da loja.
 func TestLojaDeHonraVitrineNova(t *testing.T) {
-	b, err := migrations.FS.ReadFile("0166_loja_de_honra_vitrine_nova.up.sql")
+	b, err := migrations.FS.ReadFile("0167_loja_de_honra_vitrine_nova.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,10 +92,10 @@ func TestLojaDeHonraVitrineNova(t *testing.T) {
 		"(9::smallint, 2305, 1::smallint, 0::smallint, 0::smallint, 3600)",
 	} {
 		if !strings.Contains(sql, quer) {
-			t.Errorf("a 0166 não tem %q", quer)
+			t.Errorf("a 0167 não tem %q", quer)
 		}
 	}
 	if strings.Contains(sql, "DELETE FROM npc_definition") {
-		t.Error("a 0166 apaga a definição do NPC")
+		t.Error("a 0167 apaga a definição do NPC")
 	}
 }

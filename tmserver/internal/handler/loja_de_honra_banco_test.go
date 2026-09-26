@@ -19,7 +19,7 @@ import (
 
 func pontosDeHonra(n int32) *int32 { return &n }
 
-// estoqueDeHonraDeTeste é o estoque que a 0164 grava no God of War: os sete itens
+// estoqueDeHonraDeTeste é o estoque que a 0166 grava no God of War: os sete itens
 // combinados em 25/09, nas vagas 0 a 6.
 func estoqueDeHonraDeTeste() []npccfg.ShopItem {
 	return []npccfg.ShopItem{
