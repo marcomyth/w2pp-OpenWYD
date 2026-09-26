@@ -14,7 +14,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
-const ciclopesMigracao = "0169_ciclopes_spot_saque.up.sql"
+const ciclopesMigracao = "0170_ciclopes_spot_saque.up.sql"
 
 // O bloco do Ciclope Tirano volta 4 h depois da morte.
 func TestCiclopeTiranoRenasceEm4Horas(t *testing.T) {
@@ -251,7 +251,7 @@ func TestCiclopesApanham(t *testing.T) {
 	}
 }
 
-// A 0169 cita só os três templates, com os itens que existem e as chances já
+// A 0170 cita só os três templates, com os itens que existem e as chances já
 // compensadas pelo rand() do MSVC: 1%, 0,5% e 0,05% pagos de verdade.
 func TestCiclopesMigracao(t *testing.T) {
 	linhas := linhasComZero(t, ciclopesMigracao)
@@ -276,7 +276,7 @@ func TestCiclopesMigracao(t *testing.T) {
 		}
 	}
 	if len(linhas) != len(quer) {
-		t.Errorf("%d templates na 0169, want %d", len(linhas), len(quer))
+		t.Errorf("%d templates na 0170, want %d", len(linhas), len(quer))
 	}
 	for mob, itens := range quer {
 		for it, pct := range itens {
@@ -290,7 +290,7 @@ func TestCiclopesMigracao(t *testing.T) {
 			}
 		}
 		if len(linhas[mob]) != len(itens) {
-			t.Errorf("%s: %d itens na 0169, want %d", mob, len(linhas[mob]), len(itens))
+			t.Errorf("%s: %d itens na 0170, want %d", mob, len(linhas[mob]), len(itens))
 		}
 	}
 }

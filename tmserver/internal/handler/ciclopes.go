@@ -12,7 +12,7 @@ import (
 //   - os dois apanham (internal/ciclopes: o byte de NPC deles era lido errado) e,
 //     no spot, nascem 3x, pelas cópias Ciclope_Cruel_Spot (sem o divisor de dano
 //     do slot 13) e Lanceiro_Zakum_Spot;
-//   - o saque novo vem pela Mesa (migração 0169): todo Ciclope Cruel do mapa solta
+//   - o saque novo vem pela Mesa (migração 0170): todo Ciclope Cruel do mapa solta
 //     Moeda de Prata 1Mi, os Restos e os Âmagos de Dente de Sabre, sem Sela e
 //     Fantasma; as cópias do spot soltam também as Armas C, com o add daqui
 //     (ciclopesFinish);

@@ -7,7 +7,7 @@ import (
 )
 
 // TestCiclopesDoSpotBlocos prende o spot dos Ciclopes Cruéis e dos Lanceiros
-// Zakum (x 2195-2285, y 1300-1380; handler/ciclopes.go e migração 0169): nele, e
+// Zakum (x 2195-2285, y 1300-1380; handler/ciclopes.go e migração 0170): nele, e
 // só nele, os blocos usam as cópias Ciclope_Cruel_Spot e Lanceiro_Zakum_Spot, e os
 // blocos de um bicho só viraram um grupo cheio de 3. O Ciclope Tirano está sozinho
 // no bloco 6164, dentro do spot, sem período: a espera de 4 h é da fila individual.
@@ -45,7 +45,7 @@ func TestCiclopesDoSpotBlocos(t *testing.T) {
 		if copia[g.Leader] || copia[g.Follower] {
 			comCopia++
 			if !dentro {
-				t.Errorf("bloco %d: %s/%s fora do spot em (%d,%d); a Mesa da 0169 vale por template", i, g.Leader, g.Follower, g.SegX[0], g.SegY[0])
+				t.Errorf("bloco %d: %s/%s fora do spot em (%d,%d); a Mesa da 0170 vale por template", i, g.Leader, g.Follower, g.SegX[0], g.SegY[0])
 			}
 			if g.Leader == g.Follower {
 				triplos++

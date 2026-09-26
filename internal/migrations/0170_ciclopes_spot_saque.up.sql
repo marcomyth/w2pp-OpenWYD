@@ -1,4 +1,4 @@
--- 0169_ciclopes_spot_saque — o saque novo dos Ciclopes Cruéis e do spot deles.
+-- 0170_ciclopes_spot_saque — o saque novo dos Ciclopes Cruéis e do spot deles.
 --
 -- Pedido do Marco em 26/09/2026, com print em (2239,1333). O spot é x 2195-2285,
 -- y 1300-1380, e nele os blocos usam as cópias Ciclope_Cruel_Spot e
