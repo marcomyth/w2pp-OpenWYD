@@ -602,9 +602,10 @@ func TestSalaGolemDeFogoBlocos(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Era o último bloco até 26/09/2026; o Ciclope Tirano (6164) entrou depois dele.
 	const chefe = 6163
-	if chefe != len(gens)-1 {
-		t.Fatalf("NPCGener has %d blocks, want block %d to be the last", len(gens), chefe)
+	if len(gens) <= chefe {
+		t.Fatalf("NPCGener has %d blocks, want block %d", len(gens), chefe)
 	}
 	naSala := func(x, y int16) bool { return x >= 841 && x <= 868 && y >= 3913 && y <= 3941 }
 	g := gens[chefe]

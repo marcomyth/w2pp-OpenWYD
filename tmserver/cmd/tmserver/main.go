@@ -829,6 +829,7 @@ func run(logger *slog.Logger) error {
 	dispatch.ApplyFrenzyBoot(w)
 	dispatch.ApplyBossDragaoLichBoot(w)
 	dispatch.ApplyBossHidraDouradaBoot(w)
+	dispatch.ApplyCiclopeTiranoBoot(w)
 	dispatch.ApplyChefesDaLavaBoot(w)
 	dispatch.ApplyBossConjuradorBoot(w)
 	dispatch.ApplyReiTrollZumbiBoot(w)
