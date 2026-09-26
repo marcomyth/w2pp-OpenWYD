@@ -358,6 +358,12 @@
     position: absolute; bottom: 2px; right: 3px; font-size: 10px; font-weight: 700;
     color: var(--ink); background: var(--surface); padding: 0 2px; font-variant-numeric: tabular-nums;
   }
+  /* Price in shop points, only on NPC shop slots that charge points: bottom left,
+     away from the stack count. */
+  .slot .pts {
+    position: absolute; bottom: 2px; left: 3px; font-size: 9.5px; font-weight: 700;
+    color: var(--accent); background: var(--surface); padding: 0 2px; font-variant-numeric: tabular-nums;
+  }
   .slot img { width: 100%; height: auto; image-rendering: pixelated; }
   .slot.travado {
     cursor: not-allowed; opacity: .5;
