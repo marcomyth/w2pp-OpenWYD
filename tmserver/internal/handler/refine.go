@@ -395,5 +395,7 @@ func (d *Dispatcher) refineReject(w *world.World, s *world.Session, e *world.Ent
 
 // sendSlot pushes one item slot to the client (SendItem).
 func (d *Dispatcher) sendSlot(w *world.World, s *world.Session, place, slot int, it world.Item) {
-	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(place, slot, itemToSel(it)))
+	// selDoSlot e nao itemToSel: e aqui que a montaria com prazo perde os minutos do
+	// terceiro par, que o cliente le como a pele do bicho. Ver montaria_pele.go.
+	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(place, slot, selDoSlot(place, slot, it)))
 }
