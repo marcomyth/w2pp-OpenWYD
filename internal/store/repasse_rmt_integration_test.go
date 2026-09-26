@@ -60,8 +60,11 @@ func TestVendaConcluidaAbreORepasse(t *testing.T) {
 	if status != repassePendente {
 		t.Errorf("status = %d, quero pendente(%d)", status, repassePendente)
 	}
-	if valor != precoEmCentavos {
-		t.Errorf("valor = %d, quero %d", valor, precoEmCentavos)
+	// O LÍQUIDO, e não o bruto: desde 25/09/2026 a taxa da casa desconta do que o
+	// vendedor recebe. Calculado pela mesma função, e não escrito, para a próxima
+	// mudança de taxa não pedir vinte números reescritos à mão.
+	if valor != liquidoDaVendaDeTeste() {
+		t.Errorf("valor = %d, quero %d", valor, liquidoDaVendaDeTeste())
 	}
 }
 
@@ -194,8 +197,10 @@ func TestAFilaDePagarTrazMascaraEPulaQuemNaoTemDocumento(t *testing.T) {
 	if r.DocMascarado == "11144477735" {
 		t.Error("a fila trouxe o CPF INTEIRO")
 	}
-	if r.ValorCentavos != precoEmCentavos {
-		t.Errorf("valor = %d", r.ValorCentavos)
+	// A FILA DA STAFF MANDA PAGAR O LÍQUIDO, o mesmo número que o jogo prometeu ao
+	// vendedor ao montar a barraca.
+	if int64(r.ValorCentavos) != liquidoDaVendaDeTeste() {
+		t.Errorf("valor = %d, quero %d", r.ValorCentavos, liquidoDaVendaDeTeste())
 	}
 	// E o "vence em" é a venda mais 48 horas corridas, que é a promessa ao vendedor.
 	if quero := r.CriadoEm.Add(PrazoDoPagamento); !r.VenceEm.Equal(quero) {

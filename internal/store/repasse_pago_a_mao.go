@@ -79,11 +79,16 @@ func (s *Store) MarcarRepassePagoAMao(ctx context.Context, id int64, ator AtorDo
 			id, repassePago, valor, nota, ator.Nome, repassePendente); err != nil {
 			return fmt.Errorf("store: marcando pago a mao o repasse %d: %w", id, err)
 		}
+		// Zero vira NULO: a tabela exige exatamente um ator, e a coluna da conta tem
+		// chave estrangeira — mandar zero procuraria a conta de id 0 e derrubaria a
+		// transação inteira, junto com o dinheiro que ela move.
+		atorConta, atorPainel := ator.paraAuditoria()
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO admin_audit_log
-			    (actor_account_id, actor_role, action, target_account_id, old_value, new_value)
-			VALUES ($1, $2, $3, $4, $5, $6)`,
-			ator.ContaID, ator.Papel, AcaoRepassePagoAMao, vendedor,
+			    (actor_account_id, actor_painel_usuario_id, actor_role, action,
+			     target_account_id, old_value, new_value)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			atorConta, atorPainel, ator.Papel, AcaoRepassePagoAMao, vendedor,
 			fmt.Sprintf(`{"repasse":%d,"status":%d}`, id, repassePendente),
 			fmt.Sprintf(`{"repasse":%d,"status":%d,"centavos":%d,"nota":%q}`,
 				id, repassePago, valor, nota)); err != nil {

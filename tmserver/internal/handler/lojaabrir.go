@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -150,6 +151,16 @@ func (d *Dispatcher) lojaAbrir(w *world.World, s *world.Session, _ protocol.Head
 			sendClientMessage(w, s, msgPrecoMinimoRMT)
 			return
 		}
+		// E O TETO, pelo mesmo motivo e no mesmo lugar.
+		//
+		// Ele protege gente diferente do mínimo. O mínimo impede o vendedor de vender
+		// de graça; o TETO impede o comprador de pagar uma fortuna por um erro de
+		// digitação — R$ 50.000 num campo de preço é um engano plausível, e do outro
+		// lado dele sai um Pix de verdade da conta de alguém.
+		if p.Moeda == protocol.LojaMoedaRMT && int64(p.Preco) > store.TetoDaVendaRMTCentavos {
+			sendClientMessage(w, s, msgPrecoMaximoRMT)
+			return
+		}
 		// A RECONCILIAÇÃO DO LOGIN AINDA ESTÁ NO BANCO.
 		//
 		// Ela cancela todo anúncio ativo da conta, supondo que quem acabou de
@@ -293,6 +304,7 @@ func (d *Dispatcher) abreAnunciosESobe(w *world.World, s *world.Session,
 			// dá para fazer daqui.
 			w.SalvaCargo(sess.AccountID)
 			d.sobeBarraca(w, sess, w.Entity(sess.Conn), barraca)
+			d.avisaLiquidoRMT(w, sess, anuncios)
 			d.log.Info("loja: anuncios em dinheiro real abertos",
 				"conn", conn, "conta", conta, "anuncios", len(ids))
 		}
@@ -415,7 +427,17 @@ func (d *Dispatcher) sobeBarraca(w *world.World, s *world.Session, e *world.Enti
 //
 // Diz o VALOR, e não só "muito baixo": o vendedor precisa saber para quanto subir, e
 // uma recusa que não diz o número obriga a tentativa e erro.
-const msgPrecoMinimoRMT = "O preço mínimo em dinheiro real é R$ 1,00."
+const msgPrecoMinimoRMT = "O preço mínimo em dinheiro real é R$ 5,00."
+
+// msgPrecoMaximoRMT é a recusa acima do teto.
+//
+// A FRASE É A DA HANNA, palavra por palavra, e ela manda falar com o suporte porque
+// quem esbarra no teto ou errou a digitação ou tem um caso que a regra não previu — e
+// os dois precisam de gente, não de outra tentativa.
+//
+// MEDIDA: 73 bytes em Windows-1252, dentro dos 94 que o painel corta. Os acentos de
+// "Preço" e "máximo" custam um byte cada.
+const msgPrecoMaximoRMT = "Preço máximo em RMT: R$ 500,00. Para valores maiores, fale com o suporte."
 
 const msgPilhaNaoVaiRMT = "Pilha não pode ser vendida por dinheiro real. Separe uma unidade e anuncie ela."
 
@@ -438,3 +460,76 @@ const msgEscrowSincronizando = "Aguarde um instante e tente de novo."
 const msgItemJaAnunciado = "Esse item já está anunciado por dinheiro real. Cancele o anúncio antes de vendê-lo de novo."
 
 const msgAnuncioNaoSaiu = "Não deu para montar a barraca em dinheiro real. Tente de novo."
+
+// avisaLiquidoRMT diz ao vendedor, item por item, QUANTO ELE VAI RECEBER.
+//
+// O PREÇO QUE ELE DIGITOU NÃO É O QUE ELE RECEBE, e essa diferença precisa aparecer
+// ANTES da venda. Descobrir a taxa só quando o dinheiro cai é a pior hora possível: o
+// item já foi, o comprador já pagou, e o que sobra é a sensação de ter sido enganado por
+// um desconto que nunca foi dito.
+//
+// UMA LINHA POR ITEM, e não um total. Cada prateleira tem um preço e uma faixa própria —
+// uma venda de R$ 90,00 paga 5% e uma de R$ 110,00 paga 6,99% —, então um total esconderia
+// justamente a informação que o vendedor usa para decidir o preço.
+//
+// O NÚMERO SAI DA MESMA FUNÇÃO que grava o repasse (store.LiquidoDoVendedorRMT). É o que
+// impede a tela de prometer um valor e o banco pagar outro: com duas contas separadas,
+// basta uma mudar de faixa para as duas discordarem, e a diferença só apareceria depois
+// da venda.
+func (d *Dispatcher) avisaLiquidoRMT(w *world.World, s *world.Session, anuncios []world.AnuncioRMT) {
+	if s == nil {
+		return
+	}
+	for _, a := range anuncios {
+		liquido := store.LiquidoDoVendedorRMT(a.PrecoCentavos)
+		sendClientMessage(w, s, fmt.Sprintf(msgLiquidoRMT,
+			d.itemName(a.Item.Index), emReaisRMT(liquido)))
+	}
+	// AS REGRAS DA VENDA, UMA VEZ SÓ, depois dos valores.
+	//
+	// DEPOIS e não antes: o número é o que o vendedor veio buscar, e quatro linhas de
+	// regra na frente empurrariam o valor para fora da tela de chat de quem anunciou
+	// cinco itens.
+	//
+	// UMA VEZ SÓ e não por item, pelo mesmo motivo: elas não mudam de prateleira para
+	// prateleira, e repeti-las cinco vezes faria o jogador parar de lê-las — que é o
+	// contrário do que elas existem para fazer.
+	//
+	// SÃO REGRAS QUE CUSTAM DINHEIRO SE NÃO FOREM LIDAS: quando o dinheiro chega, em
+	// que horário ele sai, quanto a casa fica e quais preços são aceitos. O jogador
+	// descobrir qualquer uma delas DEPOIS da venda é uma reclamação garantida.
+	for _, linha := range regrasDaVendaRMT {
+		sendClientMessage(w, s, linha)
+	}
+}
+
+// regrasDaVendaRMT são as quatro linhas que todo vendedor lê ao anunciar.
+//
+// TEXTOS APROVADOS PELA HANNA, palavra por palavra, e MEDIDOS em Windows-1252 contra o
+// corte de 94 bytes do painel: 69, 63, 54 e 47. Os acentos custam um byte cada, e é por
+// isso que a medição é em bytes e não em letras.
+//
+// A frase da taxa diz as DUAS faixas. A versão curta ("5% (6,99% acima de R$ 100)")
+// cabia também, e foi descartada: ela obriga o leitor a decidir se o R$ 0,80 vale nas
+// duas, e essa dúvida é sobre o dinheiro dele.
+var regrasDaVendaRMT = []string{
+	"Venda em dinheiro real: o valor cai na sua chave Pix em até 48 horas.",
+	"Pagamentos das 15h às 21h (horário de Brasília), em dias úteis.",
+	"Taxa: 5% + R$ 0,80 (acima de R$ 100: 6,99% + R$ 0,80).",
+	"Preço mínimo: R$ 5,00. Preço máximo: R$ 500,00.",
+}
+
+// msgLiquidoRMT é a linha que o vendedor lê por item anunciado.
+//
+// Diz o NOME do item porque quem anuncia cinco prateleiras de uma vez recebe cinco
+// linhas, e sem o nome elas viram uma parede de valores sem dono.
+const msgLiquidoRMT = "%s: você recebe R$ %s depois da taxa."
+
+// emReaisRMT escreve centavos como o jogador lê, com vírgula.
+//
+// Escrito à mão e em inteiro, sem float: dividir por 100 em ponto flutuante é como
+// R$ 14,90 vira "14,89" numa tela, e um centavo errado numa tela de dinheiro custa mais
+// confiança do que o centavo vale.
+func emReaisRMT(centavos int64) string {
+	return fmt.Sprintf("%d,%02d", centavos/100, centavos%100)
+}

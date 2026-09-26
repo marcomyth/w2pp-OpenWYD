@@ -113,7 +113,23 @@ func RMT() (EstadoRMT, error) { return LerRMT(os.Getenv(VariavelRMT)) }
 func LerRMT(valor string) (EstadoRMT, error) {
 	v := strings.ToLower(strings.TrimSpace(valor))
 	if v == "" {
-		return RMTFechado, nil
+		// VAZIO PASSOU A SER ABERTO EM 25/09/2026, por decisão da Hanna, e esta é uma
+		// inversão deliberada do padrão que o resto deste arquivo defende.
+		//
+		// POR QUE NO CÓDIGO E NÃO NUMA VARIÁVEL: a abertura tinha de caber no MESMO
+		// reinício da atualização que traz a taxa, o mínimo e o teto. Criar a variável
+		// na Railway dispara um deploy à parte, e seriam DOIS reinícios — dois
+		// intervalos derrubando quem está jogando, na noite de estreia do mercado.
+		//
+		// O FECHAMENTO DE EMERGÊNCIA CONTINUA SENDO UM CLIQUE, e é o que paga por esta
+		// escolha: criar W2PP_RMT=fechado na Railway fecha na hora. A variável não está
+		// definida no tmserver hoje (conferido na lista de variáveis do serviço), então
+		// é este padrão que vale, e qualquer valor escrito lá ganha dele.
+		//
+		// O QUE SE PERDE, dito em voz alta: um ambiente novo que suba esta versão sem
+		// configurar nada nasce com o mercado ABERTO. Antes nascia trancado. Quem criar
+		// um ambiente de teste precisa pôr W2PP_RMT=fechado nele.
+		return RMTAberto, nil
 	}
 	if e, ok := palavrasRMT[v]; ok {
 		return e, nil

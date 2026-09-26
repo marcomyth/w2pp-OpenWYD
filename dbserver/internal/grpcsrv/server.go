@@ -75,6 +75,9 @@ type Store interface {
 	// O donate é a OUTRA carteira: dinheiro, e não tempo de lojinha.
 	CreditDonateInGame(ctx context.Context, accountID int64, amount int32, characterName, reason string) (int32, error)
 	DonateBalance(ctx context.Context, accountID int64) (int32, error)
+	// A Loja de Rcoin do jogo: as ofertas do site, pela mesma carteira.
+	ListRcoinOffers(ctx context.Context, category int32) ([]domain.RcoinOffer, error)
+	BuyRcoinOffer(ctx context.Context, accountID, offerID int64, seenPrice int32) (store.RcoinBuyResult, int32, int64, error)
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
 	LeaveGuild(ctx context.Context, accountID int64, slot int) error
@@ -1290,6 +1293,62 @@ func (s *Server) CreditDonate(ctx context.Context, req *dbv1.CreditDonateRequest
 		return nil, status.Errorf(codes.Internal, "creditar donate: %v", err)
 	}
 	return &dbv1.CreditDonateResponse{Balance: saldo}, nil
+}
+
+// ListRcoinOffers is one tab of the in-game Loja de Rcoin, with the buyer's
+// balance read in the same call so the page and its number cannot disagree.
+func (s *Server) ListRcoinOffers(ctx context.Context, req *dbv1.ListRcoinOffersRequest) (*dbv1.ListRcoinOffersResponse, error) {
+	if req.GetAccountId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "account_id obrigatório")
+	}
+	ofertas, err := s.store.ListRcoinOffers(ctx, req.GetCategory())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "listar a loja de rcoin: %v", err)
+	}
+	saldo, err := s.store.DonateBalance(ctx, req.GetAccountId())
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return nil, status.Errorf(codes.Internal, "ler saldo de donate: %v", err)
+	}
+	out := make([]*dbv1.RcoinOffer, 0, len(ofertas))
+	for _, o := range ofertas {
+		out = append(out, &dbv1.RcoinOffer{
+			Id: o.ID, ItemIndex: o.ItemIndex,
+			Eff1: int32(o.Eff1), Effv1: int32(o.EffV1),
+			Eff2: int32(o.Eff2), Effv2: int32(o.EffV2),
+			Eff3: int32(o.Eff3), Effv3: int32(o.EffV3),
+			Price: o.Price, ExpiresDays: o.ExpiresDays, Title: o.Title,
+			Category: int32(o.Category),
+		})
+	}
+	return &dbv1.ListRcoinOffersResponse{Offers: out, Balance: saldo}, nil
+}
+
+// BuyRcoinOffer is the in-game purchase. A refusal rides in the result; only
+// infra failures are gRPC errors, and the tmServer answers those with ERRO.
+func (s *Server) BuyRcoinOffer(ctx context.Context, req *dbv1.BuyRcoinOfferRequest) (*dbv1.BuyRcoinOfferResponse, error) {
+	if req.GetAccountId() <= 0 || req.GetOfferId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "account_id e offer_id obrigatórios")
+	}
+	res, saldo, entrega, err := s.store.BuyRcoinOffer(ctx, req.GetAccountId(), req.GetOfferId(), req.GetSeenPrice())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "comprar na loja de rcoin: %v", err)
+	}
+	return &dbv1.BuyRcoinOfferResponse{
+		Result: rcoinResultToProto(res), Balance: saldo, DeliveryId: entrega,
+	}, nil
+}
+
+func rcoinResultToProto(r store.RcoinBuyResult) dbv1.RcoinBuyResult {
+	switch r {
+	case store.RcoinBuyOK:
+		return dbv1.RcoinBuyResult_RCOIN_BUY_OK
+	case store.RcoinBuyNoFunds:
+		return dbv1.RcoinBuyResult_RCOIN_BUY_NO_FUNDS
+	case store.RcoinBuyPriceChanged:
+		return dbv1.RcoinBuyResult_RCOIN_BUY_PRICE_CHANGED
+	default:
+		return dbv1.RcoinBuyResult_RCOIN_BUY_UNAVAILABLE
+	}
 }
 
 // DonateBalance reads one account donate wallet, for the in-game /donate command.

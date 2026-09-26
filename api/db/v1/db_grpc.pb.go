@@ -69,6 +69,8 @@ const (
 	AccountService_ClaimNewbieKit_FullMethodName           = "/db.v1.AccountService/ClaimNewbieKit"
 	AccountService_CreditDonate_FullMethodName             = "/db.v1.AccountService/CreditDonate"
 	AccountService_DonateBalance_FullMethodName            = "/db.v1.AccountService/DonateBalance"
+	AccountService_ListRcoinOffers_FullMethodName          = "/db.v1.AccountService/ListRcoinOffers"
+	AccountService_BuyRcoinOffer_FullMethodName            = "/db.v1.AccountService/BuyRcoinOffer"
 	AccountService_CreateGuild_FullMethodName              = "/db.v1.AccountService/CreateGuild"
 	AccountService_SetGuildMember_FullMethodName           = "/db.v1.AccountService/SetGuildMember"
 	AccountService_LeaveGuild_FullMethodName               = "/db.v1.AccountService/LeaveGuild"
@@ -352,6 +354,19 @@ type AccountServiceClient interface {
 	// DonateBalance reads one account donate wallet, for the in-game /donate
 	// command.
 	DonateBalance(ctx context.Context, in *DonateBalanceRequest, opts ...grpc.CallOption) (*DonateBalanceResponse, error)
+	// Loja de Rcoin: the web shop's offers (donate_shop_item), sold INSIDE the
+	// game and paid with the same donate wallet. Same rows, same money, one less
+	// trip through the browser.
+	//
+	// ListRcoinOffers returns only ENABLED offers that carry a category. An offer
+	// without one is not a bug to hide: it is a row nobody classified, and showing
+	// it under a category it does not belong to is worse than leaving it on the
+	// site only.
+	ListRcoinOffers(ctx context.Context, in *ListRcoinOffersRequest, opts ...grpc.CallOption) (*ListRcoinOffersResponse, error)
+	// BuyRcoinOffer is BuyDonateItem with the price the player SAW. The panel can
+	// change a price between the page and the click, and charging the new one
+	// silently takes money the person did not agree to spend.
+	BuyRcoinOffer(ctx context.Context, in *BuyRcoinOfferRequest, opts ...grpc.CallOption) (*BuyRcoinOfferResponse, error)
 	// Guild lifecycle and war/city state (issue #114). These RPCs are modern
 	// tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
 	// GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -805,6 +820,26 @@ func (c *accountServiceClient) DonateBalance(ctx context.Context, in *DonateBala
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DonateBalanceResponse)
 	err := c.cc.Invoke(ctx, AccountService_DonateBalance_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) ListRcoinOffers(ctx context.Context, in *ListRcoinOffersRequest, opts ...grpc.CallOption) (*ListRcoinOffersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRcoinOffersResponse)
+	err := c.cc.Invoke(ctx, AccountService_ListRcoinOffers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) BuyRcoinOffer(ctx context.Context, in *BuyRcoinOfferRequest, opts ...grpc.CallOption) (*BuyRcoinOfferResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BuyRcoinOfferResponse)
+	err := c.cc.Invoke(ctx, AccountService_BuyRcoinOffer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1299,6 +1334,19 @@ type AccountServiceServer interface {
 	// DonateBalance reads one account donate wallet, for the in-game /donate
 	// command.
 	DonateBalance(context.Context, *DonateBalanceRequest) (*DonateBalanceResponse, error)
+	// Loja de Rcoin: the web shop's offers (donate_shop_item), sold INSIDE the
+	// game and paid with the same donate wallet. Same rows, same money, one less
+	// trip through the browser.
+	//
+	// ListRcoinOffers returns only ENABLED offers that carry a category. An offer
+	// without one is not a bug to hide: it is a row nobody classified, and showing
+	// it under a category it does not belong to is worse than leaving it on the
+	// site only.
+	ListRcoinOffers(context.Context, *ListRcoinOffersRequest) (*ListRcoinOffersResponse, error)
+	// BuyRcoinOffer is BuyDonateItem with the price the player SAW. The panel can
+	// change a price between the page and the click, and charging the new one
+	// silently takes money the person did not agree to spend.
+	BuyRcoinOffer(context.Context, *BuyRcoinOfferRequest) (*BuyRcoinOfferResponse, error)
 	// Guild lifecycle and war/city state (issue #114). These RPCs are modern
 	// tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
 	// GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -1463,6 +1511,12 @@ func (UnimplementedAccountServiceServer) CreditDonate(context.Context, *CreditDo
 }
 func (UnimplementedAccountServiceServer) DonateBalance(context.Context, *DonateBalanceRequest) (*DonateBalanceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DonateBalance not implemented")
+}
+func (UnimplementedAccountServiceServer) ListRcoinOffers(context.Context, *ListRcoinOffersRequest) (*ListRcoinOffersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRcoinOffers not implemented")
+}
+func (UnimplementedAccountServiceServer) BuyRcoinOffer(context.Context, *BuyRcoinOfferRequest) (*BuyRcoinOfferResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BuyRcoinOffer not implemented")
 }
 func (UnimplementedAccountServiceServer) CreateGuild(context.Context, *CreateGuildRequest) (*CreateGuildResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateGuild not implemented")
@@ -2310,6 +2364,42 @@ func _AccountService_DonateBalance_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_ListRcoinOffers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRcoinOffersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ListRcoinOffers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ListRcoinOffers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ListRcoinOffers(ctx, req.(*ListRcoinOffersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_BuyRcoinOffer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BuyRcoinOfferRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).BuyRcoinOffer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_BuyRcoinOffer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).BuyRcoinOffer(ctx, req.(*BuyRcoinOfferRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_CreateGuild_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateGuildRequest)
 	if err := dec(in); err != nil {
@@ -2898,6 +2988,14 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DonateBalance",
 			Handler:    _AccountService_DonateBalance_Handler,
+		},
+		{
+			MethodName: "ListRcoinOffers",
+			Handler:    _AccountService_ListRcoinOffers_Handler,
+		},
+		{
+			MethodName: "BuyRcoinOffer",
+			Handler:    _AccountService_BuyRcoinOffer_Handler,
 		},
 		{
 			MethodName: "CreateGuild",

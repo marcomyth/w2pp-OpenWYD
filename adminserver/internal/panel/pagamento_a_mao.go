@@ -69,7 +69,7 @@ func (h *Handler) pagarRepasse(w http.ResponseWriter, r *http.Request) {
 			"Escreva onde você pagou e como achar o comprovante."), http.StatusSeeOther)
 		return
 	}
-	ator := store.AtorDoAjuste{ContaID: sess.AccountID, Papel: roleFrom(r.Context()), Nome: sess.AccountName}
+	ator := store.AtorDoAjuste{ContaID: sess.AccountID, PainelID: sess.PainelUsuarioID, Papel: roleFrom(r.Context()), Nome: sess.AccountName}
 	if err := h.cfg.Repasses.MarcarRepassePagoAMao(r.Context(), id, ator, nota); err != nil {
 		// A RECUSA NÃO É ERRO DE SERVIDOR, e é o caso do segundo clique: a linha saiu
 		// de pendente entre a página e o botão. Dizer isso é melhor que um 500, porque
@@ -106,7 +106,7 @@ func (h *Handler) chaveDoRepasse(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	ator := store.AtorDoAjuste{ContaID: sess.AccountID, Papel: roleFrom(r.Context()), Nome: sess.AccountName}
+	ator := store.AtorDoAjuste{ContaID: sess.AccountID, PainelID: sess.PainelUsuarioID, Papel: roleFrom(r.Context()), Nome: sess.AccountName}
 	chave, err := h.cfg.Repasses.ChaveParaPagar(r.Context(), id, ator)
 	if err != nil {
 		h.cfg.Logger.Warn("leitura da chave recusada", "repasse", id, "err", err)

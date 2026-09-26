@@ -44,7 +44,7 @@ func TestEsconderDoRankingLevaOAtorEAObservacao(t *testing.T) {
 
 	post, token := signedInPost(t, h)
 	rec := post("/contas/ana/fora-do-ranking", url.Values{
-		"csrf": {token}, "fora": {"1"}, "observacao": {"conta de teste do FireBall"},
+		"csrf": {token}, "fora": {"1"}, "observacao": {"conta usada para testar a entrega"},
 	})
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d, want 303: %s", rec.Code, rec.Body.String())
@@ -56,7 +56,7 @@ func TestEsconderDoRankingLevaOAtorEAObservacao(t *testing.T) {
 	if !p.Fora {
 		t.Error("o pedido nao disse para esconder")
 	}
-	if p.Nota != "conta de teste do FireBall" {
+	if p.Nota != "conta usada para testar a entrega" {
 		t.Errorf("observacao = %q", p.Nota)
 	}
 	// UM ator e só um: conta do jogo OU usuário do painel, nunca zero nos dois. Zero

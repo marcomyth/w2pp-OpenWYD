@@ -447,7 +447,21 @@ func (s *Store) ListDonateLedger(ctx context.Context, w RevenueWindow, actions [
 		)
 		SELECT l.id, l.action, l.created_at,
 		       l.subject_account_id, COALESCE(subj.name, ''),
-		       l.actor_account_id,   COALESCE(actor.name, ''),
+		       l.actor_account_id,
+		       -- O AUTOR AQUI É SEMPRE UMA CONTA DE JOGO, e não há de onde tirar outro.
+		       --
+		       -- Eu tentei acrescentar o usuário do painel nesta linha e estava ERRADO:
+		       -- esta consulta lê só o donate_shop_audit, que NÃO TEM a coluna de
+		       -- painel — ela existe apenas na admin_audit_log. O código referenciava
+		       -- uma coluna inexistente e derrubava a tela de receita inteira.
+		       --
+		       -- FICA UM BURACO DE VERDADE, e ele precisa de migração: quando a staff
+		       -- do painel dá crédito pela loja de donate, o donateAudit grava
+		       -- account_id = 0, e aqui o autor sai em branco. A tabela não tem FK
+		       -- nessa coluna, então o zero passa sem reclamar. Consertar isso é
+		       -- acrescentar a coluna de painel ao donate_shop_audit, e não cabe numa
+		       -- janela de release.
+		       COALESCE(actor.name, ''),
 		       CASE l.action
 		           WHEN '`+LedgerActionPurchase+`' THEN -COALESCE((l.after->>'price')::bigint, 0)
 		           WHEN '`+LedgerActionCredit+`'   THEN  COALESCE((l.after->>'amount')::bigint, 0)

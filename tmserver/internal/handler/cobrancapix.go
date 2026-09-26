@@ -121,6 +121,16 @@ func msgPagueNoSite() string {
 		int(JanelaDeCobranca.Minutes()))
 }
 
+// msgEstornoSemMotivo é o aviso ao comprador, colado no pedido de pagamento.
+//
+// TEXTO APROVADO PELA HANNA, palavra por palavra. MEDIDO: 60 bytes em Windows-1252,
+// dentro dos 94 que o painel corta.
+//
+// Ela diz as DUAS consequências, e as duas são verdade: a conta é banida e o caso vira
+// cobrança judicial. Dizer só "conta banida" faria o cálculo de quem tem conta velha dar
+// a favor do golpe.
+const msgEstornoSemMotivo = "Estorno do Pix sem motivo: conta banida e medidas judiciais."
+
 // msgCobrancaNaoSaiu é a falha de quem tentou comprar e não conseguiu nem começar.
 //
 // Diz para tentar de novo porque é isso que resolve: nada foi cobrado e nada foi
@@ -248,6 +258,16 @@ func (d *Dispatcher) abreCobrancaPix(w *world.World, s *world.Session, anuncioID
 					"anuncio", anuncioID, "cobranca", cob.CobrancaID,
 					"centavos", preco, "expira_em", cob.ExpiraEm)
 				sendClientMessage(w, s, msgPagueNoSite())
+				// O AVISO DO ESTORNO VEM COLADO NO PEDIDO DE PAGAMENTO, e é o único
+				// lugar onde ele alcança quem precisa: o COMPRADOR, no instante em
+				// que ele vai mexer no aplicativo do banco. Dito na montagem da
+				// barraca, ele seria lido por quem vende.
+				//
+				// Estorno de Pix sem motivo é o golpe barato deste mercado: a pessoa
+				// paga, recebe o item, pede o dinheiro de volta ao banco e fica com
+				// os dois. Dizer a consequência ANTES é o que separa quem não sabia
+				// de quem decidiu.
+				sendClientMessage(w, s, msgEstornoSemMotivo)
 			}
 		}
 	})

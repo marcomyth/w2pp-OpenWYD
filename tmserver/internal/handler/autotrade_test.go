@@ -253,7 +253,11 @@ func TestAutoTradeOpenRejectsBlacklist(t *testing.T) {
 // tentativas negadas não consumiram nada — nem o item do Cargo, nem o ouro.
 func TestReqBuyRecusaMoedaQueNaoEOuro(t *testing.T) {
 	const sellItem = int16(1030)
-	const price, tax = int32(200_000), int32(5)
+	// O PREÇO CABE NO DINHEIRO REAL. Era 200.000 (R$ 2.000,00) e passou a estourar o
+	// teto de R$ 500,00 que nasceu com a taxa da casa: a prateleira em RMT nem subia, e
+	// o teste falhava por uma recusa que NÃO é a que ele mede. O que ele mede é a recusa
+	// por MOEDA, e para isso a barraca precisa existir.
+	const price, tax = int32(20_000), int32(5)
 	db := autotradeDB(sellItem)
 	// Um SEGUNDO item, no slot 1, para a venda em ouro do fim. O slot 0 sai desta
 	// prova marcado pelo anúncio em dinheiro real, e item marcado não volta para

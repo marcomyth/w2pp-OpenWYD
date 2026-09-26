@@ -165,21 +165,26 @@ type Session struct {
 	// recusa antiga chegaria em cima de uma sessão que agora é legítima.
 	RecusasDeAcesso int
 
-	TradeMode         int             // non-zero while in auto-trade (blocks attacks)
-	Trade             TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
-	AutoTrade         *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1
-	NovatoEmCurso     bool            // um /novato já está esperando a resposta do banco
-	DonateEmCurso     bool            // uma RCoin já espera o crédito do banco
-	CompraEmPontos    bool            // uma compra paga em pontos de lojinha espera o banco
-	LastAttackTick    uint32          // ClientTick of the last accepted attack (cadence gate)
-	PotionTick        uint32          // CUser.PotionTime: server clock of the last accepted potion
-	LastAttack        int             // SkillIndex of the last attack
-	LastIllusionTick  uint32          // ClientTick of the last Huntress Ilusao movement
-	ReqHp             int32           // CUser.ReqHp: server-owned HP target for regen/potions
-	ReqMp             int32           // CUser.ReqMp: server-owned MP target for regen/potions
-	CriticalProgress  uint16          // CUser.cProgress used by BASE_GetDoubleCritical
-	ShortSkill        [16]uint8       // client hotbar layout (CUser.CharShortSkill, _MSG_SetShortSkill)
-	LoginSpawnX       int16           // last server-injected login spawn, for movement diagnostics
+	TradeMode      int             // non-zero while in auto-trade (blocks attacks)
+	Trade          TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
+	AutoTrade      *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1
+	NovatoEmCurso  bool            // um /novato já está esperando a resposta do banco
+	DonateEmCurso  bool            // uma RCoin já espera o crédito do banco
+	CompraEmPontos bool            // uma compra paga em pontos de lojinha espera o banco
+	// A última compra da Loja de Rcoin: o pedido que o cliente mandou e o 0x0F0F
+	// que ela rendeu. Um pedido repetido recebe esta resposta de novo, sem ir ao
+	// banco — é o que separa "cliquei duas vezes" de "quero comprar duas".
+	RcoinPedido       uint32
+	RcoinResposta     []byte
+	LastAttackTick    uint32    // ClientTick of the last accepted attack (cadence gate)
+	PotionTick        uint32    // CUser.PotionTime: server clock of the last accepted potion
+	LastAttack        int       // SkillIndex of the last attack
+	LastIllusionTick  uint32    // ClientTick of the last Huntress Ilusao movement
+	ReqHp             int32     // CUser.ReqHp: server-owned HP target for regen/potions
+	ReqMp             int32     // CUser.ReqMp: server-owned MP target for regen/potions
+	CriticalProgress  uint16    // CUser.cProgress used by BASE_GetDoubleCritical
+	ShortSkill        [16]uint8 // client hotbar layout (CUser.CharShortSkill, _MSG_SetShortSkill)
+	LoginSpawnX       int16     // last server-injected login spawn, for movement diagnostics
 	LoginSpawnY       int16
 	LoginTick         uint32
 	LoggedFirstAction bool // first post-login _MSG_Action diagnostic was emitted

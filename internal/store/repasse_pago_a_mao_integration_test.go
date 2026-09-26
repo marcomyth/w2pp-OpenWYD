@@ -57,8 +57,8 @@ func TestPagamentoAMaoFechaADividaEGuardaQuemPagou(t *testing.T) {
 	// O líquido da própria linha, e não um número digitado: sem saque não há taxa de
 	// saque, e deixar nulo faria toda conta de receita tratar "pago sem valor" como
 	// caso especial para sempre.
-	if chegou == nil || *chegou != precoEmCentavos {
-		t.Errorf("chegou_centavos = %v, queria %d", chegou, precoEmCentavos)
+	if chegou == nil || *chegou != liquidoDaVendaDeTeste() {
+		t.Errorf("chegou_centavos = %v, queria %d", chegou, liquidoDaVendaDeTeste())
 	}
 	if guardouNota == nil || *guardouNota != nota {
 		t.Errorf("a observacao nao foi guardada: %v", guardouNota)
@@ -148,8 +148,8 @@ func TestPendenteComCadastroDizQueEstaACaminho(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total != precoEmCentavos {
-		t.Errorf("total = %d, queria %d", total, precoEmCentavos)
+	if total != liquidoDaVendaDeTeste() {
+		t.Errorf("total = %d, queria %d", total, liquidoDaVendaDeTeste())
 	}
 	if motivo != EsperaPagamento {
 		t.Errorf("motivo = %d, queria EsperaPagamento (IN_PROGRESS): o vendedor veria "+

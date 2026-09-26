@@ -75,11 +75,16 @@ func (s *Store) ResolverDivergenteDevolvido(ctx context.Context, cobrancaID int6
 		// no dinheiro de alguém, e uma mudança aplicada sem registro é exatamente a
 		// que ninguém consegue explicar depois. Falhando o registro, a mudança não
 		// acontece.
+		// Zero vira NULO: a tabela exige exatamente um ator, e a coluna da conta tem
+		// chave estrangeira — mandar zero procuraria a conta de id 0 e derrubaria a
+		// transação inteira, junto com o dinheiro que ela move.
+		atorConta, atorPainel := ator.paraAuditoria()
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO admin_audit_log
-			    (actor_account_id, actor_role, action, target_account_id, old_value, new_value)
-			VALUES ($1, $2, $3, $4, $5, $6)`,
-			ator.ContaID, ator.Papel, "rmt_divergente_devolvido", compradorConta,
+			    (actor_account_id, actor_painel_usuario_id, actor_role, action,
+			     target_account_id, old_value, new_value)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			atorConta, atorPainel, ator.Papel, "rmt_divergente_devolvido", compradorConta,
 			fmt.Sprintf(`{"cobranca":%d,"divergente_centavos":%d}`, cobrancaID, *divergente),
 			fmt.Sprintf(`{"cobranca":%d,"nota":%q}`, cobrancaID, nota)); err != nil {
 			return fmt.Errorf("store: divergente %d: registrando na auditoria: %w", cobrancaID, err)

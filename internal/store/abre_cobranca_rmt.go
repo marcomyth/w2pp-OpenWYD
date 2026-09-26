@@ -178,7 +178,7 @@ func (s *Store) AbrirCobrancaRMT(ctx context.Context, anuncioID, compradorConta 
 		// anúncio que não pode ser vendido e um que não existe mais dão no mesmo, e
 		// inventar um motivo novo no contrato obrigaria um handshake com o site por
 		// uma situação que vai desaparecer sozinha.
-		if cob.ValorCentavos < PrecoMinimoRMTCentavos {
+		if cob.ValorCentavos < PrecoMinimoRMTCentavos || cob.ValorCentavos > TetoDaVendaRMTCentavos {
 			res = AnuncioNaoDisponivel
 			return nil
 		}
@@ -273,7 +273,25 @@ var errCompradorJaTemCobranca = errors.New("store: o comprador ja tem cobranca a
 // POR QUE EXISTE UM MÍNIMO: a processadora cobra taxa por cobrança. Um item de um
 // centavo custa mais para vender do que rende, e o repasse ao vendedor sairia
 // negativo. Não é regra de gosto, é aritmética.
-const PrecoMinimoRMTCentavos = 100
+//
+// SUBIU DE R$ 1,00 PARA R$ 5,00 quando a taxa da casa entrou (taxa_rmt.go). Com R$ 0,80
+// fixos por venda, R$ 1,00 deixaria o vendedor com R$ 0,15 — e uma venda que entrega
+// quinze centavos não é uma venda, é uma reclamação. O TestATaxaNuncaComeAVendaInteira
+// é o que prende os dois números juntos: baixar este mínimo sem olhar a taxa quebra
+// aquele teste em vez de quebrar o bolso de quem vendeu.
+const PrecoMinimoRMTCentavos = 500
+
+// TetoDaVendaRMTCentavos é o maior preço que um item pode ter em dinheiro real.
+//
+// R$ 500,00, decisão da Hanna. NÃO existia teto nenhum antes, e a falta dele é mais
+// perigosa que a falta do mínimo: um preço de R$ 50.000 num anúncio é um erro de
+// digitação plausível, e do outro lado dele há um Pix de verdade saindo da conta de
+// alguém. O mínimo protege o vendedor de vender de graça; o teto protege o comprador de
+// pagar uma fortuna por engano, e a casa de virar caminho de lavagem.
+//
+// LIDO NOS DOIS LUGARES, como o mínimo: a montagem da barraca, no jogo, e a abertura da
+// cobrança. Só na montagem deixaria um cliente remendado passar por cima.
+const TetoDaVendaRMTCentavos = 50_000
 
 func completaDestino(ctx context.Context, tx pgx.Tx, cob *CobrancaRMT) error {
 	err := tx.QueryRow(ctx, `
