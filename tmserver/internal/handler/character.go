@@ -454,7 +454,9 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 	if tmpl, ok := d.baseMobs[st.Class]; ok && len(tmpl) == content.BaseMobSize {
 		var equip [16]protocol.SelItem
 		for i := range st.Equip {
-			equip[i] = itemToSel(st.Equip[i])
+			// O LOGIN TAMBEM, e nao so os avisos de slot: quem entra com a montaria
+			// vestida receberia a pele errada ja no primeiro quadro.
+			equip[i] = selDoSlot(world.ItemPlaceEquip, i, st.Equip[i])
 		}
 		// Um BM que volta com a transformação ainda ativa nasce com o corpo da fera
 		// para ELE MESMO. O próprio cliente desenha o personagem pelo Equip[0]
