@@ -1451,6 +1451,47 @@ func (c *Client) DonateBalance(ctx context.Context, accountID int64) (int32, err
 	return resp.GetBalance(), nil
 }
 
+// ListRcoinOffers lê uma aba da Loja de Rcoin e o saldo de donate da conta, na
+// mesma ida ao banco.
+func (c *Client) ListRcoinOffers(ctx context.Context, accountID int64, category int32) ([]world.RcoinOferta, int32, error) {
+	resp, err := c.api.ListRcoinOffers(ctx, &dbv1.ListRcoinOffersRequest{Category: category, AccountId: accountID})
+	if err != nil {
+		return nil, 0, fmt.Errorf("dbclient: listar a loja de rcoin: %w", err)
+	}
+	out := make([]world.RcoinOferta, 0, len(resp.GetOffers()))
+	for _, o := range resp.GetOffers() {
+		out = append(out, world.RcoinOferta{
+			ID: o.GetId(), ItemIndex: int16(o.GetItemIndex()),
+			Effects: [3]world.Effect{
+				{Effect: uint8(o.GetEff1()), Value: uint8(o.GetEffv1())},
+				{Effect: uint8(o.GetEff2()), Value: uint8(o.GetEffv2())},
+				{Effect: uint8(o.GetEff3()), Value: uint8(o.GetEffv3())},
+			},
+			Category: uint8(o.GetCategory()),
+			Price:    o.GetPrice(),
+			Days:     o.GetExpiresDays(),
+			Title:    o.GetTitle(),
+		})
+	}
+	return out, resp.GetBalance(), nil
+}
+
+// BuyRcoinOffer compra uma oferta da Loja de Rcoin pelo preço que o jogador viu.
+// Os números do resultado são os do 0x0F0F: o enum do proto espelha o contrato.
+func (c *Client) BuyRcoinOffer(ctx context.Context, accountID, offerID int64, seenPrice int32) (world.RcoinCompra, error) {
+	resp, err := c.api.BuyRcoinOffer(ctx, &dbv1.BuyRcoinOfferRequest{
+		AccountId: accountID, OfferId: offerID, SeenPrice: seenPrice,
+	})
+	if err != nil {
+		return world.RcoinCompra{}, fmt.Errorf("dbclient: comprar na loja de rcoin: %w", err)
+	}
+	return world.RcoinCompra{
+		Result:     uint8(resp.GetResult()),
+		Balance:    resp.GetBalance(),
+		DeliveryID: resp.GetDeliveryId(),
+	}, nil
+}
+
 // clampPasse prende o nível do passe na faixa que o cliente sabe desenhar.
 //
 // O banco já tem o CHECK e o serviço já recusa fora da faixa, e ainda assim isto

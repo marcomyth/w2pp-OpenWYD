@@ -508,6 +508,15 @@ type DonateShopItem struct {
 	ExpiresDays int32
 }
 
+// RcoinOffer is a donate shop offer as the in-game Loja de Rcoin shows it: the
+// row, its tab (1..6), and the effects in the form the purchase DELIVERS them —
+// with the quantity and the un-started lifetime already stamped — so the window
+// draws the item the player will actually receive.
+type RcoinOffer struct {
+	DonateShopItem
+	Category int16
+}
+
 // Delivery is one pending item grant the tmServer drains from delivery_queue
 // into the account cargo (web-platform-plan.md §mailbox). ExpiresAt on the Item
 // is absolute Unix-seconds (0 = permanent).

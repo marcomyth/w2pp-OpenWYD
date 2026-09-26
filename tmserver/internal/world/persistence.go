@@ -129,6 +129,28 @@ type CargoSave struct {
 	Items     []SavedItem
 }
 
+// RcoinOferta is one Loja de Rcoin offer as the dbServer hands it over: the
+// donate_shop_item row with its tab, and the effects already in the delivered
+// form (quantity and un-started days stamped).
+type RcoinOferta struct {
+	ID        int64
+	ItemIndex int16
+	Effects   [3]Effect
+	Category  uint8
+	Price     int32
+	Days      int32
+	Title     string
+}
+
+// RcoinCompra is how a Loja de Rcoin purchase ended. Result carries the 0x0F0F
+// wire code (protocol.RcoinOK..); Balance is the wallet after it, or the current
+// one on a refusal; DeliveryID is the queued item, 0 when nothing was bought.
+type RcoinCompra struct {
+	Result     uint8
+	Balance    int32
+	DeliveryID int64
+}
+
 // Delivery is one pending grant the loop drains from the delivery_queue mailbox
 // into the account cargo (donate web shop, issue #34). ID is the queue row id,
 // acked once the item is applied (or lost when the cargo is full).
@@ -606,6 +628,12 @@ type Persistence interface {
 	CreditDonate(ctx context.Context, accountID int64, amount int32, characterName, reason string) (int32, error)
 	// DonateBalance reads that wallet, for the in-game /donate command.
 	DonateBalance(ctx context.Context, accountID int64) (int32, error)
+	// ListRcoinOffers is one tab (1..6, 0 = all) of the Loja de Rcoin with the
+	// account's donate balance read in the same call. Called off the loop.
+	ListRcoinOffers(ctx context.Context, accountID int64, category int32) ([]RcoinOferta, int32, error)
+	// BuyRcoinOffer charges the donate wallet for one offer at the price the
+	// player saw and queues the item. A refusal is a result, not an error.
+	BuyRcoinOffer(ctx context.Context, accountID, offerID int64, seenPrice int32) (RcoinCompra, error)
 
 	// ClaimNewbieKit takes the once-per-account /novato kit (0062_newbie_kit) and
 	// reports whether THIS call took it. Called off the loop via World.Go.
@@ -847,6 +875,16 @@ func (NopPersistence) CreditDonate(context.Context, int64, int32, string, string
 // telling them the query failed.
 func (NopPersistence) DonateBalance(context.Context, int64) (int32, error) {
 	return 0, errNoPersistence
+}
+
+// ListRcoinOffers without a backend has no shop to read.
+func (NopPersistence) ListRcoinOffers(context.Context, int64, int32) ([]RcoinOferta, int32, error) {
+	return nil, 0, errNoPersistence
+}
+
+// BuyRcoinOffer without a backend refuses: there is no wallet to charge.
+func (NopPersistence) BuyRcoinOffer(context.Context, int64, int64, int32) (RcoinCompra, error) {
+	return RcoinCompra{}, errNoPersistence
 }
 
 // ClaimNewbieKit refuses without a backend. A server booted with no -dbserver has

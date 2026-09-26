@@ -2,12 +2,14 @@ package dbclient
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"google.golang.org/grpc"
 
 	dbv1 "github.com/jeanluca/w2pp-openwyd/api/db/v1"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -646,5 +648,50 @@ func TestCreditDonate(t *testing.T) {
 	}
 	if saldo, err := c.DonateBalance(ctx, 7); err != nil || saldo != 1100 {
 		t.Errorf("DonateBalance = %d, %v; quer 1100, nil", saldo, err)
+	}
+}
+
+func (f *fakeAPI) ListRcoinOffers(_ context.Context, req *dbv1.ListRcoinOffersRequest, _ ...grpc.CallOption) (*dbv1.ListRcoinOffersResponse, error) {
+	if req.GetAccountId() == 0 {
+		return nil, errors.New("sem conta")
+	}
+	return &dbv1.ListRcoinOffersResponse{Balance: f.donate, Offers: []*dbv1.RcoinOffer{{
+		Id: 55, ItemIndex: 3901, Eff1: 106, Effv1: 3, Eff2: 61, Effv2: 120,
+		Price: 60, ExpiresDays: 3, Title: "Fada Azul 3 dias", Category: req.GetCategory(),
+	}}}, nil
+}
+
+func (f *fakeAPI) BuyRcoinOffer(_ context.Context, req *dbv1.BuyRcoinOfferRequest, _ ...grpc.CallOption) (*dbv1.BuyRcoinOfferResponse, error) {
+	if req.GetSeenPrice() != 60 {
+		return &dbv1.BuyRcoinOfferResponse{Result: dbv1.RcoinBuyResult_RCOIN_BUY_PRICE_CHANGED, Balance: f.donate}, nil
+	}
+	f.donate -= 60
+	return &dbv1.BuyRcoinOfferResponse{Result: dbv1.RcoinBuyResult_RCOIN_BUY_OK, Balance: f.donate, DeliveryId: 900}, nil
+}
+
+// TestLojaDeRcoin confere a tradução do proto para o mundo: os efeitos na ordem,
+// a aba, e o resultado com o mesmo número do 0x0F0F.
+func TestLojaDeRcoin(t *testing.T) {
+	api := &fakeAPI{donate: 100}
+	c := newClient(api)
+	ctx := context.Background()
+
+	ofertas, saldo, err := c.ListRcoinOffers(ctx, 7, 5)
+	if err != nil || saldo != 100 || len(ofertas) != 1 {
+		t.Fatalf("lista = %+v, %d, %v", ofertas, saldo, err)
+	}
+	o := ofertas[0]
+	if o.ID != 55 || o.ItemIndex != 3901 || o.Category != 5 || o.Days != 3 || o.Price != 60 ||
+		o.Effects[0] != (world.Effect{Effect: 106, Value: 3}) || o.Effects[1] != (world.Effect{Effect: 61, Value: 120}) {
+		t.Errorf("oferta = %+v", o)
+	}
+
+	r, err := c.BuyRcoinOffer(ctx, 7, 55, 59)
+	if err != nil || r.Result != protocol.RcoinPrecoMudou || r.Balance != 100 || r.DeliveryID != 0 {
+		t.Errorf("preço mudou = %+v, %v", r, err)
+	}
+	r, err = c.BuyRcoinOffer(ctx, 7, 55, 60)
+	if err != nil || r.Result != protocol.RcoinOK || r.Balance != 40 || r.DeliveryID != 900 {
+		t.Errorf("compra = %+v, %v", r, err)
 	}
 }

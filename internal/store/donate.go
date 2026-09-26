@@ -101,6 +101,18 @@ func scanDonateShopItem(row scanRow) (domain.DonateShopItem, error) {
 	return d, err
 }
 
+// scanDonateShopItemCategory reads donateShopItemCols followed by category.
+//
+// category stays out of donateShopItemCols and of DonateShopItem on purpose: the
+// web admin's Upsert writes every field of DonateShopItem, and the web proto has
+// no category, so an edit made on the site would reset the offer's tab to zero.
+func scanDonateShopItemCategory(row scanRow, category *int16) (domain.DonateShopItem, error) {
+	var d domain.DonateShopItem
+	err := row.Scan(&d.ID, &d.ItemIndex, &d.Eff1, &d.EffV1, &d.Eff2, &d.EffV2, &d.Eff3, &d.EffV3,
+		&d.Price, &d.Title, &d.Description, &d.Enabled, &d.ExpiresDays, category)
+	return d, err
+}
+
 // UpsertDonateShopItem inserts a new offer (d.ID == 0) or updates the existing
 // one by id, writing an audit row in the same transaction. Returns the offer id;
 // updating a missing id returns ErrNotFound.
@@ -251,10 +263,25 @@ func (s *Store) creditDonate(ctx context.Context, accountID int64, amount int32,
 // next login (web-platform-plan.md §mailbox). Returns ErrNotFound (unknown offer
 // or account), ErrShopItemDisabled (offer not on sale), or ErrInsufficientDonate.
 func (s *Store) BuyDonateItem(ctx context.Context, accountID, shopItemID int64) (int32, error) {
+	newBal, _, err := s.buyDonate(ctx, accountID, shopItemID, nil)
+	return newBal, err
+}
+
+// rcoinCheck is what the in-game Loja de Rcoin adds to a web purchase: the price
+// the player saw, and an offer that has a tab.
+type rcoinCheck struct {
+	seenPrice int32
+}
+
+// buyDonate is the one purchase transaction, for the site and for the game. It
+// returns the new balance and the delivery_queue row it created.
+func (s *Store) buyDonate(ctx context.Context, accountID, shopItemID int64, rc *rcoinCheck) (int32, int64, error) {
 	var newBal int32
+	var deliveryID int64
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		it, err := scanDonateShopItem(tx.QueryRow(ctx,
-			`SELECT `+donateShopItemCols+` FROM donate_shop_item WHERE id = $1`, shopItemID))
+		var category int16
+		it, err := scanDonateShopItemCategory(tx.QueryRow(ctx,
+			`SELECT `+donateShopItemCols+`, category FROM donate_shop_item WHERE id = $1`, shopItemID), &category)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -263,6 +290,19 @@ func (s *Store) BuyDonateItem(ctx context.Context, accountID, shopItemID int64) 
 		}
 		if !it.Enabled {
 			return ErrShopItemDisabled
+		}
+		if rc != nil {
+			// An offer without a tab is not on sale in the game — the list never
+			// showed it, so only a patched client can ask for it.
+			if category <= 0 {
+				return ErrShopItemDisabled
+			}
+			// Read in the same transaction that charges: the staff can change the
+			// price between the page and the click, and nothing is charged when the
+			// player did not see the number.
+			if it.Price != rc.seenPrice {
+				return ErrDonatePriceChanged
+			}
 		}
 
 		// Lock the wallet row, then check funds before debiting so the outcome is
@@ -288,18 +328,103 @@ func (s *Store) BuyDonateItem(ctx context.Context, accountID, shopItemID int64) 
 		if err != nil {
 			return fmt.Errorf("store: buy: marshal payload: %w", err)
 		}
-		if _, err := tx.Exec(ctx, `
+		// Same source as the site's purchase: the panel's wallet timeline and the
+		// site's delivery list both classify by the 'donate_shop:' prefix.
+		if err := tx.QueryRow(ctx, `
 			INSERT INTO delivery_queue (account_id, kind, payload, source)
-			VALUES ($1, 'item', $2, $3)`,
-			accountID, payload, fmt.Sprintf("donate_shop:%d", it.ID)); err != nil {
+			VALUES ($1, 'item', $2, $3) RETURNING id`,
+			accountID, payload, fmt.Sprintf("donate_shop:%d", it.ID)).Scan(&deliveryID); err != nil {
 			return fmt.Errorf("store: buy: enqueue delivery a=%d: %w", accountID, err)
 		}
-		after, _ := json.Marshal(map[string]any{
+		after := map[string]any{
 			"account_id": accountID, "shop_item_id": it.ID, "price": it.Price, "balance": newBal,
-		})
-		return donateAudit(ctx, tx, &it.ID, accountID, "purchase", nil, after)
+		}
+		if rc != nil {
+			after["origem"] = "jogo"
+		}
+		js, _ := json.Marshal(after)
+		return donateAudit(ctx, tx, &it.ID, accountID, "purchase", nil, js)
 	})
-	return newBal, err
+	return newBal, deliveryID, err
+}
+
+// ErrDonatePriceChanged is returned by BuyRcoinOffer when the offer's price is no
+// longer the one the player saw.
+var ErrDonatePriceChanged = errors.New("store: donate offer price changed")
+
+// RcoinBuyResult is the outcome of an in-game purchase. The numbers are the wire
+// codes of 0x0F0F (protocol/lojarcoin.go) and are not reordered.
+type RcoinBuyResult int
+
+const (
+	RcoinBuyOK           RcoinBuyResult = 0
+	RcoinBuyNoFunds      RcoinBuyResult = 1
+	RcoinBuyUnavailable  RcoinBuyResult = 2
+	RcoinBuyPriceChanged RcoinBuyResult = 3
+)
+
+// ListRcoinOffers returns the enabled offers of one tab (category 1..6), or of
+// every tab with category 0, ordered by id. A category outside 0..6 returns
+// nothing, not an error: the window draws "nothing here" and cannot draw a
+// failure. Offers with no category are never returned.
+//
+// The effects come back in the delivered form (donateShopPayload), so the window
+// shows the stack and the days the player will receive.
+func (s *Store) ListRcoinOffers(ctx context.Context, category int32) ([]domain.RcoinOffer, error) {
+	if category < 0 || category > 6 {
+		return nil, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT `+donateShopItemCols+`, category FROM donate_shop_item
+		WHERE enabled AND category > 0 AND ($1 = 0 OR category = $1)
+		ORDER BY category, id`, category)
+	if err != nil {
+		return nil, fmt.Errorf("store: list rcoin offers: %w", err)
+	}
+	defer rows.Close()
+	var out []domain.RcoinOffer
+	for rows.Next() {
+		var o domain.RcoinOffer
+		it, err := scanDonateShopItemCategory(rows, &o.Category)
+		if err != nil {
+			return nil, fmt.Errorf("store: scan rcoin offer: %w", err)
+		}
+		p := donateShopPayload(it)
+		it.Eff1, it.EffV1, it.Eff2, it.EffV2, it.Eff3, it.EffV3 = p.Eff1, p.EffV1, p.Eff2, p.EffV2, p.Eff3, p.EffV3
+		o.DonateShopItem = it
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+// BuyRcoinOffer is the in-game purchase: BuyDonateItem, refused when the price is
+// not the one the player saw or the offer has no tab. It returns the outcome, the
+// balance (after the purchase, or the current one on a refusal — a refusal for
+// want of funds is exactly when the player needs the number) and the
+// delivery_queue row, so the game can hand the item over at once.
+//
+// Only infra failures are errors; a refusal rides in the result. An unknown
+// account is Unavailable too: the game only asks for the account it logged in.
+func (s *Store) BuyRcoinOffer(ctx context.Context, accountID, offerID int64, seenPrice int32) (RcoinBuyResult, int32, int64, error) {
+	newBal, deliveryID, err := s.buyDonate(ctx, accountID, offerID, &rcoinCheck{seenPrice: seenPrice})
+	var res RcoinBuyResult
+	switch {
+	case err == nil:
+		return RcoinBuyOK, newBal, deliveryID, nil
+	case errors.Is(err, ErrInsufficientDonate):
+		res = RcoinBuyNoFunds
+	case errors.Is(err, ErrDonatePriceChanged):
+		res = RcoinBuyPriceChanged
+	case errors.Is(err, ErrShopItemDisabled), errors.Is(err, ErrNotFound):
+		res = RcoinBuyUnavailable
+	default:
+		return 0, 0, 0, err
+	}
+	bal, err := s.DonateBalance(ctx, accountID)
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return 0, 0, 0, err
+	}
+	return res, bal, 0, nil
 }
 
 // PendingItemDeliveries returns the account's pending item grants from the

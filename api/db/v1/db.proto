@@ -275,6 +275,20 @@ service AccountService {
   // command.
   rpc DonateBalance(DonateBalanceRequest) returns (DonateBalanceResponse);
 
+  // Loja de Rcoin: the web shop's offers (donate_shop_item), sold INSIDE the
+  // game and paid with the same donate wallet. Same rows, same money, one less
+  // trip through the browser.
+  //
+  // ListRcoinOffers returns only ENABLED offers that carry a category. An offer
+  // without one is not a bug to hide: it is a row nobody classified, and showing
+  // it under a category it does not belong to is worse than leaving it on the
+  // site only.
+  rpc ListRcoinOffers(ListRcoinOffersRequest) returns (ListRcoinOffersResponse);
+  // BuyRcoinOffer is BuyDonateItem with the price the player SAW. The panel can
+  // change a price between the page and the click, and charging the new one
+  // silently takes money the person did not agree to spend.
+  rpc BuyRcoinOffer(BuyRcoinOfferRequest) returns (BuyRcoinOfferResponse);
+
   // Guild lifecycle and war/city state (issue #114). These RPCs are modern
   // tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
   // GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -1999,3 +2013,71 @@ message CreditDonateResponse { int32 balance = 1; }
 
 message DonateBalanceRequest { int64 account_id = 1; }
 message DonateBalanceResponse { int32 balance = 1; }
+
+// Loja de Rcoin (protocol/lojarcoin.go, 0x0F0C-0x0F0F).
+
+// RcoinOffer is one donate_shop_item row as the game shows it.
+message RcoinOffer {
+  int64 id = 1;
+  int32 item_index = 2;
+  // The three effect pairs of STRUCT_ITEM, in order, in the form the purchase
+  // DELIVERS them: the quantity (EF_AMOUNT) and the un-started lifetime
+  // (EF_WDAY) already stamped, so the window draws the item the player gets.
+  // A pair is (effect, value); zero means no effect.
+  int32 eff1 = 3;
+  int32 effv1 = 4;
+  int32 eff2 = 5;
+  int32 effv2 = 6;
+  int32 eff3 = 7;
+  int32 effv3 = 8;
+  int32 price = 9;
+  // expires_days is the offer's lifetime in days, 0 for an item that never
+  // expires. It is the same number the EF_WDAY above carries when the purchase
+  // stamps it, and it counts from the first equip, not from the purchase.
+  int32 expires_days = 10;
+  string title = 11;
+  // category 1..6. The server never returns an offer without one.
+  int32 category = 12;
+}
+
+message ListRcoinOffersRequest {
+  // category 0 means every category. Anything outside 0..6 returns nothing,
+  // rather than an error: the client panel knows how to draw "nothing here" and
+  // does not know how to draw a failure.
+  int32 category = 1;
+  // account_id is the buyer, whose balance comes back with the page.
+  int64 account_id = 2;
+}
+message ListRcoinOffersResponse {
+  repeated RcoinOffer offers = 1;
+  // balance is the buyer's donate wallet, read in the same call. It travels here
+  // so the page and the number on it come from one round trip and cannot
+  // disagree.
+  int32 balance = 2;
+}
+
+// RcoinBuyResult mirrors the wire codes of 0x0F0F. The numbers are part of the
+// contract with the client and are not reordered.
+enum RcoinBuyResult {
+  RCOIN_BUY_OK = 0;
+  RCOIN_BUY_NO_FUNDS = 1;
+  RCOIN_BUY_UNAVAILABLE = 2;
+  RCOIN_BUY_PRICE_CHANGED = 3;
+}
+
+message BuyRcoinOfferRequest {
+  int64 account_id = 1;
+  int64 offer_id = 2;
+  // seen_price is what the panel showed. A mismatch refuses the purchase in the
+  // same transaction that read the row, so nothing is charged.
+  int32 seen_price = 3;
+}
+message BuyRcoinOfferResponse {
+  RcoinBuyResult result = 1;
+  // balance after the purchase, or the current one on a refusal — a refusal for
+  // want of funds is exactly when the player needs to see the number.
+  int32 balance = 2;
+  // delivery_id is the delivery_queue row the purchase created, so the caller
+  // can hand the item over at once instead of waiting for the next login.
+  int64 delivery_id = 3;
+}

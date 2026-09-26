@@ -782,6 +782,8 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgLojaCompra] = d.lojaCompra
 	d.routes[protocol.MsgLojaCargo] = d.lojaCargo
 	d.routes[protocol.MsgLojaAbrir] = d.lojaAbrir
+	d.routes[protocol.MsgRcoinPede] = d.rcoinPede
+	d.routes[protocol.MsgRcoinCompra] = d.rcoinCompra
 	// Loja de Honra (loja_de_honra.go). Abrir nao tem rota: quem abre e o clique
 	// no NPC, que chega como MsgReqShopList.
 	d.routes[protocol.MsgHonraCompra] = d.honraCompra
