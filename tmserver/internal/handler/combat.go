@@ -353,6 +353,17 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			writeDamage(payload, i, 0)
 			continue
 		}
+		// E o mesmo entre jogadores: em modo PK, quem é do grupo não fere, e quem é
+		// da guilda só fere depois que um dos dois baixa a medalha. É a linha
+		// `if (leader == mobleader || Guild == MobGuild) dam = 0;` do legado
+		// (_MSG_Attack.cpp:1334), que o port não tinha levado ao dano — decisão
+		// do Marco em 26/09: "precisamos zerar". Sai antes de qualquer marca de
+		// PK ou revide, como o dano zero sai lá. O duelo fica de fora: é
+		// combinado entre os dois, e dois guildados podem se desafiar.
+		if pvpHit && combatHit && !d.dueling(s.Conn, tid) && skillSameLeaderOrGuild(w, e, target) {
+			writeDamage(payload, i, 0)
+			continue
+		}
 
 		// FIDELIDADE AO LEGADO (restaurada): a target outside the attacker's
 		// screen is dropped from the attack, and the attacker's client is told
@@ -977,9 +988,8 @@ func foemaMultiBuffTargetCap(special int) int {
 // É o recorte, para evocações, da regra do legado
 // `if (leader == mobleader || Guild == MobGuild) dam = 0;`
 // (_MSG_Attack.cpp:1334): bater no pet é bater no dono, e o grupo e a guilda do
-// pet são os dele. O port só levou essa regra aos afetos (applyCastAffect), não
-// ao dano. A regra inteira, entre jogadores, fica de fora de propósito: mudaria
-// o PK entre jogadores, e o pedido foi só sobre as evocações.
+// pet são os dele. Entre jogadores a mesma linha é aplicada logo depois, no laço
+// de alvos do attack.
 func evocacaoDoMesmoGrupo(w *world.World, a, b, dono *world.Entity) bool {
 	if b.Summoner == 0 || world.IsPlayer(b.ID) || dono == nil {
 		return false
