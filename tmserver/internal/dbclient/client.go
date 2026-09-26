@@ -1045,6 +1045,7 @@ func characterStateFromProto(c *dbv1.Character) world.CharacterState {
 		TerraMistica:         uint8(c.GetMortalTerraMistica()),
 		NewbieQuest:          uint8(c.GetMortalNewbie()),
 		MolarGargula:         uint8(c.GetMortalMolar()),
+		NivelRetroativo:      uint16(c.GetNivelRetroativo()),
 		Soul:                 uint8(c.GetSoul()),
 		Fame:                 c.GetFame(),
 		PKPoint:              uint8(c.GetPkPoint()),
@@ -1185,6 +1186,7 @@ func characterSaveToProto(s world.CharacterSave) *dbv1.Character {
 		// written back as zero and the quest starts over at every logout.
 		MortalNewbie:         int32(s.NewbieQuest),
 		MortalMolar:          int32(s.MolarGargula),
+		NivelRetroativo:      int32(s.NivelRetroativo),
 		PkPoint:              int32(s.PKPoint),
 		Guilty:               int32(s.Guilty),
 		CurKill:              int32(s.CurKill),

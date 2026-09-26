@@ -405,7 +405,11 @@ type Entity struct {
 	// MolarGargula marca que este personagem ja usou o Molar de Gargula (0093):
 	// o molar sobe o set vestido para +7 uma unica vez, entao a marca precisa
 	// sobreviver ao relog.
-	MolarGargula         uint8
+	MolarGargula uint8
+	// NivelRetroativo e ate onde o personagem recebeu as pecas de nivel que o
+	// jogo deixou de entregar (0172): 0 nada, 1-399 ate aquele nivel, 1000
+	// concluido. Persistido, para a entrega do login nao se repetir.
+	NivelRetroativo      uint16
 	ArchLv355, ArchLv370 uint8
 	MortalLevel          uint16
 	CelestialArchLevel   uint8

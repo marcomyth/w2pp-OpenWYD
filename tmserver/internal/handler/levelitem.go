@@ -135,13 +135,20 @@ var desvioDaConstrucao = map[int][]int{
 // O TK, a FM e o BM de Destreza ficavam sem nada pelo mesmo motivo — não há
 // coluna de Destreza para eles — e recebem pelo lado DN.
 func pecaDoNivel(t *content.LevelItems, e *world.Entity) (content.LevelItem, int) {
+	return pecaDoNivelEm(t, e, e.Level)
+}
+
+// pecaDoNivelEm é o pecaDoNivel para um nível qualquer, com a construção de
+// agora: a entrega retroativa (levelitem_retroativo.go) pergunta por cada nível
+// que o personagem já passou.
+func pecaDoNivelEm(t *content.LevelItems, e *world.Entity, nivel int32) (content.LevelItem, int) {
 	construcao := construcaoDoPersonagem(e)
-	item := t.Para(int(e.Class), construcao, e.Level)
+	item := t.Para(int(e.Class), construcao, nivel)
 	if !item.Empty() {
 		return item, construcao
 	}
 	for _, lado := range desvioDaConstrucao[construcao] {
-		if item := t.Para(int(e.Class), lado, e.Level); !item.Empty() {
+		if item := t.Para(int(e.Class), lado, nivel); !item.Empty() {
 			return item, lado
 		}
 	}

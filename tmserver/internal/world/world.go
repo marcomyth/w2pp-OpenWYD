@@ -766,6 +766,7 @@ func (w *World) CharacterSaveFor(s *Session, e *Entity) CharacterSave {
 	cs.TerraMistica = e.TerraMistica
 	cs.NewbieQuest = e.NewbieQuest
 	cs.MolarGargula = e.MolarGargula
+	cs.NivelRetroativo = e.NivelRetroativo
 	cs.Citizen = e.Citizen
 	cs.LastCity = e.LastCity
 	cs.SaveX, cs.SaveY = e.SaveX, e.SaveY

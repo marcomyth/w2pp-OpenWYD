@@ -1063,9 +1063,13 @@ type Character struct {
 	// personagem (0093). O molar sobe o set vestido para +7 uma única vez, então a
 	// marca tem de sobreviver ao relog — é o que distingue esta quest do teleporte
 	// do mesmo NPC, que não guarda estado nenhum.
-	MortalMolar   int32 `protobuf:"varint,56,opt,name=mortal_molar,json=mortalMolar,proto3" json:"mortal_molar,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	MortalMolar int32 `protobuf:"varint,56,opt,name=mortal_molar,json=mortalMolar,proto3" json:"mortal_molar,omitempty"`
+	// Até onde o personagem recebeu as peças de nível que o jogo deixou de
+	// entregar (0172): 0 nada, 1-399 até aquele nível, 1000 concluído. A entrega
+	// é no login, e a marca tem de sobreviver ao relog para não repetir.
+	NivelRetroativo int32 `protobuf:"varint,57,opt,name=nivel_retroativo,json=nivelRetroativo,proto3" json:"nivel_retroativo,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Character) Reset() {
@@ -1486,6 +1490,13 @@ func (x *Character) GetKefraTicket() int32 {
 func (x *Character) GetMortalMolar() int32 {
 	if x != nil {
 		return x.MortalMolar
+	}
+	return 0
+}
+
+func (x *Character) GetNivelRetroativo() int32 {
+	if x != nil {
+		return x.NivelRetroativo
 	}
 	return 0
 }
@@ -14958,7 +14969,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x14LoadCharacterRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12\x12\n" +
-	"\x04slot\x18\x02 \x01(\x05R\x04slot\"\xb0\r\n" +
+	"\x04slot\x18\x02 \x01(\x05R\x04slot\"\xdb\r\n" +
 	"\tCharacter\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -15021,7 +15032,8 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x13sub_celestial_ativo\x185 \x01(\x05R\x11subCelestialAtivo\x12'\n" +
 	"\x0fcelestial_reset\x186 \x01(\x05R\x0ecelestialReset\x12!\n" +
 	"\fkefra_ticket\x187 \x01(\x05R\vkefraTicket\x12!\n" +
-	"\fmortal_molar\x188 \x01(\x05R\vmortalMolar\"\x86\x02\n" +
+	"\fmortal_molar\x188 \x01(\x05R\vmortalMolar\x12)\n" +
+	"\x10nivel_retroativo\x189 \x01(\x05R\x0fnivelRetroativo\"\x86\x02\n" +
 	"\x04Item\x12\x12\n" +
 	"\x04slot\x18\x01 \x01(\x05R\x04slot\x12\x14\n" +
 	"\x05index\x18\x02 \x01(\x05R\x05index\x12\x12\n" +
