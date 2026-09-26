@@ -200,8 +200,25 @@ func (d *Dispatcher) buy(w *world.World, s *world.Session, _ protocol.Header, pa
 		price, ok = 0, true
 		sendClientMessage(w, s, msgCompraEmblema)
 	}
-	if !ok || price < 0 || price > e.Coin {
+	// AS DUAS RECUSAS SÃO DIFERENTES, e juntá-las era o defeito: quem tentava comprar
+	// poção sem ouro no Aki não recebia NADA — nem mensagem, nem item —, e o clique
+	// parecia não ter funcionado. A pessoa clicava de novo.
+	//
+	// Item sem preço (`!ok`) ou preço negativo continuam CALADOS. Nenhum dos dois é
+	// alcançável pelo jogo: são cliente remendado ou item fora do catálogo, e responder
+	// a eles só ensinaria a um cliente remendado o que o servidor pensa.
+	if !ok || price < 0 {
 		d.log.Info("buy denied", "conn", s.Conn, "item", item.Index, "price", price, "gold", e.Coin)
+		return
+	}
+	// FALTA DE OURO FALA, e com a MESMA frase do resto do jogo. O _NN_Not_Enough_Money
+	// é o que a barraca, a Loja do Servidor, o mestre de montaria e o teleporte pago já
+	// usam — uma segunda frase para o mesmo problema faria o jogador achar que são
+	// coisas diferentes.
+	if price > e.Coin {
+		d.notify(w, s, NoticeNotEnoughMoney)
+		d.log.Info("buy denied (sem ouro)", "conn", s.Conn, "item", item.Index,
+			"price", price, "gold", e.Coin)
 		return
 	}
 	e.Coin -= price
