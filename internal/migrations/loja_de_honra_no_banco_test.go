@@ -151,3 +151,51 @@ func TestLojaDeHonraCirculos(t *testing.T) {
 		t.Error("a volta da 0171 não é a vitrine da 0167")
 	}
 }
+
+// A 0173 baixa em 25% todo preço da vitrine da 0171, arredondando para baixo, e
+// mantém vagas, itens e quantidades. A volta devolve a vitrine da 0171.
+func TestLojaDeHonraMenos25(t *testing.T) {
+	b, err := migrations.FS.ReadFile("0173_loja_de_honra_menos_25.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := semComentariosSQL(string(b))
+	for _, quer := range []string{
+		"DELETE FROM npc_shop_item WHERE npc_id IN (SELECT id FROM npc_definition WHERE lower(btrim(template_name)) = 'god_of_war')",
+		"WHERE lower(btrim(d.template_name)) = 'god_of_war'",
+		"UPDATE npc_config_meta SET version = version + 1",
+		// vaga, item, quantidade, efeito, valor, pontos: os da 0171 x 0,75
+		"(0::smallint, 413, 1::smallint, 0::smallint, 0::smallint, 52)",
+		"(1::smallint, 448, 1::smallint, 0::smallint, 0::smallint, 75)",
+		"(2::smallint, 449, 1::smallint, 0::smallint, 0::smallint, 75)",
+		"(3::smallint, 450, 1::smallint, 0::smallint, 0::smallint, 75)",
+		"(4::smallint, 3438, 1::smallint, 0::smallint, 0::smallint, 189)",
+		"(5::smallint, 412, 3::smallint, 0::smallint, 0::smallint, 252)",
+		"(6::smallint, 465, 1::smallint, 0::smallint, 0::smallint, 360)",
+		"(7::smallint, 4019, 5::smallint, 0::smallint, 0::smallint, 375)",
+		"(8::smallint, 3901, 1::smallint, 106::smallint, 1::smallint, 504)", // Fada Azul 24 h
+		"(9::smallint, 4140, 1::smallint, 0::smallint, 0::smallint, 756)",
+		"(10::smallint, 3173, 3::smallint, 0::smallint, 0::smallint, 756)",
+		"(11::smallint, 3467, 1::smallint, 0::smallint, 0::smallint, 1260)",
+		"(12::smallint, 2305, 1::smallint, 0::smallint, 0::smallint, 2700)",
+	} {
+		if !strings.Contains(sql, quer) {
+			t.Errorf("a 0173 não tem %q", quer)
+		}
+	}
+	if n := strings.Count(sql, "::smallint, 0::smallint, 0::smallint,") + strings.Count(sql, "::smallint, 106::smallint,"); n != 13 {
+		t.Errorf("a 0173 tem %d vagas, want 13", n)
+	}
+
+	volta, err := migrations.FS.ReadFile("0173_loja_de_honra_menos_25.down.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ida, err := migrations.FS.ReadFile("0171_loja_de_honra_circulos.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if semComentariosSQL(string(volta)) != semComentariosSQL(string(ida)) {
+		t.Error("a volta da 0173 não é a vitrine da 0171")
+	}
+}
