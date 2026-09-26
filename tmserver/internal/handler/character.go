@@ -232,6 +232,11 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 	// Drop any timed items (e.g. an expired 30-day Perzen mount) before injecting
 	// the character — the expiry is enforced here on load.
 	now := time.Now().Unix()
+	// Antes do vencimento: a montaria e o corpo que ganharam prazo por engano
+	// (itemLifetime) não podem sumir no login.
+	if n := d.desfazerPrazosIndevidos(st.Equip[:], true) + d.desfazerPrazosIndevidos(st.Carry[:], false); n > 0 {
+		d.log.Warn("prazo indevido desfeito no login", "conn", s.Conn, "account", s.AccountName, "char", st.Name, "itens", n)
+	}
 	dropExpired(st.Equip[:], now)
 	dropExpired(st.Carry[:], now)
 	// A stackable with no EF_AMOUNT crashes the client, but it is NOT repaired

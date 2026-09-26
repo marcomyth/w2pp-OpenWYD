@@ -81,17 +81,30 @@ func effectsDuration(eff [3]world.Effect) time.Duration {
 // lifetime is written into the item's NAME — "Conjunto_Yin-Yang(30dias)". That is
 // what makes 7- and 14-day variants work with no code change: a new row in the
 // catalog is enough.
+//
+// SÓ ITEM TEMPORÁRIO TEM VIDA. Os efeitos só são lidos como duração num item que o
+// catálogo, o nome ou defaultLifetimeDays já dizem ser temporário, ou numa fada.
+// Em qualquer outro, os três pares não são efeitos: na montaria (2330-2389) são o
+// HP empacotado, o nível, a vitalidade e a ração; no corpo do slot 0, os dados da
+// classe. Um desses bytes valendo 106, 107 ou 108 — nível 107, ou o byte baixo do
+// HP passando por ali — era lido como EF_WDAY/HOUR/MIN, e startTimedItem "iniciava
+// o prazo" apagando os três pares. Em produção, em 26/09/2026, o pulso de um minuto
+// zerou assim a montaria de um jogador (HP, nível, vitalidade e ração), e a cura
+// seguinte a destruiu; o corpo de outro ganhou prazo para sumir.
 func (d *Dispatcher) itemLifetime(it world.Item) time.Duration {
+	catalogo := time.Duration(0)
+	if days := d.itemDurations[int(it.Index)]; days > 0 {
+		catalogo = time.Duration(days) * 24 * time.Hour
+	} else if days := defaultLifetimeDays[it.Index]; days > 0 {
+		catalogo = time.Duration(days) * 24 * time.Hour
+	}
+	if catalogo == 0 && !isFairy(it.Index) {
+		return 0 // permanente: os efeitos dele não são prazo, sejam quais forem
+	}
 	if life := effectsDuration(it.Effects); life > 0 {
 		return life
 	}
-	if days := d.itemDurations[int(it.Index)]; days > 0 {
-		return time.Duration(days) * 24 * time.Hour
-	}
-	if days := defaultLifetimeDays[it.Index]; days > 0 {
-		return time.Duration(days) * 24 * time.Hour
-	}
-	return 0
+	return catalogo
 }
 
 // defaultLifetimeDays is the lifetime of the items whose names lost their
@@ -142,6 +155,35 @@ var defaultLifetimeDays = map[int16]int{
 	3912: 15, // Fada Verde
 	3913: 30, // Fada Suprema
 	3916: 7,  // Fada do Vale
+}
+
+// prazoIndevido diz se o prazo de it nasceu do engano que itemLifetime corrige:
+// um item que não é temporário (itemLifetime do índice puro é zero) e que é de
+// um dos dois tipos cujos efeitos não são efeitos — a montaria de 2330-2389 e o
+// corpo do slot 0 (noCorpo). Esses itens ganharam ExpiresAt quando um byte deles
+// passou por 106-108, e sumiriam no vencimento.
+//
+// Restrito aos dois tipos de propósito: o /gm item põe prazo de verdade em
+// qualquer item (gm.go), e desfazer todo prazo fora do catálogo apagaria esse.
+func (d *Dispatcher) prazoIndevido(it world.Item, noCorpo bool) bool {
+	if it.ExpiresAt == 0 || d.itemLifetime(world.Item{Index: it.Index}) > 0 {
+		return false
+	}
+	return noCorpo || (it.Index >= mountLo && it.Index < mountHi)
+}
+
+// desfazerPrazosIndevidos aplica prazoIndevido a uma lista de itens carregada do
+// banco, antes do dropExpired do login, e devolve quantos desfez. corpo diz se o
+// primeiro item da lista é o do slot 0 (a lista é o Equip).
+func (d *Dispatcher) desfazerPrazosIndevidos(items []world.Item, corpo bool) int {
+	n := 0
+	for i := range items {
+		if d.prazoIndevido(items[i], corpo && i == 0) {
+			items[i].ExpiresAt = 0
+			n++
+		}
+	}
+	return n
 }
 
 // startTimedItem begins a temporary item's life the first time it is equipped,
@@ -211,6 +253,9 @@ func (d *Dispatcher) pulseTimedItems(w *world.World, s *world.Session, e *world.
 			continue
 		}
 		switch {
+		case d.prazoIndevido(*it, slot == 0):
+			it.ExpiresAt = 0
+			d.log.Warn("prazo indevido desfeito", "account", s.AccountName, "conn", s.Conn, "slot", slot, "item", it.Index)
 		case it.ExpiresAt == 0:
 			if !d.startTimedItem(it, now) {
 				continue // permanent
@@ -226,6 +271,12 @@ func (d *Dispatcher) pulseTimedItems(w *world.World, s *world.Session, e *world.
 	}
 	for slot := range e.Carry {
 		it := &e.Carry[slot]
+		if d.prazoIndevido(*it, false) {
+			it.ExpiresAt = 0
+			d.log.Warn("prazo indevido desfeito na bolsa", "account", s.AccountName, "conn", s.Conn, "slot", slot, "item", it.Index)
+			d.sendSlot(w, s, world.ItemPlaceCarry, slot, *it)
+			continue
+		}
 		if it.ExpiresAt == 0 || it.Index == itemWandererBag || now.Unix() < it.ExpiresAt {
 			continue
 		}
