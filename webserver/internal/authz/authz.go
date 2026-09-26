@@ -155,6 +155,15 @@ func Interceptor(c Chaves, painel *painelator.Leitor) grpc.UnaryServerIntercepto
 			if err != nil {
 				return nil, err
 			}
+			// ENQUANTO A AUDITORIA NÃO CONHECE O USUÁRIO DO PAINEL, ele só lê.
+			//
+			// As escritas gravam o autor no internal/store com a conta de jogo, e as
+			// tabelas de auditoria guardam esse número SEM chave estrangeira — a
+			// escrita passaria e registraria "conta 0" como autor. Edição que funciona
+			// e mente sobre quem a fez é pior que edição recusada.
+			if _, doPainel := painelator.Do(ctx2); doPainel && !PainelPodeChamar(info.FullMethod) {
+				return nil, status.Error(codes.PermissionDenied, MsgEscritaAindaNao)
+			}
 			return handler(ctx2, req)
 		case confere(token, c.Site):
 			if !DoJogador(servicoDe(info.FullMethod)) {
