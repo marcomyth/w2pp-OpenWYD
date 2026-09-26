@@ -1,4 +1,4 @@
--- 0165_loja_de_honra_vitrine_nova — a vitrine da Loja de Honra muda (pedido de
+-- 0166_loja_de_honra_vitrine_nova — a vitrine da Loja de Honra muda (pedido de
 -- 26/09/2026): os sete itens de antes ficam 30% mais baratos, e entram a
 -- Repletion D em pilha de cinco, a Chave da Caçada Orc e o Ovo de Dente de Sabre.
 --

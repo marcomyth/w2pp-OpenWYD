@@ -66,11 +66,11 @@ func TestGodOfWarTemplateSemEstoque(t *testing.T) {
 	}
 }
 
-// A 0165 é a vitrine pedida em 26/09/2026: os sete itens de antes com 30% a
+// A 0166 é a vitrine pedida em 26/09/2026: os sete itens de antes com 30% a
 // menos, e três novos — a Chave da Caçada Orc (465), a Repletion D (4019) em
 // pilha de cinco e o Ovo de Dente de Sabre (2305), o mais caro da loja.
 func TestLojaDeHonraVitrineNova(t *testing.T) {
-	b, err := migrations.FS.ReadFile("0165_loja_de_honra_vitrine_nova.up.sql")
+	b, err := migrations.FS.ReadFile("0166_loja_de_honra_vitrine_nova.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,10 +92,10 @@ func TestLojaDeHonraVitrineNova(t *testing.T) {
 		"(9::smallint, 2305, 1::smallint, 0::smallint, 0::smallint, 3600)",
 	} {
 		if !strings.Contains(sql, quer) {
-			t.Errorf("a 0165 não tem %q", quer)
+			t.Errorf("a 0166 não tem %q", quer)
 		}
 	}
 	if strings.Contains(sql, "DELETE FROM npc_definition") {
-		t.Error("a 0165 apaga a definição do NPC")
+		t.Error("a 0166 apaga a definição do NPC")
 	}
 }
