@@ -99,3 +99,55 @@ func TestLojaDeHonraVitrineNova(t *testing.T) {
 		t.Error("a 0167 apaga a definição do NPC")
 	}
 }
+
+// A 0171 põe os três Círculos Divinos Puros (448, 449, 450) a 100 pontos, logo
+// depois da Poeira de Lactolerium, e empurra os outros dez itens três vagas sem
+// mexer em preço nem quantidade. A volta devolve a vitrine da 0167.
+func TestLojaDeHonraCirculos(t *testing.T) {
+	b, err := migrations.FS.ReadFile("0171_loja_de_honra_circulos.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := semComentariosSQL(string(b))
+	for _, quer := range []string{
+		"DELETE FROM npc_shop_item WHERE npc_id IN (SELECT id FROM npc_definition WHERE lower(btrim(template_name)) = 'god_of_war')",
+		"WHERE lower(btrim(d.template_name)) = 'god_of_war'",
+		"UPDATE npc_config_meta SET version = version + 1",
+		// vaga, item, quantidade, efeito, valor, pontos
+		"(0::smallint, 413, 1::smallint, 0::smallint, 0::smallint, 70)",
+		"(1::smallint, 448, 1::smallint, 0::smallint, 0::smallint, 100)",
+		"(2::smallint, 449, 1::smallint, 0::smallint, 0::smallint, 100)",
+		"(3::smallint, 450, 1::smallint, 0::smallint, 0::smallint, 100)",
+		"(4::smallint, 3438, 1::smallint, 0::smallint, 0::smallint, 252)",
+		"(5::smallint, 412, 3::smallint, 0::smallint, 0::smallint, 336)",
+		"(6::smallint, 465, 1::smallint, 0::smallint, 0::smallint, 480)",
+		"(7::smallint, 4019, 5::smallint, 0::smallint, 0::smallint, 500)",
+		"(8::smallint, 3901, 1::smallint, 106::smallint, 1::smallint, 672)", // Fada Azul 24 h
+		"(9::smallint, 4140, 1::smallint, 0::smallint, 0::smallint, 1008)",
+		"(10::smallint, 3173, 3::smallint, 0::smallint, 0::smallint, 1008)",
+		"(11::smallint, 3467, 1::smallint, 0::smallint, 0::smallint, 1680)",
+		"(12::smallint, 2305, 1::smallint, 0::smallint, 0::smallint, 3600)",
+	} {
+		if !strings.Contains(sql, quer) {
+			t.Errorf("a 0171 não tem %q", quer)
+		}
+	}
+	if n := strings.Count(sql, "::smallint, 0::smallint, 0::smallint,") + strings.Count(sql, "::smallint, 106::smallint,"); n != 13 {
+		t.Errorf("a 0171 tem %d vagas, want 13", n)
+	}
+	if strings.Contains(sql, "DELETE FROM npc_definition") {
+		t.Error("a 0171 apaga a definição do NPC")
+	}
+
+	volta, err := migrations.FS.ReadFile("0171_loja_de_honra_circulos.down.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ida, err := migrations.FS.ReadFile("0167_loja_de_honra_vitrine_nova.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if semComentariosSQL(string(volta)) != semComentariosSQL(string(ida)) {
+		t.Error("a volta da 0171 não é a vitrine da 0167")
+	}
+}
