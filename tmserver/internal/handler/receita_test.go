@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"io"
 	"log/slog"
@@ -274,4 +275,49 @@ func nomes(es []*world.Entity) []string {
 		out = append(out, e.TemplateName)
 	}
 	return out
+}
+
+// A recipe whose monster wears a body no block of the file draws is refused
+// whole, and the block stays as it was: the client may not be able to draw that
+// body, and it would close for everyone nearby. A template the file never raises
+// but that wears a known body is fine — that is most of npc/.
+func TestCorpoDesconhecidoRecusaAReceita(t *testing.T) {
+	cases := []struct {
+		name             string
+		leader, follower string
+		troca            bool
+	}{
+		{"líder de corpo desconhecido", "Estranho", "", false},
+		{"seguidor de corpo desconhecido", "Urso", "Estranho", false},
+		{"molde órfão com corpo conhecido", "Orfao", "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			d, w := mundoComLobo(t, &fakeRecipes{})
+			conhecidos := moldesDeTeste("Urso", "Orfao")
+			d.recipeTemplate = func(name string) ([]byte, string, error) {
+				if name == "Estranho" {
+					raw := plainMobTemplate(name)
+					binary.LittleEndian.PutUint16(raw[140:], 999) // Equip[0]: a body nobody wears
+					return raw, name, nil
+				}
+				return conhecidos(name)
+			}
+			rec := ursoEm(blocoDoLobo, 30, 30)
+			rec.Leader, rec.Follower = tc.leader, tc.follower
+
+			n := aplicarAgora(d, w, domain.GeneratorRecipeConfig{Version: 1, Recipes: []domain.GeneratorRecipe{rec}})
+
+			g := w.GeneratorAt(blocoDoLobo)
+			if tc.troca {
+				if n != 1 || g.Name != tc.leader {
+					t.Errorf("trocou %d, bloco = %q; quero o %s", n, g.Name, tc.leader)
+				}
+				return
+			}
+			if n != 0 || g.Name != "Lobo" || g.Rev != 0 {
+				t.Errorf("trocou %d, bloco = %q Rev %d; quero o Lobo intocado", n, g.Name, g.Rev)
+			}
+		})
+	}
 }

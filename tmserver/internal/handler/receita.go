@@ -9,6 +9,7 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/npcgener"
+	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/mobstat"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -80,6 +81,8 @@ func (d *Dispatcher) ApplyGeneratorRecipesBoot(w *world.World) {
 	if d.recipeSource == nil || d.recipeTemplate == nil || d.recipeBase == nil {
 		return
 	}
+	// Before any recipe goes on, while every block is still what the file said.
+	d.recipeCorpos = corposDoMundo(w, len(d.recipeBase))
 	ctx, cancel := context.WithTimeout(context.Background(), recipeBootTimeout)
 	defer cancel()
 	cfg, err := d.recipeSource.Snapshot(ctx)
@@ -332,6 +335,14 @@ func (d *Dispatcher) aplicarReceita(w *world.World, idx int, rec npcgener.Genera
 			seguidor = moldeLido{}
 		}
 	}
+	// Unlike a missing follower, an unknown body refuses the WHOLE recipe: a
+	// leader-only block would still be a change nobody asked for, and the body
+	// check is a safety refusal, not a typo to work around.
+	for _, m := range []moldeLido{lider, seguidor} {
+		if m.raw != nil && !d.corpoConhecido(w, idx, m) {
+			return false
+		}
+	}
 	if g == nil {
 		g = &world.Generator{}
 		w.SetGenerator(idx, g)
@@ -360,6 +371,46 @@ func (d *Dispatcher) comFicha(m moldeLido) []byte {
 		return nil
 	}
 	return mobstat.ApplyOverride(m.raw, m.file, d.mobStatOverrides)
+}
+
+// corposDoMundo collects the bodies the file's blocks (0..fileBlocks-1) draw,
+// from the templates the boot already loaded into the generators — no disk.
+func corposDoMundo(w *world.World, fileBlocks int) npctemplate.Corpos {
+	c := make(npctemplate.Corpos, 256)
+	for idx := 0; idx < fileBlocks && idx < w.GeneratorCount(); idx++ {
+		g := w.GeneratorAt(idx)
+		if g == nil {
+			continue
+		}
+		if g.LeaderTmpl != nil {
+			c.Add(g.LeaderName, g.LeaderTmpl)
+		}
+		if g.FollowerTmpl != nil {
+			c.Add(g.FollowerName, g.FollowerTmpl)
+		}
+	}
+	return c
+}
+
+// corpoConhecido reports whether m wears a body some block of the file already
+// draws, and logs the refusal when it does not (npctemplate.Corpo says why this
+// is the line). The set is taken at boot; the lazy fill is only for a dispatcher
+// that never ran the boot apply.
+func (d *Dispatcher) corpoConhecido(w *world.World, idx int, m moldeLido) bool {
+	if d.recipeCorpos == nil {
+		d.recipeCorpos = corposDoMundo(w, len(d.recipeBase))
+	}
+	corpo, ok, err := d.recipeCorpos.Conhece(m.raw)
+	if err != nil {
+		d.log.Warn("receita de bloco: molde ilegível, o bloco ficou como estava",
+			"bloco", idx, "molde", m.file, "err", err)
+		return false
+	}
+	if !ok {
+		d.log.Warn("receita de bloco: corpo que nenhum monstro do servidor usa, recusada para não fechar o cliente; o bloco ficou como estava",
+			"bloco", idx, "molde", m.file, "corpo", corpo)
+	}
+	return ok
 }
 
 // retirarBloco takes a block only the database had out of the world: its mobs

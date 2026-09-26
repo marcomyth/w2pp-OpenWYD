@@ -362,5 +362,13 @@ estende a mesma ideia a **qualquer bloco**, com a regra da Mesa de Drops:
   campo e confere o nome do molde contra `npc/`. Ler é staff; gravar é admin; tudo auditado. O
   adminserver lê o `NPCGener.txt` de `-content` (`W2PP_CONTENT`, padrão `/Release`, que já vem na
   imagem); sem ele a tela some.
+- **Trava de corpo (26/09/2026).** A receita só aceita líder e seguidor cujo corpo (`Equip[0]`, o que
+  escolhe a malha no cliente) algum monstro do `NPCGener.txt` já usa: esse corpo o cliente de todo
+  jogador já desenhou. Corpo que ninguém usa pode ser malha que o cliente não abre, e isso fecha o
+  cliente de quem chegar perto (o caso MSAPROT, do lado dos itens). O jogo recusa a receita inteira e
+  deixa o bloco como estava (`handler/receita.go`, `corpoConhecido`); o painel recusa antes, com o
+  motivo na tela (`npctemplate.Corpos`). No conteúdo de 26/09: 128 corpos conhecidos, 1.849 moldes
+  liberados, 182 barrados (71 corpos). A ficha de `/monstros` ainda pode trocar o `Equip[0]` de um
+  molde sem essa trava.
 - **Molde novo continua sendo deploy.** A receita escolhe entre os moldes que existem em `npc/`; criar
   um molde (um arquivo novo) ainda é conteúdo da imagem.

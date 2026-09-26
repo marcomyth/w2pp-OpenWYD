@@ -29,6 +29,12 @@ type Receitas interface {
 // typed it instead of to the log.
 type MoldeExiste func(name string) (file string, ok bool)
 
+// CorpoConhecido says whether a template wears a body some monster of
+// NPCGener.txt already wears, and which body it is. The game refuses any other
+// one (npctemplate.Corpo says why: a body the client cannot draw closes the
+// client of everyone nearby); refusing it here says so on the form.
+type CorpoConhecido func(name string) (corpo int16, ok bool)
+
 // Limits of the form. The database CHECKs are looser, so a block of the file
 // can always be saved back as it is; these are what a person may type.
 const (
@@ -375,6 +381,13 @@ func (h *Handler) receitaDoForm(r *http.Request) (domain.GeneratorRecipe, string
 		if h.cfg.MoldeExiste != nil {
 			if _, ok := h.cfg.MoldeExiste(nome); !ok {
 				return rec, fmt.Sprintf("Não existe molde %q em npc/. Confira o nome na tela de Monstros.", nome)
+			}
+		}
+		if h.cfg.CorpoConhecido != nil {
+			if corpo, ok := h.cfg.CorpoConhecido(nome); !ok {
+				return rec, fmt.Sprintf("%q usa o corpo %d, que nenhum monstro do servidor usa hoje. "+
+					"O jogo recusa essa receita para não fechar o cliente de quem chegar perto: "+
+					"escolha um molde com o corpo de um monstro que já nasce.", nome, corpo)
 			}
 		}
 	}

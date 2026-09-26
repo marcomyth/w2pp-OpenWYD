@@ -98,10 +98,10 @@ func TestReceitaDeBlocoRecusaValorAbsurdo(t *testing.T) {
 	ctx := context.Background()
 	s := limparReceitas(t, ctx)
 	ruins := map[string]func(*domain.GeneratorRecipe){
-		"líder vazio":      func(r *domain.GeneratorRecipe) { r.Leader = "" },
-		"formação 5":       func(r *domain.GeneratorRecipe) { r.Formation = 5 },
+		"líder vazio":       func(r *domain.GeneratorRecipe) { r.Leader = "" },
+		"formação 5":        func(r *domain.GeneratorRecipe) { r.Formation = 5 },
 		"teto abaixo de -1": func(r *domain.GeneratorRecipe) { r.MaxNumMob = -2 },
-		"grupo de 101":     func(r *domain.GeneratorRecipe) { r.MaxGroup = 101 },
+		"grupo de 101":      func(r *domain.GeneratorRecipe) { r.MaxGroup = 101 },
 	}
 	for nome, estraga := range ruins {
 		rec := receitaDeTeste(7)

@@ -23,6 +23,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/internal/mountbonus"
 	"github.com/jeanluca/w2pp-openwyd/internal/npcgener"
+	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/spawnrate"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
@@ -459,6 +460,10 @@ type Dispatcher struct {
 	recipeVersion  int64
 	recipePolling  bool
 	recipePollTick int
+	// recipeCorpos is every body the file's blocks already draw, taken before
+	// the first recipe goes on: a recipe whose monster wears any other body is
+	// refused (receita.go, corpoConhecido).
+	recipeCorpos npctemplate.Corpos
 
 	// The combat knobs (internal/combatrule), read LIVE like the spawn pacing
 	// (combatrule.go). The zero value is NOT a valid rule, so New seeds it with

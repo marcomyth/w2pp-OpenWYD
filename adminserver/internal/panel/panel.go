@@ -356,12 +356,14 @@ type Config struct {
 	MesaDrops         MesaDrops
 	Repasses          Repasses
 	FilasRMT          FilasRMT
-	// Receitas, NPCGener and MoldeExiste are the block recipes (receita.go): the
-	// table, the file's blocks the form starts from, and the template check.
-	// The page exists when both the table and the file are there.
-	Receitas    Receitas
-	NPCGener    []npcgener.Generator
-	MoldeExiste MoldeExiste
+	// Receitas, NPCGener, MoldeExiste and CorpoConhecido are the block recipes
+	// (receita.go): the table, the file's blocks the form starts from, the
+	// template check and the body check. The page exists when both the table and
+	// the file are there.
+	Receitas       Receitas
+	NPCGener       []npcgener.Generator
+	MoldeExiste    MoldeExiste
+	CorpoConhecido CorpoConhecido
 	// Passe é a gravação do nível do passe de batalha. Opcional: sem ela a seção
 	// some da página da conta, em vez de aparecer e recusar.
 	Passe      PasseDaConta

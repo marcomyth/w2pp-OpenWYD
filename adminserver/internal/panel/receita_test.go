@@ -74,10 +74,19 @@ func arquivoDeTeste() []npcgener.Generator {
 // moldesConhecidos is the template check with the names the tests use.
 func moldesConhecidos(name string) (string, bool) {
 	switch name {
-	case "Lobo", "Filhote", "Aranha", "Urso":
+	case "Lobo", "Filhote", "Aranha", "Urso", "Esquisito":
 		return name, true
 	}
 	return "", false
+}
+
+// corposConhecidos is the body check: Esquisito exists in npc/ but wears a body
+// no monster of the file wears.
+func corposConhecidos(name string) (int16, bool) {
+	if name == "Esquisito" {
+		return 777, false
+	}
+	return 12, true
 }
 
 func newTestPanelReceitas(t *testing.T, cargo string, rc Receitas, log AuditLog) http.Handler {
@@ -85,8 +94,9 @@ func newTestPanelReceitas(t *testing.T, cargo string, rc Receitas, log AuditLog)
 	h, err := New(Config{
 		Accounts: withTarget(cargo), Writer: newFakeWriter(), Audit: log,
 		Receitas: rc, NPCGener: arquivoDeTeste(), MoldeExiste: moldesConhecidos,
-		Sessions: session.New(time.Hour),
-		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+		CorpoConhecido: corposConhecidos,
+		Sessions:       session.New(time.Hour),
+		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -206,6 +216,8 @@ func TestReceitaInvalidaERecusada(t *testing.T) {
 		{"sem líder", "leader", "", "líder"},
 		{"molde que não existe", "leader", "Ursso", "Não existe molde"},
 		{"seguidor que não existe", "follower", "Filhotte", "Não existe molde"},
+		{"líder de corpo desconhecido", "leader", "Esquisito", "corpo 777"},
+		{"seguidor de corpo desconhecido", "follower", "Esquisito", "fechar o cliente"},
 		{"nome com barra", "leader", "../Urso", "sem espaços nem barras"},
 		{"sem início", "x0", "0", "Início"},
 		{"coordenada fora do mapa", "y0", "5000", "Y de Início"},

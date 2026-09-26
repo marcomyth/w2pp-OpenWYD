@@ -149,7 +149,7 @@ func run(logger *slog.Logger) error {
 	}
 	logger.Info(fraseDoLoginDoPainel(soUsuarioDoPainel))
 
-	gens, moldeExiste := carregarNPCGener(*contentDir, logger)
+	gens, moldeExiste, corpoConhecido := carregarNPCGener(*contentDir, logger)
 
 	pool, err := store.Pool(ctx, *dsn)
 	if err != nil {
@@ -281,6 +281,7 @@ func run(logger *slog.Logger) error {
 		Receitas:          store.New(pool),
 		NPCGener:          gens,
 		MoldeExiste:       moldeExiste,
+		CorpoConhecido:    corpoConhecido,
 		Combate:           store.New(pool),
 		BonusDrop:         store.New(pool),
 		Maquinas:          store.New(pool),
@@ -445,18 +446,32 @@ func fraseDoLoginDoPainel(soUsuario bool) string {
 // carregarNPCGener reads the file's blocks and builds the template check for the
 // recipe pages. A missing tree is not an error: the pages are hidden and every
 // other one works, as with the other optional dependencies.
-func carregarNPCGener(dir string, logger *slog.Logger) ([]npcgener.Generator, panel.MoldeExiste) {
+func carregarNPCGener(dir string, logger *slog.Logger) ([]npcgener.Generator, panel.MoldeExiste, panel.CorpoConhecido) {
 	if dir == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 	gens, err := npcgener.Load(filepath.Join(dir, "TMsrv", "run", "NPCGener.txt"))
 	if err != nil {
 		logger.Warn("NPCGener not loaded; the block recipe pages are hidden", "content", dir, "err", err)
-		return nil, nil
+		return nil, nil, nil
 	}
-	logger.Info("NPCGener loaded for the block recipe pages", "blocks", len(gens))
-	return gens, func(name string) (string, bool) {
+	nomes := make([]string, 0, 2*len(gens))
+	for _, g := range gens {
+		nomes = append(nomes, g.Leader, g.Follower)
+	}
+	corpos := npctemplate.CorposDoArquivo(dir, nomes)
+	logger.Info("NPCGener loaded for the block recipe pages", "blocks", len(gens), "corpos", len(corpos))
+	moldeExiste := func(name string) (string, bool) {
 		res, err := npctemplate.Resolve(dir, name)
 		return res.Name, err == nil
 	}
+	corpoConhecido := func(name string) (int16, bool) {
+		raw, _, err := npctemplate.Load(dir, name)
+		if err != nil {
+			return 0, false
+		}
+		corpo, ok, err := corpos.Conhece(raw)
+		return corpo, ok && err == nil
+	}
+	return gens, moldeExiste, corpoConhecido
 }
