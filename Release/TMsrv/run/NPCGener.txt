@@ -42734,11 +42734,11 @@
 // ********************************************
 #	[1495]
 	MinuteGenerate:	-1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2224
@@ -42821,11 +42821,11 @@
 // ********************************************
 #	[1498]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2252
@@ -42937,11 +42937,11 @@
 // ********************************************
 #	[1502]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2278
@@ -43082,11 +43082,11 @@
 // ********************************************
 #	[1507]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2196
@@ -43140,11 +43140,11 @@
 // ********************************************
 #	[1509]
 	MinuteGenerate:	-1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2202
@@ -43169,11 +43169,11 @@
 // ********************************************
 #	[1510]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2212
@@ -43198,11 +43198,11 @@
 // ********************************************
 #	[1511]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2214
@@ -43227,11 +43227,11 @@
 // ********************************************
 #	[1512]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2224
@@ -43256,11 +43256,11 @@
 // ********************************************
 #	[1513]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2234
@@ -43285,11 +43285,11 @@
 // ********************************************
 #	[1514]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2244
@@ -43314,11 +43314,11 @@
 // ********************************************
 #	[1515]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2254
@@ -43343,11 +43343,11 @@
 // ********************************************
 #	[1516]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2254
@@ -43372,11 +43372,11 @@
 // ********************************************
 #	[1517]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2264
@@ -43401,11 +43401,11 @@
 // ********************************************
 #	[1518]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2272
@@ -43430,11 +43430,11 @@
 // ********************************************
 #	[1519]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2278
@@ -43459,11 +43459,11 @@
 // ********************************************
 #	[1520]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2272
@@ -43488,11 +43488,11 @@
 // ********************************************
 #	[1521]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2272
@@ -43520,7 +43520,7 @@
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops_
 	RouteType:	2
 	Formation:	0
@@ -43549,7 +43549,7 @@
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops
 	RouteType:	2
 	Formation:	0
@@ -43575,11 +43575,11 @@
 // ********************************************
 #	[1524]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2264
@@ -43604,11 +43604,11 @@
 // ********************************************
 #	[1525]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2264
@@ -43636,7 +43636,7 @@
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops
 	RouteType:	2
 	Formation:	0
@@ -43662,11 +43662,11 @@
 // ********************************************
 #	[1527]
 	MinuteGenerate:	-1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2232
@@ -43691,11 +43691,11 @@
 // ********************************************
 #	[1528]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2232
@@ -43723,7 +43723,7 @@
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops
 	RouteType:	2
 	Formation:	0
@@ -43752,7 +43752,7 @@
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops
 	RouteType:	2
 	Formation:	0
@@ -43781,7 +43781,7 @@
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops_
 	RouteType:	2
 	Formation:	0
@@ -43807,11 +43807,11 @@
 // ********************************************
 #	[1532]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2208
@@ -43836,11 +43836,11 @@
 // ********************************************
 #	[1533]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2224
@@ -43865,11 +43865,11 @@
 // ********************************************
 #	[1534]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2240
@@ -43894,11 +43894,11 @@
 // ********************************************
 #	[1535]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2240
@@ -43923,11 +43923,11 @@
 // ********************************************
 #	[1536]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2256
@@ -43952,11 +43952,11 @@
 // ********************************************
 #	[1537]
 	MinuteGenerate:	2
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2200
@@ -43981,11 +43981,11 @@
 // ********************************************
 #	[1538]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2212
@@ -44010,11 +44010,11 @@
 // ********************************************
 #	[1539]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2216
@@ -44039,11 +44039,11 @@
 // ********************************************
 #	[1540]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Lanceiro_Zakum
-	Follower:	Lanceiro_Zakum
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Lanceiro_Zakum_Spot
+	Follower:	Lanceiro_Zakum_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2244
@@ -44068,11 +44068,11 @@
 // ********************************************
 #	[1541]
 	MinuteGenerate:	1
-	MaxNumMob:	1
-	MinGroup:	0
-	MaxGroup:	0
-	Leader:		Ciclope_Cruel
-	Follower:	Ciclope_Cruel
+	MaxNumMob:	3
+	MinGroup:	2
+	MaxGroup:	2
+	Leader:		Ciclope_Cruel_Spot
+	Follower:	Ciclope_Cruel_Spot
 	RouteType:	2
 	Formation:	0
 	StartX:		2252
@@ -44100,7 +44100,7 @@
 	MaxNumMob:	3
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops
 	RouteType:	2
 	Formation:	0
@@ -44129,7 +44129,7 @@
 	MaxNumMob:	3
 	MinGroup:	1
 	MaxGroup:	1
-	Leader:		Ciclope_Cruel
+	Leader:		Ciclope_Cruel_Spot
 	Follower:	Anciao_Ciclops
 	RouteType:	2
 	Formation:	0
@@ -160071,5 +160071,28 @@
 	StartWait:	10
 	DestX:		852
 	DestY:		3928
+	DestRange:	2
+	DestWait:	10
+
+// Ciclope Tirano - chefe do spot dos Ciclopes Cruéis (2239,1333): o corpo do
+// Ciclope Cruel com os números do Troll Enigma. Volta 4 h depois da morte e 4 h
+// depois do boot (handler/ciclopes.go). Pedido do Marco em 26/09/2026.
+// ********************************************
+
+#	[6164]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Ciclope_Tirano
+	Follower:	Ciclope_Tirano
+	RouteType:	0
+	Formation:	0
+	StartX:		2238
+	StartY:		1334
+	StartRange:	2
+	StartWait:	10
+	DestX:		2238
+	DestY:		1334
 	DestRange:	2
 	DestWait:	10

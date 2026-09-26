@@ -2,6 +2,7 @@ package world
 
 import (
 	"github.com/jeanluca/w2pp-openwyd/internal/campotreino"
+	"github.com/jeanluca/w2pp-openwyd/internal/ciclopes"
 	"github.com/jeanluca/w2pp-openwyd/internal/mapaevento"
 	"github.com/jeanluca/w2pp-openwyd/internal/reinos"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -176,10 +177,14 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 	//
 	// The Reinos city is the third such exception (internal/reinos): the kings
 	// and their army carry a shop byte on 104, and the legacy lets them be hit.
+	//
+	// E o Ciclope Cruel e as cópias do spot dele (internal/ciclopes): o mesmo 64
+	// no byte que este port lê, 0 no do legado.
 	e.NonCombatNPC = nonCombatNPC(e.Merchant, e.Clan, e.X, e.Y) &&
 		!IsWaterDungeonGenerator(int(sp.GenIndex)) &&
 		!campotreino.MonstroNoCampo(b.MobMerchant, int(x), int(y)) &&
-		!reinos.MonstroDoReino(b.MobMerchant, b.Clan, int(x), int(y))
+		!reinos.MonstroDoReino(b.MobMerchant, b.Clan, int(x), int(y)) &&
+		!ciclopes.MonstroDeCombate(sp.TemplateName, b.MobMerchant)
 	for i, r := range b.Resist {
 		e.Resist[i] = int16(r)
 	}
