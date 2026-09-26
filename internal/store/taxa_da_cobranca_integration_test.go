@@ -174,22 +174,7 @@ func TestInformarATaxaLiberaORepasseComOLiquido(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A LINHA SEGURADA É MONTADA À MÃO, e antes ela nascia assim sozinha.
-	//
-	// Desde 25/09/2026 uma venda nova NUNCA nasce em repasseSemTaxa: quem decide o
-	// líquido é a taxa da casa, conhecida antes do anúncio. Mas as linhas gravadas sob a
-	// regra ANTIGA continuam no banco de produção, e a porta de saída delas tem de
-	// continuar funcionando — um estado que segura dinheiro sem saída é armadilha, não
-	// proteção.
-	//
-	// Por isso o estado é escrito por SQL, num arquivo de TESTE: uma função de produção
-	// capaz de empurrar um repasse de volta para segurado seria exatamente o caminho
-	// morto que este PR fecha.
-	if _, err := s.pool.Exec(ctx, `
-		UPDATE rmt_repasse SET status = $2, valor_centavos = $3
-		 WHERE cobranca_id = $1`, venda.CobrancaID, repasseSemTaxa, precoEmCentavos); err != nil {
-		t.Fatal(err)
-	}
+	seguraORepasseComoAntigamente(ctx, t, s, venda.CobrancaID)
 
 	liberou, err := s.InformarTaxaDaCobranca(ctx, venda.CobrancaID, 89, AtorDoRepasse{Nome: "hanna"})
 	if err != nil {
@@ -240,6 +225,10 @@ func TestInformarTaxaImpossivelNaoLibera(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A LINHA PRECISA ESTAR SEGURADA para a pergunta fazer sentido. Sem isto o
+	// InformarTaxaDaCobranca acha um repasse não segurado e devolve (false, nil) ANTES
+	// de olhar o valor — o teste passaria sem nunca exercitar a validação que ele mede.
+	seguraORepasseComoAntigamente(ctx, t, s, venda.CobrancaID)
 
 	for _, taxa := range []int64{-1, precoEmCentavos, precoEmCentavos + 500} {
 		liberou, err := s.InformarTaxaDaCobranca(ctx, venda.CobrancaID, taxa, AtorDoRepasse{Nome: "hanna"})
@@ -264,10 +253,14 @@ func TestInformarTaxaImpossivelNaoLibera(t *testing.T) {
 func TestVendedorVeORepasseSeguradoComoEsperaGente(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "taxa_ve")
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora,
-		precoEmCentavos, nil); err != nil {
+	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora,
+		precoEmCentavos, nil)
+	if err != nil {
 		t.Fatal(err)
 	}
+	// Segurado à moda antiga: é sobre ESSA linha que a pergunta é feita. Uma venda nova
+	// nasce pendente e mostraria o líquido com "a caminho", que é outro teste.
+	seguraORepasseComoAntigamente(ctx, t, s, venda.CobrancaID)
 
 	total, motivo, err := s.RepasseDoVendedor(ctx, v.vendedor)
 	if err != nil {
@@ -290,16 +283,40 @@ func TestVendedorVeORepasseSeguradoComoEsperaGente(t *testing.T) {
 func TestRepasseSeguradoTravaATrocaDeChave(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "taxa_trava")
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora,
-		precoEmCentavos, nil); err != nil {
+	_, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora,
+		precoEmCentavos, nil)
+	if err != nil {
 		t.Fatal(err)
 	}
+	// SEM ISTO O TESTE PASSARIA MEDINDO OUTRA COISA, e é o tipo de teste que engana:
+	// desde 25/09/2026 a venda nova nasce PENDENTE, e pendente TAMBÉM trava a troca de
+	// chave. Ele ficaria verde sem nunca exercitar o segurado, que é o estado do nome.
+	seguraORepasseComoAntigamente(ctx, t, s, venda.CobrancaID)
 
-	err := s.SalvarChavePix(ctx, v.vendedor, "outra-chave@exemplo.com", ChavePixEmail, "11144477735")
+	err = s.SalvarChavePix(ctx, v.vendedor, "outra-chave@exemplo.com", ChavePixEmail, "11144477735")
 	// O erro é PRÓPRIO do repasse, e não o da cobrança aberta: os dois pedem coisas
 	// diferentes de quem vende — a cobrança aberta passa sozinha quando a compra
 	// fechar, o repasse só quando o dinheiro sair.
 	if !errors.Is(err, ErrRepasseEmCurso) {
 		t.Errorf("erro = %v, queria ErrRepasseEmCurso: o segurado nao pode deixar desviar", err)
+	}
+}
+
+// seguraORepasseComoAntigamente monta, por SQL, uma linha no estado repasseSemTaxa.
+//
+// Venda NOVA já não nasce assim desde 25/09/2026 — quem decide o líquido é a taxa da
+// casa, conhecida antes do anúncio. Mas as linhas gravadas sob a regra anterior estão no
+// banco de produção AGORA, esperando, e tudo que as atende tem de continuar funcionando.
+//
+// Por SQL e num arquivo de TESTE de propósito: uma função de produção capaz de empurrar
+// um repasse de volta para segurado seria exatamente o caminho morto que esta mudança
+// fecha. O estado só pode ser alcançado por quem está escrevendo um teste sobre o
+// passado.
+func seguraORepasseComoAntigamente(ctx context.Context, t *testing.T, s *Store, cobrancaID int64) {
+	t.Helper()
+	if _, err := s.pool.Exec(ctx, `
+		UPDATE rmt_repasse SET status = $2, valor_centavos = $3
+		 WHERE cobranca_id = $1`, cobrancaID, repasseSemTaxa, precoEmCentavos); err != nil {
+		t.Fatalf("montando o repasse segurado antigo: %v", err)
 	}
 }
