@@ -662,9 +662,20 @@ type Entity struct {
 
 	// Summoner is the conn of the player that evoked this mob (GenerateSummon's
 	// pMob.Summoner, Server.cpp:3244); 0 = not a summon. A summon's Leader is
-	// its owner's party leader (or the owner), matching the legacy binding.
+	// its owner — never the owner's party leader (see Evocacoes).
 	Summoner  int
 	PartyList [MaxParty]int
+
+	// Evocacoes é o bando de um jogador: os ids dos pets que ELE evocou.
+	//
+	// DIVERGÊNCIA DELIBERADA DO LEGADO, decidida pelo Marco em 26/09/2026:
+	// "evocações não devem entrar em grupo, mas quando o BM evoca ela simula um
+	// grupo". No legado os pets moravam na PartyList do líder (GenerateSummon,
+	// Server.cpp:2981-3027): ocupavam vaga de jogador, faziam o BM parecer já
+	// agrupado ("já tem grupo" no convite) e entravam em todo laço sobre o grupo.
+	// Aqui o bando é do dono e fica fora do grupo; o grupo e a guilda do pet são
+	// os do dono, resolvidos na hora (handler.donoDaEvocacao).
+	Evocacoes [MaxParty]int
 
 	// ShopOwner is the conn of the player whose personal shop this mob IS, and it
 	// is what makes the "lojinha solta" possible: the stall is its own entity, so

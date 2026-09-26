@@ -21,10 +21,10 @@ const summonClan = 4
 
 // petsNoPainelDeGrupo decide se o cliente VÊ os pets na lista de grupo.
 //
-// Os pets continuam na PartyList do líder de qualquer jeito — é lá que o servidor
-// guarda quem é pet de quem, e é por ela que andam a defesa do dono, a limpeza
-// da re-invocação e a expiração. O que esta chave controla é só o que sai no
-// fio.
+// No servidor o bando mora no dono (world.Entity.Evocacoes), fora do grupo, e é
+// por ele que andam a defesa do dono, a limpeza da re-invocação e a expiração.
+// O que esta chave controla é só o que sai no fio — e, ligada, só no painel do
+// próprio dono (sendSummonPartySlot).
 //
 // Desligado porque um BM com Evocação alta enche os doze slots de membro com os
 // próprios bichos e não sobra lugar para gente. O legado mostra os pets
@@ -219,14 +219,6 @@ func (d *Dispatcher) generateSummon(w *world.World, s *world.Session, e *world.E
 	if count <= 0 || summonID < 0 || summonID >= len(d.summonMobs) || summonID >= len(summonBonus) || d.summonMobs[summonID] == nil {
 		return false
 	}
-	leaderID := e.Leader
-	if leaderID == 0 {
-		leaderID = s.Conn
-	}
-	le := w.Entity(leaderID)
-	if le == nil {
-		return false
-	}
 	face := summonTemplateFace(d.summonMobs[summonID])
 	// DELIBERATE DIVERGENCE: trocar de criatura dispensa o bando anterior em vez
 	// de recusar a magia.
@@ -241,8 +233,8 @@ func (d *Dispatcher) generateSummon(w *world.World, s *world.Session, e *world.E
 	// troca era a única porta que continuava fechada. Dispensar é a mesma regra
 	// aplicada aos dois casos: o que você acabou de lançar é o que fica ao seu
 	// lado.
-	d.despawnSummons(w, leaderID, func(pet *world.Entity) bool {
-		return pet.Summoner == s.Conn && pet.EquipVisual[0] != face
+	d.despawnSummons(w, e, func(pet *world.Entity) bool {
+		return pet.EquipVisual[0] != face
 	})
 	// DELIBERATE DIVERGENCE: re-casting wipes what is out and summons the whole
 	// set again beside the caster.
@@ -259,26 +251,14 @@ func (d *Dispatcher) generateSummon(w *world.World, s *world.Session, e *world.E
 	// looks like it does: the creatures you just paid for are the ones standing
 	// next to you. It also makes the head count mean something, because the set
 	// is always exactly `count` and never an accumulation.
-	d.despawnSummons(w, leaderID, func(pet *world.Entity) bool {
-		return pet.Summoner == s.Conn && pet.EquipVisual[0] == face
+	d.despawnSummons(w, e, func(pet *world.Entity) bool {
+		return pet.EquipVisual[0] == face
 	})
+	// Com o bando fora do grupo (world.Entity.Evocacoes), a conta é só do dono: o
+	// legado somava os pets do grupo inteiro contra o teto (GenerateSummon anda a
+	// PartyList do LÍDER, Server.cpp:2981-3027), e dois BMs juntos dividiam um
+	// bando só. O que era dele acabou de sair logo acima.
 
-	// What survives are the pets of OTHER members, and they still count against
-	// this cast: the head count belongs to the party, not to the caster
-	// (GenerateSummon walks the LEADER's whole PartyList, Server.cpp:2981-3027).
-	// Two evokers together share one set — recounted here, after the wipe, so the
-	// caster's own creatures are not counted against themselves.
-	existing := 0
-	for _, memberID := range le.PartyList {
-		if memberID < world.MaxUser {
-			continue
-		}
-		pet := w.Entity(memberID)
-		if pet == nil || pet.Clan != summonClan || pet.EquipVisual[0] != face {
-			continue
-		}
-		existing++
-	}
 	// Diagnóstico da evocação: o dono não via os próprios pets enquanto outro
 	// jogador ao lado os via, e só o log de produção separa "o servidor não
 	// mandou o CreateMob ao dono" de "o cliente do dono recebeu e não desenhou".
@@ -286,27 +266,17 @@ func (d *Dispatcher) generateSummon(w *world.World, s *world.Session, e *world.E
 	motivo := "ok"
 	defer func() {
 		d.log.Info("evocação",
-			"owner", s.Conn, "leader", leaderID, "summon", summonID, "count", count,
-			"existing", existing, "spawned", nascidos, "revealed_to", reveladoPara,
+			"owner", s.Conn, "summon", summonID, "count", count,
+			"spawned", nascidos, "revealed_to", reveladoPara,
 			"skipped_for", puladoPara, "reason", motivo)
 	}()
-	if existing >= count {
-		motivo = "teto do grupo"
-		return false
-	}
 	bonus := summonBonus[summonID]
 	spawned := 0
-	for i := existing; i < count; i++ {
-		slot := -1
-		for j := range le.PartyList {
-			if le.PartyList[j] == 0 {
-				slot = j
-				break
-			}
-		}
+	for i := 0; i < count; i++ {
+		slot := vagaNoBando(e)
 		if slot < 0 {
-			motivo = "grupo cheio"
-			break // party full (_NN_Party_Full_Cant_Summon; message UNVERIFIED — skipped)
+			motivo = "bando cheio"
+			break
 		}
 		x, y, ok := d.freeCellNear(w, e.X, e.Y)
 		if !ok {
@@ -347,7 +317,7 @@ func (d *Dispatcher) generateSummon(w *world.World, s *world.Session, e *world.E
 		mob.Damage, mob.AC, mob.MaxHP = mob.BaseDamage, mob.BaseAC, mob.BaseMaxHP
 		mob.HP = mob.MaxHP
 		mob.Clan = summonClan
-		mob.Leader = leaderID
+		mob.Leader = s.Conn // o líder do bando é o dono, nunca o líder do grupo dele
 		mob.Summoner = s.Conn
 		// A summon is combat content, whatever its template's Merchant byte says.
 		// Every BaseSummon ships Merchant=16 (Dragao_Negro 64), and nonCombatNPC
@@ -362,12 +332,9 @@ func (d *Dispatcher) generateSummon(w *world.World, s *world.Session, e *world.E
 		// blocks at once — the same call the water dungeon deferred (world/api.go).
 		mob.NonCombatNPC = false
 		mob.Affect[0] = world.Affect{Type: affectSummonLife, Time: summonLifeTicks}
-		le.PartyList[slot] = id
+		e.Evocacoes[slot] = id
 		if petsNoPainelDeGrupo {
-			if spawned == 0 {
-				d.sendAddParty(w, leaderID, leaderID, 0)
-			}
-			d.sendSummonPartySlot(w, leaderID, id, slot+1)
+			d.sendSummonPartySlot(w, s.Conn, id, slot, spawned == 0)
 		}
 
 		// Reveal with CreateType|=3 (the summon-appear effect, Server.cpp:3210-3218).
@@ -404,50 +371,63 @@ func mountHP(it world.Item) int16 {
 	return int16(uint16(it.Effects[0].Effect) | uint16(it.Effects[0].Value)<<8)
 }
 
-func (d *Dispatcher) removeBabyMountSummons(w *world.World, ownerID int, owner *world.Entity) {
-	leaderID := owner.Leader
-	if leaderID == 0 {
-		leaderID = ownerID
+func (d *Dispatcher) removeBabyMountSummons(w *world.World, _ int, owner *world.Entity) {
+	d.despawnSummons(w, owner, func(pet *world.Entity) bool {
+		return pet.EquipVisual[0] >= babyMountFaceLo && pet.EquipVisual[0] < babyMountFaceHi
+	})
+}
+
+// despawnBando dispensa o bando inteiro do dono. É o que sobrou do DeleteMob que
+// o legado fazia no RemoveParty (Server.cpp:8185-8190, 8237-8243): com o bando
+// fora do grupo, entrar ou sair de grupo não mexe nele, e só a saída do DONO do
+// jogo o dispensa (SessionEnd). summonTick cobre o resto — dono morto ou fora de
+// jogo — tique a tique.
+func (d *Dispatcher) despawnBando(w *world.World, owner *world.Entity) {
+	d.despawnSummons(w, owner, func(*world.Entity) bool { return true })
+}
+
+// vagaNoBando é o primeiro lugar livre no bando do dono, ou -1.
+func vagaNoBando(dono *world.Entity) int {
+	for i, id := range dono.Evocacoes {
+		if id == 0 {
+			return i
+		}
 	}
-	d.despawnSummons(w, leaderID, func(pet *world.Entity) bool {
-		return pet.Summoner == ownerID &&
-			pet.EquipVisual[0] >= babyMountFaceLo && pet.EquipVisual[0] < babyMountFaceHi
-	})
+	return -1
 }
 
-// despawnSummonsOf removes every summon parked in leaderID's PartyList that
-// belongs to ownerID; ownerID == 0 means all of them (the party dissolved).
-// This is the DeleteMob sweep inside RemoveParty (Server.cpp:8185-8190 when a
-// member leaves, Server.cpp:8237-8243 when the leader does) — without it the
-// pets outlive the party bond that held them (issue #234).
-func (d *Dispatcher) despawnSummonsOf(w *world.World, leaderID, ownerID int) {
-	d.despawnSummons(w, leaderID, func(pet *world.Entity) bool {
-		// Summoner 0 is a stray mob sitting in a player's party slot; the legacy
-		// reaps those on any leave too (Server.cpp:8188-8190).
-		return ownerID == 0 || pet.Summoner == ownerID || pet.Summoner == 0
-	})
+// bandoDe lista os pets vivos no bando do dono.
+func bandoDe(dono *world.Entity) []int {
+	var ids []int
+	for _, id := range dono.Evocacoes {
+		if id > 0 {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
-// despawnSummons is the shared walk of a leader's pet slots: match selects which
-// pets go. The ids and the packet recipients are snapshotted first because
-// DespawnMob frees the slot as it goes (world/api.go:215-223).
-func (d *Dispatcher) despawnSummons(w *world.World, leaderID int, match func(*world.Entity) bool) {
-	leader := w.Entity(leaderID)
-	if leader == nil {
+// despawnSummons dispensa os pets do bando de owner que match escolhe e libera a
+// vaga de cada um. Os ids são copiados antes porque o DespawnMob também libera a
+// vaga (world/api.go), no meio do laço.
+func (d *Dispatcher) despawnSummons(w *world.World, owner *world.Entity, match func(*world.Entity) bool) {
+	if owner == nil {
 		return
 	}
+	ownerID := owner.ID
 	var doomed []int
-	recipients := []int{leaderID}
-	for _, memberID := range leader.PartyList {
-		if memberID <= 0 {
+	for i, id := range owner.Evocacoes {
+		if id <= 0 {
 			continue
 		}
-		if world.IsPlayer(memberID) {
-			recipients = append(recipients, memberID)
+		pet := w.Entity(id)
+		if pet == nil || pet.Summoner != ownerID {
+			owner.Evocacoes[i] = 0 // vaga velha: o id já é de outro, ou de ninguém
 			continue
 		}
-		if pet := w.Entity(memberID); pet != nil && match(pet) {
-			doomed = append(doomed, memberID)
+		if match(pet) {
+			doomed = append(doomed, id)
+			owner.Evocacoes[i] = 0
 		}
 	}
 	for _, id := range doomed {
@@ -456,9 +436,7 @@ func (d *Dispatcher) despawnSummons(w *world.World, leaderID int, match func(*wo
 		// DeleteMob → RemoveParty, Server.cpp:7840). Skipped when the rows were
 		// never sent: there is nothing on the client to drop.
 		if petsNoPainelDeGrupo {
-			for _, recipientID := range recipients {
-				d.sendRemoveParty(w, recipientID, id)
-			}
+			d.sendRemoveParty(w, ownerID, id)
 		}
 		// O dono pode estar fora do alcance de vista do pet (coleira 20 > vista 16),
 		// e aí o RemoveMob do DespawnMob não chega nele. Ver removeMobParaODono.
@@ -471,21 +449,7 @@ func (d *Dispatcher) generateBabyMountSummon(w *world.World, s *world.Session, e
 	if summonID < 0 || summonID >= len(d.summonMobs) || d.summonMobs[summonID] == nil {
 		return false
 	}
-	leaderID := e.Leader
-	if leaderID == 0 {
-		leaderID = s.Conn
-	}
-	leader := w.Entity(leaderID)
-	if leader == nil {
-		return false
-	}
-	slot := -1
-	for i := range leader.PartyList {
-		if leader.PartyList[i] == 0 {
-			slot = i
-			break
-		}
-	}
+	slot := vagaNoBando(e)
 	if slot < 0 {
 		return false
 	}
@@ -504,7 +468,7 @@ func (d *Dispatcher) generateBabyMountSummon(w *world.World, s *world.Session, e
 		mob.Level = level.MaxLevel
 	}
 	mob.Clan = summonClan
-	mob.Leader = leaderID
+	mob.Leader = s.Conn
 	mob.Summoner = s.Conn
 	// Same Merchant-byte trap as the evocations; see generateSummon.
 	mob.NonCombatNPC = false
@@ -521,10 +485,9 @@ func (d *Dispatcher) generateBabyMountSummon(w *world.World, s *world.Session, e
 		hp = mob.MaxHP
 	}
 	mob.HP = hp
-	leader.PartyList[slot] = id
+	e.Evocacoes[slot] = id
 	if petsNoPainelDeGrupo {
-		d.sendAddParty(w, leaderID, leaderID, 0)
-		d.sendSummonPartySlot(w, leaderID, id, slot+1)
+		d.sendSummonPartySlot(w, s.Conn, id, slot, true)
 	}
 
 	body := protocol.EncodeCreateMobBody(createMobFrom(w, mob, 3))
@@ -541,33 +504,29 @@ func summonTemplateFace(template []byte) uint16 {
 	return eq[0].Index
 }
 
-func (d *Dispatcher) sendSummonPartySlot(w *world.World, leaderID, summonID, slot int) {
-	sent := map[int]bool{}
-	send := func(recipientID int) {
-		if sent[recipientID] {
-			return
-		}
-		sent[recipientID] = true
-		d.sendAddParty(w, recipientID, summonID, slot)
+// sendSummonPartySlot desenha o pet como linha de grupo, só no painel do DONO:
+// é o "grupo simulado" do bando, que os companheiros de grupo não veem. primeiro
+// manda antes a linha do próprio dono, que abre o painel.
+func (d *Dispatcher) sendSummonPartySlot(w *world.World, ownerID, summonID, slot int, primeiro bool) {
+	if primeiro {
+		d.sendAddParty(w, ownerID, ownerID, 0)
 	}
-	send(leaderID)
-	if leader := w.Entity(leaderID); leader != nil {
-		for _, memberID := range leader.PartyList {
-			if memberID > 0 && world.IsPlayer(memberID) {
-				send(memberID)
-			}
-		}
-	}
+	d.sendAddParty(w, ownerID, summonID, slot+1)
 }
 
-// petIsListed reports whether the pet still holds a slot in its leader's
-// PartyList — the only registry summons have (generateSummon, commandSummons).
+// petIsListed reports whether the pet still holds a slot in its owner's bando
+// (world.Entity.Evocacoes) — the only registry summons have.
 func petIsListed(w *world.World, id int, e *world.Entity) bool {
-	leader := w.Entity(e.Leader)
-	if leader == nil {
+	dono := w.Entity(e.Summoner)
+	if dono == nil {
 		return false
 	}
-	return hasMember(leader, id)
+	for _, m := range dono.Evocacoes {
+		if m == id {
+			return true
+		}
+	}
+	return false
 }
 
 // summonTick replaces the regular mob AI for a summoned pet (the RouteType-5
@@ -583,10 +542,10 @@ func (d *Dispatcher) summonTick(w *world.World, id int, e *world.Entity) {
 		}
 	}
 	if !ownerGone && !petIsListed(w, id, e) {
-		// Belt and braces: a pet whose party slot is gone has no owner bond left,
+		// Belt and braces: a pet whose bando slot is gone has no owner bond left,
 		// and nothing else would ever reap it (its lifespan ticks right here). The
 		// legacy bails the same way when a summon's leader is cleared
-		// (CMob.cpp:118-124). Keeps any future PartyList reset from leaking pets.
+		// (CMob.cpp:118-124). Keeps any future bando reset from leaking pets.
 		ownerGone = true
 	}
 	if ownerGone {
@@ -710,18 +669,7 @@ func (d *Dispatcher) commandSummons(w *world.World, ownerID int, target *world.E
 	if owner == nil || target == nil {
 		return
 	}
-	leaderID := owner.Leader
-	if leaderID == 0 {
-		leaderID = ownerID
-	}
-	le := w.Entity(leaderID)
-	if le == nil {
-		return
-	}
-	for _, m := range le.PartyList {
-		if m < world.MaxUser {
-			continue // empty slot or player member
-		}
+	for _, m := range bandoDe(owner) {
 		pet := w.Entity(m)
 		// No `pet.Target != 0` here, on purpose. The legacy calls SetBattle on
 		// EVERY live party member whatever it is doing (Server.cpp:9964-9985 when
@@ -736,6 +684,9 @@ func (d *Dispatcher) commandSummons(w *world.World, ownerID int, target *world.E
 		// idle ones.
 		if pet == nil || pet.Summoner != ownerID || pet.HP <= 0 {
 			continue
+		}
+		if companheiroDaEvocacao(w, pet, target) {
+			continue // o bando não vira contra o próprio grupo (mobai.go)
 		}
 		if abs16(pet.X-target.X) <= battleDragBox && abs16(pet.Y-target.Y) <= battleDragBox {
 			setBattle(w, m, pet, target)
@@ -760,19 +711,7 @@ func (d *Dispatcher) commandSummons(w *world.World, ownerID int, target *world.E
 // and the lie was only ever on the screen.
 func (d *Dispatcher) despawnPet(w *world.World, id int, pet *world.Entity, removeType int32) {
 	if petsNoPainelDeGrupo && pet != nil && pet.Summoner != 0 {
-		leaderID := pet.Leader
-		if leaderID == 0 {
-			leaderID = pet.Summoner
-		}
-		d.sendRemoveParty(w, pet.Summoner, id)
-		if leader := w.Entity(leaderID); leader != nil {
-			d.sendRemoveParty(w, leaderID, id)
-			for _, memberID := range leader.PartyList {
-				if memberID > 0 && world.IsPlayer(memberID) {
-					d.sendRemoveParty(w, memberID, id)
-				}
-			}
-		}
+		d.sendRemoveParty(w, pet.Summoner, id) // a linha só existe no painel do dono
 	}
 	removeMobParaODono(w, id, pet, removeType)
 	w.DespawnMob(id, removeType)
@@ -819,13 +758,21 @@ func removeMobParaODono(w *world.World, id int, pet *world.Entity, removeType in
 		}
 	}
 	avisar(pet.Summoner)
-	leaderID := pet.Leader
+	// E o grupo do dono, que anda com ele e viu o bando.
+	dono := w.Entity(pet.Summoner)
+	if dono == nil {
+		return
+	}
+	leaderID := dono.Leader
 	if leaderID == 0 {
 		leaderID = pet.Summoner
 	}
 	leader := w.Entity(leaderID)
 	if leader == nil {
 		return
+	}
+	if leaderID != pet.Summoner {
+		avisar(leaderID) // dois RemoveMob do mesmo pet quebram o cliente (acima)
 	}
 	for _, memberID := range leader.PartyList {
 		if memberID <= 0 || !world.IsPlayer(memberID) || memberID == pet.Summoner {

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
@@ -65,7 +66,7 @@ func (d *Dispatcher) entregaItemDeNivel(w *world.World, s *world.Session, e *wor
 	if e.ClassMaster != classMasterMortal {
 		return
 	}
-	item := d.levelItems.Para(int(e.Class), construcaoDoPersonagem(e), e.Level)
+	item, construcao := pecaDoNivel(d.levelItems, e)
 	if item.Empty() {
 		return
 	}
@@ -91,7 +92,60 @@ func (d *Dispatcher) entregaItemDeNivel(w *world.World, s *world.Session, e *wor
 	sendClientMessage(w, s, "Um item chegou ao seu armazém. ["+d.itemName(item.Index)+"]")
 	d.log.Info("item de nível entregue",
 		"conn", s.Conn, "conta", s.AccountID, "personagem", e.Name, "classe", e.Class,
-		"construcao", construcaoDoPersonagem(e), "nivel", e.Level, "item", item.Index, "vaga", vaga)
+		"construcao", construcao, "nivel", e.Level, "item", item.Index, "vaga", vaga)
+}
+
+// As construções que o LevelItem conhece (content.LevelItems): 0 Força, 1 Int,
+// 2 Destreza e 3 o resto.
+const (
+	construcaoForca      = 0
+	construcaoInt        = 1
+	construcaoDestreza   = 2
+	construcaoIndefinida = 3
+)
+
+// desvioDaConstrucao é para onde vai quem a tabela deixa sem peça, pela
+// construção dele:
+//
+//   - sem construção definida (o balde 3): o lado mago — a coluna de Int, e
+//     depois a de Destreza, que é onde o arquivo guarda o "MAG" da Huntress
+//     ("#ARMA HT MAG NO LEVEL 155" é TYPE 3: as Presas de Behemoth e o Dianus);
+//   - Destreza: o lado DN, a coluna de Força. Só a Huntress tem coluna de
+//     Destreza no arquivo, e Destreza é atributo de dano físico.
+//
+// Força e Int não desviam: têm coluna em todas as classes, e onde ela está
+// vazia é porque aquele nível não entrega nada àquela construção.
+var desvioDaConstrucao = map[int][]int{
+	construcaoIndefinida: {construcaoInt, construcaoDestreza},
+	construcaoDestreza:   {construcaoForca},
+}
+
+// pecaDoNivel escolhe a peça do nível pela construção do personagem, e devolve
+// também a construção que acabou valendo, para o log.
+//
+// DIVERGÊNCIA DELIBERADA, pedida pelo Marco em 26/09/2026: ninguém passa do 29
+// ao 254 sem peça por causa de uma coluna que o arquivo não tem.
+//
+// Quem não distribuiu pontos cai no balde 3: o personagem nasce com os quatro
+// atributos iguais (12/12/12/12, dbserver CreateCharacter), e subir de nível não
+// mexe neles, só dá pontos livres. O arquivo não tem peça nenhuma para o 3, e
+// no legado esse personagem não recebia um set nem uma arma. "Precisa receber,
+// podemos optar nesse caso pelo lado mago."
+//
+// O TK, a FM e o BM de Destreza ficavam sem nada pelo mesmo motivo — não há
+// coluna de Destreza para eles — e recebem pelo lado DN.
+func pecaDoNivel(t *content.LevelItems, e *world.Entity) (content.LevelItem, int) {
+	construcao := construcaoDoPersonagem(e)
+	item := t.Para(int(e.Class), construcao, e.Level)
+	if !item.Empty() {
+		return item, construcao
+	}
+	for _, lado := range desvioDaConstrucao[construcao] {
+		if item := t.Para(int(e.Class), lado, e.Level); !item.Empty() {
+			return item, lado
+		}
+	}
+	return item, construcao
 }
 
 // vagaParaItemDeNivel é a primeira vaga livre do armazém entre as que o legado

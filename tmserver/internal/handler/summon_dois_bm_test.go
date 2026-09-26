@@ -10,8 +10,9 @@ import (
 )
 
 // doisBMsNoGrupo põe dois BMs (conn 0 e conn 1) no mesmo grupo, com os templates
-// de verdade. O líder é um mob avulso, como em TestTrocarDeCriaturaComOsTemplatesDeVerdade:
-// o que importa aqui é a PartyList compartilhada.
+// de verdade. O líder é um mob avulso, como em TestTrocarDeCriaturaComOsTemplatesDeVerdade.
+// Desde 26/09 o bando de cada um mora nele (world.Entity.Evocacoes), fora do
+// grupo; o que estes testes prendem é que um bando não mexe no outro.
 func doisBMsNoGrupo(t *testing.T) (*Dispatcher, *world.World, *world.Entity, [2]*world.Session, [2]*world.Entity, [][]byte) {
 	t.Helper()
 	templates, _, err := content.LoadBaseSummons(filepath.Join("..", "..", "..", "Release"))
@@ -38,10 +39,10 @@ func doisBMsNoGrupo(t *testing.T) (*Dispatcher, *world.World, *world.Entity, [2]
 	return d, w, w.Entity(liderID), ss, bms, templates
 }
 
-func petsDe(w *world.World, lider *world.Entity, dono int) []int {
+func petsDe(w *world.World, dono *world.Entity) []int {
 	var out []int
-	for _, id := range petsDoLider(lider) {
-		if pet := w.Entity(id); pet != nil && pet.Summoner == dono {
+	for _, id := range bandoDe(dono) {
+		if pet := w.Entity(id); pet != nil && pet.Summoner == dono.ID {
 			out = append(out, id)
 		}
 	}
@@ -52,40 +53,45 @@ func petsDe(w *world.World, lider *world.Entity, dono int) []int {
 // do BM 0, no mesmo grupo, continuam em campo.
 func TestTrocaDeUmBMNaoApagaOsPetsDoOutro(t *testing.T) {
 	const gorila, dragao = 5, 6
-	d, w, lider, ss, bms, _ := doisBMsNoGrupo(t)
+	d, w, _, ss, bms, _ := doisBMsNoGrupo(t)
 
 	if !d.generateSummon(w, ss[0], bms[0], gorila, 3) {
 		t.Fatal("os Gorilas do BM 0 não saíram")
 	}
-	antes := petsDe(w, lider, 0)
+	antes := petsDe(w, bms[0])
 	if !d.generateSummon(w, ss[1], bms[1], dragao, 2) {
 		t.Fatal("os Dragões do BM 1 não saíram")
 	}
 
-	depois := petsDe(w, lider, 0)
+	depois := petsDe(w, bms[0])
 	if len(depois) != len(antes) {
 		t.Errorf("o BM 0 tinha %d Gorilas e ficou com %d depois que o BM 1 evocou Dragão", len(antes), len(depois))
 	}
-	if n := len(petsDe(w, lider, 1)); n != 2 {
+	if n := len(petsDe(w, bms[1])); n != 2 {
 		t.Errorf("o BM 1 ficou com %d Dragões, esperado 2", n)
 	}
 }
 
-// TestMesmaCriaturaDivideOTetoDoGrupo fixa a regra do legado que continua valendo:
-// o teto de uma criatura é do GRUPO (GenerateSummon, Server.cpp:2991-2997). Com o
-// BM 0 já no teto de Gorilas, o BM 1 lançando Gorila não ganha nenhum, e a magia
-// devolve a mana. Nada do BM 0 é apagado.
-func TestMesmaCriaturaDivideOTetoDoGrupo(t *testing.T) {
+// TestCadaBMTemOProprioBando: no legado o teto de uma criatura era do GRUPO
+// (GenerateSummon, Server.cpp:2991-2997) e dois BMs juntos dividiam um bando. Com
+// o bando fora do grupo (decisão de 26/09), cada BM tem o seu inteiro, e o
+// segundo evocar a mesma criatura não tira nada do primeiro.
+func TestCadaBMTemOProprioBando(t *testing.T) {
 	const gorila = 5
 	d, w, lider, ss, bms, _ := doisBMsNoGrupo(t)
 
 	if !d.generateSummon(w, ss[0], bms[0], gorila, 6) {
 		t.Fatal("os Gorilas do BM 0 não saíram")
 	}
-	if d.generateSummon(w, ss[1], bms[1], gorila, 6) {
-		t.Error("o BM 1 ganhou Gorilas com o grupo já no teto")
+	if !d.generateSummon(w, ss[1], bms[1], gorila, 6) {
+		t.Fatal("o BM 1 ficou sem Gorilas porque o BM 0 já tinha os dele")
 	}
-	if n := len(petsDe(w, lider, 0)); n != 6 {
-		t.Errorf("o BM 0 ficou com %d Gorilas, esperado 6", n)
+	for i, bm := range bms {
+		if n := len(petsDe(w, bm)); n != 6 {
+			t.Errorf("o BM %d ficou com %d Gorilas, esperado 6", i, n)
+		}
+	}
+	if n := partyMemberCount(lider); n != 0 {
+		t.Errorf("os bandos ocuparam %d vagas no grupo", n)
 	}
 }
