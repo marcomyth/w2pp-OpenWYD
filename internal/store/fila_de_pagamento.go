@@ -130,11 +130,16 @@ func (s *Store) ChaveParaPagar(ctx context.Context, repasseID int64, ator AtorDo
 		// A AUDITORIA GUARDA A MÁSCARA, e não a chave. Ela diz QUEM leu O QUE, e para
 		// isso a máscara basta — guardar o inteiro faria a trilha de acesso ser, ela
 		// mesma, uma segunda cópia do dado pessoal, num lugar que ninguém apaga.
+		// Zero vira NULO: a tabela exige exatamente um ator, e a coluna da conta tem
+		// chave estrangeira — mandar zero procuraria a conta de id 0 e derrubaria a
+		// transação inteira, junto com o dinheiro que ela move.
+		atorConta, atorPainel := ator.paraAuditoria()
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO admin_audit_log
-			    (actor_account_id, actor_role, action, target_account_id, old_value, new_value)
-			VALUES ($1, $2, $3, $4, $5, $6)`,
-			ator.ContaID, ator.Papel, AcaoChavePixRevelada, vendedor,
+			    (actor_account_id, actor_painel_usuario_id, actor_role, action,
+			     target_account_id, old_value, new_value)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			atorConta, atorPainel, ator.Papel, AcaoChavePixRevelada, vendedor,
 			"{}", fmt.Sprintf(`{"repasse":%d,"chave":%q}`,
 				repasseID, MascaraChavePix(c.ChavePix, TipoChavePix(tipo)))); err != nil {
 			return fmt.Errorf("store: registrando a leitura da chave do repasse %d: %w", repasseID, err)

@@ -31,8 +31,30 @@ var ErrReembolsoNaoEstaRecusado = errors.New("store: o reembolso nao esta recusa
 // assinatura obriga o chamador a dizer quem foi, em vez de deixar isso
 // opcional e descobrir depois que metade das linhas não tem autor.
 type AtorDaStaff struct {
-	ContaID int64
-	Papel   string
+	// Os dois atores, pelo mesmo motivo do AtorDoAjuste: desde o #130 a staff entra no
+	// painel como usuário do painel, sem conta de jogo, e a admin_audit_log exige
+	// exatamente um dos dois preenchido.
+	ContaID  int64
+	PainelID int64
+	Papel    string
+}
+
+// paraAuditoria devolve os dois atores no formato que a tabela aceita: zero vira nulo.
+//
+// Repete o do AtorDoAjuste de propósito, em vez de os dois tipos virarem um só. Eles
+// descrevem coisas diferentes — um ajuste tem NOME de quem fez, gravado na própria linha
+// do repasse, e um reembolso não — e juntá-los agora, com o RMT prestes a abrir, é
+// refatoração no pior momento possível.
+func (a AtorDaStaff) paraAuditoria() (conta, painel *int64) {
+	if a.ContaID != 0 {
+		c := a.ContaID
+		conta = &c
+	}
+	if a.PainelID != 0 {
+		p := a.PainelID
+		painel = &p
+	}
+	return conta, painel
 }
 
 // MarcarReembolsoPendente registra que devemos um reembolso, antes de pedir.
@@ -298,11 +320,16 @@ func (s *Store) transicaoDaStaff(ctx context.Context, cobrancaID int64, ator Ato
 
 		// O alvo da auditoria é o COMPRADOR, que é de quem é o dinheiro. A
 		// cobrança vai no valor, para a linha do log apontar para qual foi.
+		// Zero vira NULO: a tabela exige exatamente um ator, e a coluna da conta tem
+		// chave estrangeira — mandar zero procuraria a conta de id 0 e derrubaria a
+		// transação inteira, junto com o dinheiro que ela move.
+		atorConta, atorPainel := ator.paraAuditoria()
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO admin_audit_log
-			    (actor_account_id, actor_role, action, target_account_id, old_value, new_value)
-			VALUES ($1, $2, $3, $4, $5, $6)`,
-			ator.ContaID, ator.Papel, acao, compradorConta,
+			    (actor_account_id, actor_painel_usuario_id, actor_role, action,
+			     target_account_id, old_value, new_value)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			atorConta, atorPainel, ator.Papel, acao, compradorConta,
 			// O ESTADO DE ONDE VEIO, e nao a palavra "recusado" fixa: agora ele pode
 			// ser incerto, e um registro que diz sempre a mesma coisa nao registra
 			// nada. Numa disputa, "saiu de incerto" e "saiu de recusado" sao fatos

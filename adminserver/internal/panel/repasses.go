@@ -273,7 +273,8 @@ func (h *Handler) resolverRepasse(w http.ResponseWriter, r *http.Request) {
 		var antigo int64
 		antigo, err = h.cfg.Repasses.AjustarValorDoRepasse(r.Context(), id, novo,
 			store.AtorDoAjuste{
-				ContaID: sess.AccountID, Papel: roleFrom(r.Context()), Nome: sess.AccountName,
+				ContaID: sess.AccountID, PainelID: sess.PainelUsuarioID,
+				Papel: roleFrom(r.Context()), Nome: sess.AccountName,
 			}, nota)
 		// A AUDITORIA DESTA AÇÃO JÁ FOI ESCRITA, dentro da transação do UPDATE. Escrever
 		// de novo aqui daria duas linhas para uma mudança — e a segunda, se falhasse,
