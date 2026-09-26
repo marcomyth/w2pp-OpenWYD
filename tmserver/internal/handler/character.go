@@ -371,6 +371,7 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		e.TerraMistica = st.TerraMistica
 		e.NewbieQuest = st.NewbieQuest
 		e.MolarGargula = st.MolarGargula
+		e.NivelRetroativo = st.NivelRetroativo
 		e.Str, e.Int, e.Dex, e.Con, e.ScoreBonus = st.Str, st.Int, st.Dex, st.Con, st.ScoreBonus
 		// Skill state: the learned mask, allocated mastery and the hotbar come
 		// straight from the DB; SkillBonus is re-derived from level + learned
@@ -494,6 +495,7 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 			d.refreshBabyMountSummon(w, s, e)
 		}
 		d.sendLoginAffects(w, s)
+		d.entregaRetroativaNoLogin(w, s)
 		return
 	}
 	d.log.Info("char login: sending CNFCharacterLogin (fallback, no template)",
@@ -538,6 +540,7 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		d.refreshBabyMountSummon(w, s, e)
 	}
 	d.sendLoginAffects(w, s)
+	d.entregaRetroativaNoLogin(w, s)
 }
 
 func (d *Dispatcher) logCNFCharacterLogin(path string, s *world.Session, st world.CharacterState, spawnX, spawnY int16, body []byte) {

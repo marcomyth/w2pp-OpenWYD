@@ -211,7 +211,8 @@ func (s *Store) LoadCharacter(ctx context.Context, accountID int64, slot int) (d
 		       -- NULO ate o personagem criar um Sub, entao entra por COALESCE: o
 		       -- domain carrega string vazia, nao ponteiro, para nao espalhar
 		       -- "pode ser nulo" por todo o caminho ate o handler.
-		       COALESCE(sub_celestial_guardada::text, ''), sub_celestial_level, sub_celestial_ativo, celestial_reset
+		       COALESCE(sub_celestial_guardada::text, ''), sub_celestial_level, sub_celestial_ativo, celestial_reset,
+		       nivel_retroativo
 		  FROM character WHERE account_id = $1 AND slot = $2`, accountID, slot).
 		Scan(&charID, &ch.Slot, &ch.Name, &ch.Class, &ch.Clan, &ch.GuildID, &ch.GuildLevel,
 			&ch.Level, &ch.Exp, &ch.Coin, &ch.Str, &ch.Int, &ch.Dex, &ch.Con,
@@ -221,7 +222,8 @@ func (s *Store) LoadCharacter(ctx context.Context, accountID int64, slot int) (d
 			&ch.ClassMaster, &ch.Soul, &ch.Fame, &ch.CelLv40, &ch.CelLv90, &ch.CelCircle, &ch.TerraMistica, &ch.ArchLv355, &ch.ArchLv370, &skillBar, &shortSkill, &special,
 			&ch.PKPoint, &ch.Guilty, &ch.CurKill, &ch.TotKill, &ch.MortalLevel, &ch.CelestialArchLevel, &ch.ArchCristal,
 			&ch.NightmareTickets, &ch.NewbieQuest, &ch.KefraTicket, &ch.MolarGargula,
-			&ch.SubCelestialGuardada, &ch.SubCelestialLevel, &ch.SubCelestialAtivo, &ch.CelestialReset)
+			&ch.SubCelestialGuardada, &ch.SubCelestialLevel, &ch.SubCelestialAtivo, &ch.CelestialReset,
+			&ch.NivelRetroativo)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Character{}, ErrNotFound
 	}
@@ -484,7 +486,10 @@ func salvarPersonagemTx(ctx context.Context, tx pgx.Tx, accountID int64, ch doma
 			-- A cidadania saiu da lista de "untouched" em 24/09/2026, quando a Kibita
 			-- passou a vende-la em jogo por 4.000.000 de ouro. Numero novo no FIM,
 			-- pela mesma regra dos de cima.
-			citizen=$51
+			citizen=$51,
+			-- Ate onde as pecas de nivel retroativas foram entregues (0172). Numero
+			-- novo no FIM, pela mesma regra.
+			nivel_retroativo=$52
 		WHERE account_id=$1 AND slot=$2
 		RETURNING id`,
 		accountID, ch.Slot, ch.Clan, ch.GuildID, ch.GuildLevel, ch.Level, ch.Coin,
@@ -498,7 +503,7 @@ func salvarPersonagemTx(ctx context.Context, tx pgx.Tx, accountID int64, ch doma
 		ch.PKPoint, ch.Guilty, ch.CurKill, ch.TotKill, ch.MortalLevel, ch.CelestialArchLevel, ch.ArchCristal,
 		ch.NightmareTickets, ch.NewbieQuest,
 		ch.SubCelestialGuardada, ch.SubCelestialLevel, ch.SubCelestialAtivo, ch.CelestialReset,
-		ch.KefraTicket, ch.MolarGargula, ch.Citizen,
+		ch.KefraTicket, ch.MolarGargula, ch.Citizen, ch.NivelRetroativo,
 	).Scan(&charID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound

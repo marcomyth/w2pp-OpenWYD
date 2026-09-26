@@ -485,6 +485,10 @@ message Character {
   // marca tem de sobreviver ao relog — é o que distingue esta quest do teleporte
   // do mesmo NPC, que não guarda estado nenhum.
   int32 mortal_molar = 56;
+  // Até onde o personagem recebeu as peças de nível que o jogo deixou de
+  // entregar (0172): 0 nada, 1-399 até aquele nível, 1000 concluído. A entrega
+  // é no login, e a marca tem de sobreviver ao relog para não repetir.
+  int32 nivel_retroativo = 57;
 }
 
 message Item {

@@ -89,6 +89,7 @@ func characterToProto(ch domain.Character) *dbv1.Character {
 		NightmareTickets:   ch.NightmareTickets,
 		KefraTicket:        ch.KefraTicket,
 		MortalMolar:        int32(ch.MolarGargula),
+		NivelRetroativo:    int32(ch.NivelRetroativo),
 		// A segunda vida do Celestial (0061_sub_celestial). Atravessa inteira: o
 		// jsonb como texto, mais o nivel dela, que sai do jsonb porque a formula
 		// de pontos le o nivel da vida INATIVA em toda derivacao de score.
@@ -178,6 +179,7 @@ func protoToCharacter(c *dbv1.Character) domain.Character {
 		NightmareTickets:     c.GetNightmareTickets(),
 		KefraTicket:          c.GetKefraTicket(),
 		MolarGargula:         uint8(c.GetMortalMolar()),
+		NivelRetroativo:      uint16(c.GetNivelRetroativo()),
 		CelLv90:              uint8(c.GetCelestialLv90()),
 		CelCircle:            uint8(c.GetCelestialCircle()),
 		TerraMistica:         uint8(c.GetMortalTerraMistica()),

@@ -1,0 +1,13 @@
+-- 0172_itens_de_nivel_retroativos — até onde o personagem já recebeu, de uma vez,
+-- as peças de nível que o jogo deixou de entregar (pedido do Marco, 26/09/2026).
+--
+-- Quem subia sem distribuir pontos, e o TK, a FM e o BM de Destreza, passavam do
+-- 29 ao 254 sem uma peça: o LevelItem.txt não tem coluna para eles, e a entrega
+-- desistia calada. A regra foi consertada para a frente; esta coluna é a marca da
+-- entrega retroativa, que o jogo faz no login de todo Mortal — inclusive de quem
+-- já tinha recebido, por decisão do Marco ("foi erro nosso").
+--
+--   0     ainda não recebeu nada
+--   1-399 recebeu até este nível; o armazém encheu e o resto sai no próximo login
+--   1000  concluído
+ALTER TABLE character ADD COLUMN IF NOT EXISTS nivel_retroativo SMALLINT NOT NULL DEFAULT 0;

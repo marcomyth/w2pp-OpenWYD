@@ -110,6 +110,10 @@ type Character struct {
 	Equip          []Item // owner_kind = char_equip
 	Carry          []Item // owner_kind = char_carry
 	Affects        []Affect
+
+	// NivelRetroativo marca até onde o personagem recebeu as peças de nível que o
+	// jogo deixou de entregar (0172): 0 nada, 1-399 até aquele nível, 1000 concluído.
+	NivelRetroativo uint16
 }
 
 // KingdomCapeQuote is the persisted, versioned sapphire price snapshot.
