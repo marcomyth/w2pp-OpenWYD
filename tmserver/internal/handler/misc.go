@@ -258,9 +258,10 @@ func (d *Dispatcher) quest(w *world.World, s *world.Session, _ protocol.Header, 
 		d.dragaoDeArmia(w, s, e, npc)
 		return
 	}
-	// QUEST_CAPAREAL (Merchant 100, EF_GRADE0 13): Royal Cape quest entry.
+	// QUEST_CAPAREAL (Merchant 100, EF_GRADE0 13): o Guarda Real vende a capa do
+	// reino por uma Safira (guarda_real.go); não teleporta mais para a quest.
 	if npc.Merchant == 100 && npc.Grade == 13 {
-		d.royalCapeQuest(w, s, e)
+		d.guardaReal(w, s, e, npc, int(confirm))
 		return
 	}
 	// PERZEN (Merchant 100, EF_GRADE0 ∈ {7,8,9}): the item exchange.
@@ -809,20 +810,6 @@ func (d *Dispatcher) capaverdeTeleport(w *world.World, s *world.Session, e *worl
 		return
 	}
 	d.doTeleport(w, s, 2245+int16(w.Rand().Intn(5)-3), 1576+int16(w.Rand().Intn(5)-3))
-}
-
-const (
-	royalCapeMinLevel = 199
-	royalCapeMaxLevel = 254
-)
-
-// royalCapeQuest handles the Royal Guard entry gate from _MSG_Quest.cpp.
-func (d *Dispatcher) royalCapeQuest(w *world.World, s *world.Session, e *world.Entity) {
-	if e.ClassMaster != classMasterMortal || e.Level < royalCapeMinLevel || e.Level >= royalCapeMaxLevel {
-		d.notify(w, s, NoticeReqNotMet)
-		return
-	}
-	d.doTeleport(w, s, 1740+int16(w.Rand().Intn(5)-3), 1725+int16(w.Rand().Intn(5)-3))
 }
 
 // capaverdeTrade handles CAPAVERDE_TRADE (Merchant 8, "Chefe_Treina."): the
