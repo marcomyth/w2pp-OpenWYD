@@ -70,3 +70,62 @@ func TestAFraseDaRecusaNaoMandaUsarContaDeJogo(t *testing.T) {
 		t.Error("a recusa nao diz nada")
 	}
 }
+
+// TestTodaLeituraQueOPainelFazEstaNaLista.
+//
+// A lista fecha por padrão, e o preço disso é ESTE teste: uma leitura que o painel faz
+// e que ninguém pôs na lista não dá erro visível — a página abre e mostra o buraco.
+//
+// Foi o que aconteceu com o catálogo de itens entre a atualização das 23h e o conserto:
+// o censo abria, contava certo, e mostrava "item 1100" em vez do nome, com a coluna do
+// item vazia no quadro das cópias. Ninguém olhando a tela adivinharia que a causa era
+// uma linha faltando numa lista de autorização.
+//
+// A lista abaixo é a das chamadas de LEITURA que o adminServer faz hoje
+// (adminserver/internal/gamedata). Quem acrescentar uma leitura nova ao painel
+// acrescenta aqui também, e o teste cobra a linha na lista de verdade.
+func TestTodaLeituraQueOPainelFazEstaNaLista(t *testing.T) {
+	leiturasDoAdminServer := []string{
+		// O nome de cada item. Não é de uma página só: o censo, as cópias, a loja
+		// do NPC, a mesa de drops e a recompensa diária mostram nome sobre índice.
+		"/web.v1.ItemCatalogService/ListItems",
+		// NPCs
+		"/web.v1.NpcAdminService/ListNpcs",
+		"/web.v1.NpcAdminService/GetNpc",
+		"/web.v1.NpcAdminService/ListMerchantTemplates",
+		"/web.v1.NpcAdminService/ListItemCatalog",
+		"/web.v1.NpcAdminService/ListDropItems",
+		"/web.v1.NpcAdminService/ListMobDrops",
+		"/web.v1.NpcAdminService/ListItemPrices",
+		"/web.v1.NpcAdminService/ListMapZones",
+		// Monstros
+		"/web.v1.MobTemplateAdminService/ListMobTemplates",
+		"/web.v1.MobTemplateAdminService/GetMobTemplateStat",
+		// Itens
+		"/web.v1.ItemStatAdminService/GetItemStat",
+		// Montarias
+		"/web.v1.MountGrowthAdminService/ListMountGrowthCurves",
+		"/web.v1.MountGrowthAdminService/ListMountBonus",
+		"/web.v1.MountGrowthAdminService/ListMountAbsorb",
+		"/web.v1.MountGrowthAdminService/MountConfigVersion",
+		// Atributos
+		"/web.v1.AttributeMapAdminService/GetAttributeMapInfo",
+		// Recompensa diária
+		"/web.v1.DailyRewardAdminService/ListRewardItems",
+		// Loja de donate
+		"/web.v1.DonateAdminService/ListShopItems",
+		// Receita
+		"/web.v1.DonateRevenueAdminService/GetRevenueSummary",
+		"/web.v1.DonateRevenueAdminService/ListTopupOrders",
+		"/web.v1.DonateRevenueAdminService/ListTopBuyers",
+		"/web.v1.DonateRevenueAdminService/ListDonateSpend",
+		"/web.v1.DonateRevenueAdminService/SearchAccounts",
+		// Eventos do mundo
+		"/web.v1.WorldEventAdminService/GetWorldEventConfig",
+	}
+	for _, metodo := range leiturasDoAdminServer {
+		if !PainelPodeChamar(metodo) {
+			t.Errorf("o painel faz esta leitura e a lista a recusa: %s", metodo)
+		}
+	}
+}

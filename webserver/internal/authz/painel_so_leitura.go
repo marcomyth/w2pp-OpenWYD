@@ -35,8 +35,19 @@ var leituraDoPainel = map[string]bool{
 	// Monstros
 	"MobTemplateAdminService/ListMobTemplates":   true,
 	"MobTemplateAdminService/GetMobTemplateStat": true,
+	// Catálogo de itens. É o NOME de cada item, e quem o lê não é uma página só:
+	// o censo, as cópias, a loja do NPC, a mesa de drops e a recompensa diária
+	// todas mostram nome por cima de um índice. Sem esta linha a pessoa lia
+	// "item 1100" em tudo, e no censo de cópias a coluna do item saía vazia —
+	// foi o que aconteceu entre a atualização das 23h e este conserto.
+	"ItemCatalogService/ListItems": true,
 	// Itens
 	"ItemStatAdminService/GetItemStat": true,
+	// Montarias
+	"MountGrowthAdminService/ListMountGrowthCurves": true,
+	"MountGrowthAdminService/ListMountBonus":        true,
+	"MountGrowthAdminService/ListMountAbsorb":       true,
+	"MountGrowthAdminService/MountConfigVersion":    true,
 	// Atributos
 	"AttributeMapAdminService/GetAttributeMapInfo": true,
 	// Recompensa diária
