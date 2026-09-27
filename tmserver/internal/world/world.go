@@ -188,7 +188,10 @@ type World struct {
 	ground   []*GroundItem // pItem[]: items on the floor, index ∈ [1, MaxItem)
 	static   []int         // ground ids of the seeded world objects (gates/doors), in seed order
 	grid     *Grid
-	rng      *rng.MSVC // loop-owned MSVC LCG (parity; like the original global rand())
+	// foraDoGrid são as entidades paradas numa casa que o grid dá a outro
+	// (ocupaCasa/liberaCasa, api.go). Quase sempre vazio.
+	foraDoGrid map[int]struct{}
+	rng        *rng.MSVC // loop-owned MSVC LCG (parity; like the original global rand())
 
 	// anonimato é a caixa em que a Batalha Real do Coliseu esconde nome, capa e
 	// guilda (anonimato.go). Desligada no valor zero. Loop-owned.

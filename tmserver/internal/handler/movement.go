@@ -357,6 +357,14 @@ func (d *Dispatcher) doTeleport(w *world.World, s *world.Session, x, y int16) {
 		return
 	}
 	oldX, oldY := e.X, e.Y
+	// DoTeleport lands on a free cell (GetEmptyMobGrid, Server.cpp:9156): the
+	// Pergaminho de Portal takes the player to the exact tile of the Gema, and the
+	// players of the Kaizen save it right beside the Patrulha. With no free cell
+	// in reach the legacy does not teleport at all; here the player still goes to
+	// the tile asked for, and SetEntityPos keeps whoever stands there.
+	if fx, fy, ok := w.FreeCellFor(s.Conn, x, y); ok {
+		x, y = fx, fy
+	}
 	cmBefore := w.SentOfType(s, protocol.MsgCreateMob)
 	rmBefore := w.SentOfType(s, protocol.MsgRemoveMob)
 	w.SetEntityPos(s.Conn, x, y)
