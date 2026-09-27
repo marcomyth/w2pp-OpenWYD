@@ -103,20 +103,41 @@ func classeSorteia(pool []classeValor, roll func(int) int) world.Effect {
 }
 
 // classeAdds draws the two adds of a chest, legs or glove piece: the first,
-// then which kind the second is, then its value.
+// then which kind the second is, then its value — and, when the second is a
+// high defense, the first slot is emptied (defesaAltaSozinha).
 func classeAdds(nPos int, roll func(int) int) (world.Effect, world.Effect) {
 	if nPos == nPosGlove {
 		primeiro := classeSorteia(classeDanoLuva, roll)
 		if roll(2) == 0 {
 			return primeiro, classeSorteia(classeSkillLuva, roll)
 		}
-		return primeiro, classeSorteia(classeDefesaLuva, roll)
+		return defesaAltaSozinha(primeiro, classeSorteia(classeDefesaLuva, roll), roll)
 	}
 	primeiro := classeSorteia(classeDanoPeito, roll)
 	if roll(2) == 0 {
-		return primeiro, classeSorteia(classeDefesaPeito, roll)
+		return defesaAltaSozinha(primeiro, classeSorteia(classeDefesaPeito, roll), roll)
 	}
 	return primeiro, classeSorteia(classeCriticoPeito, roll)
+}
+
+// classeDefesaSozinhaAcima is the defense add above which the Repletion piece
+// carries no other add.
+const classeDefesaSozinhaAcima = 30
+
+// defesaAltaSozinha keeps a high defense add alone on the piece (Marco,
+// 27/09/2026). A Repletion chest that came out with defense 50 AND magic 10%
+// passed every limit the adds were tuned for: combined adds top out at defense 30
+// with crit 7% or magic 10%, and the 35-50 defense exists only as a piece that
+// carries nothing else. Above 30 the first slot gets EF_UNIQUE, the game's
+// "nothing here" marker, the way an empty drop slot does (dropbonus.go).
+//
+// The first add is still DRAWN before the defense and then thrown away: every
+// branch keeps its draw order, and only the defense branch spends one more.
+func defesaAltaSozinha(primeiro, defesa world.Effect, roll func(int) int) (world.Effect, world.Effect) {
+	if defesa.Effect != efAC || int(defesa.Value) <= classeDefesaSozinhaAcima {
+		return primeiro, defesa
+	}
+	return world.Effect{Effect: efUnique, Value: uint8(roll(128))}, defesa
 }
 
 // classeSancCap is the +6 ceiling SetItemBonus2 puts on the sanc it bumps
@@ -218,4 +239,40 @@ func clampBootDamage(dest *world.Item, itemAbility func(world.Item, uint8) int) 
 		}
 		dest.Effects[i].Value = uint8(v)
 	}
+}
+
+// repletionDefesaAlta are the defense values only the Repletion rolls (the
+// chest/legs and glove pools above). A drop tops out below them, and the shop
+// pieces that carry more defense (70, 99) are not in this list — which is what
+// lets CorrigeDefesaCombinada touch Repletion output and nothing else.
+var repletionDefesaAlta = map[uint8]bool{35: true, 40: true, 45: true, 50: true}
+
+// CorrigeDefesaCombinada brings an item the old Repletion rolled back inside the
+// limit (Marco, 27/09/2026): a chest, legs or glove whose adds are a Repletion
+// defense (35-50) AND damage or magic gets the defense cut to 30 and keeps the
+// other add. Those pieces came out between the 26/09 pools and the fix above,
+// which now keeps a high defense alone. Reports whether it changed the item.
+//
+// Narrow on purpose: only slots 1 and 2 (where SetItemBonus2 writes the adds),
+// only the Repletion defense values, only when the other add is damage or
+// magic, and only the three slots whose pools had defense.
+func CorrigeDefesaCombinada(it *world.Item, nPos int) bool {
+	if it == nil || it.Empty() {
+		return false
+	}
+	if nPos != nPosChest && nPos != nPosLegs && nPos != nPosGlove {
+		return false
+	}
+	for i, j := 1, 2; i <= 2; i, j = i+1, j-1 {
+		def, outro := it.Effects[i], it.Effects[j]
+		if def.Effect != efAC || !repletionDefesaAlta[def.Value] {
+			continue
+		}
+		if outro.Effect != efDamageBonus && outro.Effect != efMagic {
+			continue
+		}
+		it.Effects[i].Value = classeDefesaSozinhaAcima
+		return true
+	}
+	return false
 }
