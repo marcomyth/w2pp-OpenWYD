@@ -27,8 +27,11 @@ func TestBuildNPCDefinitionsRealCatalog(t *testing.T) {
 	// internal/reinos — plus the four Lendas of the Praça (6140-6143).
 	// 412 = os 411 acima mais a Loja de Pontos (Merchant 1, Armia), bloco novo
 	// no fim do NPCGener desde 19/09/2026.
-	if len(defs) != 412 {
-		t.Fatalf("merchant generator definitions = %d, want 412", len(defs))
+	// 334 = 412 menos os 78 blocos dos Ciclopes (internal/ciclopes): 39 do
+	// Ciclope_Cruel, 28 do Ciclope_Cruel_Spot e 11 do Lanceiro_Zakum_Spot, que
+	// voltam a nascer do NPCGener como monstros.
+	if len(defs) != 334 {
+		t.Fatalf("merchant generator definitions = %d, want 334", len(defs))
 	}
 	want := map[string]struct {
 		index    int32
