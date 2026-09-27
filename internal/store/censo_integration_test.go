@@ -412,18 +412,31 @@ func TestCensoSomaOTamanhoDaPilha(t *testing.T) {
 		t.Errorf("peças = %d, want 166 (120 + 45 + 1)", *run.Pecas)
 	}
 
-	linhas := lerCensoDeHoje(t, s)
-	// As duas pilhas caem na mesma linha (índice 419, refino 0) que a espada não
-	// compartilha, então a busca é pelo índice e não pelo refino.
-	var resto domain.ItemCensus
-	for _, l := range linhas {
-		if l.Index == 419 {
-			resto = l
-		}
+	// A linha do Resto lida pelo PAR índice+refino. Não serve o lerCensoDeHoje
+	// aqui: ele indexa por refino, e neste teste o Resto e a espada estão os dois
+	// no refino 0 — uma linha comeria a outra no mapa.
+	espacos, pecas := linhaDoCenso(t, s, 419, 0)
+	if espacos != 2 || pecas != 165 {
+		t.Errorf("Resto = %d espaços / %d peças, want 2 / 165", espacos, pecas)
 	}
-	if resto.Units != 2 || resto.Pecas != 165 {
-		t.Errorf("Resto = %d espaços / %d peças, want 2 / 165", resto.Units, resto.Pecas)
+	// A espada avulsa: uma peça por espaço, que é o que não empilha tem de dar.
+	if espacos, pecas := linhaDoCenso(t, s, 1100, 0); espacos != 1 || pecas != 1 {
+		t.Errorf("espada = %d espaços / %d peças, want 1 / 1", espacos, pecas)
 	}
+}
+
+// linhaDoCenso reads one census row by the pair that identifies it, index AND
+// refine — which is the table's own primary key.
+func linhaDoCenso(t *testing.T, s *Store, index, sanc int16) (espacos int, pecas int64) {
+	t.Helper()
+	err := s.pool.QueryRow(context.Background(), `
+		SELECT unidades, COALESCE(pecas, 0) FROM item_census
+		 WHERE dia = current_date AND item_index = $1 AND sanc = $2`, index, sanc).
+		Scan(&espacos, &pecas)
+	if err != nil {
+		t.Fatalf("ler linha do censo (item %d refino %d): %v", index, sanc, err)
+	}
+	return espacos, pecas
 }
 
 // TestCensoVeAPilhaQueDobrouSemCriarEspaco.
