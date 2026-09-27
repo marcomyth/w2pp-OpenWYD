@@ -9,8 +9,10 @@
 --      (g_pDropRate 900 → 1/891 cada no nível 201, mais ainda com bônus de drop do
 --      matador), ~0,45% de brinco por morte, fora da Mesa.
 --
--- Depois disto os brincos ficam SÓ no Golem de Fogo da sala, a 1 cada — o menor
--- número que a Mesa aceita (centésimos de %), 0,0122% real, exatamente 10× menos.
+-- Depois disto os brincos ficam SÓ no Golem de Fogo da sala, a 3 cada (0,03%,
+-- 0,0366% real pelo viés), 3,3× menos que os 10 da 0152 — o Marco pediu 10× (1)
+-- e depois subiu para 0,03%. A sala inteira cai mais que isso, porque a Gárgula
+-- dela deixa de soltar brinco.
 -- A Gárgula da sala e as duas do Molar vão a 0%: a regra faz a Mesa pular o slot
 -- do template, então o arquivo binário não precisa mudar.
 --
@@ -19,11 +21,11 @@
 -- A chance foi escolha minha; o pedido não a deu. O 515 "Bracelete" é o item
 -- genérico sem efeito e fica de fora.
 INSERT INTO drop_rule (mob, item, chance) VALUES
-    ('Golem_Fogo_Lava',  591,  1),  -- Brinco de Athena
-    ('Golem_Fogo_Lava',  592,  1),  -- Brinco de Titã
-    ('Golem_Fogo_Lava',  593,  1),  -- Brinco de Zeus
-    ('Golem_Fogo_Lava',  594,  1),  -- Brinco de Hecate
-    ('Golem_Fogo_Lava',  595,  1),  -- Brinco de Hercules
+    ('Golem_Fogo_Lava',  591,  3),  -- Brinco de Athena
+    ('Golem_Fogo_Lava',  592,  3),  -- Brinco de Titã
+    ('Golem_Fogo_Lava',  593,  3),  -- Brinco de Zeus
+    ('Golem_Fogo_Lava',  594,  3),  -- Brinco de Hecate
+    ('Golem_Fogo_Lava',  595,  3),  -- Brinco de Hercules
     ('Gargula_Lava',     591,  0),  -- Brinco de Athena: sai
     ('Gargula_Lava',     592,  0),  -- Brinco de Titã: sai
     ('Gargula_Lava',     593,  0),  -- Brinco de Zeus: sai

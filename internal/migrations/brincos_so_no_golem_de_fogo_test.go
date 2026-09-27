@@ -35,13 +35,13 @@ func regrasDaMigracao(t *testing.T, nome string) map[string]map[int]int {
 
 func eBrinco(item int) bool { return item >= 591 && item <= 595 }
 
-// A 0175 deixa os brincos só no Golem de Fogo da sala, a 1 (10× menos que os 10
+// A 0175 deixa os brincos só no Golem de Fogo da sala, a 3 (0,03%; eram os 10
 // da 0152), e troca os brincos das Gárgulas do Molar pelos seis braceletes.
 func TestBrincosSoNoGolemDeFogo(t *testing.T) {
 	regras := regrasDaMigracao(t, migBrincos)
 	for item := 591; item <= 595; item++ {
-		if got := regras["Golem_Fogo_Lava"][item]; got != 1 {
-			t.Errorf("Golem_Fogo_Lava/%d = %d, quer 1", item, got)
+		if got := regras["Golem_Fogo_Lava"][item]; got != 3 {
+			t.Errorf("Golem_Fogo_Lava/%d = %d, quer 3", item, got)
 		}
 		for _, mob := range []string{"Gargula_Lava", "Gargula_Inf", "Gargula_Servo"} {
 			got, ok := regras[mob][item]
