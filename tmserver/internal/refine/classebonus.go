@@ -213,6 +213,9 @@ func ClasseBonus(dest *world.Item, nPos int, roll func(int) int, itemAbility fun
 	if nPos == nPosBoot {
 		clampBootDamage(dest, itemAbility)
 	}
+	// O teto dos adds de armadura (limite.go). As faixas de hoje já cabem nele;
+	// ele segura o dia em que alguém mexer nelas.
+	LimitaAddsDeArmadura(dest, nPos)
 	return true
 }
 
