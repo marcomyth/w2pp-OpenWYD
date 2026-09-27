@@ -353,7 +353,7 @@ func fotoAntiga(t *testing.T, s *Store, diasAtras int, linhas []linhaFoto) {
 func lerCensoDeHoje(t *testing.T, s *Store) map[int16]domain.ItemCensus {
 	t.Helper()
 	rows, err := s.pool.Query(context.Background(), `
-		SELECT item_index, sanc, unidades, equipados, mochila, bau
+		SELECT item_index, sanc, unidades, equipados, mochila, bau, COALESCE(pecas, 0)
 		  FROM item_census WHERE dia = current_date`)
 	if err != nil {
 		t.Fatalf("ler censo: %v", err)
@@ -362,7 +362,7 @@ func lerCensoDeHoje(t *testing.T, s *Store) map[int16]domain.ItemCensus {
 	out := map[int16]domain.ItemCensus{}
 	for rows.Next() {
 		var c domain.ItemCensus
-		if err := rows.Scan(&c.Index, &c.Sanc, &c.Units, &c.Equipped, &c.Carried, &c.Stored); err != nil {
+		if err := rows.Scan(&c.Index, &c.Sanc, &c.Units, &c.Equipped, &c.Carried, &c.Stored, &c.Pecas); err != nil {
 			t.Fatalf("scan censo: %v", err)
 		}
 		out[c.Sanc] = c
@@ -371,4 +371,162 @@ func lerCensoDeHoje(t *testing.T, s *Store) map[int16]domain.ItemCensus {
 		t.Fatalf("iterar censo: %v", err)
 	}
 	return out
+}
+
+// --- a pilha (0174) ---
+
+// itemEmPilha seeds one stacked item row: the same shape as item(), with
+// EF_AMOUNT carrying how many units the stack holds.
+func itemEmPilha(t *testing.T, s *Store, kind string, contaID, charID *int64, slot, index int16, quantidade int16) {
+	t.Helper()
+	item(t, s, kind, contaID, charID, slot, index, 0, domain.EffAmount, quantidade)
+}
+
+// TestCensoSomaOTamanhoDaPilha.
+//
+// O defeito que isto fecha: a foto contava LINHAS da tabela item, e uma pilha é
+// uma linha só. Cento e vinte Moedas de Ouro num espaço contavam como 1.
+func TestCensoSomaOTamanhoDaPilha(t *testing.T) {
+	ctx := context.Background()
+	s := storeCenso(t)
+	cID := conta(t, s, "censo_pilha")
+	pID := personagem(t, s, cID, "CensoPilha")
+
+	// Duas pilhas de Resto de Oriharucon: 120 + 45 = 165 peças em 2 espaços.
+	itemEmPilha(t, s, "char_carry", nil, &pID, 0, 419, 120)
+	itemEmPilha(t, s, "account_cargo", &cID, nil, 0, 419, 45)
+	// E uma espada avulsa, que não empilha: 1 peça em 1 espaço.
+	item(t, s, "char_equip", nil, &pID, 1, 1100, 0, 0, 0)
+
+	run, contou, err := s.RecordCensus(ctx)
+	if err != nil || !contou {
+		t.Fatalf("RecordCensus: contou=%v err=%v", contou, err)
+	}
+	if run.Units != 3 {
+		t.Errorf("espaços = %d, want 3", run.Units)
+	}
+	if run.Pecas == nil {
+		t.Fatal("a foto de hoje saiu SEM o número de peças")
+	}
+	if *run.Pecas != 166 {
+		t.Errorf("peças = %d, want 166 (120 + 45 + 1)", *run.Pecas)
+	}
+
+	linhas := lerCensoDeHoje(t, s)
+	// As duas pilhas caem na mesma linha (índice 419, refino 0) que a espada não
+	// compartilha, então a busca é pelo índice e não pelo refino.
+	var resto domain.ItemCensus
+	for _, l := range linhas {
+		if l.Index == 419 {
+			resto = l
+		}
+	}
+	if resto.Units != 2 || resto.Pecas != 165 {
+		t.Errorf("Resto = %d espaços / %d peças, want 2 / 165", resto.Units, resto.Pecas)
+	}
+}
+
+// TestCensoVeAPilhaQueDobrouSemCriarEspaco.
+//
+// ESTE É O DEFEITO PRINCIPAL, e ele estava no FILTRO, não na soma. A tela lista
+// o que mudou, e "mudou" era medido em espaços: dobrar um maço de 60 para 120 não
+// cria espaço nenhum, dá variação zero, e a linha não chegava à tela. Item
+// duplicado invisível por construção.
+func TestCensoVeAPilhaQueDobrouSemCriarEspaco(t *testing.T) {
+	ctx := context.Background()
+	s := storeCenso(t)
+	cID := conta(t, s, "censo_dobrou")
+	pID := personagem(t, s, cID, "CensoDobrou")
+
+	// Sete dias atrás: um espaço com 60 peças.
+	fotoAntigaComPecas(t, s, 7, []linhaFotoComPecas{{linhaFoto{419, 0, 1}, 60}})
+	// Hoje: o MESMO um espaço, com 120 peças dentro.
+	itemEmPilha(t, s, "char_carry", nil, &pID, 0, 419, 120)
+	if _, _, err := s.RecordCensus(ctx); err != nil {
+		t.Fatalf("RecordCensus: %v", err)
+	}
+
+	cmp, err := s.CensusGrowth(ctx, CensusQuery{Dias: 7, Subiu: true})
+	if err != nil {
+		t.Fatalf("CensusGrowth: %v", err)
+	}
+	if !cmp.PorPecas {
+		t.Fatal("as duas fotos têm peças e a comparação não escolheu peças")
+	}
+	if len(cmp.Linha) != 1 {
+		t.Fatalf("a pilha que dobrou NÃO apareceu na lista: %d linhas %+v", len(cmp.Linha), cmp.Linha)
+	}
+	l := cmp.Linha[0]
+	if l.Index != 419 {
+		t.Errorf("índice = %d, want 419", l.Index)
+	}
+	if l.Delta != 0 {
+		t.Errorf("variação de espaços = %d, want 0 (é o mesmo espaço)", l.Delta)
+	}
+	if l.DeltaPecas != 60 {
+		t.Errorf("variação de peças = %d, want 60", l.DeltaPecas)
+	}
+}
+
+// TestCensoNaoAcusaQuandoAFotoAntigaNaoTemPecas.
+//
+// Um dia com peças contra um dia fotografado antes da 0174 daria um salto enorme
+// que não é duplicação nenhuma — 120 peças hoje contra 1 "unidade" de ontem. Este
+// censo não pode produzir esse tipo de acusação, então nesse caso a comparação
+// volta a ser de espaços e a tela diz qual conta está lendo.
+func TestCensoNaoAcusaQuandoAFotoAntigaNaoTemPecas(t *testing.T) {
+	ctx := context.Background()
+	s := storeCenso(t)
+	cID := conta(t, s, "censo_semantigo")
+	pID := personagem(t, s, cID, "CensoSemAntigo")
+
+	// A foto velha é do formato antigo: unidades, sem peças.
+	fotoAntiga(t, s, 7, []linhaFoto{{419, 0, 1}})
+	itemEmPilha(t, s, "char_carry", nil, &pID, 0, 419, 120)
+	if _, _, err := s.RecordCensus(ctx); err != nil {
+		t.Fatalf("RecordCensus: %v", err)
+	}
+
+	cmp, err := s.CensusGrowth(ctx, CensusQuery{Dias: 7, Subiu: true})
+	if err != nil {
+		t.Fatalf("CensusGrowth: %v", err)
+	}
+	if cmp.PorPecas {
+		t.Error("comparou por peças com uma foto que não as tem: isso inventaria um salto de 119")
+	}
+	// Um espaço antes, um espaço agora: em espaços nada mudou, e é isso que a
+	// comparação honesta tem a dizer aqui.
+	if len(cmp.Linha) != 0 {
+		t.Errorf("inventou movimento: %+v", cmp.Linha)
+	}
+}
+
+type linhaFotoComPecas struct {
+	linhaFoto
+	pecas int64
+}
+
+// fotoAntigaComPecas writes an old snapshot in the CURRENT format — with the
+// piece count — which is what the comparison needs on both sides to use pieces.
+func fotoAntigaComPecas(t *testing.T, s *Store, diasAtras int, linhas []linhaFotoComPecas) {
+	t.Helper()
+	ctx := context.Background()
+	var espacos int
+	var pecas int64
+	for _, l := range linhas {
+		if _, err := s.pool.Exec(ctx, `
+			INSERT INTO item_census (dia, item_index, sanc, unidades, mochila, pecas)
+			VALUES (current_date - $1::int, $2, $3, $4, $4, $5)`,
+			diasAtras, l.index, l.sanc, l.unidades, l.pecas); err != nil {
+			t.Fatalf("foto antiga com peças %d: %v", l.index, err)
+		}
+		espacos += l.unidades
+		pecas += l.pecas
+	}
+	if _, err := s.pool.Exec(ctx, `
+		INSERT INTO item_census_meta (dia, contado_em, unidades, variedades, pecas)
+		VALUES (current_date - $1::int, now() - make_interval(days => $1), $2, $3, $4)`,
+		diasAtras, espacos, len(linhas), pecas); err != nil {
+		t.Fatalf("meta antiga com peças: %v", err)
+	}
 }

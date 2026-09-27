@@ -4813,6 +4813,56 @@ func duasFotos() domain.CensusCompare {
 	}
 }
 
+// duasFotosComPecas is the same week, with the piece count on both sides and one
+// stack that DOUBLED without taking a second space: 1 space before, 1 space now,
+// 60 pieces before, 120 now. It is the exact shape of a duplicated stack, and the
+// shape the page used to be blind to.
+func duasFotosComPecas() domain.CensusCompare {
+	hoje := time.Now().Truncate(24 * time.Hour)
+	sessenta, cento := int64(60), int64(120)
+	return domain.CensusCompare{
+		De:       domain.CensusRun{Day: hoje.AddDate(0, 0, -7), CountedAt: hoje.AddDate(0, 0, -7), Units: 1, Kinds: 1, Pecas: &sessenta},
+		Ate:      domain.CensusRun{Day: hoje, CountedAt: hoje, Units: 1, Kinds: 1, Pecas: &cento},
+		PorPecas: true,
+		Linha: []domain.ItemCensus{
+			{Index: 419, Sanc: 0, Units: 1, Was: 1, Delta: 0,
+				Pecas: 120, PecasAntes: 60, DeltaPecas: 60, Carried: 1},
+		},
+	}
+}
+
+// TestCensoMostraAPilhaQueDobrouSemCriarEspaco.
+//
+// A variação na tela tem de ser a de PEÇAS (+60) e não a de espaços (0): é a
+// segunda que escondia pilha duplicada, porque dobrar um maço não cria espaço.
+func TestCensoMostraAPilhaQueDobrouSemCriarEspaco(t *testing.T) {
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{cmp: duasFotosComPecas()}))
+	body := get("/censo").Body.String()
+
+	if !strings.Contains(body, "+60") {
+		t.Error("a página não mostra a variação de 60 PEÇAS; está lendo a de espaços, que é zero")
+	}
+	if !strings.Contains(body, "PEÇAS") {
+		t.Error("a página não diz que a conta é de peças, e o número mente sobre si sem isso")
+	}
+	if !strings.Contains(body, "419") {
+		t.Error("a linha do item não apareceu")
+	}
+}
+
+// TestCensoDizQuandoAContaEDeEspacos.
+//
+// Com uma foto antiga sem peças a comparação volta a ser de espaços, e a tela
+// PRECISA dizer isso — senão quem lê acha que item empilhável está contado.
+func TestCensoDizQuandoAContaEDeEspacos(t *testing.T) {
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{cmp: duasFotos()}))
+	body := get("/censo").Body.String()
+
+	if !strings.Contains(body, "ESPAÇOS") {
+		t.Error("a página não avisa que a conta é de espaços e que empilhável está subcontado")
+	}
+}
+
 func TestCensoMostraOQueMudou(t *testing.T) {
 	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{cmp: duasFotos()}))
 	body := get("/censo").Body.String()

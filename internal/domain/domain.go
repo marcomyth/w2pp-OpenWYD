@@ -1205,6 +1205,12 @@ type ChatVarredura struct {
 // worth reading: nobody duplicates a plain sword.
 const EffSanc = 43
 
+// EffAmount is EF_AMOUNT, the effect whose value is how many units a stack holds
+// (internal/pilha.EfAmount). Not imported from there because internal/pilha is
+// the game's stacking RULE and this is the storage layer's reading of one byte;
+// the two happening to share a number does not make one depend on the other.
+const EffAmount = 61
+
 // CensusRun is one day's snapshot of the item table (0032_item_census).
 //
 // CountedAt is not decoration. There is no periodic character save — items
@@ -1213,8 +1219,12 @@ const EffSanc = 43
 type CensusRun struct {
 	Day       time.Time
 	CountedAt time.Time
-	Units     int // unidades ao todo
+	Units     int // linhas de item ao todo
 	Kinds     int // linhas (índice+refino) diferentes
+	// Pecas é quantas peças existiam, somando o tamanho de cada pilha. Nulo nos
+	// dias fotografados antes da migração 0174: aquela contagem não pode ser
+	// refeita, e "não sei" não é a mesma coisa que zero.
+	Pecas *int64
 }
 
 // Zero reports whether the run is missing, which is what an empty database and
@@ -1227,9 +1237,17 @@ type ItemCensus struct {
 	Index int32
 	Sanc  int16
 
-	Units int // no dia mais recente
-	Was   int // no dia de comparação
+	Units int // linhas no dia mais recente
+	Was   int // linhas no dia de comparação
 	Delta int // Units - Was
+
+	// Peças: a mesma conta somando o tamanho de cada pilha (0174). Uma pilha de
+	// 120 moedas é UMA linha e CENTO E VINTE peças, e é por isso que as duas
+	// contas andam juntas: mesma quantidade de espaços com muito mais coisa
+	// dentro é o formato de uma pilha duplicada.
+	Pecas      int64
+	PecasAntes int64
+	DeltaPecas int64
 
 	Equipped int
 	Carried  int
@@ -1256,6 +1274,11 @@ type CensusCompare struct {
 	De    CensusRun
 	Ate   CensusRun
 	Linha []ItemCensus
+	// PorPecas diz qual das duas contas escolheu e ordenou as linhas. Só é
+	// verdadeiro quando OS DOIS dias têm o número de peças: comparar um dia com
+	// peças contra um dia sem daria um salto enorme que não é duplicação nenhuma.
+	// A tela precisa dizer qual conta está lendo, ou o número mente sobre si.
+	PorPecas bool
 }
 
 // GroundRetentionDays is how long a ground event is kept.
