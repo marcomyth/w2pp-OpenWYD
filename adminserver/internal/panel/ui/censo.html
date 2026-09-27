@@ -103,6 +103,14 @@
     </div>
   {{end}}
 
+  <p class="sub" style="max-width:74ch">
+    <strong>Item empilhável não aparece neste quadro, nunca.</strong> Moeda, Resto,
+    Âmago, runa, pergaminho, RCoin e baú de sorteio não recebem número de série, e
+    isso é de propósito: juntar duas pilhas obrigaria a jogar uma identidade fora, e
+    um número que desaparece calado é pior do que número nenhum. Para essa família a
+    prova não existe — o caminho é a contagem de peças na tabela abaixo.
+  </p>
+
   <div class="secao"></div>
 
   {{if .Ate.Zero}}
@@ -114,16 +122,16 @@
 
     <div class="numeros">
       <div class="num-tile">
-        <div class="rot">Unidades hoje</div>
-        <div class="val">{{.Ate.Units}}</div>
+        <div class="rot">{{if .Ate.Pecas}}Peças hoje{{else}}Espaços hoje{{end}}</div>
+        <div class="val">{{if .Ate.Pecas}}{{.Ate.Pecas}}{{else}}{{.Ate.Units}}{{end}}</div>
       </div>
       <div class="num-tile">
         <div class="rot">Tipos diferentes</div>
         <div class="val">{{.Ate.Kinds}}</div>
       </div>
       <div class="num-tile">
-        <div class="rot">Unidades antes</div>
-        <div class="val">{{.De.Units}}</div>
+        <div class="rot">{{if .De.Pecas}}Peças antes{{else}}Espaços antes{{end}}</div>
+        <div class="val">{{if .De.Pecas}}{{.De.Pecas}}{{else}}{{.De.Units}}{{end}}</div>
       </div>
     </div>
 
@@ -170,6 +178,24 @@
          {{if $r}}class="on"{{end}}>Só refinado</a>
     </div>
 
+    {{if .PorPecas}}
+      <p class="sub" style="max-width:74ch">
+        <strong>As contas são de PEÇAS.</strong> Uma pilha de 120 moedas num espaço
+        são 120 peças, e não 1 — contar espaços deixava pilha duplicada invisível,
+        porque dobrar um maço de 60 para 120 não cria espaço nenhum. A coluna
+        <em>Espaços</em> mostra quantas linhas de item são, e <code>·p</code> marca
+        a linha empilhada: ali o número de espaços não diz quanta coisa existe.
+      </p>
+    {{else}}
+      <p class="sub" style="max-width:74ch">
+        <strong>As contas são de ESPAÇOS</strong>, não de peças: uma das duas fotos
+        foi tirada antes de o censo aprender a somar pilha. Numa pilha, um espaço
+        guarda até 120 peças, então item empilhável está subcontado nesta
+        comparação. Escolha uma janela em que as duas fotos sejam novas e as contas
+        passam a ser de peças, sozinhas.
+      </p>
+    {{end}}
+
     {{if .Linhas}}
       <div class="tw">
         <table>
@@ -181,6 +207,7 @@
               {{template "coluna" (dict "Rotulo" "Variação" "Classe" "num" "Marca" ($o.Marca "variacao") "Href" ($o.Link "/censo" "variacao" $e))}}
               {{template "coluna" (dict "Rotulo" "Agora" "Classe" "num" "Marca" ($o.Marca "agora") "Href" ($o.Link "/censo" "agora" $e))}}
               <th class="num">Antes</th>
+              <th class="num">Espaços</th>
               <th class="num">Equipado</th>
               <th class="num">Mochila</th>
               <th class="num">Baú</th>
@@ -195,10 +222,11 @@
               </td>
               <td class="num refino {{if not .Sanc}}zero{{end}}">{{if .Sanc}}+{{.Sanc}}{{else}}0{{end}}</td>
               <td class="num {{if .Cresceu}}subiu{{else}}caiu{{end}}">
-                {{if .Cresceu}}+{{end}}{{.Delta}}
+                {{if .Cresceu}}+{{end}}{{.Movimento}}
               </td>
-              <td class="num">{{.Units}}</td>
-              <td class="num">{{.Was}}</td>
+              <td class="num">{{.Total}}</td>
+              <td class="num">{{.Antes}}</td>
+              <td class="num">{{.Units}}{{if .Empilhado}}<span title="Item em pilha: cada espaço guarda mais de uma peça." style="color:var(--ink-3)"> ·p</span>{{end}}</td>
               <td class="num">{{.Equipped}}</td>
               <td class="num">{{.Carried}}</td>
               <td class="num">{{.Stored}}</td>
