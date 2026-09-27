@@ -196,13 +196,12 @@ func (w *World) removeSession(s *Session) {
 		})
 		// Free the player's grid cell (occupied since login/last move), or mob
 		// aggro and view scans keep hitting a ghost.
-		if cur, ok := w.grid.MobAt(int(e.X), int(e.Y)); ok && int(cur) == s.Conn {
-			w.grid.ClearMob(int(e.X), int(e.Y))
-		}
+		w.liberaCasa(s.Conn, e.X, e.Y)
 	}
 	s.close()
 	w.sessions[s.Conn] = nil
 	w.entities[s.Conn] = nil
+	delete(w.foraDoGrid, s.Conn)
 	w.log.Info("connection closed", "conn", s.Conn)
 }
 

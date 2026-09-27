@@ -239,6 +239,9 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 	}
 	dropExpired(st.Equip[:], now)
 	dropExpired(st.Carry[:], now)
+	// A Repletion antiga juntava Defesa 35-50 com Dano ou Magia (repletion_corrige.go).
+	d.corrigeRepletionAberrante(st.Equip[:], "equipamento", s.AccountName, st.Name)
+	d.corrigeRepletionAberrante(st.Carry[:], "bolsa", s.AccountName, st.Name)
 	// A stackable with no EF_AMOUNT crashes the client, but it is NOT repaired
 	// here: setItemAmount claims the first free effect slot, and the combine
 	// recipes match on effect POSITION, so rewriting stored items to please the

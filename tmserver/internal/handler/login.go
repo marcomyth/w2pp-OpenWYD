@@ -132,6 +132,7 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		// Install the account-shared cargo, loaded in the same backend round-trip.
 		// It lives for the whole account session and is released on disconnect.
 		cargo := out.Cargo
+		d.corrigeRepletionAberrante(cargo.Items[:], "armazém", s.AccountName, "")
 		w.SetCargo(out.AccountID, &cargo)
 		vendidos := 0
 		// Drain any pending donate web-shop grants (fetched in the same login
