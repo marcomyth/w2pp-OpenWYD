@@ -27,8 +27,15 @@ func TestCorrigeDefesaCombinada(t *testing.T) {
 			peca(1348, efSanc, 6, efMagic, 10, efAC, 40), true, peca(1348, efSanc, 6, efMagic, 10, efAC, 30)},
 		{"Calça Elemental (M): Defesa 40 + Dano 18", nPosLegs,
 			peca(1498, efSanc, 6, efDamageBonus, 18, efAC, 40), true, peca(1498, efSanc, 6, efDamageBonus, 18, efAC, 30)},
+		// Luva: a Defesa sai e vira Skill 12 (a Defesa alta é só de peito e calça).
 		{"Manoplas Elementais (M): Defesa 50 + Magia 8", nPosGlove,
-			peca(1501, efSanc, 4, efMagic, 8, efAC, 50), true, peca(1501, efSanc, 4, efMagic, 8, efAC, 30)},
+			peca(1501, efSanc, 4, efMagic, 8, efAC, 50), true, peca(1501, efSanc, 4, efMagic, 8, efSpecialAll, 12)},
+		{"luva do print de 27/09: Defesa 45 sozinha", nPosGlove,
+			peca(1501, efSanc, 5, efUnique, 111, efAC, 45), true, peca(1501, efSanc, 5, efUnique, 111, efSpecialAll, 12)},
+		{"luva que a primeira correção deixou com Defesa 30", nPosGlove,
+			peca(1501, efSanc, 4, efMagic, 8, efAC, 30), true, peca(1501, efSanc, 4, efMagic, 8, efSpecialAll, 12)},
+		{"luva do item de nível com Defesa 20 fica", nPosGlove,
+			peca(1501, efSanc, 3, efDamageBonus, 20, efAC, 20), false, world.Item{}},
 		{"Defesa na vaga 1 também", nPosChest,
 			peca(1345, efSanc, 2, efAC, 45, efMagic, 6), true, peca(1345, efSanc, 2, efAC, 30, efMagic, 6)},
 

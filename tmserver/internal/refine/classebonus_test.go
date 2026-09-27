@@ -265,11 +265,10 @@ func TestClasseAddsSegueAsChancesDaEquipe(t *testing.T) {
 			{Effect: efAC, Value: 45}: 0.5 * 20 / 105, {Effect: efAC, Value: 50}: 0.5 * 5 / 105,
 			{Effect: efCritical2, Value: 10}: 0.25, {Effect: efCritical2, Value: 20}: 0.25,
 		}},
+		// Desde 27/09/2026 a luva só sorteia Skill: a Defesa é de peito e calça.
 		{"luva", nPosGlove, map[world.Effect]float64{
-			{Effect: efSpecialAll, Value: 12}: 0.5 * 55 / 100, {Effect: efSpecialAll, Value: 15}: 0.5 * 40 / 100,
-			{Effect: efSpecialAll, Value: 18}: 0.5 * 5 / 100,
-			{Effect: efAC, Value: 40}:         0.5 * 30 / 55, {Effect: efAC, Value: 45}: 0.5 * 20 / 55,
-			{Effect: efAC, Value: 50}: 0.5 * 5 / 55,
+			{Effect: efSpecialAll, Value: 12}: 55.0 / 100, {Effect: efSpecialAll, Value: 15}: 40.0 / 100,
+			{Effect: efSpecialAll, Value: 18}: 5.0 / 100,
 		}},
 	}
 	for _, c := range cases {
@@ -292,7 +291,7 @@ func TestClasseAddsSegueAsChancesDaEquipe(t *testing.T) {
 func TestClasseAddsCabemNoRand(t *testing.T) {
 	for _, pool := range [][]classeValor{
 		classeDanoPeito, classeDanoLuva, classeDefesaPeito, classeCriticoPeito,
-		classeSkillLuva, classeDefesaLuva,
+		classeSkillLuva,
 	} {
 		if n := pesoTotal(pool); n > 32767 {
 			t.Errorf("peso total %d passa do rand() do MSVC", n)
