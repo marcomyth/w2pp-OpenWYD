@@ -37,6 +37,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/dbserver/internal/convert"
 	"github.com/jeanluca/w2pp-openwyd/dbserver/internal/grpcsrv"
 	"github.com/jeanluca/w2pp-openwyd/internal/campotreino"
+	"github.com/jeanluca/w2pp-openwyd/internal/ciclopes"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/reinos"
@@ -193,8 +194,12 @@ func buildNPCDefinitions(contentDir string, logger *slog.Logger) ([]domain.NPCDe
 		// definitions they were immortal NPCs, respawned nameless and so outside the
 		// Mesa de Drops. Leaving them out here is also what removes them from a live
 		// database: the seed prunes content rows the importer no longer produces.
+		// The Ciclopes Cruéis and the Lanceiros of their spot too, by template
+		// (internal/ciclopes), for the same reason: as definitions they respawned
+		// nameless, and the exception by name never saw them.
 		if campotreino.MonstroNoCampo(mob.Merchant, b.startX, b.startY) ||
-			reinos.MonstroDoReino(mob.Merchant, mob.Clan, b.startX, b.startY) {
+			reinos.MonstroDoReino(mob.Merchant, mob.Clan, b.startX, b.startY) ||
+			ciclopes.MonstroDeCombate(tmpl.name, mob.Merchant) {
 			continue
 		}
 		def := domain.NPCDefinition{

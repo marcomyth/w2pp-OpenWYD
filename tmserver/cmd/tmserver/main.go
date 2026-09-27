@@ -31,6 +31,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
 	"github.com/jeanluca/w2pp-openwyd/internal/buildinfo"
 	"github.com/jeanluca/w2pp-openwyd/internal/campotreino"
+	"github.com/jeanluca/w2pp-openwyd/internal/ciclopes"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/internal/mountbonus"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
@@ -1143,10 +1144,17 @@ func spawnNPCs(w *world.World, dir string, skipMerchants bool, mobStatOverrides 
 		// stay monster generators here — killable, respawning, and named for the
 		// Mesa de Drops, which a DB-managed block is not (campotreino). The
 		// dbServer importer applies the same rule, so no definition claims them.
-		// The Reinos city does the same for its kings and army (internal/reinos).
+		// The Reinos city does the same for its kings and army (internal/reinos),
+		// and so do the Ciclopes Cruéis and the Lanceiros of their spot, by
+		// template (internal/ciclopes). Without this last one the fix of 26/09
+		// never reached production: with -npc-editing on these blocks became
+		// definitions, which spawn nameless, so the exception by name never
+		// matched and the monster stood immortal, one per block and outside the
+		// Mesa de Drops.
 		if skipMerchants && leader.rawMerchant != 0 &&
 			!campotreino.MonstroNoCampo(leader.rawMobMerchant, int(g.SegX[0]), int(g.SegY[0])) &&
-			!reinos.MonstroDoReino(leader.rawMobMerchant, leader.rawClan, int(g.SegX[0]), int(g.SegY[0])) {
+			!reinos.MonstroDoReino(leader.rawMobMerchant, leader.rawClan, int(g.SegX[0]), int(g.SegY[0])) &&
+			!ciclopes.MonstroDeCombate(leader.file, leader.rawMobMerchant) {
 			skipped++
 			dbOwned[i] = true
 		}
