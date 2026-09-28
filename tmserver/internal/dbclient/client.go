@@ -598,6 +598,27 @@ func (c *Client) LeaveGuild(ctx context.Context, accountID int64, slot int) (uin
 	return uint16(resp.GetDissolvedGuildId()), nil
 }
 
+// KickOfflineGuildMember expulsa pelo banco um membro que não está no jogo.
+func (c *Client) KickOfflineGuildMember(ctx context.Context, guildID uint16, kickerAccountID int64, kickerSlot int, targetName string) (world.GuildKickRefusal, error) {
+	resp, err := c.api.KickOfflineGuildMember(ctx, &dbv1.KickOfflineGuildMemberRequest{
+		GuildId: uint32(guildID), KickerAccountId: kickerAccountID,
+		KickerSlot: int32(kickerSlot), TargetName: targetName,
+	})
+	if err != nil {
+		return world.GuildKickRefusalUnknown, fmt.Errorf("dbclient: kick offline guild member: %w", err)
+	}
+	if resp.GetOk() {
+		return world.GuildKickRefusalNone, nil
+	}
+	switch resp.GetRefusal() {
+	case dbv1.KickGuildRefusal_KICK_GUILD_REFUSAL_NOT_MEMBER:
+		return world.GuildKickRefusalNotMember, nil
+	case dbv1.KickGuildRefusal_KICK_GUILD_REFUSAL_OUTRANKED:
+		return world.GuildKickRefusalOutranked, nil
+	}
+	return world.GuildKickRefusalUnknown, nil
+}
+
 // PromoteGuildMember assigns the first available sub-leader rank and charges the
 // leader in the same dbServer transaction.
 func (c *Client) PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, bool, error) {
