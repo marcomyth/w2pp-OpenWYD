@@ -807,3 +807,40 @@ func panelText(t *testing.T, c net.Conn) string {
 	}
 	return string(runes)
 }
+
+// TestSairDaGuildaVaziaSoltaONome: quando o dbServer apaga a guilda que ficou sem
+// ninguém, o nome dela volta a ficar livre na hora — sem esperar um boot. Foi o
+// caso de 28/09/2026: a guilda "Teste", criada para gravar propaganda, ficou no
+// servidor sem membro nenhum depois que a criadora saiu.
+func TestSairDaGuildaVaziaSoltaONome(t *testing.T) {
+	db := newDB()
+	db.guildas = []world.GuildRecord{{ID: 5, Name: "Teste", Clan: 7, Citizen: 1}}
+	db.guildaApagadaNaSaida = 5
+	db.loads = map[int64]world.CharacterState{
+		7: {Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000, Clan: 7, Citizen: 1,
+			Coin: 100_000_000, GuildID: 5, GuildLevel: 9},
+	}
+	addr, stop, _ := startServerClock(t, db)
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+	drainRaw(t, a)
+
+	whisperFrame(t, a, "sair", "")
+	// O readMaybe espera o bastante para a volta do LeaveGuild entrar no laço.
+	if ty, _, ok := readMaybe(t, a); ok {
+		t.Fatalf("/sair produced %#x; want a silent handled command", ty)
+	}
+
+	// Com o nome ainda preso, o /create recusaria com "Já existe uma guilda
+	// chamada Teste." em vez de criar.
+	whisperFrame(t, a, "create", "Teste")
+	if ty, _, ok := readMaybe(t, a); !ok || ty != protocol.MsgUpdateEtc {
+		t.Fatalf("/create Teste got %#x ok=%v, want UpdateEtc (nome livre)", ty, ok)
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if len(db.createdGuilds) != 1 || db.createdGuilds[0].Name != "Teste" {
+		t.Fatalf("created guilds = %+v, want Teste", db.createdGuilds)
+	}
+}

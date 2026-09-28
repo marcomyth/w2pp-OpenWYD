@@ -1088,7 +1088,13 @@ message SetGuildMemberRequest {
   uint32 guild_id = 4;
   int32 guild_level = 5;
 }
-message SetGuildMemberResponse { bool ok = 1; }
+message SetGuildMemberResponse {
+  bool ok = 1;
+  // So o LeaveGuild preenche: a guilda que ficou sem ninguem e foi apagada junto
+  // com a saida (0 = nenhuma). O tmServer precisa saber para soltar o nome e o
+  // resto do que guarda dela em memoria.
+  uint32 dissolved_guild_id = 2;
+}
 
 message LeaveGuildRequest {
   int64 account_id = 1;

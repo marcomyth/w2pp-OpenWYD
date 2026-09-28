@@ -80,7 +80,7 @@ type Store interface {
 	BuyRcoinOffer(ctx context.Context, accountID, offerID int64, seenPrice int32) (store.RcoinBuyResult, int32, int64, error)
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
-	LeaveGuild(ctx context.Context, accountID int64, slot int) error
+	LeaveGuild(ctx context.Context, accountID int64, slot int) (uint16, error)
 	PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, error)
 	TransferGuildLeader(ctx context.Context, guildID uint16, oldAccountID int64, oldSlot int, newAccountID int64, newSlot int) error
 	SetGuildRelation(ctx context.Context, guildID, targetGuildID uint16, kind domain.GuildRelationKind) error
@@ -634,16 +634,17 @@ func (s *Server) SetGuildMember(ctx context.Context, req *dbv1.SetGuildMemberReq
 	return &dbv1.SetGuildMemberResponse{Ok: true}, nil
 }
 
-// LeaveGuild removes one character from its guild.
+// LeaveGuild removes one character from its guild, and the guild itself when
+// nobody is left in it.
 func (s *Server) LeaveGuild(ctx context.Context, req *dbv1.LeaveGuildRequest) (*dbv1.SetGuildMemberResponse, error) {
-	err := s.store.LeaveGuild(ctx, req.GetAccountId(), int(req.GetSlot()))
+	apagada, err := s.store.LeaveGuild(ctx, req.GetAccountId(), int(req.GetSlot()))
 	if errors.Is(err, store.ErrNotFound) {
 		return &dbv1.SetGuildMemberResponse{Ok: false}, nil
 	}
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "leave guild: %v", err)
 	}
-	return &dbv1.SetGuildMemberResponse{Ok: true}, nil
+	return &dbv1.SetGuildMemberResponse{Ok: true, DissolvedGuildId: uint32(apagada)}, nil
 }
 
 // PromoteGuildMember promotes a member to the first free sub-leader rank.
