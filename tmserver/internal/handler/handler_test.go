@@ -94,7 +94,11 @@ type fakeDB struct {
 	trades            []world.TradeRecord // captured RecordTrade calls (0025_trade_log)
 	grounds           []world.GroundEvent // captured RecordGround calls (0031_ground_log)
 
-	createdGuilds            []world.GuildRecord
+	createdGuilds []world.GuildRecord
+	// guildas é o que ListGuilds devolve no boot; guildaApagadaNaSaida é a guilda
+	// que o LeaveGuild diz ter apagado por ter ficado vazia.
+	guildas                  []world.GuildRecord
+	guildaApagadaNaSaida     uint16
 	recusaDeGuilda           world.GuildRefusal
 	guildaConfereOuroGravado bool
 	recusaGuilda             bool
@@ -364,7 +368,11 @@ func (f *fakeDB) SetGuildMember(context.Context, int64, int, string, uint16, uin
 	return nil
 }
 
-func (f *fakeDB) LeaveGuild(context.Context, int64, int) error { return nil }
+func (f *fakeDB) LeaveGuild(context.Context, int64, int) (uint16, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.guildaApagadaNaSaida, nil
+}
 
 func (f *fakeDB) PromoteGuildMember(_ context.Context, _ uint16, _ int64, _ int, _ int64, _ int, cost int32) (uint8, bool, error) {
 	f.mu.Lock()
@@ -386,7 +394,11 @@ func (f *fakeDB) SetGuildRelation(context.Context, uint16, uint16, world.GuildRe
 	return nil
 }
 
-func (f *fakeDB) ListGuilds(context.Context) ([]world.GuildRecord, error) { return nil, nil }
+func (f *fakeDB) ListGuilds(context.Context) ([]world.GuildRecord, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.guildas, nil
+}
 
 func (f *fakeDB) ListGuildRelations(context.Context) ([]world.GuildRelation, error) {
 	return nil, nil

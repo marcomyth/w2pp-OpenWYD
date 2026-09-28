@@ -585,16 +585,17 @@ func (c *Client) SetGuildMember(ctx context.Context, accountID int64, slot int, 
 	return nil
 }
 
-// LeaveGuild clears one character's persistent guild membership.
-func (c *Client) LeaveGuild(ctx context.Context, accountID int64, slot int) error {
+// LeaveGuild clears one character's persistent guild membership. The id is the
+// guild dbServer deleted because it was left empty (0 when none was).
+func (c *Client) LeaveGuild(ctx context.Context, accountID int64, slot int) (uint16, error) {
 	resp, err := c.api.LeaveGuild(ctx, &dbv1.LeaveGuildRequest{AccountId: accountID, Slot: int32(slot)})
 	if err != nil {
-		return fmt.Errorf("dbclient: leave guild: %w", err)
+		return 0, fmt.Errorf("dbclient: leave guild: %w", err)
 	}
 	if !resp.GetOk() {
-		return fmt.Errorf("dbclient: leave guild rejected")
+		return 0, fmt.Errorf("dbclient: leave guild rejected")
 	}
-	return nil
+	return uint16(resp.GetDissolvedGuildId()), nil
 }
 
 // PromoteGuildMember assigns the first available sub-leader rank and charges the

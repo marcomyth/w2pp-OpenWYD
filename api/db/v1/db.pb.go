@@ -6682,10 +6682,14 @@ func (x *SetGuildMemberRequest) GetGuildLevel() int32 {
 }
 
 type SetGuildMemberResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Ok    bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	// So o LeaveGuild preenche: a guilda que ficou sem ninguem e foi apagada junto
+	// com a saida (0 = nenhuma). O tmServer precisa saber para soltar o nome e o
+	// resto do que guarda dela em memoria.
+	DissolvedGuildId uint32 `protobuf:"varint,2,opt,name=dissolved_guild_id,json=dissolvedGuildId,proto3" json:"dissolved_guild_id,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *SetGuildMemberResponse) Reset() {
@@ -6723,6 +6727,13 @@ func (x *SetGuildMemberResponse) GetOk() bool {
 		return x.Ok
 	}
 	return false
+}
+
+func (x *SetGuildMemberResponse) GetDissolvedGuildId() uint32 {
+	if x != nil {
+		return x.DissolvedGuildId
+	}
+	return 0
 }
 
 type LeaveGuildRequest struct {
@@ -15449,9 +15460,10 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x0echaracter_name\x18\x03 \x01(\tR\rcharacterName\x12\x19\n" +
 	"\bguild_id\x18\x04 \x01(\rR\aguildId\x12\x1f\n" +
 	"\vguild_level\x18\x05 \x01(\x05R\n" +
-	"guildLevel\"(\n" +
+	"guildLevel\"V\n" +
 	"\x16SetGuildMemberResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\"F\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12,\n" +
+	"\x12dissolved_guild_id\x18\x02 \x01(\rR\x10dissolvedGuildId\"F\n" +
 	"\x11LeaveGuildRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\x03R\taccountId\x12\x12\n" +

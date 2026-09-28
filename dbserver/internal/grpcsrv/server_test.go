@@ -370,7 +370,7 @@ func (f *fakeStore) SetGuildMember(_ context.Context, _ int64, _ int, _ string, 
 	return nil
 }
 
-func (f *fakeStore) LeaveGuild(_ context.Context, _ int64, _ int) error { return nil }
+func (f *fakeStore) LeaveGuild(_ context.Context, _ int64, _ int) (uint16, error) { return 0, nil }
 
 func (f *fakeStore) PromoteGuildMember(_ context.Context, _ uint16, _ int64, _ int, _ int64, _ int, _ int32) (uint8, error) {
 	return 6, nil

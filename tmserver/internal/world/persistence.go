@@ -651,7 +651,7 @@ type Persistence interface {
 	// be made through World.Go/GoDetached by loop handlers.
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (GuildRecord, bool, GuildRefusal, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
-	LeaveGuild(ctx context.Context, accountID int64, slot int) error
+	LeaveGuild(ctx context.Context, accountID int64, slot int) (uint16, error)
 	PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, bool, error)
 	TransferGuildLeader(ctx context.Context, guildID uint16, oldAccountID int64, oldSlot int, newAccountID int64, newSlot int) error
 	SetGuildRelation(ctx context.Context, guildID, targetGuildID uint16, kind GuildRelationKind) error
@@ -909,7 +909,9 @@ func (NopPersistence) SetGuildMember(context.Context, int64, int, string, uint16
 }
 
 // LeaveGuild is unsupported without a backend.
-func (NopPersistence) LeaveGuild(context.Context, int64, int) error { return errNoPersistence }
+func (NopPersistence) LeaveGuild(context.Context, int64, int) (uint16, error) {
+	return 0, errNoPersistence
+}
 
 // PromoteGuildMember is unsupported without a backend.
 func (NopPersistence) PromoteGuildMember(context.Context, uint16, int64, int, int64, int, int32) (uint8, bool, error) {
