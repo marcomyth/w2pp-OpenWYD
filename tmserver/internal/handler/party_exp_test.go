@@ -143,24 +143,26 @@ func comFadaSuprema(e *world.Entity) {
 	e.EquipExpBonus += fairyExpBonus(3913)
 }
 
-// O bônus do grupo é o MAIOR entre quem está na luta, seja quem for que matou —
-// decisão de 11/09/2026: "todos ganham o maior". O legado usava o de quem matou
-// (MobKilled.cpp:534/943/1363). Nível, evolução, zona e o teto continuam como
-// antes.
-func TestGrupoRecebeOMaiorBonus(t *testing.T) {
+// O bônus do grupo é o de QUEM MATOU, como no legado (MobKilled.cpp:534/943/1363,
+// pMob[conn]): o dono do Baú de XP leva os +100% — e o grupo leva com ele — só
+// nas mortes que ele mesmo dá. Morte de quem não tem bônus paga todos sem bônus,
+// o dono do baú incluído. Entre 11/09 e 28/09/2026 valia o maior da luta, e um
+// baú só carregava o grupo inteiro.
+func TestGrupoRecebeOBonusDeQuemMatou(t *testing.T) {
 	casos := []struct {
 		nome                       string
 		bonusMatador, bonusDoOutro int32
 		fadaNoMatador, fadaNoOutro bool
-		// o bônus com que os DOIS devem ser pagos — o maior da luta
+		// o bônus com que os DOIS devem ser pagos — o de quem matou
 		bonus, fada int32
 	}{
 		{"quem mata com +100 e o outro com 0: os dois com +100", 100, 0, false, false, 100, 0},
-		{"o outro com +100 e quem mata com 0: os dois com o +100 do outro", 0, 100, false, false, 100, 0},
+		{"o outro com +100 e quem mata com 0: ninguém ganha bônus", 0, 100, false, false, 0, 0},
+		{"os dois com +100: os dois com +100, sem somar", 100, 100, false, false, 100, 0},
 		{"a Fada Suprema de quem mata vale pro grupo", 0, 0, true, false, fairyExpBonus(3913), 30},
-		{"a Fada Suprema do outro também vale pro grupo", 0, 0, false, true, fairyExpBonus(3913), 30},
-		{"vence o maior total, e o par vem inteiro de um só", 40, 0, false, true, fairyExpBonus(3913), 30},
-		{"+500 fica fora do portão do legado e não ganha a disputa", 500, 100, false, false, 100, 0},
+		{"a Fada Suprema do outro não vale", 0, 0, false, true, 0, 0},
+		{"vale o de quem mata mesmo sendo menor", 40, 0, false, true, 40, 0},
+		{"+500 de quem mata fica fora do portão do legado", 500, 100, false, false, 500, 0},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
@@ -186,14 +188,34 @@ func TestGrupoRecebeOMaiorBonus(t *testing.T) {
 			d.grantPartyExp(w, nil, matador, mob)
 
 			if outro.Exp != querOutro {
-				t.Errorf("o outro recebeu %d, queria %d (o maior bônus: %d%%+%d)",
+				t.Errorf("o outro recebeu %d, queria %d (o bônus de quem matou: %d%%+%d)",
 					outro.Exp, querOutro, c.bonus, c.fada)
 			}
 			if matador.Exp != querMatador {
-				t.Errorf("quem matou recebeu %d, queria %d (o maior bônus: %d%%+%d)",
+				t.Errorf("quem matou recebeu %d, queria %d (o bônus dele: %d%%+%d)",
 					matador.Exp, querMatador, c.bonus, c.fada)
 			}
 		})
+	}
+}
+
+// Quem mata e não leva parte (morreu no último golpe do mob) ainda empresta o
+// bônus: foi ele quem matou, e o legado lê pMob[conn] sem olhar a vida dele.
+func TestQuemMataSemLevarParteAindaEmprestaOBonus(t *testing.T) {
+	d, w, matador, outro, mob := grupoDeDois(t, cenaDoBonus)
+	matador.AffExpBonus = 100
+	matador.HP = 0
+
+	golpe := &level.KillingBlow{Level: matador.Level, Tier: tierOf(matador)}
+	quer := xpNaMorte(d, mob, outro, golpe, 100, 0)
+
+	d.grantPartyExp(w, nil, matador, mob)
+
+	if outro.Exp != quer {
+		t.Errorf("o outro recebeu %d, queria %d (o +100 de quem matou)", outro.Exp, quer)
+	}
+	if matador.Exp != 0 {
+		t.Errorf("quem matou morto recebeu %d; morto não leva parte", matador.Exp)
 	}
 }
 

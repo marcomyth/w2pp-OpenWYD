@@ -305,15 +305,22 @@ func sendDieAction(w *world.World, mob *world.Entity) {
 //     small number, down to 0. For a summon's kill the killer is the summoner
 //     (MobKilled.cpp:340-354), which is the reward target mobKilled already
 //     passes down.
-//   - bonus and fada, the XP bonus. Solo, the killer's own. In a party, the
-//     best in the fight — a server rule, see bonusDoGrupo.
+//   - bonus and fada, the XP bonus — FIDELIDADE AO LEGADO (restaurada em
+//     28/09/2026). It is the killer's, solo and in a party alike: all seven
+//     branches read pMob[conn].ExpBonus and g_pFairyContent (MobKilled.cpp:534,
+//     :679, :794 in Pesadelo, :943, :1092, :1214 in Água, :1363-1364 on the
+//     field). A member on Baú de XP gains its +100% only on the kills it lands,
+//     and then the whole party gains it with it; a kill by a member without a
+//     bonus pays everyone without one, the chest owner included. Between 11/09
+//     and 28/09 the best bonus in the fight went to everyone ("todos ganham o
+//     maior"), which let one chest carry a party that never bought one.
 type termosDaMorte struct {
 	bonus int32             // ExpBonus: chest, fairy, grade-7/gem-2 pieces, shop mount
 	fada  int32             // g_pFairyContent[0] of the SAME character; Pesadelo ignores it
 	golpe level.KillingBlow // the killer's level and tier, for the eMob cap
 }
 
-// termosDe is a solo kill's terms: everything is the killer's own.
+// termosDe is a kill's terms, solo or in a party: everything is the killer's own.
 func (d *Dispatcher) termosDe(killer *world.Entity) termosDaMorte {
 	return termosDaMorte{
 		bonus: d.expBonus(killer),
@@ -325,39 +332,6 @@ func (d *Dispatcher) termosDe(killer *world.Entity) termosDaMorte {
 // limiteBonusXP is level.ExpReward's `ExpBonus < 500` gate: a bonus at or
 // above it pays nothing at all.
 const limiteBonusXP = 500
-
-// bonusDoGrupo is the XP bonus a party kill pays every share with: the best
-// among the characters in the fight.
-//
-// DIVERGÊNCIA DELIBERADA DO LEGADO — decisão do Marco em 11/09/2026: "todos
-// ganham o maior". The legacy reads the bonus off conn, the killer, in all seven
-// branches (MobKilled.cpp:534/679/794 in Pesadelo, :943/1092/1214 in Água,
-// :1363-1364 on the field), so a +100% character raised the party only when it
-// landed the blow. Here the best bonus in the fight reaches everyone, whoever
-// kills: a character on chest, fairy and shop mount carries the group. It
-// replaces the killer-only rule the shop mounts followed until that decision.
-//
-// naLuta is who counts: the members taking a share of this kill (alive, and near
-// or inside the same Pesadelo — membroRecebeXP) plus the killer. A member parked
-// in town lends nothing, or a party could keep a fully-bought character safe
-// and farm on its bonus.
-//
-// The pair travels together — bonus and fairy content from the same character —
-// so two people's items never add up into one share. A bonus the < 500 gate
-// would ignore counts as none, so it cannot win the comparison and then pay
-// nothing.
-func (d *Dispatcher) bonusDoGrupo(naLuta []*world.Entity) (bonus, fada int32) {
-	for _, e := range naLuta {
-		b, f := d.expBonus(e), fairyContentBonus(e)
-		if b <= 0 || b >= limiteBonusXP {
-			continue
-		}
-		if b+f > bonus+fada {
-			bonus, fada = b, f
-		}
-	}
-	return bonus, fada
-}
 
 // grantExp awards PvE experience for one kill to one character — the killer
 // alone, or one party member — and applies any resulting level-ups
@@ -754,8 +728,7 @@ const (
 // grantExp the solo path uses instead of dividing anything.
 //
 // The two numbers that are not the member's are the EXP bonus and the eMob cap
-// (termosDaMorte): the cap is the killer's, restored legacy behaviour; the
-// bonus is the best in the fight (bonusDoGrupo), a server rule.
+// (termosDaMorte), and both are the killer's, as the legacy reads them.
 //
 // Who takes a share is membroRecebeXP: alive, and within HALFGRID of the mob —
 // or anywhere inside the same Pesadelo.
@@ -778,8 +751,7 @@ func (d *Dispatcher) grantPartyExp(w *world.World, ks *world.Session, killer, mo
 	}
 
 	// Who takes a share: the leader plus its list, deduplicated — the killer is
-	// somewhere in there and must be paid exactly once. Settled before anyone is
-	// paid, because the bonus is the best among them.
+	// somewhere in there and must be paid exactly once.
 	visto := make(map[int]bool, world.MaxParty+1)
 	naLuta := make([]*world.Entity, 0, world.MaxParty+1)
 	incluir := func(id int) {
@@ -807,10 +779,9 @@ func (d *Dispatcher) grantPartyExp(w *world.World, ks *world.Session, killer, mo
 	// out of step, so a bookkeeping slip never costs somebody the kill it made.
 	incluir(killer.ID)
 
-	// The killer lends its bonus even when it takes no share itself (killed by
-	// the mob's last hit, or out of the box after a ranged kill): it made the
-	// kill. The full slice expression keeps the append off naLuta's array.
-	termos.bonus, termos.fada = d.bonusDoGrupo(append(naLuta[:len(naLuta):len(naLuta)], killer))
+	// The bonus in termos is the killer's even when it takes no share itself
+	// (killed by the mob's last hit, or out of the box after a ranged kill): it
+	// made the kill.
 	for _, e := range naLuta {
 		d.grantExp(w, w.Session(e.ID), e, mob, termos)
 	}
