@@ -9,7 +9,7 @@
 
 <main>
   <h1>Contas</h1>
-  <p class="sub">Busca por início do nome. Sem termo, mostra as primeiras em ordem alfabética.</p>
+  <p class="sub">Busca por início do nome. Sem termo, mostra as primeiras em ordem alfabética. As contas arquivadas no wipe (nome começando com ~) ficam escondidas; busque por ~ para vê-las.</p>
 
   <form class="busca" method="get" action="/contas">
     <input name="q" value="{{.Query}}" placeholder="Começo do nome da conta"
@@ -17,7 +17,19 @@
     <button type="submit">Buscar</button>
   </form>
 
-  {{if .IsAdmin}}
+  {{if and .IsAdmin (not .PodeCriar)}}
+  <p class="nota">
+    <strong>A criação de conta está desligada neste servidor.</strong> É o ambiente de
+    teste: o cliente já está na mão de gente, e uma conta criada por engano aqui
+    entraria num servidor que deveria estar trancado.
+    <br>
+    Quem precisar criar uma conta usa a linha de comando na máquina
+    (<span class="mono">dbserver seed-account</span>). Trocar o cargo de uma conta que
+    já existe continua funcionando — é assim que alguém vira staff aqui dentro.
+  </p>
+  {{end}}
+
+  {{if and .IsAdmin .PodeCriar}}
   <details class="criar-conta">
     <summary>Criar conta</summary>
     <form method="post" action="/contas/criar">
@@ -62,7 +74,7 @@
             {{template "coluna" (dict "Rotulo" "Cargo" "Classe" "" "Marca" ($o.Marca "cargo") "Href" ($o.Link "/contas" "cargo" $e))}}
             {{template "coluna" (dict "Rotulo" "Situação" "Classe" "" "Marca" ($o.Marca "situacao") "Href" ($o.Link "/contas" "situacao" $e))}}
             <th>E-mail</th>
-            {{template "coluna" (dict "Rotulo" "Doação" "Classe" "num" "Marca" ($o.Marca "doacao") "Href" ($o.Link "/contas" "doacao" $e))}}
+            {{template "coluna" (dict "Rotulo" "Rcoins" "Classe" "num" "Marca" ($o.Marca "doacao") "Href" ($o.Link "/contas" "doacao" $e))}}
           </tr>
         </thead>
         <tbody>

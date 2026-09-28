@@ -354,7 +354,9 @@ func TestTeleportReconcilesMobViewLikeGridMulticast(t *testing.T) {
 			if err := body.Decode(payload); err != nil {
 				t.Fatalf("decode teleport action: %v", err)
 			}
-			if h.ID == 1 && body.Effect == 1 && body.TargetX == 40 && body.TargetY == 40 {
+			// Beside the victim, not on them: DoTeleport lands on a free cell
+			// (GetEmptyMobGrid, Server.cpp:9156), and (40,40) is the victim's.
+			if h.ID == 1 && body.Effect == 1 && chebyshev(body.TargetX, body.TargetY, 40, 40) == 1 {
 				sawJump = true
 			}
 		case protocol.MsgRemoveMob:

@@ -49,6 +49,9 @@ func startServerHonra(t *testing.T, persist world.Persistence) (string, func()) 
 	if id := w.SpawnMob(godOfWarTemplate(), 5, 5); id != shopNPCID {
 		t.Fatalf("o God of War nasceu como %d, esperado %d", id, shopNPCID)
 	}
+	// O estoque chega como em produção: pelas vagas do NPC, escritas pelo applyShop
+	// da recarga das lojas. Antes do Serve, então ainda sem laço para disputar.
+	applyShop(w.Entity(shopNPCID), estoqueDeHonraDeTeste())
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { _ = w.Serve(ctx, ln); close(done) }()
@@ -78,6 +81,9 @@ func startServerHonraAndando(t *testing.T, persist world.Persistence) (string, f
 	if id := w.SpawnMob(godOfWarTemplate(), 5, 5); id != shopNPCID {
 		t.Fatalf("o God of War nasceu como %d, esperado %d", id, shopNPCID)
 	}
+	// O estoque chega como em produção: pelas vagas do NPC, escritas pelo applyShop
+	// da recarga das lojas. Antes do Serve, então ainda sem laço para disputar.
+	applyShop(w.Entity(shopNPCID), estoqueDeHonraDeTeste())
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() { _ = w.Serve(ctx, ln); close(done) }()
@@ -121,7 +127,7 @@ func compraDeHonra(t *testing.T, c net.Conn, slot int) {
 // senão o clique cai em _MSG_Quest e nada acontece.
 func TestGodOfWarApareceComoLoja(t *testing.T) {
 	god := &world.Entity{ID: shopNPCID, Merchant: merchantLojaDeHonra}
-	if got := createMobFrom(god, 0).Merchant; got != 1 {
+	if got := createMobFrom(nil, god, 0).Merchant; got != 1 {
 		t.Errorf("CreateMob do God of War com Merchant %d; o cliente só manda o clique com 1", got)
 	}
 }
@@ -184,11 +190,11 @@ func TestLojaDeHonraAbreComEstoqueESaldo(t *testing.T) {
 	if abre.MinutosJanela != shopPointsWindowMs/60000 {
 		t.Errorf("janela de %d min, esperado %d", abre.MinutosJanela, shopPointsWindowMs/60000)
 	}
-	if len(abre.Itens) != len(estoqueDaLojaDeHonra) {
-		t.Fatalf("a loja abriu com %d itens, esperado %d", len(abre.Itens), len(estoqueDaLojaDeHonra))
+	if len(abre.Itens) != len(estoqueDeHonraDeTeste()) {
+		t.Fatalf("a loja abriu com %d itens, esperado %d", len(abre.Itens), len(estoqueDeHonraDeTeste()))
 	}
 	for i, it := range abre.Itens {
-		quer := estoqueDaLojaDeHonra[i]
+		quer := honraEsperada(t, i)
 		if it.Slot != int16(i) || it.Indice != quer.Indice || it.Preco != quer.Preco {
 			t.Errorf("casa %d = slot %d item %d por %d; esperado slot %d item %d por %d",
 				i, it.Slot, it.Indice, it.Preco, i, quer.Indice, quer.Preco)
@@ -207,24 +213,6 @@ func TestLojaDeHonraAbreComEstoqueESaldo(t *testing.T) {
 		}
 		if ty == protocol.MsgShopList {
 			t.Fatal("o God of War mandou a janela de loja do cliente junto com o painel")
-		}
-	}
-}
-
-// TestEstoqueDeHonraTemCategoriaConhecida: a aba de cada item é escrita a mão na
-// tabela, e um número fora das quatro abas faria o item desaparecer de todas menos
-// a Todos. É o tipo de erro de digitação que não aparece na tela.
-func TestEstoqueDeHonraTemCategoriaConhecida(t *testing.T) {
-	for i, it := range estoqueDaLojaDeHonra {
-		switch it.Cat {
-		case protocol.HonraCatNenhuma, protocol.HonraCatArmas,
-			protocol.HonraCatSet, protocol.HonraCatConsumo:
-		default:
-			t.Errorf("casa %d (item %d) tem categoria %d, que não é aba nenhuma",
-				i, it.Indice, it.Cat)
-		}
-		if it.Preco <= 0 {
-			t.Errorf("casa %d (item %d) custa %d pontos", i, it.Indice, it.Preco)
 		}
 	}
 }
@@ -257,7 +245,7 @@ func TestLojaDeHonraContaOGanhoDaFadaAzul(t *testing.T) {
 // está na mochila, com os pontos debitados da CONTA e o saldo novo de volta no
 // painel.
 func TestLojaDeHonraTrocaPontosPorItem(t *testing.T) {
-	db := contaComPontos(100, 5, 5)
+	db := contaComPontos(1000, 5, 5)
 	addr, stop := startServerHonra(t, db)
 	defer stop()
 	c := enterWorld(t, addr)
@@ -266,12 +254,12 @@ func TestLojaDeHonraTrocaPontosPorItem(t *testing.T) {
 	clicaNoGodOfWar(t, c)
 	expect(t, c, protocol.MsgHonraAbre)
 
-	// Casa 3 do estoque: Poeira_de_Oriharucon por 40 pontos.
-	const casa = 3
-	quer := estoqueDaLojaDeHonra[casa]
+	// Casa 2 do estoque: a pilha de três Poeiras de Oriharucon, por 480 pontos.
+	const casa = 2
+	quer := honraEsperada(t, casa)
 	compraDeHonra(t, c, casa)
 
-	chegou, saldoNoPainel := false, int32(-1)
+	chegou, pilha, saldoNoPainel := false, [2]byte{}, int32(-1)
 	for i := 0; i < 8; i++ {
 		ty, p, ok := readMaybe(t, c)
 		if !ok {
@@ -281,6 +269,7 @@ func TestLojaDeHonraTrocaPontosPorItem(t *testing.T) {
 		case protocol.MsgSendItem:
 			if int16(le16(p[4:6])) == quer.Indice {
 				chegou = true
+				pilha = [2]byte{p[6], p[7]}
 			}
 		case protocol.MsgHonraSaldo:
 			saldo, err := protocol.DecodeHonraSaldo(p)
@@ -293,11 +282,57 @@ func TestLojaDeHonraTrocaPontosPorItem(t *testing.T) {
 	if !chegou {
 		t.Errorf("o item %d não chegou à mochila", quer.Indice)
 	}
-	if saldoNoPainel != 100-quer.Preco {
-		t.Errorf("saldo devolvido ao painel = %d, esperado %d", saldoNoPainel, 100-quer.Preco)
+	// A pilha é o item, não um detalhe da vitrine: sem o 61 3 o jogador pagaria
+	// por três e levaria uma.
+	if pilha != [2]byte{efAmount, 3} {
+		t.Errorf("a Poeira chegou com o efeito %d/%d, esperado %d/3", pilha[0], pilha[1], efAmount)
 	}
-	if got := db.pontosLojinha0(); got != 100-quer.Preco {
-		t.Errorf("carteira da conta = %d, esperado %d", got, 100-quer.Preco)
+	if saldoNoPainel != 1000-quer.Preco {
+		t.Errorf("saldo devolvido ao painel = %d, esperado %d", saldoNoPainel, 1000-quer.Preco)
+	}
+	if got := db.pontosLojinha0(); got != 1000-quer.Preco {
+		t.Errorf("carteira da conta = %d, esperado %d", got, 1000-quer.Preco)
+	}
+}
+
+// TestLojaDeHonraFadaSaiComVinteEQuatroHoras: a Fada Azul da loja é a de 24
+// horas, e o que diz isso é o 106 1 no próprio item. Sem ele o prazo cairia no
+// padrão da 3901, que é de três dias — o triplo do que o jogador pagou.
+func TestLojaDeHonraFadaSaiComVinteEQuatroHoras(t *testing.T) {
+	db := contaComPontos(1000, 5, 5)
+	addr, stop := startServerHonra(t, db)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	clicaNoGodOfWar(t, c)
+	expect(t, c, protocol.MsgHonraAbre)
+
+	const casa = 3 // Fada Azul 24 h, 960 pontos
+	quer := honraEsperada(t, casa)
+	if quer.Indice != 3901 {
+		t.Fatalf("a casa %d é o item %d, esperado a Fada Azul 3901", casa, quer.Indice)
+	}
+	compraDeHonra(t, c, casa)
+
+	var prazo *[2]byte
+	for i := 0; i < 8 && prazo == nil; i++ {
+		ty, p, ok := readMaybe(t, c)
+		if !ok {
+			break
+		}
+		if ty == protocol.MsgSendItem && int16(le16(p[4:6])) == quer.Indice {
+			prazo = &[2]byte{p[6], p[7]}
+		}
+	}
+	if prazo == nil {
+		t.Fatal("a fada não chegou à mochila")
+	}
+	if *prazo != [2]byte{efWDay, 1} {
+		t.Errorf("a fada chegou com o efeito %d/%d, esperado %d/1", prazo[0], prazo[1], efWDay)
+	}
+	if got := db.pontosLojinha0(); got != 1000-quer.Preco {
+		t.Errorf("carteira da conta = %d, esperado %d", got, 1000-quer.Preco)
 	}
 }
 
@@ -313,7 +348,7 @@ func TestLojaDeHonraSemPontosNaoEntrega(t *testing.T) {
 	clicaNoGodOfWar(t, c)
 	expect(t, c, protocol.MsgHonraAbre)
 
-	const casa = 3 // 40 pontos, e a conta tem 10
+	const casa = 3 // a Fada Azul, 960 pontos, e a conta tem 10
 	compraDeHonra(t, c, casa)
 
 	avisou, entregou := false, false
@@ -344,7 +379,9 @@ func TestLojaDeHonraSemPontosNaoEntrega(t *testing.T) {
 // personagem do outro lado do mapa, a compra é recusada — senão um cliente
 // remendado compraria de qualquer lugar do mundo.
 func TestLojaDeHonraLongeDoNPCNaoVende(t *testing.T) {
-	db := contaComPontos(500, 200, 200) // o God of War está em 5,5
+	// Saldo de sobra para qualquer casa: o que recusa aqui é a distância, não o
+	// preço.
+	db := contaComPontos(5000, 200, 200) // o God of War está em 5,5
 	addr, stop := startServerHonra(t, db)
 	defer stop()
 	c := enterWorld(t, addr)
@@ -367,8 +404,8 @@ func TestLojaDeHonraLongeDoNPCNaoVende(t *testing.T) {
 	if entregou {
 		t.Error("a compra saiu com o personagem longe do NPC")
 	}
-	if got := db.pontosLojinha0(); got != 500 {
-		t.Errorf("carteira mexeu numa compra de longe: %d, esperado 500", got)
+	if got := db.pontosLojinha0(); got != 5000 {
+		t.Errorf("carteira mexeu numa compra de longe: %d, esperado 5000", got)
 	}
 }
 

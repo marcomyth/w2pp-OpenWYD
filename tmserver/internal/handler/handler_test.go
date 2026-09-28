@@ -77,23 +77,31 @@ type fakeDB struct {
 	pinSetOK     bool            // SetPin ok flag
 	pinSets      []string        // captured SetPin plaintext (test-only; prod never stores plaintext)
 
-	mu            sync.Mutex
-	pontosLojinha int32                 // carteira de pontos de lojinha (ver lojapontos_test.go)
-	savedChars    []world.CharacterSave // captured SaveOnShutdown calls
-	saveErr       error                 // one-shot injected character-save failure
-	savedCargos   []world.CargoSave     // captured SaveCargo calls
-	drainSaves    []drainSave           // captured SaveCargoWithDeliveries calls
-	blockedNames  map[string]bool       // captured SetAccountBlocked calls (GM ban/unban)
-	presence      map[string]bool       // captured SetCharacterPresence calls
-	duelResults   []duelResult          // captured RecordDuelResult calls (issue #118)
-	trades        []world.TradeRecord   // captured RecordTrade calls (0025_trade_log)
-	grounds       []world.GroundEvent   // captured RecordGround calls (0031_ground_log)
+	mu                sync.Mutex
+	pontosLojinha     int32                 // carteira de pontos de lojinha (ver lojapontos_test.go)
+	savedChars        []world.CharacterSave // captured SaveOnShutdown calls
+	saveErr           error                 // one-shot injected character-save failure
+	savedCargos       []world.CargoSave     // captured SaveCargo calls
+	paresSalvos       int                   // quantas vezes personagem e carga foram na MESMA transação
+	epocaDoPar        int64                 // época e número do último par, que ordenam as gravações
+	numeroDoPar       int64
+	personagemSozinho int                 // gravações só do personagem
+	cargaSozinha      int                 // gravações só da carga
+	drainSaves        []drainSave         // captured SaveCargoWithDeliveries calls
+	blockedNames      map[string]bool     // captured SetAccountBlocked calls (GM ban/unban)
+	presence          map[string]bool     // captured SetCharacterPresence calls
+	duelResults       []duelResult        // captured RecordDuelResult calls (issue #118)
+	trades            []world.TradeRecord // captured RecordTrade calls (0025_trade_log)
+	grounds           []world.GroundEvent // captured RecordGround calls (0031_ground_log)
 
-	createdGuilds []world.GuildRecord
-	guildCosts    []int32
-	promoted      []uint8
-	promoteCosts  []int32
-	transfers     int
+	createdGuilds            []world.GuildRecord
+	recusaDeGuilda           world.GuildRefusal
+	guildaConfereOuroGravado bool
+	recusaGuilda             bool
+	guildCosts               []int32
+	promoted                 []uint8
+	promoteCosts             []int32
+	transfers                int
 }
 
 // duelResult captures one RecordDuelResult call for assertions.
@@ -123,7 +131,7 @@ type drainSave struct {
 	lost      []int64
 }
 
-func (f *fakeDB) SaveOnShutdown(_ context.Context, save world.CharacterSave) error {
+func (f *fakeDB) SaveOnShutdown(_ context.Context, save world.CharacterSave, _, _ int64, _ bool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.saveErr != nil {
@@ -132,6 +140,7 @@ func (f *fakeDB) SaveOnShutdown(_ context.Context, save world.CharacterSave) err
 		return err
 	}
 	f.savedChars = append(f.savedChars, save)
+	f.personagemSozinho++
 	return nil
 }
 
@@ -139,6 +148,32 @@ func (f *fakeDB) SaveCargo(_ context.Context, save world.CargoSave) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.savedCargos = append(f.savedCargos, save)
+	f.cargaSozinha++
+	return nil
+}
+
+// SalvarPersonagemComCarga registra as DUAS metades na mesma chamada.
+//
+// ELE PRECISA EXISTIR AQUI, e não cair no NopPersistence embutido: com o no-op, um
+// save que passou a ir pelo par sumiria dos dois contadores e todo teste que
+// confere gravação passaria sem gravar nada — verde por ausência.
+func (f *fakeDB) SalvarPersonagemComCarga(_ context.Context, personagem world.CharacterSave,
+	carga world.CargoSave, deliveredIDs, lostIDs []int64, epoca, seq int64, _ bool,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.saveErr != nil {
+		err := f.saveErr
+		f.saveErr = nil
+		return err
+	}
+	f.savedChars = append(f.savedChars, personagem)
+	f.savedCargos = append(f.savedCargos, carga)
+	f.paresSalvos++
+	f.epocaDoPar, f.numeroDoPar = epoca, seq
+	if len(deliveredIDs) > 0 || len(lostIDs) > 0 {
+		f.drainSaves = append(f.drainSaves, drainSave{save: carga, delivered: deliveredIDs, lost: lostIDs})
+	}
 	return nil
 }
 
@@ -296,13 +331,33 @@ func (f *fakeDB) SetAccountBlocked(_ context.Context, name string, blocked bool)
 	return nil
 }
 
-func (f *fakeDB) CreateGuild(_ context.Context, _ int64, _ int, _, guildName string, clan, citizen uint8, _ int, cost int32) (world.GuildRecord, bool, error) {
+func (f *fakeDB) CreateGuild(_ context.Context, accountID int64, slot int, _, guildName string, clan, citizen uint8, _ int, cost int32) (world.GuildRecord, bool, world.GuildRefusal, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	// recusaDeGuilda deixa o teste mandar o dbServer recusar, com o motivo que ele
+	// quiser: é assim que se prova que cada motivo produz a sua frase.
+	if f.recusaDeGuilda != world.GuildRefusalUnknown || f.recusaGuilda {
+		return world.GuildRecord{}, false, f.recusaDeGuilda, nil
+	}
+	// O BANCO SÓ SABE O QUE FOI GRAVADO. O store confere o custo contra
+	// character.coin, e não contra um número vindo de quem chama; o fake faz o
+	// mesmo para que um /create feito com ouro que só existe na memória seja
+	// recusado aqui — como era em produção antes de 25/09/2026.
+	if f.guildaConfereOuroGravado {
+		coin := int32(-1)
+		for _, sv := range f.savedChars {
+			if sv.AccountID == accountID && sv.Slot == slot {
+				coin = sv.Coin
+			}
+		}
+		if coin < cost {
+			return world.GuildRecord{}, false, world.GuildRefusalNotEnoughCoin, nil
+		}
+	}
 	g := world.GuildRecord{ID: uint16(100 + len(f.createdGuilds)), Name: guildName, Clan: clan, Citizen: citizen}
 	f.createdGuilds = append(f.createdGuilds, g)
 	f.guildCosts = append(f.guildCosts, cost)
-	return g, true, nil
+	return g, true, world.GuildRefusalUnknown, nil
 }
 
 func (f *fakeDB) SetGuildMember(context.Context, int64, int, string, uint16, uint8) error {
@@ -380,6 +435,8 @@ func (f *fakeDB) SaveCargoWithDeliveries(_ context.Context, save world.CargoSave
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.drainSaves = append(f.drainSaves, drainSave{save: save, delivered: deliveredIDs, lost: lostIDs})
+	f.savedCargos = append(f.savedCargos, save)
+	f.cargaSozinha++
 	return nil
 }
 
@@ -519,7 +576,7 @@ func (f *fakeDB) archRequest() (int, int64, string, int, int, int, int) {
 // their base account, so LoadCharacter can find the base again with a modulo.
 const cloneStride = 1000
 
-func (f *fakeDB) AccountLogin(_ context.Context, name, pass string) (world.LoginOutcome, error) {
+func (f *fakeDB) AccountLogin(_ context.Context, name, pass string, _ int64) (world.LoginOutcome, error) {
 	a, ok := f.accounts[name]
 	// "tester2", "tester3"… are clones of "tester" under their own account id:
 	// the server keeps one session per account, so a test that puts a second

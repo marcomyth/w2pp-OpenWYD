@@ -33,7 +33,7 @@ var _ world.Persistence = (*Client)(nil)
 
 // AccountLogin authenticates and, on success, fetches the character-selection
 // list so the world can present it immediately.
-func (c *Client) AccountLogin(ctx context.Context, name, password string) (world.LoginOutcome, error) {
+func (c *Client) AccountLogin(ctx context.Context, name, password string, epoca int64) (world.LoginOutcome, error) {
 	resp, err := c.api.AccountLogin(ctx, &dbv1.AccountLoginRequest{
 		AccountName:   name,
 		Password:      password,
@@ -43,14 +43,32 @@ func (c *Client) AccountLogin(ctx context.Context, name, password string) (world
 		return world.LoginOutcome{}, fmt.Errorf("dbclient: account login: %w", err)
 	}
 	out := world.LoginOutcome{
-		Result:    loginResultFromProto(resp.GetResult()),
-		AccountID: resp.GetAccountId(),
-		Role:      resp.GetRole(),
-		Cash:      resp.GetCash(),
-		Rmt:       resp.GetRmt(),
+		Result:     loginResultFromProto(resp.GetResult()),
+		AccountID:  resp.GetAccountId(),
+		Role:       resp.GetRole(),
+		Cash:       resp.GetCash(),
+		Rmt:        resp.GetRmt(),
+		PasseNivel: uint8(clampPasse(resp.GetPasseNivel())),
 	}
 	if out.Result != world.LoginOK {
 		return out, nil
+	}
+	// A POSSE DA CONTA, ANTES DE LER QUALQUER COISA DELA.
+	//
+	// É aqui que a conta deixa de poder estar em jogo em dois tmServers ao mesmo
+	// tempo. Vem de carona neste round trip porque o laço não fala com o banco, e
+	// uma ida a mais só para isto custaria outra volta.
+	//
+	// Antes de ler, e não depois: o que este login carregar tem de ser de uma conta
+	// que já é minha, senão eu leria o estado de alguém que ainda está jogando.
+	if epoca > 0 {
+		tomou, err := c.TomarPosseDaConta(ctx, out.AccountID, epoca)
+		if err != nil {
+			return world.LoginOutcome{}, err
+		}
+		if !tomou {
+			return world.LoginOutcome{Result: world.LoginAlreadyPlaying}, nil
+		}
 	}
 	out.Characters, err = c.ListCharacters(ctx, out.AccountID)
 	if err != nil {
@@ -289,15 +307,77 @@ func (c *Client) LoadCharacter(ctx context.Context, accountID int64, slot int) (
 }
 
 // SaveOnShutdown persists the world's snapshot of a character.
-func (c *Client) SaveOnShutdown(ctx context.Context, save world.CharacterSave) error {
+func (c *Client) SaveOnShutdown(ctx context.Context, save world.CharacterSave, epoca, seq int64, soltarPosse bool) error {
 	_, err := c.api.SaveCharacter(ctx, &dbv1.SaveCharacterRequest{
-		AccountId: save.AccountID,
-		Character: characterSaveToProto(save),
+		AccountId:   save.AccountID,
+		Character:   characterSaveToProto(save),
+		ParEpoca:    epoca,
+		ParSeq:      seq,
+		SoltarPosse: soltarPosse,
 	})
 	if err != nil {
 		return fmt.Errorf("dbclient: save character: %w", err)
 	}
 	return nil
+}
+
+// SalvarPersonagemComCarga grava personagem e carga na mesma transação do banco.
+func (c *Client) SalvarPersonagemComCarga(ctx context.Context, personagem world.CharacterSave,
+	carga world.CargoSave, deliveredIDs, lostIDs []int64, epoca, seq int64, soltarPosse bool,
+) error {
+	_, err := c.api.SalvarPersonagemComCarga(ctx, &dbv1.SalvarPersonagemComCargaRequest{
+		AccountId:    personagem.AccountID,
+		Character:    characterSaveToProto(personagem),
+		CargoCoin:    carga.Coin,
+		CargoItems:   savedItemsToProto(carga.Items),
+		DeliveredIds: deliveredIDs,
+		LostIds:      lostIDs,
+		ParEpoca:     epoca,
+		ParSeq:       seq,
+		SoltarPosse:  soltarPosse,
+	})
+	if err != nil {
+		return fmt.Errorf("dbclient: salvar personagem com carga: %w", err)
+	}
+	return nil
+}
+
+// NovaEpocaDePar pega o número desta execução para ordenar as gravações do par.
+func (c *Client) NovaEpocaDePar(ctx context.Context) (int64, error) {
+	resp, err := c.api.NovaEpocaDePar(ctx, &dbv1.NovaEpocaDeParRequest{})
+	if err != nil {
+		return 0, fmt.Errorf("dbclient: nova epoca de par: %w", err)
+	}
+	return resp.GetEpoca(), nil
+}
+
+// TomarPosseDaConta marca esta execução como dona da conta. Devolve false quando
+// outra execução viva está com ela.
+func (c *Client) TomarPosseDaConta(ctx context.Context, accountID, epoca int64) (bool, error) {
+	resp, err := c.api.TomarPosseDaConta(ctx, &dbv1.TomarPosseDaContaRequest{AccountId: accountID, Epoca: epoca})
+	if err != nil {
+		return false, fmt.Errorf("dbclient: tomar posse da conta: %w", err)
+	}
+	return resp.GetOk(), nil
+}
+
+// SoltarPosseDaConta devolve a conta quando não houve save de saída para levar a
+// soltura junto — a conta que ficou na seleção e desconectou.
+func (c *Client) SoltarPosseDaConta(ctx context.Context, accountID, epoca int64) error {
+	_, err := c.api.SoltarPosseDaConta(ctx, &dbv1.SoltarPosseDaContaRequest{AccountId: accountID, Epoca: epoca})
+	if err != nil {
+		return fmt.Errorf("dbclient: soltar posse da conta: %w", err)
+	}
+	return nil
+}
+
+// BaterPelasContas renova a posse e devolve quais contas continuam desta execução.
+func (c *Client) BaterPelasContas(ctx context.Context, epoca int64, contas []int64) ([]int64, error) {
+	resp, err := c.api.BaterPelasContas(ctx, &dbv1.BaterPelasContasRequest{Epoca: epoca, AccountIds: contas})
+	if err != nil {
+		return nil, fmt.Errorf("dbclient: batimento da posse: %w", err)
+	}
+	return resp.GetAindaMinhas(), nil
 }
 
 // QuoteKingdomCape fetches the database-owned sapphire prices.
@@ -447,7 +527,7 @@ func (c *Client) RecordDuelResult(ctx context.Context, winnerName, loserName str
 
 // CreateGuild allocates a persistent legacy guild id, charges the creation cost,
 // and makes the character leader.
-func (c *Client) CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (world.GuildRecord, bool, error) {
+func (c *Client) CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (world.GuildRecord, bool, world.GuildRefusal, error) {
 	resp, err := c.api.CreateGuild(ctx, &dbv1.CreateGuildRequest{
 		AccountId:     accountID,
 		Slot:          int32(slot),
@@ -459,9 +539,32 @@ func (c *Client) CreateGuild(ctx context.Context, accountID int64, slot int, cha
 		Cost:          cost,
 	})
 	if err != nil {
-		return world.GuildRecord{}, false, fmt.Errorf("dbclient: create guild: %w", err)
+		return world.GuildRecord{}, false, world.GuildRefusalUnknown,
+			fmt.Errorf("dbclient: create guild: %w", err)
 	}
-	return guildFromProto(resp.GetGuild()), resp.GetOk(), nil
+	return guildFromProto(resp.GetGuild()), resp.GetOk(), recusaDeGuilda(resp.GetRefusal()), nil
+}
+
+// recusaDeGuilda traduz o motivo do proto para o tipo do mundo.
+//
+// O DESCONHECIDO CAI EM Unknown, e não em algum motivo plausível: um dbServer mais novo
+// pode mandar um valor que esta versão não conhece, e nesse caso o jogo tem de cair na
+// frase geral em vez de afirmar o motivo errado com segurança.
+func recusaDeGuilda(r dbv1.CreateGuildRefusal) world.GuildRefusal {
+	switch r {
+	case dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_NAME_TAKEN:
+		return world.GuildRefusalNameTaken
+	case dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_NOT_ENOUGH_COIN:
+		return world.GuildRefusalNotEnoughCoin
+	case dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_ALREADY_IN_GUILD:
+		return world.GuildRefusalAlreadyInGuild
+	case dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_NO_FREE_SLOT:
+		return world.GuildRefusalNoFreeSlot
+	case dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_CHARACTER_GONE:
+		return world.GuildRefusalCharacterGone
+	default:
+		return world.GuildRefusalUnknown
+	}
 }
 
 // SetGuildMember persists one character's guild membership/rank.
@@ -942,6 +1045,7 @@ func characterStateFromProto(c *dbv1.Character) world.CharacterState {
 		TerraMistica:         uint8(c.GetMortalTerraMistica()),
 		NewbieQuest:          uint8(c.GetMortalNewbie()),
 		MolarGargula:         uint8(c.GetMortalMolar()),
+		NivelRetroativo:      uint16(c.GetNivelRetroativo()),
 		Soul:                 uint8(c.GetSoul()),
 		Fame:                 c.GetFame(),
 		PKPoint:              uint8(c.GetPkPoint()),
@@ -1051,8 +1155,11 @@ func characterSaveToProto(s world.CharacterSave) *dbv1.Character {
 		LastCity:   int32(s.LastCity),
 		SaveX:      int32(s.SaveX),
 		SaveY:      int32(s.SaveY),
-		Carry:      savedItemsToProto(s.Carry),
-		Equip:      savedItemsToProto(s.Equip),
+		// A cidadania, que a Kibita vende em jogo. O campo do proto ja existia
+		// (Character.citizen = 31) e so o save nao o preenchia.
+		Citizen: int32(s.Citizen),
+		Carry:   savedItemsToProto(s.Carry),
+		Equip:   savedItemsToProto(s.Equip),
 
 		ScoreBonus:      int32(s.ScoreBonus),
 		SpecialBonus:    int32(s.SpecialBonus),
@@ -1079,6 +1186,7 @@ func characterSaveToProto(s world.CharacterSave) *dbv1.Character {
 		// written back as zero and the quest starts over at every logout.
 		MortalNewbie:         int32(s.NewbieQuest),
 		MortalMolar:          int32(s.MolarGargula),
+		NivelRetroativo:      int32(s.NivelRetroativo),
 		PkPoint:              int32(s.PKPoint),
 		Guilty:               int32(s.Guilty),
 		CurKill:              int32(s.CurKill),
@@ -1343,4 +1451,61 @@ func (c *Client) DonateBalance(ctx context.Context, accountID int64) (int32, err
 		return 0, fmt.Errorf("dbclient: ler saldo de donate: %w", err)
 	}
 	return resp.GetBalance(), nil
+}
+
+// ListRcoinOffers lê uma aba da Loja de Rcoin e o saldo de donate da conta, na
+// mesma ida ao banco.
+func (c *Client) ListRcoinOffers(ctx context.Context, accountID int64, category int32) ([]world.RcoinOferta, int32, error) {
+	resp, err := c.api.ListRcoinOffers(ctx, &dbv1.ListRcoinOffersRequest{Category: category, AccountId: accountID})
+	if err != nil {
+		return nil, 0, fmt.Errorf("dbclient: listar a loja de rcoin: %w", err)
+	}
+	out := make([]world.RcoinOferta, 0, len(resp.GetOffers()))
+	for _, o := range resp.GetOffers() {
+		out = append(out, world.RcoinOferta{
+			ID: o.GetId(), ItemIndex: int16(o.GetItemIndex()),
+			Effects: [3]world.Effect{
+				{Effect: uint8(o.GetEff1()), Value: uint8(o.GetEffv1())},
+				{Effect: uint8(o.GetEff2()), Value: uint8(o.GetEffv2())},
+				{Effect: uint8(o.GetEff3()), Value: uint8(o.GetEffv3())},
+			},
+			Category: uint8(o.GetCategory()),
+			Price:    o.GetPrice(),
+			Days:     o.GetExpiresDays(),
+			Title:    o.GetTitle(),
+		})
+	}
+	return out, resp.GetBalance(), nil
+}
+
+// BuyRcoinOffer compra uma oferta da Loja de Rcoin pelo preço que o jogador viu.
+// Os números do resultado são os do 0x0F0F: o enum do proto espelha o contrato.
+func (c *Client) BuyRcoinOffer(ctx context.Context, accountID, offerID int64, seenPrice int32) (world.RcoinCompra, error) {
+	resp, err := c.api.BuyRcoinOffer(ctx, &dbv1.BuyRcoinOfferRequest{
+		AccountId: accountID, OfferId: offerID, SeenPrice: seenPrice,
+	})
+	if err != nil {
+		return world.RcoinCompra{}, fmt.Errorf("dbclient: comprar na loja de rcoin: %w", err)
+	}
+	return world.RcoinCompra{
+		Result:     uint8(resp.GetResult()),
+		Balance:    resp.GetBalance(),
+		DeliveryID: resp.GetDeliveryId(),
+	}, nil
+}
+
+// clampPasse prende o nível do passe na faixa que o cliente sabe desenhar.
+//
+// O banco já tem o CHECK e o serviço já recusa fora da faixa, e ainda assim isto
+// existe: o que chega aqui veio pela rede, e um número fora de 0..4 escrito no byte
+// do pacote sairia como outra coisa qualquer no cliente. Prender é uma linha; um
+// pacote errado é uma tarde procurando.
+func clampPasse(n int32) int32 {
+	if n < 0 {
+		return 0
+	}
+	if n > 4 {
+		return 4
+	}
+	return n
 }

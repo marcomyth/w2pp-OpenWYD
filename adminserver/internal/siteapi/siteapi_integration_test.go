@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -165,11 +166,18 @@ func TestTwoAccountsSeeOnlyTheirOwn(t *testing.T) {
 	if a.Code != 200 || b.Code != 200 {
 		t.Fatalf("status %d / %d: %s %s", a.Code, b.Code, a.Body.String(), b.Body.String())
 	}
-	if !strings.Contains(a.Body.String(), "1481") || strings.Contains(a.Body.String(), "2222") {
-		t.Errorf("alfa sees %s", a.Body.String())
+	// LIDOS COMO ESTRUTURA, E NÃO PROCURADOS NO MEIO DO TEXTO.
+	//
+	// Isto já foi strings.Contains do número no corpo inteiro, e falhou em
+	// 24/09/2026 por um carimbo de tempo: "criado_em":"...T15:45:06.148126Z"
+	// contém "1481", que é justamente o item que a conta beta NÃO pode ver. O
+	// teste acusou VAZAMENTO ENTRE CONTAS onde não houve nenhum — e um alarme
+	// desses, disparando à toa, ensina quem o lê a ignorá-lo.
+	if got := itensDaResposta(t, a); !temItem(got, 1481) || temItem(got, 2222) {
+		t.Errorf("alfa vê os itens %v; queria só o 1481", got)
 	}
-	if !strings.Contains(b.Body.String(), "2222") || strings.Contains(b.Body.String(), "1481") {
-		t.Errorf("beta sees %s", b.Body.String())
+	if got := itensDaResposta(t, b); !temItem(got, 2222) || temItem(got, 1481) {
+		t.Errorf("beta vê os itens %v; queria só o 2222", got)
 	}
 	if strings.Contains(a.Body.String(), "painel:") {
 		t.Errorf("the staff source leaked: %s", a.Body.String())
@@ -179,6 +187,36 @@ func TestTwoAccountsSeeOnlyTheirOwn(t *testing.T) {
 			t.Errorf("%s: status %d: %s", p, rec.Code, rec.Body.String())
 		}
 	}
+}
+
+// itensDaResposta lê os índices de item que a resposta de /entregas traz, nas duas
+// listas. Ler os CAMPOS é o que separa "a conta vê este item" de "este número
+// aparece em algum lugar do texto" — e as duas coisas já foram confundidas aqui.
+func itensDaResposta(t *testing.T, rec *httptest.ResponseRecorder) []int {
+	t.Helper()
+	var corpo struct {
+		Pendentes []struct {
+			Item int `json:"item"`
+		} `json:"pendentes"`
+		Perdidos []struct {
+			Item int `json:"item"`
+		} `json:"perdidos"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &corpo); err != nil {
+		t.Fatalf("resposta ilegível: %v -- %s", err, rec.Body.String())
+	}
+	itens := make([]int, 0, len(corpo.Pendentes)+len(corpo.Perdidos))
+	for _, e := range corpo.Pendentes {
+		itens = append(itens, e.Item)
+	}
+	for _, e := range corpo.Perdidos {
+		itens = append(itens, e.Item)
+	}
+	return itens
+}
+
+func temItem(itens []int, item int) bool {
+	return slices.Contains(itens, item)
 }
 
 // §7: wrong current password changes nothing; a new one outside the rule changes

@@ -267,7 +267,7 @@ func (h *Handler) setCombate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetCombatRule,
 		Old:    combateParaAudit(antes),
 		New:    combateParaAudit(combatrule.Config{Configured: true, Rules: regra}),
@@ -300,7 +300,7 @@ func (h *Handler) limparCombate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionClearCombatRule, Old: combateParaAudit(antes),
 	}); err != nil {
 		h.auditoriaFalhou(w, err)

@@ -26,13 +26,15 @@ em 14/09/2026; o design fica no artefato "Atlas de Quests W2PP".
 
 É a **Chave do Rei Orc (465)**, a mesma do Castelo Orc, desde 16/09/2026. Quem
 tem a chave escolhe onde gastá-la: com o Xamã Orc (ou no Portão Sul) ou com o
-Xamã Troll. De onde ela sai está em `docs/castelo-orc.md`: entradas pagas das
-Hidras e dos Elfos e o Deserto.
+Xamã Troll. De onde ela sai está em `docs/castelo-orc.md`: os monstros das
+arenas das Hidras e dos Elfos e o Deserto (a entrada paga deixou de dar chave
+em 27/09/2026).
 
 - Até 16/09 o acampamento tinha chave própria, a Chave dos Trolls (3223), com um
   sorteio à parte na entrada dos Elfos. Ela nunca chegou ao cliente (lá era o
-  "Cupom da Sorte"), e o sorteio saiu junto: a entrada dos Elfos dá uma chave só,
-  a 465, 1 a cada 3. A linha 3223 do `ItemList.csv` voltou a ser `Cupom_da_Sorte`.
+  "Cupom da Sorte"), e o sorteio saiu junto: a entrada dos Elfos passou a dar só
+  a 465, 1 a cada 3 — e desde 27/09/2026 nem ela (0176). A linha 3223 do
+  `ItemList.csv` voltou a ser `Cupom_da_Sorte`.
 - **A descrição da chave no cliente** (`itemhelp.dat`, bloco 465) passou a citar
   os dois lugares e termina com "Trolls ou Orcs o que vamos caçar hoje?". É gravada
   com o `webserver/cmd/itemnovocliente` (`client/icones/README.md`).

@@ -91,14 +91,24 @@ func montada(t *testing.T, nome string, b []byte, nivel int) {
 // vestir o set da própria classe (TestMestresDeSkillVestemOSetDaClasse), e o
 // Guarda Carga saiu em 22/09 para a aparência do Cav. Lugefer
 // (TestGuardaCargaVesteOLugefer).
+//
+// O God_of_War (a Honor Store) desceu do cavalo em 25/09/2026, a pedido: foi
+// para o canteiro cercado em 2130,2088, e montado ele não cabia ali. Continua de
+// Set Mortal E; só a vaga 14 ficou vazia.
+//
+// O Rapein saiu em 25/09/2026 para o set da Foema (TestArmasDeArmia); o Ferreiro
+// e a Rainy continuam aqui e só ganharam arma.
 func TestArmiaVesteSetMortalMontado(t *testing.T) {
 	setMortalE := [5]int{1225, 1226, 1227, 1228, 1229}
-	// O Mestre Grifo monta um Grifo, que é o nome dele; ficou com o dele.
-	semCavalo := map[string]bool{"Mestre_Grifo": true}
+	// O Mestre Grifo monta um Grifo, que é o nome dele; ficou com o dele. A Kibita
+	// trocou o cavalo por um Unicórnio de nível 70 em 25/09/2026, conferido em
+	// TestArmasDeArmia.
+	semCavalo := map[string]bool{"Mestre_Grifo": true, "Kibita": true}
+	aPe := map[string]bool{"God_of_War": true}
 
 	for _, nome := range []string{
 		"Galford", "Aki", "Guard", "Guard_", "Ferreiro",
-		"Rapein", "Rainy", "Mestre_Haby", "Balmus",
+		"Rainy", "Mestre_Haby", "Balmus",
 		"Gate_Keeper", "Martin", "Arnod", "Kibita", "Mestre_Grifo",
 		"God_of_War", "Curandeiro",
 	} {
@@ -116,7 +126,12 @@ func TestArmiaVesteSetMortalMontado(t *testing.T) {
 		if corpo, _ := peca(b, 0); corpo == 0 {
 			t.Errorf("%s ficou sem corpo no Equip[0]", nome)
 		}
-		if !semCavalo[nome] {
+		switch {
+		case aPe[nome]:
+			if idx, _ := peca(b, slotMontaria); idx != 0 {
+				t.Errorf("%s: vaga 14 tem %d, esperava vazia (a pé)", nome, idx)
+			}
+		case !semCavalo[nome]:
 			montada(t, nome, b, nivelDaMontaria)
 		}
 	}
@@ -173,6 +188,76 @@ func TestMestresDeSkillVestemOSetDaClasse(t *testing.T) {
 			t.Errorf("%s: corpo virou %d, esperava %d", c.nome, idx, c.corpo)
 		}
 		montada(t, c.nome, b, nivelDaMontaria)
+	}
+}
+
+// AS ARMAS DE ARMIA (pedido de 25/09/2026). O Rapein veste o set da Foema — o
+// Templário que o Foema_Ancian usa — com a Fúria Divina; a Rainy empunha o Arco
+// Divino, o Ferreiro a Solaris e o Arnod, que estava de mãos vazias, a Lança do
+// Triunfo. A Kibita leva o Cajado de Âmbar e o Escudo de Runas. Tudo a +11: a
+// arma na vaga 6 e, só na Kibita, o escudo na 7 (nPos 128 = vaga 7). E a Kibita
+// desceu do cavalo para um Unicórnio (2381) de nível 70.
+//
+// O mestre BM (Mestre_Archi) NÃO entra aqui: fica com a Gleipnir dele, intocado
+// (TestMestresDeSkillVestemOSetDaClasse).
+//
+// É aparência: todos são Merchant, então o EF_RANGE da arma, que o spawn lê, não
+// vira alcance de ataque (world/city.go). E os templates só nascem em Armia —
+// vestir o arquivo não alcança outro mapa.
+func TestArmasDeArmia(t *testing.T) {
+	templario := [5]int{1360, 1361, 1362, 1363, 1364}
+	casos := []struct {
+		nome     string
+		arma     int
+		escudo   int
+		montaria int // 0 = o Cavalo Equipado da apresentação, sem conferir o índice
+		nivel    int
+	}{
+		{"Rapein", 900, 0, 0, nivelDaMontaria},   // Fúria_Divina
+		{"Rainy", 825, 0, 0, nivelDaMontaria},    // Arco_Divino
+		{"Ferreiro", 911, 0, 0, nivelDaMontaria}, // Solaris
+		{"Arnod", 855, 0, 0, nivelDaMontaria},    // Lança_do_Triunfo
+		{"Kibita", 902, 1710, 2381, 70},          // Cajado_de_Âmbar + Escudo_de_Runas, Unicórnio 70
+	}
+	for _, c := range casos {
+		b := templateNPC(t, c.nome)
+		idx, ef := peca(b, 6)
+		if idx != c.arma {
+			t.Errorf("%s: vaga 6 tem %d, esperava %d", c.nome, idx, c.arma)
+		}
+		if v, ok := efeito(ef, efSancVisual); !ok || v != sanc11 {
+			t.Errorf("%s: arma com EF_SANC %d, esperava %d (+11)", c.nome, v, sanc11)
+		}
+		idx, ef = peca(b, 7)
+		if idx != c.escudo {
+			t.Errorf("%s: vaga 7 tem %d, esperava %d", c.nome, idx, c.escudo)
+		}
+		if c.escudo != 0 {
+			if v, ok := efeito(ef, efSancVisual); !ok || v != sanc11 {
+				t.Errorf("%s: escudo com EF_SANC %d, esperava %d (+11)", c.nome, v, sanc11)
+			}
+		}
+		montada(t, c.nome, b, c.nivel)
+		if c.montaria != 0 {
+			if idx, _ := peca(b, slotMontaria); idx != c.montaria {
+				t.Errorf("%s: montaria %d, esperava %d", c.nome, idx, c.montaria)
+			}
+		}
+	}
+
+	b := templateNPC(t, "Rapein")
+	for i, quer := range templario {
+		idx, ef := peca(b, i+1)
+		if idx != quer {
+			t.Errorf("Rapein: vaga %d tem %d, esperava %d (Templário)", i+1, idx, quer)
+			continue
+		}
+		if v, ok := efeito(ef, efSancVisual); !ok || v != sanc11 {
+			t.Errorf("Rapein: vaga %d com EF_SANC %d, esperava %d (+11)", i+1, v, sanc11)
+		}
+	}
+	if corpo, _ := peca(b, 0); corpo != 59 {
+		t.Errorf("Rapein: corpo virou %d, esperava 59 — o corpo é a identidade dele", corpo)
 	}
 }
 
@@ -236,27 +321,36 @@ func TestPerzenVesteCelestialSemPerderAQuest(t *testing.T) {
 // O TAMANHO DE UM NPC É A CON (pedido de 22/09/2026). O cliente escala o corpo
 // de um mob por (CON/2000 + 1) * 0,9 (WYD.exe 0x50D43F), e é só isso que a CON de
 // um mob faz: o servidor não a lê para HP, dano ou defesa — esses são campos
-// próprios do template. O God_of_War é a referência do servidor, com 3000, e o
+// próprios do template. O God_of_War era a referência do servidor, com 3000, e o
 // Guarda_Carga e o Dragão da praça dos Reinos passaram a acompanhá-lo.
+//
+// Em 25/09/2026 o God_of_War (a Honor Store) encolheu 30%: de 3000, escala
+// (1,5+1)*0,9 = 2,25, para 1500, escala (0,75+1)*0,9 = 1,575 — 2,25 * 0,7.
 //
 // A CON é escrita nos DOIS scores. O que o cliente recebe é o CurrentScore
 // (protocol/mob.go escreve Con em cs+38); o BaseScore é o que world/api.go copia
 // para a entidade. Gravar só um deixa o tamanho dependendo de qual caminho leu.
 func TestTamanhoDosNPCsGrandes(t *testing.T) {
 	const (
-		conGrande = 3000
-		offBase   = 44 + 38 // BaseScore.Con
-		offAtual  = 92 + 38 // CurrentScore.Con
+		offBase  = 44 + 38 // BaseScore.Con
+		offAtual = 92 + 38 // CurrentScore.Con
 	)
-	for _, nome := range []string{"God_of_War", "Guarda_Carga", "Dragao_Dourado"} {
-		b := templateNPC(t, nome)
+	for _, c := range []struct {
+		nome string
+		con  int16
+	}{
+		{"God_of_War", 1500},
+		{"Guarda_Carga", 3000},
+		{"Dragao_Dourado", 3000},
+	} {
+		b := templateNPC(t, c.nome)
 		base := int16(binary.LittleEndian.Uint16(b[offBase : offBase+2]))
 		atual := int16(binary.LittleEndian.Uint16(b[offAtual : offAtual+2]))
-		if base != conGrande {
-			t.Errorf("%s: CON do BaseScore = %d, esperava %d", nome, base, conGrande)
+		if base != c.con {
+			t.Errorf("%s: CON do BaseScore = %d, esperava %d", c.nome, base, c.con)
 		}
-		if atual != conGrande {
-			t.Errorf("%s: CON do CurrentScore = %d, esperava %d — é esta que o cliente lê", nome, atual, conGrande)
+		if atual != c.con {
+			t.Errorf("%s: CON do CurrentScore = %d, esperava %d — é esta que o cliente lê", c.nome, atual, c.con)
 		}
 	}
 }

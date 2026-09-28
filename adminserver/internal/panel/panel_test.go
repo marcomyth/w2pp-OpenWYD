@@ -268,34 +268,50 @@ func newTestPanel(t *testing.T, acc Accounts) http.Handler {
 }
 
 // fakeWriter records the writes asked of it and can be made to refuse.
+// foraDoRankingPedido é uma chamada do "Esconder do ranking", como o handler a fez.
+type foraDoRankingPedido struct {
+	AtorConta  int64
+	AtorPainel int64
+	Papel      string
+	Alvo       int64
+	Fora       bool
+	Nota       string
+}
+
 type fakeWriter struct {
-	mu           sync.Mutex
-	roleCall     []string
-	blkCall      []bool
-	lastActor    int64 // who the handler said was acting
-	lastTarget   int64 // and on whom
-	vipDays      []int
-	vipCleared   int
-	prevRole     string
-	pontos       []accounts.PontoDeLojinha
-	pontosErr    error
-	prevBlk      bool
-	prevVip      *time.Time
-	pendentes    int
-	ultimaEdicao time.Time
-	details      accounts.Details
-	senhaHash    []string
-	criadas      []contaCriada // Criar calls
-	criarErr     error         // forces Criar to return this
-	motivos      []string
-	diasBan      []int
-	buscas       []string
-	achados      []accounts.Achado
-	buscaErr     error
-	prevMotivo   string
-	euBloqueado  bool // what Blocked() answers for the signed-in account
-	blockedErr   error
-	err          error
+	foraDoRanking      []foraDoRankingPedido
+	foraDoRankingMudou bool
+	erroForaDoRanking  error
+	posse              accounts.Posse
+	posseSolta         []soltura
+	erroSoltarPosse    error
+	mu                 sync.Mutex
+	roleCall           []string
+	blkCall            []bool
+	lastActor          int64 // who the handler said was acting
+	lastTarget         int64 // and on whom
+	vipDays            []int
+	vipCleared         int
+	prevRole           string
+	pontos             []accounts.PontoDeLojinha
+	pontosErr          error
+	prevBlk            bool
+	prevVip            *time.Time
+	pendentes          int
+	ultimaEdicao       time.Time
+	details            accounts.Details
+	senhaHash          []string
+	criadas            []contaCriada // Criar calls
+	criarErr           error         // forces Criar to return this
+	motivos            []string
+	diasBan            []int
+	buscas             []string
+	achados            []accounts.Achado
+	buscaErr           error
+	prevMotivo         string
+	euBloqueado        bool // what Blocked() answers for the signed-in account
+	blockedErr         error
+	err                error
 }
 
 func (f *fakeWriter) Buscar(_ context.Context, prefixo string, _ int) ([]accounts.Achado, error) {
@@ -345,6 +361,38 @@ func (f *fakeWriter) Criar(_ context.Context, nome, hash, email string) (int64, 
 }
 
 func newFakeWriter() *fakeWriter { return &fakeWriter{prevRole: "player"} }
+
+// PosseDaConta e SoltarPosse: a válvula da posse (0137).
+func (f *fakeWriter) PosseDaConta(context.Context, int64) (accounts.Posse, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.posse, nil
+}
+
+func (f *fakeWriter) SoltarPosse(_ context.Context, atorConta, atorPainel int64, papel string,
+	accountID int64, nota string,
+) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.erroSoltarPosse != nil {
+		return f.erroSoltarPosse
+	}
+	f.posseSolta = append(f.posseSolta, soltura{
+		atorConta: atorConta, atorPainel: atorPainel, papel: papel,
+		conta: accountID, nota: nota,
+	})
+	f.posse = accounts.Posse{}
+	return nil
+}
+
+// soltura guarda uma chamada da válvula, para o teste conferir quem soltou e com
+// que observação — que é o que a auditoria precisa carregar.
+type soltura struct {
+	atorConta, atorPainel int64
+	papel                 string
+	conta                 int64
+	nota                  string
+}
 
 func (f *fakeWriter) SetRole(_ context.Context, actorID, targetID int64, role string) (string, error) {
 	f.mu.Lock()
@@ -3677,18 +3725,24 @@ func TestTrocasNoMenuQuandoConfigurado(t *testing.T) {
 // --- servidor ao vivo ---
 
 type fakeJogo struct {
-	mu                   sync.Mutex
-	estado               jogo.Estado
-	derrubadas           []string
-	avisos               []string
-	sessoes              int32
-	estadoErr            error
-	kickErr              error
-	avisoErr             error
-	drenagens            []string
-	drenarErr            error
-	desatolados          []string
-	destinos             [][2]int32
+	mu          sync.Mutex
+	estado      jogo.Estado
+	derrubadas  []string
+	avisos      []string
+	sessoes     int32
+	estadoErr   error
+	kickErr     error
+	avisoErr    error
+	drenagens   []string
+	drenarErr   error
+	desatolados []string
+	destinos    [][2]int32
+
+	// A troca de moldura do passe.
+	passeConta           string
+	passeNivel           int32
+	passeResp            jogo.Passe
+	passeErr             error
 	desatolarErr         error
 	entregasAgora        []string
 	entregarErr          error
@@ -3746,6 +3800,17 @@ func (f *fakeJogo) Desatolar(_ context.Context, conta string, paraX, paraY int32
 		}
 	}
 	return jogo.Desatolo{}, nil
+}
+
+// TrocarPasse: a fake guarda o que foi pedido e devolve o que o teste mandar.
+func (f *fakeJogo) TrocarPasse(_ context.Context, conta string, nivel int32) (jogo.Passe, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.passeConta, f.passeNivel = conta, nivel
+	if f.passeErr != nil {
+		return jogo.Passe{}, f.passeErr
+	}
+	return f.passeResp, nil
 }
 
 func (f *fakeJogo) EntregarAgora(_ context.Context, conta string) (jogo.Entrega, error) {
@@ -4748,6 +4813,56 @@ func duasFotos() domain.CensusCompare {
 	}
 }
 
+// duasFotosComPecas is the same week, with the piece count on both sides and one
+// stack that DOUBLED without taking a second space: 1 space before, 1 space now,
+// 60 pieces before, 120 now. It is the exact shape of a duplicated stack, and the
+// shape the page used to be blind to.
+func duasFotosComPecas() domain.CensusCompare {
+	hoje := time.Now().Truncate(24 * time.Hour)
+	sessenta, cento := int64(60), int64(120)
+	return domain.CensusCompare{
+		De:       domain.CensusRun{Day: hoje.AddDate(0, 0, -7), CountedAt: hoje.AddDate(0, 0, -7), Units: 1, Kinds: 1, Pecas: &sessenta},
+		Ate:      domain.CensusRun{Day: hoje, CountedAt: hoje, Units: 1, Kinds: 1, Pecas: &cento},
+		PorPecas: true,
+		Linha: []domain.ItemCensus{
+			{Index: 419, Sanc: 0, Units: 1, Was: 1, Delta: 0,
+				Pecas: 120, PecasAntes: 60, DeltaPecas: 60, Carried: 1},
+		},
+	}
+}
+
+// TestCensoMostraAPilhaQueDobrouSemCriarEspaco.
+//
+// A variação na tela tem de ser a de PEÇAS (+60) e não a de espaços (0): é a
+// segunda que escondia pilha duplicada, porque dobrar um maço não cria espaço.
+func TestCensoMostraAPilhaQueDobrouSemCriarEspaco(t *testing.T) {
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{cmp: duasFotosComPecas()}))
+	body := get("/censo").Body.String()
+
+	if !strings.Contains(body, "+60") {
+		t.Error("a página não mostra a variação de 60 PEÇAS; está lendo a de espaços, que é zero")
+	}
+	if !strings.Contains(body, "PEÇAS") {
+		t.Error("a página não diz que a conta é de peças, e o número mente sobre si sem isso")
+	}
+	if !strings.Contains(body, "419") {
+		t.Error("a linha do item não apareceu")
+	}
+}
+
+// TestCensoDizQuandoAContaEDeEspacos.
+//
+// Com uma foto antiga sem peças a comparação volta a ser de espaços, e a tela
+// PRECISA dizer isso — senão quem lê acha que item empilhável está contado.
+func TestCensoDizQuandoAContaEDeEspacos(t *testing.T) {
+	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{cmp: duasFotos()}))
+	body := get("/censo").Body.String()
+
+	if !strings.Contains(body, "ESPAÇOS") {
+		t.Error("a página não avisa que a conta é de espaços e que empilhável está subcontado")
+	}
+}
+
 func TestCensoMostraOQueMudou(t *testing.T) {
 	get := signedIn(t, newTestPanelCenso(t, &fakeCenso{cmp: duasFotos()}))
 	body := get("/censo").Body.String()
@@ -4940,7 +5055,7 @@ func TestCensoFalhaDasCopiasNaoDerrubaOCenso(t *testing.T) {
 	if !strings.Contains(body, "as cópias") {
 		t.Error("a página não avisa que não conseguiu ler as cópias")
 	}
-	if !strings.Contains(body, "1415") {
+	if !strings.Contains(body, "1415</span>") {
 		t.Error("o censo sumiu junto com a lista que falhou")
 	}
 }
@@ -5190,4 +5305,22 @@ func (f *fakeWriter) PontosDeLojinha(_ context.Context, _ int64, _ int) ([]accou
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.pontos, f.pontosErr
+}
+
+// ForaDoRanking guarda o pedido inteiro, e não só o alvo: o que este PR precisa provar é
+// que o ATOR chega à auditoria, e um fake que guardasse só o alvo passaria mesmo com o
+// ator perdido no caminho.
+func (f *fakeWriter) ForaDoRanking(_ context.Context, atorConta, atorPainel int64,
+	papel string, targetID int64, fora bool, nota string,
+) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.foraDoRanking = append(f.foraDoRanking, foraDoRankingPedido{
+		AtorConta: atorConta, AtorPainel: atorPainel, Papel: papel,
+		Alvo: targetID, Fora: fora, Nota: nota,
+	})
+	if f.erroForaDoRanking != nil {
+		return false, f.erroForaDoRanking
+	}
+	return f.foraDoRankingMudou, nil
 }

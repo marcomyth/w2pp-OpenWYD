@@ -50,6 +50,27 @@ func Empilha(index int16) bool {
 		return true
 	case 3224: // Fragmento de Alma, da Escolta do Trono dos Reinos (tmserver handler/reinos.go)
 		return true
+	// Os baús de sorteio do Apoiador: Bronze 3304, Apoiador 3305, Supremo 3306.
+	//
+	// MEDIDO EM JOGO, 24/09/2026, no cliente da Hanna: `/gm item 3305 61 2` criou o
+	// baú com EF_AMOUNT 2 e o cliente desenhou UM espaço com o número 2 no
+	// inventário, sem travar.
+	//
+	// A medição é o que autoriza a linha, e não a conveniência: o `character.go:26`
+	// registra que um empilhável mal formado MATA o cliente no login e continua
+	// matando a cada tentativa. Errar aqui é travar o jogo de quem pagou.
+	//
+	// O servidor já estava pronto para a pilha antes desta linha: o `openChest`
+	// (handler/baus.go) procura espaço livre para o prêmio quando há mais de uma
+	// unidade, recusa em voz alta se não houver, e o `consumeOneItem` gasta UMA
+	// deixando o resto. É a mesma pré-condição que a nota do 4140 aqui em cima cita.
+	//
+	// O QUE ISSO MUDA para quem compra: o pacote Supremo dá 64 baús. Sem empilhar são
+	// 64 espaços dos 128 do baú da conta, e o pacote inteiro ocupa 69 — não cabe no
+	// baú de quem joga, e a entrega fica pendente aos pedaços. Empilhado, o pacote
+	// inteiro ocupa 6.
+	case 3304, 3305, 3306:
+		return true
 	}
 	switch {
 	case index >= 2390 && index <= 2419: // Âmagos, todos

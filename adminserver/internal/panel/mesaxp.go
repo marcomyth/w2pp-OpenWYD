@@ -356,7 +356,7 @@ func (h *Handler) setMesaXP(w http.ResponseWriter, r *http.Request) {
 		}
 		gravadas = append(gravadas, level.Zone(z).Name())
 		if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-			ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+			ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 			Action: audit.ActionSetXPRule,
 			Old:    regraParaAudit(antes), New: regraParaAudit(regra),
 		}); err != nil {
@@ -462,7 +462,7 @@ func (h *Handler) restaurarMesaXP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-			ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+			ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 			Action: audit.ActionClearXPRule, Old: regraParaAudit(anterior),
 		}); err != nil {
 			h.auditoriaFalhou(w, err)
@@ -487,7 +487,7 @@ func (h *Handler) restaurarMesaXP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetXPRule,
 		Old:    regraParaAudit(anterior), New: regraParaAudit(regra),
 	}); err != nil {
@@ -519,7 +519,7 @@ func (h *Handler) limparMesaXP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionClearXPRule, Old: regraParaAudit(antes),
 	}); err != nil {
 		h.auditoriaFalhou(w, err)
@@ -1353,7 +1353,7 @@ func (h *Handler) aplicarDificuldade(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-			ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+			ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 			Action: audit.ActionSetXPRule,
 			Old:    regraParaAudit(antes), New: regraParaAudit(regra),
 		}); err != nil {

@@ -28,12 +28,15 @@ import (
 	"google.golang.org/grpc"
 
 	gamev1 "github.com/jeanluca/w2pp-openwyd/api/game/v1"
+	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
 	"github.com/jeanluca/w2pp-openwyd/internal/buildinfo"
 	"github.com/jeanluca/w2pp-openwyd/internal/campotreino"
+	"github.com/jeanluca/w2pp-openwyd/internal/ciclopes"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/internal/mountbonus"
 	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/reinos"
+	"github.com/jeanluca/w2pp-openwyd/internal/secret"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/binclient"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
@@ -112,6 +115,14 @@ func run(logger *slog.Logger) error {
 	maxMsgPerSec := flag.Float64("max-msg-per-sec", 200, "per-connection inbound message rate limit (0 = disabled)")
 	msgBurst := flag.Int("msg-burst", 400, "per-connection message burst depth")
 	idleTimeoutSec := flag.Int("idle-timeout-sec", envInt("W2PP_IDLE_TIMEOUT_SEC", 0), "drop a connection that sends nothing for this many seconds (0 = disabled). An authenticated socket that goes silent otherwise holds one of the 1000 session slots forever. Off by default because the real client's idle cadence is unconfirmed — enable once a capture shows it, or a legitimate idle player gets disconnected")
+	// A TRANCA DO AMBIENTE DE TESTE. Ligada, só staff entra no jogo.
+	//
+	// Existe porque o cliente do teste já está na mão de gente, e a conta de qualquer
+	// um serve para entrar nele. Sem a tranca, o ambiente de teste vira um segundo
+	// servidor aberto sem ninguém ter decidido isso.
+	//
+	// DESLIGADA POR PADRÃO, e é a produção que depende disso: uma tranca que nasce
+	// ligada derruba o servidor de verdade no dia em que alguém esquecer a variável.
 	contentDir := flag.String("content", os.Getenv("W2PP_CONTENT"), "path to the Release/ content tree (empty = skip; validates rates/catalogs/maps at boot)")
 	npcEditing := flag.Bool("npc-editing", envBool("W2PP_NPC_EDITING", false), "enable the moderator NPC-editing overlay (npc-editing-plan.md); needs -dbserver and -content. OFF by default: turn it on only after `dbserver import-npcs` has seeded npc_definition, else DB-managed merchant NPCs would be skipped from NPCGener.txt with nothing to replace them")
 	mobStatEditing := flag.Bool("mob-stat-editing", envBool("W2PP_MOB_STAT_EDITING", false), "enable the moderator mob/NPC template stat overlay (mob-template-editing-plan.md, the equivalent-tool successor to the legacy EDITAPPMOB); needs -dbserver and -content. Applied ONCE at boot, like every other content load — a moderator edit needs a tmServer restart to take effect (EDITAPPMOB itself required a server restart too), independent of -npc-editing")
@@ -137,6 +148,28 @@ func run(logger *slog.Logger) error {
 	affectMinSeconds := flag.Int("affect-min-seconds", envInt("W2PP_AFFECT_MIN_SECONDS", 60), "floor for NON-aggressive cast affects, in seconds; keeps the shortest buffs usable (0 = no floor)")
 	affectMaxMinutes := flag.Int("affect-max-minutes", envInt("W2PP_AFFECT_MAX_MINUTES", 10), "cap for cast affects, in minutes; cuts the mastery tail (0 = no cap)")
 	flag.Parse()
+
+	// A TRANCA DO AMBIENTE DE TESTE, lida pelo mesmo pacote que o site e o painel
+	// usam. Valor que ninguém entende NÃO vira desligado: o servidor não sobe, porque
+	// subir destrancado achando que está trancado é o erro que ninguém procura.
+	acessoRestrito, err := acesso.Restrito()
+	if err != nil {
+		return err
+	}
+	logger.Info(acesso.Frase(acessoRestrito))
+
+	// A TRAVA DO MERCADO EM DINHEIRO REAL, pelo mesmo caminho e pelo mesmo motivo: valor
+	// que ninguém entende NÃO vira aberto, o servidor não sobe. Aqui o argumento é ainda
+	// mais forte do que na tranca de cima, porque um mercado aberto por engano move
+	// dinheiro de verdade, e dinheiro que saiu não volta por conserto de configuração.
+	//
+	// Vazio vale FECHADO, então subir esta versão já trancou: não há variável para pôr em
+	// produção e não há como esquecer de trancar.
+	estadoRMT, err := acesso.RMT()
+	if err != nil {
+		return err
+	}
+	logger.Info(acesso.FraseRMT(estadoRMT))
 
 	// Echo the effective wiring at boot: the client-version and the resolved
 	// dbServer/binServer addresses are the knobs most often misconfigured in a
@@ -228,6 +261,7 @@ func run(logger *slog.Logger) error {
 	var combineRates handler.CombineRateSource
 	var combatRules handler.CombatRuleSource
 	var generatorOff handler.GeneratorOffSource
+	var generatorRecipes handler.GeneratorRecipeSource
 	var dropRules handler.DropRuleSource
 	if *dbAddr != "" {
 		conn, err := grpc.NewClient(*dbAddr, grpc.WithTransportCredentials(clientCreds))
@@ -245,11 +279,21 @@ func run(logger *slog.Logger) error {
 		combineRates = dbclient.NewCombineRateSource(conn)
 		combatRules = dbclient.NewCombatRuleSource(conn)
 		generatorOff = dbclient.NewGeneratorOffSource(conn)
+		generatorRecipes = dbclient.NewGeneratorRecipeSource(conn)
 		dropRules = dbclient.NewDropRuleSource(conn)
 		// Cash e RMT da Loja do Servidor: são carteiras da CONTA, no banco, e só
 		// existem com o dbServer ligado. Sem ele, a compra nessas moedas é
 		// recusada e nada se move (handler/lojasaldo.go).
 		handler.UsaSaldoDeConta(handler.SaldoPeloBanco(banco))
+		// A cobranca em Pix: clicar numa prateleira em dinheiro real passa a CRIAR a
+		// linha da cobranca. Sem o dbServer, a loja recusa em voz alta
+		// (ErrPixNaoLigado) em vez de fingir que abriu.
+		//
+		// O QUE NASCE AQUI E SO A LINHA. O codigo Pix nasce na primeira leitura da
+		// pagina do comprador, no site — e e por isso que ESTE processo nao precisa
+		// do segredo nem do certificado da ponte. O servidor de jogo nao fala com a
+		// processadora.
+		handler.UsaCobradorPix(banco)
 		logger.Info("dbServer wired", "addr", *dbAddr)
 	} else {
 		logger.Warn("no -dbserver: using no-op persistence (logins report no account)")
@@ -392,6 +436,18 @@ func run(logger *slog.Logger) error {
 		mobStatBootVersion = versao
 		logger.Info("mob template stat overlay enabled (moderator editing)",
 			"overrides", len(mobStatOverrides), "version", versao)
+	}
+
+	// The block recipes (handler/receita.go) read the templates they name straight
+	// from the content tree, and need the file each name resolved to: that is the
+	// name the Mesa de Drops and the sheet reload key on. Without -content there is
+	// no file to read, and the recipes stay off.
+	var recipeTemplate handler.RecipeTemplateLoader
+	if *contentDir != "" {
+		recipeTemplate = func(name string) ([]byte, string, error) {
+			b, res, err := npctemplate.Load(*contentDir, name)
+			return b, res.Name, err
+		}
 	}
 
 	// Moderator item base stat overlay (0023_item_stats), the item-side sibling
@@ -627,7 +683,7 @@ func run(logger *slog.Logger) error {
 		eventSeed = 1
 	}
 	dispatch := handler.New(handler.Config{
-		Log: logger, ClientVersion: int32(*clientVersion), BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, CasteloOrcNPC: casteloOrcNPC, AcampamentoTrollNPC: acampamentoTrollNPC, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemKeyIDs: itemKeyIDs, ItemClasses: itemClasses, ItemReqs: itemReqs,
+		Log: logger, ClientVersion: int32(*clientVersion), AcessoRestrito: acessoRestrito, RMT: estadoRMT, BaseMobs: baseMobs, SummonMobs: summonMobs, VineMob: vineMob, CasteloOrcNPC: casteloOrcNPC, AcampamentoTrollNPC: acampamentoTrollNPC, ItemPrices: itemPrices, ItemNames: itemNames, ItemEffects: itemEffects, ItemKeyIDs: itemKeyIDs, ItemClasses: itemClasses, ItemReqs: itemReqs,
 		ItemVolatiles: itemVolatiles, ItemDonates: itemDonates, ItemDurations: itemDurations, MountRates: mountRates, MountAbsorb: mountAbsorb, MountBonus: mountBonus, ItemPos: itemPos, ItemUnique: itemUnique, ItemGrades: itemGrades, ItemExtra: itemExtra, Spells: spells, Heights: heights, Attributes: attributes,
 		SancRate:        sancRate,
 		ExpEvents:       level.ExpEvents{DoubleMode: *doubleExp, NewbieEvent: *newbieEvent, KefraLive: *kefraLive},
@@ -645,6 +701,8 @@ func run(logger *slog.Logger) error {
 		DungeonGates:    dungeonGates,
 		SpawnRates:      spawnRates,
 		GeneratorOff:    generatorOff,
+		Recipes:         generatorRecipes,
+		RecipeTemplate:  recipeTemplate,
 		CombineRateSrc:  combineRates,
 		CombatRuleSrc:   combatRules,
 		DropRuleSrc:     dropRules,
@@ -672,9 +730,10 @@ func run(logger *slog.Logger) error {
 		MaxMsgPerSec:   *maxMsgPerSec,
 		MsgBurst:       *msgBurst,
 		IdleTimeout:    time.Duration(*idleTimeoutSec) * time.Second,
-		// Long enough for the "server is restarting" frame to leave the socket,
-		// short enough to leave the character saves their share of the SIGTERM →
-		// SIGKILL window (Docker's default grace is 10s). Only production sets
+		// Long enough for the "server is restarting" frame to leave the socket.
+		// The saves run inside it, not after it (world/desligamento.go): the
+		// SIGTERM → SIGKILL window is the platform's, and on 27/09 it ended
+		// before a save that waited this long could finish. Only production sets
 		// this; tests leave it zero so they do not pay it on every world.
 		ShutdownGrace: 2 * time.Second,
 		StatusFile:    statusFile,
@@ -702,6 +761,18 @@ func run(logger *slog.Logger) error {
 	// fresh boot would go out unmarked, which is a hole at exactly the moment
 	// the server is writing every item it has for the first time. Not fatal: a
 	// server with no database still runs, its items simply carry no identity.
+	// O NÚMERO DE ÉPOCA DESTA EXECUÇÃO, que ordena as gravações do par
+	// personagem+carga. Vem do banco de propósito: um contador que zerasse a cada
+	// boot ficaria abaixo do que o banco guardou da execução anterior, e nenhuma
+	// gravação passaria mais — perda total, calada. Sem banco, fica zero e a guarda
+	// de ordem simplesmente não existe, que é o mesmo comportamento de antes dela.
+	if epoca, err := persist.NovaEpocaDePar(ctx); err != nil {
+		logger.Warn("sem numero de epoca: as gravacoes do par nao serao ordenadas entre si", "err", err)
+	} else {
+		w.DefineEpocaDoPar(epoca)
+		logger.Info("epoca do par", "epoca", epoca)
+	}
+
 	if err := w.PrimeSerials(ctx); err != nil {
 		logger.Warn("could not reserve the first item serials; items stay unmarked until a later block lands", "err", err)
 	}
@@ -747,7 +818,13 @@ func run(logger *slog.Logger) error {
 	// the DB overlay is active, merchant blocks are skipped here (owned by
 	// npc_definition) and applied from the config snapshot instead.
 	if *contentDir != "" {
-		spawnNPCs(w, *contentDir, npcConfig != nil, mobStatOverrides, itemPrices, itemNames, logger)
+		gens := spawnNPCs(w, *contentDir, npcConfig != nil, mobStatOverrides, itemPrices, itemNames, logger)
+		// The block recipes from the database (0165_receita_de_bloco) go on right
+		// after the populate, before anything else touches the blocks: they replace
+		// what the populate raised from the file, and the NPC overlay, the switches
+		// and the boss holds below then act on the recipe in force.
+		dispatch.SetRecipeBase(gens)
+		dispatch.ApplyGeneratorRecipesBoot(w)
 		seedWorldItems(w, *contentDir, logger)
 	}
 	if npcConfig != nil {
@@ -770,6 +847,18 @@ func run(logger *slog.Logger) error {
 	// Same reason, and necessarily after the world-event config above: the Kefra
 	// and its guards only stay standing while the database says he is alive.
 	dispatch.ApplyKefraStateBoot(w)
+	// Os chefes do Gelo voltam horas depois do boot, pela fila da morte (gelo.go).
+	dispatch.ApplyGeloChefesBoot(w)
+	// O FrenzyDemonLord também, pelo mesmo motivo (submundo.go).
+	dispatch.ApplyFrenzyBoot(w)
+	dispatch.ApplyBossDragaoLichBoot(w)
+	dispatch.ApplyBossHidraDouradaBoot(w)
+	dispatch.ApplyCiclopeTiranoBoot(w)
+	dispatch.ApplyTaronTiranoBoot(w)
+	dispatch.ApplyChefesDaLavaBoot(w)
+	dispatch.ApplyBossConjuradorBoot(w)
+	dispatch.ApplyReiTrollZumbiBoot(w)
+	dispatch.ApplyGargulaSabioBoot(w)
 	// The individual respawn queue takes its delay from the same area dial the
 	// minute timer does, so the desert's dozen blocks without a minute period
 	// are not left running at 15s while everything around them slows down. It is
@@ -784,6 +873,15 @@ func run(logger *slog.Logger) error {
 	// TLS is unconfigured, so "wire it like the other services" would have
 	// shipped an unauthenticated way to kick every player off the server.
 	if *controlAddr != "" {
+		// A impressão do token que ESTE servidor exige. Quem se conectar imprime a
+		// dele do mesmo jeito, e as duas linhas juntas dizem em um segundo se o
+		// problema é valor diferente — sem nenhum dos dois logs conter o valor.
+		logger.Info("api de controle: token exigido",
+			"token", secret.Impressao(os.Getenv("W2PP_CONTROL_TOKEN")))
+		if secret.TokenFraco(os.Getenv("W2PP_CONTROL_TOKEN")) {
+			logger.Warn("o token de controle e CURTO; troque por um aleatorio de 32 bytes ou mais",
+				"minimo", secret.TamanhoMinimoDoToken)
+		}
 		ctl, cerr := control.NewServer(w, os.Getenv("W2PP_CONTROL_TOKEN"), logger, dispatch.Teleport,
 			// What the panel cannot see from the database: whether this server
 			// was booted to read the moderator overlays at all.
@@ -811,6 +909,10 @@ func run(logger *slog.Logger) error {
 		}
 		// The panel's "Blocos" page runs the same block commands as "/gm".
 		ctl.SetBlockRunner(dispatch.RunBlockCommand)
+		// A troca de moldura do passe em jogo. Ela vem do dispatcher pelo mesmo
+		// caminho do teleporte: quem monta o pacote é o handler, e o control não
+		// pode importá-lo sem fechar um ciclo com os testes de lá.
+		ctl.SetAplicadorDePasse(dispatch.AplicarPasse)
 		gsrv := grpc.NewServer(grpc.UnaryInterceptor(ctl.Interceptor()))
 		gamev1.RegisterGameControlServiceServer(gsrv, ctl)
 		go func() {
@@ -847,13 +949,17 @@ func run(logger *slog.Logger) error {
 // front so the world is playable immediately. This burns the LCG at boot (one
 // stream for all spawns, like the original's global rand()); there is no legacy
 // boot rand order to diverge from.
+//
+// It returns the file's blocks, in file order: what a block edited in the
+// database goes back to when its row is deleted (handler/receita.go). Nil when
+// the file did not load.
 func spawnNPCs(w *world.World, dir string, skipMerchants bool, mobStatOverrides map[string]mobstat.Override,
 	itemPrices map[int]int32, itemNames map[int]string, logger *slog.Logger,
-) {
+) []content.NPCGenerator {
 	gens, err := content.LoadNPCGenerators(filepath.Join(dir, "TMsrv", "run", "NPCGener.txt"))
 	if err != nil {
 		logger.Warn("NPC generators not loaded", "err", err)
-		return
+		return nil
 	}
 	// A real monster whose kill reward is zero or beyond the legacy award gate
 	// (10M, MobKilled.cpp:1284) means the content tree wasn't restamped with
@@ -1040,10 +1146,17 @@ func spawnNPCs(w *world.World, dir string, skipMerchants bool, mobStatOverrides 
 		// stay monster generators here — killable, respawning, and named for the
 		// Mesa de Drops, which a DB-managed block is not (campotreino). The
 		// dbServer importer applies the same rule, so no definition claims them.
-		// The Reinos city does the same for its kings and army (internal/reinos).
+		// The Reinos city does the same for its kings and army (internal/reinos),
+		// and so do the Ciclopes Cruéis and the Lanceiros of their spot, by
+		// template (internal/ciclopes). Without this last one the fix of 26/09
+		// never reached production: with -npc-editing on these blocks became
+		// definitions, which spawn nameless, so the exception by name never
+		// matched and the monster stood immortal, one per block and outside the
+		// Mesa de Drops.
 		if skipMerchants && leader.rawMerchant != 0 &&
 			!campotreino.MonstroNoCampo(leader.rawMobMerchant, int(g.SegX[0]), int(g.SegY[0])) &&
-			!reinos.MonstroDoReino(leader.rawMobMerchant, leader.rawClan, int(g.SegX[0]), int(g.SegY[0])) {
+			!reinos.MonstroDoReino(leader.rawMobMerchant, leader.rawClan, int(g.SegX[0]), int(g.SegY[0])) &&
+			!ciclopes.MonstroDeCombate(leader.file, leader.rawMobMerchant) {
 			skipped++
 			dbOwned[i] = true
 		}
@@ -1125,6 +1238,7 @@ func spawnNPCs(w *world.World, dir string, skipMerchants bool, mobStatOverrides 
 	logger.Info("npc template catalog", "layouts", stats)
 	logger.Info("NPCs spawned", "generators", len(gens), "mobs", total, "templates", len(templates),
 		"merchant_blocks_skipped", skipped)
+	return gens
 }
 
 // seedWorldItems spawns the static world objects (gates/doors) from
@@ -1244,10 +1358,29 @@ func loadContent(dir string, logger *slog.Logger) (*loadedContent, error) {
 	// The Ori/Lac rates are worth logging outright: SancRate.txt only overrides the
 	// indices it lists, so a broken mount silently leaves the compiled defaults and
 	// the operator would otherwise not notice.
+	// A IMPRESSÃO DO ItemList VAI JUNTO COM AS CONTAGENS, e é ela que responde o que
+	// as contagens não respondem: CONTAGEM NÃO MUDA QUANDO O VALOR MUDA. Em 24/09/2026,
+	// 456 armas ganharam 15% de dano e esta linha continuou dizendo os mesmos 3242
+	// itens — provar que o servidor tinha os números novos virou uma investigação que
+	// terminou em dedução pela plataforma, e não em medição. Agora é comparar dezesseis
+	// caracteres com o sha256 do arquivo em qualquer revisão do repositório.
+	//
+	// É o MESMO número que o webServer imprime, de propósito (ver buildinfo e o teste
+	// que prende os dois), para os dois lados poderem ser comparados entre si.
+	impressaoDoItemList, errImpressao := buildinfo.ImpressaoDoConteudo(
+		filepath.Join(dir, "Common", "ItemList.csv"))
+	if errImpressao != nil {
+		// Não derruba nada: o ItemList já foi lido com sucesso logo acima, então o que
+		// falhou foi só a identificação. Dizer isso é melhor do que imprimir um campo
+		// vazio que alguém leria como "não mudou".
+		logger.Warn("não consegui calcular a impressão do ItemList", "err", errImpressao)
+		impressaoDoItemList = "nao-calculada"
+	}
 	logger.Info("content loaded",
 		"comprate_families", comp.Families(),
 		"sancrate_ori", sancRow(sanc, 0), "sancrate_lac", sancRow(sanc, 1),
-		"items", items.Len(), "skills", skills.Len(), "language_lines", language.Len())
+		"items", items.Len(), "itemlist_version", impressaoDoItemList,
+		"skills", skills.Len(), "language_lines", language.Len())
 
 	// Maps are optional: 17 MiB HeightMap + 1 MiB AttributeMap aren't required to
 	// accept logins; warn rather than fail when they aren't mounted. When both

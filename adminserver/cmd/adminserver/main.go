@@ -31,6 +31,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -51,6 +52,10 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/siteapi"
+	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
+	"github.com/jeanluca/w2pp-openwyd/internal/npcgener"
+	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
+	"github.com/jeanluca/w2pp-openwyd/internal/secret"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
 
@@ -71,6 +76,16 @@ const (
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	// O VERBO VEM ANTES DAS FLAGS, e é lido à mão de propósito: o flag padrão do Go pararia
+	// no primeiro argumento que não começa com "-", e um subcomando misturado com as flags
+	// do servidor faria "criar-usuario" virar um servidor subindo com argumento estranho.
+	if len(os.Args) > 1 && os.Args[1] == criarUsuarioCmd {
+		if err := criarUsuario(logger, os.Args[2:], os.Stdin); err != nil {
+			logger.Error(criarUsuarioCmd+" falhou", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(logger); err != nil {
 		logger.Error("adminserver failed", "err", err)
 		os.Exit(1)
@@ -93,7 +108,20 @@ func run(logger *slog.Logger) error {
 	// The player site's API. A second listener, meant for the private network
 	// only; empty leaves it off and the panel exactly as it was.
 	siteAddr := flag.String("site-api", os.Getenv("SITE_API_ADDR"), "private listen address for the player site's API, e.g. :8090 (empty = off). Needs W2PP_PAINEL_TOKEN_SITE")
+	// The content tree, for the block recipes (Zonas de caça): the form starts
+	// from NPCGener.txt and checks each name against npc/. The image bakes it at
+	// /Release, which is the default; empty or missing hides the recipe pages.
+	contentDir := flag.String("content", envOr("W2PP_CONTENT", "/Release"), "game content tree (Release/) for the block recipe pages (empty = hide them)")
 	flag.Parse()
+
+	// A MESMA tranca dos outros dois, pelo mesmo pacote. Valor desconhecido não sobe:
+	// um painel que sobe com a criação de conta aberta, num servidor que deveria estar
+	// trancado, é o erro que ninguém procura.
+	acessoRestrito, err := acesso.Restrito()
+	if err != nil {
+		return err
+	}
+	logger.Info(acesso.Frase(acessoRestrito))
 
 	if *dsn == "" {
 		return fmt.Errorf("-dsn (or DATABASE_URL) is required")
@@ -109,6 +137,19 @@ func run(logger *slog.Logger) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+
+	// A CHAVE QUE DESLIGA O CAMINHO ANTIGO. Vazia vale DESLIGADA, ou seja, os dois caminhos
+	// convivem — que é o que tem de valer na estreia. Valor que este código não entende é
+	// ERRO e o serviço não sobe: ligada por engano tranca todo mundo para fora, e desligada
+	// por engano deixa entrar quem já entrava. As duas merecem um erro alto em vez de um
+	// padrão adivinhado.
+	soUsuarioDoPainel, err := acesso.Ler(os.Getenv("W2PP_PAINEL_SO_USUARIO"))
+	if err != nil {
+		return fmt.Errorf("W2PP_PAINEL_SO_USUARIO: %w", err)
+	}
+	logger.Info(fraseDoLoginDoPainel(soUsuarioDoPainel))
+
+	gens, moldeExiste, corpoConhecido := carregarNPCGener(*contentDir, logger)
 
 	pool, err := store.Pool(ctx, *dsn)
 	if err != nil {
@@ -129,7 +170,13 @@ func run(logger *slog.Logger) error {
 		chave := os.Getenv("W2PP_WEB_TOKEN_PAINEL")
 		conn, err := grpc.NewClient(*webAddr,
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
-			grpc.WithUnaryInterceptor(mandaChaveWeb(chave)))
+			grpc.WithChainUnaryInterceptor(
+				mandaChaveWeb(chave),
+				// O ator do painel, quando houver. Em cadeia e nao substituindo: o
+				// token do painel continua sendo o que AUTENTICA a chamada, e este
+				// so diz QUEM esta agindo por tras dele.
+				gamedata.MandaAtorDoPainel(),
+			))
 		if err != nil {
 			return fmt.Errorf("webserver dial: %w", err)
 		}
@@ -156,14 +203,34 @@ func run(logger *slog.Logger) error {
 			return fmt.Errorf("-tmserver is set but W2PP_CONTROL_TOKEN is empty; " +
 				"the game server refuses every call without it")
 		}
-		conn, cerr := grpc.NewClient(*jogoAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if cerr != nil {
-			return fmt.Errorf("tmserver dial: %w", cerr)
+		// O TOKEN COM CARA DE ENDEREÇO NÃO LIGA O LINK, e o erro diz o que trocar.
+		//
+		// Foi o defeito de 24/09/2026: a variável do token apontava para a do endereço,
+		// o serviço subia anunciando o link ligado, e o tmServer recusava toda chamada.
+		//
+		// E NOTE A DIFERENÇA para o token VAZIO logo acima, que derruba o boot: aqui o
+		// painel SOBE. Não é descuido. O painel sem o link perde as páginas do jogo e
+		// continua servindo conta, VIP, bloqueio e auditoria — e uma variável trocada
+		// não pode tirar do ar o lugar de onde se conserta a variável trocada.
+		if secret.TokenComCaraDeEndereco(token, *jogoAddr) {
+			logger.Error("W2PP_CONTROL_TOKEN parece o ENDEREÇO e não o segredo; "+
+				"as páginas do jogo ficam desligadas. Aponte a variável para o "+
+				"W2PP_CONTROL_TOKEN do serviço tmserver, e não para o endereço",
+				"token", secret.Impressao(token), "addr", *jogoAddr)
+		} else {
+			conn, cerr := grpc.NewClient(*jogoAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if cerr != nil {
+				return fmt.Errorf("tmserver dial: %w", cerr)
+			}
+			defer func() { _ = conn.Close() }()
+			cliente := jogo.New(conn, token)
+			live, blocos = cliente, cliente
+			logger.Info("live game link enabled", "addr", *jogoAddr, "token", secret.Impressao(token))
+			if secret.TokenFraco(token) {
+				logger.Warn("o token de controle e CURTO; troque por um aleatorio de 32 bytes ou mais",
+					"minimo", secret.TamanhoMinimoDoToken)
+			}
 		}
-		defer func() { _ = conn.Close() }()
-		cliente := jogo.New(conn, token)
-		live, blocos = cliente, cliente
-		logger.Info("live game link enabled", "addr", *jogoAddr)
 	} else {
 		logger.Info("live game pages disabled",
 			"configuration", "W2PP_TMSERVER_CONTROL + W2PP_CONTROL_TOKEN")
@@ -196,33 +263,52 @@ func run(logger *slog.Logger) error {
 	sessoes := session.New(*sessionTTL)
 
 	handler, err := panel.New(panel.Config{
-		Platform:    plat,
-		Accounts:    store.New(pool),
-		GameData:    game,
-		Writer:      accounts.New(pool),
-		Entregas:    entrega.New(pool),
-		Personagens: personagem.New(pool),
-		Eventos:     store.New(pool),
-		MesaXP:      store.New(pool),
-		Masmorras:   store.New(pool),
-		Quests:      store.New(pool),
-		Spawn:       store.New(pool),
-		Combate:     store.New(pool),
-		BonusDrop:   store.New(pool),
-		Maquinas:    store.New(pool),
-		MesaDrops:   store.New(pool),
-		Denuncias:   store.New(pool),
-		Guildas:     store.New(pool),
-		Carteira:    donate.New(pool),
-		Trocas:      store.New(pool),
-		Censo:       store.New(pool),
-		Chat:        store.New(pool),
-		Jogo:        live,
-		Blocos:      blocos,
-		Audit:       audit.New(pool),
-		Sessions:    sessoes,
-		Logger:      logger,
-		SecureOnly:  !*insecureCookies,
+		Platform: plat,
+		Accounts: store.New(pool),
+		// QUEM ADMINISTRA (0130). Sempre montado: a tabela existe desde a migração, e
+		// deixar isto opcional só criaria um jeito de subir o painel sem a tela que a
+		// Hanna pediu.
+		Painel: store.New(pool),
+		// O contador das quatro filas, para o distintivo do menu.
+		FilasDeDinheiro: store.New(pool),
+		// SoUsuarioDoPainel desliga o login por conta de jogo com cargo. A Hanna liga
+		// quando tiver criado os usuários dela; ligar antes trancaria para fora a única
+		// pessoa que poderia criá-los.
+		SoUsuarioDoPainel: soUsuarioDoPainel,
+		GameData:          game,
+		Writer:            accounts.New(pool),
+		Entregas:          entrega.New(pool),
+		Personagens:       personagem.New(pool),
+		Eventos:           store.New(pool),
+		MesaXP:            store.New(pool),
+		Masmorras:         store.New(pool),
+		Quests:            store.New(pool),
+		Spawn:             store.New(pool),
+		Receitas:          store.New(pool),
+		NPCGener:          gens,
+		MoldeExiste:       moldeExiste,
+		CorpoConhecido:    corpoConhecido,
+		Combate:           store.New(pool),
+		BonusDrop:         store.New(pool),
+		Maquinas:          store.New(pool),
+		MesaDrops:         store.New(pool),
+		Repasses:          store.New(pool),
+		FilasRMT:          store.New(pool),
+		Passe:             store.New(pool),
+		Guildas:           store.New(pool),
+		Carteira:          donate.New(pool),
+		Trocas:            store.New(pool),
+		Censo:             store.New(pool),
+		Chat:              store.New(pool),
+		Jogo:              live,
+		Blocos:            blocos,
+		Audit:             audit.New(pool),
+		Sessions:          sessoes,
+		Logger:            logger,
+		SecureOnly:        !*insecureCookies,
+		// A MESMA variável do jogo e do site: um servidor trancado para entrar e
+		// aberto para cadastrar seria a porta que ninguém lembra de fechar.
+		SemCadastro: acessoRestrito,
 	})
 	if err != nil {
 		return fmt.Errorf("build panel: %w", err)
@@ -348,4 +434,50 @@ func mandaChaveWeb(chave string) grpc.UnaryClientInterceptor {
 		}
 		return invoker(ctx, method, req, reply, cc, opts...)
 	}
+}
+
+// fraseDoLoginDoPainel escreve no boot qual caminho de login está valendo.
+//
+// OS DOIS ESTADOS SÃO ESCRITOS, pelo mesmo motivo das outras trancas deste sistema: um log
+// que só fala quando a chave liga faz do silêncio duas coisas diferentes — "está desligada"
+// e "esta versão nem tem a chave" —, e é isso que alguém precisa distinguir quando não
+// consegue entrar.
+func fraseDoLoginDoPainel(soUsuario bool) string {
+	if soUsuario {
+		return "login do painel: SÓ usuário do painel; conta de jogo com cargo NÃO entra mais"
+	}
+	return "login do painel: usuário do painel E conta de jogo com cargo (caminho antigo ainda ligado)"
+}
+
+// carregarNPCGener reads the file's blocks and builds the template check for the
+// recipe pages. A missing tree is not an error: the pages are hidden and every
+// other one works, as with the other optional dependencies.
+func carregarNPCGener(dir string, logger *slog.Logger) ([]npcgener.Generator, panel.MoldeExiste, panel.CorpoConhecido) {
+	if dir == "" {
+		return nil, nil, nil
+	}
+	gens, err := npcgener.Load(filepath.Join(dir, "TMsrv", "run", "NPCGener.txt"))
+	if err != nil {
+		logger.Warn("NPCGener not loaded; the block recipe pages are hidden", "content", dir, "err", err)
+		return nil, nil, nil
+	}
+	nomes := make([]string, 0, 2*len(gens))
+	for _, g := range gens {
+		nomes = append(nomes, g.Leader, g.Follower)
+	}
+	corpos := npctemplate.CorposDoArquivo(dir, nomes)
+	logger.Info("NPCGener loaded for the block recipe pages", "blocks", len(gens), "corpos", len(corpos))
+	moldeExiste := func(name string) (string, bool) {
+		res, err := npctemplate.Resolve(dir, name)
+		return res.Name, err == nil
+	}
+	corpoConhecido := func(name string) (int16, bool) {
+		raw, _, err := npctemplate.Load(dir, name)
+		if err != nil {
+			return 0, false
+		}
+		corpo, ok, err := corpos.Conhece(raw)
+		return corpo, ok && err == nil
+	}
+	return gens, moldeExiste, corpoConhecido
 }

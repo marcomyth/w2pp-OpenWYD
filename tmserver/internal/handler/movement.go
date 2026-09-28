@@ -188,6 +188,9 @@ func (d *Dispatcher) action(w *world.World, s *world.Session, h protocol.Header,
 		w.SendTo(s, protocol.Header{Type: protocol.MsgAction3, ID: uint16(s.Conn)}, payload)
 		d.sendSetHpMp(w, s, e)
 	}
+	// Por último, como no legado: o limite de nível da arena do Coliseu olha a
+	// posição de chegada (_MSG_Action.cpp:309-337, coliseu.go).
+	d.coliseuDepoisDoPasso(w, s, e)
 }
 
 func outOfBounds(v, dim int16) bool { return v < 0 || v >= dim }
@@ -354,6 +357,14 @@ func (d *Dispatcher) doTeleport(w *world.World, s *world.Session, x, y int16) {
 		return
 	}
 	oldX, oldY := e.X, e.Y
+	// DoTeleport lands on a free cell (GetEmptyMobGrid, Server.cpp:9156): the
+	// Pergaminho de Portal takes the player to the exact tile of the Gema, and the
+	// players of the Kaizen save it right beside the Patrulha. With no free cell
+	// in reach the legacy does not teleport at all; here the player still goes to
+	// the tile asked for, and SetEntityPos keeps whoever stands there.
+	if fx, fy, ok := w.FreeCellFor(s.Conn, x, y); ok {
+		x, y = fx, fy
+	}
 	cmBefore := w.SentOfType(s, protocol.MsgCreateMob)
 	rmBefore := w.SentOfType(s, protocol.MsgRemoveMob)
 	w.SetEntityPos(s.Conn, x, y)

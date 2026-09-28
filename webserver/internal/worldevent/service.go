@@ -10,6 +10,8 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
+
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/painelator"
 )
 
 // Store is the persistence surface the service needs (satisfied by *store.Store).
@@ -111,6 +113,18 @@ func validConfig(cfg domain.WorldEventConfig) bool {
 // a plain-player role yields Forbidden.
 func (s *Service) authorize(ctx context.Context, moderatorID int64) (Result, error) {
 	if moderatorID <= 0 {
+		// SEM CONTA DE JOGO, PODE SER O PAINEL. Desde o #130 a staff entra como
+		// usuário do painel, sem conta de jogo, e o painel manda zero aqui — era esta
+		// linha que recusava todas as páginas de administração para ela.
+		//
+		// O ator já veio conferido contra o banco pelo interceptador, nesta mesma
+		// chamada: existe e está ativo, ou nem chegou até aqui.
+		if pode, doPainel := painelator.AutorizaPeloPainel(ctx); doPainel {
+			if !pode {
+				return Forbidden, nil
+			}
+			return OK, nil
+		}
 		return Forbidden, nil
 	}
 	role, err := s.store.AccountRole(ctx, moderatorID)

@@ -258,9 +258,10 @@ func (d *Dispatcher) quest(w *world.World, s *world.Session, _ protocol.Header, 
 		d.dragaoDeArmia(w, s, e, npc)
 		return
 	}
-	// QUEST_CAPAREAL (Merchant 100, EF_GRADE0 13): Royal Cape quest entry.
+	// QUEST_CAPAREAL (Merchant 100, EF_GRADE0 13): o Guarda Real vende a capa do
+	// reino por uma Safira (guarda_real.go); não teleporta mais para a quest.
 	if npc.Merchant == 100 && npc.Grade == 13 {
-		d.royalCapeQuest(w, s, e)
+		d.guardaReal(w, s, e, npc, int(confirm))
 		return
 	}
 	// PERZEN (Merchant 100, EF_GRADE0 ∈ {7,8,9}): the item exchange.
@@ -325,10 +326,12 @@ func (d *Dispatcher) quest(w *world.World, s *world.Session, _ protocol.Header, 
 		d.jeffi(w, s, e, npc)
 		return
 	}
-	// KIBITA (Merchant 74): permanently unlocks Mortal Soul with the
-	// class-specific Secreta stone (_MSG_Quest.cpp:2518-2558).
+	// KIBITA (Merchant 74): vende a cidadania do servidor e, para quem já a tem,
+	// destrava a Alma Mortal com a pedra Secreta da classe. UM case no legado, com
+	// a cidadania primeiro e a Alma como continuação — ver cidadania.go, que explica
+	// por que a ordem é a regra (_MSG_Quest.cpp:2431 e :2518-2558).
 	if npc.Merchant == 74 {
-		d.kibitaSoul(w, s, e)
+		d.kibita(w, s, e)
 		return
 	}
 	if isKingQuestNPC(npc) {
@@ -586,17 +589,19 @@ const (
 
 var kibitaSoulStones = [...]int16{5334, 5336, 5335, 5337}
 
-// kibitaSoul ports the permanent Soul branch of KIBITA. The citizenship branch
-// and the compile-time KIBITA_SOUL event buff are separate legacy services and
-// intentionally remain disabled until their own state and scheduling are ported.
-func (d *Dispatcher) kibitaSoul(w *world.World, s *world.Session, e *world.Entity) {
+// kibitaSoul ports the permanent Soul branch of KIBITA. A cidadania, que era o
+// outro serviço deste NPC e estava desligada, entrou em cidadania.go — e é ela que
+// roda primeiro, como no legado. O buff de evento por trás do #ifdef KIBITA_SOUL
+// continua de fora: ele depende de agenda (dia da semana e hora) que ainda não foi
+// portada.
+func (d *Dispatcher) kibitaSoul(w *world.World, s *world.Session, e *world.Entity) bool {
 	if e.ClassMaster != classMasterMortal || e.Level < kibitaSoulMinLevel || e.LearnedSkill&kibitaSoulSkillBit != 0 {
 		d.notify(w, s, NoticeReqNotMet)
-		return
+		return false
 	}
 	if int(e.Class) >= len(kibitaSoulStones) {
 		d.notify(w, s, NoticeReqNotMet)
-		return
+		return false
 	}
 
 	stone := kibitaSoulStones[e.Class]
@@ -609,7 +614,7 @@ func (d *Dispatcher) kibitaSoul(w *world.World, s *world.Session, e *world.Entit
 	}
 	if slot < 0 {
 		d.notify(w, s, NoticeReqNotMet)
-		return
+		return false
 	}
 
 	e.Carry[slot] = world.Item{}
@@ -633,6 +638,7 @@ func (d *Dispatcher) kibitaSoul(w *world.World, s *world.Session, e *world.Entit
 		w.SendTo(s, protocol.Header{Type: protocol.MsgSendArchEffect, ID: protocol.IDScene},
 			protocol.EncodeStandardParm(int32(s.Slot)))
 	})
+	return true
 }
 
 func isKingQuestNPC(npc *world.Entity) bool {
@@ -763,25 +769,25 @@ func (d *Dispatcher) completeKingArch(w *world.World, s *world.Session, archSlot
 		w.SendTo(vs, protocol.Header{Type: protocol.MsgRemoveMob, ID: uint16(s.Conn)}, body)
 	})
 
+	// Um save só: o SaveCharacterThen grava personagem e carga na mesma transação.
+	// Eram dois aninhados, e entre os dois cabia a queda que duplicava.
 	w.SaveCharacterThen(s, func(w *world.World, s *world.Session) {
-		w.SaveCargoThen(s, func(w *world.World, s *world.Session) {
-			if e := w.Entity(s.Conn); e != nil {
-				e.Mode = world.MobUserDock
-				e.ResetAffects()
-			}
-			s.Mode = world.UserSelChar
-			w.Send(s, protocol.MsgCNFCharacterLogout, nil)
-			if listErr == nil {
-				w.SendTo(s, protocol.Header{Type: protocol.MsgCNFNewCharacter, ID: protocol.IDNewCharacter},
-					protocol.EncodeCNFNewCharacterBody(d.selCharsFrom(chars)))
-			}
-			w.SendTo(s, protocol.Header{Type: protocol.MsgSendArchEffect, ID: protocol.IDScene},
-				protocol.EncodeStandardParm(int32(archSlot)))
-			// Announced with the MORTAL's name: the Arch is a new character the
-			// player has not named yet, and the name everyone recognises is the one
-			// that just spent 299 levels getting here.
-			d.announceArch(w, mortalName)
-		})
+		if e := w.Entity(s.Conn); e != nil {
+			e.Mode = world.MobUserDock
+			e.ResetAffects()
+		}
+		s.Mode = world.UserSelChar
+		w.Send(s, protocol.MsgCNFCharacterLogout, nil)
+		if listErr == nil {
+			w.SendTo(s, protocol.Header{Type: protocol.MsgCNFNewCharacter, ID: protocol.IDNewCharacter},
+				protocol.EncodeCNFNewCharacterBody(d.selCharsFrom(chars)))
+		}
+		w.SendTo(s, protocol.Header{Type: protocol.MsgSendArchEffect, ID: protocol.IDScene},
+			protocol.EncodeStandardParm(int32(archSlot)))
+		// Announced with the MORTAL's name: the Arch is a new character the
+		// player has not named yet, and the name everyone recognises is the one
+		// that just spent 299 levels getting here.
+		d.announceArch(w, mortalName)
 	})
 }
 
@@ -804,20 +810,6 @@ func (d *Dispatcher) capaverdeTeleport(w *world.World, s *world.Session, e *worl
 		return
 	}
 	d.doTeleport(w, s, 2245+int16(w.Rand().Intn(5)-3), 1576+int16(w.Rand().Intn(5)-3))
-}
-
-const (
-	royalCapeMinLevel = 199
-	royalCapeMaxLevel = 254
-)
-
-// royalCapeQuest handles the Royal Guard entry gate from _MSG_Quest.cpp.
-func (d *Dispatcher) royalCapeQuest(w *world.World, s *world.Session, e *world.Entity) {
-	if e.ClassMaster != classMasterMortal || e.Level < royalCapeMinLevel || e.Level >= royalCapeMaxLevel {
-		d.notify(w, s, NoticeReqNotMet)
-		return
-	}
-	d.doTeleport(w, s, 1740+int16(w.Rand().Intn(5)-3), 1725+int16(w.Rand().Intn(5)-3))
 }
 
 // capaverdeTrade handles CAPAVERDE_TRADE (Merchant 8, "Chefe_Treina."): the
@@ -1102,7 +1094,6 @@ func (d *Dispatcher) quest256NPC(w *world.World, s *world.Session, e *world.Enti
 	e.Carry[slot] = world.Item{}
 	d.sendSlot(w, s, world.ItemPlaceCarry, slot, e.Carry[slot])
 	d.teleportQuest256Step(w, s, e, step)
-	d.casteloOrcKeyOnEntry(w, s, e, step)
 	d.log.Info("quest256 NPC teleport", "conn", s.Conn, "item", ticket, "level", e.Level, "quest_flag", step.flag)
 }
 

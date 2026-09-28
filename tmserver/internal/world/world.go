@@ -15,6 +15,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -115,12 +116,18 @@ type Config struct {
 	// content the world neither has nor should have. Nil means nothing is
 	// stamped, which is what tests and a catalog-less boot want.
 	Marcavel func(Item) bool
-	// ShutdownGrace is how long the loop waits after warning players that the
-	// server is stopping, so their sockets flush the frame before shutdown closes
-	// them. ZERO means announce and move on, which is what tests want: they spin
-	// worlds up and down constantly and would otherwise pay this on every one.
-	// cmd/tmserver sets the real value.
+	// ShutdownGrace is the least time between warning players that the server is
+	// stopping and closing their sockets, so the frame leaves before the socket
+	// does. It is counted from the warning and the saves run INSIDE it — it is
+	// never waited before them (desligamento.go). ZERO means announce and move
+	// on, which is what tests want: they spin worlds up and down constantly and
+	// would otherwise pay this on every one. cmd/tmserver sets the real value.
 	ShutdownGrace time.Duration
+
+	// ShutdownSaveDeadline bounds the shutdown saves. Zero means
+	// prazoDoDesligamento; tests shorten it to exercise a database that never
+	// answers.
+	ShutdownSaveDeadline time.Duration
 
 	// Hardening (Fase 7, migration-plan.md §5), all opt-in:
 	// RejectChecksum drops a connection on a CPSock checksum mismatch. The legacy
@@ -187,7 +194,14 @@ type World struct {
 	ground   []*GroundItem // pItem[]: items on the floor, index ∈ [1, MaxItem)
 	static   []int         // ground ids of the seeded world objects (gates/doors), in seed order
 	grid     *Grid
-	rng      *rng.MSVC // loop-owned MSVC LCG (parity; like the original global rand())
+	// foraDoGrid são as entidades paradas numa casa que o grid dá a outro
+	// (ocupaCasa/liberaCasa, api.go). Quase sempre vazio.
+	foraDoGrid map[int]struct{}
+	rng        *rng.MSVC // loop-owned MSVC LCG (parity; like the original global rand())
+
+	// anonimato é a caixa em que a Batalha Real do Coliseu esconde nome, capa e
+	// guilda (anonimato.go). Desligada no valor zero. Loop-owned.
+	anonimato anonimato
 
 	// nextMobSlot is where the next mob-id search starts, so ids are handed out
 	// in rotation instead of always reusing the lowest free slot. See SpawnMobAt.
@@ -260,6 +274,18 @@ type World struct {
 	// from events so a long mob-AI tick cannot block login/db callbacks on the main queue.
 	done   chan struct{}  // closed when the loop stops; unblocks conn goroutines
 	saveWG sync.WaitGroup // tracks in-flight async character saves (logout/disconnect)
+	// savesFalhados conta as gravações de saída que NÃO confirmaram. O dreno do
+	// painel lê isto: esperar as gravações terminarem não é o mesmo que elas terem
+	// dado certo, e quem vai reiniciar precisa saber a diferença.
+	savesFalhados atomic.Int64
+	// parEpoca e parSeq ordenam as gravações do par. A época vem do banco, no boot;
+	// o número anda a cada instantâneo, dentro do laço.
+	parEpoca int64
+	parSeq   int64
+	// O batimento da posse: quando o último saiu, e se ele já foi desligado (o
+	// desligamento para o batimento ANTES de esvaziar o servidor).
+	ultimoBatimento time.Time
+	batimentoParado bool
 
 	// onTick is the periodic simulation hook (mob AI), run inside the loop; see
 	// tick.go. nil disables the ticker (e.g. in protocol/transport tests).
@@ -343,8 +369,7 @@ func (w *World) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			w.announceShutdown()
-			w.shutdown()
+			w.shutdown(w.announceShutdown() > 0)
 			return ctx.Err()
 		case cb := <-w.callbacks:
 			w.applyTimed(cb)
@@ -353,8 +378,7 @@ func (w *World) Run(ctx context.Context) error {
 		}
 		select {
 		case <-ctx.Done():
-			w.announceShutdown()
-			w.shutdown()
+			w.shutdown(w.announceShutdown() > 0)
 			return ctx.Err()
 		case cb := <-w.callbacks:
 			w.applyTimed(cb)
@@ -442,44 +466,89 @@ func (w *World) applyRecovered(ev event) {
 	ev.apply(w)
 }
 
-// shutdown drains active sessions: persist players in-world, then stop their I/O.
-func (w *World) shutdown() {
-	close(w.done) // signal conn goroutines to stop sending events
-	saved := 0
-	for _, s := range w.sessions {
-		if s == nil {
-			continue
-		}
-		if s.Mode == UserPlay && s.AccountID != 0 {
-			if err := w.persist.SaveOnShutdown(context.Background(), w.characterSave(s)); err != nil {
-				w.log.Warn("save on shutdown failed", "conn", s.Conn, "err", err)
-			} else {
-				saved++
+// parDeSalvamento tira os DOIS instantâneos — o do personagem e o da carga da
+// conta — no MESMO instante do laço, junto com as entregas ainda sem marca.
+//
+// Tirar os dois juntos é metade do conserto do dupe; a outra metade é gravá-los
+// na mesma transação (salvarPar). Instantâneos tirados em momentos diferentes
+// descrevem mundos diferentes, e nesse caso a transação única só congelaria a
+// divergência em vez de evitá-la.
+//
+// temCarga é falso quando a conta não tem carga carregada na memória. Aí gravar
+// só o personagem é seguro: não há carga em jogo para discordar dele. Loop-only.
+func (w *World) parDeSalvamento(s *Session) (personagem CharacterSave, carga CargoSave, unacked []int64, temCarga bool, seq int64) {
+	personagem = w.characterSave(s)
+	// O NÚMERO SAI MESMO SEM CARGA. O save só do personagem entra na MESMA ordem:
+	// um velho dele passa por cima do par novo do mesmo jeito.
+	seq = w.proximoNumeroDePar()
+	if s.AccountID == 0 || w.cargo[s.AccountID] == nil {
+		return personagem, CargoSave{}, nil, false, seq
+	}
+	return personagem, w.cargoSave(s.AccountID), append([]int64(nil), w.deliveryUnacked[s.AccountID]...), true, seq
+}
+
+// proximoNumeroDePar numera o par no MOMENTO em que o instantâneo é tirado, e não
+// quando a gravação sai: é a ordem dos instantâneos que precisa ser respeitada, e
+// duas gravações podem sair na ordem certa e chegar na errada. Loop-only.
+func (w *World) proximoNumeroDePar() int64 {
+	w.parSeq++
+	return w.parSeq
+}
+
+// EpocaDoPar é o número desta execução, usado junto com o do par para ordenar as
+// gravações. Zero enquanto o boot não pegou um.
+func (w *World) EpocaDoPar() int64 { return w.parEpoca }
+
+// DefineEpocaDoPar guarda o número desta execução. Chamada na montagem, antes do
+// laço começar.
+func (w *World) DefineEpocaDoPar(n int64) { w.parEpoca = n }
+
+// SalvarPar grava personagem e carga na mesma transação, ou só o personagem
+// quando a conta não tem carga carregada. Seguro fora do laço: só toca nos
+// instantâneos que recebeu.
+func SalvarPar(ctx context.Context, p Persistence, personagem CharacterSave, carga CargoSave,
+	temCarga bool, unacked []int64, epoca, seq int64, soltarPosse bool,
+) error {
+	if !temCarga {
+		return p.SaveOnShutdown(ctx, personagem, epoca, seq, soltarPosse)
+	}
+	return p.SalvarPersonagemComCarga(ctx, personagem, carga, unacked, nil, epoca, seq, soltarPosse)
+}
+
+// SalvarEncenadoComCarga grava um personagem ENCENADO — um instantâneo montado
+// pelo handler, que ainda não foi publicado na entidade viva — junto com a carga
+// da conta, na mesma transação, e depois chama depois() de volta no laço com o
+// erro (nil quando deu certo).
+//
+// Existe para os caminhos "grava primeiro, publica depois": a Pedra Ideal, o Sub
+// Celestial, a criação de guilda. Eles já gravavam o personagem sozinho, e essa
+// era a mesma janela de sempre — a carga da memória pode ter ouro que o banco não
+// viu. O instantâneo do personagem é o encenado; o da carga é o de agora.
+// Loop-only.
+func (w *World) SalvarEncenadoComCarga(s *Session, personagem CharacterSave, depois func(*World, *Session, error)) {
+	carga, unacked, temCarga, seq := w.CargaParaOPar(s.AccountID)
+	p := w.persist
+	w.Go(s, func() func(*World, *Session) {
+		err := SalvarPar(context.Background(), p, personagem, carga, temCarga, unacked, w.parEpoca, seq, false)
+		return func(w *World, s *Session) {
+			if err == nil && temCarga {
+				w.forgetAcked(personagem.AccountID, unacked)
 			}
+			depois(w, s, err)
 		}
-		s.close()
+	})
+}
+
+// CargaParaOPar tira o instantâneo da carga da conta para acompanhar um
+// CharacterSave. É para quem grava fora do laço por conta própria (GoDetached) e
+// não pode usar o SalvarEncenadoComCarga; junto com SalvarPar e EsqueceEntregues,
+// dá a mesma garantia. Loop-only.
+func (w *World) CargaParaOPar(accountID int64) (CargoSave, []int64, bool, int64) {
+	seq := w.proximoNumeroDePar()
+	if accountID == 0 || w.cargo[accountID] == nil {
+		return CargoSave{}, nil, false, seq
 	}
-	// Persist any account warehouses still loaded (account-scoped, so saved once
-	// per account, independent of the per-session character saves above).
-	for accountID := range w.cargo {
-		if err := saveCargoFor(context.Background(), w.persist, w.cargoSave(accountID), w.deliveryUnacked[accountID]); err != nil {
-			w.log.Warn("save cargo on shutdown failed", "account", accountID, "err", err)
-		}
-	}
-	// The last few seconds of chat, written straight rather than buffered: the
-	// loop is ending, so there is no tick left to flush it and no reason to hand
-	// it to a goroutine nobody will wait for.
-	if len(w.chatBuf) > 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), chatTempo)
-		if err := w.persist.RecordChat(ctx, w.chatBuf); err != nil {
-			w.log.Warn("chat log: last batch lost on shutdown", "linhas", len(w.chatBuf), "err", err)
-		}
-		cancel()
-		w.chatBuf = nil
-	}
-	// Wait for in-flight disconnect/logout saves so a shutdown never loses one.
-	w.saveWG.Wait()
-	w.log.Info("world loop stopped", "sessions_saved", saved)
+	return w.cargoSave(accountID), append([]int64(nil), w.deliveryUnacked[accountID]...), true, seq
 }
 
 // SaveCharacterAsync persists an in-play character's live state (Carry/Coin/stats)
@@ -490,12 +559,27 @@ func (w *World) SaveCharacterAsync(s *Session) {
 	if s == nil || s.Mode != UserPlay || s.AccountID == 0 {
 		return
 	}
-	cs := w.characterSave(s)
+	w.salvarParAsync(s)
+}
+
+// salvarParAsync é o corpo do SaveCharacterAsync sem a exigência de UserPlay: ele
+// grava o par de qualquer sessão com mochila viva. Loop-only.
+func (w *World) salvarParAsync(s *Session) {
+	cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
+	p := w.persist
 	w.saveWG.Add(1)
 	go func() {
 		defer w.saveWG.Done()
-		if err := w.persist.SaveOnShutdown(context.Background(), cs); err != nil {
+		// soltarPosse=false: este é um save de meio de jogo, a conta continua minha.
+		if err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked, w.parEpoca, seq, false); err != nil {
+			w.savesFalhados.Add(1)
 			w.log.Warn("save character failed", "account", cs.AccountID, "slot", cs.Slot, "err", err)
+			return
+		}
+		if temCarga && len(unacked) > 0 {
+			w.GoDetached(func() func(*World) {
+				return func(w *World) { w.forgetAcked(cs.AccountID, unacked) }
+			})
 		}
 	}()
 }
@@ -515,23 +599,51 @@ func (w *World) SaveCharacterAsync(s *Session) {
 //
 // Safe to call for a session that never entered play: nothing to save, nothing
 // to clear.
-func (w *World) LeaveCharacter(s *Session) {
+func (w *World) LeaveCharacter(s *Session) bool {
 	if s == nil || s.Mode != UserPlay || s.AccountID == 0 {
-		return
+		return false
 	}
 	e := w.entities[s.Conn]
 	if e == nil {
-		return
+		return false
 	}
 	name := e.Name
-	cs := w.characterSave(s)
+	cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
+	if temCarga {
+		// A CARGA SAI DA MEMÓRIA AQUI, junto com o instantâneo. O caminho de saída
+		// chamava LeaveCharacter e ReleaseCargo em seguida, cada um com a sua
+		// goroutine e a sua transação — que é exatamente a janela do dupe. Agora a
+		// dupla vai numa transação só, e o ReleaseCargo que vem depois não acha mais
+		// carga para gravar e não faz nada.
+		//
+		// SÓ QUE A CARGA É DA CONTA, não do personagem: se outra sessão da mesma
+		// conta ainda estiver com personagem carregado, tirá-la da memória aqui
+		// arrancaria o baú debaixo de quem continua jogando. Hoje isto só é chamado
+		// na desconexão, então não acontece; se acontecer, é erro alto e a carga
+		// fica, porque uma carga sumida calada é muito pior.
+		if outra := w.outraSessaoComMochilaViva(cs.AccountID, s); outra != nil {
+			w.log.Error("LeaveCharacter com outra sessão viva na conta: a carga NÃO foi retirada da memória",
+				"account", cs.AccountID, "saindo", s.Conn, "ficando", outra.Conn)
+			temCarga = false
+			carga = CargoSave{}
+			unacked = nil
+		} else {
+			delete(w.cargo, cs.AccountID)
+			delete(w.deliveryPlaced, cs.AccountID)
+			delete(w.deliveryUnacked, cs.AccountID)
+		}
+	}
 	p := w.persist
 	w.holdAccount(cs.AccountID)
 	w.saveWG.Add(1)
 	go func() {
 		defer w.saveWG.Done()
 		defer w.releaseAccountLater(cs.AccountID)
-		if err := p.SaveOnShutdown(context.Background(), cs); err != nil {
+		// soltarPosse=TRUE: este é o save de SAÍDA. A posse da conta sai na mesma
+		// transação, então "a marca só sai depois que o save confirma" deixa de ser
+		// uma ordem entre duas chamadas e passa a ser uma coisa só.
+		if err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked, w.parEpoca, seq, true); err != nil {
+			w.savesFalhados.Add(1)
 			w.log.Warn("save character failed", "account", cs.AccountID, "slot", cs.Slot, "err", err)
 			return
 		}
@@ -542,6 +654,7 @@ func (w *World) LeaveCharacter(s *Session) {
 			w.log.Warn("clear presence failed", "character", name, "err", err)
 		}
 	}()
+	return true
 }
 
 // SaveCharacterThen persists the character and runs then (back in the loop) only
@@ -554,13 +667,16 @@ func (w *World) SaveCharacterThen(s *Session, then func(*World, *Session)) {
 		then(w, s)
 		return
 	}
-	cs := w.characterSave(s)
+	cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
 	p := w.persist
 	w.Go(s, func() func(*World, *Session) {
-		err := p.SaveOnShutdown(context.Background(), cs)
+		// soltarPosse=false: a troca de personagem não encerra a sessão da conta.
+		err := SalvarPar(context.Background(), p, cs, carga, temCarga, unacked, w.parEpoca, seq, false)
 		return func(w *World, s *Session) {
 			if err != nil {
 				w.log.Warn("save character failed", "account", cs.AccountID, "slot", cs.Slot, "err", err)
+			} else if temCarga {
+				w.forgetAcked(cs.AccountID, unacked)
 			}
 			then(w, s)
 		}
@@ -592,6 +708,8 @@ func (w *World) CharacterSaveFor(s *Session, e *Entity) CharacterSave {
 	cs.TerraMistica = e.TerraMistica
 	cs.NewbieQuest = e.NewbieQuest
 	cs.MolarGargula = e.MolarGargula
+	cs.NivelRetroativo = e.NivelRetroativo
+	cs.Citizen = e.Citizen
 	cs.LastCity = e.LastCity
 	cs.SaveX, cs.SaveY = e.SaveX, e.SaveY
 	cs.Level, cs.Exp, cs.Coin = e.Level, e.Exp, e.Coin
@@ -689,6 +807,28 @@ func (w *World) SetCargo(accountID int64, st *CargoState) {
 // want of a free slot. The admin panel's deliver-now reports both, so a
 // moderator can tell the player to make room instead of reporting a delivery
 // that did not happen.
+// MensagemEntregaPresa é o que o jogador lê quando parte da entrega não coube.
+//
+// UMA FUNÇÃO E NÃO DUAS FRASES, e o motivo é concreto: os dois caminhos que drenam a
+// caixa postal — o login e a entrega imediata pedida pelo site — avisavam com textos
+// diferentes, e um deles não avisava nada. Texto de jogador escrito em dois lugares
+// vira dois textos, e o que se corrige num dia continua errado no outro.
+//
+// E ela diz O QUE FAZER, porque o aviso sem a ação vira chamado: "não couberam" sozinho
+// faz a pessoa contar os itens, achar que sumiu, e abrir ticket. Dói mais no pacote
+// grande, que é justamente o que enche o baú — o maior deles ocupa 69 dos 128 espaços,
+// porque baú de sorteio não empilha.
+//
+// "Entre de novo" é o certo nos dois lugares: o que ficou preso é retentado no próximo
+// dreno, e os drenos são o login e a entrega imediata. Não há terceiro.
+func MensagemEntregaPresa(presos int) string {
+	if presos <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d item(ns) nao couberam no bau da conta. "+
+		"Libere espaco e entre de novo para receber o resto.", presos)
+}
+
 func (w *World) ApplyDeliveries(s *Session, pending []Delivery) (delivered, held int) {
 	if s == nil || s.AccountID == 0 || len(pending) == 0 {
 		return 0, 0
@@ -872,6 +1012,16 @@ func (w *World) SalvaCargo(accountID int64) { w.saveCargoAcking(accountID) }
 // A failed save keeps them, so the next cargo save of the account — another
 // drain, a character switch, the logout — tries the pair again. Loop-only.
 func (w *World) saveCargoAcking(accountID int64) {
+	// SE A CONTA TEM PERSONAGEM EM JOGO, o personagem vai junto. Gravar só a carga
+	// enquanto o dono está jogando é a metade que duplica: o item que saiu da carga
+	// já está na mochila da memória, e a mochila do banco ainda não sabe.
+	if s := w.personagemVivoNaConta(accountID); s != nil {
+		// salvarParAsync, e não SaveCharacterAsync: aquele recusa sessão fora de
+		// UserPlay, e aqui a sessão pode estar em UserWaitDB. Cair no guard faria
+		// esta gravação simplesmente não acontecer — pior que o dupe, porque some.
+		w.salvarParAsync(s)
+		return
+	}
 	cs := w.cargoSave(accountID)
 	ids := append([]int64(nil), w.deliveryUnacked[accountID]...)
 	p := w.persist
@@ -886,6 +1036,63 @@ func (w *World) saveCargoAcking(accountID int64) {
 		}
 	})
 }
+
+// personagemVivoNaConta devolve a sessão desta conta que tem MOCHILA VIVA na
+// memória, ou nil. É ela que decide se uma gravação de carga precisa levar o
+// personagem junto.
+//
+// O CRITÉRIO É A ENTIDADE, E NÃO O MODO, e a diferença é um dupe.
+//
+// A primeira versão perguntava por Mode == UserPlay. Só que o personagem continua
+// vivo na memória em UserWaitDB, que é justamente o modo de quem está no meio de
+// uma ida ao banco — criar guilda, promover, e as outras operações em w.Go. Uma
+// entrega que chegasse nessa janela veria "ninguém jogando" e gravaria a carga
+// SOZINHA, com a mochila do banco atrasada. É a janela mais provável de todas: a
+// pessoa saca da carga e cria a guilda. O mesmo valeria para o UserCharWait se
+// houver mochila viva nele.
+//
+// Loop-only.
+func (w *World) personagemVivoNaConta(accountID int64) *Session {
+	if accountID == 0 {
+		return nil
+	}
+	for _, s := range w.sessions {
+		if s != nil && s.AccountID == accountID && w.temMochilaViva(s) {
+			return s
+		}
+	}
+	return nil
+}
+
+// outraSessaoComMochilaViva é a personagemVivoNaConta ignorando uma sessão — a que
+// está saindo. Loop-only.
+func (w *World) outraSessaoComMochilaViva(accountID int64, exceto *Session) *Session {
+	for _, s := range w.sessions {
+		if s != nil && s != exceto && s.AccountID == accountID && w.temMochilaViva(s) {
+			return s
+		}
+	}
+	return nil
+}
+
+// temMochilaViva diz se a sessão tem um personagem carregado cuja mochila pode
+// discordar da carga da conta.
+//
+// Entidade DOCADA não conta: ela é o resto de um personagem que já voltou para a
+// tela de seleção e já foi gravado. Gravá-la de novo seria republicar estado
+// velho por cima de um instantâneo mais novo. Loop-only.
+func (w *World) temMochilaViva(s *Session) bool {
+	if s == nil || s.AccountID == 0 {
+		return false
+	}
+	e := w.entities[s.Conn]
+	return e != nil && e.Mode != MobUserDock
+}
+
+// EsqueceEntregues é o forgetAcked para quem grava o par por conta própria: as
+// marcas só saem da lista depois que a transação que as escreveu confirmou.
+// Loop-only.
+func (w *World) EsqueceEntregues(accountID int64, ids []int64) { w.forgetAcked(accountID, ids) }
 
 // forgetAcked drops ids from the account's unacked list after their mark
 // committed. Loop-only.
@@ -938,8 +1145,46 @@ func (w *World) cargoSave(accountID int64) CargoSave {
 // vault does not leak and the latest deposits survive. The save runs off the loop
 // (tracked by saveWG, like SaveCharacterAsync) so a shutdown never loses it.
 // Loop-only (snapshots state before going async).
-func (w *World) ReleaseCargo(accountID int64) {
-	if accountID == 0 || w.cargo[accountID] == nil {
+func (w *World) ReleaseCargo(accountID int64) { w.releaseCargo(accountID, false) }
+
+// EncerrarSessaoDaConta é o fim da sessão de uma conta, e é o único lugar de onde a
+// posse sai quando não houve save de saída.
+//
+// A ORDEM IMPORTA E É POR ISSO QUE ISTO É UMA FUNÇÃO SÓ. Com personagem em jogo, o
+// LeaveCharacter grava o par e a posse sai DENTRO daquela transação. Sem
+// personagem — a conta que logou, ficou na tela de seleção e desconectou — não há
+// save de saída nenhum, e sem esta soltura a pessoa ficaria presa até o prazo
+// vencer, a cada vez. Aí a posse sai depois que a carga confirmar: soltar antes
+// deixaria um login novo entrar enquanto a gravação da carga velha ainda está a
+// caminho. Loop-only.
+func (w *World) EncerrarSessaoDaConta(s *Session) {
+	if s == nil {
+		return
+	}
+	accountID := s.AccountID
+	if w.LeaveCharacter(s) {
+		// O save de saída leva a posse junto; a carga já saiu da memória com ele.
+		w.releaseCargo(accountID, false)
+		return
+	}
+	// OUTRA SESSÃO DA MESMA CONTA AINDA VIVA não solta nada: a posse é da conta.
+	if accountID != 0 && w.AccountSession(accountID, s) != nil {
+		w.releaseCargo(accountID, false)
+		return
+	}
+	w.releaseCargo(accountID, true)
+}
+
+func (w *World) releaseCargo(accountID int64, soltarPosse bool) {
+	if accountID == 0 {
+		return
+	}
+	if w.cargo[accountID] == nil {
+		// Sem carga carregada não há o que gravar, mas a posse ainda pode ser minha:
+		// é a conta que caiu antes mesmo de a carga entrar na memória.
+		if soltarPosse {
+			w.soltarPosseAsync(accountID)
+		}
 		return
 	}
 	cs := w.cargoSave(accountID)
@@ -957,7 +1202,33 @@ func (w *World) ReleaseCargo(accountID int64) {
 		defer w.saveWG.Done()
 		defer w.releaseAccountLater(accountID)
 		if err := saveCargoFor(context.Background(), w.persist, cs, unacked); err != nil {
+			w.savesFalhados.Add(1)
 			w.log.Warn("save cargo failed", "account", cs.AccountID, "err", err)
+			// A POSSE FICA quando a gravação não caiu, como no par: conta cujo
+			// último save não confirmou é a que ninguém deve carregar. O prazo do
+			// batimento a libera depois.
+			return
+		}
+		if soltarPosse {
+			if err := w.persist.SoltarPosseDaConta(context.Background(), accountID, w.parEpoca); err != nil {
+				w.log.Warn("soltar posse da conta falhou", "account", accountID, "err", err)
+			}
+		}
+	}()
+}
+
+// soltarPosseAsync devolve a conta fora do laço, sem ter o que gravar antes.
+// Loop-only (lê a época).
+func (w *World) soltarPosseAsync(accountID int64) {
+	if w.parEpoca <= 0 {
+		return
+	}
+	p, epoca := w.persist, w.parEpoca
+	w.saveWG.Add(1)
+	go func() {
+		defer w.saveWG.Done()
+		if err := p.SoltarPosseDaConta(context.Background(), accountID, epoca); err != nil {
+			w.log.Warn("soltar posse da conta falhou", "account", accountID, "err", err)
 		}
 	}()
 }
@@ -1008,39 +1279,13 @@ func (w *World) AccountSaving(accountID int64) bool {
 	return w.quitSaves[accountID] > 0
 }
 
-// SaveCargoThen persists the account cargo WITHOUT evicting it (the account
-// session continues, e.g. returning to character selection) and runs then back in
-// the loop after the save commits. This is the anti-dup boundary for character
-// switches: deposits/withdrawals move items between a character's carry and the
-// shared cargo, so the cargo must be persisted alongside the character save —
-// otherwise an item withdrawn into the carry is saved on the character row while
-// the stale account_cargo row still holds it, duplicating it on the next load.
-// then always runs, even when there is no cargo to save. Loop-only.
-func (w *World) SaveCargoThen(s *Session, then func(*World, *Session)) {
-	if s == nil || s.AccountID == 0 || w.cargo[s.AccountID] == nil {
-		then(w, s)
-		return
-	}
-	cs := w.cargoSave(s.AccountID)
-	unacked := append([]int64(nil), w.deliveryUnacked[s.AccountID]...)
-	p := w.persist
-	w.Go(s, func() func(*World, *Session) {
-		err := saveCargoFor(context.Background(), p, cs, unacked)
-		return func(w *World, s *Session) {
-			if err != nil {
-				w.log.Warn("save cargo failed", "account", cs.AccountID, "err", err)
-			} else {
-				w.forgetAcked(cs.AccountID, unacked)
-			}
-			then(w, s)
-		}
-	})
-}
-
 // send queues an outbound message to the session's writer goroutine. It never
 // blocks the loop: if the session's queue is full (a slow/stuck client), the
 // session is dropped instead of stalling the whole world (head-of-line safety).
 func (w *World) enqueue(s *Session, h protocol.Header, payload []byte) {
+	if w.hiddenFrom(s, h, payload) {
+		return
+	}
 	h.ClientTick = w.cfg.Now()
 	s.noteSend(h, len(payload))
 	if w.cfg.LogSends {
@@ -1089,6 +1334,9 @@ const SkipCheckTick = 235543242
 // lands, but the experience in it is not the reader's to take, which is why the
 // exp bar never moved and no gain floated. Loop-only, like enqueue.
 func (w *World) SendEcho(s *Session, h protocol.Header, payload []byte) {
+	if w.hiddenFrom(s, h, payload) {
+		return
+	}
 	if h.ClientTick == 0 || h.ClientTick == SkipCheckTick {
 		h.ClientTick = w.cfg.Now()
 	}

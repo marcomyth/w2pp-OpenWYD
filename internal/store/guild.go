@@ -49,8 +49,17 @@ func (s *Store) CreateGuild(ctx context.Context, accountID int64, slot int, char
 	if err != nil {
 		return domain.Guild{}, fmt.Errorf("store: lock character for guild create: %w", err)
 	}
-	if currentGuild != 0 || cost < 0 || coin < cost {
-		return domain.Guild{}, ErrConflict
+	// AS DUAS RECUSAS SÃO SEPARADAS, e antes eram a mesma.
+	//
+	// "Já está numa guilda" e "não tem ouro" viravam o mesmo ErrConflict, e o jogo dizia
+	// a mesma frase — a do nome repetido — para as duas. Foi essa frase que escondeu um
+	// defeito de ouro por horas em 25/09/2026: a pessoa ficou procurando nome repetido
+	// enquanto o problema era o saldo que o banco ainda não tinha visto.
+	if currentGuild != 0 {
+		return domain.Guild{}, ErrJaTemGuilda
+	}
+	if cost < 0 || coin < cost {
+		return domain.Guild{}, ErrSemOuro
 	}
 
 	minID := serverIndex*legacyGuildPerServer + 1

@@ -41,6 +41,9 @@ type fakeCarteira struct {
 	saldo     int32
 	historico []donate.Evento
 	err       error
+	pacotes   []donate.Pacote
+	erroEnvio error
+	envios    []envioAnotado
 }
 
 func (f *fakeCarteira) Saldo(context.Context, int64) (int32, error) {
@@ -53,6 +56,38 @@ func (f *fakeCarteira) Historico(context.Context, int64, int) ([]donate.Evento, 
 
 func (f *fakeCarteira) Ajustar(_ context.Context, _, _ int64, delta int32, _ string) (int32, error) {
 	return f.saldo + delta, f.err
+}
+
+func (f *fakeCarteira) Pacotes(context.Context) ([]donate.Pacote, error) {
+	if f.pacotes == nil {
+		return []donate.Pacote{pacoteSupremoDeTeste()}, f.err
+	}
+	return f.pacotes, f.err
+}
+
+// EnviarPacote anota a chamada e responde com erroEnvio, quando houver.
+func (f *fakeCarteira) EnviarPacote(_ context.Context, actorID, accountID int64, pacoteID, motivo string) (donate.Envio, error) {
+	f.envios = append(f.envios, envioAnotado{actorID, accountID, pacoteID, motivo})
+	if f.erroEnvio != nil {
+		return donate.Envio{}, f.erroEnvio
+	}
+	p := pacoteSupremoDeTeste()
+	p.ID = pacoteID
+	return donate.Envio{Pacote: p, Saldo: f.saldo + p.Creditos, Entregas: []int64{11, 12}}, nil
+}
+
+type envioAnotado struct {
+	ator, conta    int64
+	pacote, motivo string
+}
+
+// pacoteSupremoDeTeste tem um brinde com duração e um em pilha, os dois casos
+// que o texto do cartão escreve de jeitos diferentes.
+func pacoteSupremoDeTeste() donate.Pacote {
+	return donate.Pacote{ID: "apoiador-supremo", Creditos: 20000, Brindes: []donate.Brinde{
+		{Index: 3991, Quantidade: 1, Eff: [3][2]uint8{{106, 15}}},
+		{Index: 3305, Quantidade: 64},
+	}}
 }
 
 // painelCompleto wires every optional dependency, so every route exists.
@@ -68,7 +103,8 @@ func painelCompleto(t *testing.T) http.Handler {
 		Audit:       aud,
 		Personagens: &fakePersonagensSlot{fichas: map[int]personagem.Ficha{0: {AccountID: 7, Slot: 0}}},
 		Eventos:     &fakeEventos{cfg: chuvaViva()},
-		Denuncias:   &fakeDenuncias{},
+		Repasses:    &fakeRepasses{fila: umaFilaDeRepasse()},
+		FilasRMT:    novoFakeFilas(),
 		Guildas: &fakeGuildas{
 			guildas:  []domain.Guild{{ID: 1, Name: "Guilda Um", Fame: 10}},
 			membros:  map[uint16][]domain.GuildMember{1: {{Name: "Heroina", Level: 200}}},
@@ -91,10 +127,14 @@ func painelCompleto(t *testing.T) http.Handler {
 			droprule.Rule{Mob: "Kentania", Item: 2000, Chance: 800},
 			droprule.Rule{Mob: droprule.AllMobs, Item: 1415, Chance: 0},
 		),
-		Blocos:     &fakeBlocos{lista: torresDeNoatum()},
-		Sessions:   session.New(time.Hour),
-		Logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
-		SecureOnly: true,
+		Blocos: &fakeBlocos{lista: torresDeNoatum()},
+		Receitas: newFakeReceitas(domain.GeneratorRecipe{Index: domain.NewGeneratorIndexBase, Leader: "Urso",
+			SegX: [5]int32{3000}, SegY: [5]int32{3000}}),
+		NPCGener:    arquivoDeTeste(),
+		MoldeExiste: moldesConhecidos,
+		Sessions:    session.New(time.Hour),
+		Logger:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		SecureOnly:  true,
 	})
 	if err != nil {
 		t.Fatalf("New: %v", err)
@@ -123,8 +163,10 @@ func TestTodaPaginaRenderiza(t *testing.T) {
 		"/contas/ana/personagens/0",
 		"/auditoria",
 		"/auditoria?pagina=2",
-		"/denuncias",
-		"/denuncias?todas=1",
+		"/repasses",
+		"/orfaos",
+		"/reembolsos",
+		"/divergentes",
 		"/guildas",
 		"/guildas/1",
 		"/trocas",
@@ -150,13 +192,16 @@ func TestTodaPaginaRenderiza(t *testing.T) {
 		"/rates/maquinas",
 		"/rates/combate",
 		"/masmorras",
-		"/auditoria/xp",
 		"/eventos",
 		"/mapas-evento",
 		"/servidor",
 		"/mapa",
 		"/blocos",
 		"/blocos?nome=torre&x=1050&y=1700&raio=30",
+		"/blocos/receitas",
+		"/blocos/receita?bloco=1",
+		"/blocos/receita?bloco=20000",
+		"/blocos/receita?novo=1&de=2",
 	}
 
 	for _, rota := range rotas {
@@ -206,8 +251,9 @@ func TestTodaPaginaRenderizaSemAsOpcionais(t *testing.T) {
 
 	// And what must be a clean 404 rather than a crash.
 	opcionais := []string{
-		"/trocas", "/censo", "/chat", "/servidor", "/mapa", "/eventos", "/blocos",
-		"/denuncias", "/guildas", "/rates/xp", "/rates/montarias",
+		"/trocas", "/censo", "/chat", "/servidor", "/mapa", "/eventos", "/blocos", "/blocos/receitas",
+		"/repasses", "/orfaos", "/reembolsos", "/divergentes",
+		"/guildas", "/rates/xp", "/rates/montarias",
 		"/itens", "/npcs", "/monstros", "/drops",
 		"/contas/ana/donate", "/contas/ana/personagens/0",
 	}
@@ -264,11 +310,11 @@ func TestTodoPostExigeCSRF(t *testing.T) {
 		{"/contas/ana/vip", url.Values{"dias": {"7"}}},
 		{"/contas/ana/senha", url.Values{"senha": {"segredo12"}}},
 		{"/contas/ana/donate", url.Values{"delta": {"10"}, "motivo": {"x"}}},
+		{"/contas/ana/pacote", url.Values{"pacote": {"apoiador-supremo"}, "motivo": {"x"}}},
 		{"/contas/ana/entregar", url.Values{"indice": {"1415"}}},
 		{"/contas/ana/entregas/1/cancelar", url.Values{}},
 		{"/contas/ana/personagens/0/atributos", url.Values{"forca": {"10"}}},
 		{"/contas/ana/personagens/0/slot", url.Values{"destino": {"carry"}, "slot": {"0"}}},
-		{"/denuncias/1/tratar", url.Values{}},
 		{"/eventos", url.Values{"torre_hora": {"20"}}},
 		{"/itens/1415/preco", url.Values{"preco": {"100"}}},
 		{"/itens/1415/atributos", url.Values{}},
@@ -299,6 +345,8 @@ func TestTodoPostExigeCSRF(t *testing.T) {
 		{"/servidor/desligar", url.Values{}},
 		{"/servidor/ligar", url.Values{}},
 		{"/blocos/comando", url.Values{"acao": {"desligar"}, "bloco": {"23"}}},
+		{"/blocos/receita", receitaValida("", "1")},
+		{"/blocos/receita/limpar", url.Values{"bloco": {"1"}}},
 	}
 
 	for _, c := range rotas {

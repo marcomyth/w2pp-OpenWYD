@@ -95,50 +95,87 @@ func (d *Dispatcher) createGuild(w *world.World, s *world.Session, args []byte) 
 		return
 	}
 	accountID, slot, charName, clan, citizen, serverIndex := s.AccountID, s.Slot, e.Name, e.Clan, e.Citizen, d.serverIndex
+	// O OURO VIVO É DA MEMÓRIA, E O BANCO PRECISA VÊ-LO ANTES DE CONFERIR.
+	//
+	// O CreateGuild reconfere `coin < cost` contra character.coin NO BANCO, e faz bem:
+	// é a última barreira contra sair devendo. O problema é que o ouro que a pessoa
+	// acabou de sacar da carga só existe na memória até o próximo save — então o banco
+	// via o valor VELHO e recusava. Em produção, 25/09/2026: a Hanna sacou um bilhão da
+	// carga e levou nove recusas seguidas, com a frase que fala em nome repetido.
+	//
+	// A SAÍDA É GRAVAR ANTES, e não afrouxar a conferência. Passar o ouro da memória
+	// como parâmetro faria o store confiar num número de quem chama, e aí a barreira
+	// que impede o saldo negativo deixaria de ser barreira. Salvar primeiro mantém o
+	// banco como dono da verdade e só o põe em dia.
+	//
+	// O snapshot é tirado AQUI, no laço, e o save acontece lá fora, na ordem: sem isso,
+	// o CreateGuild correria contra um save que ainda nem começou.
+	save := w.CharacterSaveFor(s, e)
 	p := w.Persistence()
 	s.Mode = world.UserWaitDB
-	w.Go(s, func() func(*world.World, *world.Session) {
-		guild, ok, err := p.CreateGuild(context.Background(), accountID, slot, charName, name, clan, citizen, serverIndex, guildCreateCost)
-		return func(w *world.World, s *world.Session) {
+	// A CARGA VAI JUNTO com o personagem, na mesma transação. Sem isso, o save que põe
+	// o banco em dia grava só a mochila: quem acabou de sacar da carga fica com o ouro
+	// no personagem gravado e ainda na carga gravada, e uma queda aí duplica.
+	w.SalvarEncenadoComCarga(s, save, func(w *world.World, s *world.Session, errSave error) {
+		// SE O SAVE FALHAR, NÃO SE CRIA GUILDA. Seguir adiante deixaria o banco decidir
+		// com ouro velho de novo — que é exatamente o defeito — e, pior, poderia criar
+		// a guilda cobrando de um saldo que não existe lá.
+		if errSave != nil {
 			if s.Mode == world.UserWaitDB {
 				s.Mode = world.UserPlay
 			}
-			e := w.Entity(s.Conn)
-			if e == nil {
-				return
-			}
-			if err != nil {
-				d.log.Warn("create guild failed", "conn", s.Conn, "guild", name, "err", err)
-				d.notify(w, s, NoticeDBError)
-				return
-			}
-			if !ok || guild.ID == 0 {
-				// dbServer folds a taken name, a full server and a stale character
-				// into ok=false. The name is by far the likeliest: the in-memory
-				// check above only knows the guilds this process has seen.
-				d.log.Info("create guild refused by dbServer", "conn", s.Conn, "guild", name)
-				sendClientMessage(w, s, msgGuildCriacaoRecusada)
-				return
-			}
-			if e.Guild != 0 {
-				return
-			}
-			e.Coin -= guildCreateCost
-			e.Guild = guild.ID
-			e.GuildLevel = guildLeaderLevel
-			// Registered right away: without it the new guild had no name in
-			// memory until the next boot, and every place that shows one printed
-			// "Guild #N" instead.
-			w.SetGuildName(guild.ID, name)
-			d.sendEtc(w, s, e)
-			d.refreshGuildTag(w, s.Conn)
-			w.SaveCharacterAsync(s)
-			// The number is what the guild's icon file is named after
-			// (b01NNNNNN.bmp), so the leader learns it here, where it is created.
-			// This also replaces a MSG_MessagePanel sent with no body at all.
-			sendClientMessage(w, s, fmt.Sprintf("Guilda %s criada! Número da guilda: %d.", name, guild.ID))
-			d.log.Info("guild created", "conn", s.Conn, "guild", name, "id", guild.ID)
+			d.log.Warn("create guild: save do personagem falhou", "conn", s.Conn,
+				"guild", name, "err", errSave)
+			d.notify(w, s, NoticeDBError)
+			return
 		}
+		w.Go(s, func() func(*world.World, *world.Session) {
+			guild, ok, motivo, err := p.CreateGuild(context.Background(), accountID, slot, charName, name, clan, citizen, serverIndex, guildCreateCost)
+			return func(w *world.World, s *world.Session) {
+				if s.Mode == world.UserWaitDB {
+					s.Mode = world.UserPlay
+				}
+				e := w.Entity(s.Conn)
+				if e == nil {
+					return
+				}
+				if err != nil {
+					d.log.Warn("create guild failed", "conn", s.Conn, "guild", name, "err", err)
+					d.notify(w, s, NoticeDBError)
+					return
+				}
+				if !ok || guild.ID == 0 {
+					// CADA RECUSA TEM A SUA FRASE, desde 25/09/2026.
+					//
+					// Antes as quatro viravam "confira se o nome já não existe", e para três
+					// delas isso era MENTIRA. Foi essa frase que escondeu um defeito de ouro
+					// por horas: a Hanna tentou nove vezes procurando nome repetido enquanto
+					// o banco recusava por saldo.
+					d.log.Info("create guild refused by dbServer", "conn", s.Conn,
+						"guild", name, "motivo", motivo)
+					sendClientMessage(w, s, msgDaRecusaDeGuilda(motivo))
+					return
+				}
+				if e.Guild != 0 {
+					return
+				}
+				e.Coin -= guildCreateCost
+				e.Guild = guild.ID
+				e.GuildLevel = guildLeaderLevel
+				// Registered right away: without it the new guild had no name in
+				// memory until the next boot, and every place that shows one printed
+				// "Guild #N" instead.
+				w.SetGuildName(guild.ID, name)
+				d.sendEtc(w, s, e)
+				d.refreshGuildTag(w, s.Conn)
+				w.SaveCharacterAsync(s)
+				// The number is what the guild's icon file is named after
+				// (b01NNNNNN.bmp), so the leader learns it here, where it is created.
+				// This also replaces a MSG_MessagePanel sent with no body at all.
+				sendClientMessage(w, s, fmt.Sprintf("Guilda %s criada! Número da guilda: %d.", name, guild.ID))
+				d.log.Info("guild created", "conn", s.Conn, "guild", name, "id", guild.ID)
+			}
+		})
 	})
 }
 
@@ -152,7 +189,11 @@ const (
 	msgGuildDomingoConvite  = "Não é possivel utilizar domingo."
 	msgGuildUso             = "Use: /create NomeDaGuilda (até 16 letras)."
 	msgGuildJaTem           = "Você já pertence a uma guilda."
-	msgGuildCriacaoRecusada = "Não foi possível criar a guilda. Confira se o nome já não existe e tente outro."
+	msgGuildCriacaoRecusada = "Não foi possível criar a guilda agora. Tente de novo."
+	msgGuildNomeEmUso       = "Já existe uma guilda com esse nome. Escolha outro."
+	msgGuildSemOuro         = "Você não tem ouro suficiente para criar a guilda."
+	msgGuildJaTemGuilda     = "Você já está numa guilda. Saia dela antes de criar outra."
+	msgGuildSemVaga         = "O servidor está sem números de guilda livres. Avise a equipe."
 )
 
 // guildCreateRefusal is the first rule /create breaks, as the line the player
@@ -222,11 +263,49 @@ func (d *Dispatcher) subcreate(w *world.World, s *world.Session, args []byte) {
 	leaderSession, memberSession := s, targetSession
 	leaderAccountID, leaderSlot := s.AccountID, s.Slot
 	accountID, slot, targetName := targetSession.AccountID, targetSession.Slot, target.Name
+	// O MESMO BURACO DO /create MORA AQUI: o PromoteGuildMember reconfere o custo
+	// contra character.coin NO BANCO, e o ouro recém-sacado da carga só existe na
+	// memória. Sem gravar antes, o líder com um bilhão na tela leva uma recusa muda.
+	// O snapshot sai daqui, do laço; o save vai lá fora, antes da cobrança.
+	save := w.CharacterSaveFor(s, e)
+	// A CARGA VAI JUNTO, na mesma transação, como no /create. Aqui o par é montado à
+	// mão porque este caminho grava com GoDetached: as duas sessões podem sumir, e a
+	// volta não pode depender de nenhuma delas continuar viva.
+	carga, entregues, temCarga, seqDoPar := w.CargaParaOPar(s.AccountID)
+	epocaDoPar := w.EpocaDoPar()
 	s.Mode = world.UserWaitDB
 	targetSession.Mode = world.UserWaitDB
 	w.GoDetached(func() func(*world.World) {
+		// Save que falha cancela a promoção, pelo mesmo motivo do /create: seguir
+		// adiante devolveria o banco a decidir com ouro velho.
+		if err := world.SalvarPar(context.Background(), p, save, carga, temCarga, entregues, epocaDoPar, seqDoPar, false); err != nil {
+			return func(w *world.World) {
+				ls := w.Session(leaderConn)
+				if ls != leaderSession {
+					ls = nil
+				}
+				ts := w.Session(targetConn)
+				if ts != memberSession {
+					ts = nil
+				}
+				if ls != nil && ls.Mode == world.UserWaitDB {
+					ls.Mode = world.UserPlay
+				}
+				if ts != nil && ts.Mode == world.UserWaitDB {
+					ts.Mode = world.UserPlay
+				}
+				d.log.Warn("subcreate: save do personagem falhou", "conn", leaderConn,
+					"target", targetName, "err", err)
+				if ls != nil {
+					d.notify(w, ls, NoticeDBError)
+				}
+			}
+		}
 		level, ok, err := p.PromoteGuildMember(context.Background(), guildID, leaderAccountID, leaderSlot, accountID, slot, guildSubCost)
 		return func(w *world.World) {
+			if temCarga {
+				w.EsqueceEntregues(leaderAccountID, entregues)
+			}
 			ls := w.Session(leaderConn)
 			if ls != leaderSession {
 				ls = nil
@@ -448,42 +527,28 @@ func parseSmallInt(s string) (int, bool) {
 	return n, true
 }
 
-// guildAlly handles _MSG_GuildAlly (0x0E12).
-func (d *Dispatcher) guildAlly(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
-	d.guildRelay(w, s, payload, world.GuildRelationAlly)
-}
-
-// war handles _MSG_War (0x0E0E).
-func (d *Dispatcher) war(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
-	d.guildRelay(w, s, payload, world.GuildRelationWar)
-}
-
-func (d *Dispatcher) guildRelay(w *world.World, s *world.Session, payload []byte, kind world.GuildRelationKind) {
-	e := w.Entity(s.Conn)
-	if e == nil {
-		return
-	}
-	guild, target, ok := protocol.StandardParm2(payload)
-	if !ok || guild <= 0 || guild >= 65536 || target < 0 || target >= 65536 {
-		return
-	}
-	if e.Guild != uint16(guild) || e.GuildLevel != guildLeaderLevel {
-		return
-	}
-	p := w.Persistence()
-	guildID, targetID := uint16(guild), uint16(target)
-	w.Go(s, func() func(*world.World, *world.Session) {
-		err := p.SetGuildRelation(context.Background(), guildID, targetID, kind)
-		return func(w *world.World, s *world.Session) {
-			if err != nil {
-				d.log.Warn("guild relation failed", "conn", s.Conn, "guild", guildID, "target", targetID, "kind", kind, "err", err)
-				return
-			}
-			d.applyGuildRelation(guildID, targetID, kind)
-			d.sendWarInfoToGuild(w, guildID)
-		}
-	})
-}
+// A ALIANÇA E A GUERRA DECLARADA ENTRE GUILDAS SAÍRAM.
+//
+// Aqui moravam o guildAlly (0x0E12), o war (0x0E0E) e o guildRelay que os dois
+// chamavam. Eram o par que se fazia com item, e a Hanna tirou os dois do jogo.
+// Saíram daqui e das rotas: sem rota, o pacote cai no caminho de mensagem
+// desconhecida, em vez de executar meio caminho.
+//
+// A GUERRA DE CIDADE CONTINUA INTEIRA. Ela é outra coisa: mora na torre
+// (towerwar.go) e nunca passou por nenhuma destas funções.
+//
+// E O applyGuildRelation CONTINUA RODANDO na partida, para as linhas de
+// guild_relation que já existem no banco. Elas não nascem mais, mas as antigas
+// SEGUEM VALENDO até alguém apagar — o que é um DELETE explícito e não acontece
+// sozinho. Deixá-las valendo é a escolha conservadora: apagar relação de guilda em
+// migração é mexer no jogo de quem não pediu.
+//
+// O sendWarInfoToGuild (0x03A8) saiu junto, porque ficou sem quem o chamasse: o
+// guildRelay era o único. E ISSO NÃO TIRA NADA DE NINGUÉM — ele só era mandado no
+// instante da declaração, nunca no login, então quem entrava depois de uma guerra
+// declarada já não recebia o aviso antes desta mudança. A aliada e a guerra das
+// linhas antigas continuam aparecendo, com nome, na aba Informações do painel
+// (montaInfoDaGuilda).
 
 // challange handles _MSG_Challange (0x028E): status/collection for a guild zone.
 func (d *Dispatcher) challange(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
@@ -539,7 +604,7 @@ func (d *Dispatcher) refreshGuildTag(w *world.World, id int) {
 	if e == nil {
 		return
 	}
-	body := protocol.EncodeCreateMobBody(createMobFrom(e, 0))
+	body := protocol.EncodeCreateMobBody(createMobFrom(w, e, 0))
 	w.ForEachInView(id, func(vs *world.Session, _ *world.Entity) {
 		w.SendTo(vs, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, body)
 	})
@@ -594,13 +659,29 @@ func (d *Dispatcher) persistGuildZone(w *world.World, s *world.Session, z world.
 	})
 }
 
-func (d *Dispatcher) sendWarInfoToGuild(w *world.World, guildID uint16) {
-	warTarget := int32(d.guildWars[guildID])
-	allyTarget := int32(d.guildAllies[guildID])
-	body := protocol.EncodeStandardParm3(warTarget, 0, allyTarget)
-	w.ForEachPlaying(-1, func(s *world.Session, e *world.Entity) {
-		if e.Guild == guildID {
-			w.SendTo(s, protocol.Header{Type: protocol.MsgSendWarInfo, ID: protocol.IDScene}, body)
-		}
-	})
+// msgDaRecusaDeGuilda escolhe a frase pelo motivo que o dbServer deu.
+//
+// O DESCONHECIDO CAI NA FRASE GERAL, e é de propósito: um dbServer mais novo pode mandar
+// um motivo que esta versão não conhece, e nesse caso é melhor não afirmar nada do que
+// afirmar o motivo errado. Foi exatamente o motivo errado — "confira o nome" — que custou
+// horas de procura no dia em que o problema era o ouro.
+//
+// E POR ISSO A FRASE GERAL NÃO FALA EM NOME. Ela sobrou para o motivo desconhecido e para
+// o CharacterGone, e em nenhum dos dois o nome é o problema; mandar conferir o nome ali
+// seria a mesma mentira, só menor.
+func msgDaRecusaDeGuilda(m world.GuildRefusal) string {
+	switch m {
+	case world.GuildRefusalNameTaken:
+		return msgGuildNomeEmUso
+	case world.GuildRefusalNotEnoughCoin:
+		return msgGuildSemOuro
+	case world.GuildRefusalAlreadyInGuild:
+		return msgGuildJaTemGuilda
+	case world.GuildRefusalNoFreeSlot:
+		return msgGuildSemVaga
+	default:
+		// Inclui o CharacterGone, que é raro e que a pessoa não consegue consertar
+		// sozinha: a frase geral manda tentar de novo, e é o que resolve.
+		return msgGuildCriacaoRecusada
+	}
 }

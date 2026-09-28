@@ -665,3 +665,68 @@ func DecodeGuildaEsquadra(b []byte) (GuildaEsquadraBody, error) {
 	}
 	return out, nil
 }
+
+// As quatro ações do quadro de membros (0x0F4C). Os números são os do contrato
+// fechado com quem cuida do cliente, e não podem mudar sem falar com eles.
+const (
+	GuildaAcaoPromove   uint8 = 1 // a sub-líder
+	GuildaAcaoLideranca uint8 = 2 // passar a liderança
+	GuildaAcaoExpulsa   uint8 = 3
+	GuildaAcaoSai       uint8 = 4 // a única sobre si mesmo, e a única sem nome
+)
+
+// GuildaImpostoMax é o teto da taxa da cidade, em porcento.
+const GuildaImpostoMax = 30
+
+// GuildaAcaoBody é o 0x0F4C: uma ação do quadro sobre um membro.
+type GuildaAcaoBody struct {
+	Acao uint8
+	Nome string
+}
+
+// DecodeGuildaAcao lê a ação.
+//
+// RECUSA AÇÃO DESCONHECIDA e nome vazio no que não é "sair". Uma ação fora da
+// lista não pode virar a de número parecido, e um nome vazio nas outras três faria
+// o comando nativo procurar alguém chamado "" — que em algum caminho é o próprio
+// jogador.
+func DecodeGuildaAcao(b []byte) (GuildaAcaoBody, error) {
+	var out GuildaAcaoBody
+	if len(b) < 1+GuildaNomeMax {
+		return out, fmt.Errorf("protocol: guilda acao curta: %d", len(b))
+	}
+	out.Acao = b[0]
+	if out.Acao < GuildaAcaoPromove || out.Acao > GuildaAcaoSai {
+		return out, fmt.Errorf("protocol: guilda acao desconhecida: %d", out.Acao)
+	}
+	out.Nome = cstr16(b[1 : 1+GuildaNomeMax])
+	if out.Acao != GuildaAcaoSai && out.Nome == "" {
+		return out, fmt.Errorf("protocol: guilda acao %d sem nome", out.Acao)
+	}
+	return out, nil
+}
+
+// GuildaImpostoBody é o 0x0F4D: a taxa nova da cidade dominada.
+type GuildaImpostoBody struct {
+	// Zona viaja e é IGNORADA de propósito — ver o handler. Ela está aqui só para
+	// o log poder dizer sobre o que era o pedido.
+	Zona  uint8
+	Ticks uint8
+}
+
+// DecodeGuildaImposto lê a taxa.
+//
+// O TETO É CONFERIDO AQUI E TAMBÉM NO COMANDO NATIVO. A repetição é barata e a
+// falta dela não seria: sem esta, um valor de um byte (até 255) desceria até o
+// comando como texto, e o que recusa lá é uma regra que pode mudar de dono amanhã.
+func DecodeGuildaImposto(b []byte) (GuildaImpostoBody, error) {
+	var out GuildaImpostoBody
+	if len(b) < 2 {
+		return out, fmt.Errorf("protocol: guilda imposto curto: %d", len(b))
+	}
+	out.Zona, out.Ticks = b[0], b[1]
+	if out.Ticks > GuildaImpostoMax {
+		return out, fmt.Errorf("protocol: guilda imposto %d acima do teto %d", out.Ticks, GuildaImpostoMax)
+	}
+	return out, nil
+}

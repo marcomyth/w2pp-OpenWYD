@@ -60,6 +60,7 @@ func readCNFDrop(t *testing.T, c net.Conn) (cnfDrop, []byte) {
 // placed the item at those coordinates, which is why dropping certain items took
 // the client down and why it looked intermittent.
 func TestDropConfirmationCarriesTheWholeRequest(t *testing.T) {
+	comLargarLigado(t)
 	addr, stop, _ := startServerClock(t, itemDB(1100))
 	defer stop()
 	c := enterWorld(t, addr)
@@ -90,6 +91,7 @@ func TestDropConfirmationCarriesTheWholeRequest(t *testing.T) {
 // original moves a drop off an occupied tile (GetEmptyItemGrid) and the client
 // draws the object where the server says it landed.
 func TestDropConfirmationNamesTheCellActuallyUsed(t *testing.T) {
+	comLargarLigado(t)
 	addr, stop, _ := startServerClock(t, twoItemDB(1100, 1200))
 	defer stop()
 	c := enterWorld(t, addr)

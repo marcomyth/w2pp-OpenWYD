@@ -162,7 +162,7 @@ func (h *Handler) comandoBloco(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionBlockCommand,
 		New:    map[string]any{"comando": linha, "ponto": []int32{x, y}, "resposta": resposta},
 	}); err != nil {

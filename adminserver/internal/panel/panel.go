@@ -32,6 +32,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/plataforma"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
+	"github.com/jeanluca/w2pp-openwyd/internal/npcgener"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
@@ -72,6 +73,34 @@ type Accounts interface {
 	ListCharacters(ctx context.Context, accountID int64) ([]domain.Character, error)
 }
 
+// UsuariosDoPainel é a parte do store que cuida de quem administra sem ter personagem
+// (migração 0130).
+//
+// INTERFACE PRÓPRIA e não mais métodos em Accounts, porque são coisas diferentes: Accounts
+// fala de CONTA DE JOGO, e um usuário de painel não é uma. Misturar as duas no mesmo
+// contrato convidaria um handler a usar o método errado — e o método errado aqui é o que
+// deixa alguém entrar.
+type UsuariosDoPainel interface {
+	UsuarioDoPainelPorLogin(ctx context.Context, login string) (store.AutenticacaoDoPainel, error)
+	ExisteUsuarioDoPainel(ctx context.Context, login string) (bool, error)
+	// EstadoDoUsuarioDoPainel é relido a CADA pedido, para a revogação ser imediata.
+	EstadoDoUsuarioDoPainel(ctx context.Context, id int64) (ativo bool, papel string, err error)
+	ListarUsuariosDoPainel(ctx context.Context) ([]store.UsuarioDoPainel, error)
+	ContarUsuariosDoPainel(ctx context.Context) (total, adminsAtivos int, err error)
+	CriarUsuarioDoPainel(ctx context.Context, login, senha, papel string, criadoPor *int64) (store.UsuarioDoPainel, error)
+	DefinirAtivoDoPainel(ctx context.Context, id int64, ativo bool) error
+	TrocarSenhaDoPainel(ctx context.Context, id int64, senha string) error
+}
+
+// ContadorDeFilas é só a contagem das quatro filas do dinheiro real, para o menu.
+//
+// Interface própria e mínima: quem a implementa é o mesmo *store.Store das outras, mas
+// separá-la deixa claro que o MENU depende de uma consulta por página — e uma dependência
+// que aparece no contrato é uma que alguém pensa duas vezes antes de engordar.
+type ContadorDeFilas interface {
+	ContarFilasDeDinheiro(ctx context.Context) (store.FilasDeDinheiro, error)
+}
+
 // AuditLog is the panel's view of the action log.
 type AuditLog interface {
 	Write(ctx context.Context, r audit.Record) error
@@ -94,8 +123,17 @@ type Writer interface {
 	SetRole(ctx context.Context, actorID, targetID int64, role string) (string, error)
 	SetBlocked(ctx context.Context, actorID, targetID int64, blocked bool, motivo string, dias int) (accounts.Bloqueio, error)
 	Blocked(ctx context.Context, id int64) (bool, error)
+	// A posse da conta: quem a lê é a tela, e quem a solta é a válvula de admin.
+	// A soltura grava a auditoria na MESMA transação, por isso não passa pelo
+	// caminho comum de auditoria.
+	PosseDaConta(ctx context.Context, accountID int64) (accounts.Posse, error)
+	SoltarPosse(ctx context.Context, atorConta, atorPainel int64, papel string, accountID int64, nota string) error
 	AddVipDays(ctx context.Context, actorID, targetID int64, days int) (prev, next *time.Time, err error)
 	ClearVip(ctx context.Context, actorID, targetID int64) (*time.Time, error)
+	// Esconder a conta do ranking. Grava a auditoria na MESMA transação, como a
+	// soltura da posse, e por isso também não passa pelo caminho comum.
+	ForaDoRanking(ctx context.Context, atorConta, atorPainel int64, papel string,
+		targetID int64, fora bool, nota string) (mudou bool, err error)
 }
 
 // GameData is the panel's window onto the webServer's admin services. Optional:
@@ -166,17 +204,6 @@ type Eventos interface {
 	SetKefraState(ctx context.Context, live bool, guildID int32, fonte string, accountID int64) (int64, error)
 }
 
-// Denuncias is the /reportar queue.
-//
-// Satisfied by *store.Store, like Eventos and Trocas: the rows are written by
-// the game through the dbServer and read here, and a panel-owned second decoder
-// could only disagree with the one the writer uses.
-type Denuncias interface {
-	ListReports(ctx context.Context, q store.ReportQuery) ([]domain.PlayerReport, error)
-	CountReports(ctx context.Context) (store.ReportCounts, error)
-	MarkReportHandled(ctx context.Context, reportID, staffID int64) error
-}
-
 // Guildas is the guild and city state, READ ONLY.
 //
 // There are no writes here on purpose. The game keeps this state in its loop and
@@ -199,6 +226,10 @@ type Carteira interface {
 	Saldo(ctx context.Context, accountID int64) (int32, error)
 	Historico(ctx context.Context, accountID int64, limite int) ([]donate.Evento, error)
 	Ajustar(ctx context.Context, actorID, accountID int64, delta int32, motivo string) (int32, error)
+	// Os pacotes de apoiador do site, enviados sem pagamento: Rcoins e brindes
+	// numa transação só (donate/pacote.go).
+	Pacotes(ctx context.Context) ([]donate.Pacote, error)
+	EnviarPacote(ctx context.Context, actorID, accountID int64, pacoteID, motivo string) (donate.Envio, error)
 }
 
 type Deliveries interface {
@@ -219,6 +250,9 @@ type Live interface {
 	Derrubar(ctx context.Context, conta string) (int32, error)
 	Desatolar(ctx context.Context, conta string, paraX, paraY int32) (jogo.Desatolo, error)
 	EntregarAgora(ctx context.Context, conta string) (jogo.Entrega, error)
+	// TrocarPasse redesenha a moldura do passe de quem está em jogo. Cortesia: o
+	// que vale é o que está gravado no banco.
+	TrocarPasse(ctx context.Context, conta string, nivel int32) (jogo.Passe, error)
 	Ajustes(ctx context.Context) (jogo.Overlays, error)
 	Avisar(ctx context.Context, msg string) (int32, error)
 	Drenar(ctx context.Context, aviso string) (jogo.Drenagem, error)
@@ -283,33 +317,70 @@ type Platform interface {
 
 // Config wires the handler.
 type Config struct {
-	Accounts    Accounts
-	Personagens Personagens
-	Eventos     Eventos
-	Denuncias   Denuncias
-	Guildas     Guildas
-	Carteira    Carteira
-	Platform    Platform
-	Entregas    Deliveries
-	Trocas      TradeLog
-	Censo       Censo
-	Chat        Chat
-	Jogo        Live
-	Blocos      BlocosDoJogo
-	GameData    GameData
-	Writer      Writer
-	Audit       AuditLog
-	MesaXP      MesaXP
-	Masmorras   Masmorras
-	Quests      Quests
-	Spawn       Spawn
-	Combate     Combate
-	BonusDrop   BonusDrop
-	Maquinas    Maquinas
-	MesaDrops   MesaDrops
-	Sessions    *session.Store
-	Logger      *slog.Logger
-	SecureOnly  bool // Secure flag on the cookie; false only for local HTTP dev
+	Accounts Accounts
+	// Painel é quem administra sem ter personagem (0130). NULO quer dizer que esta
+	// montagem não tem a separação — o painel continua funcionando pelo caminho antigo, e
+	// as telas de usuário de painel não aparecem. É o que mantém o adminserver
+	// "deletável", como o CLAUDE.md pede.
+	Painel UsuariosDoPainel
+	// FilasDeDinheiro conta o que está parado nas quatro filas, para o distintivo do
+	// menu. NULO esconde o contador e não quebra nada.
+	FilasDeDinheiro ContadorDeFilas
+	// SoUsuarioDoPainel desliga o login por CONTA DE JOGO com cargo.
+	//
+	// A Hanna liga isto quando tiver criado os usuários dela. Enquanto estiver desligado,
+	// os dois caminhos convivem — e tem de ser assim na estreia, senão o deploy tranca
+	// para fora a única pessoa que poderia criar o primeiro usuário.
+	SoUsuarioDoPainel bool
+	Personagens       Personagens
+	Eventos           Eventos
+	Guildas           Guildas
+	Carteira          Carteira
+	Platform          Platform
+	Entregas          Deliveries
+	Trocas            TradeLog
+	Censo             Censo
+	Chat              Chat
+	Jogo              Live
+	Blocos            BlocosDoJogo
+	GameData          GameData
+	Writer            Writer
+	Audit             AuditLog
+	MesaXP            MesaXP
+	Masmorras         Masmorras
+	Quests            Quests
+	Spawn             Spawn
+	Combate           Combate
+	BonusDrop         BonusDrop
+	Maquinas          Maquinas
+	MesaDrops         MesaDrops
+	Repasses          Repasses
+	FilasRMT          FilasRMT
+	// Receitas, NPCGener, MoldeExiste and CorpoConhecido are the block recipes
+	// (receita.go): the table, the file's blocks the form starts from, the
+	// template check and the body check. The page exists when both the table and
+	// the file are there.
+	Receitas       Receitas
+	NPCGener       []npcgener.Generator
+	MoldeExiste    MoldeExiste
+	CorpoConhecido CorpoConhecido
+	// Passe é a gravação do nível do passe de batalha. Opcional: sem ela a seção
+	// some da página da conta, em vez de aparecer e recusar.
+	Passe      PasseDaConta
+	Sessions   *session.Store
+	Logger     *slog.Logger
+	SecureOnly bool // Secure flag on the cookie; false only for local HTTP dev
+
+	// SemCadastro tranca a criação de conta pelo painel.
+	//
+	// É o AMBIENTE DE TESTE, e a razão de trancar até aqui — onde quem está do outro
+	// lado já é staff — é que uma sessão esquecida aberta cria conta de jogador num
+	// servidor que deveria estar trancado. Quem precisar criar conta no teste usa a
+	// linha de comando, que exige a máquina.
+	//
+	// SÓ A CRIAÇÃO. Trocar o CARGO de uma conta que já existe continua valendo, e
+	// tem de continuar: é assim que alguém vira staff no ambiente trancado.
+	SemCadastro bool
 }
 
 // Handler is the panel's HTTP surface.
@@ -381,14 +452,21 @@ func (h *Handler) Routes() http.Handler {
 	mux.Handle("GET /contas", h.requireStaff(http.HandlerFunc(h.contas)))
 	mux.Handle("GET /contas/{nome}", h.requireStaff(http.HandlerFunc(h.conta)))
 	mux.Handle("GET /auditoria", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.auditoria))))
+	// QUEM ADMINISTRA (0130). Só admin, e não staff: criar usuário de painel é dar acesso
+	// ao painel, e é a única ação desta ferramenta que fabrica mais gente com poder sobre
+	// ela. As rotas existem mesmo sem a separação montada — o handler devolve 404 quando
+	// cfg.Painel é nulo, e assim o adminserver continua subindo em montagem antiga.
+	mux.Handle("GET /usuarios-do-painel", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.usuariosDoPainel))))
+	mux.Handle("POST /usuarios-do-painel", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.criarUsuarioDoPainel))))
+	mux.Handle("POST /usuarios-do-painel/{usuario}/ativo", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.mudarAtivoDoUsuarioDoPainel))))
+	mux.Handle("POST /usuarios-do-painel/{usuario}/senha", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.trocarSenhaDoUsuarioDoPainel))))
 	if h.cfg.MesaXP != nil {
 		// A Mesa de XP é a primeira aba de Rates, a seção que junta as mesas de
 		// balanceamento. Só para administrador, como era antes: estas tabelas
 		// governam o progresso de todo mundo de uma vez.
 		//
-		// /auditoria/xp, o endereço antigo, continua atendendo. Links para ele
-		// existem em anotações e nas próprias linhas da auditoria, e um 404 num
-		// link que já foi certo é a pior forma de mudar um endereço.
+		// /auditoria/xp, o endereço antigo, redireciona para cá — ver a nota mais
+		// abaixo, onde ele é registrado.
 		mux.Handle("GET /rates/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.mesaXP))))
 		mux.Handle("POST /rates/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setMesaXP))))
 		mux.Handle("POST /rates/xp/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparMesaXP))))
@@ -404,11 +482,20 @@ func (h *Handler) Routes() http.Handler {
 		// Progressão reads the same Mesa the XP tab writes, so it rides the same
 		// condition: without a Mesa there is nothing to plan against.
 		mux.Handle("GET /rates/progressao", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.progressao))))
-		mux.Handle("GET /auditoria/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.mesaXP))))
-		mux.Handle("POST /auditoria/xp", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setMesaXP))))
-		mux.Handle("POST /auditoria/xp/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparMesaXP))))
-		mux.Handle("POST /auditoria/xp/restaurar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.restaurarMesaXP))))
-		mux.Handle("POST /auditoria/xp/dificuldade", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.aplicarDificuldade))))
+		// O ENDEREÇO ANTIGO VIRA REDIRECIONAMENTO, e não uma segunda cópia das rotas.
+		//
+		// Ele era a Mesa registrada DUAS vezes, com os mesmos cinco handlers em dois
+		// caminhos. Duas cópias de uma tela de balanceamento é como uma delas ganha um
+		// conserto e a outra não — e quem abrir a errada vai jurar que o conserto não foi
+		// feito.
+		//
+		// SÓ O GET redireciona. Os quatro POST antigos SAEM em vez de redirecionar, e a
+		// diferença importa: um 302 num POST vira GET no navegador e o formulário se perde
+		// CALADO — a pessoa clicaria em "limpar" e nada aconteceria, sem erro nenhum. Um
+		// 404 é alto, e alto é o que se quer quando um endereço de escrita morre. Nenhum
+		// template posta para cá; conferi pelo código de saída do grep, não pela tela.
+		mux.Handle("GET /auditoria/xp", h.requireStaff(h.onlyAdmin(
+			http.RedirectHandler("/rates/xp", http.StatusMovedPermanently))))
 	}
 	// As recompensas de quest têm tabela própria, então dependem dela e não da
 	// Mesa de XP — um painel sem a migração 0036 simplesmente não mostra a aba.
@@ -453,15 +540,23 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("GET /rates/montarias", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.montarias))))
 		mux.Handle("POST /rates/montarias/{indice}", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setMontaria))))
 		mux.Handle("POST /rates/montarias/{indice}/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparMontaria))))
-		mux.Handle("POST /rates/montarias/{indice}/absorcao", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setAbsorcao))))
-		mux.Handle("POST /rates/montarias/{indice}/absorcao/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparAbsorcao))))
 		mux.Handle("POST /rates/montarias/{indice}/atributos", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setAtributosMontaria))))
 		mux.Handle("POST /rates/montarias/{indice}/atributos/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparAtributosMontaria))))
 		mux.Handle("GET /rates/montarias/cliente.txt", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.tabelaDoCliente))))
 	}
 	// /rates entra na primeira aba que existe.
 	if destino := primeiraAbaDeRates(h.cfg); destino != "" {
-		mux.Handle("GET /rates", h.requireStaff(http.RedirectHandler(destino, http.StatusFound)))
+		// ADMIN e não staff, para casar com o destino. Todas as abas por trás deste
+		// redirecionamento já pedem admin, então um moderator só chegava a um desvio que
+		// terminava em recusa — ele descobria que não podia depois de ser mandado para
+		// outra página. Não tira nada de ninguém: alinha a porta com o que há atrás dela.
+		//
+		// /REGRAS É O NOME NOVO, e /rates continua atendendo. "Rates" não dizia nada a quem
+		// não conhece o termo, e o que está atrás é XP, quest, montaria, máquina e combate.
+		// O antigo NÃO é apagado: ele está em favorito de quem usa o painel todo dia, e URL
+		// que morre em 404 é a forma mais rápida de fazer alguém achar que a tela sumiu.
+		mux.Handle("GET /regras", h.requireStaff(h.onlyAdmin(http.RedirectHandler(destino, http.StatusFound))))
+		mux.Handle("GET /rates", h.requireStaff(h.onlyAdmin(http.RedirectHandler(destino, http.StatusFound))))
 	}
 	if h.cfg.Trocas != nil {
 		mux.Handle("GET /trocas", h.requireStaff(http.HandlerFunc(h.trocas)))
@@ -489,6 +584,14 @@ func (h *Handler) Routes() http.Handler {
 	if h.cfg.Platform != nil {
 		mux.Handle("POST /servidor/reiniciar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.reiniciar))))
 	}
+	if h.temReceitas() {
+		// Reading is staff, saving is admin: a recipe changes a whole zone for
+		// everybody, which is the same weight as the other tables of the game.
+		mux.Handle("GET /blocos/receitas", h.requireStaff(http.HandlerFunc(h.receitas)))
+		mux.Handle("GET /blocos/receita", h.requireStaff(http.HandlerFunc(h.receita)))
+		mux.Handle("POST /blocos/receita", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setReceita))))
+		mux.Handle("POST /blocos/receita/limpar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.limparReceita))))
+	}
 	if h.cfg.Blocos != nil {
 		// Staff, not admin: the same commands a moderator already has in game
 		// with /gm, so refusing them here would only send them to the client.
@@ -496,12 +599,30 @@ func (h *Handler) Routes() http.Handler {
 		mux.Handle("POST /blocos/comando", h.requireStaff(http.HandlerFunc(h.comandoBloco)))
 	}
 	mux.Handle("POST /contas/{nome}/cargo", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setCargo))))
+	// O PASSE É ADMIN, como o cargo. Ele é um cosmético comprado: quem o dá está
+	// entregando o que alguém pagaria, e isso não é decisão de plantão.
+	if h.cfg.Passe != nil {
+		mux.Handle("POST /contas/{nome}/passe", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setPasse))))
+	}
 	mux.Handle("POST /contas/{nome}/bloqueio", h.requireStaff(http.HandlerFunc(h.setBloqueio)))
+	// A VÁLVULA DA POSSE É ADMIN. Soltar a posse é afirmar que o dono da conta não
+	// existe mais, e se a afirmação estiver errada duas cópias do mesmo personagem
+	// entram em jogo — que é o defeito que a posse existe para impedir.
+	mux.Handle("POST /contas/{nome}/posse", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.soltarPosse))))
 	mux.Handle("POST /contas/{nome}/vip", h.requireStaff(http.HandlerFunc(h.setVip)))
+	// SÓ ADMIN: esconder alguém do ranking é decisão de quem responde pelo servidor,
+	// e não uma ferramenta de moderação do dia a dia.
+	mux.Handle("POST /contas/{nome}/fora-do-ranking",
+		h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.setForaDoRanking))))
 	mux.Handle("POST /contas/{nome}/senha", h.requireStaff(http.HandlerFunc(h.setSenha)))
 	// Creating an account hands out a login; admin-only, like the other writes
 	// that create access rather than adjust it.
-	mux.Handle("POST /contas/criar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.criarConta))))
+	// A criação de conta some no ambiente trancado; a troca de cargo NÃO, senão
+	// ninguém vira staff lá dentro. Rota ausente e não rota que recusa: um botão que
+	// existe e sempre nega é pior do que um botão que não está lá.
+	if !h.cfg.SemCadastro {
+		mux.Handle("POST /contas/criar", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.criarConta))))
+	}
 	if h.cfg.Entregas != nil {
 		mux.Handle("POST /contas/{nome}/entregar", h.requireStaff(http.HandlerFunc(h.entregarItem)))
 		mux.Handle("POST /contas/{nome}/entregas/{entrega}/cancelar", h.requireStaff(http.HandlerFunc(h.cancelarEntrega)))
@@ -511,6 +632,7 @@ func (h *Handler) Routes() http.Handler {
 	if h.cfg.Carteira != nil {
 		mux.Handle("GET /contas/{nome}/donate", h.requireStaff(http.HandlerFunc(h.carteira)))
 		mux.Handle("POST /contas/{nome}/donate", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.ajustarDonate))))
+		mux.Handle("POST /contas/{nome}/pacote", h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.enviarPacote))))
 	}
 
 	// The character editor. Every write is admin-only: these hand out items.
@@ -526,9 +648,50 @@ func (h *Handler) Routes() http.Handler {
 	}
 	// The report queue. Reading and closing are both staff: answering reports is
 	// the job, and a queue only the admin can clear is a queue nobody clears.
-	if h.cfg.Denuncias != nil {
-		mux.Handle("GET /denuncias", h.requireStaff(http.HandlerFunc(h.denuncias)))
-		mux.Handle("POST /denuncias/{denuncia}/tratar", h.requireStaff(http.HandlerFunc(h.tratarDenuncia)))
+	// A FILA DO REPASSE AO VENDEDOR. Ler é staff, decidir é ADMIN.
+	//
+	// A diferença não é hierarquia por hierarquia: aqui não se configura jogo, se
+	// AFIRMA o que aconteceu com o dinheiro de uma pessoa. "Foi pago" fecha uma
+	// dívida sem que nada tenha saído da conta, e "não foi pago" manda o dinheiro
+	// sair de novo. Nenhuma das duas é decisão de plantão.
+	// /dinheiro É A PORTA DA SEÇÃO, e ela não existia: o item do menu apontava para
+	// ela desde que a seção foi criada, e clicar dava 404.
+	//
+	// Ela não é uma tela: é um desvio para a primeira fila que este servidor tem. Uma
+	// tela própria seria uma quinta coisa para manter e não responderia nada que as
+	// abas já não digam; um link direto para /repasses no menu quebraria no servidor
+	// montado sem repasse. O desvio resolve os dois.
+	if h.cfg.Repasses != nil || h.cfg.FilasRMT != nil {
+		mux.Handle("GET /dinheiro", h.requireStaff(http.HandlerFunc(h.dinheiro)))
+	}
+	if h.cfg.Repasses != nil {
+		mux.Handle("GET /repasses", h.requireStaff(http.HandlerFunc(h.repasses)))
+		mux.Handle("POST /repasses/{repasse}/resolver",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.resolverRepasse))))
+		// PAGAR À MÃO e LER A CHAVE: as duas só admin, como as outras decisões de
+		// dinheiro. Ler a chave é só-admin porque quem não pode pagar não tem por que
+		// ver o dado pessoal de um vendedor.
+		mux.Handle("POST /repasses/{repasse}/pagar",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.pagarRepasse))))
+		mux.Handle("POST /repasses/{repasse}/chave",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.chaveDoRepasse))))
+	}
+	// AS OUTRAS TRÊS FILAS DO DINHEIRO REAL. Mesma divisão da do repasse: ler é
+	// staff, decidir é admin.
+	//
+	// A dos divergentes tem UMA escrita só, e ela não mexe em dinheiro: registra que
+	// alguém já devolveu por fora, e destrava o comprador e o item do vendedor, que
+	// ficam presos enquanto a cobrança está aberta.
+	if h.cfg.FilasRMT != nil {
+		mux.Handle("GET /orfaos", h.requireStaff(http.HandlerFunc(h.orfaos)))
+		mux.Handle("POST /orfaos/{orfao}/resolver",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.resolverOrfao))))
+		mux.Handle("GET /reembolsos", h.requireStaff(http.HandlerFunc(h.reembolsos)))
+		mux.Handle("POST /reembolsos/{cobranca}/resolver",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.resolverReembolso))))
+		mux.Handle("GET /divergentes", h.requireStaff(http.HandlerFunc(h.divergentes)))
+		mux.Handle("POST /divergentes/{cobranca}/resolver",
+			h.requireStaff(h.onlyAdmin(http.HandlerFunc(h.resolverDivergente))))
 	}
 	// Os mapas guardados para evento são uma lista do código (internal/mapaevento),
 	// a mesma que o tmServer usa para não gerar mob neles. Não dependem de banco
@@ -587,19 +750,37 @@ type page struct {
 	HasChat      bool // o registro de conversa precisa da leitura do banco
 	HasJogo      bool // the live pages exist only when the game link is configured
 	HasBlocos    bool // the block page needs the game link with block commands
+	HasReceitas  bool // the block recipes need the database and the NPCGener file
 	HasSeguro    bool // the safe restart needs BOTH the game link and the hosting API
 	HasEvento    bool // the event switches need the database read
-	HasDenun     bool // the report queue needs the database read
+	HasRepasse   bool // a fila do repasse ao vendedor precisa da leitura do banco
+	HasFilasRMT  bool // as outras tres filas do dinheiro real
+	PodeCriar    bool // false no ambiente trancado: o formulario de criar conta some
 	HasGuilda    bool // the guild pages need the database read
 	HasMesaXP    bool // the Mesa de XP needs the database read
 	HasMasm      bool // the dungeon doors need the database read
 	HasQuests    bool // the quest rewards need the database read
 	HasBonusDrop bool // the drop-bonus ladders need the database read
 	HasMaquinas  bool
-	HasCombate   bool   // a regra de combate precisa da leitura do banco
-	HasRates     bool   // Rates existe se pelo menos uma das suas abas existir
-	HasMont      bool   // a aba de montarias vem do webServer, a de XP vem do banco
-	CSRF         string // every form that changes something carries this back
+	HasCombate   bool // a regra de combate precisa da leitura do banco
+	HasRates     bool // Rates existe se pelo menos uma das suas abas existir
+	HasMont      bool // a aba de montarias vem do webServer, a de XP vem do banco
+	// HasPainelUsuarios: a tela de quem administra existe quando a separação (0130) está
+	// montada.
+	HasPainelUsuarios bool
+	// Filas é a contagem de cada fila do dinheiro real, para as abas da seção.
+	//
+	// Separado do FilasDinheiro (que é só o total, para o menu) porque são duas
+	// perguntas: o menu quer saber SE há algo parado, e a aba quer saber ONDE.
+	Filas store.FilasDeDinheiro
+	// FilasDinheiro é quanto está parado nas quatro filas do dinheiro real, somado.
+	//
+	// VAI NO MENU, então é lido em TODA página — por isso é uma consulta só, e por isso uma
+	// falha nela não derruba nada: fica zero e o contador some. Um painel que deixa de
+	// abrir porque não conseguiu contar um distintivo seria pior do que o distintivo não
+	// existir.
+	FilasDinheiro int
+	CSRF          string // every form that changes something carries this back
 }
 
 // falhas records the secondary reads that did not answer.
@@ -627,31 +808,61 @@ func (f *falhas) nao(oque string) {
 // pageFor is a method rather than a function so it can answer, for every page,
 // which nav entries actually exist. Passing that in per call site meant fifteen
 // places each deciding it again, and a new one would have been fifteen edits.
+// contaFilasDeDinheiro lê o distintivo do menu, e NUNCA falha para cima.
+//
+// Roda em toda página, porque o número está no menu. Se a leitura falhar, devolve zero e o
+// contador simplesmente não aparece — a alternativa seria o painel inteiro deixar de abrir
+// por causa de um distintivo, o que é trocar um incômodo por um apagão.
+//
+// SÓ PARA ADMIN, porque só admin vê a entrada de Dinheiro: contar para quem não vê seria
+// uma consulta por clique sem ninguém para ler o resultado.
+func (h *Handler) contaFilasDeDinheiro(r *http.Request) store.FilasDeDinheiro {
+	if h.cfg.FilasDeDinheiro == nil || roleFrom(r.Context()) != roleAdmin {
+		return store.FilasDeDinheiro{}
+	}
+	c, err := h.cfg.FilasDeDinheiro.ContarFilasDeDinheiro(r.Context())
+	if err != nil {
+		h.cfg.Logger.Warn("nao consegui contar as filas de dinheiro", "err", err)
+		return store.FilasDeDinheiro{}
+	}
+	return c
+}
+
 func (h *Handler) pageFor(r *http.Request, nav string) page {
 	sess, _ := staffFrom(r.Context())
 	role := roleFrom(r.Context())
+	// UMA consulta por página, e o total sai dela: o menu quer o total e as abas
+	// querem cada fila, e contar duas vezes seria duas idas ao banco pela mesma
+	// resposta.
+	filas := h.contaFilasDeDinheiro(r)
 	return page{
 		Account: sess.AccountName, AccountID: sess.AccountID, Role: role,
 		Nav: nav, IsAdmin: role == roleAdmin,
-		HasItems:     h.cfg.GameData != nil,
-		HasTrocas:    h.cfg.Trocas != nil,
-		HasCenso:     h.cfg.Censo != nil,
-		HasChat:      h.cfg.Chat != nil,
-		HasJogo:      h.cfg.Jogo != nil,
-		HasBlocos:    h.cfg.Blocos != nil,
-		HasSeguro:    h.cfg.Jogo != nil && h.cfg.Platform != nil,
-		HasEvento:    h.cfg.Eventos != nil,
-		HasDenun:     h.cfg.Denuncias != nil,
-		HasGuilda:    h.cfg.Guildas != nil,
-		HasMesaXP:    h.cfg.MesaXP != nil,
-		HasMasm:      h.cfg.Masmorras != nil,
-		HasQuests:    h.cfg.Quests != nil,
-		HasBonusDrop: h.cfg.BonusDrop != nil,
-		HasMaquinas:  h.cfg.Maquinas != nil,
-		HasCombate:   h.cfg.Combate != nil,
-		HasRates:     primeiraAbaDeRates(h.cfg) != "",
-		HasMont:      h.cfg.GameData != nil,
-		CSRF:         sess.CSRF,
+		HasItems:          h.cfg.GameData != nil,
+		HasTrocas:         h.cfg.Trocas != nil,
+		HasCenso:          h.cfg.Censo != nil,
+		HasChat:           h.cfg.Chat != nil,
+		HasJogo:           h.cfg.Jogo != nil,
+		HasBlocos:         h.cfg.Blocos != nil,
+		HasReceitas:       h.temReceitas(),
+		HasSeguro:         h.cfg.Jogo != nil && h.cfg.Platform != nil,
+		HasEvento:         h.cfg.Eventos != nil,
+		HasRepasse:        h.cfg.Repasses != nil,
+		HasFilasRMT:       h.cfg.FilasRMT != nil,
+		PodeCriar:         !h.cfg.SemCadastro,
+		HasGuilda:         h.cfg.Guildas != nil,
+		HasMesaXP:         h.cfg.MesaXP != nil,
+		HasMasm:           h.cfg.Masmorras != nil,
+		HasQuests:         h.cfg.Quests != nil,
+		HasBonusDrop:      h.cfg.BonusDrop != nil,
+		HasMaquinas:       h.cfg.Maquinas != nil,
+		HasCombate:        h.cfg.Combate != nil,
+		HasRates:          primeiraAbaDeRates(h.cfg) != "",
+		HasMont:           h.cfg.GameData != nil,
+		HasPainelUsuarios: h.cfg.Painel != nil,
+		Filas:             filas,
+		FilasDinheiro:     filas.Total(),
+		CSRF:              sess.CSRF,
 	}
 }
 
@@ -676,21 +887,6 @@ const ultimasAcoes = 5
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	var naoLeu falhas
 
-	// The report queue. Read from the database, not from the game: the home page
-	// is the most-opened screen in the panel, and every call into the game
-	// crosses the single-owner loop ahead of player input. What is worth showing
-	// here is what costs a query.
-	var denuncias store.ReportCounts
-	if h.cfg.Denuncias != nil {
-		c, err := h.cfg.Denuncias.CountReports(r.Context())
-		if err != nil {
-			h.cfg.Logger.Error("report count failed", "err", err)
-			naoLeu.nao("denuncias")
-		} else {
-			denuncias = c
-		}
-	}
-
 	// What the team already did. It is the answer to "did somebody else get to
 	// this before me", which is the question that turns two moderators into one
 	// duplicated ban.
@@ -709,17 +905,13 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "index.html", struct {
 		page
-		Servidor  estadoServidor
-		Denuncias store.ReportCounts
-		Espera    string
-		Recentes  []audit.Entry
-		NaoLeu    falhas
-		Aviso     string
+		Servidor estadoServidor
+		Recentes []audit.Entry
+		NaoLeu   falhas
+		Aviso    string
 	}{
 		h.pageFor(r, "inicio"),
 		h.statusServidor(r),
-		denuncias,
-		idade(denuncias.MaisAntigo, time.Now()),
 		recentes,
 		naoLeu,
 		r.URL.Query().Get("aviso"),
@@ -869,7 +1061,31 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		aba = "conta"
 	}
 
+	// A posse não pode apagar a página por falhar, pelo mesmo motivo do resto: o
+	// que traz a maioria das visitas é o cargo e o bloqueio.
+	var posse posseView
+	if pp, perr := h.cfg.Writer.PosseDaConta(r.Context(), auth.ID); perr != nil {
+		h.cfg.Logger.Error("leitura da posse falhou", "account", nome, "id", auth.ID, "err", perr)
+		naoLeu.nao("posse")
+	} else {
+		posse = posseParaTela(pp, time.Now())
+	}
+
 	p := h.pageFor(r, "contas")
+
+	// Os pacotes de apoiador só são lidos onde o cartão aparece: aba Itens, admin,
+	// conta de outra pessoa. Nas outras abas a leitura seria trabalho jogado fora.
+	var pacotes []pacoteView
+	podePacote := h.cfg.Carteira != nil && p.IsAdmin && aba == "itens" && p.AccountID != auth.ID
+	if podePacote {
+		if pv, perr := h.pacotesParaTela(r, p.AccountID); perr != nil {
+			h.cfg.Logger.Error("supporter packs failed", "account", nome, "err", perr)
+			naoLeu.nao("pacotes")
+		} else {
+			pacotes = pv
+		}
+	}
+
 	h.render(w, "conta.html", struct {
 		page
 		Conta        contaView
@@ -882,13 +1098,18 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		Aviso        string
 		EhVoce       bool
 		Pontos       []accounts.PontoDeLojinha
+		Posse        posseView
+		PodePacote   bool
+		Pacotes      []pacoteView
 	}{
 		p,
 		contaView{
 			ID: auth.ID, Name: nome, Role: auth.Role, IsBlocked: auth.IsBlocked,
 			Email: det.Email, DonateBalance: det.DonateBalance, ShopPoints: det.ShopPoints,
 			VipUntil: det.VipUntil, VipActive: accounts.VipActive(det.VipUntil),
-			Bloqueio: det.Bloqueio,
+			Bloqueio:   det.Bloqueio,
+			PasseNivel: det.PasseNivel, PodePasse: h.cfg.Passe != nil,
+			ForaDoRanking: det.ForaDoRanking,
 		},
 		chars,
 		emJogo,
@@ -902,7 +1123,40 @@ func (h *Handler) conta(w http.ResponseWriter, r *http.Request) {
 		// that always fails is worse than not offering it.
 		p.AccountID == auth.ID,
 		pontos,
+		posse,
+		podePacote,
+		pacotes,
 	})
+}
+
+// posseView é a posse como a tela precisa dela: o texto do último batimento é o
+// que decide o clique, então ele vem pronto em vez de a página fazer conta.
+type posseView struct {
+	Presa          bool
+	BatimentoTexto string
+}
+
+// posseParaTela transforma o último batimento em "há quanto tempo", que é a
+// pergunta de quem está olhando: o dono está vivo?
+func posseParaTela(p accounts.Posse, agora time.Time) posseView {
+	if !p.Presa {
+		return posseView{}
+	}
+	if p.UltimoBatimento == nil {
+		return posseView{Presa: true, BatimentoTexto: "nenhum registrado"}
+	}
+	d := agora.Sub(*p.UltimoBatimento).Round(time.Second)
+	if d < 0 {
+		d = 0
+	}
+	switch {
+	case d < time.Minute:
+		return posseView{Presa: true, BatimentoTexto: fmt.Sprintf("há %d segundo(s)", int(d.Seconds()))}
+	case d < time.Hour:
+		return posseView{Presa: true, BatimentoTexto: fmt.Sprintf("há %d minuto(s)", int(d.Minutes()))}
+	default:
+		return posseView{Presa: true, BatimentoTexto: fmt.Sprintf("há %d hora(s)", int(d.Hours()))}
+	}
 }
 
 // The rule, in one sentence: a MODERATOR acts on one person; an ADMIN acts on
@@ -1039,6 +1293,9 @@ type contaView struct {
 	VipUntil      *time.Time
 	VipActive     bool // expiry compared against now, which is the whole mechanism
 	Bloqueio      accounts.Bloqueio
+	PasseNivel    int16 // 0 sem passe, 1..4 as molduras (0128)
+	PodePasse     bool  // a seção do passe só existe com a gravação ligada
+	ForaDoRanking bool  // escondida do ranking do site e do bot (0161)
 }
 
 // --- login / logout ---
@@ -1058,6 +1315,40 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	if !h.limit.allow("ip:"+ip, "conta:"+name) {
 		h.cfg.Logger.Warn("login rate limited", "ip", ip, "account", name)
 		http.Error(w, "Muitas tentativas. Espere um minuto.", http.StatusTooManyRequests)
+		return
+	}
+
+	// O USUÁRIO DO PAINEL VEM PRIMEIRO, E SEM SEGUNDA CHANCE.
+	//
+	// Se o nome digitado é de um usuário de painel, este login termina aqui: certo ou
+	// errado, ele NÃO cai no caminho da conta de jogo. Sem isso, um usuário de painel que
+	// errasse a senha tentaria a conta de jogo homônima em seguida — e duas pessoas
+	// diferentes com o mesmo nome entrariam no mesmo painel com permissões diferentes,
+	// cada uma achando que é a dona daquele nome.
+	//
+	// A pergunta "existe?" é feita ANTES de verificar a senha, e de propósito: ela é o que
+	// decide o CAMINHO, e decidir o caminho pelo resultado da senha é o que criaria a
+	// segunda chance.
+	if h.cfg.Painel != nil {
+		ehDoPainel, err := h.cfg.Painel.ExisteUsuarioDoPainel(r.Context(), name)
+		if err != nil {
+			h.cfg.Logger.Error("login: procurando usuario de painel", "usuario", name, "err", err)
+			http.Error(w, "Erro interno.", http.StatusInternalServerError)
+			return
+		}
+		if ehDoPainel {
+			h.loginDoPainel(w, r, name, pass, ip)
+			return
+		}
+	}
+	// O CAMINHO ANTIGO, por conta de jogo com cargo. A Hanna desliga com
+	// W2PP_PAINEL_SO_USUARIO quando tiver criado os usuários dela; até lá os dois
+	// convivem, senão o deploy trancaria para fora quem criaria o primeiro usuário.
+	if h.cfg.SoUsuarioDoPainel {
+		// Gasta o mesmo tempo de uma verificação de verdade antes de recusar: sem isso, a
+		// resposta instantânea diria que aquele nome não é de usuário de painel.
+		_, _ = secret.VerifySecret(pass, h.decoy)
+		h.failLogin(w, r, "login por conta de jogo desligado", name)
 		return
 	}
 
@@ -1104,6 +1395,57 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+// loginDoPainel verifica a senha de um usuário do painel.
+//
+// Já chega sabendo que o login existe: quem chama decidiu o caminho por isso. Daqui para
+// frente toda recusa é igual para quem está na frente da tela, e o motivo fica no log do
+// servidor — é a mesma regra do login antigo, e ela existe para o formulário não contar
+// quais logins existem, quais estão desativados e quais só erraram a senha.
+func (h *Handler) loginDoPainel(w http.ResponseWriter, r *http.Request, nome, senha, ip string) {
+	a, err := h.cfg.Painel.UsuarioDoPainelPorLogin(r.Context(), nome)
+	if errors.Is(err, store.ErrNotFound) {
+		// Corrida: existia quando a pergunta foi feita e não existe mais. Gasta o tempo
+		// de uma verificação e recusa igual.
+		_, _ = secret.VerifySecret(senha, h.decoy)
+		h.failLogin(w, r, "usuario de painel sumiu no meio do login", nome)
+		return
+	}
+	if err != nil {
+		h.cfg.Logger.Error("login de painel: leitura falhou", "usuario", nome, "err", err)
+		http.Error(w, "Erro interno.", http.StatusInternalServerError)
+		return
+	}
+
+	// A SENHA É VERIFICADA MESMO PARA USUÁRIO DESATIVADO, e só depois vem a recusa.
+	// Responder antes transformaria o formulário num revelador de quais logins existem e
+	// estão desligados — a diferença de tempo entre "não verifiquei" e "verifiquei" é
+	// medível de fora.
+	ok, err := secret.VerifySecret(senha, a.Hash)
+	if err != nil {
+		h.cfg.Logger.Error("login de painel: verificacao falhou", "usuario", nome, "err", err)
+		http.Error(w, "Erro interno.", http.StatusInternalServerError)
+		return
+	}
+	if !ok {
+		h.failLogin(w, r, "senha incorreta", nome)
+		return
+	}
+	if !a.Ativo {
+		h.failLogin(w, r, "usuario de painel desativado", nome)
+		return
+	}
+
+	token, _, err := h.cfg.Sessions.CreateDoPainel(a.ID, a.Login, a.Papel)
+	if err != nil {
+		h.cfg.Logger.Error("login de painel: sessao falhou", "usuario", nome, "err", err)
+		http.Error(w, "Erro interno.", http.StatusInternalServerError)
+		return
+	}
+	h.setCookie(w, token)
+	h.cfg.Logger.Info("login de painel ok", "usuario", a.Login, "id", a.ID, "papel", a.Papel, "ip", ip)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(cookieName); err == nil {
 		h.cfg.Sessions.Delete(c.Value)
@@ -1141,6 +1483,73 @@ func (h *Handler) requireStaff(next http.Handler) http.Handler {
 		token, sess, ok := h.currentSession(r)
 		if !ok {
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
+			return
+		}
+		// SESSÃO DE USUÁRIO DO PAINEL não passa pela conta de jogo.
+		//
+		// As três conferências abaixo — cargo, conta apagada, conta bloqueada — são todas
+		// sobre uma CONTA DE JOGO, e um usuário do painel não tem nenhuma. Sem esta saída,
+		// o AccountRole seria chamado com id 0, daria ErrNotFound e a sessão morreria no
+		// primeiro clique: quem entrou não conseguiria abrir uma página.
+		//
+		// O QUE SUBSTITUI A REVOGAÇÃO AO VIVO: o papel guardado na sessão, mais o TTL
+		// curto. Desativar um usuário não derruba a sessão dele na hora; ela morre no
+		// vencimento. É uma diferença real em relação ao caminho antigo, e a escolhi porque
+		// o contrário custaria uma ida ao banco por PEDIDO — e porque desativar quem já
+		// está dentro é caso raro, enquanto o clique é constante.
+		if sess.EhDoPainel() {
+			// O ESTADO É RELIDO A CADA PEDIDO, e não é zelo: o caso que importa é
+			// desativar alguém cuja senha vazou e que JÁ está dentro. Uma sessão que só
+			// morresse no vencimento deixaria essa pessoa administrando por até duas horas
+			// depois de a decisão ter sido tomada. Num painel de meia dúzia de usuários,
+			// uma leitura por pedido não custa nada — e é o que o caminho antigo já faz
+			// com o cargo e o bloqueio da conta de jogo.
+			ativo, papel, err := h.cfg.Painel.EstadoDoUsuarioDoPainel(r.Context(), sess.PainelUsuarioID)
+			if err != nil {
+				// Inclui ErrNotFound: usuário apagado no meio da sessão não administra.
+				// E FALHA DE LEITURA TAMBÉM DERRUBA, em vez de deixar passar com o papel
+				// guardado: seguir adiante quando o banco não responde é exatamente o
+				// momento em que uma revogação recente seria ignorada.
+				h.cfg.Logger.Warn("sessao de painel: leitura do estado falhou; encerrando",
+					"usuario", sess.AccountName, "id", sess.PainelUsuarioID, "err", err)
+				h.cfg.Sessions.Delete(token)
+				h.clearCookie(w)
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				return
+			}
+			if !ativo {
+				h.cfg.Logger.Info("sessao encerrada: usuario de painel desativado",
+					"usuario", sess.AccountName, "id", sess.PainelUsuarioID)
+				h.cfg.Sessions.Delete(token)
+				h.clearCookie(w)
+				http.Redirect(w, r, "/login?erro=Seu+acesso+foi+revogado.", http.StatusSeeOther)
+				return
+			}
+			// O PAPEL DE AGORA MANDA, e não o de quando a pessoa entrou. Rebaixar um admin
+			// para moderator tem de valer no clique seguinte, senão a sessão aberta
+			// continua abrindo as telas de dinheiro.
+			sess.PainelPapel = papel
+			if !isStaff(sess.PainelPapel) {
+				// Papel que este código não conhece NÃO vira acesso. Só acontece se
+				// alguém escrever direto no banco, e aí a resposta certa é a porta
+				// fechada.
+				h.cfg.Logger.Warn("sessao de painel com papel desconhecido; encerrando",
+					"usuario", sess.AccountName, "papel", sess.PainelPapel)
+				h.cfg.Sessions.Delete(token)
+				h.clearCookie(w)
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				return
+			}
+			ctx := context.WithValue(r.Context(), ctxSession, sess)
+			ctx = context.WithValue(ctx, ctxRole, sess.PainelPapel)
+			// O ATOR DO PAINEL VIAJA DAQUI, e é o único lugar onde ele é marcado.
+			//
+			// Quem entra como usuário do painel não tem conta de jogo, e o webServer
+			// autoriza por conta. Sem esta marca, todas as páginas que falam com ele —
+			// NPC, Monstros, Atributos, Recompensa Diária, Loja de Donate, Receita,
+			// Eventos do Mundo e Preços de item — recusam. Ver gamedata/ator_do_painel.go.
+			ctx = gamedata.ComAtorDoPainel(ctx, sess.PainelUsuarioID)
+			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 		role, err := h.cfg.Accounts.AccountRole(r.Context(), sess.AccountID)
@@ -1350,7 +1759,7 @@ func (h *Handler) setCargo(w http.ResponseWriter, r *http.Request) {
 	// as a failure even though the write already landed — better a staff member
 	// who re-checks than a log with a hole in it.
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetRole, TargetID: auth.ID,
 		Old: map[string]any{"role": anterior}, New: map[string]any{"role": novo},
 	}); err != nil {
@@ -1430,7 +1839,7 @@ func (h *Handler) setBloqueio(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetBlocked, TargetID: auth.ID,
 		Old: map[string]any{"blocked": anterior.Blocked, "motivo": anterior.Reason},
 		New: map[string]any{"blocked": bloquear, "motivo": motivo, "dias": dias},
@@ -1566,7 +1975,7 @@ func (h *Handler) setVip(w http.ResponseWriter, r *http.Request) {
 // and sortable without knowing the panel's display format.
 func (h *Handler) auditVip(r *http.Request, sess session.Session, targetID int64, nome string, prev, next *time.Time) error {
 	err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetVip, TargetID: targetID,
 		Old: map[string]any{"vip_until": vipJSON(prev)},
 		New: map[string]any{"vip_until": vipJSON(next)},
@@ -1688,7 +2097,7 @@ func (h *Handler) setPreco(w http.ResponseWriter, r *http.Request) {
 		novo = nil
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetItemPrice,
 		New:    map[string]any{"item_index": indice, "price": novo},
 	}); err != nil {
@@ -1887,7 +2296,7 @@ func (h *Handler) reiniciar(w http.ResponseWriter, r *http.Request) {
 	// stop being able to tell anyone anything for a while, and an action nobody
 	// can explain is exactly what this log exists to prevent.
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionRestartGame,
 		New:    map[string]any{"deployment": dep.ID, "drenado": h.cfg.Jogo != nil},
 	}); err != nil {
@@ -2145,7 +2554,7 @@ func (h *Handler) apagarNPC(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) auditNPC(r *http.Request, sess session.Session, acao string, npcID int64, antes, depois any) error {
 	err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: acao,
 		Old:    map[string]any{"npc_id": npcID, "antes": antes},
 		New:    map[string]any{"npc_id": npcID, "depois": depois},

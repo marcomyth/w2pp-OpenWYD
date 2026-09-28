@@ -263,7 +263,7 @@ func (h *Handler) setMonstroEquip(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: acaoMobEquip,
 		Old:    map[string]any{"template": nome, "slot": slot, "item": antes.ItemIndex},
 		New:    map[string]any{"template": nome, "slot": slot, "item": novo.Index},
@@ -350,7 +350,7 @@ func (h *Handler) setMonstro(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetMobStat,
 		New:    map[string]any{"template": nome, "campos": mudados},
 	}); err != nil {
@@ -386,7 +386,7 @@ func (h *Handler) limparMonstro(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionClearMobStat,
 		Old:    map[string]any{"template": nome},
 	}); err != nil {

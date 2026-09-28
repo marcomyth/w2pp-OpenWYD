@@ -2,19 +2,26 @@ package dbclient
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"google.golang.org/grpc"
 
 	dbv1 "github.com/jeanluca/w2pp-openwyd/api/db/v1"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
 // fakeAPI implements dbv1.AccountServiceClient, capturing requests and returning
 // canned responses, so the adapter's mapping is tested without a gRPC server.
 type fakeAPI struct {
+	posseEmUso         bool
+	parSalvo           *dbv1.SalvarPersonagemComCargaRequest
 	anunciosPedidos    *dbv1.OpenRmtListingsRequest
+	cobrancaPedida     *dbv1.OpenRmtChargeRequest
+	cobrancaResp       *dbv1.OpenRmtChargeResponse
+	cobrancaErro       error
 	anunciosCancelados []int64
 	anunciosEncerrados []int64
 	encerrados         []*dbv1.ClosedRmtListing
@@ -76,6 +83,22 @@ func (f *fakeAPI) SaveCharacter(_ context.Context, req *dbv1.SaveCharacterReques
 	f.saved = req
 	return &dbv1.SaveCharacterResponse{Ok: true}, nil
 }
+func (f *fakeAPI) TomarPosseDaConta(_ context.Context, _ *dbv1.TomarPosseDaContaRequest, _ ...grpc.CallOption) (*dbv1.TomarPosseDaContaResponse, error) {
+	return &dbv1.TomarPosseDaContaResponse{Ok: !f.posseEmUso, EmUso: f.posseEmUso}, nil
+}
+func (f *fakeAPI) SoltarPosseDaConta(_ context.Context, _ *dbv1.SoltarPosseDaContaRequest, _ ...grpc.CallOption) (*dbv1.SoltarPosseDaContaResponse, error) {
+	return &dbv1.SoltarPosseDaContaResponse{}, nil
+}
+func (f *fakeAPI) BaterPelasContas(_ context.Context, req *dbv1.BaterPelasContasRequest, _ ...grpc.CallOption) (*dbv1.BaterPelasContasResponse, error) {
+	return &dbv1.BaterPelasContasResponse{AindaMinhas: req.GetAccountIds()}, nil
+}
+func (f *fakeAPI) NovaEpocaDePar(_ context.Context, _ *dbv1.NovaEpocaDeParRequest, _ ...grpc.CallOption) (*dbv1.NovaEpocaDeParResponse, error) {
+	return &dbv1.NovaEpocaDeParResponse{Epoca: 7}, nil
+}
+func (f *fakeAPI) SalvarPersonagemComCarga(_ context.Context, req *dbv1.SalvarPersonagemComCargaRequest, _ ...grpc.CallOption) (*dbv1.SaveCharacterResponse, error) {
+	f.parSalvo = req
+	return &dbv1.SaveCharacterResponse{Ok: true}, nil
+}
 func (f *fakeAPI) QuoteKingdomCape(_ context.Context, _ *dbv1.QuoteKingdomCapeRequest, _ ...grpc.CallOption) (*dbv1.QuoteKingdomCapeResponse, error) {
 	return &dbv1.QuoteKingdomCapeResponse{Revision: 1, HekalotiaCost: 8, AkeloniaCost: 8}, nil
 }
@@ -118,6 +141,14 @@ func (f *fakeAPI) SaveCargo(_ context.Context, req *dbv1.SaveCargoRequest, _ ...
 	f.savedCargo = req
 	return &dbv1.SaveCargoResponse{Ok: true}, nil
 }
+func (f *fakeAPI) OpenRmtCharge(_ context.Context, req *dbv1.OpenRmtChargeRequest, _ ...grpc.CallOption) (*dbv1.OpenRmtChargeResponse, error) {
+	f.cobrancaPedida = req
+	if f.cobrancaErro != nil {
+		return nil, f.cobrancaErro
+	}
+	return f.cobrancaResp, nil
+}
+
 func (f *fakeAPI) OpenRmtListings(_ context.Context, req *dbv1.OpenRmtListingsRequest, _ ...grpc.CallOption) (*dbv1.OpenRmtListingsResponse, error) {
 	f.anunciosPedidos = req
 	if f.semChavePix {
@@ -254,7 +285,7 @@ func TestAccountLoginMapping(t *testing.T) {
 			{Slot: 2, Index: 999, Eff1: 1, Effv1: 7},
 		}},
 	}
-	out, err := newClient(api).AccountLogin(context.Background(), "alice", "pw")
+	out, err := newClient(api).AccountLogin(context.Background(), "alice", "pw", 0)
 	if err != nil {
 		t.Fatalf("AccountLogin: %v", err)
 	}
@@ -282,7 +313,7 @@ func TestAccountLoginRoleMapped(t *testing.T) {
 		loginResp: &dbv1.AccountLoginResponse{Result: dbv1.LoginResult_LOGIN_RESULT_OK, AccountId: 1, Role: "moderator"},
 		listResp:  &dbv1.ListCharactersResponse{},
 	}
-	out, err := newClient(api).AccountLogin(context.Background(), "mod", "pw")
+	out, err := newClient(api).AccountLogin(context.Background(), "mod", "pw", 0)
 	if err != nil {
 		t.Fatalf("AccountLogin: %v", err)
 	}
@@ -322,7 +353,7 @@ func TestAccountLoginFailSkipsList(t *testing.T) {
 	// On a failed login the adapter must not call ListCharacters (nil listResp
 	// would panic if it did).
 	api := &fakeAPI{loginResp: &dbv1.AccountLoginResponse{Result: dbv1.LoginResult_LOGIN_RESULT_BAD_PASSWORD}}
-	out, err := newClient(api).AccountLogin(context.Background(), "alice", "bad")
+	out, err := newClient(api).AccountLogin(context.Background(), "alice", "bad", 0)
 	if err != nil {
 		t.Fatalf("AccountLogin: %v", err)
 	}
@@ -394,7 +425,7 @@ func TestSaveOnShutdownMapping(t *testing.T) {
 		ClassMaster: 3, CelLv40: 1, CelCircle: 1, MortalLevel: 399, CelestialArchLevel: 5,
 		Carry: []world.SavedItem{{Slot: 3, Index: 1234, Eff1: 9, EffV1: 1}},
 	}
-	if err := newClient(api).SaveOnShutdown(context.Background(), save); err != nil {
+	if err := newClient(api).SaveOnShutdown(context.Background(), save, 0, 0, false); err != nil {
 		t.Fatalf("SaveOnShutdown: %v", err)
 	}
 	if api.saved.GetAccountId() != 1 {
@@ -426,7 +457,7 @@ func TestDivinePersistMapping(t *testing.T) {
 	// Save: an active Divine buff produces one type-34 affect with Time == deadline.
 	api := &fakeAPI{}
 	save := world.CharacterSave{AccountID: 1, Slot: 0, DivineEnd: deadline}
-	if err := newClient(api).SaveOnShutdown(context.Background(), save); err != nil {
+	if err := newClient(api).SaveOnShutdown(context.Background(), save, 0, 0, false); err != nil {
 		t.Fatalf("SaveOnShutdown: %v", err)
 	}
 	aff := api.saved.GetCharacter().GetAffects()
@@ -452,7 +483,7 @@ func TestDivinePersistMapping(t *testing.T) {
 func TestDivineNotPersistedWhenExpired(t *testing.T) {
 	api := &fakeAPI{}
 	save := world.CharacterSave{AccountID: 1, Slot: 0, DivineEnd: time.Now().Unix() - 100}
-	if err := newClient(api).SaveOnShutdown(context.Background(), save); err != nil {
+	if err := newClient(api).SaveOnShutdown(context.Background(), save, 0, 0, false); err != nil {
 		t.Fatalf("SaveOnShutdown: %v", err)
 	}
 	if aff := api.saved.GetCharacter().GetAffects(); len(aff) != 0 {
@@ -617,5 +648,50 @@ func TestCreditDonate(t *testing.T) {
 	}
 	if saldo, err := c.DonateBalance(ctx, 7); err != nil || saldo != 1100 {
 		t.Errorf("DonateBalance = %d, %v; quer 1100, nil", saldo, err)
+	}
+}
+
+func (f *fakeAPI) ListRcoinOffers(_ context.Context, req *dbv1.ListRcoinOffersRequest, _ ...grpc.CallOption) (*dbv1.ListRcoinOffersResponse, error) {
+	if req.GetAccountId() == 0 {
+		return nil, errors.New("sem conta")
+	}
+	return &dbv1.ListRcoinOffersResponse{Balance: f.donate, Offers: []*dbv1.RcoinOffer{{
+		Id: 55, ItemIndex: 3901, Eff1: 106, Effv1: 3, Eff2: 61, Effv2: 120,
+		Price: 60, ExpiresDays: 3, Title: "Fada Azul 3 dias", Category: req.GetCategory(),
+	}}}, nil
+}
+
+func (f *fakeAPI) BuyRcoinOffer(_ context.Context, req *dbv1.BuyRcoinOfferRequest, _ ...grpc.CallOption) (*dbv1.BuyRcoinOfferResponse, error) {
+	if req.GetSeenPrice() != 60 {
+		return &dbv1.BuyRcoinOfferResponse{Result: dbv1.RcoinBuyResult_RCOIN_BUY_PRICE_CHANGED, Balance: f.donate}, nil
+	}
+	f.donate -= 60
+	return &dbv1.BuyRcoinOfferResponse{Result: dbv1.RcoinBuyResult_RCOIN_BUY_OK, Balance: f.donate, DeliveryId: 900}, nil
+}
+
+// TestLojaDeRcoin confere a tradução do proto para o mundo: os efeitos na ordem,
+// a aba, e o resultado com o mesmo número do 0x0F0F.
+func TestLojaDeRcoin(t *testing.T) {
+	api := &fakeAPI{donate: 100}
+	c := newClient(api)
+	ctx := context.Background()
+
+	ofertas, saldo, err := c.ListRcoinOffers(ctx, 7, 5)
+	if err != nil || saldo != 100 || len(ofertas) != 1 {
+		t.Fatalf("lista = %+v, %d, %v", ofertas, saldo, err)
+	}
+	o := ofertas[0]
+	if o.ID != 55 || o.ItemIndex != 3901 || o.Category != 5 || o.Days != 3 || o.Price != 60 ||
+		o.Effects[0] != (world.Effect{Effect: 106, Value: 3}) || o.Effects[1] != (world.Effect{Effect: 61, Value: 120}) {
+		t.Errorf("oferta = %+v", o)
+	}
+
+	r, err := c.BuyRcoinOffer(ctx, 7, 55, 59)
+	if err != nil || r.Result != protocol.RcoinPrecoMudou || r.Balance != 100 || r.DeliveryID != 0 {
+		t.Errorf("preço mudou = %+v, %v", r, err)
+	}
+	r, err = c.BuyRcoinOffer(ctx, 7, 55, 60)
+	if err != nil || r.Result != protocol.RcoinOK || r.Balance != 40 || r.DeliveryID != 900 {
+		t.Errorf("compra = %+v, %v", r, err)
 	}
 }

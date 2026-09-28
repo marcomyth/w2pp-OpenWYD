@@ -48,7 +48,7 @@ func TestCobrancaAbertaChegaComAFotografia(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_leitura")
 	comprador := contaPix(ctx, t, s, "comprador_leitura")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	personagemDe(ctx, t, s, vendedor, 0, "Mercador")
@@ -105,7 +105,7 @@ func TestONomeEODoPersonagemQueMontouABarraca(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_dois_chars")
 	comprador := contaPix(ctx, t, s, "comprador_dois_chars")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	personagemDe(ctx, t, s, vendedor, 0, "PrimeiroSlot")
@@ -155,7 +155,7 @@ func TestNaoVeACobrancaDeOutroComprador(t *testing.T) {
 	vendedor := contaPix(ctx, t, s, "vendedor_privado")
 	dono := contaPix(ctx, t, s, "comprador_dono")
 	bisbilhoteiro := contaPix(ctx, t, s, "comprador_curioso")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
@@ -183,7 +183,7 @@ func TestPrazoVencidoJaViraExpiradaEEsconderCodigo(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_vencido")
 	comprador := contaPix(ctx, t, s, "comprador_vencido")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
@@ -226,7 +226,7 @@ func TestCobrancaRecemFechadaAparecePorAlgunsMinutos(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_recente")
 	comprador := contaPix(ctx, t, s, "comprador_recente")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
@@ -274,7 +274,7 @@ func TestEntreDuasFechadasGanhaAMaisNova(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_duas")
 	comprador := contaPix(ctx, t, s, "comprador_duas")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
@@ -318,7 +318,7 @@ func TestAnuncioSemNomeNaFotografiaNaoDerrubaALeitura(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_sem_char")
 	comprador := contaPix(ctx, t, s, "comprador_sem_char")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioComFoto(ctx, t, s, vendedor, "", 0, 0, 1)
@@ -387,7 +387,7 @@ func TestPagamentoAtrasadoNaoEnvelheceEnquantoOReembolsoNaoTermina(t *testing.T)
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_atrasado")
 	comprador := contaPix(ctx, t, s, "comprador_atrasado")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	cobrancaPagaSemItemDe(ctx, t, s, vendedor, comprador, "ref-atrasado", reembolsoPedido)
@@ -417,7 +417,7 @@ func TestReembolsoRecusadoNaoSaiDaPagina(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_recusado")
 	comprador := contaPix(ctx, t, s, "comprador_recusado")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	cobrancaPagaSemItemDe(ctx, t, s, vendedor, comprador, "ref-recusado", reembolsoRecusado)
@@ -437,7 +437,7 @@ func TestReembolsoConcluidoEnvelheceNormalmente(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_concluido")
 	comprador := contaPix(ctx, t, s, "comprador_concluido")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	cobrancaPagaSemItemDe(ctx, t, s, vendedor, comprador, "ref-concluido", reembolsoConcluido)
@@ -461,22 +461,29 @@ func TestAbertaTemPrecedenciaEOAtrasadoVolta(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_fila")
 	comprador := contaPix(ctx, t, s, "comprador_fila")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
-	// A ABERTA NASCE PRIMEIRO E O ATRASADO DEPOIS, de propósito: assim o atrasado
-	// é o MAIS NOVO, e uma ordenação só por data escolheria ele. É o que isola a
-	// regra de precedência — com a aberta sendo também a mais nova, os dois
-	// critérios dariam a mesma resposta e o teste não provaria nada.
-	aberto := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 5, 0, 1)
-	itemMarcado(ctx, t, s, vendedor, 5, aberto)
-	if _, _, err := s.AbrirCobrancaRMT(ctx, aberto, comprador, "ref-fila-nova", 0); err != nil {
-		t.Fatal(err)
-	}
+	// O ATRASADO É O MAIS NOVO, de propósito: uma ordenação só por data escolheria
+	// ele, e é isso que isola a regra de precedência — com a aberta sendo também a
+	// mais nova, os dois critérios dariam a mesma resposta e o teste não provaria
+	// nada. A data é FORÇADA logo abaixo, então a ordem em que as duas linhas são
+	// criadas aqui não muda o que o teste mede.
+	//
+	// E A ORDEM DE CRIAÇÃO IMPORTA POR OUTRO MOTIVO: o atrasado nasce PRIMEIRO
+	// porque a 0116 só permite UMA cobrança aberta por comprador. Criar a aberta
+	// antes e depois tentar abrir a do atrasado — que nasce aberta para só então ser
+	// fechada — bate no índice, e a segunda nunca existiria. A ordem inversa é a que
+	// o jogo produz: uma cobrança se resolve, e só depois a pessoa abre outra.
 	atrasada := cobrancaPagaSemItemDe(ctx, t, s, vendedor, comprador, "ref-fila-velha", reembolsoPedido)
 	if _, err := s.pool.Exec(ctx, `
 		UPDATE rmt_cobranca SET criada_em = now() + interval '1 minute'
 		 WHERE referencia_externa = 'ref-fila-velha'`); err != nil {
+		t.Fatal(err)
+	}
+	aberto := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 5, 0, 1)
+	itemMarcado(ctx, t, s, vendedor, 5, aberto)
+	if _, _, err := s.AbrirCobrancaRMT(ctx, aberto, comprador, "ref-fila-nova", 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -506,5 +513,59 @@ func TestAbertaTemPrecedenciaEOAtrasadoVolta(t *testing.T) {
 	if cob.CobrancaID != atrasada {
 		t.Errorf("voltou a cobranca %d, quero a atrasada %d: ela estava so na fila",
 			cob.CobrancaID, atrasada)
+	}
+}
+
+// A PÁGINA NÃO PODE LER O pago_com_atraso, e este teste existe para amarrar isso.
+//
+// O caso é o do comprador que paga no minuto 4:59 com o aviso chegando em 5:10: a
+// varredura já expirou a nossa linha, mas ele pagou DENTRO do prazo, então recebe o
+// item — e a cobrança fica com `pago_com_atraso = true`, porque a coluna guarda o
+// largo, para contar "o prazo está errado?".
+//
+// Se a página saísse da coluna em vez do STATUS, esse comprador veria PAGA_SEM_ITEM,
+// que na tela dele quer dizer "o seu dinheiro está em análise para reembolso". Ele
+// receberia o item e leria que não ia receber — a promessa errada, no pior momento,
+// para quem fez tudo certo.
+//
+// Hoje o `estadoParaOComprador` recebe só status e expira_em, e é por isso que está
+// certo. O teste é o que impede alguém de ligar a coluna nisso mais tarde "para ficar
+// mais preciso".
+func TestPagouNoPrazoComAvisoAtrasadoVePagaENaoPagaSemItem(t *testing.T) {
+	s, ctx := freshStore(t)
+	v := montaVenda(ctx, t, s, "atraso-na-tela")
+
+	// A nossa linha venceu antes de o aviso chegar. O item continua marcado.
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE rmt_cobranca SET status = $2 WHERE anuncio_id = $1`,
+		v.anuncio, cobrancaExpirada); err != nil {
+		t.Fatal(err)
+	}
+
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, precoEmCentavos, taxaZero())
+	if err != nil {
+		t.Fatalf("confirmando: %v", err)
+	}
+	if res != CobrancaConfirmada {
+		t.Fatalf("resultado = %v, quero CobrancaConfirmada: ele pagou dentro do prazo", res)
+	}
+	if !venda.PagoComAtraso {
+		t.Error("pago_com_atraso ficou falso; o caso nao seria contado")
+	}
+
+	tem, cob, err := s.CobrancaAtualDoComprador(ctx, v.comprador, time.Hour)
+	if err != nil {
+		t.Fatalf("lendo a cobranca do comprador: %v", err)
+	}
+	if !tem {
+		t.Fatal("a pagina nao achou a cobranca")
+	}
+	if cob.Estado != EstadoCobrancaPaga {
+		t.Errorf("estado da pagina = %v, quero PAGA. Com PAGA_SEM_ITEM a tela diria "+
+			"que o dinheiro dele esta em analise, e ele acabou de receber o item", cob.Estado)
+	}
+	// E não há reembolso nenhum em curso: o caminho dele foi o item, não a devolução.
+	if cob.Reembolso != ReembolsoNenhum {
+		t.Errorf("reembolso = %v, quero nenhum", cob.Reembolso)
 	}
 }

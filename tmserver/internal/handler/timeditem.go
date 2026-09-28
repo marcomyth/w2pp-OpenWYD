@@ -81,17 +81,30 @@ func effectsDuration(eff [3]world.Effect) time.Duration {
 // lifetime is written into the item's NAME — "Conjunto_Yin-Yang(30dias)". That is
 // what makes 7- and 14-day variants work with no code change: a new row in the
 // catalog is enough.
+//
+// SÓ ITEM TEMPORÁRIO TEM VIDA. Os efeitos só são lidos como duração num item que o
+// catálogo, o nome ou defaultLifetimeDays já dizem ser temporário, ou numa fada.
+// Em qualquer outro, os três pares não são efeitos: na montaria (2330-2389) são o
+// HP empacotado, o nível, a vitalidade e a ração; no corpo do slot 0, os dados da
+// classe. Um desses bytes valendo 106, 107 ou 108 — nível 107, ou o byte baixo do
+// HP passando por ali — era lido como EF_WDAY/HOUR/MIN, e startTimedItem "iniciava
+// o prazo" apagando os três pares. Em produção, em 26/09/2026, o pulso de um minuto
+// zerou assim a montaria de um jogador (HP, nível, vitalidade e ração), e a cura
+// seguinte a destruiu; o corpo de outro ganhou prazo para sumir.
 func (d *Dispatcher) itemLifetime(it world.Item) time.Duration {
+	catalogo := time.Duration(0)
+	if days := d.itemDurations[int(it.Index)]; days > 0 {
+		catalogo = time.Duration(days) * 24 * time.Hour
+	} else if days := defaultLifetimeDays[it.Index]; days > 0 {
+		catalogo = time.Duration(days) * 24 * time.Hour
+	}
+	if catalogo == 0 && !isFairy(it.Index) {
+		return 0 // permanente: os efeitos dele não são prazo, sejam quais forem
+	}
 	if life := effectsDuration(it.Effects); life > 0 {
 		return life
 	}
-	if days := d.itemDurations[int(it.Index)]; days > 0 {
-		return time.Duration(days) * 24 * time.Hour
-	}
-	if days := defaultLifetimeDays[it.Index]; days > 0 {
-		return time.Duration(days) * 24 * time.Hour
-	}
-	return 0
+	return catalogo
 }
 
 // defaultLifetimeDays is the lifetime of the items whose names lost their
@@ -114,6 +127,21 @@ var defaultLifetimeDays = map[int16]int{
 	3981: 3, // Thoroughbred
 	3982: 3, // Klazedale
 
+	// Every mount that lends XP runs out, the rule TestMontariaComXPTemPrazo
+	// holds. These never had a "(Ndias)" in the name, so without a row here one
+	// handed out with no duration was permanent XP. The Tigre and the Dragão take
+	// what the supporter packs deliver (0123: 7 and 15); the Esferas carry the
+	// Tigre's line (350/50, +12%), so they take its 7.
+	3990: 7,  // Tigre de Fogo da loja
+	3991: 15, // Dragão Vermelho da loja
+	2969: 7,  // Tigre de Cristal (Esfera)
+	2970: 7,  // Tigre Negro (Esfera)
+	2971: 7,  // Rinoceronte Espectral (Esfera)
+	2972: 7,  // Unicórnio de Gelo (Esfera)
+	2973: 7,  // Tigre de Gelo (Esfera)
+	2974: 7,  // Fenrir Sombrio (Esfera)
+	2975: 7,  // Dragão de Gelo (Esfera)
+
 	3900: 3,  // Fada Verde
 	3901: 3,  // Fada Azul
 	3902: 3,  // Fada Vermelha
@@ -127,6 +155,58 @@ var defaultLifetimeDays = map[int16]int{
 	3912: 15, // Fada Verde
 	3913: 30, // Fada Suprema
 	3916: 7,  // Fada do Vale
+}
+
+// prazoIndevido diz se o prazo de it nasceu do engano que itemLifetime corrige:
+// um item que não é temporário (itemLifetime do índice puro é zero) e que é de
+// um dos dois tipos cujos efeitos não são efeitos — a montaria de 2330-2389 e o
+// corpo do slot 0 (noCorpo). Esses itens ganharam ExpiresAt quando um byte deles
+// passou por 106-108, e sumiriam no vencimento.
+//
+// Restrito aos dois tipos de propósito: o /gm item põe prazo de verdade em
+// qualquer item (gm.go), e desfazer todo prazo fora do catálogo apagaria esse.
+func (d *Dispatcher) prazoIndevido(it world.Item, noCorpo bool) bool {
+	if it.ExpiresAt == 0 || d.itemLifetime(world.Item{Index: it.Index}) > 0 {
+		return false
+	}
+	return noCorpo || (it.Index >= mountLo && it.Index < mountHi)
+}
+
+// desfazerPrazosIndevidos aplica prazoIndevido a uma lista de itens carregada do
+// banco, antes do dropExpired do login, e devolve quantos desfez. corpo diz se o
+// primeiro item da lista é o do slot 0 (a lista é o Equip); classMaster é a
+// evolução do personagem, para restaurarCorpoCelestial.
+func (d *Dispatcher) desfazerPrazosIndevidos(items []world.Item, corpo bool, classMaster uint8) int {
+	n := 0
+	for i := range items {
+		if d.prazoIndevido(items[i], corpo && i == 0) {
+			items[i].ExpiresAt = 0
+			if corpo && i == 0 {
+				restaurarCorpoCelestial(&items[i], classMaster)
+			}
+			n++
+		}
+	}
+	return n
+}
+
+// restaurarCorpoCelestial devolve ao corpo de um Celestial os dois pares que a
+// evolução grava nele (buildCelestialSnapshot, _MSG_UseItem.cpp:3160-3163):
+// {98, 3} e {106, índice do corpo}. O servidor não os lê; o cliente sim. O 106
+// é justamente o EF_WDAY, e foi por ele que o pulso tomou o corpo de todo
+// Celestial por um item de "N dias" e apagou os dois. Só regrava o que foi
+// apagado — um corpo com os pares no lugar fica como está.
+func restaurarCorpoCelestial(corpo *world.Item, classMaster uint8) {
+	switch classMaster {
+	case classMasterCelestial, classMasterCelestialCS, classMasterSCelestial:
+	default:
+		return
+	}
+	if corpo.Effects[1] != (world.Effect{}) || corpo.Effects[2] != (world.Effect{}) {
+		return
+	}
+	corpo.Effects[1] = world.Effect{Effect: 98, Value: 3}
+	corpo.Effects[2] = world.Effect{Effect: efWDay, Value: uint8(corpo.Index)}
 }
 
 // startTimedItem begins a temporary item's life the first time it is equipped,
@@ -154,6 +234,88 @@ func (d *Dispatcher) startTimedItem(it *world.Item, now time.Time) bool {
 	it.ExpiresAt = now.Add(life).Unix()
 	it.Effects = [3]world.Effect{}
 	return true
+}
+
+// tickTimedItems is the minute pulse for every other temporary item — the cash
+// mounts, the Esferas, the costumes — which run on a deadline (ExpiresAt), not
+// on a burned duration like the fairies.
+//
+// Deriving the countdown on every send (expiryEffects) was only half of it: the
+// client draws what it was last sent and never ticks it, and before this nothing
+// was sent while the player stayed online. A mount read the same "N Dia(s)" all
+// session, and one whose deadline passed kept its damage, ABS and XP until the
+// next login, the only place dropExpired ran.
+func (d *Dispatcher) tickTimedItems(w *world.World) {
+	if d.tickCount%fairyTickPeriod != 0 {
+		return
+	}
+	now := time.Now()
+	w.ForEachPlaying(-1, func(s *world.Session, e *world.Entity) {
+		d.pulseTimedItems(w, s, e, now)
+	})
+}
+
+// pulseTimedItems does the three things a worn deadline needs each minute:
+// resend it so the client's countdown moves, clear it once it is due, and start
+// one that sits in the gear un-started. That last one is a mount dragged on
+// before 16c867bb, when dragging did not start the clock: it has been worn ever
+// since with its duration intact and would otherwise never run out.
+//
+// The bag gets only the expiry. An item there is either un-started, and must not
+// age, or taken off after starting ("Consumo contínuo, mesmo não equipado"), and
+// then it dies on time like the worn one. The Bolsa do Andarilho is left to
+// expireWandererBags, which also has to shrink the bag.
+func (d *Dispatcher) pulseTimedItems(w *world.World, s *world.Session, e *world.Entity, now time.Time) {
+	gearChanged, mountGone := false, false
+	for slot := range e.Equip {
+		if slot == fairyEquipSlot {
+			continue // tickFairies: a fairy burns only while worn
+		}
+		it := &e.Equip[slot]
+		if it.Empty() {
+			continue
+		}
+		switch {
+		case d.prazoIndevido(*it, slot == 0):
+			it.ExpiresAt = 0
+			if slot == 0 {
+				restaurarCorpoCelestial(it, e.ClassMaster)
+			}
+			d.log.Warn("prazo indevido desfeito", "account", s.AccountName, "conn", s.Conn, "slot", slot, "item", it.Index)
+		case it.ExpiresAt == 0:
+			if !d.startTimedItem(it, now) {
+				continue // permanent
+			}
+			d.log.Info("timed item started on the pulse", "account", s.AccountName, "conn", s.Conn, "slot", slot, "item", it.Index)
+		case now.Unix() >= it.ExpiresAt:
+			d.log.Info("timed item expired", "account", s.AccountName, "conn", s.Conn, "slot", slot, "item", it.Index)
+			*it = world.Item{}
+			gearChanged = true
+			mountGone = mountGone || slot == mountEquipSlot
+		}
+		d.sendSlot(w, s, world.ItemPlaceEquip, slot, *it)
+	}
+	for slot := range e.Carry {
+		it := &e.Carry[slot]
+		if d.prazoIndevido(*it, false) {
+			it.ExpiresAt = 0
+			d.log.Warn("prazo indevido desfeito na bolsa", "account", s.AccountName, "conn", s.Conn, "slot", slot, "item", it.Index)
+			d.sendSlot(w, s, world.ItemPlaceCarry, slot, *it)
+			continue
+		}
+		if it.ExpiresAt == 0 || it.Index == itemWandererBag || now.Unix() < it.ExpiresAt {
+			continue
+		}
+		d.log.Info("timed item expired in the bag", "account", s.AccountName, "conn", s.Conn, "slot", slot, "item", it.Index)
+		*it = world.Item{}
+		d.sendSlot(w, s, world.ItemPlaceCarry, slot, *it)
+	}
+	if gearChanged {
+		d.refreshEquip(w, s, e)
+	}
+	if mountGone {
+		d.refreshBabyMountSummon(w, s, e)
+	}
 }
 
 // tickFairies burns a minute off every equipped fairy, and only off those:

@@ -46,6 +46,14 @@ type Generator struct {
 	// what the Mesa de Drops matches on.
 	LeaderName   string
 	FollowerName string
+
+	// Rev goes up every time the recipe above is replaced while the server runs
+	// (the panel's block recipe, handler/receita.go). Each mob carries the Rev it
+	// was born under, so the respawn queue can tell a monster of the old recipe
+	// from one of the current. A sheet change on /monstros does NOT move it: that
+	// swaps LeaderTmpl/FollowerTmpl in place and the queue picks the bytes up by
+	// name.
+	Rev uint32
 }
 
 // generateWorldCap stops the generator timer from filling every entity slot:
@@ -69,6 +77,26 @@ var formationOffsets = [5][MaxParty]struct{ x, y int16 }{
 // RegisterGenerators installs the generator table (index = NPCGener block =
 // Entity.GenIndex). Wiring-time only, before Run.
 func (w *World) RegisterGenerators(gens []*Generator) { w.generators = gens }
+
+// SetGenerator installs g at idx, growing the table when idx is past its end —
+// how a block the panel created (domain.NewGeneratorIndexBase and up) gets a
+// slot. The gap it opens is nil slots, which every caller already skips.
+// Loop-only.
+func (w *World) SetGenerator(idx int, g *Generator) {
+	if idx < 0 || idx > maxGeneratorIndex {
+		return
+	}
+	if idx >= len(w.generators) {
+		grown := make([]*Generator, idx+1)
+		copy(grown, w.generators)
+		w.generators = grown
+	}
+	w.generators[idx] = g
+}
+
+// maxGeneratorIndex is the highest block a mob can name: MobSpawn.GenIndex is
+// an int16.
+const maxGeneratorIndex = 1<<15 - 1
 
 // GeneratorCount returns the number of registered generator slots (some may be
 // nil — blocks whose templates failed to load).
@@ -208,13 +236,19 @@ func isSecretRoomStrayGenerator(idx int) bool {
 	return idx >= SecretRoomStrayGenFirst && idx <= SecretRoomStrayGenLast
 }
 
-// coliseuGenerators são os 26 blocos de população da região Coliseu do
+// coliseuGenerators são os 36 blocos de monstro da região Coliseu do
 // Regions.txt (2589-2681 × 1671-1785), todos com MinuteGenerate -1:
 //
-//	0, 1, 2       Ciclope_Forte, Ciclop_Selvagem, Ciclope_Wild — o Coliseu N, 100 cada
-//	5, 6, 7       Orc_Sniper_, Orc_Selvagem, Orc_Wild — o Coliseu N, 100 cada
+//	0, 1, 2       Ciclope_Forte, Ciclop_Selvagem, Ciclope_Wild — as ondas das 20h, 100 cada
+//	5, 6, 7       Orc_Sniper_, Orc_Selvagem, Orc_Wild — as ondas da hora de novato, 100 cada
 //	4854-4863     Espectro, 10 cada, com o primeiro ponto em 2615,1716
 //	4865-4874     Espectro, 10 cada, com o primeiro ponto em 2615,1735
+//	103-106       Sombra_Negra, Verid, Canhao, Arvak — chefes sozinhos, nível 399
+//	4853, 4864    Barrack, Barrack_ — idem (o 4864 fica no meio dos Espectros)
+//	4885-4888     Guerreiro, Guerreiro, Guerreiro_, Guerreiro_ — idem
+//
+// As ondas são do evento do Coliseu (handler/coliseu.go), que as solta com
+// GenerateMob; ser de evento só as tira do boot e da fila de 15 s.
 //
 // A regra é NOSSA, não uma porta do legado. No legado nenhum bloco -1 nasce fora
 // de um evento: o boot só gera o Kefra (Server.cpp:4093-4099) e o relógio de
@@ -225,10 +259,11 @@ func isSecretRoomStrayGenerator(idx int) bool {
 // ficam fora do mundo: não nascem no boot e não voltam pela fila de 15 s. Um GM
 // ainda os levanta com "gerar <bloco> aqui".
 //
-// Ficam de fora da lista, e seguem do mundo: os dez chefes sozinhos da região
-// (103-106, 4853, 4864, 4885-4888), que voltam em horas (handler/chefes.go); o
-// Guarda_Carga (974); e a Prona (4232). O 4864 fica no meio da faixa dos
-// Espectros e é o Barrack_, um desses chefes.
+// Os dez chefes sozinhos entraram em 24/09/2026, a pedido do Marco: a arena fica
+// sem monstro nenhum enquanto o Coliseu está desligado. Eles valiam 2,99 mi de
+// XP cada e voltavam em horas (handler/chefes.go); o legado também nunca os
+// fazia nascer. Seguem do mundo só o Guarda_Carga (974) e a Prona (4232), que são
+// NPCs.
 //
 // Não é o retângulo de GenerateMob (Server.cpp:3505-3509), que desliga os blocos
 // com o primeiro ponto em 2440-2545 × 1845-1921 quando o líder não veste o item
@@ -239,9 +274,11 @@ var coliseuGenerators = map[int]bool{
 	4859: true, 4860: true, 4861: true, 4862: true, 4863: true,
 	4865: true, 4866: true, 4867: true, 4868: true, 4869: true,
 	4870: true, 4871: true, 4872: true, 4873: true, 4874: true,
+	103: true, 104: true, 105: true, 106: true, 4853: true, 4864: true,
+	4885: true, 4886: true, 4887: true, 4888: true,
 }
 
-// isColiseuGenerator diz se um bloco é um dos 26 do Coliseu.
+// isColiseuGenerator diz se um bloco é um dos 36 do Coliseu.
 func isColiseuGenerator(idx int) bool {
 	return coliseuGenerators[idx]
 }
@@ -310,6 +347,52 @@ func (w *World) ClearGenerator(idx int) {
 	}
 }
 
+// respawnSpawn is what the respawn queue needs to rebuild a monster where it
+// was born: template, spawn point and its instance patrol route.
+func respawnSpawn(e *Entity) MobSpawn {
+	return MobSpawn{
+		Template: e.Template, X: e.SpawnX, Y: e.SpawnY,
+		RouteType: e.RouteType, SegX: e.SegListX, SegY: e.SegListY,
+		SegWait: e.SegWait, GenIndex: e.GenIndex, TemplateName: e.TemplateName,
+		GenRev: e.GenRev,
+	}
+}
+
+// DeferGenerator takes the monsters block idx has standing out of the world and
+// queues each one to come back after wait (World.Now units), exactly as a death
+// would — so what returns is the same monster, on its own route, through the
+// same queue and the same reveal. It reports how many it deferred.
+//
+// It is how a boss that the boot populate raised is held back: the boot fills
+// every block at once, and a boss the team wants a few hours after a restart
+// has to be put back in line. Once it is back it stays until someone kills it:
+// a block with no minute period is never refilled or cleared by the timer.
+//
+// The removal is type 0, which does not touch CurrentNumMob, so the count is
+// taken back here — SpawnMobAt adds it again when the monster returns.
+// Loop-only.
+func (w *World) DeferGenerator(idx int, wait uint32) int {
+	g := w.GeneratorAt(idx)
+	if g == nil {
+		return 0
+	}
+	n := 0
+	for id := MaxUser; id < MaxMob; id++ {
+		e := w.entities[id]
+		if e == nil || int(e.GenIndex) != idx || e.Template == nil || e.Summoner != 0 {
+			continue
+		}
+		spawn := respawnSpawn(e)
+		w.DespawnMob(id, 0)
+		w.respawnQueue = append(w.respawnQueue, respawnEntry{spawn: spawn, due: w.Now() + wait})
+		n++
+	}
+	if g.CurrentNumMob -= n; g.CurrentNumMob < 0 {
+		g.CurrentNumMob = 0
+	}
+	return n
+}
+
 // SpawnGeneratorLeader spawns exactly one generator leader at its first
 // waypoint without consuming RNG. Scripted world events use this instead of
 // GenerateMob so they cannot perturb the combat/drop parity stream.
@@ -334,7 +417,8 @@ func (w *World) SpawnGeneratorLeader(idx int) int {
 	if !ok {
 		return -1
 	}
-	sp := MobSpawn{Template: g.LeaderTmpl, TemplateName: g.LeaderName, X: x, Y: y, RouteType: g.RouteType, GenIndex: int16(idx)}
+	sp := MobSpawn{Template: g.LeaderTmpl, TemplateName: g.LeaderName, X: x, Y: y, RouteType: g.RouteType,
+		GenIndex: int16(idx), GenRev: g.Rev}
 	sp.SegX, sp.SegY, sp.SegWait = g.SegX, g.SegY, g.SegWait
 	return w.SpawnMobAt(sp)
 }
@@ -434,7 +518,8 @@ func (w *World) generateMob(idx int, near bool, nearX, nearY int16, limit int) [
 		return nil
 	}
 
-	sp := MobSpawn{Template: g.LeaderTmpl, TemplateName: g.LeaderName, RouteType: g.RouteType, GenIndex: int16(idx)}
+	sp := MobSpawn{Template: g.LeaderTmpl, TemplateName: g.LeaderName, RouteType: g.RouteType,
+		GenIndex: int16(idx), GenRev: g.Rev}
 	for i := 0; i < 5; i++ {
 		if g.SegX[i] == 0 {
 			continue

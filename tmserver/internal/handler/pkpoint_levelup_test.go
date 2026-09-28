@@ -21,14 +21,20 @@ func TestLevelUpGrantsPKPoint(t *testing.T) {
 		wantPoint  uint8
 		wantLevels int32
 	}{
-		{name: "one level, one point", pkPoint: 70, toLevel: 2, wantPoint: 71, wantLevels: 1},
-		{name: "five levels, five points", pkPoint: 60, toLevel: 6, wantPoint: 65, wantLevels: 5},
-		{name: "caps at neutral", pkPoint: 74, toLevel: 11, wantPoint: pkPointNeutral, wantLevels: 10},
-		{name: "no-op at neutral", pkPoint: pkPointNeutral, toLevel: 6, wantPoint: pkPointNeutral, wantLevels: 5},
-		{name: "no-op above neutral (quest/item range)", pkPoint: 150, toLevel: 6, wantPoint: 150, wantLevels: 5},
+		// +5 POR NÍVEL E TETO 150, decisão da Hanna de 25/09/2026. Antes era +1 com
+		// teto no neutro (75), e os casos abaixo mudaram de valor junto — os nomes
+		// dizem o que cada um pergunta, e as perguntas continuam as mesmas.
+		{name: "um nivel, cinco pontos", pkPoint: 70, toLevel: 2, wantPoint: 75, wantLevels: 1},
+		{name: "tres niveis, quinze pontos", pkPoint: 0, toLevel: 4, wantPoint: 15, wantLevels: 3},
+		// ATRAVESSA O NEUTRO em vez de parar nele: é a mudança que mais se vê em jogo.
+		{name: "passa do neutro e acumula a folga", pkPoint: 74, toLevel: 3, wantPoint: 84, wantLevels: 2},
+		{name: "quem esta no neutro continua subindo", pkPoint: pkPointNeutral, toLevel: 6, wantPoint: 100, wantLevels: 5},
+		// O TETO AGORA É 150, e ele para lá — antes 150 era intocável pelo nível.
+		{name: "para no teto de 150", pkPoint: 148, toLevel: 6, wantPoint: 150, wantLevels: 5},
+		{name: "no teto, nada muda", pkPoint: 150, toLevel: 6, wantPoint: 150, wantLevels: 5},
 		// Guilty pins the *displayed* pkPoint at 0, but the counter underneath must
 		// still accrue — otherwise a chaotic player's grind would be wasted.
-		{name: "accrues while guilty", pkPoint: 70, guilty: 5, toLevel: 3, wantPoint: 72, wantLevels: 2},
+		{name: "acumula mesmo Guilty", pkPoint: 70, guilty: 5, toLevel: 3, wantPoint: 80, wantLevels: 2},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -75,10 +81,15 @@ func pkLevelUpDB(pkPoint uint8) *fakeDB {
 	return db
 }
 
-// TestLevelUpPKPointNotifiesAndRecolorsNick is the wire half of issue #279: the
-// level-up must tell the player ("Pontos Caos atual: 0 (+1)") and repaint the nick
-// via a fresh CreateMob carrying MobName[12] = 75, without waiting for a relog.
-// A multi-level jump reports the capped gain ONCE, not one line per level.
+// TestLevelUpPKPointNotifiesAndRecolorsNick é a metade do fio: subir de nível tem de
+// AVISAR o jogador e REPINTAR o apelido por um CreateMob novo, sem esperar relogin. Um
+// salto de vários níveis dá UMA linha, e não uma por nível.
+//
+// COM O +5 E O TETO 150, este cenário mudou de resultado: partindo de 74 e subindo cinco
+// níveis, o contador vai a 99 em vez de parar em 75. O apelido continua BRANCO — é isso
+// que a conferência pergunta agora, em vez de exigir o 75 exato, porque qualquer valor do
+// neutro para cima pinta branco e travar no número faria o teste reprovar a folga que a
+// decisão nova existe para criar.
 func TestLevelUpPKPointNotifiesAndRecolorsNick(t *testing.T) {
 	addr, stop, _ := startServerClock(t, pkLevelUpDB(74))
 	defer stop()
@@ -87,7 +98,7 @@ func TestLevelUpPKPointNotifiesAndRecolorsNick(t *testing.T) {
 	defer c.Close()
 	drainRaw(t, c)
 
-	gmFrame(t, c, "setlevel 15") // 5 levels, but only 1 point of room left
+	gmFrame(t, c, "setlevel 15") // 5 níveis: 74 + 5×5 = 99, atravessando o neutro
 
 	chatLines, sawWhiteNick := []string{}, false
 	for i := 0; i < 40; i++ {
@@ -100,8 +111,9 @@ func TestLevelUpPKPointNotifiesAndRecolorsNick(t *testing.T) {
 			chatLines = append(chatLines, cstr(payload))
 		case protocol.MsgCreateMob:
 			if _, _, id := createMobFields(t, payload); id == 1 {
-				if payload[6+12] != pkPointNeutral {
-					t.Errorf("self-CreateMob MobName[12] = %d, want %d (white nick)", payload[6+12], pkPointNeutral)
+				if payload[6+12] < pkPointNeutral {
+					t.Errorf("self-CreateMob MobName[12] = %d, queria %d ou mais (apelido branco)",
+						payload[6+12], pkPointNeutral)
 				}
 				sawWhiteNick = true
 			}
@@ -111,8 +123,9 @@ func TestLevelUpPKPointNotifiesAndRecolorsNick(t *testing.T) {
 	if len(chatLines) != 1 {
 		t.Fatalf("chat lines = %q, want exactly one Chaos Point notice for a multi-level jump", chatLines)
 	}
-	// PKPoint 74 → 75 (capped): displayed Chaos Points 75-75 = 0, gained +1.
-	if want := "Pontos Caos atual: 0 (+1)"; !strings.HasPrefix(chatLines[0], want) {
+	// PKPoint 74 → 99: a tela mostra a folga acima do neutro (99-75 = 24) e o ganho
+	// inteiro de +25, num aviso só para os cinco níveis.
+	if want := "Pontos Caos atual: 24 (+25)"; !strings.HasPrefix(chatLines[0], want) {
 		t.Errorf("chat line = %q, want prefix %q", chatLines[0], want)
 	}
 	if !sawWhiteNick {
@@ -120,10 +133,18 @@ func TestLevelUpPKPointNotifiesAndRecolorsNick(t *testing.T) {
 	}
 }
 
-// TestLevelUpPKPointSilentAtNeutral: a clean character gets no Chaos Point chat
-// spam on every level-up — the notice only fires when there is chaos to pay back.
-func TestLevelUpPKPointSilentAtNeutral(t *testing.T) {
-	addr, stop, _ := startServerClock(t, pkLevelUpDB(pkPointNeutral))
+// TestLevelUpPKPointCaladoNoTeto: quem já está no teto não recebe linha de chat a cada
+// nível — o aviso só sai quando há ponto a pagar.
+//
+// ESTE TESTE PERGUNTAVA NO NEUTRO (75) e passou a perguntar no TETO (150). A pergunta não
+// mudou: "não encher o chat quando não há nada a dar". O que mudou foi ONDE isso é
+// verdade — com o +5 até 150, quem está no neutro AINDA GANHA, e o silêncio ali passou a
+// ser o comportamento errado.
+//
+// Mover em vez de apagar importa: sem ele, um ganho de zero passaria a mandar "+0" a cada
+// nível para todo personagem no teto, e ninguém veria isso num teste.
+func TestLevelUpPKPointCaladoNoTeto(t *testing.T) {
+	addr, stop, _ := startServerClock(t, pkLevelUpDB(pkPointPardon))
 	defer stop()
 
 	c := enterWorldAs(t, addr, "mod")
@@ -138,7 +159,7 @@ func TestLevelUpPKPointSilentAtNeutral(t *testing.T) {
 			break
 		}
 		if ty == protocol.MsgMessageChat {
-			t.Errorf("unexpected chat line %q on a level-up at neutral PKPoint", cstr(payload))
+			t.Errorf("linha de chat inesperada (%q) subindo de nivel ja no teto", cstr(payload))
 		}
 	}
 }

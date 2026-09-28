@@ -177,6 +177,17 @@ func CommandReference() CommandBus {
 				},
 			},
 			{
+				Name: "coliseu", Args: "<ligar|desligar|estado|iniciar|fim|batalha|horas|horabatalha|premio> [valor]", Target: "mundo",
+				Summary: "Liga, desliga, configura e força o Coliseu do legado (ondas das 20h, Batalha Real e Coliseu {N}).",
+				Notes: []string{
+					"Nasce desligado a cada boot. Desligado, a arena fica como sempre: portões abertos e sem desenho, nenhum relógio e nenhuma regra.",
+					"ligar: portões no estado de boot do legado (entrada aberta, os cinco de dentro trancados) e o relógio passa a valer. desligar: encerra o que estiver correndo, tira as ondas e abre e apaga os portões.",
+					"iniciar: força o evento de ondas agora, a partir do minuto 3 (entrada tranca; ondas nos minutos 4, 7, 9, 11 e 13; fim no 15). fim: encerra já.",
+					"batalha [0|1|2]: força uma rodada da Batalha Real (0 = Nv < 100, 1 = Nv < 200, 2 = qualquer nível); precisa de prêmio. batalha fim: encerra.",
+					"horas <guilda> [novato] e horabatalha <hora>: as horas do legado (padrão 20, 20 e 19). premio <item>: o prêmio da Batalha Real; 0 a desliga.",
+				},
+			},
+			{
 				Name: "npc", Args: "[raio] | off <bloco> | on <bloco>", Target: "mundo",
 				Summary: "Lista os blocos do NPCGener em volta, com o número de cada um; desliga ou liga um bloco.",
 				Notes: []string{
@@ -213,9 +224,29 @@ func CommandReference() CommandBus {
 			},
 			{
 				Name: "recarregar", Aliases: []string{"reloadnpc"}, Args: "", Target: "mundo",
-				Summary: "Relê do banco as chaves dos blocos e o painel de NPCs, e repõe o que falta em cada bloco.",
+				Summary: "Relê do banco as chaves dos blocos, as receitas de bloco e o painel de NPCs, e repõe o que falta em cada bloco.",
 				Notes: []string{
 					"O \"reloadnpc\" do legado relia o NPCGener.txt; aqui o arquivo vem na imagem do deploy, então o que se recarrega é o banco.",
+				},
+			},
+			{
+				Name: "renovar", Aliases: []string{"renew"}, Args: "<bloco>", Target: "mundo",
+				Summary: "Tira os mobs vivos do bloco e gera de novo pela receita que ele tem agora.",
+				Notes: []string{
+					"Receita mudada no painel (/blocos) vale para quem nascer depois; os que já estão no mapa ficam até morrer. Renovar troca os vivos na hora.",
+					"Recusa bloco desligado, NPC do painel e bloco de evento ou masmorra — esses quem gera é o evento.",
+				},
+			},
+			{
+				Name: "invisivel", Aliases: []string{"invis", "snoop"}, Args: "[on|off]", Target: "você",
+				Summary: "Deixa VOCÊ invisível para todos, e visível de novo.",
+				Notes: []string{
+					"Sem parâmetro alterna; on/off força o estado.",
+					"Ninguém vê você, nem outros GMs: ninguém recebe nada sobre você — nem fala pública, movimento ou golpe.",
+					"Sussurros e convites de grupo/guilda seguem entregues: o destinatário já sabe quem você é pelo nome.",
+					"Monstros e evocações não atacam você enquanto estiver invisível.",
+					"Dura até desconectar: não é gravado, e no próximo login você volta visível.",
+					"O +snoop do legado só tirava o GM do aggro dos monstros; esconder dos jogadores é novo aqui.",
 				},
 			},
 		},

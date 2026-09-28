@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -638,4 +639,76 @@ func (d *Dispatcher) guildaDesigna(w *world.World, s *world.Session, _ protocol.
 			}
 		})
 	})
+}
+
+// guildaAcao atende MsgGuildaAcao: promover, passar a liderança, expulsar e sair.
+//
+// NENHUMA REGRA PRÓPRIA AQUI, e isso é o desenho: cada ação chama o comando nativo
+// que o chat já chamava, com o nome no lugar do argumento. Quem decide se pode é o
+// comando — ele é que sabe de cargo, de guilda, de cidade e de tudo o que veio do
+// legado. Uma segunda cópia dessas regras aqui divergiria no dia em que só uma fosse
+// corrigida, e a divergência seria alguém expulsando quem não podia.
+func (d *Dispatcher) guildaAcao(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
+	e := w.Entity(s.Conn)
+	if e == nil || s.Mode != world.UserPlay {
+		return
+	}
+	corpo, err := protocol.DecodeGuildaAcao(payload)
+	if err != nil {
+		return
+	}
+	if e.Guild == 0 {
+		sendClientMessage(w, s, msgGuildaSemGuilda)
+		return
+	}
+	// SOBRE SI MESMO SÓ VALE O "SAIR". Promover-se, passar a liderança para si ou
+	// expulsar-se são pedidos que o painel não oferece — e que, chegando mesmo
+	// assim, encontrariam comandos escritos para agir sobre OUTRO. Recusar aqui é
+	// mais barato do que descobrir o que cada um faz consigo.
+	if corpo.Acao != protocol.GuildaAcaoSai && strings.EqualFold(corpo.Nome, e.Name) {
+		return
+	}
+	// O quadro de membros muda em qualquer uma das quatro, então a página guardada
+	// tem de sair ANTES: senão o próximo pedido do painel devolve a lista velha, com
+	// quem já saiu.
+	d.guildaEsqueceQuadro(e.Guild)
+	switch corpo.Acao {
+	case protocol.GuildaAcaoPromove:
+		d.subcreate(w, s, []byte(corpo.Nome))
+	case protocol.GuildaAcaoLideranca:
+		d.handoverGuild(w, s, []byte(corpo.Nome))
+	case protocol.GuildaAcaoExpulsa:
+		d.kickGuild(w, s, []byte(corpo.Nome))
+	case protocol.GuildaAcaoSai:
+		d.leaveGuild(w, s)
+	}
+}
+
+// guildaImposto atende MsgGuildaImposto: a taxa da cidade que a guilda domina.
+//
+// A ZONA DO PEDIDO É IGNORADA DE PROPÓSITO, pelo mesmo motivo do Convocar: a guilda
+// cobra de UMA cidade, e é o servidor que sabe qual. Aceitar a zona do cliente seria
+// deixá-lo mexer no imposto da cidade dos outros. Ela viaja no corpo só para o log
+// poder dizer sobre o que era o pedido.
+//
+// E a linha é montada e entregue ao guildTax INTEIRO, em vez de repetir as regras:
+// precisa ser líder, precisa haver cidade cobrada, a taxa vai de 0 a 30 e só muda uma
+// vez por dia. São quatro regras, e é exatamente por serem quatro que elas ficam num
+// lugar só.
+func (d *Dispatcher) guildaImposto(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
+	e := w.Entity(s.Conn)
+	if e == nil || s.Mode != world.UserPlay {
+		return
+	}
+	corpo, err := protocol.DecodeGuildaImposto(payload)
+	if err != nil {
+		return
+	}
+	if e.Guild == 0 {
+		sendClientMessage(w, s, msgGuildaSemGuilda)
+		return
+	}
+	d.log.Info("guilda: pedido de imposto", "conn", s.Conn, "guilda", e.Guild,
+		"zona_pedida", corpo.Zona, "taxa", corpo.Ticks)
+	d.guildTax(w, s, fmt.Sprintf("guildtax %d", corpo.Ticks))
 }

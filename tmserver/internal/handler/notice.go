@@ -240,6 +240,13 @@ const (
 	// guilda sem ter guilda (_MSG_MessageWhisper.cpp:1439). Acrescentada no fim
 	// pelo motivo que NoticeLevelLimit explica.
 	NoticeOnlyGuildMember
+
+	// Ouro na troca (_MSG_Trade.cpp:288-300). O legado revalida o ouro NA
+	// confirmação — não apenas quando a oferta é montada — e diz aos DOIS lados
+	// quem ficou sem: do outro assento a janela apenas some. Acrescentadas no fim
+	// pelo motivo que NoticeLevelLimit explica.
+	NoticeHaventMoneySoMuch
+	NoticeOpponentHaventMoney
 )
 
 // noticeKey maps a Notice to its key in the shipped client string table
@@ -347,6 +354,9 @@ var noticeKey = map[Notice]string{
 
 	NoticeLevelLimit2: "_NN_Level_Limit2", // 340
 	NoticeFailure:     "_NN_FAILURE",      // 476
+
+	NoticeHaventMoneySoMuch:   "_NN_Havent_Money_So_Much",  // 83
+	NoticeOpponentHaventMoney: "_NN_Opponent_Havent_Money", // 84
 }
 
 // noticeText is the compiled fallback for notices with no Language.txt line: the
@@ -399,6 +409,11 @@ var noticeText = map[Notice]string{
 	// The player being thrown out must hear why, content mount or not: a session
 	// that just drops looks like a server crash.
 	NoticeAccountFromOthers: "Conta desconectada por conexão simultânea.", // 134
+
+	// Uma troca que move ouro e é recusada em silêncio é lida pelos
+	// dois jogadores como ouro sumido.
+	NoticeHaventMoneySoMuch:   "Não possui gold suficiente.",               // 83
+	NoticeOpponentHaventMoney: "A contraparte não possui gold suficiente.", // 84
 }
 
 // formatVerb matches a printf conversion, so a shipped line that interpolates

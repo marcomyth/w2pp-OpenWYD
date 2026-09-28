@@ -84,6 +84,16 @@ func (d *Dispatcher) useRCoin(w *world.World, s *world.Session, e *world.Entity,
 				sendClientMessage(w, s, "Não foi possível creditar o donate agora. Sua moeda foi devolvida.")
 				return
 			}
+			// A TELA ACOMPANHA A FRASE. O crédito já devolve o saldo do banco, e é
+			// esse mesmo número que vai na mensagem — então aqui não se relê nada:
+			// uma segunda ida ao banco custaria uma viagem para trazer o que já
+			// está na mão, e ainda poderia voltar depois de outra mexida e mostrar
+			// um número diferente do que o jogador acabou de ler.
+			//
+			// Sem esta linha, a mensagem dizia o saldo novo e o rodapé da Loja do
+			// Servidor seguia com o do login: dois números, na mesma sessão, no
+			// mesmo minuto.
+			s.Cash = saldo
 			sendClientMessage(w, s, fmt.Sprintf("Você recebeu %d de donate. Seu saldo é %d.", valor, saldo))
 			d.log.Info("rcoin usada", "conta", conta, "personagem", nome, "item", idx, "valor", valor, "saldo", saldo)
 			w.SaveCharacterAsync(s)

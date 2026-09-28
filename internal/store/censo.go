@@ -28,12 +28,15 @@ const censoAgrupado = `
 	       count(*),
 	       count(*) FILTER (WHERE owner_kind = 'char_equip'),
 	       count(*) FILTER (WHERE owner_kind = 'char_carry'),
-	       count(*) FILTER (WHERE owner_kind = 'account_cargo')
+	       count(*) FILTER (WHERE owner_kind = 'account_cargo'),
+	       sum(GREATEST(COALESCE(CASE WHEN eff1 = $2 THEN effv1 END,
+	                             CASE WHEN eff2 = $2 THEN effv2 END,
+	                             CASE WHEN eff3 = $2 THEN effv3 END, 1), 1))
 	  FROM item
 	 WHERE item_index > 0
 	 GROUP BY 1, 2`
 
-const censoMetaSelect = `SELECT dia, contado_em, unidades, variedades FROM item_census_meta`
+const censoMetaSelect = `SELECT dia, contado_em, unidades, variedades, pecas FROM item_census_meta`
 
 // RecordCensus takes today's snapshot, unless it was already taken.
 //
@@ -63,9 +66,10 @@ func (s *Store) RecordCensus(ctx context.Context) (domain.CensusRun, bool, error
 	}
 
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO item_census (dia, item_index, sanc, unidades, equipados, mochila, bau)
+		INSERT INTO item_census (dia, item_index, sanc, unidades, equipados, mochila, bau, pecas)
 		SELECT current_date, * FROM (`+censoAgrupado+`) c
-		ON CONFLICT (dia, item_index, sanc) DO NOTHING`, domain.EffSanc); err != nil {
+		ON CONFLICT (dia, item_index, sanc) DO NOTHING`,
+		domain.EffSanc, domain.EffAmount); err != nil {
 		return domain.CensusRun{}, false, fmt.Errorf("store: count items: %w", err)
 	}
 
@@ -73,12 +77,12 @@ func (s *Store) RecordCensus(ctx context.Context) (domain.CensusRun, bool, error
 	// item: a count taken twice is a count that can disagree with itself.
 	var run domain.CensusRun
 	err = tx.QueryRow(ctx, `
-		INSERT INTO item_census_meta (dia, unidades, variedades)
-		SELECT current_date, COALESCE(sum(unidades), 0), count(*)
+		INSERT INTO item_census_meta (dia, unidades, variedades, pecas)
+		SELECT current_date, COALESCE(sum(unidades), 0), count(*), COALESCE(sum(pecas), 0)
 		  FROM item_census WHERE dia = current_date
 		ON CONFLICT (dia) DO NOTHING
-		RETURNING dia, contado_em, unidades, variedades`).
-		Scan(&run.Day, &run.CountedAt, &run.Units, &run.Kinds)
+		RETURNING dia, contado_em, unidades, variedades, pecas`).
+		Scan(&run.Day, &run.CountedAt, &run.Units, &run.Kinds, &run.Pecas)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 		// Another server got there in between. Its photo is as good as this one.
@@ -102,7 +106,7 @@ func (s *Store) RecordCensus(ctx context.Context) (domain.CensusRun, bool, error
 func censoDoDia(ctx context.Context, tx pgx.Tx) (domain.CensusRun, error) {
 	var run domain.CensusRun
 	err := tx.QueryRow(ctx, censoMetaSelect+` WHERE dia = current_date`).
-		Scan(&run.Day, &run.CountedAt, &run.Units, &run.Kinds)
+		Scan(&run.Day, &run.CountedAt, &run.Units, &run.Kinds, &run.Pecas)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.CensusRun{}, nil
 	}
@@ -173,15 +177,31 @@ func (s *Store) CensusGrowth(ctx context.Context, q CensusQuery) (domain.CensusC
 	if q.SoRefinado {
 		refinado = " AND COALESCE(h.sanc, a.sanc) > 0"
 	}
+
+	// QUAL DAS DUAS CONTAS MANDA. Peças só quando OS DOIS dias as têm: um dia com
+	// peças contra um dia fotografado antes da 0174 daria um salto gigante que não
+	// é duplicação nenhuma, e este censo não pode produzir esse tipo de acusação.
+	//
+	// E a escolha vale para o FILTRO, não só para a ordem — é aí que estava o
+	// defeito. Listar só quem mudou de LINHA esconde a pilha duplicada por
+	// construção: dobrar um maço de 60 para 120 não cria linha, dá variação zero em
+	// linhas, e a linha nem chegava à tela.
+	cmp.PorPecas = cmp.Ate.Pecas != nil && cmp.De.Pecas != nil
+	movimento := "COALESCE(h.unidades, 0) - COALESCE(a.unidades, 0)"
+	if cmp.PorPecas {
+		movimento = "COALESCE(h.pecas, 0) - COALESCE(a.pecas, 0)"
+	}
+
 	rows, err := s.pool.Query(ctx, `
 		SELECT COALESCE(h.item_index, a.item_index), COALESCE(h.sanc, a.sanc),
 		       COALESCE(h.unidades, 0), COALESCE(a.unidades, 0),
-		       COALESCE(h.equipados, 0), COALESCE(h.mochila, 0), COALESCE(h.bau, 0)
+		       COALESCE(h.equipados, 0), COALESCE(h.mochila, 0), COALESCE(h.bau, 0),
+		       COALESCE(h.pecas, 0), COALESCE(a.pecas, 0)
 		  FROM (SELECT * FROM item_census WHERE dia = $1) h
 		  FULL JOIN (SELECT * FROM item_census WHERE dia = $2) a
 		    ON a.item_index = h.item_index AND a.sanc = h.sanc
-		 WHERE COALESCE(h.unidades, 0) <> COALESCE(a.unidades, 0)`+refinado+`
-		 ORDER BY COALESCE(h.unidades, 0) - COALESCE(a.unidades, 0) `+ordem+`,
+		 WHERE `+movimento+` <> 0`+refinado+`
+		 ORDER BY `+movimento+` `+ordem+`,
 		          COALESCE(h.sanc, a.sanc) DESC
 		 LIMIT $3 OFFSET $4`, ate, de, q.Limit, max(q.Offset, 0))
 	if err != nil {
@@ -192,10 +212,11 @@ func (s *Store) CensusGrowth(ctx context.Context, q CensusQuery) (domain.CensusC
 	for rows.Next() {
 		var c domain.ItemCensus
 		if err := rows.Scan(&c.Index, &c.Sanc, &c.Units, &c.Was,
-			&c.Equipped, &c.Carried, &c.Stored); err != nil {
+			&c.Equipped, &c.Carried, &c.Stored, &c.Pecas, &c.PecasAntes); err != nil {
 			return domain.CensusCompare{}, fmt.Errorf("store: scan census row: %w", err)
 		}
 		c.Delta = c.Units - c.Was
+		c.DeltaPecas = c.Pecas - c.PecasAntes
 		cmp.Linha = append(cmp.Linha, c)
 	}
 	if err := rows.Err(); err != nil {
@@ -241,7 +262,7 @@ func (s *Store) CensusHistory(ctx context.Context, index int32, sanc int16, dias
 func (s *Store) censoDe(ctx context.Context, dia time.Time) (domain.CensusRun, error) {
 	var run domain.CensusRun
 	err := s.pool.QueryRow(ctx, censoMetaSelect+` WHERE dia = $1`, dia).
-		Scan(&run.Day, &run.CountedAt, &run.Units, &run.Kinds)
+		Scan(&run.Day, &run.CountedAt, &run.Units, &run.Kinds, &run.Pecas)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.CensusRun{}, nil
 	}

@@ -188,6 +188,8 @@ func (t Tabelas) Drop(dest *world.Item, base Base, nivel, dropBonus int, cristal
 
 	aplicaCatalogo(dest, base, roll)
 	assinaMaterial(dest, base.Indice, roll)
+	// Por último, o teto dos adds de armadura (limite.go): não sorteia nada.
+	LimitaAddsDeArmadura(dest, base.Pos)
 }
 
 // rolaBonus is the guarded block: the two bonus slots and then the refine slot.

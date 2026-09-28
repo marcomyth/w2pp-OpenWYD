@@ -120,6 +120,13 @@ const (
 	MsgLojaFecha      Type = 0x0F0A // C->S  fechei o painel, pare de me avisar
 	MsgLojaMudou      Type = 0x0F0B // S->C  o mercado mudou; peca a pagina se estiver olhando
 
+	// Loja de Rcoin: as ofertas do donate_shop_item, as mesmas da loja do site,
+	// compradas dentro do jogo com a carteira de donate. Ver protocol/lojarcoin.go.
+	MsgRcoinPede      Type = 0x0F0C // C->S  pede uma pagina: categoria e pagina
+	MsgRcoinLista     Type = 0x0F0D // S->C  uma pagina de ofertas, com o saldo do banco
+	MsgRcoinCompra    Type = 0x0F0E // C->S  comprar: oferta, pedido e o preco que ele viu
+	MsgRcoinResultado Type = 0x0F0F // S->C  como acabou a compra, e o saldo depois dela
+
 	// Loja de Honra: o God of War trocando itens por pontos de lojinha. Tambem
 	// nossos, na mesma faixa. Ver protocol/lojahonra.go.
 	MsgHonraAbre   Type = 0x0F20 // S->C  o estoque e o saldo de quem clicou no NPC
@@ -130,11 +137,6 @@ const (
 
 	// Pontos em lote na janela de Personagem (protocol/pontos_em_lote.go).
 	MsgPontosEmLote Type = 0x0F30 // C->S  gastar N pontos de uma vez num campo
-
-	// Painel de up da montaria adulta (protocol/montaria.go): várias pilhas de
-	// âmago num pedido só. 0x0F60/0x0F61 ficam reservados para uma consulta.
-	MsgMontariaPede      Type = 0x0F62 // C->S  dê este âmago à montaria vestida, N pilhas
-	MsgMontariaResultado Type = 0x0F63 // S->C  usados, subiu, falhou, voltou, e por que parou
 
 	// Painel de Guilda (protocol/guildapainel.go). Os buffs não têm pacote de
 	// ativação: quem liga um buff é um item de cash, usado pelo caminho normal.
@@ -150,10 +152,16 @@ const (
 	MsgGuildaAtiva    Type = 0x0F49 // C->S  usar um Guild Buff da mochila
 	MsgGuildaEsquadra Type = 0x0F4A // S->C  quem esta designado para uma cidade
 	MsgGuildaDesigna  Type = 0x0F4B // C->S  trocar a escalacao de uma cidade
+	MsgGuildaAcao     Type = 0x0F4C // C->S  promover, passar lideranca, expulsar, sair
+	MsgGuildaImposto  Type = 0x0F4D // C->S  trocar o imposto da cidade dominada
 
-	// Painel de refino (protocol/refino.go): várias poeiras num pedido só.
-	MsgRefinoPede      Type = 0x0F50 // C->S  refine este item com esta poeira até +N
-	MsgRefinoResultado Type = 0x0F51 // S->C  quantas foram, quantas deram certo, e por que parou
+	// A lixeira em lote do inventário (protocol/lixeira.go). Ela existe porque o
+	// apagar de um item só (0x02E4) não sabe dizer NÃO: ele volta calado, não
+	// confere o índice do item, e cancela a troca em aberto. Num lote, os três
+	// viram estrago — o jogador não saberia o que ficou, apagaria o item errado se
+	// algo tivesse mudado de lugar, e perderia a troca na primeira linha.
+	MsgLixeiraApaga     Type = 0x0F50 // C->S  apaga estes itens da mochila
+	MsgLixeiraResultado Type = 0x0F51 // S->C  quantos foram, e por que os outros nao
 
 	MsgRestart          Type = 0x0289 // 649
 	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)
@@ -164,7 +172,7 @@ const (
 	MsgWar              Type = 0x0E0E // 3598 declare guild war (MSG_STANDARDPARM2)
 	MsgChallange        Type = 0x028E // 654  zone challenge / tax (MSG_STANDARDPARM)
 	MsgChallangeConfirm Type = 0x028F // 655  confirm challenge (MSG_STANDARDPARM2)
-	MsgPing             Type = 0x03A0 // 928  keepalive — no-op on receive (§2)
+	MsgPing             Type = 0x03A0 // 928  keepalive — ecoado de volta a quem mandou (world/event.go)
 
 	// Personal shop / autotrade (issue #115, Basedef.h:2165-2325). SendAutoTrade is
 	// bidirectional: C→S opens the shop, S→C (SendAutoTrade) lists it back.

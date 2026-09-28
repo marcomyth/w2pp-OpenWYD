@@ -32,10 +32,15 @@ type CreateMobData struct {
 	Merchant             uint8 // NPC type (shop/bank/…); makes the name always-visible
 	AttackRun            uint8 // speed byte (run<<4 | move): the client animates this entity's walks with it — 0 = crawling avatar that rubber-bands
 	Direction            uint8
-	CreateType           uint16 // 0 normal, 2 "just entered"
-	Equip                [16]uint16
-	Affect               [MaxAffect]uint16
-	AnctCode             [16]uint8
+	// PasseNivel é a moldura do passe de batalha, 0 a 4, e ela viaja no byte que o
+	// servidor deixava zerado (ver writeCreateMobScore). Monstro e NPC vão sempre em
+	// zero: o cliente só desenha para id < MaxUser, mas mandar zero é o que torna
+	// isso verdade dos dois lados.
+	PasseNivel uint8
+	CreateType uint16 // 0 normal, 2 "just entered"
+	Equip      [16]uint16
+	Affect     [MaxAffect]uint16
+	AnctCode   [16]uint8
 	// IsPlayer selects the MobName encoding: players (id < MAX_USER) pack PK data
 	// into MobName[12..15]; mobs/NPCs send the full 16-byte name raw (their names
 	// can be 16 chars, e.g. "Ciclope_Arqueiro", and carry no PK coloring).
@@ -63,8 +68,21 @@ func writeCreateMobScore(b []byte, d CreateMobData) {
 	b[12] = d.Merchant  // STRUCT_SCORE.Merchant — NPC type
 	b[13] = d.AttackRun // STRUCT_SCORE.AttackRun — speed
 	b[14] = d.Direction
-	// b[15] STRUCT_SCORE.ChaosRate is unused by the server (NPTool edits it as a
-	// regen field; it does NOT drive the nick color — that's MobName[12]). Leave 0.
+	// b[15] é o STRUCT_SCORE.ChaosRate, que o servidor nunca usou (o NPTool o edita
+	// como campo de regeneração; ele NÃO controla a cor do nick, que é o MobName[12]).
+	//
+	// O CLIENTE MODIFICADO LÊ ESSE BYTE COMO O NÍVEL DO PASSE, e foi por estar livre
+	// que ele foi escolhido — o binário 7662 não lê esse endereço em lugar nenhum.
+	// Ele chega ao cliente em entidade+0x623, junto com o resto do bloco de score.
+	//
+	// Prendido na faixa aqui também. O valor já vem conferido de três lugares antes
+	// (o CHECK do banco, o serviço e o dbclient), e mesmo assim: esta é a última
+	// linha antes de o número virar byte na rede, e é a única que sabe o que o
+	// cliente aguenta.
+	b[15] = d.PasseNivel
+	if b[15] > 4 {
+		b[15] = 4
+	}
 	le.PutUint32(b[16:], uint32(d.MaxHp))
 	le.PutUint32(b[20:], uint32(d.MaxMp))
 	le.PutUint32(b[24:], uint32(d.Hp))
