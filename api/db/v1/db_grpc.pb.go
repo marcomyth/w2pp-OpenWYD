@@ -74,6 +74,7 @@ const (
 	AccountService_CreateGuild_FullMethodName              = "/db.v1.AccountService/CreateGuild"
 	AccountService_SetGuildMember_FullMethodName           = "/db.v1.AccountService/SetGuildMember"
 	AccountService_LeaveGuild_FullMethodName               = "/db.v1.AccountService/LeaveGuild"
+	AccountService_KickOfflineGuildMember_FullMethodName   = "/db.v1.AccountService/KickOfflineGuildMember"
 	AccountService_PromoteGuildMember_FullMethodName       = "/db.v1.AccountService/PromoteGuildMember"
 	AccountService_TransferGuildLeader_FullMethodName      = "/db.v1.AccountService/TransferGuildLeader"
 	AccountService_SetGuildRelation_FullMethodName         = "/db.v1.AccountService/SetGuildRelation"
@@ -373,6 +374,8 @@ type AccountServiceClient interface {
 	CreateGuild(ctx context.Context, in *CreateGuildRequest, opts ...grpc.CallOption) (*CreateGuildResponse, error)
 	SetGuildMember(ctx context.Context, in *SetGuildMemberRequest, opts ...grpc.CallOption) (*SetGuildMemberResponse, error)
 	LeaveGuild(ctx context.Context, in *LeaveGuildRequest, opts ...grpc.CallOption) (*SetGuildMemberResponse, error)
+	// Expulsa um membro que NAO esta no jogo, direto no banco.
+	KickOfflineGuildMember(ctx context.Context, in *KickOfflineGuildMemberRequest, opts ...grpc.CallOption) (*KickOfflineGuildMemberResponse, error)
 	PromoteGuildMember(ctx context.Context, in *PromoteGuildMemberRequest, opts ...grpc.CallOption) (*PromoteGuildMemberResponse, error)
 	TransferGuildLeader(ctx context.Context, in *TransferGuildLeaderRequest, opts ...grpc.CallOption) (*SetGuildMemberResponse, error)
 	SetGuildRelation(ctx context.Context, in *SetGuildRelationRequest, opts ...grpc.CallOption) (*SetGuildRelationResponse, error)
@@ -876,6 +879,16 @@ func (c *accountServiceClient) LeaveGuild(ctx context.Context, in *LeaveGuildReq
 	return out, nil
 }
 
+func (c *accountServiceClient) KickOfflineGuildMember(ctx context.Context, in *KickOfflineGuildMemberRequest, opts ...grpc.CallOption) (*KickOfflineGuildMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(KickOfflineGuildMemberResponse)
+	err := c.cc.Invoke(ctx, AccountService_KickOfflineGuildMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accountServiceClient) PromoteGuildMember(ctx context.Context, in *PromoteGuildMemberRequest, opts ...grpc.CallOption) (*PromoteGuildMemberResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(PromoteGuildMemberResponse)
@@ -1353,6 +1366,8 @@ type AccountServiceServer interface {
 	CreateGuild(context.Context, *CreateGuildRequest) (*CreateGuildResponse, error)
 	SetGuildMember(context.Context, *SetGuildMemberRequest) (*SetGuildMemberResponse, error)
 	LeaveGuild(context.Context, *LeaveGuildRequest) (*SetGuildMemberResponse, error)
+	// Expulsa um membro que NAO esta no jogo, direto no banco.
+	KickOfflineGuildMember(context.Context, *KickOfflineGuildMemberRequest) (*KickOfflineGuildMemberResponse, error)
 	PromoteGuildMember(context.Context, *PromoteGuildMemberRequest) (*PromoteGuildMemberResponse, error)
 	TransferGuildLeader(context.Context, *TransferGuildLeaderRequest) (*SetGuildMemberResponse, error)
 	SetGuildRelation(context.Context, *SetGuildRelationRequest) (*SetGuildRelationResponse, error)
@@ -1526,6 +1541,9 @@ func (UnimplementedAccountServiceServer) SetGuildMember(context.Context, *SetGui
 }
 func (UnimplementedAccountServiceServer) LeaveGuild(context.Context, *LeaveGuildRequest) (*SetGuildMemberResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method LeaveGuild not implemented")
+}
+func (UnimplementedAccountServiceServer) KickOfflineGuildMember(context.Context, *KickOfflineGuildMemberRequest) (*KickOfflineGuildMemberResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method KickOfflineGuildMember not implemented")
 }
 func (UnimplementedAccountServiceServer) PromoteGuildMember(context.Context, *PromoteGuildMemberRequest) (*PromoteGuildMemberResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PromoteGuildMember not implemented")
@@ -2454,6 +2472,24 @@ func _AccountService_LeaveGuild_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_KickOfflineGuildMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(KickOfflineGuildMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).KickOfflineGuildMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_KickOfflineGuildMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).KickOfflineGuildMember(ctx, req.(*KickOfflineGuildMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_PromoteGuildMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(PromoteGuildMemberRequest)
 	if err := dec(in); err != nil {
@@ -3008,6 +3044,10 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LeaveGuild",
 			Handler:    _AccountService_LeaveGuild_Handler,
+		},
+		{
+			MethodName: "KickOfflineGuildMember",
+			Handler:    _AccountService_KickOfflineGuildMember_Handler,
 		},
 		{
 			MethodName: "PromoteGuildMember",

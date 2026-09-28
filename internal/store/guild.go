@@ -234,6 +234,61 @@ func apagaGuildaVaziaTx(ctx context.Context, tx pgx.Tx, guildID int) (uint16, er
 	return uint16(guildID), nil
 }
 
+// KickOfflineGuildMember tira da guilda um membro que NÃO está no jogo.
+//
+// EXISTE PORQUE O EXPULSAR SÓ FUNCIONAVA COM O ALVO ONLINE: o comando herdado do
+// legado procura a pessoa entre as sessões, e quem está desconectado não tem
+// sessão. Uma guilda com membro que nunca mais volta — um bot, uma conta
+// abandonada — ficava com ele para sempre.
+//
+// As regras são as mesmas do expulsar online, conferidas no BANCO e numa
+// transação só: quem expulsa tem de ser desta guilda e ter cargo MAIOR que o do
+// alvo. ErrNotFound quando o nome não é membro desta guilda; ErrConflict quando o
+// cargo não deixa.
+//
+// Quem chama garante que o alvo está offline. Com ele online, a memória do
+// tmServer é a dona do personagem e o próximo save dele desfaria isto.
+func (s *Store) KickOfflineGuildMember(ctx context.Context, guildID uint16, kickerAccountID int64, kickerSlot int, targetName string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("store: begin kick guild member: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	_, _, kickerGuild, kickerLevel, err := lockGuildCharacter(ctx, tx, kickerAccountID, kickerSlot)
+	if err != nil {
+		return err
+	}
+	if kickerGuild != int(guildID) || kickerLevel == 0 {
+		return ErrConflict
+	}
+	var charID, accountID int64
+	var slot, guildLevel int
+	err = tx.QueryRow(ctx, `
+		SELECT id, account_id, slot, guild_level
+		  FROM character
+		 WHERE name = $1 AND guild_id = $2
+		 FOR UPDATE`,
+		targetName, int32(guildID),
+	).Scan(&charID, &accountID, &slot, &guildLevel)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("store: lock guild member %q to kick: %w", targetName, err)
+	}
+	if kickerLevel <= guildLevel {
+		return ErrConflict
+	}
+	if err := setGuildMemberTx(ctx, tx, accountID, slot, charID, "", 0, 0); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("store: commit kick guild member: %w", err)
+	}
+	return nil
+}
+
 // PromoteGuildMember assigns the first available sub-leader level (6, 7, 8) and
 // debits the leader in the same transaction.
 func (s *Store) PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, error) {
