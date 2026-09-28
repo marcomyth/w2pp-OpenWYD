@@ -70,9 +70,15 @@ func TestLoginCorrigeRepletionAberrante(t *testing.T) {
 		onde      string
 		it        world.Item
 		add, soma uint8
-	}{{"equipamento", equip, 60, 10}, {"bolsa", bolsa, 60, 10}, {"armazém", armazem, 60, 8}} {
-		if c.it.Effects[2] != (world.Effect{Effect: 3, Value: 30}) || c.it.Effects[1] != (world.Effect{Effect: c.add, Value: c.soma}) {
-			t.Errorf("%s: peça ficou %+v; quer Defesa 30 e o add mantido", c.onde, c.it.Effects)
+		defesa    world.Effect
+	}{
+		{"equipamento", equip, 60, 10, world.Effect{Effect: 3, Value: 30}},
+		{"bolsa", bolsa, 60, 10, world.Effect{Effect: 3, Value: 30}},
+		// A luva não fica com Defesa nenhuma: vira Skill 12.
+		{"armazém", armazem, 60, 8, world.Effect{Effect: 74, Value: 12}},
+	} {
+		if c.it.Effects[2] != c.defesa || c.it.Effects[1] != (world.Effect{Effect: c.add, Value: c.soma}) {
+			t.Errorf("%s: peça ficou %+v; quer %+v e o add mantido", c.onde, c.it.Effects, c.defesa)
 		}
 	}
 }

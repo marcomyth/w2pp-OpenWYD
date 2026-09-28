@@ -33,6 +33,8 @@ func (tickEvent) apply(w *World) {
 	// A posse, pela mesma razão de estar aqui e não no gancho do jogo: ela tem de
 	// bater num servidor parado também.
 	w.posseTick(time.Now())
+	// O save periódico também: é ele que limita o que uma queda leva.
+	w.savePeriodicoTick(time.Now())
 	if w.onTick != nil {
 		w.onTick(w)
 	}

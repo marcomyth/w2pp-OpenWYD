@@ -94,6 +94,9 @@ func TestDropNaoEstouraOLimiteDosAdds(t *testing.T) {
 						for i := 0; i < vezes; i++ {
 							it := world.Item{Index: 1345}
 							tab.Drop(&it, Base{ReqLvl: reqLvl, Pos: p.nPos, Indice: 1345}, nivel, bonus, cristal, roll)
+							if p.nPos == posLuva && luvaComDefesaAlta(it) {
+								t.Fatalf("luva do drop com Defesa alta: %+v", it.Effects)
+							}
 							if motivo := estouraLimite(it); motivo != "" {
 								t.Fatalf("%s, distância %d, bônus %d, cristal %v, sorteio %s: %s — %+v",
 									p.nome, dist, bonus, cristal, nomeSorteio, motivo, it.Effects)
@@ -118,6 +121,9 @@ func TestRepletionNaoEstouraOLimiteDosAdds(t *testing.T) {
 			for i := 0; i < vezes; i++ {
 				it := world.Item{Index: 1345, Effects: [3]world.Effect{{Effect: efSanc, Value: uint8(i % 7)}}}
 				ClasseBonus(&it, p.nPos, roll, noAbility)
+				if p.nPos == posLuva && luvaComDefesaAlta(it) {
+					t.Fatalf("luva da Repletion com Defesa alta: %+v", it.Effects)
+				}
 				if motivo := estouraLimite(it); motivo != "" {
 					t.Fatalf("%s, sorteio %s: %s — %+v", p.nome, nomeSorteio, motivo, it.Effects)
 				}
@@ -131,11 +137,14 @@ func TestRepletionNaoEstouraOLimiteDosAdds(t *testing.T) {
 // ClasseBonus corta. É este teste que prova que o teto está ligado ali, já que as
 // faixas de hoje cabem sozinhas.
 func TestRepletionSeguraOTetoSeAsFaixasMudarem(t *testing.T) {
-	dano, crit, defesa := classeDanoPeito, classeCriticoPeito, classeDefesaPeito
-	t.Cleanup(func() { classeDanoPeito, classeCriticoPeito, classeDefesaPeito = dano, crit, defesa })
-	classeDanoPeito = []classeValor{{efMagic, 14, 1}}
-	classeCriticoPeito = []classeValor{{efCritical2, 90, 1}}
-	classeDefesaPeito = []classeValor{{efAC, 30, 1}} // 30 não vem sozinha: combina com a Magia 14
+	tabela := bonusValue2
+	t.Cleanup(func() { bonusValue2 = tabela })
+	for i := range bonusValue2 {
+		bonusValue2[i] = [4]int{efMagic, 14, efCritical2, 90}
+		if i%2 == 0 {
+			bonusValue2[i] = [4]int{efMagic, 14, efAC, 30} // Defesa 30 combinada com a Magia 14
+		}
+	}
 
 	r := rand.New(rand.NewSource(7))
 	for i := 0; i < 5000; i++ {
@@ -145,4 +154,15 @@ func TestRepletionSeguraOTetoSeAsFaixasMudarem(t *testing.T) {
 			t.Fatalf("com as faixas acima do teto a Repletion deixou passar: %s — %+v", motivo, it.Effects)
 		}
 	}
+}
+
+// luvaComDefesaAlta diz se a luva tem um add de Defesa de 30 ou mais: a Defesa
+// alta é só de peito e calça (Marco, 27/09/2026).
+func luvaComDefesaAlta(it world.Item) bool {
+	for i := 1; i <= 2; i++ {
+		if it.Effects[i].Effect == efAC && int(it.Effects[i].Value) >= limiteDefesaCombinada {
+			return true
+		}
+	}
+	return false
 }

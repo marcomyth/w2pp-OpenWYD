@@ -859,7 +859,6 @@ func (d *Dispatcher) useQuest256Ticket(w *world.World, s *world.Session, e *worl
 	// a matching client-side travel animation; a bare right-click has none, so the
 	// delay just left the player staring at nothing for ~10s after the item vanished.
 	d.teleportQuest256Step(w, s, e, step)
-	d.casteloOrcKeyOnEntry(w, s, e, step)
 	d.log.Info("quest256 ticket teleport", "conn", s.Conn, "item", itemIdx, "level", e.Level, "quest_flag", step.flag)
 	return true
 }
@@ -2782,6 +2781,7 @@ const (
 	efHpAdd2     = 69 // EF_HPADD2/EF_MPADD2: also fold into the HPADD%/MPADD% multiplier
 	efMpAdd2     = 70
 	efCritical2  = 71 // EF_CRITICAL2: enchanted crit — SUPERSEDES EF_CRITICAL on the same item
+	efAcAdd2     = 72 // EF_ACADD2: enchanted extra AC — SUPERSEDES EF_ACADD on the same item (temAcAdd2)
 	efItemLevel  = 87
 	efMobType    = 112
 	efRunSpeed   = 29 // EF_RUNSPEED: boots' bonus to the move-speed (low) nibble of AttackRun
@@ -3032,6 +3032,17 @@ func (d *Dispatcher) itemCritical(it world.Item) int32 {
 	return d.itemAbilityRefined(it, want)
 }
 
+// temAcAdd2 diz se a peça arma a troca da EF_ACADD pela EF_ACADD2
+// (Basedef.cpp:1717-1721), no mesmo formato do crítico (itemCritical): com a
+// EF_ACADD2 na vaga 1 ou 2, a defesa extra da peça é a soma das EF_ACADD2, e a
+// EF_ACADD do catálogo não entra — uma ou outra, nunca as duas. É o add de
+// defesa da luva, do drop (dropbonus.go) e da Repletion (g_pBonusValue4); até
+// 28/09 o port não o lia e ele valia zero. A troca impede que o add some com a
+// base do catálogo: Manoplas Elementais(M) com 17 e um add de 30 ficam com 30.
+func temAcAdd2(it world.Item) bool {
+	return it.Effects[1].Effect == efAcAdd2 || it.Effects[2].Effect == efAcAdd2
+}
+
 // resistEffects maps resist index [0..3] to its EF_RESISTn id (CMob.cpp:640-643 assigns
 // MOB.Resist[0..3] from EF_RESIST1..4 in that literal order).
 var resistEffects = [4]uint8{efResist1, efResist2, efResist3, efResist4}
@@ -3238,7 +3249,15 @@ func (d *Dispatcher) equipBonus(e *world.Entity) equipBonus {
 		// One add per DISTINCT effect id, not per entry: BASE_GetItemAbility sums the
 		// catalog and instance entries of an effect and only then applies the refine
 		// multiplier, so the integer division must truncate the whole sum once.
+		acAdd2 := temAcAdd2(it)
 		d.forEachEffectID(it, func(eff uint8) {
+			switch {
+			case acAdd2 && eff == efAcAdd:
+				return // a EF_ACADD2 da peça vale no lugar desta (temAcAdd2)
+			case acAdd2 && eff == efAcAdd2:
+				b.ac += d.itemAbilityRefined(it, efAcAdd2)
+				return
+			}
 			add(eff, d.itemAbilityRefined(it, eff), weaponSlot, dmgJewel, offHand)
 		})
 		// Refine (+9) threshold: defense pieces gain +25 AC (weapons' +40 is in

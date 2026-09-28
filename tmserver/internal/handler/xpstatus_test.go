@@ -110,9 +110,8 @@ func TestTextoXP(t *testing.T) {
 			},
 		},
 		{
-			// In a party the paid bonus is the best among whoever is in the fight,
-			// which no command can know in advance — so the rule is stated and no
-			// number is promised.
+			// In a party the paid bonus is the killer's, which no command can know
+			// in advance — so the rule is stated and no number is promised.
 			name: "em grupo",
 			st: estadoXP{
 				Zona:        zonaCampo,
@@ -124,7 +123,7 @@ func TestTextoXP(t *testing.T) {
 			want: []string{
 				"Bônus de XP de itens aqui (Campo): +100%",
 				"Vem de: Baú de XP +100%",
-				"Em grupo vale o maior bônus entre quem está na luta, não o seu.",
+				"Em grupo vale o bônus de quem matou: o seu só nas mortes que você der.",
 				"Servidor: EXP 1x · Kefra: derrotado",
 			},
 		},

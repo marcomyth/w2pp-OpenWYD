@@ -233,10 +233,11 @@ func TestReinosBlocosDoNPCGener(t *testing.T) {
 	// +24 no mesmo dia: os guardas da Gárgula Sábio do 2º andar (migração 0151), no 6162.
 	// +25 no mesmo dia: o Boss Golem de Fogo da sala do Golem de Fogo (migração 0152), no 6163.
 	// +26 em 26/09/2026: o Ciclope Tirano do spot dos Ciclopes (migração 0170), no 6164.
+	// +27 em 28/09/2026: o Taron Tirano do Deserto Baixo (migração 0180), no 6165.
 	// As Lendas continuam onde estavam — são lidas por índice absoluto logo
 	// acima —, e é justamente por isso que bloco novo vai sempre no FIM.
-	if len(gens) != world.EscoltaDoTronoGenLast+26 {
-		t.Errorf("%d blocos, want %d: bloco novo entra no fim, depois das Lendas", len(gens), world.EscoltaDoTronoGenLast+26)
+	if len(gens) != world.EscoltaDoTronoGenLast+27 {
+		t.Errorf("%d blocos, want %d: bloco novo entra no fim, depois das Lendas", len(gens), world.EscoltaDoTronoGenLast+27)
 	}
 }
 
