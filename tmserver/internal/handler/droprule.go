@@ -108,6 +108,7 @@ func (d *Dispatcher) dropTableRolls(w *world.World, reward, mob *world.Entity, b
 		d.geloAmonFinish(w, mob, &it)
 		d.caveirasFinish(w, mob, &it)
 		d.ciclopesFinish(w, mob, &it)
+		d.desertoFinish(w, mob, &it)
 		copias := reinosFinish(mob, &it)
 		arenaQuest256Finish(mob, &it)
 		if d.castleKeyDrop(w, reward, it) {

@@ -854,6 +854,7 @@ func run(logger *slog.Logger) error {
 	dispatch.ApplyBossDragaoLichBoot(w)
 	dispatch.ApplyBossHidraDouradaBoot(w)
 	dispatch.ApplyCiclopeTiranoBoot(w)
+	dispatch.ApplyTaronTiranoBoot(w)
 	dispatch.ApplyChefesDaLavaBoot(w)
 	dispatch.ApplyBossConjuradorBoot(w)
 	dispatch.ApplyReiTrollZumbiBoot(w)

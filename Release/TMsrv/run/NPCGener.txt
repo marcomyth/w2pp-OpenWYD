@@ -160096,3 +160096,26 @@
 	DestY:		1334
 	DestRange:	2
 	DestWait:	10
+
+// Taron Tirano - chefe dos Taron Assassino do Deserto Baixo (1470,1724): o corpo do
+// Taron Assassino com vida e dano em dobro do Ciclope Tirano. Volta 4 h depois da
+// morte e 4 h depois do boot (handler/taron_tirano.go). Pedido do Marco em 28/09/2026.
+// ********************************************
+
+#	[6165]
+	MinuteGenerate:	-1
+	MaxNumMob:	1
+	MinGroup:	0
+	MaxGroup:	0
+	Leader:		Taron_Tirano
+	Follower:	Taron_Tirano
+	RouteType:	0
+	Formation:	0
+	StartX:		1470
+	StartY:		1724
+	StartRange:	2
+	StartWait:	10
+	DestX:		1470
+	DestY:		1724
+	DestRange:	2
+	DestWait:	10
