@@ -66,14 +66,15 @@ var (
 		{efCritical2, 10, 1}, {efCritical2, 20, 1},
 	}
 
-	// The second add of the glove: skill or defense, half and half. Skill is
-	// the boot's 12/15/18 with 18 very rare; defense is the chest's odds from
-	// 40 up, on EF_AC so the server counts it.
+	// The second add of the glove: skill, the boot's 12/15/18 with 18 very rare.
+	//
+	// Only skill (Marco, 27/09/2026). The glove used to roll skill or defense
+	// 40-50 half and half, and a defense add on a glove stacked on the base
+	// EF_ACADD the catalog already gives some gloves (Manoplas Elementais(M): 17):
+	// a glove came out with defense 45 + 17. The high defense add is chest and
+	// legs only.
 	classeSkillLuva = []classeValor{
 		{efSpecialAll, 12, 55}, {efSpecialAll, 15, 40}, {efSpecialAll, 18, 5},
-	}
-	classeDefesaLuva = []classeValor{
-		{efAC, 40, 30}, {efAC, 45, 20}, {efAC, 50, 5},
 	}
 )
 
@@ -107,11 +108,7 @@ func classeSorteia(pool []classeValor, roll func(int) int) world.Effect {
 // high defense, the first slot is emptied (defesaAltaSozinha).
 func classeAdds(nPos int, roll func(int) int) (world.Effect, world.Effect) {
 	if nPos == nPosGlove {
-		primeiro := classeSorteia(classeDanoLuva, roll)
-		if roll(2) == 0 {
-			return primeiro, classeSorteia(classeSkillLuva, roll)
-		}
-		return defesaAltaSozinha(primeiro, classeSorteia(classeDefesaLuva, roll), roll)
+		return classeSorteia(classeDanoLuva, roll), classeSorteia(classeSkillLuva, roll)
 	}
 	primeiro := classeSorteia(classeDanoPeito, roll)
 	if roll(2) == 0 {
@@ -258,12 +255,15 @@ var repletionDefesaAlta = map[uint8]bool{35: true, 40: true, 45: true, 50: true}
 //
 // Narrow on purpose: only slots 1 and 2 (where SetItemBonus2 writes the adds),
 // only the Repletion defense values, only when the other add is damage or
-// magic, and only the three slots whose pools had defense.
+// magic, and only chest and legs. The glove has its own rule (corrigeLuva).
 func CorrigeDefesaCombinada(it *world.Item, nPos int) bool {
 	if it == nil || it.Empty() {
 		return false
 	}
-	if nPos != nPosChest && nPos != nPosLegs && nPos != nPosGlove {
+	if nPos == nPosGlove {
+		return corrigeLuva(it)
+	}
+	if nPos != nPosChest && nPos != nPosLegs {
 		return false
 	}
 	for i, j := 1, 2; i <= 2; i, j = i+1, j-1 {
@@ -278,4 +278,28 @@ func CorrigeDefesaCombinada(it *world.Item, nPos int) bool {
 		return true
 	}
 	return false
+}
+
+// luvaSkillNaCorrecao is what a glove's Repletion defense add turns into: skill
+// 12, the glove's own second add at its most common value.
+var luvaSkillNaCorrecao = world.Effect{Effect: efSpecialAll, Value: 12}
+
+// corrigeLuva takes the Repletion defense off a glove (Marco, 27/09/2026: the
+// high defense add is chest and legs only). The glove rolled defense 40-50 until
+// then — alone, or cut to 30 when it came with damage or magic — and it stacked
+// on the base EF_ACADD of gloves like the Manoplas Elementais(M). The add can't
+// be re-rolled on load, so it becomes skill 12 and the player keeps a glove add.
+//
+// Only defense of 30 or more in slots 1 and 2: that is every value the Repletion
+// left on a glove (40-50, and the 30 of the first correction). The level-item
+// glove's defense 20 (LevelItem.txt, Marco's call of 26/09) stays.
+func corrigeLuva(it *world.Item) bool {
+	mudou := false
+	for i := 1; i <= 2; i++ {
+		if it.Effects[i].Effect == efAC && int(it.Effects[i].Value) >= classeDefesaSozinhaAcima {
+			it.Effects[i] = luvaSkillNaCorrecao
+			mudou = true
+		}
+	}
+	return mudou
 }

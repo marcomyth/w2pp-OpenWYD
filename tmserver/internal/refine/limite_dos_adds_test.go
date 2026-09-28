@@ -94,6 +94,9 @@ func TestDropNaoEstouraOLimiteDosAdds(t *testing.T) {
 						for i := 0; i < vezes; i++ {
 							it := world.Item{Index: 1345}
 							tab.Drop(&it, Base{ReqLvl: reqLvl, Pos: p.nPos, Indice: 1345}, nivel, bonus, cristal, roll)
+							if p.nPos == posLuva && luvaComDefesaAlta(it) {
+								t.Fatalf("luva do drop com Defesa alta: %+v", it.Effects)
+							}
 							if motivo := estouraLimite(it); motivo != "" {
 								t.Fatalf("%s, distância %d, bônus %d, cristal %v, sorteio %s: %s — %+v",
 									p.nome, dist, bonus, cristal, nomeSorteio, motivo, it.Effects)
@@ -118,6 +121,9 @@ func TestRepletionNaoEstouraOLimiteDosAdds(t *testing.T) {
 			for i := 0; i < vezes; i++ {
 				it := world.Item{Index: 1345, Effects: [3]world.Effect{{Effect: efSanc, Value: uint8(i % 7)}}}
 				ClasseBonus(&it, p.nPos, roll, noAbility)
+				if p.nPos == posLuva && luvaComDefesaAlta(it) {
+					t.Fatalf("luva da Repletion com Defesa alta: %+v", it.Effects)
+				}
 				if motivo := estouraLimite(it); motivo != "" {
 					t.Fatalf("%s, sorteio %s: %s — %+v", p.nome, nomeSorteio, motivo, it.Effects)
 				}
@@ -145,4 +151,15 @@ func TestRepletionSeguraOTetoSeAsFaixasMudarem(t *testing.T) {
 			t.Fatalf("com as faixas acima do teto a Repletion deixou passar: %s — %+v", motivo, it.Effects)
 		}
 	}
+}
+
+// luvaComDefesaAlta diz se a luva tem um add de Defesa de 30 ou mais: a Defesa
+// alta é só de peito e calça (Marco, 27/09/2026).
+func luvaComDefesaAlta(it world.Item) bool {
+	for i := 1; i <= 2; i++ {
+		if it.Effects[i].Effect == efAC && int(it.Effects[i].Value) >= limiteDefesaCombinada {
+			return true
+		}
+	}
+	return false
 }
