@@ -49,3 +49,40 @@ func TestTauronDoPilarVoltaEmDezSegundos(t *testing.T) {
 		t.Error("outro monstro na caixa do Pilar foi tomado por Tauron do Pilar")
 	}
 }
+
+// Os Anciões Ciclops voltam em no máximo 10 s, mesmo com a Exp do painel acima de
+// 1 milhão; o grupo que o Ciclope Cruel lidera com um Ancião de acompanhante segue
+// a regra de sempre.
+func TestAnciaoCiclopsVoltaEmDezSegundos(t *testing.T) {
+	gens := make([]*world.Generator, world.KefraGuardLast+1)
+	gens[30] = grupoDeTauron("Anciao_Ciclops", 1914, 1718)
+	gens[30].MaxNumMob = 1
+	gens[31] = grupoDeTauron("Anciao_Ciclops_", 2248, 1390)
+	gens[31].MaxNumMob = 1
+	gens[32] = &world.Generator{ // Ancião com Orc Médico
+		MinuteGenerate: -1, MaxNumMob: 2, LeaderName: "Anciao_Ciclops",
+		LeaderTmpl:   moldeDeMonstro("Anciao_Ciclops", 1_200_000, 0),
+		FollowerTmpl: moldeDeMonstro("Orc_Medico", 25_308, 0),
+	}
+	gens[33] = &world.Generator{ // Ciclope Cruel lidera, Ancião acompanha
+		MinuteGenerate: -1, MaxNumMob: 2, LeaderName: "Ciclope_Cruel",
+		LeaderTmpl:   moldeDeMonstro("Ciclope_Cruel", 700, 0),
+		FollowerTmpl: moldeDeMonstro("Anciao_Ciclops", 1_200_000, 0),
+	}
+	w := world.New(world.Config{GridDim: 64}, slog.New(slog.NewTextHandler(io.Discard, nil)), world.NopPersistence{}, nil)
+	w.RegisterGenerators(gens)
+	d := dispatcherQuieto()
+	d.InstallRespawnDelay(w)
+
+	for _, idx := range []int{30, 31, 32} {
+		if got := d.esperaDoRenascimento(w, idx); got > anciaoRenasce {
+			t.Errorf("Ancião (bloco %d) espera %d ms, quer no máximo %d", idx, got, anciaoRenasce)
+		}
+		if d.chefeSozinho(w, idx) {
+			t.Errorf("Ancião (bloco %d) entrou na lista de chefes", idx)
+		}
+	}
+	if geradorDoAnciao(w, 33) {
+		t.Error("grupo do Ciclope Cruel foi tomado por bloco do Ancião")
+	}
+}
