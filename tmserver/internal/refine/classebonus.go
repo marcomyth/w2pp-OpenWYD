@@ -115,7 +115,7 @@ const classeDefesaAltaPct = 10
 
 // classeSkillLuvaPct is the chance, in percent, that a glove comes out with the
 // team's skill in place of its legacy damage or magic.
-const classeSkillLuvaPct = 10
+const classeSkillLuvaPct = 25
 
 // classeAdds draws the two adds of a chest, legs or glove piece.
 //
