@@ -137,11 +137,14 @@ func TestRepletionNaoEstouraOLimiteDosAdds(t *testing.T) {
 // ClasseBonus corta. É este teste que prova que o teto está ligado ali, já que as
 // faixas de hoje cabem sozinhas.
 func TestRepletionSeguraOTetoSeAsFaixasMudarem(t *testing.T) {
-	dano, crit, defesa := classeDanoPeito, classeCriticoPeito, classeDefesaPeito
-	t.Cleanup(func() { classeDanoPeito, classeCriticoPeito, classeDefesaPeito = dano, crit, defesa })
-	classeDanoPeito = []classeValor{{efMagic, 14, 1}}
-	classeCriticoPeito = []classeValor{{efCritical2, 90, 1}}
-	classeDefesaPeito = []classeValor{{efAC, 30, 1}} // 30 não vem sozinha: combina com a Magia 14
+	tabela := bonusValue2
+	t.Cleanup(func() { bonusValue2 = tabela })
+	for i := range bonusValue2 {
+		bonusValue2[i] = [4]int{efMagic, 14, efCritical2, 90}
+		if i%2 == 0 {
+			bonusValue2[i] = [4]int{efMagic, 14, efAC, 30} // Defesa 30 combinada com a Magia 14
+		}
+	}
 
 	r := rand.New(rand.NewSource(7))
 	for i := 0; i < 5000; i++ {

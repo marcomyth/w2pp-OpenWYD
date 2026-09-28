@@ -72,29 +72,89 @@ func TestRepletionDefesaAltaVemSozinha(t *testing.T) {
 			if d := total - 1; d > 1e-9 || d < -1e-9 {
 				t.Fatalf("as chances somam %.6f, quer 1", total)
 			}
-			// Metade dos sorteios de peito e calça é o ramo da Defesa, e toda
-			// Defesa da Repletion passa de 30: metade das peças sai só com Defesa.
-			if d := sozinha - 0.5; d > 1e-9 || d < -1e-9 {
-				t.Errorf("peças só com Defesa: %.4f, quer 0,5", sozinha)
+			// Desde 28/09 a Defesa alta é a chance extra sobre a tabela do legado.
+			if d := sozinha - classeDefesaAltaPct/100.0; d > 1e-9 || d < -1e-9 {
+				t.Errorf("peças só com Defesa: %.4f, quer %.2f", sozinha, classeDefesaAltaPct/100.0)
 			}
 		})
 	}
 }
 
-// A luva da Repletion não sorteia Defesa (Marco, 27/09/2026): saiu uma luva com
-// Defesa 45 somada aos 17 de base do catálogo. O segundo add dela é sempre Skill,
-// e o primeiro Dano ou Magia — em todas as combinações de sorteio.
-func TestRepletionLuvaNuncaTemDefesa(t *testing.T) {
-	for par := range classePares(t, nPosGlove) {
+// A luva da Repletion segue o legado com o Skill por cima (Marco, 28/09/2026):
+// toda linha de g_pBonusValue4 — Dano ou Magia com a defesa extra EF_ACADD2 —
+// sai com a mesma chance, e em classeSkillLuvaPct das luvas o Skill toma o lugar
+// do Dano ou da Magia e fica com a defesa da linha. Nunca sai Skill junto de
+// Dano ou Magia, nunca sai luva vazia, e a defesa nunca é EF_AC: a EF_AC somava
+// com a base do catálogo (Defesa 45 + os 17 das Manoplas, 27/09), a EF_ACADD2
+// fica no lugar dela.
+func TestRepletionLuvaSegueOLegadoComSkill(t *testing.T) {
+	pares := classePares(t, nPosGlove)
+	porLinha := (1 - classeSkillLuvaPct/100.0) / float64(len(bonusValue4))
+	for _, row := range bonusValue4 {
+		par := [2]world.Effect{
+			{Effect: uint8(row[0]), Value: uint8(row[1])},
+			{Effect: uint8(row[2]), Value: uint8(row[3])},
+		}
+		if d := pares[par] - porLinha; d > 1e-9 || d < -1e-9 {
+			t.Errorf("linha %v do legado sai com %.5f, quer %.5f", row, pares[par], porLinha)
+		}
+	}
+	skill, total := 0.0, 0.0
+	for par, p := range pares {
+		total += p
 		a1, a2 := par[0], par[1]
-		if a1.Effect == efAC || a2.Effect == efAC {
-			t.Errorf("luva saiu com Defesa: %d/%d e %d/%d", a1.Effect, a1.Value, a2.Effect, a2.Value)
+		if a2.Effect != efAcAdd2 || a2.Value < 10 || a2.Value > 30 {
+			t.Errorf("o segundo add da luva saiu %d/%d, quer defesa extra 10-30", a2.Effect, a2.Value)
 		}
-		if a2.Effect != efSpecialAll {
-			t.Errorf("o segundo add da luva saiu %d/%d, quer Skill", a2.Effect, a2.Value)
+		switch a1.Effect {
+		case efSpecialAll:
+			skill += p
+		case efDamageBonus, efMagic:
+		default:
+			t.Errorf("o primeiro add da luva saiu %d/%d, quer Dano, Magia ou Skill", a1.Effect, a1.Value)
 		}
-		if a1.Effect != efDamageBonus && a1.Effect != efMagic {
-			t.Errorf("o primeiro add da luva saiu %d/%d, quer Dano ou Magia", a1.Effect, a1.Value)
-		}
+	}
+	if d := total - 1; d > 1e-9 || d < -1e-9 {
+		t.Fatalf("as chances somam %.6f, quer 1: há luva sem add", total)
+	}
+	if d := skill - classeSkillLuvaPct/100.0; d > 1e-9 || d < -1e-9 {
+		t.Errorf("luvas com Skill: %.4f, quer %.2f", skill, classeSkillLuvaPct/100.0)
+	}
+}
+
+// A fórmula do legado não se apaga (Marco, 28/09/2026): toda linha de
+// g_pBonusValue2 continua saindo no peito e na calça, cada uma com a mesma
+// chance, fora a parte da Defesa alta. Os pools de 26/09 tinham tirado todas —
+// Magia 10 + Defesa 30 e Dano 24 + Crítico 7% deixaram de existir na Repletion.
+func TestRepletionMantemATabelaDoLegado(t *testing.T) {
+	porLinha := (1 - classeDefesaAltaPct/100.0) / float64(len(bonusValue2))
+	for _, c := range []struct {
+		nome string
+		nPos int
+	}{{"peito", nPosChest}, {"calça", nPosLegs}} {
+		t.Run(c.nome, func(t *testing.T) {
+			pares := classePares(t, c.nPos)
+			for _, row := range bonusValue2 {
+				par := [2]world.Effect{
+					{Effect: uint8(row[0]), Value: uint8(row[1])},
+					{Effect: uint8(row[2]), Value: uint8(row[3])},
+				}
+				if d := pares[par] - porLinha; d > 1e-9 || d < -1e-9 {
+					t.Errorf("linha %v do legado sai com %.5f, quer %.5f", row, pares[par], porLinha)
+				}
+			}
+			for _, alvo := range []struct {
+				nome string
+				par  [2]world.Effect
+			}{
+				{"Magia 10 + Defesa 30", [2]world.Effect{{Effect: efMagic, Value: 10}, {Effect: efAC, Value: 30}}},
+				{"Dano 24 + Crítico 7%", [2]world.Effect{{Effect: efDamageBonus, Value: 24}, {Effect: efCritical2, Value: 70}}},
+				{"Dano 30 + Crítico 7%", [2]world.Effect{{Effect: efDamageBonus, Value: 30}, {Effect: efCritical2, Value: 70}}},
+			} {
+				if pares[alvo.par] == 0 {
+					t.Errorf("%s não sai mais da Repletion", alvo.nome)
+				}
+			}
+		})
 	}
 }

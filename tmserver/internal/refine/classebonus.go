@@ -2,10 +2,9 @@ package refine
 
 import "github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 
-// bonusValue3/5 are g_pBonusValue3/5 (Basedef.cpp:432/353): SetItemBonus2's
-// reroll pools for helm and boot. Each row is {effect1, value1, effect2,
-// value2}. Chest, legs and glove no longer use the legacy g_pBonusValue2/4 —
-// see classeAdds below.
+// bonusValue3/2/4/5 are g_pBonusValue3/2/4/5 (Basedef.cpp:432/467/396/353):
+// SetItemBonus2's reroll pools for helm, chest/legs, glove and boot. Each row is
+// {effect1, value1, effect2, value2}.
 var (
 	bonusValue3 = [25][4]int{ // Elmo (nPos 2)
 		{4, 60, 26, 18}, {4, 60, 26, 15}, {4, 60, 26, 12},
@@ -15,6 +14,38 @@ var (
 		{4, 60, 60, 12}, {4, 60, 60, 10}, {4, 60, 60, 8}, {4, 60, 60, 6},
 		{4, 50, 60, 12}, {4, 50, 60, 10}, {4, 50, 60, 8}, {4, 50, 60, 6},
 		{4, 40, 60, 12}, {4, 40, 60, 10}, {4, 40, 60, 8}, {4, 40, 60, 6}, {4, 40, 60, 4},
+	}
+
+	// Peito e calça (nPos 4 e 8): dano ou magia, e defesa 10-30 ou crítico
+	// 5-7% (EF_CRITICAL2 50/60/70, que o tooltip divide por dez).
+	bonusValue2 = [48][4]int{
+		{2, 30, 3, 30}, {2, 30, 3, 25}, {2, 30, 3, 20}, {2, 30, 3, 10},
+		{2, 24, 3, 30}, {2, 24, 3, 25}, {2, 24, 3, 20}, {2, 24, 3, 15},
+		{2, 18, 3, 30}, {2, 18, 3, 25}, {2, 18, 3, 20}, {2, 18, 3, 15},
+		{2, 30, 71, 50}, {2, 30, 71, 60}, {2, 30, 71, 70},
+		{2, 24, 71, 50}, {2, 24, 71, 60}, {2, 24, 71, 70},
+		{2, 18, 71, 50}, {2, 18, 71, 60}, {2, 18, 71, 70},
+		{60, 10, 3, 30}, {60, 10, 3, 25}, {60, 10, 3, 20}, {60, 10, 3, 15}, {60, 10, 3, 10},
+		{60, 8, 3, 30}, {60, 8, 3, 25}, {60, 8, 3, 20}, {60, 8, 3, 15}, {60, 8, 3, 10},
+		{60, 6, 3, 30}, {60, 6, 3, 25}, {60, 6, 3, 20}, {60, 6, 3, 15}, {60, 6, 3, 10},
+		{60, 10, 71, 50}, {60, 10, 71, 60}, {60, 10, 71, 70},
+		{60, 8, 71, 50}, {60, 8, 71, 60}, {60, 8, 71, 70},
+		{60, 6, 71, 50}, {60, 6, 71, 60}, {60, 6, 71, 70},
+		{60, 4, 71, 50}, {60, 4, 71, 60}, {60, 4, 71, 70},
+	}
+
+	// Luva (nPos 16): dano ou magia, e defesa extra 10-30 em EF_ACADD2, que
+	// substitui a EF_ACADD do catálogo em vez de somar (Basedef.cpp:1717; o
+	// handler faz a troca em temAcAdd2). O legado sorteia rand()%30 sobre estas
+	// 27 linhas, e as três que faltam deixavam 10% das luvas sem add: aqui o
+	// sorteio fica nas 27 (Marco, 28/09/2026).
+	bonusValue4 = [27][4]int{
+		{2, 30, 72, 30}, {2, 30, 72, 25}, {2, 30, 72, 20}, {2, 30, 72, 15}, {2, 30, 72, 10},
+		{2, 24, 72, 30}, {2, 24, 72, 25}, {2, 24, 72, 20}, {2, 24, 72, 15}, {2, 24, 72, 10},
+		{2, 18, 72, 30}, {2, 18, 72, 25}, {2, 18, 72, 20}, {2, 18, 72, 15}, {2, 18, 72, 10},
+		{60, 10, 72, 30}, {60, 10, 72, 25}, {60, 10, 72, 20}, {60, 10, 72, 15},
+		{60, 8, 72, 30}, {60, 8, 72, 25}, {60, 8, 72, 20}, {60, 8, 72, 15},
+		{60, 6, 72, 30}, {60, 6, 72, 25}, {60, 6, 72, 20}, {60, 6, 72, 15},
 	}
 
 	bonusValue5 = [30][4]int{ // Bota (nPos 32)
@@ -31,48 +62,22 @@ var (
 	}
 )
 
-// SERVER RULE, NOT PARITY (Marco, 26/09/2026): the Classe adds of chest, legs
-// and glove. The legacy pools (g_pBonusValue2/4) topped defense at 30, gave
-// chest crit as EF_CRITICAL2 50-70, and put the glove's defense on EF_ACADD2,
-// which this port does not read — the glove add counted for nothing.
-//
-// Each add is drawn on its own, with a weight per value, instead of one row out
-// of a flat table: the team's odds (5% for the top defense) would need a table
-// of thousands of rows, and a single rand() draw over it would pass the 32767
-// ceiling of the MSVC rand() this port reproduces.
+// A weighted value of one Classe add. The team's odds (5% for the top defense)
+// would need a table of hundreds of rows, so the adds that are not legacy rows
+// are drawn one at a time, each with a weight per value.
 type classeValor struct {
 	effect, value, weight int
 }
 
-// classeDanoPeito and classeDanoLuva keep the legacy first add of chest/legs and of glove: damage or
-// magic, with the weight each value had as rows of g_pBonusValue2/4.
 var (
-	classeDanoPeito = []classeValor{
-		{efDamageBonus, 30, 7}, {efDamageBonus, 24, 7}, {efDamageBonus, 18, 7},
-		{efMagic, 10, 8}, {efMagic, 8, 8}, {efMagic, 6, 8}, {efMagic, 4, 3},
-	}
-	classeDanoLuva = []classeValor{
-		{efDamageBonus, 30, 5}, {efDamageBonus, 24, 5}, {efDamageBonus, 18, 5},
-		{efMagic, 10, 4}, {efMagic, 8, 4}, {efMagic, 6, 4},
-	}
-
-	// The second add of chest/legs: defense or crit, half and half. Defense is
-	// 35/40/45/50 at the team's 50/30/20/5 (they sum 105, taken as weights).
-	// Crit is 1% or 2% — 10 or 20 on the byte, which the tooltip divides by ten.
+	// The high defense of chest and legs: 35/40/45/50 at the team's 50/30/20/5
+	// (they sum 105, taken as weights). It comes alone (classeDefesaAltaPct).
 	classeDefesaPeito = []classeValor{
 		{efAC, 35, 50}, {efAC, 40, 30}, {efAC, 45, 20}, {efAC, 50, 5},
 	}
-	classeCriticoPeito = []classeValor{
-		{efCritical2, 10, 1}, {efCritical2, 20, 1},
-	}
 
-	// The second add of the glove: skill, the boot's 12/15/18 with 18 very rare.
-	//
-	// Only skill (Marco, 27/09/2026). The glove used to roll skill or defense
-	// 40-50 half and half, and a defense add on a glove stacked on the base
-	// EF_ACADD the catalog already gives some gloves (Manoplas Elementais(M): 17):
-	// a glove came out with defense 45 + 17. The high defense add is chest and
-	// legs only.
+	// The team's glove skill: the boot's 12/15/18 with 18 very rare. It takes
+	// the place of the damage or magic (classeSkillLuvaPct).
 	classeSkillLuva = []classeValor{
 		{efSpecialAll, 12, 55}, {efSpecialAll, 15, 40}, {efSpecialAll, 18, 5},
 	}
@@ -83,6 +88,7 @@ const (
 	efAC         = 3
 	efMagic      = 60
 	efCritical2  = 71
+	efAcAdd2     = 72
 	efSpecialAll = 74
 )
 
@@ -103,39 +109,50 @@ func classeSorteia(pool []classeValor, roll func(int) int) world.Effect {
 	return world.Effect{Effect: uint8(last.effect), Value: uint8(last.value)}
 }
 
-// classeAdds draws the two adds of a chest, legs or glove piece: the first,
-// then which kind the second is, then its value — and, when the second is a
-// high defense, the first slot is emptied (defesaAltaSozinha).
+// classeDefesaAltaPct is the chance, in percent, that a chest or legs piece
+// comes out with the team's high defense alone instead of its legacy row.
+const classeDefesaAltaPct = 10
+
+// classeSkillLuvaPct is the chance, in percent, that a glove comes out with the
+// team's skill in place of its legacy damage or magic.
+const classeSkillLuvaPct = 25
+
+// classeAdds draws the two adds of a chest, legs or glove piece.
+//
+// Every piece keeps the legacy formula (Marco, 28/09/2026): a legacy row, drawn
+// first like the rand()%N SetItemBonus2 opens with (Server.cpp:2755/2787). The
+// 26/09 pools had replaced it, and with it every combination players farm the
+// Classe for — Magia 10 + Defesa 30, Dano 24 + Crítico 7% — could no longer
+// come out. The team's adds are a layer on top of the legacy row:
+//
+//   - chest and legs: classeDefesaAltaPct of the pieces get defense 35-50
+//     instead, alone — combined adds top out at defense 30 (limite.go), so the
+//     first slot gets EF_UNIQUE, the game's "nothing here" marker, the way an
+//     empty drop slot does (dropbonus.go);
+//   - glove: classeSkillLuvaPct get skill in place of the damage or magic, and
+//     keep the row's defense. A glove is damage-or-magic + defense, or skill +
+//     defense; never skill with damage or magic.
 func classeAdds(nPos int, roll func(int) int) (world.Effect, world.Effect) {
 	if nPos == nPosGlove {
-		return classeSorteia(classeDanoLuva, roll), classeSorteia(classeSkillLuva, roll)
+		row := bonusValue4[roll(len(bonusValue4))]
+		defesa := world.Effect{Effect: uint8(row[2]), Value: uint8(row[3])}
+		if roll(100) < classeSkillLuvaPct {
+			return classeSorteia(classeSkillLuva, roll), defesa
+		}
+		return world.Effect{Effect: uint8(row[0]), Value: uint8(row[1])}, defesa
 	}
-	primeiro := classeSorteia(classeDanoPeito, roll)
-	if roll(2) == 0 {
-		return defesaAltaSozinha(primeiro, classeSorteia(classeDefesaPeito, roll), roll)
+	row := bonusValue2[roll(len(bonusValue2))]
+	if roll(100) < classeDefesaAltaPct {
+		defesa := classeSorteia(classeDefesaPeito, roll)
+		return world.Effect{Effect: efUnique, Value: uint8(roll(128))}, defesa
 	}
-	return primeiro, classeSorteia(classeCriticoPeito, roll)
+	return world.Effect{Effect: uint8(row[0]), Value: uint8(row[1])},
+		world.Effect{Effect: uint8(row[2]), Value: uint8(row[3])}
 }
 
 // classeDefesaSozinhaAcima is the defense add above which the Repletion piece
 // carries no other add.
 const classeDefesaSozinhaAcima = 30
-
-// defesaAltaSozinha keeps a high defense add alone on the piece (Marco,
-// 27/09/2026). A Repletion chest that came out with defense 50 AND magic 10%
-// passed every limit the adds were tuned for: combined adds top out at defense 30
-// with crit 7% or magic 10%, and the 35-50 defense exists only as a piece that
-// carries nothing else. Above 30 the first slot gets EF_UNIQUE, the game's
-// "nothing here" marker, the way an empty drop slot does (dropbonus.go).
-//
-// The first add is still DRAWN before the defense and then thrown away: every
-// branch keeps its draw order, and only the defense branch spends one more.
-func defesaAltaSozinha(primeiro, defesa world.Effect, roll func(int) int) (world.Effect, world.Effect) {
-	if defesa.Effect != efAC || int(defesa.Value) <= classeDefesaSozinhaAcima {
-		return primeiro, defesa
-	}
-	return world.Effect{Effect: efUnique, Value: uint8(roll(128))}, defesa
-}
 
 // classeSancCap is the +6 ceiling SetItemBonus2 puts on the sanc it bumps
 // (Server.cpp:2727-2739 and its three siblings) — distinct from the dust
@@ -174,7 +191,9 @@ func ClasseBonus(dest *world.Item, nPos int, roll func(int) int, itemAbility fun
 	// The adds are drawn BEFORE any sanc roll: every branch of SetItemBonus2
 	// opens with `int _rand = rand()%N;` and only then touches stEffect[0]
 	// (Server.cpp:2723-2726 and its three siblings). Helm and boot keep the
-	// legacy single draw, so a captured rand() sequence still reproduces there.
+	// legacy single draw, so a captured rand() sequence still reproduces there;
+	// chest and legs open with the same legacy draw and then spend one more on
+	// the high-defense chance.
 	var add1, add2 world.Effect
 	switch nPos {
 	case nPosHelm, nPosBoot:
