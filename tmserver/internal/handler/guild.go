@@ -442,7 +442,10 @@ func (d *Dispatcher) kickGuild(w *world.World, s *world.Session, args []byte) {
 	}
 	targetSession, target := w.SessionByName(name)
 	if targetSession == nil || target == nil {
-		d.notify(w, s, NoticeNotConnected)
+		// FORA DO JOGO, A EXPULSÃO VAI PELO BANCO. Antes aqui era "não conectado"
+		// e fim: membro que nunca mais voltava (bot, conta largada) ficava na
+		// guilda para sempre.
+		d.kickOffline(w, s, e, name)
 		return
 	}
 	if target.Guild != e.Guild || target.ID == s.Conn || e.GuildLevel <= target.GuildLevel {
@@ -459,6 +462,49 @@ func (d *Dispatcher) kickGuild(w *world.World, s *world.Session, args []byte) {
 	// client read past the frame. The legacy says nothing here; a player who
 	// just lost their guild tag is owed the reason.
 	sendClientMessage(w, targetSession, fmt.Sprintf("Você foi expulso da guilda %s.", guildName))
+}
+
+// Frases do expulsar offline.
+const (
+	msgGuildaExpulsoOffline = "%s foi expulso da guilda."
+	msgGuildaNaoEMembro     = "%s não é membro da sua guilda."
+	msgGuildaCargoNaoDeixa  = "Você não pode expulsar %s: o cargo dele não é menor que o seu."
+	msgGuildaExpulsarFalhou = "Não foi possível expulsar %s agora. Tente de novo."
+)
+
+// kickOffline expulsa pelo dbServer um membro que não está no jogo. As regras de
+// cargo são conferidas lá, no banco, na mesma transação da expulsão.
+//
+// Aqui, diferente do online, QUEM EXPULSA OUVE O RESULTADO: não há etiqueta sumindo
+// da cabeça de ninguém para mostrar que funcionou, e a lista do painel só se
+// atualiza no próximo pedido.
+func (d *Dispatcher) kickOffline(w *world.World, s *world.Session, e *world.Entity, name string) {
+	guildID := e.Guild
+	accountID, slot := s.AccountID, s.Slot
+	p := w.Persistence()
+	w.Go(s, func() func(*world.World, *world.Session) {
+		motivo, err := p.KickOfflineGuildMember(context.Background(), guildID, accountID, slot, name)
+		return func(w *world.World, s *world.Session) {
+			if err != nil {
+				d.log.Warn("kick offline guild member failed", "conn", s.Conn, "guild", guildID,
+					"target", name, "err", err)
+				sendClientMessage(w, s, fmt.Sprintf(msgGuildaExpulsarFalhou, name))
+				return
+			}
+			switch motivo {
+			case world.GuildKickRefusalNone:
+				d.guildaEsqueceQuadro(guildID)
+				d.log.Info("guild member kicked offline", "conn", s.Conn, "guild", guildID, "target", name)
+				sendClientMessage(w, s, fmt.Sprintf(msgGuildaExpulsoOffline, name))
+			case world.GuildKickRefusalNotMember:
+				sendClientMessage(w, s, fmt.Sprintf(msgGuildaNaoEMembro, name))
+			case world.GuildKickRefusalOutranked:
+				sendClientMessage(w, s, fmt.Sprintf(msgGuildaCargoNaoDeixa, name))
+			default:
+				sendClientMessage(w, s, fmt.Sprintf(msgGuildaExpulsarFalhou, name))
+			}
+		}
+	})
 }
 
 func (d *Dispatcher) summonGuild(w *world.World, s *world.Session) {

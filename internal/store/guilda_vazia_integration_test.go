@@ -8,6 +8,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 )
 
@@ -129,5 +130,38 @@ func TestGuildaVaziaComCidadeFica(t *testing.T) {
 	}
 	if !guildaExiste(ctx, t, s, 4400) {
 		t.Fatal("apagou a guilda que é dona de cidade")
+	}
+}
+
+// TestExpulsarOffline: o expulsar pelo banco segue as regras de cargo do online.
+func TestExpulsarOffline(t *testing.T) {
+	s, ctx := freshStore(t)
+	lider := contaPix(ctx, t, s, "exp_lider")
+	bot := contaPix(ctx, t, s, "exp_bot")
+	sub := contaPix(ctx, t, s, "exp_sub")
+	guildaComLider(ctx, t, s, "Bots", 4500, lider, 9)
+	entraNaGuilda(ctx, t, s, bot, "Bot01", 4500)
+	guildaComLider(ctx, t, s, "Outra", 4501, sub, 9)
+
+	// Nome que não é desta guilda: recusa, sem tocar em ninguém.
+	if err := s.KickOfflineGuildMember(ctx, 4500, lider, 0, "Outra_p"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("membro de outra guilda: erro = %v, queria ErrNotFound", err)
+	}
+	// Membro comum não expulsa ninguém (cargo 0 não é maior que 0).
+	if err := s.KickOfflineGuildMember(ctx, 4500, bot, 0, "Bots_p"); !errors.Is(err, ErrConflict) {
+		t.Fatalf("membro comum expulsando: erro = %v, queria ErrConflict", err)
+	}
+	if err := s.KickOfflineGuildMember(ctx, 4500, lider, 0, "Bot01"); err != nil {
+		t.Fatalf("líder expulsando o bot: %v", err)
+	}
+	var guilda, membros int
+	if err := s.pool.QueryRow(ctx, `SELECT guild_id FROM character WHERE name = 'Bot01'`).Scan(&guilda); err != nil {
+		t.Fatalf("lendo o bot: %v", err)
+	}
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM guild_member WHERE guild_id = 4500`).Scan(&membros); err != nil {
+		t.Fatalf("contando membros: %v", err)
+	}
+	if guilda != 0 || membros != 1 {
+		t.Fatalf("depois de expulsar: guild_id do bot = %d, membros = %d; queria 0 e 1", guilda, membros)
 	}
 }
