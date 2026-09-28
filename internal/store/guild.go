@@ -127,32 +127,111 @@ func (s *Store) SetGuildMember(ctx context.Context, accountID int64, slot int, c
 	return nil
 }
 
-// LeaveGuild removes a character from its guild.
-func (s *Store) LeaveGuild(ctx context.Context, accountID int64, slot int) error {
+// LeaveGuild removes a character from its guild and, when that was the last
+// member, deletes the guild too. The returned id is the guild that was deleted
+// (0 when none was), so tmServer can drop what it keeps of it in memory.
+//
+// A GUILDA SEM NINGUÉM SAI JUNTO, desde 28/09/2026. Antes a linha de guild ficava
+// para sempre: em produção, uma guilda criada para gravar propaganda continuou na
+// lista "Guilds do Server" com zero membros depois que a criadora saiu, e segurava
+// o nome — ninguém mais podia criar uma "Teste".
+func (s *Store) LeaveGuild(ctx context.Context, accountID int64, slot int) (uint16, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("store: begin leave guild: %w", err)
+		return 0, fmt.Errorf("store: begin leave guild: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var charID int64
+	var guildID int
 	err = tx.QueryRow(ctx,
-		`SELECT id FROM character WHERE account_id = $1 AND slot = $2 FOR UPDATE`,
+		`SELECT id, guild_id FROM character WHERE account_id = $1 AND slot = $2 FOR UPDATE`,
 		accountID, slot,
-	).Scan(&charID)
+	).Scan(&charID, &guildID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrNotFound
+		return 0, ErrNotFound
 	}
 	if err != nil {
-		return fmt.Errorf("store: lock character for leave guild: %w", err)
+		return 0, fmt.Errorf("store: lock character for leave guild: %w", err)
+	}
+	// A GUILDA VEM DE guild_member, e character.guild_id é só o reserva. O tmServer
+	// zera a guilda na memória e manda salvar o personagem ANTES de pedir a saída, e
+	// esse save pode chegar primeiro: aí character.guild_id já é 0 e só guild_member
+	// ainda sabe de onde a pessoa está saindo.
+	var membroDe int
+	err = tx.QueryRow(ctx,
+		`SELECT guild_id FROM guild_member WHERE character_id = $1`, charID,
+	).Scan(&membroDe)
+	switch {
+	case err == nil:
+		guildID = membroDe
+	case !errors.Is(err, pgx.ErrNoRows):
+		return 0, fmt.Errorf("store: read guild of leaving character: %w", err)
 	}
 	if err := setGuildMemberTx(ctx, tx, accountID, slot, charID, "", 0, 0); err != nil {
-		return err
+		return 0, err
+	}
+	apagada, err := apagaGuildaVaziaTx(ctx, tx, guildID)
+	if err != nil {
+		return 0, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("store: commit leave guild: %w", err)
+		return 0, fmt.Errorf("store: commit leave guild: %w", err)
 	}
-	return nil
+	return apagada, nil
+}
+
+// apagaGuildaVaziaTx apaga a guilda se ela não tem mais ninguém, e devolve o id
+// apagado (0 quando ficou).
+//
+// A LINHA DA GUILDA É TRAVADA ANTES DE CONTAR. Dois últimos membros saindo ao
+// mesmo tempo passam os dois por aqui: com a trava, o segundo espera o primeiro
+// terminar e conta de novo já sem ele, então um dos dois apaga — e nunca os dois
+// deixam a guilda para trás achando que o outro ainda está lá.
+//
+// CONTA NAS DUAS TABELAS. guild_member é a lista do painel, mas personagem vindo
+// da conversão do legado pode ter só character.guild_id; apagar a guilda de alguém
+// assim seria tirar dele uma guilda que ele ainda vê na cabeça.
+//
+// E NÃO APAGA GUILDA QUE AINDA TEM PAPEL NO MUNDO: dona ou desafiante de cidade,
+// dona da torre, quem matou o Kefra. Essas colunas guardam o id sem chave
+// estrangeira, vivem também na memória do tmServer, e o alocador de id reaproveita
+// o maior número livre — apagar a guilda ali daria a cidade de presente para a
+// próxima guilda que nascesse com aquele número. Guilda vazia com cidade é caso
+// raro e de staff; fica como está.
+func apagaGuildaVaziaTx(ctx context.Context, tx pgx.Tx, guildID int) (uint16, error) {
+	if guildID == 0 {
+		return 0, nil
+	}
+	var id int
+	err := tx.QueryRow(ctx, `SELECT id FROM guild WHERE id = $1 FOR UPDATE`, guildID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("store: lock guild %d to check if empty: %w", guildID, err)
+	}
+	var ocupada bool
+	err = tx.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM guild_member WHERE guild_id = $1)
+		    OR EXISTS (SELECT 1 FROM character WHERE guild_id = $1)
+		    OR EXISTS (SELECT 1 FROM guild_zone WHERE charge_guild = $1 OR challenge_guild = $1)
+		    OR EXISTS (SELECT 1 FROM guild_tower_state WHERE owner_guild = $1)
+		    OR EXISTS (SELECT 1 FROM world_event_config WHERE kefra_guild_id = $1)`,
+		guildID,
+	).Scan(&ocupada)
+	if err != nil {
+		return 0, fmt.Errorf("store: check guild %d empty: %w", guildID, err)
+	}
+	if ocupada {
+		return 0, nil
+	}
+	// O resto (relações, buffs, escalação das cidades, emblema) sai em cascata:
+	// ou é ON DELETE CASCADE, ou é coluna da própria linha.
+	if _, err := tx.Exec(ctx, `DELETE FROM guild WHERE id = $1`, guildID); err != nil {
+		return 0, fmt.Errorf("store: delete empty guild %d: %w", guildID, err)
+	}
+	return uint16(guildID), nil
 }
 
 // PromoteGuildMember assigns the first available sub-leader level (6, 7, 8) and
