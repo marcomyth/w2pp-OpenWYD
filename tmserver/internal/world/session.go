@@ -208,6 +208,10 @@ type Session struct {
 	// purpose: a fresh login may be told again at once.
 	XPPerdidaAvisoAt int64
 
+	// proximoSavePeriodico is when this character is next saved without anything
+	// asking for it (savePeriodicoTick). Zero until it enters play. Loop-owned.
+	proximoSavePeriodico time.Time
+
 	seen map[int]struct{} // entity ids already create-mob'd to this client (view set)
 
 	// S→C send diagnostics (sendstats.go): per-type counts, totals, the trailing
