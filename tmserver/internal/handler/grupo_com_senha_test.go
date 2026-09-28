@@ -93,14 +93,14 @@ func TestLimiteDeTentativasDeEntrar(t *testing.T) {
 		t.Fatal("a sexta tentativa passou, e o limite e cinco")
 	}
 	// Dentro da janela continua fechado, mesmo andando o relógio um pouco.
-	if d.podeTentarEntrarNoGrupo(agora+janelaDeTentativas-1, conn) {
+	if d.podeTentarEntrarNoGrupo(agora+janelaDeTentativasMs-1, conn) {
 		t.Fatal("ainda dentro da janela e passou")
 	}
 	// A janela é por personagem: outro conn não herda o castigo.
 	if !d.podeTentarEntrarNoGrupo(agora, conn+1) {
 		t.Fatal("o limite vazou para outro personagem")
 	}
-	if !d.podeTentarEntrarNoGrupo(agora+janelaDeTentativas, conn) {
+	if !d.podeTentarEntrarNoGrupo(agora+janelaDeTentativasMs, conn) {
 		t.Fatal("passado um minuto, tinha de liberar")
 	}
 }
@@ -348,7 +348,7 @@ func TestGrupoComSenhaLimitePeloChat(t *testing.T) {
 	grupoCmd(t, membro, "/entrar", "Hero abcd1234")
 	painelDiz(t, membro, msgGrupoMuitasTentativas)
 	// Um minuto depois, libera.
-	clock.Store(clock.Load() + janelaDeTentativas)
+	clock.Store(clock.Load() + janelaDeTentativasMs)
 	grupoCmd(t, membro, "/entrar", "Hero abcd1234")
 	painelDiz(t, membro, msgGrupoEntrou)
 }
@@ -535,4 +535,58 @@ func encheGrupoDoLider(t *testing.T, w *world.World, liderConn int) {
 			}
 		}
 	})
+}
+
+// TestJanelaDeTentativasEUmMinutoDeVerdade afirma a UNIDADE da constante.
+//
+// ESTE É O TESTE QUE FALTAVA. A primeira versão tinha a janela em 60 com o
+// comentário "segundos", e o World.Now é em milissegundos (world.go:330), então a
+// janela valia 60 ms e o limite de cinco tentativas não protegia nada. O teste antigo
+// do limite andava o relógio de mentira em "janelaDeTentativas" unidades — ou seja,
+// media a constante contra ela mesma e passava com o defeito dentro.
+//
+// Aqui a constante é comparada com um minuto escrito de outro jeito, por time.Minute.
+// Nenhum caminho deste teste passa pela constante, então ele não pode concordar com
+// ela por engano.
+func TestJanelaDeTentativasEUmMinutoDeVerdade(t *testing.T) {
+	t.Parallel()
+	quer := uint32(time.Minute / time.Millisecond)
+	if janelaDeTentativasMs != quer {
+		t.Fatalf("janelaDeTentativasMs = %d, e um minuto no relogio do mundo e %d. "+
+			"World.Now e UnixMilli (world.go:330): a janela em segundos daria %d ms",
+			janelaDeTentativasMs, quer, janelaDeTentativasMs)
+	}
+}
+
+// TestLimiteDeTentativasComORelogioDeVerdade usa o relógio PADRÃO do mundo.
+//
+// POR QUE COM UMA ESPERA DE VERDADE NO MEIO, e não só seis chamadas seguidas: seis
+// chamadas seguidas levam microssegundos, e com a janela errada de 60 ms elas ainda
+// cairiam dentro da janela e a sexta seria recusada — o teste passaria com o defeito
+// dentro, igual ao antigo. O que revela o erro de unidade é esperar um tempo que é
+// MUITO menos que um minuto e MAIS que a janela errada: com 60 ms a janela já teria
+// reaberto e a sexta passaria; com um minuto de verdade ela continua fechada.
+func TestLimiteDeTentativasComORelogioDeVerdade(t *testing.T) {
+	// Sem t.Parallel: este teste dorme, e dormir em paralelo com os outros só
+	// embaralharia o relatório de tempo.
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// Config SEM Now: é o relógio de verdade do mundo que este teste quer medir.
+	w := world.New(world.Config{GridDim: 16}, log, nil, nil)
+	d := &Dispatcher{tentativasDeGrupo: make(map[int]tentativasDeGrupo)}
+	const conn = 3
+
+	for range maxTentativasDeEntrar {
+		if !d.podeTentarEntrarNoGrupo(w.Now(), conn) {
+			t.Fatal("uma das cinco primeiras foi recusada")
+		}
+	}
+	if d.podeTentarEntrarNoGrupo(w.Now(), conn) {
+		t.Fatal("a sexta passou na hora, e o limite e cinco")
+	}
+	// A espera é 5x a janela ERRADA e 1/400 da certa.
+	time.Sleep(300 * time.Millisecond)
+	if d.podeTentarEntrarNoGrupo(w.Now(), conn) {
+		t.Fatal("passados 300 ms a janela reabriu; ela tem de durar um MINUTO, " +
+			"e o World.Now e em milissegundos")
+	}
 }

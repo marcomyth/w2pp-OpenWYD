@@ -55,7 +55,21 @@ const (
 // ainda compara devolve "errou a senha" e confirma que o grupo existe.
 const (
 	maxTentativasDeEntrar = 5
-	janelaDeTentativas    = 60 // segundos
+	// janelaDeTentativasMs é um minuto em MILISSEGUNDOS, que é a unidade do
+	// World.Now (world.go:330, uint32(time.Now().UnixMilli())).
+	//
+	// ESCRITO ERRADO NA PRIMEIRA VERSÃO, e vale registrar porque o erro é barato de
+	// repetir: estava 60 com o comentário "segundos", ou seja, a janela reabria a
+	// cada 60 MILISSEGUNDOS e o limite de cinco não protegia nada — qualquer laço
+	// adivinharia uma senha de quatro caracteres à vontade. O sufixo Ms no nome é a
+	// convenção que o resto do pacote já usa (canalEsperaMs) exatamente para esta
+	// confusão não acontecer de novo.
+	//
+	// E O TESTE PASSOU COM O ERRO DENTRO, que é a parte que interessa: ele andava o
+	// relógio de mentira em "janelaDeTentativas" unidades, então media a constante
+	// contra ela mesma. Por isso agora existe um teste que afirma o valor em
+	// time.Minute e outro que anda o relógio DE VERDADE.
+	janelaDeTentativasMs = 60_000
 )
 
 // senhaDeGrupoValida diz se a senha serve, e é a MESMA régua na criação e na entrada.
@@ -309,8 +323,21 @@ func (d *Dispatcher) transferirLiderancaDoGrupo(w *world.World, s *world.Session
 // para o teste — que é o jeito clássico de um teste de janela de tempo passar a
 // medir a si mesmo.
 func (d *Dispatcher) podeTentarEntrarNoGrupo(agora uint32, conn int) bool {
-	t := d.tentativasDeGrupo[conn]
-	if agora-t.desde >= janelaDeTentativas {
+	// O "existe" NÃO É ZELO, e a falta dele era um segundo defeito.
+	//
+	// Sem ele, a primeira tentativa de um personagem lia o valor zero do mapa, com
+	// desde=0, e a conta "agora - 0" dá o relógio inteiro do mundo — um número enorme,
+	// bem maior que a janela. A entrada era então tratada como janela VELHA e
+	// reiniciada... com desde=agora só nesse ramo, que não rodava, porque
+	// "agora - 0 >= janela" é verdadeiro e reiniciava certo por acidente ENQUANTO a
+	// janela era 60. Com a janela em 60_000 o acidente virou: "agora - 0" continua
+	// enorme, mas o desde ficava 0 para sempre e a janela reabria sozinha.
+	//
+	// Ou seja: o valor zero do mapa se passa por "uma janela que começou no instante
+	// zero", e instante zero está sempre longe. Perguntar se a entrada EXISTE é a
+	// única forma de distinguir "nunca tentou" de "tentou há muito tempo".
+	t, existe := d.tentativasDeGrupo[conn]
+	if !existe || agora-t.desde >= janelaDeTentativasMs {
 		t = tentativasDeGrupo{desde: agora}
 	}
 	if t.quantas >= maxTentativasDeEntrar {
@@ -322,6 +349,11 @@ func (d *Dispatcher) podeTentarEntrarNoGrupo(agora uint32, conn int) bool {
 	return true
 }
 
+// O CONTADOR É POR conn, ENTÃO RELOGAR ZERA, e isso é aceito de propósito: cair e
+// voltar custa um login inteiro, muito mais que o minuto de espera. Amarrar o
+// contador à conta exigiria guardá-lo fora da sessão e limpá-lo em outro lugar, para
+// fechar uma porta que ninguém tem paciência de usar.
+//
 // esqueceGrupoComSenha limpa o que este arquivo guarda para um conn.
 //
 // CHAMADA DE SessionEnd, e é o que impede a pior falha possível aqui: conn é
