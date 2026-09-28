@@ -23,8 +23,8 @@ type ExpEvents struct {
 // ExpRewardInput is one PvE kill as the reward pipeline reads it, for the
 // character being paid. Solo that is the killer; in a party it is each member in
 // turn — KillerLevel and Tier are then the member's, KillingBlow stays the
-// killer's as the legacy reads it, and ExpBonus/FairyContent are whatever the
-// caller's party rule says (handler.bonusDoGrupo: the best in the fight).
+// killer's as the legacy reads it, and so are ExpBonus/FairyContent
+// (handler.termosDaMorte).
 type ExpRewardInput struct {
 	// Zone selects which of the seven MobKilled.cpp branches pays. Derive it
 	// from the corpse's position with ZoneForTile.

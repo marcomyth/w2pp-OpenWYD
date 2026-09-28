@@ -42,10 +42,10 @@ type estadoXP struct {
 	BauTicks uint32           // its remaining affect ticks, 0 when not running
 	Suprema  int32            // fairyContentBonus: the Fada Suprema's flat +30
 
-	// EmGrupo only says whether to mention the party rule. The number a party
-	// actually pays is the best bonus among everyone IN THE FIGHT
-	// (bonusDoGrupo), which depends on who is standing near the corpse at the
-	// moment of the kill — not something a command can answer in advance.
+	// EmGrupo only says whether to mention the party rule. A party kill pays
+	// every member with the KILLER's bonus (termosDaMorte), so the figure above
+	// holds for this character's own kills and nobody else's — not something a
+	// command can answer in advance for the rest.
 	EmGrupo bool
 
 	TaxaPercent int32 // the Mesa de XP rate for this zone and tier
@@ -136,11 +136,10 @@ func textoXP(st estadoXP) []string {
 		}
 	}
 	if st.EmGrupo {
-		// Said as a rule and not as a number on purpose: bonusDoGrupo picks the
-		// best bonus among whoever is IN the fight, so the figure changes with
-		// who is standing near the corpse. Promising one here would be a lie the
-		// next kill could contradict.
-		linhas = append(linhas, "Em grupo vale o maior bônus entre quem está na luta, não o seu.")
+		// Said as a rule and not as a number on purpose: the bonus is the killer's,
+		// so it changes with who lands each blow. Promising one here would be a
+		// lie the next kill could contradict.
+		linhas = append(linhas, "Em grupo vale o bônus de quem matou: o seu só nas mortes que você der.")
 	}
 	linhas = append(linhas, linhaEventos(st.Eventos))
 	if st.TaxaPercent != 100 {
