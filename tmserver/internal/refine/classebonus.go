@@ -2,10 +2,9 @@ package refine
 
 import "github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 
-// bonusValue3/2/5 are g_pBonusValue3/2/5 (Basedef.cpp:432/467/353):
-// SetItemBonus2's reroll pools for helm, chest/legs and boot. Each row is
-// {effect1, value1, effect2, value2}. The glove no longer uses the legacy
-// g_pBonusValue4 — see classeAdds below.
+// bonusValue3/2/4/5 are g_pBonusValue3/2/4/5 (Basedef.cpp:432/467/396/353):
+// SetItemBonus2's reroll pools for helm, chest/legs, glove and boot. Each row is
+// {effect1, value1, effect2, value2}.
 var (
 	bonusValue3 = [25][4]int{ // Elmo (nPos 2)
 		{4, 60, 26, 18}, {4, 60, 26, 15}, {4, 60, 26, 12},
@@ -35,6 +34,20 @@ var (
 		{60, 4, 71, 50}, {60, 4, 71, 60}, {60, 4, 71, 70},
 	}
 
+	// Luva (nPos 16): dano ou magia, e defesa extra 10-30 em EF_ACADD2, que
+	// substitui a EF_ACADD do catálogo em vez de somar (Basedef.cpp:1717; o
+	// handler faz a troca em temAcAdd2). O legado sorteia rand()%30 sobre estas
+	// 27 linhas, e as três que faltam deixavam 10% das luvas sem add: aqui o
+	// sorteio fica nas 27 (Marco, 28/09/2026).
+	bonusValue4 = [27][4]int{
+		{2, 30, 72, 30}, {2, 30, 72, 25}, {2, 30, 72, 20}, {2, 30, 72, 15}, {2, 30, 72, 10},
+		{2, 24, 72, 30}, {2, 24, 72, 25}, {2, 24, 72, 20}, {2, 24, 72, 15}, {2, 24, 72, 10},
+		{2, 18, 72, 30}, {2, 18, 72, 25}, {2, 18, 72, 20}, {2, 18, 72, 15}, {2, 18, 72, 10},
+		{60, 10, 72, 30}, {60, 10, 72, 25}, {60, 10, 72, 20}, {60, 10, 72, 15},
+		{60, 8, 72, 30}, {60, 8, 72, 25}, {60, 8, 72, 20}, {60, 8, 72, 15},
+		{60, 6, 72, 30}, {60, 6, 72, 25}, {60, 6, 72, 20}, {60, 6, 72, 15},
+	}
+
 	bonusValue5 = [30][4]int{ // Bota (nPos 32)
 		{2, 30, 74, 18}, {2, 30, 74, 15}, {2, 30, 74, 12},
 		{2, 24, 74, 18}, {2, 24, 74, 15}, {2, 24, 74, 12},
@@ -57,28 +70,14 @@ type classeValor struct {
 }
 
 var (
-	// SERVER RULE, NOT PARITY (Marco, 26/09/2026): the glove. Its legacy pool
-	// (g_pBonusValue4) put the defense on EF_ACADD2, which this port does not
-	// read — the glove add counted for nothing. The first add keeps the legacy
-	// damage or magic, with the weight each value had as rows of that table.
-	classeDanoLuva = []classeValor{
-		{efDamageBonus, 30, 5}, {efDamageBonus, 24, 5}, {efDamageBonus, 18, 5},
-		{efMagic, 10, 4}, {efMagic, 8, 4}, {efMagic, 6, 4},
-	}
-
 	// The high defense of chest and legs: 35/40/45/50 at the team's 50/30/20/5
 	// (they sum 105, taken as weights). It comes alone (classeDefesaAltaPct).
 	classeDefesaPeito = []classeValor{
 		{efAC, 35, 50}, {efAC, 40, 30}, {efAC, 45, 20}, {efAC, 50, 5},
 	}
 
-	// The second add of the glove: skill, the boot's 12/15/18 with 18 very rare.
-	//
-	// Only skill (Marco, 27/09/2026). The glove used to roll skill or defense
-	// 40-50 half and half, and a defense add on a glove stacked on the base
-	// EF_ACADD the catalog already gives some gloves (Manoplas Elementais(M): 17):
-	// a glove came out with defense 45 + 17. The high defense add is chest and
-	// legs only.
+	// The team's glove skill: the boot's 12/15/18 with 18 very rare. It takes
+	// the place of the damage or magic (classeSkillLuvaPct).
 	classeSkillLuva = []classeValor{
 		{efSpecialAll, 12, 55}, {efSpecialAll, 15, 40}, {efSpecialAll, 18, 5},
 	}
@@ -89,6 +88,7 @@ const (
 	efAC         = 3
 	efMagic      = 60
 	efCritical2  = 71
+	efAcAdd2     = 72
 	efSpecialAll = 74
 )
 
@@ -113,19 +113,33 @@ func classeSorteia(pool []classeValor, roll func(int) int) world.Effect {
 // comes out with the team's high defense alone instead of its legacy row.
 const classeDefesaAltaPct = 10
 
+// classeSkillLuvaPct is the chance, in percent, that a glove comes out with the
+// team's skill in place of its legacy damage or magic.
+const classeSkillLuvaPct = 10
+
 // classeAdds draws the two adds of a chest, legs or glove piece.
 //
-// Chest and legs keep the legacy formula (Marco, 28/09/2026): a row of
-// g_pBonusValue2, drawn first with the same rand()%48 SetItemBonus2 opens with
-// (Server.cpp:2755). The 26/09 pools had replaced it, and with it every
-// combination players farm the Classe for — Magia 10 + Defesa 30, Dano 24 +
-// Crítico 7% — could no longer come out. On top of the legacy, classeDefesaAltaPct
-// of the pieces get the team's defense 35-50 instead, alone: combined adds top
-// out at defense 30 (limite.go), so above it the first slot gets EF_UNIQUE, the
-// game's "nothing here" marker, the way an empty drop slot does (dropbonus.go).
+// Every piece keeps the legacy formula (Marco, 28/09/2026): a legacy row, drawn
+// first like the rand()%N SetItemBonus2 opens with (Server.cpp:2755/2787). The
+// 26/09 pools had replaced it, and with it every combination players farm the
+// Classe for — Magia 10 + Defesa 30, Dano 24 + Crítico 7% — could no longer
+// come out. The team's adds are a layer on top of the legacy row:
+//
+//   - chest and legs: classeDefesaAltaPct of the pieces get defense 35-50
+//     instead, alone — combined adds top out at defense 30 (limite.go), so the
+//     first slot gets EF_UNIQUE, the game's "nothing here" marker, the way an
+//     empty drop slot does (dropbonus.go);
+//   - glove: classeSkillLuvaPct get skill in place of the damage or magic, and
+//     keep the row's defense. A glove is damage-or-magic + defense, or skill +
+//     defense; never skill with damage or magic.
 func classeAdds(nPos int, roll func(int) int) (world.Effect, world.Effect) {
 	if nPos == nPosGlove {
-		return classeSorteia(classeDanoLuva, roll), classeSorteia(classeSkillLuva, roll)
+		row := bonusValue4[roll(len(bonusValue4))]
+		defesa := world.Effect{Effect: uint8(row[2]), Value: uint8(row[3])}
+		if roll(100) < classeSkillLuvaPct {
+			return classeSorteia(classeSkillLuva, roll), defesa
+		}
+		return world.Effect{Effect: uint8(row[0]), Value: uint8(row[1])}, defesa
 	}
 	row := bonusValue2[roll(len(bonusValue2))]
 	if roll(100) < classeDefesaAltaPct {

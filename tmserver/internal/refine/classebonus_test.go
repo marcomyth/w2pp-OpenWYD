@@ -61,7 +61,7 @@ func TestClasseBonusTablePerSlot(t *testing.T) {
 		{"helm", nPosHelm, len(bonusValue3)},
 		{"chest", nPosChest, len(bonusValue2)},
 		{"legs", nPosLegs, len(bonusValue2)},
-		{"glove", nPosGlove, pesoTotal(classeDanoLuva)},
+		{"glove", nPosGlove, len(bonusValue4)},
 		{"boot", nPosBoot, len(bonusValue5)},
 	}
 	for _, c := range cases {
@@ -247,7 +247,7 @@ func classeChances(t *testing.T, nPos int) map[world.Effect]float64 {
 // Chest and legs (28/09/2026): 90% the legacy row of g_pBonusValue2, whose
 // second add is defense 30/25/20/15/10 in 6/6/6/5/4 of the 48 rows and crit
 // 5/6/7% in 7 rows each; 10% the team's defense 35/40/45/50 alone, at 50/30/20/5
-// of 105. The glove rolls skill 12/15/18 with 18 at 5%.
+// of 105.
 func TestClasseAddsSegueAsChancesDaEquipe(t *testing.T) {
 	const tol = 1e-9
 	legado := func(linhas int) float64 { return (1 - classeDefesaAltaPct/100.0) * float64(linhas) / 48 }
@@ -268,10 +268,13 @@ func TestClasseAddsSegueAsChancesDaEquipe(t *testing.T) {
 	}{
 		{"peito", nPosChest, peitoECalca},
 		{"calça", nPosLegs, peitoECalca},
-		// Desde 27/09/2026 a luva só sorteia Skill: a Defesa é de peito e calça.
+		// A luva (28/09/2026): o segundo add é sempre a defesa extra da linha de
+		// g_pBonusValue4 — 30/25/20/15 em 6 das 27 linhas cada, 10 em 3 —, com
+		// ou sem o Skill no lugar do primeiro.
 		{"luva", nPosGlove, map[world.Effect]float64{
-			{Effect: efSpecialAll, Value: 12}: 55.0 / 100, {Effect: efSpecialAll, Value: 15}: 40.0 / 100,
-			{Effect: efSpecialAll, Value: 18}: 5.0 / 100,
+			{Effect: efAcAdd2, Value: 30}: 6.0 / 27, {Effect: efAcAdd2, Value: 25}: 6.0 / 27,
+			{Effect: efAcAdd2, Value: 20}: 6.0 / 27, {Effect: efAcAdd2, Value: 15}: 6.0 / 27,
+			{Effect: efAcAdd2, Value: 10}: 3.0 / 27,
 		}},
 	}
 	for _, c := range cases {
@@ -293,7 +296,7 @@ func TestClasseAddsSegueAsChancesDaEquipe(t *testing.T) {
 // make the top values unreachable in production.
 func TestClasseAddsCabemNoRand(t *testing.T) {
 	for _, pool := range [][]classeValor{
-		classeDanoLuva, classeDefesaPeito, classeSkillLuva,
+		classeDefesaPeito, classeSkillLuva,
 	} {
 		if n := pesoTotal(pool); n > 32767 {
 			t.Errorf("peso total %d passa do rand() do MSVC", n)
