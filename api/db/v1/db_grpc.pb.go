@@ -27,65 +27,73 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccountService_AccountLogin_FullMethodName            = "/db.v1.AccountService/AccountLogin"
-	AccountService_ListCharacters_FullMethodName          = "/db.v1.AccountService/ListCharacters"
-	AccountService_LoadCharacter_FullMethodName           = "/db.v1.AccountService/LoadCharacter"
-	AccountService_SaveCharacter_FullMethodName           = "/db.v1.AccountService/SaveCharacter"
-	AccountService_QuoteKingdomCape_FullMethodName        = "/db.v1.AccountService/QuoteKingdomCape"
-	AccountService_PurchaseKingdomCape_FullMethodName     = "/db.v1.AccountService/PurchaseKingdomCape"
-	AccountService_TransferPlayerBalance_FullMethodName   = "/db.v1.AccountService/TransferPlayerBalance"
-	AccountService_CreateCharacter_FullMethodName         = "/db.v1.AccountService/CreateCharacter"
-	AccountService_CreateArchCharacter_FullMethodName     = "/db.v1.AccountService/CreateArchCharacter"
-	AccountService_DeleteCharacter_FullMethodName         = "/db.v1.AccountService/DeleteCharacter"
-	AccountService_SetPin_FullMethodName                  = "/db.v1.AccountService/SetPin"
-	AccountService_VerifyPin_FullMethodName               = "/db.v1.AccountService/VerifyPin"
-	AccountService_LoadCargo_FullMethodName               = "/db.v1.AccountService/LoadCargo"
-	AccountService_SaveCargo_FullMethodName               = "/db.v1.AccountService/SaveCargo"
-	AccountService_ListPendingDeliveries_FullMethodName   = "/db.v1.AccountService/ListPendingDeliveries"
-	AccountService_ListSoldEscrowSlots_FullMethodName     = "/db.v1.AccountService/ListSoldEscrowSlots"
-	AccountService_OpenRmtListings_FullMethodName         = "/db.v1.AccountService/OpenRmtListings"
-	AccountService_CancelRmtListings_FullMethodName       = "/db.v1.AccountService/CancelRmtListings"
-	AccountService_CloseRmtListings_FullMethodName        = "/db.v1.AccountService/CloseRmtListings"
-	AccountService_ReconcileRmtEscrow_FullMethodName      = "/db.v1.AccountService/ReconcileRmtEscrow"
-	AccountService_SaveCargoWithDeliveries_FullMethodName = "/db.v1.AccountService/SaveCargoWithDeliveries"
-	AccountService_SetAccountBlocked_FullMethodName       = "/db.v1.AccountService/SetAccountBlocked"
-	AccountService_RecordDuelResult_FullMethodName        = "/db.v1.AccountService/RecordDuelResult"
-	AccountService_RecordTrade_FullMethodName             = "/db.v1.AccountService/RecordTrade"
-	AccountService_RecordReport_FullMethodName            = "/db.v1.AccountService/RecordReport"
-	AccountService_RecordGround_FullMethodName            = "/db.v1.AccountService/RecordGround"
-	AccountService_ReserveSerials_FullMethodName          = "/db.v1.AccountService/ReserveSerials"
-	AccountService_RecordChat_FullMethodName              = "/db.v1.AccountService/RecordChat"
-	AccountService_SetCharacterPresence_FullMethodName    = "/db.v1.AccountService/SetCharacterPresence"
-	AccountService_ClearAllPresence_FullMethodName        = "/db.v1.AccountService/ClearAllPresence"
-	AccountService_AddShopPoints_FullMethodName           = "/db.v1.AccountService/AddShopPoints"
-	AccountService_ShopPoints_FullMethodName              = "/db.v1.AccountService/ShopPoints"
-	AccountService_SpendShopPoints_FullMethodName         = "/db.v1.AccountService/SpendShopPoints"
-	AccountService_ClaimNewbieKit_FullMethodName          = "/db.v1.AccountService/ClaimNewbieKit"
-	AccountService_CreditDonate_FullMethodName            = "/db.v1.AccountService/CreditDonate"
-	AccountService_DonateBalance_FullMethodName           = "/db.v1.AccountService/DonateBalance"
-	AccountService_CreateGuild_FullMethodName             = "/db.v1.AccountService/CreateGuild"
-	AccountService_SetGuildMember_FullMethodName          = "/db.v1.AccountService/SetGuildMember"
-	AccountService_LeaveGuild_FullMethodName              = "/db.v1.AccountService/LeaveGuild"
-	AccountService_PromoteGuildMember_FullMethodName      = "/db.v1.AccountService/PromoteGuildMember"
-	AccountService_TransferGuildLeader_FullMethodName     = "/db.v1.AccountService/TransferGuildLeader"
-	AccountService_SetGuildRelation_FullMethodName        = "/db.v1.AccountService/SetGuildRelation"
-	AccountService_ListGuilds_FullMethodName              = "/db.v1.AccountService/ListGuilds"
-	AccountService_ListGuildRelations_FullMethodName      = "/db.v1.AccountService/ListGuildRelations"
-	AccountService_ListGuildMembers_FullMethodName        = "/db.v1.AccountService/ListGuildMembers"
-	AccountService_SaveGuildNotice_FullMethodName         = "/db.v1.AccountService/SaveGuildNotice"
-	AccountService_ListGuildSummaries_FullMethodName      = "/db.v1.AccountService/ListGuildSummaries"
-	AccountService_ListGuildSquads_FullMethodName         = "/db.v1.AccountService/ListGuildSquads"
-	AccountService_SetGuildSquad_FullMethodName           = "/db.v1.AccountService/SetGuildSquad"
-	AccountService_ListGuildBuffs_FullMethodName          = "/db.v1.AccountService/ListGuildBuffs"
-	AccountService_SaveGuildBuff_FullMethodName           = "/db.v1.AccountService/SaveGuildBuff"
-	AccountService_DeleteGuildBuff_FullMethodName         = "/db.v1.AccountService/DeleteGuildBuff"
-	AccountService_LoadGuildZones_FullMethodName          = "/db.v1.AccountService/LoadGuildZones"
-	AccountService_SaveGuildZone_FullMethodName           = "/db.v1.AccountService/SaveGuildZone"
-	AccountService_LoadGuildTowerState_FullMethodName     = "/db.v1.AccountService/LoadGuildTowerState"
-	AccountService_SaveGuildTowerState_FullMethodName     = "/db.v1.AccountService/SaveGuildTowerState"
-	AccountService_SaveGuildFame_FullMethodName           = "/db.v1.AccountService/SaveGuildFame"
-	AccountService_LoadCastleQuestState_FullMethodName    = "/db.v1.AccountService/LoadCastleQuestState"
-	AccountService_SaveCastleQuestState_FullMethodName    = "/db.v1.AccountService/SaveCastleQuestState"
+	AccountService_AccountLogin_FullMethodName             = "/db.v1.AccountService/AccountLogin"
+	AccountService_ListCharacters_FullMethodName           = "/db.v1.AccountService/ListCharacters"
+	AccountService_LoadCharacter_FullMethodName            = "/db.v1.AccountService/LoadCharacter"
+	AccountService_SaveCharacter_FullMethodName            = "/db.v1.AccountService/SaveCharacter"
+	AccountService_SalvarPersonagemComCarga_FullMethodName = "/db.v1.AccountService/SalvarPersonagemComCarga"
+	AccountService_NovaEpocaDePar_FullMethodName           = "/db.v1.AccountService/NovaEpocaDePar"
+	AccountService_TomarPosseDaConta_FullMethodName        = "/db.v1.AccountService/TomarPosseDaConta"
+	AccountService_BaterPelasContas_FullMethodName         = "/db.v1.AccountService/BaterPelasContas"
+	AccountService_SoltarPosseDaConta_FullMethodName       = "/db.v1.AccountService/SoltarPosseDaConta"
+	AccountService_QuoteKingdomCape_FullMethodName         = "/db.v1.AccountService/QuoteKingdomCape"
+	AccountService_PurchaseKingdomCape_FullMethodName      = "/db.v1.AccountService/PurchaseKingdomCape"
+	AccountService_TransferPlayerBalance_FullMethodName    = "/db.v1.AccountService/TransferPlayerBalance"
+	AccountService_CreateCharacter_FullMethodName          = "/db.v1.AccountService/CreateCharacter"
+	AccountService_CreateArchCharacter_FullMethodName      = "/db.v1.AccountService/CreateArchCharacter"
+	AccountService_DeleteCharacter_FullMethodName          = "/db.v1.AccountService/DeleteCharacter"
+	AccountService_SetPin_FullMethodName                   = "/db.v1.AccountService/SetPin"
+	AccountService_VerifyPin_FullMethodName                = "/db.v1.AccountService/VerifyPin"
+	AccountService_LoadCargo_FullMethodName                = "/db.v1.AccountService/LoadCargo"
+	AccountService_SaveCargo_FullMethodName                = "/db.v1.AccountService/SaveCargo"
+	AccountService_ListPendingDeliveries_FullMethodName    = "/db.v1.AccountService/ListPendingDeliveries"
+	AccountService_ListSoldEscrowSlots_FullMethodName      = "/db.v1.AccountService/ListSoldEscrowSlots"
+	AccountService_OpenRmtListings_FullMethodName          = "/db.v1.AccountService/OpenRmtListings"
+	AccountService_CancelRmtListings_FullMethodName        = "/db.v1.AccountService/CancelRmtListings"
+	AccountService_CloseRmtListings_FullMethodName         = "/db.v1.AccountService/CloseRmtListings"
+	AccountService_ReconcileRmtEscrow_FullMethodName       = "/db.v1.AccountService/ReconcileRmtEscrow"
+	AccountService_OpenRmtCharge_FullMethodName            = "/db.v1.AccountService/OpenRmtCharge"
+	AccountService_SaveCargoWithDeliveries_FullMethodName  = "/db.v1.AccountService/SaveCargoWithDeliveries"
+	AccountService_SetAccountBlocked_FullMethodName        = "/db.v1.AccountService/SetAccountBlocked"
+	AccountService_RecordDuelResult_FullMethodName         = "/db.v1.AccountService/RecordDuelResult"
+	AccountService_RecordTrade_FullMethodName              = "/db.v1.AccountService/RecordTrade"
+	AccountService_RecordReport_FullMethodName             = "/db.v1.AccountService/RecordReport"
+	AccountService_RecordGround_FullMethodName             = "/db.v1.AccountService/RecordGround"
+	AccountService_ReserveSerials_FullMethodName           = "/db.v1.AccountService/ReserveSerials"
+	AccountService_RecordChat_FullMethodName               = "/db.v1.AccountService/RecordChat"
+	AccountService_SetCharacterPresence_FullMethodName     = "/db.v1.AccountService/SetCharacterPresence"
+	AccountService_ClearAllPresence_FullMethodName         = "/db.v1.AccountService/ClearAllPresence"
+	AccountService_AddShopPoints_FullMethodName            = "/db.v1.AccountService/AddShopPoints"
+	AccountService_ShopPoints_FullMethodName               = "/db.v1.AccountService/ShopPoints"
+	AccountService_SpendShopPoints_FullMethodName          = "/db.v1.AccountService/SpendShopPoints"
+	AccountService_ClaimNewbieKit_FullMethodName           = "/db.v1.AccountService/ClaimNewbieKit"
+	AccountService_CreditDonate_FullMethodName             = "/db.v1.AccountService/CreditDonate"
+	AccountService_DonateBalance_FullMethodName            = "/db.v1.AccountService/DonateBalance"
+	AccountService_ListRcoinOffers_FullMethodName          = "/db.v1.AccountService/ListRcoinOffers"
+	AccountService_BuyRcoinOffer_FullMethodName            = "/db.v1.AccountService/BuyRcoinOffer"
+	AccountService_CreateGuild_FullMethodName              = "/db.v1.AccountService/CreateGuild"
+	AccountService_SetGuildMember_FullMethodName           = "/db.v1.AccountService/SetGuildMember"
+	AccountService_LeaveGuild_FullMethodName               = "/db.v1.AccountService/LeaveGuild"
+	AccountService_PromoteGuildMember_FullMethodName       = "/db.v1.AccountService/PromoteGuildMember"
+	AccountService_TransferGuildLeader_FullMethodName      = "/db.v1.AccountService/TransferGuildLeader"
+	AccountService_SetGuildRelation_FullMethodName         = "/db.v1.AccountService/SetGuildRelation"
+	AccountService_ListGuilds_FullMethodName               = "/db.v1.AccountService/ListGuilds"
+	AccountService_ListGuildRelations_FullMethodName       = "/db.v1.AccountService/ListGuildRelations"
+	AccountService_ListGuildMembers_FullMethodName         = "/db.v1.AccountService/ListGuildMembers"
+	AccountService_SaveGuildNotice_FullMethodName          = "/db.v1.AccountService/SaveGuildNotice"
+	AccountService_ListGuildSummaries_FullMethodName       = "/db.v1.AccountService/ListGuildSummaries"
+	AccountService_ListGuildSquads_FullMethodName          = "/db.v1.AccountService/ListGuildSquads"
+	AccountService_SetGuildSquad_FullMethodName            = "/db.v1.AccountService/SetGuildSquad"
+	AccountService_ListGuildBuffs_FullMethodName           = "/db.v1.AccountService/ListGuildBuffs"
+	AccountService_SaveGuildBuff_FullMethodName            = "/db.v1.AccountService/SaveGuildBuff"
+	AccountService_DeleteGuildBuff_FullMethodName          = "/db.v1.AccountService/DeleteGuildBuff"
+	AccountService_LoadGuildZones_FullMethodName           = "/db.v1.AccountService/LoadGuildZones"
+	AccountService_SaveGuildZone_FullMethodName            = "/db.v1.AccountService/SaveGuildZone"
+	AccountService_LoadGuildTowerState_FullMethodName      = "/db.v1.AccountService/LoadGuildTowerState"
+	AccountService_SaveGuildTowerState_FullMethodName      = "/db.v1.AccountService/SaveGuildTowerState"
+	AccountService_SaveGuildFame_FullMethodName            = "/db.v1.AccountService/SaveGuildFame"
+	AccountService_LoadCastleQuestState_FullMethodName     = "/db.v1.AccountService/LoadCastleQuestState"
+	AccountService_SaveCastleQuestState_FullMethodName     = "/db.v1.AccountService/SaveCastleQuestState"
 )
 
 // AccountServiceClient is the client API for AccountService service.
@@ -102,6 +110,27 @@ type AccountServiceClient interface {
 	LoadCharacter(ctx context.Context, in *LoadCharacterRequest, opts ...grpc.CallOption) (*LoadCharacterResponse, error)
 	// SaveCharacter persists one character's state (_MSG_DBSaveMob / SavingQuit).
 	SaveCharacter(ctx context.Context, in *SaveCharacterRequest, opts ...grpc.CallOption) (*SaveCharacterResponse, error)
+	// SalvarPersonagemComCarga grava o personagem E a carga da conta na MESMA
+	// transacao. Enquanto a conta tem personagem em jogo, e este o unico caminho de
+	// gravacao dos dois: o ouro e os itens andam entre a mochila e a carga, e duas
+	// transacoes separadas deixam uma janela em que uma queda faz a mesma coisa
+	// existir nos dois lados. Nao ha ordem segura entre duas transacoes; a cura e
+	// nao ter duas.
+	SalvarPersonagemComCarga(ctx context.Context, in *SalvarPersonagemComCargaRequest, opts ...grpc.CallOption) (*SaveCharacterResponse, error)
+	// NovaEpocaDePar entrega a esta execucao do tmServer o seu numero de epoca, para
+	// ordenar as gravacoes do par. Uma chamada por boot.
+	NovaEpocaDePar(ctx context.Context, in *NovaEpocaDeParRequest, opts ...grpc.CallOption) (*NovaEpocaDeParResponse, error)
+	// TomarPosseDaConta marca esta execucao como dona da conta, ou recusa porque
+	// outra execucao viva esta com ela. E o que impede a mesma conta de estar em jogo
+	// em dois tmServers, que hoje nada impede.
+	TomarPosseDaConta(ctx context.Context, in *TomarPosseDaContaRequest, opts ...grpc.CallOption) (*TomarPosseDaContaResponse, error)
+	// BaterPelasContas diz "ainda estou vivo" pelas contas desta execucao e devolve
+	// QUAIS continuam sendo dela. Quem nao volta deixou de ser meu.
+	BaterPelasContas(ctx context.Context, in *BaterPelasContasRequest, opts ...grpc.CallOption) (*BaterPelasContasResponse, error)
+	// SoltarPosseDaConta devolve a conta quando nao houve save de saida para levar a
+	// soltura junto: a conta que logou, ficou na selecao de personagem e desconectou.
+	// Sem ela, quem sai da selecao ficaria preso ate o prazo vencer.
+	SoltarPosseDaConta(ctx context.Context, in *SoltarPosseDaContaRequest, opts ...grpc.CallOption) (*SoltarPosseDaContaResponse, error)
 	QuoteKingdomCape(ctx context.Context, in *QuoteKingdomCapeRequest, opts ...grpc.CallOption) (*QuoteKingdomCapeResponse, error)
 	PurchaseKingdomCape(ctx context.Context, in *PurchaseKingdomCapeRequest, opts ...grpc.CallOption) (*PurchaseKingdomCapeResponse, error)
 	// TransferPlayerBalance moves Cash or RMT between two accounts in one
@@ -196,6 +225,29 @@ type AccountServiceClient interface {
 	// but the item leaves and never comes back to the owner. See
 	// ListSoldEscrowSlots.
 	ReconcileRmtEscrow(ctx context.Context, in *ReconcileRmtEscrowRequest, opts ...grpc.CallOption) (*ReconcileRmtEscrowResponse, error)
+	// OpenRmtCharge creates one buyer's payment attempt against a listing.
+	//
+	// It is called from the game, at the click on a real-money shelf, and it creates
+	// the row and NOTHING ELSE: no Pix code, no call to the payment processor. The
+	// code is born later, on the first read of the charge page on the site.
+	//
+	// WHY THE CODE IS NOT CREATED HERE, since this is the obvious place: a buyer who
+	// clicks and never opens the site would cost a paid call to the processor, and
+	// the game server would need the bridge's secret and client certificate — in the
+	// one process that must not stall on the network and that faces the internet on
+	// the game port. webServer's GetMyCurrentPixCharge creates it instead.
+	//
+	// THE EXTERNAL REFERENCE COMES IN READY, and it is ours. It is born before this
+	// call because it is the idempotency anchor: if the answer is lost on the way, it
+	// is by that reference that the confirmation finds the SAME row instead of
+	// creating another. Calling twice with the same reference answers ALREADY_OPEN
+	// and does not create a second charge.
+	//
+	// Every refusal rides in the response enum and NOT as an error, because each one
+	// is a different sentence to the player: the item was sold to somebody else, you
+	// cannot buy from yourself, you already have a payment open. A transport error
+	// could only produce "it did not work".
+	OpenRmtCharge(ctx context.Context, in *OpenRmtChargeRequest, opts ...grpc.CallOption) (*OpenRmtChargeResponse, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
 	// marks the drained mailbox rows delivered/lost in the SAME transaction — the
 	// anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -302,6 +354,19 @@ type AccountServiceClient interface {
 	// DonateBalance reads one account donate wallet, for the in-game /donate
 	// command.
 	DonateBalance(ctx context.Context, in *DonateBalanceRequest, opts ...grpc.CallOption) (*DonateBalanceResponse, error)
+	// Loja de Rcoin: the web shop's offers (donate_shop_item), sold INSIDE the
+	// game and paid with the same donate wallet. Same rows, same money, one less
+	// trip through the browser.
+	//
+	// ListRcoinOffers returns only ENABLED offers that carry a category. An offer
+	// without one is not a bug to hide: it is a row nobody classified, and showing
+	// it under a category it does not belong to is worse than leaving it on the
+	// site only.
+	ListRcoinOffers(ctx context.Context, in *ListRcoinOffersRequest, opts ...grpc.CallOption) (*ListRcoinOffersResponse, error)
+	// BuyRcoinOffer is BuyDonateItem with the price the player SAW. The panel can
+	// change a price between the page and the click, and charging the new one
+	// silently takes money the person did not agree to spend.
+	BuyRcoinOffer(ctx context.Context, in *BuyRcoinOfferRequest, opts ...grpc.CallOption) (*BuyRcoinOfferResponse, error)
 	// Guild lifecycle and war/city state (issue #114). These RPCs are modern
 	// tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
 	// GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -375,6 +440,56 @@ func (c *accountServiceClient) SaveCharacter(ctx context.Context, in *SaveCharac
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SaveCharacterResponse)
 	err := c.cc.Invoke(ctx, AccountService_SaveCharacter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) SalvarPersonagemComCarga(ctx context.Context, in *SalvarPersonagemComCargaRequest, opts ...grpc.CallOption) (*SaveCharacterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveCharacterResponse)
+	err := c.cc.Invoke(ctx, AccountService_SalvarPersonagemComCarga_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) NovaEpocaDePar(ctx context.Context, in *NovaEpocaDeParRequest, opts ...grpc.CallOption) (*NovaEpocaDeParResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(NovaEpocaDeParResponse)
+	err := c.cc.Invoke(ctx, AccountService_NovaEpocaDePar_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) TomarPosseDaConta(ctx context.Context, in *TomarPosseDaContaRequest, opts ...grpc.CallOption) (*TomarPosseDaContaResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TomarPosseDaContaResponse)
+	err := c.cc.Invoke(ctx, AccountService_TomarPosseDaConta_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) BaterPelasContas(ctx context.Context, in *BaterPelasContasRequest, opts ...grpc.CallOption) (*BaterPelasContasResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BaterPelasContasResponse)
+	err := c.cc.Invoke(ctx, AccountService_BaterPelasContas_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) SoltarPosseDaConta(ctx context.Context, in *SoltarPosseDaContaRequest, opts ...grpc.CallOption) (*SoltarPosseDaContaResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SoltarPosseDaContaResponse)
+	err := c.cc.Invoke(ctx, AccountService_SoltarPosseDaConta_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -541,6 +656,16 @@ func (c *accountServiceClient) ReconcileRmtEscrow(ctx context.Context, in *Recon
 	return out, nil
 }
 
+func (c *accountServiceClient) OpenRmtCharge(ctx context.Context, in *OpenRmtChargeRequest, opts ...grpc.CallOption) (*OpenRmtChargeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OpenRmtChargeResponse)
+	err := c.cc.Invoke(ctx, AccountService_OpenRmtCharge_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accountServiceClient) SaveCargoWithDeliveries(ctx context.Context, in *SaveCargoWithDeliveriesRequest, opts ...grpc.CallOption) (*SaveCargoResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SaveCargoResponse)
@@ -695,6 +820,26 @@ func (c *accountServiceClient) DonateBalance(ctx context.Context, in *DonateBala
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(DonateBalanceResponse)
 	err := c.cc.Invoke(ctx, AccountService_DonateBalance_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) ListRcoinOffers(ctx context.Context, in *ListRcoinOffersRequest, opts ...grpc.CallOption) (*ListRcoinOffersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRcoinOffersResponse)
+	err := c.cc.Invoke(ctx, AccountService_ListRcoinOffers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) BuyRcoinOffer(ctx context.Context, in *BuyRcoinOfferRequest, opts ...grpc.CallOption) (*BuyRcoinOfferResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BuyRcoinOfferResponse)
+	err := c.cc.Invoke(ctx, AccountService_BuyRcoinOffer_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -945,6 +1090,27 @@ type AccountServiceServer interface {
 	LoadCharacter(context.Context, *LoadCharacterRequest) (*LoadCharacterResponse, error)
 	// SaveCharacter persists one character's state (_MSG_DBSaveMob / SavingQuit).
 	SaveCharacter(context.Context, *SaveCharacterRequest) (*SaveCharacterResponse, error)
+	// SalvarPersonagemComCarga grava o personagem E a carga da conta na MESMA
+	// transacao. Enquanto a conta tem personagem em jogo, e este o unico caminho de
+	// gravacao dos dois: o ouro e os itens andam entre a mochila e a carga, e duas
+	// transacoes separadas deixam uma janela em que uma queda faz a mesma coisa
+	// existir nos dois lados. Nao ha ordem segura entre duas transacoes; a cura e
+	// nao ter duas.
+	SalvarPersonagemComCarga(context.Context, *SalvarPersonagemComCargaRequest) (*SaveCharacterResponse, error)
+	// NovaEpocaDePar entrega a esta execucao do tmServer o seu numero de epoca, para
+	// ordenar as gravacoes do par. Uma chamada por boot.
+	NovaEpocaDePar(context.Context, *NovaEpocaDeParRequest) (*NovaEpocaDeParResponse, error)
+	// TomarPosseDaConta marca esta execucao como dona da conta, ou recusa porque
+	// outra execucao viva esta com ela. E o que impede a mesma conta de estar em jogo
+	// em dois tmServers, que hoje nada impede.
+	TomarPosseDaConta(context.Context, *TomarPosseDaContaRequest) (*TomarPosseDaContaResponse, error)
+	// BaterPelasContas diz "ainda estou vivo" pelas contas desta execucao e devolve
+	// QUAIS continuam sendo dela. Quem nao volta deixou de ser meu.
+	BaterPelasContas(context.Context, *BaterPelasContasRequest) (*BaterPelasContasResponse, error)
+	// SoltarPosseDaConta devolve a conta quando nao houve save de saida para levar a
+	// soltura junto: a conta que logou, ficou na selecao de personagem e desconectou.
+	// Sem ela, quem sai da selecao ficaria preso ate o prazo vencer.
+	SoltarPosseDaConta(context.Context, *SoltarPosseDaContaRequest) (*SoltarPosseDaContaResponse, error)
 	QuoteKingdomCape(context.Context, *QuoteKingdomCapeRequest) (*QuoteKingdomCapeResponse, error)
 	PurchaseKingdomCape(context.Context, *PurchaseKingdomCapeRequest) (*PurchaseKingdomCapeResponse, error)
 	// TransferPlayerBalance moves Cash or RMT between two accounts in one
@@ -1039,6 +1205,29 @@ type AccountServiceServer interface {
 	// but the item leaves and never comes back to the owner. See
 	// ListSoldEscrowSlots.
 	ReconcileRmtEscrow(context.Context, *ReconcileRmtEscrowRequest) (*ReconcileRmtEscrowResponse, error)
+	// OpenRmtCharge creates one buyer's payment attempt against a listing.
+	//
+	// It is called from the game, at the click on a real-money shelf, and it creates
+	// the row and NOTHING ELSE: no Pix code, no call to the payment processor. The
+	// code is born later, on the first read of the charge page on the site.
+	//
+	// WHY THE CODE IS NOT CREATED HERE, since this is the obvious place: a buyer who
+	// clicks and never opens the site would cost a paid call to the processor, and
+	// the game server would need the bridge's secret and client certificate — in the
+	// one process that must not stall on the network and that faces the internet on
+	// the game port. webServer's GetMyCurrentPixCharge creates it instead.
+	//
+	// THE EXTERNAL REFERENCE COMES IN READY, and it is ours. It is born before this
+	// call because it is the idempotency anchor: if the answer is lost on the way, it
+	// is by that reference that the confirmation finds the SAME row instead of
+	// creating another. Calling twice with the same reference answers ALREADY_OPEN
+	// and does not create a second charge.
+	//
+	// Every refusal rides in the response enum and NOT as an error, because each one
+	// is a different sentence to the player: the item was sold to somebody else, you
+	// cannot buy from yourself, you already have a payment open. A transport error
+	// could only produce "it did not work".
+	OpenRmtCharge(context.Context, *OpenRmtChargeRequest) (*OpenRmtChargeResponse, error)
 	// SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
 	// marks the drained mailbox rows delivered/lost in the SAME transaction — the
 	// anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -1145,6 +1334,19 @@ type AccountServiceServer interface {
 	// DonateBalance reads one account donate wallet, for the in-game /donate
 	// command.
 	DonateBalance(context.Context, *DonateBalanceRequest) (*DonateBalanceResponse, error)
+	// Loja de Rcoin: the web shop's offers (donate_shop_item), sold INSIDE the
+	// game and paid with the same donate wallet. Same rows, same money, one less
+	// trip through the browser.
+	//
+	// ListRcoinOffers returns only ENABLED offers that carry a category. An offer
+	// without one is not a bug to hide: it is a row nobody classified, and showing
+	// it under a category it does not belong to is worse than leaving it on the
+	// site only.
+	ListRcoinOffers(context.Context, *ListRcoinOffersRequest) (*ListRcoinOffersResponse, error)
+	// BuyRcoinOffer is BuyDonateItem with the price the player SAW. The panel can
+	// change a price between the page and the click, and charging the new one
+	// silently takes money the person did not agree to spend.
+	BuyRcoinOffer(context.Context, *BuyRcoinOfferRequest) (*BuyRcoinOfferResponse, error)
 	// Guild lifecycle and war/city state (issue #114). These RPCs are modern
 	// tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
 	// GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -1196,6 +1398,21 @@ func (UnimplementedAccountServiceServer) LoadCharacter(context.Context, *LoadCha
 func (UnimplementedAccountServiceServer) SaveCharacter(context.Context, *SaveCharacterRequest) (*SaveCharacterResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SaveCharacter not implemented")
 }
+func (UnimplementedAccountServiceServer) SalvarPersonagemComCarga(context.Context, *SalvarPersonagemComCargaRequest) (*SaveCharacterResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SalvarPersonagemComCarga not implemented")
+}
+func (UnimplementedAccountServiceServer) NovaEpocaDePar(context.Context, *NovaEpocaDeParRequest) (*NovaEpocaDeParResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method NovaEpocaDePar not implemented")
+}
+func (UnimplementedAccountServiceServer) TomarPosseDaConta(context.Context, *TomarPosseDaContaRequest) (*TomarPosseDaContaResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method TomarPosseDaConta not implemented")
+}
+func (UnimplementedAccountServiceServer) BaterPelasContas(context.Context, *BaterPelasContasRequest) (*BaterPelasContasResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BaterPelasContas not implemented")
+}
+func (UnimplementedAccountServiceServer) SoltarPosseDaConta(context.Context, *SoltarPosseDaContaRequest) (*SoltarPosseDaContaResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SoltarPosseDaConta not implemented")
+}
 func (UnimplementedAccountServiceServer) QuoteKingdomCape(context.Context, *QuoteKingdomCapeRequest) (*QuoteKingdomCapeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method QuoteKingdomCape not implemented")
 }
@@ -1244,6 +1461,9 @@ func (UnimplementedAccountServiceServer) CloseRmtListings(context.Context, *Clos
 func (UnimplementedAccountServiceServer) ReconcileRmtEscrow(context.Context, *ReconcileRmtEscrowRequest) (*ReconcileRmtEscrowResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ReconcileRmtEscrow not implemented")
 }
+func (UnimplementedAccountServiceServer) OpenRmtCharge(context.Context, *OpenRmtChargeRequest) (*OpenRmtChargeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method OpenRmtCharge not implemented")
+}
 func (UnimplementedAccountServiceServer) SaveCargoWithDeliveries(context.Context, *SaveCargoWithDeliveriesRequest) (*SaveCargoResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SaveCargoWithDeliveries not implemented")
 }
@@ -1291,6 +1511,12 @@ func (UnimplementedAccountServiceServer) CreditDonate(context.Context, *CreditDo
 }
 func (UnimplementedAccountServiceServer) DonateBalance(context.Context, *DonateBalanceRequest) (*DonateBalanceResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method DonateBalance not implemented")
+}
+func (UnimplementedAccountServiceServer) ListRcoinOffers(context.Context, *ListRcoinOffersRequest) (*ListRcoinOffersResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRcoinOffers not implemented")
+}
+func (UnimplementedAccountServiceServer) BuyRcoinOffer(context.Context, *BuyRcoinOfferRequest) (*BuyRcoinOfferResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BuyRcoinOffer not implemented")
 }
 func (UnimplementedAccountServiceServer) CreateGuild(context.Context, *CreateGuildRequest) (*CreateGuildResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateGuild not implemented")
@@ -1450,6 +1676,96 @@ func _AccountService_SaveCharacter_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccountServiceServer).SaveCharacter(ctx, req.(*SaveCharacterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_SalvarPersonagemComCarga_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SalvarPersonagemComCargaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).SalvarPersonagemComCarga(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_SalvarPersonagemComCarga_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).SalvarPersonagemComCarga(ctx, req.(*SalvarPersonagemComCargaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_NovaEpocaDePar_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NovaEpocaDeParRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).NovaEpocaDePar(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_NovaEpocaDePar_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).NovaEpocaDePar(ctx, req.(*NovaEpocaDeParRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_TomarPosseDaConta_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TomarPosseDaContaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).TomarPosseDaConta(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_TomarPosseDaConta_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).TomarPosseDaConta(ctx, req.(*TomarPosseDaContaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_BaterPelasContas_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BaterPelasContasRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).BaterPelasContas(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_BaterPelasContas_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).BaterPelasContas(ctx, req.(*BaterPelasContasRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_SoltarPosseDaConta_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SoltarPosseDaContaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).SoltarPosseDaConta(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_SoltarPosseDaConta_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).SoltarPosseDaConta(ctx, req.(*SoltarPosseDaContaRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1742,6 +2058,24 @@ func _AccountService_ReconcileRmtEscrow_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_OpenRmtCharge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OpenRmtChargeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).OpenRmtCharge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_OpenRmtCharge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).OpenRmtCharge(ctx, req.(*OpenRmtChargeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_SaveCargoWithDeliveries_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SaveCargoWithDeliveriesRequest)
 	if err := dec(in); err != nil {
@@ -2026,6 +2360,42 @@ func _AccountService_DonateBalance_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccountServiceServer).DonateBalance(ctx, req.(*DonateBalanceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_ListRcoinOffers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRcoinOffersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).ListRcoinOffers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_ListRcoinOffers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).ListRcoinOffers(ctx, req.(*ListRcoinOffersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_BuyRcoinOffer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BuyRcoinOfferRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).BuyRcoinOffer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_BuyRcoinOffer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).BuyRcoinOffer(ctx, req.(*BuyRcoinOfferRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2468,6 +2838,26 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccountService_SaveCharacter_Handler,
 		},
 		{
+			MethodName: "SalvarPersonagemComCarga",
+			Handler:    _AccountService_SalvarPersonagemComCarga_Handler,
+		},
+		{
+			MethodName: "NovaEpocaDePar",
+			Handler:    _AccountService_NovaEpocaDePar_Handler,
+		},
+		{
+			MethodName: "TomarPosseDaConta",
+			Handler:    _AccountService_TomarPosseDaConta_Handler,
+		},
+		{
+			MethodName: "BaterPelasContas",
+			Handler:    _AccountService_BaterPelasContas_Handler,
+		},
+		{
+			MethodName: "SoltarPosseDaConta",
+			Handler:    _AccountService_SoltarPosseDaConta_Handler,
+		},
+		{
 			MethodName: "QuoteKingdomCape",
 			Handler:    _AccountService_QuoteKingdomCape_Handler,
 		},
@@ -2532,6 +2922,10 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AccountService_ReconcileRmtEscrow_Handler,
 		},
 		{
+			MethodName: "OpenRmtCharge",
+			Handler:    _AccountService_OpenRmtCharge_Handler,
+		},
+		{
 			MethodName: "SaveCargoWithDeliveries",
 			Handler:    _AccountService_SaveCargoWithDeliveries_Handler,
 		},
@@ -2594,6 +2988,14 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DonateBalance",
 			Handler:    _AccountService_DonateBalance_Handler,
+		},
+		{
+			MethodName: "ListRcoinOffers",
+			Handler:    _AccountService_ListRcoinOffers_Handler,
+		},
+		{
+			MethodName: "BuyRcoinOffer",
+			Handler:    _AccountService_BuyRcoinOffer_Handler,
 		},
 		{
 			MethodName: "CreateGuild",
@@ -4629,6 +5031,164 @@ var NpcGeneratorService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetGeneratorOff",
 			Handler:    _NpcGeneratorService_SetGeneratorOff_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "api/db/v1/db.proto",
+}
+
+const (
+	NpcRecipeService_GeneratorRecipeVersion_FullMethodName = "/db.v1.NpcRecipeService/GeneratorRecipeVersion"
+	NpcRecipeService_GetGeneratorRecipes_FullMethodName    = "/db.v1.NpcRecipeService/GetGeneratorRecipes"
+)
+
+// NpcRecipeServiceClient is the client API for NpcRecipeService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// NpcRecipeService serves the block recipes kept in the database
+// (0165_receita_de_bloco) to tmServer: a row replaces what NPCGener.txt says for
+// one block, and a block from 20000 up exists only there. POLLED like
+// NpcGeneratorService, so a zone edited in the panel lands without a restart.
+// Read-only here: the panel writes the table directly.
+type NpcRecipeServiceClient interface {
+	// GeneratorRecipeVersion returns the monotonic version. Asked every few seconds.
+	GeneratorRecipeVersion(ctx context.Context, in *GeneratorRecipeVersionRequest, opts ...grpc.CallOption) (*GeneratorRecipeVersionResponse, error)
+	// GetGeneratorRecipes returns every block with a recipe in the database. Blocks
+	// absent from the reply spawn as the file says.
+	GetGeneratorRecipes(ctx context.Context, in *GetGeneratorRecipesRequest, opts ...grpc.CallOption) (*GetGeneratorRecipesResponse, error)
+}
+
+type npcRecipeServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewNpcRecipeServiceClient(cc grpc.ClientConnInterface) NpcRecipeServiceClient {
+	return &npcRecipeServiceClient{cc}
+}
+
+func (c *npcRecipeServiceClient) GeneratorRecipeVersion(ctx context.Context, in *GeneratorRecipeVersionRequest, opts ...grpc.CallOption) (*GeneratorRecipeVersionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GeneratorRecipeVersionResponse)
+	err := c.cc.Invoke(ctx, NpcRecipeService_GeneratorRecipeVersion_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *npcRecipeServiceClient) GetGeneratorRecipes(ctx context.Context, in *GetGeneratorRecipesRequest, opts ...grpc.CallOption) (*GetGeneratorRecipesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGeneratorRecipesResponse)
+	err := c.cc.Invoke(ctx, NpcRecipeService_GetGeneratorRecipes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// NpcRecipeServiceServer is the server API for NpcRecipeService service.
+// All implementations must embed UnimplementedNpcRecipeServiceServer
+// for forward compatibility.
+//
+// NpcRecipeService serves the block recipes kept in the database
+// (0165_receita_de_bloco) to tmServer: a row replaces what NPCGener.txt says for
+// one block, and a block from 20000 up exists only there. POLLED like
+// NpcGeneratorService, so a zone edited in the panel lands without a restart.
+// Read-only here: the panel writes the table directly.
+type NpcRecipeServiceServer interface {
+	// GeneratorRecipeVersion returns the monotonic version. Asked every few seconds.
+	GeneratorRecipeVersion(context.Context, *GeneratorRecipeVersionRequest) (*GeneratorRecipeVersionResponse, error)
+	// GetGeneratorRecipes returns every block with a recipe in the database. Blocks
+	// absent from the reply spawn as the file says.
+	GetGeneratorRecipes(context.Context, *GetGeneratorRecipesRequest) (*GetGeneratorRecipesResponse, error)
+	mustEmbedUnimplementedNpcRecipeServiceServer()
+}
+
+// UnimplementedNpcRecipeServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedNpcRecipeServiceServer struct{}
+
+func (UnimplementedNpcRecipeServiceServer) GeneratorRecipeVersion(context.Context, *GeneratorRecipeVersionRequest) (*GeneratorRecipeVersionResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GeneratorRecipeVersion not implemented")
+}
+func (UnimplementedNpcRecipeServiceServer) GetGeneratorRecipes(context.Context, *GetGeneratorRecipesRequest) (*GetGeneratorRecipesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGeneratorRecipes not implemented")
+}
+func (UnimplementedNpcRecipeServiceServer) mustEmbedUnimplementedNpcRecipeServiceServer() {}
+func (UnimplementedNpcRecipeServiceServer) testEmbeddedByValue()                          {}
+
+// UnsafeNpcRecipeServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to NpcRecipeServiceServer will
+// result in compilation errors.
+type UnsafeNpcRecipeServiceServer interface {
+	mustEmbedUnimplementedNpcRecipeServiceServer()
+}
+
+func RegisterNpcRecipeServiceServer(s grpc.ServiceRegistrar, srv NpcRecipeServiceServer) {
+	// If the following call panics, it indicates UnimplementedNpcRecipeServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&NpcRecipeService_ServiceDesc, srv)
+}
+
+func _NpcRecipeService_GeneratorRecipeVersion_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GeneratorRecipeVersionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NpcRecipeServiceServer).GeneratorRecipeVersion(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NpcRecipeService_GeneratorRecipeVersion_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NpcRecipeServiceServer).GeneratorRecipeVersion(ctx, req.(*GeneratorRecipeVersionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NpcRecipeService_GetGeneratorRecipes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGeneratorRecipesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NpcRecipeServiceServer).GetGeneratorRecipes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NpcRecipeService_GetGeneratorRecipes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NpcRecipeServiceServer).GetGeneratorRecipes(ctx, req.(*GetGeneratorRecipesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// NpcRecipeService_ServiceDesc is the grpc.ServiceDesc for NpcRecipeService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var NpcRecipeService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "db.v1.NpcRecipeService",
+	HandlerType: (*NpcRecipeServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GeneratorRecipeVersion",
+			Handler:    _NpcRecipeService_GeneratorRecipeVersion_Handler,
+		},
+		{
+			MethodName: "GetGeneratorRecipes",
+			Handler:    _NpcRecipeService_GetGeneratorRecipes_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

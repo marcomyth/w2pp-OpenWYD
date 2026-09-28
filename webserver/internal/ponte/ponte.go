@@ -229,12 +229,40 @@ type RespostaConsulta struct {
 	Status        string `json:"status"`
 	ValorCentavos int64  `json:"valorCentavos"`
 	Referencia    string `json:"referencia"`
+	// Descricao e o texto CRU que a processadora guardou, sem ninguem interpretar.
+	//
+	// O campo burro existe porque a `Referencia` acima e interpretada: a ponte so a
+	// preenche quando o texto tem a marca do mercado. A doacao escreve a referencia
+	// dela noutro formato, e quem sabe ler cada formato e quem o escreveu — nao a
+	// ponte, que teria de aprender todos e virar o lugar que alguem esquece de mexer.
+	//
+	// VAZIO SIGNIFICA "NAO SEI", E NUNCA "NAO TEM". A ponte em producao so passa a
+	// mandar este campo no proximo git pull da VPS; ate la ele chega ausente em toda
+	// resposta. Quem confere pagamento com ele tem de recusar o vazio, e nao tratar a
+	// ausencia como prova de nada.
+	Descricao string `json:"descricao"`
 	// PagoEm e DevolvidoEm são ponteiros porque NULO e "zero" são coisas
 	// diferentes: nulo quer dizer "a processadora não disse", e é isso que faz o
 	// servidor cair para o próprio relógio. Um time.Time zero diria "1 de janeiro
 	// do ano 1", que compararia como muito antigo e entregaria tudo.
 	PagoEm      *horaOpcional `json:"pagoEm"`
 	DevolvidoEm *horaOpcional `json:"devolvidoEm"`
+	// TaxaCentavos é o que a processadora RETEVE do que entrou, em centavos.
+	//
+	// PONTEIRO, E O NULO NÃO É ZERO. É a regra inteira deste campo: nulo quer dizer
+	// "a ponte não sabe a taxa" — a fonte V1 não traz, o campo veio vazio ou
+	// ilegível, ou a ponte ainda não foi atualizada. Zero quer dizer "a taxa foi
+	// zero", que é uma afirmação.
+	//
+	// Tratar nulo como zero seria o pior erro possível aqui: o repasse ao vendedor
+	// nasceria com o valor CHEIO, a casa bancaria a taxa em silêncio, e ninguém
+	// descobriria — porque um repasse de valor cheio parece certo. Por isso o nulo
+	// SEGURA o repasse em vez de deixá-lo passar.
+	//
+	// E o nome é NOSSO, não da SyncPay: a ponte é o nosso serviço e ela traduz. O
+	// nome que a processadora usa para a taxa ainda não foi medido, e é a ponte que
+	// resolve isso — este lado só precisa de um alvo fixo.
+	TaxaCentavos *int64 `json:"taxaCentavos"`
 }
 
 type pedidoReembolso struct {
@@ -285,6 +313,20 @@ func (c *Cliente) PedirReembolso(ctx context.Context, identifier, referencia,
 	}, &r)
 	return r, err
 }
+
+// A ROTA /repasse FOI APAGADA DAQUI, e não desligada.
+//
+// Ela mandava o dinheiro da venda para a chave Pix do vendedor, e era chamada por uma
+// varredura de dois em dois minutos. Quem paga o vendedor agora é a staff, à mão, pela
+// fila do painel (decisão da Hanna, 25/09/2026), então o cliente, o serviço que o usava
+// e os tipos da resposta saíram juntos.
+//
+// POR QUE APAGAR EM VEZ DE GUARDAR: código que move dinheiro e não tem chamador é uma
+// arma carregada em cima da mesa — basta alguém achar que "está aqui, então é para
+// usar". O histórico do git guarda a rota inteira, com os quatro estados dela (aceito,
+// repetido, recusado, incerto) e o cuidado do incerto, para quem um dia precisar dela
+// de volta. A ponte na VPS continua respondendo /repasse, com o SAQUE_LIBERADO
+// desligado.
 
 // chama monta, assina e envia.
 //

@@ -21,6 +21,27 @@ service AccountService {
   rpc LoadCharacter(LoadCharacterRequest) returns (LoadCharacterResponse);
   // SaveCharacter persists one character's state (_MSG_DBSaveMob / SavingQuit).
   rpc SaveCharacter(SaveCharacterRequest) returns (SaveCharacterResponse);
+  // SalvarPersonagemComCarga grava o personagem E a carga da conta na MESMA
+  // transacao. Enquanto a conta tem personagem em jogo, e este o unico caminho de
+  // gravacao dos dois: o ouro e os itens andam entre a mochila e a carga, e duas
+  // transacoes separadas deixam uma janela em que uma queda faz a mesma coisa
+  // existir nos dois lados. Nao ha ordem segura entre duas transacoes; a cura e
+  // nao ter duas.
+  rpc SalvarPersonagemComCarga(SalvarPersonagemComCargaRequest) returns (SaveCharacterResponse);
+  // NovaEpocaDePar entrega a esta execucao do tmServer o seu numero de epoca, para
+  // ordenar as gravacoes do par. Uma chamada por boot.
+  rpc NovaEpocaDePar(NovaEpocaDeParRequest) returns (NovaEpocaDeParResponse);
+  // TomarPosseDaConta marca esta execucao como dona da conta, ou recusa porque
+  // outra execucao viva esta com ela. E o que impede a mesma conta de estar em jogo
+  // em dois tmServers, que hoje nada impede.
+  rpc TomarPosseDaConta(TomarPosseDaContaRequest) returns (TomarPosseDaContaResponse);
+  // BaterPelasContas diz "ainda estou vivo" pelas contas desta execucao e devolve
+  // QUAIS continuam sendo dela. Quem nao volta deixou de ser meu.
+  rpc BaterPelasContas(BaterPelasContasRequest) returns (BaterPelasContasResponse);
+  // SoltarPosseDaConta devolve a conta quando nao houve save de saida para levar a
+  // soltura junto: a conta que logou, ficou na selecao de personagem e desconectou.
+  // Sem ela, quem sai da selecao ficaria preso ate o prazo vencer.
+  rpc SoltarPosseDaConta(SoltarPosseDaContaRequest) returns (SoltarPosseDaContaResponse);
   rpc QuoteKingdomCape(QuoteKingdomCapeRequest) returns (QuoteKingdomCapeResponse);
   rpc PurchaseKingdomCape(PurchaseKingdomCapeRequest) returns (PurchaseKingdomCapeResponse);
   // TransferPlayerBalance moves Cash or RMT between two accounts in one
@@ -115,6 +136,29 @@ service AccountService {
   // but the item leaves and never comes back to the owner. See
   // ListSoldEscrowSlots.
   rpc ReconcileRmtEscrow(ReconcileRmtEscrowRequest) returns (ReconcileRmtEscrowResponse);
+  // OpenRmtCharge creates one buyer's payment attempt against a listing.
+  //
+  // It is called from the game, at the click on a real-money shelf, and it creates
+  // the row and NOTHING ELSE: no Pix code, no call to the payment processor. The
+  // code is born later, on the first read of the charge page on the site.
+  //
+  // WHY THE CODE IS NOT CREATED HERE, since this is the obvious place: a buyer who
+  // clicks and never opens the site would cost a paid call to the processor, and
+  // the game server would need the bridge's secret and client certificate — in the
+  // one process that must not stall on the network and that faces the internet on
+  // the game port. webServer's GetMyCurrentPixCharge creates it instead.
+  //
+  // THE EXTERNAL REFERENCE COMES IN READY, and it is ours. It is born before this
+  // call because it is the idempotency anchor: if the answer is lost on the way, it
+  // is by that reference that the confirmation finds the SAME row instead of
+  // creating another. Calling twice with the same reference answers ALREADY_OPEN
+  // and does not create a second charge.
+  //
+  // Every refusal rides in the response enum and NOT as an error, because each one
+  // is a different sentence to the player: the item was sold to somebody else, you
+  // cannot buy from yourself, you already have a payment open. A transport error
+  // could only produce "it did not work".
+  rpc OpenRmtCharge(OpenRmtChargeRequest) returns (OpenRmtChargeResponse);
   // SaveCargoWithDeliveries persists the cargo (replace-all, like SaveCargo) and
   // marks the drained mailbox rows delivered/lost in the SAME transaction — the
   // anti-dup boundary for the drain (web-platform-plan.md §mailbox).
@@ -231,6 +275,20 @@ service AccountService {
   // command.
   rpc DonateBalance(DonateBalanceRequest) returns (DonateBalanceResponse);
 
+  // Loja de Rcoin: the web shop's offers (donate_shop_item), sold INSIDE the
+  // game and paid with the same donate wallet. Same rows, same money, one less
+  // trip through the browser.
+  //
+  // ListRcoinOffers returns only ENABLED offers that carry a category. An offer
+  // without one is not a bug to hide: it is a row nobody classified, and showing
+  // it under a category it does not belong to is worse than leaving it on the
+  // site only.
+  rpc ListRcoinOffers(ListRcoinOffersRequest) returns (ListRcoinOffersResponse);
+  // BuyRcoinOffer is BuyDonateItem with the price the player SAW. The panel can
+  // change a price between the page and the click, and charging the new one
+  // silently takes money the person did not agree to spend.
+  rpc BuyRcoinOffer(BuyRcoinOfferRequest) returns (BuyRcoinOfferResponse);
+
   // Guild lifecycle and war/city state (issue #114). These RPCs are modern
   // tmServer↔dbServer calls replacing the legacy DBSrv CPSock relays for
   // GuildInfo, GuildAlly, War, Guilds.txt, Chall_*, and Guild_* files.
@@ -291,6 +349,12 @@ message AccountLoginResponse {
   // achava que tinha comprado de graça quando na verdade tinha saldo.
   int32 cash = 4;
   int32 rmt = 5;
+  // O nível do passe de batalha da CONTA (0..4), pelo mesmo motivo das carteiras: o
+  // tmServer não fala com o banco e precisa do número para pôr a moldura no pacote
+  // que desenha o jogador.
+  //
+  // Zero é "sem passe", e é o que toda conta tem até alguém dar.
+  int32 passe_nivel = 6;
 }
 
 message ListCharactersRequest { int64 account_id = 1; }
@@ -421,6 +485,10 @@ message Character {
   // marca tem de sobreviver ao relog — é o que distingue esta quest do teleporte
   // do mesmo NPC, que não guarda estado nenhum.
   int32 mortal_molar = 56;
+  // Até onde o personagem recebeu as peças de nível que o jogo deixou de
+  // entregar (0172): 0 nada, 1-399 até aquele nível, 1000 concluído. A entrega
+  // é no login, e a marca tem de sobreviver ao relog para não repetir.
+  int32 nivel_retroativo = 57;
 }
 
 message Item {
@@ -458,8 +526,62 @@ message LoadCharacterResponse { Character character = 1; }
 message SaveCharacterRequest {
   int64 account_id = 1;
   Character character = 2;
+  // A mesma dupla de ordem do par, e pelo mesmo motivo: um save velho so do
+  // personagem passa por cima do par novo do mesmo jeito. As duas formas de gravar
+  // conferem as MESMAS colunas da conta, entao compartilham uma ordem so.
+  int64 par_epoca = 3;
+  int64 par_seq = 4;
+  bool soltar_posse = 5; // ver SalvarPersonagemComCargaRequest
 }
 message SaveCharacterResponse { bool ok = 1; }
+
+message TomarPosseDaContaRequest {
+  int64 account_id = 1;
+  int64 epoca = 2;
+}
+// em_uso e true quando outra execucao viva esta com a conta.
+message TomarPosseDaContaResponse {
+  bool ok = 1;
+  bool em_uso = 2;
+}
+
+message SoltarPosseDaContaRequest {
+  int64 account_id = 1;
+  int64 epoca = 2;
+}
+message SoltarPosseDaContaResponse {}
+
+message BaterPelasContasRequest {
+  int64 epoca = 1;
+  repeated int64 account_ids = 2;
+}
+// ainda_minhas sao as contas que continuam desta execucao. Uma conta que saiu da
+// lista tem de ser largada por quem chamou.
+message BaterPelasContasResponse { repeated int64 ainda_minhas = 1; }
+
+message NovaEpocaDeParRequest {}
+message NovaEpocaDeParResponse { int64 epoca = 1; }
+
+message SalvarPersonagemComCargaRequest {
+  int64 account_id = 1;
+  Character character = 2;
+  int32 cargo_coin = 3;
+  repeated Item cargo_items = 4;
+  repeated int64 delivered_ids = 5; // entregas aplicadas nesta carga
+  repeated int64 lost_ids = 6;      // entregas descartadas (a carga estava cheia)
+  // par_epoca e par_seq ordenam este par. O banco recusa gravar um par com
+  // (epoca, numero) menor que o ultimo gravado da conta: as gravacoes saem em
+  // goroutines independentes e podem chegar fora de ordem, e a velha apagaria a
+  // nova. A epoca vem de uma sequencia do BANCO, pegada no boot do tmServer, e nao
+  // do relogio: um contador que zera no reinicio ficaria abaixo do que o banco
+  // guardou e travaria tudo, calado. Epoca zero desliga a guarda.
+  int64 par_epoca = 7;
+  int64 par_seq = 8;
+  // soltar_posse diz que este e o save de SAIDA: a posse da conta sai na mesma
+  // transacao em que o personagem e a carga entram. Save que falha mantem a posse,
+  // que e o certo — conta cujo ultimo save nao caiu e a que ninguem deve carregar.
+  bool soltar_posse = 9;
+}
 
 message QuoteKingdomCapeRequest {}
 message QuoteKingdomCapeResponse {
@@ -651,6 +773,60 @@ message ClosedRmtListing {
 }
 
 message CloseRmtListingsResponse { repeated ClosedRmtListing closed = 1; }
+
+// OpenRmtChargeResult is what the attempt produced. Business outcomes ride here,
+// not as gRPC error codes: each one is a different sentence to the player.
+enum OpenRmtChargeResult {
+  OPEN_RMT_CHARGE_RESULT_UNSPECIFIED = 0;
+  // OK: the charge was born and the buyer can pay.
+  OPEN_RMT_CHARGE_RESULT_OK = 1;
+  // ALREADY_OPEN: the same external reference already had a row. This is the
+  // idempotency working, and it is the ordinary path of a repeated request — the
+  // network stuttered, the client retried. The charge in the response is the one
+  // that already existed.
+  OPEN_RMT_CHARGE_RESULT_ALREADY_OPEN = 2;
+  // LISTING_GONE: the listing is no longer active. Sold to somebody else, or the
+  // seller took the stall down between the click and the answer.
+  OPEN_RMT_CHARGE_RESULT_LISTING_GONE = 3;
+  // LISTING_TAKEN: another buyer already has an open charge against this listing.
+  // It is the invariant that stops two buyers from paying for one item and both
+  // being right; it lives in a unique index, not in code.
+  OPEN_RMT_CHARGE_RESULT_LISTING_TAKEN = 4;
+  // SELF_PURCHASE: buying from yourself. There is no gain in the item — it returns
+  // to the same warehouse — and the cost is the CALL, which the processor charges
+  // for. It is a cheap way to dirty the queue for free.
+  OPEN_RMT_CHARGE_RESULT_SELF_PURCHASE = 5;
+  // ITEM_NOT_LOCKED: the listing is active but the escrow mark does not point at
+  // it. The two disagree, and disagreement on a money row is settled by NOT
+  // charging.
+  OPEN_RMT_CHARGE_RESULT_ITEM_NOT_LOCKED = 6;
+  // BUYER_BUSY: this account already has an open charge, for another item. It is
+  // what stops one account from clicking every shelf in the market and holding the
+  // whole stock hostage for five minutes, free and repeatedly — and it keeps the
+  // site page honest, since that page shows ONE charge.
+  OPEN_RMT_CHARGE_RESULT_BUYER_BUSY = 7;
+}
+
+message OpenRmtChargeRequest {
+  int64 listing_id = 1;
+  int64 buyer_account_id = 2;
+  // OURS, and born before this call. See the note on the rpc.
+  string external_reference = 3;
+  // How long the buyer has to pay, in seconds. It travels on the wire rather than
+  // living only in the database service because the same number has to rule the
+  // game's message and the expiry sweep, and a value that lived on one side would
+  // drift from the other with nobody noticing. Zero uses the server default.
+  int64 window_seconds = 4;
+}
+
+message OpenRmtChargeResponse {
+  OpenRmtChargeResult result = 1;
+  // Set only when result is OK or ALREADY_OPEN.
+  int64 charge_id = 2;
+  int64 amount_cents = 3;
+  // Unix seconds. After this the charge expires and the item is released.
+  int64 expires_at = 4;
+}
 
 message ReconcileRmtEscrowRequest  { int64 account_id = 1; }
 message ReconcileRmtEscrowResponse { repeated int32 cargo_slots = 1; }
@@ -875,6 +1051,34 @@ message CreateGuildRequest {
 message CreateGuildResponse {
   bool ok = 1;
   Guild guild = 2;
+  // POR QUE NAO DEU, quando ok e falso.
+  //
+  // Ate 25/09/2026 as quatro recusas viravam um `ok: false` sem motivo, e o jogo
+  // dizia a mesma frase para todas: "confira se o nome ja nao existe". Para tres
+  // delas isso era MENTIRA -- e foi essa mentira que escondeu um defeito de ouro
+  // por horas, porque a pessoa ficou procurando nome repetido.
+  //
+  // Este proto e INTERNO (tmserver <-> dbserver). Nao passa pelo handshake do
+  // site, que consome api/web/v1.
+  CreateGuildRefusal refusal = 3;
+}
+
+// CreateGuildRefusal diz qual das recusas aconteceu.
+enum CreateGuildRefusal {
+  // UNSPECIFIED: sem motivo informado. E o que uma versao antiga do dbserver
+  // manda, entao quem le trata como "motivo desconhecido" e cai na frase geral --
+  // nunca como "deu certo".
+  CREATE_GUILD_REFUSAL_UNSPECIFIED = 0;
+  // NAME_TAKEN: ja existe guilda com esse nome (violacao do indice unico).
+  CREATE_GUILD_REFUSAL_NAME_TAKEN = 1;
+  // NOT_ENOUGH_COIN: o personagem nao tem o ouro no BANCO.
+  CREATE_GUILD_REFUSAL_NOT_ENOUGH_COIN = 2;
+  // ALREADY_IN_GUILD: o personagem ja esta numa guilda.
+  CREATE_GUILD_REFUSAL_ALREADY_IN_GUILD = 3;
+  // NO_FREE_SLOT: acabaram os ids de guilda deste servidor.
+  CREATE_GUILD_REFUSAL_NO_FREE_SLOT = 4;
+  // CHARACTER_GONE: o personagem nao existe mais no banco.
+  CREATE_GUILD_REFUSAL_CHARACTER_GONE = 5;
 }
 
 message SetGuildMemberRequest {
@@ -1767,6 +1971,49 @@ message SetGeneratorOffRequest {
   string by = 3;
 }
 message SetGeneratorOffResponse {}
+
+// NpcRecipeService serves the block recipes kept in the database
+// (0165_receita_de_bloco) to tmServer: a row replaces what NPCGener.txt says for
+// one block, and a block from 20000 up exists only there. POLLED like
+// NpcGeneratorService, so a zone edited in the panel lands without a restart.
+// Read-only here: the panel writes the table directly.
+service NpcRecipeService {
+  // GeneratorRecipeVersion returns the monotonic version. Asked every few seconds.
+  rpc GeneratorRecipeVersion(GeneratorRecipeVersionRequest) returns (GeneratorRecipeVersionResponse);
+  // GetGeneratorRecipes returns every block with a recipe in the database. Blocks
+  // absent from the reply spawn as the file says.
+  rpc GetGeneratorRecipes(GetGeneratorRecipesRequest) returns (GetGeneratorRecipesResponse);
+}
+
+message GeneratorRecipeVersionRequest {}
+message GeneratorRecipeVersionResponse { int64 version = 1; }
+
+message GetGeneratorRecipesRequest {}
+message GetGeneratorRecipesResponse {
+  int64 version = 1;
+  repeated GeneratorRecipe recipes = 2;
+}
+
+// GeneratorRecipe is one block's whole spawn recipe. The seg_* lists hold the
+// five legacy waypoints in order: Start, Segment1..3, Dest.
+message GeneratorRecipe {
+  int32 index = 1;
+  string leader = 2;
+  // Empty = leader-only groups.
+  string follower = 3;
+  int32 minute_generate = 4;
+  int32 min_group = 5;
+  int32 max_group = 6;
+  int32 max_num_mob = 7;
+  int32 route_type = 8;
+  int32 formation = 9;
+  repeated int32 seg_x = 10;
+  repeated int32 seg_y = 11;
+  repeated int32 seg_range = 12;
+  repeated int32 seg_wait = 13;
+  // Moves when the panel asks to replace the block's live mobs now.
+  int64 renovar = 14;
+}
 // DropRuleService serves the Mesa de Drops (internal/droprule) to tmServer: the
 // exact chance, set in the panel, for one item to fall from one monster. A rule
 // for (monster, item) replaces what the monster's template does with that item;
@@ -1813,3 +2060,71 @@ message CreditDonateResponse { int32 balance = 1; }
 
 message DonateBalanceRequest { int64 account_id = 1; }
 message DonateBalanceResponse { int32 balance = 1; }
+
+// Loja de Rcoin (protocol/lojarcoin.go, 0x0F0C-0x0F0F).
+
+// RcoinOffer is one donate_shop_item row as the game shows it.
+message RcoinOffer {
+  int64 id = 1;
+  int32 item_index = 2;
+  // The three effect pairs of STRUCT_ITEM, in order, in the form the purchase
+  // DELIVERS them: the quantity (EF_AMOUNT) and the un-started lifetime
+  // (EF_WDAY) already stamped, so the window draws the item the player gets.
+  // A pair is (effect, value); zero means no effect.
+  int32 eff1 = 3;
+  int32 effv1 = 4;
+  int32 eff2 = 5;
+  int32 effv2 = 6;
+  int32 eff3 = 7;
+  int32 effv3 = 8;
+  int32 price = 9;
+  // expires_days is the offer's lifetime in days, 0 for an item that never
+  // expires. It is the same number the EF_WDAY above carries when the purchase
+  // stamps it, and it counts from the first equip, not from the purchase.
+  int32 expires_days = 10;
+  string title = 11;
+  // category 1..6. The server never returns an offer without one.
+  int32 category = 12;
+}
+
+message ListRcoinOffersRequest {
+  // category 0 means every category. Anything outside 0..6 returns nothing,
+  // rather than an error: the client panel knows how to draw "nothing here" and
+  // does not know how to draw a failure.
+  int32 category = 1;
+  // account_id is the buyer, whose balance comes back with the page.
+  int64 account_id = 2;
+}
+message ListRcoinOffersResponse {
+  repeated RcoinOffer offers = 1;
+  // balance is the buyer's donate wallet, read in the same call. It travels here
+  // so the page and the number on it come from one round trip and cannot
+  // disagree.
+  int32 balance = 2;
+}
+
+// RcoinBuyResult mirrors the wire codes of 0x0F0F. The numbers are part of the
+// contract with the client and are not reordered.
+enum RcoinBuyResult {
+  RCOIN_BUY_OK = 0;
+  RCOIN_BUY_NO_FUNDS = 1;
+  RCOIN_BUY_UNAVAILABLE = 2;
+  RCOIN_BUY_PRICE_CHANGED = 3;
+}
+
+message BuyRcoinOfferRequest {
+  int64 account_id = 1;
+  int64 offer_id = 2;
+  // seen_price is what the panel showed. A mismatch refuses the purchase in the
+  // same transaction that read the row, so nothing is charged.
+  int32 seen_price = 3;
+}
+message BuyRcoinOfferResponse {
+  RcoinBuyResult result = 1;
+  // balance after the purchase, or the current one on a refusal — a refusal for
+  // want of funds is exactly when the player needs to see the number.
+  int32 balance = 2;
+  // delivery_id is the delivery_queue row the purchase created, so the caller
+  // can hand the item over at once instead of waiting for the next login.
+  int64 delivery_id = 3;
+}

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"path/filepath"
 	"testing"
 	"time"
@@ -10,28 +11,38 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
-// TestEvocacaoDoMesmoGrupo: protegida é só a evocação do grupo do atacante — a
-// dele e a do companheiro. O pet de um estranho e o monstro comum continuam
-// alvos.
+// TestEvocacaoDoMesmoGrupo: protegida é a evocação do lado do atacante — a dele,
+// a do companheiro de grupo e a de quem é da mesma guilda. O pet de um estranho
+// e o monstro comum continuam alvos. O pet leva o próprio dono como Leader (o
+// bando fica fora do grupo), então o grupo tem de vir do dono.
 func TestEvocacaoDoMesmoGrupo(t *testing.T) {
+	w := world.New(world.Config{GridDim: 16}, slog.New(slog.DiscardHandler), nil, nil)
 	bm := &world.Entity{ID: 7}
 	companheiro := &world.Entity{ID: 8, Leader: 7}
 	estranho := &world.Entity{ID: 9}
+	guildado := &world.Entity{ID: 10, Guild: 5}
+	bmGuildado := &world.Entity{ID: 11, Guild: 5}
+	petDe := func(dono *world.Entity) *world.Entity {
+		return &world.Entity{ID: world.MaxUser + dono.ID, Summoner: dono.ID, Leader: dono.ID}
+	}
 	casos := []struct {
 		nome      string
 		atacante  *world.Entity
 		alvo      *world.Entity
+		dono      *world.Entity
 		protegido bool
 	}{
-		{"pet do próprio BM", bm, &world.Entity{ID: world.MaxUser + 1, Summoner: 7, Leader: 7}, true},
-		{"BM acerta o pet do companheiro", bm, &world.Entity{ID: world.MaxUser + 2, Summoner: 8, Leader: 7}, true},
-		{"companheiro acerta o pet do BM", companheiro, &world.Entity{ID: world.MaxUser + 1, Summoner: 7, Leader: 7}, true},
-		{"estranho acerta o pet do BM", estranho, &world.Entity{ID: world.MaxUser + 1, Summoner: 7, Leader: 7}, false},
-		{"monstro comum", bm, &world.Entity{ID: world.MaxUser + 3}, false},
-		{"jogador do grupo não é evocação", bm, companheiro, false},
+		{"pet do próprio BM", bm, petDe(bm), bm, true},
+		{"BM acerta o pet do companheiro", bm, petDe(companheiro), companheiro, true},
+		{"companheiro acerta o pet do BM", companheiro, petDe(bm), bm, true},
+		{"estranho acerta o pet do BM", estranho, petDe(bm), bm, false},
+		{"guildado acerta o pet do BM da guilda", guildado, petDe(bmGuildado), bmGuildado, true},
+		{"estranho acerta o pet do BM guildado", estranho, petDe(bmGuildado), bmGuildado, false},
+		{"monstro comum", bm, &world.Entity{ID: world.MaxUser + 3}, nil, false},
+		{"jogador do grupo não é evocação", bm, companheiro, nil, false},
 	}
 	for _, c := range casos {
-		if got := evocacaoDoMesmoGrupo(c.atacante, c.alvo); got != c.protegido {
+		if got := evocacaoDoMesmoGrupo(w, c.atacante, c.alvo, c.dono); got != c.protegido {
 			t.Errorf("%s: evocacaoDoMesmoGrupo = %v, esperado %v", c.nome, got, c.protegido)
 		}
 	}

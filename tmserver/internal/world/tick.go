@@ -30,6 +30,11 @@ func (tickEvent) apply(w *World) {
 	// Before the game hook, and unconditionally: the chat buffer has to drain on
 	// a quiet server too, and a world with no tick handler still logs chat.
 	w.chatTick(time.Now())
+	// A posse, pela mesma razão de estar aqui e não no gancho do jogo: ela tem de
+	// bater num servidor parado também.
+	w.posseTick(time.Now())
+	// O save periódico também: é ele que limita o que uma queda leva.
+	w.savePeriodicoTick(time.Now())
 	if w.onTick != nil {
 		w.onTick(w)
 	}
@@ -120,6 +125,9 @@ func (w *World) FindEnemyFromView(x, y int16, clan uint8) int {
 			}
 			if int(id) < MaxUser && e.Rsv&RsvHide != 0 {
 				continue // hidden players don't draw aggro (CMob.cpp:1342 Rsv & 0x10)
+			}
+			if e.GMInvisible {
+				continue // an invisible GM is out of aggro, as "+snoop" was (CMob.cpp:340)
 			}
 			if clan >= 9 || e.Clan >= 9 {
 				// A handful of real event/arena templates ship Clan 9 (Aberest, Pikeman,

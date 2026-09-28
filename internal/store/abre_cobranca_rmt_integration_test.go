@@ -17,7 +17,7 @@ func anuncioPronto(ctx context.Context, t *testing.T, s *Store, nome string) (ve
 	t.Helper()
 	vendedor = contaPix(ctx, t, s, "vendedor_"+nome)
 	comprador = contaPix(ctx, t, s, "comprador_"+nome)
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio = anuncioAtivoSimples(ctx, t, s, vendedor, 0)
@@ -220,7 +220,7 @@ func TestUmaCobrancaAbertaPorComprador(t *testing.T) {
 	primeiro := contaPix(ctx, t, s, "vendedor_um")
 	segundo := contaPix(ctx, t, s, "vendedor_dois")
 	for _, v := range []int64{primeiro, segundo} {
-		if err := s.SalvarChavePix(ctx, v, "11111111111", ChavePixCPF); err != nil {
+		if err := s.SalvarChavePix(ctx, v, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -321,7 +321,7 @@ func TestCompradorQueSaiuMasPagouNoPrazoRecebe(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, "ref-atraso-1", dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, "ref-atraso-1", dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando tarde: %v", err)
 	}
@@ -333,9 +333,23 @@ func TestCompradorQueSaiuMasPagouNoPrazoRecebe(t *testing.T) {
 	if venda.EntregaID == 0 {
 		t.Error("nao enfileirou a entrega")
 	}
-	if venda.PagoComAtraso {
-		t.Error("marcou como atraso um pagamento feito DENTRO do prazo; a coluna conta " +
-			"pagamento tardio, nao aviso tardio")
+	// A COLUNA CONTA O LARGO, e a suíte CONTINHA AS DUAS REGRAS antes de este job
+	// existir: este teste exigia falso e o TestPagamentoAtrasadoComItemAindaMarcadoEntrega
+	// exigia verdadeiro, no MESMO cenário. Nenhum dos dois rodava, então ninguém
+	// podia ver a contradição.
+	//
+	// Ficou o largo, que é o que a 0105 escreveu: "a confirmação que chegou DEPOIS do
+	// cancelamento ou da expiração". A razão é a pergunta que a coluna existe para
+	// responder — "o prazo está errado?" — e este caso É um sintoma disso: com uma
+	// janela maior, a corrida entre o pagamento e a nossa varredura não teria
+	// acontecido. Contar só o pagamento genuinamente tardio esconderia a corrida, que
+	// é o que mais aparece na prática.
+	//
+	// A regra ESTREITA continua existindo, com outro nome: `foraDoPrazo`, que é quem
+	// decide a entrega. Ela não virou coluna porque o pagamento tardio de verdade já
+	// é achável pelo status PAGA_SEM_ITEM.
+	if !venda.PagoComAtraso {
+		t.Error("nao contou a confirmacao que chegou depois do cancelamento")
 	}
 }
 
@@ -418,4 +432,149 @@ func statusDaCobranca(ctx context.Context, t *testing.T, s *Store, ref string) i
 		t.Fatalf("lendo a cobranca %s: %v", ref, err)
 	}
 	return st
+}
+
+// ANÚNCIO ABAIXO DO MÍNIMO NÃO ABRE COBRANÇA.
+//
+// O mínimo de R$ 1,00 nasceu em 24/09/2026, e quando nasceu JÁ HAVIA anúncio de um
+// centavo gravado, de um teste da Hanna. A trava principal é na montagem da barraca,
+// no jogo, onde o vendedor pode consertar — mas ela não alcança o que já está no
+// banco. Esta é a segunda trava, e é a que cobre esse caso.
+//
+// Sem ela, o anúncio velho continuaria vendendo por um centavo: a processadora cobra
+// taxa por cobrança, então o repasse ao vendedor sairia negativo e a casa pagaria
+// para vender.
+//
+// O anúncio é gravado DIRETO NO BANCO de propósito, porque é assim que ele existe na
+// produção — passar pelo jogo seria testar a outra trava, não esta.
+func TestCobrancaRecusaAnuncioAbaixoDoMinimo(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor := contaPix(ctx, t, s, "vendedor_minimo")
+	comprador := contaPix(ctx, t, s, "comprador_minimo")
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Um centavo, como o Elmo do teste que ficou no banco.
+	var anuncio int64
+	if err := s.pool.QueryRow(ctx, `
+		INSERT INTO rmt_anuncio (vendedor_conta, cargo_slot, item_index, preco_centavos, status)
+		VALUES ($1, 0, 1100, 1, 1) RETURNING id`, vendedor).Scan(&anuncio); err != nil {
+		t.Fatal(err)
+	}
+	itemMarcado(ctx, t, s, vendedor, 0, anuncio)
+
+	res, _, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-minimo-1", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != AnuncioNaoDisponivel {
+		t.Errorf("resultado = %v, queria AnuncioNaoDisponivel: um anuncio de 1 centavo abriu cobranca", res)
+	}
+
+	// E O MÍNIMO EXATO ABRE, que é o outro lado da linha. Sem este caso, a trava
+	// poderia estar recusando 100 também e o teste de cima passaria igual.
+	var noMinimo int64
+	if err := s.pool.QueryRow(ctx, `
+		INSERT INTO rmt_anuncio (vendedor_conta, cargo_slot, item_index, preco_centavos, status)
+		VALUES ($1, 1, 1100, $2, 1) RETURNING id`, vendedor, PrecoMinimoRMTCentavos).Scan(&noMinimo); err != nil {
+		t.Fatal(err)
+	}
+	itemMarcado(ctx, t, s, vendedor, 1, noMinimo)
+
+	res, cob, err := s.AbrirCobrancaRMT(ctx, noMinimo, comprador, "ref-minimo-2", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != CobrancaAbertaOK {
+		t.Fatalf("no minimo exato o resultado foi %v, queria CobrancaAbertaOK", res)
+	}
+	if cob.ValorCentavos != PrecoMinimoRMTCentavos {
+		t.Errorf("valor = %d, queria %d", cob.ValorCentavos, PrecoMinimoRMTCentavos)
+	}
+}
+
+// A VARREDURA FECHA A COBRANÇA SEM CÓDIGO E VENCIDA, mesmo com a criação tentando.
+//
+// O caso real de 24/09/2026: a referência saía num formato que a ponte recusava, e
+// CADA clique de comprar abria uma cobrança que nunca ia nascer. Ela ficava aberta os
+// cinco minutos inteiros da janela, e durante esse tempo o índice de uma-aberta-por-
+// comprador recusava qualquer outra compra — a página dizia PRAZO ENCERRADO (derivado
+// de expira_em) e o jogo dizia "você já tem um pagamento aberto" (derivado do status).
+// As duas estavam certas sobre coisas diferentes.
+//
+// Este teste prende as duas metades do que a varredura promete: ela FECHA o que
+// ninguém poderia ter pagado, e NÃO fecha o que alguém pode estar pagando. A segunda
+// metade é a que importa mais: uma varredura agressiva demais devolveria dinheiro de
+// gente que pagou.
+func TestVarreduraFechaCobrancaSemCodigoEVencida(t *testing.T) {
+	s, ctx := freshStore(t)
+	vendedor, comprador, anuncio := anuncioPronto(ctx, t, s, "varre")
+
+	res, cob, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-varre-1", 0)
+	if err != nil || res != CobrancaAbertaOK {
+		t.Fatalf("abrir: res=%v err=%v", res, err)
+	}
+
+	// Enquanto o prazo corre, a varredura NÃO a toca: ela pode estar sendo paga.
+	if venceram, err := s.ExpirarCobrancasRMT(ctx); err != nil {
+		t.Fatal(err)
+	} else if len(venceram) != 0 {
+		t.Fatalf("a varredura fechou uma cobranca no prazo: %v", venceram)
+	}
+
+	// O prazo acaba. Sem código, ninguém poderia ter pagado.
+	if _, err := s.pool.Exec(ctx,
+		`UPDATE rmt_cobranca SET expira_em = now() - interval '1 second' WHERE id = $1`,
+		cob.CobrancaID); err != nil {
+		t.Fatal(err)
+	}
+	venceram, err := s.ExpirarCobrancasRMT(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(venceram) != 1 || venceram[0] != anuncio {
+		t.Fatalf("venceram = %v, queria [%d]", venceram, anuncio)
+	}
+
+	// E AGORA O COMPRADOR ESTÁ LIVRE, que é o efeito que ele sente. Sem isto, o
+	// teste provaria que a linha mudou de status sem provar que a pessoa
+	// desbloqueou — e era o bloqueio que doía.
+	anuncio2 := anuncioAtivoSimples(ctx, t, s, vendedor, 1)
+	itemMarcado(ctx, t, s, vendedor, 1, anuncio2)
+	res, _, err = s.AbrirCobrancaRMT(ctx, anuncio2, comprador, "ref-varre-2", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != CobrancaAbertaOK {
+		t.Errorf("depois da varredura o comprador continuou preso: res=%v", res)
+	}
+}
+
+// E A VARREDURA NÃO FECHA QUEM TEM IDENTIFIER, porque ali existe cobrança do lado da
+// processadora e o dinheiro pode estar a caminho. É a metade que protege o jogador.
+func TestVarreduraNaoFechaCobrancaComIdentifier(t *testing.T) {
+	s, ctx := freshStore(t)
+	_, comprador, anuncio := anuncioPronto(ctx, t, s, "varre_ident")
+
+	res, cob, err := s.AbrirCobrancaRMT(ctx, anuncio, comprador, "ref-varre-3", 0)
+	if err != nil || res != CobrancaAbertaOK {
+		t.Fatalf("abrir: res=%v err=%v", res, err)
+	}
+	if _, err := s.pool.Exec(ctx, `
+		UPDATE rmt_cobranca
+		   SET expira_em = now() - interval '1 second',
+		       codigo_pix = 'codigo-de-teste',
+		       identifier_syncpay = 'ident-de-teste'
+		 WHERE id = $1`, cob.CobrancaID); err != nil {
+		t.Fatal(err)
+	}
+
+	venceram, err := s.ExpirarCobrancasRMT(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(venceram) != 0 {
+		t.Errorf("a varredura fechou uma cobranca COM identifier: %v — o dinheiro pode estar a caminho", venceram)
+	}
 }

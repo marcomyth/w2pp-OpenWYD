@@ -124,6 +124,11 @@ func (d *Dispatcher) sendReqParty(w *world.World, s *world.Session, _ protocol.H
 		d.notify(w, s, NoticePartyLevelLimit)
 		return
 	}
+	// Na arena da Batalha Real não há grupo; o legado recusa calado
+	// (_MSG_SendReqParty.cpp:74, coliseu.go).
+	if d.batalhaTiraGrupo(e) {
+		return
+	}
 	te.LastReqParty = s.Conn // anti-forge gate for AcceptParty
 	out := d.reqPartyBody(e, s.Conn)
 	w.SendTo(other, protocol.Header{Type: protocol.MsgSendReqParty, ID: protocol.IDScene}, out.Encode())
@@ -169,6 +174,10 @@ func (d *Dispatcher) acceptParty(w *world.World, s *world.Session, _ protocol.He
 	}
 	if !partyLevelOK(le, e) {
 		d.notify(w, s, NoticePartyLevelLimit)
+		return
+	}
+	// Idem no aceite, olhando quem aceita (_MSG_AcceptParty.cpp:98).
+	if d.batalhaTiraGrupo(e) {
 		return
 	}
 	slot, ok := addMember(le, s.Conn)
@@ -225,6 +234,11 @@ func (d *Dispatcher) SessionEnd(w *world.World, s *world.Session) {
 	s.LojaAberta = false
 	d.closeAutoTrade(w, s)
 
+	// O bando sai com o dono, antes do retorno de quem não tem grupo: o bando não é
+	// grupo (world.Entity.Evocacoes), e sem isto o id do dono seria reusado por
+	// outro jogador com os pets do anterior ainda apontando para ele.
+	d.despawnBando(w, w.Entity(s.Conn))
+
 	e := w.Entity(s.Conn)
 	if e == nil || !isInParty(e) {
 		return // nothing to unlink; don't push a party packet at a partyless client
@@ -279,11 +293,8 @@ func (d *Dispatcher) leaveParty(w *world.World, conn int) {
 		return
 	}
 	leaderConn := e.Leader
-	// A member's summons occupy slots in the LEADER's PartyList (summon.go:205),
-	// so cutting the bond without reaping them leaves them alive and untracked —
-	// the next evocation then counts zero pets and spawns a whole new set (#234).
-	d.despawnSummonsOf(w, leaderConn, conn)
-	d.despawnSummonsOf(w, conn, 0)
+	// O bando fica: ele mora no dono, não no grupo (world.Entity.Evocacoes). No
+	// legado os pets de um membro ocupavam a lista do LÍDER e saíam com ele (#234).
 	e.Leader = 0
 	e.PartyList = [world.MaxParty]int{}
 	d.sendRemoveParty(w, conn, 0)
@@ -305,9 +316,7 @@ func (d *Dispatcher) kickPartyMember(w *world.World, leaderConn, conn int) {
 	if e == nil || le == nil || e.Leader != leaderConn {
 		return
 	}
-	d.despawnSummonsOf(w, leaderConn, conn) // same reaping as leaveParty (#234)
-	d.despawnSummonsOf(w, conn, 0)
-	e.Leader = 0
+	e.Leader = 0 // o bando fica com o dono, como em leaveParty
 	e.PartyList = [world.MaxParty]int{}
 	removeMember(le, conn)
 	d.sendRemoveParty(w, conn, 0)
@@ -324,13 +333,9 @@ func (d *Dispatcher) leaderLeaveParty(w *world.World, leaderConn int) {
 	if le == nil {
 		return
 	}
-	// Every summon in the list goes, whoever evoked it. The legacy only deletes
-	// the leaver's own and merely zeroes Summoner on the rest (Server.cpp:8237-8243),
-	// relying on its global Type-24 sweep to reap them; here the lifespan ticks
-	// inside summonTick, which is gated on Summoner != 0 (mobai.go:61), so copying
-	// that would leak permanent ownerless mobs. This branch is also the solo-BM
-	// path — a pet holder has Leader == 0, so RemoveParty lands here (#234).
-	d.despawnSummonsOf(w, leaderConn, 0)
+	// Nenhum pet sai aqui: cada bando mora no seu dono (world.Entity.Evocacoes), e
+	// desfazer o grupo não mexe nele. No legado os pets ocupavam esta lista e o
+	// RemoveParty os apagava (Server.cpp:8237-8243, #234).
 	members := partyMembers(le)
 	le.PartyList = [world.MaxParty]int{}
 	for _, memberID := range members {

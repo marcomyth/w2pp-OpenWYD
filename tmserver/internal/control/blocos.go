@@ -21,7 +21,7 @@ type BlockRunner func(w *world.World, by string, x, y int16, line string) []stri
 // refused here rather than handed to the game, so this door only opens onto the
 // block commands and not onto the rest of the GM bus.
 var blockCommands = map[string]bool{
-	"npc": true, "gerar": true, "criar": true, "matar": true, "recarregar": true,
+	"npc": true, "gerar": true, "criar": true, "matar": true, "recarregar": true, "renovar": true,
 }
 
 // SetBlockRunner installs the block commands. Optional: a server wired without

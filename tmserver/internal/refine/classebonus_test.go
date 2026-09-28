@@ -127,7 +127,9 @@ func TestClasseBonusSanc(t *testing.T) {
 			dest := world.Item{Index: 100, Effects: [3]world.Effect{c.effect0}}
 			roll, mods := scriptedRoll(0, c.roll)
 
-			ClasseBonus(&dest, nPosChest, roll, noAbility)
+			// The helm keeps the legacy single draw, so the sanc roll is the
+			// second call.
+			ClasseBonus(&dest, nPosHelm, roll, noAbility)
 
 			if dest.Effects[0].Effect != efSanc {
 				t.Errorf("Effects[0] = %+v, want EF_SANC", dest.Effects[0])
@@ -197,5 +199,107 @@ func TestClasseBonusBootDamageClamp(t *testing.T) {
 	}
 	if got := dest.Effects[1].Value; got != bootDamageCap-catalogDamage {
 		t.Errorf("rolled EF_DAMAGE value = %d, want %d", got, bootDamageCap-catalogDamage)
+	}
+}
+
+func pesoTotal(pool []classeValor) int {
+	total := 0
+	for _, v := range pool {
+		total += v.weight
+	}
+	return total
+}
+
+// classeChances runs every combination of draws classeAdds can make and
+// returns the exact odds of each second add, keyed by {effect, value}.
+func classeChances(t *testing.T, nPos int) map[world.Effect]float64 {
+	t.Helper()
+	chances := map[world.Effect]float64{}
+	var anda func(prefixo []int, prob float64)
+	anda = func(prefixo []int, prob float64) {
+		i := 0
+		var mods []int
+		funda := false
+		roll := func(n int) int {
+			mods = append(mods, n)
+			if i < len(prefixo) {
+				v := prefixo[i]
+				i++
+				return v
+			}
+			funda = true
+			return 0
+		}
+		_, add2 := classeAdds(nPos, roll)
+		if !funda {
+			chances[add2] += prob
+			return
+		}
+		n := mods[len(prefixo)]
+		for v := 0; v < n; v++ {
+			anda(append(append([]int{}, prefixo...), v), prob/float64(n))
+		}
+	}
+	anda(nil, 1)
+	return chances
+}
+
+// Chest and legs (28/09/2026): 90% the legacy row of g_pBonusValue2, whose
+// second add is defense 30/25/20/15/10 in 6/6/6/5/4 of the 48 rows and crit
+// 5/6/7% in 7 rows each; 10% the team's defense 35/40/45/50 alone, at 50/30/20/5
+// of 105.
+func TestClasseAddsSegueAsChancesDaEquipe(t *testing.T) {
+	const tol = 1e-9
+	legado := func(linhas int) float64 { return (1 - classeDefesaAltaPct/100.0) * float64(linhas) / 48 }
+	alta := func(peso int) float64 { return classeDefesaAltaPct / 100.0 * float64(peso) / 105 }
+	peitoECalca := map[world.Effect]float64{
+		{Effect: efAC, Value: 30}: legado(6), {Effect: efAC, Value: 25}: legado(6),
+		{Effect: efAC, Value: 20}: legado(6), {Effect: efAC, Value: 15}: legado(5),
+		{Effect: efAC, Value: 10}:        legado(4),
+		{Effect: efCritical2, Value: 50}: legado(7), {Effect: efCritical2, Value: 60}: legado(7),
+		{Effect: efCritical2, Value: 70}: legado(7),
+		{Effect: efAC, Value: 35}:        alta(50), {Effect: efAC, Value: 40}: alta(30),
+		{Effect: efAC, Value: 45}: alta(20), {Effect: efAC, Value: 50}: alta(5),
+	}
+	cases := []struct {
+		nome string
+		nPos int
+		want map[world.Effect]float64
+	}{
+		{"peito", nPosChest, peitoECalca},
+		{"calça", nPosLegs, peitoECalca},
+		// A luva (28/09/2026): o segundo add é sempre a defesa extra da linha de
+		// g_pBonusValue4 — 30/25/20/15 em 6 das 27 linhas cada, 10 em 3 —, com
+		// ou sem o Skill no lugar do primeiro.
+		{"luva", nPosGlove, map[world.Effect]float64{
+			{Effect: efAcAdd2, Value: 30}: 6.0 / 27, {Effect: efAcAdd2, Value: 25}: 6.0 / 27,
+			{Effect: efAcAdd2, Value: 20}: 6.0 / 27, {Effect: efAcAdd2, Value: 15}: 6.0 / 27,
+			{Effect: efAcAdd2, Value: 10}: 3.0 / 27,
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.nome, func(t *testing.T) {
+			got := classeChances(t, c.nPos)
+			if len(got) != len(c.want) {
+				t.Fatalf("segundo add sai em %d formas (%v), want %d", len(got), got, len(c.want))
+			}
+			for ef, p := range c.want {
+				if d := got[ef] - p; d > tol || d < -tol {
+					t.Errorf("%+v: chance %.5f, want %.5f", ef, got[ef], p)
+				}
+			}
+		})
+	}
+}
+
+// Every draw stays under the MSVC rand() ceiling: a modulus above 32767 would
+// make the top values unreachable in production.
+func TestClasseAddsCabemNoRand(t *testing.T) {
+	for _, pool := range [][]classeValor{
+		classeDefesaPeito, classeSkillLuva,
+	} {
+		if n := pesoTotal(pool); n > 32767 {
+			t.Errorf("peso total %d passa do rand() do MSVC", n)
+		}
 	}
 }

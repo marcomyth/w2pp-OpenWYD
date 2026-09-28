@@ -158,6 +158,9 @@ func (d *Dispatcher) pollNPCConfig(w *world.World) {
 // spawns to in-view players (true on hot-reload, false at boot).
 func (d *Dispatcher) applyNPCConfig(w *world.World, snap npccfg.Snapshot, reveal bool) {
 	d.rebuildItemPrices(snap.PriceOverrides)
+	// Antes de os NPCs saírem do mundo: o que cada painel da Loja de Honra aberto
+	// mostrava, para acertar esses painéis depois (loja_de_honra.go).
+	honraAntes := d.guardaLojasDeHonraAbertas(w)
 
 	for slug, id := range d.managedNPCs {
 		w.DespawnMob(id, 0) // removeType 0 = out-of-view removal, never queues a respawn
@@ -252,6 +255,10 @@ func (d *Dispatcher) applyNPCConfig(w *world.World, snap npccfg.Snapshot, reveal
 			d.revealSpawned(w, []int{id})
 		}
 	}
+	for _, id := range d.managedNPCs {
+		d.auditaEstoqueDeHonra(w.Entity(id))
+	}
+	d.religaLojasDeHonraAbertas(w, honraAntes)
 	d.npcVersion = snap.Version
 	d.auditaEstoqueGratis(snap)
 }
@@ -288,6 +295,13 @@ func (d *Dispatcher) auditaEstoqueGratis(snap npccfg.Snapshot) {
 		for _, it := range def.Shop {
 			idx := int(it.Index)
 			if idx <= 0 {
+				continue
+			}
+			// Vaga cobrada em pontos não é cobrada em ouro, então o preço em ouro
+			// dela não diz nada: a Loja de Honra inteira mora em vagas assim, com
+			// itens que o catálogo dá como zero. A vaga a ZERO ponto é outro aviso
+			// (auditaEstoqueDeHonra).
+			if it.PricePoints != nil {
 				continue
 			}
 			// Índice ausente do catálogo não conta: handler.buy sai no !ok e a

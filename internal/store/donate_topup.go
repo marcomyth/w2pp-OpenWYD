@@ -6,7 +6,9 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jeanluca/w2pp-openwyd/internal/pilha"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 )
@@ -84,10 +86,11 @@ func (s *Store) CreateTopupOrder(ctx context.Context, o domain.TopupOrder) (int6
 	var id int64
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO donate_topup_order
-			(external_reference, account_id, credits, amount_cents, payment_method, status)
-		VALUES ($1, $2, $3, $4, $5, $6)
+			(external_reference, account_id, credits, amount_cents, payment_method, status, pacote_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id`,
-		o.ExternalReference, o.AccountID, o.Credits, o.AmountCents, o.PaymentMethod, TopupStatusPending,
+		o.ExternalReference, o.AccountID, o.Credits, o.AmountCents, o.PaymentMethod,
+		TopupStatusPending, textoOuNulo(o.PacoteID),
 	).Scan(&id)
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
@@ -116,10 +119,11 @@ func (s *Store) ConfirmTopupOrder(ctx context.Context, externalRef string) (Topu
 		var orderID, accountID int64
 		var credits int32
 		var status int16
+		var pacoteID *string
 		err := tx.QueryRow(ctx, `
-			SELECT id, account_id, credits, status
+			SELECT id, account_id, credits, status, pacote_id
 			FROM donate_topup_order WHERE external_reference = $1 FOR UPDATE`,
-			externalRef).Scan(&orderID, &accountID, &credits, &status)
+			externalRef).Scan(&orderID, &accountID, &credits, &status, &pacoteID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			outcome = TopupNotFound
 			return nil
@@ -148,6 +152,24 @@ func (s *Store) ConfirmTopupOrder(ctx context.Context, externalRef string) (Topu
 			`UPDATE donate_topup_order SET status = $2, confirmed_at = now() WHERE id = $1`,
 			orderID, TopupStatusPaid); err != nil {
 			return fmt.Errorf("store: confirm topup: mark paid id=%d: %w", orderID, err)
+		}
+
+		// OS BRINDES ENTRAM NA MESMA TRANSAÇÃO do crédito, e é essa a única coisa que
+		// importa nesta parte.
+		//
+		// Fora dela abre a janela em que uma queda deixa os Rcoins creditados e os
+		// brindes não — e aí ninguém sabe o que faltou, porque a ordem já está PAGA e a
+		// repetição não credita de novo (o caminho de cima). O contrário é igual de
+		// ruim: brinde entregue e crédito perdido.
+		//
+		// Ordem antiga sem pacote não tem brinde, e isso é o normal: todo pedido
+		// anterior à 0122 tem pacote_id nulo. Nulo aqui quer dizer "veio antes de
+		// existir pacote", e não "pacote desconhecido" — quem recusa id desconhecido é
+		// a criação da ordem, não a confirmação dela.
+		if pacoteID != nil && *pacoteID != "" {
+			if err := enfileirarBrindes(ctx, tx, accountID, orderID, *pacoteID); err != nil {
+				return err
+			}
 		}
 		outcome = TopupConfirmed
 		return nil
@@ -180,4 +202,67 @@ func (s *Store) GetTopupOrder(ctx context.Context, externalRef string, accountID
 		}
 	}
 	return status, credits, newBalance, nil
+}
+
+// enfileirarBrindes põe os itens do pacote na caixa postal, dentro da transação que
+// acabou de creditar.
+//
+// A QUANTIDADE PASSA PELO pilha.Divide, a mesma função que a tela do site usa para
+// dizer "ocupa N espaços": o que empilha vira pilha, o que não empilha vira uma linha
+// por unidade. Assim o número prometido na página e o que a entrega produz não podem
+// divergir, porque são a mesma conta.
+//
+// A `source` leva a ordem e não só o pacote. Numa investigação a pergunta é "de onde
+// veio este item", e "apoiador-supremo" não responde: a mesma pessoa pode ter comprado
+// o mesmo pacote duas vezes.
+func enfileirarBrindes(ctx context.Context, tx pgx.Tx, accountID, orderID int64, pacoteID string) error {
+	rows, err := tx.Query(ctx, `
+		SELECT item_index, eff1, effv1, eff2, effv2, eff3, effv3
+		  FROM donate_pacote_item WHERE pacote_id = $1 ORDER BY ordem, id`, pacoteID)
+	if err != nil {
+		return fmt.Errorf("store: confirm topup: lendo os brindes de %q: %w", pacoteID, err)
+	}
+	var brindes []ItemDoPacote
+	for rows.Next() {
+		var it ItemDoPacote
+		if err := rows.Scan(&it.ItemIndex, &it.Eff1, &it.EffV1,
+			&it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3); err != nil {
+			rows.Close()
+			return fmt.Errorf("store: confirm topup: lendo os brindes de %q: %w", pacoteID, err)
+		}
+		brindes = append(brindes, it)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("store: confirm topup: lendo os brindes de %q: %w", pacoteID, err)
+	}
+
+	origem := fmt.Sprintf("donate_pacote:%s:order:%d", pacoteID, orderID)
+	for _, it := range brindes {
+		for _, pilhaDe := range pilha.Divide(int16(it.ItemIndex), quantidadeDoBrinde(it)) {
+			carga, err := payloadDoBrinde(comAmount(it, pilhaDe))
+			if err != nil {
+				return fmt.Errorf("store: confirm topup: montando o brinde %d: %w", it.ItemIndex, err)
+			}
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO delivery_queue (account_id, kind, payload, source)
+				VALUES ($1, 'item', $2, $3)`, accountID, carga, origem); err != nil {
+				return fmt.Errorf("store: confirm topup: enfileirando o brinde %d: %w",
+					it.ItemIndex, err)
+			}
+		}
+	}
+	return nil
+}
+
+// textoOuNulo grava nulo em vez de texto vazio.
+//
+// A coluna tem chave estrangeira para donate_pacote: um texto vazio viraria violação
+// de FK e o pedido inteiro falharia, em vez de ser gravado como a doação sem pacote que
+// ele é. E nulo é o que a coluna significa para todo pedido anterior aos pacotes.
+func textoOuNulo(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

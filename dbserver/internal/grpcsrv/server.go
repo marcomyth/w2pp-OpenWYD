@@ -31,7 +31,14 @@ type Store interface {
 	DeleteCharacter(ctx context.Context, accountID int64, slot int) error
 	PinHashByID(ctx context.Context, id int64) (string, error)
 	SetPinHash(ctx context.Context, id int64, hash string) error
-	SaveCharacter(ctx context.Context, accountID int64, ch domain.Character) error
+	SalvarPersonagemOrdenado(ctx context.Context, accountID int64, ch domain.Character, epoca, seq int64, soltarPosse bool) error
+	NovaEpocaDePar(ctx context.Context) (int64, error)
+	TomarPosseDaConta(ctx context.Context, accountID, epoca int64) error
+	SoltarPosseDaConta(ctx context.Context, accountID, epoca int64) error
+	BaterPelasContas(ctx context.Context, epoca int64, contas []int64) ([]int64, error)
+	SalvarPersonagemComCarga(ctx context.Context, accountID int64, ch domain.Character,
+		cargoCoin int32, cargoItems []domain.Item, deliveredIDs, lostIDs []int64, epoca, seq int64,
+		soltarPosse bool) error
 	QuoteKingdomCape(ctx context.Context) (domain.KingdomCapeQuote, error)
 	PurchaseKingdomCape(ctx context.Context, accountID, expectedRevision int64, kingdom uint8, ch domain.Character) (domain.KingdomCapeQuote, bool, error)
 	// Pagamento de uma venda na Loja do Servidor: Cash ou RMT entre duas contas,
@@ -41,6 +48,11 @@ type Store interface {
 	SaveCargo(ctx context.Context, accountID int64, coin int32, items []domain.Item) error
 	PendingItemDeliveries(ctx context.Context, accountID int64) ([]domain.Delivery, error)
 	SlotsVendidosPendentes(ctx context.Context, accountID int64) ([]int16, error)
+	// AbrirCobrancaRMT cria a tentativa de pagamento de um comprador. A referência
+	// externa vem pronta de quem chama: ela é a âncora da idempotência e nasce antes
+	// de qualquer chamada de rede.
+	AbrirCobrancaRMT(ctx context.Context, anuncioID, compradorConta int64,
+		referenciaExterna string, janela time.Duration) (store.ResultadoAbertura, store.CobrancaRMT, error)
 	AbrirAnunciosRMT(ctx context.Context, vendedorConta int64, personagem string,
 		itens []store.ItemAnunciado) ([]int64, error)
 	CancelarAnunciosRMT(ctx context.Context, ids []int64) error
@@ -63,6 +75,9 @@ type Store interface {
 	// O donate é a OUTRA carteira: dinheiro, e não tempo de lojinha.
 	CreditDonateInGame(ctx context.Context, accountID int64, amount int32, characterName, reason string) (int32, error)
 	DonateBalance(ctx context.Context, accountID int64) (int32, error)
+	// A Loja de Rcoin do jogo: as ofertas do site, pela mesma carteira.
+	ListRcoinOffers(ctx context.Context, category int32) ([]domain.RcoinOffer, error)
+	BuyRcoinOffer(ctx context.Context, accountID, offerID int64, seenPrice int32) (store.RcoinBuyResult, int32, int64, error)
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
 	LeaveGuild(ctx context.Context, accountID int64, slot int) error
@@ -137,6 +152,8 @@ func (s *Server) AccountLogin(ctx context.Context, req *dbv1.AccountLoginRequest
 		// banco, e sem isto o painel da loja mostra Cash e RMT zerados.
 		Cash: auth.Cash,
 		Rmt:  auth.Rmt,
+		// E o passe (0128), pela mesma razão: é o jogo que desenha a moldura.
+		PasseNivel: int32(auth.PasseNivel),
 	}, nil
 }
 
@@ -185,14 +202,82 @@ func (s *Server) LoadCharacter(ctx context.Context, req *dbv1.LoadCharacterReque
 // SaveCharacter persists a character's live state (partial; see store.SaveCharacter).
 func (s *Server) SaveCharacter(ctx context.Context, req *dbv1.SaveCharacterRequest) (*dbv1.SaveCharacterResponse, error) {
 	ch := protoToCharacter(req.GetCharacter())
-	err := s.store.SaveCharacter(ctx, req.GetAccountId(), ch)
+	err := s.store.SalvarPersonagemOrdenado(ctx, req.GetAccountId(), ch, req.GetParEpoca(), req.GetParSeq(), req.GetSoltarPosse())
 	if errors.Is(err, store.ErrNotFound) {
 		return &dbv1.SaveCharacterResponse{Ok: false}, nil
+	}
+	// Mesma razão do par: perder a corrida para uma gravação mais nova não é falha.
+	if errors.Is(err, store.ErrParVelho) {
+		return &dbv1.SaveCharacterResponse{Ok: true}, nil
 	}
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "save character: %v", err)
 	}
 	return &dbv1.SaveCharacterResponse{Ok: true}, nil
+}
+
+// SalvarPersonagemComCarga grava personagem e carga na mesma transação. É o
+// caminho de gravação de toda conta que tem personagem em jogo: separadas, as duas
+// deixam uma janela em que uma queda faz o mesmo ouro existir dos dois lados.
+// Conta ausente devolve ok=false.
+func (s *Server) SalvarPersonagemComCarga(ctx context.Context, req *dbv1.SalvarPersonagemComCargaRequest) (*dbv1.SaveCharacterResponse, error) {
+	err := s.store.SalvarPersonagemComCarga(ctx, req.GetAccountId(), protoToCharacter(req.GetCharacter()),
+		req.GetCargoCoin(), protoToItems(req.GetCargoItems()), req.GetDeliveredIds(), req.GetLostIds(),
+		req.GetParEpoca(), req.GetParSeq(), req.GetSoltarPosse())
+	if errors.Is(err, store.ErrNotFound) {
+		return &dbv1.SaveCharacterResponse{Ok: false}, nil
+	}
+	// PAR VELHO NÃO É FALHA. A corrida foi perdida para uma gravação mais nova, que
+	// já está no banco: devolver erro faria o tmServer contar isto como save que não
+	// caiu, e o dreno recusaria o reinício por uma coisa que deu certo.
+	if errors.Is(err, store.ErrParVelho) {
+		return &dbv1.SaveCharacterResponse{Ok: true}, nil
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "salvar personagem com carga: %v", err)
+	}
+	return &dbv1.SaveCharacterResponse{Ok: true}, nil
+}
+
+// NovaEpocaDePar entrega a esta execução do tmServer o seu número de época.
+func (s *Server) NovaEpocaDePar(ctx context.Context, _ *dbv1.NovaEpocaDeParRequest) (*dbv1.NovaEpocaDeParResponse, error) {
+	n, err := s.store.NovaEpocaDePar(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "nova epoca de par: %v", err)
+	}
+	return &dbv1.NovaEpocaDeParResponse{Epoca: n}, nil
+}
+
+// TomarPosseDaConta marca esta execução como dona da conta, ou diz que está em uso.
+func (s *Server) TomarPosseDaConta(ctx context.Context, req *dbv1.TomarPosseDaContaRequest) (*dbv1.TomarPosseDaContaResponse, error) {
+	err := s.store.TomarPosseDaConta(ctx, req.GetAccountId(), req.GetEpoca())
+	switch {
+	case errors.Is(err, store.ErrContaEmUso):
+		return &dbv1.TomarPosseDaContaResponse{EmUso: true}, nil
+	case errors.Is(err, store.ErrNotFound):
+		return &dbv1.TomarPosseDaContaResponse{}, nil
+	case err != nil:
+		return nil, status.Errorf(codes.Internal, "tomar posse da conta: %v", err)
+	}
+	return &dbv1.TomarPosseDaContaResponse{Ok: true}, nil
+}
+
+// SoltarPosseDaConta devolve a conta que saiu sem save de saída (a que ficou na
+// seleção de personagem).
+func (s *Server) SoltarPosseDaConta(ctx context.Context, req *dbv1.SoltarPosseDaContaRequest) (*dbv1.SoltarPosseDaContaResponse, error) {
+	if err := s.store.SoltarPosseDaConta(ctx, req.GetAccountId(), req.GetEpoca()); err != nil {
+		return nil, status.Errorf(codes.Internal, "soltar posse da conta: %v", err)
+	}
+	return &dbv1.SoltarPosseDaContaResponse{}, nil
+}
+
+// BaterPelasContas renova a posse e devolve quais contas continuam desta execução.
+func (s *Server) BaterPelasContas(ctx context.Context, req *dbv1.BaterPelasContasRequest) (*dbv1.BaterPelasContasResponse, error) {
+	minhas, err := s.store.BaterPelasContas(ctx, req.GetEpoca(), req.GetAccountIds())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "batimento da posse: %v", err)
+	}
+	return &dbv1.BaterPelasContasResponse{AindaMinhas: minhas}, nil
 }
 
 // QuoteKingdomCape returns the durable price and revision used by both Kings.
@@ -341,6 +426,63 @@ func (s *Server) OpenRmtListings(ctx context.Context, req *dbv1.OpenRmtListingsR
 	return &dbv1.OpenRmtListingsResponse{ListingIds: ids}, nil
 }
 
+// OpenRmtCharge cria a tentativa de pagamento de um comprador contra um anúncio.
+//
+// Cria a LINHA e nada mais: nem código Pix, nem chamada à processadora. Ver a nota
+// no db.proto para por que o código nasce depois, na primeira leitura da página.
+//
+// TODA RECUSA VIAJA NO ENUM e não como erro, e a divisão é a mesma do
+// OpenRmtListings: cada recusa é uma frase diferente para o jogador — "esse item
+// acabou de ser vendido", "você não pode comprar de si mesmo", "você já tem um
+// pagamento aberto" —, e um código de erro de transporte só produziria "não deu".
+func (s *Server) OpenRmtCharge(ctx context.Context, req *dbv1.OpenRmtChargeRequest) (*dbv1.OpenRmtChargeResponse, error) {
+	janela := time.Duration(req.GetWindowSeconds()) * time.Second
+	res, cob, err := s.store.AbrirCobrancaRMT(ctx, req.GetListingId(),
+		req.GetBuyerAccountId(), req.GetExternalReference(), janela)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "open rmt charge: %v", err)
+	}
+	resp := &dbv1.OpenRmtChargeResponse{Result: resultadoDaCobranca(res)}
+	// O id, o valor e o prazo só têm sentido quando existe cobrança. Nos outros
+	// casos eles ficam zerados de propósito: um id zero é obviamente "não tem", e um
+	// id de mentira seria gravado no log de alguém como se fosse real.
+	if res == store.CobrancaAbertaOK || res == store.CobrancaJaExistia {
+		resp.ChargeId = cob.CobrancaID
+		resp.AmountCents = cob.ValorCentavos
+		resp.ExpiresAt = cob.ExpiraEm.Unix()
+	}
+	return resp, nil
+}
+
+// resultadoDaCobranca mapeia o resultado do banco no do contrato.
+//
+// EXPLÍCITO E NÃO ARITMÉTICO, mesmo com os números batendo hoje: os dois conjuntos
+// vivem em arquivos diferentes e mudam por motivos diferentes, e uma conversão por
+// cast passaria a mentir em silêncio no dia em que um deles ganhasse um valor no
+// meio. Aqui a mentira seria dizer ao jogador que ele não pode comprar de si mesmo
+// quando o item na verdade acabou de ser vendido.
+func resultadoDaCobranca(r store.ResultadoAbertura) dbv1.OpenRmtChargeResult {
+	switch r {
+	case store.CobrancaAbertaOK:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_OK
+	case store.CobrancaJaExistia:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_ALREADY_OPEN
+	case store.AnuncioNaoDisponivel:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_LISTING_GONE
+	case store.AnuncioComOutraCobranca:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_LISTING_TAKEN
+	case store.CompradorEOVendedor:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_SELF_PURCHASE
+	case store.ItemNaoEstaPreso:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_ITEM_NOT_LOCKED
+	case store.CompradorJaTemCobranca:
+		return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_BUYER_BUSY
+	}
+	// UNSPECIFIED, e quem chama trata como recusa. Um resultado que este arquivo não
+	// conhece NÃO pode virar "pode pagar": o zero do enum é a recusa de propósito.
+	return dbv1.OpenRmtChargeResult_OPEN_RMT_CHARGE_RESULT_UNSPECIFIED
+}
+
 // CancelRmtListings fecha anúncios que não chegaram a valer.
 func (s *Server) CancelRmtListings(ctx context.Context, req *dbv1.CancelRmtListingsRequest) (*dbv1.CancelRmtListingsResponse, error) {
 	if err := s.store.CancelarAnunciosRMT(ctx, req.GetListingIds()); err != nil {
@@ -429,13 +571,54 @@ func (s *Server) RecordDuelResult(ctx context.Context, req *dbv1.RecordDuelResul
 func (s *Server) CreateGuild(ctx context.Context, req *dbv1.CreateGuildRequest) (*dbv1.CreateGuildResponse, error) {
 	g, err := s.store.CreateGuild(ctx, req.GetAccountId(), int(req.GetSlot()), req.GetCharacterName(),
 		req.GetGuildName(), uint8(req.GetClan()), uint8(req.GetCitizen()), int(req.GetServerIndex()), req.GetCost())
-	if errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrConflict) || errors.Is(err, store.ErrNoFreeSlot) || isUniqueViolation(err) {
-		return &dbv1.CreateGuildResponse{Ok: false}, nil
+	if motivo, recusa := motivoDaRecusaDeGuilda(err); recusa {
+		return &dbv1.CreateGuildResponse{Ok: false, Refusal: motivo}, nil
 	}
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create guild: %v", err)
 	}
 	return &dbv1.CreateGuildResponse{Ok: true, Guild: guildToProto(g)}, nil
+}
+
+// motivoDaRecusaDeGuilda diz QUAL recusa foi, ou UNSPECIFIED quando não é recusa.
+//
+// As quatro viravam um `ok: false` mudo, e o jogo dizia a mesma frase para todas:
+// "confira se o nome já não existe". Para três delas isso era MENTIRA — e foi essa
+// mentira que escondeu um defeito de ouro por horas em 25/09/2026, porque a pessoa ficou
+// procurando nome repetido enquanto o banco recusava por saldo.
+//
+// A ORDEM IMPORTA: o nome duplicado é conferido ANTES do ErrConflict genérico, porque a
+// violação de unicidade vem embrulhada e cairia no genérico se o genérico viesse antes.
+// DEVOLVE DOIS VALORES, e o segundo é o que importa: "isto é uma recusa?".
+//
+// Com um valor só, o UNSPECIFIED teria de significar três coisas ao mesmo tempo — sem
+// erro, recusa sem motivo conhecido, e erro de verdade — e o conflito desconhecido, que
+// HOJE é recusa, viraria erro interno. Eu escrevi assim na primeira versão e peguei
+// relendo: teria sido uma regressão silenciosa num caminho que já funcionava.
+func motivoDaRecusaDeGuilda(err error) (dbv1.CreateGuildRefusal, bool) {
+	const semMotivo = dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_UNSPECIFIED
+	switch {
+	case err == nil:
+		return semMotivo, false
+	case isUniqueViolation(err):
+		return dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_NAME_TAKEN, true
+	case errors.Is(err, store.ErrJaTemGuilda):
+		return dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_ALREADY_IN_GUILD, true
+	case errors.Is(err, store.ErrSemOuro):
+		return dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_NOT_ENOUGH_COIN, true
+	case errors.Is(err, store.ErrNoFreeSlot):
+		return dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_NO_FREE_SLOT, true
+	case errors.Is(err, store.ErrNotFound):
+		return dbv1.CreateGuildRefusal_CREATE_GUILD_REFUSAL_CHARACTER_GONE, true
+	case errors.Is(err, store.ErrConflict):
+		// Conflito que não é nenhum dos conhecidos. É RECUSA, como sempre foi, mas sem
+		// motivo: o jogo cai na frase geral em vez de afirmar algo que ninguém apurou.
+		return semMotivo, true
+	default:
+		// NÃO é recusa: é erro de verdade, e quem chama devolve Internal. Tratar como
+		// recusa faria um banco fora do ar virar "não deu, tente outro nome".
+		return semMotivo, false
+	}
 }
 
 // SetGuildMember sets or clears one character's guild membership.
@@ -1110,6 +1293,62 @@ func (s *Server) CreditDonate(ctx context.Context, req *dbv1.CreditDonateRequest
 		return nil, status.Errorf(codes.Internal, "creditar donate: %v", err)
 	}
 	return &dbv1.CreditDonateResponse{Balance: saldo}, nil
+}
+
+// ListRcoinOffers is one tab of the in-game Loja de Rcoin, with the buyer's
+// balance read in the same call so the page and its number cannot disagree.
+func (s *Server) ListRcoinOffers(ctx context.Context, req *dbv1.ListRcoinOffersRequest) (*dbv1.ListRcoinOffersResponse, error) {
+	if req.GetAccountId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "account_id obrigatório")
+	}
+	ofertas, err := s.store.ListRcoinOffers(ctx, req.GetCategory())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "listar a loja de rcoin: %v", err)
+	}
+	saldo, err := s.store.DonateBalance(ctx, req.GetAccountId())
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return nil, status.Errorf(codes.Internal, "ler saldo de donate: %v", err)
+	}
+	out := make([]*dbv1.RcoinOffer, 0, len(ofertas))
+	for _, o := range ofertas {
+		out = append(out, &dbv1.RcoinOffer{
+			Id: o.ID, ItemIndex: o.ItemIndex,
+			Eff1: int32(o.Eff1), Effv1: int32(o.EffV1),
+			Eff2: int32(o.Eff2), Effv2: int32(o.EffV2),
+			Eff3: int32(o.Eff3), Effv3: int32(o.EffV3),
+			Price: o.Price, ExpiresDays: o.ExpiresDays, Title: o.Title,
+			Category: int32(o.Category),
+		})
+	}
+	return &dbv1.ListRcoinOffersResponse{Offers: out, Balance: saldo}, nil
+}
+
+// BuyRcoinOffer is the in-game purchase. A refusal rides in the result; only
+// infra failures are gRPC errors, and the tmServer answers those with ERRO.
+func (s *Server) BuyRcoinOffer(ctx context.Context, req *dbv1.BuyRcoinOfferRequest) (*dbv1.BuyRcoinOfferResponse, error) {
+	if req.GetAccountId() <= 0 || req.GetOfferId() <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "account_id e offer_id obrigatórios")
+	}
+	res, saldo, entrega, err := s.store.BuyRcoinOffer(ctx, req.GetAccountId(), req.GetOfferId(), req.GetSeenPrice())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "comprar na loja de rcoin: %v", err)
+	}
+	return &dbv1.BuyRcoinOfferResponse{
+		Result: rcoinResultToProto(res), Balance: saldo, DeliveryId: entrega,
+	}, nil
+}
+
+func rcoinResultToProto(r store.RcoinBuyResult) dbv1.RcoinBuyResult {
+	switch r {
+	case store.RcoinBuyOK:
+		return dbv1.RcoinBuyResult_RCOIN_BUY_OK
+	case store.RcoinBuyNoFunds:
+		return dbv1.RcoinBuyResult_RCOIN_BUY_NO_FUNDS
+	case store.RcoinBuyPriceChanged:
+		return dbv1.RcoinBuyResult_RCOIN_BUY_PRICE_CHANGED
+	default:
+		return dbv1.RcoinBuyResult_RCOIN_BUY_UNAVAILABLE
+	}
 }
 
 // DonateBalance reads one account donate wallet, for the in-game /donate command.

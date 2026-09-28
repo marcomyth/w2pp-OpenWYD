@@ -21,6 +21,15 @@ type ScoreData struct {
 	Dex       int16
 	Con       int16
 	Special   [4]int16 // STRUCT_SCORE.Special[4] — live mastery (allocated+gear+buffs)
+	// PasseNivel é a moldura do passe de batalha, 0 a 4, no MESMO byte em que ela
+	// viaja no CreateMob (STRUCT_SCORE.ChaosRate, @15).
+	//
+	// ELA PRECISA VIR AQUI TAMBÉM, e a falta disso era um defeito: o CreateMob só
+	// acontece ao entrar no campo de visão, e o UpdateScore acontece a cada troca de
+	// equipamento, buff ou nível. Sem o byte, o primeiro UpdateScore depois do spawn
+	// mandava ChaosRate zero — e a moldura de quem pagou DESAPARECIA até o próximo
+	// spawn, para ele e para todos em volta.
+	PasseNivel uint8
 
 	// Tail fields after the score (MSG_UpdateScore, Basedef.h:1825).
 	Critical   uint8
@@ -55,6 +64,13 @@ func EncodeUpdateScore(s ScoreData) []byte {
 	le.PutUint32(b[4:], uint32(s.Ac))     // Ac @4
 	le.PutUint32(b[8:], uint32(s.Damage)) // Damage @8
 	b[13] = s.AttackRun                   // AttackRun @13 (speed)
+	// b[15] é o ChaosRate, que o cliente modificado lê como o nível do passe. Preso
+	// na faixa aqui pela mesma razão do CreateMob: esta é a última linha antes de o
+	// número virar byte na rede, e é a única que sabe o que o cliente aguenta.
+	b[15] = s.PasseNivel
+	if b[15] > 4 {
+		b[15] = 4
+	}
 	le.PutUint32(b[16:], uint32(s.MaxHp)) // MaxHp @16
 	le.PutUint32(b[20:], uint32(s.MaxMp)) // MaxMp @20
 	le.PutUint32(b[24:], uint32(s.Hp))    // Hp @24

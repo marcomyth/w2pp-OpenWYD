@@ -30,6 +30,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	AccountWebService_CreateAccount_FullMethodName     = "/web.v1.AccountWebService/CreateAccount"
 	AccountWebService_VerifyCredentials_FullMethodName = "/web.v1.AccountWebService/VerifyCredentials"
+	AccountWebService_SetMyDiscordLink_FullMethodName  = "/web.v1.AccountWebService/SetMyDiscordLink"
 )
 
 // AccountWebServiceClient is the client API for AccountWebService service.
@@ -45,6 +46,17 @@ type AccountWebServiceClient interface {
 	// VerifyCredentials validates name + password so the BFF can mint a session
 	// cookie. It is the web login path, independent of the CPSock game login.
 	VerifyCredentials(ctx context.Context, in *VerifyCredentialsRequest, opts ...grpc.CallOption) (*VerifyCredentialsResponse, error)
+	// SetMyDiscordLink guarda o Discord da pessoa depois do OAuth do site.
+	//
+	// UM DISCORD PARA UMA CONTA, garantido por indice UNICO PARCIAL onde o campo
+	// nao e vazio -- mais um CHECK proibindo string vazia. Os dois, e nao so o
+	// indice: em Postgres NULL nao conflita com NULL, entao sem o CHECK bastaria
+	// alguem gravar "" para o indice parar de valer.
+	//
+	// TROCAR o Discord de uma conta que ja tem OUTRO e RECUSADO, e so a staff
+	// desfaz. Sem isso, quem tomasse uma conta trocaria o vinculo em silencio e
+	// levaria junto o cargo que o Discord da.
+	SetMyDiscordLink(ctx context.Context, in *SetMyDiscordLinkRequest, opts ...grpc.CallOption) (*SetMyDiscordLinkResponse, error)
 }
 
 type accountWebServiceClient struct {
@@ -75,6 +87,16 @@ func (c *accountWebServiceClient) VerifyCredentials(ctx context.Context, in *Ver
 	return out, nil
 }
 
+func (c *accountWebServiceClient) SetMyDiscordLink(ctx context.Context, in *SetMyDiscordLinkRequest, opts ...grpc.CallOption) (*SetMyDiscordLinkResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetMyDiscordLinkResponse)
+	err := c.cc.Invoke(ctx, AccountWebService_SetMyDiscordLink_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AccountWebServiceServer is the server API for AccountWebService service.
 // All implementations must embed UnimplementedAccountWebServiceServer
 // for forward compatibility.
@@ -88,6 +110,17 @@ type AccountWebServiceServer interface {
 	// VerifyCredentials validates name + password so the BFF can mint a session
 	// cookie. It is the web login path, independent of the CPSock game login.
 	VerifyCredentials(context.Context, *VerifyCredentialsRequest) (*VerifyCredentialsResponse, error)
+	// SetMyDiscordLink guarda o Discord da pessoa depois do OAuth do site.
+	//
+	// UM DISCORD PARA UMA CONTA, garantido por indice UNICO PARCIAL onde o campo
+	// nao e vazio -- mais um CHECK proibindo string vazia. Os dois, e nao so o
+	// indice: em Postgres NULL nao conflita com NULL, entao sem o CHECK bastaria
+	// alguem gravar "" para o indice parar de valer.
+	//
+	// TROCAR o Discord de uma conta que ja tem OUTRO e RECUSADO, e so a staff
+	// desfaz. Sem isso, quem tomasse uma conta trocaria o vinculo em silencio e
+	// levaria junto o cargo que o Discord da.
+	SetMyDiscordLink(context.Context, *SetMyDiscordLinkRequest) (*SetMyDiscordLinkResponse, error)
 	mustEmbedUnimplementedAccountWebServiceServer()
 }
 
@@ -103,6 +136,9 @@ func (UnimplementedAccountWebServiceServer) CreateAccount(context.Context, *Crea
 }
 func (UnimplementedAccountWebServiceServer) VerifyCredentials(context.Context, *VerifyCredentialsRequest) (*VerifyCredentialsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method VerifyCredentials not implemented")
+}
+func (UnimplementedAccountWebServiceServer) SetMyDiscordLink(context.Context, *SetMyDiscordLinkRequest) (*SetMyDiscordLinkResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetMyDiscordLink not implemented")
 }
 func (UnimplementedAccountWebServiceServer) mustEmbedUnimplementedAccountWebServiceServer() {}
 func (UnimplementedAccountWebServiceServer) testEmbeddedByValue()                           {}
@@ -161,6 +197,24 @@ func _AccountWebService_VerifyCredentials_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountWebService_SetMyDiscordLink_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetMyDiscordLinkRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountWebServiceServer).SetMyDiscordLink(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountWebService_SetMyDiscordLink_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountWebServiceServer).SetMyDiscordLink(ctx, req.(*SetMyDiscordLinkRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AccountWebService_ServiceDesc is the grpc.ServiceDesc for AccountWebService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -176,6 +230,10 @@ var AccountWebService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "VerifyCredentials",
 			Handler:    _AccountWebService_VerifyCredentials_Handler,
 		},
+		{
+			MethodName: "SetMyDiscordLink",
+			Handler:    _AccountWebService_SetMyDiscordLink_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "api/web/v1/web.proto",
@@ -184,7 +242,9 @@ var AccountWebService_ServiceDesc = grpc.ServiceDesc{
 const (
 	RmtWebService_SavePixKey_FullMethodName            = "/web.v1.RmtWebService/SavePixKey"
 	RmtWebService_GetPixKey_FullMethodName             = "/web.v1.RmtWebService/GetPixKey"
+	RmtWebService_DeletePixKey_FullMethodName          = "/web.v1.RmtWebService/DeletePixKey"
 	RmtWebService_GetMyCurrentPixCharge_FullMethodName = "/web.v1.RmtWebService/GetMyCurrentPixCharge"
+	RmtWebService_ListMarketListings_FullMethodName    = "/web.v1.RmtWebService/ListMarketListings"
 )
 
 // RmtWebServiceClient is the client API for RmtWebService service.
@@ -213,6 +273,23 @@ type RmtWebServiceClient interface {
 	// "you already registered ...1234", and a Pix key is personal payment data on a
 	// public site.
 	GetPixKey(ctx context.Context, in *GetPixKeyRequest, opts ...grpc.CallOption) (*GetPixKeyResponse, error)
+	// DeletePixKey APAGA a chave e o CPF, os dois juntos.
+	//
+	// OS DOIS JUNTOS porque sao um cadastro so: chave sem documento nao paga, ja
+	// que a rota de repasse exige o CPF. Deixar o documento para tras guardaria
+	// dado pessoal que nao serve mais para nada -- e dado que nao serve e so o que
+	// vaza num incidente.
+	//
+	// Recusa pelas MESMAS duas travas do SavePixKey, e na mesma ordem: cobranca
+	// aberta primeiro, repasse depois. Quando as duas valem, a pessoa le a da
+	// venda, que e a que passa sozinha antes.
+	//
+	// UMA DIFERENCA DELIBERADA em relacao ao SavePixKey: gravar a MESMA chave passa
+	// mesmo com repasse a caminho, porque nao desvia nada -- e e o que deixa um
+	// vendedor antigo, cadastrado antes de o CPF ser obrigatorio, completar o
+	// documento que falta. Apagar nao e gravar a mesma chave: e tira-la, com
+	// dinheiro a caminho dela. Entao o apagar confere SEMPRE.
+	DeletePixKey(ctx context.Context, in *DeletePixKeyRequest, opts ...grpc.CallOption) (*DeletePixKeyResponse, error)
 	// GetMyCurrentPixCharge returns the real-money charge this account has as a
 	// BUYER, so the site can show the Pix copy-and-paste code — and so it can say
 	// what happened once the charge closes.
@@ -228,9 +305,31 @@ type RmtWebServiceClient interface {
 	// money — and the worst moment for that is the second after they paid. The
 	// window is server configuration; past it, the answer is empty.
 	//
-	// READ ONLY. It creates nothing and cancels nothing. The charge is created by
-	// the game when the shelf is bought, and it closes by payment, by the buyer
-	// leaving the game, or by its deadline.
+	// IT CREATES THE PIX CODE, and this is the one write it does. The charge row
+	// itself is created by the game when the shelf is bought, WITHOUT a code; the
+	// first read of an open charge that has no code yet asks the processor for one,
+	// stores it, and returns it. It closes by payment, by the buyer leaving the
+	// game, or by its deadline. Nothing here cancels anything.
+	//
+	// Creating late, rather than at the click in the game, means a buyer who never
+	// opens the page costs no processor call — and the game server needs no
+	// credentials for the payment path.
+	//
+	// IDEMPOTENT PER CHARGE, and the caller sees the consequences:
+	//
+	//   - The site polls every 5 s while a charge is OPEN, so concurrent reads do
+	//     arrive together. Only ONE call to the processor may go out per charge, so
+	//     the row is locked for the duration of that call and every reader is
+	//     answered with the STORED code, never with one a losing racer created.
+	//     Two tabs therefore always show the same code.
+	//   - While the processor is answering, the read returns OPEN with an EMPTY
+	//     pix_code. That is not a failure: it means "being generated", and the next
+	//     poll has it. A read that fails to create also returns OPEN with an empty
+	//     code rather than an error, because the retry is what fixes it.
+	//   - With less than a minute left before expires_at, NOTHING is created and the
+	//     state comes back EXPIRED even though the row is still open in the
+	//     database. A code with ten seconds of life is a refund waiting to happen:
+	//     the person pays, the money lands on a dead charge, and both sides lose.
 	//
 	// THERE IS NO "GIVE UP" CALL, and leaving it out is a decision: cancelling on
 	// our side does NOT cancel the Pix at the processor, so a give-up button would
@@ -258,6 +357,24 @@ type RmtWebServiceClient interface {
 	// made here: one charge open per listing, and a buyer with two open charges
 	// could pay twice for one item.
 	GetMyCurrentPixCharge(ctx context.Context, in *GetMyCurrentPixChargeRequest, opts ...grpc.CallOption) (*GetMyCurrentPixChargeResponse, error)
+	// ListMarketListings is the market as a PUBLIC page: everything on sale in every
+	// stall, right now.
+	//
+	// IT IS NOT A DATABASE READ. A personal shop lives only in the seller's session,
+	// in the game server's memory, and is never persisted — so this answer is fetched
+	// from the game over the control link and cached for a few seconds, because the
+	// page is public and the game must not be asked once per visitor.
+	//
+	// NOTHING HERE IDENTIFIES AN ACCOUNT. The seller is named by the CHARACTER
+	// standing in the stall, which is what any player already sees by walking up to
+	// it. The account behind it is not in this contract at all.
+	//
+	// REAL-MONEY SHELVES WITH SOMEBODY ALREADY PAYING ARE LEFT OUT. While a charge is
+	// open the item cannot be bought by anyone else, and the game refuses the second
+	// buyer. Listing it would be an invitation to a refusal; leaving it out promises
+	// nothing and is the simpler truth. It comes back on its own when the charge
+	// closes.
+	ListMarketListings(ctx context.Context, in *ListMarketListingsRequest, opts ...grpc.CallOption) (*ListMarketListingsResponse, error)
 }
 
 type rmtWebServiceClient struct {
@@ -288,10 +405,30 @@ func (c *rmtWebServiceClient) GetPixKey(ctx context.Context, in *GetPixKeyReques
 	return out, nil
 }
 
+func (c *rmtWebServiceClient) DeletePixKey(ctx context.Context, in *DeletePixKeyRequest, opts ...grpc.CallOption) (*DeletePixKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeletePixKeyResponse)
+	err := c.cc.Invoke(ctx, RmtWebService_DeletePixKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *rmtWebServiceClient) GetMyCurrentPixCharge(ctx context.Context, in *GetMyCurrentPixChargeRequest, opts ...grpc.CallOption) (*GetMyCurrentPixChargeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetMyCurrentPixChargeResponse)
 	err := c.cc.Invoke(ctx, RmtWebService_GetMyCurrentPixCharge_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rmtWebServiceClient) ListMarketListings(ctx context.Context, in *ListMarketListingsRequest, opts ...grpc.CallOption) (*ListMarketListingsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMarketListingsResponse)
+	err := c.cc.Invoke(ctx, RmtWebService_ListMarketListings_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -324,6 +461,23 @@ type RmtWebServiceServer interface {
 	// "you already registered ...1234", and a Pix key is personal payment data on a
 	// public site.
 	GetPixKey(context.Context, *GetPixKeyRequest) (*GetPixKeyResponse, error)
+	// DeletePixKey APAGA a chave e o CPF, os dois juntos.
+	//
+	// OS DOIS JUNTOS porque sao um cadastro so: chave sem documento nao paga, ja
+	// que a rota de repasse exige o CPF. Deixar o documento para tras guardaria
+	// dado pessoal que nao serve mais para nada -- e dado que nao serve e so o que
+	// vaza num incidente.
+	//
+	// Recusa pelas MESMAS duas travas do SavePixKey, e na mesma ordem: cobranca
+	// aberta primeiro, repasse depois. Quando as duas valem, a pessoa le a da
+	// venda, que e a que passa sozinha antes.
+	//
+	// UMA DIFERENCA DELIBERADA em relacao ao SavePixKey: gravar a MESMA chave passa
+	// mesmo com repasse a caminho, porque nao desvia nada -- e e o que deixa um
+	// vendedor antigo, cadastrado antes de o CPF ser obrigatorio, completar o
+	// documento que falta. Apagar nao e gravar a mesma chave: e tira-la, com
+	// dinheiro a caminho dela. Entao o apagar confere SEMPRE.
+	DeletePixKey(context.Context, *DeletePixKeyRequest) (*DeletePixKeyResponse, error)
 	// GetMyCurrentPixCharge returns the real-money charge this account has as a
 	// BUYER, so the site can show the Pix copy-and-paste code — and so it can say
 	// what happened once the charge closes.
@@ -339,9 +493,31 @@ type RmtWebServiceServer interface {
 	// money — and the worst moment for that is the second after they paid. The
 	// window is server configuration; past it, the answer is empty.
 	//
-	// READ ONLY. It creates nothing and cancels nothing. The charge is created by
-	// the game when the shelf is bought, and it closes by payment, by the buyer
-	// leaving the game, or by its deadline.
+	// IT CREATES THE PIX CODE, and this is the one write it does. The charge row
+	// itself is created by the game when the shelf is bought, WITHOUT a code; the
+	// first read of an open charge that has no code yet asks the processor for one,
+	// stores it, and returns it. It closes by payment, by the buyer leaving the
+	// game, or by its deadline. Nothing here cancels anything.
+	//
+	// Creating late, rather than at the click in the game, means a buyer who never
+	// opens the page costs no processor call — and the game server needs no
+	// credentials for the payment path.
+	//
+	// IDEMPOTENT PER CHARGE, and the caller sees the consequences:
+	//
+	//   - The site polls every 5 s while a charge is OPEN, so concurrent reads do
+	//     arrive together. Only ONE call to the processor may go out per charge, so
+	//     the row is locked for the duration of that call and every reader is
+	//     answered with the STORED code, never with one a losing racer created.
+	//     Two tabs therefore always show the same code.
+	//   - While the processor is answering, the read returns OPEN with an EMPTY
+	//     pix_code. That is not a failure: it means "being generated", and the next
+	//     poll has it. A read that fails to create also returns OPEN with an empty
+	//     code rather than an error, because the retry is what fixes it.
+	//   - With less than a minute left before expires_at, NOTHING is created and the
+	//     state comes back EXPIRED even though the row is still open in the
+	//     database. A code with ten seconds of life is a refund waiting to happen:
+	//     the person pays, the money lands on a dead charge, and both sides lose.
 	//
 	// THERE IS NO "GIVE UP" CALL, and leaving it out is a decision: cancelling on
 	// our side does NOT cancel the Pix at the processor, so a give-up button would
@@ -369,6 +545,24 @@ type RmtWebServiceServer interface {
 	// made here: one charge open per listing, and a buyer with two open charges
 	// could pay twice for one item.
 	GetMyCurrentPixCharge(context.Context, *GetMyCurrentPixChargeRequest) (*GetMyCurrentPixChargeResponse, error)
+	// ListMarketListings is the market as a PUBLIC page: everything on sale in every
+	// stall, right now.
+	//
+	// IT IS NOT A DATABASE READ. A personal shop lives only in the seller's session,
+	// in the game server's memory, and is never persisted — so this answer is fetched
+	// from the game over the control link and cached for a few seconds, because the
+	// page is public and the game must not be asked once per visitor.
+	//
+	// NOTHING HERE IDENTIFIES AN ACCOUNT. The seller is named by the CHARACTER
+	// standing in the stall, which is what any player already sees by walking up to
+	// it. The account behind it is not in this contract at all.
+	//
+	// REAL-MONEY SHELVES WITH SOMEBODY ALREADY PAYING ARE LEFT OUT. While a charge is
+	// open the item cannot be bought by anyone else, and the game refuses the second
+	// buyer. Listing it would be an invitation to a refusal; leaving it out promises
+	// nothing and is the simpler truth. It comes back on its own when the charge
+	// closes.
+	ListMarketListings(context.Context, *ListMarketListingsRequest) (*ListMarketListingsResponse, error)
 	mustEmbedUnimplementedRmtWebServiceServer()
 }
 
@@ -385,8 +579,14 @@ func (UnimplementedRmtWebServiceServer) SavePixKey(context.Context, *SavePixKeyR
 func (UnimplementedRmtWebServiceServer) GetPixKey(context.Context, *GetPixKeyRequest) (*GetPixKeyResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetPixKey not implemented")
 }
+func (UnimplementedRmtWebServiceServer) DeletePixKey(context.Context, *DeletePixKeyRequest) (*DeletePixKeyResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeletePixKey not implemented")
+}
 func (UnimplementedRmtWebServiceServer) GetMyCurrentPixCharge(context.Context, *GetMyCurrentPixChargeRequest) (*GetMyCurrentPixChargeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetMyCurrentPixCharge not implemented")
+}
+func (UnimplementedRmtWebServiceServer) ListMarketListings(context.Context, *ListMarketListingsRequest) (*ListMarketListingsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMarketListings not implemented")
 }
 func (UnimplementedRmtWebServiceServer) mustEmbedUnimplementedRmtWebServiceServer() {}
 func (UnimplementedRmtWebServiceServer) testEmbeddedByValue()                       {}
@@ -445,6 +645,24 @@ func _RmtWebService_GetPixKey_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RmtWebService_DeletePixKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeletePixKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RmtWebServiceServer).DeletePixKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RmtWebService_DeletePixKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RmtWebServiceServer).DeletePixKey(ctx, req.(*DeletePixKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _RmtWebService_GetMyCurrentPixCharge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetMyCurrentPixChargeRequest)
 	if err := dec(in); err != nil {
@@ -459,6 +677,24 @@ func _RmtWebService_GetMyCurrentPixCharge_Handler(srv interface{}, ctx context.C
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RmtWebServiceServer).GetMyCurrentPixCharge(ctx, req.(*GetMyCurrentPixChargeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _RmtWebService_ListMarketListings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMarketListingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RmtWebServiceServer).ListMarketListings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RmtWebService_ListMarketListings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RmtWebServiceServer).ListMarketListings(ctx, req.(*ListMarketListingsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -479,8 +715,16 @@ var RmtWebService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _RmtWebService_GetPixKey_Handler,
 		},
 		{
+			MethodName: "DeletePixKey",
+			Handler:    _RmtWebService_DeletePixKey_Handler,
+		},
+		{
 			MethodName: "GetMyCurrentPixCharge",
 			Handler:    _RmtWebService_GetMyCurrentPixCharge_Handler,
+		},
+		{
+			MethodName: "ListMarketListings",
+			Handler:    _RmtWebService_ListMarketListings_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -790,7 +1034,11 @@ var RankingWebService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	CharacterWebService_ListMyCharacters_FullMethodName = "/web.v1.CharacterWebService/ListMyCharacters"
+	CharacterWebService_ListMyCharacters_FullMethodName   = "/web.v1.CharacterWebService/ListMyCharacters"
+	CharacterWebService_ListMyLedGuilds_FullMethodName    = "/web.v1.CharacterWebService/ListMyLedGuilds"
+	CharacterWebService_SetMyGuildEmblem_FullMethodName   = "/web.v1.CharacterWebService/SetMyGuildEmblem"
+	CharacterWebService_ClearMyGuildEmblem_FullMethodName = "/web.v1.CharacterWebService/ClearMyGuildEmblem"
+	CharacterWebService_GetGuildEmblem_FullMethodName     = "/web.v1.CharacterWebService/GetGuildEmblem"
 )
 
 // CharacterWebServiceClient is the client API for CharacterWebService service.
@@ -805,6 +1053,18 @@ type CharacterWebServiceClient interface {
 	// account. It is cold-storage data and can be slightly stale while a character
 	// is online; live state remains owned by tmServer's single goroutine.
 	ListMyCharacters(ctx context.Context, in *ListMyCharactersRequest, opts ...grpc.CallOption) (*ListMyCharactersResponse, error)
+	// O EMBLEMA DE GUILDA, 25/09/2026.
+	//
+	// Nao existia nada de emblema no servidor antes disto: nem coluna, nem campo,
+	// nem rota. A tabela guild (migracao 0012) tem id, name, clan, fame e citizen.
+	//
+	// LIDER e guild_member.guild_level = 9 (internal/domain, guildLeaderLevel), e e
+	// esse o criterio do NOT_LEADER -- nao "quem criou".
+	ListMyLedGuilds(ctx context.Context, in *ListMyLedGuildsRequest, opts ...grpc.CallOption) (*ListMyLedGuildsResponse, error)
+	SetMyGuildEmblem(ctx context.Context, in *SetMyGuildEmblemRequest, opts ...grpc.CallOption) (*SetMyGuildEmblemResponse, error)
+	ClearMyGuildEmblem(ctx context.Context, in *ClearMyGuildEmblemRequest, opts ...grpc.CallOption) (*ClearMyGuildEmblemResponse, error)
+	// GetGuildEmblem e PUBLICO: e por ele que a pagina da guilda mostra a imagem.
+	GetGuildEmblem(ctx context.Context, in *GetGuildEmblemRequest, opts ...grpc.CallOption) (*GetGuildEmblemResponse, error)
 }
 
 type characterWebServiceClient struct {
@@ -825,6 +1085,46 @@ func (c *characterWebServiceClient) ListMyCharacters(ctx context.Context, in *Li
 	return out, nil
 }
 
+func (c *characterWebServiceClient) ListMyLedGuilds(ctx context.Context, in *ListMyLedGuildsRequest, opts ...grpc.CallOption) (*ListMyLedGuildsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListMyLedGuildsResponse)
+	err := c.cc.Invoke(ctx, CharacterWebService_ListMyLedGuilds_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *characterWebServiceClient) SetMyGuildEmblem(ctx context.Context, in *SetMyGuildEmblemRequest, opts ...grpc.CallOption) (*SetMyGuildEmblemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetMyGuildEmblemResponse)
+	err := c.cc.Invoke(ctx, CharacterWebService_SetMyGuildEmblem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *characterWebServiceClient) ClearMyGuildEmblem(ctx context.Context, in *ClearMyGuildEmblemRequest, opts ...grpc.CallOption) (*ClearMyGuildEmblemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClearMyGuildEmblemResponse)
+	err := c.cc.Invoke(ctx, CharacterWebService_ClearMyGuildEmblem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *characterWebServiceClient) GetGuildEmblem(ctx context.Context, in *GetGuildEmblemRequest, opts ...grpc.CallOption) (*GetGuildEmblemResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGuildEmblemResponse)
+	err := c.cc.Invoke(ctx, CharacterWebService_GetGuildEmblem_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CharacterWebServiceServer is the server API for CharacterWebService service.
 // All implementations must embed UnimplementedCharacterWebServiceServer
 // for forward compatibility.
@@ -837,6 +1137,18 @@ type CharacterWebServiceServer interface {
 	// account. It is cold-storage data and can be slightly stale while a character
 	// is online; live state remains owned by tmServer's single goroutine.
 	ListMyCharacters(context.Context, *ListMyCharactersRequest) (*ListMyCharactersResponse, error)
+	// O EMBLEMA DE GUILDA, 25/09/2026.
+	//
+	// Nao existia nada de emblema no servidor antes disto: nem coluna, nem campo,
+	// nem rota. A tabela guild (migracao 0012) tem id, name, clan, fame e citizen.
+	//
+	// LIDER e guild_member.guild_level = 9 (internal/domain, guildLeaderLevel), e e
+	// esse o criterio do NOT_LEADER -- nao "quem criou".
+	ListMyLedGuilds(context.Context, *ListMyLedGuildsRequest) (*ListMyLedGuildsResponse, error)
+	SetMyGuildEmblem(context.Context, *SetMyGuildEmblemRequest) (*SetMyGuildEmblemResponse, error)
+	ClearMyGuildEmblem(context.Context, *ClearMyGuildEmblemRequest) (*ClearMyGuildEmblemResponse, error)
+	// GetGuildEmblem e PUBLICO: e por ele que a pagina da guilda mostra a imagem.
+	GetGuildEmblem(context.Context, *GetGuildEmblemRequest) (*GetGuildEmblemResponse, error)
 	mustEmbedUnimplementedCharacterWebServiceServer()
 }
 
@@ -849,6 +1161,18 @@ type UnimplementedCharacterWebServiceServer struct{}
 
 func (UnimplementedCharacterWebServiceServer) ListMyCharacters(context.Context, *ListMyCharactersRequest) (*ListMyCharactersResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListMyCharacters not implemented")
+}
+func (UnimplementedCharacterWebServiceServer) ListMyLedGuilds(context.Context, *ListMyLedGuildsRequest) (*ListMyLedGuildsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListMyLedGuilds not implemented")
+}
+func (UnimplementedCharacterWebServiceServer) SetMyGuildEmblem(context.Context, *SetMyGuildEmblemRequest) (*SetMyGuildEmblemResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetMyGuildEmblem not implemented")
+}
+func (UnimplementedCharacterWebServiceServer) ClearMyGuildEmblem(context.Context, *ClearMyGuildEmblemRequest) (*ClearMyGuildEmblemResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClearMyGuildEmblem not implemented")
+}
+func (UnimplementedCharacterWebServiceServer) GetGuildEmblem(context.Context, *GetGuildEmblemRequest) (*GetGuildEmblemResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetGuildEmblem not implemented")
 }
 func (UnimplementedCharacterWebServiceServer) mustEmbedUnimplementedCharacterWebServiceServer() {}
 func (UnimplementedCharacterWebServiceServer) testEmbeddedByValue()                             {}
@@ -889,6 +1213,78 @@ func _CharacterWebService_ListMyCharacters_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CharacterWebService_ListMyLedGuilds_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListMyLedGuildsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharacterWebServiceServer).ListMyLedGuilds(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharacterWebService_ListMyLedGuilds_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharacterWebServiceServer).ListMyLedGuilds(ctx, req.(*ListMyLedGuildsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharacterWebService_SetMyGuildEmblem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetMyGuildEmblemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharacterWebServiceServer).SetMyGuildEmblem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharacterWebService_SetMyGuildEmblem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharacterWebServiceServer).SetMyGuildEmblem(ctx, req.(*SetMyGuildEmblemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharacterWebService_ClearMyGuildEmblem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearMyGuildEmblemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharacterWebServiceServer).ClearMyGuildEmblem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharacterWebService_ClearMyGuildEmblem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharacterWebServiceServer).ClearMyGuildEmblem(ctx, req.(*ClearMyGuildEmblemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _CharacterWebService_GetGuildEmblem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGuildEmblemRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CharacterWebServiceServer).GetGuildEmblem(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: CharacterWebService_GetGuildEmblem_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CharacterWebServiceServer).GetGuildEmblem(ctx, req.(*GetGuildEmblemRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CharacterWebService_ServiceDesc is the grpc.ServiceDesc for CharacterWebService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -899,6 +1295,22 @@ var CharacterWebService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListMyCharacters",
 			Handler:    _CharacterWebService_ListMyCharacters_Handler,
+		},
+		{
+			MethodName: "ListMyLedGuilds",
+			Handler:    _CharacterWebService_ListMyLedGuilds_Handler,
+		},
+		{
+			MethodName: "SetMyGuildEmblem",
+			Handler:    _CharacterWebService_SetMyGuildEmblem_Handler,
+		},
+		{
+			MethodName: "ClearMyGuildEmblem",
+			Handler:    _CharacterWebService_ClearMyGuildEmblem_Handler,
+		},
+		{
+			MethodName: "GetGuildEmblem",
+			Handler:    _CharacterWebService_GetGuildEmblem_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -3197,6 +3609,7 @@ const (
 	DonateTopupService_CreateTopupOrder_FullMethodName  = "/web.v1.DonateTopupService/CreateTopupOrder"
 	DonateTopupService_ConfirmTopupOrder_FullMethodName = "/web.v1.DonateTopupService/ConfirmTopupOrder"
 	DonateTopupService_GetTopupOrder_FullMethodName     = "/web.v1.DonateTopupService/GetTopupOrder"
+	DonateTopupService_AttachTopupCharge_FullMethodName = "/web.v1.DonateTopupService/AttachTopupCharge"
 )
 
 // DonateTopupServiceClient is the client API for DonateTopupService service.
@@ -3222,6 +3635,31 @@ type DonateTopupServiceClient interface {
 	CreateTopupOrder(ctx context.Context, in *CreateTopupOrderRequest, opts ...grpc.CallOption) (*CreateTopupOrderResponse, error)
 	ConfirmTopupOrder(ctx context.Context, in *ConfirmTopupOrderRequest, opts ...grpc.CallOption) (*ConfirmTopupOrderResponse, error)
 	GetTopupOrder(ctx context.Context, in *GetTopupOrderRequest, opts ...grpc.CallOption) (*GetTopupOrderResponse, error)
+	// AttachTopupCharge records the gateway's OWN id for an order, so the server
+	// can ask the processor about it later instead of waiting to be told.
+	//
+	// WHY IT EXISTS: until this call, a donation had exactly one path to being
+	// credited — the gateway notifies the site, the site calls ConfirmTopupOrder.
+	// A lost notification meant money charged and credits never given, with
+	// nothing on the server able to notice, because the server had never seen the
+	// gateway's id and cannot ask about a payment it cannot name.
+	//
+	// The site creates the donation charge itself and gets that id back. This
+	// hands it over, and a sweep then polls the pending orders exactly the way the
+	// marketplace already polls its charges. The notification stays the fast path;
+	// the sweep is the net underneath it.
+	//
+	// IDEMPOTENT, and refusing in two directions. The same order cannot be given a
+	// DIFFERENT id, and the same id cannot be attached to a SECOND order — the
+	// second refusal is the one that matters, because that is how one payment
+	// would credit two orders.
+	//
+	// IT MUST NOT BREAK THE PURCHASE. If this call fails, the site shows the Pix
+	// code anyway and logs: the player is in the middle of paying, and a failure
+	// to set up our safety net is not a reason to refuse their money. What is lost
+	// is the net under THAT order, and the count of orders without an id is what
+	// makes that visible.
+	AttachTopupCharge(ctx context.Context, in *AttachTopupChargeRequest, opts ...grpc.CallOption) (*AttachTopupChargeResponse, error)
 }
 
 type donateTopupServiceClient struct {
@@ -3282,6 +3720,16 @@ func (c *donateTopupServiceClient) GetTopupOrder(ctx context.Context, in *GetTop
 	return out, nil
 }
 
+func (c *donateTopupServiceClient) AttachTopupCharge(ctx context.Context, in *AttachTopupChargeRequest, opts ...grpc.CallOption) (*AttachTopupChargeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AttachTopupChargeResponse)
+	err := c.cc.Invoke(ctx, DonateTopupService_AttachTopupCharge_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DonateTopupServiceServer is the server API for DonateTopupService service.
 // All implementations must embed UnimplementedDonateTopupServiceServer
 // for forward compatibility.
@@ -3305,6 +3753,31 @@ type DonateTopupServiceServer interface {
 	CreateTopupOrder(context.Context, *CreateTopupOrderRequest) (*CreateTopupOrderResponse, error)
 	ConfirmTopupOrder(context.Context, *ConfirmTopupOrderRequest) (*ConfirmTopupOrderResponse, error)
 	GetTopupOrder(context.Context, *GetTopupOrderRequest) (*GetTopupOrderResponse, error)
+	// AttachTopupCharge records the gateway's OWN id for an order, so the server
+	// can ask the processor about it later instead of waiting to be told.
+	//
+	// WHY IT EXISTS: until this call, a donation had exactly one path to being
+	// credited — the gateway notifies the site, the site calls ConfirmTopupOrder.
+	// A lost notification meant money charged and credits never given, with
+	// nothing on the server able to notice, because the server had never seen the
+	// gateway's id and cannot ask about a payment it cannot name.
+	//
+	// The site creates the donation charge itself and gets that id back. This
+	// hands it over, and a sweep then polls the pending orders exactly the way the
+	// marketplace already polls its charges. The notification stays the fast path;
+	// the sweep is the net underneath it.
+	//
+	// IDEMPOTENT, and refusing in two directions. The same order cannot be given a
+	// DIFFERENT id, and the same id cannot be attached to a SECOND order — the
+	// second refusal is the one that matters, because that is how one payment
+	// would credit two orders.
+	//
+	// IT MUST NOT BREAK THE PURCHASE. If this call fails, the site shows the Pix
+	// code anyway and logs: the player is in the middle of paying, and a failure
+	// to set up our safety net is not a reason to refuse their money. What is lost
+	// is the net under THAT order, and the count of orders without an id is what
+	// makes that visible.
+	AttachTopupCharge(context.Context, *AttachTopupChargeRequest) (*AttachTopupChargeResponse, error)
 	mustEmbedUnimplementedDonateTopupServiceServer()
 }
 
@@ -3329,6 +3802,9 @@ func (UnimplementedDonateTopupServiceServer) ConfirmTopupOrder(context.Context, 
 }
 func (UnimplementedDonateTopupServiceServer) GetTopupOrder(context.Context, *GetTopupOrderRequest) (*GetTopupOrderResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTopupOrder not implemented")
+}
+func (UnimplementedDonateTopupServiceServer) AttachTopupCharge(context.Context, *AttachTopupChargeRequest) (*AttachTopupChargeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AttachTopupCharge not implemented")
 }
 func (UnimplementedDonateTopupServiceServer) mustEmbedUnimplementedDonateTopupServiceServer() {}
 func (UnimplementedDonateTopupServiceServer) testEmbeddedByValue()                            {}
@@ -3441,6 +3917,24 @@ func _DonateTopupService_GetTopupOrder_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DonateTopupService_AttachTopupCharge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AttachTopupChargeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DonateTopupServiceServer).AttachTopupCharge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DonateTopupService_AttachTopupCharge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DonateTopupServiceServer).AttachTopupCharge(ctx, req.(*AttachTopupChargeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DonateTopupService_ServiceDesc is the grpc.ServiceDesc for DonateTopupService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -3467,6 +3961,10 @@ var DonateTopupService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTopupOrder",
 			Handler:    _DonateTopupService_GetTopupOrder_Handler,
+		},
+		{
+			MethodName: "AttachTopupCharge",
+			Handler:    _DonateTopupService_AttachTopupCharge_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

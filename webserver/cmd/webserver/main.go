@@ -22,8 +22,11 @@ import (
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
+	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
+	"github.com/jeanluca/w2pp-openwyd/internal/secret"
 	"github.com/jeanluca/w2pp-openwyd/internal/secure"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/account"
@@ -31,6 +34,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/authz"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/characters"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/dailyreward"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/doacaovarredura"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/donaterevenue"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/donateshop"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/donatetopup"
@@ -39,14 +43,19 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemcatalog"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemicons"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/itemstatadmin"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/jogo"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mercado"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobspawns"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplateadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mobtemplates"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/mountgrowth"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/npcadmin"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/npctemplates"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/painelator"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ponte"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ranking"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/rmtpagamento"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/rmtvarredura"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/worldevent"
 )
 
@@ -70,6 +79,18 @@ func run(logger *slog.Logger) error {
 	contentDir := flag.String("content", os.Getenv("W2PP_CONTENT"), "path to the Release/ content tree (empty = skip; ListMerchantTemplates/ListItemCatalog return empty lists and the UI falls back to manual entry)")
 	iconManifestPath := flag.String("item-icons-manifest", os.Getenv("W2PP_ITEM_ICONS_MANIFEST"), "generated item-icon manifest (empty = fallback-only)")
 	flag.Parse()
+
+	// A MESMA tranca do jogo e do painel, lida pelo mesmo pacote: um servidor
+	// trancado para entrar e aberto para cadastrar seria a porta que ninguém lembra
+	// de fechar. Valor desconhecido não sobe.
+	acessoRestrito, err := acesso.Restrito()
+	if err != nil {
+		return err
+	}
+	logger.Info(acesso.Frase(acessoRestrito))
+	if acessoRestrito {
+		logger.Warn("acesso restrito: o cadastro de conta pelo site esta DESLIGADO")
+	}
 
 	if *dsn == "" {
 		return fmt.Errorf("-dsn (or W2PP_DB_DSN) is required")
@@ -155,7 +176,7 @@ func run(logger *slog.Logger) error {
 			logger.Info("ponte respondeu ao teste do boot: mTLS e assinatura conferem")
 		}()
 	}
-	_ = clientePonte // ligado ao serviço de pagamento no PR do caminho do aviso
+	_ = clientePonte // usado mais abaixo, junto com o registro dos serviços
 
 	if !chaves.Configurada() {
 		// Loud, and every boot, because the quiet version of this line is how
@@ -169,7 +190,9 @@ func run(logger *slog.Logger) error {
 	}
 	srv := grpc.NewServer(
 		grpc.Creds(creds),
-		grpc.UnaryInterceptor(authz.Interceptor(chaves)),
+		// O leitor do usuario do painel vai junto: e o interceptador que confere,
+		// na hora, se quem esta agindo pelo painel ainda existe e esta ativo.
+		grpc.UnaryInterceptor(authz.Interceptor(chaves, painelator.Novo(pool))),
 		grpc.StreamInterceptor(authz.StreamInterceptor(chaves)),
 	)
 	st := store.New(pool)
@@ -180,7 +203,7 @@ func run(logger *slog.Logger) error {
 	mountGrowthAdmin := mountgrowth.New(st)
 	donate := donateshop.New(st)
 	dailyRwd := dailyreward.New(st)
-	topup := donatetopup.New(st)
+	topup := donatetopup.New(st).ComLog(logger)
 	revenue := donaterevenue.New(st)
 	attrMap := attributemap.New(st, *contentDir)
 	worldEvents := worldevent.New(st)
@@ -279,10 +302,154 @@ func run(logger *slog.Logger) error {
 			npcAdmin.SetDropCatalog(drops)
 		}
 	}
-	webv1.RegisterAccountWebServiceServer(srv, grpcsrv.New(account.New(st)))
+	// O LINK COM O JOGO É CORTESIA, e por isso ele não impede nada de subir.
+	//
+	// As duas chamadas que o caminho do pagamento faz nele — entregar agora, liberar
+	// a venda agora — só ENCURTAM a espera: quando elas rodam, a venda já está
+	// gravada, e o login de cada um faz o mesmo trabalho. Sem o link, a venda
+	// acontece igual e demora mais a aparecer.
+	//
+	// Mesma autenticação e mesma configuração do painel da staff, de propósito:
+	// mesmas duas variáveis, mesmo cabeçalho de token do proto. Um canal novo aqui
+	// seria uma segunda porta para o servidor de jogo, com a metade da atenção.
+	var jogoDoPagamento rmtpagamento.Jogo
+	// O MESMO cliente, guardado com o tipo concreto: a vitrine do mercado precisa de
+	// um método que não está na interface do pagamento, e uma conversão de tipo lá
+	// embaixo seria um jeito silencioso de descobrir que o link mudou.
+	var clienteDoJogo *jogo.Cliente
+	if addr := os.Getenv("W2PP_TMSERVER_CONTROL"); addr != "" {
+		token := os.Getenv("W2PP_CONTROL_TOKEN")
+		switch token {
+		case "":
+			// Avisa e NÃO liga. Ligar sem token daria um cliente que o servidor de
+			// jogo recusa em toda chamada, e cada recusa sairia como falha de
+			// entrega — ruído que esconde a causa, que é uma variável vazia.
+			logger.Warn("W2PP_TMSERVER_CONTROL está setado e W2PP_CONTROL_TOKEN está vazio: " +
+				"a entrega imediata fica desligada; a venda sai no login")
+		default:
+			// O TOKEN COM CARA DE ENDEREÇO NÃO LIGA O LINK, e o erro diz o que trocar.
+			//
+			// Foi o defeito de 24/09/2026: a variável do token apontava para a do
+			// endereço, o serviço subiu anunciando o link ligado, e o tmServer recusava
+			// tudo. Erro e não aviso, porque aqui não há dúvida nenhuma sobre o que
+			// está errado — e mesmo assim o serviço SOBE, que é o que separa uma
+			// variável trocada de uma parada geral.
+			if secret.TokenComCaraDeEndereco(token, addr) {
+				logger.Error("W2PP_CONTROL_TOKEN parece o ENDEREÇO e não o segredo; "+
+					"a entrega imediata fica desligada. Aponte a variável para o "+
+					"W2PP_CONTROL_TOKEN do serviço tmserver, e não para o endereço",
+					"token", secret.Impressao(token), "addr", addr)
+				break
+			}
+			conn, cerr := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+			if cerr != nil {
+				logger.Warn("não consegui abrir o link com o servidor de jogo; "+
+					"a entrega imediata fica desligada", "addr", addr, "err", cerr)
+			} else {
+				defer func() { _ = conn.Close() }()
+				clienteDoJogo = jogo.New(conn, token)
+				jogoDoPagamento = clienteDoJogo
+				// A IMPRESSÃO DO TOKEN VAI NO LOG, e o token não. Dois serviços com
+				// valores diferentes só descobriam isso quando um recusava o outro, e
+				// a recusa não diz qual dos dois está errado — ver secret.Impressao.
+				logger.Info("link com o servidor de jogo ligado para a entrega imediata",
+					"addr", addr, "token", secret.Impressao(token))
+				avisaTokenFraco(logger, token)
+			}
+		}
+	} else {
+		logger.Info("entrega imediata desligada; a venda sai no login de cada um",
+			"configuração", "W2PP_TMSERVER_CONTROL + W2PP_CONTROL_TOKEN")
+	}
+
+	// O serviço do aviso de pagamento e a criação tardia do Pix, os dois presos à
+	// ponte: sem ela não há como consultar nem criar, e ligar qualquer um dos dois
+	// sem ela daria um caminho que falha em toda chamada.
+	rmtSrv := grpcsrv.NewRmt(st)
+
+	// A VITRINE DO MERCADO, que só existe com o link do jogo: a barraca vive na
+	// memória do laço e nunca é persistida, então sem o link não há o que listar. Sem
+	// ela o método responde Unavailable, em vez de devolver uma lista vazia que se
+	// leria como "ninguém está vendendo".
+	if clienteDoJogo != nil {
+		rmtSrv = rmtSrv.ComVitrine(mercado.Novo(clienteDoJogo, st, logger))
+		logger.Info("vitrine do mercado ligada", "cache", mercado.ValidadeDoCache)
+	} else {
+		logger.Warn("vitrine do mercado DESLIGADA: sem o link com o servidor de jogo, " +
+			"nao ha barraca para listar")
+	}
+	if clientePonte != nil {
+		adaptador := rmtpagamento.PonteDeVerdade{Cliente: clientePonte}
+		pagamentos := rmtpagamento.Novo(adaptador, st, jogoDoPagamento, logger)
+		webv1.RegisterRmtSystemServiceServer(srv, grpcsrv.NewRmtSistema(pagamentos, logger))
+		rmtSrv = rmtSrv.ComCriadorDePix(adaptador.CriarPix, nomeDeItem(itemCatalog), logger)
+
+		// O PAGAMENTO AO VENDEDOR NÃO É AUTOMÁTICO, e não há varredura nenhuma aqui.
+		//
+		// Havia: uma rodada de dois em dois minutos chamava a rota /repasse da ponte e
+		// pagava a fila sozinha. Ela FOI APAGADA, com o serviço e o cliente da rota,
+		// por decisão da Hanna de 25/09/2026 — quem paga o vendedor é a staff, à mão,
+		// pela fila do painel.
+		//
+		// APAGADO E NÃO DESLIGADO POR VARIÁVEL: "o saque automático sai" é regra, e uma
+		// chave de ambiente faria dela um acidente a uma linha de distância. Código
+		// morto que move dinheiro é pior do que código ausente, e o histórico do git
+		// guarda a rota para quem um dia precisar dela de volta.
+		//
+		// A ponte na VPS continua de pé com o SAQUE_LIBERADO desligado; ninguém mexe lá.
+
+		// NADA VENCE SEM PERGUNTAR, e o que entrou fora do prazo volta.
+		//
+		// Esta varredura mora aqui e não no dbserver porque as duas coisas que ela faz
+		// falam com a ponte, e as credenciais são deste processo. Enquanto ela não
+		// existia, a varredura do dbserver vencia a cobrança sem consultar ninguém — e
+		// um Pix pago no último segundo, com o aviso atrasado, virava pagamento sem
+		// item.
+		varredura := rmtvarredura.Nova(rmtvarredura.DoPagamento{Servico: pagamentos},
+			clientePonte, st, logger)
+		go varrerCobrancas(ctx, varredura)
+		logger.Info("conferencia antes de vencer ligada", "intervalo", intervaloDaConferencia)
+
+		// A REDE EMBAIXO DO AVISO DA DOAÇÃO.
+		//
+		// A doação tinha um caminho só para virar crédito: a processadora avisa o
+		// site, o site chama o ConfirmTopupOrder. Um aviso perdido era dinheiro
+		// cobrado e Rcoin nunca dado, sem nada aqui capaz de perceber — o servidor
+		// nunca tinha visto o id da processadora.
+		//
+		// Agora o site entrega o id (AttachTopupCharge) e esta varredura pergunta.
+		doacoes := doacaovarredura.Nova(doacaovarredura.DaPonte{Cliente: clientePonte},
+			doacaovarredura.DoServico{Servico: topup}, st, logger)
+		go varrerDoacoes(ctx, doacoes)
+		logger.Info("conferencia da doacao ligada",
+			"intervalo_novos", intervaloDaConferencia, "intervalo_resto", intervaloDasMortas,
+			"janela_de_novo", janelaDoPedidoNovo, "janela", store.JanelaDaCobrancaMorta)
+		logger.Info("caminho do pagamento em dinheiro real ligado")
+	} else {
+		logger.Warn("caminho do pagamento em dinheiro real DESLIGADO: sem a ponte, " +
+			"a página da cobrança não gera código e nenhum aviso é processado; " +
+			"as cobranças com código NÃO vencem sozinhas e os reembolsos não são pedidos")
+	}
+
+	// O CADASTRO, que o ambiente de teste tranca.
+	//
+	// Mesma variável do jogo (W2PP_ACESSO_RESTRITO) e não uma segunda: um servidor
+	// trancado para entrar e aberto para cadastrar seria uma porta que ninguém
+	// lembra de fechar. Uma variável, uma decisão.
+	//
+	// Só o CADASTRO fecha; o login segue igual, porque é para quem já tem conta de
+	// staff que o ambiente existe.
+	contas := account.New(st)
+	if acessoRestrito {
+		contas = contas.SemCadastro()
+	}
+	webv1.RegisterAccountWebServiceServer(srv, grpcsrv.New(contas))
 	webv1.RegisterRankingWebServiceServer(srv, grpcsrv.NewRanking(ranking.New(st)))
-	webv1.RegisterRmtWebServiceServer(srv, grpcsrv.NewRmt(st))
-	webv1.RegisterCharacterWebServiceServer(srv, grpcsrv.NewCharacters(characters.New(st)))
+	webv1.RegisterRmtWebServiceServer(srv, rmtSrv)
+	// O emblema de guilda vai no mesmo serviço: ele é do personagem, não da conta.
+	// O store atende as duas superfícies.
+	webv1.RegisterCharacterWebServiceServer(srv,
+		grpcsrv.NewCharacters(characters.New(st)).ComEmblemas(st))
 	webv1.RegisterItemCatalogServiceServer(srv, grpcsrv.NewItemCatalog(itemCatalog))
 	npcAdminSrv := grpcsrv.NewNpcAdmin(npcAdmin)
 	if spawnOrigins != nil {
@@ -297,7 +464,7 @@ func run(logger *slog.Logger) error {
 	webv1.RegisterDonateShopServiceServer(srv, grpcsrv.NewDonateShop(donate))
 	webv1.RegisterDailyRewardAdminServiceServer(srv, grpcsrv.NewDailyRewardAdmin(dailyRwd))
 	webv1.RegisterDailyRewardServiceServer(srv, grpcsrv.NewDailyReward(dailyRwd))
-	webv1.RegisterDonateTopupServiceServer(srv, grpcsrv.NewDonateTopup(topup))
+	webv1.RegisterDonateTopupServiceServer(srv, grpcsrv.NewDonateTopup(topup).ComLog(logger))
 	webv1.RegisterDonateRevenueAdminServiceServer(srv, grpcsrv.NewDonateRevenue(revenue))
 	webv1.RegisterWorldEventAdminServiceServer(srv, grpcsrv.NewWorldEventAdmin(worldEvents))
 
@@ -330,4 +497,141 @@ func envOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// nomeDeItem monta a busca de nome por índice a partir do catálogo.
+//
+// UM MAPA E NÃO UMA VARREDURA: a lista tem milhares de entradas e esta função é
+// chamada na criação de cada cobrança. Varrer seria barato hoje e é o tipo de coisa
+// que ninguém vai reler depois.
+//
+// Devolve vazio para índice que o catálogo não conhece, e quem chama trata isso
+// caindo na descrição genérica: perder o nome do item não pode derrubar uma venda.
+func nomeDeItem(c itemcatalog.Catalog) grpcsrv.NomeDeItem {
+	if len(c.Items) == 0 {
+		return nil
+	}
+	porIndice := make(map[int32]string, len(c.Items))
+	for _, e := range c.Items {
+		porIndice[e.Index] = e.DisplayName
+	}
+	return func(i int32) string { return porIndice[i] }
+}
+
+// intervaloDaConferencia é de quanto em quanto tempo as cobranças abertas são
+// conferidas na processadora.
+//
+// CURTO, ao contrário do repasse, e por dois motivos que puxam para o mesmo lado. O
+// atraso desta varredura entra inteiro no tempo que o item do vendedor fica preso além
+// do prazo, porque agora é ela que vence as cobranças com código. E ela é também o
+// polling: o comprador que pagou e cujo aviso não chegou espera exatamente um
+// intervalo destes para receber.
+//
+// Vinte segundos contra uma janela de cinco minutos é um vigésimo quinto da janela, e
+// o custo é uma consulta por cobrança aberta — que são poucas por construção, uma por
+// anúncio.
+const intervaloDaConferencia = 20 * time.Second
+
+// intervaloDasMortas é de quanto em quanto tempo as cobranças JÁ VENCIDAS são
+// conferidas.
+//
+// RARO, porque aqui ninguém está esperando na frente de uma tela: o dinheiro que
+// entra numa cobrança morta vai ser devolvido de qualquer jeito, e cinco minutos a
+// mais no caminho não mudam nada para ninguém. O que não pode é NUNCA perguntar — aí
+// o pagamento não vira linha nenhuma.
+const intervaloDasMortas = 5 * time.Minute
+
+// varrerCobrancas confere as abertas e pede as devoluções devidas, até o servidor
+// parar.
+//
+// Numa goroutine só, pelo mesmo motivo do repasse: é a trava mais simples contra duas
+// rodadas se cruzarem. As duas passadas são sequenciais de propósito — a conferência é
+// que produz os reembolsos pendentes, então pedir logo depois de conferir faz a
+// devolução sair na mesma rodada em que a dívida nasceu.
+func varrerCobrancas(ctx context.Context, v *rmtvarredura.Varredura) {
+	t := time.NewTicker(intervaloDaConferencia)
+	defer t.Stop()
+	// As mortas num relógio próprio, e as duas no MESMO select: uma goroutine só
+	// continua sendo a trava mais simples contra duas rodadas se cruzarem.
+	mortas := time.NewTicker(intervaloDasMortas)
+	defer mortas.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			// Prazo por rodada: uma ponte lenta não pode segurar a varredura para
+			// sempre, e a rodada seguinte pega o que sobrou.
+			prazo, cancela := context.WithTimeout(ctx, intervaloDaConferencia)
+			// Em passos e não aninhado: a ordem importa — a conferência é que produz
+			// os reembolsos pendentes que o Devolver pede — e ordem que depende da
+			// avaliação dos argumentos de uma chamada é ordem que ninguém lê.
+			conferencia := v.Conferir(prazo)
+			reembolsos := v.Devolver(prazo)
+			v.Registrar(prazo, conferencia, reembolsos)
+			cancela()
+		case <-mortas.C:
+			// O pagamento que chega depois do prazo: o código Pix continua pagável, e
+			// sem esta passada um aviso perdido faria o dinheiro entrar sem virar
+			// linha nenhuma. Devolver logo em seguida, pelo mesmo motivo de cima — é a
+			// conferência que produz a devolução a pedir.
+			prazo, cancela := context.WithTimeout(ctx, intervaloDasMortas)
+			conferencia := v.ConferirMortas(prazo)
+			reembolsos := v.Devolver(prazo)
+			v.Registrar(prazo, conferencia, reembolsos)
+			cancela()
+		}
+	}
+}
+
+// janelaDoPedidoNovo é até quando um pedido de doação conta como "recém-feito".
+//
+// DEZ MINUTOS, e o número sai do comportamento de quem paga: quem vai pagar um Pix
+// paga nos primeiros minutos, com a tela aberta. Nessa faixa a varredura roda junto
+// com a das cobranças, a cada 20 segundos, porque é a faixa em que alguém está
+// esperando o crédito aparecer.
+//
+// Passados os dez minutos o pedido não some da varredura: ele cai na passada rara,
+// que o alcança por 48 horas. O que muda é só a pressa.
+const janelaDoPedidoNovo = 10 * time.Minute
+
+// varrerDoacoes confere os pedidos de doação pendentes, em duas cadências.
+//
+// AS DUAS NO MESMO SELECT e numa goroutine só, como as outras: é a trava mais
+// simples contra duas rodadas se cruzarem.
+//
+// Por que duas: a rápida serve quem está com a tela aberta; a rara existe porque o
+// código Pix continua pagável depois, e um carrinho abandonado não pode custar uma
+// consulta a cada 20 segundos por dois dias.
+func varrerDoacoes(ctx context.Context, v *doacaovarredura.Varredura) {
+	novos := time.NewTicker(intervaloDaConferencia)
+	defer novos.Stop()
+	resto := time.NewTicker(intervaloDasMortas)
+	defer resto.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-novos.C:
+			prazo, cancela := context.WithTimeout(ctx, intervaloDaConferencia)
+			v.Registrar(prazo, v.Conferir(prazo, janelaDoPedidoNovo))
+			cancela()
+		case <-resto.C:
+			prazo, cancela := context.WithTimeout(ctx, intervaloDasMortas)
+			v.Registrar(prazo, v.Conferir(prazo, store.JanelaDaCobrancaMorta))
+			cancela()
+		}
+	}
+}
+
+// avisaTokenFraco fala quando o segredo de controle é curto demais.
+//
+// AVISO E NÃO ERRO: um token curto funciona, e derrubar o servidor por causa dele
+// trocaria um risco por uma parada. O que não pode é passar calado — a impressão do
+// token já foi para o log, e é justamente o token fraco que ela ajuda a adivinhar.
+func avisaTokenFraco(log *slog.Logger, token string) {
+	if secret.TokenFraco(token) {
+		log.Warn("o token de controle e CURTO; troque por um aleatorio de 32 bytes ou mais",
+			"minimo", secret.TamanhoMinimoDoToken)
+	}
 }

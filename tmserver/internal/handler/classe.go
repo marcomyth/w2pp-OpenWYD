@@ -12,7 +12,15 @@ import (
 const (
 	classeALo  = 4016
 	classeLast = 4025 // Classe_E(P)
+
+	// classeSancMax is the highest refine a Classe still accepts, the same +6
+	// SetItemBonus2 raises the sanc to.
+	classeSancMax = 6
 )
+
+// msgClasseNoMaximo is what a player reads when the Classe refuses a piece
+// above +6.
+const msgClasseNoMaximo = "Esse item já está no máximo."
 
 // classeTier maps a Classe item's sIndex to its tier 1..5 (A..E)
 // (_MSG_UseItem.cpp:4989). Only meaningful for items already classified as
@@ -56,8 +64,20 @@ func (d *Dispatcher) useClasseItem(w *world.World, s *world.Session, e *world.En
 	}
 
 	mobType := d.itemAbility(*dst, efMobType)
-	if itemSanc(*dst) >= 10 || (mobType != 0 && mobType != 2) {
+	if mobType != 0 && mobType != 2 {
 		// Source sends no notice on this gate — just resyncs the dragged slot.
+		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+		return
+	}
+
+	// SERVER RULE, NOT PARITY (Marco, 26/09/2026): the Classe only works up to
+	// +6. The legacy gate is `sanc > 9` (:4983), so a +7..+9 piece passed it,
+	// kept its sanc (SetItemBonus2 never lowers it) and still had its adds
+	// rerolled and the Classe spent — a way to farm adds on gear the Classe is
+	// not meant to touch. The refusal is said in words because the legacy's
+	// silent resync reads as "nothing happened".
+	if itemSanc(*dst) > classeSancMax {
+		sendClientMessage(w, s, msgClasseNoMaximo)
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}

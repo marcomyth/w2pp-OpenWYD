@@ -225,7 +225,7 @@ func (h *Handler) setEventos(w http.ResponseWriter, r *http.Request) {
 	// The whole config, before and after: which switch moved is the question
 	// somebody reads this log to answer.
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetWorldEvent,
 		Old:    resumoEvento(antes),
 		New:    resumoEvento(novo),
@@ -287,7 +287,7 @@ func (h *Handler) setKefra(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetKefra,
 		Old:    map[string]any{"derrotado": antes.KefraLiveEnabled, "guilda": antes.KefraGuildID},
 		New:    map[string]any{"derrotado": derrotado, "guilda": 0},

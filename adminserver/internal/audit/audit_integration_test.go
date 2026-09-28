@@ -110,6 +110,52 @@ func TestWriteAndList(t *testing.T) {
 	}
 }
 
+// TestAtorDoPainelNaoDerrubaALista: uma linha feita por um USUÁRIO DO PAINEL tem
+// actor_account_id nulo (#132). O leitor escaneava esse campo num int64, e uma
+// linha dessas derrubava a página inteira da auditoria em produção, em 25/09/2026.
+// A linha tem de voltar, com o login do painel como ator.
+func TestAtorDoPainelNaoDerrubaALista(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	s := New(pool)
+
+	var painelID int64
+	if err := pool.QueryRow(ctx, `
+		INSERT INTO painel_usuario (login, senha_hash, papel) VALUES ('auditpainel', 'x', 'admin')
+		ON CONFLICT (login) DO UPDATE SET papel = EXCLUDED.papel
+		RETURNING id`).Scan(&painelID); err != nil {
+		t.Fatalf("seed painel_usuario: %v", err)
+	}
+	if err := s.Write(ctx, Record{
+		AtorPainelID: painelID, ActorRole: "admin", Action: "SET_RATE",
+		New: map[string]any{"ator": "painel"},
+	}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	for nome, listar := range map[string]func() ([]Entry, error){
+		"List":        func() ([]Entry, error) { return s.List(ctx, 0, 0, 0) },
+		"ListActions": func() ([]Entry, error) { return s.ListActions(ctx, []string{"SET_RATE"}) },
+	} {
+		all, err := listar()
+		if err != nil {
+			t.Fatalf("%s com ator do painel: %v", nome, err)
+		}
+		var achou bool
+		for _, e := range all {
+			if e.ActorName == "painel: auditpainel" {
+				achou = true
+				if e.ActorID != 0 {
+					t.Errorf("%s: ActorID = %d, queria 0 para ator do painel", nome, e.ActorID)
+				}
+			}
+		}
+		if !achou {
+			t.Errorf("%s não trouxe a linha do ator do painel", nome)
+		}
+	}
+}
+
 func TestWriteWithoutTarget(t *testing.T) {
 	// A future server-wide action has no target account. The column is nullable
 	// for that, and List must not drop the row when resolving a name it has not.

@@ -186,7 +186,7 @@ func (d *Dispatcher) abrirCorrida(w *world.World, c *corrida, e *world.Entity) {
 	sp := c.spec
 	party := []int{e.ID}
 	for _, id := range e.PartyList {
-		// Pet também mora na PartyList; só entram jogadores.
+		// Só entram jogadores (o pet morava aqui até 26/09; a guarda fica).
 		if id <= 0 || id == e.ID || !world.IsPlayer(id) {
 			continue
 		}

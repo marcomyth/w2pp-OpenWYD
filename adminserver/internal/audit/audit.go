@@ -19,6 +19,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/jeanluca/w2pp-openwyd/internal/store"
 )
 
 // Action names. Kept as constants so a typo becomes a compile error rather than
@@ -38,6 +40,7 @@ const (
 	ActionClearItemStat      = "CLEAR_ITEM_STAT"
 	ActionDeliverItem        = "DELIVER_ITEM"
 	ActionCancelDelivery     = "CANCEL_DELIVERY"
+	ActionSendSupporterPack  = "SEND_SUPPORTER_PACK"
 	ActionSetPassword        = "SET_PASSWORD"
 	ActionCreateAccount      = "CREATE_ACCOUNT"
 	ActionKick               = "KICK"
@@ -47,6 +50,7 @@ const (
 	ActionHandleReport       = "HANDLE_REPORT"
 	ActionBroadcast          = "BROADCAST"
 	ActionSafeRestart        = "SAFE_RESTART"
+	ActionSoltarPosse        = "SOLTAR_POSSE_DA_CONTA"
 	ActionStopGame           = "STOP_GAME"
 	ActionStartGame          = "START_GAME"
 	ActionSetXPRule          = "SET_XP_RULE"
@@ -67,6 +71,8 @@ const (
 	ActionSetCombineBands    = "SET_COMBINE_BANDS"
 	ActionSetCombineTag      = "SET_COMBINE_TAG"
 	ActionBlockCommand       = "BLOCK_COMMAND"
+	ActionSetBlockRecipe     = "SET_BLOCK_RECIPE"
+	ActionClearBlockRecipe   = "CLEAR_BLOCK_RECIPE"
 	ActionClearXPRule        = "CLEAR_XP_RULE"
 	ActionSetMountGrowth     = "SET_MOUNT_GROWTH"
 	ActionClearMountGrowth   = "CLEAR_MOUNT_GROWTH"
@@ -74,6 +80,39 @@ const (
 	ActionClearMountAbsorb   = "CLEAR_MOUNT_ABSORB"
 	ActionSetMountBonus      = "SET_MOUNT_BONUS"
 	ActionClearMountBonus    = "CLEAR_MOUNT_BONUS"
+	// As tres do repasse ao vendedor. Elas sao de outra especie do que o resto
+	// desta lista: aqui a staff nao muda configuracao de jogo, ela AFIRMA o que
+	// aconteceu com o dinheiro de uma pessoa — e e por isso que cada uma deixa
+	// registro com nome de quem afirmou.
+	ActionRepasseIncertoPago     = "REPASSE_INCERTO_PAGO"
+	ActionRepasseIncertoNaoPago  = "REPASSE_INCERTO_NAO_PAGO"
+	ActionRepasseRecusaResolvida = "REPASSE_RECUSA_RESOLVIDA"
+	// ActionRepasseValorAjustado NÃO repete o texto: ele vem do store, que é quem grava a
+	// linha, dentro da mesma transação do UPDATE. Duas constantes com a mesma palavra é
+	// como uma delas muda sozinha — e aí o painel filtra por um nome que o banco não tem.
+	ActionRepasseValorAjustado = store.AcaoAjusteDeRepasse
+	// As outras tres filas de gente do dinheiro real. Mesma especie das de cima:
+	// nenhuma muda configuracao de jogo, todas afirmam o que aconteceu com o
+	// dinheiro de alguem.
+	ActionOrfaoResolvido          = "ORFAO_RESOLVIDO"
+	ActionReembolsoDeNovo         = "REEMBOLSO_DE_NOVO"
+	ActionReembolsoNaMao          = "REEMBOLSO_NA_MAO"
+	ActionReembolsoAchadoNoPainel = "REEMBOLSO_ACHADO_NO_PAINEL"
+	ActionDivergenteDevolvido     = "DIVERGENTE_DEVOLVIDO"
+	// O passe de batalha: quem deu, para quem e qual nível. É um cosmético
+	// comprado, então dar de graça é entregar o que alguém pagaria.
+	ActionSetPasse = "SET_PASSE"
+	// As ações sobre QUEM ADMINISTRA (migração 0130). São as mais sensíveis do log: não
+	// mexem em dinheiro nem em item, mexem em quem pode mexer em tudo.
+	ActionPainelUsuarioCriado     = "PAINEL_USUARIO_CRIADO"
+	ActionPainelUsuarioDesativado = "PAINEL_USUARIO_DESATIVADO"
+	ActionPainelUsuarioReativado  = "PAINEL_USUARIO_REATIVADO"
+	ActionPainelSenhaTrocada      = "PAINEL_SENHA_TROCADA"
+	// Pela LINHA DE COMANDO, com o painel já montado. Separada da criação pela tela porque
+	// é outra coisa: alguém com shell na máquina dando acesso sem clicar em nada. Enquanto o
+	// ambiente está vazio não há o que auditar; depois disso, é uma porta lateral, e porta
+	// lateral sem registro é porta silenciosa.
+	ActionPainelUsuarioCriadoPorLinhaDeComando = "PAINEL_USUARIO_CRIADO_POR_LINHA_DE_COMANDO"
 )
 
 // listLimit caps one page of the log.
@@ -81,11 +120,23 @@ const listLimit = 100
 
 // Record is one action to write, as the caller knows it.
 type Record struct {
+	// ActorID é a CONTA DE JOGO que agiu, pelo caminho de login antigo. Fica 0
+	// quando quem agiu é um usuário do painel — ver AtorPainelID.
 	ActorID   int64
 	ActorRole string // the role AT THE TIME of the action, not looked up later
 	Action    string
 	TargetID  int64 // 0 when the action has no target
 	Old, New  any   // marshalled to JSONB; nil writes SQL NULL
+
+	// AtorPainelID é o USUÁRIO DO PAINEL que agiu, quando o login veio pela tabela
+	// painel_usuario e não por uma conta de jogo com cargo (migração 0130).
+	//
+	// EXATAMENTE UM DOS DOIS tem de estar preenchido, e o banco tem um CHECK que
+	// garante isso. O motivo de ser trava de banco e não só de código: uma linha de
+	// auditoria sem ator é uma ação que aconteceu e que ninguém consegue atribuir a
+	// ninguém — numa tabela cuja única razão de existir é dizer QUEM fez, isso é
+	// pior do que a linha não existir.
+	AtorPainelID int64
 }
 
 // Entry is one row as the log page shows it, with names resolved.
@@ -127,11 +178,28 @@ func (s *Store) Write(ctx context.Context, r Record) error {
 		target = r.TargetID
 	}
 
+	// OS DOIS ATORES VIRAM NULO QUANDO SÃO ZERO, porque o CHECK do banco exige
+	// exatamente um preenchido. Mandar 0 em vez de NULL faria o insert falhar na
+	// chave estrangeira (não existe conta id 0) — o que é seguro, mas a mensagem
+	// falaria de conta inexistente em vez de ator faltando.
+	var ator, atorPainel any
+	if r.ActorID != 0 {
+		ator = r.ActorID
+	}
+	if r.AtorPainelID != 0 {
+		atorPainel = r.AtorPainelID
+	}
+	if (ator == nil) == (atorPainel == nil) {
+		return fmt.Errorf("audit: %s sem ator ou com dois: conta=%d painel=%d",
+			r.Action, r.ActorID, r.AtorPainelID)
+	}
+
 	_, err = s.pool.Exec(ctx, `
 		INSERT INTO admin_audit_log
-		    (actor_account_id, actor_role, action, target_account_id, old_value, new_value)
-		VALUES ($1, $2, $3, $4, $5, $6)`,
-		r.ActorID, r.ActorRole, r.Action, target, oldJSON, newJSON)
+		    (actor_account_id, actor_painel_usuario_id, actor_role, action,
+		     target_account_id, old_value, new_value)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		ator, atorPainel, r.ActorRole, r.Action, target, oldJSON, newJSON)
 	if err != nil {
 		return fmt.Errorf("audit: write %s: %w", r.Action, err)
 	}
@@ -157,11 +225,12 @@ func (s *Store) List(ctx context.Context, targetID int64, limit, offset int) ([]
 	// One query with a nullable filter rather than two: the difference is a
 	// parameter, and two near-identical SQL strings drift apart over time.
 	rows, err := s.pool.Query(ctx, `
-		SELECT l.id, l.actor_account_id, COALESCE(a.name, ''), l.actor_role, l.action,
+		SELECT l.id, COALESCE(l.actor_account_id, 0), COALESCE(a.name, 'painel: ' || p.login, ''), l.actor_role, l.action,
 		       COALESCE(l.target_account_id, 0), COALESCE(t.name, ''),
 		       l.old_value, l.new_value, l.created_at
 		  FROM admin_audit_log l
 		  LEFT JOIN account a ON a.id = l.actor_account_id
+		  LEFT JOIN painel_usuario p ON p.id = l.actor_painel_usuario_id
 		  LEFT JOIN account t ON t.id = l.target_account_id
 		 WHERE $1::bigint IS NULL OR l.target_account_id = $1
 		 ORDER BY l.created_at DESC, l.id DESC
@@ -173,6 +242,12 @@ func (s *Store) List(ctx context.Context, targetID int64, limit, offset int) ([]
 	return scanEntries(rows)
 }
 
+// O ATOR PODE SER UM USUÁRIO DO PAINEL (#132), e aí actor_account_id é NULO: as
+// duas consultas leem o id com COALESCE(…, 0) e o nome com o login do painel
+// ("painel: fulano"). Sem isso, uma única linha feita pelo painel derrubava a
+// página inteira da auditoria (produção, 25/09/2026: "cannot scan NULL into
+// *int64").
+//
 // scanEntries drains a result set shaped like the SELECT above. Both listings
 // read the same ten columns in the same order, and one decoder is what keeps
 // them from drifting apart.
@@ -246,56 +321,75 @@ func compact(raw []byte) string {
 // English constants in a Portuguese panel is a page nobody reads — which defeats
 // the log, whose whole purpose is being read after something went wrong.
 var rotulos = map[string]string{
-	ActionSetRole:            "Mudou o cargo",
-	ActionSetBlocked:         "Bloqueou ou desbloqueou",
-	ActionSetVip:             "Mexeu no VIP",
-	ActionSetPassword:        "Trocou a senha",
-	ActionCreateAccount:      "Criou uma conta",
-	ActionSetItemPrice:       "Mudou o preço de um item",
-	ActionSetNpcShop:         "Mudou a loja de um NPC",
-	ActionSetNpc:             "Editou um NPC",
-	ActionDeleteNpc:          "Apagou um NPC",
-	ActionSetMobStat:         "Editou os atributos de um monstro",
-	ActionClearMobStat:       "Restaurou um monstro",
-	ActionSetItemStat:        "Editou os atributos de um item",
-	ActionClearItemStat:      "Restaurou um item",
-	ActionDeliverItem:        "Entregou um item",
-	ActionCancelDelivery:     "Cancelou uma entrega",
-	ActionKick:               "Derrubou uma conta",
-	ActionUnstuck:            "Desatolou um personagem",
-	ActionSetWorldEvent:      "Mexeu nos eventos do servidor",
-	ActionSetKefra:           "Marcou o Kefra como derrotado ou vivo",
-	ActionHandleReport:       "Tratou uma denúncia",
-	ActionBroadcast:          "Mandou um aviso para todos",
-	ActionRestartGame:        "Reiniciou o servidor",
-	ActionSafeRestart:        "Reiniciou com segurança",
-	ActionStopGame:           "Desligou o servidor",
-	ActionStartGame:          "Ligou o servidor",
-	ActionSetXPRule:          "Mexeu na Mesa de XP",
-	ActionSetDungeonGate:     "Abriu ou fechou uma masmorra",
-	ActionSetSpawnRate:       "Mudou o tempo de spawn de uma área",
-	ActionClearSpawnRate:     "Voltou o tempo de spawn de uma área ao conteúdo",
-	ActionSetCombatRule:      "Mudou a regra de combate",
-	ActionClearCombatRule:    "Voltou a regra de combate ao padrão",
-	ActionSetQuestReward:     "Mudou a recompensa de uma quest",
-	ActionClearQuestReward:   "Voltou a recompensa de uma quest ao conteúdo",
-	ActionSetDropBonus:       "Mudou a escada do bônus de drop",
-	ActionSetCombineRate:     "Mudou a taxa de uma máquina",
-	ActionClearCombineRate:   "Devolveu a taxa de uma máquina ao arquivo",
-	ActionSetCombineBands:    "Mudou as faixas de conjunto de uma máquina",
-	ActionSetCombineTag:      "Marcou a operação (ADD/ABS) de uma máquina",
-	ActionBlockCommand:       "Mexeu num bloco de NPCs ou monstros no jogo",
-	ActionClearDropBonus:     "Voltou a escada do bônus de drop ao legado",
-	ActionSetDropRule:        "Gravou uma regra na Mesa de Drops",
-	ActionDeleteDropRule:     "Apagou uma regra da Mesa de Drops",
-	ActionSetDropBonusLigado: "Ligou ou desligou o sorteio de bônus de drop",
-	ActionClearXPRule:        "Voltou uma tabela de XP ao legado",
-	ActionSetMountGrowth:     "Mexeu na taxa de crescimento de uma montaria",
-	ActionClearMountGrowth:   "Voltou a curva de uma montaria ao padrão",
-	ActionSetMountAbsorb:     "Mexeu na absorção de uma montaria",
-	ActionClearMountAbsorb:   "Voltou a absorção de uma montaria ao padrão",
-	ActionSetMountBonus:      "Mexeu nos atributos de uma montaria",
-	ActionClearMountBonus:    "Voltou os atributos de uma montaria ao padrão",
+	ActionSetRole:                              "Mudou o cargo",
+	ActionSetBlocked:                           "Bloqueou ou desbloqueou",
+	ActionSetVip:                               "Mexeu no VIP",
+	ActionSetPassword:                          "Trocou a senha",
+	ActionCreateAccount:                        "Criou uma conta",
+	ActionSetItemPrice:                         "Mudou o preço de um item",
+	ActionSetNpcShop:                           "Mudou a loja de um NPC",
+	ActionSetNpc:                               "Editou um NPC",
+	ActionDeleteNpc:                            "Apagou um NPC",
+	ActionSetMobStat:                           "Editou os atributos de um monstro",
+	ActionClearMobStat:                         "Restaurou um monstro",
+	ActionSetItemStat:                          "Editou os atributos de um item",
+	ActionClearItemStat:                        "Restaurou um item",
+	ActionDeliverItem:                          "Entregou um item",
+	ActionCancelDelivery:                       "Cancelou uma entrega",
+	ActionSendSupporterPack:                    "Enviou um pacote de apoiador",
+	ActionKick:                                 "Derrubou uma conta",
+	ActionUnstuck:                              "Desatolou um personagem",
+	ActionSetWorldEvent:                        "Mexeu nos eventos do servidor",
+	ActionSetKefra:                             "Marcou o Kefra como derrotado ou vivo",
+	ActionRepasseIncertoPago:                   "Afirmou que um repasse incerto FOI pago",
+	ActionRepasseIncertoNaoPago:                "Afirmou que um repasse incerto NAO foi pago",
+	ActionRepasseRecusaResolvida:               "Poe um repasse recusado de volta na fila",
+	ActionRepasseValorAjustado:                 "Mudou QUANTO se deve a um vendedor",
+	ActionPainelUsuarioCriado:                  "Criou um usuario do painel (deu acesso ao painel)",
+	ActionPainelUsuarioDesativado:              "Desativou um usuario do painel",
+	ActionPainelUsuarioReativado:               "Reativou um usuario do painel",
+	ActionPainelSenhaTrocada:                   "Trocou a senha de um usuario do painel",
+	ActionPainelUsuarioCriadoPorLinhaDeComando: "Criou um usuario do painel pela LINHA DE COMANDO (fora da tela)",
+	ActionOrfaoResolvido:                       "Marcou um pagamento orfao como resolvido",
+	ActionReembolsoDeNovo:                      "Poe um reembolso de volta na fila para pedir",
+	ActionReembolsoNaMao:                       "Afirmou que um reembolso foi resolvido na mao",
+	ActionReembolsoAchadoNoPainel:              "Achou o pedido de reembolso no painel da processadora",
+	ActionDivergenteDevolvido:                  "Registrou que devolveu por fora um pagamento de valor divergente",
+	ActionSetPasse:                             "Mudou o nivel do passe de batalha de uma conta",
+	ActionHandleReport:                         "Tratou uma denúncia",
+	ActionBroadcast:                            "Mandou um aviso para todos",
+	ActionRestartGame:                          "Reiniciou o servidor",
+	ActionSafeRestart:                          "Reiniciou com segurança",
+	ActionSoltarPosse:                          "Soltou a posse da conta",
+	ActionStopGame:                             "Desligou o servidor",
+	ActionStartGame:                            "Ligou o servidor",
+	ActionSetXPRule:                            "Mexeu na Mesa de XP",
+	ActionSetDungeonGate:                       "Abriu ou fechou uma masmorra",
+	ActionSetSpawnRate:                         "Mudou o tempo de spawn de uma área",
+	ActionClearSpawnRate:                       "Voltou o tempo de spawn de uma área ao conteúdo",
+	ActionSetCombatRule:                        "Mudou a regra de combate",
+	ActionClearCombatRule:                      "Voltou a regra de combate ao padrão",
+	ActionSetQuestReward:                       "Mudou a recompensa de uma quest",
+	ActionClearQuestReward:                     "Voltou a recompensa de uma quest ao conteúdo",
+	ActionSetDropBonus:                         "Mudou a escada do bônus de drop",
+	ActionSetCombineRate:                       "Mudou a taxa de uma máquina",
+	ActionClearCombineRate:                     "Devolveu a taxa de uma máquina ao arquivo",
+	ActionSetCombineBands:                      "Mudou as faixas de conjunto de uma máquina",
+	ActionSetCombineTag:                        "Marcou a operação (ADD/ABS) de uma máquina",
+	ActionBlockCommand:                         "Mexeu num bloco de NPCs ou monstros no jogo",
+	ActionSetBlockRecipe:                       "Mudou a receita de um bloco (quem nasce, quantos, onde)",
+	ActionClearBlockRecipe:                     "Devolveu um bloco ao NPCGener, ou apagou um bloco novo",
+	ActionClearDropBonus:                       "Voltou a escada do bônus de drop ao legado",
+	ActionSetDropRule:                          "Gravou uma regra na Mesa de Drops",
+	ActionDeleteDropRule:                       "Apagou uma regra da Mesa de Drops",
+	ActionSetDropBonusLigado:                   "Ligou ou desligou o sorteio de bônus de drop",
+	ActionClearXPRule:                          "Voltou uma tabela de XP ao legado",
+	ActionSetMountGrowth:                       "Mexeu na taxa de crescimento de uma montaria",
+	ActionClearMountGrowth:                     "Voltou a curva de uma montaria ao padrão",
+	ActionSetMountAbsorb:                       "Mexeu na absorção de uma montaria",
+	ActionClearMountAbsorb:                     "Voltou a absorção de uma montaria ao padrão",
+	ActionSetMountBonus:                        "Mexeu nos atributos de uma montaria",
+	ActionClearMountBonus:                      "Voltou os atributos de uma montaria ao padrão",
 }
 
 // Rotulo is the readable name of this entry's action.
@@ -320,11 +414,12 @@ func (s *Store) ListActions(ctx context.Context, actions []string) ([]Entry, err
 		return nil, nil
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT l.id, l.actor_account_id, COALESCE(a.name, ''), l.actor_role, l.action,
+		SELECT l.id, COALESCE(l.actor_account_id, 0), COALESCE(a.name, 'painel: ' || p.login, ''), l.actor_role, l.action,
 		       COALESCE(l.target_account_id, 0), COALESCE(t.name, ''),
 		       l.old_value, l.new_value, l.created_at
 		  FROM admin_audit_log l
 		  LEFT JOIN account a ON a.id = l.actor_account_id
+		  LEFT JOIN painel_usuario p ON p.id = l.actor_painel_usuario_id
 		  LEFT JOIN account t ON t.id = l.target_account_id
 		 WHERE l.action = ANY($1)
 		 ORDER BY l.created_at DESC, l.id DESC

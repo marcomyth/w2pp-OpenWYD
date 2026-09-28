@@ -19,8 +19,8 @@ func TestTodaAcaoTemRotulo(t *testing.T) {
 		ActionSetRole, ActionSetBlocked, ActionSetVip, ActionSetPassword,
 		ActionSetItemPrice, ActionSetNpcShop, ActionSetNpc, ActionDeleteNpc,
 		ActionSetMobStat, ActionClearMobStat, ActionSetItemStat, ActionClearItemStat,
-		ActionDeliverItem, ActionCancelDelivery, ActionKick, ActionBroadcast, ActionUnstuck, ActionSetWorldEvent, ActionSetKefra, ActionHandleReport,
-		ActionRestartGame, ActionSafeRestart, ActionStopGame, ActionStartGame,
+		ActionDeliverItem, ActionCancelDelivery, ActionSendSupporterPack, ActionKick, ActionBroadcast, ActionUnstuck, ActionSetWorldEvent, ActionSetKefra, ActionHandleReport,
+		ActionRestartGame, ActionSafeRestart, ActionSoltarPosse, ActionStopGame, ActionStartGame,
 		ActionCreateAccount, ActionSetXPRule, ActionClearXPRule, ActionSetDungeonGate,
 		ActionSetQuestReward, ActionClearQuestReward,
 		ActionSetSpawnRate, ActionClearSpawnRate,
@@ -32,6 +32,15 @@ func TestTodaAcaoTemRotulo(t *testing.T) {
 		ActionSetMountBonus, ActionClearMountBonus,
 		ActionSetCombineRate, ActionClearCombineRate, ActionSetCombineBands, ActionSetCombineTag,
 		ActionBlockCommand,
+		ActionSetBlockRecipe,
+		ActionClearBlockRecipe,
+		ActionRepasseIncertoPago, ActionRepasseIncertoNaoPago, ActionRepasseRecusaResolvida,
+		ActionRepasseValorAjustado,
+		ActionPainelUsuarioCriado, ActionPainelUsuarioDesativado,
+		ActionPainelUsuarioReativado, ActionPainelSenhaTrocada,
+		ActionPainelUsuarioCriadoPorLinhaDeComando,
+		ActionOrfaoResolvido, ActionReembolsoDeNovo, ActionReembolsoNaMao,
+		ActionReembolsoAchadoNoPainel, ActionDivergenteDevolvido, ActionSetPasse,
 	}
 	for _, a := range acoes {
 		e := Entry{Action: a}

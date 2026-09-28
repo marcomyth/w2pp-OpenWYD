@@ -407,3 +407,67 @@ func TestSetBlockedByName(t *testing.T) {
 		t.Fatalf("SetBlockedByName(ghost) = %v, want ErrNotFound", err)
 	}
 }
+
+// A CIDADANIA COMPRADA SOBREVIVE AO RELOGIN, e este teste existe porque a ausência
+// dele deixou passar um buraco de dinheiro.
+//
+// A Kibita vende cidadania por 4.000.000 de ouro (handler/cidadania.go). O ouro é
+// debitado e gravado; a cidadania ficava DE FORA do SaveCharacter, na lista de campos
+// "untouched" que existe para um save em jogo não apagar dado importado. Resultado: o
+// jogador pagava e perdia a compra no próximo login.
+//
+// Os testes do handler não pegavam, e é a lição: eles conferiam e.Citizen NA MEMÓRIA,
+// depois da compra. A memória estava certa. O que estava errado era o caminho até o
+// banco, e só um teste que RELÊ do Postgres enxerga isso.
+func TestCidadaniaCompradaSobreviveAoRelogin(t *testing.T) {
+	s, ctx := freshStore(t)
+	accountID, err := s.SaveAccount(ctx, domain.Account{Name: "cidadao", PassHash: "hash", Characters: []domain.Character{{
+		Slot: 0, Name: "Hero", Class: 0, ClassMaster: 2, Level: 50,
+		Coin: 5_000_000, Hp: 1000, MaxHp: 1000,
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch, err := s.LoadCharacter(ctx, accountID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ch.Citizen != 0 {
+		t.Fatalf("o personagem nasceu cidadao: %d", ch.Citizen)
+	}
+
+	// O que a Kibita faz: cobra e marca o canal.
+	ch.Coin -= 4_000_000
+	ch.Citizen = 1
+	if err := s.SaveCharacter(ctx, accountID, ch); err != nil {
+		t.Fatal(err)
+	}
+
+	relido, err := s.LoadCharacter(ctx, accountID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if relido.Citizen != 1 {
+		t.Errorf("citizen = %d depois do relogin, queria 1: a compra foi perdida", relido.Citizen)
+	}
+	// E o par que prova que o buraco era ASSIMÉTRICO: o ouro sempre foi gravado.
+	// Cobrar e não entregar é o que fazia disso um defeito de dinheiro, e não um
+	// campo esquecido qualquer.
+	if relido.Coin != 1_000_000 {
+		t.Errorf("ouro = %d, queria 1.000.000", relido.Coin)
+	}
+
+	// E O /tirarcidadania TAMBÉM TEM DE PERSISTIR: sem isso a cidadania volta no
+	// relogin e a pessoa não consegue trocar de canal nunca.
+	relido.Citizen = 0
+	if err := s.SaveCharacter(ctx, accountID, relido); err != nil {
+		t.Fatal(err)
+	}
+	depois, err := s.LoadCharacter(ctx, accountID, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if depois.Citizen != 0 {
+		t.Errorf("citizen = %d depois de tirar, queria 0", depois.Citizen)
+	}
+}

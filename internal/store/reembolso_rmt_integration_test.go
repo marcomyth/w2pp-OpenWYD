@@ -62,7 +62,7 @@ func recusadoNaFila(ctx context.Context, t *testing.T, s *Store, nome, codigo st
 	t.Helper()
 	vendedor := contaPix(ctx, t, s, "vendedor_"+nome)
 	comprador = contaPix(ctx, t, s, "comprador_"+nome)
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)

@@ -40,6 +40,13 @@ func ParseAccess(role string) AccessLevel {
 	}
 }
 
+// EhStaff diz se este nível é de gente da casa — moderação ou administração.
+//
+// Existe como método e não como comparação solta porque a pergunta "isto é staff?"
+// aparece em lugares distantes, e cada um escrevendo o seu `>= AccessModerator` é
+// como um deles fica para trás no dia em que aparecer um nível novo.
+func (a AccessLevel) EhStaff() bool { return a >= AccessModerator }
+
 // String renders the tier for audit logs.
 func (a AccessLevel) String() string {
 	switch a {
@@ -60,10 +67,31 @@ type Session struct {
 	AccountName string
 	AccountID   int64
 	AccessLevel AccessLevel // account.role tier; gates in-game GM commands (issue #122)
-	// Cash e RMT da conta, como estavam no login e corrigidos a cada compra da
-	// Loja do Servidor. É o que o painel mostra no rodapé.
+	// Cash e RMT da conta. É o que o painel da Loja do Servidor mostra no rodapé.
+	//
+	// SÃO CÓPIA, E CÓPIA ENVELHECE: a carteira mora na conta, no banco, e muda
+	// por caminhos que não passam por esta sessão — a recarga pelo site, um
+	// ajuste da staff, outra sessão da mesma conta. Por isso o Cash é RELIDO do
+	// banco antes de a vitrine ir para a tela (ver carteira.go), e não apenas
+	// somado e subtraído aqui.
+	//
+	// Isso é só a TELA. Gastar não usa este número: a compra em Cash bate no
+	// banco, com FOR UPDATE, e é o banco que recusa (ver lojacompra.go). Uma
+	// cópia adiantada nunca virou dinheiro que não existe.
+	//
+	// O Rmt ainda é só do login: não existe RPC que leia a carteira de RMT
+	// sozinha, e inventar um é maior que este conserto. Enquanto não existir,
+	// o RMT no rodapé pode estar velho pelo mesmo motivo que o Cash estava.
 	Cash int32
 	Rmt  int32
+	// CashEmLeitura marca que já há uma releitura da carteira a caminho do banco.
+	// Sem isso, abrir e fechar a vitrine depressa viraria uma ida ao banco por
+	// clique, e a última a voltar mandaria na tela — que nem sempre é a mais nova.
+	CashEmLeitura bool
+	// PasseNivel é o nível do passe da CONTA, lido no login e copiado para cada
+	// personagem que entrar (ver character.go). Fica na sessão porque é da conta, e
+	// porque é aqui que o SetPassLevel o atualiza sem esperar relogin.
+	PasseNivel uint8
 	// O painel da loja aberto, e em que página e filtro ele está. O servidor
 	// avisa quem está com ele aberto quando o mercado muda, em vez de deixar o
 	// cliente perguntar de tempos em tempos — ver handler.mercadoMudou.
@@ -94,8 +122,16 @@ type Session struct {
 	Slot          int
 	Mode          Mode
 	IP            string
-	CrackError    int  // anti-cheat violation count (CUser.NumError)
-	Whisper       bool // true blocks incoming whispers
+	// Maquina is MSG_AccountLogin.AdapterName, kept as the legacy kept it in
+	// CUser.Mac (_MSG_AccountLogin.cpp:70): the GUID of the client's first network
+	// adapter, parsed into four ints by the WYD.exe (0x4865DC-0x4866FD, sscanf
+	// "%x %x %x %x"). It is what tells two accounts on one computer apart from two
+	// players — IP cannot, because behind the Railway proxy every connection
+	// arrives from a different 100.64.0.x. Sent by the client, so it is a hint,
+	// not proof: see handler.maquinaConhecida.
+	Maquina    [4]int32
+	CrackError int  // anti-cheat violation count (CUser.NumError)
+	Whisper    bool // true blocks incoming whispers
 	// Snd is the status line "/snd" sets, shown to anyone who inspects this
 	// character (_MSG_MessageWhisper.cpp:591 sets it, :1640 shows it). Session
 	// scope is deliberate and matches the legacy, which clears Snd on every login
@@ -119,22 +155,36 @@ type Session struct {
 	// GuildaPedidoEm é quando este jogador pediu, pela última vez, uma aba do
 	// Painel de Guilda que vai ao banco. É o freio contra um cliente remendado
 	// pedir o quadro em laço (handler/guildapainel.go).
-	GuildaPedidoEm    time.Time
-	TradeMode         int             // non-zero while in auto-trade (blocks attacks)
-	Trade             TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
-	AutoTrade         *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1
-	NovatoEmCurso     bool            // um /novato já está esperando a resposta do banco
-	DonateEmCurso     bool            // uma RCoin já espera o crédito do banco
-	CompraEmPontos    bool            // uma compra paga em pontos de lojinha espera o banco
-	LastAttackTick    uint32          // ClientTick of the last accepted attack (cadence gate)
-	PotionTick        uint32          // CUser.PotionTime: server clock of the last accepted potion
-	LastAttack        int             // SkillIndex of the last attack
-	LastIllusionTick  uint32          // ClientTick of the last Huntress Ilusao movement
-	ReqHp             int32           // CUser.ReqHp: server-owned HP target for regen/potions
-	ReqMp             int32           // CUser.ReqMp: server-owned MP target for regen/potions
-	CriticalProgress  uint16          // CUser.cProgress used by BASE_GetDoubleCritical
-	ShortSkill        [16]uint8       // client hotbar layout (CUser.CharShortSkill, _MSG_SetShortSkill)
-	LoginSpawnX       int16           // last server-injected login spawn, for movement diagnostics
+	GuildaPedidoEm time.Time
+	// RecusasDeAcesso conta quantas vezes ESTA conexão levou uma recusa de acesso
+	// restrito. É do laço, como todo o resto da sessão, e não precisa de trava.
+	//
+	// Ele existe para o fechamento atrasado de uma recusa não derrubar o que veio
+	// DEPOIS dela: o cliente devolve os campos à pessoa e ela pode entrar de novo, com
+	// a conta certa, NO MESMO SOCKET. Sem o contador, o fechamento agendado pela
+	// recusa antiga chegaria em cima de uma sessão que agora é legítima.
+	RecusasDeAcesso int
+
+	TradeMode      int             // non-zero while in auto-trade (blocks attacks)
+	Trade          TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)
+	AutoTrade      *AutoTradeState // non-nil while a personal shop is open (issue #115); TradeMode==1
+	NovatoEmCurso  bool            // um /novato já está esperando a resposta do banco
+	DonateEmCurso  bool            // uma RCoin já espera o crédito do banco
+	CompraEmPontos bool            // uma compra paga em pontos de lojinha espera o banco
+	// A última compra da Loja de Rcoin: o pedido que o cliente mandou e o 0x0F0F
+	// que ela rendeu. Um pedido repetido recebe esta resposta de novo, sem ir ao
+	// banco — é o que separa "cliquei duas vezes" de "quero comprar duas".
+	RcoinPedido       uint32
+	RcoinResposta     []byte
+	LastAttackTick    uint32    // ClientTick of the last accepted attack (cadence gate)
+	PotionTick        uint32    // CUser.PotionTime: server clock of the last accepted potion
+	LastAttack        int       // SkillIndex of the last attack
+	LastIllusionTick  uint32    // ClientTick of the last Huntress Ilusao movement
+	ReqHp             int32     // CUser.ReqHp: server-owned HP target for regen/potions
+	ReqMp             int32     // CUser.ReqMp: server-owned MP target for regen/potions
+	CriticalProgress  uint16    // CUser.cProgress used by BASE_GetDoubleCritical
+	ShortSkill        [16]uint8 // client hotbar layout (CUser.CharShortSkill, _MSG_SetShortSkill)
+	LoginSpawnX       int16     // last server-injected login spawn, for movement diagnostics
 	LoginSpawnY       int16
 	LoginTick         uint32
 	LoggedFirstAction bool // first post-login _MSG_Action diagnostic was emitted
@@ -157,6 +207,10 @@ type Session struct {
 	// kill paid them nothing (handler.avisarXPPerdida). Session scope on
 	// purpose: a fresh login may be told again at once.
 	XPPerdidaAvisoAt int64
+
+	// proximoSavePeriodico is when this character is next saved without anything
+	// asking for it (savePeriodicoTick). Zero until it enters play. Loop-owned.
+	proximoSavePeriodico time.Time
 
 	seen map[int]struct{} // entity ids already create-mob'd to this client (view set)
 
@@ -311,7 +365,9 @@ type Entity struct {
 	Template []byte
 	// TemplateName is the template file this mob was spawned from (MobSpawn).
 	TemplateName string
-	Merchant     uint8 // bit-packed: spawn city in bits 6-7 (lote2-movimento.md ChangeCity)
+	// GenRev is the recipe revision of its block when it was born (MobSpawn).
+	GenRev   uint32
+	Merchant uint8 // bit-packed: spawn city in bits 6-7 (lote2-movimento.md ChangeCity)
 	// MobMerchant is the OTHER merchant byte, STRUCT_MOB.Merchant @17: the one the
 	// legacy routes quest NPCs by (_MSG_Quest.cpp:33). The Treinadores are 36/40/41
 	// here and 100/104/105 in Merchant above; see internal/campotreino.
@@ -353,7 +409,11 @@ type Entity struct {
 	// MolarGargula marca que este personagem ja usou o Molar de Gargula (0093):
 	// o molar sobe o set vestido para +7 uma unica vez, entao a marca precisa
 	// sobreviver ao relog.
-	MolarGargula         uint8
+	MolarGargula uint8
+	// NivelRetroativo e ate onde o personagem recebeu as pecas de nivel que o
+	// jogo deixou de entregar (0172): 0 nada, 1-399 ate aquele nivel, 1000
+	// concluido. Persistido, para a entrega do login nao se repetir.
+	NivelRetroativo      uint16
 	ArchLv355, ArchLv370 uint8
 	MortalLevel          uint16
 	CelestialArchLevel   uint8
@@ -394,6 +454,13 @@ type Entity struct {
 	// hits, but it does NOT by itself blink the nickname. Session-only, not persisted.
 	PKMode bool
 
+	// GMInvisible is "/gm invisivel", the port of the legacy "+snoop" (MSV_SNOOP,
+	// imple.cpp:1567): no frame about this character reaches any other client
+	// (World.hiddenFrom) and monsters do not take it as a target. Lives on the
+	// per-connection entity and is never persisted, so it lasts until the GM
+	// disconnects — a GM who forgot it on is visible again at the next login.
+	GMInvisible bool
+
 	// PKPoint is the legacy PKPoint byte (GetFunc.cpp GetPKPoint/SetPKPoint, the
 	// hidden KILL_MARK carry slot): the chaos/karma counter, clamped [1,150] on
 	// write, 75 = neutral. The wire/display value is PKPoint-75 (range [-74,+75],
@@ -414,6 +481,16 @@ type Entity struct {
 	// clients can render them) — no gameplay effect modeled. Persisted.
 	CurKill uint8
 	TotKill uint16
+
+	// PasseNivel é a moldura do passe de batalha desta pessoa, 0 a 4, e ela vem da
+	// CONTA e não do personagem (0128).
+	//
+	// Ela está na entidade e não só na sessão porque quem monta o MSG_CreateMob tem a
+	// entidade na mão — inclusive o de OUTRO jogador entrando na tela, que é
+	// justamente quando a moldura de alguém precisa aparecer para terceiros.
+	//
+	// Monstro e NPC ficam em zero.
+	PasseNivel uint8
 
 	Str        int16 // CurrentScore attributes (base + equipment, kept live by refreshScore)
 	Int        int16
@@ -595,9 +672,20 @@ type Entity struct {
 
 	// Summoner is the conn of the player that evoked this mob (GenerateSummon's
 	// pMob.Summoner, Server.cpp:3244); 0 = not a summon. A summon's Leader is
-	// its owner's party leader (or the owner), matching the legacy binding.
+	// its owner — never the owner's party leader (see Evocacoes).
 	Summoner  int
 	PartyList [MaxParty]int
+
+	// Evocacoes é o bando de um jogador: os ids dos pets que ELE evocou.
+	//
+	// DIVERGÊNCIA DELIBERADA DO LEGADO, decidida pelo Marco em 26/09/2026:
+	// "evocações não devem entrar em grupo, mas quando o BM evoca ela simula um
+	// grupo". No legado os pets moravam na PartyList do líder (GenerateSummon,
+	// Server.cpp:2981-3027): ocupavam vaga de jogador, faziam o BM parecer já
+	// agrupado ("já tem grupo" no convite) e entravam em todo laço sobre o grupo.
+	// Aqui o bando é do dono e fica fora do grupo; o grupo e a guilda do pet são
+	// os do dono, resolvidos na hora (handler.donoDaEvocacao).
+	Evocacoes [MaxParty]int
 
 	// ShopOwner is the conn of the player whose personal shop this mob IS, and it
 	// is what makes the "lojinha solta" possible: the stall is its own entity, so

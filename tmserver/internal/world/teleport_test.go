@@ -1,6 +1,10 @@
 package world
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestTeleportDest(t *testing.T) {
 	// Armia teleport tile → Noatum, cost 700 (rounds the position to the tile and
@@ -58,8 +62,10 @@ func TestDungeonStairsResolve(t *testing.T) {
 		{"2º → 1º andar", 1004, 4028, 148, 3780},
 		{"1º → 2º andar, outra escada", 408, 4072, 1004, 4064},
 		{"2º → 1º andar, outra escada", 1004, 4064, 408, 4072},
-		{"1º → 3º andar", 744, 3820, 1004, 3992},
+		{"1º → 3º andar", 744, 3816, 1004, 3992},
 		{"3º → 1º andar", 1004, 3992, 744, 3820},
+		{"arco sem destino no original → 3º andar", 744, 3804, 912, 3808},
+		{"3º andar → arco sem destino no original", 912, 3808, 744, 3804},
 		{"2º → 3º andar", 680, 4076, 916, 3820},
 		{"3º → 2º andar", 916, 3820, 680, 4076},
 		{"2º → 3º andar, outra escada", 876, 3872, 932, 3820},
@@ -85,16 +91,54 @@ func TestDungeonStairsResolve(t *testing.T) {
 	}
 }
 
-// The player who reported this stood at (746,3806) and walked at (744,3820).
 // TeleportDest rounds down to a multiple of 4, so every tile in the 4×4 block
 // has to resolve — landing one step off must not be the difference between a
-// working stair and a dead one.
+// working stair and a dead one. The blocks are the two arches the players stood
+// on and got nothing: (746,3806) and (746,3817).
 func TestTheWholeStairBlockResolves(t *testing.T) {
-	for dx := int16(0); dx < 4; dx++ {
-		for dy := int16(0); dy < 4; dy++ {
-			x, y := 744+dx, 3820+dy
-			if _, _, _, ok := TeleportDest(x, y); !ok {
-				t.Errorf("(%d,%d) não resolve, mas está no mesmo bloco de (744,3820)", x, y)
+	for _, bloco := range [][2]int16{{744, 3804}, {744, 3816}} {
+		for dx := int16(0); dx < 4; dx++ {
+			for dy := int16(0); dy < 4; dy++ {
+				x, y := bloco[0]+dx, bloco[1]+dy
+				if _, _, _, ok := TeleportDest(x, y); !ok {
+					t.Errorf("(%d,%d) não resolve, mas está no mesmo bloco de (%d,%d)", x, y, bloco[0], bloco[1])
+				}
+			}
+		}
+	}
+}
+
+// O cliente só manda _MSG_ReqTeleport nas casas com o bit 0x10 do
+// AttributeMap.dat (uma casa do mapa = 4×4 posições). Uma rota em qualquer outra
+// casa é muda: a do arco da Dungeon estava em (744,3820), uma casa abaixo da de
+// teleporte, e o jogador parado no arco não ia a lugar nenhum. E, na Dungeon,
+// toda casa de teleporte tem rota — as duas que o original deixou sem destino
+// também, desde 25/09/2026.
+func TestRotasCaemNasCasasDeTeleporteDoMapa(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "Release", "TMsrv", "run", "AttributeMap.dat"))
+	if err != nil {
+		t.Skipf("AttributeMap.dat indisponível: %v", err)
+	}
+	const dim, bitTeleporte = 1024, 0x10
+	if len(b) != dim*dim {
+		t.Fatalf("AttributeMap.dat com %d bytes, want %d", len(b), dim*dim)
+	}
+	teleporte := func(x, y int) bool { return b[(y/4)*dim+x/4]&bitTeleporte != 0 }
+	for origem := range teleportTable {
+		if !teleporte(int(origem[0]), int(origem[1])) {
+			t.Errorf("rota em (%d,%d), casa sem o bit 0x10: o cliente nunca pede teleporte ali", origem[0], origem[1])
+		}
+	}
+	// A Dungeon e o Submundo: x < 1400, y >= 3700. As rotas condicionais ficam
+	// fora desta caixa (handler/{kefra_hall,kefra,vale}.go).
+	for cy := 3700 / 4; cy < dim; cy++ {
+		for cx := 0; cx < 1400/4; cx++ {
+			x, y := int16(cx*4), int16(cy*4)
+			if !teleporte(int(x), int(y)) {
+				continue
+			}
+			if _, achou := teleportTable[[2]int16{x, y}]; !achou {
+				t.Errorf("casa de teleporte (%d,%d) na Dungeon sem rota: o jogador pisa e nada acontece", x, y)
 			}
 		}
 	}
@@ -126,10 +170,13 @@ func TestTableIsComplete(t *testing.T) {
 	const (
 		legacyRoutes = 39 // GetFunc.cpp:782-1026
 		conditional  = 3  // handler/{kefra_hall,kefra,vale}.go
+		// O par (744,3804) ↔ (912,3808): casas de teleporte do mapa que o
+		// original não roteava (25/09/2026).
+		foraDoLegado = 2
 	)
-	if got, want := len(teleportTable), legacyRoutes-conditional; got != want {
-		t.Errorf("tabela com %d rotas, want %d (%d do legado menos %d condicionais)",
-			got, want, legacyRoutes, conditional)
+	if got, want := len(teleportTable), legacyRoutes-conditional+foraDoLegado; got != want {
+		t.Errorf("tabela com %d rotas, want %d (%d do legado menos %d condicionais mais %d fora do legado)",
+			got, want, legacyRoutes, conditional, foraDoLegado)
 	}
 	// Uma rota condicional NA tabela é o bug que fechamos: a consulta é pura e
 	// responde antes de qualquer condição, então o piso de Azran levava ao Vale

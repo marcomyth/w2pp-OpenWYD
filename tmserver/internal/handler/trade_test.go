@@ -164,6 +164,7 @@ func TestTradeCancel(t *testing.T) {
 // TestTradeDupCancelsOnDrop: dropping an item mid-trade cancels the trade on both
 // sides (the anti-dup rule, Fase 8 §2.7).
 func TestTradeDupCancelsOnDrop(t *testing.T) {
+	comLargarLigado(t)
 	addr, stop, _ := startServerClock(t, tradeDB())
 	defer stop()
 	a := enterWorldAs(t, addr, "tester")

@@ -113,6 +113,9 @@ func (d *Dispatcher) executeSwap(w *world.World, a, b *world.Session) {
 		d.cancelTrade(w, a)
 		return
 	}
+	if !d.checkTradeMoney(w, a, b, ea, eb) {
+		return
+	}
 
 	aItems := takeItems(ea, a.Trade.Slots)
 	bItems := takeItems(eb, b.Trade.Slots)
@@ -155,6 +158,18 @@ func (d *Dispatcher) executeSwap(w *world.World, a, b *world.Session) {
 	// admitted as UNVERIFIED in its own comment, that no client reads.
 	d.syncTradedSlots(w, a, ea, gaveA, gotA)
 	d.syncTradedSlots(w, b, eb, gaveB, gotB)
+	// SendCarry nos DOIS lados, como o legado fecha o swap (_MSG_Trade.cpp:335-336).
+	//
+	// É o único pacote da troca que carrega o Coin: MSG_SendItem descreve um slot e
+	// não fala de ouro, e MSG_QuitTrade não leva corpo. Sem isto o servidor descontava
+	// certo e não contava a ninguém — cada cliente seguia com a conta que ELE tinha
+	// feito, e as duas ficavam erradas em direções opostas. Quem pagou continuava
+	// vendo o ouro na tela (parecia que a troca não tinha custado nada) e quem
+	// recebeu via o crédito: a mesma troca lida como ouro duplicado. Pior: o cliente
+	// que se acha mais rico oferece de novo o que já não tem, e a oferta seguinte é
+	// recusada aqui — que é como o sintoma vira "a primeira troca não foi".
+	d.sendCarry(w, a, ea)
+	d.sendCarry(w, b, eb)
 	w.Send(a, protocol.MsgQuitTrade, nil)
 	w.Send(b, protocol.MsgQuitTrade, nil)
 
@@ -177,6 +192,54 @@ func (d *Dispatcher) executeSwap(w *world.World, a, b *world.Session) {
 	// that moves the most value and had it missing.
 	w.SaveCharacterAsync(a)
 	w.SaveCharacterAsync(b)
+}
+
+// checkTradeMoney revalida o ouro NO INSTANTE do swap e recusa o que não cabe,
+// portando _MSG_Trade.cpp:268-300. Devolve false quando a troca não pode seguir
+// (já tendo avisado os dois lados e desmontado a janela).
+//
+// São duas verificações, e nenhuma delas é redundante com a da oferta:
+//
+//  1. Saldo. O handler confere TradeMoney contra o Coin quando a oferta é MONTADA,
+//     e entre isso e a confirmação o jogador continua jogando: comprar num NPC,
+//     depositar no baú ou pagar um refino derruba o saldo abaixo do que está
+//     prometido na janela. Aplicar mesmo assim deixava Coin NEGATIVO de um lado e
+//     creditava o outro em cheio — ouro criado do nada, sem exploit nenhum, e o
+//     lado negativo depois some numa clamp qualquer.
+//
+//  2. Teto. Coin é int32 e o legado corta em 2 bilhões (o mesmo maxCoin do baú).
+//     Somar sem teto estoura o int32 numa conta grande e o saldo vira negativo —
+//     uma troca legítima que apaga a fortuna de quem recebeu.
+//
+// O legado manda a linha para os DOIS jogadores porque de um dos assentos só se vê
+// a janela fechar sozinha.
+func (d *Dispatcher) checkTradeMoney(w *world.World, a, b *world.Session, ea, eb *world.Entity) bool {
+	if a.Trade.Money > ea.Coin {
+		d.notify(w, a, NoticeHaventMoneySoMuch)
+		d.notify(w, b, NoticeOpponentHaventMoney)
+		d.cancelTrade(w, a)
+		d.cancelTrade(w, b)
+		return false
+	}
+	if b.Trade.Money > eb.Coin {
+		d.notify(w, b, NoticeHaventMoneySoMuch)
+		d.notify(w, a, NoticeOpponentHaventMoney)
+		d.cancelTrade(w, a)
+		d.cancelTrade(w, b)
+		return false
+	}
+	// int64 de propósito: é a soma que estoura, e conferi-la em int32 seria conferir
+	// o estrago depois de feito.
+	fimA := int64(ea.Coin) + int64(b.Trade.Money) - int64(a.Trade.Money)
+	fimB := int64(eb.Coin) + int64(a.Trade.Money) - int64(b.Trade.Money)
+	if fimA > maxCoin || fimB > maxCoin {
+		d.notify(w, a, NoticeCantGetMore2G)
+		d.notify(w, b, NoticeCantGetMore2G)
+		d.cancelTrade(w, a)
+		d.cancelTrade(w, b)
+		return false
+	}
+	return true
 }
 
 // syncTradedSlots re-sends every carry slot a swap touched: the ones that

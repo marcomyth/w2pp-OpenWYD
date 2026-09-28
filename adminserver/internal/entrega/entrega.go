@@ -144,7 +144,7 @@ func (s *Store) EnfileirarLote(ctx context.Context, actorID, contaID int64, iten
 	defer func() { _ = tx.Rollback(ctx) }() // no-op after a commit
 	ids := make([]int64, 0, len(itens))
 	for _, it := range itens {
-		id, err := enfileirar(ctx, tx, actorID, contaID, it)
+		id, err := enfileirar(ctx, tx, OrigemDoPainel(actorID), contaID, it)
 		if err != nil {
 			return nil, err
 		}
@@ -165,15 +165,33 @@ func (s *Store) Enfileirar(ctx context.Context, actorID, contaID int64, it Item)
 	if it.Dias < 0 || it.Dias > MaxDias {
 		return 0, ErrDias
 	}
-	return enfileirar(ctx, s.pool, actorID, contaID, it)
+	return enfileirar(ctx, s.pool, OrigemDoPainel(actorID), contaID, it)
 }
 
-// querier is what one insert needs: the pool, or a transaction.
-type querier interface {
+// Querier is what one insert needs: the pool, or a transaction.
+type Querier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 }
 
-func enfileirar(ctx context.Context, q querier, actorID, contaID int64, it Item) (int64, error) {
+// OrigemDoPainel is the delivery_queue.source of a staff grant. The "painel:"
+// prefix is what the site API reads to call a row "equipe" instead of showing
+// the staff id, so anything the panel enqueues has to start with it.
+func OrigemDoPainel(actorID int64) string { return fmt.Sprintf("painel:%d", actorID) }
+
+// EnfileirarNa grava uma linha já repartida (um elemento de um Lote) dentro da
+// transação de quem chama.
+//
+// Existe para o envio de pacote, que credita Rcoins e enfileira os brindes na
+// MESMA transação: o payload tem de sair desta função, e não de uma cópia dela,
+// porque os nomes dos campos são o contrato que o dreno do tmServer lê.
+func EnfileirarNa(ctx context.Context, q Querier, origem string, contaID int64, it Item) (int64, error) {
+	if it.Dias < 0 || it.Dias > MaxDias {
+		return 0, ErrDias
+	}
+	return enfileirar(ctx, q, origem, contaID, it)
+}
+
+func enfileirar(ctx context.Context, q Querier, origem string, contaID int64, it Item) (int64, error) {
 	var expira int64
 	if it.Dias > 0 {
 		expira = time.Now().Add(time.Duration(it.Dias) * 24 * time.Hour).Unix()
@@ -195,7 +213,7 @@ func enfileirar(ctx context.Context, q querier, actorID, contaID int64, it Item)
 		INSERT INTO delivery_queue (account_id, kind, payload, source)
 		VALUES ($1, 'item', $2, $3)
 		RETURNING id`,
-		contaID, body, fmt.Sprintf("painel:%d", actorID)).Scan(&id)
+		contaID, body, origem).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("entrega: enqueue for %d: %w", contaID, err)
 	}

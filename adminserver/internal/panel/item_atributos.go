@@ -99,7 +99,7 @@ func (h *Handler) setAtributosItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetItemStat,
 		New:    map[string]any{"item": indice, "campos": mudados},
 	}); err != nil {
@@ -133,7 +133,7 @@ func (h *Handler) limparAtributosItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionClearItemStat,
 		Old:    map[string]any{"item": indice},
 	}); err != nil {

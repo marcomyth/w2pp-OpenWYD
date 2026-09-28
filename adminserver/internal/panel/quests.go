@@ -232,7 +232,7 @@ func (h *Handler) setQuest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetQuestReward,
 		Old:    questParaAudit(antes, tinha), New: questParaAudit(q, true),
 	}); err != nil {
@@ -264,7 +264,7 @@ func (h *Handler) limparQuest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionClearQuestReward, Old: questParaAudit(antes, tinha),
 	}); err != nil {
 		h.auditoriaFalhou(w, err)

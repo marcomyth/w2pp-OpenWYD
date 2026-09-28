@@ -110,6 +110,12 @@ type VendaRMT struct {
 // vendedor. Os dois são iguais enquanto a marca está lá — é para isso que ela
 // serve —, e ler a fotografia significa que o comprador não espera o vendedor
 // estar em jogo para receber.
+//
+// A hora do pagamento e de que relógio ela veio chegam de fora, em pagoEm e origem:
+// quem consulta a processadora é o webServer, e é ele que sabe se a resposta trouxe
+// o `paid_at` ou não. valorObservado é o valor que ela diz ter recebido, conferido
+// aqui dentro, com a linha travada.
+
 // OrigemDaHora diz de que relógio veio o instante do pagamento.
 type OrigemDaHora string
 
@@ -121,8 +127,12 @@ const (
 	HoraDoServidor OrigemDaHora = "servidor"
 )
 
+// taxaCentavos é o que a processadora RETEVE do que entrou, e NULO NÃO É ZERO: nulo quer
+// dizer que ninguém sabe a taxa, e nesse caso o repasse ao vendedor nasce segurado, sem
+// sair com o valor cheio. A entrega ao comprador NÃO depende disso — ele pagou, e o item
+// é dele mesmo que a taxa seja um mistério; o que espera é só o pagamento ao vendedor.
 func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna string,
-	pagoEm time.Time, origem OrigemDaHora, valorObservado int64,
+	pagoEm time.Time, origem OrigemDaHora, valorObservado int64, taxaCentavos *int64,
 ) (ResultadoCobranca, VendaRMT, error) {
 	var res ResultadoCobranca
 	var venda VendaRMT
@@ -201,9 +211,10 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 			// até uma pessoa olhar.
 			if _, err := tx.Exec(ctx, `
 				UPDATE rmt_cobranca
-				   SET valor_divergente_centavos = $2, paga_em = $3, origem_da_hora = $4
+				   SET valor_divergente_centavos = $2, paga_em = $3, origem_da_hora = $4,
+				       taxa_centavos = $5
 				 WHERE id = $1`, venda.CobrancaID, valorObservado, pagoEm,
-				string(origem)); err != nil {
+				string(origem), taxaCentavos); err != nil {
 				return fmt.Errorf("store: confirmar cobranca: gravando a divergencia de %d: %w",
 					venda.CobrancaID, err)
 			}
@@ -217,7 +228,26 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 			return fmt.Errorf("store: confirmar cobranca %q: sem a hora do pagamento",
 				referenciaExterna)
 		}
-		venda.PagoComAtraso = pagoEm.After(expiraEm)
+		// DUAS PERGUNTAS DIFERENTES, e conflatá-las foi um erro meu que só apareceu
+		// quando a suíte de integração passou a rodar na CI.
+		//
+		// `foraDoPrazo` é a que DECIDE a entrega: o dinheiro chegou depois do prazo
+		// que o vendedor combinou? Só ela pode barrar o item, porque só ela fala do
+		// combinado entre as duas pessoas.
+		//
+		// `pago_com_atraso` é a que se CONTA, e a 0105 escreveu o que ela significa:
+		// "a confirmação que chegou DEPOIS do cancelamento ou da expiração". É mais
+		// larga de propósito — ela existe para responder "isso virou rotina?", e o
+		// caso do comprador que paga em 4:59 com o aviso chegando em 5:10 É um caso
+		// desses, mesmo tendo entregado direito.
+		//
+		// Eu havia reduzido a coluna à pergunta estreita. O resultado: aquele caso
+		// deixava de ser contado, e o número que responde "o prazo está errado?"
+		// passava a esconder justamente a situação que o prazo causa. A entrega nunca
+		// esteve errada; o registro estava.
+		foraDoPrazo := pagoEm.After(expiraEm)
+		linhaJaFechada := statusCobranca == cobrancaCancelada || statusCobranca == cobrancaExpirada
+		venda.PagoComAtraso = foraDoPrazo || linhaJaFechada
 
 		var statusAnuncio int16
 		var it itemPayload
@@ -244,7 +274,7 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 		// alguns segundos.
 		//
 		// O dinheiro volta: o caminho do atrasado é o reembolso, não o item.
-		if venda.PagoComAtraso {
+		if foraDoPrazo {
 			entregavel = false
 		}
 		if !entregavel {
@@ -254,9 +284,9 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 			if _, err := tx.Exec(ctx, `
 				UPDATE rmt_cobranca
 				   SET status = $2, paga_em = $4, encerrada_em = now(), pago_com_atraso = $3,
-				       origem_da_hora = $5
+				       origem_da_hora = $5, taxa_centavos = $6
 				 WHERE id = $1`, venda.CobrancaID, cobrancaPagaSemItem, venda.PagoComAtraso,
-				pagoEm, string(origem)); err != nil {
+				pagoEm, string(origem), taxaCentavos); err != nil {
 				return fmt.Errorf("store: confirmar cobranca: marcando sem item %d: %w", venda.CobrancaID, err)
 			}
 			res = CobrancaPagaSemItem
@@ -278,10 +308,11 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 		if _, err := tx.Exec(ctx, `
 			UPDATE rmt_cobranca
 			   SET status = $2, paga_em = $5, encerrada_em = now(),
-			       entrega_id = $3, pago_com_atraso = $4, origem_da_hora = $6
+			       entrega_id = $3, pago_com_atraso = $4, origem_da_hora = $6,
+			       taxa_centavos = $7
 			 WHERE id = $1`,
 			venda.CobrancaID, cobrancaPaga, venda.EntregaID, venda.PagoComAtraso,
-			pagoEm, string(origem)); err != nil {
+			pagoEm, string(origem), taxaCentavos); err != nil {
 			return fmt.Errorf("store: confirmar cobranca: marcando paga %d: %w", venda.CobrancaID, err)
 		}
 		// O anúncio sai da vitrine agora. A MARCA DO ESCROW FICA: ela é o que
@@ -291,6 +322,30 @@ func (s *Store) ConfirmarCobrancaRMT(ctx context.Context, referenciaExterna stri
 			UPDATE rmt_anuncio SET status = $2, encerrado_em = now() WHERE id = $1`,
 			venda.AnuncioID, anuncioVendido); err != nil {
 			return fmt.Errorf("store: confirmar cobranca: fechando o anuncio %d: %w", venda.AnuncioID, err)
+		}
+
+		// A DÍVIDA COM O VENDEDOR NASCE AQUI, na mesma transação.
+		//
+		// Antes não nascia em lugar nenhum: o comprador recebia o item, o dinheiro
+		// entrava, e não havia nenhuma linha dizendo a quem ele pertencia. Não era um
+		// repasse atrasado — era a ausência de qualquer registro de dívida.
+		//
+		// Dentro da transação porque fora dela abre a janela em que o item sai, o
+		// dinheiro entra, e a dívida não fica escrita. Uma queda ali deixaria a venda
+		// completa e o vendedor invisível, e ninguém saberia procurar por ele.
+		//
+		// E SÓ AQUI, no caminho da venda concluída. Nem no PAGA_SEM_ITEM nem no valor
+		// divergente, que são os dois lugares acima em que a função também termina: lá
+		// o dinheiro vai VOLTAR para o comprador, e o vendedor não tem nada a receber.
+		// Uma linha de dívida que não existe apareceria na fila, alguém tentaria pagar,
+		// e o dinheiro sairia duas vezes do mesmo lugar.
+		// A TAXA DA PROCESSADORA NÃO ENTRA MAIS AQUI. Ela continua gravada na
+		// cobrança logo acima, como informação para a contabilidade ver a margem;
+		// quem decide o que o vendedor recebe é a taxa da casa, conhecida antes de
+		// o anúncio subir. Passá-la para o repasse seria oferecer um número que a
+		// função não usa, e um argumento que mente é como alguém volta a usá-lo.
+		if err := abrirRepasse(ctx, tx, venda, valorCobrado); err != nil {
+			return err
 		}
 		res = CobrancaConfirmada
 		return nil

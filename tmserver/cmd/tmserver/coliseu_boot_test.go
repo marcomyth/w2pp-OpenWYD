@@ -12,19 +12,19 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
-// TestSpawnNPCsNaoPopulaOColiseu: os 26 blocos de população do Coliseu (0, 1, 2,
-// 5, 6, 7 e 4854-4874 sem o 4864) não nascem no boot. Os chefes sozinhos da
-// região, o Guarda_Carga, a Prona e os vizinhos de número, com a mesma receita -1,
-// continuam nascendo: o boot dos blocos -1 é divergência deliberada e fica.
+// TestSpawnNPCsNaoPopulaOColiseu: os 36 blocos de monstro do Coliseu (as ondas 0-2
+// e 5-7, os Espectros 4854-4874 e os dez chefes sozinhos) não nascem no boot. O
+// Guarda_Carga, a Prona e os vizinhos de número, com a mesma receita -1, continuam
+// nascendo: o boot dos blocos -1 é divergência deliberada e fica.
 //
 // Os blocos fora da conta têm um Leader sem molde; o boot os pula e o número de
 // cada bloco continua sendo a posição no arquivo.
 func TestSpawnNPCsNaoPopulaOColiseu(t *testing.T) {
 	coliseu := []int{0, 1, 2, 5, 6, 7,
 		4854, 4855, 4856, 4857, 4858, 4859, 4860, 4861, 4862, 4863,
-		4865, 4866, 4867, 4868, 4869, 4870, 4871, 4872, 4873, 4874}
-	doMundo := []int{103, 104, 105, 106, 4853, 4864, 4885, 4886, 4887, 4888, // chefes sozinhos
-		974, 4232, // Guarda_Carga e Prona
+		4865, 4866, 4867, 4868, 4869, 4870, 4871, 4872, 4873, 4874,
+		103, 104, 105, 106, 4853, 4864, 4885, 4886, 4887, 4888} // chefes sozinhos
+	doMundo := []int{974, 4232, // Guarda_Carga e Prona
 		3, 4, 8, 4852, 4875} // vizinhos
 	usados := map[int]bool{}
 	for _, idx := range append(append([]int(nil), coliseu...), doMundo...) {
@@ -74,7 +74,7 @@ func TestSpawnNPCsNaoPopulaOColiseu(t *testing.T) {
 			t.Fatalf("o bloco %d não foi registrado", idx)
 		}
 		if g.CurrentNumMob != 1 {
-			t.Errorf("o bloco %d ficou com contagem %d, queria 1: fora dos 26, o boot dos blocos -1 continua", idx, g.CurrentNumMob)
+			t.Errorf("o bloco %d ficou com contagem %d, queria 1: fora dos 36, o boot dos blocos -1 continua", idx, g.CurrentNumMob)
 		}
 	}
 }

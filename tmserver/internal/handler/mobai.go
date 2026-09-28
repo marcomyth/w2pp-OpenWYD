@@ -119,6 +119,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.sweepDuelArena(w)
 	d.tickKingdomRvR(w)
 	d.tickTowerWar(w)
+	d.tickColiseu(w) // desligado por padrão (coliseu.go)
 	d.tickKefraSemanal(w)
 	d.tickKefraGuardas(w)
 	d.tickCastle(w)
@@ -129,7 +130,9 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.tickCorrida(w, &d.acampamentoTroll)
 	d.tickPortoesDoCampo(w)
 	d.tickPesadelo(w)
+	d.tickChefesDaLava(w)
 	d.tickFairies(w)
+	d.tickTimedItems(w)
 	// Depois de tickFairies, de propósito: a fada que acabou de vencer some do
 	// slot ali, e quem estava no Vale com ela sai nesta mesma passagem (vale.go).
 	d.sweepVale(w)
@@ -142,6 +145,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.tickWeather(w)
 	d.pollNPCConfig(w) // hot-reload moderator NPC edits (npc-editing-plan.md)
 	d.pollGeneratorOff(w)
+	d.pollGeneratorRecipes(w)
 	d.pollWorldEventConfig(w)
 	d.pollDungeonGates(w)
 	d.pollSpawnRates(w)
@@ -239,6 +243,13 @@ func setGroupBattle(w *world.World, id int, e, target *world.Entity) {
 		}
 		drag(m, w.Entity(m))
 	}
+	// Um pet atingido arrasta o bando: o Leader dele é o dono, e os irmãos moram
+	// em Evocacoes, não na PartyList (world.Entity.Evocacoes). Vazio para monstro.
+	for _, m := range le.Evocacoes {
+		if m > 0 {
+			drag(m, w.Entity(m))
+		}
+	}
 }
 
 func runsMobAI(e *world.Entity) bool {
@@ -316,7 +327,7 @@ func addEnemyList(e, target *world.Entity) {
 		return
 	}
 	if world.IsPlayer(target.ID) {
-		if target.Rsv&world.RsvHide != 0 || target.Merchant&1 != 0 {
+		if target.Rsv&world.RsvHide != 0 || target.Merchant&1 != 0 || target.GMInvisible {
 			return
 		}
 	}
@@ -383,7 +394,7 @@ func selectTargetFromEnemyList(w *world.World, e *world.Entity) {
 			continue
 		}
 		if world.IsPlayer(enemyID) {
-			if enemy.Rsv&world.RsvHide != 0 {
+			if enemy.Rsv&world.RsvHide != 0 || enemy.GMInvisible {
 				e.EnemyList[i] = 0
 				continue
 			}
@@ -489,7 +500,7 @@ func (d *Dispatcher) revealSpawned(w *world.World, ids []int) int {
 		if mob == nil {
 			continue
 		}
-		body := protocol.EncodeCreateMobBody(createMobFrom(mob, 0))
+		body := protocol.EncodeCreateMobBody(createMobFrom(w, mob, 0))
 		w.ForEachInView(id, func(vs *world.Session, _ *world.Entity) {
 			if !w.MarkSeen(vs, id) {
 				return
@@ -787,6 +798,9 @@ func validTarget(w *world.World, e, target *world.Entity) bool {
 	if m, ok := w.SessionMode(target.ID); !ok || m != world.UserPlay {
 		return false
 	}
+	if target.GMInvisible {
+		return false // a mob already on the GM lets go the moment they vanish
+	}
 	if world.Village(target.X, target.Y) >= 0 {
 		return false // target stepped into a safe city — break off (no chasing into town)
 	}
@@ -803,11 +817,38 @@ func validTarget(w *world.World, e, target *world.Entity) bool {
 		if !naEnemyList(e, target.ID) {
 			return false
 		}
+		// O dono, o grupo e a guilda dele (medalha levantada) nunca, nem por
+		// revide. Quem entra na lista é commandSummons, e ele já recusa; esta é a
+		// segunda porta, para quem entrou antes de aceitar o grupo ou de levantar
+		// a medalha.
+		if companheiroDaEvocacao(w, e, target) {
+			return false
+		}
 		// A trela dela é a distância ao DONO, não ao ponto de origem, e quem a
 		// cobra é summonTick antes do mobBattle rodar.
 		return true
 	}
 	return chebyshev(e.SegmentX, e.SegmentY, target.X, target.Y) <= leashRadius
+}
+
+// companheiroDaEvocacao diz se o jogador alvo está do lado do dono do pet: o
+// próprio dono, alguém do grupo dele, ou da guilda dele com a medalha levantada
+// dos dois lados. É o `if (leader == mobleader || Guild == MobGuild) dam = 0;`
+// do legado (_MSG_Attack.cpp:1334) pelo lado do pet, com a regra da medalha de
+// skillSameLeaderOrGuild — "só é permitido se baixar a medalha" (Marco, 26/09).
+//
+// Sem isto o revide, ligado desde 62a5abe3, voltava o bando contra o próprio
+// grupo: basta o companheiro entrar na lista de inimigos de um pet — um golpe
+// trocado com o dono em modo PK já faz isso — e o bando o atacava.
+func companheiroDaEvocacao(w *world.World, pet, alvo *world.Entity) bool {
+	if pet == nil || alvo == nil || pet.Summoner == 0 || !world.IsPlayer(alvo.ID) {
+		return false
+	}
+	dono := w.Entity(pet.Summoner)
+	if dono == nil {
+		return false
+	}
+	return skillSameLeaderOrGuild(w, dono, alvo)
 }
 
 // naEnemyList diz se target já está na lista de inimigos de e.
@@ -935,6 +976,9 @@ func (d *Dispatcher) mobAttack(w *world.World, id int, e, target *world.Entity) 
 	}
 	payload := body.Encode()
 	w.ForEachInView(id, func(vs *world.Session, _ *world.Entity) {
+		if !conheceOsMonstrosDoGolpe(w, vs, body.Dam) {
+			return
+		}
 		d.ensureSeenMob(w, vs, id)
 		w.SendTo(vs, protocol.Header{Type: tipo, ID: protocol.IDScene}, payload)
 	})
@@ -949,6 +993,26 @@ func (d *Dispatcher) mobAttack(w *world.World, id int, e, target *world.Entity) 
 		}
 	}
 	d.concluirGolpeDeMonstro(w, e, target, sk)
+}
+
+// conheceOsMonstrosDoGolpe diz se o cliente de vs conhece todo monstro que o
+// golpe nomeia em Dam[].
+//
+// O golpe vai a quem vê o ATACANTE, e o alvo pode estar fora da vista dessa
+// pessoa: o pet bate a 16 casas do dono num monstro a 17, que o dono já apagou
+// com um RemoveMob. O cliente guarda a entidade depois do RemoveMob, e o golpe
+// que nomeia aquele id a trazia de volta; quando o monstro morria, o RemoveMob
+// da morte ia só a quem via o corpo, e ela ficava na tela do dono para sempre (o
+// Morlock do BateNeles, 27/09). Para quem não conhece o alvo, o golpe não vai:
+// ele só veria o pet batendo no vazio. Alvo jogador não entra na conta: o caso
+// foi de monstro, e a regra não se estende além dele.
+func conheceOsMonstrosDoGolpe(w *world.World, vs *world.Session, dam []protocol.DamEntry) bool {
+	for _, d := range dam {
+		if id := int(d.TargetID); id >= world.MaxUser && !w.Seen(vs, id) {
+			return false
+		}
+	}
+	return true
 }
 
 // golpeDeArea é um alvo a mais de uma magia de área de pet.

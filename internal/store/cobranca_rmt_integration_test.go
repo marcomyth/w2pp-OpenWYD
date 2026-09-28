@@ -48,6 +48,16 @@ func montaVenda(ctx context.Context, t *testing.T, s *Store, sufixo string) vend
 		comprador: contaPix(ctx, t, s, "comprador_"+sufixo),
 		ref:       "ref-" + sufixo,
 	}
+	// A CHAVE DO VENDEDOR NASCE ANTES DO ANÚNCIO, porque é assim no jogo: o
+	// AbrirAnunciosRMT recusa anunciar sem chave (ErrSemChavePix). Um vendedor que
+	// anuncia sem ter cadastrado NÃO EXISTE, e um teste que monta esse estado está
+	// medindo uma situação que o sistema não produz.
+	//
+	// E cadastrar DEPOIS do anúncio também não dá: a trava da chave recusa enquanto há
+	// cobrança aberta. Antes é o único momento em que cabe, e é o momento real.
+	if err := s.SalvarChavePix(ctx, v.vendedor, "vendedor@exemplo.com", ChavePixEmail, "11144477735"); err != nil {
+		t.Fatalf("cadastrando a chave do vendedor: %v", err)
+	}
 	if err := s.pool.QueryRow(ctx, `
 		INSERT INTO rmt_anuncio (vendedor_conta, cargo_slot, item_index, eff1, effv1, preco_centavos, status)
 		VALUES ($1, 3, $2, 7, 9, $3, 1) RETURNING id`,
@@ -91,7 +101,7 @@ func TestConfirmarCobrancaCaminhoFeliz(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "feliz")
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -150,7 +160,7 @@ func TestEntregaCarregaAFotografiaDoAnuncio(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "foto")
 
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0); err != nil {
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero()); err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
 
@@ -178,11 +188,11 @@ func TestConfirmarCobrancaDuasVezesEntregaUmaSo(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "dobrada")
 
-	res1, venda1, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res1, venda1, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("primeira: %v", err)
 	}
-	res2, venda2, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res2, venda2, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("segunda: %v", err)
 	}
@@ -233,7 +243,7 @@ func TestPagamentoDepoisDoCancelamentoViraPagaSemItem(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -288,7 +298,7 @@ func TestPagamentoAtrasadoComItemAindaMarcadoEntrega(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -320,7 +330,7 @@ func TestMarcaDeOutroAnuncioNaoEntrega(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -338,7 +348,7 @@ func TestReferenciaDesconhecidaNaoFazNada(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "desconhecida")
 
-	res, _, err := s.ConfirmarCobrancaRMT(ctx, "ref-que-nao-existe", dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, _, err := s.ConfirmarCobrancaRMT(ctx, "ref-que-nao-existe", dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("erro inesperado: %v", err)
 	}
@@ -368,7 +378,7 @@ func TestConfirmacaoNaoDependeDeNinguemEstarEmJogo(t *testing.T) {
 	s, ctx := freshStore(t)
 	v := montaVenda(ctx, t, s, "offline")
 
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -428,7 +438,7 @@ func TestSlotsVendidosPendentesNomeiaSoOQueVendeu(t *testing.T) {
 		t.Errorf("com tudo ativo veio %v, queria vazio", antes)
 	}
 
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0); err != nil {
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero()); err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
 
@@ -448,7 +458,7 @@ func TestSlotsVendidosNaoVazamEntreContas(t *testing.T) {
 	v := montaVenda(ctx, t, s, "vazamento")
 	outro := contaPix(ctx, t, s, "outro_vendedor")
 
-	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0); err != nil {
+	if _, _, err := s.ConfirmarCobrancaRMT(ctx, v.ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero()); err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
 

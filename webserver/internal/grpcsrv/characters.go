@@ -19,10 +19,21 @@ type Characters interface {
 type CharacterServer struct {
 	webv1.UnimplementedCharacterWebServiceServer
 	characters Characters
+	// emblemas é o emblema de guilda. NULO deixa os quatro RPCs respondendo
+	// Unimplemented, que é o estado de um servidor montado sem ele — e é a resposta
+	// certa: melhor o site saber que a coisa não existe aqui do que receber
+	// "guilda nenhuma" e desenhar uma tela vazia como se fosse verdade.
+	emblemas Emblemas
 }
 
 // NewCharacters builds the CharacterWebService over the given query logic.
 func NewCharacters(c Characters) *CharacterServer { return &CharacterServer{characters: c} }
+
+// ComEmblemas liga o emblema de guilda ao serviço.
+func (s *CharacterServer) ComEmblemas(e Emblemas) *CharacterServer {
+	s.emblemas = e
+	return s
+}
 
 // ListMyCharacters returns read-only character summaries for the logged account.
 func (s *CharacterServer) ListMyCharacters(ctx context.Context, req *webv1.ListMyCharactersRequest) (*webv1.ListMyCharactersResponse, error) {

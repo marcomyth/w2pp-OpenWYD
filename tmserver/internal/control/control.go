@@ -64,6 +64,14 @@ var ErrNoTeleporter = errors.New("control: refusing to serve without a teleporte
 // Called INSIDE the game loop.
 type Teleporter func(w *world.World, s *world.Session, x, y int16)
 
+// AplicadorDePasse troca a moldura do passe de quem está em jogo e a redesenha.
+//
+// Função e não import, pelo mesmo motivo do Teleporter: o pacote que monta o
+// CreateMob é o handler, e o handler é testado com um servidor de controle dentro —
+// importar um do outro fecharia um ciclo. Quem junta os dois é o main, que já
+// conhece os dois.
+type AplicadorDePasse func(w *world.World, accountID int64, nivel uint8) (personagem string, achou bool)
+
 // Overlays is which moderator-editing overlays the server booted with.
 //
 // They are boot flags that default to off, and the panel writes to the same
@@ -128,7 +136,8 @@ type Server struct {
 	log       *slog.Logger
 	teleporta Teleporter
 	overlays  Overlays
-	blocos    BlockRunner // optional; see SetBlockRunner
+	blocos    BlockRunner      // optional; see SetBlockRunner
+	passe     AplicadorDePasse // optional; see SetAplicadorDePasse
 }
 
 // NewServer builds the control service. It fails when the token is empty or the
@@ -240,6 +249,46 @@ func (s *Server) ListOnline(ctx context.Context, _ *gamev1.ListOnlineRequest) (*
 			resp.Connected++
 			resp.Players = append(resp.Players, p)
 		})
+		return resp
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ListMarket devolve as prateleiras das barracas abertas, como o jogo as tem agora.
+//
+// TEM DE VIR DAQUI, e é a razão de a RPC existir: a barraca vive só na SESSÃO do
+// vendedor, na memória do jogo, e nunca é persistida. Nenhuma leitura de banco a
+// encontra.
+//
+// A LISTA VEM INTEIRA, sem filtro e sem página. Quem filtra é quem chama, e é de
+// propósito: o filtro do site precisa do banco — saber se a prateleira já tem alguém
+// pagando —, e o laço do jogo não fala com banco. Passar por aqui um filtro que só
+// resolve metade faria duas peneiras, e a de cá pareceria a completa.
+//
+// O ID DA CONTA VAI JUNTO, e é o único lugar do caminho em que ele aparece: quem
+// chama precisa dele para achar o anúncio no banco, e o joga fora antes de responder
+// ao site.
+func (s *Server) ListMarket(ctx context.Context, _ *gamev1.ListMarketRequest) (*gamev1.ListMarketResponse, error) {
+	out, err := noLoop(ctx, s.world, func(w *world.World) *gamev1.ListMarketResponse {
+		ofertas := world.OfertasDoMercado(w)
+		resp := &gamev1.ListMarketResponse{Offers: make([]*gamev1.MarketOffer, 0, len(ofertas))}
+		for _, o := range ofertas {
+			resp.Offers = append(resp.Offers, &gamev1.MarketOffer{
+				SellerAccountId: o.ContaVendedor,
+				CargoPos:        int32(o.CargoPos),
+				SellerCharacter: o.Personagem,
+				ItemIndex:       int32(o.Indice),
+				Refine:          int32(o.Refino),
+				Amount:          int32(o.Qtd),
+				Currency:        int32(o.Moeda),
+				Price:           int64(o.Preco),
+				Village:         world.NomeDaVila(o.Cidade),
+				OpenForSeconds:  o.AbertaHaSegundos,
+			})
+		}
 		return resp
 	})
 	if err != nil {
@@ -417,6 +466,22 @@ func (s *Server) DeliverNow(ctx context.Context, req *gamev1.DeliverNowRequest) 
 			// the grants that found no free slot and stay in the mailbox.
 			entregues, semEspaco := w.ApplyDeliveries(sess, pendentes)
 			resp.Delivered, resp.Lost = int32(entregues), int32(semEspaco)
+
+			// AVISA A PESSOA, e não só o log do servidor.
+			//
+			// O login já avisa quem entra com entrega presa (handler/login.go). Aqui
+			// não avisava, e este é o caminho da COMPRA: a pessoa paga, o site pede a
+			// entrega imediata, parte dos itens não cabe, e ela fica olhando um baú
+			// que recebeu menos do que a página prometeu — sem nada na tela dizendo
+			// por quê, porque ela não vai relogar para descobrir.
+			//
+			// Dói mais nos pacotes grandes, que são justamente os que enchem o baú: o
+			// maior deles ocupa 69 espaços dos 128, porque baú de sorteio não empilha.
+			// Silêncio ali vira reclamação de quem pagou mais.
+			if semEspaco > 0 {
+				w.Send(sess, protocol.MsgMessagePanel,
+					protocol.EncodeMessagePanelBody(world.MensagemEntregaPresa(semEspaco)))
+			}
 		})
 		return resp
 	})
@@ -589,7 +654,16 @@ func (s *Server) Drain(ctx context.Context, req *gamev1.DrainRequest) (*gamev1.D
 		out.Notified = aviso.GetRecipients()
 	}
 
+	// Marca antes de derrubar ninguém: o que interessa é se ALGUMA gravação DESTE
+	// dreno falhou, e não se alguma falhou algum dia.
+	falhasAntes := s.world.SavesFalhados()
+
 	n, err := noLoop(ctx, s.world, func(w *world.World) int32 {
+		// O BATIMENTO PARA ANTES DE DERRUBAR NINGUÉM. Um batimento atrasado
+		// re-carimbaria contas que este dreno acabou de soltar, e elas ficariam
+		// presas a um processo que já saiu — até o prazo vencer, com o jogador
+		// batendo na porta.
+		w.PararOBatimento()
 		var alvos []*world.Session
 		w.ForEachSession(func(sess *world.Session, _ *world.Entity) {
 			alvos = append(alvos, sess)
@@ -615,6 +689,16 @@ func (s *Server) Drain(ctx context.Context, req *gamev1.DrainRequest) (*gamev1.D
 	defer cancel()
 	select {
 	case <-pronto:
+		// ESPERAR NÃO É O MESMO QUE TER DADO CERTO. Antes daqui, uma gravação que
+		// voltasse com erro só virava linha de log: o dreno dizia "pronto", e o
+		// painel — que promete não reiniciar sem tudo gravado — reiniciava por
+		// cima do que não foi salvo.
+		if falhas := s.world.SavesFalhados() - falhasAntes; falhas > 0 {
+			s.log.Error("control: drain finished with failed saves; do not restart",
+				"falhas", falhas, "kicked", out.Kicked)
+			return nil, status.Errorf(codes.Unavailable,
+				"the sessions were ended but %d save(s) did not land; do not restart yet", falhas)
+		}
 		s.log.Info("control: drained", "notified", out.Notified, "kicked", out.Kicked)
 		return out, nil
 	case <-espera.Done():

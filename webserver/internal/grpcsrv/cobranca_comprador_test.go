@@ -11,6 +11,7 @@ import (
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ponte"
 )
 
 // SEM COBRANÇA É RESPOSTA VAZIA E NÃO ERRO.
@@ -199,5 +200,103 @@ func TestValorDivergenteViraPaidLateENaoOpen(t *testing.T) {
 	if resp.GetRefundState() != webv1.RefundState_REFUND_STATE_UNSPECIFIED {
 		t.Errorf("refund_state = %v; nao ha reembolso automatico para valor divergente",
 			resp.GetRefundState())
+	}
+}
+
+// A RECUSA DEFINITIVA FECHA A COBRANÇA, em vez de repetir para sempre.
+//
+// O defeito de 24/09/2026: a criação do Pix tratava TODA falha como tropeço de rede,
+// porque a página relê a cada cinco segundos e um erro passageiro se resolve na
+// tentativa seguinte. Certo para o passageiro. Só que a referência saía num formato
+// que a ponte não aceita, e o servidor repetiu a MESMA chamada recusada a cada cinco
+// segundos, indefinidamente — "gerando o código" para sempre, sem explicação e com o
+// comprador preso a uma cobrança que nunca ia nascer.
+func TestRecusaDefinitivaFechaACobranca(t *testing.T) {
+	casos := []struct {
+		nome   string
+		err    error
+		fecha  bool
+		porque string
+	}{
+		{
+			nome:   "400 da ponte fecha",
+			err:    &ponte.ErroHTTP{Rota: "/cobranca", Codigo: 400, Corpo: `{"estado":"recusado"}`},
+			fecha:  true,
+			porque: "repetir a mesma chamada recusada nao muda o resultado",
+		},
+		{
+			nome:   "429 NAO fecha",
+			err:    &ponte.ErroHTTP{Rota: "/cobranca", Codigo: 429},
+			fecha:  false,
+			porque: "limite de taxa e o caso mais passageiro que existe; fechar puniria o comprador por um aperto nosso",
+		},
+		{
+			nome:   "500 NAO fecha",
+			err:    &ponte.ErroHTTP{Rota: "/cobranca", Codigo: 500},
+			fecha:  false,
+			porque: "o outro lado tropecou, e a tentativa de cinco segundos depois pode dar",
+		},
+		{
+			nome:   "incerta NAO fecha",
+			err:    ponte.ErrIncerta,
+			fecha:  false,
+			porque: "a chamada pode ter saido e a resposta ter se perdido: pode existir cobranca do outro lado, e fechar seria esquecer um pagamento possivel",
+		},
+		{
+			nome:   "erro de rede NAO fecha",
+			err:    errors.New("dial tcp: connection refused"),
+			fecha:  false,
+			porque: "sem resposta HTTP nao ha recusa; e rede",
+		},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			f := &fakePix{
+				temCobranca: true,
+				cobranca: store.CobrancaDoComprador{
+					CobrancaID: 77, ValorCentavos: 5000,
+					ExpiraEm: time.Now().Add(10 * time.Minute),
+					Estado:   store.EstadoCobrancaAberta,
+				},
+				erroCriarPix: c.err,
+			}
+			// COM O CRIADOR LIGADO, e isto nao e detalhe: sem ele a criacao inteira
+			// e pulada (s.criarPix != nil, chavepix.go:276) e o teste passaria sem
+			// exercitar nada. Foi o que aconteceu na primeira versao deste teste —
+			// quatro dos cinco casos "passaram" a toa.
+			resp, err := NewRmt(f).ComCriadorDePix(criadorInerte(), nil, nil).
+				GetMyCurrentPixCharge(context.Background(),
+					&webv1.GetMyCurrentPixChargeRequest{AccountId: 1})
+			if err != nil {
+				t.Fatalf("a leitura da pagina nao pode virar erro: %v", err)
+			}
+
+			if c.fecha {
+				if f.fechouPorRecusa != 1 {
+					t.Errorf("fechou %d vezes, queria 1 — %s", f.fechouPorRecusa, c.porque)
+				}
+				if f.fechadaPorRecusa != 77 {
+					t.Errorf("fechou a cobranca %d, queria 77", f.fechadaPorRecusa)
+				}
+				if resp.GetState() != webv1.PixChargeState_PIX_CHARGE_STATE_CANCELED {
+					t.Errorf("estado = %v, queria CANCELED", resp.GetState())
+				}
+				// E SEM CÓDIGO: um código ao lado de uma cobrança morta convida
+				// alguém a pagar por nada.
+				if resp.GetPixCode() != "" {
+					t.Errorf("veio codigo numa cobranca fechada: %q", resp.GetPixCode())
+				}
+				return
+			}
+			if f.fechouPorRecusa != 0 {
+				t.Errorf("fechou %d vezes e nao devia — %s", f.fechouPorRecusa, c.porque)
+			}
+			// E continua ABERTA, para a releitura tentar de novo com a mesma
+			// referência.
+			if resp.GetState() != webv1.PixChargeState_PIX_CHARGE_STATE_OPEN {
+				t.Errorf("estado = %v, queria OPEN: a releitura precisa poder tentar de novo",
+					resp.GetState())
+			}
+		})
 	}
 }

@@ -23,15 +23,32 @@ import (
 type Store interface {
 	AccountByName(ctx context.Context, name string) (store.AccountAuth, error)
 	SaveAccount(ctx context.Context, acc domain.Account) (int64, error)
+	// VincularDiscord guarda o Discord da conta. As recusas previstas vêm como
+	// erros próprios do store (ver store.ErrDiscordEmOutraConta e irmãos).
+	VincularDiscord(ctx context.Context, accountID int64, discordID string) error
 }
 
 // Service creates and authenticates web accounts.
 type Service struct {
 	store Store
+	// cadastroFechado tranca a criação de conta. Ver SemCadastro.
+	cadastroFechado bool
 }
 
 // New builds the account service over the given store.
 func New(s Store) *Service { return &Service{store: s} }
+
+// SemCadastro desliga a criação de conta neste servidor.
+//
+// É para o AMBIENTE DE TESTE: o cliente já está na mão de gente, e um cadastro
+// aberto faz do teste um segundo servidor público sem ninguém ter decidido isso.
+//
+// Só o CADASTRO fecha. O login continua igual, porque quem já tem conta de staff
+// precisa entrar — e é justamente para essas pessoas que o ambiente existe.
+func (s *Service) SemCadastro() *Service {
+	s.cadastroFechado = true
+	return s
+}
 
 // CreateResult is the business outcome of a sign-up attempt.
 type CreateResult int
@@ -43,6 +60,12 @@ const (
 	CreateNameTaken
 	// CreateInvalid means name/password/email failed validation.
 	CreateInvalid
+	// CreateFechado é o cadastro DESLIGADO neste servidor.
+	//
+	// Valor próprio e não CreateInvalid: nada no pedido estava errado, e dizer que
+	// estava manda a pessoa tentar de novo com outra senha, e de novo, e depois
+	// procurar o suporte.
+	CreateFechado
 )
 
 // Account-name rules: 4–12 ASCII alphanumerics (the legacy login field is short
@@ -63,6 +86,13 @@ const (
 // sign-up that wins the unique-name race is reported as CreateNameTaken via the
 // Postgres unique violation, so the DB constraint is the final arbiter.
 func (s *Service) Create(ctx context.Context, name, password, email string) (CreateResult, int64, error) {
+	// A PORTA FECHADA É CONFERIDA ANTES DA VALIDAÇÃO, e a ordem é o que torna a
+	// resposta honesta: validando primeiro, um pedido malformado receberia
+	// "inválido" num servidor onde NADA seria aceito, e a pessoa passaria a tarde
+	// corrigindo um formulário que não tinha problema nenhum.
+	if s.cadastroFechado {
+		return CreateFechado, 0, nil
+	}
 	canonical := strings.ToLower(strings.TrimSpace(name))
 	if !validName(canonical) || len(password) < minPassLen || !validEmail(email) {
 		return CreateInvalid, 0, nil
@@ -100,23 +130,23 @@ func (s *Service) Create(ctx context.Context, name, password, email string) (Cre
 // account.is_blocked; role is account.role ('player'/'moderator'/'admin') so the
 // BFF can gate the moderator UI — authorization itself stays server-side in the
 // NpcAdminService, this is only a UI hint.
-func (s *Service) Verify(ctx context.Context, name, password string) (ok bool, accountID int64, blocked bool, role string, err error) {
+func (s *Service) Verify(ctx context.Context, name, password string) (ok bool, accountID int64, blocked bool, role, discordID string, err error) {
 	canonical := strings.ToLower(strings.TrimSpace(name))
 	auth, err := s.store.AccountByName(ctx, canonical)
 	if errors.Is(err, store.ErrNotFound) {
-		return false, 0, false, "", nil
+		return false, 0, false, "", "", nil
 	}
 	if err != nil {
-		return false, 0, false, "", fmt.Errorf("account: lookup %q: %w", canonical, err)
+		return false, 0, false, "", "", fmt.Errorf("account: lookup %q: %w", canonical, err)
 	}
 	match, err := secret.VerifySecret(password, auth.PassHash)
 	if err != nil {
-		return false, 0, false, "", fmt.Errorf("account: verify password: %w", err)
+		return false, 0, false, "", "", fmt.Errorf("account: verify password: %w", err)
 	}
 	if !match {
-		return false, 0, false, "", nil
+		return false, 0, false, "", "", nil
 	}
-	return true, auth.ID, auth.IsBlocked, auth.Role, nil
+	return true, auth.ID, auth.IsBlocked, auth.Role, auth.DiscordID, nil
 }
 
 // validName enforces the 4–12 ASCII-alphanumeric login rule on an already
@@ -149,4 +179,14 @@ func validEmail(email string) bool {
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+// VincularDiscord repassa o vínculo ao store.
+//
+// SEM REGRA NOVA AQUI de propósito: a validação do snowflake e as duas recusas de
+// unicidade moram no store, junto da transação e do índice que as garante. Uma
+// segunda conferência nesta camada seria uma regra em dois lugares, e o dia em que as
+// duas discordassem ninguém saberia qual vale.
+func (s *Service) VincularDiscord(ctx context.Context, accountID int64, discordID string) error {
+	return s.store.VincularDiscord(ctx, accountID, discordID)
 }

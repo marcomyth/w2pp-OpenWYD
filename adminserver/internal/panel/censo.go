@@ -66,10 +66,44 @@ func agrupaCopias(rows []domain.ItemDup, nomes map[int32]string) []copiaGrupo {
 type censoLinha struct {
 	domain.ItemCensus
 	Nome string // vazio quando o catálogo não está configurado ou não conhece o índice
+	// PorPecas repete a escolha da comparação (domain.CensusCompare.PorPecas) em
+	// cada linha porque é a linha que sabe pintar e ordenar a si mesma.
+	PorPecas bool
 }
 
+// Movimento é a variação na conta que manda: peças quando as duas fotos as têm,
+// linhas quando não. Uma pilha que dobrou de 60 para 120 move ZERO em linhas e
+// SESSENTA em peças, e é por isso que a escolha não pode ficar só na ordenação.
+func (c censoLinha) Movimento() int64 {
+	if c.PorPecas {
+		return c.DeltaPecas
+	}
+	return int64(c.Delta)
+}
+
+// Total é quantos existem agora, na mesma conta que Movimento usa.
+func (c censoLinha) Total() int64 {
+	if c.PorPecas {
+		return c.Pecas
+	}
+	return int64(c.Units)
+}
+
+// Antes é quantos existiam na foto de comparação, na mesma conta.
+func (c censoLinha) Antes() int64 {
+	if c.PorPecas {
+		return c.PecasAntes
+	}
+	return int64(c.Was)
+}
+
+// Empilhado diz se este item está em pilha — mais peças do que espaços. É o que
+// deixa ler a tabela sem se enganar: numa linha empilhada o número de espaços não
+// tem nada que ver com quanta coisa existe.
+func (c censoLinha) Empilhado() bool { return c.Pecas > int64(c.Units) }
+
 // Cresceu reports whether this row went up, which is what colours it.
-func (c censoLinha) Cresceu() bool { return c.Delta > 0 }
+func (c censoLinha) Cresceu() bool { return c.Movimento() > 0 }
 
 // copiasLimite caps the duplicate list. If there are more than this many, the
 // problem is not one scammer and the list is not the tool for it.
@@ -141,7 +175,7 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 	cmp.Linha = Corta(&pag, cmp.Linha)
 	linhas := make([]censoLinha, 0, len(cmp.Linha))
 	for _, c := range cmp.Linha {
-		linhas = append(linhas, censoLinha{ItemCensus: c, Nome: nomes[c.Index]})
+		linhas = append(linhas, censoLinha{ItemCensus: c, Nome: nomes[c.Index], PorPecas: cmp.PorPecas})
 	}
 
 	// The default is the variation, which is why the page exists — the store
@@ -160,9 +194,9 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 	case "refino":
 		sort.SliceStable(linhas, o.Menor(func(i, j int) bool { return linhas[i].Sanc < linhas[j].Sanc }))
 	case "variacao":
-		sort.SliceStable(linhas, o.Menor(func(i, j int) bool { return linhas[i].Delta < linhas[j].Delta }))
+		sort.SliceStable(linhas, o.Menor(func(i, j int) bool { return linhas[i].Movimento() < linhas[j].Movimento() }))
 	case "agora":
-		sort.SliceStable(linhas, o.Menor(func(i, j int) bool { return linhas[i].Units < linhas[j].Units }))
+		sort.SliceStable(linhas, o.Menor(func(i, j int) bool { return linhas[i].Total() < linhas[j].Total() }))
 	}
 
 	// The window actually compared, which is not always the one asked for: with
@@ -183,6 +217,7 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 		De        domain.CensusRun
 		Ate       domain.CensusRun
 		Linhas    []censoLinha
+		PorPecas  bool
 		Encurtado bool
 		UmDiaSo   bool
 		Pagina    pagina
@@ -192,7 +227,7 @@ func (h *Handler) censo(w http.ResponseWriter, r *http.Request) {
 	}{
 		h.pageFor(r, "censo"), copias, marcados, semMarca,
 		dias, censoJanelas, subiu, refinado,
-		cmp.De, cmp.Ate, linhas, encurtado,
+		cmp.De, cmp.Ate, linhas, cmp.PorPecas, encurtado,
 		!cmp.Ate.Zero() && cmp.De.Day.Equal(cmp.Ate.Day),
 		pag, o, r.URL.Query(), falha,
 	})

@@ -1,0 +1,35 @@
+-- 0174_censo_conta_pilha — o censo passa a contar as PEÇAS, e não só as linhas.
+--
+-- O DEFEITO. A foto diária contava `count(*)` sobre a tabela `item`, ou seja
+-- LINHAS. E uma pilha é uma linha só: 120 Moedas de Ouro num espaço contavam
+-- como 1, um maço de 120 Restos de Oriharucon contava como 1. Para tudo o que
+-- empilha — moedas, Restos, Âmagos, runas, pergaminhos, RCoin, baús de sorteio —
+-- o censo era praticamente cego, e é justamente essa a família que se duplica em
+-- volume, porque é a que vira dinheiro.
+--
+-- Pior que o total errado era o FILTRO. A tela lista o que mudou, e o que mudou
+-- era medido em linhas: dobrar uma pilha de 60 para 120 deixa a linha igual, dá
+-- variação zero, e a linha nem aparecia na lista. O item duplicado era invisível
+-- por construção, não por acaso.
+--
+-- A QUANTIDADE mora no efeito EF_AMOUNT (61), cujo valor é quantas unidades a
+-- pilha tem (internal/pilha). Item sem o efeito é uma peça. O teto de uma pilha
+-- é 120, então `pecas` nunca passa de 120x `unidades` — cabe folgado no BIGINT.
+--
+-- COLUNA NOVA, E NÃO O SENTIDO DA ANTIGA. `unidades` continua querendo dizer
+-- "quantas linhas", que é o que ela sempre quis dizer e o que o histórico inteiro
+-- gravou. Trocar o sentido dela tornaria a comparação com os dias antigos uma
+-- mentira silenciosa — o pior tipo, porque a tela continuaria bonita. As duas
+-- ficam visíveis lado a lado, e quando discordam a discordância É o sintoma:
+-- mesma quantidade de espaços com muito mais coisa dentro é exatamente o formato
+-- de uma pilha duplicada.
+--
+-- ACEITA NULO DE PROPÓSITO. Os dias já fotografados não têm como ganhar este
+-- número: a contagem de ontem não pode ser refeita, porque a tabela `item` de
+-- ontem não existe mais. Nulo quer dizer "este dia foi fotografado antes da
+-- coluna existir", que é diferente de zero. E a comparação só usa peças quando
+-- OS DOIS dias as têm — senão um dia com peças contra um dia sem daria um salto
+-- gigante que não é duplicação nenhuma, e acusar alguém por causa disso é
+-- exatamente o que este censo não pode fazer.
+ALTER TABLE item_census ADD COLUMN pecas BIGINT;
+ALTER TABLE item_census_meta ADD COLUMN pecas BIGINT;

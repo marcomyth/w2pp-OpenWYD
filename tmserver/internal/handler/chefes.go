@@ -65,7 +65,10 @@ func (d *Dispatcher) resolverChefes(w *world.World) {
 	d.genChefe = make([]bool, n)
 	var lista []string
 	for i := 0; i < n; i++ {
-		if g := w.GeneratorAt(i); ehChefeSozinho(g, i) {
+		// Os Tauron do Pilar e os Anciões Ciclops têm a espera deles
+		// (pilar_tauron.go, ciclopes_ancient.go), e não entram na lista mesmo que a
+		// Exp do painel passe de 1 milhão.
+		if g := w.GeneratorAt(i); ehChefeSozinho(g, i) && !geradorDoPilar(w, i) && !geradorDoAnciao(w, i) {
 			d.genChefe[i] = true
 			lista = append(lista, fmt.Sprintf("%d:%s", i, g.LeaderName))
 		}
@@ -109,6 +112,44 @@ func (d *Dispatcher) esperaDoRenascimento(w *world.World, idx int) uint32 {
 	}
 	if geradorDoBossManticora(w, idx) {
 		return bossManticoraHoras * msPorHora // o Boss Mantícora (deserto.go)
+	}
+	if geradorDoBossDragaoLich(w, idx) {
+		return bossDragaoLichHoras * msPorHora // o Boss Dragão Lich (dungeon.go)
+	}
+	if geradorDoBossHidraDourada(w, idx) {
+		return bossHidraDouradaHoras * msPorHora // o Boss Hidra Dourada (dungeon.go)
+	}
+	if geradorDoCiclopeTirano(w, idx) {
+		return ciclopeTiranoHoras * msPorHora // o Ciclope Tirano (ciclopes.go)
+	}
+	if geradorDoTaronTirano(w, idx) {
+		return taronTiranoHoras * msPorHora // o Taron Tirano (taron_tirano.go)
+	}
+	if geradorDeChefeDaLava(w, idx) {
+		return lavaChefeHoras * msPorHora // os mini chefes da lava (dungeon_lava.go)
+	}
+	if geradorDaSalaDaLava(w, idx) {
+		// Os bichos da sala da lava: no máximo 10 s, ou menos se o painel da área
+		// pedir menos (dungeon_lava.go).
+		return min(lavaSalaRenasce, spawnrate.ScaleMillis(world.DefaultRespawnDelay, d.spawnPercentFor(w, idx)))
+	}
+	if geradorDoPilar(w, idx) {
+		return d.esperaDoPilar(w, idx) // os Tauron do Pilar: no máximo 10 s (pilar_tauron.go)
+	}
+	if geradorDoAnciao(w, idx) {
+		return d.esperaDoAnciao(w, idx) // os Anciões Ciclops: no máximo 10 s (ciclopes_ancient.go)
+	}
+	if geradorDoBossConjurador(w, idx) {
+		return conjuradorHoras * msPorHora // o Boss Conjurador (dungeon_caveiras.go)
+	}
+	if geradorDoReiTrollZumbi(w, idx) {
+		return reiTrollZumbiHoras * msPorHora // o Rei Troll Zumbi (rei_troll_zumbi.go)
+	}
+	if geradorDaGargulaSabio(w, idx) {
+		return gargulaSabioHoras * msPorHora // a Gárgula Sábio chefe (gargula_sabio.go)
+	}
+	if geradorDoFrenzy(w, idx) {
+		return frenzyHoras * msPorHora // o FrenzyDemonLord (submundo.go)
 	}
 	if geradorDeChefeDoGelo(w, idx) {
 		return geloChefeHoras * msPorHora // Sombra Negra e Verid do Gelo (gelo.go)

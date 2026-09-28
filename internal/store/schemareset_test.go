@@ -24,7 +24,14 @@ var tabelasDeTeste = []string{
 	// As três da venda em dinheiro real vêm primeiro porque são as mais filhas
 	// que existem: rmt_cobranca aponta para rmt_anuncio E para delivery_queue,
 	// que está lá no fim desta lista.
+	// Aponta para rmt_repasse, então vem antes dele.
+	"rmt_repasse_tentativa",
+	// Aponta para rmt_cobranca e para account, então vem antes das duas.
+	"rmt_repasse",
 	"rmt_recebedor_historico",
+	// Não aponta para ninguém — dinheiro que entrou e NÃO achou cobrança não pode
+	// depender de uma cobrança existir —, então a posição aqui é indiferente.
+	"rmt_pagamento_orfao",
 	"rmt_cobranca",
 	"rmt_anuncio",
 	"rmt_recebedor",
@@ -44,7 +51,10 @@ var tabelasDeTeste = []string{
 	"player_report",
 	"trade_log",
 	"item_stat",
+	// admin_audit_log aponta para painel_usuario (0130), então vem ANTES dele. A ordem
+	// desta lista é a do DROP: filha primeiro, mãe depois.
 	"admin_audit_log",
+	"painel_usuario",
 	"sapphire_balance",
 	"world_event_audit",
 	"world_event_meta",
@@ -74,6 +84,8 @@ var tabelasDeTeste = []string{
 	"combat_rule",
 	"npc_generator_off_meta",
 	"npc_generator_off",
+	"npc_generator_recipe_meta",
+	"npc_generator_recipe",
 	"drop_rule_meta",
 	"drop_rule",
 	"affect",
@@ -88,7 +100,10 @@ var tabelasDeTeste = []string{
 	"guild_buff",
 	"guild_city_squad",
 	"guild",
+	"donate_pacote_item",
 	"donate_topup_order",
+	// Depois dos dois de cima, que apontam para ele.
+	"donate_pacote",
 	"donate_payer_profile",
 	"account",
 	"donate_shop_audit",
