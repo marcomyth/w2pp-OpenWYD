@@ -39427,7 +39427,7 @@
 // no1640 (1513�ʵ�E
 // ********************************************
 #	[1381]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -39659,7 +39659,7 @@
 // no1648 (1413�ʵ�E
 // ********************************************
 #	[1389]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -39688,7 +39688,7 @@
 // no1649 (1413�ʵ�E
 // ********************************************
 #	[1390]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -39717,7 +39717,7 @@
 // no1650 (1413�ʵ�E
 // ********************************************
 #	[1391]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -39775,7 +39775,7 @@
 // no1652 (1413�ʵ�E
 // ********************************************
 #	[1393]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -39804,7 +39804,7 @@
 // no1653 (1413�ʵ�E
 // ********************************************
 #	[1394]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -39833,7 +39833,7 @@
 // no1654 (1413�ʵ�E
 // ********************************************
 #	[1395]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -39862,7 +39862,7 @@
 // no1655 (1413�ʵ�E
 // ********************************************
 #	[1396]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -39920,7 +39920,7 @@
 // no1657 (1413�ʵ�E
 // ********************************************
 #	[1398]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -39978,7 +39978,7 @@
 // no1659 (1413�ʵ�E
 // ********************************************
 #	[1400]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -40065,7 +40065,7 @@
 // no1662 (1413�ʵ�E
 // ********************************************
 #	[1403]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -40094,7 +40094,7 @@
 // no1663 (1413�ʵ�E
 // ********************************************
 #	[1404]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -40152,7 +40152,7 @@
 // no1665 (1413�ʵ�E
 // ********************************************
 #	[1406]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -40210,7 +40210,7 @@
 // no1667 (1413�ʵ�E
 // ********************************************
 #	[1408]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -40239,7 +40239,7 @@
 // no1668 (1413�ʵ�E
 // ********************************************
 #	[1409]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -40268,7 +40268,7 @@
 // no1669 (1413�ʵ�E
 // ********************************************
 #	[1410]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -40355,7 +40355,7 @@
 // no1672 (1413�ʵ�E
 // ********************************************
 #	[1413]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -40384,7 +40384,7 @@
 // no1673 (1413�ʵ�E
 // ********************************************
 #	[1414]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -40442,7 +40442,7 @@
 // no1675 (1413�ʵ�E
 // ********************************************
 #	[1416]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -40500,7 +40500,7 @@
 // no1677 (1413�ʵ�E
 // ********************************************
 #	[1418]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -40587,7 +40587,7 @@
 // no1680 (1413�ʵ�E
 // ********************************************
 #	[1421]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -40616,7 +40616,7 @@
 // no1681 (1413�ʵ�E
 // ********************************************
 #	[1422]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -40645,7 +40645,7 @@
 // no1682 (1413�ʵ�E
 // ********************************************
 #	[1423]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -40674,7 +40674,7 @@
 // no1683 (1413�ʵ�E
 // ********************************************
 #	[1424]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -40703,7 +40703,7 @@
 // no1684 (1413�ʵ�E
 // ********************************************
 #	[1425]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -40732,7 +40732,7 @@
 // no1685 (1413�ʵ�E
 // ********************************************
 #	[1426]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -41979,7 +41979,7 @@
 // no1816 (1710�ʵ�E
 // ********************************************
 #	[1469]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -42037,7 +42037,7 @@
 // no1818 (1710�ʵ�E
 // ********************************************
 #	[1471]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -42240,7 +42240,7 @@
 // no1825 (1710�ʵ�E
 // ********************************************
 #	[1478]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -42327,7 +42327,7 @@
 // no1828 (1710�ʵ�E
 // ********************************************
 #	[1481]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -42443,7 +42443,7 @@
 // no1832 (1710�ʵ�E
 // ********************************************
 #	[1485]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -42501,7 +42501,7 @@
 // no1834 (1710�ʵ�E
 // ********************************************
 #	[1487]
-	MinuteGenerate:	1
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -42530,7 +42530,7 @@
 // no1835 (1710�ʵ�E
 // ********************************************
 #	[1488]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	1
 	MinGroup:	0
 	MaxGroup:	0
@@ -42617,7 +42617,7 @@
 // no1838 (1710�ʵ�E
 // ********************************************
 #	[1491]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -42646,7 +42646,7 @@
 // no1839 (1710�ʵ�E
 // ********************************************
 #	[1492]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -42675,7 +42675,7 @@
 // no1840 (1710�ʵ�E
 // ********************************************
 #	[1493]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -42704,7 +42704,7 @@
 // no1841 (1710�ʵ�E
 // ********************************************
 #	[1494]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -42762,7 +42762,7 @@
 // no1843 (1710�ʵ�E
 // ********************************************
 #	[1496]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -42791,7 +42791,7 @@
 // no1844 (1710�ʵ�E
 // ********************************************
 #	[1497]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -42878,7 +42878,7 @@
 // no1847 (1710�ʵ�E
 // ********************************************
 #	[1500]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -42907,7 +42907,7 @@
 // no1848 (1710�ʵ�E
 // ********************************************
 #	[1501]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -42965,7 +42965,7 @@
 // no1850 (1710�ʵ�E
 // ********************************************
 #	[1503]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -42994,7 +42994,7 @@
 // no1851 (1710�ʵ�E
 // ********************************************
 #	[1504]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -43023,7 +43023,7 @@
 // no1852 (1710�ʵ�E
 // ********************************************
 #	[1505]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
@@ -43110,7 +43110,7 @@
 // no1855 (1710�ʵ�E
 // ********************************************
 #	[1508]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	2
 	MinGroup:	1
 	MaxGroup:	1
