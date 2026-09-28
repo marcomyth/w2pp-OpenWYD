@@ -86,6 +86,13 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == criarContaCmd {
+		if err := criarConta(logger, os.Args[2:], os.Stdin); err != nil {
+			logger.Error(criarContaCmd+" falhou", "err", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if err := run(logger); err != nil {
 		logger.Error("adminserver failed", "err", err)
 		os.Exit(1)
