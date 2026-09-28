@@ -389,8 +389,9 @@ func TestBaseEffectsMagic(t *testing.T) {
 		want int16
 	}{
 		{3582, 69}, // Cajado Caotico: legacy 55, +25% in the Reforja do Topo (23/09/2026).
-		// Issue #281 rebalanced the Anct variants to 70; the Reforja took them to 88.
-		{3725, 88}, {3726, 88}, {3727, 88}, {3728, 88},
+		// Issue #281 rebalanced the Anct variants to 70; the Reforja took them to 88. Every Anct
+		// weapon then got +15% damage and magic (24/09/2026): 101.
+		{3725, 101}, {3726, 101}, {3727, 101}, {3728, 101},
 	} {
 		var got int16
 		for _, e := range realEffects[tc.idx] {

@@ -58,14 +58,17 @@ func (d *Dispatcher) accountLogin(w *world.World, s *world.Session, _ protocol.H
 	// that is still holding it (see accountInUse).
 	takeOver := body.DBNeedSave != 0
 	s.AccountName = name
+	s.Maquina = body.AdapterName
 	s.Mode = world.UserLogin
-	d.log.Info("account login: relaying to dbServer", "conn", s.Conn, "account", name)
+	d.log.Info("account login: relaying to dbServer", "conn", s.Conn, "account", name,
+		"maquina", maquinaTexto(body.AdapterName))
 
 	p := w.Persistence()
+	epoca := w.EpocaDoPar()
 	w.Go(s, func() func(*world.World, *world.Session) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		out, err := p.AccountLogin(ctx, name, pass)
+		out, err := p.AccountLogin(ctx, name, pass, epoca)
 		return func(w *world.World, s *world.Session) { d.completeAccountLogin(w, s, out, err, takeOver) }
 	})
 }
@@ -81,6 +84,38 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 	}
 	switch out.Result {
 	case world.LoginOK:
+		// A TRANCA DO SERVIDOR DE TESTE, e ela vem antes de tudo o que escreve.
+		//
+		// A senha estava certa: o que recusa aqui não é quem a pessoa é, é ONDE ela
+		// está tentando entrar. Por isso o texto diz isso, em vez de "senha
+		// inválida" — mandar alguém conferir a senha que estava certa é fazer a
+		// pessoa perder a tarde.
+		//
+		// ANTES DO accountInUse E DE QUALQUER ESCRITA: mais abaixo esta função
+		// instala o baú, drena entregas e reconcilia o escrow. Recusar depois disso
+		// deixaria metade do login feito para alguém que não entrou.
+		//
+		// O texto sai pelo painel (0x101) e a CONEXÃO NÃO FECHA EM CIMA DELE.
+		//
+		// Medido no cliente pela dupla que cuida dele: ele mostra o 0x101 por quatro
+		// segundos e reabilita os campos para a pessoa tentar de novo. O que ele faz
+		// se o socket cair ANTES de o painel aparecer ninguém sabe — e a aposta
+		// errada aí é a pessoa ver a janela sumir sem ler nada.
+		//
+		// Então a sessão volta ao estado de ANTES do login: sem conta, sem modo de
+		// jogo. Ela não é mais ninguém, e nenhum comando de jogo passa. O socket cai
+		// depois, sozinho, pelo prazo abaixo.
+		if d.cfg.AcessoRestrito && !world.ParseAccess(out.Role).EhStaff() {
+			d.log.Info("acesso restrito: login de jogador recusado",
+				"conn", s.Conn, "account", s.AccountName)
+			sendClientMessage(w, s, "Servidor de teste, acesso restrito.")
+			s.AccountName = ""
+			s.AccountID = 0
+			s.Mode = world.UserAccept
+			s.RecusasDeAcesso++
+			d.fechaDepois(w, s, s.RecusasDeAcesso)
+			return
+		}
 		delete(d.fails, s.AccountName)
 		// Before AccountID is set: closing s below must not release the cargo
 		// that the session already holding the account is using.
@@ -90,10 +125,14 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		s.AccountID = out.AccountID
 		s.AccessLevel = world.ParseAccess(out.Role) // GM/moderation privilege (issue #122)
 		s.Cash, s.Rmt = out.Cash, out.Rmt
+		// O passe vem no mesmo login, como as carteiras, e pela mesma razão: o laço
+		// não fala com o banco.
+		s.PasseNivel = out.PasseNivel
 		d.log.Info("account login: OK", "conn", s.Conn, "account", s.AccountName, "id", out.AccountID, "role", s.AccessLevel, "chars", len(out.Characters))
 		// Install the account-shared cargo, loaded in the same backend round-trip.
 		// It lives for the whole account session and is released on disconnect.
 		cargo := out.Cargo
+		d.corrigeRepletionAberrante(cargo.Items[:], "armazém", s.AccountName, "")
 		w.SetCargo(out.AccountID, &cargo)
 		vendidos := 0
 		// Drain any pending donate web-shop grants (fetched in the same login
@@ -133,7 +172,7 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		if held > 0 {
 			// The player paid for these and cannot see them yet. Saying why is
 			// what keeps "abre espaço" from becoming a support ticket.
-			sendClientMessage(w, s, fmt.Sprintf("%d item(ns) da loja esperam espaço no baú. Abra espaço e entre de novo.", held))
+			sendClientMessage(w, s, world.MensagemEntregaPresa(held))
 		}
 	case world.LoginBadPassword:
 		d.fails[s.AccountName]++
@@ -147,13 +186,26 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		d.notify(w, s, NoticeBlocked)
 		w.Close(s)
 	case world.LoginAlreadyPlaying:
-		// Only a dbServer that tracks presence itself answers this; ours does
-		// not, and accountInUse above is where the rule is kept. The reply is
-		// the legacy TM's to _MSG_DBAlreadyPlaying (ProcessDBMessage.cpp:1253).
+		// AGORA O dbServer RESPONDE ISTO, e o caso é o da posse da conta: outra
+		// execução do tmServer está com ela. Durante a sobreposição de um deploy,
+		// isto é quase sempre a própria pessoa tentando voltar antes de o servidor
+		// velho terminar de gravá-la.
+		//
+		// POR ISSO A FRASE MANDA ESPERAR, e não parece castigo: o
+		// MsgAlreadyPlaying sozinho é a janela do legado, que não explica nada e
+		// que, num deploy, o jogador leria como ban. A trava de DENTRO do processo
+		// (accountInUse) continua respondendo só a janela do legado, porque lá a
+		// causa é outra: a conta está mesmo aberta em outro lugar agora.
+		sendClientMessage(w, s, msgContaAindaSaindo)
 		w.SendTo(s, protocol.Header{Type: protocol.MsgAlreadyPlaying, ID: protocol.IDSelChar}, nil)
 		w.Close(s)
 	}
 }
+
+// msgContaAindaSaindo é o que o jogador lê quando a conta ainda está presa à
+// execução anterior do servidor. Ela manda ESPERAR: o caso normal é a sobreposição
+// de um deploy, e é a própria pessoa tentando voltar.
+const msgContaAindaSaindo = "Sua conta ainda está saindo do servidor. Tente de novo em alguns segundos."
 
 // reconciliaEscrow põe o escrow em dia depois de esta conexão ganhar a conta.
 //
@@ -297,4 +349,52 @@ func (d *Dispatcher) selCharsFrom(chars []world.CharSummary) []protocol.SelChar 
 		out = append(out, sc)
 	}
 	return out
+}
+
+// prazoDaRecusa é quanto o socket fica de pé depois de uma recusa de acesso.
+//
+// DEZ SEGUNDOS, e o número vem do cliente: ele mostra a mensagem por quatro e
+// devolve os campos à pessoa. Fechar antes disso apaga a mensagem; deixar aberto
+// para sempre segura um dos mil lugares de sessão por causa de quem nem entrou.
+//
+// O prazo de ocioso do servidor (-idle-timeout-sec) faria este trabalho, mas ele
+// nasce DESLIGADO e é sobre outra coisa. Uma recusa não pode depender de uma opção
+// que talvez ninguém tenha ligado.
+const prazoDaRecusa = 10 * time.Second
+
+// fechaDepois derruba o socket daqui a pouco, sem segurar o laço.
+//
+// A espera acontece FORA do laço — dentro dele, dez segundos parados seriam dez
+// segundos de servidor congelado para todo mundo. O World.Go é o caminho de sempre
+// para isso, e ele já descarta o retorno quando a sessão morreu antes: quem desistir
+// e fechar o jogo não vira um Close numa sessão que já não existe.
+func (d *Dispatcher) fechaDepois(w *world.World, s *world.Session, recusa int) {
+	prazo := d.cfg.PrazoDaRecusa
+	if prazo <= 0 {
+		prazo = prazoDaRecusa
+	}
+	w.Go(s, func() func(*world.World, *world.Session) {
+		time.Sleep(prazo)
+		return func(w *world.World, s *world.Session) {
+			// SÓ FECHA SE NADA ACONTECEU DEPOIS, e esta guarda é a correção de uma
+			// corrida que derrubaria gente legítima.
+			//
+			// O cliente devolve os campos à pessoa depois de quatro segundos, e ela
+			// pode entrar de novo NO MESMO SOCKET — é o caso de um staff que errou a
+			// conta na primeira vez. Sem a guarda, o fechamento agendado pela recusa
+			// antiga chegaria aos dez segundos e derrubaria a sessão que já entrou.
+			//
+			// O World.Go só descarta a volta quando a sessão MORREU; aqui ela está
+			// viva, e mais do que isso: logada.
+			//
+			// Três perguntas, e as três precisam continuar valendo: a sessão não tem
+			// conta, não está em modo de jogo, e nenhuma recusa NOVA aconteceu depois
+			// desta — senão o fechamento da segunda seria feito duas vezes, e o da
+			// primeira mataria a espera da segunda antes da hora.
+			if s.AccountID != 0 || s.Mode != world.UserAccept || s.RecusasDeAcesso != recusa {
+				return
+			}
+			w.Close(s)
+		}
+	})
 }

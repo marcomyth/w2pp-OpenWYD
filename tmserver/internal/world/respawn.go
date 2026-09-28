@@ -41,7 +41,19 @@ func (w *World) SpawnDueRespawns(now uint32) []int {
 			kept = append(kept, r)
 			continue
 		}
-		if id := w.SpawnMobAt(r.spawn); id >= 0 {
+		sp := r.spawn
+		if g := w.GeneratorAt(int(sp.GenIndex)); g != nil {
+			if sp.GenRev != g.Rev {
+				// Born under a recipe the panel has since replaced: bringing it
+				// back as itself would keep the old monster in the zone forever,
+				// one death at a time. The block raises from its current recipe
+				// instead, capped as always by MaxNumMob.
+				ids = append(ids, w.GenerateMob(int(sp.GenIndex))...)
+				continue
+			}
+			sp.Template = liveTemplate(g, sp)
+		}
+		if id := w.SpawnMobAt(sp); id >= 0 {
 			ids = append(ids, id)
 		}
 		// On SpawnMob failure (world full) the entry is dropped rather than retried
@@ -49,6 +61,23 @@ func (w *World) SpawnDueRespawns(now uint32) []int {
 	}
 	w.respawnQueue = kept
 	return ids
+}
+
+// liveTemplate is the block's CURRENT bytes for the template a queued monster
+// was born from. The queue used to bring back the copy the monster died with,
+// so a sheet edited on /monstros reached only the monsters the block raised
+// anew — in a zone where every block respawns through this queue, never. The
+// match is by file name, the same key the sheet reload swaps the block by.
+func liveTemplate(g *Generator, sp MobSpawn) []byte {
+	switch {
+	case sp.TemplateName == "":
+		return sp.Template
+	case sp.TemplateName == g.LeaderName && g.LeaderTmpl != nil:
+		return g.LeaderTmpl
+	case sp.TemplateName == g.FollowerName && g.FollowerTmpl != nil:
+		return g.FollowerTmpl
+	}
+	return sp.Template
 }
 
 // clearSeenAll removes entity id from every session's view set, so a slot reused

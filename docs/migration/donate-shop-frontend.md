@@ -59,9 +59,23 @@ Uma oferta da loja = um item entregável por um preço em donate.
 | `eff1`,`effv1`,`eff2`,`effv2`,`eff3`,`effv3` | int32 | três pares efeito/valor (encantamento/refino). 0 = sem efeito |
 | `price` | int32 | custo em donate. Deve ser > 0 |
 | `title` | string | nome exibido na loja |
-| `description` | string | descrição/observação |
+| `description` | string | o que o item faz, para o jogador. **O site esconde oferta sem descrição** |
 | `enabled` | bool | `true` aparece na vitrine do jogador |
-| `expires_days` | int32 | > 0 entrega item temporário (expira em N dias); 0 = permanente |
+| `expires_days` | int32 | > 0 entrega item temporário de N dias (ver abaixo); 0 = permanente |
+
+**`expires_days` é o prazo de uso, não um vencimento a partir da compra.** A compra grava os N dias
+no item como `EF_WDAY` (efeito 106), na forma não iniciada: o prazo só começa a correr quando o
+jogador equipa o item (montarias, Esferas, trajes), e a fada só gasta enquanto está vestida. Um item
+comprado e deixado no baú continua valendo os N dias. Duas exceções mantêm o vencimento absoluto
+a partir da compra: item cujas três casas de efeito já estão ocupadas, e prazo acima de 255 dias.
+Por isso a duração mostrada na vitrine sai só de `expires_days`: não ponha o 106 à mão nos efeitos
+da oferta.
+
+**Quantidade** é `eff 61 N` (`EF_AMOUNT`): o item chega como uma pilha de N e cada uso gasta uma.
+Um item empilhável cadastrado sem o 61 recebe `61 1` na compra, porque empilhável sem quantidade
+derruba o cliente.
+
+A vitrine inicial (72 ofertas) vem da migração `0160_loja_de_rcoins`, em ordem de categoria.
 
 > Picker de itens: o catálogo (item_index → nome) é servido pelo `NpcAdminService.ListItemCatalog`
 > (já existente) quando o `web-api` roda com `-content`. Reutilize-o no editor da oferta em vez de
@@ -123,13 +137,14 @@ Compra a oferta: debita o saldo e **enfileira o item para entrega**. `new_balanc
 
 A compra **não** coloca o item no jogo na hora — o servidor de jogo é o único que escreve inventário.
 A `web-api` grava a compra numa fila (`delivery_queue`); o servidor de jogo **drena a fila no próximo
-login do jogador** e coloca o item no **próximo espaço livre do armazém (cargo) da conta**.
+login do jogador**, ou quando o site pede `POST /site/v1/contas/{id}/entregar-agora` (siteapi do
+painel), e coloca o item no **próximo espaço livre do armazém (cargo) da conta**.
 
 Consequências para a UI:
 
 - Após `BUY_RESULT_OK`, mostre algo como **"item será entregue no seu armazém no próximo login"**.
-- Se o jogador comprar enquanto está **online**, o item chega **no próximo login** (não instantâneo —
-  MVP com dreno só no login).
+- Se o jogador comprar enquanto está **online**, o item chega no próximo login, ou na hora se o site
+  chamar o `entregar-agora`.
 - **Se o armazém estiver cheio (128 espaços), o item espera na fila** — não se perde: fica
   `pending` e chega no próximo login (ou num "entregar agora" do painel) em que houver espaço. O
   jogo avisa na entrada quantos itens esperam. Vale avisar o jogador a manter espaço livre, pra

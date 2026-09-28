@@ -37,18 +37,17 @@ próprios), item que o cliente já conhece. A migração tira a chave de todo mo
   56), e ele renasce a cada 6 min.
 - **Templates escolhidos:** só os que nascem apenas nesses lugares. O Tauron comum
   tem 1.648 dos seus 1.826 fora do deserto (Monster City e outros) e ficou de fora.
-- **Nas arenas das Hidras e dos Elfos os monstros também dão a chave** desde
-  17/09/2026, a pedido do Marco, a chance baixa (0,5% no líder, 0,2% no seguidor).
-  Até então ela saía só na entrada, quando o ticket (Mana do Batedor nas Hidras,
-  Emblema do Guarda nos Elfos) é gasto no NPC ou usado da bolsa — e esse sorteio
-  continua.
-- **O Mestre Grifo leva de graça para as mesmas arenas e não dá chave**: senão,
-  entrar e sair farmaria chaves.
-- O sorteio usa o gerador dos eventos, não o dos drops, para não mexer na ordem
-  que os testes de drop e refino fixam.
+- **Nas arenas das Hidras e dos Elfos a chave cai só no abate** desde 27/09/2026
+  (migração 0176): 0,4% no líder (Hidra Dourada, Mestre Elfo) e 0,15% no seguidor
+  (Hidra Imortal, Servo Elfo), ~0,5 chave por entrada de 10 minutos. Até então a
+  entrada paga também sorteava a chave, 1 em 4 nas Hidras e 1 em 3 nos Elfos, POR
+  PERSONAGEM que gastava o bilhete: um grupo de 4 levava ~1 chave só de entrar, e
+  o relato foi de 4 chaves em 2 entradas. Esse sorteio saiu do código.
+- **Nenhuma entrada dá chave**, nem o bilhete pago nem o Mestre Grifo, que leva de
+  graça para as mesmas arenas.
 - **A mesma chave abre o Acampamento Troll** (desde 16/09/2026): o jogador escolhe
-  onde gastá-la. O sorteio próprio da antiga Chave dos Trolls (3223) saiu, então
-  cada entrada dá no máximo uma chave (`docs/acampamento-troll.md`).
+  onde gastá-la. O sorteio próprio da antiga Chave dos Trolls (3223) saiu
+  (`docs/acampamento-troll.md`).
 - **Nenhum monstro da quest dá a 465**: senão cada corrida pagaria a entrada da
   seguinte. Desde 14/09 nenhum guardião carrega chave de portão (eram a 466, a 467
   e a 469): a corrida termina com o grupo teleportado depois do Grão-Lorde, então

@@ -2,12 +2,14 @@ package grpcsrv
 
 import (
 	"context"
+	"log/slog"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
 	"github.com/jeanluca/w2pp-openwyd/internal/domain"
+	"github.com/jeanluca/w2pp-openwyd/internal/store"
 	"github.com/jeanluca/w2pp-openwyd/webserver/internal/donatetopup"
 )
 
@@ -19,16 +21,31 @@ type DonateTopup interface {
 	CreateTopupOrder(ctx context.Context, o domain.TopupOrder) (donatetopup.Result, int64, error)
 	ConfirmTopupOrder(ctx context.Context, externalRef string) (donatetopup.ConfirmOutcome, int64, error)
 	GetTopupOrder(ctx context.Context, externalRef string, accountID int64) (status int16, credits int32, newBalance int64, err error)
+	// AnexarIdentifier guarda o id da processadora, para a varredura poder perguntar
+	// sobre o pagamento em vez de esperar ser avisada.
+	AnexarIdentifier(ctx context.Context, externalRef, identifier string) (store.ResultadoAnexo, error)
 }
 
 // DonateTopupServer implements webv1.DonateTopupServiceServer.
 type DonateTopupServer struct {
 	webv1.UnimplementedDonateTopupServiceServer
 	topup DonateTopup
+	log   *slog.Logger
 }
 
 // NewDonateTopup builds the DonateTopupService over the given top-up logic.
-func NewDonateTopup(t DonateTopup) *DonateTopupServer { return &DonateTopupServer{topup: t} }
+func NewDonateTopup(t DonateTopup) *DonateTopupServer {
+	return &DonateTopupServer{topup: t, log: slog.New(slog.DiscardHandler)}
+}
+
+// ComLog liga o registro do Attach. Construtor separado para não mexer na
+// assinatura que todo chamador antigo já usa.
+func (s *DonateTopupServer) ComLog(l *slog.Logger) *DonateTopupServer {
+	if l != nil {
+		s.log = l
+	}
+	return s
+}
 
 // GetPayerProfile returns the payer's stored name + CPF (found=false when none).
 func (s *DonateTopupServer) GetPayerProfile(ctx context.Context, req *webv1.GetPayerProfileRequest) (*webv1.GetPayerProfileResponse, error) {
@@ -56,6 +73,9 @@ func (s *DonateTopupServer) CreateTopupOrder(ctx context.Context, req *webv1.Cre
 		Credits:           req.GetCredits(),
 		AmountCents:       req.GetAmountCents(),
 		PaymentMethod:     int16(req.GetPaymentMethod()),
+		// Vazio é aceito e quer dizer doação sem pacote — é toda ordem anterior aos
+		// pacotes existirem. Quem recusa id DESCONHECIDO é o serviço, contra a tabela.
+		PacoteID: req.GetPackageId(),
 	})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "create topup order: %v", err)
@@ -92,6 +112,12 @@ func topupResultToProto(r donatetopup.Result) webv1.AdminResult {
 		return webv1.AdminResult_ADMIN_RESULT_OK
 	case donatetopup.NotFound:
 		return webv1.AdminResult_ADMIN_RESULT_NOT_FOUND
+	case donatetopup.Forbidden:
+		// O FORBIDDEN cai aqui com o sentido que o enum já tem: "caller is not a
+		// moderator/admin". É o pacote reservado à staff pedido por quem não é staff,
+		// e é a única recusa deste caminho que é sobre QUEM compra — as outras são
+		// sobre o pedido.
+		return webv1.AdminResult_ADMIN_RESULT_FORBIDDEN
 	default:
 		return webv1.AdminResult_ADMIN_RESULT_INVALID
 	}
@@ -119,4 +145,68 @@ func topupStatusToProto(st int16) webv1.TopupStatus {
 	default:
 		return webv1.TopupStatus_TOPUP_STATUS_UNSPECIFIED
 	}
+}
+
+// AttachTopupCharge guarda o id da processadora para um pedido de doação.
+//
+// AS RECUSAS VIAJAM NO ENUM e não como erro de transporte, pelo mesmo motivo do
+// resto deste arquivo: o site precisa saber O QUE aconteceu. "Já tinha este id" é
+// uma repetição e não é nada; "este id já está em outro pedido" é bug ou ataque, e
+// tem de virar alarme do lado de lá. Um código de erro gRPC não carrega essa
+// diferença, e o site trataria as duas como falha de rede.
+func (s *DonateTopupServer) AttachTopupCharge(ctx context.Context,
+	req *webv1.AttachTopupChargeRequest,
+) (*webv1.AttachTopupChargeResponse, error) {
+	res, err := s.topup.AnexarIdentifier(ctx, req.GetExternalReference(), req.GetGatewayIdentifier())
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "attach topup charge: %v", err)
+	}
+	// O RASTRO DOS DOIS LADOS. O site registra o resultado dele; sem uma linha aqui,
+	// bater os dois na primeira doação real dependeria de conclusão por AUSÊNCIA —
+	// "não houve linha de falha, então deu certo" —, que não é medição.
+	//
+	// O IDENTIFIER SAI CORTADO, só os últimos 8. Ele não é segredo, mas é o nome de
+	// um pagamento de uma pessoa, e o log é o lugar onde dado de pagamento fica
+	// guardado sem ninguém lembrar. Oito caracteres bastam para casar com a linha do
+	// site, que corta do mesmo jeito.
+	nivel := slog.LevelInfo
+	if res != store.AnexoGravado && res != store.AnexoRepetido {
+		// Recusa não é rotina: ou é bug do site, ou é um pagamento sendo apontado
+		// para o pedido errado.
+		nivel = slog.LevelWarn
+	}
+	s.log.Log(ctx, nivel, "doacao: attach do identifier",
+		"referencia", req.GetExternalReference(),
+		"identifier_fim", ultimos8(req.GetGatewayIdentifier()),
+		"resultado", anexoParaProto(res).String())
+	return &webv1.AttachTopupChargeResponse{Result: anexoParaProto(res)}, nil
+}
+
+// anexoParaProto traduz explicitamente, e o default é UNSPECIFIED e não um palpite:
+// um resultado novo que chegasse aqui sem tradução não pode virar "deu certo".
+func anexoParaProto(r store.ResultadoAnexo) webv1.AttachResult {
+	switch r {
+	case store.AnexoGravado:
+		return webv1.AttachResult_ATTACH_RESULT_ATTACHED
+	case store.AnexoRepetido:
+		return webv1.AttachResult_ATTACH_RESULT_ALREADY
+	case store.AnexoConflitoDePedido:
+		return webv1.AttachResult_ATTACH_RESULT_CONFLICT_ORDER
+	case store.AnexoConflitoDeIdentifier:
+		return webv1.AttachResult_ATTACH_RESULT_CONFLICT_IDENTIFIER
+	case store.AnexoPedidoInexistente:
+		return webv1.AttachResult_ATTACH_RESULT_NOT_FOUND
+	case store.AnexoJaPago:
+		return webv1.AttachResult_ATTACH_RESULT_ALREADY_PAID
+	}
+	return webv1.AttachResult_ATTACH_RESULT_UNSPECIFIED
+}
+
+// ultimos8 corta o identifier para o log. Vazio continua vazio: um "" cortado não
+// pode virar um texto que parece um id.
+func ultimos8(id string) string {
+	if len(id) <= 8 {
+		return id
+	}
+	return id[len(id)-8:]
 }

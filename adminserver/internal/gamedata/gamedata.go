@@ -241,6 +241,10 @@ type ShopItem struct {
 	ItemIndex int32
 	Quantity  int32
 	Eff       [3][2]int32
+	// PricePoints é o preço da vaga em pontos de lojinha (0078); nil é ouro, o caso
+	// comum. Tem de fazer a viagem de ida e volta inteira: SetShop grava a loja
+	// toda, e uma vaga lida sem ele seria gravada de volta em ouro.
+	PricePoints *int32
 }
 
 // NPCs lists the DB-managed merchant definitions.
@@ -290,6 +294,7 @@ func (c *Client) SetShop(ctx context.Context, moderatorID, npcID int64, items []
 			Eff1: it.Eff[0][0], Effv1: it.Eff[0][1],
 			Eff2: it.Eff[1][0], Effv2: it.Eff[1][1],
 			Eff3: it.Eff[2][0], Effv3: it.Eff[2][1],
+			PricePoints: it.PricePoints,
 		})
 	}
 	resp, err := c.npc.SetNpcShop(ctx, &webv1.SetNpcShopRequest{
@@ -316,6 +321,7 @@ func npcFromProto(n *webv1.AdminNpc) NPC {
 				{s.GetEff2(), s.GetEffv2()},
 				{s.GetEff3(), s.GetEffv3()},
 			},
+			PricePoints: s.PricePoints,
 		})
 	}
 	sort.Slice(out.Shop, func(i, j int) bool { return out.Shop[i].Slot < out.Shop[j].Slot })

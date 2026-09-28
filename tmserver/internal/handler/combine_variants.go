@@ -147,11 +147,13 @@ func (d *Dispatcher) combineItemTiny(w *world.World, s *world.Session, _ protoco
 	}
 	// A Alquimia entra depois da grade×5 que MatchTiny já somou, sobre a chance
 	// que de fato vai ao sorteio, e o teto 100 vale para a soma inteira.
-	rate, _ = chanceComAlquimia(e, rate)
-	if _, success := combine.Roll(w.Rand(), rate); !success {
+	rate, alq := chanceComAlquimia(e, rate)
+	roll, success := combine.Roll(w.Rand(), rate)
+	if !success {
 		e.Carry[sl[0]] = world.Item{}
 		sendCarrySlot(w, s, e, sl[0])
-		combineLost(w, s)
+		d.announceTiny(w, e.Name, it[0].Index, roll, rate, alq, false)
+		sendCombineComplete(w, s, combineFailed)
 		return
 	}
 	result := it[0]
@@ -162,7 +164,8 @@ func (d *Dispatcher) combineItemTiny(w *world.World, s *world.Session, _ protoco
 	e.Coin -= tinyCost
 	d.sendEtc(w, s, e)
 	sendCarrySlot(w, s, e, sl[1])
-	combineSucceeded(w, s)
+	d.announceTiny(w, e.Name, result.Index, roll, rate, alq, true)
+	sendCombineComplete(w, s, combineSuccess)
 	sendCarrySlot(w, s, e, sl[0])
 }
 

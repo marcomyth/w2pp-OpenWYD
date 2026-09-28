@@ -103,7 +103,7 @@
           {{range .Lista}}
           <tr>
             <td class="num">#{{.Numero}}</td>
-            <td>{{.Nome}}</td>
+            <td>{{.Nome}}{{if $.HasReceitas}} <a class="de" href="/blocos/receita?bloco={{.Numero}}" title="Quem nasce, quantos e onde: muda sem reiniciar">receita</a>{{end}}</td>
             <td class="num">{{.X}}, {{.Y}}</td>
             <td class="num">{{.Vivos}} / {{.Max}}</td>
             <td>

@@ -140,6 +140,7 @@ func TestTodaTelaQueGravaDizQuandoVale(t *testing.T) {
 		"ui/mesaxp.html", "ui/montarias.html",
 		"ui/eventos.html",
 		"ui/combate.html",
+		"ui/receitas.html", "ui/receita.html",
 	}
 	tpl := lerTemplates(t)
 	for _, nome := range querem {

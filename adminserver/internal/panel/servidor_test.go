@@ -413,25 +413,6 @@ func TestListaVaziaContinuaDizendoQueEstaVazia(t *testing.T) {
 	}
 }
 
-func TestFilaDeDenunciaNaoMostraZeroQuandoAContagemFalha(t *testing.T) {
-	// "0 abertas" above a list of five open reports is a contradiction the
-	// reader has to resolve, and the wrong half is the one in big type.
-	d := &fakeDenuncias{fila: []domain.PlayerReport{denunciaAberta()}}
-	d.contagemErr = errors.New("banco fora do ar")
-
-	body := getSignedIn(t, newTestPanelDenuncias(t, roleAdmin, d, newFakeAudit()), "/denuncias").Body.String()
-	if !strings.Contains(body, "Não consegui ler") {
-		t.Error("a contagem falhou e a página não disse")
-	}
-	if strings.Contains(body, `<div class="rot">Abertas</div>`) {
-		t.Error("a página mostrou o placar zerado em vez de dizer que não leu")
-	}
-	// The list itself is untouched: it is the page.
-	if !strings.Contains(body, "Vandalyzz") {
-		t.Error("a lista sumiu junto com o resumo")
-	}
-}
-
 func TestCidadeQueNaoCarregouNaoViraNenhumaCidade(t *testing.T) {
 	g := mundoDeGuildas()
 	g.zonaErr = errors.New("banco fora do ar")
@@ -481,7 +462,6 @@ func TestQuemPodeOQue(t *testing.T) {
 		{"derrubar", "/servidor/derrubar"},
 		{"desatolar", "/servidor/desatolar"},
 		{"avisar todos", "/servidor/aviso"},
-		{"tratar denúncia", "/denuncias/1/tratar"},
 	}
 	soDoAdmin := []struct{ nome, rota string }{
 		{"trocar cargo", "/contas/ana/cargo"},
@@ -531,7 +511,7 @@ func painelCompletoParaRegra(t *testing.T, cargo string) http.Handler {
 		Accounts: acc, Writer: newFakeWriter(), Audit: newFakeAudit(),
 		GameData: newFakeGameData(), Entregas: &fakeEntregas{},
 		Jogo: &fakeJogo{estado: estadoDeTeste()}, Platform: newFakePlatform(),
-		Eventos: &fakeEventos{}, Denuncias: &fakeDenuncias{}, Guildas: mundoDeGuildas(),
+		Eventos: &fakeEventos{}, Guildas: mundoDeGuildas(),
 		Sessions: session.New(time.Hour),
 		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
 	})
@@ -713,32 +693,6 @@ func TestACaixaDeBuscaApareceEmTodaPagina(t *testing.T) {
 		if !strings.Contains(get(pagina).Body.String(), `action="/ir"`) {
 			t.Errorf("%s: sem a caixa de busca", pagina)
 		}
-	}
-}
-
-func TestAInicialMostraAFilaDeDenuncias(t *testing.T) {
-	// The home page showed the server state and nothing else, so the answer to
-	// "what needs me now" lived in three pages you had to know to open.
-	d := &fakeDenuncias{fila: []domain.PlayerReport{denunciaAberta()}}
-	h, err := New(Config{
-		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
-		Denuncias: d, Platform: newFakePlatform(), Sessions: session.New(time.Hour),
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
-	})
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	body := getSignedIn(t, h.Routes(), "/").Body.String()
-
-	if !strings.Contains(body, "denúncia aberta") {
-		t.Error("a inicial não mostra a fila de denúncias")
-	}
-	// The age is the number that says whether the queue is being worked.
-	if !strings.Contains(body, "espera há") {
-		t.Error("a inicial não diz há quanto tempo a mais antiga espera")
-	}
-	if !strings.Contains(body, `href="/denuncias"`) {
-		t.Error("a fila não leva para a página que resolve")
 	}
 }
 

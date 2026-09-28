@@ -207,11 +207,16 @@ func TestOnlyShopsReal(t *testing.T) {
 	//
 	// Os dois Martin passaram por aqui e saíram: ficaram vazios na 0094 e
 	// ganharam vitrine nova na 0095, uma cópia da Aki mais as Ervas de Cura.
+	//
+	// A Loja de Pontos entrou pela 0150: a vitrine dela vive só no banco, com
+	// preço em pontos, e o template fica vazio para a seed não recolocar item
+	// nenhum cobrado em ouro.
 	wantEmpty := map[string]bool{
 		"Prona-22": true, "Prona-4232": true, "Irena_-289": true, "Lainy-286": true,
 		"RoPerion-288": true, "Balmers-271": true, "Naomi-273": true, "Rubyen-272": true,
-		"Evento-6071":     true,
-		"Cap_Rowena-6058": true,
+		"Evento-6071":         true,
+		"Cap_Rowena-6058":     true,
+		"Loja_de_Pontos-6144": true,
 	}
 	gotEmpty := map[string]bool{}
 	for _, n := range shops.NPCs {

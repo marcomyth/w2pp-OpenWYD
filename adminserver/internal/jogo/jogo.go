@@ -294,3 +294,28 @@ func (c *Client) Drenar(parent context.Context, aviso string) (Drenagem, error) 
 	}
 	return Drenagem{Avisados: resp.GetNotified(), Derrubados: resp.GetKicked()}, nil
 }
+
+// Passe é o que a troca de moldura em jogo devolve.
+type Passe struct {
+	// Conectado é falso quando a conta não está em jogo, e isso NÃO é erro: é o
+	// estado normal de quase toda conta. O nível já está gravado no banco e vale no
+	// próximo login.
+	Conectado  bool
+	Personagem string
+}
+
+// TrocarPasse redesenha a moldura de quem está jogando.
+//
+// Cortesia, como o EntregarAgora: o que vale é o que está no banco, e esta chamada
+// só poupa a pessoa de relogar. Falhar aqui não desfaz o que foi gravado.
+func (c *Client) TrocarPasse(parent context.Context, conta string, nivel int32) (Passe, error) {
+	ctx, cancel := c.ctx(parent)
+	defer cancel()
+	resp, err := c.api.SetPassLevel(ctx, &gamev1.SetPassLevelRequest{
+		AccountName: conta, Level: nivel,
+	})
+	if err != nil {
+		return Passe{}, traduz(err, "trocar o passe")
+	}
+	return Passe{Conectado: resp.GetFound(), Personagem: resp.GetCharacterName()}, nil
+}

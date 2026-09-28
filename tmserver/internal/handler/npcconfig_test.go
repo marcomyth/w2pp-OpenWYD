@@ -385,8 +385,8 @@ func TestAuditaEstoqueGratisLeOBanco(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	d := New(Config{
 		Log:        log,
-		ItemPrices: map[int]int32{1100: 0, 1101: 500, 1102: 0, 5008: 0},
-		ItemNames:  map[int]string{1100: "Presente", 1101: "Pago", 1102: "Sobreposto", 5008: "Carga"},
+		ItemPrices: map[int]int32{1100: 0, 1101: 500, 1102: 0, 5008: 0, 1103: 0},
+		ItemNames:  map[int]string{1100: "Presente", 1101: "Pago", 1102: "Sobreposto", 5008: "Carga", 1103: "EmPontos"},
 		NpcConfig:  staticSource{},
 	})
 	w := world.New(world.Config{GridDim: 32}, log, world.NopPersistence{}, d.Handle)
@@ -401,6 +401,8 @@ func TestAuditaEstoqueGratisLeOBanco(t *testing.T) {
 				{Slot: 2, Index: 1102}, // zero no catálogo, MAS precificado pelo painel
 				{Slot: 3, Index: 5008}, // livro de habilidade
 				{Slot: 4, Index: 9999}, // fora do catálogo
+				// zero em ouro, mas cobrado em pontos: é o caso de toda vaga da Loja de Honra
+				{Slot: 5, Index: 1103, PricePoints: pontosDeHonra(100)},
 			},
 		}},
 		// A sobreposição do painel tira o 1102 da conta: o preço que vale é este.
@@ -417,7 +419,7 @@ func TestAuditaEstoqueGratisLeOBanco(t *testing.T) {
 	if !strings.Contains(got, "Presente(1100)") {
 		t.Errorf("faltou nomear o item de graça:\n%s", got)
 	}
-	for _, proibido := range []string{"Pago(1101)", "Sobreposto(1102)", "Carga(5008)", "9999"} {
+	for _, proibido := range []string{"Pago(1101)", "Sobreposto(1102)", "Carga(5008)", "9999", "EmPontos(1103)"} {
 		if strings.Contains(got, proibido) {
 			t.Errorf("o aviso citou %q, que não é item de graça comprável:\n%s", proibido, got)
 		}

@@ -416,6 +416,23 @@ func eventoDoSite(e donate.Evento) (eventoSite, bool) {
 		s.Detalhe = ""
 	case donate.TipoAjuste:
 		s.Titulo, s.Detalhe = "Ajuste da equipe", ""
+	case donate.TipoLojinhaCompra, donate.TipoLojinhaVenda:
+		// A OUTRA PONTA DA VENDA NÃO ATRAVESSA. Do outro lado dessa linha existe
+		// uma pessoa: uma conta, um login, um personagem. No painel da staff
+		// mostrar quem foi está certo — é gente com motivo para saber. Aqui não:
+		// o login é metade de uma credencial, e o id da conta identifica alguém
+		// que não pediu para ser identificado a este leitor.
+		//
+		// O texto é IMPOSTO, e não herdado do painel. Repassar o título de lá
+		// deixaria o vazamento a uma frase de distância: bastaria alguém
+		// acrescentar o nome do vendedor à linha da staff, que é uma melhoria
+		// razoável de se pedir, para ele sair por aqui sem ninguém notar.
+		if e.Tipo == donate.TipoLojinhaCompra {
+			s.Titulo = "Compra na lojinha"
+		} else {
+			s.Titulo = "Venda na lojinha"
+		}
+		s.Detalhe = ""
 	default:
 		return eventoSite{}, false
 	}

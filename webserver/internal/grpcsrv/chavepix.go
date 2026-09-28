@@ -3,6 +3,7 @@ package grpcsrv
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"google.golang.org/grpc/codes"
@@ -10,19 +11,74 @@ import (
 
 	webv1 "github.com/jeanluca/w2pp-openwyd/api/web/v1"
 	"github.com/jeanluca/w2pp-openwyd/internal/store"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/ponte"
+	"github.com/jeanluca/w2pp-openwyd/webserver/internal/rmtpagamento"
 )
 
 // ChavesPix é a superfície da chave de recebimento (satisfeita por *store.Store).
 // Interface e não o store concreto pelo mesmo motivo do resto do pacote: o
 // servidor fica testável sem banco.
 type ChavesPix interface {
-	SalvarChavePix(ctx context.Context, accountID int64, chave string, tipo store.TipoChavePix) error
+	SalvarChavePix(ctx context.Context, accountID int64, chave string,
+		tipo store.TipoChavePix, documento string) error
 	LerChavePix(ctx context.Context, accountID int64) (store.RecebedorPix, error)
+	// ApagarChavePix tira a chave E o documento, os dois juntos: são um cadastro
+	// só, e documento que não serve mais para nada é só o que vaza num incidente.
+	ApagarChavePix(ctx context.Context, accountID int64) error
+	// RepasseDoVendedor é quanto esta conta tem a receber e por que ainda não
+	// chegou. Sai na MESMA resposta da chave, porque a página da chave é onde a
+	// pessoa vai quando está procurando o dinheiro dela.
+	RepasseDoVendedor(ctx context.Context, accountID int64) (int64, store.MotivoDaEspera, error)
 	// CobrancaAtualDoComprador é a única leitura feita para quem PAGA: a cobrança
 	// aberta da conta, ou a que fechou há pouco. Ver store/cobranca_do_comprador.go.
 	CobrancaAtualDoComprador(ctx context.Context, compradorConta int64,
 		janelaRecente time.Duration) (bool, store.CobrancaDoComprador, error)
+	// CriarPixSeFaltar faz nascer o código na processadora na PRIMEIRA leitura de
+	// uma cobrança aberta que ainda não tem um. Ver store/pix_da_cobranca.go, que é
+	// onde vive a trava contra duas abas criarem duas cobranças.
+	CriarPixSeFaltar(ctx context.Context, cobrancaID int64, minimoRestante time.Duration,
+		criar store.CriadorDePix) (store.PixDaCobranca, error)
+	// FecharCobrancaPorRecusaDefinitiva encerra a cobrança que a processadora
+	// recusou de um jeito que não muda tentando de novo. Ver
+	// store/pix_da_cobranca.go.
+	FecharCobrancaPorRecusaDefinitiva(ctx context.Context, cobrancaID int64) (bool, error)
 }
+
+// MinimoParaCriarPix é quanto prazo tem de sobrar para valer a pena criar o código.
+//
+// CRIAR UM PIX COM DEZ SEGUNDOS DE VIDA É FABRICAR REEMBOLSO. A pessoa abre o
+// aplicativo do banco, escaneia, confirma — e o dinheiro cai numa cobrança que já
+// venceu. Aí o item já foi solto, ela não recebe nada na hora, e a gente devolve
+// pagando taxa de reembolso mais as taxas da venda, que não voltam. Os dois lados
+// perdem por causa de um código que nunca devia ter nascido.
+//
+// Sessenta segundos contra uma janela de cinco minutos: quem chega com menos de um
+// minuto vê a cobrança como vencida e pode abrir outra, que nasce com o prazo
+// inteiro. É melhor do que um QR que quase sempre falha.
+var MinimoParaCriarPix = 60 * time.Second
+
+// PrazoDaCriacao é quanto a criação do Pix tem para terminar, contado do PRÓPRIO
+// relógio dela e não do de quem pediu a página.
+//
+// MAIOR QUE O PRAZO DA PONTE (15 s) de propósito: quem tem de desistir da chamada à
+// processadora é o cliente da ponte, com a mensagem dele, e não este prazo por cima.
+// Um prazo de fora menor transformaria toda lentidão da processadora num erro
+// genérico, escondendo qual das duas coisas falhou.
+var PrazoDaCriacao = 20 * time.Second
+
+// CriadorDePixComTexto é a chamada à ponte, já com o texto que o pagador lê.
+//
+// A DESCRIÇÃO NÃO PODE DESCER ATÉ O STORE, e é por isso que este tipo existe em vez
+// de o store.CriadorDePix ganhar um parâmetro: o texto tem o NOME do item, e para
+// saber o nome de um índice é preciso o catálogo do cliente legado, que é coisa do
+// webserver. O store não conhece catálogo e não deveria passar a conhecer para
+// montar uma frase.
+type CriadorDePixComTexto func(ctx context.Context, referencia string, centavos int64,
+	descricao string) (codigoPix, identifier string, err error)
+
+// NomeDeItem traduz um índice no nome que uma pessoa lê, ou devolve vazio quando
+// não sabe. Pode ser nulo: aí a descrição sai genérica, o que é feio e não é erro.
+type NomeDeItem func(index int32) string
 
 // ServerRmt implementa webv1.RmtWebServiceServer.
 //
@@ -33,11 +89,53 @@ type ChavesPix interface {
 // ler um log de acesso.
 type ServerRmt struct {
 	webv1.UnimplementedRmtWebServiceServer
-	pix ChavesPix
+	pix      ChavesPix
+	criarPix CriadorDePixComTexto
+	nomeItem NomeDeItem
+	log      *slog.Logger
+	// vitrine é opcional: sem o link com o servidor de jogo não há mercado para
+	// listar, e o método responde Unavailable em vez de mentir uma lista vazia.
+	vitrine Vitrine
 }
 
 // NewRmt monta o serviço de dinheiro real sobre a superfície da chave.
-func NewRmt(pix ChavesPix) *ServerRmt { return &ServerRmt{pix: pix} }
+//
+// Sem criador de Pix: a leitura da cobrança devolve o que está gravado e nunca
+// chama a processadora. É o comportamento certo quando a ponte não está
+// configurada — a cobrança existe, a página mostra que está sendo gerada, e
+// ninguém paga um código que não nasceu.
+func NewRmt(pix ChavesPix) *ServerRmt {
+	return &ServerRmt{pix: pix, log: slog.New(slog.DiscardHandler)}
+}
+
+// ComCriadorDePix liga a criação tardia do código.
+//
+// Construtor separado, e não um parâmetro a mais no NewRmt, por duas razões: a
+// criação é opcional de verdade (sem ponte configurada ela não existe), e assim o
+// caminho SEM ponte continua sendo o que os testes antigos já cobrem, em vez de
+// todos passarem a carregar um nulo.
+func (s *ServerRmt) ComCriadorDePix(criar CriadorDePixComTexto, nome NomeDeItem, log *slog.Logger) *ServerRmt {
+	s.criarPix = criar
+	s.nomeItem = nome
+	if log != nil {
+		s.log = log
+	}
+	return s
+}
+
+// descricaoDaCobranca monta o texto que a processadora mostra a quem paga.
+//
+// Sem catálogo ligado, ou com um índice que ele não conhece, sai o texto genérico.
+// Perder o nome do item NÃO pode derrubar a venda: a alternativa seria recusar a
+// cobrança porque o catálogo não carregou, e ninguém deixa de vender por causa de
+// uma frase.
+func (s *ServerRmt) descricaoDaCobranca(cob store.CobrancaDoComprador) string {
+	var nome string
+	if s.nomeItem != nil {
+		nome = s.nomeItem(int32(cob.ItemIndex))
+	}
+	return rmtpagamento.Descricao(nome, cob.Refino)
+}
 
 // SavePixKey grava a chave de recebimento da conta.
 //
@@ -46,18 +144,70 @@ func NewRmt(pix ChavesPix) *ServerRmt { return &ServerRmt{pix: pix} }
 // vira erro, que é a mesma divisão que o CreateAccount faz: o formulário precisa
 // saber O QUE dizer à pessoa, e um código de erro de transporte não diz.
 func (s *ServerRmt) SavePixKey(ctx context.Context, req *webv1.SavePixKeyRequest) (*webv1.SavePixKeyResponse, error) {
-	err := s.pix.SalvarChavePix(ctx, req.GetAccountId(), req.GetKey(), tipoDoProto(req.GetType()))
+	err := s.pix.SalvarChavePix(ctx, req.GetAccountId(), req.GetKey(),
+		tipoDoProto(req.GetType()), req.GetTaxId())
 	switch {
 	case err == nil:
 		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_OK}, nil
 	case errors.Is(err, store.ErrChavePixInvalida):
 		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_INVALID}, nil
+	case errors.Is(err, store.ErrDocumentoInvalido):
+		// CÓDIGO PRÓPRIO, e não o INVALID genérico: o formulário tem dois campos, e
+		// dizer só "inválido" faria a pessoa corrigir a chave, que estava certa. O
+		// contrato já previa este valor; o servidor é que nunca o produzia.
+		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_INVALID_TAX_ID}, nil
 	case errors.Is(err, store.ErrVendaEmCurso):
 		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_SALE_IN_PROGRESS}, nil
+	case errors.Is(err, store.ErrRepasseEmCurso):
+		// SEM ESTE CASO, O ERRO NOVO CAIRIA NO default E VIRARIA codes.Internal.
+		//
+		// Eu separei ErrRepasseEmCurso de ErrVendaEmCurso no store e quase subi sem
+		// mapear aqui: o vendedor com repasse a caminho, que antes lia "venda em curso",
+		// passaria a receber ERRO DE SERVIDOR — regressão em produção no minuto do
+		// deploy, num caminho que funcionava.
+		//
+		// É o preço de dividir um erro em dois: quem divide tem de percorrer TODOS os
+		// lugares que traduziam o antigo. O teste-tabela abaixo deste handler existe para
+		// o próximo erro novo não passar calado.
+		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_PAYOUT_PENDING}, nil
 	case errors.Is(err, store.ErrNotFound):
 		return &webv1.SavePixKeyResponse{Result: webv1.PixKeyResult_PIX_KEY_RESULT_NO_ACCOUNT}, nil
 	default:
 		return nil, status.Errorf(codes.Internal, "save pix key: %v", err)
+	}
+}
+
+// DeletePixKey apaga a chave e o documento da conta.
+//
+// AS MESMAS DUAS TRAVAS DO SavePixKey, NA MESMA ORDEM: cobrança aberta primeiro,
+// repasse depois. Quando as duas valem, a pessoa lê a da venda, que é a que passa
+// sozinha antes.
+//
+// E aqui a trava do repasse vale SEMPRE, diferente do gravar. Gravar a MESMA chave
+// passa com repasse a caminho, porque não desvia nada — é o que deixa um vendedor
+// antigo completar o CPF que falta. Apagar não é gravar a mesma chave: é tirá-la,
+// com dinheiro a caminho dela.
+//
+// "Não havia chave" é resultado próprio, e não OK: a tela precisa distinguir
+// "apaguei agora" de "não havia nada", senão ela confirma uma ação que não
+// aconteceu.
+func (s *ServerRmt) DeletePixKey(ctx context.Context, req *webv1.DeletePixKeyRequest) (*webv1.DeletePixKeyResponse, error) {
+	err := s.pix.ApagarChavePix(ctx, req.GetAccountId())
+	switch {
+	case err == nil:
+		return &webv1.DeletePixKeyResponse{Result: webv1.PixKeyDeleteResult_PIX_KEY_DELETE_RESULT_OK}, nil
+	case errors.Is(err, store.ErrNotFound):
+		// CONTA SEM CHAVE E CONTA INEXISTENTE CAEM AQUI JUNTAS, e isso é escolha: o
+		// account_id vem da SESSÃO, então "conta que não existe" não é um estado que
+		// o site alcance — e para este caminho as duas pedem a mesma resposta, que é
+		// "não há o que apagar".
+		return &webv1.DeletePixKeyResponse{Result: webv1.PixKeyDeleteResult_PIX_KEY_DELETE_RESULT_NO_KEY}, nil
+	case errors.Is(err, store.ErrVendaEmCurso):
+		return &webv1.DeletePixKeyResponse{Result: webv1.PixKeyDeleteResult_PIX_KEY_DELETE_RESULT_SALE_IN_PROGRESS}, nil
+	case errors.Is(err, store.ErrRepasseEmCurso):
+		return &webv1.DeletePixKeyResponse{Result: webv1.PixKeyDeleteResult_PIX_KEY_DELETE_RESULT_PAYOUT_PENDING}, nil
+	default:
+		return nil, status.Errorf(codes.Internal, "delete pix key: %v", err)
 	}
 }
 
@@ -70,12 +220,46 @@ func (s *ServerRmt) GetPixKey(ctx context.Context, req *webv1.GetPixKeyRequest) 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "get pix key: %v", err)
 	}
+	// O QUE HÁ A RECEBER SAI JUNTO, e uma falha aqui NÃO derruba a resposta.
+	//
+	// São duas perguntas de peso diferente na mesma chamada: "qual é a minha chave"
+	// é o que o formulário precisa para funcionar, e "quanto eu tenho a receber" é
+	// informação. Deixar a segunda derrubar a primeira tiraria do ar a única tela
+	// onde a pessoa conserta o cadastro — e o cadastro incompleto é justamente a
+	// causa mais comum de haver dinheiro parado.
+	//
+	// Na falha vai zero com motivo UNSPECIFIED, que é o que a tela já sabe mostrar
+	// como "nada pendente". Ela erra para o lado de não afirmar nada.
+	pendente, motivo, err := s.pix.RepasseDoVendedor(ctx, req.GetAccountId())
+	if err != nil {
+		s.log.ErrorContext(ctx, "lendo o repasse pendente do vendedor",
+			"account_id", req.GetAccountId(), "erro", err)
+		pendente, motivo = 0, store.SemEspera
+	}
 	return &webv1.GetPixKeyResponse{
-		HasKey:    r.TemChave,
-		MaskedKey: r.ChaveMascarada,
-		Type:      tipoParaProto(r.Tipo),
-		Verified:  r.Verificada,
+		HasKey:             r.TemChave,
+		MaskedKey:          r.ChaveMascarada,
+		Type:               tipoParaProto(r.Tipo),
+		Verified:           r.Verificada,
+		MaskedTaxId:        r.DocumentoMascarado,
+		PendingPayoutCents: pendente,
+		PayoutWaitReason:   motivoParaProto(motivo),
 	}, nil
+}
+
+// motivoParaProto traduz o motivo da espera. O default é UNSPECIFIED e não um
+// palpite: motivo novo que chegasse aqui sem tradução viraria uma frase errada na
+// tela de alguém que está atrás do próprio dinheiro.
+func motivoParaProto(m store.MotivoDaEspera) webv1.PayoutWaitReason {
+	switch m {
+	case store.EsperaCadastro:
+		return webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_NO_KEY_OR_TAX_ID
+	case store.EsperaPagamento:
+		return webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_IN_PROGRESS
+	case store.EsperaGente:
+		return webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_NEEDS_STAFF
+	}
+	return webv1.PayoutWaitReason_PAYOUT_WAIT_REASON_UNSPECIFIED
 }
 
 func tipoDoProto(t webv1.PixKeyType) store.TipoChavePix {
@@ -129,6 +313,125 @@ func (s *ServerRmt) GetMyCurrentPixCharge(ctx context.Context, req *webv1.GetMyC
 	if !tem {
 		return &webv1.GetMyCurrentPixChargeResponse{}, nil
 	}
+
+	estado := cob.Estado
+	// A LEITURA CRIA, e é a única escrita que este método faz. Antes ela não criava
+	// nada, e o comentário do .proto dizia isso — a mudança está registrada lá.
+	//
+	// Por que aqui e não na hora do clique no jogo: assim quem clica em comprar e
+	// nunca abre a página não gasta uma chamada na processadora, que é cobrada. E o
+	// servidor de jogo não precisa do segredo nem do certificado da ponte, o que
+	// seria o preço da outra saída.
+	if estado == store.EstadoCobrancaAberta && cob.CodigoPix == "" && s.criarPix != nil {
+		// A descrição é montada AQUI e fechada dentro da função que o store chama,
+		// porque quem sabe o nome do item é este pacote e quem tem a linha travada é
+		// o store. Assim o store continua sem saber que existe catálogo.
+		descricao := s.descricaoDaCobranca(cob)
+		criar := func(ctx context.Context, referencia string, centavos int64) (string, string, error) {
+			// MEDE QUANTO A PROCESSADORA DEMORA, porque esse número decide um
+			// desenho e hoje ninguém o tem.
+			//
+			// O site desiste da leitura em 10 s e o cliente da ponte espera até 15.
+			// Se a criação passar dos 10, a tela mostra erro e PARA de reler — a
+			// pessoa fica com uma página morta até recarregar.
+			//
+			// O conserto óbvio seria encurtar o prazo daqui para menos de 10 s, e
+			// ele é ARMADILHA: se a processadora for consistentemente mais lenta
+			// que o corte, NENHUMA tentativa termina e o código nunca nasce. Trocar
+			// uma página morta por um item que não se consegue comprar é pior.
+			//
+			// Então primeiro o número aparece, e a decisão vem depois dele. Sai no
+			// log em toda criação, inclusive quando falha, que é o caso cuja
+			// duração interessa mais.
+			inicio := time.Now()
+			cod, ident, err := s.criarPix(ctx, referencia, centavos, descricao)
+			s.log.Info("rmt: a processadora respondeu a criacao do pix",
+				"cobranca", cob.CobrancaID,
+				"levou_ms", time.Since(inicio).Milliseconds(),
+				"deu_certo", err == nil)
+			return cod, ident, err
+		}
+		// A CRIAÇÃO É DESLIGADA DO CHAMADOR, e este é o conserto que mais importa
+		// neste arquivo.
+		//
+		// O QUE ACONTECIA: o site desiste da leitura em 10 s. Aí o gRPC cancela o
+		// contexto da requisição, e esse contexto era o mesmo que ia para a chamada à
+		// processadora E para a transação. Resultado: a chamada morria no meio e a
+		// transação era desfeita, então NADA ficava gravado — enquanto a cobrança
+		// podia já ter nascido do outro lado, com um identifier que ninguém aqui
+		// jamais saberia.
+		//
+		// E o estrago não era eventual: se a processadora fosse consistentemente mais
+		// lenta que os 10 s, TODA tentativa morreria no mesmo ponto, o código nunca
+		// nasceria, o item ficaria invendável, e cada clique deixaria uma cobrança
+		// órfã na processadora.
+		//
+		// Com o contexto desligado, a criação termina e GRAVA mesmo que quem pediu já
+		// tenha ido embora. A leitura seguinte do site encontra o código gravado — o
+		// FOR UPDATE faz a segunda esperar a primeira em vez de criar outra.
+		//
+		// O preço, que é aceito e não ignorado: um leitor que desistiu continua
+		// ocupando uma conexão do banco até este prazo acabar. Com poucas cobranças
+		// por dia isso é irrelevante; se um dia o volume crescer, o conserto é a
+		// criação sair para um trabalhador de fundo em vez de viver na leitura.
+		ctxCriar, cancelarCriacao := context.WithTimeout(
+			context.WithoutCancel(ctx), PrazoDaCriacao)
+		defer cancelarCriacao()
+
+		pix, err := s.pix.CriarPixSeFaltar(ctxCriar, cob.CobrancaID, MinimoParaCriarPix, criar)
+		switch {
+		case recusaDefinitiva(err):
+			// RECUSA QUE NÃO MUDA TENTANDO DE NOVO. É a diferença que faltava aqui, e
+			// a falta dela virou defeito de produção em 24/09/2026: a referência saía
+			// num formato que a ponte não aceita, e o servidor repetiu a MESMA chamada
+			// recusada a cada cinco segundos, indefinidamente. Do lado do jogador,
+			// "gerando o código" para sempre.
+			//
+			// Fechar é seguro porque NENHUM CÓDIGO FOI CRIADO: sem código não há o que
+			// pagar, então não existe dinheiro a caminho que este fechamento perca.
+			fechou, errFechar := s.pix.FecharCobrancaPorRecusaDefinitiva(ctxCriar, cob.CobrancaID)
+			if errFechar != nil {
+				s.log.Error("rmt: recusa definitiva e nao consegui fechar a cobranca",
+					"cobranca", cob.CobrancaID, "recusa", err, "err", errFechar)
+			} else {
+				s.log.Error("rmt: a processadora RECUSOU a cobranca; fechada sem codigo",
+					"cobranca", cob.CobrancaID, "fechou", fechou, "err", err)
+			}
+			// CANCELADA, e o estado ganhou ESTE significado de propósito.
+			//
+			// Ele tinha ficado SEM PRODUTOR: a razão original era "o comprador saiu do
+			// jogo", e o cancelamento por logout saiu no PR 92. Ninguém mais o
+			// produzia. Agora o único produtor é esta recusa, e o significado passa a
+			// ser "a cobrança não pôde ser gerada; nada foi cobrado".
+			//
+			// O que a pessoa pode fazer é o mesmo nos dois — tentar de novo —, e é por
+			// isso que serve sem número novo no contrato. O texto do web.proto ainda
+			// descreve a razão antiga, e muda no próximo handshake com o site: tocar o
+			// .proto agora trocaria o sha e travaria o build deles até o sync.
+			estado = store.EstadoCobrancaCancelada
+			cob.CodigoPix = ""
+		case err != nil:
+			// NÃO VIRA ERRO PARA A PÁGINA, de propósito. A página relê a cada cinco
+			// segundos: a tentativa seguinte tenta de novo, com a MESMA referência,
+			// e a ponte reconhece a repetição em vez de criar uma segunda cobrança.
+			// Um erro aqui poria vermelho na tela por um tropeço de rede que se
+			// resolve em cinco segundos.
+			//
+			// Error e não Warn porque, se isto NÃO se resolver, a venda não acontece:
+			// o comprador fica olhando "gerando o código" até o prazo vencer, e
+			// ninguém do lado dele consegue fazer nada.
+			s.log.Error("rmt: nao consegui criar o codigo pix da cobranca",
+				"cobranca", cob.CobrancaID, "err", err)
+		case pix.SemPrazo:
+			// Não sobrou prazo útil, então nada foi criado. A pessoa vê VENCIDA e
+			// pode abrir outra cobrança, que nasce com a janela inteira — em vez de
+			// receber um QR que quase certamente vira reembolso.
+			estado = store.EstadoCobrancaExpirada
+		default:
+			cob.CodigoPix = pix.CodigoPix
+		}
+	}
+
 	return &webv1.GetMyCurrentPixChargeResponse{
 		HasCharge: true,
 		// Vem como o banco guardou, que é como a processadora devolveu. E vem
@@ -138,7 +441,7 @@ func (s *ServerRmt) GetMyCurrentPixCharge(ctx context.Context, req *webv1.GetMyC
 		PixCode:     cob.CodigoPix,
 		AmountCents: cob.ValorCentavos,
 		ExpiresAt:   cob.ExpiraEm.Unix(),
-		State:       estadoParaProto(cob.Estado),
+		State:       estadoParaProto(estado),
 		ItemIndex:   int32(cob.ItemIndex),
 		RefineLevel: int32(cob.Refino),
 		StackSize:   int32(cob.Quantidade),
@@ -147,6 +450,11 @@ func (s *ServerRmt) GetMyCurrentPixCharge(ctx context.Context, req *webv1.GetMyC
 		// página conta os até dois dias úteis a partir desta data.
 		RefundRequestedAt: unixOuZero(cob.ReembolsoPedidoEm),
 		RefundState:       reembolsoParaProto(cob.Reembolso),
+		// Onde está o item depois de pago. A página mostrava "a caminho" para duas
+		// situações diferentes — a entrega que acontece no próximo login e a que não
+		// acontece nenhuma vez até a pessoa esvaziar o baú — e quem estava na segunda
+		// esperava um dia que não chega.
+		DeliveryState: entregaParaProto(cob.Entrega),
 	}, nil
 }
 
@@ -219,4 +527,48 @@ func reembolsoParaProto(e store.EstadoReembolso) webv1.RefundState {
 		return webv1.RefundState_REFUND_STATE_FAILED
 	}
 	return webv1.RefundState_REFUND_STATE_UNSPECIFIED
+}
+
+// entregaParaProto mapeia o estado da entrega no do contrato, explícito pelo mesmo
+// motivo dos outros dois: os enums mudam por motivos diferentes, e um deles ganhar um
+// valor no meio não pode deslocar o outro em silêncio.
+func entregaParaProto(e store.EstadoEntrega) webv1.DeliveryState {
+	switch e {
+	case store.EntregaNaFila:
+		return webv1.DeliveryState_DELIVERY_STATE_WAITING
+	case store.EntregaPresa:
+		return webv1.DeliveryState_DELIVERY_STATE_HELD
+	case store.EntregaFeita:
+		return webv1.DeliveryState_DELIVERY_STATE_DELIVERED
+	case store.EntregaPerdida:
+		return webv1.DeliveryState_DELIVERY_STATE_LOST
+	}
+	return webv1.DeliveryState_DELIVERY_STATE_UNSPECIFIED
+}
+
+// recusaDefinitiva diz se a processadora recusou de um jeito que repetir não conserta.
+//
+// A LINHA QUE SEPARA é o que o servidor pode fazer a respeito. Uma 4xx quer dizer "o
+// seu pedido está errado": a mesma chamada, repetida, será recusada igual. Uma 5xx ou
+// um erro de rede quer dizer "não deu agora", e a tentativa de cinco segundos depois
+// pode dar — é exatamente para esses que o laço de releitura existe.
+//
+// O 429 FICA DE FORA DAS DEFINITIVAS, e é a exceção que prova a regra: ele é 4xx mas
+// significa "muitas chamadas", que é o caso mais passageiro que existe. Fechar a
+// cobrança de quem esbarrou num limite de taxa seria punir o comprador por um aperto
+// nosso.
+//
+// A incerteza (ErrIncerta) TAMBÉM não fecha: ali a chamada pode ter saído e a
+// resposta ter se perdido, então pode existir cobrança do outro lado. Fechar seria
+// esquecer um pagamento possível — é o caso em que a releitura, com a mesma
+// referência, deixa a ponte reconhecer a repetição.
+func recusaDefinitiva(err error) bool {
+	if err == nil || errors.Is(err, ponte.ErrIncerta) {
+		return false
+	}
+	var httpErr *ponte.ErroHTTP
+	if !errors.As(err, &httpErr) {
+		return false
+	}
+	return httpErr.Codigo >= 400 && httpErr.Codigo < 500 && httpErr.Codigo != 429
 }

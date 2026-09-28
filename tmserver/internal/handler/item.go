@@ -32,6 +32,20 @@ var dropBlacklist = func() map[int16]bool {
 	return m
 }()
 
+// largarNoChaoLiberado diz se o jogador pode largar item no chão.
+//
+// DESLIGADO por decisão da Hanna: item no chão é o par que se faz sem troca, e era
+// metade de como se dava item a outra conta sem registro nenhum.
+//
+// É `var` e não `const` de propósito: os testes do port do _MSG_DropItem ligam a
+// chave para continuar cobrindo aquele caminho inteiro. Apagar o caminho perderia a
+// paridade com o legado, que é cara de reconstruir; desligar a porta não.
+//
+// ELE SÓ PODE FICAR DESLIGADO COM A LIXEIRA EM LOTE NO AR. Sem uma das duas, o
+// jogador fica sem NENHUMA forma de se livrar de um item — e é por isso que as duas
+// sobem no mesmo merge.
+var largarNoChaoLiberado = false
+
 // dropItem handles _MSG_DropItem (0x0272), handlers/_MSG_DropItem.md: move an
 // inventory item to the floor. Create-on-floor then clear-source is atomic
 // (single loop goroutine) — no dup.
@@ -39,6 +53,21 @@ func (d *Dispatcher) dropItem(w *world.World, s *world.Session, _ protocol.Heade
 	e := w.Entity(s.Conn)
 	if e == nil || e.HP <= 0 || s.Mode != world.UserPlay {
 		w.AddCrackError(s, 1, 14)
+		return
+	}
+	if !largarNoChaoLiberado {
+		// O SLOT É REENVIADO, e sem isso a grade do cliente fica com um buraco: ele
+		// já tirou o item do lugar na tela quando arrastou, e sem a atualização de
+		// volta o item some visualmente até o próximo login.
+		//
+		// E NÃO há AddCrackError: a pessoa arrastou um item, não tentou trapacear.
+		var body protocol.MsgDropItemBody
+		if err := body.Decode(payload); err == nil && int(body.SourType) == world.ItemPlaceCarry {
+			if slot := int(body.SourPos); slot >= 0 && slot < len(e.Carry) {
+				d.sendSlot(w, s, world.ItemPlaceCarry, slot, e.Carry[slot])
+			}
+		}
+		d.notify(w, s, NoticeCantDropHere)
 		return
 	}
 	if s.Trade.Active {
@@ -502,6 +531,10 @@ const (
 	// worn in the mount slot: it grows it into the adult at once, if the catalyst
 	// serves that lineage (_MSG_UseItem.cpp:5013).
 	volCatalisador = 94
+	// volRestaurador is the Restaurador group (3351..3357), applied to the ADULT
+	// worn in the mount slot: it gives back one or two points of vitality
+	// (_MSG_UseItem.cpp:5101).
+	volRestaurador = 93
 	// volBirthAccelerator is the Acelerador de Nascimento (3438). It has NO legacy
 	// counterpart — _MSG_UseItem.cpp has no branch for EF_VOLATILE 196 — so the
 	// behaviour comes from the tooltip the shipped client draws for it: "Aumenta o
@@ -716,6 +749,8 @@ func (d *Dispatcher) useItem(w *world.World, s *world.Session, _ protocol.Header
 		d.useAmago(w, s, e, body, src)
 	case vol == volCatalisador:
 		d.useCatalisador(w, s, e, body, src)
+	case vol == volRestaurador:
+		d.useRestaurador(w, s, e, body, src)
 	case isWaterScrollVolatile(vol):
 		d.useWaterScroll(w, s, e, src, vol)
 	case isPesadeloVolatile(vol):
@@ -824,7 +859,6 @@ func (d *Dispatcher) useQuest256Ticket(w *world.World, s *world.Session, e *worl
 	// a matching client-side travel animation; a bare right-click has none, so the
 	// delay just left the player staring at nothing for ~10s after the item vanished.
 	d.teleportQuest256Step(w, s, e, step)
-	d.casteloOrcKeyOnEntry(w, s, e, step)
 	d.log.Info("quest256 ticket teleport", "conn", s.Conn, "item", itemIdx, "level", e.Level, "quest_flag", step.flag)
 	return true
 }
@@ -1036,9 +1070,16 @@ func (d *Dispatcher) equipItem(w *world.World, s *world.Session, e *world.Entity
 	e.Carry[src], e.Equip[dst] = e.Equip[dst], e.Carry[src]
 	// A temporary item starts its life the first time it is worn, not when it was
 	// obtained: a Conjunto left in the bag must still be worth its full thirty days.
-	d.startTimedItem(&e.Equip[dst], time.Now())
+	started := d.startTimedItem(&e.Equip[dst], time.Now())
 	w.Send(s, protocol.MsgUseItem, payload) // echo result
-	d.refreshEquip(w, s, e)                 // update the rendered gear
+	// The echo only tells the client to move ITS copy, which still holds the
+	// un-started duration: a Shire worn this way read "4 Dia(s) 0Hora 0" until
+	// relog while the server was already counting. Sent after the echo, so it
+	// overwrites the slot the echo just filled.
+	if started {
+		d.sendSlot(w, s, world.ItemPlaceEquip, dst, e.Equip[dst])
+	}
+	d.refreshEquip(w, s, e) // update the rendered gear
 	if dst == mountEquipSlot {
 		d.refreshBabyMountSummon(w, s, e)
 	}
@@ -2187,30 +2228,27 @@ func (d *Dispatcher) useIdealStone(w *world.World, s *world.Session, e *world.En
 	staged := *e
 	d.buildCelestialSnapshot(&staged, src)
 	save := w.CharacterSaveFor(s, &staged)
-	p := w.Persistence()
 	s.Mode = world.UserWaitDB
-	w.Go(s, func() func(*world.World, *world.Session) {
-		err := p.SaveOnShutdown(context.Background(), save)
-		return func(w *world.World, s *world.Session) {
-			if err != nil {
-				s.Mode = world.UserPlay
-				d.log.Warn("celestial save failed", "conn", s.Conn, "name", e.Name, "err", err)
-				d.notify(w, s, NoticeDBError)
-				d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
-				return
-			}
-			*e = staged
+	// A carga vai junto: ver SalvarEncenadoComCarga.
+	w.SalvarEncenadoComCarga(s, save, func(w *world.World, s *world.Session, err error) {
+		if err != nil {
+			s.Mode = world.UserPlay
+			d.log.Warn("celestial save failed", "conn", s.Conn, "name", e.Name, "err", err)
+			d.notify(w, s, NoticeDBError)
 			d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
-			d.sendSlot(w, s, world.ItemPlaceEquip, 1, e.Equip[1])
-			d.sendSlot(w, s, world.ItemPlaceEquip, capeEquipSlot, e.Equip[capeEquipSlot])
-			d.sendScore(w, s, e)
-			d.sendEtc(w, s, e)
-			d.returnPersistedCharacterToSelection(w, s, func(w *world.World, s *world.Session) {
-				w.SendTo(s, protocol.Header{Type: protocol.MsgSendArchEffect, ID: protocol.IDScene}, protocol.EncodeStandardParm(int32(s.Slot)))
-			})
-			d.log.Info("celestial created", "conn", s.Conn, "name", e.Name)
-			d.announceCelestial(w, e.Name)
+			return
 		}
+		*e = staged
+		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
+		d.sendSlot(w, s, world.ItemPlaceEquip, 1, e.Equip[1])
+		d.sendSlot(w, s, world.ItemPlaceEquip, capeEquipSlot, e.Equip[capeEquipSlot])
+		d.sendScore(w, s, e)
+		d.sendEtc(w, s, e)
+		d.returnPersistedCharacterToSelection(w, s, func(w *world.World, s *world.Session) {
+			w.SendTo(s, protocol.Header{Type: protocol.MsgSendArchEffect, ID: protocol.IDScene}, protocol.EncodeStandardParm(int32(s.Slot)))
+		})
+		d.log.Info("celestial created", "conn", s.Conn, "name", e.Name)
+		d.announceCelestial(w, e.Name)
 	})
 }
 
@@ -2743,6 +2781,7 @@ const (
 	efHpAdd2     = 69 // EF_HPADD2/EF_MPADD2: also fold into the HPADD%/MPADD% multiplier
 	efMpAdd2     = 70
 	efCritical2  = 71 // EF_CRITICAL2: enchanted crit — SUPERSEDES EF_CRITICAL on the same item
+	efAcAdd2     = 72 // EF_ACADD2: enchanted extra AC — SUPERSEDES EF_ACADD on the same item (temAcAdd2)
 	efItemLevel  = 87
 	efMobType    = 112
 	efRunSpeed   = 29 // EF_RUNSPEED: boots' bonus to the move-speed (low) nibble of AttackRun
@@ -2993,6 +3032,17 @@ func (d *Dispatcher) itemCritical(it world.Item) int32 {
 	return d.itemAbilityRefined(it, want)
 }
 
+// temAcAdd2 diz se a peça arma a troca da EF_ACADD pela EF_ACADD2
+// (Basedef.cpp:1717-1721), no mesmo formato do crítico (itemCritical): com a
+// EF_ACADD2 na vaga 1 ou 2, a defesa extra da peça é a soma das EF_ACADD2, e a
+// EF_ACADD do catálogo não entra — uma ou outra, nunca as duas. É o add de
+// defesa da luva, do drop (dropbonus.go) e da Repletion (g_pBonusValue4); até
+// 28/09 o port não o lia e ele valia zero. A troca impede que o add some com a
+// base do catálogo: Manoplas Elementais(M) com 17 e um add de 30 ficam com 30.
+func temAcAdd2(it world.Item) bool {
+	return it.Effects[1].Effect == efAcAdd2 || it.Effects[2].Effect == efAcAdd2
+}
+
 // resistEffects maps resist index [0..3] to its EF_RESISTn id (CMob.cpp:640-643 assigns
 // MOB.Resist[0..3] from EF_RESIST1..4 in that literal order).
 var resistEffects = [4]uint8{efResist1, efResist2, efResist3, efResist4}
@@ -3199,7 +3249,15 @@ func (d *Dispatcher) equipBonus(e *world.Entity) equipBonus {
 		// One add per DISTINCT effect id, not per entry: BASE_GetItemAbility sums the
 		// catalog and instance entries of an effect and only then applies the refine
 		// multiplier, so the integer division must truncate the whole sum once.
+		acAdd2 := temAcAdd2(it)
 		d.forEachEffectID(it, func(eff uint8) {
+			switch {
+			case acAdd2 && eff == efAcAdd:
+				return // a EF_ACADD2 da peça vale no lugar desta (temAcAdd2)
+			case acAdd2 && eff == efAcAdd2:
+				b.ac += d.itemAbilityRefined(it, efAcAdd2)
+				return
+			}
 			add(eff, d.itemAbilityRefined(it, eff), weaponSlot, dmgJewel, offHand)
 		})
 		// Refine (+9) threshold: defense pieces gain +25 AC (weapons' +40 is in
@@ -3452,8 +3510,27 @@ func (d *Dispatcher) computeScore(e *world.Entity) protocol.ScoreData {
 	for i := range special {
 		special[i] = int16(effectiveSpecial(e, i))
 	}
+	// O TETO NÃO DEVIA SER ALCANÇADO por jogador nenhum, e quando é, é defeito: o
+	// relato da Hanna é "HP de uns 1 bilhão", e 1 bilhão É o teto (level.MaxHPCap).
+	//
+	// O aviso fica AQUI, no ponto em que o número sai para a rede, e não dentro do
+	// effectiveMaxHP: aquele é lido no tick (combate, regen, display), e avisar lá seria
+	// uma linha por pulso — log afogado e peso no laço, que é de uma thread só. O score
+	// sai por evento (equipar, curar montaria, entrar no campo de visão), então aqui o
+	// aviso é raro e ainda pega o caso mesmo que a causa não seja a montaria.
+	if maxHP := effectiveMaxHP(e); maxHP >= level.MaxHPCap {
+		d.log.Warn("hp no teto do legado",
+			"id", e.ID, "char", e.Name, "level", e.Level,
+			"base_max_hp", e.BaseMaxHP, "max_hp", e.MaxHP,
+			"con", e.Con, "base_con", e.BaseCon, "aff_max_hp", e.AffMaxHP,
+			"hp_add_pct", e.HpAddPct, "effective_max_hp", maxHP, "teto", level.MaxHPCap)
+	}
 	sc := protocol.ScoreData{
-		Level: e.Level, Ac: effectiveAC(e), Damage: d.effectiveDamage(e),
+		// A moldura do passe vai no score também: sem ela, a primeira troca de
+		// equipamento depois de entrar no campo de visão apagava a moldura de quem
+		// pagou, para ele e para todos em volta.
+		PasseNivel: e.PasseNivel,
+		Level:      e.Level, Ac: effectiveAC(e), Damage: d.effectiveDamage(e),
 		MaxHp: effectiveMaxHP(e), Hp: e.HP, MaxMp: effectiveMaxMP(e), Mp: e.MP,
 		Str: effectiveStr(e), Int: effectiveInt(e), Dex: effectiveDex(e), Con: e.Con + e.AffCon,
 		Special:    special,
@@ -3536,7 +3613,7 @@ func attackRunOf(e *world.Entity) uint8 {
 // which entity the score describes. Nothing here is private: gold/exp/free points
 // live in MSG_UpdateEtc (sendEtc), which stays unicast like the legacy SendEtc.
 func (d *Dispatcher) sendScore(w *world.World, s *world.Session, e *world.Entity) {
-	body := protocol.EncodeUpdateScore(d.computeScore(e))
+	body := protocol.EncodeUpdateScore(d.scoreParaEnvio(w, e))
 	w.SendTo(s, protocol.Header{Type: protocol.MsgUpdateScore, ID: uint16(s.Conn)}, body)
 	w.BroadcastInView(s.Conn, protocol.MsgUpdateScore, body) // excludes the source
 }
@@ -3547,7 +3624,7 @@ func (d *Dispatcher) sendScore(w *world.World, s *world.Session, e *world.Entity
 // all (ProcessDBMessage.cpp:1017-1037 unicasts the login blob, then GridMulticasts
 // CreateMob, which already carries Hp/MaxHp to observers).
 func (d *Dispatcher) sendScoreSelf(w *world.World, s *world.Session, e *world.Entity) {
-	w.SendTo(s, protocol.Header{Type: protocol.MsgUpdateScore, ID: uint16(s.Conn)}, protocol.EncodeUpdateScore(d.computeScore(e)))
+	w.SendTo(s, protocol.Header{Type: protocol.MsgUpdateScore, ID: uint16(s.Conn)}, protocol.EncodeUpdateScore(d.scoreParaEnvio(w, e)))
 }
 
 // sendEtc pushes the player's MSG_UpdateEtc (SendFunc.cpp SendEtc): gold, exp and —

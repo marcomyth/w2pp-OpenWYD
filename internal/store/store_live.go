@@ -24,6 +24,19 @@ var ErrNoFreeSlot = errors.New("store: no free character slot")
 // guild/account state, such as creating a guild while already in one.
 var ErrConflict = errors.New("store: conflict")
 
+// As duas metades do antigo ErrConflict na criacao de guilda, separadas em
+// 25/09/2026. Elas viravam a MESMA frase no jogo — a do nome repetido — e foi
+// essa frase que escondeu um defeito de ouro por horas: a pessoa procurava nome
+// repetido enquanto o banco recusava por saldo.
+//
+// Os dois EMBRULHAM o ErrConflict, entao quem ja tratava o conflito generico
+// continua funcionando. Sem isso, cada chamador antigo teria de ser achado e
+// mudado, e o que ficasse para tras passaria a receber erro de servidor.
+var (
+	ErrJaTemGuilda = fmt.Errorf("%w: o personagem ja esta numa guilda", ErrConflict)
+	ErrSemOuro     = fmt.Errorf("%w: ouro insuficiente no banco", ErrConflict)
+)
+
 // AccountAuth is the minimum account data needed to authenticate a login: the
 // id, the stored argon2id password hash and the blocked flag. The caller
 // verifies the password (store never sees plaintext beyond the hash).
@@ -36,6 +49,19 @@ type AccountAuth struct {
 	// fala com o banco e precisa delas para mostrar saldo no painel da loja.
 	Cash int32
 	Rmt  int32
+	// PasseNivel é o nível do passe de batalha da CONTA (0128), de 0 a 4. Vai no
+	// login pelo mesmo motivo das carteiras: o tmServer não fala com o banco, e
+	// precisa do número para pôr a moldura no pacote que desenha o jogador.
+	PasseNivel int16
+	// DiscordID é o Discord vinculado à conta (0141), ou vazio quando não há.
+	//
+	// Vai na leitura do login porque a página do site precisa dele no MESMO instante
+	// em que precisa do papel, e uma segunda ida ao servidor por um campo seria uma
+	// ida a mais em todo login.
+	//
+	// DADO PESSOAL LEVE: não entra em log nosso. Quando algo der errado no vínculo, o
+	// log diz a CONTA e não o Discord.
+	DiscordID string
 }
 
 // AccountByName fetches the auth row for a canonical (lowercase) account name.
@@ -54,8 +80,10 @@ const BlockedNowSQL = `(is_blocked AND (blocked_until IS NULL OR blocked_until >
 func (s *Store) AccountByName(ctx context.Context, name string) (AccountAuth, error) {
 	var a AccountAuth
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, pass_hash, `+BlockedNowSQL+`, role, donate_balance, rmt_balance FROM account WHERE name = $1`, name).
-		Scan(&a.ID, &a.PassHash, &a.IsBlocked, &a.Role, &a.Cash, &a.Rmt)
+		`SELECT id, pass_hash, `+BlockedNowSQL+`, role, donate_balance, rmt_balance, passe_nivel,
+		        COALESCE(discord_id, '')
+		   FROM account WHERE name = $1`, name).
+		Scan(&a.ID, &a.PassHash, &a.IsBlocked, &a.Role, &a.Cash, &a.Rmt, &a.PasseNivel, &a.DiscordID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AccountAuth{}, ErrNotFound
 	}
@@ -183,7 +211,8 @@ func (s *Store) LoadCharacter(ctx context.Context, accountID int64, slot int) (d
 		       -- NULO ate o personagem criar um Sub, entao entra por COALESCE: o
 		       -- domain carrega string vazia, nao ponteiro, para nao espalhar
 		       -- "pode ser nulo" por todo o caminho ate o handler.
-		       COALESCE(sub_celestial_guardada::text, ''), sub_celestial_level, sub_celestial_ativo, celestial_reset
+		       COALESCE(sub_celestial_guardada::text, ''), sub_celestial_level, sub_celestial_ativo, celestial_reset,
+		       nivel_retroativo
 		  FROM character WHERE account_id = $1 AND slot = $2`, accountID, slot).
 		Scan(&charID, &ch.Slot, &ch.Name, &ch.Class, &ch.Clan, &ch.GuildID, &ch.GuildLevel,
 			&ch.Level, &ch.Exp, &ch.Coin, &ch.Str, &ch.Int, &ch.Dex, &ch.Con,
@@ -193,7 +222,8 @@ func (s *Store) LoadCharacter(ctx context.Context, accountID int64, slot int) (d
 			&ch.ClassMaster, &ch.Soul, &ch.Fame, &ch.CelLv40, &ch.CelLv90, &ch.CelCircle, &ch.TerraMistica, &ch.ArchLv355, &ch.ArchLv370, &skillBar, &shortSkill, &special,
 			&ch.PKPoint, &ch.Guilty, &ch.CurKill, &ch.TotKill, &ch.MortalLevel, &ch.CelestialArchLevel, &ch.ArchCristal,
 			&ch.NightmareTickets, &ch.NewbieQuest, &ch.KefraTicket, &ch.MolarGargula,
-			&ch.SubCelestialGuardada, &ch.SubCelestialLevel, &ch.SubCelestialAtivo, &ch.CelestialReset)
+			&ch.SubCelestialGuardada, &ch.SubCelestialLevel, &ch.SubCelestialAtivo, &ch.CelestialReset,
+			&ch.NivelRetroativo)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Character{}, ErrNotFound
 	}
@@ -377,20 +407,58 @@ func (s *Store) DeleteCharacter(ctx context.Context, accountID int64, slot int) 
 // fame, special, skill_bar, short_skill), and the tier state (class_master + the
 // celestial quest gates celestial_lv40/90/circle + the terra_mistica gate), and
 // the PK/karma state (pk_point, guilty, cur_kill, tot_kill — issue #210).
-// Everything else (class,
-// regen/resist, magic, citizen) is left UNTOUCHED so an in-game save never wipes
-// imported data the world does not simulate.
+// Everything else (class, regen/resist, magic) is left UNTOUCHED so an in-game save
+// never wipes imported data the world does not simulate.
+//
+// CITIZEN SAIU DESTA LISTA em 24/09/2026, e vale dizer por que: ele estava aqui com
+// razao enquanto NADA em jogo o escrevia. A Kibita passou a vender cidadania por
+// 4.000.000 de ouro (handler/cidadania.go), e no instante em que o mundo comecou a
+// escrever um campo, deixa-lo fora do save deixou de proteger dado importado e passou
+// a apagar dado comprado: o ouro era debitado e gravado, a cidadania nao, e o jogador
+// perdia a compra no relogin.
+//
+// A LICAO PARA O PROXIMO CAMPO: esta lista e uma promessa de que o mundo NAO simula
+// aquilo. Quem fizer o mundo simular tem de tirar o campo daqui no MESMO PR — senao o
+// comentario continua verdadeiro sobre a intencao e falso sobre o efeito.
 // skill_bonus is also untouched: the tmServer re-derives it at login
 // (BASE_GetBonusSkillPoint) instead of trusting the stored value.
 func (s *Store) SaveCharacter(ctx context.Context, accountID int64, ch domain.Character) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("store: begin save character: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	return s.SalvarPersonagemOrdenado(ctx, accountID, ch, 0, 0, false)
+}
 
+// SalvarPersonagemOrdenado é o SaveCharacter com a mesma guarda de ordem do par.
+//
+// ELA PRECISA VALER AQUI TAMBÉM: um save velho só do personagem passa por cima do
+// par novo exatamente como um par velho passaria. A guarda mora nas MESMAS colunas
+// da conta, então as duas formas de gravar compartilham uma ordem só — e é isso que
+// as torna comparáveis entre si.
+//
+// A carga não é tocada: este caminho grava o personagem de uma conta cuja carga não
+// está carregada, e escrever uma carga vazia ali apagaria o baú.
+func (s *Store) SalvarPersonagemOrdenado(ctx context.Context, accountID int64, ch domain.Character,
+	epoca, seq int64, soltarPosse bool,
+) error {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := tomaAOrdemDoPar(ctx, tx, accountID, epoca, seq); err != nil {
+			return err
+		}
+		if err := salvarPersonagemTx(ctx, tx, accountID, ch); err != nil {
+			return err
+		}
+		// Mesma razão do par: quando este é o save de saída, a posse sai junto.
+		if !soltarPosse {
+			return nil
+		}
+		return soltarPosseTx(ctx, tx, accountID, epoca)
+	})
+}
+
+// salvarPersonagemTx é o corpo do SaveCharacter dentro de uma transação que já
+// existe. Ele foi separado para que o personagem e a carga possam ir ao banco
+// JUNTOS, na MESMA transação — ver SalvarPersonagemComCarga.
+func salvarPersonagemTx(ctx context.Context, tx pgx.Tx, accountID int64, ch domain.Character) error {
 	var charID int64
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		UPDATE character SET
 			clan=$3, guild_id=$4, guild_level=$5, level=$6, coin=$7,
 			str=$8, int=$9, dex=$10, con=$11, hp=$12, max_hp=$13, last_city=$14, exp=$15,
@@ -414,7 +482,14 @@ func (s *Store) SaveCharacter(ctx context.Context, accountID int64, ch domain.Ch
 			kefra_ticket=$49,
 			-- O Molar de Gargula ja usado (0092). Mesmo motivo do de cima: numero
 			-- novo no FIM, nunca renumerando os anteriores.
-			molar_gargula=$50
+			molar_gargula=$50,
+			-- A cidadania saiu da lista de "untouched" em 24/09/2026, quando a Kibita
+			-- passou a vende-la em jogo por 4.000.000 de ouro. Numero novo no FIM,
+			-- pela mesma regra dos de cima.
+			citizen=$51,
+			-- Ate onde as pecas de nivel retroativas foram entregues (0172). Numero
+			-- novo no FIM, pela mesma regra.
+			nivel_retroativo=$52
 		WHERE account_id=$1 AND slot=$2
 		RETURNING id`,
 		accountID, ch.Slot, ch.Clan, ch.GuildID, ch.GuildLevel, ch.Level, ch.Coin,
@@ -428,7 +503,7 @@ func (s *Store) SaveCharacter(ctx context.Context, accountID int64, ch domain.Ch
 		ch.PKPoint, ch.Guilty, ch.CurKill, ch.TotKill, ch.MortalLevel, ch.CelestialArchLevel, ch.ArchCristal,
 		ch.NightmareTickets, ch.NewbieQuest,
 		ch.SubCelestialGuardada, ch.SubCelestialLevel, ch.SubCelestialAtivo, ch.CelestialReset,
-		ch.KefraTicket, ch.MolarGargula,
+		ch.KefraTicket, ch.MolarGargula, ch.Citizen, ch.NivelRetroativo,
 	).Scan(&charID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
@@ -462,9 +537,6 @@ func (s *Store) SaveCharacter(ctx context.Context, accountID int64, ch domain.Ch
 		}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("store: commit save character %q: %w", ch.Name, err)
-	}
 	return nil
 }
 
@@ -519,32 +591,9 @@ func (s *Store) loadAccountItems(ctx context.Context, accountID int64, kind stri
 // and the new set re-inserted in one transaction). A missing account returns
 // ErrNotFound.
 func (s *Store) SaveCargo(ctx context.Context, accountID int64, coin int32, items []domain.Item) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("store: begin save cargo: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	tag, err := tx.Exec(ctx, `UPDATE account SET cargo_coin = $2 WHERE id = $1`, accountID, coin)
-	if err != nil {
-		return fmt.Errorf("store: update cargo coin a=%d: %w", accountID, err)
-	}
-	if tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	if _, err := tx.Exec(ctx,
-		`DELETE FROM item WHERE account_id = $1 AND owner_kind = 'account_cargo'`, accountID); err != nil {
-		return fmt.Errorf("store: clear cargo items a=%d: %w", accountID, err)
-	}
-	for _, it := range items {
-		if err := insertItem(ctx, tx, "account_cargo", &accountID, nil, it); err != nil {
-			return err
-		}
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("store: commit save cargo a=%d: %w", accountID, err)
-	}
-	return nil
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		return salvarCargaTx(ctx, tx, accountID, coin, items, nil, nil)
+	})
 }
 
 // int16ArrToByteArr narrows a smallint[] column back into a fixed byte array,

@@ -300,6 +300,15 @@ type Details struct {
 	ShopPoints int32
 	VipUntil   *time.Time // nil means the account has never been VIP
 	Bloqueio   Bloqueio   // why the account is blocked, when, and by whom
+	// PasseNivel é a moldura do passe de batalha (0128): 0 sem passe, 1 a 4 os
+	// quatro níveis. Aqui para a página poder MOSTRAR o que a conta tem antes de
+	// alguém mudar — um formulário que não diz o valor de agora convida a trocar o
+	// que já estava certo.
+	PasseNivel int16
+	// ForaDoRanking esconde a conta do ranking de EXP e de duelo (0161). Vem na
+	// leitura porque a tela mostra a caixa MARCADA ou não: um formulário que não diz
+	// o estado de agora convida a desmarcar o que já estava certo.
+	ForaDoRanking bool
 }
 
 // Get reads the panel-facing fields of one account.
@@ -309,10 +318,12 @@ func (s *Store) Get(ctx context.Context, id int64) (Details, error) {
 		SELECT email, donate_balance,
 		       COALESCE((SELECT balance FROM shop_points WHERE account_id = account.id), 0),
 		       vip_until,
-		       is_blocked, block_reason, blocked_at, blocked_by, blocked_until
+		       is_blocked, block_reason, blocked_at, blocked_by, blocked_until,
+		       passe_nivel, fora_do_ranking
 		  FROM account WHERE id = $1`, id).
 		Scan(&d.Email, &d.DonateBalance, &d.ShopPoints, &d.VipUntil,
-			&d.Bloqueio.Blocked, &d.Bloqueio.Reason, &d.Bloqueio.At, &d.Bloqueio.By, &d.Bloqueio.Until)
+			&d.Bloqueio.Blocked, &d.Bloqueio.Reason, &d.Bloqueio.At, &d.Bloqueio.By,
+			&d.Bloqueio.Until, &d.PasseNivel, &d.ForaDoRanking)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Details{}, ErrNotFound
 	}
@@ -571,6 +582,13 @@ type Achado struct {
 // It lives here rather than in internal/store beside the account-name search for
 // the reason the account writes do: every service embeds internal/, so adding
 // there redeploys the game to ship a panel change.
+//
+// AS CONTAS ARQUIVADAS FICAM DE FORA, a menos que o termo comece com "~". O wipe de
+// lançamento (25/09/2026) não apagou as contas antigas — apagar levaria em cascata os
+// pagamentos delas (donate_topup_order) e esbarra na auditoria append-only —, e sim
+// as renomeou para "~nome". Elas não servem para nada no dia a dia e enchiam a lista;
+// quem precisa delas (contabilidade, auditoria) digita "~" e elas aparecem. O cadastro
+// só aceita letras e números, então nenhuma conta viva começa com "~".
 func (s *Store) Buscar(ctx context.Context, prefixo string, limite int) ([]Achado, error) {
 	if limite <= 0 || limite > 200 {
 		limite = 50
@@ -599,7 +617,8 @@ func (s *Store) Buscar(ctx context.Context, prefixo string, limite int) ([]Achad
 		       coalesce(c.name, '')
 		  FROM account a
 		  LEFT JOIN character c ON c.account_id = a.id AND c.name ILIKE $1
-		 WHERE a.name LIKE $1 OR c.id IS NOT NULL
+		 WHERE (a.name LIKE $1 OR c.id IS NOT NULL)
+		   AND (a.name NOT LIKE '~%' OR left($1, 1) = '~')
 		 ORDER BY a.id, c.name
 		 LIMIT $2`, padrao, limite)
 	if err != nil {

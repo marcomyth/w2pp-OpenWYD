@@ -85,6 +85,28 @@ func (d *Dispatcher) mountMaster(w *world.World, s *world.Session, e, npc *world
 	// A revived adult lends its attributes again (mountBonusFor gates on HP), and
 	// a destroyed one stops for good: either way the score changed (:225-226).
 	d.refreshScore(e)
+	// AS ENTRADAS DO HP, para o relato de "HP de 1 bilhão ao ressuscitar a montaria".
+	//
+	// Lendo o código, nada aqui escreve HP de personagem: a montaria só soma dano,
+	// magia, parry e resist no equipBonus, e o HP dela vive nos efeitos do item. Como a
+	// causa não apareceu na leitura, a linha registra as ENTRADAS da conta em vez de um
+	// palpite - o 1 bilhão é o teto (level.MaxHPCap), então alguma delas explodiu.
+	//
+	// Fica aqui e não no effectiveMaxHP porque aquele roda no tick (combate, regen): uma
+	// linha por chamada afogaria o log e pesaria no laço, que é de uma thread só.
+	d.log.Info("mount cured: entradas do hp",
+		"conn", s.Conn, "account", s.AccountName, "char", e.Name,
+		"base_max_hp", e.BaseMaxHP, "max_hp", e.MaxHP,
+		"con", e.Con, "base_con", e.BaseCon, "aff_max_hp", e.AffMaxHP,
+		"hp_add_pct", e.HpAddPct, "effective_max_hp", effectiveMaxHP(e), "hp", e.HP,
+		// OS EFEITOS CRUS DO SLOT 14, que é o que a suspeita pede. Eles NÃO são uma
+		// lista de efeitos: [0] é o HP empacotado (byte baixo em Effect, alto em Value),
+		// [1].Effect é o nível, [1].Value a vitalidade e [2].Effect a ração. Vão crus, e
+		// não interpretados, porque o que se procura é justamente uma leitura errada.
+		"mount_ef0", fmt.Sprintf("%d/%d", m.Effects[0].Effect, m.Effects[0].Value),
+		"mount_ef1", fmt.Sprintf("%d/%d", m.Effects[1].Effect, m.Effects[1].Value),
+		"mount_ef2", fmt.Sprintf("%d/%d", m.Effects[2].Effect, m.Effects[2].Value),
+		"mount_index", m.Index, "mount_hp", mountHP(*m))
 	d.sendScore(w, s, e)
 	d.sendSlot(w, s, world.ItemPlaceEquip, mountEquipSlot, *m)
 	d.refreshBabyMountSummon(w, s, e)

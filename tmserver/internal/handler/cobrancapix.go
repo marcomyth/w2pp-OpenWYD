@@ -68,8 +68,16 @@ func UsaCobradorPix(c CobradorPix) {
 
 // JanelaDeCobranca é quanto tempo o comprador tem para pagar.
 //
-// CONFIGURAÇÃO E NÃO CONSTANTE, e a diferença é o que se pode fazer com ela: cinco
-// minutos é o ponto de partida que a Hanna escolheu, e é número para MEDIR. A troca
+// CONFIGURAÇÃO E NÃO CONSTANTE, e a diferença é o que se pode fazer com ela.
+//
+// QUINZE MINUTOS desde 25/09/2026, e a troca tem motivo medido: eram cinco, e cinco
+// é apertado para uma pessoa pagando Pix DE VERDADE — abrir o aplicativo do banco,
+// achar o Pix, colar o código, confirmar. Um pagamento que cai em 5min30 não entrega
+// o item: ele vai para o caminho do PAGO COM ATRASO, com reembolso, e a pessoa vê
+// "venceu" tendo pagado. Com dinheiro real no meio, esse susto custa mais do que o
+// item do vendedor ficar preso dez minutos a mais.
+//
+// É número para MEDIR, e o que responde é o volume de `pago_com_atraso`. A troca
 // é dos dois lados — janela curta prende menos o item do vendedor e faz o
 // pagamento atrasado ser mais comum; janela longa faz o contrário. Quem responde é
 // o volume de `pago_com_atraso`, que a 0105 guarda para esta pergunta.
@@ -78,7 +86,7 @@ func UsaCobradorPix(c CobradorPix) {
 // a expiração do lado do banco, que roda noutro processo: os dois leem a mesma
 // variável de ambiente, e um valor que morasse só na Config do tmServer sairia de
 // sincronia sem ninguém notar.
-var JanelaDeCobranca = 5 * time.Minute
+var JanelaDeCobranca = 15 * time.Minute
 
 // DefineJanelaDeCobranca ajusta o prazo na montagem do servidor. Valor inválido é
 // ignorado: um prazo zero faria toda cobrança nascer vencida.
@@ -113,6 +121,16 @@ func msgPagueNoSite() string {
 		int(JanelaDeCobranca.Minutes()))
 }
 
+// msgEstornoSemMotivo é o aviso ao comprador, colado no pedido de pagamento.
+//
+// TEXTO APROVADO PELA HANNA, palavra por palavra. MEDIDO: 60 bytes em Windows-1252,
+// dentro dos 94 que o painel corta.
+//
+// Ela diz as DUAS consequências, e as duas são verdade: a conta é banida e o caso vira
+// cobrança judicial. Dizer só "conta banida" faria o cálculo de quem tem conta velha dar
+// a favor do golpe.
+const msgEstornoSemMotivo = "Estorno do Pix sem motivo: conta banida e medidas judiciais."
+
 // msgCobrancaNaoSaiu é a falha de quem tentou comprar e não conseguiu nem começar.
 //
 // Diz para tentar de novo porque é isso que resolve: nada foi cobrado e nada foi
@@ -141,7 +159,16 @@ const msgNaoComprarDeSiMesmo = "Esse anúncio é seu."
 // de um "não pode" seco.
 const msgJaTemPagamentoAberto = "Você já tem um pagamento aberto. Pague ou espere ele vencer."
 
-// msgRMTNaoEstaAberta é o que o jogador lê enquanto a ponte não está montada.
+// msgRMTNaoEstaAberta é o que o jogador lê quando o mercado em dinheiro real não está
+// disponível para ele.
+//
+// UMA FRASE PARA TRÊS CAMINHOS, de propósito: a ponte não montada, o mercado FECHADO
+// (W2PP_RMT, 25/09/2026) e o mercado em "staff" para quem não é da casa. Para o jogador os
+// três são a mesma coisa — não está aberto —, e frases diferentes convidariam a testar a
+// outra ponta para ver se aquela funciona.
+//
+// E é uma CONSTANTE só, e não uma por caminho com o mesmo texto: duas constantes iguais é
+// como uma delas muda e as telas passam a discordar sobre o mesmo fato.
 //
 // SEPARADA da falha, e a diferença não é de estilo: "tente de novo em instantes"
 // manda a pessoa repetir uma coisa que nunca vai dar certo. Isto aqui não é uma
@@ -211,6 +238,15 @@ func (d *Dispatcher) abreCobrancaPix(w *world.World, s *world.Session, anuncioID
 			case errors.Is(err, ErrAnuncioIndisponivel):
 				// Vendeu para outra pessoa, ou o vendedor fechou a barraca entre o
 				// clique e a ida ao banco. A vitrine do comprador esta velha.
+				//
+				// O cadeado que nao bate cai aqui tambem, e o jogador ve a MESMA
+				// coisa — mas ele e defeito nosso e nao curso normal, entao sai no
+				// log com a conta e o anuncio para alguem poder ir olhar. Sem isso
+				// ele some dentro do caso comum e ninguem descobre que existe.
+				if errors.Is(err, ErrCadeadoNaoBate) {
+					d.log.Warn("loja: o cadeado do item nao aponta para o anuncio",
+						"conn", conn, "conta", conta, "anuncio", anuncioID)
+				}
 				d.notify(w, s, NoticeCantAutoTrade)
 				d.mercadoMudou(w)
 			case err != nil:
@@ -222,6 +258,16 @@ func (d *Dispatcher) abreCobrancaPix(w *world.World, s *world.Session, anuncioID
 					"anuncio", anuncioID, "cobranca", cob.CobrancaID,
 					"centavos", preco, "expira_em", cob.ExpiraEm)
 				sendClientMessage(w, s, msgPagueNoSite())
+				// O AVISO DO ESTORNO VEM COLADO NO PEDIDO DE PAGAMENTO, e é o único
+				// lugar onde ele alcança quem precisa: o COMPRADOR, no instante em
+				// que ele vai mexer no aplicativo do banco. Dito na montagem da
+				// barraca, ele seria lido por quem vende.
+				//
+				// Estorno de Pix sem motivo é o golpe barato deste mercado: a pessoa
+				// paga, recebe o item, pede o dinheiro de volta ao banco e fica com
+				// os dois. Dizer a consequência ANTES é o que separa quem não sabia
+				// de quem decidiu.
+				sendClientMessage(w, s, msgEstornoSemMotivo)
 			}
 		}
 	})
@@ -241,6 +287,18 @@ var (
 	ErrAnuncioIndisponivel = errors.New("loja: o anuncio nao esta disponivel")
 	// ErrCompradorJaTemCobranca: a conta ja esta pagando outro item.
 	ErrCompradorJaTemCobranca = errors.New("loja: o comprador ja tem cobranca aberta")
+	// ErrCadeadoNaoBate: o anuncio esta ATIVO e a marca do escrow no item nao aponta
+	// para ele. As duas coisas discordam, e discordancia em linha de dinheiro se
+	// resolve nao cobrando.
+	//
+	// EMBRULHA O ErrAnuncioIndisponivel de proposito, e e essa a ideia: para o
+	// jogador os dois sao a mesma frase, porque nenhum dos dois sugere uma acao
+	// diferente — "este item nao esta compravel e a sua vitrine esta velha". Mas este
+	// aqui e DEFEITO NOSSO, e nao o curso normal de um item que foi vendido, entao
+	// alguem tem de ver. O errors.Is continua casando com o generico, e quem quiser
+	// distinguir consegue.
+	ErrCadeadoNaoBate = fmt.Errorf("loja: o cadeado do item nao aponta para o anuncio: %w",
+		ErrAnuncioIndisponivel)
 )
 
 // referenciaDeCobranca gera a referencia externa da cobranca.
@@ -256,5 +314,20 @@ func referenciaDeCobranca() (string, error) {
 		// adivinha-la e poder forjar a confirmacao de um pagamento que nao houve.
 		return "", fmt.Errorf("loja: gerando a referencia da cobranca: %w", err)
 	}
-	return "rmt-" + hex.EncodeToString(b[:]), nil
+	// TRINTA E DOIS HEX MINÚSCULOS, SEM PREFIXO, e o "sem prefixo" é o conserto.
+	//
+	// Isto devolvia "rmt-" + 32 hex = 36 caracteres, e a ponte recusava TODA cobrança
+	// com http 400 e "referencia fora do formato (32 caracteres hex minusculos)". O
+	// teste de venda real da Hanna ficou parado em "gerando o código", repetindo a
+	// recusa a cada cinco segundos, em 24/09/2026.
+	//
+	// O contrato é de 32 hex e está escrito em dois lugares que eu podia ter lido: a
+	// ponte valida em src/cobranca.js, e o reconhecimento do aviso de pagamento
+	// procura /rmt:([0-9a-f]{32})/ na descrição — o "rmt:" ali é do TEXTO da
+	// descrição, não da referência. Foi essa a confusão.
+	//
+	// E o gerador irmão, o do repasse (store.ReferenciaDaTentativa), já fazia certo
+	// com um comentário dizendo "a ponte valida 32 hex minúsculos". A regra estava no
+	// arquivo vizinho.
+	return hex.EncodeToString(b[:]), nil
 }

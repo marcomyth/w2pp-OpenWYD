@@ -91,7 +91,7 @@ func (h *Handler) chat(w http.ResponseWriter, r *http.Request) {
 
 	if buscou {
 		if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-			ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+			ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 			Action: "chat.ler",
 			New: map[string]any{
 				"personagem": nome, "texto": texto,

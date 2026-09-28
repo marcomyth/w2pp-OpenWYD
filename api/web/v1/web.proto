@@ -21,6 +21,17 @@ service AccountWebService {
   // VerifyCredentials validates name + password so the BFF can mint a session
   // cookie. It is the web login path, independent of the CPSock game login.
   rpc VerifyCredentials(VerifyCredentialsRequest) returns (VerifyCredentialsResponse);
+  // SetMyDiscordLink guarda o Discord da pessoa depois do OAuth do site.
+  //
+  // UM DISCORD PARA UMA CONTA, garantido por indice UNICO PARCIAL onde o campo
+  // nao e vazio -- mais um CHECK proibindo string vazia. Os dois, e nao so o
+  // indice: em Postgres NULL nao conflita com NULL, entao sem o CHECK bastaria
+  // alguem gravar "" para o indice parar de valer.
+  //
+  // TROCAR o Discord de uma conta que ja tem OUTRO e RECUSADO, e so a staff
+  // desfaz. Sem isso, quem tomasse uma conta trocaria o vinculo em silencio e
+  // levaria junto o cargo que o Discord da.
+  rpc SetMyDiscordLink(SetMyDiscordLinkRequest) returns (SetMyDiscordLinkResponse);
 }
 
 // RmtWebService owns the player-to-player real-money trade surface: today the
@@ -45,6 +56,23 @@ service RmtWebService {
   // "you already registered ...1234", and a Pix key is personal payment data on a
   // public site.
   rpc GetPixKey(GetPixKeyRequest) returns (GetPixKeyResponse);
+  // DeletePixKey APAGA a chave e o CPF, os dois juntos.
+  //
+  // OS DOIS JUNTOS porque sao um cadastro so: chave sem documento nao paga, ja
+  // que a rota de repasse exige o CPF. Deixar o documento para tras guardaria
+  // dado pessoal que nao serve mais para nada -- e dado que nao serve e so o que
+  // vaza num incidente.
+  //
+  // Recusa pelas MESMAS duas travas do SavePixKey, e na mesma ordem: cobranca
+  // aberta primeiro, repasse depois. Quando as duas valem, a pessoa le a da
+  // venda, que e a que passa sozinha antes.
+  //
+  // UMA DIFERENCA DELIBERADA em relacao ao SavePixKey: gravar a MESMA chave passa
+  // mesmo com repasse a caminho, porque nao desvia nada -- e e o que deixa um
+  // vendedor antigo, cadastrado antes de o CPF ser obrigatorio, completar o
+  // documento que falta. Apagar nao e gravar a mesma chave: e tira-la, com
+  // dinheiro a caminho dela. Entao o apagar confere SEMPRE.
+  rpc DeletePixKey(DeletePixKeyRequest) returns (DeletePixKeyResponse);
   // GetMyCurrentPixCharge returns the real-money charge this account has as a
   // BUYER, so the site can show the Pix copy-and-paste code — and so it can say
   // what happened once the charge closes.
@@ -60,9 +88,31 @@ service RmtWebService {
   // money — and the worst moment for that is the second after they paid. The
   // window is server configuration; past it, the answer is empty.
   //
-  // READ ONLY. It creates nothing and cancels nothing. The charge is created by
-  // the game when the shelf is bought, and it closes by payment, by the buyer
-  // leaving the game, or by its deadline.
+  // IT CREATES THE PIX CODE, and this is the one write it does. The charge row
+  // itself is created by the game when the shelf is bought, WITHOUT a code; the
+  // first read of an open charge that has no code yet asks the processor for one,
+  // stores it, and returns it. It closes by payment, by the buyer leaving the
+  // game, or by its deadline. Nothing here cancels anything.
+  //
+  // Creating late, rather than at the click in the game, means a buyer who never
+  // opens the page costs no processor call — and the game server needs no
+  // credentials for the payment path.
+  //
+  // IDEMPOTENT PER CHARGE, and the caller sees the consequences:
+  //
+  //   - The site polls every 5 s while a charge is OPEN, so concurrent reads do
+  //     arrive together. Only ONE call to the processor may go out per charge, so
+  //     the row is locked for the duration of that call and every reader is
+  //     answered with the STORED code, never with one a losing racer created.
+  //     Two tabs therefore always show the same code.
+  //   - While the processor is answering, the read returns OPEN with an EMPTY
+  //     pix_code. That is not a failure: it means "being generated", and the next
+  //     poll has it. A read that fails to create also returns OPEN with an empty
+  //     code rather than an error, because the retry is what fixes it.
+  //   - With less than a minute left before expires_at, NOTHING is created and the
+  //     state comes back EXPIRED even though the row is still open in the
+  //     database. A code with ten seconds of life is a refund waiting to happen:
+  //     the person pays, the money lands on a dead charge, and both sides lose.
   //
   // THERE IS NO "GIVE UP" CALL, and leaving it out is a decision: cancelling on
   // our side does NOT cancel the Pix at the processor, so a give-up button would
@@ -90,6 +140,24 @@ service RmtWebService {
   // made here: one charge open per listing, and a buyer with two open charges
   // could pay twice for one item.
   rpc GetMyCurrentPixCharge(GetMyCurrentPixChargeRequest) returns (GetMyCurrentPixChargeResponse);
+  // ListMarketListings is the market as a PUBLIC page: everything on sale in every
+  // stall, right now.
+  //
+  // IT IS NOT A DATABASE READ. A personal shop lives only in the seller's session,
+  // in the game server's memory, and is never persisted — so this answer is fetched
+  // from the game over the control link and cached for a few seconds, because the
+  // page is public and the game must not be asked once per visitor.
+  //
+  // NOTHING HERE IDENTIFIES AN ACCOUNT. The seller is named by the CHARACTER
+  // standing in the stall, which is what any player already sees by walking up to
+  // it. The account behind it is not in this contract at all.
+  //
+  // REAL-MONEY SHELVES WITH SOMEBODY ALREADY PAYING ARE LEFT OUT. While a charge is
+  // open the item cannot be bought by anyone else, and the game refuses the second
+  // buyer. Listing it would be an invitation to a refusal; leaving it out promises
+  // nothing and is the simpler truth. It comes back on its own when the charge
+  // closes.
+  rpc ListMarketListings(ListMarketListingsRequest) returns (ListMarketListingsResponse);
 }
 
 // RmtSystemService is the server-to-server side of real-money selling: the site
@@ -137,6 +205,17 @@ enum CreateResult {
   CREATE_RESULT_OK = 1;          // account created; account_id is set
   CREATE_RESULT_NAME_TAKEN = 2;  // canonical name already exists
   CREATE_RESULT_INVALID = 3;     // name/password/email failed validation
+  // CLOSED: sign-up is switched off on this server. Nothing about the request was
+  // wrong.
+  //
+  // A VALUE OF ITS OWN, and not INVALID, because the page has to say something
+  // true. Telling somebody their name or password failed validation, when the door
+  // is simply shut, sends them to try again with a different password — and again,
+  // and then to support.
+  //
+  // It is what the TEST server answers: the client is already in people's hands, so
+  // the door is shut there and open in production.
+  CREATE_RESULT_CLOSED = 4;
 }
 
 message CreateAccountRequest {
@@ -164,6 +243,44 @@ message VerifyCredentialsResponse {
   // authorization decision — NpcAdminService re-checks the role server-side on
   // every call, so a tampered session flag still gets ADMIN_RESULT_FORBIDDEN.
   string role = 4;
+  // discord_id e o Discord vinculado a esta conta, ou vazio quando nao ha.
+  //
+  // Sai na leitura que o site JA faz, em vez de numa chamada nova: a pagina
+  // precisa dele no mesmo instante em que precisa do papel, e uma segunda ida ao
+  // servidor para um campo seria uma ida a mais em todo login.
+  //
+  // DADO PESSOAL LEVE: nao entra em log nosso. Quando algo der errado no vinculo,
+  // o log diz a CONTA e nao o Discord -- para depurar serve, e para responder "de
+  // quem e este Discord" a staff consulta o banco.
+  string discord_id = 5;
+}
+
+message SetMyDiscordLinkRequest {
+  // Sempre da SESSAO. Um pedido que escolhe a conta vincula o Discord de outra
+  // pessoa.
+  int64 account_id = 1;
+  // O snowflake numerico do Discord, como texto.
+  string discord_id = 2;
+}
+
+message SetMyDiscordLinkResponse {
+  DiscordLinkResult result = 1;
+}
+
+// DiscordLinkResult e por que o vinculo passou ou nao.
+enum DiscordLinkResult {
+  DISCORD_LINK_RESULT_UNSPECIFIED = 0;
+  DISCORD_LINK_RESULT_OK = 1;
+  // ALREADY_LINKED_ELSEWHERE: este Discord ja esta em OUTRA conta.
+  //
+  // Ele conta a quem tentou que aquele Discord existe em alguma conta deste
+  // servidor. E pouco, e e inevitavel se a gente quer explicar a recusa -- fica
+  // dito aqui para ninguem descobrir depois que vazou sem ter sido decidido.
+  DISCORD_LINK_RESULT_ALREADY_LINKED_ELSEWHERE = 2;
+  // INVALID: nao e um snowflake numerico.
+  DISCORD_LINK_RESULT_INVALID = 3;
+  // ACCOUNT_HAS_ANOTHER: esta conta ja tem OUTRO Discord. So a staff desfaz.
+  DISCORD_LINK_RESULT_ACCOUNT_HAS_ANOTHER = 4;
 }
 
 // PixKeyType is the shape of the key, which the player's bank needs in order to
@@ -192,6 +309,20 @@ enum PixKeyResult {
   // The CPF is missing or malformed. Separate from INVALID, which is about the
   // KEY: the form has two fields and has to be able to point at the wrong one.
   PIX_KEY_RESULT_INVALID_TAX_ID = 5;
+  // PAYOUT_PENDING: ha REPASSE a caminho da chave, e por isso ela nao pode mudar.
+  //
+  // ACRESCENTADO NO FIM em 25/09/2026, sem renumerar nada: de 1 a 5 ficou igual.
+  //
+  // Ate aqui esta recusa e a de venda em curso devolviam o MESMO valor,
+  // SALE_IN_PROGRESS, e as duas pedem coisas diferentes de quem le: a cobranca
+  // aberta passa sozinha quando a compra fechar ou vencer, e o repasse so passa
+  // quando o dinheiro sair. A pessoa nao sabia se esperava minutos ou falava com
+  // a equipe.
+  //
+  // Travam: repasse PENDENTE, ENVIADO, INCERTO e SEM TAXA. Nao travam o RECUSADO
+  // (a recusa mais comum e a chave estar errada, e travar a correcao prenderia o
+  // dinheiro para sempre) nem o PAGO.
+  PIX_KEY_RESULT_PAYOUT_PENDING = 6;
 }
 
 message SavePixKeyRequest {
@@ -216,6 +347,106 @@ message SavePixKeyResponse {
   PixKeyResult result = 1;
 }
 
+// MarketCurrency is what a shelf is priced in.
+enum MarketCurrency {
+  MARKET_CURRENCY_UNSPECIFIED = 0;
+  MARKET_CURRENCY_GOLD = 1;
+  MARKET_CURRENCY_CASH = 2;
+  MARKET_CURRENCY_REAL = 3;
+}
+
+// MarketSort is the order the page asks for.
+//
+// The order the GAME keeps (stall, then slot) is stable and useless to a buyer: it
+// puts the same seller's items together and tells nobody what is cheap.
+enum MarketSort {
+  // UNSPECIFIED keeps the game's own order. Not an error, and not "no order".
+  MARKET_SORT_UNSPECIFIED = 0;
+  MARKET_SORT_PRICE_ASC = 1;
+  MARKET_SORT_PRICE_DESC = 2;
+  // NEWEST is the stall that went up most recently, which is the smallest
+  // open_for_seconds.
+  MARKET_SORT_NEWEST = 3;
+}
+
+message ListMarketListingsRequest {
+  // WHICH CURRENCY, and it is REQUIRED: UNSPECIFIED is refused with
+  // INVALID_ARGUMENT.
+  //
+  // Refused rather than answered with everything, because of the sort: ordering by
+  // price across currencies would put 300 gold beside 300 cents and call the list
+  // sorted. And refused rather than answered empty, because an empty list reads as
+  // "nothing for sale" — a lie the caller would spend an afternoon debugging.
+  MarketCurrency currency = 1;
+
+  // ONE-BASED. Zero is read as the first page, which is the forgiving reading of a
+  // field somebody forgot to fill.
+  //
+  // A page past the end returns an EMPTY list with the real total, never an error:
+  // the list shrinks between two clicks all the time — a stall closes — and a
+  // person arriving at page 3 of a market that now has two pages did nothing wrong.
+  int32 page = 2;
+
+  // How to order. See MarketSort.
+  MarketSort sort = 3;
+
+  // ONE ITEM ONLY, for "who is selling this". Zero means every item.
+  int32 item_index = 4;
+}
+
+message MarketListing {
+  int32 item_index = 1;
+  int32 refine = 2;
+  // How many are on the shelf. They are sold TOGETHER, for `price`.
+  int32 amount = 3;
+  MarketCurrency currency = 4;
+  // In the currency's own unit: gold, cash, or CENTS for real money. The unit is
+  // not guessable from the number, which is why the currency travels beside it.
+  //
+  // IT IS THE PRICE OF THE WHOLE SHELF, not of one unit. A shelf holding a stack of
+  // five at 1000 gold costs 1000 gold, and the buyer gets all five: the game charges
+  // `slot.Price` once and moves the entire stack out of the seller's warehouse
+  // (tmserver/internal/handler/lojacompra.go — `preco := slot.Price`, then
+  // `e.Coin -= preco` and `e.Carry[destino] = itemCargo`, which is the stack itself).
+  //
+  // Measured in the buy handler and not assumed, because a page that divides by
+  // `amount` to show a unit price would advertise a fifth of the real cost.
+  int64 price = 5;
+  // The CHARACTER standing in the stall. The only name in this contract.
+  string seller_character = 6;
+  // The city the stall stands in, already written out ("Armia"). Empty outside a
+  // city, which happens and is not an error.
+  string village = 7;
+  // HOW LONG THE STALL HAS BEEN UP, in seconds, measured at the moment this answer
+  // was built — including the time it sat in the server's cache.
+  //
+  // A duration and not a date because the game's own clock is a tick counter, not
+  // a wall clock: a date built from it would be wrong after a restart.
+  int64 open_for_seconds = 8;
+}
+
+message ListMarketListingsResponse {
+  repeated MarketListing listings = 1;
+  // How many matched the filters before the page was cut, so the page can say
+  // "1 of 4". It counts the WHOLE match, not this page.
+  int32 total = 2;
+  // HOW OLD THIS ANSWER IS. Zero means it came from the game just now; anything
+  // else is the age of the cache.
+  //
+  // It is in the contract because the page is allowed to be stale and the visitor is
+  // not supposed to find that out by buying something that is gone.
+  //
+  // THE CEILING IS ONE MINUTE, and the page may say so. Normally this is at most a
+  // few seconds; when the game server is not answering, the last good list keeps
+  // being served for up to a minute — an empty market reads as "nobody is selling",
+  // which would be the bigger lie — and past that the call fails instead.
+  //
+  // Nothing wrong is handed to anyone by a stale list: this is a shop WINDOW, and
+  // the purchase is checked again inside the game, which refuses a shelf that is
+  // gone.
+  int32 cached_for_seconds = 3;
+}
+
 message GetPixKeyRequest {
   int64 account_id = 1;
 }
@@ -236,6 +467,104 @@ message GetPixKeyResponse {
   // Empty when no CPF was ever saved, which is every seller registered before
   // this field existed.
   string masked_tax_id = 5;
+
+  // THE MONEY OWED TO THIS SELLER THAT HAS NOT REACHED THEM YET, in cents, added
+  // up across every sale.
+  //
+  // It lives on the KEY response, and that placement is the point: the page that
+  // shows "you already registered ...1234" is the page where somebody goes when
+  // they are wondering where their money is. A separate call would be a separate
+  // screen nobody opens.
+  //
+  // A TOTAL AND NOTHING ELSE. No sale, no date, no buyer — for the same reason
+  // the key comes back masked. Somebody reading over a shoulder, or a screenshot
+  // in a Discord channel, should not learn what this person sold and to whom.
+  // The detail belongs to staff, who can be asked.
+  //
+  // ZERO MEANS ONE OF TWO THINGS, and the page cannot tell them apart: nothing is
+  // owed, OR the total could not be read. A failure while adding it up does NOT
+  // fail the call — it returns zero with UNSPECIFIED and logs on the server.
+  //
+  // The reason is that this field rides along on the KEY response, and the key
+  // response is what the form needs to work. That form is where an incomplete
+  // registration gets fixed, and an incomplete registration is the most common
+  // cause of money sitting still: letting a failed total take down the whole
+  // answer would black out the very screen that solves the problem.
+  //
+  // WHAT THE PAGE MUST NOT DO, therefore, is write "you have nothing to receive"
+  // in so many words on a zero. Showing no line at all is the honest rendering of
+  // "nothing pending, or we could not tell".
+  //
+  // Zero is also NOT the same as "paid": a payout that arrived stops being owed
+  // and leaves this total.
+  int64 pending_payout_cents = 6;
+
+  // Why it has not arrived, so the page can say something other than "wait".
+  //
+  // UNSPECIFIED when pending_payout_cents is zero — both when nothing is owed,
+  // with no waiting to explain, and when the total could not be read.
+  PayoutWaitReason payout_wait_reason = 7;
+}
+
+message DeletePixKeyRequest {
+  // Sempre da SESSAO, nunca do corpo, como no SavePixKey: um pedido que escolhe
+  // de quem e a chave e um pedido que apaga a chave dos outros.
+  int64 account_id = 1;
+}
+
+message DeletePixKeyResponse {
+  PixKeyDeleteResult result = 1;
+}
+
+// PixKeyDeleteResult e por que o apagar passou ou nao.
+enum PixKeyDeleteResult {
+  PIX_KEY_DELETE_RESULT_UNSPECIFIED = 0;
+  PIX_KEY_DELETE_RESULT_OK = 1;
+  // NO_KEY: nao havia chave para apagar.
+  //
+  // Separado do OK de proposito: a tela precisa distinguir "apaguei agora" de
+  // "nao havia nada", senao ela confirma uma acao que nao aconteceu.
+  PIX_KEY_DELETE_RESULT_NO_KEY = 2;
+  // SALE_IN_PROGRESS: ha cobranca ABERTA de um anuncio deste vendedor.
+  PIX_KEY_DELETE_RESULT_SALE_IN_PROGRESS = 3;
+  // PAYOUT_PENDING: ha repasse a caminho -- pendente, enviado, incerto ou
+  // segurado por taxa desconhecida. Recusado e pago nao travam.
+  PIX_KEY_DELETE_RESULT_PAYOUT_PENDING = 4;
+}
+
+// PayoutWaitReason answers the only question a seller with money owed actually
+// has: is this on me, or on you?
+//
+// THE ORDER OF PRECEDENCE is NO_KEY_OR_TAX_ID, then NEEDS_STAFF, then
+// IN_PROGRESS. Registration wins because it is the only one the person can do
+// something about: telling somebody "we are looking into it" while their own
+// registration is what blocks the payment leaves them waiting for a day that
+// never comes.
+//
+// The first two cannot both be true today — a payout only reaches a staff state
+// after an attempt, an attempt requires the document, and a stored document is
+// never removed. The order is written because the choice had to be made
+// somewhere, not because the case occurs.
+enum PayoutWaitReason {
+  PAYOUT_WAIT_REASON_UNSPECIFIED = 0;
+  // NO_KEY_OR_TAX_ID: the registration is incomplete, so there is nowhere to
+  // send the money. This is the seller's to fix, and finishing the form puts the
+  // payment in the queue by itself.
+  //
+  // It is the common case for anybody who sold before the CPF became required:
+  // the key is there and the document is not.
+  PAYOUT_WAIT_REASON_NO_KEY_OR_TAX_ID = 1;
+  // IN_PROGRESS: the registration is complete and the payment is on its way, or
+  // is about to be. Nothing to do but wait, and the wait is minutes.
+  PAYOUT_WAIT_REASON_IN_PROGRESS = 2;
+  // NEEDS_STAFF: the payment was refused, or the answer never came back and we
+  // do not know whether it left. A person has to look at it.
+  //
+  // The page must NOT tell the seller to redo anything here. A refusal caused by
+  // a wrong key is fixed by correcting the key, which is allowed precisely in
+  // this state — but a refusal has other causes, and "try again" as blanket
+  // advice would have people editing a correct key for nothing.
+  PAYOUT_WAIT_REASON_NEEDS_STAFF = 3;
 }
 
 // PixChargeState is where the buyer's charge stands.
@@ -260,11 +589,22 @@ enum PixChargeState {
   // money, and a screen that empties at that exact moment is the screen that
   // makes them open a ticket.
   PIX_CHARGE_STATE_PAID = 3;
-  // CANCELED: closed without payment, because the buyer LEFT THE GAME.
+  // CANCELED: a processadora RECUSOU gerar o codigo Pix desta cobranca (recusa
+  // definitiva da ponte, 4xx).
   //
-  // This one will happen for real, and often: people leave the game to pay on
-  // their phone. Without a state for it the page empties with no explanation and
-  // the buyer has no idea what they did wrong.
+  // A cobranca foi fechada sem codigo, entao NADA foi cobrado de ninguem. O
+  // anuncio continua ATIVO e o item segue a venda -- ele nunca saiu da barraca;
+  // quem e liberado e o COMPRADOR, que volta a poder comprar. Sem esse
+  // fechamento ele ficaria preso a uma cobranca morta.
+  //
+  // Hoje e a recusa definitiva da ponte que produz este estado
+  // (store.FecharCobrancaPorRecusaDefinitiva). Existe uma segunda funcao capaz
+  // de gravar CANCELED -- a desistencia do comprador, CancelarCobrancaRMT --,
+  // mas ela esta SEM CHAMADOR: medido em 25/09/2026, e por isso o texto diz
+  // "hoje" em vez de "o unico caminho".
+  //
+  // O site mostra: "Nao foi possivel gerar o pagamento. Nada foi cobrado. Tente
+  // comprar de novo no jogo."
   PIX_CHARGE_STATE_CANCELED = 4;
   // PAID_LATE: the money arrived AFTER the charge had closed; the item was not
   // delivered and the amount is refunded automatically through the processor.
@@ -274,9 +614,22 @@ enum PixChargeState {
   // accident: there is no known route to cancel a cash-in at the processor, so
   // the copy-and-paste code stays payable after our row closes.
   //
-  // Implementation status: the server does not produce this state yet. Creating
-  // the charge is a later change, and nothing can arrive late before anything
-  // arrives at all.
+  // IT ALSO CARRIES THE WRONG-AMOUNT CASE, and the reuse is deliberate: the name
+  // speaks of lateness and that case is not late, but what the state TELLS the
+  // person is exactly right — the money arrived, the item was not delivered, and
+  // somebody is looking at it. Every other value would lie worse. OPEN says "pay",
+  // and they already paid, which invites paying twice; PAID says the item is on
+  // its way; EXPIRED and CANCELED say no payment happened.
+  //
+  // The two are told apart by refund_state. Late payment refunds automatically, so
+  // it moves through PENDING, REQUESTED, REFUNDED. A wrong amount leaves it
+  // UNSPECIFIED, because there is no automatic refund: refunding, charging the
+  // difference or delivering anyway is a decision about two people's money, and
+  // the code does not make it.
+  //
+  // Implementation status: the server PRODUCES this state as of the payment-notice
+  // change. Paying the seller, however, does not exist yet — see the note on
+  // masked_tax_id.
   PIX_CHARGE_STATE_PAID_LATE = 5;
 }
 
@@ -338,6 +691,38 @@ message GetMyCurrentPixChargeResponse {
   // this date.
   int64 refund_requested_at = 10;
   RefundState refund_state = 11;
+  // Onde esta o item depois de pago: a caminho, ou segurado porque o bau esta
+  // cheio.
+  //
+  // A pagina mostrava "o item esta a caminho" para DUAS situacoes diferentes: a
+  // entrega que acontece no proximo login, e a que nao acontece nenhuma vez ate a
+  // pessoa esvaziar o bau. Quem estava na segunda esperava um dia que nao chega.
+  DeliveryState delivery_state = 12;
+}
+
+// DeliveryState diz onde esta o item de uma compra ja paga.
+//
+// CALCULADO NA LEITURA, e nao guardado: quem descobre que o item nao cabe e o
+// servidor de jogo, no seu proprio laco, e ele so fala com o banco por gRPC --
+// marcar uma coluna exigiria um RPC novo, e quando NADA e entregue o dreno nem
+// chega a chamar o banco. Alem disso o calculado e mais honesto: uma coluna diria
+// "nao cabia as 02h10" e envelheceria, enquanto isto diz "nao cabe agora".
+//
+// "SEM ESPACO LIVRE" NAO E "NAO CABE": item que empilha entra num bau lotado.
+// Por isso a tela afirma o FATO ("o bau esta sem espaco livre") e nao a previsao
+// -- assim a frase nao fica falsa quando o item empilhar e entrar.
+enum DeliveryState {
+  // UNSPECIFIED: nao ha linha de entrega. Ainda nao pago, ou sem entrega.
+  DELIVERY_STATE_UNSPECIFIED = 0;
+  // WAITING: pago e na fila. Chega no proximo dreno, que e o login ou a entrega
+  // imediata.
+  DELIVERY_STATE_WAITING = 1;
+  // HELD: esta na fila E o bau da conta nao tem espaco livre.
+  DELIVERY_STATE_HELD = 2;
+  // DELIVERED: o item entrou no bau.
+  DELIVERY_STATE_DELIVERED = 3;
+  // LOST: a linha foi encerrada sem entregar. Nao acontece sozinha.
+  DELIVERY_STATE_LOST = 4;
 }
 
 // RefundState is how far the money that arrived late has got on its way back.
@@ -453,6 +838,103 @@ service CharacterWebService {
   // account. It is cold-storage data and can be slightly stale while a character
   // is online; live state remains owned by tmServer's single goroutine.
   rpc ListMyCharacters(ListMyCharactersRequest) returns (ListMyCharactersResponse);
+
+  // O EMBLEMA DE GUILDA, 25/09/2026.
+  //
+  // Nao existia nada de emblema no servidor antes disto: nem coluna, nem campo,
+  // nem rota. A tabela guild (migracao 0012) tem id, name, clan, fame e citizen.
+  //
+  // LIDER e guild_member.guild_level = 9 (internal/domain, guildLeaderLevel), e e
+  // esse o criterio do NOT_LEADER -- nao "quem criou".
+  rpc ListMyLedGuilds(ListMyLedGuildsRequest) returns (ListMyLedGuildsResponse);
+  rpc SetMyGuildEmblem(SetMyGuildEmblemRequest) returns (SetMyGuildEmblemResponse);
+  rpc ClearMyGuildEmblem(ClearMyGuildEmblemRequest) returns (ClearMyGuildEmblemResponse);
+  // GetGuildEmblem e PUBLICO: e por ele que a pagina da guilda mostra a imagem.
+  rpc GetGuildEmblem(GetGuildEmblemRequest) returns (GetGuildEmblemResponse);
+}
+
+message ListMyLedGuildsRequest {
+  // Da SESSAO. Quem esta logado no site e a CONTA, e a lideranca e do
+  // PERSONAGEM: o servidor resolve isso procurando, entre os personagens daquela
+  // conta, os que tem guild_level 9. Assim o site nao precisa saber qual
+  // personagem lidera qual guilda.
+  int64 account_id = 1;
+}
+
+message ListMyLedGuildsResponse {
+  // PLURAL porque uma conta tem ate 4 personagens (guild_member.slot vai de 0 a
+  // 3), e nada impede dois deles liderarem guildas diferentes. Uma tela que
+  // assuma uma so erra no dia em que isso acontecer.
+  repeated LedGuild guilds = 1;
+}
+
+message LedGuild {
+  int32 guild_id = 1;
+  string name = 2;
+  bool has_emblem = 3;
+}
+
+message SetMyGuildEmblemRequest {
+  int64 account_id = 1;
+  int32 guild_id = 2;
+  // O BMP inteiro, exatamente como o cliente 1.0.0 le (medido pela dupla do
+  // cliente em gamepatch/emblema.cpp, LeBmpDoEmblema):
+  //
+  //   24 bits, 16x12, SEM transparencia, EXATAMENTE 630 bytes;
+  //   offset 0 "BM"; bfSize (u32 LE @2) = 630; bfOffBits (@10) = 54;
+  //   biSize (@14) = 40; biWidth (@18) = 16; biHeight (@22) = +12 (de baixo
+  //   para cima, positivo); biPlanes (@26) = 1; biBitCount (@28) = 24;
+  //   biCompression (@30) = 0 (BI_RGB);
+  //   pixels em BGR, 48 bytes por linha sem padding, 576 no total.
+  //
+  // Qualquer outra coisa e INVALID_IMAGE. O teto de 632 do cliente e folga dele;
+  // fechamos em 630. A VALIDACAO E NO SERVIDOR: um cliente remendado nao pode
+  // gravar imagem que o jogo nao desenha.
+  bytes image = 3;
+}
+
+message SetMyGuildEmblemResponse {
+  GuildEmblemResult result = 1;
+}
+
+message ClearMyGuildEmblemRequest {
+  int64 account_id = 1;
+  int32 guild_id = 2;
+}
+
+message ClearMyGuildEmblemResponse {
+  GuildEmblemResult result = 1;
+}
+
+message GetGuildEmblemRequest {
+  int32 guild_id = 1;
+}
+
+message GetGuildEmblemResponse {
+  // has_emblem separado de image porque, sem ele, "nao tem emblema" e "falhei ao
+  // ler" viram o mesmo bytes vazio -- e a pagina nao sabe se mostra o padrao ou
+  // um aviso.
+  bool has_emblem = 1;
+  bytes image = 2;
+  // Quando o emblema mudou pela ultima vez, em segundos Unix UTC. ZERO quando
+  // has_emblem e falso. E o que a rota de imagem do site usa para mandar o
+  // Last-Modified certo.
+  int64 updated_at_unix = 3;
+}
+
+// GuildEmblemResult e por que a troca passou ou nao.
+enum GuildEmblemResult {
+  GUILD_EMBLEM_RESULT_UNSPECIFIED = 0;
+  GUILD_EMBLEM_RESULT_OK = 1;
+  // NOT_LEADER: nenhum personagem desta conta lidera a guilda pedida.
+  GUILD_EMBLEM_RESULT_NOT_LEADER = 2;
+  // INVALID_IMAGE: o BMP nao bate com o formato descrito em SetMyGuildEmblem.
+  GUILD_EMBLEM_RESULT_INVALID_IMAGE = 3;
+  // RATE_LIMITED: uma troca (Set ou Clear) a cada 5 minutos POR GUILDA.
+  //
+  // Por guilda e nao por conta, porque o custo e a imagem trocando para todos os
+  // membros.
+  GUILD_EMBLEM_RESULT_RATE_LIMITED = 4;
 }
 
 message ListMyCharactersRequest {
@@ -1374,6 +1856,32 @@ service DonateTopupService {
   rpc CreateTopupOrder(CreateTopupOrderRequest) returns (CreateTopupOrderResponse);
   rpc ConfirmTopupOrder(ConfirmTopupOrderRequest) returns (ConfirmTopupOrderResponse);
   rpc GetTopupOrder(GetTopupOrderRequest) returns (GetTopupOrderResponse);
+
+  // AttachTopupCharge records the gateway's OWN id for an order, so the server
+  // can ask the processor about it later instead of waiting to be told.
+  //
+  // WHY IT EXISTS: until this call, a donation had exactly one path to being
+  // credited — the gateway notifies the site, the site calls ConfirmTopupOrder.
+  // A lost notification meant money charged and credits never given, with
+  // nothing on the server able to notice, because the server had never seen the
+  // gateway's id and cannot ask about a payment it cannot name.
+  //
+  // The site creates the donation charge itself and gets that id back. This
+  // hands it over, and a sweep then polls the pending orders exactly the way the
+  // marketplace already polls its charges. The notification stays the fast path;
+  // the sweep is the net underneath it.
+  //
+  // IDEMPOTENT, and refusing in two directions. The same order cannot be given a
+  // DIFFERENT id, and the same id cannot be attached to a SECOND order — the
+  // second refusal is the one that matters, because that is how one payment
+  // would credit two orders.
+  //
+  // IT MUST NOT BREAK THE PURCHASE. If this call fails, the site shows the Pix
+  // code anyway and logs: the player is in the middle of paying, and a failure
+  // to set up our safety net is not a reason to refuse their money. What is lost
+  // is the net under THAT order, and the count of orders without an id is what
+  // makes that visible.
+  rpc AttachTopupCharge(AttachTopupChargeRequest) returns (AttachTopupChargeResponse);
 }
 
 // PaymentMethod is the gateway a top-up is paid through. Extensible without
@@ -1390,6 +1898,49 @@ enum TopupResult {
   TOPUP_RESULT_CONFIRMED = 1;         // order was PENDING -> credited now
   TOPUP_RESULT_ALREADY_CONFIRMED = 2; // order was already PAID -> no-op (never re-credit)
   TOPUP_RESULT_NOT_FOUND = 3;         // external_reference does not exist
+}
+
+message AttachTopupChargeRequest {
+  // The order, by the reference the server itself issued.
+  string external_reference = 1;
+  // The gateway's own id for the charge, exactly as it returned it. Opaque
+  // here: nothing parses it, it only travels back to the processor as the name
+  // of the payment to ask about.
+  string gateway_identifier = 2;
+}
+
+// AttachResult says what happened, and every refusal is named.
+//
+// NAMED RATHER THAN A TRANSPORT ERROR because the caller has to be able to tell
+// "I already did this" from "this is a bug in me". The first is normal on a
+// retry; the second means one payment is about to be pointed at two orders, and
+// it deserves an alert on the site's side rather than a line in a log.
+enum AttachResult {
+  ATTACH_RESULT_UNSPECIFIED = 0;
+  // ATTACHED: stored now.
+  ATTACH_RESULT_ATTACHED = 1;
+  // ALREADY: this order already had exactly this id. A retry, and not a problem.
+  ATTACH_RESULT_ALREADY = 2;
+  // CONFLICT_ORDER: this order already has a DIFFERENT id. Nothing is changed —
+  // the first id stays, because it is the one the charge was created with.
+  ATTACH_RESULT_CONFLICT_ORDER = 3;
+  // CONFLICT_IDENTIFIER: this id is already attached to ANOTHER order.
+  //
+  // THE REFUSAL THAT PROTECTS MONEY. Allowed, one paid transaction would satisfy
+  // two pending orders and credit both, and the second set of credits comes out
+  // of the server owner's pocket. It should never happen, which is exactly why
+  // it is worth an alert and not a shrug.
+  ATTACH_RESULT_CONFLICT_IDENTIFIER = 4;
+  // NOT_FOUND: no order with that reference.
+  ATTACH_RESULT_NOT_FOUND = 5;
+  // ALREADY_PAID: the order is already credited. Nothing to attach: the sweep
+  // only looks at pending orders, and re-pointing a settled order at a payment
+  // has no honest meaning.
+  ATTACH_RESULT_ALREADY_PAID = 6;
+}
+
+message AttachTopupChargeResponse {
+  AttachResult result = 1;
 }
 
 // TopupStatus is the durable state of an order.
@@ -1411,6 +1962,30 @@ message CreateTopupOrderRequest {
   int32         credits = 3;            // credits to add to donate_balance when paid
   int64         amount_cents = 4;       // amount charged, in cents (never float)
   PaymentMethod payment_method = 5;     // PIX for now
+  // WHICH PACKAGE this is, by the id the site uses ("apoiador-supremo"). It is what
+  // lets the server know what it promised, which it could not know before: credits
+  // and amount_cents arrived already decided and were credited as they came.
+  //
+  // THE SERVER'S TABLE WINS. credits and amount_cents above are CHECKED against the
+  // package's own row, and the order is refused when they disagree. The request comes
+  // from the site's own BFF, and it is checked anyway: checking is cheap, and taking
+  // back an item already delivered is not.
+  //
+  // An id that is not in the server's table is REFUSED, and not treated as a
+  // giftless donation. An unknown id means the site and the server disagree about
+  // what is on sale, and crediting regardless would hand out credits for a price
+  // nobody checked. Failing while the person is still looking at the screen is the
+  // cheap failure.
+  //
+  // Empty is accepted and means a donation with no package — every order created
+  // before packages existed, and any future path that credits without selling a
+  // package. Empty is not the same as unknown.
+  //
+  // Some packages are STAFF ONLY (the R$ 1,00 one that exists so the server's owner
+  // can test a real payment). The site hides those, and the server refuses them for
+  // an account that is not staff: hiding on a screen is not a lock, because the
+  // screen is one door and this rpc is another.
+  string package_id = 6;
 }
 message CreateTopupOrderResponse {
   AdminResult result = 1;

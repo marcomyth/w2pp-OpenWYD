@@ -111,7 +111,7 @@ func (h *Handler) derrubarConta(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionKick,
 		New:    map[string]any{"conta": conta, "sessoes": n},
 	}); err != nil {
@@ -156,7 +156,7 @@ func (h *Handler) avisarTodos(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionBroadcast,
 		// The message is recorded: an aviso goes to everyone at once, and "who
 		// said that" is the first question when one lands badly.
@@ -283,7 +283,7 @@ func (h *Handler) reinicioSeguro(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSafeRestart,
 		New: map[string]any{
 			"deployment": dep.ID, "avisados": dren.Avisados, "derrubados": dren.Derrubados,
@@ -355,7 +355,7 @@ func (h *Handler) desligarServidor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionStopGame,
 		New: map[string]any{
 			"deployment": dep.ID, "avisados": dren.Avisados, "derrubados": dren.Derrubados,
@@ -429,7 +429,7 @@ func (h *Handler) ligarServidor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionStartGame,
 		New:    map[string]any{"deployment": dep.ID, "estado_anterior": dep.Status},
 	}); err != nil {
@@ -502,7 +502,7 @@ func (h *Handler) desatolar(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionUnstuck,
 		New: map[string]any{
 			"conta": conta, "personagem": d.Personagem,

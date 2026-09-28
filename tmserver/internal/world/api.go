@@ -2,6 +2,7 @@ package world
 
 import (
 	"github.com/jeanluca/w2pp-openwyd/internal/campotreino"
+	"github.com/jeanluca/w2pp-openwyd/internal/ciclopes"
 	"github.com/jeanluca/w2pp-openwyd/internal/mapaevento"
 	"github.com/jeanluca/w2pp-openwyd/internal/reinos"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
@@ -90,6 +91,10 @@ type MobSpawn struct {
 	// with three loot tables and one name on screen. Empty for spawns that have
 	// no file (summons, the Vine).
 	TemplateName string
+	// GenRev is Generator.Rev of GenIndex when this spawn was built. The respawn
+	// queue compares it to the block's current one: a monster born under a recipe
+	// the panel has since changed comes back from the new recipe, not as itself.
+	GenRev uint32
 }
 
 // SpawnMob creates a stationary NPC/monster from a raw STRUCT_MOB template at
@@ -152,7 +157,7 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 		Template:     template,   // retained for runtime respawn (world/respawn.go)
 		TemplateName: sp.TemplateName,
 		RouteType:    sp.RouteType, SegListX: sp.SegX, SegListY: sp.SegY, SegWait: sp.SegWait,
-		GenIndex: sp.GenIndex,
+		GenIndex: sp.GenIndex, GenRev: sp.GenRev,
 		// The current waypoint doubles as the aggro/leash anchor (CMob.cpp:292);
 		// it starts at waypoint 0 = the spawn point (GenerateMob Server.cpp:3649).
 		// The initial waypoint pause comes pre-armed (WaitSec = SegmentWait[0],
@@ -176,10 +181,14 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 	//
 	// The Reinos city is the third such exception (internal/reinos): the kings
 	// and their army carry a shop byte on 104, and the legacy lets them be hit.
+	//
+	// E o Ciclope Cruel e as cópias do spot dele (internal/ciclopes): o mesmo 64
+	// no byte que este port lê, 0 no do legado.
 	e.NonCombatNPC = nonCombatNPC(e.Merchant, e.Clan, e.X, e.Y) &&
 		!IsWaterDungeonGenerator(int(sp.GenIndex)) &&
 		!campotreino.MonstroNoCampo(b.MobMerchant, int(x), int(y)) &&
-		!reinos.MonstroDoReino(b.MobMerchant, b.Clan, int(x), int(y))
+		!reinos.MonstroDoReino(b.MobMerchant, b.Clan, int(x), int(y)) &&
+		!ciclopes.MonstroDeCombate(sp.TemplateName, b.MobMerchant)
 	for i, r := range b.Resist {
 		e.Resist[i] = int16(r)
 	}
@@ -246,7 +255,7 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 	// legacy does the same, right after CurrentScore.Hp = MaxHp (Server.cpp:3326).
 	w.applyNewbieHandicap(e)
 	w.entities[id] = e
-	w.grid.SetMob(int(x), int(y), uint16(id))
+	w.ocupaCasa(id, x, y)
 	w.mobCount++
 	// Population accounting: every mob from an NPCGener block counts toward its
 	// CurrentNumMob (GenerateMob increments per leader AND per follower,
@@ -328,6 +337,17 @@ func (w *World) DespawnMob(id int, removeType int32) {
 			}
 		}
 	}
+	// Um pet que sai libera a vaga no bando do dono (Entity.Evocacoes), pelo
+	// mesmo motivo: o id vai ser reusado por outro monstro.
+	if e.Summoner != 0 {
+		if dono := w.Entity(e.Summoner); dono != nil {
+			for i, m := range dono.Evocacoes {
+				if m == id {
+					dono.Evocacoes[i] = 0
+				}
+			}
+		}
+	}
 	// A slain monster respawns at its spawn point after a delay, keeping its
 	// instance route (waypoints/RouteType) so a patrol resumes patrolling —
 	// UNLESS its generator regenerates on the minute timer (MinuteGenerate>0):
@@ -356,17 +376,11 @@ func (w *World) DespawnMob(id int, removeType int32) {
 		!IsKefraGenerator(int(e.GenIndex)) &&
 		(gen == nil || (gen.MinuteGenerate <= 0 && !gen.ArenaRefill)) {
 		w.respawnQueue = append(w.respawnQueue, respawnEntry{
-			spawn: MobSpawn{
-				Template: e.Template, X: e.SpawnX, Y: e.SpawnY,
-				RouteType: e.RouteType, SegX: e.SegListX, SegY: e.SegListY,
-				SegWait: e.SegWait, GenIndex: e.GenIndex, TemplateName: e.TemplateName,
-			},
-			due: w.Now() + w.respawnDelay(int32(e.GenIndex)),
+			spawn: respawnSpawn(e),
+			due:   w.Now() + w.respawnDelay(int32(e.GenIndex)),
 		})
 	}
-	if cur, ok := w.grid.MobAt(int(e.X), int(e.Y)); ok && int(cur) == id {
-		w.grid.ClearMob(int(e.X), int(e.Y))
-	}
+	w.liberaCasa(id, e.X, e.Y)
 	w.entities[id] = nil
 	if w.mobCount--; w.mobCount < 0 {
 		w.mobCount = 0
@@ -490,16 +504,84 @@ func chebyshev(x1, y1, x2, y2 int16) int {
 
 // SetEntityPos moves entity id to (x,y) and keeps the spatial grid in sync
 // (clears the old cell if it still pointed at this entity, sets the new one).
+//
+// It never takes the cell away from someone who is standing on it. The grid holds
+// one id per cell, and writing the mover over the occupant used to erase the
+// occupant: it kept its X/Y but left the grid, and the view scan
+// (ForEachMobInViewAt) reveals mobs from the grid alone. A quest NPC stepped on
+// that way vanished for everyone who arrived afterwards — it does not walk, so it
+// never re-entered the grid — and only a restart brought it back (the Patrulha
+// of the Kaizen, 26/09/2026). Mobs and pets already check the cell before
+// stepping; the player paths (walking, login) do not, because the legacy's
+// reroute to a free cell (_MSG_Action.cpp:246-262) is not ported. In that case the
+// mover goes off-grid instead (ocupaCasa), and gets the cell back when the
+// occupant leaves it (liberaCasa): a player is seen through the session list, not
+// the grid, so what it loses meanwhile is only mob aggro and collision, and the
+// occupant loses nothing.
 func (w *World) SetEntityPos(id int, x, y int16) {
 	e := w.Entity(id)
 	if e == nil {
 		return
 	}
-	if cur, ok := w.grid.MobAt(int(e.X), int(e.Y)); ok && int(cur) == id {
-		w.grid.ClearMob(int(e.X), int(e.Y))
-	}
+	w.liberaCasa(id, e.X, e.Y)
 	e.X, e.Y = x, y
+	w.ocupaCasa(id, x, y)
+}
+
+// ocupaCasa escreve id na casa (x,y) do grid, a não ser que ela seja de outro que
+// está parado nela: aí id fica fora do grid, anotado, até a casa vagar ou ele
+// sair dali. Loop-only.
+func (w *World) ocupaCasa(id int, x, y int16) {
+	if w.cellHeldByOther(id, x, y) {
+		if w.foraDoGrid == nil {
+			w.foraDoGrid = map[int]struct{}{}
+		}
+		w.foraDoGrid[id] = struct{}{}
+		return
+	}
+	delete(w.foraDoGrid, id)
 	w.grid.SetMob(int(x), int(y), uint16(id))
+}
+
+// liberaCasa tira id da casa (x,y) — só se o grid ainda o nomeia ali — e a passa
+// a quem ficou fora do grid parado nela, se houver alguém. Sem esse repasse quem
+// chegou por último continuaria invisível à varredura depois que o dono saiu, e
+// um terceiro pousaria em cima dele achando a casa vazia. Loop-only.
+func (w *World) liberaCasa(id int, x, y int16) {
+	delete(w.foraDoGrid, id)
+	if cur, ok := w.grid.MobAt(int(x), int(y)); !ok || int(cur) != id {
+		return
+	}
+	w.grid.ClearMob(int(x), int(y))
+	for outro := range w.foraDoGrid {
+		if o := w.entities[outro]; o != nil && o.Mode != MobEmpty && o.X == x && o.Y == y {
+			delete(w.foraDoGrid, outro)
+			w.grid.SetMob(int(x), int(y), uint16(outro))
+			return
+		}
+	}
+}
+
+// cellHeldByOther reports whether (x,y) belongs in the grid to a live entity
+// other than id that is actually standing there. A stale entry — an id whose
+// entity is gone or stands elsewhere — does not hold the cell. Loop-only.
+func (w *World) cellHeldByOther(id int, x, y int16) bool {
+	cur, ok := w.grid.MobAt(int(x), int(y))
+	if !ok || int(cur) == id {
+		return false
+	}
+	o := w.entities[cur]
+	return o != nil && o.Mode != MobEmpty && o.X == x && o.Y == y
+}
+
+// FreeCellFor is the legacy GetEmptyMobGrid for id: (x,y) itself when the cell is
+// free or already id's, otherwise the nearest free cell within three rings. ok is
+// false when there is none. Loop-only.
+func (w *World) FreeCellFor(id int, x, y int16) (int16, int16, bool) {
+	if !w.cellHeldByOther(id, x, y) && w.grid.inBounds(int(x), int(y)) {
+		return x, y, true
+	}
+	return w.emptyCellNear(x, y)
 }
 
 // EmptyCellNear returns an unoccupied grid cell at or near (x,y), using the same
@@ -577,6 +659,15 @@ func (w *World) ForEachSession(fn func(*Session, *Entity)) {
 // allows; emptying the server first moves that work outside any deadline, and
 // the shutdown then finds nothing left to do.
 func (w *World) WaitSaves() { w.saveWG.Wait() }
+
+// SavesFalhados é quantas gravações de saída não confirmaram desde que o processo
+// subiu.
+//
+// ESPERAR NÃO É O MESMO QUE TER DADO CERTO. O dreno esperava as gravações
+// terminarem e dizia "pronto" mesmo quando alguma tinha falhado — e o painel, que
+// promete não reiniciar sem tudo gravado, reiniciava. Quem for reiniciar compara
+// este número antes e depois. Seguro fora do laço.
+func (w *World) SavesFalhados() int64 { return w.savesFalhados.Load() }
 
 // Close tears down a session (e.g. after a fatal validation failure).
 func (w *World) Close(s *Session) { w.removeSession(s) }

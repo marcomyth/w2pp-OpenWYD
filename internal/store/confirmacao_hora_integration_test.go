@@ -19,7 +19,7 @@ func cobrancaPronta(ctx context.Context, t *testing.T, s *Store, nome string) (v
 	t.Helper()
 	vendedor = contaPix(ctx, t, s, "vendedor_"+nome)
 	comprador = contaPix(ctx, t, s, "comprador_"+nome)
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioComFoto(ctx, t, s, vendedor, "Mercador", 0, 0, 1)
@@ -56,7 +56,7 @@ func TestPagouNoPrazoRecebeMesmoComOAvisoAtrasado(t *testing.T) {
 
 	// E só então o aviso chega, dizendo que o pagamento aconteceu ANTES do prazo.
 	pagoEm := time.Now().Add(-2 * time.Minute)
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, pagoEm, HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, pagoEm, HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -68,8 +68,23 @@ func TestPagouNoPrazoRecebeMesmoComOAvisoAtrasado(t *testing.T) {
 	if venda.EntregaID == 0 {
 		t.Error("nao enfileirou a entrega de quem pagou no prazo")
 	}
-	if venda.PagoComAtraso {
-		t.Error("marcou como atrasado um pagamento feito dentro do prazo")
+	// A COLUNA CONTA O LARGO, e a suíte CONTINHA AS DUAS REGRAS antes de este job
+	// existir: este teste exigia falso e o TestPagamentoAtrasadoComItemAindaMarcadoEntrega
+	// exigia verdadeiro, no MESMO cenário. Nenhum dos dois rodava, então ninguém
+	// podia ver a contradição.
+	//
+	// Ficou o largo, que é o que a 0105 escreveu: "a confirmação que chegou DEPOIS do
+	// cancelamento ou da expiração". A razão é a pergunta que a coluna existe para
+	// responder — "o prazo está errado?" — e este caso É um sintoma disso: com uma
+	// janela maior, a corrida entre o pagamento e a nossa varredura não teria
+	// acontecido. Contar só o pagamento genuinamente tardio esconderia a corrida, que
+	// é o que mais aparece na prática.
+	//
+	// A regra ESTREITA continua existindo, com outro nome: `foraDoPrazo`, que é quem
+	// decide a entrega. Ela não virou coluna porque o pagamento tardio de verdade já
+	// é achável pelo status PAGA_SEM_ITEM.
+	if !venda.PagoComAtraso {
+		t.Error("nao contou o caso do aviso atrasado; e ele que responde se o prazo esta curto")
 	}
 }
 
@@ -86,7 +101,7 @@ func TestPagouForaDoPrazoNaoRecebeNemComItemDisponivel(t *testing.T) {
 
 	// Tudo ainda de pé: anúncio ativo, item marcado, cobrança ABERTA. Só o
 	// pagamento é que veio tarde.
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, foraDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, foraDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -122,7 +137,7 @@ func TestSemAHoraDoPagamentoNaoConfirma(t *testing.T) {
 	s, ctx := freshStore(t)
 	_, _, ref := cobrancaPronta(ctx, t, s, "semhora")
 
-	_, _, err := s.ConfirmarCobrancaRMT(ctx, ref, time.Time{}, HoraDaProcessadora, 0)
+	_, _, err := s.ConfirmarCobrancaRMT(ctx, ref, time.Time{}, HoraDaProcessadora, 0, taxaZero())
 
 	if err == nil {
 		t.Fatal("confirmou sem saber quando o pagamento aconteceu")
@@ -148,11 +163,11 @@ func TestOMesmoAvisoDuasVezesEntregaUmaVez(t *testing.T) {
 	_, comprador, ref := cobrancaPronta(ctx, t, s, "repetido")
 	pagoEm := dentroDoPrazo()
 
-	res1, venda1, err := s.ConfirmarCobrancaRMT(ctx, ref, pagoEm, HoraDaProcessadora, 0)
+	res1, venda1, err := s.ConfirmarCobrancaRMT(ctx, ref, pagoEm, HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
-	res2, venda2, err := s.ConfirmarCobrancaRMT(ctx, ref, pagoEm, HoraDaProcessadora, 0)
+	res2, venda2, err := s.ConfirmarCobrancaRMT(ctx, ref, pagoEm, HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +209,7 @@ func TestDoisAvisosAoMesmoTempoEntregamUmaVez(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		go func() {
 			largada.Wait() // as duas partem juntas
-			res, _, err := s.ConfirmarCobrancaRMT(context.Background(), ref, pagoEm, HoraDaProcessadora, 0)
+			res, _, err := s.ConfirmarCobrancaRMT(context.Background(), ref, pagoEm, HoraDaProcessadora, 0, taxaZero())
 			fora <- saida{res, err}
 		}()
 	}
@@ -277,7 +292,7 @@ func TestCompradorQueSaiParaPagarNoCelularRecebe(t *testing.T) {
 	}
 
 	// 3: o Pix cai, DENTRO do prazo.
-	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(), HoraDaProcessadora, 0)
+	res, venda, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(), HoraDaProcessadora, 0, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -342,7 +357,7 @@ func TestValorDiferenteNaoEntregaENaoFechaACobranca(t *testing.T) {
 	_, comprador, ref := cobrancaPronta(ctx, t, s, "valorerrado")
 
 	// A cobrança pede 12345 centavos; a processadora diz ter recebido 100.
-	res, _, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(), HoraDaProcessadora, 100)
+	res, _, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(), HoraDaProcessadora, 100, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -406,7 +421,7 @@ func TestValorCertoPassa(t *testing.T) {
 	s, ctx := freshStore(t)
 	_, _, ref := cobrancaPronta(ctx, t, s, "valorcerto")
 
-	res, _, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(), HoraDaProcessadora, 12345)
+	res, _, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(), HoraDaProcessadora, 12345, taxaZero())
 	if err != nil {
 		t.Fatalf("confirmando: %v", err)
 	}
@@ -426,7 +441,7 @@ func TestAOrigemDoRelogioFicaGravada(t *testing.T) {
 	_, _, ref := cobrancaPronta(ctx, t, s, "relogio")
 
 	if _, _, err := s.ConfirmarCobrancaRMT(ctx, ref, dentroDoPrazo(),
-		HoraDoServidor, 0); err != nil {
+		HoraDoServidor, 0, taxaZero()); err != nil {
 		t.Fatal(err)
 	}
 

@@ -213,7 +213,9 @@ func (d *Dispatcher) reqBuy(w *world.World, s *world.Session, _ protocol.Header,
 	if cargoItem.AnuncioRMT != 0 {
 		d.log.Info("autotrade buy recusada: item preso num anuncio em dinheiro real",
 			"conn", s.Conn, "stall", targetID, "slot", pos, "anuncio", cargoItem.AnuncioRMT)
-		d.notify(w, s, NoticeCantAutoTrade)
+		// A MESMA CAUSA DA JANELA NOVA, a mesma frase: o item está preso a uma venda
+		// em dinheiro real de outra pessoa, e o comprador não está em auto venda.
+		sendClientMessage(w, s, msgItemReservado)
 		return
 	}
 	if m.Tax != int32(seller.AutoTrade.Tax) || m.Price != slot.Price ||
@@ -263,12 +265,14 @@ func (d *Dispatcher) reqBuy(w *world.World, s *world.Session, _ protocol.Header,
 	// seller's stale cargo row still has it. One item, two owners, nobody
 	// cheating.
 	//
-	// The buyer's half is a character save (the item landed in Carry); the
-	// seller's is a cargo save, because a personal shop sells straight out of the
-	// account warehouse. SaveCargoThen with an empty continuation: the seller is
-	// still playing, so the cargo is saved and kept loaded rather than released.
+	// Os dois lados gravam personagem E carga na mesma transação. A loja vende
+	// direto do baú da conta, então a metade do vendedor é uma escrita de carga —
+	// mas gravá-la SOZINHA era um buraco: quem acabou de depositar tem o item na
+	// carga da memória e ainda na mochila do banco, e uma queda ali deixa o item
+	// nos dois lugares. O SaveCharacterAsync leva o par, e mantém a carga
+	// carregada: o vendedor continua jogando.
 	w.SaveCharacterAsync(s)
-	w.SaveCargoThen(seller, func(*world.World, *world.Session) {})
+	w.SaveCharacterAsync(seller)
 }
 
 // shopPinsOwner reports whether an open personal shop still pins its owner in
@@ -312,7 +316,7 @@ func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.E
 	if id := w.SpawnShopClone(s.Conn, e.Name); id != 0 {
 		s.AutoTrade.CloneID = id
 		ce := w.Entity(id)
-		data := createMobFrom(ce, 0)
+		data := createMobFrom(w, ce, 0)
 		data.Con = 0
 		body := protocol.EncodeCreateMobTradeBody(data, data.Tab, s.AutoTrade.Title)
 		// One broadcast reaches everyone INCLUDING the owner: BroadcastInView
@@ -330,7 +334,7 @@ func (d *Dispatcher) raiseShopStall(w *world.World, s *world.Session, e *world.E
 	// still opens the legacy way — the seller IS the stall, so shopPinsOwner keeps
 	// his old restrictions and walking closes the shop (movement.go).
 	d.log.Info("autotrade sem clone, usando a pose do legado", "conn", s.Conn)
-	data := createMobFrom(e, 0)
+	data := createMobFrom(w, e, 0)
 	data.Con = 0 // _MSG_SendAutoTrade.cpp:118
 	// data.Tab, e não 26 zeros: nesta saída o vendedor É o próprio personagem, e
 	// zerar apagaria a linha que ele escreveu com "/tab" (chat.go).
@@ -442,7 +446,7 @@ func (d *Dispatcher) closeAutoTrade(w *world.World, s *world.Session) {
 	if e == nil || e.Mode != world.MobUser {
 		return
 	}
-	body := protocol.EncodeCreateMobBody(createMobFrom(e, 0))
+	body := protocol.EncodeCreateMobBody(createMobFrom(w, e, 0))
 	w.SendTo(s, protocol.Header{Type: protocol.MsgCreateMob, ID: protocol.IDScene}, body)
 	w.BroadcastInView(s.Conn, protocol.MsgCreateMob, body)
 }

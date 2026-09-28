@@ -52,6 +52,12 @@ const (
 	TipoCompra   Tipo = "compra"   // donate_shop_audit, purchase
 	TipoAjuste   Tipo = "ajuste"   // donate_shop_audit, credit_balance
 	TipoMoeda    Tipo = "moeda"    // donate_shop_audit, credit_item: RCoin usada em jogo
+	// As duas pontas de uma venda na Loja do Servidor, dentro do jogo:
+	// donate_shop_audit, transferencia. São dois tipos e não um com sinal porque
+	// a mesma linha do diário vira DUAS linhas de tela, uma para cada conta, e
+	// quem lê precisa saber de que lado está sem olhar o sinal do valor.
+	TipoLojinhaCompra Tipo = "lojinha_compra"
+	TipoLojinhaVenda  Tipo = "lojinha_venda"
 )
 
 // Evento is one line of the wallet timeline.
@@ -173,6 +179,16 @@ const statusPago = 2
 // 'credit_balance' — so a staff credit is found by the target inside the JSON,
 // not by the column. That asymmetry is in the schema comment and is the reason
 // this query looks the way it does.
+//
+// 'transferencia' is the in-game Server Shop sale, and it is the third shape:
+// ONE row serves TWO accounts, payer in 'de' and seller in 'para', so it is
+// matched on either side. It was being written since the shop went in and never
+// read here — the screen showed a balance dropping with no line explaining it,
+// which is exactly how a wallet loses a reader's trust.
+//
+// The 'moeda' filter is not decoration: the same action also moves rmt_balance,
+// and this timeline is the Rcoin wallet. Without it, money from the other wallet
+// would show up here as if it had left this one.
 func (s *Store) auditoria(ctx context.Context, accountID int64, limite int) ([]Evento, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT a.action, a.shop_item_id, a.before, a.after, a.created_at,
@@ -188,6 +204,8 @@ func (s *Store) auditoria(ctx context.Context, accountID int64, limite int) ([]E
 		  LEFT JOIN donate_shop_item i ON i.id = a.shop_item_id
 		 WHERE (a.action = 'purchase'       AND a.account_id = $1)
 		    OR (a.action IN ('credit_balance', 'credit_item') AND (a.after->>'account_id')::bigint = $1)
+		    OR (a.action = 'transferencia'  AND a.after->>'moeda' = 'donate_balance'
+		        AND ((a.after->>'de')::bigint = $1 OR (a.after->>'para')::bigint = $1))
 		 ORDER BY a.created_at DESC
 		 LIMIT $2`, accountID, limite)
 	if err != nil {
@@ -240,6 +258,28 @@ func (s *Store) auditoria(ctx context.Context, accountID int64, limite int) ([]E
 			ev.Creditos = int64(campos["amount"])
 			ev.Titulo = "RCoin usada em jogo"
 			ev.Detalhe = motivo(depois)
+		case "transferencia":
+			// A venda na Loja do Servidor, dentro do jogo. A MESMA linha do diário
+			// atende as duas contas, então quem decide o lado é o id que esta
+			// consulta está montando, e não a coluna account_id — que aqui é
+			// sempre o pagador.
+			//
+			// O saldo mostrado é o da conta desta tela. Trocar os dois faria a
+			// coluna "saldo depois" mostrar o dinheiro do outro jogador.
+			if int64(campos["de"]) == accountID {
+				ev.Tipo = TipoLojinhaCompra
+				ev.Creditos = -int64(campos["valor"])
+				ev.Titulo = "Compra na lojinha"
+				saldo := int64(campos["saldo_de"])
+				ev.Saldo = &saldo
+			} else {
+				ev.Tipo = TipoLojinhaVenda
+				ev.Creditos = int64(campos["valor"])
+				ev.Titulo = "Venda na lojinha"
+				saldo := int64(campos["saldo_para"])
+				ev.Saldo = &saldo
+			}
+			ev.Detalhe = motivoDaTransferencia(depois)
 		}
 		out = append(out, ev)
 	}
@@ -272,6 +312,23 @@ func motivo(raw []byte) string {
 	}
 	if s, ok := m["reason"].(string); ok && s != "" {
 		return "Motivo: " + s
+	}
+	return ""
+}
+
+// motivoDaTransferencia lê a chave `motivo`, e não `reason`.
+//
+// Quem escreve a transferência é internal/store/lojasaldo.go, que montou o
+// registro em português; as outras ações vêm de código que escreveu em inglês.
+// Uma função só, tentando as duas chaves, esconderia essa diferença de quem
+// mexer no diário depois — e o diário é o que sobra para reconstruir dinheiro.
+func motivoDaTransferencia(raw []byte) string {
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return ""
+	}
+	if s, ok := m["motivo"].(string); ok && s != "" {
+		return s
 	}
 	return ""
 }

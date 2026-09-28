@@ -21,7 +21,7 @@
 ✅ /sair: sai da sua guild (limpa a guild + atualiza a tag; metadados de guild não modelados) <br/>
 ⏳ /guild: mostra o index (ID) da sua guild — sistema de guild não modelado <br/>
 ✅ /buffs: Remove todos os buffs do personagem <br/>
-✅ /xp (ou /bonus): mostra todos os bônus de XP ativos — o total que vale no chão onde o personagem está, de onde cada ponto vem (Baú de XP com o tempo restante, fada, montaria de loja, peças grade 7, peças com joia), os eventos do servidor e a taxa da zona na Mesa de XP. Avisa os dois casos que somem calados: de 500% para cima o jogo ignora o bônus inteiro, e os +30% da Fada Suprema não valem dentro do Pesadelo. Em grupo diz a regra (vale o maior bônus de quem está na luta) e não um número, porque esse depende de quem está perto na hora do abate. Comando novo, não existe na fonte legada <br/>
+✅ /xp (ou /bonus): mostra todos os bônus de XP ativos — o total que vale no chão onde o personagem está, de onde cada ponto vem (Baú de XP com o tempo restante, fada, montaria de loja, peças grade 7, peças com joia), os eventos do servidor e a taxa da zona na Mesa de XP. Avisa os dois casos que somem calados: de 500% para cima o jogo ignora o bônus inteiro, e os +30% da Fada Suprema não valem dentro do Pesadelo. Em grupo diz a regra (vale o bônus de quem matou, como no legado) e não um número, porque esse depende de quem dá cada golpe final. Comando novo, não existe na fonte legada <br/>
 ✅ /status: a ficha de combate que a janela de personagem não tem. Começa pelo que decide o duelo — **acerto e esquiva** em percentual contra um oponente igual, mais os dois números crus por trás deles (a precisão, que é descontada da esquiva do alvo, e a esquiva própria em milésimos, teto 650) —, depois **perfuração e absorção** e o resto do bloco de PvP do equipamento. Só então vem o contexto: Defesa de Evolução, o quanto a montaria absorve, a Jóia da Absorção e o bônus de drop. A Defesa **não** é repetida: a janela do personagem já a mostra. Cada linha só aparece se o personagem tiver aquilo. Não existe "taxa de acerto" absoluta: a rolagem é sempre a sua precisão MENOS a esquiva do outro, por isso o percentual é medido contra uma cópia do próprio personagem. Comando novo, não existe na fonte legada <br/>
 ✅ /fecharloja: fecha a lojinha do personagem e tira o coelho do mundo. É o único jeito de fechar a barraca de pé: a janela da loja fecha sozinha logo depois de abrir, e fechar janela não derruba mais a loja. Comando novo, não existe na fonte legada — ver "Lojinha" abaixo <br/>
 ✅ /pontos: mostra os pontos de lojinha da **conta** e, quando há uma barraca de pé, quanto ela rende por janela e quanto falta para o próximo crédito. Comando novo, não existe na fonte legada — ver "Lojinha" abaixo <br/>
@@ -64,6 +64,11 @@
 ✅ /gm guerra torre fim: encerra agora — a guilda com a torre ganha a fama, como no fim normal <br/>
 ✅ /gm guerra torre estado: fase, dono, horários e a agenda do painel <br/>
 ⏳ /gm guerra cidade / noatum: responde que ainda não existe; entram quando essas guerras forem portadas <br/>
+✅ /gm coliseu ligar / desligar: o Coliseu do legado (ondas das 20h, Batalha Real, Coliseu {N}). Nasce DESLIGADO a cada boot <br/>
+✅ /gm coliseu iniciar / fim: força o evento de ondas agora (entrada tranca, ondas nos minutos 4, 7, 9, 11 e 13, fim no 15) / encerra <br/>
+✅ /gm coliseu batalha [0|1|2] / batalha fim: força uma rodada da Batalha Real (Nv \< 100, \< 200, qualquer) / encerra; precisa de prêmio <br/>
+✅ /gm coliseu horas \<guilda\> [novato], horabatalha \<hora\>, premio \<item\>: as horas (padrão 20, 20 e 19) e o prêmio da Batalha Real (0 a desliga) <br/>
+✅ /gm coliseu estado: interruptor, fases, horas e prêmio <br/>
 
 > `notice` sai na linha de aviso do servidor (MSG_MessagePanel, ID 0 — o `SendNotice` do legado),
 > prefixada `[GM]`. A guerra forçada ignora a hora e o interruptor do painel até terminar, e passa
@@ -223,8 +228,40 @@ O débito é atômico no banco: quem não tem saldo não leva o item, e se a bol
 entre a cobrança e a entrega os pontos voltam sozinhos. Comprar em pontos **não
 encosta no ouro** do personagem.
 
-A **Loja de Pontos** fica em Armia (2139, 2104), ao lado da Kibita. Ela nasce sem
-estoque: o que ela vende e por quanto se define no painel de NPCs.
+O NPC **Loja de Pontos** (Armia, 2139, 2104) está fora do mundo: a 0096 o tirou,
+a 0150 o trouxe de volta por engano e a 0155 o tirou de novo. O template fica sem
+estoque, para a seed do boot não recolocar nada nele.
+
+**A loja de pontos do jogo é a Loja de Honra** — o God of War, "Honor Store", com o
+painel próprio do cliente (`handler/loja_de_honra.go`). Desde 26/09/2026 o estoque
+mora **nas vagas do God of War no painel** (`/npcs`, busca "Honor Store"), e mudar um
+item ou preço entra em jogo em até 15 segundos, sem reiniciar o servidor. Cada vaga
+com **preço em pontos maior que zero** é uma troca; vaga em ouro ou a zero ponto não
+aparece na loja (e o tmServer avisa no log a cada recarga). A aba da janela sai do
+tipo do item: arma em Armas, peça de armadura em Set, o resto em Consumo. Quem está
+com o painel aberto durante uma mudança no estoque recebe aviso e o painel fecha.
+
+A vitrine com que a loja volta do reinício é a da 0167 (26/09/2026): os sete itens de
+25/09 com 30% a menos, e três novos. O preço é medido em dias de barraca aberta 20 h
+por dia (240 pontos sem fada, 560 com a Fada Azul):
+
+| Vaga | Item | Entrega | Pontos | Dias sem / com fada |
+|---|---|---|---|---|
+| 0 | Poeira de Lactolerium (413) | 1 | 70 | 0,3 / 0,1 |
+| 1 | Acelerador de Nascimento (3438) | 1 | 252 | 1,1 / 0,5 |
+| 2 | Poeira de Oriharucon (412) | `61 3` | 336 | 1,4 / 0,6 |
+| 3 | Chave da Caçada Orc (465, `Chave_do_Rei_Orc`) | 1 | 480 | 2 / 0,9 |
+| 4 | Repletion D (4019, `Classe_D`) | `61 5` | 500 | 2,1 / 0,9 |
+| 5 | Fada Azul 24 h (3901) | `106 1` | 672 | 2,8 / 1,2 |
+| 6 | Baú de Experiência (4140) | 1 | 1008 | 4,2 / 1,8 |
+| 7 | Pergaminho da Água (N) LV1 (3173) | `61 3` | 1008 | 4,2 / 1,8 |
+| 8 | Bolsa do Andarilho (3467) | 1 | 1680 | 7 / 3 |
+| 9 | Ovo de Dente de Sabre (2305) | 1 | 3600 | 15 / 6,4 |
+
+Depois do reinício a tabela é só o ponto de partida: quem manda é o painel.
+
+O preço é por compra (a pilha inteira), e o item chega com os efeitos da tabela: a
+pilha com EF_AMOUNT, a fada com o prazo, que só corre depois de equipada.
 
 > O cliente não sabe dessa moeda. A janela de loja desenha o preço em **ouro** que
 > está no `ItemList.bin` dele, que não tem nada a ver com o custo em pontos — por

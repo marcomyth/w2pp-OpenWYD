@@ -98,7 +98,7 @@ func TestAbrirCobrancaRecusaAnuncioQueAcabouDeSerCancelado(t *testing.T) {
 	s, ctx := freshStore(t)
 	vendedor := contaPix(ctx, t, s, "vendedor_corrida2")
 	comprador := contaPix(ctx, t, s, "comprador_corrida2")
-	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF); err != nil {
+	if err := s.SalvarChavePix(ctx, vendedor, "11111111111", ChavePixCPF, "11144477735"); err != nil {
 		t.Fatal(err)
 	}
 	anuncio := anuncioAtivoSimples(ctx, t, s, vendedor, 0)

@@ -121,12 +121,21 @@ func racaoSlot(index int16) int {
 // One per click, as in the legacy: unlike the Âmago there is no roll and no
 // result to tally, so a batch would only hide how much each one gives.
 func (d *Dispatcher) useRacao(w *world.World, s *world.Session, e *world.Entity, body protocol.MsgUseItemBody, src int) {
+	// As duas recusas mudas do legado (:1479-1490) deixam rastro aqui: "o macro de
+	// ração não funciona" (26/09) chegou sem um único "racao fed" da conta, e só o
+	// destino que o cliente mandou separa o macro apontando para outro lugar de
+	// uma ração que nunca chegou ao servidor.
 	if body.DestType != 0 || body.DestPos != mountEquipSlot {
+		d.log.Info("racao recusada: destino não é a montaria",
+			"conn", s.Conn, "account", s.AccountName, "racao", e.Carry[src].Index,
+			"dest_type", body.DestType, "dest_pos", body.DestPos, "src", src)
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}
 	dst := &e.Equip[mountEquipSlot]
 	if dst.Index < mountLo || dst.Index >= mountHi {
+		d.log.Info("racao recusada: sem montaria no slot",
+			"conn", s.Conn, "account", s.AccountName, "racao", e.Carry[src].Index, "mount", dst.Index)
 		d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 		return
 	}

@@ -356,3 +356,7 @@ func TestDataVaziaContaComoNula(t *testing.T) {
 		t.Errorf("hora = %v, quero nula", r.PagoEm.Valor())
 	}
 }
+
+// AQUI HAVIA O TESTE DO MAPA DE TIPO DE CHAVE da rota /repasse. Ele saiu com a rota:
+// o tipo só era traduzido para mandar o saque, e o saque automático foi apagado em
+// 25/09/2026. Quem paga agora é a staff, olhando o tipo em português na tela.

@@ -16,11 +16,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/acesso"
 	"github.com/jeanluca/w2pp-openwyd/internal/combatrule"
 	"github.com/jeanluca/w2pp-openwyd/internal/droprule"
 	"github.com/jeanluca/w2pp-openwyd/internal/dungeon"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/internal/mountbonus"
+	"github.com/jeanluca/w2pp-openwyd/internal/npcgener"
+	"github.com/jeanluca/w2pp-openwyd/internal/npctemplate"
 	"github.com/jeanluca/w2pp-openwyd/internal/spawnrate"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/combine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
@@ -37,9 +40,28 @@ import (
 
 // Config tunes the dispatcher. Zero values get sensible defaults.
 type Config struct {
-	ClientVersion int32            // required client version (default AppVersion 7640)
-	MaxFailLogin  int              // wrong-password lockout threshold (default 3)
-	ServerIndex   int              // legacy guild id high bits (server_index * 4096)
+	ClientVersion int32 // required client version (default AppVersion 7640)
+	MaxFailLogin  int   // wrong-password lockout threshold (default 3)
+	ServerIndex   int   // legacy guild id high bits (server_index * 4096)
+
+	// AcessoRestrito tranca o servidor: só entra quem é staff.
+	//
+	// É para o AMBIENTE DE TESTE, onde o cliente já está distribuído e a conta de
+	// qualquer um serve para entrar. Sem a tranca, o teste vira servidor aberto sem
+	// ninguém ter decidido isso.
+	//
+	// Desligado é o normal, e é o que a produção usa. Ver completeAccountLogin.
+	AcessoRestrito bool
+	// RMT diz quem pode anunciar e comprar por dinheiro real.
+	//
+	// O ZERO VALE FECHADO, e isso é desenho e não acidente: acesso.RMTFechado é o zero do
+	// tipo, então um Config montado sem este campo — num teste, numa montagem nova amanhã
+	// — trava o mercado em vez de abri-lo. Falhar fechado é a regra deste sistema.
+	RMT acesso.EstadoRMT
+
+	// PrazoDaRecusa é quanto o socket de uma recusa de acesso fica de pé. Zero
+	// escolhe o padrão (prazoDaRecusa); o teste o encurta.
+	PrazoDaRecusa time.Duration
 	Log           *slog.Logger     // default slog.Default()
 	Now           func() time.Time // wall clock for calendar-gated guild ops
 
@@ -254,6 +276,12 @@ type Config struct {
 	// but only until the next restart.
 	GeneratorOff GeneratorOffSource
 
+	// Recipes is the block recipes kept in the database (receita.go), polled
+	// live, and RecipeTemplate reads the templates they name. Either nil means
+	// every block spawns as NPCGener.txt says, as before the table existed.
+	Recipes        GeneratorRecipeSource
+	RecipeTemplate RecipeTemplateLoader
+
 	// CombatRules seeds the combat knobs (internal/combatrule). Nil — or a rule
 	// outside the ranges — runs combatrule.Default, the rule decided for this
 	// server; CombatRuleSrc then keeps it in step with the panel.
@@ -300,7 +328,6 @@ type Dispatcher struct {
 	log               *slog.Logger
 	routes            map[protocol.Type]handlerFunc
 	fails             map[string]int        // wrong-password count per account (CheckFailAccount)
-	reportadoEm       map[int64]time.Time   // account id -> last /reportar (flood gate)
 	invisRecarga      map[personagem]uint32 // (conta, slot) -> World.Now do último cast de Invisibilidade
 	tempestadeRecarga map[personagem]uint32 // (conta, slot) -> World.Now do último cast de Tempestade de Flechas
 	combineFamilies   map[protocol.Type]CombineFamily
@@ -402,6 +429,9 @@ type Dispatcher struct {
 	// until the first config arrives (read as the decided default).
 	genChefe   []bool
 	chefeHoras int32
+	// lavaVigia guarda, por bloco, o relógio de sumir dos mini chefes da lava
+	// (dungeon_lava.go).
+	lavaVigia map[int]lavaChefeVigia
 	// reiAvisado marca, por reino (0 Hekalotia, 1 Akelonia), que o aviso de Rei sob
 	// ataque já saiu nesta luta (reinos.go).
 	reiAvisado [2]bool
@@ -419,6 +449,21 @@ type Dispatcher struct {
 	genOffEpoch    int
 	genOffPolling  bool
 	genOffPollTick int
+
+	// The block recipes from the database, read LIVE (receita.go). recipeBase is
+	// the file's blocks, what a block goes back to when its row is deleted;
+	// recipeApplied is what each row put in force, loop-owned.
+	recipeSource   GeneratorRecipeSource
+	recipeTemplate RecipeTemplateLoader
+	recipeBase     []npcgener.Generator
+	recipeApplied  map[int]receitaAplicada
+	recipeVersion  int64
+	recipePolling  bool
+	recipePollTick int
+	// recipeCorpos is every body the file's blocks already draw, taken before
+	// the first recipe goes on: a recipe whose monster wears any other body is
+	// refused (receita.go, corpoConhecido).
+	recipeCorpos npctemplate.Corpos
 
 	// The combat knobs (internal/combatrule), read LIVE like the spawn pacing
 	// (combatrule.go). The zero value is NOT a valid rule, so New seeds it with
@@ -477,6 +522,10 @@ type Dispatcher struct {
 	// equivalent in Server.cpp these are process-wide globals, so one instance
 	// per server. Loop-only.
 	events worldEventState
+
+	// coliseu é o Coliseu do legado: interruptor, horas e as duas máquinas de
+	// relógio (coliseu.go). Nasce desligado. Loop-only.
+	coliseu estadoDoColiseu
 
 	// eventRNG is a DEDICATED MSVC stream for world-event rolls. The legacy draws
 	// them from the single global rand(), but that stream is the one our
@@ -645,6 +694,7 @@ func New(cfg Config) *Dispatcher {
 		heights:           cfg.Heights,
 		attributes:        cfg.Attributes,
 		now:               cfg.Now,
+		coliseu:           novoEstadoDoColiseu(),
 		maxNightmare:      cfg.MaxNightmare,
 		affectDur:         cfg.AffectDuration,
 		serverIndex:       cfg.ServerIndex,
@@ -658,6 +708,8 @@ func New(cfg Config) *Dispatcher {
 		dungeonGateSource: cfg.DungeonGates,
 		spawnRateSource:   cfg.SpawnRates,
 		genOffSource:      cfg.GeneratorOff,
+		recipeSource:      cfg.Recipes,
+		recipeTemplate:    cfg.RecipeTemplate,
 		combatRules:       combatRulesDe(cfg),
 		combatRuleSource:  cfg.CombatRuleSrc,
 		dropRuleSource:    cfg.DropRuleSrc,
@@ -755,12 +807,12 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgLojaCompra] = d.lojaCompra
 	d.routes[protocol.MsgLojaCargo] = d.lojaCargo
 	d.routes[protocol.MsgLojaAbrir] = d.lojaAbrir
+	d.routes[protocol.MsgRcoinPede] = d.rcoinPede
+	d.routes[protocol.MsgRcoinCompra] = d.rcoinCompra
 	// Loja de Honra (loja_de_honra.go). Abrir nao tem rota: quem abre e o clique
 	// no NPC, que chega como MsgReqShopList.
 	d.routes[protocol.MsgHonraCompra] = d.honraCompra
 	d.routes[protocol.MsgHonraFecha] = d.honraFecha
-	// Painel de refino (refino_lote.go): várias poeiras num pedido só.
-	d.routes[protocol.MsgRefinoPede] = d.refinoLote
 	// Batch 6 — combine/refine (one engine, all Item[]-based variants).
 	for _, ty := range combineItemTypes {
 		d.routes[ty] = d.combineItem
@@ -779,8 +831,13 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgAcceptParty] = d.acceptParty
 	d.routes[protocol.MsgRemoveParty] = d.removeParty
 	d.routes[protocol.MsgInviteGuild] = d.inviteGuild
-	d.routes[protocol.MsgGuildAlly] = d.guildAlly
-	d.routes[protocol.MsgWar] = d.war
+	// A ALIANÇA (0x0E12) E A GUERRA DECLARADA (0x0E0E) SAÍRAM, e a ausência é a
+	// decisão: eram o par que se fazia com item, e a Hanna tirou os dois. Sem rota,
+	// o pacote cai no caminho de mensagem desconhecida em vez de executar meio
+	// caminho.
+	//
+	// A GUERRA DE CIDADE CONTINUA INTEIRA — ela é outra coisa, mora na torre
+	// (towerwar.go) e nunca passou por aqui.
 	d.routes[protocol.MsgChallange] = d.challange
 	d.routes[protocol.MsgChallangeConfirm] = d.challangeConfirm
 	// Batch 8 — chat, bonus, quest/cash (stubs).
@@ -788,8 +845,6 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgMessageWhisper] = d.messageWhisper
 	d.routes[protocol.MsgApplyBonus] = d.applyBonus
 	d.routes[protocol.MsgPontosEmLote] = d.pontosEmLote
-	// Painel de up da montaria (montaria_lote.go): várias pilhas de âmago num pedido.
-	d.routes[protocol.MsgMontariaPede] = d.montariaLote
 	// Painel de Guilda (guildapainel.go). Os buffs não têm rota de ativação: quem
 	// liga um buff é um item de cash, pelo caminho normal de usar item.
 	d.routes[protocol.MsgGuildaPede] = d.guildaPede
@@ -799,6 +854,12 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgGuildaCria] = d.guildaCria
 	d.routes[protocol.MsgGuildaAtiva] = d.guildaAtiva
 	d.routes[protocol.MsgGuildaDesigna] = d.guildaDesigna
+	d.routes[protocol.MsgGuildaAcao] = d.guildaAcao
+	d.routes[protocol.MsgGuildaImposto] = d.guildaImposto
+	// A lixeira em lote do inventário (lixeira.go). Ela entra JUNTO com o
+	// desligamento do largar-no-chão, e não depois: sem uma das duas, o jogador fica
+	// sem nenhuma forma de descartar um item.
+	d.routes[protocol.MsgLixeiraApaga] = d.lixeiraApaga
 	d.routes[protocol.MsgSetShortSkill] = d.setShortSkill
 	d.routes[protocol.MsgAccountSecure] = d.accountSecure
 	d.routes[protocol.MsgQuest] = d.quest

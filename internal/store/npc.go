@@ -554,8 +554,12 @@ func (s *Store) inTx(ctx context.Context, fn func(pgx.Tx) error) error {
 }
 
 func (s *Store) loadShopItems(ctx context.Context, q pgxQuerier, npcID int64) ([]domain.NPCShopItem, error) {
+	// price_points vem junto: é a leitura de UM NPC (GetNPCDefinition), a que o
+	// painel faz antes de gravar uma vaga. O painel grava a loja inteira, então um
+	// preço que não viesse aqui voltaria como nulo e apagaria a cobrança em pontos
+	// de todas as outras vagas na primeira edição.
 	rows, err := q.Query(ctx, `
-		SELECT slot, item_index, quantity, eff1, effv1, eff2, effv2, eff3, effv3
+		SELECT slot, item_index, quantity, eff1, effv1, eff2, effv2, eff3, effv3, price_points
 		FROM npc_shop_item WHERE npc_id = $1 ORDER BY slot`, npcID)
 	if err != nil {
 		return nil, fmt.Errorf("store: load shop items %d: %w", npcID, err)
@@ -564,7 +568,8 @@ func (s *Store) loadShopItems(ctx context.Context, q pgxQuerier, npcID int64) ([
 	var out []domain.NPCShopItem
 	for rows.Next() {
 		var it domain.NPCShopItem
-		if err := rows.Scan(&it.Slot, &it.ItemIndex, &it.Quantity, &it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3); err != nil {
+		if err := rows.Scan(&it.Slot, &it.ItemIndex, &it.Quantity, &it.Eff1, &it.EffV1, &it.Eff2, &it.EffV2, &it.Eff3, &it.EffV3,
+			&it.PricePoints); err != nil {
 			return nil, fmt.Errorf("store: scan shop item: %w", err)
 		}
 		normalizeShopQuantity(&it)

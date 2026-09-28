@@ -105,6 +105,9 @@ type LoginOutcome struct {
 	// daqui e o mantém em dia por conta própria a cada venda.
 	Cash int32
 	Rmt  int32
+	// PasseNivel é o nível do passe da CONTA (0..4). Ele vem no login porque é o
+	// jogo que desenha a moldura, e o laço não fala com o banco.
+	PasseNivel uint8
 }
 
 // CargoState is the account-shared warehouse (the legacy STRUCT_ACCOUNTFILE
@@ -124,6 +127,28 @@ type CargoSave struct {
 	AccountID int64
 	Coin      int32
 	Items     []SavedItem
+}
+
+// RcoinOferta is one Loja de Rcoin offer as the dbServer hands it over: the
+// donate_shop_item row with its tab, and the effects already in the delivered
+// form (quantity and un-started days stamped).
+type RcoinOferta struct {
+	ID        int64
+	ItemIndex int16
+	Effects   [3]Effect
+	Category  uint8
+	Price     int32
+	Days      int32
+	Title     string
+}
+
+// RcoinCompra is how a Loja de Rcoin purchase ended. Result carries the 0x0F0F
+// wire code (protocol.RcoinOK..); Balance is the wallet after it, or the current
+// one on a refusal; DeliveryID is the queued item, 0 when nothing was bought.
+type RcoinCompra struct {
+	Result     uint8
+	Balance    int32
+	DeliveryID int64
 }
 
 // Delivery is one pending grant the loop drains from the delivery_queue mailbox
@@ -163,12 +188,13 @@ type CharacterState struct {
 	GuildLevel         uint8
 	Citizen            uint8 // MobExtra.Citizen; city allegiance and guild creation metadata
 	ClassMaster        uint8
-	CelLv40            uint8 // QuestInfo.Celestial.Lv40 gate
-	CelLv90            uint8 // QuestInfo.Celestial.Lv90 gate
-	CelCircle          uint8 // QuestInfo.Circle (Arcana quest done)
-	TerraMistica       uint8 // QuestInfo.Mortal.TerraMistica gate (AMU_MISTICO, issue #139)
-	NewbieQuest        uint8 // QuestInfo.Mortal.Newbie: training-field trainer step (0..4)
-	MolarGargula       uint8 // QuestInfo.Mortal: Molar de Gargula ja usado (0093)
+	CelLv40            uint8  // QuestInfo.Celestial.Lv40 gate
+	CelLv90            uint8  // QuestInfo.Celestial.Lv90 gate
+	CelCircle          uint8  // QuestInfo.Circle (Arcana quest done)
+	TerraMistica       uint8  // QuestInfo.Mortal.TerraMistica gate (AMU_MISTICO, issue #139)
+	NewbieQuest        uint8  // QuestInfo.Mortal.Newbie: training-field trainer step (0..4)
+	MolarGargula       uint8  // QuestInfo.Mortal: Molar de Gargula ja usado (0093)
+	NivelRetroativo    uint16 // pecas de nivel retroativas entregues ate este nivel (0172)
 	ArchLv355          uint8
 	ArchLv370          uint8
 	MortalLevel        uint16
@@ -289,6 +315,7 @@ type CharacterSave struct {
 	TerraMistica       uint8
 	NewbieQuest        uint8
 	MolarGargula       uint8
+	NivelRetroativo    uint16
 	ArchLv355          uint8
 	ArchLv370          uint8
 	MortalLevel        uint16
@@ -320,6 +347,16 @@ type CharacterSave struct {
 
 	Carry []SavedItem
 	Equip []SavedItem
+	// Citizen ENTRA NO SAVE desde 24/09/2026, e ele era a exceção que virou buraco.
+	//
+	// A lista de campos que o save NÃO toca (store_live.go, no comentário do
+	// SaveCharacter) existe para um save em jogo não apagar dado importado que o
+	// mundo não simula — e a cidadania estava lá com razão, porque nada em jogo a
+	// escrevia. A Kibita passou a vendê-la (handler/cidadania.go), e no instante em
+	// que o mundo começou a escrever um campo, deixá-lo fora do save virou o pior
+	// defeito possível: o jogador paga 4.000.000 de ouro, o OURO é gravado, e a
+	// cidadania some no relogin. Dinheiro cobrado por nada.
+	Citizen uint8
 }
 
 // KingdomCapeQuote is one durable pricing revision shared by both kingdoms.
@@ -443,10 +480,16 @@ type CastleQuestState struct {
 // DeleteCharacter/LoadCharacter are called OFF the loop via World.Go (blocking
 // I/O); SaveOnShutdown is called inline during the shutdown drain.
 type Persistence interface {
-	SaveOnShutdown(ctx context.Context, save CharacterSave) error
+	// epoca e seq ordenam esta gravação contra as outras da mesma conta, do mesmo
+	// jeito que ordenam o par: um save velho só do personagem passa por cima do par
+	// novo se ninguém conferir. Zero desliga a guarda.
+	SaveOnShutdown(ctx context.Context, save CharacterSave, epoca, seq int64, soltarPosse bool) error
 	QuoteKingdomCape(ctx context.Context) (KingdomCapeQuote, error)
 	PurchaseKingdomCape(ctx context.Context, expectedRevision int64, kingdom uint8, save CharacterSave) (KingdomCapeQuote, bool, error)
-	AccountLogin(ctx context.Context, name, password string) (LoginOutcome, error)
+	// epoca é esta execução: o login TOMA A POSSE da conta no banco, no mesmo
+	// round trip, e devolve LoginAlreadyPlaying quando outra execução viva está com
+	// ela. Zero desliga a posse.
+	AccountLogin(ctx context.Context, name, password string, epoca int64) (LoginOutcome, error)
 	ListCharacters(ctx context.Context, accountID int64) ([]CharSummary, error)
 	CreateCharacter(ctx context.Context, accountID int64, slot int, name string, class int) (bool, error)
 	CreateArchCharacter(ctx context.Context, accountID int64, name string, class, mortalFace, mortalSlot, mortalLevel int) (int, bool, error)
@@ -489,6 +532,39 @@ type Persistence interface {
 	// drained mailbox rows delivered/lost in one backend transaction — the anti-dup
 	// boundary for the drain.
 	SaveCargoWithDeliveries(ctx context.Context, save CargoSave, deliveredIDs, lostIDs []int64) error
+
+	// SalvarPersonagemComCarga grava personagem e carga na MESMA transação.
+	//
+	// É o caminho de gravação de toda conta que tem personagem em jogo. As duas
+	// metades trocam ouro e itens entre si, e enquanto eram duas transações havia
+	// uma janela em que uma queda deixava a mesma coisa nos dois lados — foi
+	// medido. Não existe ordem segura entre duas transações; a cura é não ter duas.
+	// soltarPosse diz que este é o save de SAÍDA: a posse da conta sai na mesma
+	// transação em que o personagem e a carga entram.
+	SalvarPersonagemComCarga(ctx context.Context, personagem CharacterSave, carga CargoSave,
+		deliveredIDs, lostIDs []int64, epoca, seq int64, soltarPosse bool) error
+
+	// TomarPosseDaConta marca esta execução como dona da conta no BANCO, ou devolve
+	// false porque outra execução viva está com ela.
+	//
+	// É o que impede a mesma conta de estar em jogo em dois tmServers — a
+	// sobreposição de um deploy —, coisa que a trava de dentro do processo
+	// (handler.accountInUse) não alcança.
+	TomarPosseDaConta(ctx context.Context, accountID, epoca int64) (bool, error)
+
+	// SoltarPosseDaConta devolve a conta quando não houve save de saída para levar
+	// a soltura junto: a conta que ficou na seleção de personagem e desconectou.
+	SoltarPosseDaConta(ctx context.Context, accountID, epoca int64) error
+
+	// BaterPelasContas renova a posse e devolve QUAIS contas continuam desta
+	// execução. Quem não volta deixou de ser minha.
+	BaterPelasContas(ctx context.Context, epoca int64, contas []int64) ([]int64, error)
+
+	// NovaEpocaDePar entrega a esta execução o seu número de época, que ordena as
+	// gravações do par. Uma chamada por boot. A época vem do BANCO e não do
+	// relógio: um contador que zera no reinício ficaria abaixo do que o banco
+	// guardou, e nenhuma gravação passaria mais.
+	NovaEpocaDePar(ctx context.Context) (int64, error)
 	// SetAccountBlocked flips account.is_blocked by name — the write side of the
 	// in-game GM ban/unban command (issue #122). Called off the loop via World.Go.
 	SetAccountBlocked(ctx context.Context, name string, blocked bool) error
@@ -554,6 +630,12 @@ type Persistence interface {
 	CreditDonate(ctx context.Context, accountID int64, amount int32, characterName, reason string) (int32, error)
 	// DonateBalance reads that wallet, for the in-game /donate command.
 	DonateBalance(ctx context.Context, accountID int64) (int32, error)
+	// ListRcoinOffers is one tab (1..6, 0 = all) of the Loja de Rcoin with the
+	// account's donate balance read in the same call. Called off the loop.
+	ListRcoinOffers(ctx context.Context, accountID int64, category int32) ([]RcoinOferta, int32, error)
+	// BuyRcoinOffer charges the donate wallet for one offer at the price the
+	// player saw and queues the item. A refusal is a result, not an error.
+	BuyRcoinOffer(ctx context.Context, accountID, offerID int64, seenPrice int32) (RcoinCompra, error)
 
 	// ClaimNewbieKit takes the once-per-account /novato kit (0062_newbie_kit) and
 	// reports whether THIS call took it. Called off the loop via World.Go.
@@ -565,7 +647,7 @@ type Persistence interface {
 
 	// Guild lifecycle/state (issue #114). These calls block on dbServer and must
 	// be made through World.Go/GoDetached by loop handlers.
-	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (GuildRecord, bool, error)
+	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (GuildRecord, bool, GuildRefusal, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
 	LeaveGuild(ctx context.Context, accountID int64, slot int) error
 	PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, bool, error)
@@ -610,7 +692,9 @@ var errNoPersistence = errors.New("world: no persistence backend configured")
 type NopPersistence struct{}
 
 // SaveOnShutdown does nothing.
-func (NopPersistence) SaveOnShutdown(context.Context, CharacterSave) error { return nil }
+func (NopPersistence) SaveOnShutdown(context.Context, CharacterSave, int64, int64, bool) error {
+	return nil
+}
 
 // QuoteKingdomCape returns the balanced development price without persistence.
 func (NopPersistence) QuoteKingdomCape(context.Context) (KingdomCapeQuote, error) {
@@ -623,7 +707,7 @@ func (NopPersistence) PurchaseKingdomCape(context.Context, int64, uint8, Charact
 }
 
 // AccountLogin always reports no account.
-func (NopPersistence) AccountLogin(context.Context, string, string) (LoginOutcome, error) {
+func (NopPersistence) AccountLogin(context.Context, string, string, int64) (LoginOutcome, error) {
 	return LoginOutcome{Result: LoginNoAccount}, nil
 }
 
@@ -700,6 +784,28 @@ func (NopPersistence) ReconcileRmtEscrow(context.Context, int64) ([]int16, error
 	return nil, nil
 }
 
+// SalvarPersonagemComCarga drops both snapshots (no backend to persist to).
+func (NopPersistence) SalvarPersonagemComCarga(context.Context, CharacterSave, CargoSave, []int64, []int64, int64, int64, bool) error {
+	return nil
+}
+
+// NovaEpocaDePar devolve zero, que desliga a guarda de ordem (sem banco não há o
+// que ordenar).
+func (NopPersistence) NovaEpocaDePar(context.Context) (int64, error) { return 0, nil }
+
+// TomarPosseDaConta deixa passar: sem banco não há posse a disputar.
+func (NopPersistence) TomarPosseDaConta(context.Context, int64, int64) (bool, error) {
+	return true, nil
+}
+
+// SoltarPosseDaConta não faz nada.
+func (NopPersistence) SoltarPosseDaConta(context.Context, int64, int64) error { return nil }
+
+// BaterPelasContas devolve as mesmas contas: sem banco, nenhuma muda de dono.
+func (NopPersistence) BaterPelasContas(_ context.Context, _ int64, contas []int64) ([]int64, error) {
+	return contas, nil
+}
+
 // SaveCargoWithDeliveries drops the snapshot (no backend to persist to).
 func (NopPersistence) SaveCargoWithDeliveries(context.Context, CargoSave, []int64, []int64) error {
 	return nil
@@ -773,6 +879,16 @@ func (NopPersistence) DonateBalance(context.Context, int64) (int32, error) {
 	return 0, errNoPersistence
 }
 
+// ListRcoinOffers without a backend has no shop to read.
+func (NopPersistence) ListRcoinOffers(context.Context, int64, int32) ([]RcoinOferta, int32, error) {
+	return nil, 0, errNoPersistence
+}
+
+// BuyRcoinOffer without a backend refuses: there is no wallet to charge.
+func (NopPersistence) BuyRcoinOffer(context.Context, int64, int64, int32) (RcoinCompra, error) {
+	return RcoinCompra{}, errNoPersistence
+}
+
 // ClaimNewbieKit refuses without a backend. A server booted with no -dbserver has
 // nowhere to write the claim, and granting the kit anyway would make it
 // once-per-LOGIN instead of once-per-account — an item faucet.
@@ -781,8 +897,8 @@ func (NopPersistence) ClaimNewbieKit(context.Context, int64, string) (bool, erro
 }
 
 // CreateGuild is unsupported without a backend.
-func (NopPersistence) CreateGuild(context.Context, int64, int, string, string, uint8, uint8, int, int32) (GuildRecord, bool, error) {
-	return GuildRecord{}, false, errNoPersistence
+func (NopPersistence) CreateGuild(context.Context, int64, int, string, string, uint8, uint8, int, int32) (GuildRecord, bool, GuildRefusal, error) {
+	return GuildRecord{}, false, GuildRefusalUnknown, errNoPersistence
 }
 
 // SetGuildMember is unsupported without a backend.
@@ -988,3 +1104,24 @@ type TradeRecord struct {
 	ItemsA   []TradeItem
 	ItemsB   []TradeItem
 }
+
+// GuildRefusal é POR QUE a criação de guilda foi recusada.
+//
+// Um tipo do mundo e não o enum do proto: o pacote world não importa gRPC, e um tipo
+// próprio é o que mantém essa fronteira. O dbclient traduz.
+//
+// Existe porque as quatro recusas viravam um "não deu" mudo, e o jogo dizia a mesma
+// frase para todas — "confira se o nome já não existe". Para três delas isso era mentira,
+// e foi essa mentira que escondeu um defeito de ouro por horas em 25/09/2026.
+type GuildRefusal uint8
+
+const (
+	// GuildRefusalUnknown: o dbServer não disse, ou disse algo que esta versão não
+	// conhece. O jogo cai na frase geral — nunca afirma um motivo que não recebeu.
+	GuildRefusalUnknown GuildRefusal = iota
+	GuildRefusalNameTaken
+	GuildRefusalNotEnoughCoin
+	GuildRefusalAlreadyInGuild
+	GuildRefusalNoFreeSlot
+	GuildRefusalCharacterGone
+)

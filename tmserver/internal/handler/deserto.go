@@ -120,24 +120,36 @@ func geradorDoBossManticora(w *world.World, idx int) bool {
 // bossManticoraSorteia devolve o prêmio que um sorteio r em [0, bossManticoraBase)
 // escolhe.
 func bossManticoraSorteia(r int) bossManticoraPremio {
-	for _, p := range bossManticoraPremios {
+	return sorteiaPremioDeChefe(bossManticoraPremios, r)
+}
+
+// sorteiaPremioDeChefe devolve o prêmio da tabela que um sorteio r em [0, soma
+// dos pesos) escolhe. O Boss Mantícora e o Boss Dragão Lich (dungeon.go) usam.
+func sorteiaPremioDeChefe(premios []bossManticoraPremio, r int) bossManticoraPremio {
+	for _, p := range premios {
 		if r < p.peso {
 			return p
 		}
 		r -= p.peso
 	}
-	return bossManticoraPremios[len(bossManticoraPremios)-1]
+	return premios[len(premios)-1]
 }
 
 // bossManticoraSaque entrega o prêmio da morte do Boss Mantícora na bolsa de quem
-// mata. Dois sorteios, sempre na mesma ordem: o prêmio, e N ou B para o pacote.
-// Se a Mesa de Drops tem regra para o item sorteado neste monstro (ou um "*" a
-// 0% que o tire do mundo), vale a Mesa.
+// mata (entregaPremioDeChefe).
 func (d *Dispatcher) bossManticoraSaque(w *world.World, reward, mob *world.Entity) {
 	if !isBossManticora(mob) {
 		return
 	}
-	p := bossManticoraSorteia(w.Rand().Intn(bossManticoraBase))
+	d.entregaPremioDeChefe(w, reward, mob, bossManticoraPremios, bossManticoraBase)
+}
+
+// entregaPremioDeChefe sorteia um prêmio da tabela e o entrega na bolsa de quem
+// mata. Dois sorteios, sempre na mesma ordem: o prêmio, e N ou B para o pacote.
+// Se a Mesa de Drops tem regra para o item sorteado neste monstro (ou um "*" a 0%
+// que o tire do mundo), vale a Mesa.
+func (d *Dispatcher) entregaPremioDeChefe(w *world.World, reward, mob *world.Entity, premios []bossManticoraPremio, base int) {
+	p := sorteiaPremioDeChefe(premios, w.Rand().Intn(base))
 	item := p.itemN
 	if p.itemB != 0 && w.Rand().Intn(2) == 1 {
 		item = p.itemB

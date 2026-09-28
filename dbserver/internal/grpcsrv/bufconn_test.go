@@ -221,3 +221,93 @@ func TestCreditDonateOverWire(t *testing.T) {
 		t.Errorf("a recusa mexeu na carteira: saldo = %d, quer 1100", saldo.GetBalance())
 	}
 }
+
+// A Loja de Rcoin no fake: uma fada de 60 na aba 5, e a compra que confere o
+// preço visto e o saldo como o banco confere.
+func (f *fakeStore) ListRcoinOffers(_ context.Context, category int32) ([]domain.RcoinOffer, error) {
+	fada := domain.RcoinOffer{
+		DonateShopItem: domain.DonateShopItem{ID: 55, ItemIndex: 3901, Eff1: 106, EffV1: 3,
+			Price: 60, Title: "Fada Azul 3 dias", ExpiresDays: 3, Enabled: true},
+		Category: 5,
+	}
+	if category == 0 || category == 5 {
+		return []domain.RcoinOffer{fada}, nil
+	}
+	return nil, nil
+}
+
+func (f *fakeStore) BuyRcoinOffer(_ context.Context, accountID, offerID int64, seenPrice int32) (store.RcoinBuyResult, int32, int64, error) {
+	saldo := f.donate[accountID]
+	switch {
+	case offerID != 55:
+		return store.RcoinBuyUnavailable, saldo, 0, nil
+	case seenPrice != 60:
+		return store.RcoinBuyPriceChanged, saldo, 0, nil
+	case saldo < 60:
+		return store.RcoinBuyNoFunds, saldo, 0, nil
+	}
+	f.donate[accountID] = saldo - 60
+	return store.RcoinBuyOK, saldo - 60, 900, nil
+}
+
+// TestLojaDeRcoinOverWire cobre o que o tmServer pede ao dbServer pela janela de
+// Rcoin: a aba com o saldo junto, e a compra com cada resultado do contrato.
+func TestLojaDeRcoinOverWire(t *testing.T) {
+	fs := &fakeStore{donate: map[int64]int32{7: 100}}
+	lis := bufconn.Listen(1 << 20)
+	srv := grpc.NewServer()
+	dbv1.RegisterAccountServiceServer(srv, New(fs))
+	go func() { _ = srv.Serve(lis) }()
+	t.Cleanup(srv.Stop)
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return lis.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	client := dbv1.NewAccountServiceClient(conn)
+	ctx := context.Background()
+
+	lista, err := client.ListRcoinOffers(ctx, &dbv1.ListRcoinOffersRequest{Category: 5, AccountId: 7})
+	if err != nil {
+		t.Fatalf("ListRcoinOffers: %v", err)
+	}
+	if lista.GetBalance() != 100 || len(lista.GetOffers()) != 1 {
+		t.Fatalf("lista = %+v", lista)
+	}
+	o := lista.GetOffers()[0]
+	if o.GetId() != 55 || o.GetCategory() != 5 || o.GetEff1() != 106 || o.GetEffv1() != 3 || o.GetTitle() != "Fada Azul 3 dias" {
+		t.Errorf("oferta = %+v", o)
+	}
+	if _, err := client.ListRcoinOffers(ctx, &dbv1.ListRcoinOffersRequest{Category: 5}); err == nil {
+		t.Error("lista sem conta foi aceita")
+	}
+
+	casos := []struct {
+		nome   string
+		oferta int64
+		preco  int32
+		quer   dbv1.RcoinBuyResult
+		saldo  int32
+	}{
+		{"preço mudou", 55, 59, dbv1.RcoinBuyResult_RCOIN_BUY_PRICE_CHANGED, 100},
+		{"indisponível", 56, 60, dbv1.RcoinBuyResult_RCOIN_BUY_UNAVAILABLE, 100},
+		{"compra", 55, 60, dbv1.RcoinBuyResult_RCOIN_BUY_OK, 40},
+		{"sem saldo", 55, 60, dbv1.RcoinBuyResult_RCOIN_BUY_NO_FUNDS, 40},
+	}
+	for _, c := range casos {
+		resp, err := client.BuyRcoinOffer(ctx, &dbv1.BuyRcoinOfferRequest{AccountId: 7, OfferId: c.oferta, SeenPrice: c.preco})
+		if err != nil {
+			t.Fatalf("%s: %v", c.nome, err)
+		}
+		if resp.GetResult() != c.quer || resp.GetBalance() != c.saldo {
+			t.Errorf("%s = (%v, %d), quer (%v, %d)", c.nome, resp.GetResult(), resp.GetBalance(), c.quer, c.saldo)
+		}
+		if (c.quer == dbv1.RcoinBuyResult_RCOIN_BUY_OK) != (resp.GetDeliveryId() != 0) {
+			t.Errorf("%s: delivery_id = %d", c.nome, resp.GetDeliveryId())
+		}
+	}
+}

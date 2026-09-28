@@ -269,3 +269,6 @@ ModelManifest.xml
 # Generated proprietary client-derived item icons. Publish these artifacts;
 # never commit the pixels.
 /dist/item-icons/
+
+# Lista gerada pelo scripts/pacotes-de-teste.sh durante a CI.
+pacotes-com-banco.txt

@@ -61,11 +61,11 @@ func startServerUnicornio(t *testing.T, persist world.Persistence) (string, func
 // qualquer segue com o próprio Merchant.
 func TestUnicornioPuroApareceComoLoja(t *testing.T) {
 	unicornio := &world.Entity{ID: shopNPCID, Merchant: merchantUnicornioPuro}
-	if got := createMobFrom(unicornio, 0).Merchant; got != 1 {
+	if got := createMobFrom(nil, unicornio, 0).Merchant; got != 1 {
 		t.Errorf("CreateMob do Unicórnio com Merchant %d; o cliente só abre loja com 1", got)
 	}
 	banco := &world.Entity{ID: shopNPCID + 1, Merchant: 2}
-	if got := createMobFrom(banco, 0).Merchant; got != 2 {
+	if got := createMobFrom(nil, banco, 0).Merchant; got != 2 {
 		t.Errorf("o Guarda-Carga passou a mandar Merchant %d", got)
 	}
 }

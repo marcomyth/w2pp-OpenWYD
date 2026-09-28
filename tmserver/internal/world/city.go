@@ -19,6 +19,23 @@ var cities = [5]city{
 	{1050, 1706, 1036, 1700, 1072, 1760}, // 4 Noatum
 }
 
+// nomesDasCidades acompanha a tabela acima, na MESMA ordem. As duas juntas porque
+// uma lista de nomes noutro arquivo vira a segunda fonte que discorda da primeira no
+// dia em que alguém acrescentar uma cidade.
+var nomesDasCidades = [5]string{"Armia", "Azran", "Erion", "Nippleheim", "Noatum"}
+
+// NomeDaVila escreve a cidade por extenso. Índice fora da tabela — o -1 de "fora de
+// cidade", por exemplo — devolve vazio.
+//
+// Vazio e não "cidade 7": é melhor não dizer nada do que mostrar um número que
+// ninguém sabe ler.
+func NomeDaVila(i int) string {
+	if i < 0 || i >= len(nomesDasCidades) {
+		return ""
+	}
+	return nomesDasCidades[i]
+}
+
 // Village returns the city index (0..4) whose rectangle contains (x,y), or -1
 // (BASE_GetVillage).
 func Village(x, y int16) int {

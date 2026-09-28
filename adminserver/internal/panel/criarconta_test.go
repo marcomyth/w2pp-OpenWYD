@@ -2,13 +2,17 @@ package panel
 
 import (
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/accounts"
 	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/audit"
+	"github.com/jeanluca/w2pp-openwyd/adminserver/internal/session"
 	"github.com/jeanluca/w2pp-openwyd/internal/secret"
 )
 
@@ -188,4 +192,52 @@ func dumpJSON(t *testing.T, v any) string {
 		t.Fatalf("marshal: %v", err)
 	}
 	return string(b)
+}
+
+// NO AMBIENTE TRANCADO A ROTA DE CRIAR CONTA NÃO EXISTE.
+//
+// Rota ausente e não rota que recusa: um botão que existe e sempre nega é pior do
+// que um botão que não está lá — a pessoa clica, lê um erro, e tenta de novo.
+//
+// E a razão de trancar até aqui, onde quem está do outro lado já é staff: uma sessão
+// esquecida aberta cria conta de jogador num servidor que deveria estar trancado.
+func TestNoAmbienteTrancadoNaoDaParaCriarConta(t *testing.T) {
+	wr := newFakeWriter()
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: wr, Audit: newFakeAudit(),
+		Sessions: session.New(time.Hour), SemCadastro: true,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := postSigned(t, h.Routes(), "/contas/criar", url.Values{"nome": {"novato"}})
+
+	// 405 e não 404, e a diferença é do roteador e não da tranca: o caminho
+	// /contas/{nome} existe para GET, então o POST sem rota bate nele e o Go
+	// responde "método não permitido". O que importa é que não é 2xx e que NADA foi
+	// criado — a segunda parte é a que prova a tranca.
+	if rec.Code != http.StatusNotFound && rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("codigo = %d, quero 404 ou 405", rec.Code)
+	}
+	if n := len(wr.criadas); n != 0 {
+		t.Errorf("criou %d conta(s) num servidor trancado", n)
+	}
+}
+
+// E A TROCA DE CARGO CONTINUA, senão ninguém vira staff no ambiente trancado.
+func TestNoAmbienteTrancadoATrocaDeCargoContinua(t *testing.T) {
+	h, err := New(Config{
+		Accounts: withTarget(roleAdmin), Writer: newFakeWriter(), Audit: newFakeAudit(),
+		Sessions: session.New(time.Hour), SemCadastro: true,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), SecureOnly: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := postSigned(t, h.Routes(), "/contas/ana/cargo", url.Values{"cargo": {"moderator"}})
+
+	if rec.Code == http.StatusNotFound {
+		t.Error("a troca de cargo sumiu junto; ninguem viraria staff no teste")
+	}
 }

@@ -110,6 +110,10 @@ type Character struct {
 	Equip          []Item // owner_kind = char_equip
 	Carry          []Item // owner_kind = char_carry
 	Affects        []Affect
+
+	// NivelRetroativo marca até onde o personagem recebeu as peças de nível que o
+	// jogo deixou de entregar (0172): 0 nada, 1-399 até aquele nível, 1000 concluído.
+	NivelRetroativo uint16
 }
 
 // KingdomCapeQuote is the persisted, versioned sapphire price snapshot.
@@ -508,6 +512,15 @@ type DonateShopItem struct {
 	ExpiresDays int32
 }
 
+// RcoinOffer is a donate shop offer as the in-game Loja de Rcoin shows it: the
+// row, its tab (1..6), and the effects in the form the purchase DELIVERS them —
+// with the quantity and the un-started lifetime already stamped — so the window
+// draws the item the player will actually receive.
+type RcoinOffer struct {
+	DonateShopItem
+	Category int16
+}
+
 // Delivery is one pending item grant the tmServer drains from delivery_queue
 // into the account cargo (web-platform-plan.md §mailbox). ExpiresAt on the Item
 // is absolute Unix-seconds (0 = permanent).
@@ -549,6 +562,9 @@ type TopupOrder struct {
 	AmountCents       int64
 	PaymentMethod     int16
 	Status            int16
+	// PacoteID é qual pacote foi comprado, pelo id que o site usa. Vazio numa doação
+	// sem pacote, que é todo pedido anterior aos pacotes existirem.
+	PacoteID string
 }
 
 // --- painel de faturamento read models (web.v1.DonateRevenueAdminService) ---
@@ -1189,6 +1205,12 @@ type ChatVarredura struct {
 // worth reading: nobody duplicates a plain sword.
 const EffSanc = 43
 
+// EffAmount is EF_AMOUNT, the effect whose value is how many units a stack holds
+// (internal/pilha.EfAmount). Not imported from there because internal/pilha is
+// the game's stacking RULE and this is the storage layer's reading of one byte;
+// the two happening to share a number does not make one depend on the other.
+const EffAmount = 61
+
 // CensusRun is one day's snapshot of the item table (0032_item_census).
 //
 // CountedAt is not decoration. There is no periodic character save — items
@@ -1197,8 +1219,12 @@ const EffSanc = 43
 type CensusRun struct {
 	Day       time.Time
 	CountedAt time.Time
-	Units     int // unidades ao todo
+	Units     int // linhas de item ao todo
 	Kinds     int // linhas (índice+refino) diferentes
+	// Pecas é quantas peças existiam, somando o tamanho de cada pilha. Nulo nos
+	// dias fotografados antes da migração 0174: aquela contagem não pode ser
+	// refeita, e "não sei" não é a mesma coisa que zero.
+	Pecas *int64
 }
 
 // Zero reports whether the run is missing, which is what an empty database and
@@ -1211,9 +1237,17 @@ type ItemCensus struct {
 	Index int32
 	Sanc  int16
 
-	Units int // no dia mais recente
-	Was   int // no dia de comparação
+	Units int // linhas no dia mais recente
+	Was   int // linhas no dia de comparação
 	Delta int // Units - Was
+
+	// Peças: a mesma conta somando o tamanho de cada pilha (0174). Uma pilha de
+	// 120 moedas é UMA linha e CENTO E VINTE peças, e é por isso que as duas
+	// contas andam juntas: mesma quantidade de espaços com muito mais coisa
+	// dentro é o formato de uma pilha duplicada.
+	Pecas      int64
+	PecasAntes int64
+	DeltaPecas int64
 
 	Equipped int
 	Carried  int
@@ -1240,6 +1274,11 @@ type CensusCompare struct {
 	De    CensusRun
 	Ate   CensusRun
 	Linha []ItemCensus
+	// PorPecas diz qual das duas contas escolheu e ordenou as linhas. Só é
+	// verdadeiro quando OS DOIS dias têm o número de peças: comparar um dia com
+	// peças contra um dia sem daria um salto enorme que não é duplicação nenhuma.
+	// A tela precisa dizer qual conta está lendo, ou o número mente sobre si.
+	PorPecas bool
 }
 
 // GroundRetentionDays is how long a ground event is kept.
@@ -1281,6 +1320,47 @@ type GeneratorOff struct {
 type GeneratorOffConfig struct {
 	Version int64
 	Off     []GeneratorOff
+}
+
+// NewGeneratorIndexBase is where blocks created by the panel start. The file's
+// own blocks are numbered from 0 and the file grows every week; a block that
+// lives only in the database must never land on an index the file will reach.
+const NewGeneratorIndexBase = 20000
+
+// MaxGeneratorIndex is the highest block index a mob can carry: every spawned
+// mob keeps its block in an int16 (MobSpawn.GenIndex).
+const MaxGeneratorIndex = 32767
+
+// GeneratorRecipe is the whole spawn recipe of one NPCGener block, kept in the
+// database (npc_generator_recipe). It replaces what the file says for that
+// block; a block at NewGeneratorIndexBase or above exists only here.
+//
+// Seg* follow the legacy waypoint order: Start, Segment1..3, Dest.
+type GeneratorRecipe struct {
+	Index          int32
+	Leader         string
+	Follower       string // "" = leader-only groups
+	MinuteGenerate int32
+	MinGroup       int32
+	MaxGroup       int32
+	MaxNumMob      int32
+	RouteType      int32
+	Formation      int32
+	SegX, SegY     [5]int32
+	SegRange       [5]int32
+	SegWait        [5]int32
+	// Renovar is bumped by the panel's "trocar os vivos agora": a server that
+	// sees it move clears the block's live mobs and raises them again from this
+	// recipe. Without a bump the change reaches only the next ones to be born.
+	Renovar int64
+	Nota    string
+}
+
+// GeneratorRecipeConfig is every block the database gives a recipe, plus the
+// version they belong to. A block absent from Recipes spawns as the file says.
+type GeneratorRecipeConfig struct {
+	Version int64
+	Recipes []GeneratorRecipe
 }
 
 // QuestReward is one quest trophy's payout (items 4117..4121, EF_VOLATILE 191):

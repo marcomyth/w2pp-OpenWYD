@@ -67,12 +67,21 @@ type CobrancaRMT struct {
 
 // JanelaPadraoCobranca é quanto tempo o comprador tem para pagar.
 //
-// Cinco minutos é o ponto de partida escolhido pela Hanna, e é um número para
-// MEDIR e não para defender. A troca é dos dois lados: janela curta prende menos
-// o item do vendedor, e faz o Pix atrasado — que ainda entrega — ser mais comum.
-// Janela longa faz o contrário. Quem decide é o volume de `pago_com_atraso`, que
-// a 0105 guarda justamente para esta pergunta ter resposta.
-const JanelaPadraoCobranca = 5 * time.Minute
+// QUINZE MINUTOS desde 25/09/2026, e antes eram cinco. A troca é dos dois lados:
+// janela curta prende menos o item do vendedor e faz o Pix atrasado — que ainda
+// entrega — ser mais comum; janela longa faz o contrário. Quem decide é o volume de
+// `pago_com_atraso`, que a 0105 guarda justamente para esta pergunta ter resposta.
+//
+// Cinco era apertado para alguém pagando Pix de verdade, e um pagamento que cai
+// pouco depois do prazo não entrega o item na hora: vai para reembolso, e a pessoa vê
+// "venceu" tendo pagado.
+//
+// ESTE VALOR TEM DE CASAR COM handler.JanelaDeCobranca, do tmServer. Os dois são
+// padrões do MESMO prazo, lidos em processos diferentes: o jogo promete o tempo na
+// mensagem ao comprador, e é este lado que grava o expira_em. Se discordarem, a
+// mensagem mente — e mentir sobre prazo de pagamento é a mentira mais cara que esta
+// tela pode contar.
+const JanelaPadraoCobranca = 15 * time.Minute
 
 // Método de pagamento (0105). Coluna e nunca parte de nome, para cartão reusar a
 // mesma tabela.
@@ -154,6 +163,23 @@ func (s *Store) AbrirCobrancaRMT(ctx context.Context, anuncioID, compradorConta 
 		}
 		if cob.VendedorConta == compradorConta {
 			res = CompradorEOVendedor
+			return nil
+		}
+		// ABAIXO DO MÍNIMO NÃO ABRE COBRANÇA, e esta trava existe para os anúncios
+		// que JÁ ESTÃO no banco abaixo dele.
+		//
+		// A trava principal é na montagem da barraca, no jogo, onde o vendedor pode
+		// consertar. Mas quando o mínimo nasceu (24/09/2026) já havia anúncio de um
+		// centavo gravado, de um teste. Em vez de fechá-los à força — mexer em anúncio
+		// de outra pessoa por migração — eles simplesmente não vendem, e morrem
+		// sozinhos quando a barraca descer, como todo anúncio.
+		//
+		// A resposta é a MESMA de indisponível, de propósito: para quem compra, um
+		// anúncio que não pode ser vendido e um que não existe mais dão no mesmo, e
+		// inventar um motivo novo no contrato obrigaria um handshake com o site por
+		// uma situação que vai desaparecer sozinha.
+		if cob.ValorCentavos < PrecoMinimoRMTCentavos || cob.ValorCentavos > TetoDaVendaRMTCentavos {
+			res = AnuncioNaoDisponivel
 			return nil
 		}
 
@@ -238,6 +264,35 @@ var errCompradorJaTemCobranca = errors.New("store: o comprador ja tem cobranca a
 // dois como um só faria a mensagem mentir metade das vezes.
 
 // completaDestino lê a chave Pix do vendedor, que é o que vira o QR.
+// PrecoMinimoRMTCentavos é o menor preço que um item pode ter em dinheiro real.
+//
+// R$ 1,00, decisão da Hanna de 24/09/2026. UM LUGAR SÓ porque DUAS travas o leem — a
+// montagem da barraca, no jogo, e a abertura da cobrança, aqui — e dois números que
+// deveriam ser iguais acabam diferentes no dia em que alguém muda um.
+//
+// POR QUE EXISTE UM MÍNIMO: a processadora cobra taxa por cobrança. Um item de um
+// centavo custa mais para vender do que rende, e o repasse ao vendedor sairia
+// negativo. Não é regra de gosto, é aritmética.
+//
+// SUBIU DE R$ 1,00 PARA R$ 5,00 quando a taxa da casa entrou (taxa_rmt.go). Com R$ 0,80
+// fixos por venda, R$ 1,00 deixaria o vendedor com R$ 0,15 — e uma venda que entrega
+// quinze centavos não é uma venda, é uma reclamação. O TestATaxaNuncaComeAVendaInteira
+// é o que prende os dois números juntos: baixar este mínimo sem olhar a taxa quebra
+// aquele teste em vez de quebrar o bolso de quem vendeu.
+const PrecoMinimoRMTCentavos = 500
+
+// TetoDaVendaRMTCentavos é o maior preço que um item pode ter em dinheiro real.
+//
+// R$ 500,00, decisão da Hanna. NÃO existia teto nenhum antes, e a falta dele é mais
+// perigosa que a falta do mínimo: um preço de R$ 50.000 num anúncio é um erro de
+// digitação plausível, e do outro lado dele há um Pix de verdade saindo da conta de
+// alguém. O mínimo protege o vendedor de vender de graça; o teto protege o comprador de
+// pagar uma fortuna por engano, e a casa de virar caminho de lavagem.
+//
+// LIDO NOS DOIS LUGARES, como o mínimo: a montagem da barraca, no jogo, e a abertura da
+// cobrança. Só na montagem deixaria um cliente remendado passar por cima.
+const TetoDaVendaRMTCentavos = 50_000
+
 func completaDestino(ctx context.Context, tx pgx.Tx, cob *CobrancaRMT) error {
 	err := tx.QueryRow(ctx, `
 		SELECT a.vendedor_conta, r.chave
@@ -307,12 +362,30 @@ func (s *Store) CancelarCobrancaRMT(ctx context.Context, referenciaExterna strin
 	return tag.RowsAffected() > 0, nil
 }
 
-// ExpirarCobrancasRMT fecha as cobranças cujo prazo acabou.
+// ExpirarCobrancasRMT fecha as cobranças cujo prazo acabou e que NINGUÉM PODERIA
+// TER PAGO.
 //
 // A expiração é por VARREDURA e não por temporizador, e isso não é preguiça: um
 // temporizador por cobrança morre com o processo, e o prazo tem de continuar
 // valendo depois de um reinício. A linha guarda `expira_em`; a varredura só lê o
 // que o banco já sabe.
+//
+// SÓ AS SEM IDENTIFIER, e essa condição é a correção de um buraco que devolvia
+// dinheiro de gente. Antes, esta varredura vencia qualquer cobrança no prazo, sem
+// perguntar nada à processadora — e a reconciliação então soltava o item do
+// vendedor. Um Pix pago no último segundo, com o aviso atrasado, virava um
+// pagamento sem item: a pessoa pagava, não recebia, e o item já tinha voltado para
+// o vendedor.
+//
+// O identifier nasce junto com o código Pix. Sem ele não há código, e sem código
+// ninguém conseguiu pagar — então estas aqui vencem sem se perguntar nada. As
+// outras são vencidas pela varredura do webserver, DEPOIS de ela consultar a
+// processadora, porque é lá que moram as credenciais da ponte.
+//
+// Se o webserver estiver fora, as com identifier param de vencer e o item do
+// vendedor fica preso além do combinado. É a troca deliberada: item preso se
+// conserta, dinheiro entregue a quem não devia não. O tamanho da fila sai no log
+// pela CobrancasVencidasSemConferir.
 //
 // A DIVERGENTE NÃO VENCE. Nela o dinheiro JÁ ENTROU, com o valor errado, e está
 // esperando uma pessoa. Vencer aqui soltaria o item de quem recebeu o pagamento —
@@ -324,6 +397,7 @@ func (s *Store) ExpirarCobrancasRMT(ctx context.Context) ([]int64, error) {
 		UPDATE rmt_cobranca SET status = $1, encerrada_em = now()
 		 WHERE status = $2 AND expira_em <= now()
 		   AND valor_divergente_centavos IS NULL
+		   AND identifier_syncpay IS NULL
 		RETURNING anuncio_id`, cobrancaExpirada, cobrancaAberta)
 	if err != nil {
 		return nil, fmt.Errorf("store: expirar cobrancas: %w", err)

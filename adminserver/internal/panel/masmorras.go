@@ -118,7 +118,7 @@ func (h *Handler) setMasmorra(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.cfg.Audit.Write(r.Context(), audit.Record{
-		ActorID: sess.AccountID, ActorRole: roleFrom(r.Context()),
+		ActorID: sess.AccountID, AtorPainelID: sess.PainelUsuarioID, ActorRole: roleFrom(r.Context()),
 		Action: audit.ActionSetDungeonGate,
 		Old:    portaParaAudit(antes), New: portaParaAudit(novo),
 	}); err != nil {
