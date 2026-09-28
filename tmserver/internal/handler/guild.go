@@ -638,13 +638,29 @@ func (d *Dispatcher) persistLeaveGuild(w *world.World, s *world.Session) {
 	accountID, slot := s.AccountID, s.Slot
 	p := w.Persistence()
 	w.Go(s, func() func(*world.World, *world.Session) {
-		err := p.LeaveGuild(context.Background(), accountID, slot)
-		return func(_ *world.World, _ *world.Session) {
+		apagada, err := p.LeaveGuild(context.Background(), accountID, slot)
+		return func(w *world.World, _ *world.Session) {
 			if err != nil {
 				d.log.Warn("persist leave guild failed", "account", accountID, "slot", slot, "err", err)
+				return
+			}
+			if apagada != 0 {
+				d.esqueceGuildaApagada(w, apagada)
 			}
 		}
 	})
+}
+
+// esqueceGuildaApagada solta o que o tmServer guarda de uma guilda que o
+// dbServer apagou por ter ficado sem ninguém: o nome (que o /create consulta),
+// os buffs ligados e o quadro do painel. Nenhum jogador a carrega mais, então
+// não há etiqueta de ninguém para refazer.
+func (d *Dispatcher) esqueceGuildaApagada(w *world.World, guilda uint16) {
+	nome := guildDisplayName(w, guilda)
+	w.ForgetGuild(guilda)
+	delete(d.guildaBuffs, guilda)
+	d.guildaEsqueceQuadro(guilda)
+	d.log.Info("guilda vazia apagada", "guild", nome, "id", guilda)
 }
 
 func (d *Dispatcher) persistGuildZone(w *world.World, s *world.Session, z world.GuildZone) {
