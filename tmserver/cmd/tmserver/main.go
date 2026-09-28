@@ -730,9 +730,10 @@ func run(logger *slog.Logger) error {
 		MaxMsgPerSec:   *maxMsgPerSec,
 		MsgBurst:       *msgBurst,
 		IdleTimeout:    time.Duration(*idleTimeoutSec) * time.Second,
-		// Long enough for the "server is restarting" frame to leave the socket,
-		// short enough to leave the character saves their share of the SIGTERM →
-		// SIGKILL window (Docker's default grace is 10s). Only production sets
+		// Long enough for the "server is restarting" frame to leave the socket.
+		// The saves run inside it, not after it (world/desligamento.go): the
+		// SIGTERM → SIGKILL window is the platform's, and on 27/09 it ended
+		// before a save that waited this long could finish. Only production sets
 		// this; tests leave it zero so they do not pay it on every world.
 		ShutdownGrace: 2 * time.Second,
 		StatusFile:    statusFile,

@@ -116,12 +116,18 @@ type Config struct {
 	// content the world neither has nor should have. Nil means nothing is
 	// stamped, which is what tests and a catalog-less boot want.
 	Marcavel func(Item) bool
-	// ShutdownGrace is how long the loop waits after warning players that the
-	// server is stopping, so their sockets flush the frame before shutdown closes
-	// them. ZERO means announce and move on, which is what tests want: they spin
-	// worlds up and down constantly and would otherwise pay this on every one.
-	// cmd/tmserver sets the real value.
+	// ShutdownGrace is the least time between warning players that the server is
+	// stopping and closing their sockets, so the frame leaves before the socket
+	// does. It is counted from the warning and the saves run INSIDE it — it is
+	// never waited before them (desligamento.go). ZERO means announce and move
+	// on, which is what tests want: they spin worlds up and down constantly and
+	// would otherwise pay this on every one. cmd/tmserver sets the real value.
 	ShutdownGrace time.Duration
+
+	// ShutdownSaveDeadline bounds the shutdown saves. Zero means
+	// prazoDoDesligamento; tests shorten it to exercise a database that never
+	// answers.
+	ShutdownSaveDeadline time.Duration
 
 	// Hardening (Fase 7, migration-plan.md §5), all opt-in:
 	// RejectChecksum drops a connection on a CPSock checksum mismatch. The legacy
@@ -363,8 +369,7 @@ func (w *World) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			w.announceShutdown()
-			w.shutdown()
+			w.shutdown(w.announceShutdown() > 0)
 			return ctx.Err()
 		case cb := <-w.callbacks:
 			w.applyTimed(cb)
@@ -373,8 +378,7 @@ func (w *World) Run(ctx context.Context) error {
 		}
 		select {
 		case <-ctx.Done():
-			w.announceShutdown()
-			w.shutdown()
+			w.shutdown(w.announceShutdown() > 0)
 			return ctx.Err()
 		case cb := <-w.callbacks:
 			w.applyTimed(cb)
@@ -460,71 +464,6 @@ func (w *World) applyRecovered(ev event) {
 		w.removeSession(sess) // closes the socket as part of teardown
 	}()
 	ev.apply(w)
-}
-
-// shutdown drains active sessions: persist players in-world, then stop their I/O.
-func (w *World) shutdown() {
-	close(w.done) // signal conn goroutines to stop sending events
-	saved := 0
-	// O REINÍCIO SEGURO TAMBÉM GRAVA OS DOIS JUNTOS.
-	//
-	// Aqui eram duas varreduras em sequência: todos os personagens, depois todas as
-	// cargas, cada uma na sua transação. A janela era pequena — o processo estaria
-	// morrendo no meio do desligamento — mas era o mesmo espelho do dupe, e não há
-	// motivo para deixá-la. Agora cada conta com personagem em jogo vai numa
-	// transação só, e a segunda varredura cuida apenas das cargas que sobraram:
-	// contas na tela de seleção, que não têm mochila viva para discordar delas.
-	for _, s := range w.sessions {
-		if s == nil {
-			continue
-		}
-		// A MOCHILA VIVA, e não o modo: uma sessão apanhada em UserWaitDB — no meio
-		// de uma ida ao banco — tem personagem carregado, e deixá-la de fora aqui
-		// faria a carga dela ou ser gravada sozinha embaixo, ou não ser gravada.
-		if w.temMochilaViva(s) {
-			cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
-			if err := SalvarPar(context.Background(), w.persist, cs, carga, temCarga, unacked, w.parEpoca, seq, false); err != nil {
-				w.log.Warn("save on shutdown failed", "conn", s.Conn, "err", err)
-			} else {
-				saved++
-				if temCarga {
-					delete(w.cargo, cs.AccountID)
-					delete(w.deliveryPlaced, cs.AccountID)
-					delete(w.deliveryUnacked, cs.AccountID)
-				}
-			}
-		}
-		s.close()
-	}
-	// As cargas que sobraram: contas carregadas SEM mochila viva — a conta na tela
-	// de seleção —, onde não há personagem para discordar delas.
-	//
-	// A conta cujo par falhou acima fica de fora de propósito. Gravar a carga dela
-	// sozinha recriaria as duas metades em desacordo. Ficando de fora, o banco
-	// mantém o par ANTIGO inteiro, que é consistente: perde-se o progresso desde o
-	// último save, mas nas duas metades JUNTAS, e nada duplica.
-	for accountID := range w.cargo {
-		if w.personagemVivoNaConta(accountID) != nil {
-			continue
-		}
-		if err := saveCargoFor(context.Background(), w.persist, w.cargoSave(accountID), w.deliveryUnacked[accountID]); err != nil {
-			w.log.Warn("save cargo on shutdown failed", "account", accountID, "err", err)
-		}
-	}
-	// The last few seconds of chat, written straight rather than buffered: the
-	// loop is ending, so there is no tick left to flush it and no reason to hand
-	// it to a goroutine nobody will wait for.
-	if len(w.chatBuf) > 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), chatTempo)
-		if err := w.persist.RecordChat(ctx, w.chatBuf); err != nil {
-			w.log.Warn("chat log: last batch lost on shutdown", "linhas", len(w.chatBuf), "err", err)
-		}
-		cancel()
-		w.chatBuf = nil
-	}
-	// Wait for in-flight disconnect/logout saves so a shutdown never loses one.
-	w.saveWG.Wait()
-	w.log.Info("world loop stopped", "sessions_saved", saved)
 }
 
 // parDeSalvamento tira os DOIS instantâneos — o do personagem e o da carga da
