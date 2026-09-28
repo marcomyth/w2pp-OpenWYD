@@ -72,10 +72,9 @@ func TestRepletionDefesaAltaVemSozinha(t *testing.T) {
 			if d := total - 1; d > 1e-9 || d < -1e-9 {
 				t.Fatalf("as chances somam %.6f, quer 1", total)
 			}
-			// Metade dos sorteios de peito e calça é o ramo da Defesa, e toda
-			// Defesa da Repletion passa de 30: metade das peças sai só com Defesa.
-			if d := sozinha - 0.5; d > 1e-9 || d < -1e-9 {
-				t.Errorf("peças só com Defesa: %.4f, quer 0,5", sozinha)
+			// Desde 28/09 a Defesa alta é a chance extra sobre a tabela do legado.
+			if d := sozinha - classeDefesaAltaPct/100.0; d > 1e-9 || d < -1e-9 {
+				t.Errorf("peças só com Defesa: %.4f, quer %.2f", sozinha, classeDefesaAltaPct/100.0)
 			}
 		})
 	}
@@ -96,5 +95,42 @@ func TestRepletionLuvaNuncaTemDefesa(t *testing.T) {
 		if a1.Effect != efDamageBonus && a1.Effect != efMagic {
 			t.Errorf("o primeiro add da luva saiu %d/%d, quer Dano ou Magia", a1.Effect, a1.Value)
 		}
+	}
+}
+
+// A fórmula do legado não se apaga (Marco, 28/09/2026): toda linha de
+// g_pBonusValue2 continua saindo no peito e na calça, cada uma com a mesma
+// chance, fora a parte da Defesa alta. Os pools de 26/09 tinham tirado todas —
+// Magia 10 + Defesa 30 e Dano 24 + Crítico 7% deixaram de existir na Repletion.
+func TestRepletionMantemATabelaDoLegado(t *testing.T) {
+	porLinha := (1 - classeDefesaAltaPct/100.0) / float64(len(bonusValue2))
+	for _, c := range []struct {
+		nome string
+		nPos int
+	}{{"peito", nPosChest}, {"calça", nPosLegs}} {
+		t.Run(c.nome, func(t *testing.T) {
+			pares := classePares(t, c.nPos)
+			for _, row := range bonusValue2 {
+				par := [2]world.Effect{
+					{Effect: uint8(row[0]), Value: uint8(row[1])},
+					{Effect: uint8(row[2]), Value: uint8(row[3])},
+				}
+				if d := pares[par] - porLinha; d > 1e-9 || d < -1e-9 {
+					t.Errorf("linha %v do legado sai com %.5f, quer %.5f", row, pares[par], porLinha)
+				}
+			}
+			for _, alvo := range []struct {
+				nome string
+				par  [2]world.Effect
+			}{
+				{"Magia 10 + Defesa 30", [2]world.Effect{{Effect: efMagic, Value: 10}, {Effect: efAC, Value: 30}}},
+				{"Dano 24 + Crítico 7%", [2]world.Effect{{Effect: efDamageBonus, Value: 24}, {Effect: efCritical2, Value: 70}}},
+				{"Dano 30 + Crítico 7%", [2]world.Effect{{Effect: efDamageBonus, Value: 30}, {Effect: efCritical2, Value: 70}}},
+			} {
+				if pares[alvo.par] == 0 {
+					t.Errorf("%s não sai mais da Repletion", alvo.nome)
+				}
+			}
+		})
 	}
 }

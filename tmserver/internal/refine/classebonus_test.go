@@ -59,8 +59,8 @@ func TestClasseBonusTablePerSlot(t *testing.T) {
 		size int
 	}{
 		{"helm", nPosHelm, len(bonusValue3)},
-		{"chest", nPosChest, pesoTotal(classeDanoPeito)},
-		{"legs", nPosLegs, pesoTotal(classeDanoPeito)},
+		{"chest", nPosChest, len(bonusValue2)},
+		{"legs", nPosLegs, len(bonusValue2)},
 		{"glove", nPosGlove, pesoTotal(classeDanoLuva)},
 		{"boot", nPosBoot, len(bonusValue5)},
 	}
@@ -244,27 +244,30 @@ func classeChances(t *testing.T, nPos int) map[world.Effect]float64 {
 	return chances
 }
 
-// The team's odds (26/09/2026): chest and legs roll defense or crit half and
-// half; defense 35/40/45/50 at 50/30/20/5 (of 105), crit 1% or 2%. The glove
-// rolls skill or defense half and half; skill 12/15/18 with 18 at 5%, defense
-// 40/45/50 at 30/20/5 on EF_AC — never the EF_ACADD2 this port does not read.
+// Chest and legs (28/09/2026): 90% the legacy row of g_pBonusValue2, whose
+// second add is defense 30/25/20/15/10 in 6/6/6/5/4 of the 48 rows and crit
+// 5/6/7% in 7 rows each; 10% the team's defense 35/40/45/50 alone, at 50/30/20/5
+// of 105. The glove rolls skill 12/15/18 with 18 at 5%.
 func TestClasseAddsSegueAsChancesDaEquipe(t *testing.T) {
 	const tol = 1e-9
+	legado := func(linhas int) float64 { return (1 - classeDefesaAltaPct/100.0) * float64(linhas) / 48 }
+	alta := func(peso int) float64 { return classeDefesaAltaPct / 100.0 * float64(peso) / 105 }
+	peitoECalca := map[world.Effect]float64{
+		{Effect: efAC, Value: 30}: legado(6), {Effect: efAC, Value: 25}: legado(6),
+		{Effect: efAC, Value: 20}: legado(6), {Effect: efAC, Value: 15}: legado(5),
+		{Effect: efAC, Value: 10}:        legado(4),
+		{Effect: efCritical2, Value: 50}: legado(7), {Effect: efCritical2, Value: 60}: legado(7),
+		{Effect: efCritical2, Value: 70}: legado(7),
+		{Effect: efAC, Value: 35}:        alta(50), {Effect: efAC, Value: 40}: alta(30),
+		{Effect: efAC, Value: 45}: alta(20), {Effect: efAC, Value: 50}: alta(5),
+	}
 	cases := []struct {
 		nome string
 		nPos int
 		want map[world.Effect]float64
 	}{
-		{"peito", nPosChest, map[world.Effect]float64{
-			{Effect: efAC, Value: 35}: 0.5 * 50 / 105, {Effect: efAC, Value: 40}: 0.5 * 30 / 105,
-			{Effect: efAC, Value: 45}: 0.5 * 20 / 105, {Effect: efAC, Value: 50}: 0.5 * 5 / 105,
-			{Effect: efCritical2, Value: 10}: 0.25, {Effect: efCritical2, Value: 20}: 0.25,
-		}},
-		{"calça", nPosLegs, map[world.Effect]float64{
-			{Effect: efAC, Value: 35}: 0.5 * 50 / 105, {Effect: efAC, Value: 40}: 0.5 * 30 / 105,
-			{Effect: efAC, Value: 45}: 0.5 * 20 / 105, {Effect: efAC, Value: 50}: 0.5 * 5 / 105,
-			{Effect: efCritical2, Value: 10}: 0.25, {Effect: efCritical2, Value: 20}: 0.25,
-		}},
+		{"peito", nPosChest, peitoECalca},
+		{"calça", nPosLegs, peitoECalca},
 		// Desde 27/09/2026 a luva só sorteia Skill: a Defesa é de peito e calça.
 		{"luva", nPosGlove, map[world.Effect]float64{
 			{Effect: efSpecialAll, Value: 12}: 55.0 / 100, {Effect: efSpecialAll, Value: 15}: 40.0 / 100,
@@ -290,8 +293,7 @@ func TestClasseAddsSegueAsChancesDaEquipe(t *testing.T) {
 // make the top values unreachable in production.
 func TestClasseAddsCabemNoRand(t *testing.T) {
 	for _, pool := range [][]classeValor{
-		classeDanoPeito, classeDanoLuva, classeDefesaPeito, classeCriticoPeito,
-		classeSkillLuva,
+		classeDanoLuva, classeDefesaPeito, classeSkillLuva,
 	} {
 		if n := pesoTotal(pool); n > 32767 {
 			t.Errorf("peso total %d passa do rand() do MSVC", n)
