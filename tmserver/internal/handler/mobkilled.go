@@ -622,11 +622,18 @@ func (d *Dispatcher) announceMobKill(w *world.World, killer, mob *world.Entity, 
 	}
 	hdr := protocol.Header{Type: protocol.MsgCNFMobKill, ID: protocol.IDScene}
 	// Around the DYING mob, which is where GridMulticast is centred — everyone who
-	// can see the death, the killer included.
-	if ks := w.Session(killer.ID); ks != nil {
-		w.SendTo(ks, hdr, protocol.EncodeCNFMobKillBody(uint16(mob.ID), uint16(killer.ID), exp))
-	}
-	// Everyone else is told the kill with THEIR OWN total, not the killer's.
+	// can see the death, and the killer only if it is one of them.
+	//
+	// The killer used to be told wherever it stood, and that made ghosts. A pet's
+	// kill is paid to its owner, and the leash (summonLeash) is longer than the
+	// view: the BM walks on, the monster leaves its view with a RemoveMob, the pets
+	// finish it behind. The client keeps the entity past a RemoveMob, and this
+	// frame, naming that id, drew it again with its life at zero — and the
+	// RemoveMob of the death goes only to who sees the body. The BateNeles hit a
+	// Morlock nobody else saw for hours (27/09). The gain still reaches the owner
+	// on the EXP panel (grantExp); only the event is withheld, as in the legacy.
+	//
+	// Everyone is told the kill with THEIR OWN total, not the killer's.
 	//
 	// The Exp field is read as "the experience you now have", so sending the
 	// killer's total to a bystander made the client show the difference between
@@ -638,11 +645,8 @@ func (d *Dispatcher) announceMobKill(w *world.World, killer, mob *world.Entity, 
 	// It also fixes the other half: a party member who earns experience without
 	// swinging now sees it, because this is the packet that reaches them.
 	w.ForEachInView(mob.ID, func(vs *world.Session, ve *world.Entity) {
-		if vs.Conn == killer.ID {
-			return // already told above; ForEachInView excludes only the mob itself
-		}
 		seu := exp
-		if ve != nil {
+		if vs.Conn != killer.ID && ve != nil {
 			seu = ve.Exp
 		}
 		w.SendTo(vs, hdr, protocol.EncodeCNFMobKillBody(uint16(mob.ID), uint16(killer.ID), seu))

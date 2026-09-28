@@ -976,6 +976,9 @@ func (d *Dispatcher) mobAttack(w *world.World, id int, e, target *world.Entity) 
 	}
 	payload := body.Encode()
 	w.ForEachInView(id, func(vs *world.Session, _ *world.Entity) {
+		if !conheceOsMonstrosDoGolpe(w, vs, body.Dam) {
+			return
+		}
 		d.ensureSeenMob(w, vs, id)
 		w.SendTo(vs, protocol.Header{Type: tipo, ID: protocol.IDScene}, payload)
 	})
@@ -990,6 +993,26 @@ func (d *Dispatcher) mobAttack(w *world.World, id int, e, target *world.Entity) 
 		}
 	}
 	d.concluirGolpeDeMonstro(w, e, target, sk)
+}
+
+// conheceOsMonstrosDoGolpe diz se o cliente de vs conhece todo monstro que o
+// golpe nomeia em Dam[].
+//
+// O golpe vai a quem vê o ATACANTE, e o alvo pode estar fora da vista dessa
+// pessoa: o pet bate a 16 casas do dono num monstro a 17, que o dono já apagou
+// com um RemoveMob. O cliente guarda a entidade depois do RemoveMob, e o golpe
+// que nomeia aquele id a trazia de volta; quando o monstro morria, o RemoveMob
+// da morte ia só a quem via o corpo, e ela ficava na tela do dono para sempre (o
+// Morlock do BateNeles, 27/09). Para quem não conhece o alvo, o golpe não vai:
+// ele só veria o pet batendo no vazio. Alvo jogador não entra na conta: o caso
+// foi de monstro, e a regra não se estende além dele.
+func conheceOsMonstrosDoGolpe(w *world.World, vs *world.Session, dam []protocol.DamEntry) bool {
+	for _, d := range dam {
+		if id := int(d.TargetID); id >= world.MaxUser && !w.Seen(vs, id) {
+			return false
+		}
+	}
+	return true
 }
 
 // golpeDeArea é um alvo a mais de uma magia de área de pet.
