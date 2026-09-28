@@ -97,8 +97,12 @@ type fakeDB struct {
 	createdGuilds []world.GuildRecord
 	// guildas é o que ListGuilds devolve no boot; guildaApagadaNaSaida é a guilda
 	// que o LeaveGuild diz ter apagado por ter ficado vazia.
-	guildas                  []world.GuildRecord
-	guildaApagadaNaSaida     uint16
+	guildas              []world.GuildRecord
+	guildaApagadaNaSaida uint16
+	// expulsosOffline registra quem o expulsar offline pediu ao banco;
+	// recusaExpulsar é o motivo que o fake devolve.
+	expulsosOffline          []string
+	recusaExpulsar           world.GuildKickRefusal
 	recusaDeGuilda           world.GuildRefusal
 	guildaConfereOuroGravado bool
 	recusaGuilda             bool
@@ -366,6 +370,13 @@ func (f *fakeDB) CreateGuild(_ context.Context, accountID int64, slot int, _, gu
 
 func (f *fakeDB) SetGuildMember(context.Context, int64, int, string, uint16, uint8) error {
 	return nil
+}
+
+func (f *fakeDB) KickOfflineGuildMember(_ context.Context, _ uint16, _ int64, _ int, nome string) (world.GuildKickRefusal, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.expulsosOffline = append(f.expulsosOffline, nome)
+	return f.recusaExpulsar, nil
 }
 
 func (f *fakeDB) LeaveGuild(context.Context, int64, int) (uint16, error) {

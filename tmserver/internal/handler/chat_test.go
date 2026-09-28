@@ -844,3 +844,43 @@ func TestSairDaGuildaVaziaSoltaONome(t *testing.T) {
 		t.Fatalf("created guilds = %+v, want Teste", db.createdGuilds)
 	}
 }
+
+// TestExpulsarMembroOffline: o alvo fora do jogo não é mais "não conectado" — a
+// expulsão vai pelo banco e quem expulsou ouve o resultado. Foi o caso de
+// 28/09/2026: bots numa guilda de teste que ninguém conseguia tirar.
+func TestExpulsarMembroOffline(t *testing.T) {
+	casos := []struct {
+		nome   string
+		recusa world.GuildKickRefusal
+		comeco string
+	}{
+		{"expulsa", world.GuildKickRefusalNone, "Bot01 foi expulso"},
+		{"nao e membro", world.GuildKickRefusalNotMember, "Bot01 não é membro"},
+		{"cargo", world.GuildKickRefusalOutranked, "Você não pode expulsar Bot01"},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			db := newDB()
+			db.recusaExpulsar = c.recusa
+			db.loads = map[int64]world.CharacterState{
+				7: {Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000, GuildID: 5, GuildLevel: 9},
+			}
+			addr, stop, _ := startServerClock(t, db)
+			defer stop()
+			a := enterWorldAs(t, addr, "tester")
+			defer a.Close()
+			drainRaw(t, a)
+
+			whisperFrame(t, a, "expulsar", "Bot01")
+			msg := decodePanel(expect(t, a, protocol.MsgMessagePanel))
+			if !strings.HasPrefix(msg, c.comeco) {
+				t.Fatalf("mensagem = %q, queria começar com %q", msg, c.comeco)
+			}
+			db.mu.Lock()
+			defer db.mu.Unlock()
+			if len(db.expulsosOffline) != 1 || db.expulsosOffline[0] != "Bot01" {
+				t.Fatalf("expulsos no banco = %v, queria [Bot01]", db.expulsosOffline)
+			}
+		})
+	}
+}

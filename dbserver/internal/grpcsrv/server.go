@@ -81,6 +81,7 @@ type Store interface {
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
 	LeaveGuild(ctx context.Context, accountID int64, slot int) (uint16, error)
+	KickOfflineGuildMember(ctx context.Context, guildID uint16, kickerAccountID int64, kickerSlot int, targetName string) error
 	PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, error)
 	TransferGuildLeader(ctx context.Context, guildID uint16, oldAccountID int64, oldSlot int, newAccountID int64, newSlot int) error
 	SetGuildRelation(ctx context.Context, guildID, targetGuildID uint16, kind domain.GuildRelationKind) error
@@ -645,6 +646,22 @@ func (s *Server) LeaveGuild(ctx context.Context, req *dbv1.LeaveGuildRequest) (*
 		return nil, status.Errorf(codes.Internal, "leave guild: %v", err)
 	}
 	return &dbv1.SetGuildMemberResponse{Ok: true, DissolvedGuildId: uint32(apagada)}, nil
+}
+
+// KickOfflineGuildMember expulsa um membro que não está no jogo. As duas
+// recusas previstas voltam como resposta, não como erro: são o que o líder lê.
+func (s *Server) KickOfflineGuildMember(ctx context.Context, req *dbv1.KickOfflineGuildMemberRequest) (*dbv1.KickOfflineGuildMemberResponse, error) {
+	err := s.store.KickOfflineGuildMember(ctx, uint16(req.GetGuildId()), req.GetKickerAccountId(),
+		int(req.GetKickerSlot()), req.GetTargetName())
+	switch {
+	case err == nil:
+		return &dbv1.KickOfflineGuildMemberResponse{Ok: true}, nil
+	case errors.Is(err, store.ErrNotFound):
+		return &dbv1.KickOfflineGuildMemberResponse{Refusal: dbv1.KickGuildRefusal_KICK_GUILD_REFUSAL_NOT_MEMBER}, nil
+	case errors.Is(err, store.ErrConflict):
+		return &dbv1.KickOfflineGuildMemberResponse{Refusal: dbv1.KickGuildRefusal_KICK_GUILD_REFUSAL_OUTRANKED}, nil
+	}
+	return nil, status.Errorf(codes.Internal, "kick offline guild member: %v", err)
 }
 
 // PromoteGuildMember promotes a member to the first free sub-leader rank.

@@ -295,6 +295,8 @@ service AccountService {
   rpc CreateGuild(CreateGuildRequest) returns (CreateGuildResponse);
   rpc SetGuildMember(SetGuildMemberRequest) returns (SetGuildMemberResponse);
   rpc LeaveGuild(LeaveGuildRequest) returns (SetGuildMemberResponse);
+  // Expulsa um membro que NAO esta no jogo, direto no banco.
+  rpc KickOfflineGuildMember(KickOfflineGuildMemberRequest) returns (KickOfflineGuildMemberResponse);
   rpc PromoteGuildMember(PromoteGuildMemberRequest) returns (PromoteGuildMemberResponse);
   rpc TransferGuildLeader(TransferGuildLeaderRequest) returns (SetGuildMemberResponse);
   rpc SetGuildRelation(SetGuildRelationRequest) returns (SetGuildRelationResponse);
@@ -1099,6 +1101,28 @@ message SetGuildMemberResponse {
 message LeaveGuildRequest {
   int64 account_id = 1;
   int32 slot = 2;
+}
+
+message KickOfflineGuildMemberRequest {
+  uint32 guild_id = 1;
+  int64 kicker_account_id = 2;
+  int32 kicker_slot = 3;
+  string target_name = 4;
+}
+
+// KickGuildRefusal diz por que o expulsar offline nao aconteceu.
+enum KickGuildRefusal {
+  // UNSPECIFIED: sem motivo informado; quem le trata como motivo desconhecido.
+  KICK_GUILD_REFUSAL_UNSPECIFIED = 0;
+  // NOT_MEMBER: nenhum personagem com esse nome nesta guilda.
+  KICK_GUILD_REFUSAL_NOT_MEMBER = 1;
+  // OUTRANKED: quem expulsa nao tem cargo maior que o do alvo.
+  KICK_GUILD_REFUSAL_OUTRANKED = 2;
+}
+
+message KickOfflineGuildMemberResponse {
+  bool ok = 1;
+  KickGuildRefusal refusal = 2;
 }
 
 message PromoteGuildMemberRequest {
