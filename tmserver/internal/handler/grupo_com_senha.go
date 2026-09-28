@@ -61,7 +61,8 @@ const (
 	// ESCRITO ERRADO NA PRIMEIRA VERSÃO, e vale registrar porque o erro é barato de
 	// repetir: estava 60 com o comentário "segundos", ou seja, a janela reabria a
 	// cada 60 MILISSEGUNDOS e o limite de cinco não protegia nada — qualquer laço
-	// adivinharia uma senha de quatro caracteres à vontade. O sufixo Ms no nome é a
+	// adivinharia uma senha de quatro caracteres à vontade. Este era o defeito grave
+	// e ele valia SEMPRE, em produção inclusive. O sufixo Ms no nome é a
 	// convenção que o resto do pacote já usa (canalEsperaMs) exatamente para esta
 	// confusão não acontecer de novo.
 	//
@@ -323,19 +324,23 @@ func (d *Dispatcher) transferirLiderancaDoGrupo(w *world.World, s *world.Session
 // para o teste — que é o jeito clássico de um teste de janela de tempo passar a
 // medir a si mesmo.
 func (d *Dispatcher) podeTentarEntrarNoGrupo(agora uint32, conn int) bool {
-	// O "existe" NÃO É ZELO, e a falta dele era um segundo defeito.
+	// O "existe" TIRA A DEPENDÊNCIA DO VALOR DO RELÓGIO, e é por isso que ele fica.
 	//
-	// Sem ele, a primeira tentativa de um personagem lia o valor zero do mapa, com
-	// desde=0, e a conta "agora - 0" dá o relógio inteiro do mundo — um número enorme,
-	// bem maior que a janela. A entrada era então tratada como janela VELHA e
-	// reiniciada... com desde=agora só nesse ramo, que não rodava, porque
-	// "agora - 0 >= janela" é verdadeiro e reiniciava certo por acidente ENQUANTO a
-	// janela era 60. Com a janela em 60_000 o acidente virou: "agora - 0" continua
-	// enorme, mas o desde ficava 0 para sempre e a janela reabria sozinha.
+	// Sem ele, a primeira tentativa de um personagem lê o valor zero do mapa, com
+	// desde=0, e a conta passa a ser "agora - 0", ou seja, o relógio inteiro. Na maior
+	// parte do tempo esse número é bem maior que a janela, o ramo de reinício roda e
+	// grava desde=agora — funciona, por tabela.
 	//
-	// Ou seja: o valor zero do mapa se passa por "uma janela que começou no instante
-	// zero", e instante zero está sempre longe. Perguntar se a entrada EXISTE é a
-	// única forma de distinguir "nunca tentou" de "tentou há muito tempo".
+	// O FURO É QUANDO "agora" É MENOR QUE A JANELA, e ele existe em dois lugares de
+	// verdade: no relógio de teste, que começa perto de zero, e em produção durante um
+	// minuto a cada ~49,7 dias, quando o uint32 de milissegundos do World.Now dá a
+	// volta. Nessa janela a primeira tentativa não reinicia, o desde fica 0, e o
+	// contador se comporta de um jeito que depende de que hora do ciclo é.
+	//
+	// Um limite que vale sempre, menos num minuto a cada cinquenta dias, é um limite
+	// que ninguém vai conseguir explicar no dia em que falhar. Perguntar se a entrada
+	// EXISTE separa "nunca tentou" de "tentou há muito tempo" sem olhar o relógio, e aí
+	// não há hora do ciclo que mude a resposta.
 	t, existe := d.tentativasDeGrupo[conn]
 	if !existe || agora-t.desde >= janelaDeTentativasMs {
 		t = tentativasDeGrupo{desde: agora}
