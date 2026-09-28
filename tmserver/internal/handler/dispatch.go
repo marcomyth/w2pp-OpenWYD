@@ -324,12 +324,17 @@ type handlerFunc func(w *world.World, s *world.Session, h protocol.Header, paylo
 // wrong-password counters) is only touched from the loop goroutine, so it needs
 // no locks.
 type Dispatcher struct {
-	cfg               Config
-	log               *slog.Logger
-	routes            map[protocol.Type]handlerFunc
-	fails             map[string]int        // wrong-password count per account (CheckFailAccount)
-	invisRecarga      map[personagem]uint32 // (conta, slot) -> World.Now do último cast de Invisibilidade
-	tempestadeRecarga map[personagem]uint32 // (conta, slot) -> World.Now do último cast de Tempestade de Flechas
+	cfg    Config
+	log    *slog.Logger
+	routes map[protocol.Type]handlerFunc
+	fails  map[string]int // wrong-password count per account (CheckFailAccount)
+	// Grupo com senha (grupo_com_senha.go). Fora da Entity de proposito: conn e
+	// reciclado para o proximo jogador, e uma senha deixada na Entity viraria a senha
+	// do grupo de um estranho. Limpos em SessionEnd.
+	senhasDeGrupo     map[int]string            // conn do lider -> senha do grupo
+	tentativasDeGrupo map[int]tentativasDeGrupo // conn -> tentativas de /entrar na janela
+	invisRecarga      map[personagem]uint32     // (conta, slot) -> World.Now do último cast de Invisibilidade
+	tempestadeRecarga map[personagem]uint32     // (conta, slot) -> World.Now do último cast de Tempestade de Flechas
 	combineFamilies   map[protocol.Type]CombineFamily
 	odinCatalog       combine.Catalog
 	combineCatalog    combine.Catalog
@@ -658,6 +663,8 @@ func New(cfg Config) *Dispatcher {
 		log:               cfg.Log,
 		routes:            make(map[protocol.Type]handlerFunc),
 		fails:             make(map[string]int),
+		senhasDeGrupo:     make(map[int]string),
+		tentativasDeGrupo: make(map[int]tentativasDeGrupo),
 		combineFamilies:   cfg.CombineFamilies,
 		odinCatalog:       cfg.OdinCatalog,
 		combineCatalog:    cfg.CombineCatalog,
