@@ -295,8 +295,8 @@ func TestAcampamentoTrollMigracaoDosPacotes(t *testing.T) {
 	}
 }
 
-// O acampamento usa a Chave do Rei Orc, então a entrada dos Elfos sorteia uma
-// chave só: um sorteio ganho não pode render duas.
+// A entrada paga dos Elfos não dá chave nenhuma desde 27/09/2026: nem a Chave do
+// Rei Orc, que passou a cair só no abate, nem a antiga Chave dos Trolls.
 func TestAcampamentoTrollChaveNoTicketDosElfos(t *testing.T) {
 	d, w, e := mobKilledWorld(t)
 	d.eventRNG = sorteioFixo(0)
@@ -314,8 +314,8 @@ func TestAcampamentoTrollChaveNoTicketDosElfos(t *testing.T) {
 			t.Error("a entrada ainda dá a antiga Chave dos Trolls (3223)")
 		}
 	}
-	if chaves != 1 {
-		t.Errorf("a entrada paga nos Elfos deu %d Chaves do Rei Orc, want 1", chaves)
+	if chaves != 0 {
+		t.Errorf("a entrada paga nos Elfos deu %d Chaves do Rei Orc, want 0", chaves)
 	}
 }
 
