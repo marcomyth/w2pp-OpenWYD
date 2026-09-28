@@ -181,10 +181,17 @@ func TestCiclopeTiranoTemplate(t *testing.T) {
 	if b.Equip[13].Index != 0 {
 		t.Errorf("Equip[13] = %d, want sem divisor", b.Equip[13].Index)
 	}
+	// Vida e dano x3 desde 28/09/2026 (pedido do Marco): 1,8 milhão e 1.818.
 	for _, s := range []savefmt.Score{b.BaseScore, b.CurrentScore} {
 		e := enigma.CurrentScore
-		if s.Level != e.Level || s.MaxHp != e.MaxHp || s.Hp != e.Hp || s.AC != e.AC || s.Damage != e.Damage || s.Con != e.Con {
-			t.Errorf("score %+v, want os números do Enigma %+v", s, e)
+		if s.Level != e.Level || s.AC != e.AC || s.Con != e.Con {
+			t.Errorf("score %+v, want nível, defesa e CON do Enigma %+v", s, e)
+		}
+		if s.MaxHp != 3*e.MaxHp || s.Hp != 3*e.Hp || s.Damage != 3*e.Damage {
+			t.Errorf("vida %d/%d e dano %d, want o triplo do Enigma (%d, %d)", s.MaxHp, s.Hp, s.Damage, e.MaxHp, e.Damage)
+		}
+		if s.MaxHp != 1_800_000 || s.Damage != 1_818 {
+			t.Errorf("vida %d e dano %d, want 1.800.000 e 1.818", s.MaxHp, s.Damage)
 		}
 	}
 	if b.Resist != enigma.Resist {

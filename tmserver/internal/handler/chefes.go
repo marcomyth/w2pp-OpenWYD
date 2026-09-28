@@ -122,6 +122,9 @@ func (d *Dispatcher) esperaDoRenascimento(w *world.World, idx int) uint32 {
 	if geradorDoCiclopeTirano(w, idx) {
 		return ciclopeTiranoHoras * msPorHora // o Ciclope Tirano (ciclopes.go)
 	}
+	if geradorDoTaronTirano(w, idx) {
+		return taronTiranoHoras * msPorHora // o Taron Tirano (taron_tirano.go)
+	}
 	if geradorDeChefeDaLava(w, idx) {
 		return lavaChefeHoras * msPorHora // os mini chefes da lava (dungeon_lava.go)
 	}
