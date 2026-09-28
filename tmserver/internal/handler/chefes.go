@@ -65,7 +65,9 @@ func (d *Dispatcher) resolverChefes(w *world.World) {
 	d.genChefe = make([]bool, n)
 	var lista []string
 	for i := 0; i < n; i++ {
-		if g := w.GeneratorAt(i); ehChefeSozinho(g, i) {
+		// Os Tauron do Pilar têm a espera deles (pilar_tauron.go), e não entram na
+		// lista mesmo que a Exp do painel passe de 1 milhão.
+		if g := w.GeneratorAt(i); ehChefeSozinho(g, i) && !geradorDoPilar(w, i) {
 			d.genChefe[i] = true
 			lista = append(lista, fmt.Sprintf("%d:%s", i, g.LeaderName))
 		}
@@ -126,6 +128,9 @@ func (d *Dispatcher) esperaDoRenascimento(w *world.World, idx int) uint32 {
 		// Os bichos da sala da lava: no máximo 10 s, ou menos se o painel da área
 		// pedir menos (dungeon_lava.go).
 		return min(lavaSalaRenasce, spawnrate.ScaleMillis(world.DefaultRespawnDelay, d.spawnPercentFor(w, idx)))
+	}
+	if geradorDoPilar(w, idx) {
+		return d.esperaDoPilar(w, idx) // os Tauron do Pilar: no máximo 10 s (pilar_tauron.go)
 	}
 	if geradorDoBossConjurador(w, idx) {
 		return conjuradorHoras * msPorHora // o Boss Conjurador (dungeon_caveiras.go)

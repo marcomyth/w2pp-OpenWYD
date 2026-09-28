@@ -90548,7 +90548,7 @@
 // no3565 (Tauron) - 0913 (Pilar 3)
 // ********************************************
 #	[3170]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	3
 	MinGroup:	2
 	MaxGroup:	2
@@ -90569,7 +90569,7 @@
 // no3567 (Tauron) - 0913
 // ********************************************
 #	[3171]
-	MinuteGenerate:	2
+	MinuteGenerate:	-1
 	MaxNumMob:	3
 	MinGroup:	2
 	MaxGroup:	2
