@@ -632,6 +632,10 @@ func (d *Dispatcher) guildaDesigna(w *world.World, s *world.Session, _ protocol.
 				}
 				d.log.Info("escalação de cidade gravada",
 					"guilda", guilda, "zona", zona, "nomes", len(nomes))
+				// Quem foi escalado aqui saiu das outras cidades, então a contagem
+				// guardada das cinco ficou velha. Sem isto, o "N designados" da
+				// cidade de onde ele saiu continuaria contando com ele.
+				d.guildaEsqueceQuadro(guilda)
 				if e := w.Entity(s.Conn); e != nil {
 					d.guildaMandaEsquadra(w, s, e, uint8(zona))
 					d.guildaMandaInfo(w, s, e)
