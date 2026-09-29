@@ -241,6 +241,11 @@ type GuildZone struct {
 	// field exists here because the value has to come from somewhere real.
 	GuildSpawnX int32
 	GuildSpawnY int32
+
+	// TaxChangedAt é quando a guilda dona mudou o imposto pela última vez. Zero:
+	// nunca mudou (pode mudar já). No banco para valer entre reinícios: guardado só
+	// na memória, cada deploy liberava uma troca nova.
+	TaxChangedAt time.Time
 }
 
 // GuildTowerState stores the current GTorre owner.

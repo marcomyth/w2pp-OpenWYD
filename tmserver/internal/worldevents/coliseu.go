@@ -45,7 +45,7 @@ var (
 type ColiseuPasso struct {
 	// Zera: minutos 0-2, fase Parado → Pronto. O legado também zera TaxChanged
 	// aqui (Server.cpp:6962); o port controla a troca de imposto por dia em
-	// guild.go (taxChangedAt), então não há o que zerar.
+	// guild.go (guild_zone.tax_changed_at), então não há o que zerar.
 	Zera bool
 	// FechaEntrada: SetColoseumDoor(3), os dois portões de fora.
 	FechaEntrada bool

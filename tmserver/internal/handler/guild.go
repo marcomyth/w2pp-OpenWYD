@@ -645,21 +645,48 @@ func (d *Dispatcher) guildTax(w *world.World, s *world.Session, text string) boo
 	now := d.now()
 	for i := range d.guildZones {
 		z := &d.guildZones[i]
-		if z.ChargeGuild != e.Guild || sameDate(d.taxChangedAt[i], now) {
+		if z.ChargeGuild != e.Guild {
 			continue
 		}
+		if !podeMudarImposto(z.TaxChangedAt, now) {
+			sendClientMessage(w, s, msgImpostoSoPorSemana)
+			return true
+		}
 		z.CityTax = uint8(tax)
-		d.taxChangedAt[i] = now
+		z.TaxChangedAt = now
 		d.persistGuildZone(w, s, *z)
 		break
 	}
 	return true
 }
 
-// sameDate reports whether a and b fall on the same calendar day, used to
-// gate guildtax to one change per day (lote2-chat.md: TaxChanged[i]).
-func sameDate(a, b time.Time) bool {
-	return a.Year() == b.Year() && a.YearDay() == b.YearDay()
+// O IMPOSTO MUDA UMA VEZ POR SEMANA DE CALENDÁRIO, e a semana vira na segunda-feira
+// à 00:00 de Brasília (pedido de 29/09/2026; o legado era uma por dia, TaxChanged[i]).
+//
+// Não é "de 7 em 7 dias" de propósito: a guerra de cidades é no domingo, e contando
+// 7 dias da última troca, a troca feita no sábado seguraria a semana seguinte
+// inteira. Com a virada na segunda, cada semana tem a sua troca. E quem ganha a
+// cidade no domingo não herda a espera do dono anterior: a troca de dono zera a
+// hora (store.SaveGuildZone e esqueceGuildaApagada).
+//
+// A hora fica no banco (guild_zone.tax_changed_at), e por isso um reinício não
+// libera troca nenhuma.
+const msgImpostoSoPorSemana = "O imposto só muda uma vez por semana. Libera de novo na segunda-feira."
+
+// fusoDaSemana é o horário de Brasília. Fixo em -3 porque o Brasil não tem horário
+// de verão desde 2019, e um fuso fixo não depende do tzdata na imagem do servidor.
+var fusoDaSemana = time.FixedZone("BRT", -3*60*60)
+
+// inicioDaSemana é a segunda-feira 00:00 (Brasília) da semana de t.
+func inicioDaSemana(t time.Time) time.Time {
+	b := t.In(fusoDaSemana)
+	dias := (int(b.Weekday()) + 6) % 7 // segunda = 0 ... domingo = 6
+	return time.Date(b.Year(), b.Month(), b.Day()-dias, 0, 0, 0, 0, fusoDaSemana)
+}
+
+// podeMudarImposto: nunca mudou, ou a última troca foi antes da segunda desta semana.
+func podeMudarImposto(ultima, agora time.Time) bool {
+	return ultima.IsZero() || ultima.Before(inicioDaSemana(agora))
 }
 
 func parseSmallInt(s string) (int, bool) {
@@ -817,6 +844,7 @@ func (d *Dispatcher) esqueceGuildaApagada(w *world.World, guilda uint16) {
 		z := &d.guildZones[i]
 		if z.ChargeGuild == guilda {
 			z.ChargeGuild = 0
+			z.TaxChangedAt = time.Time{}
 		}
 		if z.ChallengeGuild == guilda {
 			z.ChallengeGuild, z.ChallengeMoney = 0, 0
