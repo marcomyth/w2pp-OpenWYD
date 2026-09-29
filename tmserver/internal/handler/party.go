@@ -234,6 +234,12 @@ func (d *Dispatcher) SessionEnd(w *world.World, s *world.Session) {
 	s.LojaAberta = false
 	d.closeAutoTrade(w, s)
 
+	// A senha do grupo e a contagem de tentativas saem com a sessao, e ANTES do
+	// retorno de quem nao tem grupo la embaixo: quem criou um grupo com senha e ficou
+	// sozinho tem senha guardada e nenhum membro, entao o retorno passaria por cima
+	// dela e o proximo jogador a herdar este conn herdaria a senha.
+	d.esqueceGrupoComSenha(s.Conn)
+
 	// O bando sai com o dono, antes do retorno de quem não tem grupo: o bando não é
 	// grupo (world.Entity.Evocacoes), e sem isto o id do dono seria reusado por
 	// outro jogador com os pets do anterior ainda apontando para ele.
@@ -333,6 +339,13 @@ func (d *Dispatcher) leaderLeaveParty(w *world.World, leaderConn int) {
 	if le == nil {
 		return
 	}
+	// A SENHA MORRE COM O LIDER QUE SAIU, e NAO passa para quem e promovido aqui.
+	//
+	// Este caminho e "o lider foi embora", e quem herda o grupo nao escolheu a senha
+	// nem sabe qual e. Herdar em silencio deixaria um grupo aberto por uma palavra que
+	// o novo lider nao conhece e nao pode trocar sem saber que ela existe. Quem quer
+	// entregar o grupo COM a senha usa /translider, que e explicito.
+	d.esqueceGrupoComSenha(leaderConn)
 	// Nenhum pet sai aqui: cada bando mora no seu dono (world.Entity.Evocacoes), e
 	// desfazer o grupo não mexe nele. No legado os pets ocupavam esta lista e o
 	// RemoveParty os apagava (Server.cpp:8237-8243, #234).
