@@ -17,14 +17,15 @@ func TestEncodeCNFMobKillBodyLayout(t *testing.T) {
 		killedMob = uint16(1234)
 		killer    = uint16(7)
 		exp       = int64(48150)
+		hold      = uint32(30000)
 	)
-	body := EncodeCNFMobKillBody(killedMob, killer, exp)
+	body := EncodeCNFMobKillBody(killedMob, killer, exp, hold)
 
 	if len(body) != 20 {
 		t.Fatalf("body = %d bytes, want 20 (natural alignment, not the packed 16)", len(body))
 	}
-	if got := binary.LittleEndian.Uint32(body[0:4]); got != 0 {
-		t.Errorf("Hold = %d, want 0", got)
+	if got := binary.LittleEndian.Uint32(body[0:4]); got != hold {
+		t.Errorf("Hold = %d, want %d", got, hold)
 	}
 	if got := binary.LittleEndian.Uint16(body[4:6]); got != killedMob {
 		t.Errorf("KilledMob = %d, want %d", got, killedMob)

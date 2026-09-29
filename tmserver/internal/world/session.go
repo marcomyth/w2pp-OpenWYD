@@ -413,7 +413,11 @@ type Entity struct {
 	// NivelRetroativo e ate onde o personagem recebeu as pecas de nivel que o
 	// jogo deixou de entregar (0172): 0 nada, 1-399 ate aquele nivel, 1000
 	// concluido. Persistido, para a entrega do login nao se repetir.
-	NivelRetroativo      uint16
+	NivelRetroativo uint16
+	// Hold e a divida de experiencia das mortes em PvP (extra.Hold, 0187): o
+	// legado nunca tira experiencia de quem morre para outro jogador, soma aqui,
+	// e os abates seguintes pagam a divida antes de encher a barra (payHold).
+	Hold                 uint32
 	ArchLv355, ArchLv370 uint8
 	MortalLevel          uint16
 	CelestialArchLevel   uint8

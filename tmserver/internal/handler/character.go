@@ -375,6 +375,7 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		e.NewbieQuest = st.NewbieQuest
 		e.MolarGargula = st.MolarGargula
 		e.NivelRetroativo = st.NivelRetroativo
+		e.Hold = st.Hold
 		e.Str, e.Int, e.Dex, e.Con, e.ScoreBonus = st.Str, st.Int, st.Dex, st.Con, st.ScoreBonus
 		// Skill state: the learned mask, allocated mastery and the hotbar come
 		// straight from the DB; SkillBonus is re-derived from level + learned
@@ -753,6 +754,7 @@ func createMobData(e *world.Entity, createType uint16) protocol.CreateMobData {
 		CurKill:    e.CurKill,
 		TotKill:    e.TotKill,
 		Tab:        e.Tab,
+		Hold:       e.Hold,
 	}
 	for i := range e.Affect {
 		if e.Affect[i].Type == 0 {

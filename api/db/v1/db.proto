@@ -489,6 +489,9 @@ message Character {
   // entregar (0172): 0 nada, 1-399 até aquele nível, 1000 concluído. A entrega
   // é no login, e a marca tem de sobreviver ao relog para não repetir.
   int32 nivel_retroativo = 57;
+  // extra.Hold: a dívida de experiência das mortes em PvP (0187). Os abates
+  // seguintes pagam a dívida antes de a experiência entrar na barra.
+  int64 hold = 58;
 }
 
 message Item {
