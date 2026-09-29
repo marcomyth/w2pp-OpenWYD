@@ -36,6 +36,7 @@ func criarUsuario(logger *slog.Logger, args []string, entrada io.Reader) error {
 	dsn := fs.String("dsn", envOr("DATABASE_URL", os.Getenv("W2PP_DB_DSN")), "PostgreSQL DSN (ou DATABASE_URL)")
 	login := fs.String("login", "", "login do usuário do painel (minúsculas, sem espaço)")
 	papel := fs.String("papel", "admin", "moderator ou admin")
+	prazo := fs.Duration("prazo", 5*time.Minute, "quanto esperar pelo banco, migracoes incluidas")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), `adminserver %s -login NOME [-papel admin|moderator]
 
@@ -69,7 +70,22 @@ ainda. Depois disso, use a tela Usuários do painel.
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// TRINTA SEGUNDOS NAO DAVAM, e o prazo curto batia justo no unico caso que este
+	// comando existe para atender: ambiente novo, banco vazio, ligacao de fora.
+	//
+	// O comando roda as migracoes antes de criar o usuario (logo abaixo), e conferir
+	// 195 migracoes por um tunel custa uma ida e volta de rede cada uma. Medido no
+	// LOTM: o comando morria em "check migration 0118: context deadline exceeded",
+	// com o banco respondendo bem — nao era banco fora do ar, era o prazo.
+	//
+	// E o prazo curto falhava no pior lugar. Quem roda isto esta destrancando o
+	// primeiro acesso de um ambiente que ninguem consegue abrir, e a mensagem de
+	// tempo esgotado no meio das migracoes parece banco quebrado. A pessoa vai
+	// procurar defeito no banco, e o defeito era a pressa.
+	//
+	// CINCO MINUTOS, e uma bandeira para quem precisar de mais: isto roda uma vez na
+	// vida de um ambiente, e nao ha nada para ganhar desistindo cedo.
+	ctx, cancel := context.WithTimeout(context.Background(), *prazo)
 	defer cancel()
 	pool, err := store.Pool(ctx, *dsn)
 	if err != nil {
