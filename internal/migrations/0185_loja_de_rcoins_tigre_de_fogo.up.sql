@@ -1,4 +1,4 @@
--- 0184_loja_de_rcoins_tigre_de_fogo — o Tigre de Fogo de 3, 5 e 7 dias na Loja
+-- 0185_loja_de_rcoins_tigre_de_fogo — o Tigre de Fogo de 3, 5 e 7 dias na Loja
 -- de Rcoin, pedido pelo Marco em 29/09/2026: 110, 150 e 200 Rcoins.
 --
 -- Vai na aba Esferas (6), ao lado do Shire, do Thoroughbred e do Klazedale, que

@@ -1,4 +1,4 @@
--- Tira da vitrine as três ofertas que a 0184 inseriu, pela mesma chave
+-- Tira da vitrine as três ofertas que a 0185 inseriu, pela mesma chave
 -- (item_index, title). O que já foi comprado vive na delivery_queue.
 DELETE FROM donate_shop_item d
 USING (VALUES

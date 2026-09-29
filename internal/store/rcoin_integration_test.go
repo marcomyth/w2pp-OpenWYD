@@ -23,7 +23,7 @@ func TestLojaDeRcoinListaPorAbaECompraComPrecoVisto(t *testing.T) {
 
 	// As 72 ofertas da 0160, as abas da 0163 e as sete da 0182 (seis Pedidos de
 	// Caça em Consumíveis, o Acelerador de Nascimento em Montaria) e as três da
-	// 0184 (o Tigre de Fogo de 3, 5 e 7 dias em Esferas).
+	// 0185 (o Tigre de Fogo de 3, 5 e 7 dias em Esferas).
 	todas, err := s.ListRcoinOffers(ctx, 0)
 	if err != nil || len(todas) != 82 {
 		t.Fatalf("todas = %d (err %v), want 82", len(todas), err)
