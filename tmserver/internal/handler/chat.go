@@ -241,6 +241,20 @@ func (d *Dispatcher) runCommand(w *world.World, s *world.Session, name string, a
 		d.novatoKit(w, s)
 		return true
 	}
+	// GRUPO COM SENHA (grupo_com_senha.go). Antes do /create da guilda so por ordem
+	// de leitura; nenhum destes tres nomes colide com os comandos que ja existiam.
+	if cmd == "criargrupo" {
+		d.criarGrupoComSenha(w, s, args)
+		return true
+	}
+	if cmd == "entrar" {
+		d.entrarNoGrupoComSenha(w, s, args)
+		return true
+	}
+	if cmd == "translider" {
+		d.transferirLiderancaDoGrupo(w, s, args)
+		return true
+	}
 	if cmd == "create" {
 		d.createGuild(w, s, args)
 		return true
