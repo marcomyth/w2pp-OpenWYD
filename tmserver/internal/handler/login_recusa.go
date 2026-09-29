@@ -34,15 +34,61 @@ func (d *Dispatcher) recusaLogin(w *world.World, s *world.Session, n Notice, res
 	sendClientMessage(w, s, texto)
 }
 
-// As reservas, uma por recusa de login. Todas cabem em 94 bytes em cp1252, e há teste.
+// As reservas, uma por recusa de login.
+//
+// COM ACENTO, como todo texto que o jogo manda: o painel viaja em cp1252, o
+// protocol.ClientText converte, e o resto das frases do servidor é acentuado. Tirar o
+// acento aqui seria a única frase torta do jogo, e ainda pela razão errada — o limite do
+// painel é em BYTES, e é medido em teste, não estimado.
 const (
-	msgLoginVersao    = "Sua versao do jogo esta velha. Baixe o launcher de novo."
+	msgLoginVersao    = "Sua versão do jogo está velha. Baixe o launcher de novo."
 	msgLoginAguarde   = "Entrando. Aguarde um momento."
-	msgLoginTresErros = "Senha errada tres vezes. Espere um pouco e tente de novo."
+	msgLoginTresErros = "Senha errada três vezes. Espere um pouco e tente de novo."
 	msgLoginSenha     = "Senha incorreta."
-	msgLoginSemConta  = "Nao existe conta com esse nome."
-	msgLoginBloqueada = "Esta conta esta bloqueada."
+	msgLoginSemConta  = "Não existe conta com esse nome."
+	msgLoginBloqueada = "Esta conta está bloqueada."
 	// O NoticeDBError NÃO TINHA FRASE NENHUMA, nem no Language.txt nem no noticeText:
 	// quem caía nele via a tela muda mesmo com o 0x0101 no ar.
 	msgLoginErroDeBanco = "Erro no servidor ao entrar. Tente de novo em instantes."
 )
+
+// limiteDeRecusasNoSocket é de quantas recusas com fechamento o socket aguenta antes de
+// cair NA HORA, sem prazo.
+//
+// O prazo existe para a pessoa ler o motivo, e ela lê uma vez. Da terceira em diante não
+// há mais nada a ler: ou é alguém insistindo numa conta que não vai entrar, ou é um
+// cliente remendado repetindo a recusa — e sem o teto o socket seria mantido de pé por
+// quem nunca vai passar do login.
+const limiteDeRecusasNoSocket = 3
+
+// recusaEFecha é a recusa que TERMINA a conexão: diz o motivo, devolve a sessão ao
+// estado de antes do login e agenda a queda do socket.
+//
+// A VOLTA AO ESTADO ANTERIOR NÃO É LIMPEZA, É O QUE FAZ O FECHAMENTO ACONTECER — e foi
+// aqui que este arquivo errou antes. O fechaDepois só fecha se a sessão ainda não é de
+// ninguém, e o caminho da conta bloqueada deixava o Mode em UserLogin, onde ele ficou
+// desde que o accountLogin mandou o pedido ao banco. A guarda então recusava fechar, e o
+// socket ficava aberto PARA SEMPRE: o defeito novo era pior que o mudo que isto conserta.
+//
+// Por isso o reset está no helper e não em cada caminho. Uma regra que cada chamador tem
+// de lembrar de repetir é uma regra que um deles vai esquecer.
+func (d *Dispatcher) recusaEFecha(w *world.World, s *world.Session, n Notice, reserva string) {
+	d.recusaLogin(w, s, n, reserva)
+	d.fechaPorRecusa(w, s)
+}
+
+// fechaPorRecusa é a segunda metade do recusaEFecha, separada porque o acesso restrito
+// manda o texto dele próprio (não é um Notice do cliente) e precisa do mesmo tratamento.
+func (d *Dispatcher) fechaPorRecusa(w *world.World, s *world.Session) {
+	s.AccountName = ""
+	s.AccountID = 0
+	s.Mode = world.UserAccept
+	s.RecusasDeAcesso++
+	if s.RecusasDeAcesso >= limiteDeRecusasNoSocket {
+		d.log.Info("recusa de login: fechando na hora, chegou ao teto do socket",
+			"conn", s.Conn, "recusas", s.RecusasDeAcesso)
+		w.Close(s)
+		return
+	}
+	d.fechaDepois(w, s)
+}

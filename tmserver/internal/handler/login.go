@@ -33,13 +33,17 @@ func (d *Dispatcher) accountLogin(w *world.World, s *world.Session, _ protocol.H
 	if body.ClientVersion != d.cfg.ClientVersion {
 		d.log.Warn("account login: version mismatch",
 			"conn", s.Conn, "got", body.ClientVersion, "want", d.cfg.ClientVersion)
-		d.recusaLogin(w, s, NoticeVersionMismatch, msgLoginVersao)
 		// FECHA POR PRAZO E NÃO NA HORA. Derrubar o socket no mesmo instante em que o
 		// texto sai é uma corrida que o cliente perde: ele fecha a janela antes de
 		// desenhar o painel, e a pessoa vê o jogo sumir sem ler nada. O acesso restrito
 		// já fazia assim e é o caminho que funciona.
-		s.RecusasDeAcesso++
-		d.fechaDepois(w, s, s.RecusasDeAcesso)
+		//
+		// ESTA CHECAGEM VEM ANTES DA DO Mode, então aqui a sessão pode estar em qualquer
+		// estado — inclusive logada, se um cliente remendado mandar um login com a versão
+		// errada depois de entrar. O recusaEFecha devolve a sessão ao estado de antes do
+		// login, que é o que o fechamento exige e o que impede a pessoa de seguir jogando
+		// numa sessão que acabou de ser recusada.
+		d.recusaEFecha(w, s, NoticeVersionMismatch, msgLoginVersao)
 		return
 	}
 	if s.Mode != world.UserAccept {
@@ -82,12 +86,9 @@ func (d *Dispatcher) accountLogin(w *world.World, s *world.Session, _ protocol.H
 func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out world.LoginOutcome, err error, takeOver bool) {
 	if err != nil {
 		d.log.Error("account login backend error", "conn", s.Conn, "account", s.AccountName, "err", err)
-		s.Mode = world.UserAccept
-		d.recusaLogin(w, s, NoticeDBError, msgLoginErroDeBanco)
 		// Por prazo, pelo mesmo motivo da versão: a pessoa tem de LER que foi erro do
 		// servidor, senão ela tenta a senha de novo achando que errou.
-		s.RecusasDeAcesso++
-		d.fechaDepois(w, s, s.RecusasDeAcesso)
+		d.recusaEFecha(w, s, NoticeDBError, msgLoginErroDeBanco)
 		return
 	}
 	switch out.Result {
@@ -117,11 +118,8 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 			d.log.Info("acesso restrito: login de jogador recusado",
 				"conn", s.Conn, "account", s.AccountName)
 			sendClientMessage(w, s, "Servidor de teste, acesso restrito.")
-			s.AccountName = ""
-			s.AccountID = 0
-			s.Mode = world.UserAccept
-			s.RecusasDeAcesso++
-			d.fechaDepois(w, s, s.RecusasDeAcesso)
+			// O fechaPorRecusa é que zera a conta e o modo, e conta a recusa para o teto.
+			d.fechaPorRecusa(w, s)
 			return
 		}
 		delete(d.fails, s.AccountName)
@@ -191,11 +189,13 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		s.Mode = world.UserAccept
 		d.recusaLogin(w, s, NoticeNoAccount, msgLoginSemConta)
 	case world.LoginBlocked:
-		d.recusaLogin(w, s, NoticeBlocked, msgLoginBloqueada)
 		// Por prazo: "bloqueada" é a recusa que a pessoa MAIS precisa ler, porque é a
 		// única em que tentar de novo não resolve nada.
-		s.RecusasDeAcesso++
-		d.fechaDepois(w, s, s.RecusasDeAcesso)
+		//
+		// AQUI O Mode AINDA É UserLogin, posto pelo accountLogin quando o pedido saiu
+		// para o banco, e era exatamente isso que deixava o socket aberto para sempre: a
+		// guarda do fechaDepois exige UserAccept. Quem devolve é o recusaEFecha.
+		d.recusaEFecha(w, s, NoticeBlocked, msgLoginBloqueada)
 	case world.LoginAlreadyPlaying:
 		// AGORA O dbServer RESPONDE ISTO, e o caso é o da posse da conta: outra
 		// execução do tmServer está com ela. Durante a sobreposição de um deploy,
@@ -379,7 +379,18 @@ const prazoDaRecusa = 10 * time.Second
 // segundos de servidor congelado para todo mundo. O World.Go é o caminho de sempre
 // para isso, e ele já descarta o retorno quando a sessão morreu antes: quem desistir
 // e fechar o jogo não vira um Close numa sessão que já não existe.
-func (d *Dispatcher) fechaDepois(w *world.World, s *world.Session, recusa int) {
+func (d *Dispatcher) fechaDepois(w *world.World, s *world.Session) {
+	// UM AGENDAMENTO SÓ POR SOCKET, e o motivo é de recurso: cada agendamento é uma
+	// goroutine dormindo dez segundos. Antes, cada recusa criava outra, e a anterior
+	// virava uma espera inútil que ainda ia acordar para não fazer nada.
+	//
+	// O efeito de lado é o certo: o prazo conta da PRIMEIRA recusa. Quem repetir a recusa
+	// não estica a vida do socket, só encurta o próprio tempo de leitura — e o teto do
+	// fechaPorRecusa derruba na terceira de todo jeito.
+	if s.FechamentoDeRecusa {
+		return
+	}
+	s.FechamentoDeRecusa = true
 	prazo := d.cfg.PrazoDaRecusa
 	if prazo <= 0 {
 		prazo = prazoDaRecusa
@@ -387,6 +398,11 @@ func (d *Dispatcher) fechaDepois(w *world.World, s *world.Session, recusa int) {
 	w.Go(s, func() func(*world.World, *world.Session) {
 		time.Sleep(prazo)
 		return func(w *world.World, s *world.Session) {
+			// A MARCA SAI ANTES DA DECISÃO. Se este fechamento desistir (a pessoa
+			// entrou), a sessão volta a poder agendar um; se ele fechar, a marca já não
+			// importa. Deixá-la de pé no caminho da desistência travaria o agendamento
+			// de uma recusa futura no mesmo socket.
+			s.FechamentoDeRecusa = false
 			// SÓ FECHA SE NADA ACONTECEU DEPOIS, e esta guarda é a correção de uma
 			// corrida que derrubaria gente legítima.
 			//
@@ -397,12 +413,7 @@ func (d *Dispatcher) fechaDepois(w *world.World, s *world.Session, recusa int) {
 			//
 			// O World.Go só descarta a volta quando a sessão MORREU; aqui ela está
 			// viva, e mais do que isso: logada.
-			//
-			// Três perguntas, e as três precisam continuar valendo: a sessão não tem
-			// conta, não está em modo de jogo, e nenhuma recusa NOVA aconteceu depois
-			// desta — senão o fechamento da segunda seria feito duas vezes, e o da
-			// primeira mataria a espera da segunda antes da hora.
-			if s.AccountID != 0 || s.Mode != world.UserAccept || s.RecusasDeAcesso != recusa {
+			if s.AccountID != 0 || s.Mode != world.UserAccept {
 				return
 			}
 			w.Close(s)

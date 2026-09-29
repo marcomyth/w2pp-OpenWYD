@@ -42,9 +42,24 @@ func TestNenhumaRecusaDeLoginMandaACaixaQuebrada(t *testing.T) {
 			"o 0x0102 de quatro bytes, que o cliente nao sabe ler, e a recusa volta a ser muda")
 	}
 	// E a prova positiva: as sete recusas usam o caminho de texto.
-	if n := contaOcorrencias(fonte, "d.recusaLogin("); n != 7 {
-		t.Errorf("achei %d chamadas de recusaLogin, esperava 7 -- se uma recusa ficou de "+
-			"fora, ela e a que vai aparecer muda para o jogador", n)
+	//
+	// Duas portas, e o que importa e a SOMA: o recusaEFecha e a recusa que termina a
+	// conexao (versao, erro de banco, conta bloqueada) e chama o recusaLogin por dentro;
+	// as outras quatro deixam a pessoa tentar de novo e chamam o recusaLogin direto.
+	comFecho := contaOcorrencias(fonte, "d.recusaEFecha(")
+	soTexto := contaOcorrencias(fonte, "d.recusaLogin(")
+	if comFecho+soTexto != 7 {
+		t.Errorf("achei %d recusaEFecha + %d recusaLogin = %d, esperava 7 -- se uma recusa "+
+			"ficou de fora, ela e a que vai aparecer muda para o jogador",
+			comFecho, soTexto, comFecho+soTexto)
+	}
+	// E NENHUM caminho pode agendar o fechamento a mao. Era isso que deixava o socket da
+	// conta bloqueada aberto para sempre: quem chama o fechaDepois direto nao devolve a
+	// sessao ao estado de antes do login, e a guarda do fechaDepois entao recusa fechar.
+	// O fechaPorRecusa e quem devolve, e e por onde todo fechamento passa.
+	if n := contaOcorrencias(fonte, "d.fechaDepois("); n != 0 {
+		t.Errorf("o login chama d.fechaDepois direto %d vezes: o fechamento tem de passar "+
+			"pelo recusaEFecha ou pelo fechaPorRecusa", n)
 	}
 }
 

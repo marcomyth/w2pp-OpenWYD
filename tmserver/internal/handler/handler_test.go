@@ -973,22 +973,14 @@ func TestSelCharWireLevelIsRaw(t *testing.T) {
 	}
 }
 
-func TestLoginBadVersionClosed(t *testing.T) {
-	addr, stop := startServer(t, newDB())
-	defer stop()
-	c := dial(t, addr)
-	defer c.Close()
-
-	send(t, c, protocol.MsgAccountLogin, loginBody("tester", "secret", 1234))
-	esperaRecusaDeLogin(t, c, msgLoginVersao)
-	// Connection must be closed after a version mismatch.
-	if err := c.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := c.Read(make([]byte, 1)); err == nil {
-		t.Errorf("expected connection to be closed")
-	}
-}
+// O TestLoginBadVersionClosed SAIU DAQUI, e virou o TestARecusaDeVersaoFechaOSocket em
+// login_fecha_o_socket_test.go.
+//
+// Ele punha um prazo de leitura de um segundo e aceitava QUALQUER erro como prova de que a
+// conexao caiu. O fechamento de uma recusa demora dez segundos, entao o erro que ele
+// recebia era um TIMEOUT: o socket estava vivo e o teste dizia que tinha caido. Ele passou
+// verde em cima de uma versao deste codigo que deixava o socket aberto para sempre. O
+// teste novo exige fim de fio de verdade e encurta o prazo pela Config.
 
 func TestLoginBadPasswordThenLockout(t *testing.T) {
 	addr, stop := startServer(t, newDB())
