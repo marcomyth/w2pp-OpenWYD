@@ -194,12 +194,16 @@ func (s *Store) LeaveGuild(ctx context.Context, accountID int64, slot int) (uint
 // da conversão do legado pode ter só character.guild_id; apagar a guilda de alguém
 // assim seria tirar dele uma guilda que ele ainda vê na cabeça.
 //
-// E NÃO APAGA GUILDA QUE AINDA TEM PAPEL NO MUNDO: dona ou desafiante de cidade,
-// dona da torre, quem matou o Kefra. Essas colunas guardam o id sem chave
-// estrangeira, vivem também na memória do tmServer, e o alocador de id reaproveita
-// o maior número livre — apagar a guilda ali daria a cidade de presente para a
-// próxima guilda que nascesse com aquele número. Guilda vazia com cidade é caso
-// raro e de staff; fica como está.
+// A CIDADE, A TORRE E O KEFRA FICAM SEM DONO, na mesma transação. Essas colunas
+// guardam o id sem chave estrangeira, e o alocador reaproveita o maior número
+// livre: se ficassem apontando, a próxima guilda nascida com aquele número
+// herdaria a cidade. A primeira versão deixava a guilda de pé nesses casos, e foi
+// assim que na preview, em 28/09/2026, uma guilda dona de Armia continuou existindo
+// com zero membros — "0 players = apagada" não tem exceção.
+//
+// O tmServer faz a mesma limpeza na memória ao saber da guilda apagada
+// (esqueceGuildaApagada): ele regrava a cidade INTEIRA a cada mudança de imposto, e
+// devolveria o id velho ao banco.
 func apagaGuildaVaziaTx(ctx context.Context, tx pgx.Tx, guildID int) (uint16, error) {
 	if guildID == 0 {
 		return 0, nil
@@ -215,10 +219,7 @@ func apagaGuildaVaziaTx(ctx context.Context, tx pgx.Tx, guildID int) (uint16, er
 	var ocupada bool
 	err = tx.QueryRow(ctx, `
 		SELECT EXISTS (SELECT 1 FROM guild_member WHERE guild_id = $1)
-		    OR EXISTS (SELECT 1 FROM character WHERE guild_id = $1)
-		    OR EXISTS (SELECT 1 FROM guild_zone WHERE charge_guild = $1 OR challenge_guild = $1)
-		    OR EXISTS (SELECT 1 FROM guild_tower_state WHERE owner_guild = $1)
-		    OR EXISTS (SELECT 1 FROM world_event_config WHERE kefra_guild_id = $1)`,
+		    OR EXISTS (SELECT 1 FROM character WHERE guild_id = $1)`,
 		guildID,
 	).Scan(&ocupada)
 	if err != nil {
@@ -226,6 +227,18 @@ func apagaGuildaVaziaTx(ctx context.Context, tx pgx.Tx, guildID int) (uint16, er
 	}
 	if ocupada {
 		return 0, nil
+	}
+	// O lance de desafio de uma guilda que deixou de existir sai junto: não há a
+	// quem devolver, e um desafiante fantasma travaria a cidade.
+	for _, q := range []string{
+		`UPDATE guild_zone SET charge_guild = 0, updated_at = now() WHERE charge_guild = $1`,
+		`UPDATE guild_zone SET challenge_guild = 0, challenge_money = 0, updated_at = now() WHERE challenge_guild = $1`,
+		`UPDATE guild_tower_state SET owner_guild = 0 WHERE owner_guild = $1`,
+		`UPDATE world_event_config SET kefra_guild_id = 0 WHERE kefra_guild_id = $1`,
+	} {
+		if _, err := tx.Exec(ctx, q, guildID); err != nil {
+			return 0, fmt.Errorf("store: release world refs of guild %d: %w", guildID, err)
+		}
 	}
 	// O resto (relações, buffs, escalação das cidades, emblema) sai em cascata:
 	// ou é ON DELETE CASCADE, ou é coluna da própria linha.

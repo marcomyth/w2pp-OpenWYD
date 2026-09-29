@@ -112,24 +112,45 @@ func TestSaveAntesDaSaidaNaoEscondeAGuilda(t *testing.T) {
 	}
 }
 
-// TestGuildaVaziaComCidadeFica: guilda dona de cidade não é apagada, porque a
-// cidade guarda o id sem chave estrangeira e o número seria reaproveitado.
-func TestGuildaVaziaComCidadeFica(t *testing.T) {
+// TestGuildaVaziaComCidadeSaiESoltaACidade: "0 players = apagada" não tem
+// exceção. A guilda dona de cidade, da torre e do Kefra sai, e as três ficam sem
+// dono — senão a próxima guilda com o mesmo número herdaria tudo. Foi o caso da
+// preview em 28/09/2026: a dona de Armia continuou existindo com zero membros.
+func TestGuildaVaziaComCidadeSaiESoltaACidade(t *testing.T) {
 	s, ctx := freshStore(t)
 	conta := contaPix(ctx, t, s, "cidade_lider")
 	guildaComLider(ctx, t, s, "Cidade", 4400, conta, 9)
-	if _, err := s.pool.Exec(ctx, `
-		INSERT INTO guild_zone (zone, charge_guild) VALUES (0, 4400)
-		ON CONFLICT (zone) DO UPDATE SET charge_guild = 4400`); err != nil {
-		t.Fatalf("dando a cidade: %v", err)
+	for _, q := range []string{
+		`INSERT INTO guild_zone (zone, charge_guild, challenge_guild, challenge_money) VALUES (0, 4400, 0, 0)
+		 ON CONFLICT (zone) DO UPDATE SET charge_guild = 4400`,
+		`INSERT INTO guild_zone (zone, charge_guild, challenge_guild, challenge_money) VALUES (1, 0, 4400, 5000)
+		 ON CONFLICT (zone) DO UPDATE SET challenge_guild = 4400, challenge_money = 5000`,
+		`INSERT INTO guild_tower_state (id, owner_guild, updated_at_unix) VALUES (1, 4400, 0)
+		 ON CONFLICT (id) DO UPDATE SET owner_guild = 4400`,
+		`UPDATE world_event_config SET kefra_guild_id = 4400`,
+	} {
+		if _, err := s.pool.Exec(ctx, q); err != nil {
+			t.Fatalf("preparando %q: %v", q, err)
+		}
 	}
 
 	apagada, err := s.LeaveGuild(ctx, conta, 0)
-	if err != nil || apagada != 0 {
-		t.Fatalf("apagada=%d err=%v, queria 0 e nil", apagada, err)
+	if err != nil || apagada != 4400 {
+		t.Fatalf("apagada=%d err=%v, queria 4400 e nil", apagada, err)
 	}
-	if !guildaExiste(ctx, t, s, 4400) {
-		t.Fatal("apagou a guilda que é dona de cidade")
+	if guildaExiste(ctx, t, s, 4400) {
+		t.Fatal("a guilda dona de cidade continuou com zero membros")
+	}
+	var refs int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT (SELECT count(*) FROM guild_zone WHERE charge_guild = 4400 OR challenge_guild = 4400)
+		     + (SELECT count(*) FROM guild_zone WHERE zone = 1 AND challenge_money <> 0)
+		     + (SELECT count(*) FROM guild_tower_state WHERE owner_guild = 4400)
+		     + (SELECT count(*) FROM world_event_config WHERE kefra_guild_id = 4400)`).Scan(&refs); err != nil {
+		t.Fatalf("contando referências: %v", err)
+	}
+	if refs != 0 {
+		t.Fatalf("sobraram %d referências à guilda apagada", refs)
 	}
 }
 

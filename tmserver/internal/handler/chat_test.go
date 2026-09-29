@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net"
 	"strings"
 	"testing"
@@ -882,5 +883,42 @@ func TestExpulsarMembroOffline(t *testing.T) {
 				t.Fatalf("expulsos no banco = %v, queria [Bot01]", db.expulsosOffline)
 			}
 		})
+	}
+}
+
+// TestGuildaApagadaSoltaCidadeTorreEKefra: a guilda apagada por ficar vazia
+// deixa de ser dona de cidade, desafiante, dona da torre e matadora do Kefra
+// também na MEMÓRIA — senão o próximo persistGuildZone, que grava a cidade
+// inteira, devolveria o id velho ao banco.
+func TestGuildaApagadaSoltaCidadeTorreEKefra(t *testing.T) {
+	log := slog.New(slog.DiscardHandler)
+	d := New(Config{Log: log})
+	w := world.New(world.Config{GridDim: 16}, log, nil, d.Handle)
+	w.SetGuildName(5, "Teste")
+	d.guildZones[0].ChargeGuild = 5
+	d.guildZones[1].ChallengeGuild, d.guildZones[1].ChallengeMoney = 5, 5000
+	d.guildZones[2].ChargeGuild = 9 // de outra guilda: fica
+	d.events.towerOwner, d.towerState.OwnerGuild = 5, 5
+	d.kefraGuildID = 5
+
+	d.esqueceGuildaApagada(w, 5)
+
+	if d.guildZones[0].ChargeGuild != 0 {
+		t.Errorf("cidade 0 ainda é da guilda %d", d.guildZones[0].ChargeGuild)
+	}
+	if z := d.guildZones[1]; z.ChallengeGuild != 0 || z.ChallengeMoney != 0 {
+		t.Errorf("desafio da cidade 1 = guilda %d, lance %d; queria 0 e 0", z.ChallengeGuild, z.ChallengeMoney)
+	}
+	if d.guildZones[2].ChargeGuild != 9 {
+		t.Errorf("cidade de outra guilda mexida: dona = %d", d.guildZones[2].ChargeGuild)
+	}
+	if d.events.towerOwner != 0 || d.towerState.OwnerGuild != 0 {
+		t.Errorf("torre = %d/%d, queria sem dono", d.events.towerOwner, d.towerState.OwnerGuild)
+	}
+	if d.kefraGuildID != 0 {
+		t.Errorf("kefra = %d, queria 0", d.kefraGuildID)
+	}
+	if w.GuildNameTaken("Teste") {
+		t.Error("o nome continuou preso")
 	}
 }
