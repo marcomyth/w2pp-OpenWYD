@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -427,13 +428,16 @@ func TestGrupoComSenhaTransLiderRecusas(t *testing.T) {
 func TestGrupoComSenhaASenhaNaoVaiParaLogNenhum(t *testing.T) {
 	const senha = "zZq7Kx2pLw"
 
-	var buf bytes.Buffer
+	// UM BUFFER COM TRAVA, e não um bytes.Buffer cru.
+	//
+	// O slog escreve do goroutine que atende cada conexão e do laço do mundo; o teste
+	// lê do goroutine do teste. bytes.Buffer não é seguro para isso, e a primeira versão
+	// deste teste tinha uma CORRIDA DE DADOS que o -race do CI pegou e esta máquina não
+	// pega (sem cgo, o -race não roda aqui).
+	var buf bufferComTrava
 	addr, stop := servidorComLogCapturado(t, partyDB(), &buf)
-	defer stop()
 	lider := enterWorldAs(t, addr, "tester")
-	defer lider.Close()
 	membro := enterWorldAs(t, addr, "tradeb")
-	defer membro.Close()
 
 	grupoCmd(t, lider, "/criargrupo", senha)
 	drenaPainel(t, lider)
@@ -443,6 +447,14 @@ func TestGrupoComSenhaASenhaNaoVaiParaLogNenhum(t *testing.T) {
 	drenaPainel(t, membro)
 	grupoCmd(t, lider, "/translider", "HeroB")
 	drenaPainel(t, lider)
+
+	// FECHA TUDO ANTES DE LER, e a trava não dispensa isto: a trava tira a corrida, e
+	// parar quem escreve é o que garante que TUDO já foi escrito. Ler com o servidor
+	// ainda de pé poderia não ver a última linha — e a linha que falta é justamente a
+	// que teria a senha, no dia em que alguém a escrever.
+	lider.Close()
+	membro.Close()
+	stop()
 
 	escrito := buf.String()
 	if strings.Contains(escrito, senha) {
@@ -589,4 +601,27 @@ func TestLimiteDeTentativasComORelogioDeVerdade(t *testing.T) {
 		t.Fatal("passados 300 ms a janela reabriu; ela tem de durar um MINUTO, " +
 			"e o World.Now e em milissegundos")
 	}
+}
+
+// bufferComTrava é um io.Writer que pode ser lido enquanto o servidor escreve.
+//
+// EXISTE PORQUE O TESTE DO LOG PRECISA LER O QUE VÁRIOS GOROUTINES ESCREVERAM. O slog
+// não serializa nada por conta própria, e o bytes.Buffer cru sob duas goroutines é
+// corrida de dados — o CI pegou, esta máquina não pega porque o -race exige cgo.
+type bufferComTrava struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *bufferComTrava) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+// String também trava: ler sem a trava seria a mesma corrida, do outro lado.
+func (b *bufferComTrava) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
