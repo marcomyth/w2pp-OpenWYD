@@ -142,7 +142,11 @@ func TestKefraStateGravaSoOEstadoEAudita(t *testing.T) {
 		t.Errorf("depois do formulário = %+v, want Kefra ainda derrotado pela 7 e XP em dobro", got)
 	}
 
-	if _, err := st.SetKefraState(ctx, false, 9, FonteEventoPainel, domain.Ator{}); err != nil {
+	// FONTE 'painel' EXIGE ATOR desde a 0181, e este teste passava um ator vazio.
+	// Não é o teste ficando chato: é ele batendo na regra nova, que existe para nenhuma
+	// ação do painel ficar sem dono. O JOGO continua gravando sem ator, com fonte
+	// 'jogo', e isso tem teste separado.
+	if _, err := st.SetKefraState(ctx, false, 9, FonteEventoPainel, atorDeTeste(ctx, t, st)); err != nil {
 		t.Fatalf("SetKefraState vivo: %v", err)
 	}
 	if got, _ = st.WorldEventConfig(ctx); got.KefraLiveEnabled || got.KefraGuildID != 0 {

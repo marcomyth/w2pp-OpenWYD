@@ -182,12 +182,17 @@ func (s *Store) Len() int {
 // cada página mandar `sess.AccountID` e gravar zero quando quem está logado é um
 // usuário do painel — que era exatamente o defeito.
 //
-// A ORDEM É EXPLÍCITA, conta de jogo primeiro: se uma sessão tiver os dois campos
-// preenchidos algum dia, esta ordem decide, em vez de a ação ser atribuída a quem for
-// lido primeiro.
+// COM OS DOIS PREENCHIDOS ELE DEVOLVE OS DOIS, e não escolhe.
+//
+// Escolher seria descartar um ator em silêncio e gravar uma linha dizendo que UMA pessoa
+// fez o que duas informações reivindicam. Devolvendo os dois, o Conferir() do
+// internal/store recusa antes do INSERT com uma frase que diz o que está errado, e a
+// trava do banco recusa depois — alto, nas duas pontas.
+//
+// Uma sessão com os dois não deveria existir: o login de conta de jogo e o de usuário do
+// painel são caminhos separados. Mas "não deveria existir" é exatamente o estado em que
+// um defeito futuro chega, e é aí que preferir um dos dois viraria uma linha de auditoria
+// com o autor errado.
 func (s Session) Ator() domain.Ator {
-	if s.AccountID != 0 {
-		return domain.AtorDaConta(s.AccountID)
-	}
-	return domain.AtorDoPainel(s.PainelUsuarioID)
+	return domain.Ator{ContaID: s.AccountID, PainelUsuarioID: s.PainelUsuarioID}
 }

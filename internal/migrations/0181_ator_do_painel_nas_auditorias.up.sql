@@ -55,10 +55,16 @@
 -- roda sem travar a tabela.
 --
 -- E TEM UM SEGUNDO GANHO, que sozinho já justificaria: a varredura de um ADD
--- CONSTRAINT normal segura um ACCESS EXCLUSIVE na tabela enquanto roda. Três destas
--- quatro (donate_shop_audit, daily_reward_audit, world_event_audit) são escritas pelo
--- JOGO, com jogador dentro. Travá-las no meio de um deploy é parar compra, resgate e
--- evento por quanto tempo a varredura levar.
+-- CONSTRAINT normal segura um ACCESS EXCLUSIVE na tabela DURANTE A VARREDURA INTEIRA.
+-- Três destas quatro (donate_shop_audit, daily_reward_audit, world_event_audit) são
+-- escritas pelo JOGO, com jogador dentro. Travá-las no meio de um deploy é parar compra,
+-- resgate e evento por quanto tempo a varredura levar.
+--
+-- DITO SEM EXAGERO, porque a diferença importa: o NOT VALID também pega um ACCESS
+-- EXCLUSIVE, só que CURTO — o tempo de escrever o catálogo, não o de ler a tabela. Numa
+-- tabela que cresce todo dia, "curto" e "proporcional ao tamanho" deixam de ser a mesma
+-- coisa muito rápido. Quem quiser validar o passado depois usa VALIDATE CONSTRAINT, que
+-- roda com uma trava mais fraca e deixa o jogo escrever enquanto lê.
 --
 -- A TRAVA DO ZERO (account_id > 0) existe porque a de "um ator" não pega o caso que
 -- originou tudo isto: zero NÃO é nulo, então uma linha com account_id = 0 passa por
