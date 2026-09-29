@@ -112,7 +112,7 @@ func TestAdminMarcaOEstadoDoKefra(t *testing.T) {
 				t.Fatalf("gravações do Kefra = %d, want 1", len(ev.kefra))
 			}
 			g := ev.kefra[0]
-			if g.derrotado != c.derrotado || g.guilda != 0 || g.fonte != "painel" || g.ator == 0 {
+			if g.derrotado != c.derrotado || g.guilda != 0 || g.fonte != "painel" || g.ator == (domain.Ator{}) {
 				t.Errorf("gravação = %+v, want derrotado=%v guilda=0 fonte=painel e o admin como ator", g, c.derrotado)
 			}
 			if len(ev.gravado) != 0 {

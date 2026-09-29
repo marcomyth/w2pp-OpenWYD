@@ -2,6 +2,7 @@ package grpcsrv
 
 import (
 	"context"
+	"errors"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -80,7 +81,7 @@ func (s *MountGrowthAdminServer) SetMountGrowthCurve(ctx context.Context, req *w
 		rates = append(rates, int16(r))
 	}
 	if err := s.admin.Set(ctx, req.GetModeratorId(), req.GetModerator(), int16(req.GetMountIndex()), rates); err != nil {
-		return nil, status.Errorf(codes.Internal, "set mount growth curve: %v", err)
+		return nil, erroDeMontaria("set mount growth curve", err)
 	}
 	return &webv1.AdminAck{Result: webv1.AdminResult_ADMIN_RESULT_OK}, nil
 }
@@ -88,7 +89,7 @@ func (s *MountGrowthAdminServer) SetMountGrowthCurve(ctx context.Context, req *w
 // ClearMountGrowthCurve drops the lineage's rows so the default applies again.
 func (s *MountGrowthAdminServer) ClearMountGrowthCurve(ctx context.Context, req *webv1.ClearMountGrowthCurveRequest) (*webv1.AdminAck, error) {
 	if err := s.admin.Clear(ctx, req.GetModeratorId(), int16(req.GetMountIndex())); err != nil {
-		return nil, status.Errorf(codes.Internal, "clear mount growth curve: %v", err)
+		return nil, erroDeMontaria("clear mount growth curve", err)
 	}
 	return &webv1.AdminAck{Result: webv1.AdminResult_ADMIN_RESULT_OK}, nil
 }
@@ -124,7 +125,7 @@ func (s *MountGrowthAdminServer) SetMountAbsorb(ctx context.Context, req *webv1.
 	}
 	if err := s.admin.SetAbsorb(ctx, req.GetModeratorId(), req.GetModerator(),
 		int16(req.GetMountIndex()), int16(req.GetAbsorbPvp()), int16(req.GetAbsorbPve())); err != nil {
-		return nil, status.Errorf(codes.Internal, "set mount absorb: %v", err)
+		return nil, erroDeMontaria("set mount absorb", err)
 	}
 	return &webv1.AdminAck{Result: webv1.AdminResult_ADMIN_RESULT_OK}, nil
 }
@@ -132,7 +133,7 @@ func (s *MountGrowthAdminServer) SetMountAbsorb(ctx context.Context, req *webv1.
 // ClearMountAbsorb drops the lineage's row so the default applies again.
 func (s *MountGrowthAdminServer) ClearMountAbsorb(ctx context.Context, req *webv1.ClearMountAbsorbRequest) (*webv1.AdminAck, error) {
 	if err := s.admin.ClearAbsorb(ctx, req.GetModeratorId(), int16(req.GetMountIndex())); err != nil {
-		return nil, status.Errorf(codes.Internal, "clear mount absorb: %v", err)
+		return nil, erroDeMontaria("clear mount absorb", err)
 	}
 	return &webv1.AdminAck{Result: webv1.AdminResult_ADMIN_RESULT_OK}, nil
 }
@@ -193,7 +194,7 @@ func (s *MountGrowthAdminServer) SetMountBonus(ctx context.Context, req *webv1.S
 		return nil, status.Errorf(codes.InvalidArgument, "%d is not an adult mount", req.GetMountIndex())
 	}
 	if err := s.admin.SetBonus(ctx, req.GetModeratorId(), req.GetModerator(), int16(req.GetMountIndex()), b); err != nil {
-		return nil, status.Errorf(codes.Internal, "set mount bonus: %v", err)
+		return nil, erroDeMontaria("set mount bonus", err)
 	}
 	return &webv1.AdminAck{Result: webv1.AdminResult_ADMIN_RESULT_OK}, nil
 }
@@ -201,7 +202,20 @@ func (s *MountGrowthAdminServer) SetMountBonus(ctx context.Context, req *webv1.S
 // ClearMountBonus drops the lineage's row so the compiled table applies again.
 func (s *MountGrowthAdminServer) ClearMountBonus(ctx context.Context, req *webv1.ClearMountBonusRequest) (*webv1.AdminAck, error) {
 	if err := s.admin.ClearBonus(ctx, req.GetModeratorId(), int16(req.GetMountIndex())); err != nil {
-		return nil, status.Errorf(codes.Internal, "clear mount bonus: %v", err)
+		return nil, erroDeMontaria("clear mount bonus", err)
 	}
 	return &webv1.AdminAck{Result: webv1.AdminResult_ADMIN_RESULT_OK}, nil
+}
+
+// erroDeMontaria traduz o erro do serviço para o cliente.
+//
+// A RECUSA POR CARGO TEM DE SAIR COMO PermissionDenied, e não como Internal. Não é
+// preciosismo: Internal faz o painel mostrar "erro no servidor" e manda a pessoa
+// procurar defeito onde não há — e quem está olhando os logs vai atrás de uma falha
+// que nunca aconteceu. O que houve foi uma recusa, e ela tem de se parecer com uma.
+func erroDeMontaria(op string, err error) error {
+	if errors.Is(err, mountgrowth.ErrSemPermissao) {
+		return status.Error(codes.PermissionDenied, "sem permissao para editar montaria")
+	}
+	return status.Errorf(codes.Internal, "%s: %v", op, err)
 }

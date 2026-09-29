@@ -38,6 +38,33 @@
 -- ator do painel é obrigatório": a linha do jogador continua tendo conta de jogo, e
 -- só as linhas de staff sem personagem passam a ter o outro lado preenchido.
 
+-- TODAS AS TRAVAS ENTRAM COMO "NOT VALID", E ISSO É O QUE IMPEDE ESTA MIGRAÇÃO DE
+-- DERRUBAR A PRODUÇÃO NO BOOT.
+--
+-- Um ADD CONSTRAINT normal VARRE a tabela inteira e FALHA se achar uma linha que não
+-- satisfaz. E existe linha assim hoje: desde 25/09 as telas de evento e de Kefra
+-- gravam direto no store, e quando quem salva é um usuário do painel elas gravam
+-- account_id NULO com fonte='painel' — exatamente o que a trava nova recusa. Uma
+-- única dessas linhas faria o ADD CONSTRAINT falhar; e como o store.Migrate roda no
+-- boot do webServer, do dbServer e do adminServer, a migração que falha não deixa
+-- NENHUM dos três subir. O painel destravaria matando o servidor.
+--
+-- NOT VALID diz: "vale de agora em diante, não vou olhar o passado". As linhas novas
+-- são conferidas normalmente, que é o que esta entrega precisa; as antigas ficam como
+-- estão, e podem ser conferidas depois, com calma, por um VALIDATE CONSTRAINT que
+-- roda sem travar a tabela.
+--
+-- E TEM UM SEGUNDO GANHO, que sozinho já justificaria: a varredura de um ADD
+-- CONSTRAINT normal segura um ACCESS EXCLUSIVE na tabela enquanto roda. Três destas
+-- quatro (donate_shop_audit, daily_reward_audit, world_event_audit) são escritas pelo
+-- JOGO, com jogador dentro. Travá-las no meio de um deploy é parar compra, resgate e
+-- evento por quanto tempo a varredura levar.
+--
+-- A TRAVA DO ZERO (account_id > 0) existe porque a de "um ator" não pega o caso que
+-- originou tudo isto: zero NÃO é nulo, então uma linha com account_id = 0 passa por
+-- ela como se tivesse autor. Hoje quem recusa o zero é só o Conferir() no código, e
+-- código é o que muda; a trava fica no banco, que é onde a garantia dura.
+
 -- npc_audit -----------------------------------------------------------------
 ALTER TABLE npc_audit ALTER COLUMN account_id DROP NOT NULL;
 ALTER TABLE npc_audit
@@ -54,7 +81,9 @@ ALTER TABLE npc_audit
     ADD CONSTRAINT npc_audit_um_ator CHECK (
         (account_id IS NOT NULL AND actor_painel_usuario_id IS NULL)
         OR (account_id IS NULL AND actor_painel_usuario_id IS NOT NULL)
-    );
+    ) NOT VALID;
+ALTER TABLE npc_audit
+    ADD CONSTRAINT npc_audit_conta_nao_zero CHECK (account_id IS NULL OR account_id > 0) NOT VALID;
 CREATE INDEX IF NOT EXISTS npc_audit_ator_painel_idx
     ON npc_audit (actor_painel_usuario_id);
 
@@ -66,7 +95,9 @@ ALTER TABLE daily_reward_audit
     ADD CONSTRAINT daily_reward_audit_um_ator CHECK (
         (account_id IS NOT NULL AND actor_painel_usuario_id IS NULL)
         OR (account_id IS NULL AND actor_painel_usuario_id IS NOT NULL)
-    );
+    ) NOT VALID;
+ALTER TABLE daily_reward_audit
+    ADD CONSTRAINT daily_reward_audit_conta_nao_zero CHECK (account_id IS NULL OR account_id > 0) NOT VALID;
 CREATE INDEX IF NOT EXISTS daily_reward_audit_ator_painel_idx
     ON daily_reward_audit (actor_painel_usuario_id);
 
@@ -78,7 +109,9 @@ ALTER TABLE donate_shop_audit
     ADD CONSTRAINT donate_shop_audit_um_ator CHECK (
         (account_id IS NOT NULL AND actor_painel_usuario_id IS NULL)
         OR (account_id IS NULL AND actor_painel_usuario_id IS NOT NULL)
-    );
+    ) NOT VALID;
+ALTER TABLE donate_shop_audit
+    ADD CONSTRAINT donate_shop_audit_conta_nao_zero CHECK (account_id IS NULL OR account_id > 0) NOT VALID;
 CREATE INDEX IF NOT EXISTS donate_shop_audit_ator_painel_idx
     ON donate_shop_audit (actor_painel_usuario_id);
 
@@ -108,6 +141,8 @@ ALTER TABLE world_event_audit
             OR account_id IS NOT NULL
             OR actor_painel_usuario_id IS NOT NULL
         )
-    );
+    ) NOT VALID;
+ALTER TABLE world_event_audit
+    ADD CONSTRAINT world_event_audit_conta_nao_zero CHECK (account_id IS NULL OR account_id > 0) NOT VALID;
 CREATE INDEX IF NOT EXISTS world_event_audit_ator_painel_idx
     ON world_event_audit (actor_painel_usuario_id);

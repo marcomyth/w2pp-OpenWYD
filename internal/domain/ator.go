@@ -62,12 +62,18 @@ func (a Ator) EhDoPainel() bool { return a.PainelUsuarioID != 0 }
 // gravaria a conta 0 — o defeito que este tipo existe para tornar impossível — e a
 // CHECK da 0181 recusaria a linha, o que é melhor que gravar, mas chega tarde: o
 // erro sairia como violação de constraint em vez de dizer que falta ator.
+//
+// COM OS DOIS PREENCHIDOS, ELE DEVOLVE OS DOIS, e não escolhe um. Escolher seria
+// descartar um ator em silêncio e gravar uma linha que diz que UMA pessoa fez o que
+// duas informações reivindicam — e ninguém depois saberia que houve descarte.
+// Devolvendo os dois, a trava do banco recusa a linha, alto e claro. Quem chama
+// deveria ter parado antes, no Conferir().
 func (a Ator) ParaSQL() (conta any, painel any) {
 	if a.ContaID != 0 {
-		return a.ContaID, nil
+		conta = a.ContaID
 	}
 	if a.PainelUsuarioID != 0 {
-		return nil, a.PainelUsuarioID
+		painel = a.PainelUsuarioID
 	}
-	return nil, nil
+	return conta, painel
 }

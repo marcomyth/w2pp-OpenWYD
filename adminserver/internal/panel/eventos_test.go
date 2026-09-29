@@ -31,10 +31,10 @@ type chamadaKefra struct {
 	derrotado bool
 	guilda    int32
 	fonte     string
-	ator      int64
+	ator      domain.Ator
 }
 
-func (f *fakeEventos) SetKefraState(_ context.Context, live bool, guildID int32, fonte string, ator int64) (int64, error) {
+func (f *fakeEventos) SetKefraState(_ context.Context, live bool, guildID int32, fonte string, ator domain.Ator) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.gravErr != nil {

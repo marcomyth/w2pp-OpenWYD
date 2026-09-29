@@ -18,10 +18,10 @@ type fakeWorldEventStore struct {
 	kefraLive       bool
 	kefraGuild      int32
 	kefraFonte      string
-	kefraConta      int64
+	kefraConta      domain.Ator
 }
 
-func (f *fakeWorldEventStore) SetKefraState(_ context.Context, live bool, guildID int32, fonte string, accountID int64) (int64, error) {
+func (f *fakeWorldEventStore) SetKefraState(_ context.Context, live bool, guildID int32, fonte string, accountID domain.Ator) (int64, error) {
 	f.kefraCalls++
 	f.kefraLive, f.kefraGuild, f.kefraFonte, f.kefraConta = live, guildID, fonte, accountID
 	f.version++

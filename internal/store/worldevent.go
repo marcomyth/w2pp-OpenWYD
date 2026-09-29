@@ -118,8 +118,17 @@ const (
 // bumps the config version in one transaction, and returns the new version.
 //
 // An alive Kefra has no killer, so guildID is stored as 0 when live is false.
-// accountID is the moderator for a panel write and 0 for the game's.
-func (s *Store) SetKefraState(ctx context.Context, live bool, guildID int32, fonte string, accountID int64) (int64, error) {
+// ator is the moderator for a panel write and 0 for the game's.
+// SetKefraState grava o estado do Kefra.
+//
+// O ATOR E UM domain.Ator E NAO UM id, e a troca conserta um defeito real: o painel
+// passava sess.AccountID, que e ZERO quando quem salva e um usuario do painel, e a
+// trava da 0181 recusaria a linha — o botao de Kefra do painel pararia de funcionar
+// para exatamente as pessoas que esta entrega existe para atender.
+//
+// O ATOR VAZIO CONTINUA VALENDO AQUI, e so aqui: quando quem escreve e o JOGO, com
+// fonte='jogo', nao ha pessoa nenhuma. E por isso que esta funcao nao chama Conferir().
+func (s *Store) SetKefraState(ctx context.Context, live bool, guildID int32, fonte string, ator domain.Ator) (int64, error) {
 	if guildID < 0 {
 		return 0, fmt.Errorf("store: set kefra state: negative guild %d", guildID)
 	}
@@ -143,11 +152,13 @@ func (s *Store) SetKefraState(ctx context.Context, live bool, guildID int32, fon
 				kefra_guild_id     = EXCLUDED.kefra_guild_id,
 				updated_by         = EXCLUDED.updated_by,
 				updated_at         = now()`,
-			live, guildID, nullableID(accountID)); err != nil {
+			// updated_by guarda a CONTA, e o usuario do painel nao tem uma: nesse caso a
+			// coluna fica NULA e quem fez continua na auditoria.
+			live, guildID, nullableID(ator.ContaID)); err != nil {
 			return fmt.Errorf("store: set kefra state: %w", err)
 		}
 		after, _ := fetchWorldEventConfigJSON(ctx, tx)
-		if err := auditWorldEventAndBump(ctx, tx, domain.AtorDaConta(accountID), fonte, "set_kefra", before, after); err != nil {
+		if err := auditWorldEventAndBump(ctx, tx, ator, fonte, "set_kefra", before, after); err != nil {
 			return err
 		}
 		if err := tx.QueryRow(ctx, `SELECT version FROM world_event_meta WHERE id = TRUE`).Scan(&version); err != nil {

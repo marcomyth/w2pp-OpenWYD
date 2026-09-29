@@ -235,20 +235,32 @@ func classifyWrite(err error, op string) (Result, error) {
 // EXISTE SEPARADO DO authorize porque as leituras nao precisam de ator, e misturar as
 // duas coisas faria cada pagina de consulta carregar um ator que ela nao usa.
 //
-// A ORDEM DE PREFERENCIA E EXPLICITA, e nao "quem estiver preenchido": conta de jogo
-// primeiro, usuario do painel depois. Se um dia as duas informacoes chegarem juntas na
-// mesma chamada, esta ordem decide sozinha em vez de atribuir a acao a quem der sorte
-// de ser lido primeiro. E se nao houver nenhuma das duas, o ator sai vazio e o
-// internal/store recusa antes de escrever -- ninguem grava "conta 0".
+// AS DUAS JUNTAS SAO RECUSA, e nenhuma delas ganha da outra. Se nao houver nenhuma, o
+// ator sai vazio e o internal/store recusa antes de escrever -- ninguem grava
+// "conta 0".
 func (s *Service) autorizaEscrita(ctx context.Context, moderatorID int64) (domain.Ator, Result, error) {
 	r, err := s.authorize(ctx, moderatorID)
 	if r != OK || err != nil {
 		return domain.Ator{}, r, err
 	}
+	a, doPainel := painelator.Do(ctx)
+	// OS DOIS JUNTOS SAO RECUSA, e nao empate a ser desempatado.
+	//
+	// Antes eu dava preferencia a conta de jogo. Estava errado: preferir e DESCARTAR
+	// o outro em silencio, e a linha de auditoria sairia dizendo que uma pessoa fez o
+	// que duas informacoes reivindicam. Numa tabela cuja unica razao de existir e
+	// dizer QUEM fez, "eu escolhi um dos dois" e a pior resposta possivel.
+	//
+	// E nao e so teoria: a chamada so tem os dois se alguem montou um pedido
+	// estranho, e um pedido estranho e exatamente o que nao deve virar uma gravacao
+	// com autor plausivel.
+	if moderatorID > 0 && doPainel {
+		return domain.Ator{}, Forbidden, nil
+	}
 	if moderatorID > 0 {
 		return domain.AtorDaConta(moderatorID), OK, nil
 	}
-	if a, doPainel := painelator.Do(ctx); doPainel {
+	if doPainel {
 		return domain.AtorDoPainel(a.ID), OK, nil
 	}
 	return domain.Ator{}, Forbidden, nil

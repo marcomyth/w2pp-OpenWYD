@@ -40,6 +40,7 @@ BEGIN
 END $$;
 
 ALTER TABLE world_event_audit DROP CONSTRAINT IF EXISTS world_event_audit_um_ator;
+ALTER TABLE world_event_audit DROP CONSTRAINT IF EXISTS world_event_audit_conta_nao_zero;
 DROP INDEX IF EXISTS world_event_audit_ator_painel_idx;
 ALTER TABLE world_event_audit DROP COLUMN IF EXISTS actor_painel_usuario_id;
 -- O NOT NULL NÃO VOLTA AQUI, e não é esquecimento: quem tirou o NOT NULL desta coluna
@@ -47,16 +48,19 @@ ALTER TABLE world_event_audit DROP COLUMN IF EXISTS actor_painel_usuario_id;
 -- quebraria a gravação do Kefra — a volta de uma migração não pode desfazer outra.
 
 ALTER TABLE donate_shop_audit DROP CONSTRAINT IF EXISTS donate_shop_audit_um_ator;
+ALTER TABLE donate_shop_audit DROP CONSTRAINT IF EXISTS donate_shop_audit_conta_nao_zero;
 DROP INDEX IF EXISTS donate_shop_audit_ator_painel_idx;
 ALTER TABLE donate_shop_audit DROP COLUMN IF EXISTS actor_painel_usuario_id;
 ALTER TABLE donate_shop_audit ALTER COLUMN account_id SET NOT NULL;
 
 ALTER TABLE daily_reward_audit DROP CONSTRAINT IF EXISTS daily_reward_audit_um_ator;
+ALTER TABLE daily_reward_audit DROP CONSTRAINT IF EXISTS daily_reward_audit_conta_nao_zero;
 DROP INDEX IF EXISTS daily_reward_audit_ator_painel_idx;
 ALTER TABLE daily_reward_audit DROP COLUMN IF EXISTS actor_painel_usuario_id;
 ALTER TABLE daily_reward_audit ALTER COLUMN account_id SET NOT NULL;
 
 ALTER TABLE npc_audit DROP CONSTRAINT IF EXISTS npc_audit_um_ator;
+ALTER TABLE npc_audit DROP CONSTRAINT IF EXISTS npc_audit_conta_nao_zero;
 DROP INDEX IF EXISTS npc_audit_ator_painel_idx;
 ALTER TABLE npc_audit DROP COLUMN IF EXISTS actor_painel_usuario_id;
 ALTER TABLE npc_audit ALTER COLUMN account_id SET NOT NULL;
