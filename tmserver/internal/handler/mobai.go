@@ -610,7 +610,6 @@ func (d *Dispatcher) regenPlayers(w *world.World) {
 			d.sendScore(w, s, e)
 			d.sendAffect(w, s, e)
 		}
-		d.tickIncubation(w, s, e)
 		if d.tickCount%naturalRegenTicks == 0 {
 			hp, mp := regenTrickle(e)
 			s.ReqHp += hp
@@ -637,6 +636,12 @@ func (d *Dispatcher) regenPlayers(w *world.World) {
 // mechanic: a failed refine stamps the cooldown and the player has to wear the
 // egg and wait it out before trying again. Without this the refine path's
 // _NN_Incu_Wait_More gate would brick an egg permanently.
+//
+// Once per online HOUR, from sweepGuilty's pkTick: the legacy decrement sits in
+// the Unk_2736 % 450 block with the Chaos point and the ração (Server.cpp:4872),
+// so each point of EF_INCUDELAY is an hour of wearing the egg. It used to run
+// from regenPlayers, every second, and an incubation of 6 to 9 hours was over
+// in 6 to 9 seconds (28/09/2026).
 func (d *Dispatcher) tickIncubation(w *world.World, s *world.Session, e *world.Entity) {
 	egg := &e.Equip[mountEquipSlot]
 	if !isEgg(*egg) {

@@ -249,6 +249,7 @@ func (d *Dispatcher) sweepGuilty(w *world.World) {
 		// The same hourly RegenMob gate charges the mount's ração
 		// (Server.cpp:4895, inside the Unk_2736 % 450 block).
 		if pkTick {
+			d.tickIncubation(w, s, e)
 			d.tickMountFeed(w, s, e)
 		}
 	})

@@ -222,10 +222,12 @@ func (d *Dispatcher) avisarQuedaDoRei(w *world.World, matador, rei *world.Entity
 // 17/09/2026). A Mesa de Drops diz se o item cai e com que chance; ela não
 // guarda quantidade, então o pacote mora aqui, como em acampamentoTrollPacks.
 // O âmago segue a cor do reino: Andaluz N e Fenrir das Sombras no vermelho,
-// Andaluz B e Fenrir no azul.
+// Andaluz B e Fenrir no azul. A Bruxa e o Lanceiro trocaram o Andaluz pelo
+// Cavalo Equipado em 29/09/2026 (0184), no mesmo pacote e na mesma cor.
 var reinosPacotes = map[papelNoReino]map[int16]int{
 	papelTropa: {
 		reinoAmagoAndaluzN: 5, reinoAmagoAndaluzB: 5,
+		reinoAmagoEquipadoN: 5, reinoAmagoEquipadoB: 5,
 		reinoClasseC: 5,
 	},
 	papelElite: {
@@ -247,6 +249,8 @@ var reinosPacotes = map[papelNoReino]map[int16]int{
 const (
 	reinoAmagoAndaluzN      int16 = 2400
 	reinoAmagoAndaluzB      int16 = 2405
+	reinoAmagoEquipadoN     int16 = 2399
+	reinoAmagoEquipadoB     int16 = 2404
 	reinoAmagoFenrir        int16 = 2406
 	reinoAmagoFenrirSombras int16 = 2408
 	reinoClasseA            int16 = 4016
