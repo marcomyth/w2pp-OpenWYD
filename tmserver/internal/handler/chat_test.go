@@ -886,6 +886,53 @@ func TestExpulsarMembroOffline(t *testing.T) {
 	}
 }
 
+// TestPromoverMembroOffline: sub-líder para quem não está no jogo vai pelo banco,
+// pelo nome, e o líder paga o mesmo custo do comando nativo.
+func TestPromoverMembroOffline(t *testing.T) {
+	casos := []struct {
+		nome   string
+		recusa world.GuildPromoteRefusal
+		frase  string
+		cobra  bool
+	}{
+		{"promove", world.GuildPromoteRefusalNone, "Bot01 agora é sub-líder da guilda.", true},
+		{"nao e membro", world.GuildPromoteRefusalNotMember, "Bot01 não é membro da sua guilda.", false},
+		{"ja tem cargo", world.GuildPromoteRefusalAlreadyRanked, "Bot01 já tem cargo na guilda.", false},
+		{"sem cargo livre", world.GuildPromoteRefusalNoFreeRank, "A guilda já tem três sub-líderes.", false},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			db := newDB()
+			db.recusaPromover = c.recusa
+			db.loads = map[int64]world.CharacterState{
+				7: {Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000, GuildID: 5, GuildLevel: 9, Coin: 100_000_000},
+			}
+			addr, stop, _ := startServerClock(t, db)
+			defer stop()
+			a := enterWorldAs(t, addr, "tester")
+			defer a.Close()
+			drainRaw(t, a)
+
+			whisperFrame(t, a, "subcreate", "Bot01")
+			if c.cobra {
+				expect(t, a, protocol.MsgUpdateEtc) // o ouro já descontado
+			}
+			msg := decodePanel(expect(t, a, protocol.MsgMessagePanel))
+			if msg != c.frase {
+				t.Fatalf("mensagem = %q, queria %q", msg, c.frase)
+			}
+			db.mu.Lock()
+			defer db.mu.Unlock()
+			if len(db.promovidosOffline) != 1 || db.promovidosOffline[0] != "Bot01" {
+				t.Fatalf("promovidos no banco = %v, queria [Bot01]", db.promovidosOffline)
+			}
+			if c.cobra && (len(db.promoteCosts) != 1 || db.promoteCosts[0] != guildSubCost) {
+				t.Fatalf("custo = %v, queria [%d]", db.promoteCosts, guildSubCost)
+			}
+		})
+	}
+}
+
 // TestGuildaApagadaSoltaCidadeTorreEKefra: a guilda apagada por ficar vazia
 // deixa de ser dona de cidade, desafiante, dona da torre e matadora do Kefra
 // também na MEMÓRIA — senão o próximo persistGuildZone, que grava a cidade
