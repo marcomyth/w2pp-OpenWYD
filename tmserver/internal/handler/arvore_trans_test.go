@@ -172,9 +172,12 @@ func TestDanoDoTransContraHT(t *testing.T) {
 	mobHT := &world.Entity{ID: world.MaxUser + 1, Class: 3}
 	semArmadura := tkDoTrans(2800, 712, learnedNocaoDeCombate, 255)
 
-	want := 1000 * (100 + transContraHTPct) / 100
-	if got := danoDoTransContraHT(trans, ht, 1000); got != want {
-		t.Errorf("Trans na HT: dano = %d, want %d", got, want)
+	// Físico: extra plano. Skill: percentual.
+	if got, want := danoDoTransContraHT(trans, ht, 1000, false), 1000+transContraHTPlano; got != want {
+		t.Errorf("Trans na HT, físico: dano = %d, want %d", got, want)
+	}
+	if got, want := danoDoTransContraHT(trans, ht, 1000, true), 1000*(100+transContraHTSkillPct)/100; got != want {
+		t.Errorf("Trans na HT, skill: dano = %d, want %d", got, want)
 	}
 	for _, c := range []struct {
 		nome     string
@@ -184,11 +187,35 @@ func TestDanoDoTransContraHT(t *testing.T) {
 		{"Trans em monstro de classe 3", trans, mobHT},
 		{"TK sem a Armadura na HT", semArmadura, ht},
 	} {
-		if got := danoDoTransContraHT(c.atk, c.alv, 1000); got != 1000 {
-			t.Errorf("%s: dano = %d, want 1000 (sem o bônus)", c.nome, got)
+		for _, skill := range []bool{false, true} {
+			if got := danoDoTransContraHT(c.atk, c.alv, 1000, skill); got != 1000 {
+				t.Errorf("%s (skill=%v): dano = %d, want 1000 (sem o bônus)", c.nome, skill, got)
+			}
 		}
 	}
-	if got := danoDoTransContraHT(trans, ht, -3); got != -3 {
-		t.Errorf("esquiva (−3) = %d, want −3 intacta", got)
+	for _, skill := range []bool{false, true} {
+		if got := danoDoTransContraHT(trans, ht, -3, skill); got != -3 {
+			t.Errorf("esquiva (−3, skill=%v) = %d, want −3 intacta", skill, got)
+		}
+	}
+}
+
+// A Espada da Fênix bate metade em jogador e o mesmo em monstro; as outras skills
+// não mudam.
+func TestDanoDaFenixEmJogador(t *testing.T) {
+	for _, c := range []struct {
+		nome           string
+		skill, id, dmg int
+		want           int
+	}{
+		{"Fênix em jogador", skillEspadaDaFenix, 2, 1650, 825},
+		{"Fênix em monstro", skillEspadaDaFenix, world.MaxUser + 1, 1650, 1650},
+		{"Carga em jogador", 8, 2, 1650, 1650},
+		{"Golpe Mortal em jogador", 10, 2, 1650, 1650},
+		{"Fênix de 1 não vira 0", skillEspadaDaFenix, 2, 1, 1},
+	} {
+		if got := danoDaFenixEmJogador(c.skill, c.id, c.dmg); got != c.want {
+			t.Errorf("%s: dano = %d, want %d", c.nome, got, c.want)
+		}
 	}
 }
