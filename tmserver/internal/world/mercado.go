@@ -32,6 +32,9 @@ type OfertaDoMercado struct {
 	Qtd        uint8
 	Moeda      uint8
 	Preco      int32
+	// Efeitos são os adds do item na prateleira. Viajam junto porque a vitrine é
+	// montada aqui e o handler não tem mais o item na mão depois disto.
+	Efeitos [3]Effect
 	// Cidade é o índice da vila, o mesmo que o imposto usa; -1 fora de cidade.
 	Cidade int
 	// AbertaHaSegundos é DURAÇÃO e não instante, e a diferença importa: o relógio da
@@ -77,6 +80,7 @@ func OfertasDoMercado(w *World) []OfertaDoMercado {
 				Indice:           sl.Item.Index,
 				Refino:           sl.Item.Refino(),
 				Qtd:              sl.Item.QuantidadeNaVitrine(),
+				Efeitos:          sl.Item.Effects,
 				Moeda:            s.AutoTrade.Moeda[i],
 				Preco:            sl.Price,
 				Cidade:           cidade,
