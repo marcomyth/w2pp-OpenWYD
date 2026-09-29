@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/binary"
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
 	"time"
@@ -90,6 +91,10 @@ func (d *Dispatcher) reqShopList(w *world.World, s *world.Session, _ protocol.He
 const (
 	ultraPocaoCura = 404
 	ultraPocaoMana = 409
+	// safira é o 697, que empilha desde o PR 210. Ela entra nas DUAS listas de
+	// "por unidade", e as duas juntas são o que impede ouro sem fim — ver
+	// vendidasPorUnidade.
+	safira = 697
 )
 
 // cobradasPorUnidade são os itens cujo preço de vitrine vale POR UNIDADE.
@@ -100,11 +105,20 @@ const (
 // — rações de sessenta, pergaminhos de dez, Pedidos de Caça — e mudar isso de
 // uma vez reprecificaria o jogo inteiro sem ninguém pedir.
 //
-// DIVERGÊNCIA estreita, e o alcance foi contado antes: só estes dois índices.
+// DIVERGÊNCIA estreita, e o alcance foi contado antes: três índices.
 // Uma poção de 500 a dezesseis de ouro é outra coisa que um pergaminho barato
 // (decisão do Marco, 22/09/2026) — a pilha de 120 custa 240.000, que é o que o
 // jogador pagaria comprando uma a uma.
-var cobradasPorUnidade = map[int16]bool{ultraPocaoCura: true, ultraPocaoMana: true}
+//
+// A SAFIRA ENTRA AQUI PARA FECHAR UM CAMINHO DE OURO SEM FIM, e não porque alguém
+// pediu preço por unidade na compra. Ela passou a ser vendida por unidade no NPC
+// (vendidasPorUnidade, decisão da Hanna em 29/09/2026). Se a COMPRA continuasse
+// sendo por compra, comprar uma pilha de N pagaria 1.000.000 e revendê-la pagaria
+// N × 125.000: a partir de N=8 a volta rende mais que a ida, e o jogador imprime
+// ouro. Hoje o Bardes a vende com quantidade 1 (migração 0168) e o caminho está
+// fechado por acidente; esta linha fecha por construção, para uma quantidade
+// mudada no painel não abrir o buraco sem ninguém perceber.
+var cobradasPorUnidade = map[int16]bool{ultraPocaoCura: true, ultraPocaoMana: true, safira: true}
 
 // unidadesCobradas é por quantas unidades esta compra paga: a quantidade da
 // pilha para os itens acima, 1 para todo o resto.
@@ -256,6 +270,21 @@ func itemToSel(it world.Item) protocol.SelItem {
 		tmp := world.Item{Effects: eff}
 		setItemAmount(&tmp, 1)
 		eff = tmp.Effects
+		// E SE NEM ASSIM COUBE, ALGUÉM TEM DE SABER.
+		//
+		// O setItemAmount procura um espaço de efeito livre (vazio ou EF_UNIQUE) e,
+		// se os três estiverem ocupados, NÃO FAZ NADA — em silêncio. O item então sai
+		// daqui empilhável e sem EF_AMOUNT, que é justamente o pacote que mata o
+		// cliente: o servidor lê a falta do 61 como "um" e segue, o cliente não lê e
+		// cai no login.
+		//
+		// O jogador vê "o jogo fecha quando eu entro" e ninguém tem por onde começar,
+		// porque o servidor não reclamou de nada. Este log é o começo: ele diz o
+		// índice e os três efeitos, que é o suficiente para achar o item no banco.
+		if !hasAmountEffect(world.Item{Effects: eff}) {
+			alarmeDoItem().Error("item empilhavel sem espaco para quantidade",
+				"indice", it.Index, "efeitos", itemEffectsForLog(world.Item{Effects: eff}))
+		}
 	}
 	return protocol.SelItem{
 		Index: uint16(it.Index),
@@ -416,6 +445,16 @@ func precoDeVendaNoNPC(price int32) int32 {
 var vendidasPorUnidade = map[int16]bool{
 	419: true, // Resto_de_Oriharucon
 	420: true, // Resto_de_Lactolerium
+	// A Safira, por decisão da Hanna em 29/09/2026: "npc aceita pilha da safira,
+	// mas paga por cada". Ela empilha desde o PR 210, e sem isto vender uma pilha
+	// de 120 pagaria os mesmos 125.000 de uma só.
+	//
+	// A REGRA DE ENTRADA DESTA LISTA FOI CUMPRIDA, e não dispensada: a Safira É
+	// vendida em loja (o Bardes e o Redmiron), então ela só pode entrar aqui porque
+	// entrou TAMBÉM em cobradasPorUnidade. Com as duas, comprar N custa
+	// N × 1.000.000 e vender N paga N × 125.000 — um oitavo, como em qualquer item.
+	// Uma sem a outra é o ouro sem fim que o parágrafo acima descreve.
+	safira: true,
 }
 
 // unidadesVendidas é por quantas unidades esta venda paga: a quantidade da pilha
@@ -432,3 +471,23 @@ func unidadesVendidas(it world.Item) int {
 
 // msgVendaPassaDoTeto é a recusa de uma venda que passaria o ouro do teto.
 const msgVendaPassaDoTeto = "Você não pode carregar mais ouro. Guarde parte no banco e venda de novo."
+
+// logDoAlarmeDoItem é o logger do alarme acima, e é a ÚNICA coisa de pacote deste
+// arquivo. Ele existe porque o itemToSel é chamado de 74 lugares e nenhum deles tem
+// logger à mão: passar um por todos os 74 seria um custo desproporcional para um
+// alarme que, se tudo estiver certo, nunca dispara.
+//
+// Ele é instalado pelo New() do Dispatcher, junto com o resto da configuração.
+var logDoAlarmeDoItem *slog.Logger
+
+// alarmeDoItem devolve o logger do alarme, ou o padrão quando ninguém instalou um.
+//
+// NUNCA DEVOLVE NULO: um alarme que entra em pânico ao tentar avisar é pior que
+// nenhum alarme — ele transforma um item torto num servidor caído. O padrão do slog
+// escreve no erro padrão, que a Railway captura de todo jeito.
+func alarmeDoItem() *slog.Logger {
+	if logDoAlarmeDoItem != nil {
+		return logDoAlarmeDoItem
+	}
+	return slog.Default()
+}
