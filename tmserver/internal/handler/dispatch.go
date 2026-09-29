@@ -649,6 +649,11 @@ func New(cfg Config) *Dispatcher {
 	if cfg.Log == nil {
 		cfg.Log = slog.Default()
 	}
+	// O alarme do itemToSel usa o mesmo logger do resto, e é instalado aqui porque o
+	// itemToSel nao tem como receber um (shop.go, logDoAlarmeDoItem).
+	if cfg.Log != nil {
+		logDoAlarmeDoItem = cfg.Log
+	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}
