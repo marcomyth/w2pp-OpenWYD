@@ -699,13 +699,33 @@ func (d *Dispatcher) persistLeaveGuild(w *world.World, s *world.Session) {
 
 // esqueceGuildaApagada solta o que o tmServer guarda de uma guilda que o
 // dbServer apagou por ter ficado sem ninguém: o nome (que o /create consulta),
-// os buffs ligados e o quadro do painel. Nenhum jogador a carrega mais, então
-// não há etiqueta de ninguém para refazer.
+// os buffs ligados, o quadro do painel, e a posse de cidade, torre e Kefra.
+// Nenhum jogador a carrega mais, então não há etiqueta de ninguém para refazer.
+//
+// A POSSE É LIMPA AQUI SEM GRAVAR: o dbServer já zerou as mesmas colunas na
+// transação que apagou a guilda. O que importa é a memória não devolver o id
+// velho ao banco no próximo persistGuildZone, que grava a cidade inteira.
 func (d *Dispatcher) esqueceGuildaApagada(w *world.World, guilda uint16) {
 	nome := guildDisplayName(w, guilda)
 	w.ForgetGuild(guilda)
 	delete(d.guildaBuffs, guilda)
 	d.guildaEsqueceQuadro(guilda)
+	for i := range d.guildZones {
+		z := &d.guildZones[i]
+		if z.ChargeGuild == guilda {
+			z.ChargeGuild = 0
+		}
+		if z.ChallengeGuild == guilda {
+			z.ChallengeGuild, z.ChallengeMoney = 0, 0
+		}
+	}
+	if d.events.towerOwner == guilda {
+		d.events.towerOwner = 0
+		d.towerState.OwnerGuild = 0
+	}
+	if d.kefraGuildID == int32(guilda) {
+		d.kefraGuildID = 0
+	}
 	d.log.Info("guilda vazia apagada", "guild", nome, "id", guilda)
 }
 
