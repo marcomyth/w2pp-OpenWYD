@@ -620,7 +620,7 @@ func (s *Store) ListGuildRelations(ctx context.Context) ([]domain.GuildRelation,
 func (s *Store) LoadGuildZones(ctx context.Context) ([]domain.GuildZone, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT zone, charge_guild, challenge_guild, clan, victory, city_tax, challenge_money, tax_vault,
-		       guild_spawn_x, guild_spawn_y
+		       guild_spawn_x, guild_spawn_y, tax_changed_at
 		  FROM guild_zone ORDER BY zone`)
 	if err != nil {
 		return nil, fmt.Errorf("store: load guild zones: %w", err)
@@ -629,21 +629,33 @@ func (s *Store) LoadGuildZones(ctx context.Context) ([]domain.GuildZone, error) 
 	var out []domain.GuildZone
 	for rows.Next() {
 		var z domain.GuildZone
+		var taxa *time.Time
 		if err := rows.Scan(&z.Zone, &z.ChargeGuild, &z.ChallengeGuild, &z.Clan, &z.Victory, &z.CityTax, &z.ChallengeMoney, &z.TaxVault,
-			&z.GuildSpawnX, &z.GuildSpawnY); err != nil {
+			&z.GuildSpawnX, &z.GuildSpawnY, &taxa); err != nil {
 			return nil, fmt.Errorf("store: scan guild zone: %w", err)
+		}
+		if taxa != nil {
+			z.TaxChangedAt = *taxa
 		}
 		out = append(out, z)
 	}
 	return out, rows.Err()
 }
 
+// horaOuNulo grava a hora zero do Go como NULL: "nunca aconteceu".
+func horaOuNulo(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
+}
+
 // SaveGuildZone persists one guild/city zone.
 func (s *Store) SaveGuildZone(ctx context.Context, z domain.GuildZone) error {
 	tag, err := s.pool.Exec(ctx, `
 		INSERT INTO guild_zone(zone, charge_guild, challenge_guild, clan, victory, city_tax, challenge_money, tax_vault,
-		                       guild_spawn_x, guild_spawn_y, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+		                       guild_spawn_x, guild_spawn_y, tax_changed_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
 		ON CONFLICT (zone)
 		DO UPDATE SET charge_guild = EXCLUDED.charge_guild,
 		              challenge_guild = EXCLUDED.challenge_guild,
@@ -654,9 +666,12 @@ func (s *Store) SaveGuildZone(ctx context.Context, z domain.GuildZone) error {
 		              tax_vault = EXCLUDED.tax_vault,
 		              guild_spawn_x = EXCLUDED.guild_spawn_x,
 		              guild_spawn_y = EXCLUDED.guild_spawn_y,
+		              -- Dono novo começa sem a espera do anterior: o gatilho da
+		              -- migração 0181 zera tax_changed_at quando charge_guild muda.
+		              tax_changed_at = EXCLUDED.tax_changed_at,
 		              updated_at = now()`,
 		z.Zone, z.ChargeGuild, z.ChallengeGuild, z.Clan, z.Victory, z.CityTax, z.ChallengeMoney, z.TaxVault,
-		z.GuildSpawnX, z.GuildSpawnY,
+		z.GuildSpawnX, z.GuildSpawnY, horaOuNulo(z.TaxChangedAt),
 	)
 	if err != nil {
 		return fmt.Errorf("store: save guild zone %d: %w", z.Zone, err)

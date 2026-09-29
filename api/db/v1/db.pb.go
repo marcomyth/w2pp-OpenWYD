@@ -8578,10 +8578,13 @@ type GuildZone struct {
 	// The legacy reads these two in both respawn paths and never writes them, so
 	// they were always zero and its owning guild would have landed at the map
 	// corner. Carried here because the value now comes from the database.
-	GuildSpawnX   int32 `protobuf:"varint,9,opt,name=guild_spawn_x,json=guildSpawnX,proto3" json:"guild_spawn_x,omitempty"`
-	GuildSpawnY   int32 `protobuf:"varint,10,opt,name=guild_spawn_y,json=guildSpawnY,proto3" json:"guild_spawn_y,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	GuildSpawnX int32 `protobuf:"varint,9,opt,name=guild_spawn_x,json=guildSpawnX,proto3" json:"guild_spawn_x,omitempty"`
+	GuildSpawnY int32 `protobuf:"varint,10,opt,name=guild_spawn_y,json=guildSpawnY,proto3" json:"guild_spawn_y,omitempty"`
+	// Quando o imposto mudou pela última vez, em segundos Unix. Zero: nunca mudou.
+	// Fica no banco para a regra de uma troca por semana valer depois de um reinício.
+	TaxChangedAtUnix int64 `protobuf:"varint,11,opt,name=tax_changed_at_unix,json=taxChangedAtUnix,proto3" json:"tax_changed_at_unix,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GuildZone) Reset() {
@@ -8680,6 +8683,13 @@ func (x *GuildZone) GetGuildSpawnX() int32 {
 func (x *GuildZone) GetGuildSpawnY() int32 {
 	if x != nil {
 		return x.GuildSpawnY
+	}
+	return 0
+}
+
+func (x *GuildZone) GetTaxChangedAtUnix() int64 {
+	if x != nil {
+		return x.TaxChangedAtUnix
 	}
 	return 0
 }
@@ -15937,7 +15947,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x06notice\x18\x02 \x01(\tR\x06notice\x12\x1b\n" +
 	"\tnotice_by\x18\x03 \x01(\tR\bnoticeBy\")\n" +
 	"\x17SaveGuildNoticeResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02ok\"\xc2\x02\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"\xf1\x02\n" +
 	"\tGuildZone\x12\x12\n" +
 	"\x04zone\x18\x01 \x01(\x05R\x04zone\x12!\n" +
 	"\fcharge_guild\x18\x02 \x01(\rR\vchargeGuild\x12'\n" +
@@ -15949,7 +15959,8 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\ttax_vault\x18\b \x01(\x03R\btaxVault\x12\"\n" +
 	"\rguild_spawn_x\x18\t \x01(\x05R\vguildSpawnX\x12\"\n" +
 	"\rguild_spawn_y\x18\n" +
-	" \x01(\x05R\vguildSpawnY\"\x17\n" +
+	" \x01(\x05R\vguildSpawnY\x12-\n" +
+	"\x13tax_changed_at_unix\x18\v \x01(\x03R\x10taxChangedAtUnix\"\x17\n" +
 	"\x15LoadGuildZonesRequest\"@\n" +
 	"\x16LoadGuildZonesResponse\x12&\n" +
 	"\x05zones\x18\x01 \x03(\v2\x10.db.v1.GuildZoneR\x05zones\"<\n" +

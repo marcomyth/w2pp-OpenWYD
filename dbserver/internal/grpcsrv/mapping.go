@@ -404,15 +404,34 @@ func relationsToProto(relations []domain.GuildRelation) []*dbv1.GuildRelation {
 
 func zoneToProto(z domain.GuildZone) *dbv1.GuildZone {
 	return &dbv1.GuildZone{
-		Zone:           int32(z.Zone),
-		ChargeGuild:    uint32(z.ChargeGuild),
-		ChallengeGuild: uint32(z.ChallengeGuild),
-		Clan:           int32(z.Clan),
-		Victory:        int32(z.Victory),
-		CityTax:        int32(z.CityTax),
-		ChallengeMoney: z.ChallengeMoney,
-		TaxVault:       z.TaxVault,
+		Zone:             int32(z.Zone),
+		ChargeGuild:      uint32(z.ChargeGuild),
+		ChallengeGuild:   uint32(z.ChallengeGuild),
+		Clan:             int32(z.Clan),
+		Victory:          int32(z.Victory),
+		CityTax:          int32(z.CityTax),
+		ChallengeMoney:   z.ChallengeMoney,
+		TaxVault:         z.TaxVault,
+		GuildSpawnX:      z.GuildSpawnX,
+		GuildSpawnY:      z.GuildSpawnY,
+		TaxChangedAtUnix: unixOuZero(z.TaxChangedAt),
 	}
+}
+
+// unixOuZero leva a hora zero do Go para 0, e não para o Unix de 0001-01-01.
+func unixOuZero(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.Unix()
+}
+
+// horaDoUnix é o inverso: 0 volta a ser a hora zero ("nunca").
+func horaDoUnix(u int64) time.Time {
+	if u == 0 {
+		return time.Time{}
+	}
+	return time.Unix(u, 0).UTC()
 }
 
 func zoneFromProto(z *dbv1.GuildZone) domain.GuildZone {
@@ -428,6 +447,9 @@ func zoneFromProto(z *dbv1.GuildZone) domain.GuildZone {
 		CityTax:        uint8(z.GetCityTax()),
 		ChallengeMoney: z.GetChallengeMoney(),
 		TaxVault:       z.GetTaxVault(),
+		GuildSpawnX:    z.GetGuildSpawnX(),
+		GuildSpawnY:    z.GetGuildSpawnY(),
+		TaxChangedAt:   horaDoUnix(z.GetTaxChangedAtUnix()),
 	}
 }
 

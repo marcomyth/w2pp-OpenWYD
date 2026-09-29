@@ -460,6 +460,10 @@ type GuildZone struct {
 	// silently wiping the configured point.
 	GuildSpawnX int32
 	GuildSpawnY int32
+
+	// TaxChangedAt é quando o imposto mudou pela última vez (zero: nunca). A regra
+	// de uma troca por semana olha este campo (handler.guildTax).
+	TaxChangedAt time.Time
 }
 
 // GuildTowerState stores the current GTorre owner.

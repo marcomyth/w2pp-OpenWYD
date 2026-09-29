@@ -724,7 +724,7 @@ func (d *Dispatcher) guildaAcao(w *world.World, s *world.Session, _ protocol.Hea
 //
 // E a linha é montada e entregue ao guildTax INTEIRO, em vez de repetir as regras:
 // precisa ser líder, precisa haver cidade cobrada, a taxa vai de 0 a 30 e só muda uma
-// vez por dia. São quatro regras, e é exatamente por serem quatro que elas ficam num
+// vez por semana. São quatro regras, e é exatamente por serem quatro que elas ficam num
 // lugar só.
 func (d *Dispatcher) guildaImposto(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
 	e := w.Entity(s.Conn)
