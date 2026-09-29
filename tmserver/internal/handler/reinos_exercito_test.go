@@ -303,16 +303,33 @@ func TestReinosMigracaoDoSaque(t *testing.T) {
 	if len(got) != 3+2*6+2*6+16*5 {
 		t.Errorf("%d linhas na 0074, want %d", len(got), 3+2*6+2*6+16*5)
 	}
+	// O pacote pode ter a linha numa migração posterior à 0074: a 0184 troca o
+	// Andaluz da Bruxa e do Lanceiro pelo Cavalo Equipado.
+	b184, err := migrations.FS.ReadFile("0184_reino_bruxa_lanceiro_saque.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	comPacote := map[chave]int32{}
+	for k, c := range got {
+		comPacote[k] = c
+	}
+	for _, r := range regexp.MustCompile(`\('([^']+)',\s*(\d+),\s*(\d+)\)`).FindAllStringSubmatch(string(b184), -1) {
+		item, _ := strconv.Atoi(r[2])
+		chance, _ := strconv.Atoi(r[3])
+		if chance > 0 {
+			comPacote[chave{r[1], int16(item)}] = int32(chance)
+		}
+	}
 	for papel, pacotes := range reinosPacotes {
 		for item := range pacotes {
 			achou := false
-			for k := range got {
+			for k := range comPacote {
 				if k.item == item && papelPorTemplate[droprule.Canonical(k.mob)] == papel {
 					achou = true
 				}
 			}
 			if !achou {
-				t.Errorf("pacote do item %d no papel %d sem linha na 0074", item, papel)
+				t.Errorf("pacote do item %d no papel %d sem linha na 0074 nem na 0184", item, papel)
 			}
 		}
 	}
@@ -478,5 +495,47 @@ func TestReinosVigiaNoPulsoDosReinos(t *testing.T) {
 	d.tickKingdomRvR(w)
 	if !d.reiAvisado[1] {
 		t.Error("o pulso dos Reinos não vigiou o Rei")
+	}
+}
+
+// A 0184: só a Bruxa e o Lanceiro, nos dois reinos, trocam o Andaluz pelo Cavalo
+// Equipado da cor do reino e ganham Safira e Classe D; o Equipado cai em pacote.
+func TestReinoBruxaLanceiroSaque(t *testing.T) {
+	b, err := migrations.FS.ReadFile("0184_reino_bruxa_lanceiro_saque.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]map[int]int{}
+	for _, r := range regexp.MustCompile(`\('([^']+)',\s*(\d+),\s*(\d+)\)`).FindAllStringSubmatch(string(b), -1) {
+		item, _ := strconv.Atoi(r[2])
+		chance, _ := strconv.Atoi(r[3])
+		if got[r[1]] == nil {
+			got[r[1]] = map[int]int{}
+		}
+		got[r[1]][item] = chance
+	}
+	if len(got) != 4 {
+		t.Errorf("a 0184 mexe em %d monstros, want 4 (Bruxa e Lanceiro dos dois reinos)", len(got))
+	}
+	for _, mob := range []string{"Bruxa", "Lanceiro", "Bruxa_", "Lanceiro_"} {
+		andaluz, equipado := 2405, 2404
+		if strings.HasSuffix(mob, "_") {
+			andaluz, equipado = 2400, 2399
+		}
+		want := map[int]int{andaluz: 0, equipado: 200, 697: 100, 4019: 300}
+		if len(got[mob]) != len(want) {
+			t.Errorf("%s tem %d regras, want %d", mob, len(got[mob]), len(want))
+		}
+		for item, c := range want {
+			if v, ok := got[mob][item]; !ok || v != c {
+				t.Errorf("%s item %d a %d (existe=%v), want %d", mob, item, v, ok, c)
+			}
+		}
+		if papelPorTemplate[droprule.Canonical(mob)] != papelTropa {
+			t.Errorf("%s não é tropa do Reino", mob)
+		}
+		if reinosPacotes[papelTropa][int16(equipado)] != 5 {
+			t.Errorf("o Equipado %d da tropa não cai em pacote de 5", equipado)
+		}
 	}
 }
