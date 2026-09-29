@@ -158,15 +158,30 @@ const senhaMinimaDoPainel = 12
 // frase-senha é mais forte do que palavra, e um TrimSpace inteiro apagaria o começo e o fim
 // de uma. O \r entra na conta porque quem colar de um arquivo do Windows manda \r\n.
 func leSenhaDaEntrada(entrada io.Reader) (string, error) {
-	b, err := io.ReadAll(bufio.NewReader(entrada))
+	senha, err := leTextoDaEntrada(entrada)
 	if err != nil {
-		return "", fmt.Errorf("lendo a senha da entrada padrão: %w", err)
+		return "", err
 	}
-	senha := strings.TrimRight(string(b), "\r\n")
 	if len(senha) < senhaMinimaDoPainel {
 		return "", fmt.Errorf("a senha precisa de pelo menos %d caracteres; "+
 			"mande pela entrada padrão, por exemplo: printf '%%s' 'sua-senha' | adminserver %s -login NOME",
 			senhaMinimaDoPainel, criarUsuarioCmd)
 	}
 	return senha, nil
+}
+
+// leTextoDaEntrada lê a entrada padrão inteira e tira só a quebra de linha do fim.
+//
+// COMPARTILHADA pelos dois verbos que pedem senha (usuário do painel e conta de jogo)
+// porque a parte delicada é a mesma: um `echo` põe a quebra no fim, e uma senha com
+// essa quebra grudada não bate no login depois, sem ninguém entender por quê.
+//
+// SÓ O FIM É CORTADO. Espaço no começo ou no meio é senha, e cortar ali seria mudar
+// em silêncio o que a pessoa digitou.
+func leTextoDaEntrada(entrada io.Reader) (string, error) {
+	b, err := io.ReadAll(bufio.NewReader(entrada))
+	if err != nil {
+		return "", fmt.Errorf("lendo a senha da entrada padrão: %w", err)
+	}
+	return strings.TrimRight(string(b), "\r\n"), nil
 }
