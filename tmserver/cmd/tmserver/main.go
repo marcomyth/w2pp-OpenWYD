@@ -903,6 +903,9 @@ func run(logger *slog.Logger) error {
 		if cerr != nil {
 			return fmt.Errorf("-control-addr is set but the API cannot start: %w", cerr)
 		}
+		// O "entregar agora" do site passa a mandar o slot do baú ao cliente na hora.
+		// Sem esta linha a entrega continua acontecendo — só não aparece até o login.
+		ctl = ctl.ComAvisoDeBau(dispatch.AvisaSlotsDoBau)
 		cln, lerr := net.Listen("tcp", *controlAddr)
 		if lerr != nil {
 			return fmt.Errorf("listen on control address: %w", lerr)
