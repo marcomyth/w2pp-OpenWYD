@@ -518,47 +518,82 @@ const (
 //
 // A 4131 counts as ten whatever its stack says, as in the legacy. Loose Safiras
 // settle the remainder when there are enough of them; otherwise one more Pacote
-// pays it, which leaves the fewest items to hand back. The change goes into free
-// slots, including the ones the payment just emptied.
+// pays it, which leaves the fewest items to hand back.
+//
+// A loose Safira is a PILE since 29/09/2026 (pilha.Empilha): a slot is worth its
+// EF_AMOUNT, and paying takes units out of it instead of wiping it. Counting a
+// slot as one would have let a pile of fifty pay for one and vanish whole. The
+// change goes back as a single pile — onto a Safira pile with room, or into a
+// free slot, including the one the Pacote just left.
 func sapphirePaymentPlan(e *world.Entity, cost int) ([]int, sapphirePayment) {
 	limit := activeCarryLimit(e)
 	var packs, singles []int
+	loose := 0
 	for i := 0; i < limit; i++ {
 		switch e.Carry[i].Index {
 		case sapphireUnit10:
 			packs = append(packs, i)
 		case sapphireUnit1:
 			singles = append(singles, i)
+			loose += itemAmount(e.Carry[i])
 		}
 	}
-	if 10*len(packs)+len(singles) < cost {
+	if 10*len(packs)+loose < cost {
 		return nil, sapphireShort
 	}
 
 	tens := min(len(packs), cost/10)
 	remainder := cost - 10*tens
-	spent := append([]int(nil), packs[:tens]...)
+	staged := e.Carry
+	var changed []int
+	for _, i := range packs[:tens] {
+		staged[i] = world.Item{}
+		changed = append(changed, i)
+	}
 	change := 0
-	if remainder <= len(singles) {
-		spent = append(spent, singles[:remainder]...)
+	if remainder <= loose {
+		for _, i := range singles {
+			if remainder == 0 {
+				break
+			}
+			n := itemAmount(staged[i])
+			take := min(n, remainder)
+			remainder -= take
+			if take == n {
+				staged[i] = world.Item{}
+			} else {
+				setItemAmount(&staged[i], n-take)
+			}
+			changed = append(changed, i)
+		}
 	} else {
 		// Enough units overall with too few loose ones means an unused Pacote is
 		// left (see the count above), and it pays the remainder.
-		spent = append(spent, packs[tens])
+		staged[packs[tens]] = world.Item{}
+		changed = append(changed, packs[tens])
 		change = 10 - remainder
 	}
 
-	staged := e.Carry
-	for _, i := range spent {
-		staged[i] = world.Item{}
-	}
-	changed := spent
-	for range change {
-		slot := firstEmptyCarrySlot(staged[:], limit)
-		if slot < 0 {
-			return nil, sapphireNoRoom
+	if change > 0 {
+		slot := -1
+		for _, i := range singles {
+			if staged[i].Index == sapphireUnit1 && itemAmount(staged[i])+change <= maxStackAmount {
+				slot = i
+				break
+			}
 		}
-		staged[slot] = world.Item{Index: sapphireUnit1}
+		if slot >= 0 {
+			setItemAmount(&staged[slot], itemAmount(staged[slot])+change)
+		} else {
+			slot = firstEmptyCarrySlot(staged[:], limit)
+			if slot < 0 {
+				return nil, sapphireNoRoom
+			}
+			staged[slot] = world.Item{Index: sapphireUnit1}
+			if change > 1 {
+				setItemAmount(&staged[slot], change)
+			}
+		}
 		if !slices.Contains(changed, slot) {
 			changed = append(changed, slot)
 		}
@@ -894,7 +929,13 @@ const (
 // blackOracle handles BLACKORACLE (Merchant 78): merges the two soul items
 // (1740 immediately followed by 1741 in Carry) plus 10 sapphire units into the
 // Pedra Ideal (item 1742) the King later requires (_MSG_Quest.cpp:2257-2334).
-// A 697 counts as 1 unit, a 4131 as 10. The legacy case never checks confirm.
+// A 697 counts as its pile, a 4131 as 10. The legacy case never checks confirm.
+//
+// The payment goes through sapphirePaymentPlan, the same as the King's cape: it
+// reads the Safira pile by units and hands back change when a Pacote overpays.
+// The legacy loop here wiped a slot per unit, which with piles would have eaten
+// a whole stack for one Safira. Everything is staged on a copy and committed
+// only once the souls, the payment and the reward's slot all fit.
 func (d *Dispatcher) blackOracle(w *world.World, s *world.Session, e *world.Entity) {
 	soulSlot := -1
 	limit := activeCarryLimit(e)
@@ -908,50 +949,31 @@ func (d *Dispatcher) blackOracle(w *world.World, s *world.Session, e *world.Enti
 		d.notify(w, s, NoticeReqNotMet)
 		return
 	}
-	units := 0
-	for i := 0; i < limit; i++ {
-		it := e.Carry[i]
-		switch it.Index {
-		case sapphireUnit1:
-			units++
-		case sapphireUnit10:
-			units += 10
-		}
-	}
-	if units < blackOracleCost {
+	staged := *e
+	changed, pagamento := sapphirePaymentPlan(&staged, blackOracleCost)
+	if pagamento != sapphirePaid {
 		d.notify(w, s, NoticeReqNotMet)
 		return
 	}
-	remaining := blackOracleCost
-	for i := 0; i < limit; i++ {
-		if remaining <= 0 {
-			break
-		}
-		switch e.Carry[i].Index {
-		case sapphireUnit1:
-			e.Carry[i] = world.Item{}
-			w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, i, itemToSel(e.Carry[i])))
-			remaining--
-		case sapphireUnit10:
-			e.Carry[i] = world.Item{}
-			w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, i, itemToSel(e.Carry[i])))
-			if remaining -= 10; remaining < 0 {
-				remaining = 0
-			}
-		}
-	}
-	e.Carry[soulSlot] = world.Item{}
-	e.Carry[soulSlot+1] = world.Item{}
-	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, soulSlot, itemToSel(e.Carry[soulSlot])))
-	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, soulSlot+1, itemToSel(e.Carry[soulSlot+1])))
-
-	slot := firstEmptyCarry(&e.Carry)
+	staged.Carry[soulSlot] = world.Item{}
+	staged.Carry[soulSlot+1] = world.Item{}
+	slot := firstEmptyCarry(&staged.Carry)
 	if slot < 0 {
 		d.notify(w, s, NoticeReqNotMet)
 		return
 	}
-	e.Carry[slot] = world.Item{Index: pedraIdealReward}
-	w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, slot, itemToSel(e.Carry[slot])))
+	staged.Carry[slot] = world.Item{Index: pedraIdealReward}
+	e.Carry = staged.Carry
+	// Um espaço pode aparecer duas vezes (o prêmio cai onde estava uma alma ou
+	// uma Safira gasta); o cliente só precisa do estado final de cada um.
+	var enviados []int
+	for _, i := range append(changed, soulSlot, soulSlot+1, slot) {
+		if slices.Contains(enviados, i) {
+			continue
+		}
+		enviados = append(enviados, i)
+		w.Send(s, protocol.MsgSendItem, protocol.EncodeSendItemBody(protocol.ItemPlaceCarry, i, itemToSel(e.Carry[i])))
+	}
 	d.log.Info("black oracle soul merge", "conn", s.Conn, "name", e.Name)
 }
 
