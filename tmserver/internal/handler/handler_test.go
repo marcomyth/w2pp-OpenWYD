@@ -101,8 +101,12 @@ type fakeDB struct {
 	guildaApagadaNaSaida uint16
 	// expulsosOffline registra quem o expulsar offline pediu ao banco;
 	// recusaExpulsar é o motivo que o fake devolve.
-	expulsosOffline          []string
-	recusaExpulsar           world.GuildKickRefusal
+	expulsosOffline []string
+	recusaExpulsar  world.GuildKickRefusal
+	// promovidosOffline registra quem a promoção offline pediu ao banco;
+	// recusaPromover é o motivo que o fake devolve.
+	promovidosOffline        []string
+	recusaPromover           world.GuildPromoteRefusal
 	recusaDeGuilda           world.GuildRefusal
 	guildaConfereOuroGravado bool
 	recusaGuilda             bool
@@ -383,6 +387,17 @@ func (f *fakeDB) LeaveGuild(context.Context, int64, int) (uint16, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.guildaApagadaNaSaida, nil
+}
+
+func (f *fakeDB) PromoteOfflineGuildMember(_ context.Context, _ uint16, _ int64, _ int, nome string, cost int32) (uint8, world.GuildPromoteRefusal, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.promovidosOffline = append(f.promovidosOffline, nome)
+	if f.recusaPromover != world.GuildPromoteRefusalNone {
+		return 0, f.recusaPromover, nil
+	}
+	f.promoteCosts = append(f.promoteCosts, cost)
+	return 6, world.GuildPromoteRefusalNone, nil
 }
 
 func (f *fakeDB) PromoteGuildMember(_ context.Context, _ uint16, _ int64, _ int, _ int64, _ int, cost int32) (uint8, bool, error) {

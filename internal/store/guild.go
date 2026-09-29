@@ -303,6 +303,34 @@ func (s *Store) KickOfflineGuildMember(ctx context.Context, guildID uint16, kick
 	return nil
 }
 
+// ErrGuildRanked recusa promover quem já tem cargo: só membro comum vira sub-líder.
+var ErrGuildRanked = errors.New("store: guild member already ranked")
+
+// PromoteOfflineGuildMember promove a sub-líder um membro que não está no jogo.
+// O tmServer só conhece quem está online, então o alvo chega pelo nome e a conta e
+// o slot saem daqui. A promoção em si é a mesma do PromoteGuildMember, que trava as
+// linhas e reconfere guilda e cargo: o que se lê aqui só escolhe o personagem.
+func (s *Store) PromoteOfflineGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, targetName string, cost int32) (uint8, error) {
+	var accountID int64
+	var slot, level int
+	err := s.pool.QueryRow(ctx, `
+		SELECT account_id, slot, guild_level
+		  FROM character
+		 WHERE name = $1 AND guild_id = $2`,
+		targetName, int32(guildID),
+	).Scan(&accountID, &slot, &level)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, fmt.Errorf("store: find offline guild member: %w", err)
+	}
+	if level != 0 {
+		return 0, ErrGuildRanked
+	}
+	return s.PromoteGuildMember(ctx, guildID, leaderAccountID, leaderSlot, accountID, slot, cost)
+}
+
 // PromoteGuildMember assigns the first available sub-leader level (6, 7, 8) and
 // debits the leader in the same transaction.
 func (s *Store) PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, error) {

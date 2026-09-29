@@ -83,6 +83,7 @@ type Store interface {
 	LeaveGuild(ctx context.Context, accountID int64, slot int) (uint16, error)
 	KickOfflineGuildMember(ctx context.Context, guildID uint16, kickerAccountID int64, kickerSlot int, targetName string) error
 	PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, error)
+	PromoteOfflineGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, targetName string, cost int32) (uint8, error)
 	TransferGuildLeader(ctx context.Context, guildID uint16, oldAccountID int64, oldSlot int, newAccountID int64, newSlot int) error
 	SetGuildRelation(ctx context.Context, guildID, targetGuildID uint16, kind domain.GuildRelationKind) error
 	ListGuilds(ctx context.Context) ([]domain.Guild, error)
@@ -675,6 +676,26 @@ func (s *Server) PromoteGuildMember(ctx context.Context, req *dbv1.PromoteGuildM
 		return nil, status.Errorf(codes.Internal, "promote guild member: %v", err)
 	}
 	return &dbv1.PromoteGuildMemberResponse{Ok: true, GuildLevel: int32(level)}, nil
+}
+
+// PromoteOfflineGuildMember promove a sub-líder, pelo nome, um membro fora do jogo.
+func (s *Server) PromoteOfflineGuildMember(ctx context.Context, req *dbv1.PromoteOfflineGuildMemberRequest) (*dbv1.PromoteOfflineGuildMemberResponse, error) {
+	level, err := s.store.PromoteOfflineGuildMember(ctx, uint16(req.GetGuildId()), req.GetLeaderAccountId(),
+		int(req.GetLeaderSlot()), req.GetTargetName(), req.GetCost())
+	switch {
+	case err == nil:
+		return &dbv1.PromoteOfflineGuildMemberResponse{Ok: true, GuildLevel: int32(level)}, nil
+	case errors.Is(err, store.ErrNotFound):
+		return &dbv1.PromoteOfflineGuildMemberResponse{Refusal: dbv1.PromoteGuildRefusal_PROMOTE_GUILD_REFUSAL_NOT_MEMBER}, nil
+	case errors.Is(err, store.ErrGuildRanked):
+		return &dbv1.PromoteOfflineGuildMemberResponse{Refusal: dbv1.PromoteGuildRefusal_PROMOTE_GUILD_REFUSAL_ALREADY_RANKED}, nil
+	case errors.Is(err, store.ErrNoFreeSlot):
+		return &dbv1.PromoteOfflineGuildMemberResponse{Refusal: dbv1.PromoteGuildRefusal_PROMOTE_GUILD_REFUSAL_NO_FREE_RANK}, nil
+	case errors.Is(err, store.ErrConflict):
+		// Líder que deixou de ser líder, ouro que não bate: nada que o alvo explique.
+		return &dbv1.PromoteOfflineGuildMemberResponse{}, nil
+	}
+	return nil, status.Errorf(codes.Internal, "promote offline guild member: %v", err)
 }
 
 // TransferGuildLeader transfers rank 9 to another member.

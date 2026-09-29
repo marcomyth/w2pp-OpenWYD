@@ -619,6 +619,29 @@ func (c *Client) KickOfflineGuildMember(ctx context.Context, guildID uint16, kic
 	return world.GuildKickRefusalUnknown, nil
 }
 
+// PromoteOfflineGuildMember promove pelo banco um membro que não está no jogo.
+func (c *Client) PromoteOfflineGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, targetName string, cost int32) (uint8, world.GuildPromoteRefusal, error) {
+	resp, err := c.api.PromoteOfflineGuildMember(ctx, &dbv1.PromoteOfflineGuildMemberRequest{
+		GuildId: uint32(guildID), LeaderAccountId: leaderAccountID,
+		LeaderSlot: int32(leaderSlot), TargetName: targetName, Cost: cost,
+	})
+	if err != nil {
+		return 0, world.GuildPromoteRefusalUnknown, fmt.Errorf("dbclient: promote offline guild member: %w", err)
+	}
+	if resp.GetOk() {
+		return uint8(resp.GetGuildLevel()), world.GuildPromoteRefusalNone, nil
+	}
+	switch resp.GetRefusal() {
+	case dbv1.PromoteGuildRefusal_PROMOTE_GUILD_REFUSAL_NOT_MEMBER:
+		return 0, world.GuildPromoteRefusalNotMember, nil
+	case dbv1.PromoteGuildRefusal_PROMOTE_GUILD_REFUSAL_ALREADY_RANKED:
+		return 0, world.GuildPromoteRefusalAlreadyRanked, nil
+	case dbv1.PromoteGuildRefusal_PROMOTE_GUILD_REFUSAL_NO_FREE_RANK:
+		return 0, world.GuildPromoteRefusalNoFreeRank, nil
+	}
+	return 0, world.GuildPromoteRefusalUnknown, nil
+}
+
 // PromoteGuildMember assigns the first available sub-leader rank and charges the
 // leader in the same dbServer transaction.
 func (c *Client) PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, bool, error) {

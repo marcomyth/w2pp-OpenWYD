@@ -9,6 +9,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 )
 
@@ -184,5 +185,53 @@ func TestExpulsarOffline(t *testing.T) {
 	}
 	if guilda != 0 || membros != 1 {
 		t.Fatalf("depois de expulsar: guild_id do bot = %d, membros = %d; queria 0 e 1", guilda, membros)
+	}
+}
+
+func TestPromoverOffline(t *testing.T) {
+	s, ctx := freshStore(t)
+	lider := contaPix(ctx, t, s, "pro_lider")
+	bots := []int64{contaPix(ctx, t, s, "pro_b1"), contaPix(ctx, t, s, "pro_b2"),
+		contaPix(ctx, t, s, "pro_b3"), contaPix(ctx, t, s, "pro_b4")}
+	guildaComLider(ctx, t, s, "Promo", 4600, lider, 9)
+	for i, b := range bots {
+		entraNaGuilda(ctx, t, s, b, fmt.Sprintf("Sub0%d", i+1), 4600)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE character SET coin = 400000000 WHERE account_id = $1`, lider); err != nil {
+		t.Fatalf("dando ouro ao líder: %v", err)
+	}
+
+	if _, err := s.PromoteOfflineGuildMember(ctx, 4600, lider, 0, "Ninguem", 100_000_000); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("nome fora da guilda: erro = %v, queria ErrNotFound", err)
+	}
+	for i, want := range []uint8{6, 7, 8} {
+		nome := fmt.Sprintf("Sub0%d", i+1)
+		level, err := s.PromoteOfflineGuildMember(ctx, 4600, lider, 0, nome, 100_000_000)
+		if err != nil || level != want {
+			t.Fatalf("promovendo %s: cargo %d, erro %v; queria %d", nome, level, err, want)
+		}
+	}
+	if _, err := s.PromoteOfflineGuildMember(ctx, 4600, lider, 0, "Sub01", 100_000_000); !errors.Is(err, ErrGuildRanked) {
+		t.Fatalf("promovendo de novo: erro = %v, queria ErrGuildRanked", err)
+	}
+	if _, err := s.PromoteOfflineGuildMember(ctx, 4600, lider, 0, "Sub04", 100_000_000); !errors.Is(err, ErrNoFreeSlot) {
+		t.Fatalf("quarto sub-líder: erro = %v, queria ErrNoFreeSlot", err)
+	}
+
+	var coin int64
+	var cargo, noQuadro int
+	if err := s.pool.QueryRow(ctx, `SELECT coin FROM character WHERE account_id = $1`, lider).Scan(&coin); err != nil {
+		t.Fatalf("lendo o ouro: %v", err)
+	}
+	if err := s.pool.QueryRow(ctx, `SELECT guild_level FROM character WHERE name = 'Sub01'`).Scan(&cargo); err != nil {
+		t.Fatalf("lendo o cargo: %v", err)
+	}
+	if err := s.pool.QueryRow(ctx, `
+		SELECT gm.guild_level FROM guild_member gm JOIN character c ON c.id = gm.character_id
+		 WHERE c.name = 'Sub01'`).Scan(&noQuadro); err != nil {
+		t.Fatalf("lendo guild_member: %v", err)
+	}
+	if coin != 100_000_000 || cargo != 6 || noQuadro != 6 {
+		t.Fatalf("ouro %d, cargo %d, guild_member %d; queria 100000000, 6 e 6", coin, cargo, noQuadro)
 	}
 }
