@@ -8,8 +8,8 @@ import (
 )
 
 // TestControleDeManaDeMonstro é a conta do lado do MONSTRO (Server.cpp:10041):
-// a mana paga METADE do golpe e o divisor 80 deixa passar ~20,6%, contra o golpe
-// inteiro e os 30% do lado do jogador.
+// a mana paga METADE do golpe e o divisor 30 deixa passar 55% (o legado, com 80,
+// deixava ~20,6%), contra o golpe inteiro e os 30% do lado do jogador.
 func TestControleDeManaDeMonstro(t *testing.T) {
 	alvo := func(mp int32) *world.Entity {
 		e := &world.Entity{ID: 1, MP: mp, MaxMP: 8000}
@@ -22,9 +22,9 @@ func TestControleDeManaDeMonstro(t *testing.T) {
 	if !ok {
 		t.Fatal("o Controle de Mana tinha de pegar")
 	}
-	// (1000>>1 + 1000<<4) / 80 = 16500/80 = 206.
-	if dmg != 206 || gasto != 500 || e.MP != 7500 {
-		t.Errorf("golpe de monstro = %d, mana %d, MP %d; quero 206/500/7500", dmg, gasto, e.MP)
+	// (1000>>1 + 1000<<4) / 30 = 16500/30 = 550.
+	if dmg != 550 || gasto != 500 || e.MP != 7500 {
+		t.Errorf("golpe de monstro = %d, mana %d, MP %d; quero 550/500/7500", dmg, gasto, e.MP)
 	}
 
 	// O lado do jogador não mudou: golpe inteiro na mana, 30% na vida.
@@ -51,7 +51,7 @@ func TestControleDeManaDeMonstro(t *testing.T) {
 //
 // A prova não compara as duas rodadas entre si — o sorteio do golpe difere. Ela
 // olha DENTRO da rodada com o buff: cada golpe tira dmg/2 de mana e devolve
-// dmg×16,5/80 de dano, então a razão dano/mana é 0,4125 qualquer que seja o
+// dmg×16,5/30 de dano, então a razão dano/mana é 1,1 qualquer que seja o
 // sorteio.
 func TestGolpeDeMonstroPassaPeloControleDeMana(t *testing.T) {
 	addr, stop, d, w := startServerRegra(t, nil)
@@ -94,8 +94,8 @@ func TestGolpeDeMonstroPassaPeloControleDeMana(t *testing.T) {
 	if manaCom <= 0 {
 		t.Fatal("com o afeto 18 a mana não saiu: o golpe de monstro não passa pelo Controle de Mana")
 	}
-	if razao := float64(com) / float64(manaCom); math.Abs(razao-0.4125) > 0.01 {
-		t.Errorf("dano/mana = %.4f (dano %d, mana %d); quero 0,4125", razao, com, manaCom)
+	if razao := float64(com) / float64(manaCom); math.Abs(razao-1.1) > 0.01 {
+		t.Errorf("dano/mana = %.4f (dano %d, mana %d); quero 1,1", razao, com, manaCom)
 	}
 	if com >= sem {
 		t.Errorf("com o buff o golpe somou %d e sem ele %d: o escudo tem de tirar dano", com, sem)
