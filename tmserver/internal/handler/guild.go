@@ -51,7 +51,16 @@ func (d *Dispatcher) inviteGuild(w *world.World, s *world.Session, _ protocol.He
 	if other == nil || other.Mode != world.UserPlay || te == nil {
 		return
 	}
-	if te.Guild != 0 || te.Clan != e.Clan {
+	// AS DUAS RECUSAS AVISAM. O legado voltava calado nas duas
+	// (_MSG_InviteGuild.cpp:38 e :41), e o líder via "não acontece nada": em
+	// 29/09/2026 a Josiel convidou quatro vezes um personagem sem reino com o
+	// líder do reino vermelho, sem nenhuma pista. A regra fica a mesma.
+	if te.Guild != 0 {
+		sendClientMessage(w, s, fmt.Sprintf(msgConviteJaTemGuilda, te.Name))
+		return
+	}
+	if te.Clan != e.Clan {
+		sendClientMessage(w, s, fmt.Sprintf(msgConviteOutroReino, te.Name))
 		return
 	}
 	cost := int32(guildInviteCost)
@@ -187,6 +196,8 @@ const (
 	msgGuildSemCidadania    = "Você não possui cidadania."
 	msgGuildDomingo         = "Não é permitido criar guilda aos domingos!"
 	msgGuildDomingoConvite  = "Não é possivel utilizar domingo."
+	msgConviteJaTemGuilda   = "%s já pertence a uma guilda."
+	msgConviteOutroReino    = "%s não é do mesmo reino que você. Só entra na guilda quem é do mesmo reino."
 	msgGuildUso             = "Use: /create NomeDaGuilda (até 16 letras)."
 	msgGuildJaTem           = "Você já pertence a uma guilda."
 	msgGuildCriacaoRecusada = "Não foi possível criar a guilda agora. Tente de novo."
