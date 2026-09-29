@@ -71,8 +71,10 @@ func anctApply(items []world.Item) world.Item {
 // the list of active positions in ascending order. ok is false once the
 // caller has already sent a response (RemoveTrade or _NN_Wrong_Combination)
 // and must return immediately without consuming anything.
-func (d *Dispatcher) resolveComboInputs(w *world.World, s *world.Session, e *world.Entity, body protocol.MsgCombineItemBody) (items [protocol.MaxCombine]world.Item, slots [protocol.MaxCombine]int, active []int, ok bool) {
+func (d *Dispatcher) resolveComboInputs(w *world.World, s *world.Session, e *world.Entity, familia string, body protocol.MsgCombineItemBody) (items [protocol.MaxCombine]world.Item, slots [protocol.MaxCombine]int, active []int, ok bool) {
 	active = make([]int, 0, protocol.MaxCombine)
+	// vistas guarda em que célula cada slot do inventário já apareceu.
+	vistas := make(map[int]int, protocol.MaxCombine)
 	for i := 0; i < protocol.MaxCombine; i++ {
 		if body.Item[i].Index == 0 {
 			continue
@@ -109,6 +111,36 @@ func (d *Dispatcher) resolveComboInputs(w *world.World, s *world.Session, e *wor
 			d.refuseCombine(w, s, msgWrongCombination)
 			return items, slots, active, false
 		}
+		// A MESMA POSIÇÃO DUAS VEZES É UM ITEM CONTADO DUAS VEZES E PAGO UMA.
+		//
+		// Cada célula era conferida sozinha — cabe no inventário, e o item descrito
+		// bate com o que está no slot. Duas células apontando para o MESMO slot
+		// passam nas duas conferências, porque as duas descrevem o item de verdade
+		// que está lá. E aí o estrago acontece do outro lado: a receita recebe dois
+		// itens, e o consumo limpa `e.Carry[sl]` uma vez por posição ATIVA — o mesmo
+		// slot, duas vezes, o que custa UM item.
+		//
+		// Ou seja: uma Safira paga, duas contadas. Num Ehre isso é 697 + 697 pelo
+		// preço de um, e o mesmo vale em toda máquina que passa por aqui.
+		//
+		// O CLIENTE NUNCA MANDA ISSO. Ele monta as células a partir de slots
+		// distintos da grade, então a repetição só chega num pacote forjado — que é
+		// exatamente o caso que esta função existe para barrar, ao lado do sameItem.
+		if j, repetida := vistas[pos]; repetida {
+			// O LOG NÃO DIZ QUE ITEM É, só onde e de quem: quem lê um log de
+			// anti-fraude precisa do conn e da máquina para achar a pessoa, e o item
+			// não acrescenta nada que o resto da linha já não conte.
+			d.log.Info("combine: posicao repetida",
+				"conn", s.Conn, "familia", familia, "slot", pos,
+				"celula", i, "celula_anterior", j)
+			d.refuseCombine(w, s, msgWrongCombination)
+			// RemoveTrade, como no slot fora de alcance: os dois são pacote forjado,
+			// e não jogador clicando errado.
+			d.removeTrade(w, s)
+			return items, slots, active, false
+		}
+		vistas[pos] = i
+
 		items[i] = e.Carry[pos]
 		slots[i] = pos
 		active = append(active, i)
@@ -134,7 +166,7 @@ func (d *Dispatcher) combineItem(w *world.World, s *world.Session, h protocol.He
 		return
 	}
 
-	byPos, slotByPos, active, ok := d.resolveComboInputs(w, s, e, body)
+	byPos, slotByPos, active, ok := d.resolveComboInputs(w, s, e, fam.Name, body)
 	if !ok {
 		return
 	}
