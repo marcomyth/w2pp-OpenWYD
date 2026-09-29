@@ -216,7 +216,7 @@ func (h *Handler) setEventos(w http.ResponseWriter, r *http.Request) {
 	}
 	novo.RoundXPCap, novo.RoundXPCapDouble = teto, tetoDobro
 
-	if err := h.cfg.Eventos.UpsertWorldEventConfig(r.Context(), novo, sess.AccountID); err != nil {
+	if err := h.cfg.Eventos.UpsertWorldEventConfig(r.Context(), novo, sess.Ator()); err != nil {
 		h.cfg.Logger.Error("world event config write failed", "err", err)
 		http.Error(w, "Erro ao gravar a configuração dos eventos.", http.StatusBadGateway)
 		return

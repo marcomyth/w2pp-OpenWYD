@@ -47,7 +47,7 @@ func (s *Store) ListMountAbsorb(ctx context.Context) ([]domain.MountAbsorb, erro
 // decision ("this mount is for PvE"), and a save that landed one and lost the
 // other would leave a lineage nobody designed — strong against monsters and
 // accidentally strong against people too.
-func (s *Store) SetMountAbsorb(ctx context.Context, mountIndex, pvp, pve int16, moderatorID int64, moderator string) error {
+func (s *Store) SetMountAbsorb(ctx context.Context, mountIndex, pvp, pve int16, ator domain.Ator, moderator string) error {
 	if mountIndex < domain.MountAdultLo || mountIndex > domain.MountAdultHi {
 		return fmt.Errorf("store: %d is not an adult mount", mountIndex)
 	}
@@ -75,7 +75,7 @@ func (s *Store) SetMountAbsorb(ctx context.Context, mountIndex, pvp, pve int16, 
 		if err != nil {
 			return err
 		}
-		return auditAndBump(ctx, tx, nil, moderatorID, "set_mount_absorb", before, after)
+		return auditAndBump(ctx, tx, nil, ator, "set_mount_absorb", before, after)
 	})
 }
 
@@ -83,7 +83,7 @@ func (s *Store) SetMountAbsorb(ctx context.Context, mountIndex, pvp, pve int16, 
 // default — absence is what "use the default" means everywhere in this overlay,
 // so restoring is a delete and not a write of 25/25. Writing the default would
 // be a configuration, and it would stop following the default if it ever moved.
-func (s *Store) ClearMountAbsorb(ctx context.Context, mountIndex int16, moderatorID int64) error {
+func (s *Store) ClearMountAbsorb(ctx context.Context, mountIndex int16, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		before, err := fetchMountAbsorbJSON(ctx, tx, mountIndex)
 		if err != nil {
@@ -96,7 +96,7 @@ func (s *Store) ClearMountAbsorb(ctx context.Context, mountIndex int16, moderato
 		if err != nil {
 			return err
 		}
-		return auditAndBump(ctx, tx, nil, moderatorID, "clear_mount_absorb", before, after)
+		return auditAndBump(ctx, tx, nil, ator, "clear_mount_absorb", before, after)
 	})
 }
 

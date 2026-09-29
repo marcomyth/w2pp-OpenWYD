@@ -60,7 +60,7 @@ func TestMobTemplateStatCRUD(t *testing.T) {
 		RegenHP:  10, RegenMP: 5,
 		Resist: [4]int8{1, -1, 2, -2},
 	}
-	if err := s.UpsertMobTemplateStat(ctx, want, modID); err != nil {
+	if err := s.UpsertMobTemplateStat(ctx, want, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
@@ -76,7 +76,7 @@ func TestMobTemplateStatCRUD(t *testing.T) {
 	if err := s.SetMobTemplateEquip(ctx, "Karkarian", []domain.MobTemplateEquipItem{
 		{Slot: 0, ItemIndex: 1100, Eff1: 1, EffV1: 9},
 		{Slot: 5, ItemIndex: 1200},
-	}, modID); err != nil {
+	}, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("set equip: %v", err)
 	}
 
@@ -89,7 +89,7 @@ func TestMobTemplateStatCRUD(t *testing.T) {
 	}
 
 	// SetMobTemplateEquip on a template with no stat row yet must fail.
-	if err := s.SetMobTemplateEquip(ctx, "NoSuchTemplate", nil, modID); !errors.Is(err, ErrNotFound) {
+	if err := s.SetMobTemplateEquip(ctx, "NoSuchTemplate", nil, domain.AtorDaConta(modID)); !errors.Is(err, ErrNotFound) {
 		t.Errorf("set equip on missing template err = %v, want ErrNotFound", err)
 	}
 
@@ -101,13 +101,13 @@ func TestMobTemplateStatCRUD(t *testing.T) {
 		t.Fatalf("list = %+v, want 1 entry named Karkarian with 2 equip slots", all)
 	}
 
-	if err := s.DeleteMobTemplateStat(ctx, "Karkarian", modID); err != nil {
+	if err := s.DeleteMobTemplateStat(ctx, "Karkarian", domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	if _, err := s.GetMobTemplateStat(ctx, "Karkarian"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("get after delete err = %v, want ErrNotFound", err)
 	}
-	if err := s.DeleteMobTemplateStat(ctx, "Karkarian", modID); !errors.Is(err, ErrNotFound) {
+	if err := s.DeleteMobTemplateStat(ctx, "Karkarian", domain.AtorDaConta(modID)); !errors.Is(err, ErrNotFound) {
 		t.Errorf("delete again err = %v, want ErrNotFound", err)
 	}
 

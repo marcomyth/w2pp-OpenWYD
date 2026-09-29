@@ -40,14 +40,14 @@ func (f *fakeStore) GetMobTemplateStat(_ context.Context, templateName string) (
 	}
 	return st, nil
 }
-func (f *fakeStore) UpsertMobTemplateStat(_ context.Context, st domain.MobTemplateStat, _ int64) error {
+func (f *fakeStore) UpsertMobTemplateStat(_ context.Context, st domain.MobTemplateStat, _ domain.Ator) error {
 	if f.stats == nil {
 		f.stats = map[string]domain.MobTemplateStat{}
 	}
 	f.stats[st.TemplateName] = st
 	return nil
 }
-func (f *fakeStore) SetMobTemplateEquip(_ context.Context, templateName string, items []domain.MobTemplateEquipItem, _ int64) error {
+func (f *fakeStore) SetMobTemplateEquip(_ context.Context, templateName string, items []domain.MobTemplateEquipItem, _ domain.Ator) error {
 	if _, ok := f.stats[templateName]; !ok {
 		return store.ErrNotFound
 	}
@@ -57,7 +57,7 @@ func (f *fakeStore) SetMobTemplateEquip(_ context.Context, templateName string, 
 	f.equip[templateName] = items
 	return nil
 }
-func (f *fakeStore) DeleteMobTemplateStat(_ context.Context, templateName string, _ int64) error {
+func (f *fakeStore) DeleteMobTemplateStat(_ context.Context, templateName string, _ domain.Ator) error {
 	if _, ok := f.stats[templateName]; !ok {
 		return store.ErrNotFound
 	}

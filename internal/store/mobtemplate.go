@@ -108,7 +108,7 @@ func (s *Store) GetMobTemplateStat(ctx context.Context, templateName string) (do
 // 0, sem vida — que não nasce. Use UPDATE de linha existente, ou preencha todas as
 // colunas. O painel nunca cai nisso porque carrega a ficha, troca só os campos do
 // formulário e regrava tudo (panel.setMonstro).
-func (s *Store) UpsertMobTemplateStat(ctx context.Context, st domain.MobTemplateStat, moderatorID int64) error {
+func (s *Store) UpsertMobTemplateStat(ctx context.Context, st domain.MobTemplateStat, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		before, _ := fetchMobTemplateStatJSON(ctx, tx, st.TemplateName)
 		_, err := tx.Exec(ctx, `
@@ -161,7 +161,7 @@ func (s *Store) UpsertMobTemplateStat(ctx context.Context, st domain.MobTemplate
 			st.Special[0], st.Special[1], st.Special[2], st.Special[3], st.MaxHp, st.Hp, st.MaxMp, st.Mp,
 			st.LearnedSkill, st.ScoreBonus, st.SkillBar[0], st.SkillBar[1], st.SkillBar[2], st.SkillBar[3],
 			st.RegenHP, st.RegenMP, st.Resist[0], st.Resist[1], st.Resist[2], st.Resist[3],
-			nullableID(moderatorID),
+			nullableID(ator.ContaID),
 		)
 		if err != nil {
 			return fmt.Errorf("store: upsert mob template stat %q: %w", st.TemplateName, err)
@@ -174,7 +174,7 @@ func (s *Store) UpsertMobTemplateStat(ctx context.Context, st domain.MobTemplate
 			action = "create_template_stat"
 		}
 		after, _ := fetchMobTemplateStatJSON(ctx, tx, st.TemplateName)
-		return auditAndBump(ctx, tx, nil, moderatorID, action, before, after)
+		return auditAndBump(ctx, tx, nil, ator, action, before, after)
 	})
 }
 
@@ -182,7 +182,7 @@ func (s *Store) UpsertMobTemplateStat(ctx context.Context, st domain.MobTemplate
 // ErrNotFound if no mob_template_stat row exists yet for template_name (the
 // stat row must be upserted first, same dependency as npc_shop_item on
 // npc_definition).
-func (s *Store) SetMobTemplateEquip(ctx context.Context, templateName string, items []domain.MobTemplateEquipItem, moderatorID int64) error {
+func (s *Store) SetMobTemplateEquip(ctx context.Context, templateName string, items []domain.MobTemplateEquipItem, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		if err := ensureMobTemplateStatExists(ctx, tx, templateName); err != nil {
 			return err
@@ -192,7 +192,7 @@ func (s *Store) SetMobTemplateEquip(ctx context.Context, templateName string, it
 			return err
 		}
 		after, _ := fetchMobTemplateEquipJSON(ctx, tx, templateName)
-		return auditAndBump(ctx, tx, nil, moderatorID, "set_template_equip", before, after)
+		return auditAndBump(ctx, tx, nil, ator, "set_template_equip", before, after)
 	})
 }
 
@@ -220,7 +220,7 @@ func replaceMobTemplateEquip(ctx context.Context, tx pgx.Tx, templateName string
 // DeleteMobTemplateStat removes an override (its equip slots cascade),
 // reverting the template to its raw file defaults. Returns ErrNotFound if
 // absent.
-func (s *Store) DeleteMobTemplateStat(ctx context.Context, templateName string, moderatorID int64) error {
+func (s *Store) DeleteMobTemplateStat(ctx context.Context, templateName string, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		before, err := fetchMobTemplateStatJSON(ctx, tx, templateName)
 		if err != nil {
@@ -232,7 +232,7 @@ func (s *Store) DeleteMobTemplateStat(ctx context.Context, templateName string, 
 		if _, err := tx.Exec(ctx, `DELETE FROM mob_template_stat WHERE template_name = $1`, templateName); err != nil {
 			return fmt.Errorf("store: delete mob template stat %q: %w", templateName, err)
 		}
-		return auditAndBump(ctx, tx, nil, moderatorID, "delete_template_stat", before, nil)
+		return auditAndBump(ctx, tx, nil, ator, "delete_template_stat", before, nil)
 	})
 }
 

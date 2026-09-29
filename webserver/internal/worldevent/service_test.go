@@ -13,7 +13,7 @@ type fakeStore struct {
 	version int64
 	cfg     domain.WorldEventConfig
 	setCfg  domain.WorldEventConfig
-	setBy   int64
+	setBy   domain.Ator
 	set     bool
 }
 
@@ -30,8 +30,8 @@ func (f *fakeStore) WorldEventConfigVersion(context.Context) (int64, error) {
 func (f *fakeStore) WorldEventConfig(context.Context) (domain.WorldEventConfig, error) {
 	return f.cfg, nil
 }
-func (f *fakeStore) UpsertWorldEventConfig(_ context.Context, cfg domain.WorldEventConfig, moderatorID int64) error {
-	f.setCfg, f.setBy, f.set = cfg, moderatorID, true
+func (f *fakeStore) UpsertWorldEventConfig(_ context.Context, cfg domain.WorldEventConfig, ator domain.Ator) error {
+	f.setCfg, f.setBy, f.set = cfg, ator, true
 	return nil
 }
 
@@ -108,8 +108,8 @@ func TestSetValidation(t *testing.T) {
 	if r, err := s.Set(context.Background(), 1, valid); err != nil || r != OK {
 		t.Fatalf("Set(valid) = (%v,%v), want OK", r, err)
 	}
-	if !st.set || st.setBy != 1 || st.setCfg.ItemIndex != 777 {
-		t.Fatalf("store set = %v by %d cfg %+v, want item 777 by moderator 1", st.set, st.setBy, st.setCfg)
+	if !st.set || st.setBy != domain.AtorDaConta(1) || st.setCfg.ItemIndex != 777 {
+		t.Fatalf("store set = %v by %+v cfg %+v, want item 777 by moderator 1", st.set, st.setBy, st.setCfg)
 	}
 	for _, cfg := range bad {
 		st.set = false

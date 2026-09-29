@@ -116,7 +116,7 @@ func scanDonateShopItemCategory(row scanRow, category *int16) (domain.DonateShop
 // UpsertDonateShopItem inserts a new offer (d.ID == 0) or updates the existing
 // one by id, writing an audit row in the same transaction. Returns the offer id;
 // updating a missing id returns ErrNotFound.
-func (s *Store) UpsertDonateShopItem(ctx context.Context, d domain.DonateShopItem, moderatorID int64) (int64, error) {
+func (s *Store) UpsertDonateShopItem(ctx context.Context, d domain.DonateShopItem, ator domain.Ator) (int64, error) {
 	var id int64
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		if d.ID == 0 {
@@ -126,12 +126,12 @@ func (s *Store) UpsertDonateShopItem(ctx context.Context, d domain.DonateShopIte
 				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now())
 				RETURNING id`,
 				d.ItemIndex, d.Eff1, d.EffV1, d.Eff2, d.EffV2, d.Eff3, d.EffV3,
-				d.Price, d.Title, d.Description, d.Enabled, d.ExpiresDays, nullableID(moderatorID),
+				d.Price, d.Title, d.Description, d.Enabled, d.ExpiresDays, nullableID(ator.ContaID),
 			).Scan(&id); err != nil {
 				return fmt.Errorf("store: insert donate shop item: %w", err)
 			}
 			after, _ := fetchDonateItemJSON(ctx, tx, id)
-			return donateAudit(ctx, tx, &id, moderatorID, "create", nil, after)
+			return donateAudit(ctx, tx, &id, ator, "create", nil, after)
 		}
 
 		before, _ := fetchDonateItemJSON(ctx, tx, d.ID)
@@ -146,19 +146,19 @@ func (s *Store) UpsertDonateShopItem(ctx context.Context, d domain.DonateShopIte
 				updated_by=$14, updated_at=now()
 			WHERE id=$1`,
 			id, d.ItemIndex, d.Eff1, d.EffV1, d.Eff2, d.EffV2, d.Eff3, d.EffV3,
-			d.Price, d.Title, d.Description, d.Enabled, d.ExpiresDays, nullableID(moderatorID),
+			d.Price, d.Title, d.Description, d.Enabled, d.ExpiresDays, nullableID(ator.ContaID),
 		); err != nil {
 			return fmt.Errorf("store: update donate shop item %d: %w", id, err)
 		}
 		after, _ := fetchDonateItemJSON(ctx, tx, id)
-		return donateAudit(ctx, tx, &id, moderatorID, "update", before, after)
+		return donateAudit(ctx, tx, &id, ator, "update", before, after)
 	})
 	return id, err
 }
 
 // SetDonateShopItemEnabled toggles whether an offer is on sale. Returns
 // ErrNotFound if the offer does not exist.
-func (s *Store) SetDonateShopItemEnabled(ctx context.Context, id int64, enabled bool, moderatorID int64) error {
+func (s *Store) SetDonateShopItemEnabled(ctx context.Context, id int64, enabled bool, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		before, _ := fetchDonateItemJSON(ctx, tx, id)
 		if before == nil {
@@ -166,16 +166,16 @@ func (s *Store) SetDonateShopItemEnabled(ctx context.Context, id int64, enabled 
 		}
 		if _, err := tx.Exec(ctx,
 			`UPDATE donate_shop_item SET enabled=$2, updated_by=$3, updated_at=now() WHERE id=$1`,
-			id, enabled, nullableID(moderatorID)); err != nil {
+			id, enabled, nullableID(ator.ContaID)); err != nil {
 			return fmt.Errorf("store: set donate shop item %d enabled: %w", id, err)
 		}
 		after, _ := fetchDonateItemJSON(ctx, tx, id)
-		return donateAudit(ctx, tx, &id, moderatorID, "set_enabled", before, after)
+		return donateAudit(ctx, tx, &id, ator, "set_enabled", before, after)
 	})
 }
 
 // DeleteDonateShopItem removes an offer. Returns ErrNotFound if absent.
-func (s *Store) DeleteDonateShopItem(ctx context.Context, id int64, moderatorID int64) error {
+func (s *Store) DeleteDonateShopItem(ctx context.Context, id int64, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		before, _ := fetchDonateItemJSON(ctx, tx, id)
 		if before == nil {
@@ -184,7 +184,7 @@ func (s *Store) DeleteDonateShopItem(ctx context.Context, id int64, moderatorID 
 		if _, err := tx.Exec(ctx, `DELETE FROM donate_shop_item WHERE id = $1`, id); err != nil {
 			return fmt.Errorf("store: delete donate shop item %d: %w", id, err)
 		}
-		return donateAudit(ctx, tx, &id, moderatorID, "delete", before, nil)
+		return donateAudit(ctx, tx, &id, ator, "delete", before, nil)
 	})
 }
 
@@ -216,7 +216,7 @@ func (s *Store) CreditDonateInGame(ctx context.Context, accountID int64, amount 
 	if amount <= 0 {
 		return 0, fmt.Errorf("store: credit donate in game a=%d: amount %d não é positivo", accountID, amount)
 	}
-	return s.creditDonate(ctx, accountID, amount, accountID, LedgerActionItem, map[string]any{
+	return s.creditDonate(ctx, accountID, amount, domain.AtorDaConta(accountID), LedgerActionItem, map[string]any{
 		"account_id": accountID, "amount": amount, "character": characterName, "reason": reason,
 	})
 }
@@ -225,8 +225,8 @@ func (s *Store) CreditDonateInGame(ctx context.Context, accountID int64, amount 
 // credit path the future payment webhook reuses) and returns the new balance. It
 // is a partial UPDATE — never a full-row write — so it is safe against tmServer
 // saves. Returns ErrNotFound if the account is absent.
-func (s *Store) CreditDonateBalance(ctx context.Context, accountID int64, amount int32, moderatorID int64, reason string) (int32, error) {
-	return s.creditDonate(ctx, accountID, amount, moderatorID, LedgerActionCredit, map[string]any{
+func (s *Store) CreditDonateBalance(ctx context.Context, accountID int64, amount int32, ator domain.Ator, reason string) (int32, error) {
+	return s.creditDonate(ctx, accountID, amount, ator, LedgerActionCredit, map[string]any{
 		"account_id": accountID, "amount": amount, "reason": reason,
 	})
 }
@@ -238,7 +238,9 @@ func (s *Store) CreditDonateBalance(ctx context.Context, accountID int64, amount
 //
 // after is the audit payload; the resulting balance is added to it here, because
 // only this function knows it.
-func (s *Store) creditDonate(ctx context.Context, accountID int64, amount int32, actingAccountID int64, action string, after map[string]any) (int32, error) {
+// creditDonate credita saldo e audita. O ATOR e quem pediu: a propria conta numa
+// compra, o moderador ou o usuario do painel num credito manual.
+func (s *Store) creditDonate(ctx context.Context, accountID int64, amount int32, ator domain.Ator, action string, after map[string]any) (int32, error) {
 	var newBal int32
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx,
@@ -252,7 +254,7 @@ func (s *Store) creditDonate(ctx context.Context, accountID int64, amount int32,
 		}
 		after["balance"] = newBal
 		js, _ := json.Marshal(after)
-		return donateAudit(ctx, tx, nil, actingAccountID, action, nil, js)
+		return donateAudit(ctx, tx, nil, ator, action, nil, js)
 	})
 	return newBal, err
 }
@@ -343,7 +345,7 @@ func (s *Store) buyDonate(ctx context.Context, accountID, shopItemID int64, rc *
 			after["origem"] = "jogo"
 		}
 		js, _ := json.Marshal(after)
-		return donateAudit(ctx, tx, &it.ID, accountID, "purchase", nil, js)
+		return donateAudit(ctx, tx, &it.ID, domain.AtorDaConta(accountID), "purchase", nil, js)
 	})
 	return newBal, deliveryID, err
 }
@@ -589,11 +591,20 @@ func expiresDaysToUnix(days int32) int64 {
 
 // donateAudit writes one row to donate_shop_audit. Unlike auditAndBump there is
 // no config version to bump — the tmServer never reads the donate catalog.
-func donateAudit(ctx context.Context, tx pgx.Tx, shopItemID *int64, accountID int64, action string, before, after []byte) error {
+// donateAudit escreve uma linha de donate_shop_audit.
+//
+// O ATOR AQUI NAO E SO DE STAFF: a mesma tabela guarda a COMPRA de um jogador, e nesse
+// caso o ator e a conta dele. E por isso que a trava da 0181 e "exatamente um dos dois"
+// e nao "tem de ser usuario do painel".
+func donateAudit(ctx context.Context, tx pgx.Tx, shopItemID *int64, ator domain.Ator, action string, before, after []byte) error {
+	if err := ator.Conferir(); err != nil {
+		return fmt.Errorf("store: auditoria da loja de doacao: %w", err)
+	}
+	conta, painel := ator.ParaSQL()
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO donate_shop_audit (shop_item_id, account_id, action, before, after)
-		VALUES ($1,$2,$3,$4,$5)`,
-		shopItemID, accountID, action, nullableJSON(before), nullableJSON(after)); err != nil {
+		INSERT INTO donate_shop_audit (shop_item_id, account_id, actor_painel_usuario_id, action, before, after)
+		VALUES ($1,$2,$3,$4,$5,$6)`,
+		shopItemID, conta, painel, action, nullableJSON(before), nullableJSON(after)); err != nil {
 		return fmt.Errorf("store: write donate audit: %w", err)
 	}
 	return nil

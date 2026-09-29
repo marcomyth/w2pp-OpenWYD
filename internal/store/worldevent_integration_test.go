@@ -42,7 +42,7 @@ func TestWorldEventConfigCRUDAndProgress(t *testing.T) {
 		TowerWarEnabled: false, TowerWarHour: 18,
 		BossRespawnHours: domain.DefaultBossRespawnHours,
 	}
-	if err := st.UpsertWorldEventConfig(ctx, cfg, modID); err != nil {
+	if err := st.UpsertWorldEventConfig(ctx, cfg, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("UpsertWorldEventConfig: %v", err)
 	}
 	v, err = st.WorldEventConfigVersion(ctx)
@@ -135,7 +135,7 @@ func TestKefraStateGravaSoOEstadoEAudita(t *testing.T) {
 
 	cfg := domain.DefaultWorldEventConfig()
 	cfg.DoubleExpEnabled = true
-	if err := st.UpsertWorldEventConfig(ctx, cfg, 0); err != nil {
+	if err := st.UpsertWorldEventConfig(ctx, cfg, atorDeTeste(ctx, t, st)); err != nil {
 		t.Fatalf("UpsertWorldEventConfig: %v", err)
 	}
 	if got, _ = st.WorldEventConfig(ctx); !got.KefraLiveEnabled || got.KefraGuildID != 7 || !got.DoubleExpEnabled {
@@ -164,7 +164,7 @@ func TestHoraDaGuerraDeTorresForaDaFaixaERecusada(t *testing.T) {
 	for _, hora := range []int32{-1, 24} {
 		cfg := domain.DefaultWorldEventConfig()
 		cfg.TowerWarHour = hora
-		if err := st.UpsertWorldEventConfig(ctx, cfg, 0); err == nil {
+		if err := st.UpsertWorldEventConfig(ctx, cfg, atorDeTeste(ctx, t, st)); err == nil {
 			t.Errorf("o banco aceitou a guerra de torres às %dh", hora)
 		}
 	}

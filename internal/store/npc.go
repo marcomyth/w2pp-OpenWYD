@@ -156,7 +156,7 @@ func (s *Store) AccountRole(ctx context.Context, id int64) (string, error) {
 // the same slug (position, visibility, template, merchant type). Shop items are
 // managed separately via SetNPCShop. Returns the definition id. Bumps the config
 // version and writes an audit row, all in one transaction.
-func (s *Store) UpsertNPCDefinition(ctx context.Context, d domain.NPCDefinition, moderatorID int64) (int64, error) {
+func (s *Store) UpsertNPCDefinition(ctx context.Context, d domain.NPCDefinition, ator domain.Ator) (int64, error) {
 	var id int64
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		before, _ := fetchDefJSON(ctx, tx, d.Slug)
@@ -177,7 +177,7 @@ func (s *Store) UpsertNPCDefinition(ctx context.Context, d domain.NPCDefinition,
 				updated_at    = now()
 			RETURNING id`,
 			d.Slug, d.TemplateName, d.DisplayName, d.Enabled, d.MapID, d.PosX, d.PosY,
-			d.RouteType, d.Merchant, nullableID(moderatorID),
+			d.RouteType, d.Merchant, nullableID(ator.ContaID),
 		).Scan(&id)
 		if qerr != nil {
 			return fmt.Errorf("store: upsert npc definition %q: %w", d.Slug, qerr)
@@ -187,7 +187,7 @@ func (s *Store) UpsertNPCDefinition(ctx context.Context, d domain.NPCDefinition,
 			action = "create"
 		}
 		after, _ := fetchDefJSONByID(ctx, tx, id)
-		if err := auditAndBump(ctx, tx, &id, moderatorID, action, before, after); err != nil {
+		if err := auditAndBump(ctx, tx, &id, ator, action, before, after); err != nil {
 			return err
 		}
 		return nil
@@ -203,7 +203,7 @@ func (s *Store) UpsertNPCDefinition(ctx context.Context, d domain.NPCDefinition,
 // seed skips recorded slots: without that, the template's item came back into
 // every slot a moderator had emptied on the next dbServer start
 // (0072_npc_shop_slot_cleared.up.sql).
-func (s *Store) SetNPCShop(ctx context.Context, npcID int64, items []domain.NPCShopItem, moderatorID int64) error {
+func (s *Store) SetNPCShop(ctx context.Context, npcID int64, items []domain.NPCShopItem, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		if err := ensureDefExists(ctx, tx, npcID); err != nil {
 			return err
@@ -220,7 +220,7 @@ func (s *Store) SetNPCShop(ctx context.Context, npcID int64, items []domain.NPCS
 			SELECT npc_id, slot, $2 FROM npc_shop_item
 			WHERE npc_id = $1 AND slot <> ALL($3::smallint[])
 			ON CONFLICT (npc_id, slot) DO UPDATE SET cleared_by = EXCLUDED.cleared_by, cleared_at = now()`,
-			npcID, nullableID(moderatorID), filled); err != nil {
+			npcID, nullableID(ator.ContaID), filled); err != nil {
 			return fmt.Errorf("store: record cleared shop slots %d: %w", npcID, err)
 		}
 		if _, err := tx.Exec(ctx,
@@ -243,13 +243,13 @@ func (s *Store) SetNPCShop(ctx context.Context, npcID int64, items []domain.NPCS
 			}
 		}
 		after, _ := fetchShopJSON(ctx, tx, npcID)
-		return auditAndBump(ctx, tx, &npcID, moderatorID, "set_shop", before, after)
+		return auditAndBump(ctx, tx, &npcID, ator, "set_shop", before, after)
 	})
 }
 
 // SetNPCVisibility toggles whether an NPC appears in the world. Returns
 // ErrNotFound if the definition does not exist.
-func (s *Store) SetNPCVisibility(ctx context.Context, npcID int64, enabled bool, moderatorID int64) error {
+func (s *Store) SetNPCVisibility(ctx context.Context, npcID int64, enabled bool, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		if err := ensureDefExists(ctx, tx, npcID); err != nil {
 			return err
@@ -257,17 +257,17 @@ func (s *Store) SetNPCVisibility(ctx context.Context, npcID int64, enabled bool,
 		before, _ := fetchDefJSONByID(ctx, tx, npcID)
 		if _, err := tx.Exec(ctx,
 			`UPDATE npc_definition SET enabled = $2, updated_by = $3, updated_at = now() WHERE id = $1`,
-			npcID, enabled, nullableID(moderatorID)); err != nil {
+			npcID, enabled, nullableID(ator.ContaID)); err != nil {
 			return fmt.Errorf("store: set npc visibility %d: %w", npcID, err)
 		}
 		after, _ := fetchDefJSONByID(ctx, tx, npcID)
-		return auditAndBump(ctx, tx, &npcID, moderatorID, "set_visibility", before, after)
+		return auditAndBump(ctx, tx, &npcID, ator, "set_visibility", before, after)
 	})
 }
 
 // SetItemPrice sets (or clears, when price < 0) the global override price for an
 // item index.
-func (s *Store) SetItemPrice(ctx context.Context, itemIndex int32, price int64, moderatorID int64) error {
+func (s *Store) SetItemPrice(ctx context.Context, itemIndex int32, price int64, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		if price < 0 {
 			if _, err := tx.Exec(ctx, `DELETE FROM item_price WHERE item_index = $1`, itemIndex); err != nil {
@@ -277,17 +277,17 @@ func (s *Store) SetItemPrice(ctx context.Context, itemIndex int32, price int64, 
 			INSERT INTO item_price (item_index, price, updated_by, updated_at)
 			VALUES ($1,$2,$3, now())
 			ON CONFLICT (item_index) DO UPDATE SET price = EXCLUDED.price, updated_by = EXCLUDED.updated_by, updated_at = now()`,
-			itemIndex, price, nullableID(moderatorID)); err != nil {
+			itemIndex, price, nullableID(ator.ContaID)); err != nil {
 			return fmt.Errorf("store: set item price %d: %w", itemIndex, err)
 		}
 		after, _ := json.Marshal(domain.ItemPriceOverride{ItemIndex: itemIndex, Price: price})
-		return auditAndBump(ctx, tx, nil, moderatorID, "set_price", nil, after)
+		return auditAndBump(ctx, tx, nil, ator, "set_price", nil, after)
 	})
 }
 
 // DeleteNPCDefinition removes a definition (its shop items cascade). Returns
 // ErrNotFound if absent.
-func (s *Store) DeleteNPCDefinition(ctx context.Context, npcID int64, moderatorID int64) error {
+func (s *Store) DeleteNPCDefinition(ctx context.Context, npcID int64, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		var origin string
 		err := tx.QueryRow(ctx, `SELECT origin FROM npc_definition WHERE id = $1`, npcID).Scan(&origin)
@@ -310,7 +310,7 @@ func (s *Store) DeleteNPCDefinition(ctx context.Context, npcID int64, moderatorI
 		if _, err := tx.Exec(ctx, `DELETE FROM npc_definition WHERE id = $1`, npcID); err != nil {
 			return fmt.Errorf("store: delete npc definition %d: %w", npcID, err)
 		}
-		return auditAndBump(ctx, tx, &npcID, moderatorID, "delete", before, nil)
+		return auditAndBump(ctx, tx, &npcID, ator, "delete", before, nil)
 	})
 }
 
@@ -618,11 +618,26 @@ type pgxQuerier interface {
 
 // auditAndBump writes the audit row and increments the config version. Called at
 // the end of every mutating transaction.
-func auditAndBump(ctx context.Context, tx pgx.Tx, npcID *int64, moderatorID int64, action string, before, after []byte) error {
+// auditAndBump escreve a linha de auditoria e sobe a versao da configuracao.
+//
+// O ATOR PODE SER UMA CONTA DE JOGO OU UM USUARIO DO PAINEL, e e por aqui que passam
+// DEZOITO das escritas do painel: as 5 de NPC, as 3 de monstro, as 2 de item base e as
+// 6 de montaria. Todas reusam npc_audit em vez de ter uma tabela por assunto, e por
+// isso este e o unico lugar onde o ator precisou entrar para as dezoito.
+//
+// CONFERE O ATOR ANTES DO INSERT. A trava no banco (a CHECK "um ator" da 0181) tambem
+// recusaria, e continua sendo a garantia final para qualquer caminho escrito amanha.
+// Mas a recusa dela sai como violacao de constraint, e quem esta olhando o painel
+// merece uma frase que diga o que falta.
+func auditAndBump(ctx context.Context, tx pgx.Tx, npcID *int64, ator domain.Ator, action string, before, after []byte) error {
+	if err := ator.Conferir(); err != nil {
+		return fmt.Errorf("store: auditoria de npc: %w", err)
+	}
+	conta, painel := ator.ParaSQL()
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO npc_audit (npc_id, account_id, action, before, after)
-		VALUES ($1,$2,$3,$4,$5)`,
-		npcID, moderatorID, action, nullableJSON(before), nullableJSON(after)); err != nil {
+		INSERT INTO npc_audit (npc_id, account_id, actor_painel_usuario_id, action, before, after)
+		VALUES ($1,$2,$3,$4,$5,$6)`,
+		npcID, conta, painel, action, nullableJSON(before), nullableJSON(after)); err != nil {
 		return fmt.Errorf("store: write npc audit: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `UPDATE npc_config_meta SET version = version + 1 WHERE id = TRUE`); err != nil {

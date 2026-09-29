@@ -26,12 +26,12 @@ type Store interface {
 	AccountRole(ctx context.Context, id int64) (string, error)
 	ListNPCDefinitions(ctx context.Context) ([]domain.NPCDefinition, error)
 	GetNPCDefinition(ctx context.Context, id int64) (domain.NPCDefinition, error)
-	UpsertNPCDefinition(ctx context.Context, d domain.NPCDefinition, moderatorID int64) (int64, error)
-	SetNPCShop(ctx context.Context, npcID int64, items []domain.NPCShopItem, moderatorID int64) error
-	SetNPCVisibility(ctx context.Context, npcID int64, enabled bool, moderatorID int64) error
-	SetItemPrice(ctx context.Context, itemIndex int32, price int64, moderatorID int64) error
+	UpsertNPCDefinition(ctx context.Context, d domain.NPCDefinition, ator domain.Ator) (int64, error)
+	SetNPCShop(ctx context.Context, npcID int64, items []domain.NPCShopItem, ator domain.Ator) error
+	SetNPCVisibility(ctx context.Context, npcID int64, enabled bool, ator domain.Ator) error
+	SetItemPrice(ctx context.Context, itemIndex int32, price int64, ator domain.Ator) error
 	ItemPriceOverrides(ctx context.Context) ([]domain.ItemPriceOverride, error)
-	DeleteNPCDefinition(ctx context.Context, npcID int64, moderatorID int64) error
+	DeleteNPCDefinition(ctx context.Context, npcID int64, ator domain.Ator) error
 }
 
 // Result is the business outcome of an admin operation. Only infra failures are
@@ -174,13 +174,14 @@ func (s *Service) Get(ctx context.Context, moderatorID, npcID int64) (Result, do
 
 // Upsert creates or updates a definition (position, visibility, merchant type).
 func (s *Service) Upsert(ctx context.Context, moderatorID int64, d domain.NPCDefinition) (Result, int64, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, 0, err
 	}
 	if d.Slug == "" || d.TemplateName == "" || !validMerchant(d.Merchant) {
 		return Invalid, 0, nil
 	}
-	id, err := s.store.UpsertNPCDefinition(ctx, d, moderatorID)
+	id, err := s.store.UpsertNPCDefinition(ctx, d, ator)
 	if err != nil {
 		return Invalid, 0, fmt.Errorf("npcadmin: upsert %q: %w", d.Slug, err)
 	}
@@ -189,16 +190,18 @@ func (s *Service) Upsert(ctx context.Context, moderatorID int64, d domain.NPCDef
 
 // SetVisibility toggles whether the NPC appears in the world.
 func (s *Service) SetVisibility(ctx context.Context, moderatorID, npcID int64, enabled bool) (Result, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, err
 	}
-	err := s.store.SetNPCVisibility(ctx, npcID, enabled, moderatorID)
+	err = s.store.SetNPCVisibility(ctx, npcID, enabled, ator)
 	return classifyWrite(err, "set visibility")
 }
 
 // SetShop replaces a merchant NPC's shop stock after validating the slots.
 func (s *Service) SetShop(ctx context.Context, moderatorID, npcID int64, items []domain.NPCShopItem) (Result, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, err
 	}
 	seen := make(map[int16]bool, len(items))
@@ -221,19 +224,20 @@ func (s *Service) SetShop(ctx context.Context, moderatorID, npcID int64, items [
 		}
 		seen[it.Slot] = true
 	}
-	err := s.store.SetNPCShop(ctx, npcID, items, moderatorID)
+	err = s.store.SetNPCShop(ctx, npcID, items, ator)
 	return classifyWrite(err, "set shop")
 }
 
 // SetItemPrice sets (price>=0) or clears (price<0) the global item price.
 func (s *Service) SetItemPrice(ctx context.Context, moderatorID int64, itemIndex int32, price int64) (Result, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, err
 	}
 	if itemIndex <= 0 {
 		return Invalid, nil
 	}
-	if err := s.store.SetItemPrice(ctx, itemIndex, price, moderatorID); err != nil {
+	if err := s.store.SetItemPrice(ctx, itemIndex, price, ator); err != nil {
 		return Invalid, fmt.Errorf("npcadmin: set item price %d: %w", itemIndex, err)
 	}
 	return OK, nil
@@ -257,10 +261,11 @@ func (s *Service) ListItemPrices(ctx context.Context, moderatorID int64) (Result
 // ~99% of the catalog) are refused with ContentOwned — the moderator is meant to
 // hide them via SetVisibility instead.
 func (s *Service) Delete(ctx context.Context, moderatorID, npcID int64) (Result, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, err
 	}
-	err := s.store.DeleteNPCDefinition(ctx, npcID, moderatorID)
+	err = s.store.DeleteNPCDefinition(ctx, npcID, ator)
 	res, cerr := classifyWrite(err, "delete")
 	// The store rejects before writing the audit row, so this refusal would
 	// otherwise be invisible on the server (issue #257).
@@ -322,4 +327,28 @@ func classifyWrite(err error, op string) (Result, error) {
 // confirmed by capture (npc-editing-plan.md §9.4).
 func validMerchant(m int16) bool {
 	return m >= 0 && m <= 255
+}
+
+// autorizaEscrita e o authorize das ESCRITAS: alem de dizer se PODE, diz QUEM E.
+//
+// EXISTE SEPARADO DO authorize porque as leituras nao precisam de ator, e misturar as
+// duas coisas faria cada pagina de consulta carregar um ator que ela nao usa.
+//
+// A ORDEM DE PREFERENCIA E EXPLICITA, e nao "quem estiver preenchido": conta de jogo
+// primeiro, usuario do painel depois. Se um dia as duas informacoes chegarem juntas na
+// mesma chamada, esta ordem decide sozinha em vez de atribuir a acao a quem der sorte
+// de ser lido primeiro. E se nao houver nenhuma das duas, o ator sai vazio e o
+// internal/store recusa antes de escrever -- ninguem grava "conta 0".
+func (s *Service) autorizaEscrita(ctx context.Context, moderatorID int64) (domain.Ator, Result, error) {
+	r, err := s.authorize(ctx, moderatorID)
+	if r != OK || err != nil {
+		return domain.Ator{}, r, err
+	}
+	if moderatorID > 0 {
+		return domain.AtorDaConta(moderatorID), OK, nil
+	}
+	if a, doPainel := painelator.Do(ctx); doPainel {
+		return domain.AtorDoPainel(a.ID), OK, nil
+	}
+	return domain.Ator{}, Forbidden, nil
 }

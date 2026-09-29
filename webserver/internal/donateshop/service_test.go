@@ -43,7 +43,7 @@ func (f *fakeStore) all(enabledOnly bool) []domain.DonateShopItem {
 	}
 	return out
 }
-func (f *fakeStore) UpsertDonateShopItem(_ context.Context, d domain.DonateShopItem, _ int64) (int64, error) {
+func (f *fakeStore) UpsertDonateShopItem(_ context.Context, d domain.DonateShopItem, _ domain.Ator) (int64, error) {
 	if f.upsertErr != nil {
 		return 0, f.upsertErr
 	}
@@ -55,19 +55,19 @@ func (f *fakeStore) UpsertDonateShopItem(_ context.Context, d domain.DonateShopI
 	}
 	return 99, nil
 }
-func (f *fakeStore) SetDonateShopItemEnabled(_ context.Context, id int64, _ bool, _ int64) error {
+func (f *fakeStore) SetDonateShopItemEnabled(_ context.Context, id int64, _ bool, _ domain.Ator) error {
 	if _, ok := f.items[id]; !ok {
 		return store.ErrNotFound
 	}
 	return nil
 }
-func (f *fakeStore) DeleteDonateShopItem(_ context.Context, id int64, _ int64) error {
+func (f *fakeStore) DeleteDonateShopItem(_ context.Context, id int64, _ domain.Ator) error {
 	if _, ok := f.items[id]; !ok {
 		return store.ErrNotFound
 	}
 	return nil
 }
-func (f *fakeStore) CreditDonateBalance(_ context.Context, accountID int64, amount int32, _ int64, _ string) (int32, error) {
+func (f *fakeStore) CreditDonateBalance(_ context.Context, accountID int64, amount int32, _ domain.Ator, _ string) (int32, error) {
 	if f.creditErr != nil {
 		return 0, f.creditErr
 	}

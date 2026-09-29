@@ -43,7 +43,7 @@ func (s *Store) WorldEventConfig(ctx context.Context) (domain.WorldEventConfig, 
 // game writes that too, when the boss dies and when it comes back on Tuesday,
 // and a form opened before the kill and saved after it would otherwise write the
 // old value back. The Kefra goes through SetKefraState only.
-func (s *Store) UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEventConfig, moderatorID int64) error {
+func (s *Store) UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEventConfig, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		if err := lockWorldEventMeta(ctx, tx); err != nil {
 			return err
@@ -94,11 +94,13 @@ func (s *Store) UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEven
 			cfg.RoundXPCap[0], cfg.RoundXPCap[1], cfg.RoundXPCap[2], cfg.RoundXPCap[3], cfg.RoundXPCap[4],
 			cfg.RoundXPCapDouble[0], cfg.RoundXPCapDouble[1], cfg.RoundXPCapDouble[2],
 			cfg.RoundXPCapDouble[3], cfg.RoundXPCapDouble[4],
-			nullableID(moderatorID)); err != nil {
+			// updated_by guarda a CONTA que editou; usuario do painel nao tem conta, e
+			// nesse caso a coluna fica NULA -- quem fez esta na auditoria.
+			nullableID(ator.ContaID)); err != nil {
 			return fmt.Errorf("store: upsert world event config: %w", err)
 		}
 		after, _ := fetchWorldEventConfigJSON(ctx, tx)
-		return auditWorldEventAndBump(ctx, tx, moderatorID, FonteEventoPainel, "set_config", before, after)
+		return auditWorldEventAndBump(ctx, tx, ator, FonteEventoPainel, "set_config", before, after)
 	})
 }
 
@@ -145,7 +147,7 @@ func (s *Store) SetKefraState(ctx context.Context, live bool, guildID int32, fon
 			return fmt.Errorf("store: set kefra state: %w", err)
 		}
 		after, _ := fetchWorldEventConfigJSON(ctx, tx)
-		if err := auditWorldEventAndBump(ctx, tx, accountID, fonte, "set_kefra", before, after); err != nil {
+		if err := auditWorldEventAndBump(ctx, tx, domain.AtorDaConta(accountID), fonte, "set_kefra", before, after); err != nil {
 			return err
 		}
 		if err := tx.QueryRow(ctx, `SELECT version FROM world_event_meta WHERE id = TRUE`).Scan(&version); err != nil {
@@ -225,13 +227,21 @@ func lockWorldEventMeta(ctx context.Context, tx pgx.Tx) error {
 	return nil
 }
 
-// auditWorldEventAndBump writes the audit row and bumps the version. accountID 0
-// is stored as NULL: the game's writes have no moderator (migration 0067).
-func auditWorldEventAndBump(ctx context.Context, tx pgx.Tx, accountID int64, fonte, action string, before, after []byte) error {
+// auditWorldEventAndBump writes the audit row and bumps the version.
+//
+// AQUI O ATOR PODE SER VAZIO, e esta e a unica das quatro auditorias onde isso e
+// legitimo: quando o Kefra cai, quem muda o estado e o JOGO, com fonte='jogo' e sem
+// pessoa nenhuma. Foi a 0067 que tirou o NOT NULL da coluna por causa disso.
+//
+// POR ISSO NAO HA Conferir() NESTE CAMINHO. Chamar o Conferir aqui recusaria toda
+// gravacao do jogo e a cidade do Kefra pararia de abrir. Quem exige ator e a trava da
+// 0181, que so o exige quando fonte='painel' — ou seja, quando houve alguem.
+func auditWorldEventAndBump(ctx context.Context, tx pgx.Tx, ator domain.Ator, fonte, action string, before, after []byte) error {
+	conta, painel := ator.ParaSQL()
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO world_event_audit (account_id, action, fonte, before, after)
-		VALUES ($1,$2,$3,$4,$5)`,
-		nullableID(accountID), action, fonte, nullableJSON(before), nullableJSON(after)); err != nil {
+		INSERT INTO world_event_audit (account_id, actor_painel_usuario_id, action, fonte, before, after)
+		VALUES ($1,$2,$3,$4,$5,$6)`,
+		conta, painel, action, fonte, nullableJSON(before), nullableJSON(after)); err != nil {
 		return fmt.Errorf("store: write world event audit: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `UPDATE world_event_meta SET version = version + 1 WHERE id = TRUE`); err != nil {

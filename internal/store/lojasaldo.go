@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -112,7 +113,7 @@ func (s *Store) TransferePlayerBalance(ctx context.Context, deConta, paraConta i
 		if erro != nil {
 			return fmt.Errorf("store: transfere: montando o registro: %w", erro)
 		}
-		return donateAudit(ctx, tx, nil, deConta, "transferencia", nil, registro)
+		return donateAudit(ctx, tx, nil, domain.AtorDaConta(deConta), "transferencia", nil, registro)
 	})
 	if err != nil {
 		return 0, 0, err

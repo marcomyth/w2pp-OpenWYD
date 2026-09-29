@@ -20,7 +20,7 @@ type fakeEventos struct {
 	mu      sync.Mutex
 	cfg     domain.WorldEventConfig
 	gravado []domain.WorldEventConfig
-	ator    []int64
+	ator    []domain.Ator
 	kefra   []chamadaKefra
 	lerErr  error
 	gravErr error
@@ -51,7 +51,7 @@ func (f *fakeEventos) WorldEventConfig(context.Context) (domain.WorldEventConfig
 	return f.cfg, f.lerErr
 }
 
-func (f *fakeEventos) UpsertWorldEventConfig(_ context.Context, c domain.WorldEventConfig, ator int64) error {
+func (f *fakeEventos) UpsertWorldEventConfig(_ context.Context, c domain.WorldEventConfig, ator domain.Ator) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.gravErr != nil {

@@ -39,7 +39,7 @@ func (s *Store) ListMountBonus(ctx context.Context) ([]domain.MountBonus, error)
 
 // SetMountBonus writes all four numbers of one lineage at once — they are one
 // decision about what the mount is, like the absorption pair.
-func (s *Store) SetMountBonus(ctx context.Context, b domain.MountBonus, moderatorID int64, moderator string) error {
+func (s *Store) SetMountBonus(ctx context.Context, b domain.MountBonus, ator domain.Ator, moderator string) error {
 	if !mountbonus.IsAdult(b.MountIndex) {
 		return fmt.Errorf("store: %d is not an adult mount", b.MountIndex)
 	}
@@ -66,14 +66,14 @@ func (s *Store) SetMountBonus(ctx context.Context, b domain.MountBonus, moderato
 		if err != nil {
 			return err
 		}
-		return auditAndBump(ctx, tx, nil, moderatorID, "set_mount_bonus", before, after)
+		return auditAndBump(ctx, tx, nil, ator, "set_mount_bonus", before, after)
 	})
 }
 
 // ClearMountBonus drops the lineage's row, returning it to the compiled table.
 // A delete and not a write of the default values, for the reason every overlay
 // here gives: a written default stops following the default if it ever moves.
-func (s *Store) ClearMountBonus(ctx context.Context, mountIndex int16, moderatorID int64) error {
+func (s *Store) ClearMountBonus(ctx context.Context, mountIndex int16, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		before, err := fetchMountBonusJSON(ctx, tx, mountIndex)
 		if err != nil {
@@ -86,7 +86,7 @@ func (s *Store) ClearMountBonus(ctx context.Context, mountIndex int16, moderator
 		if err != nil {
 			return err
 		}
-		return auditAndBump(ctx, tx, nil, moderatorID, "clear_mount_bonus", before, after)
+		return auditAndBump(ctx, tx, nil, ator, "clear_mount_bonus", before, after)
 	})
 }
 

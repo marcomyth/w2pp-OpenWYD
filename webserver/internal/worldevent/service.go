@@ -19,7 +19,7 @@ type Store interface {
 	AccountRole(ctx context.Context, id int64) (string, error)
 	WorldEventConfigVersion(ctx context.Context) (int64, error)
 	WorldEventConfig(ctx context.Context) (domain.WorldEventConfig, error)
-	UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEventConfig, moderatorID int64) error
+	UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEventConfig, ator domain.Ator) error
 }
 
 // Result is the business outcome of an admin operation. Only infra failures are
@@ -63,13 +63,14 @@ func (s *Service) Get(ctx context.Context, moderatorID int64) (Result, int64, do
 
 // Set replaces the world-event config after authorizing and validating it.
 func (s *Service) Set(ctx context.Context, moderatorID int64, cfg domain.WorldEventConfig) (Result, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, err
 	}
 	if !validConfig(cfg) {
 		return Invalid, nil
 	}
-	if err := s.store.UpsertWorldEventConfig(ctx, cfg, moderatorID); err != nil {
+	if err := s.store.UpsertWorldEventConfig(ctx, cfg, ator); err != nil {
 		return Invalid, fmt.Errorf("worldevent: set config: %w", err)
 	}
 	return OK, nil
@@ -138,4 +139,28 @@ func (s *Service) authorize(ctx context.Context, moderatorID int64) (Result, err
 		return Forbidden, nil
 	}
 	return OK, nil
+}
+
+// autorizaEscrita e o authorize das ESCRITAS: alem de dizer se PODE, diz QUEM E.
+//
+// EXISTE SEPARADO DO authorize porque as leituras nao precisam de ator, e misturar as
+// duas coisas faria cada pagina de consulta carregar um ator que ela nao usa.
+//
+// A ORDEM DE PREFERENCIA E EXPLICITA, e nao "quem estiver preenchido": conta de jogo
+// primeiro, usuario do painel depois. Se um dia as duas informacoes chegarem juntas na
+// mesma chamada, esta ordem decide sozinha em vez de atribuir a acao a quem der sorte
+// de ser lido primeiro. E se nao houver nenhuma das duas, o ator sai vazio e o
+// internal/store recusa antes de escrever -- ninguem grava "conta 0".
+func (s *Service) autorizaEscrita(ctx context.Context, moderatorID int64) (domain.Ator, Result, error) {
+	r, err := s.authorize(ctx, moderatorID)
+	if r != OK || err != nil {
+		return domain.Ator{}, r, err
+	}
+	if moderatorID > 0 {
+		return domain.AtorDaConta(moderatorID), OK, nil
+	}
+	if a, doPainel := painelator.Do(ctx); doPainel {
+		return domain.AtorDoPainel(a.ID), OK, nil
+	}
+	return domain.Ator{}, Forbidden, nil
 }

@@ -50,34 +50,34 @@ func (f *fakeStore) GetNPCDefinition(_ context.Context, id int64) (domain.NPCDef
 	}
 	return d, nil
 }
-func (f *fakeStore) UpsertNPCDefinition(_ context.Context, _ domain.NPCDefinition, _ int64) (int64, error) {
+func (f *fakeStore) UpsertNPCDefinition(_ context.Context, _ domain.NPCDefinition, _ domain.Ator) (int64, error) {
 	if f.upsertErr != nil {
 		return 0, f.upsertErr
 	}
 	return 42, nil
 }
-func (f *fakeStore) SetNPCShop(_ context.Context, id int64, items []domain.NPCShopItem, _ int64) error {
+func (f *fakeStore) SetNPCShop(_ context.Context, id int64, items []domain.NPCShopItem, _ domain.Ator) error {
 	if _, ok := f.defs[id]; !ok {
 		return store.ErrNotFound
 	}
 	f.lastShop = items
 	return nil
 }
-func (f *fakeStore) SetNPCVisibility(_ context.Context, id int64, enabled bool, _ int64) error {
+func (f *fakeStore) SetNPCVisibility(_ context.Context, id int64, enabled bool, _ domain.Ator) error {
 	if _, ok := f.defs[id]; !ok {
 		return store.ErrNotFound
 	}
 	f.visibility = &enabled
 	return nil
 }
-func (f *fakeStore) SetItemPrice(_ context.Context, _ int32, price int64, _ int64) error {
+func (f *fakeStore) SetItemPrice(_ context.Context, _ int32, price int64, _ domain.Ator) error {
 	f.lastPrice = &price
 	return nil
 }
 func (f *fakeStore) ItemPriceOverrides(context.Context) ([]domain.ItemPriceOverride, error) {
 	return f.itemPrices, nil
 }
-func (f *fakeStore) DeleteNPCDefinition(_ context.Context, id int64, _ int64) error {
+func (f *fakeStore) DeleteNPCDefinition(_ context.Context, id int64, _ domain.Ator) error {
 	d, ok := f.defs[id]
 	if !ok {
 		return store.ErrNotFound

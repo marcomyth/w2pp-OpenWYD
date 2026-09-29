@@ -17,6 +17,7 @@ package session
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"sync"
 	"time"
 )
@@ -171,4 +172,21 @@ func (s *Store) Len() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.live)
+}
+
+// Ator traduz a sessão para o ator que o internal/store exige nas escritas.
+//
+// EXISTE PARA O PAINEL NÃO REPETIR ESTE if EM CADA TELA. A sessão já sabe quem é; o
+// que faltava era um único lugar que dissesse isso na linguagem do banco, em vez de
+// cada página mandar `sess.AccountID` e gravar zero quando quem está logado é um
+// usuário do painel — que era exatamente o defeito.
+//
+// A ORDEM É EXPLÍCITA, conta de jogo primeiro: se uma sessão tiver os dois campos
+// preenchidos algum dia, esta ordem decide, em vez de a ação ser atribuída a quem for
+// lido primeiro.
+func (s Session) Ator() domain.Ator {
+	if s.AccountID != 0 {
+		return domain.AtorDaConta(s.AccountID)
+	}
+	return domain.AtorDoPainel(s.PainelUsuarioID)
 }
