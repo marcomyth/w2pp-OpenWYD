@@ -261,19 +261,24 @@ var (
 	// 8.787 de janela só com as duas armas na mão, antes de qualquer bônus, e o
 	// teto é 9.000. Não havia onde pôr este prêmio.
 	//
-	// VOLTOU em 29/09/2026, com 70. Zerado, o BM Natureza era a única build
+	// VOLTOU em 29/09/2026, com 50. Zerado, o BM Natureza era a única build
 	// física sem alavanca de dano: as armas que a árvore paga (Caliburn 45,
 	// Balmung 41) têm o menor coeficiente da tabela de classe (0,22/0,32), e
 	// com a mesma ficha (FOR 1.722, DES 637, nível 353, tudo +9) o TK de
 	// Thrasytes marcava 3.003, a HT de arco 3.101 e o BM de duas espadas 2.009.
-	// O BateNeles, o print do Marco, estava em 2.313, e o operador pediu entre
-	// 3.200 e 3.600. Com 70 ele fica em 3.389 humano e ~3.630 em Éden.
+	//
+	// O alvo do operador é o BM TRANSFORMADO entre 3.200 e 3.600, medido no
+	// BateNeles (2.313 humano no print). Com 50 e Natureza 289 ele fica em
+	// Titã 3.218, Éden 3.406 e Astaroth 3.542; o Lobo passa (3.776) e o Urso,
+	// a forma de aguentar, fica abaixo (3.064). O Lobo sai na frente por
+	// herança: o pTransBonus dele já era o maior, e a Metamorfose só cobra
+	// metade da camada de dano dele.
 	//
 	// Os 8.787 de 21/09 vieram de uma calibragem que já não vale: com o
 	// catálogo inteiro (o simulador não carrega nUnique/nPos), a ficha real do
-	// DanoPRZ (4.787 em Éden, duas armas +11) vai para 7.137, abaixo do teto.
+	// DanoPRZ (4.787 em Éden, duas armas +11) vai para 6.466, abaixo do teto.
 	// A conta está em simulacao_natureza_duas_armas_test.go.
-	naturezaDanoDuasArmasAtual = 70
+	naturezaDanoDuasArmasAtual = 50
 
 	// naturezaAbsEscudoAtual é o que o escudo soma à absorção, em décimos.
 	naturezaAbsEscudoAtual = 100
