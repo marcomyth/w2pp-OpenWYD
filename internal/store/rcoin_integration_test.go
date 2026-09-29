@@ -22,16 +22,17 @@ func TestLojaDeRcoinListaPorAbaECompraComPrecoVisto(t *testing.T) {
 	s := New(pool)
 
 	// As 72 ofertas da 0160, as abas da 0163 e as sete da 0182 (seis Pedidos de
-	// Caça em Consumíveis, o Acelerador de Nascimento em Montaria).
+	// Caça em Consumíveis, o Acelerador de Nascimento em Montaria) e as três da
+	// 0184 (o Tigre de Fogo de 3, 5 e 7 dias em Esferas).
 	todas, err := s.ListRcoinOffers(ctx, 0)
-	if err != nil || len(todas) != 79 {
-		t.Fatalf("todas = %d (err %v), want 79", len(todas), err)
+	if err != nil || len(todas) != 82 {
+		t.Fatalf("todas = %d (err %v), want 82", len(todas), err)
 	}
 	quantas := map[int16]int{}
 	for _, o := range todas {
 		quantas[o.Category]++
 	}
-	want := map[int16]int{1: 23, 2: 11, 3: 7, 4: 20, 5: 9, 6: 9}
+	want := map[int16]int{1: 23, 2: 11, 3: 7, 4: 20, 5: 9, 6: 12}
 	for c, n := range want {
 		if quantas[c] != n {
 			t.Errorf("aba %d = %d ofertas, want %d", c, quantas[c], n)
