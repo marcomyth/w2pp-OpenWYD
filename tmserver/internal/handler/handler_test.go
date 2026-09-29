@@ -811,6 +811,27 @@ func loginBody(name, pass string, version int32) []byte {
 	return b.Encode()
 }
 
+// esperaRecusaDeLogin exige que a recusa chegue como TEXTO no painel (0x0101).
+//
+// TROCOU O noticeCode NAS RECUSAS DE LOGIN. Antes estes testes exigiam o 0x0102
+// MsgMessageBoxOk com o código do nosso iota — e era justamente esse pacote que o
+// cliente não sabia ler, deixando a recusa muda na tela. O teste passava e o jogador não
+// via nada: o teste estava guardando o defeito.
+//
+// Ele compara os BYTES em cp1252 e não a string, porque as frases têm acento e o painel
+// viaja em cp1252.
+func esperaRecusaDeLogin(t *testing.T, c net.Conn, esperada string) {
+	t.Helper()
+	ty, payload := read(t, c)
+	if ty != protocol.MsgMessagePanel {
+		t.Fatalf("mensagem = %#x, queria o painel de texto (%#x)", ty, protocol.MsgMessagePanel)
+	}
+	quer := protocol.ClientText(esperada)
+	if got := payload[:len(quer)]; string(got) != string(quer) {
+		t.Errorf("a recusa disse %q, queria %q", decodePanel(payload), esperada)
+	}
+}
+
 func noticeCode(t *testing.T, payload []byte) Notice {
 	t.Helper()
 	if len(payload) < 4 {
@@ -959,10 +980,7 @@ func TestLoginBadVersionClosed(t *testing.T) {
 	defer c.Close()
 
 	send(t, c, protocol.MsgAccountLogin, loginBody("tester", "secret", 1234))
-	ty, payload := read(t, c)
-	if ty != protocol.MsgMessageBoxOk || noticeCode(t, payload) != NoticeVersionMismatch {
-		t.Errorf("got %#x/%d, want version-mismatch notice", ty, noticeCode(t, payload))
-	}
+	esperaRecusaDeLogin(t, c, msgLoginVersao)
 	// Connection must be closed after a version mismatch.
 	if err := c.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
@@ -979,19 +997,13 @@ func TestLoginBadPasswordThenLockout(t *testing.T) {
 	defer c.Close()
 
 	// Three wrong passwords are accepted (mode resets each time)...
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		send(t, c, protocol.MsgAccountLogin, loginBody("tester", "wrong", protocol.AppVersion))
-		ty, payload := read(t, c)
-		if ty != protocol.MsgMessageBoxOk || noticeCode(t, payload) != NoticeBadPass {
-			t.Fatalf("attempt %d: got %#x/%d, want bad-pass", i, ty, noticeCode(t, payload))
-		}
+		esperaRecusaDeLogin(t, c, msgLoginSenha)
 	}
 	// ...the fourth is locked out before hitting the backend.
 	send(t, c, protocol.MsgAccountLogin, loginBody("tester", "secret", protocol.AppVersion))
-	ty, payload := read(t, c)
-	if ty != protocol.MsgMessageBoxOk || noticeCode(t, payload) != Notice3WrongPass {
-		t.Errorf("got %#x/%d, want 3-wrong-pass lockout", ty, noticeCode(t, payload))
-	}
+	esperaRecusaDeLogin(t, c, msgLoginTresErros)
 }
 
 func TestLoginNoAccountAndBlocked(t *testing.T) {
@@ -1001,16 +1013,12 @@ func TestLoginNoAccountAndBlocked(t *testing.T) {
 	c1 := dial(t, addr)
 	defer c1.Close()
 	send(t, c1, protocol.MsgAccountLogin, loginBody("ghost", "x", protocol.AppVersion))
-	if ty, p := read(t, c1); ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeNoAccount {
-		t.Errorf("no-account: got %#x/%d", ty, noticeCode(t, p))
-	}
+	esperaRecusaDeLogin(t, c1, msgLoginSemConta)
 
 	c2 := dial(t, addr)
 	defer c2.Close()
 	send(t, c2, protocol.MsgAccountLogin, loginBody("banned", "x", protocol.AppVersion))
-	if ty, p := read(t, c2); ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeBlocked {
-		t.Errorf("blocked: got %#x/%d", ty, noticeCode(t, p))
-	}
+	esperaRecusaDeLogin(t, c2, msgLoginBloqueada)
 }
 
 func TestWrongModeRejectsSecondLogin(t *testing.T) {
@@ -1022,9 +1030,7 @@ func TestWrongModeRejectsSecondLogin(t *testing.T) {
 	send(t, c, protocol.MsgAccountLogin, loginBody("tester", "secret", protocol.AppVersion))
 	read(t, c) // CNFAccountLogin → now in SELCHAR
 	send(t, c, protocol.MsgAccountLogin, loginBody("tester", "secret", protocol.AppVersion))
-	if ty, p := read(t, c); ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeLoginNow {
-		t.Errorf("second login: got %#x/%d, want login-now notice", ty, noticeCode(t, p))
-	}
+	esperaRecusaDeLogin(t, c, msgLoginAguarde)
 }
 
 // loginAndSelect logs in successfully and returns the connection in SELCHAR.

@@ -33,12 +33,17 @@ func (d *Dispatcher) accountLogin(w *world.World, s *world.Session, _ protocol.H
 	if body.ClientVersion != d.cfg.ClientVersion {
 		d.log.Warn("account login: version mismatch",
 			"conn", s.Conn, "got", body.ClientVersion, "want", d.cfg.ClientVersion)
-		d.notify(w, s, NoticeVersionMismatch)
-		w.Close(s)
+		d.recusaLogin(w, s, NoticeVersionMismatch, msgLoginVersao)
+		// FECHA POR PRAZO E NÃO NA HORA. Derrubar o socket no mesmo instante em que o
+		// texto sai é uma corrida que o cliente perde: ele fecha a janela antes de
+		// desenhar o painel, e a pessoa vê o jogo sumir sem ler nada. O acesso restrito
+		// já fazia assim e é o caminho que funciona.
+		s.RecusasDeAcesso++
+		d.fechaDepois(w, s, s.RecusasDeAcesso)
 		return
 	}
 	if s.Mode != world.UserAccept {
-		d.notify(w, s, NoticeLoginNow)
+		d.recusaLogin(w, s, NoticeLoginNow, msgLoginAguarde)
 		return
 	}
 
@@ -49,7 +54,7 @@ func (d *Dispatcher) accountLogin(w *world.World, s *world.Session, _ protocol.H
 	}
 	if d.fails[name] >= d.cfg.MaxFailLogin {
 		d.log.Warn("account login: locked out after wrong passwords", "conn", s.Conn, "account", name, "fails", d.fails[name])
-		d.notify(w, s, Notice3WrongPass)
+		d.recusaLogin(w, s, Notice3WrongPass, msgLoginTresErros)
 		return
 	}
 
@@ -78,8 +83,11 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 	if err != nil {
 		d.log.Error("account login backend error", "conn", s.Conn, "account", s.AccountName, "err", err)
 		s.Mode = world.UserAccept
-		d.notify(w, s, NoticeDBError)
-		w.Close(s)
+		d.recusaLogin(w, s, NoticeDBError, msgLoginErroDeBanco)
+		// Por prazo, pelo mesmo motivo da versão: a pessoa tem de LER que foi erro do
+		// servidor, senão ela tenta a senha de novo achando que errou.
+		s.RecusasDeAcesso++
+		d.fechaDepois(w, s, s.RecusasDeAcesso)
 		return
 	}
 	switch out.Result {
@@ -178,13 +186,16 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		d.fails[s.AccountName]++
 		d.log.Warn("account login: bad password", "conn", s.Conn, "account", s.AccountName, "fails", d.fails[s.AccountName])
 		s.Mode = world.UserAccept // allow retry
-		d.notify(w, s, NoticeBadPass)
+		d.recusaLogin(w, s, NoticeBadPass, msgLoginSenha)
 	case world.LoginNoAccount:
 		s.Mode = world.UserAccept
-		d.notify(w, s, NoticeNoAccount)
+		d.recusaLogin(w, s, NoticeNoAccount, msgLoginSemConta)
 	case world.LoginBlocked:
-		d.notify(w, s, NoticeBlocked)
-		w.Close(s)
+		d.recusaLogin(w, s, NoticeBlocked, msgLoginBloqueada)
+		// Por prazo: "bloqueada" é a recusa que a pessoa MAIS precisa ler, porque é a
+		// única em que tentar de novo não resolve nada.
+		s.RecusasDeAcesso++
+		d.fechaDepois(w, s, s.RecusasDeAcesso)
 	case world.LoginAlreadyPlaying:
 		// AGORA O dbServer RESPONDE ISTO, e o caso é o da posse da conta: outra
 		// execução do tmServer está com ela. Durante a sobreposição de um deploy,

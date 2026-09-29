@@ -124,9 +124,7 @@ func TestLoginAlreadyPlaying(t *testing.T) {
 	// The first session is untouched: still at the character screen, where a
 	// repeated login is the "login now" refusal (TestWrongModeRejectsSecondLogin).
 	send(t, c1, protocol.MsgAccountLogin, loginBody("tester", "secret", protocol.AppVersion))
-	if ty, p := read(t, c1); ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeLoginNow {
-		t.Errorf("first session after the refusal: got %#x, want it still at the character screen", ty)
-	}
+	esperaRecusaDeLogin(t, c1, msgLoginAguarde)
 }
 
 // TestLoginTakeOverClosesOldSession: with DBNeedSave set, the new connection
