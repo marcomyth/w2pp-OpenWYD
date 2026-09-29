@@ -273,9 +273,12 @@ const (
 	cnfMobKillExpOffset   = 12
 )
 
-// EncodeCNFMobKillBody builds the kill confirmation (Basedef.h:1876-1884).
-func EncodeCNFMobKillBody(killedMob, killer uint16, exp int64) []byte {
+// EncodeCNFMobKillBody builds the kill confirmation (Basedef.h:1876-1884). Like
+// Exp, hold is the RECEIVER's own: the legacy fills both per viewer in
+// GridMulticast (SendFunc.cpp:1029-1030).
+func EncodeCNFMobKillBody(killedMob, killer uint16, exp int64, hold uint32) []byte {
 	body := make([]byte, MsgCNFMobKillBodySize)
+	binary.LittleEndian.PutUint32(body[0:], hold)
 	binary.LittleEndian.PutUint16(body[4:], killedMob)
 	binary.LittleEndian.PutUint16(body[6:], killer)
 	binary.LittleEndian.PutUint64(body[cnfMobKillExpOffset:], uint64(exp))

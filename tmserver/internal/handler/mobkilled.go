@@ -403,6 +403,18 @@ func (d *Dispatcher) grantExp(w *world.World, ks *world.Session, member, mob *wo
 	if gain = d.cortaXPDaRodada(w, ks, member, gain); gain <= 0 {
 		return
 	}
+	// A dívida das mortes em PvP é paga antes da barra (MobKilled.cpp:558-573).
+	// O UpdateEtc leva o Hold novo também a quem está fora da vista do monstro,
+	// que não recebe o CNFMobKill.
+	if member.Hold > 0 {
+		gain = payHold(member, gain)
+		if ks != nil {
+			d.sendEtc(w, ks, member)
+		}
+		if gain <= 0 {
+			return
+		}
+	}
 	previousExp := member.Exp
 	member.Exp += gain
 	if member.Exp > level.MaxExp {
@@ -620,11 +632,11 @@ func (d *Dispatcher) announceMobKill(w *world.World, killer, mob *world.Entity, 
 	// It also fixes the other half: a party member who earns experience without
 	// swinging now sees it, because this is the packet that reaches them.
 	w.ForEachInView(mob.ID, func(vs *world.Session, ve *world.Entity) {
-		seu := exp
+		seu, hold := exp, killer.Hold
 		if vs.Conn != killer.ID && ve != nil {
-			seu = ve.Exp
+			seu, hold = ve.Exp, ve.Hold
 		}
-		w.SendTo(vs, hdr, protocol.EncodeCNFMobKillBody(uint16(mob.ID), uint16(killer.ID), seu))
+		w.SendTo(vs, hdr, protocol.EncodeCNFMobKillBody(uint16(mob.ID), uint16(killer.ID), seu, hold))
 	})
 }
 
