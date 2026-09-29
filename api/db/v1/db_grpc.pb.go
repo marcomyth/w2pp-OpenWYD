@@ -27,74 +27,75 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AccountService_AccountLogin_FullMethodName             = "/db.v1.AccountService/AccountLogin"
-	AccountService_ListCharacters_FullMethodName           = "/db.v1.AccountService/ListCharacters"
-	AccountService_LoadCharacter_FullMethodName            = "/db.v1.AccountService/LoadCharacter"
-	AccountService_SaveCharacter_FullMethodName            = "/db.v1.AccountService/SaveCharacter"
-	AccountService_SalvarPersonagemComCarga_FullMethodName = "/db.v1.AccountService/SalvarPersonagemComCarga"
-	AccountService_NovaEpocaDePar_FullMethodName           = "/db.v1.AccountService/NovaEpocaDePar"
-	AccountService_TomarPosseDaConta_FullMethodName        = "/db.v1.AccountService/TomarPosseDaConta"
-	AccountService_BaterPelasContas_FullMethodName         = "/db.v1.AccountService/BaterPelasContas"
-	AccountService_SoltarPosseDaConta_FullMethodName       = "/db.v1.AccountService/SoltarPosseDaConta"
-	AccountService_QuoteKingdomCape_FullMethodName         = "/db.v1.AccountService/QuoteKingdomCape"
-	AccountService_PurchaseKingdomCape_FullMethodName      = "/db.v1.AccountService/PurchaseKingdomCape"
-	AccountService_TransferPlayerBalance_FullMethodName    = "/db.v1.AccountService/TransferPlayerBalance"
-	AccountService_CreateCharacter_FullMethodName          = "/db.v1.AccountService/CreateCharacter"
-	AccountService_CreateArchCharacter_FullMethodName      = "/db.v1.AccountService/CreateArchCharacter"
-	AccountService_DeleteCharacter_FullMethodName          = "/db.v1.AccountService/DeleteCharacter"
-	AccountService_SetPin_FullMethodName                   = "/db.v1.AccountService/SetPin"
-	AccountService_VerifyPin_FullMethodName                = "/db.v1.AccountService/VerifyPin"
-	AccountService_LoadCargo_FullMethodName                = "/db.v1.AccountService/LoadCargo"
-	AccountService_SaveCargo_FullMethodName                = "/db.v1.AccountService/SaveCargo"
-	AccountService_ListPendingDeliveries_FullMethodName    = "/db.v1.AccountService/ListPendingDeliveries"
-	AccountService_ListSoldEscrowSlots_FullMethodName      = "/db.v1.AccountService/ListSoldEscrowSlots"
-	AccountService_OpenRmtListings_FullMethodName          = "/db.v1.AccountService/OpenRmtListings"
-	AccountService_CancelRmtListings_FullMethodName        = "/db.v1.AccountService/CancelRmtListings"
-	AccountService_CloseRmtListings_FullMethodName         = "/db.v1.AccountService/CloseRmtListings"
-	AccountService_ReconcileRmtEscrow_FullMethodName       = "/db.v1.AccountService/ReconcileRmtEscrow"
-	AccountService_OpenRmtCharge_FullMethodName            = "/db.v1.AccountService/OpenRmtCharge"
-	AccountService_SaveCargoWithDeliveries_FullMethodName  = "/db.v1.AccountService/SaveCargoWithDeliveries"
-	AccountService_SetAccountBlocked_FullMethodName        = "/db.v1.AccountService/SetAccountBlocked"
-	AccountService_RecordDuelResult_FullMethodName         = "/db.v1.AccountService/RecordDuelResult"
-	AccountService_RecordTrade_FullMethodName              = "/db.v1.AccountService/RecordTrade"
-	AccountService_RecordReport_FullMethodName             = "/db.v1.AccountService/RecordReport"
-	AccountService_RecordGround_FullMethodName             = "/db.v1.AccountService/RecordGround"
-	AccountService_ReserveSerials_FullMethodName           = "/db.v1.AccountService/ReserveSerials"
-	AccountService_RecordChat_FullMethodName               = "/db.v1.AccountService/RecordChat"
-	AccountService_SetCharacterPresence_FullMethodName     = "/db.v1.AccountService/SetCharacterPresence"
-	AccountService_ClearAllPresence_FullMethodName         = "/db.v1.AccountService/ClearAllPresence"
-	AccountService_AddShopPoints_FullMethodName            = "/db.v1.AccountService/AddShopPoints"
-	AccountService_ShopPoints_FullMethodName               = "/db.v1.AccountService/ShopPoints"
-	AccountService_SpendShopPoints_FullMethodName          = "/db.v1.AccountService/SpendShopPoints"
-	AccountService_ClaimNewbieKit_FullMethodName           = "/db.v1.AccountService/ClaimNewbieKit"
-	AccountService_CreditDonate_FullMethodName             = "/db.v1.AccountService/CreditDonate"
-	AccountService_DonateBalance_FullMethodName            = "/db.v1.AccountService/DonateBalance"
-	AccountService_ListRcoinOffers_FullMethodName          = "/db.v1.AccountService/ListRcoinOffers"
-	AccountService_BuyRcoinOffer_FullMethodName            = "/db.v1.AccountService/BuyRcoinOffer"
-	AccountService_CreateGuild_FullMethodName              = "/db.v1.AccountService/CreateGuild"
-	AccountService_SetGuildMember_FullMethodName           = "/db.v1.AccountService/SetGuildMember"
-	AccountService_LeaveGuild_FullMethodName               = "/db.v1.AccountService/LeaveGuild"
-	AccountService_KickOfflineGuildMember_FullMethodName   = "/db.v1.AccountService/KickOfflineGuildMember"
-	AccountService_PromoteGuildMember_FullMethodName       = "/db.v1.AccountService/PromoteGuildMember"
-	AccountService_TransferGuildLeader_FullMethodName      = "/db.v1.AccountService/TransferGuildLeader"
-	AccountService_SetGuildRelation_FullMethodName         = "/db.v1.AccountService/SetGuildRelation"
-	AccountService_ListGuilds_FullMethodName               = "/db.v1.AccountService/ListGuilds"
-	AccountService_ListGuildRelations_FullMethodName       = "/db.v1.AccountService/ListGuildRelations"
-	AccountService_ListGuildMembers_FullMethodName         = "/db.v1.AccountService/ListGuildMembers"
-	AccountService_SaveGuildNotice_FullMethodName          = "/db.v1.AccountService/SaveGuildNotice"
-	AccountService_ListGuildSummaries_FullMethodName       = "/db.v1.AccountService/ListGuildSummaries"
-	AccountService_ListGuildSquads_FullMethodName          = "/db.v1.AccountService/ListGuildSquads"
-	AccountService_SetGuildSquad_FullMethodName            = "/db.v1.AccountService/SetGuildSquad"
-	AccountService_ListGuildBuffs_FullMethodName           = "/db.v1.AccountService/ListGuildBuffs"
-	AccountService_SaveGuildBuff_FullMethodName            = "/db.v1.AccountService/SaveGuildBuff"
-	AccountService_DeleteGuildBuff_FullMethodName          = "/db.v1.AccountService/DeleteGuildBuff"
-	AccountService_LoadGuildZones_FullMethodName           = "/db.v1.AccountService/LoadGuildZones"
-	AccountService_SaveGuildZone_FullMethodName            = "/db.v1.AccountService/SaveGuildZone"
-	AccountService_LoadGuildTowerState_FullMethodName      = "/db.v1.AccountService/LoadGuildTowerState"
-	AccountService_SaveGuildTowerState_FullMethodName      = "/db.v1.AccountService/SaveGuildTowerState"
-	AccountService_SaveGuildFame_FullMethodName            = "/db.v1.AccountService/SaveGuildFame"
-	AccountService_LoadCastleQuestState_FullMethodName     = "/db.v1.AccountService/LoadCastleQuestState"
-	AccountService_SaveCastleQuestState_FullMethodName     = "/db.v1.AccountService/SaveCastleQuestState"
+	AccountService_AccountLogin_FullMethodName              = "/db.v1.AccountService/AccountLogin"
+	AccountService_ListCharacters_FullMethodName            = "/db.v1.AccountService/ListCharacters"
+	AccountService_LoadCharacter_FullMethodName             = "/db.v1.AccountService/LoadCharacter"
+	AccountService_SaveCharacter_FullMethodName             = "/db.v1.AccountService/SaveCharacter"
+	AccountService_SalvarPersonagemComCarga_FullMethodName  = "/db.v1.AccountService/SalvarPersonagemComCarga"
+	AccountService_NovaEpocaDePar_FullMethodName            = "/db.v1.AccountService/NovaEpocaDePar"
+	AccountService_TomarPosseDaConta_FullMethodName         = "/db.v1.AccountService/TomarPosseDaConta"
+	AccountService_BaterPelasContas_FullMethodName          = "/db.v1.AccountService/BaterPelasContas"
+	AccountService_SoltarPosseDaConta_FullMethodName        = "/db.v1.AccountService/SoltarPosseDaConta"
+	AccountService_QuoteKingdomCape_FullMethodName          = "/db.v1.AccountService/QuoteKingdomCape"
+	AccountService_PurchaseKingdomCape_FullMethodName       = "/db.v1.AccountService/PurchaseKingdomCape"
+	AccountService_TransferPlayerBalance_FullMethodName     = "/db.v1.AccountService/TransferPlayerBalance"
+	AccountService_CreateCharacter_FullMethodName           = "/db.v1.AccountService/CreateCharacter"
+	AccountService_CreateArchCharacter_FullMethodName       = "/db.v1.AccountService/CreateArchCharacter"
+	AccountService_DeleteCharacter_FullMethodName           = "/db.v1.AccountService/DeleteCharacter"
+	AccountService_SetPin_FullMethodName                    = "/db.v1.AccountService/SetPin"
+	AccountService_VerifyPin_FullMethodName                 = "/db.v1.AccountService/VerifyPin"
+	AccountService_LoadCargo_FullMethodName                 = "/db.v1.AccountService/LoadCargo"
+	AccountService_SaveCargo_FullMethodName                 = "/db.v1.AccountService/SaveCargo"
+	AccountService_ListPendingDeliveries_FullMethodName     = "/db.v1.AccountService/ListPendingDeliveries"
+	AccountService_ListSoldEscrowSlots_FullMethodName       = "/db.v1.AccountService/ListSoldEscrowSlots"
+	AccountService_OpenRmtListings_FullMethodName           = "/db.v1.AccountService/OpenRmtListings"
+	AccountService_CancelRmtListings_FullMethodName         = "/db.v1.AccountService/CancelRmtListings"
+	AccountService_CloseRmtListings_FullMethodName          = "/db.v1.AccountService/CloseRmtListings"
+	AccountService_ReconcileRmtEscrow_FullMethodName        = "/db.v1.AccountService/ReconcileRmtEscrow"
+	AccountService_OpenRmtCharge_FullMethodName             = "/db.v1.AccountService/OpenRmtCharge"
+	AccountService_SaveCargoWithDeliveries_FullMethodName   = "/db.v1.AccountService/SaveCargoWithDeliveries"
+	AccountService_SetAccountBlocked_FullMethodName         = "/db.v1.AccountService/SetAccountBlocked"
+	AccountService_RecordDuelResult_FullMethodName          = "/db.v1.AccountService/RecordDuelResult"
+	AccountService_RecordTrade_FullMethodName               = "/db.v1.AccountService/RecordTrade"
+	AccountService_RecordReport_FullMethodName              = "/db.v1.AccountService/RecordReport"
+	AccountService_RecordGround_FullMethodName              = "/db.v1.AccountService/RecordGround"
+	AccountService_ReserveSerials_FullMethodName            = "/db.v1.AccountService/ReserveSerials"
+	AccountService_RecordChat_FullMethodName                = "/db.v1.AccountService/RecordChat"
+	AccountService_SetCharacterPresence_FullMethodName      = "/db.v1.AccountService/SetCharacterPresence"
+	AccountService_ClearAllPresence_FullMethodName          = "/db.v1.AccountService/ClearAllPresence"
+	AccountService_AddShopPoints_FullMethodName             = "/db.v1.AccountService/AddShopPoints"
+	AccountService_ShopPoints_FullMethodName                = "/db.v1.AccountService/ShopPoints"
+	AccountService_SpendShopPoints_FullMethodName           = "/db.v1.AccountService/SpendShopPoints"
+	AccountService_ClaimNewbieKit_FullMethodName            = "/db.v1.AccountService/ClaimNewbieKit"
+	AccountService_CreditDonate_FullMethodName              = "/db.v1.AccountService/CreditDonate"
+	AccountService_DonateBalance_FullMethodName             = "/db.v1.AccountService/DonateBalance"
+	AccountService_ListRcoinOffers_FullMethodName           = "/db.v1.AccountService/ListRcoinOffers"
+	AccountService_BuyRcoinOffer_FullMethodName             = "/db.v1.AccountService/BuyRcoinOffer"
+	AccountService_CreateGuild_FullMethodName               = "/db.v1.AccountService/CreateGuild"
+	AccountService_SetGuildMember_FullMethodName            = "/db.v1.AccountService/SetGuildMember"
+	AccountService_LeaveGuild_FullMethodName                = "/db.v1.AccountService/LeaveGuild"
+	AccountService_KickOfflineGuildMember_FullMethodName    = "/db.v1.AccountService/KickOfflineGuildMember"
+	AccountService_PromoteGuildMember_FullMethodName        = "/db.v1.AccountService/PromoteGuildMember"
+	AccountService_PromoteOfflineGuildMember_FullMethodName = "/db.v1.AccountService/PromoteOfflineGuildMember"
+	AccountService_TransferGuildLeader_FullMethodName       = "/db.v1.AccountService/TransferGuildLeader"
+	AccountService_SetGuildRelation_FullMethodName          = "/db.v1.AccountService/SetGuildRelation"
+	AccountService_ListGuilds_FullMethodName                = "/db.v1.AccountService/ListGuilds"
+	AccountService_ListGuildRelations_FullMethodName        = "/db.v1.AccountService/ListGuildRelations"
+	AccountService_ListGuildMembers_FullMethodName          = "/db.v1.AccountService/ListGuildMembers"
+	AccountService_SaveGuildNotice_FullMethodName           = "/db.v1.AccountService/SaveGuildNotice"
+	AccountService_ListGuildSummaries_FullMethodName        = "/db.v1.AccountService/ListGuildSummaries"
+	AccountService_ListGuildSquads_FullMethodName           = "/db.v1.AccountService/ListGuildSquads"
+	AccountService_SetGuildSquad_FullMethodName             = "/db.v1.AccountService/SetGuildSquad"
+	AccountService_ListGuildBuffs_FullMethodName            = "/db.v1.AccountService/ListGuildBuffs"
+	AccountService_SaveGuildBuff_FullMethodName             = "/db.v1.AccountService/SaveGuildBuff"
+	AccountService_DeleteGuildBuff_FullMethodName           = "/db.v1.AccountService/DeleteGuildBuff"
+	AccountService_LoadGuildZones_FullMethodName            = "/db.v1.AccountService/LoadGuildZones"
+	AccountService_SaveGuildZone_FullMethodName             = "/db.v1.AccountService/SaveGuildZone"
+	AccountService_LoadGuildTowerState_FullMethodName       = "/db.v1.AccountService/LoadGuildTowerState"
+	AccountService_SaveGuildTowerState_FullMethodName       = "/db.v1.AccountService/SaveGuildTowerState"
+	AccountService_SaveGuildFame_FullMethodName             = "/db.v1.AccountService/SaveGuildFame"
+	AccountService_LoadCastleQuestState_FullMethodName      = "/db.v1.AccountService/LoadCastleQuestState"
+	AccountService_SaveCastleQuestState_FullMethodName      = "/db.v1.AccountService/SaveCastleQuestState"
 )
 
 // AccountServiceClient is the client API for AccountService service.
@@ -377,6 +378,8 @@ type AccountServiceClient interface {
 	// Expulsa um membro que NAO esta no jogo, direto no banco.
 	KickOfflineGuildMember(ctx context.Context, in *KickOfflineGuildMemberRequest, opts ...grpc.CallOption) (*KickOfflineGuildMemberResponse, error)
 	PromoteGuildMember(ctx context.Context, in *PromoteGuildMemberRequest, opts ...grpc.CallOption) (*PromoteGuildMemberResponse, error)
+	// Promove a sub-lider um membro que NAO esta no jogo, achado pelo nome.
+	PromoteOfflineGuildMember(ctx context.Context, in *PromoteOfflineGuildMemberRequest, opts ...grpc.CallOption) (*PromoteOfflineGuildMemberResponse, error)
 	TransferGuildLeader(ctx context.Context, in *TransferGuildLeaderRequest, opts ...grpc.CallOption) (*SetGuildMemberResponse, error)
 	SetGuildRelation(ctx context.Context, in *SetGuildRelationRequest, opts ...grpc.CallOption) (*SetGuildRelationResponse, error)
 	ListGuilds(ctx context.Context, in *ListGuildsRequest, opts ...grpc.CallOption) (*ListGuildsResponse, error)
@@ -899,6 +902,16 @@ func (c *accountServiceClient) PromoteGuildMember(ctx context.Context, in *Promo
 	return out, nil
 }
 
+func (c *accountServiceClient) PromoteOfflineGuildMember(ctx context.Context, in *PromoteOfflineGuildMemberRequest, opts ...grpc.CallOption) (*PromoteOfflineGuildMemberResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PromoteOfflineGuildMemberResponse)
+	err := c.cc.Invoke(ctx, AccountService_PromoteOfflineGuildMember_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *accountServiceClient) TransferGuildLeader(ctx context.Context, in *TransferGuildLeaderRequest, opts ...grpc.CallOption) (*SetGuildMemberResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetGuildMemberResponse)
@@ -1369,6 +1382,8 @@ type AccountServiceServer interface {
 	// Expulsa um membro que NAO esta no jogo, direto no banco.
 	KickOfflineGuildMember(context.Context, *KickOfflineGuildMemberRequest) (*KickOfflineGuildMemberResponse, error)
 	PromoteGuildMember(context.Context, *PromoteGuildMemberRequest) (*PromoteGuildMemberResponse, error)
+	// Promove a sub-lider um membro que NAO esta no jogo, achado pelo nome.
+	PromoteOfflineGuildMember(context.Context, *PromoteOfflineGuildMemberRequest) (*PromoteOfflineGuildMemberResponse, error)
 	TransferGuildLeader(context.Context, *TransferGuildLeaderRequest) (*SetGuildMemberResponse, error)
 	SetGuildRelation(context.Context, *SetGuildRelationRequest) (*SetGuildRelationResponse, error)
 	ListGuilds(context.Context, *ListGuildsRequest) (*ListGuildsResponse, error)
@@ -1547,6 +1562,9 @@ func (UnimplementedAccountServiceServer) KickOfflineGuildMember(context.Context,
 }
 func (UnimplementedAccountServiceServer) PromoteGuildMember(context.Context, *PromoteGuildMemberRequest) (*PromoteGuildMemberResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method PromoteGuildMember not implemented")
+}
+func (UnimplementedAccountServiceServer) PromoteOfflineGuildMember(context.Context, *PromoteOfflineGuildMemberRequest) (*PromoteOfflineGuildMemberResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method PromoteOfflineGuildMember not implemented")
 }
 func (UnimplementedAccountServiceServer) TransferGuildLeader(context.Context, *TransferGuildLeaderRequest) (*SetGuildMemberResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method TransferGuildLeader not implemented")
@@ -2508,6 +2526,24 @@ func _AccountService_PromoteGuildMember_Handler(srv interface{}, ctx context.Con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AccountService_PromoteOfflineGuildMember_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromoteOfflineGuildMemberRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).PromoteOfflineGuildMember(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_PromoteOfflineGuildMember_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).PromoteOfflineGuildMember(ctx, req.(*PromoteOfflineGuildMemberRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _AccountService_TransferGuildLeader_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(TransferGuildLeaderRequest)
 	if err := dec(in); err != nil {
@@ -3052,6 +3088,10 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PromoteGuildMember",
 			Handler:    _AccountService_PromoteGuildMember_Handler,
+		},
+		{
+			MethodName: "PromoteOfflineGuildMember",
+			Handler:    _AccountService_PromoteOfflineGuildMember_Handler,
 		},
 		{
 			MethodName: "TransferGuildLeader",

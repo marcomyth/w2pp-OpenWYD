@@ -653,6 +653,9 @@ type Persistence interface {
 	// KickOfflineGuildMember expulsa, direto no banco, um membro que não está no
 	// jogo. Só para alvo OFFLINE: com ele online, o save dele desfaria a expulsão.
 	KickOfflineGuildMember(ctx context.Context, guildID uint16, kickerAccountID int64, kickerSlot int, targetName string) (GuildKickRefusal, error)
+	// PromoteOfflineGuildMember promove a sub-líder, direto no banco, um membro que
+	// não está no jogo, cobrando o líder na mesma transação. Devolve o cargo dado.
+	PromoteOfflineGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, targetName string, cost int32) (uint8, GuildPromoteRefusal, error)
 	PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, bool, error)
 	TransferGuildLeader(ctx context.Context, guildID uint16, oldAccountID int64, oldSlot int, newAccountID int64, newSlot int) error
 	SetGuildRelation(ctx context.Context, guildID, targetGuildID uint16, kind GuildRelationKind) error
@@ -914,6 +917,11 @@ func (NopPersistence) KickOfflineGuildMember(context.Context, uint16, int64, int
 	return GuildKickRefusalUnknown, errNoPersistence
 }
 
+// PromoteOfflineGuildMember is unsupported without a backend.
+func (NopPersistence) PromoteOfflineGuildMember(context.Context, uint16, int64, int, string, int32) (uint8, GuildPromoteRefusal, error) {
+	return 0, GuildPromoteRefusalUnknown, errNoPersistence
+}
+
 // LeaveGuild is unsupported without a backend.
 func (NopPersistence) LeaveGuild(context.Context, int64, int) (uint16, error) {
 	return 0, errNoPersistence
@@ -1135,6 +1143,19 @@ const (
 	GuildKickRefusalUnknown
 	GuildKickRefusalNotMember
 	GuildKickRefusalOutranked
+)
+
+// GuildPromoteRefusal é por que o dbServer não promoveu um membro offline.
+// GuildPromoteRefusalNone é a promoção feita.
+type GuildPromoteRefusal uint8
+
+// Os motivos de recusa da promoção offline.
+const (
+	GuildPromoteRefusalNone GuildPromoteRefusal = iota
+	GuildPromoteRefusalUnknown
+	GuildPromoteRefusalNotMember
+	GuildPromoteRefusalAlreadyRanked
+	GuildPromoteRefusalNoFreeRank
 )
 
 const (

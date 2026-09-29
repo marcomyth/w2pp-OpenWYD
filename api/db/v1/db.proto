@@ -298,6 +298,8 @@ service AccountService {
   // Expulsa um membro que NAO esta no jogo, direto no banco.
   rpc KickOfflineGuildMember(KickOfflineGuildMemberRequest) returns (KickOfflineGuildMemberResponse);
   rpc PromoteGuildMember(PromoteGuildMemberRequest) returns (PromoteGuildMemberResponse);
+  // Promove a sub-lider um membro que NAO esta no jogo, achado pelo nome.
+  rpc PromoteOfflineGuildMember(PromoteOfflineGuildMemberRequest) returns (PromoteOfflineGuildMemberResponse);
   rpc TransferGuildLeader(TransferGuildLeaderRequest) returns (SetGuildMemberResponse);
   rpc SetGuildRelation(SetGuildRelationRequest) returns (SetGuildRelationResponse);
   rpc ListGuilds(ListGuildsRequest) returns (ListGuildsResponse);
@@ -1123,6 +1125,32 @@ enum KickGuildRefusal {
 message KickOfflineGuildMemberResponse {
   bool ok = 1;
   KickGuildRefusal refusal = 2;
+}
+
+message PromoteOfflineGuildMemberRequest {
+  uint32 guild_id = 1;
+  int64 leader_account_id = 2;
+  int32 leader_slot = 3;
+  string target_name = 4;
+  int32 cost = 5;
+}
+
+// PromoteGuildRefusal diz por que a promocao offline nao aconteceu.
+enum PromoteGuildRefusal {
+  // UNSPECIFIED: sem motivo informado; quem le trata como motivo desconhecido.
+  PROMOTE_GUILD_REFUSAL_UNSPECIFIED = 0;
+  // NOT_MEMBER: nenhum personagem com esse nome nesta guilda.
+  PROMOTE_GUILD_REFUSAL_NOT_MEMBER = 1;
+  // ALREADY_RANKED: o alvo ja tem cargo (so membro comum vira sub-lider).
+  PROMOTE_GUILD_REFUSAL_ALREADY_RANKED = 2;
+  // NO_FREE_RANK: os tres cargos de sub-lider (6, 7, 8) estao ocupados.
+  PROMOTE_GUILD_REFUSAL_NO_FREE_RANK = 3;
+}
+
+message PromoteOfflineGuildMemberResponse {
+  bool ok = 1;
+  int32 guild_level = 2;
+  PromoteGuildRefusal refusal = 3;
 }
 
 message PromoteGuildMemberRequest {

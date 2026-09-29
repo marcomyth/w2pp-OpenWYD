@@ -247,7 +247,12 @@ func (d *Dispatcher) subcreate(w *world.World, s *world.Session, args []byte) {
 		return
 	}
 	targetSession, target := w.SessionByName(fields[0])
-	if targetSession == nil || target == nil || target.ID == s.Conn {
+	if targetSession == nil || target == nil {
+		// Fora do jogo: o banco acha o membro pelo nome, como no expulsar.
+		d.subcreateOffline(w, s, fields[0])
+		return
+	}
+	if target.ID == s.Conn {
 		d.notify(w, s, NoticeNotConnected)
 		return
 	}
@@ -343,6 +348,104 @@ func (d *Dispatcher) subcreate(w *world.World, s *world.Session, args []byte) {
 					d.refreshGuildTag(w, te.ID)
 					w.SaveCharacterAsync(ts)
 				}
+			}
+		}
+	})
+}
+
+// Frases da promoção de quem está fora do jogo. O comando nativo não tem nenhuma:
+// com o alvo online, a tag nova na cabeça dele já é a resposta.
+const (
+	msgGuildaSubOffline     = "%s agora é sub-líder da guilda."
+	msgGuildaJaTemCargo     = "%s já tem cargo na guilda."
+	msgGuildaSemCargoLivre  = "A guilda já tem três sub-líderes."
+	msgGuildaPromoverFalhou = "Não foi possível promover %s agora. Tente de novo."
+)
+
+// subcreateOffline promove a sub-líder um membro que não está no jogo. O caminho do
+// líder é o mesmo do subcreate (save antes, carga junto, sessão em espera), porque a
+// cobrança acontece no banco contra o ouro gravado. Do lado do alvo não há sessão:
+// o cargo fica no banco e ele o recebe ao entrar.
+func (d *Dispatcher) subcreateOffline(w *world.World, s *world.Session, name string) {
+	e := w.Entity(s.Conn)
+	if e == nil {
+		return
+	}
+	p := w.Persistence()
+	guildID := e.Guild
+	leaderConn, leaderSession := s.Conn, s
+	leaderAccountID, leaderSlot := s.AccountID, s.Slot
+	save := w.CharacterSaveFor(s, e)
+	carga, entregues, temCarga, seqDoPar := w.CargaParaOPar(s.AccountID)
+	epocaDoPar := w.EpocaDoPar()
+	s.Mode = world.UserWaitDB
+	w.GoDetached(func() func(*world.World) {
+		// A sessão devolvida é a do líder só se ainda for a mesma conexão.
+		lider := func(w *world.World) *world.Session {
+			ls := w.Session(leaderConn)
+			if ls != leaderSession {
+				return nil
+			}
+			if ls.Mode == world.UserWaitDB {
+				ls.Mode = world.UserPlay
+			}
+			return ls
+		}
+		if err := world.SalvarPar(context.Background(), p, save, carga, temCarga, entregues, epocaDoPar, seqDoPar, false); err != nil {
+			return func(w *world.World) {
+				d.log.Warn("subcreate offline: save do personagem falhou", "conn", leaderConn,
+					"target", name, "err", err)
+				if ls := lider(w); ls != nil {
+					d.notify(w, ls, NoticeDBError)
+				}
+			}
+		}
+		level, motivo, err := p.PromoteOfflineGuildMember(context.Background(), guildID, leaderAccountID, leaderSlot, name, guildSubCost)
+		return func(w *world.World) {
+			if temCarga {
+				w.EsqueceEntregues(leaderAccountID, entregues)
+			}
+			ls := lider(w)
+			if err != nil {
+				d.log.Warn("subcreate offline failed", "conn", leaderConn, "guild", guildID, "target", name, "err", err)
+				if ls != nil {
+					sendClientMessage(w, ls, fmt.Sprintf(msgGuildaPromoverFalhou, name))
+				}
+				return
+			}
+			if motivo != world.GuildPromoteRefusalNone || level < 6 || level > 8 {
+				if ls == nil {
+					return
+				}
+				switch motivo {
+				case world.GuildPromoteRefusalNotMember:
+					sendClientMessage(w, ls, fmt.Sprintf(msgGuildaNaoEMembro, name))
+				case world.GuildPromoteRefusalAlreadyRanked:
+					sendClientMessage(w, ls, fmt.Sprintf(msgGuildaJaTemCargo, name))
+				case world.GuildPromoteRefusalNoFreeRank:
+					sendClientMessage(w, ls, msgGuildaSemCargoLivre)
+				default:
+					sendClientMessage(w, ls, fmt.Sprintf(msgGuildaPromoverFalhou, name))
+				}
+				return
+			}
+			d.guildaEsqueceQuadro(guildID)
+			d.log.Info("guild member promoted offline", "conn", leaderConn, "guild", guildID,
+				"target", name, "level", level)
+			if ls != nil {
+				if le := w.Entity(leaderConn); le != nil {
+					le.Coin -= guildSubCost
+					d.sendEtc(w, ls, le)
+					w.SaveCharacterAsync(ls)
+				}
+				sendClientMessage(w, ls, fmt.Sprintf(msgGuildaSubOffline, name))
+			}
+			// Quem entrou no jogo enquanto o banco decidia carregou o cargo antigo; sem
+			// isto, o próximo save dele devolveria o membro comum ao banco.
+			if ts, te := w.SessionByName(name); ts != nil && te != nil && te.Guild == guildID && te.GuildLevel == 0 {
+				te.GuildLevel = level
+				d.refreshGuildTag(w, te.ID)
+				w.SaveCharacterAsync(ts)
 			}
 		}
 	})
