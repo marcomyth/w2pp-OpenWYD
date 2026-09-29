@@ -11,6 +11,7 @@ package world
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"runtime/debug"
@@ -487,6 +488,43 @@ func (w *World) parDeSalvamento(s *Session) (personagem CharacterSave, carga Car
 	return personagem, w.cargoSave(s.AccountID), append([]int64(nil), w.deliveryUnacked[s.AccountID]...), true, seq
 }
 
+// ErrEntregaSemBau recusa o save que gravaria o item e perderia a confirmação.
+//
+// O CAMINHO SEM CARGA NÃO LEVA OS ACKS. Quando w.cargo[conta] é nil, o parDeSalvamento
+// devolve temCarga=false, e o SalvarPar cai no SaveOnShutdown, que grava SÓ o
+// personagem. Isso sempre foi seguro porque a única origem de ack pendente era uma
+// entrega no BAÚ, e entrega no baú exige o baú carregado: "há ack pendente" implicava
+// "o baú está carregado".
+//
+// A ENTREGA NA BOLSA QUEBRA ESSA IMPLICAÇÃO, porque a bolsa é do personagem e não
+// precisa do baú. Se acontecer, o SaveOnShutdown gravaria o personagem COM o item na
+// bolsa e NÃO gravaria o ack: a entrega segue pendente e o próximo login a entrega de
+// novo. Item duplicado.
+//
+// POR QUE RECUSAR O SAVE EM VEZ DE GRAVAR E AVISAR: gravar é o que duplica. Sem gravar,
+// perde-se o progresso desde o último save bom, e não se perde nem o item nem o
+// dinheiro — a entrega continua pendente e volta no próximo login. É o único estado
+// consistente dos três.
+var ErrEntregaSemBau = errors.New("world: save recusado: entrega na bolsa sem bau carregado")
+
+// confereAckSemCarga é a trava descrita em ErrEntregaSemBau.
+//
+// ELA DEVERIA SER IMPOSSÍVEL DE DISPARAR, e é justamente por isso que ela existe: o
+// caminho que a dispara é o que ninguém está olhando no dia em que alguém mexe no
+// carregamento do baú.
+func (w *World) confereAckSemCarga(accountID int64, temCarga bool) error {
+	if temCarga || accountID == 0 {
+		return nil
+	}
+	ids := w.deliveryUnacked[accountID]
+	if len(ids) == 0 {
+		return nil
+	}
+	w.log.Error("save recusado: entrega na bolsa sem bau carregado",
+		"conta", accountID, "entregas", ids)
+	return ErrEntregaSemBau
+}
+
 // proximoNumeroDePar numera o par no MOMENTO em que o instantâneo é tirado, e não
 // quando a gravação sai: é a ordem dos instantâneos que precisa ser respeitada, e
 // duas gravações podem sair na ordem certa e chegar na errada. Loop-only.
@@ -566,6 +604,11 @@ func (w *World) SaveCharacterAsync(s *Session) {
 // grava o par de qualquer sessão com mochila viva. Loop-only.
 func (w *World) salvarParAsync(s *Session) {
 	cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
+	// A TRAVA VEM ANTES DE QUALQUER GRAVAÇÃO: ver ErrEntregaSemBau.
+	if err := w.confereAckSemCarga(cs.AccountID, temCarga); err != nil {
+		w.savesFalhados.Add(1)
+		return
+	}
 	p := w.persist
 	w.saveWG.Add(1)
 	go func() {
