@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -231,5 +232,54 @@ func TestLojaDeRcoinFalhaDoBancoViraErroSemEntrega(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	if db.drenos.Load() != 0 {
 		t.Error("uma compra que falhou tentou entregar")
+	}
+}
+
+// TestACompraDeRcoinMandaOSlotDoBauNaHora é o teste do defeito que a Hanna viu.
+//
+// O SINTOMA: a compra descontava e o item só aparecia depois de relogar. A causa era
+// que o ApplyDeliveries punha o item no baú, salvava, e NINGUÉM mandava o slot ao
+// cliente — o cliente só monta o baú no login, que manda o baú inteiro. Com dinheiro de
+// verdade no meio, parecia o servidor ter comido a compra.
+//
+// O TESTE OLHA O PACOTE E NÃO A TELA, porque é o pacote que faltava: MsgSendItem com
+// place=cargo, o slot onde o item caiu, e o índice do item.
+func TestACompraDeRcoinMandaOSlotDoBauNaHora(t *testing.T) {
+	db := novoLojaRcoinDB()
+	db.resposta = world.RcoinCompra{Result: protocol.RcoinOK, Balance: 40, DeliveryID: 900}
+	addr, stop := servidorLojaRcoin(t, db)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	send(t, c, protocol.MsgRcoinCompra, protocol.RcoinCompraBody{
+		OfertaID: 55, Pedido: 1, PrecoVisto: 60,
+	}.Encode())
+
+	var r protocol.RcoinResultadoBody
+	if err := r.Decode(esperaTipo(t, c, protocol.MsgRcoinResultado)); err != nil {
+		t.Fatal(err)
+	}
+	if r.Resultado != protocol.RcoinOK {
+		t.Fatalf("a compra nao deu certo: %+v", r)
+	}
+
+	// O PACOTE DO SLOT TEM DE VIR, e ele pode chegar antes ou depois do aviso de
+	// texto: a ordem entre os dois não é o que este teste mede, e exigir uma ordem
+	// faria o teste quebrar no dia em que alguém trocasse as duas linhas sem defeito
+	// nenhum.
+	corpo := esperaTipo(t, c, protocol.MsgSendItem)
+	if len(corpo) != 12 {
+		t.Fatalf("SendItem com %d bytes, esperava 12", len(corpo))
+	}
+	if lugar := int(binary.LittleEndian.Uint16(corpo[0:])); lugar != protocol.ItemPlaceCargo {
+		t.Errorf("place = %d, queria ItemPlaceCargo(%d) -- o item da Rcoin vai ao BAU",
+			lugar, protocol.ItemPlaceCargo)
+	}
+	if slot := int(binary.LittleEndian.Uint16(corpo[2:])); slot != 0 {
+		t.Errorf("slot = %d; o bau estava vazio, entao o item cai no 0", slot)
+	}
+	if idx := binary.LittleEndian.Uint16(corpo[4:]); idx != uint16(3901) {
+		t.Errorf("o pacote leva o item %d, queria 3901 (o item da oferta falsa)", idx)
 	}
 }

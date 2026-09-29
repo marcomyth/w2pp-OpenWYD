@@ -830,14 +830,37 @@ func MensagemEntregaPresa(presos int) string {
 		"Libere espaco e entre de novo para receber o resto.", presos)
 }
 
+// EntregaNoBau e uma entrega que ACABOU de ser posta no bau: onde ela caiu e o que e.
+//
+// EXISTE PORQUE O SLOT ERA JOGADO FORA. O AddToCargo devolve a posicao, e ninguem a
+// usava — entao o item entrava no bau, era salvo, e o cliente nao sabia. O jogador
+// pagava, o saldo descia, e o item so aparecia no login seguinte, que e quando o bau
+// inteiro e reenviado. Com dinheiro de verdade no meio, isso parece o servidor ter
+// comido a compra.
+type EntregaNoBau struct {
+	Slot int
+	Item Item
+}
+
 func (w *World) ApplyDeliveries(s *Session, pending []Delivery) (delivered, held int) {
+	d, h, _ := w.ApplyDeliveriesComSlots(s, pending)
+	return d, h
+}
+
+// ApplyDeliveriesComSlots e o mesmo, dizendo ONDE cada item caiu.
+//
+// DOIS NOMES EM VEZ DE MUDAR A ASSINATURA: o ApplyDeliveries e chamado do login, do
+// control e dos testes, e nenhum desses precisa dos slots — o login manda o bau inteiro
+// depois. Quem precisa e quem entrega com o jogador JA EM JOGO, e sao dois lugares. Um
+// terceiro valor de retorno em todas as chamadas seria ruido em cima do que ja funciona.
+func (w *World) ApplyDeliveriesComSlots(s *Session, pending []Delivery) (delivered, held int, postas []EntregaNoBau) {
 	if s == nil || s.AccountID == 0 || len(pending) == 0 {
-		return 0, 0
+		return 0, 0, nil
 	}
 	accountID := s.AccountID
 	cargo := w.cargo[accountID]
 	if cargo == nil {
-		return 0, 0
+		return 0, 0, nil
 	}
 	placed := w.deliveryPlaced[accountID]
 	if placed == nil {
@@ -851,9 +874,14 @@ func (w *World) ApplyDeliveries(s *Session, pending []Delivery) (delivered, held
 			// first; its ack may simply not have committed yet.
 			continue
 		}
-		if w.AddToCargo(cargo, d.Item) >= 0 {
+		if slot := w.AddToCargo(cargo, d.Item); slot >= 0 {
 			deliveredIDs = append(deliveredIDs, d.ID)
 			placed[d.ID] = true
+			// O SLOT AGORA VOLTA. E com o item COMO ELE FICOU NO BAU (cargo.Items[slot])
+			// e nao com d.Item: o AddToCargo pode ter EMPILHADO a entrega sobre uma pilha
+			// que ja estava la, e nesse caso o que o cliente precisa ver e a pilha
+			// somada, nao a parcela que chegou.
+			postas = append(postas, EntregaNoBau{Slot: slot, Item: cargo.Items[slot]})
 		} else {
 			held++
 		}
@@ -864,12 +892,12 @@ func (w *World) ApplyDeliveries(s *Session, pending []Delivery) (delivered, held
 	w.log.Info("drained donate deliveries", "account", accountID, "delivered", len(deliveredIDs), "held", held)
 	if len(deliveredIDs) == 0 {
 		// Nothing moved: the cargo is unchanged and every row is still pending.
-		return 0, held
+		return 0, held, nil
 	}
 
 	w.deliveryUnacked[accountID] = append(w.deliveryUnacked[accountID], deliveredIDs...)
 	w.saveCargoAcking(accountID)
-	return len(deliveredIDs), held
+	return len(deliveredIDs), held, postas
 }
 
 // LimpaSlotsVendidos esvazia os slots do baú cujo anúncio em dinheiro real já foi
