@@ -1711,10 +1711,15 @@ func manaControlDamage(target *world.Entity, dmg int, enhanced bool) (int, int32
 }
 
 // manaControlDivisorMonstro é o divisor do lado do MONSTRO (Server.cpp:10046,
-// ProcessSecMinTimer.cpp:2322). O legado é mais generoso aqui do que no golpe de
-// jogador, de propósito: 80 deixa passar ~20,6% do golpe contra os 30% do
-// divisor 55, e a mana paga METADE do golpe em vez do golpe inteiro.
-const manaControlDivisorMonstro = int32(80)
+// ProcessSecMinTimer.cpp:2322).
+//
+// REGRA DO SERVIDOR (29/09/2026), não o legado. O legado usa 80, que deixa
+// passar só ~20,6% do golpe para a vida enquanto a mana paga metade. Com os
+// monstros deste servidor isso fazia a Foema tanquear o que não devia: o Cav.
+// Lugefer bate ~2.900 numa FM de defesa 1.500 montada no Tigre de Fogo, e só ~600
+// chegavam à vida (print do Marco). Com 30 passam 55%, ~1.590 no mesmo golpe; a
+// mana continua pagando metade. O golpe de JOGADOR (manaControlDamage) não muda.
+const manaControlDivisorMonstro = int32(30)
 
 // manaControlDeMonstro é o mesmo afeto 18 quando quem bate é monstro ou pet.
 func manaControlDeMonstro(target *world.Entity, dmg int) (int, int32, bool) {
