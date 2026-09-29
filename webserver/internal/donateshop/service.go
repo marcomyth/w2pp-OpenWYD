@@ -122,9 +122,21 @@ func (s *Service) Delete(ctx context.Context, moderatorID, itemID int64) (Result
 // CreditBalance adds donate currency to an account's wallet (the manual/admin
 // credit path). Returns the new balance on success.
 func (s *Service) CreditBalance(ctx context.Context, moderatorID, accountID int64, amount int32, reason string) (Result, int32, error) {
+	// ESTA É A ÚNICA ESCRITA DO PAINEL QUE EXIGE ADMIN, e a razão é o que ela faz:
+	// pôr saldo de doação numa conta é criar dinheiro. Todas as outras vinte e quatro
+	// mudam regra do jogo — preço, drop, recompensa, montaria —, e um moderador erra
+	// nelas de um jeito que se desfaz editando de volta. Esta move valor para uma conta
+	// e não volta sozinha.
+	//
+	// A CONFERÊNCIA VEM DEPOIS DO autorizaEscrita e não em vez dele: o autorizaEscrita
+	// é quem decide QUEM é o ator (e recusa os dois juntos), e é dele que sai o autor
+	// da auditoria. Aqui só se estreita o cargo.
 	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
 	if r != OK || err != nil {
 		return r, 0, err
+	}
+	if !s.ehAdmin(ctx, moderatorID) {
+		return Forbidden, 0, nil
 	}
 	if accountID <= 0 || amount <= 0 {
 		return Invalid, 0, nil
@@ -264,4 +276,21 @@ func (s *Service) autorizaEscrita(ctx context.Context, moderatorID int64) (domai
 		return domain.AtorDoPainel(a.ID), OK, nil
 	}
 	return domain.Ator{}, Forbidden, nil
+}
+
+// ehAdmin diz se quem pede tem cargo de admin, nos dois caminhos.
+//
+// SEPARADO DO autorizaEscrita de propósito: aquele responde "pode administrar?", que é
+// a mesma pergunta para as vinte e cinco escritas. Esta responde "pode CRIAR
+// DINHEIRO?", que é de uma escrita só. Juntar as duas faria toda escrita carregar a
+// pergunta mais restritiva na cabeça de quem lê.
+func (s *Service) ehAdmin(ctx context.Context, moderatorID int64) bool {
+	if moderatorID > 0 {
+		papel, err := s.store.AccountRole(ctx, moderatorID)
+		return err == nil && papel == "admin"
+	}
+	if a, doPainel := painelator.Do(ctx); doPainel {
+		return a.Papel == "admin"
+	}
+	return false
 }

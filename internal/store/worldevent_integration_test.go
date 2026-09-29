@@ -115,7 +115,7 @@ func TestKefraStateGravaSoOEstadoEAudita(t *testing.T) {
 	}
 	st := New(pool)
 
-	v, err := st.SetKefraState(ctx, true, 7, FonteEventoJogo, 0)
+	v, err := st.SetKefraState(ctx, true, 7, FonteEventoJogo, domain.Ator{})
 	if err != nil || v != 1 {
 		t.Fatalf("SetKefraState = %d/%v, want 1/nil", v, err)
 	}
@@ -142,7 +142,7 @@ func TestKefraStateGravaSoOEstadoEAudita(t *testing.T) {
 		t.Errorf("depois do formulário = %+v, want Kefra ainda derrotado pela 7 e XP em dobro", got)
 	}
 
-	if _, err := st.SetKefraState(ctx, false, 9, FonteEventoPainel, 0); err != nil {
+	if _, err := st.SetKefraState(ctx, false, 9, FonteEventoPainel, domain.Ator{}); err != nil {
 		t.Fatalf("SetKefraState vivo: %v", err)
 	}
 	if got, _ = st.WorldEventConfig(ctx); got.KefraLiveEnabled || got.KefraGuildID != 0 {

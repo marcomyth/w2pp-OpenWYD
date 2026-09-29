@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 )
 
 // Transferência de Cash e RMT entre contas — o pagamento da Loja do Servidor.

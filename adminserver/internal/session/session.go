@@ -17,9 +17,10 @@ package session
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 	"sync"
 	"time"
+
+	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 )
 
 // tokenBytes is the entropy behind a session id. 256 bits makes guessing

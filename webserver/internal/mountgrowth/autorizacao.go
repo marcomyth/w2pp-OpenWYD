@@ -60,11 +60,23 @@ func (s *Service) ComCargos(l LeitorDeCargo) { s.cargos = l }
 // ou admin, ou usuário do painel em exercício. Uma régua diferente aqui seria uma
 // segunda regra para alguém descobrir no pior dia.
 //
-// A ORDEM DE PREFERÊNCIA É EXPLÍCITA: conta de jogo primeiro, usuário do painel
-// depois. Se as duas informações chegarem juntas, esta ordem decide, em vez de a ação
-// ser atribuída a quem for lido primeiro.
+// AS DUAS JUNTAS SÃO RECUSA, e nenhuma ganha da outra.
 func (s *Service) autorizaEscrita(ctx context.Context, moderatorID int64) (domain.Ator, error) {
 	if s.cargos == nil {
+		return domain.Ator{}, ErrSemPermissao
+	}
+	a, doPainel := painelator.Do(ctx)
+	// OS DOIS JUNTOS SÃO RECUSA, e não empate a ser desempatado.
+	//
+	// Preferir um seria DESCARTAR o outro em silêncio, e a linha de auditoria sairia
+	// dizendo que uma pessoa fez o que duas informações reivindicam. Numa tabela cuja
+	// única razão de existir é dizer QUEM fez, "eu escolhi um dos dois" é a pior
+	// resposta possível.
+	//
+	// ESTA LINHA FALTAVA AQUI, e o teste dela é que encontrou: eu já tinha posto a
+	// recusa nos outros seis serviços e esqueci a montaria — que era justamente o
+	// serviço que não conferia nada antes.
+	if moderatorID > 0 && doPainel {
 		return domain.Ator{}, ErrSemPermissao
 	}
 	if moderatorID > 0 {
@@ -84,7 +96,7 @@ func (s *Service) autorizaEscrita(ctx context.Context, moderatorID int64) (domai
 	}
 	// SEM CONTA DE JOGO, PODE SER O PAINEL. O ator já veio conferido contra o banco
 	// pelo interceptador, nesta mesma chamada: existe e está ativo, ou nem chegou aqui.
-	if a, doPainel := painelator.Do(ctx); doPainel {
+	if doPainel {
 		if !painelator.PapelValido(a.Papel) {
 			return domain.Ator{}, ErrSemPermissao
 		}
