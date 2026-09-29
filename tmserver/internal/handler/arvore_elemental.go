@@ -177,7 +177,7 @@ func (d *Dispatcher) aplicarBlocoPvP(_ *world.World, e, target *world.Entity, dm
 	}
 	dmg = perfuracao(target, target.ID, dmg, 0)
 	dmg = d.applyPvPRule(dmg, skill)
-	dmg = danoDoTransContraHT(e, target, dmg)
+	dmg = danoDoTransContraHT(e, target, dmg, skill)
 	dmg = applyForceDamage(e, target, target.ID, dmg)
 	dmg = applyTierDefense(e.ClassMaster, target.ClassMaster, dmg)
 	dmg = d.applyPvPStats(e, target, dmg)

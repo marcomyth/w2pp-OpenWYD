@@ -249,18 +249,49 @@ func applyPassivasDoTrans(e *world.Entity, itemAbility func(world.Item, uint8) i
 // (jogadora) ganha dano extra — físico e skill —, e SÓ nela: contra as outras
 // classes o PvP dele segue sem o bônus. Entra logo depois da % de PvP do painel.
 //
-// +250% é provisório (17/09): com o corte de 37% e poção, é o menor valor em que
-// o Trans de espada vence a HT das três 8ªs. Recalibrar depois do corte de dano
-// da HT e da regra da poção em PvP. É var só para a varredura da simulação.
-var transContraHTPct = 250 // % a mais
+// Recalibrado em 29/09/2026 a pedido do Marco. Era +250% em todo golpe: medido a
+// 37% de PvP, o físico ia de ~930 para ~3.250 e cada skill da árvore de ~1.650
+// para ~5.800, numa HT de 7.526 de vida. Agora são duas regras:
+//
+//	físico: +550 por golpe que acerta ("um bônus de arrancar 500-600")
+//	skill:  +85%, que põe a skill em ~3.050 de média e ~3.370 de pico (o teto
+//	        pedido é 3.000-3.400 por skill)
+//
+// A skill leva percentual porque o teto foi dado como faixa do golpe inteiro, e
+// o percentual acompanha a % de PvP do painel; o físico leva o extra plano que
+// foi pedido. O que fica de sicário é o golpe sem esquiva (esquivaComAcerto). São
+// var só para a varredura da simulação.
+var (
+	transContraHTPlano    = 550
+	transContraHTSkillPct = 85
+)
 
-func danoDoTransContraHT(attacker, target *world.Entity, dmg int) int {
-	return danoContraHTComPct(attacker, target, dmg, transContraHTPct)
-}
-
-func danoContraHTComPct(attacker, target *world.Entity, dmg, pct int) int {
+func danoDoTransContraHT(attacker, target *world.Entity, dmg int, skill bool) int {
 	if dmg <= 0 || !ignoraEsquivaDaHT(attacker, target) {
 		return dmg
 	}
-	return dmg * (100 + pct) / 100
+	if skill {
+		return dmg * (100 + transContraHTSkillPct) / 100
+	}
+	return dmg + transContraHTPlano
+}
+
+// ---------------------------------------------------------------------------
+// 12 · Espada da Fênix: METADE do dano em jogador (29/09/2026, pedido do Marco).
+//
+// Ela bate o mesmo que a Carga e o Golpe Mortal (~1.650 na HT a 37% de PvP), mas
+// recarrega em 5 s contra os 15 s das outras duas (SkillData), então rendia o
+// triplo delas por minuto. O corte é só em jogador: em monstro ela segue igual.
+// Entra no fim do golpe da skill, antes da esquiva e do bloco de PvP, como os
+// ajustes de arma das outras árvores.
+const (
+	skillEspadaDaFenix = 12
+	fenixPvPPct        = 50
+)
+
+func danoDaFenixEmJogador(skillnum, tid, dmg int) int {
+	if skillnum != skillEspadaDaFenix || dmg <= 0 || !world.IsPlayer(tid) {
+		return dmg
+	}
+	return max(1, dmg*fenixPvPPct/100)
 }

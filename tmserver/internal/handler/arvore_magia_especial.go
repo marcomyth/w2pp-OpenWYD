@@ -171,7 +171,7 @@ var manaControlCustoPctCancel = 100
 //  3. o golpe ignora parte da armadura do alvo — é o Cancelamento na defesa;
 //  4. com duas armas ela bate mais forte, porque são duas.
 //
-// Os números de 3 e 4 são PROVISÓRIOS, como o transContraHTPct: medidos na
+// Os números de 3 e 4 são PROVISÓRIOS: medidos na
 // simulação (simulacao_todos_test.go) a 37% de PvP, eles tiram a Foema física de
 // 143 de dano por segundo no Porradeiro Trans e a põem em 734 — a faixa da
 // Xorimpas (1.275) e acima do próprio Trans (455). Recalibrar junto com o corte

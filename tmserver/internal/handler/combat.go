@@ -533,7 +533,7 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			if pvpHit {
 				dmg = d.applyPvPRule(dmg, skillHit)
 				// Armadura Crítica: extra damage on a Huntress only (arvore_trans.go).
-				dmg = danoDoTransContraHT(e, target, dmg)
+				dmg = danoDoTransContraHT(e, target, dmg, skillHit)
 			}
 			dmg = applyForceDamage(e, target, tid, dmg)
 			// Defesa de Evolução (tierdefense.go) — a server rule, not parity, so it
@@ -1234,7 +1234,8 @@ func (d *Dispatcher) resolveSkillHit(w *world.World, e, target *world.Entity, ti
 		for k := range resist {
 			resist[k] = effectiveResist(target, k)
 		}
-		return combat.SkillResistScale(dmg, sp.InstanceType, resist, int(d.combatRules.MobResistBase))
+		dmg = combat.SkillResistScale(dmg, sp.InstanceType, resist, int(d.combatRules.MobResistBase))
+		return danoDaFenixEmJogador(skillnum, tid, dmg) // arvore_trans.go
 	case sp.InstanceType == 6:
 		if target.Clan == 4 {
 			return 0
