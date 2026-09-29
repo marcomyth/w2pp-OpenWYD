@@ -174,19 +174,53 @@ func TestSapphirePaymentPrefersLooseStones(t *testing.T) {
 	}
 	e.Carry[statSapphireCost] = world.Item{Index: itemPacoteSafira}
 
-	slots := sapphireSlotsToSpend(e)
-	if slots == nil {
+	gastos := sapphireSlotsToSpend(e)
+	if gastos == nil {
 		t.Fatal("a mochila tinha safiras de sobra e mesmo assim não pagou")
 	}
-	for _, i := range slots {
-		e.Carry[i] = world.Item{}
-	}
+	aplicarGastosDeSafira(e, gastos)
 
 	if e.Carry[statSapphireCost].Index != itemPacoteSafira {
 		t.Error("o pacote foi consumido quando as avulsas bastavam")
 	}
 	if left := countSapphires(e); left != pacoteSafiraVale {
 		t.Errorf("sobraram %d safiras, esperado %d (só o pacote)", left, pacoteSafiraVale)
+	}
+}
+
+// Since 29/09/2026 the Safira stacks: a pile pays by units and keeps the rest. A
+// slot counted as one would let a pile of fifty pay one reset and vanish.
+func TestSapphireResetSpendsFromAPile(t *testing.T) {
+	pilhaDe := func(n int) world.Item {
+		it := world.Item{Index: itemSafira}
+		setItemAmount(&it, n)
+		return it
+	}
+	cases := []struct {
+		name  string
+		carry []world.Item
+		paga  bool
+		sobra int // unidades na bolsa depois
+	}{
+		{"pilha de 50 paga e fica com 40", []world.Item{pilhaDe(50)}, true, 40},
+		{"pilha de 10 exata some", []world.Item{pilhaDe(10)}, true, 0},
+		{"pilha de 9 não paga", []world.Item{pilhaDe(9)}, false, 9},
+		{"duas pilhas somam", []world.Item{pilhaDe(4), pilhaDe(8)}, true, 2},
+		{"pilha antes do pacote poupa o pacote", []world.Item{pilhaDe(12), {Index: itemPacoteSafira}}, true, 12},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			e := bmWithCon(2000)
+			copy(e.Carry[:], tc.carry)
+			gastos := sapphireSlotsToSpend(e)
+			if (gastos != nil) != tc.paga {
+				t.Fatalf("pagou = %v, want %v", gastos != nil, tc.paga)
+			}
+			aplicarGastosDeSafira(e, gastos)
+			if got := countSapphires(e); got != tc.sobra {
+				t.Errorf("sobraram %d safiras, want %d", got, tc.sobra)
+			}
+		})
 	}
 }
 

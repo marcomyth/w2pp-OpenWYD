@@ -55,3 +55,14 @@ func TestFragmentoDeAlmaEmpilha(t *testing.T) {
 		t.Error("Fragmento de Alma (3224) não empilha")
 	}
 }
+
+// A Safira empilha desde 29/09/2026; o Pacote_Safiras continua avulso, porque
+// vale dez e é contado assim.
+func TestSafiraEmpilha(t *testing.T) {
+	if !Empilha(697) {
+		t.Error("Safira (697) não empilha")
+	}
+	if Empilha(4131) {
+		t.Error("Pacote_Safiras (4131) passou a empilhar; ele vale dez por espaço")
+	}
+}
