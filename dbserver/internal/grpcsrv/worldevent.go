@@ -19,7 +19,7 @@ type WorldEventConfigStore interface {
 	WorldEventConfigVersion(ctx context.Context) (int64, error)
 	WorldEventConfig(ctx context.Context) (domain.WorldEventConfig, error)
 	UpdateWorldEventProgress(ctx context.Context, expectedVersion int64, currentIndex int32) (bool, error)
-	SetKefraState(ctx context.Context, live bool, guildID int32, fonte string, accountID int64) (int64, error)
+	SetKefraState(ctx context.Context, live bool, guildID int32, fonte string, ator domain.Ator) (int64, error)
 }
 
 // WorldEventConfigServer implements dbv1.WorldEventConfigServiceServer.
@@ -71,7 +71,10 @@ func (s *WorldEventConfigServer) SetKefraState(ctx context.Context, req *dbv1.Se
 	if req.GetGuildId() < 0 {
 		return nil, status.Errorf(codes.InvalidArgument, "set kefra state: negative guild %d", req.GetGuildId())
 	}
-	v, err := s.store.SetKefraState(ctx, req.GetLive(), req.GetGuildId(), store.FonteEventoJogo, 0)
+	v, err := // ATOR VAZIO, de proposito: esta escrita e do JOGO e nao de uma pessoa. A trava
+		// da 0181 aceita linha sem ator quando a fonte e "jogo", e recusa quando e
+		// "painel".
+		s.store.SetKefraState(ctx, req.GetLive(), req.GetGuildId(), store.FonteEventoJogo, domain.Ator{})
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "set kefra state: %v", err)
 	}

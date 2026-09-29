@@ -500,7 +500,7 @@ func TestListDonateLedgerCreditBalanceSubjectIsCreditedAccount(t *testing.T) {
 	player := seedAccount(t, ctx, pool, "led_player", "p@x.c", "player", 0)
 	mod := seedAccount(t, ctx, pool, "led_mod", "m@x.c", "moderator", 0)
 
-	if _, err := s.CreditDonateBalance(ctx, player, 100, mod, "compensacao evento"); err != nil {
+	if _, err := s.CreditDonateBalance(ctx, player, 100, domain.AtorDaConta(mod), "compensacao evento"); err != nil {
 		t.Fatalf("credit: %v", err)
 	}
 
@@ -558,7 +558,7 @@ func TestListDonateLedgerPurchaseIsNegativeAndSubjectIsBuyer(t *testing.T) {
 
 	offerID, err := s.UpsertDonateShopItem(ctx, domain.DonateShopItem{
 		ItemIndex: 3540, Price: 120, Title: "Asa Celestial", Enabled: true,
-	}, mod)
+	}, domain.AtorDaConta(mod))
 	if err != nil {
 		t.Fatalf("upsert offer: %v", err)
 	}
@@ -598,14 +598,14 @@ func TestListDonateLedgerSurvivesDeletedOffer(t *testing.T) {
 
 	offerID, err := s.UpsertDonateShopItem(ctx, domain.DonateShopItem{
 		ItemIndex: 10, Price: 50, Title: "Efemero", Enabled: true,
-	}, mod)
+	}, domain.AtorDaConta(mod))
 	if err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 	if _, err := s.BuyDonateItem(ctx, buyer, offerID); err != nil {
 		t.Fatalf("buy: %v", err)
 	}
-	if err := s.DeleteDonateShopItem(ctx, offerID, mod); err != nil {
+	if err := s.DeleteDonateShopItem(ctx, offerID, domain.AtorDaConta(mod)); err != nil {
 		t.Fatalf("delete offer: %v", err)
 	}
 
@@ -633,11 +633,11 @@ func TestListDonateLedgerExcludesCatalogActions(t *testing.T) {
 
 	id, err := s.UpsertDonateShopItem(ctx, domain.DonateShopItem{
 		ItemIndex: 11, Price: 10, Title: "Cfg", Enabled: true,
-	}, mod)
+	}, domain.AtorDaConta(mod))
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if err := s.SetDonateShopItemEnabled(ctx, id, false, mod); err != nil {
+	if err := s.SetDonateShopItemEnabled(ctx, id, false, domain.AtorDaConta(mod)); err != nil {
 		t.Fatalf("toggle: %v", err)
 	}
 
@@ -659,7 +659,7 @@ func TestDonateLedgerTotals(t *testing.T) {
 
 	offerID, err := s.UpsertDonateShopItem(ctx, domain.DonateShopItem{
 		ItemIndex: 12, Price: 70, Title: "X", Enabled: true,
-	}, mod)
+	}, domain.AtorDaConta(mod))
 	if err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
@@ -669,7 +669,7 @@ func TestDonateLedgerTotals(t *testing.T) {
 	if _, err := s.BuyDonateItem(ctx, buyer, offerID); err != nil {
 		t.Fatalf("buy 2: %v", err)
 	}
-	if _, err := s.CreditDonateBalance(ctx, buyer, 250, mod, "bonus"); err != nil {
+	if _, err := s.CreditDonateBalance(ctx, buyer, 250, domain.AtorDaConta(mod), "bonus"); err != nil {
 		t.Fatalf("credit: %v", err)
 	}
 

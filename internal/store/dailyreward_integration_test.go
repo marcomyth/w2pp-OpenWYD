@@ -37,7 +37,7 @@ func TestDailyRewardCRUD(t *testing.T) {
 	id, err := s.UpsertDailyRewardItem(ctx, domain.DailyRewardItem{
 		ItemIndex: 3540, Eff1: 1, EffV1: 9, Title: "Set Celestial",
 		Description: "shiny", Enabled: true, ExpiresDays: 30,
-	}, modID)
+	}, domain.AtorDaConta(modID))
 	if err != nil {
 		t.Fatalf("upsert create: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestDailyRewardCRUD(t *testing.T) {
 
 	// Update in place (same id).
 	got.Title = "Set Celestial +11"
-	if _, err := s.UpsertDailyRewardItem(ctx, got, modID); err != nil {
+	if _, err := s.UpsertDailyRewardItem(ctx, got, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("upsert update: %v", err)
 	}
 	if updated, _ := s.GetDailyRewardItem(ctx, id); updated.Title != "Set Celestial +11" {
@@ -60,11 +60,11 @@ func TestDailyRewardCRUD(t *testing.T) {
 	}
 
 	// Updating a missing id is NotFound.
-	if _, err := s.UpsertDailyRewardItem(ctx, domain.DailyRewardItem{ID: 999999, ItemIndex: 1}, modID); !errors.Is(err, ErrNotFound) {
+	if _, err := s.UpsertDailyRewardItem(ctx, domain.DailyRewardItem{ID: 999999, ItemIndex: 1}, domain.AtorDaConta(modID)); !errors.Is(err, ErrNotFound) {
 		t.Errorf("upsert missing id err = %v, want ErrNotFound", err)
 	}
 
-	if err := s.SetDailyRewardItemEnabled(ctx, id, false, modID); err != nil {
+	if err := s.SetDailyRewardItemEnabled(ctx, id, false, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("set enabled: %v", err)
 	}
 	all, err := s.ListDailyRewardItems(ctx)
@@ -75,7 +75,7 @@ func TestDailyRewardCRUD(t *testing.T) {
 		t.Errorf("enabled list = %d, want 0 (offer disabled)", len(enabled))
 	}
 
-	if err := s.DeleteDailyRewardItem(ctx, id, modID); err != nil {
+	if err := s.DeleteDailyRewardItem(ctx, id, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	if _, err := s.GetDailyRewardItem(ctx, id); !errors.Is(err, ErrNotFound) {
@@ -96,19 +96,19 @@ func TestDailyRewardClaimFlow(t *testing.T) {
 
 	item1, err := s.UpsertDailyRewardItem(ctx, domain.DailyRewardItem{
 		ItemIndex: 1234, Eff1: 2, EffV1: 5, Title: "Reward One", Enabled: true, ExpiresDays: 7,
-	}, 0)
+	}, atorDeTeste(ctx, t, s))
 	if err != nil {
 		t.Fatalf("upsert item1: %v", err)
 	}
 	item2, err := s.UpsertDailyRewardItem(ctx, domain.DailyRewardItem{
 		ItemIndex: 5678, Title: "Reward Two", Enabled: true,
-	}, 0)
+	}, atorDeTeste(ctx, t, s))
 	if err != nil {
 		t.Fatalf("upsert item2: %v", err)
 	}
 	disabledItem, err := s.UpsertDailyRewardItem(ctx, domain.DailyRewardItem{
 		ItemIndex: 9999, Title: "Disabled Reward", Enabled: false,
-	}, 0)
+	}, atorDeTeste(ctx, t, s))
 	if err != nil {
 		t.Fatalf("upsert disabled item: %v", err)
 	}

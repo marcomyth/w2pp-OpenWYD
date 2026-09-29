@@ -35,12 +35,12 @@ func (f *fakeStore) GetItemStat(_ context.Context, idx int32) (domain.ItemStat, 
 	return *f.stat, nil
 }
 
-func (f *fakeStore) UpsertItemStat(_ context.Context, st domain.ItemStat, _ int64) error {
+func (f *fakeStore) UpsertItemStat(_ context.Context, st domain.ItemStat, _ domain.Ator) error {
 	f.upserted = append(f.upserted, st)
 	return nil
 }
 
-func (f *fakeStore) DeleteItemStat(_ context.Context, idx int32, _ int64) error {
+func (f *fakeStore) DeleteItemStat(_ context.Context, idx int32, _ domain.Ator) error {
 	if f.deleteErr != nil {
 		return f.deleteErr
 	}

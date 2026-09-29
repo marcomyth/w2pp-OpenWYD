@@ -19,8 +19,9 @@ func TestSetKefraStateGravaComAFonteDoJogo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SetKefraState: %v", err)
 	}
-	if st.kefraCalls != 1 || !st.kefraLive || st.kefraGuild != 12 || st.kefraFonte != "jogo" || st.kefraConta != 0 {
-		t.Errorf("gravou calls=%d live=%v guilda=%d fonte=%q conta=%d; want 1 true 12 jogo 0",
+	if st.kefraCalls != 1 || !st.kefraLive || st.kefraGuild != 12 || st.kefraFonte != "jogo" || st.kefraConta != (domain.Ator{}) {
+		// O ATOR TEM DE SAIR VAZIO: esta gravacao e do JOGO, nao de uma pessoa.
+		t.Errorf("gravou calls=%d live=%v guilda=%d fonte=%q ator=%+v; want 1 true 12 jogo e ator vazio",
 			st.kefraCalls, st.kefraLive, st.kefraGuild, st.kefraFonte, st.kefraConta)
 	}
 	if resp.GetVersion() != 5 {

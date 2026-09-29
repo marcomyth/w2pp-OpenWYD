@@ -5,27 +5,51 @@ import (
 	"testing"
 )
 
-// TestALeituraPassaEAEscritaNao.
+// TestOPainelLeEEscreveEONaoDoPainelContinuaFechado.
 //
-// A lista fecha por padrão: um método que ninguém pôs nela é recusado. O contrário —
-// listar as escritas — faria um método NOVO nascer liberado, e é exatamente esse o
-// acidente que a lista existe para impedir.
-func TestALeituraPassaEAEscritaNao(t *testing.T) {
+// ESTE TESTE MUDOU DE LADO, e o registro importa: antes ele exigia que as ESCRITAS
+// fossem recusadas, porque a auditoria não sabia o que era um usuário do painel e a
+// escrita gravaria "conta 0" como autor. Desde a migração 0181 e o domain.Ator ela sabe,
+// então as escritas entram — e o que o teste guarda agora é o que NÃO entra.
+//
+// A LISTA CONTINUA FECHANDO POR PADRÃO, e é isso que as últimas linhas provam: um método
+// que ninguém pôs nela é recusado, inclusive um nome inventado e um caminho ilegível.
+func TestOPainelLeEEscreveEONaoDoPainelContinuaFechado(t *testing.T) {
 	casos := map[string]bool{
-		// As leituras das oito páginas, que é o que a staff do painel precisa hoje.
+		// Leituras das páginas de administração.
 		"/web.v1.NpcAdminService/ListNpcs":                    true,
 		"/web.v1.NpcAdminService/GetNpc":                      true,
 		"/web.v1.MobTemplateAdminService/ListMobTemplates":    true,
 		"/web.v1.DonateRevenueAdminService/GetRevenueSummary": true,
 		"/web.v1.WorldEventAdminService/GetWorldEventConfig":  true,
+		"/web.v1.ItemCatalogService/ListItems":                true,
 
-		// As escritas, que gravariam "conta 0" como autor.
-		"/web.v1.NpcAdminService/UpsertNpc":                      false,
-		"/web.v1.NpcAdminService/SetNpcShop":                     false,
-		"/web.v1.NpcAdminService/DeleteNpc":                      false,
-		"/web.v1.MobTemplateAdminService/UpsertMobTemplateStat":  false,
-		"/web.v1.DonateAdminService/CreditDonateBalance":         false,
-		"/web.v1.AttributeMapAdminService/TransformAttributeMap": false,
+		// Escritas, uma de cada serviço que as tem.
+		"/web.v1.NpcAdminService/UpsertNpc":                      true,
+		"/web.v1.NpcAdminService/SetNpcShop":                     true,
+		"/web.v1.NpcAdminService/DeleteNpc":                      true,
+		"/web.v1.MobTemplateAdminService/UpsertMobTemplateStat":  true,
+		"/web.v1.ItemStatAdminService/UpsertItemStat":            true,
+		"/web.v1.MountGrowthAdminService/SetMountGrowthCurve":    true,
+		"/web.v1.MountGrowthAdminService/ClearMountBonus":        true,
+		"/web.v1.DailyRewardAdminService/UpsertRewardItem":       true,
+		"/web.v1.DonateAdminService/CreditDonateBalance":         true,
+		"/web.v1.AttributeMapAdminService/TransformAttributeMap": true,
+		"/web.v1.WorldEventAdminService/SetWorldEventConfig":     true,
+
+		// O QUE NÃO É DO PAINEL, e esta é a metade que a entrega quase perdeu.
+		//
+		// O plano dizia para a lista sumir inteira. Se ela sumisse, o usuário do painel
+		// passaria a alcançar TODO o webServer, porque a chave do painel não separa
+		// serviços — e estes cinco são do jogador e do site, e não conferem cargo
+		// nenhum. Cada linha abaixo é um serviço que eu conferi um por um.
+		"/web.v1.EmblemaService/ConcederEmblema":      false,
+		"/web.v1.DonateTopupService/CreateTopupOrder": false,
+		"/web.v1.MercadoService/AnunciarItem":         false,
+		"/web.v1.CharactersService/ListCharacters":    false,
+		"/web.v1.RankingService/GetRanking":           false,
+		"/web.v1.AccountWebService/CreateAccount":     false,
+		"/web.v1.ChavePixService/SalvarChavePix":      false,
 
 		// Um método que não existe, e um ilegível: fechados.
 		"/web.v1.NpcAdminService/MetodoQueNinguemEscreveuAinda": false,
@@ -36,6 +60,50 @@ func TestALeituraPassaEAEscritaNao(t *testing.T) {
 	for metodo, quer := range casos {
 		if got := PainelPodeChamar(metodo); got != quer {
 			t.Errorf("PainelPodeChamar(%q) = %v, queria %v", metodo, got, quer)
+		}
+	}
+}
+
+// TestAsVinteECincoEscritasEstaoNaLista conta as escritas, e a contagem é o ponto.
+//
+// EXISTE PARA UMA ESCRITA NÃO FICAR DE FORA EM SILÊNCIO. Uma que falte não dá erro em
+// lugar nenhum: a página simplesmente recusa salvar, com uma frase que parece falta de
+// permissão, e alguém vai procurar no cargo em vez de na lista. Foi assim que o nome dos
+// itens sumiu do censo, por uma linha de LEITURA que faltava aqui.
+func TestAsVinteECincoEscritasEstaoNaLista(t *testing.T) {
+	escritas := []string{
+		"NpcAdminService/UpsertNpc",
+		"NpcAdminService/SetNpcVisibility",
+		"NpcAdminService/SetNpcShop",
+		"NpcAdminService/SetItemPrice",
+		"NpcAdminService/DeleteNpc",
+		"MobTemplateAdminService/UpsertMobTemplateStat",
+		"MobTemplateAdminService/SetMobTemplateEquip",
+		"MobTemplateAdminService/DeleteMobTemplateStat",
+		"ItemStatAdminService/UpsertItemStat",
+		"ItemStatAdminService/DeleteItemStat",
+		"MountGrowthAdminService/SetMountGrowthCurve",
+		"MountGrowthAdminService/ClearMountGrowthCurve",
+		"MountGrowthAdminService/SetMountAbsorb",
+		"MountGrowthAdminService/ClearMountAbsorb",
+		"MountGrowthAdminService/SetMountBonus",
+		"MountGrowthAdminService/ClearMountBonus",
+		"AttributeMapAdminService/TransformAttributeMap",
+		"DailyRewardAdminService/UpsertRewardItem",
+		"DailyRewardAdminService/SetRewardItemEnabled",
+		"DailyRewardAdminService/DeleteRewardItem",
+		"DonateAdminService/UpsertShopItem",
+		"DonateAdminService/SetShopItemEnabled",
+		"DonateAdminService/DeleteShopItem",
+		"DonateAdminService/CreditDonateBalance",
+		"WorldEventAdminService/SetWorldEventConfig",
+	}
+	if len(escritas) != 25 {
+		t.Fatalf("a lista deste teste tem %d escritas, e sao 25", len(escritas))
+	}
+	for _, m := range escritas {
+		if !PainelPodeChamar("/web.v1." + m) {
+			t.Errorf("a escrita %q nao esta na lista: a pagina dela vai recusar salvar", m)
 		}
 	}
 }
@@ -62,11 +130,11 @@ func TestAListaComparaServicoEMetodoJuntos(t *testing.T) {
 // ninguém desfaz.
 func TestAFraseDaRecusaNaoMandaUsarContaDeJogo(t *testing.T) {
 	for _, proibido := range []string{"conta de jogo", "cargo", "logar no jogo", "personagem"} {
-		if strings.Contains(MsgEscritaAindaNao, proibido) {
-			t.Errorf("a frase manda usar %q: %q", proibido, MsgEscritaAindaNao)
+		if strings.Contains(MsgForaDoPainel, proibido) {
+			t.Errorf("a frase manda usar %q: %q", proibido, MsgForaDoPainel)
 		}
 	}
-	if MsgEscritaAindaNao == "" {
+	if MsgForaDoPainel == "" {
 		t.Error("a recusa nao diz nada")
 	}
 }

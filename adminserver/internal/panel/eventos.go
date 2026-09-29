@@ -216,7 +216,7 @@ func (h *Handler) setEventos(w http.ResponseWriter, r *http.Request) {
 	}
 	novo.RoundXPCap, novo.RoundXPCapDouble = teto, tetoDobro
 
-	if err := h.cfg.Eventos.UpsertWorldEventConfig(r.Context(), novo, sess.AccountID); err != nil {
+	if err := h.cfg.Eventos.UpsertWorldEventConfig(r.Context(), novo, sess.Ator()); err != nil {
 		h.cfg.Logger.Error("world event config write failed", "err", err)
 		http.Error(w, "Erro ao gravar a configuração dos eventos.", http.StatusBadGateway)
 		return
@@ -281,7 +281,7 @@ func (h *Handler) setKefra(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Erro ao ler a configuração dos eventos.", http.StatusInternalServerError)
 		return
 	}
-	if _, err := h.cfg.Eventos.SetKefraState(r.Context(), derrotado, 0, "painel", sess.AccountID); err != nil {
+	if _, err := h.cfg.Eventos.SetKefraState(r.Context(), derrotado, 0, "painel", sess.Ator()); err != nil {
 		h.cfg.Logger.Error("kefra state write failed", "err", err)
 		http.Error(w, "Erro ao gravar o estado do Kefra.", http.StatusBadGateway)
 		return

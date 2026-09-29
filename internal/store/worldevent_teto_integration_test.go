@@ -28,7 +28,7 @@ func TestTetoDaRodadaNoBanco(t *testing.T) {
 	cfg := domain.DefaultWorldEventConfig()
 	cfg.RoundXPCap = [5]int64{1, 0, 3, 4, 5}
 	cfg.RoundXPCapDouble = [5]int64{6, 7, 8, 9, 0}
-	if err := st.UpsertWorldEventConfig(ctx, cfg, 0); err != nil {
+	if err := st.UpsertWorldEventConfig(ctx, cfg, atorDeTeste(ctx, t, st)); err != nil {
 		t.Fatalf("UpsertWorldEventConfig: %v", err)
 	}
 	got, err := st.WorldEventConfig(ctx)
@@ -38,7 +38,7 @@ func TestTetoDaRodadaNoBanco(t *testing.T) {
 
 	ruim := domain.DefaultWorldEventConfig()
 	ruim.RoundXPCapDouble[4] = -1
-	if err := st.UpsertWorldEventConfig(ctx, ruim, 0); err == nil {
+	if err := st.UpsertWorldEventConfig(ctx, ruim, atorDeTeste(ctx, t, st)); err == nil {
 		t.Error("o banco aceitou um teto negativo")
 	}
 }

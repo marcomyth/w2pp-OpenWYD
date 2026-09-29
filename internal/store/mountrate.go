@@ -49,7 +49,7 @@ func (s *Store) ListMountGrowthRates(ctx context.Context) ([]domain.MountGrowthR
 // sense together — a save that landed band 3 and lost band 4 would leave a mount
 // with a curve nobody chose, and the shape is the thing being edited, not the
 // individual number.
-func (s *Store) SetMountGrowthCurve(ctx context.Context, mountIndex int16, rates []int16, moderatorID int64, moderator string) error {
+func (s *Store) SetMountGrowthCurve(ctx context.Context, mountIndex int16, rates []int16, ator domain.Ator, moderator string) error {
 	if len(rates) != domain.MountGrowthBands {
 		return fmt.Errorf("store: mount growth curve needs %d bands, got %d", domain.MountGrowthBands, len(rates))
 	}
@@ -81,14 +81,14 @@ func (s *Store) SetMountGrowthCurve(ctx context.Context, mountIndex int16, rates
 		if err != nil {
 			return err
 		}
-		return auditAndBump(ctx, tx, nil, moderatorID, "set_mount_growth_curve", before, after)
+		return auditAndBump(ctx, tx, nil, ator, "set_mount_growth_curve", before, after)
 	})
 }
 
 // ClearMountGrowthCurve drops a lineage's rows, which returns it to the compiled
 // default — the absence of a row is what "use the default" means everywhere in
 // this overlay, so restoring is a delete and not a write of the default values.
-func (s *Store) ClearMountGrowthCurve(ctx context.Context, mountIndex int16, moderatorID int64) error {
+func (s *Store) ClearMountGrowthCurve(ctx context.Context, mountIndex int16, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		before, err := fetchMountCurveJSON(ctx, tx, mountIndex)
 		if err != nil {
@@ -101,7 +101,7 @@ func (s *Store) ClearMountGrowthCurve(ctx context.Context, mountIndex int16, mod
 		if err != nil {
 			return err
 		}
-		return auditAndBump(ctx, tx, nil, moderatorID, "clear_mount_growth_curve", before, after)
+		return auditAndBump(ctx, tx, nil, ator, "clear_mount_growth_curve", before, after)
 	})
 }
 

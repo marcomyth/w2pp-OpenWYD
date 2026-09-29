@@ -43,7 +43,7 @@ func (f *fakeStore) all(enabledOnly bool) []domain.DonateShopItem {
 	}
 	return out
 }
-func (f *fakeStore) UpsertDonateShopItem(_ context.Context, d domain.DonateShopItem, _ int64) (int64, error) {
+func (f *fakeStore) UpsertDonateShopItem(_ context.Context, d domain.DonateShopItem, _ domain.Ator) (int64, error) {
 	if f.upsertErr != nil {
 		return 0, f.upsertErr
 	}
@@ -55,19 +55,19 @@ func (f *fakeStore) UpsertDonateShopItem(_ context.Context, d domain.DonateShopI
 	}
 	return 99, nil
 }
-func (f *fakeStore) SetDonateShopItemEnabled(_ context.Context, id int64, _ bool, _ int64) error {
+func (f *fakeStore) SetDonateShopItemEnabled(_ context.Context, id int64, _ bool, _ domain.Ator) error {
 	if _, ok := f.items[id]; !ok {
 		return store.ErrNotFound
 	}
 	return nil
 }
-func (f *fakeStore) DeleteDonateShopItem(_ context.Context, id int64, _ int64) error {
+func (f *fakeStore) DeleteDonateShopItem(_ context.Context, id int64, _ domain.Ator) error {
 	if _, ok := f.items[id]; !ok {
 		return store.ErrNotFound
 	}
 	return nil
 }
-func (f *fakeStore) CreditDonateBalance(_ context.Context, accountID int64, amount int32, _ int64, _ string) (int32, error) {
+func (f *fakeStore) CreditDonateBalance(_ context.Context, accountID int64, amount int32, _ domain.Ator, _ string) (int32, error) {
 	if f.creditErr != nil {
 		return 0, f.creditErr
 	}
@@ -104,15 +104,16 @@ func newFake() *fakeStore {
 // TestAdminAuthorization checks every moderator operation refuses non-moderators.
 func TestAdminAuthorization(t *testing.T) {
 	tests := []struct {
-		name       string
-		moderator  int64
-		wantResult Result
+		name        string
+		moderator   int64
+		wantResult  Result
+		querCredito Result // creditar saldo exige ADMIN, e não só moderador
 	}{
-		{"moderator", 1, OK},
-		{"admin", 2, OK},
-		{"player", 3, Forbidden},
-		{"missing account", 999, Forbidden},
-		{"zero id", 0, Forbidden},
+		{"moderator", 1, OK, Forbidden},
+		{"admin", 2, OK, OK},
+		{"player", 3, Forbidden, Forbidden},
+		{"missing account", 999, Forbidden, Forbidden},
+		{"zero id", 0, Forbidden, Forbidden},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -132,8 +133,12 @@ func TestAdminAuthorization(t *testing.T) {
 			if r, err := s.Delete(ctx, tc.moderator, 10); err != nil || r != tc.wantResult {
 				t.Errorf("Delete = (%v, %v), want %v", r, err, tc.wantResult)
 			}
-			if r, _, err := s.CreditBalance(ctx, tc.moderator, 7, 100, "test"); err != nil || r != tc.wantResult {
-				t.Errorf("CreditBalance = (%v, %v), want %v", r, err, tc.wantResult)
+			// CREDITAR EXIGE ADMIN, e por isso tem expectativa própria: é a única
+			// destas escritas que cria DINHEIRO. As outras mudam regra de jogo e se
+			// desfazem editando de volta; esta move valor para uma conta e não volta
+			// sozinha. O moderador, que passa em todas as de cima, é recusado aqui.
+			if r, _, err := s.CreditBalance(ctx, tc.moderator, 7, 100, "test"); err != nil || r != tc.querCredito {
+				t.Errorf("CreditBalance = (%v, %v), want %v", r, err, tc.querCredito)
 			}
 		})
 	}
@@ -157,21 +162,25 @@ func TestUpsertValidation(t *testing.T) {
 }
 
 // TestCreditValidation rejects a non-positive amount or bad account id.
+//
+// O ATOR AQUI É O 2, QUE É ADMIN, e não o 1: creditar saldo passou a exigir admin, e com
+// o moderador estes casos parariam na permissão antes da validação — o teste passaria a
+// medir permissão em vez do que ele existe para medir.
 func TestCreditValidation(t *testing.T) {
 	s := New(newFake())
 	ctx := context.Background()
-	if r, _, _ := s.CreditBalance(ctx, 1, 7, 0, ""); r != Invalid {
+	if r, _, _ := s.CreditBalance(ctx, 2, 7, 0, ""); r != Invalid {
 		t.Errorf("credit amount 0 = %v, want Invalid", r)
 	}
-	if r, _, _ := s.CreditBalance(ctx, 1, 0, 100, ""); r != Invalid {
+	if r, _, _ := s.CreditBalance(ctx, 2, 0, 100, ""); r != Invalid {
 		t.Errorf("credit account 0 = %v, want Invalid", r)
 	}
 	// A missing account surfaces as NotFound.
-	if r, _, _ := s.CreditBalance(ctx, 1, 555, 100, ""); r != NotFound {
+	if r, _, _ := s.CreditBalance(ctx, 2, 555, 100, ""); r != NotFound {
 		t.Errorf("credit missing account = %v, want NotFound", r)
 	}
 	// A valid credit succeeds and returns the new balance.
-	if r, bal, err := s.CreditBalance(ctx, 1, 7, 100, "donation"); err != nil || r != OK || bal != 300 {
+	if r, bal, err := s.CreditBalance(ctx, 2, 7, 100, "donation"); err != nil || r != OK || bal != 300 {
 		t.Errorf("credit = (%v, %d, %v), want (OK, 300, nil)", r, bal, err)
 	}
 }

@@ -19,6 +19,8 @@ import (
 	"encoding/base64"
 	"sync"
 	"time"
+
+	"github.com/jeanluca/w2pp-openwyd/internal/domain"
 )
 
 // tokenBytes is the entropy behind a session id. 256 bits makes guessing
@@ -171,4 +173,26 @@ func (s *Store) Len() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return len(s.live)
+}
+
+// Ator traduz a sessão para o ator que o internal/store exige nas escritas.
+//
+// EXISTE PARA O PAINEL NÃO REPETIR ESTE if EM CADA TELA. A sessão já sabe quem é; o
+// que faltava era um único lugar que dissesse isso na linguagem do banco, em vez de
+// cada página mandar `sess.AccountID` e gravar zero quando quem está logado é um
+// usuário do painel — que era exatamente o defeito.
+//
+// COM OS DOIS PREENCHIDOS ELE DEVOLVE OS DOIS, e não escolhe.
+//
+// Escolher seria descartar um ator em silêncio e gravar uma linha dizendo que UMA pessoa
+// fez o que duas informações reivindicam. Devolvendo os dois, o Conferir() do
+// internal/store recusa antes do INSERT com uma frase que diz o que está errado, e a
+// trava do banco recusa depois — alto, nas duas pontas.
+//
+// Uma sessão com os dois não deveria existir: o login de conta de jogo e o de usuário do
+// painel são caminhos separados. Mas "não deveria existir" é exatamente o estado em que
+// um defeito futuro chega, e é aí que preferir um dos dois viraria uma linha de auditoria
+// com o autor errado.
+func (s Session) Ator() domain.Ator {
+	return domain.Ator{ContaID: s.AccountID, PainelUsuarioID: s.PainelUsuarioID}
 }
