@@ -1651,3 +1651,44 @@ func TestPatrulhaHidraRejectsInvalidRequirements(t *testing.T) {
 		})
 	}
 }
+
+// Uma pilha de 15 Safiras paga as 10 do Oráculo Negro e fica com 5: contar o
+// espaço como uma unidade gastaria a pilha inteira (29/09/2026).
+func TestBlackOraclePaysFromASapphirePile(t *testing.T) {
+	tmpl := questNPCTemplate("Oraculo_Negro", 78, 0, 0)
+	db := newDB()
+	st := baseMortalState(300)
+	st.Carry[10] = world.Item{Index: 1740}
+	st.Carry[11] = world.Item{Index: 1741}
+	pilha := world.Item{Index: sapphireUnit1}
+	setItemAmount(&pilha, 15)
+	st.Carry[12] = pilha
+	db.loadResult = st
+	addr, stop, npcID := startServerQuestNPC(t, db, tmpl)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	questFrame(t, c, npcID)
+	got := map[uint16][]byte{}
+	for i := 0; i < 4; i++ { // a pilha, as duas almas e o prêmio
+		item := expect(t, c, protocol.MsgSendItem)
+		got[le16(item[2:4])] = item
+	}
+	p, ok := got[12]
+	if !ok || le16(p[4:6]) != sapphireUnit1 {
+		t.Fatalf("slot 12 = %v, want a pilha de Safira ainda lá", p)
+	}
+	amount := 0
+	for k := 6; k+1 < 12 && k+1 < len(p); k += 2 {
+		if p[k] == efAmount {
+			amount = int(p[k+1])
+		}
+	}
+	if amount != 5 {
+		t.Errorf("sobraram %d Safiras na pilha, want 5", amount)
+	}
+	if r, ok := got[0]; !ok || le16(r[4:6]) != idealStoneItem {
+		t.Fatalf("slot 0 = %v, want Pedra Ideal", r)
+	}
+}

@@ -50,6 +50,13 @@ func Empilha(index int16) bool {
 		return true
 	case 3224: // Fragmento de Alma, da Escolta do Trono dos Reinos (tmserver handler/reinos.go)
 		return true
+	// A Safira, pedido do Marco em 29/09/2026, quando ela passou a cair da Bruxa e do
+	// Lanceiro do Reino. Quem a cobra (Guarda Real, Rei, Oráculo Negro, Mestre de
+	// Habilidade) lê a pilha por unidade desde o mesmo commit, e as máquinas separam
+	// uma unidade antes da receita (separarUnidadesParaMaquina). O Pacote_Safiras
+	// (4131) continua avulso: ele vale dez e é contado assim.
+	case 697:
+		return true
 	// Os baús de sorteio do Apoiador: Bronze 3304, Apoiador 3305, Supremo 3306.
 	//
 	// MEDIDO EM JOGO, 24/09/2026, no cliente da Hanna: `/gm item 3305 61 2` criou o
