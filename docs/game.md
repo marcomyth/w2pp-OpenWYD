@@ -514,3 +514,15 @@ sempre (×1,9 no +9, ×2,2 no +11). Caliburn: 255 → 319, e no +11 561 → 701.
 - Os mesmos números estão no `ItemList.bin` do cliente; sem ele o tooltip mostra o valor antigo
   e o cliente deixa arrastar peça que o servidor recusa.
 - **Sets celestiais** entram na mesma regra quando existirem no catálogo.
+
+**Escudos** (29/09/2026). Todo escudo com Defesa no catálogo sobe **25%** (15 itens; o Hophlon,
+que já tinha ganho os 25% da Reforja, ganha de novo: 155 → 194). Svalin 323 → 404, Berseker
+231 → 289, Hönir 211 → 264. E o escudo **+10 ou mais** ganha **10% da própria Defesa** (a já
+multiplicada pelo refino), somada ao +25 do legado a partir do +9. Não existe no legado.
+
+**Cajado de Âmbar** (29/09/2026). Os seis (902, 2130, 2855-2858) passam de só FM (`EF_CLASS 2`)
+para TK, FM e BM (`EF_CLASS 7`). É cajado de 1 mão (`EF_WTYPE 31`): no TK da Confiança ele faz o
+par de 140% com machado ou martelo de 1 mão; no BM não paga bônus de árvore nenhuma, e na
+Natureza conta como empunhadura penalizada.
+
+Os dois vão também no `ItemList.bin` do cliente.
