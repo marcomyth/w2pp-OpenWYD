@@ -3268,8 +3268,27 @@ func (d *Dispatcher) equipBonus(e *world.Entity) equipBonus {
 				b.ac += 25
 			}
 		}
+		b.ac += d.defesaDoEscudoRefinado(it)
 	}
 	return b
+}
+
+// escudoRefinoBonus é o refino a partir do qual o escudo ganha
+// escudoRefinoBonusPct da própria defesa. Não existe no legado: é regra da
+// equipe (29/09), para o escudo +10 valer mais que o +9.
+const (
+	escudoRefinoBonus    = 10
+	escudoRefinoBonusPct = 10
+)
+
+// defesaDoEscudoRefinado é o AC extra de um escudo refinado a +10 ou mais: 10%
+// do EF_AC dele já escalado pelo refino. A base é só a defesa do escudo, e não a
+// do personagem, por escolha do Marco: o bônus fica do tamanho do escudo.
+func (d *Dispatcher) defesaDoEscudoRefinado(it world.Item) int32 {
+	if it.Empty() || d.itemPos[int(it.Index)] != nPosDef3 || itemSanc(it) < escudoRefinoBonus {
+		return 0
+	}
+	return d.itemAbilityRefined(it, efAc) * escudoRefinoBonusPct / 100
 }
 
 // deriveBaseScore captures the equipment-free BaseScore on login. Persisted
