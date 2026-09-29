@@ -183,10 +183,10 @@ func TestSimulacaoTransUmaOitava(t *testing.T) {
 func TestSimulacaoTransContraHT(t *testing.T) {
 	const lutas = 30
 	sm := novoSimulador(t, filepath.Join("..", "..", "..", "Release"))
-	defer func(v int) { transContraHTPct = v }(transContraHTPct)
+	defer func(v int) { transContraHTSkillPct = v }(transContraHTSkillPct)
 	sm.d.combatRules.PvPSkillPct, sm.d.combatRules.PvPMeleePct = 37, 37
 	var b strings.Builder
-	fmt.Fprintf(&b, "| Bônus contra HT | Xorimpas com a 8ª | TK | Vitórias | Mínimo | Mediana | Máximo | 1-2 min | Dano/s TK | Dano/s HT |\n|---|---|---|---|---|---|---|---|---|---|\n")
+	fmt.Fprintf(&b, "| Bônus de skill contra HT (físico +550) | Xorimpas com a 8ª | TK | Vitórias | Mínimo | Mediana | Máximo | 1-2 min | Dano/s TK | Dano/s HT |\n|---|---|---|---|---|---|---|---|---|---|\n")
 	oitavas := []struct {
 		nome string
 		bit  int32
@@ -199,8 +199,8 @@ func TestSimulacaoTransContraHT(t *testing.T) {
 		nome string
 		arma int16
 	}{{"Éden", simEdenAnct}, {"Demolidor", simDemolidorAnct}}
-	for _, bonus := range []int{100, 150, 200, 250, 300} {
-		transContraHTPct = bonus
+	for _, bonus := range []int{0, 50, 85, 120, 250} {
+		transContraHTSkillPct = bonus
 		for _, o := range oitavas {
 			for _, a := range armas {
 				var tempos []float64

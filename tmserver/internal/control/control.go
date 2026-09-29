@@ -130,6 +130,8 @@ type QuestTierContent struct {
 }
 
 type Server struct {
+	// avisaBau manda o slot do bau ao cliente; nulo = ninguem avisa (ver ComAvisoDeBau).
+	avisaBau AvisaSlotsDoBau
 	gamev1.UnimplementedGameControlServiceServer
 	world     *world.World
 	token     string
@@ -147,6 +149,14 @@ type Server struct {
 // starts without them looks healthy and is not. A missing token would serve an
 // open endpoint that can kick every player off; a missing teleporter would
 // accept unstuck calls and answer that it moved nobody.
+// AvisaSlotsDoBau manda ao cliente cada slot do bau que acabou de receber item.
+//
+// ENTRA COMO FUNCAO E NAO E ESCRITA AQUI porque a conversao de um item para o formato do
+// fio (itemToSel) e uma so no servidor, e ela mora no handler: ela resolve validade,
+// EF_AMOUNT de empilhavel e o resto. Copiar essa conversao para ca criaria uma segunda
+// verdade sobre como um item vai ao cliente, e a segunda desatualiza.
+type AvisaSlotsDoBau func(*world.World, *world.Session, []world.EntregaNoBau)
+
 func NewServer(w *world.World, token string, log *slog.Logger, tp Teleporter, ov Overlays) (*Server, error) {
 	if strings.TrimSpace(token) == "" {
 		return nil, ErrNoToken
@@ -464,7 +474,13 @@ func (s *Server) DeliverNow(ctx context.Context, req *gamev1.DeliverNowRequest) 
 			resp.Found = true
 			// Lost keeps its wire name, but no item is lost any more: it counts
 			// the grants that found no free slot and stay in the mailbox.
-			entregues, semEspaco := w.ApplyDeliveries(sess, pendentes)
+			entregues, semEspaco, postas := w.ApplyDeliveriesComSlots(sess, pendentes)
+			// O SLOT VAI AO CLIENTE NA HORA. Este e o caminho do "entregar agora" do
+			// site: a pessoa paga, a pagina pede a entrega, e o item caia no bau sem o
+			// cliente saber — ela via o bau vazio ate o proximo login.
+			if s.avisaBau != nil {
+				s.avisaBau(w, sess, postas)
+			}
 			resp.Delivered, resp.Lost = int32(entregues), int32(semEspaco)
 
 			// AVISA A PESSOA, e não só o log do servidor.
@@ -709,3 +725,11 @@ func (s *Server) Drain(ctx context.Context, req *gamev1.DrainRequest) (*gamev1.D
 			"the sessions were ended but the saves have not finished; do not restart yet")
 	}
 }
+
+// ComAvisoDeBau liga o aviso de slot do bau.
+//
+// OPCIONAL DE PROPOSITO, ao contrario do conferidor de cargo da montaria: sem ele a
+// entrega CONTINUA acontecendo e sendo salva — o que se perde e o item aparecer na hora,
+// e o proximo login mostra o bau inteiro de todo jeito. Falhar fechado aqui seria pior
+// que o defeito: recusaria a entrega de uma compra paga.
+func (s *Server) ComAvisoDeBau(f AvisaSlotsDoBau) *Server { s.avisaBau = f; return s }

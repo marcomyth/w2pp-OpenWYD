@@ -59,7 +59,7 @@ func (d *Dispatcher) combineOdin(w *world.World, s *world.Session, e *world.Enti
 		return
 	}
 
-	items, slots, active, ok := d.resolveComboInputs(w, s, e, body)
+	items, slots, active, ok := d.resolveComboInputs(w, s, e, "Odin", body)
 	if !ok {
 		return
 	}

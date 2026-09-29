@@ -114,6 +114,10 @@ type Character struct {
 	// NivelRetroativo marca até onde o personagem recebeu as peças de nível que o
 	// jogo deixou de entregar (0172): 0 nada, 1-399 até aquele nível, 1000 concluído.
 	NivelRetroativo uint16
+
+	// Hold é a dívida de experiência das mortes em PvP (extra.Hold, 0187): os
+	// abates seguintes pagam a dívida antes de a experiência entrar na barra.
+	Hold int64
 }
 
 // KingdomCapeQuote is the persisted, versioned sapphire price snapshot.

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
@@ -22,20 +23,29 @@ const (
 )
 
 // pvpKilled runs the death penalties for a player slain by another player
-// (MobKilled.cpp "#pragma region PvP", issue #210). This is a straight-line port
-// of the reliably-extractable formulas only — MobKilled.cpp's actual PvP branch
-// is riddled with what looks like a decompiler artifact (an orphaned, brace-less
-// `if` on a coordinate check that appears to swallow the entire arena/exp/
-// CurKill block), so this mirrors mobKilled's clean linear style instead of
-// replicating that control flow.
+// (MobKilled.cpp "#pragma region PvP", issue #210).
+//
+// The legacy branch has a brace-less `if (killed_x == 1 && killed_y == 31)` right
+// before the arena test (MobKilled.cpp:3135) that swallows the whole block below
+// it, so the compiled legacy moved nothing on a PvP death outside that one map
+// block. It reads as a deleted `ZoneUnk = 1;`, and this port follows what the
+// block says, not that accident:
+//
+//   - inside a city (BASE_GetVillage) or a guild-war arena (BASE_GetArena) no
+//     experience is lost (_NN_In_Arena_No_Exp_Loss). Armia's PvP arena (the 0x40
+//     tiles at 2124-2147 x 2140-2155) sits inside Armia's city rectangle;
+//   - elsewhere the loss goes to Hold, a debt the next kills pay before any
+//     experience fills the bar (payHold) — the bar itself is never lowered, so
+//     no one drops a level (MobKilled.cpp:3248-3263).
+//
+// Deliberate divergence, asked by Marco on 29/09/2026: a kill in those zones also
+// moves no chaos points on either side. The legacy arena branch still charged the
+// killer (MobKilled.cpp:3214-3230). The kill streak counts everywhere, as in the
+// legacy arena branch.
 //
 // Deferred/UNVERIFIED (documented, not ported — see the plan for issue #210):
-//   - arena/village/isWar/MapPK geography — combat.go already deliberately
-//     skips this class of check (issue #67 regression from a coarse
-//     city-rectangle approximation).
-//   - Castle-siege/RvR-Tower AtWar bypasses — those systems are themselves
-//     UNVERIFIED (tmserver/internal/war/tower.go); only the guild-war bypass is
-//     implemented (guildsAtWar).
+//   - Castle-siege/RvR AtWar bypasses — those systems are themselves UNVERIFIED;
+//     only the guild-war and Tower War bypasses are implemented.
 //   - SameClan (legacy: clan 7 vs clan 8, an undocumented kingdom-war NPC-faction
 //     pair, NOT "same guild") — unmodeled anywhere in this repo, treated as
 //     always false: a normal kill always increments the killer's streak/resets
@@ -44,23 +54,31 @@ const (
 //     equipment, not chased.
 //   - #ifdef PKDrop item-loss-on-death — disabled in the reference build
 //     (Basedef.h:89, `//#define PKDrop`); intentionally not ported.
-//   - extra.Hold/DEADPOINT banked-EXP-loss indirection — no analogue anywhere in
-//     this codebase; the victim's EXP loss below is an IMMEDIATE deduction
-//     instead (documented divergence in intent vs. mechanism).
 func (d *Dispatcher) pvpKilled(w *world.World, killer, victim *world.Entity) {
 	ks := w.Session(killer.ID)
 	vs := w.Session(victim.ID)
+	semPerda := pvpZonaSemPerda(victim.X, victim.Y)
 	// A kill inside the Tower War box while it is open is a war kill, like the
 	// legacy's AtWar (MobKilled.cpp:3124-3125): it moves no chaos points.
-	atWar := d.guildsAtWar(killer.Guild, victim.Guild) || d.towerPvP(killer, victim)
+	atWar := d.guildsAtWar(killer.Guild, victim.Guild) || d.towerPvP(killer, victim) || semPerda
 
-	if loss := pvpExpLoss(victim.Level, victim.ClassMaster, victim.PKPoint); loss > 0 {
-		victim.Exp -= loss
-		if victim.Exp < 0 {
-			victim.Exp = 0
-		}
+	switch {
+	case semPerda:
 		if vs != nil {
-			d.sendChatText(w, vs, fmt.Sprintf("Voce perdeu %d pontos de experiencia", loss))
+			d.sendChatText(w, vs, "Na arena nao ha perda de EXP.")
+		}
+	case pvpSemPerdaPorNivel(victim):
+		// _NN_Below_lv20_No_Exp_Loss: the string says 20, the gate is FREEEXP (35).
+		if vs != nil {
+			d.sendChatText(w, vs, "Abaixo do nivel 35 nao ha perda de EXP.")
+		}
+	default:
+		if loss := pvpExpLoss(victim.Level, victim.ClassMaster, victim.PKPoint); loss > 0 {
+			victim.Hold = somaHold(victim.Hold, min(loss, victim.Exp))
+			if vs != nil {
+				d.sendChatText(w, vs, fmt.Sprintf("Voce perdeu %d pontos de experiencia", loss))
+				d.sendEtc(w, vs, victim)
+			}
 		}
 	}
 
@@ -94,10 +112,56 @@ func (d *Dispatcher) pvpKilled(w *world.World, killer, victim *world.Entity) {
 	}
 }
 
+// pvpZonaSemPerda is the legacy `arena != 5 || village != 5` (MobKilled.cpp:3137),
+// tested on the victim's tile.
+func pvpZonaSemPerda(x, y int16) bool {
+	return world.Village(x, y) >= 0 || world.Arena(x, y) >= 0
+}
+
+// pvpFreeExpLevel is FREEEXP (Server.cpp:50): a Mortal below it loses nothing.
+const pvpFreeExpLevel = 35
+
+// pvpSemPerdaPorNivel is the gate around the loss (MobKilled.cpp:3248): only a
+// Mortal below FREEEXP is spared; any evolved tier loses at any level.
+func pvpSemPerdaPorNivel(victim *world.Entity) bool {
+	return victim.Level < pvpFreeExpLevel && victim.ClassMaster == classMasterMortal
+}
+
+// pvpExpLossCap is the ceiling of the field branch (MobKilled.cpp:3241-3242),
+// applied after the /6. Without it a high level lost 150000*5/6 = 125000.
+const pvpExpLossCap = 30000
+
+// somaHold adds to the debt without wrapping: the legacy field is an unsigned
+// int, and a debt that wrapped would forgive itself.
+func somaHold(hold uint32, add int64) uint32 {
+	if add <= 0 {
+		return hold
+	}
+	if t := int64(hold) + add; t < math.MaxUint32 {
+		return uint32(t)
+	}
+	return math.MaxUint32
+}
+
+// payHold is the start of every kill payout (MobKilled.cpp:558-573): the gain
+// pays the Hold first, and only the rest reaches the experience bar.
+func payHold(e *world.Entity, gain int64) int64 {
+	if e.Hold == 0 || gain <= 0 {
+		return gain
+	}
+	if gain < int64(e.Hold) {
+		e.Hold -= uint32(gain)
+		return 0
+	}
+	gain -= int64(e.Hold)
+	e.Hold = 0
+	return gain
+}
+
 // pvpExpLoss is the victim's EXP loss on a PvP death (MobKilled.cpp "Lose EXP"
 // region): a tiered per-level divisor of the exp span between the victim's
 // current and next level, scaled by how chaotic the victim already was, then a
-// flat /6.
+// flat /6 and the field ceiling.
 func pvpExpLoss(victimLevel int32, victimClassMaster uint8, victimPKPoint uint8) int64 {
 	nextExp := level.NextLevelExpTier(victimLevel, victimClassMaster)
 	curExp := level.NextLevelExpTier(victimLevel-1, victimClassMaster)
@@ -138,7 +202,11 @@ func pvpExpLoss(victimLevel int32, victimClassMaster uint8, victimPKPoint uint8)
 	} else {
 		delta *= 5
 	}
-	return delta / 6
+	delta /= 6
+	if delta > pvpExpLossCap {
+		delta = pvpExpLossCap
+	}
+	return delta
 }
 
 // pvpLostPk is the killer's PKPoint change for landing a PvP kill

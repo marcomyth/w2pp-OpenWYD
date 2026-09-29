@@ -36,6 +36,7 @@ func criarUsuario(logger *slog.Logger, args []string, entrada io.Reader) error {
 	dsn := fs.String("dsn", envOr("DATABASE_URL", os.Getenv("W2PP_DB_DSN")), "PostgreSQL DSN (ou DATABASE_URL)")
 	login := fs.String("login", "", "login do usuário do painel (minúsculas, sem espaço)")
 	papel := fs.String("papel", "admin", "moderator ou admin")
+	prazo := fs.Duration("prazo", 5*time.Minute, "quanto esperar pelo banco, migracoes incluidas")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), `adminserver %s -login NOME [-papel admin|moderator]
 
@@ -69,7 +70,22 @@ ainda. Depois disso, use a tela Usuários do painel.
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// TRINTA SEGUNDOS NAO DAVAM, e o prazo curto batia justo no unico caso que este
+	// comando existe para atender: ambiente novo, banco vazio, ligacao de fora.
+	//
+	// O comando roda as migracoes antes de criar o usuario (logo abaixo), e conferir
+	// 195 migracoes por um tunel custa uma ida e volta de rede cada uma. Medido no
+	// LOTM: o comando morria em "check migration 0118: context deadline exceeded",
+	// com o banco respondendo bem — nao era banco fora do ar, era o prazo.
+	//
+	// E o prazo curto falhava no pior lugar. Quem roda isto esta destrancando o
+	// primeiro acesso de um ambiente que ninguem consegue abrir, e a mensagem de
+	// tempo esgotado no meio das migracoes parece banco quebrado. A pessoa vai
+	// procurar defeito no banco, e o defeito era a pressa.
+	//
+	// CINCO MINUTOS, e uma bandeira para quem precisar de mais: isto roda uma vez na
+	// vida de um ambiente, e nao ha nada para ganhar desistindo cedo.
+	ctx, cancel := context.WithTimeout(context.Background(), *prazo)
 	defer cancel()
 	pool, err := store.Pool(ctx, *dsn)
 	if err != nil {
@@ -158,15 +174,30 @@ const senhaMinimaDoPainel = 12
 // frase-senha é mais forte do que palavra, e um TrimSpace inteiro apagaria o começo e o fim
 // de uma. O \r entra na conta porque quem colar de um arquivo do Windows manda \r\n.
 func leSenhaDaEntrada(entrada io.Reader) (string, error) {
-	b, err := io.ReadAll(bufio.NewReader(entrada))
+	senha, err := leTextoDaEntrada(entrada)
 	if err != nil {
-		return "", fmt.Errorf("lendo a senha da entrada padrão: %w", err)
+		return "", err
 	}
-	senha := strings.TrimRight(string(b), "\r\n")
 	if len(senha) < senhaMinimaDoPainel {
 		return "", fmt.Errorf("a senha precisa de pelo menos %d caracteres; "+
 			"mande pela entrada padrão, por exemplo: printf '%%s' 'sua-senha' | adminserver %s -login NOME",
 			senhaMinimaDoPainel, criarUsuarioCmd)
 	}
 	return senha, nil
+}
+
+// leTextoDaEntrada lê a entrada padrão inteira e tira só a quebra de linha do fim.
+//
+// COMPARTILHADA pelos dois verbos que pedem senha (usuário do painel e conta de jogo)
+// porque a parte delicada é a mesma: um `echo` põe a quebra no fim, e uma senha com
+// essa quebra grudada não bate no login depois, sem ninguém entender por quê.
+//
+// SÓ O FIM É CORTADO. Espaço no começo ou no meio é senha, e cortar ali seria mudar
+// em silêncio o que a pessoa digitou.
+func leTextoDaEntrada(entrada io.Reader) (string, error) {
+	b, err := io.ReadAll(bufio.NewReader(entrada))
+	if err != nil {
+		return "", fmt.Errorf("lendo a senha da entrada padrão: %w", err)
+	}
+	return strings.TrimRight(string(b), "\r\n"), nil
 }

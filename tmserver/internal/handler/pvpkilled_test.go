@@ -81,7 +81,9 @@ func TestClampPKPoint(t *testing.T) {
 
 // pvpKilledWorld builds a non-serving world plus two detached players (no
 // sessions — pvpKilled's message sends are skipped, the state math is the
-// same), mirroring mobKilledWorld's pattern for pure death-logic tests.
+// same), mirroring mobKilledWorld's pattern for pure death-logic tests. Both
+// stand on (0,0), outside every city and arena, and the victim is a level-50
+// Mortal, past the FREEEXP gate.
 func pvpKilledWorld(t *testing.T) (*Dispatcher, *world.World, *world.Entity, *world.Entity) {
 	t.Helper()
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -89,15 +91,15 @@ func pvpKilledWorld(t *testing.T) (*Dispatcher, *world.World, *world.Entity, *wo
 	w := world.New(world.Config{GridDim: 16}, log, nil, d.Handle)
 	killer := &world.Entity{ID: 1, Mode: world.MobUser, Name: "Killer", Level: 50, PKPoint: 75}
 	victim := &world.Entity{
-		ID: 2, Mode: world.MobUser, Name: "Victim", Level: 1, ClassMaster: classMasterMortal,
+		ID: 2, Mode: world.MobUser, Name: "Victim", Level: 50, ClassMaster: classMasterMortal,
 		Exp: 10_000, PKPoint: 75,
 	}
 	return d, w, killer, victim
 }
 
 // TestPvpKilledAppliesAllPenalties is the end-to-end mutation test for a normal
-// (no guild war, no pre-existing guilty state) PvP kill: victim loses EXP and
-// PKPoint recovers +1, killer loses PKPoint and gains a kill-streak point.
+// (no guild war, no pre-existing guilty state) PvP kill: the victim's EXP loss
+// becomes Hold, the bar untouched, and PKPoint recovers +1, killer loses PKPoint and gains a kill-streak point.
 func TestPvpKilledAppliesAllPenalties(t *testing.T) {
 	d, w, killer, victim := pvpKilledWorld(t)
 	victim.CurKill = 3  // an in-progress streak that must reset on death
@@ -106,8 +108,11 @@ func TestPvpKilledAppliesAllPenalties(t *testing.T) {
 
 	d.pvpKilled(w, killer, victim)
 
-	if want := int64(10_000 - 25); victim.Exp != want {
-		t.Errorf("victim.Exp = %d, want %d (25 = pvpExpLoss(1,mortal,60), same x5 bucket as 75)", victim.Exp, want)
+	if victim.Exp != 10_000 {
+		t.Errorf("victim.Exp = %d, want 10000 (the loss goes to Hold, never to the bar)", victim.Exp)
+	}
+	if want := uint32(pvpExpLoss(50, classMasterMortal, 60)); victim.Hold != want || want == 0 {
+		t.Errorf("victim.Hold = %d, want %d", victim.Hold, want)
 	}
 	if killer.PKPoint != 75-7 {
 		t.Errorf("killer.PKPoint = %d, want %d (victim.PKPoint=60 ⇒ LostPk=-7)", killer.PKPoint, 75-7)
@@ -141,8 +146,8 @@ func TestPvpKilledNoPenaltyDuringGuildWar(t *testing.T) {
 	if victim.PKPoint != 75 {
 		t.Errorf("victim.PKPoint = %d, want unchanged 75 (guild war ⇒ no recovery either)", victim.PKPoint)
 	}
-	if want := int64(10_000 - 25); victim.Exp != want {
-		t.Errorf("victim.Exp = %d, want %d (EXP loss still applies during a guild war)", victim.Exp, want)
+	if want := uint32(pvpExpLoss(50, classMasterMortal, 75)); victim.Hold != want || want == 0 {
+		t.Errorf("victim.Hold = %d, want %d (EXP loss still applies during a guild war)", victim.Hold, want)
 	}
 }
 

@@ -70,12 +70,11 @@ func (d *Dispatcher) skillMasterReset(w *world.World, s *world.Session, e *world
 	// it sits there would be the expensive mistake. The original picks it first for
 	// the same reason (_MSG_Quest.cpp:1788).
 	budget := int32(retornoHabilidadePoints)
-	var cost []int
-	if slot := retornoSlot(e); slot >= 0 {
-		cost = []int{slot}
-	} else {
-		cost = sapphireSlotsToSpend(e)
-		if cost == nil {
+	retorno := retornoSlot(e)
+	var gastos []gastoDeSafira
+	if retorno < 0 {
+		gastos = sapphireSlotsToSpend(e)
+		if gastos == nil {
 			sendSay(w, npc, fmt.Sprintf(
 				"Traga o %s, ou %d safiras.", d.itemName(itemRetornoDaHabilidade), statSapphireCost))
 			return
@@ -90,7 +89,11 @@ func (d *Dispatcher) skillMasterReset(w *world.World, s *world.Session, e *world
 		sendSay(w, npc, "Você não tem pontos distribuídos para devolver.")
 		return
 	}
-	d.clearSlots(w, s, e, cost)
+	if retorno >= 0 {
+		d.clearSlots(w, s, e, []int{retorno})
+	} else {
+		d.gastarSafiras(w, s, e, gastos)
+	}
 
 	// Re-derive rather than add: ScoreBonus is a pure function of level, tier and
 	// the attributes we just lowered (character.go:361). Adding by hand here would
@@ -124,7 +127,7 @@ func countSapphires(e *world.Entity) int {
 	for i := 0; i < activeCarryLimit(e); i++ {
 		switch e.Carry[i].Index {
 		case itemSafira:
-			n++
+			n += itemAmount(e.Carry[i]) // uma pilha vale o que ela tem
 		case itemPacoteSafira:
 			n += pacoteSafiraVale
 		}
@@ -132,30 +135,65 @@ func countSapphires(e *world.Entity) int {
 	return n
 }
 
-// sapphireSlotsToSpend picks exactly which slots pay for one reset. A Pacote is
-// only taken while ten are still owed, so settling a debt of four never eats a
-// whole pack when four loose stones would do — the original scans in the same
-// order (_MSG_Quest.cpp:1802-1816). Returns nil when the bag cannot pay.
+// gastoDeSafira is one slot's share of a sapphire payment: how many units come
+// out of it. A Pacote always gives its ten; a Safira pile gives what is owed.
+type gastoDeSafira struct {
+	slot, unidades int
+}
+
+// sapphireSlotsToSpend picks exactly which slots pay for one reset, and how much
+// each pays. A Pacote is only taken while ten are still owed, so settling a debt
+// of four never eats a whole pack when four loose stones would do — the original
+// scans in the same order (_MSG_Quest.cpp:1802-1816). Returns nil when the bag
+// cannot pay.
+//
+// Since 29/09/2026 a loose Safira is a pile (pilha.Empilha), so a slot pays up to
+// its EF_AMOUNT and not one: a pile of fifty settles the whole debt and keeps
+// forty.
 //
 // Kept separate from the spending so the choice can be tested on its own: it is
 // the part with a rule in it, and the part a mistake would be expensive in.
-func sapphireSlotsToSpend(e *world.Entity) []int {
+func sapphireSlotsToSpend(e *world.Entity) []gastoDeSafira {
 	owed := statSapphireCost
-	var slots []int
+	var gastos []gastoDeSafira
 	for i := 0; i < activeCarryLimit(e) && owed > 0; i++ {
 		switch {
 		case e.Carry[i].Index == itemSafira:
-			slots = append(slots, i)
-			owed--
+			n := min(itemAmount(e.Carry[i]), owed)
+			gastos = append(gastos, gastoDeSafira{slot: i, unidades: n})
+			owed -= n
 		case e.Carry[i].Index == itemPacoteSafira && owed >= pacoteSafiraVale:
-			slots = append(slots, i)
+			gastos = append(gastos, gastoDeSafira{slot: i, unidades: pacoteSafiraVale})
 			owed -= pacoteSafiraVale
 		}
 	}
 	if owed > 0 {
 		return nil
 	}
-	return slots
+	return gastos
+}
+
+// gastarSafiras takes the planned units out of each slot — the whole slot for a
+// Pacote or a pile paid in full, the difference for a pile paid in part — and
+// tells the client about each one.
+func (d *Dispatcher) gastarSafiras(w *world.World, s *world.Session, e *world.Entity, gastos []gastoDeSafira) {
+	aplicarGastosDeSafira(e, gastos)
+	for _, g := range gastos {
+		d.sendSlot(w, s, world.ItemPlaceCarry, g.slot, e.Carry[g.slot])
+	}
+}
+
+// aplicarGastosDeSafira is gastarSafiras without the client: the bag change
+// alone, so the rule can be tested without a world.
+func aplicarGastosDeSafira(e *world.Entity, gastos []gastoDeSafira) {
+	for _, g := range gastos {
+		it := &e.Carry[g.slot]
+		if n := itemAmount(*it); it.Index == itemSafira && n > g.unidades {
+			setItemAmount(it, n-g.unidades)
+		} else {
+			*it = world.Item{}
+		}
+	}
 }
 
 // clearSlots empties the chosen slots and tells the client about each one.

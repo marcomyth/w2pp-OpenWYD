@@ -48,6 +48,28 @@ func Village(x, y int16) int {
 	return -1
 }
 
+// warAreas are the guild-war arenas, g_pGuildZone[i].WarArea (Basedef.cpp:56-60),
+// in the same city order. Noatum's (4000..4010) lies off the map on purpose: it is
+// the legacy's way of saying Noatum has no arena.
+var warAreas = [5][4]int16{
+	{197, 213, 238, 230}, // 0 Armia
+	{197, 149, 238, 166}, // 1 Azran
+	{141, 213, 182, 230}, // 2 Erion
+	{141, 149, 182, 166}, // 3 Nippleheim
+	{4000, 4000, 4010, 4010},
+}
+
+// Arena returns the index (0..4) of the guild-war arena containing (x,y), or -1
+// (BASE_GetArena, which returns 5 for "none").
+func Arena(x, y int16) int {
+	for i, a := range warAreas {
+		if x >= a[0] && x <= a[2] && y >= a[1] && y <= a[3] {
+			return i
+		}
+	}
+	return -1
+}
+
 // cityTax is g_pGuildZone[village].CityTax — the percent tax a village charges on
 // a personal-shop sale (issue #115). The static init is 5 for every village
 // (Basedef.cpp:54-61); at runtime a siege can override it (0..20, default 10,

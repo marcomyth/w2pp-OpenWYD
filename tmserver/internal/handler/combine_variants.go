@@ -30,7 +30,7 @@ var ehreRateKey = map[int]string{
 	8: "Soul",
 }
 
-func (d *Dispatcher) variantInputs(w *world.World, s *world.Session, payload []byte) (*world.Entity, [protocol.MaxCombine]world.Item, [protocol.MaxCombine]int, []int, bool) {
+func (d *Dispatcher) variantInputs(w *world.World, s *world.Session, familia string, payload []byte) (*world.Entity, [protocol.MaxCombine]world.Item, [protocol.MaxCombine]int, []int, bool) {
 	e := w.Entity(s.Conn)
 	if e == nil || e.HP <= 0 || s.Mode != world.UserPlay {
 		return nil, [protocol.MaxCombine]world.Item{}, [protocol.MaxCombine]int{}, nil, false
@@ -39,7 +39,7 @@ func (d *Dispatcher) variantInputs(w *world.World, s *world.Session, payload []b
 	if body.Decode(payload) != nil {
 		return nil, [protocol.MaxCombine]world.Item{}, [protocol.MaxCombine]int{}, nil, false
 	}
-	items, slots, active, ok := d.resolveComboInputs(w, s, e, body)
+	items, slots, active, ok := d.resolveComboInputs(w, s, e, familia, body)
 	return e, items, slots, active, ok
 }
 
@@ -71,7 +71,7 @@ func (d *Dispatcher) consumePositions(w *world.World, s *world.Session, e *world
 }
 
 func (d *Dispatcher) combineItemAilyn(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
-	e, it, sl, active, ok := d.variantInputs(w, s, payload)
+	e, it, sl, active, ok := d.variantInputs(w, s, "Ailyn", payload)
 	if !ok {
 		return
 	}
@@ -128,7 +128,7 @@ func (d *Dispatcher) combineItemAilyn(w *world.World, s *world.Session, _ protoc
 }
 
 func (d *Dispatcher) combineItemTiny(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
-	e, it, sl, active, ok := d.variantInputs(w, s, payload)
+	e, it, sl, active, ok := d.variantInputs(w, s, "Tiny", payload)
 	if !ok {
 		return
 	}
@@ -170,7 +170,7 @@ func (d *Dispatcher) combineItemTiny(w *world.World, s *world.Session, _ protoco
 }
 
 func (d *Dispatcher) combineItemAgatha(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
-	e, it, sl, active, ok := d.variantInputs(w, s, payload)
+	e, it, sl, active, ok := d.variantInputs(w, s, "Agatha", payload)
 	if !ok {
 		return
 	}
@@ -202,7 +202,7 @@ func (d *Dispatcher) combineItemAgatha(w *world.World, s *world.Session, _ proto
 }
 
 func (d *Dispatcher) combineItemShany(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
-	e, it, sl, active, ok := d.variantInputs(w, s, payload)
+	e, it, sl, active, ok := d.variantInputs(w, s, "Shany", payload)
 	if !ok {
 		return
 	}
@@ -227,7 +227,7 @@ func (d *Dispatcher) combineItemShany(w *world.World, s *world.Session, _ protoc
 }
 
 func (d *Dispatcher) combineItemAlquimia(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
-	e, it, sl, active, ok := d.variantInputs(w, s, payload)
+	e, it, sl, active, ok := d.variantInputs(w, s, "Alquimia", payload)
 	if !ok {
 		return
 	}
@@ -260,7 +260,7 @@ func (d *Dispatcher) combineItemAlquimia(w *world.World, s *world.Session, _ pro
 }
 
 func (d *Dispatcher) combineItemLindy(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
-	e, it, sl, active, ok := d.variantInputs(w, s, payload)
+	e, it, sl, active, ok := d.variantInputs(w, s, "Lindy", payload)
 	if !ok {
 		return
 	}
@@ -402,7 +402,7 @@ func combineSlotSummary(items []world.Item) string {
 
 // Ehre is implemented separately below because each recipe has a distinct output.
 func (d *Dispatcher) combineItemEhre(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
-	e, it, sl, active, ok := d.variantInputs(w, s, payload)
+	e, it, sl, active, ok := d.variantInputs(w, s, "Ehre", payload)
 	if !ok {
 		return
 	}

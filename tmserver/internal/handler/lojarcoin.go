@@ -192,7 +192,8 @@ func (d *Dispatcher) entregaRcoinAgora(w *world.World, s *world.Session, conta i
 			if s.AccountID != conta {
 				return
 			}
-			entregues, presos := w.ApplyDeliveries(s, pendentes)
+			entregues, presos, postas := w.ApplyDeliveriesComSlots(s, pendentes)
+			mandaSlotsDoBau(w, s, postas)
 			switch {
 			case presos > 0:
 				sendClientMessage(w, s, world.MensagemEntregaPresa(presos))
@@ -205,4 +206,31 @@ func (d *Dispatcher) entregaRcoinAgora(w *world.World, s *world.Session, conta i
 			}
 		}
 	})
+}
+
+// mandaSlotsDoBau avisa o cliente de cada slot do baú que acabou de receber item.
+//
+// SEM ISTO O ITEM ENTRA E NINGUÉM VÊ. O ApplyDeliveries põe o item no baú e salva, mas
+// o cliente só monta o baú no LOGIN — então quem compra com o jogo aberto vê o saldo
+// descer e o baú vazio, e só encontra a compra no login seguinte. Com dinheiro de
+// verdade no meio, isso parece o servidor ter comido a compra.
+//
+// O MESMO PACOTE QUE A LOJINHA JÁ USA para o baú (lojacompra.go): MsgSendItem com
+// ItemPlaceCargo, o slot, e o item. Nada de formato novo.
+//
+// O ITEM VAI COMO FICOU NO BAÚ e não como chegou: se a entrega empilhou sobre uma pilha
+// que já estava lá, o que o cliente precisa ver é a pilha somada.
+// AvisaSlotsDoBau e o mesmo, exportado para o control usar no "entregar agora" do site.
+//
+// UM METODO DO Dispatcher para caber na fiacao do main.go, como o Teleport: o control
+// nao importa o handler, ele recebe funcoes dele.
+func (d *Dispatcher) AvisaSlotsDoBau(w *world.World, s *world.Session, postas []world.EntregaNoBau) {
+	mandaSlotsDoBau(w, s, postas)
+}
+
+func mandaSlotsDoBau(w *world.World, s *world.Session, postas []world.EntregaNoBau) {
+	for _, p := range postas {
+		w.Send(s, protocol.MsgSendItem,
+			protocol.EncodeSendItemBody(protocol.ItemPlaceCargo, p.Slot, itemToSel(p.Item)))
+	}
 }

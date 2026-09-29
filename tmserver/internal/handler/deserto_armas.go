@@ -14,16 +14,25 @@ import (
 // carimbado aqui: o gancho de acabamento só roda em item que a Mesa soltou. As
 // vagas do template para essas armas ficam governadas pela Mesa e não rolam mais.
 //
-// armasDDoDeserto são as dezesseis Armas D que esses quatro soltam, com a escada
-// de cada uma: as quatro com EF_MAGIC no catálogo (as lanças Gungnir e Lança do
-// Triunfo, os cajados Olho do Carbunkle e Âmbar) levam magia, o resto dano. O
-// Escudo de Runas do Verme também é item D e fica de fora: é escudo, não arma.
+// Em 29/09 o Deserto perdeu as Armas E e o set E (0183 e 0186, pedido do Marco:
+// "Sets E e Armas E só no gelo e Kefra"), e cada arma E virou uma Arma D do mesmo
+// tipo pela Mesa. As três que não estavam aqui entraram (Arco Divino, Garra
+// Draconiana, Fúria Divina), e o Aeon, que só soltava arma E, passou a ser um dos
+// moldes com add.
+//
+// armasDDoDeserto são as dezenove Armas D que esses cinco soltam, com a escada
+// de cada uma: as cinco com EF_MAGIC no catálogo (as lanças Gungnir e Lança do
+// Triunfo, os cajados Olho do Carbunkle, Fúria Divina e Âmbar) levam magia, o
+// resto dano. O Escudo de Runas do Verme também é item D e fica de fora: é
+// escudo, não arma.
 var (
 	armasDDoDesertoFisicas = map[int16]bool{
 		809: true, // Martelo Dragão
 		810: true, // Martelo Assassino
 		824: true, // Arco Élfico
+		825: true, // Arco Divino (0186, no lugar do Arco Guardião E)
 		839: true, // Presas de Behemoth
+		840: true, // Garra Draconiana (0186, no lugar da Dianus E)
 		869: true, // Gram
 		870: true, // Espada Vorpal
 		884: true, // Lança Relâmpago (garra, sem EF_MAGIC)
@@ -37,14 +46,16 @@ var (
 		854: true, // Gungnir
 		855: true, // Lança do Triunfo
 		899: true, // Olho do Carbunkle
+		900: true, // Fúria Divina (0186, no lugar do Cajado Caótico E e da Força Eterna E)
 		902: true, // Cajado de Âmbar
 	}
 )
 
-// monstrosDasArmasD são os quatro moldes do Deserto que ganham o add.
+// monstrosDasArmasD são os cinco moldes do Deserto que ganham o add.
 var monstrosDasArmasD = map[string]bool{
 	droprule.Canonical("Manticora"):       true,
 	droprule.Canonical("Adamant_Tauron"):  true,
+	droprule.Canonical("Aeon_Tauron"):     true,
 	droprule.Canonical("Taron_Assassino"): true,
 	droprule.Canonical("Verme_"):          true,
 }
