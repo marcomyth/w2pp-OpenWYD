@@ -80,8 +80,10 @@ type Store interface {
 	BuyRcoinOffer(ctx context.Context, accountID, offerID int64, seenPrice int32) (store.RcoinBuyResult, int32, int64, error)
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (domain.Guild, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
-	LeaveGuild(ctx context.Context, accountID int64, slot int) error
+	LeaveGuild(ctx context.Context, accountID int64, slot int) (uint16, error)
+	KickOfflineGuildMember(ctx context.Context, guildID uint16, kickerAccountID int64, kickerSlot int, targetName string) error
 	PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, error)
+	PromoteOfflineGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, targetName string, cost int32) (uint8, error)
 	TransferGuildLeader(ctx context.Context, guildID uint16, oldAccountID int64, oldSlot int, newAccountID int64, newSlot int) error
 	SetGuildRelation(ctx context.Context, guildID, targetGuildID uint16, kind domain.GuildRelationKind) error
 	ListGuilds(ctx context.Context) ([]domain.Guild, error)
@@ -634,16 +636,33 @@ func (s *Server) SetGuildMember(ctx context.Context, req *dbv1.SetGuildMemberReq
 	return &dbv1.SetGuildMemberResponse{Ok: true}, nil
 }
 
-// LeaveGuild removes one character from its guild.
+// LeaveGuild removes one character from its guild, and the guild itself when
+// nobody is left in it.
 func (s *Server) LeaveGuild(ctx context.Context, req *dbv1.LeaveGuildRequest) (*dbv1.SetGuildMemberResponse, error) {
-	err := s.store.LeaveGuild(ctx, req.GetAccountId(), int(req.GetSlot()))
+	apagada, err := s.store.LeaveGuild(ctx, req.GetAccountId(), int(req.GetSlot()))
 	if errors.Is(err, store.ErrNotFound) {
 		return &dbv1.SetGuildMemberResponse{Ok: false}, nil
 	}
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "leave guild: %v", err)
 	}
-	return &dbv1.SetGuildMemberResponse{Ok: true}, nil
+	return &dbv1.SetGuildMemberResponse{Ok: true, DissolvedGuildId: uint32(apagada)}, nil
+}
+
+// KickOfflineGuildMember expulsa um membro que não está no jogo. As duas
+// recusas previstas voltam como resposta, não como erro: são o que o líder lê.
+func (s *Server) KickOfflineGuildMember(ctx context.Context, req *dbv1.KickOfflineGuildMemberRequest) (*dbv1.KickOfflineGuildMemberResponse, error) {
+	err := s.store.KickOfflineGuildMember(ctx, uint16(req.GetGuildId()), req.GetKickerAccountId(),
+		int(req.GetKickerSlot()), req.GetTargetName())
+	switch {
+	case err == nil:
+		return &dbv1.KickOfflineGuildMemberResponse{Ok: true}, nil
+	case errors.Is(err, store.ErrNotFound):
+		return &dbv1.KickOfflineGuildMemberResponse{Refusal: dbv1.KickGuildRefusal_KICK_GUILD_REFUSAL_NOT_MEMBER}, nil
+	case errors.Is(err, store.ErrConflict):
+		return &dbv1.KickOfflineGuildMemberResponse{Refusal: dbv1.KickGuildRefusal_KICK_GUILD_REFUSAL_OUTRANKED}, nil
+	}
+	return nil, status.Errorf(codes.Internal, "kick offline guild member: %v", err)
 }
 
 // PromoteGuildMember promotes a member to the first free sub-leader rank.
@@ -657,6 +676,26 @@ func (s *Server) PromoteGuildMember(ctx context.Context, req *dbv1.PromoteGuildM
 		return nil, status.Errorf(codes.Internal, "promote guild member: %v", err)
 	}
 	return &dbv1.PromoteGuildMemberResponse{Ok: true, GuildLevel: int32(level)}, nil
+}
+
+// PromoteOfflineGuildMember promove a sub-líder, pelo nome, um membro fora do jogo.
+func (s *Server) PromoteOfflineGuildMember(ctx context.Context, req *dbv1.PromoteOfflineGuildMemberRequest) (*dbv1.PromoteOfflineGuildMemberResponse, error) {
+	level, err := s.store.PromoteOfflineGuildMember(ctx, uint16(req.GetGuildId()), req.GetLeaderAccountId(),
+		int(req.GetLeaderSlot()), req.GetTargetName(), req.GetCost())
+	switch {
+	case err == nil:
+		return &dbv1.PromoteOfflineGuildMemberResponse{Ok: true, GuildLevel: int32(level)}, nil
+	case errors.Is(err, store.ErrNotFound):
+		return &dbv1.PromoteOfflineGuildMemberResponse{Refusal: dbv1.PromoteGuildRefusal_PROMOTE_GUILD_REFUSAL_NOT_MEMBER}, nil
+	case errors.Is(err, store.ErrGuildRanked):
+		return &dbv1.PromoteOfflineGuildMemberResponse{Refusal: dbv1.PromoteGuildRefusal_PROMOTE_GUILD_REFUSAL_ALREADY_RANKED}, nil
+	case errors.Is(err, store.ErrNoFreeSlot):
+		return &dbv1.PromoteOfflineGuildMemberResponse{Refusal: dbv1.PromoteGuildRefusal_PROMOTE_GUILD_REFUSAL_NO_FREE_RANK}, nil
+	case errors.Is(err, store.ErrConflict):
+		// Líder que deixou de ser líder, ouro que não bate: nada que o alvo explique.
+		return &dbv1.PromoteOfflineGuildMemberResponse{}, nil
+	}
+	return nil, status.Errorf(codes.Internal, "promote offline guild member: %v", err)
 }
 
 // TransferGuildLeader transfers rank 9 to another member.

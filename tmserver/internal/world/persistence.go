@@ -649,7 +649,13 @@ type Persistence interface {
 	// be made through World.Go/GoDetached by loop handlers.
 	CreateGuild(ctx context.Context, accountID int64, slot int, characterName, guildName string, clan, citizen uint8, serverIndex int, cost int32) (GuildRecord, bool, GuildRefusal, error)
 	SetGuildMember(ctx context.Context, accountID int64, slot int, characterName string, guildID uint16, guildLevel uint8) error
-	LeaveGuild(ctx context.Context, accountID int64, slot int) error
+	LeaveGuild(ctx context.Context, accountID int64, slot int) (uint16, error)
+	// KickOfflineGuildMember expulsa, direto no banco, um membro que não está no
+	// jogo. Só para alvo OFFLINE: com ele online, o save dele desfaria a expulsão.
+	KickOfflineGuildMember(ctx context.Context, guildID uint16, kickerAccountID int64, kickerSlot int, targetName string) (GuildKickRefusal, error)
+	// PromoteOfflineGuildMember promove a sub-líder, direto no banco, um membro que
+	// não está no jogo, cobrando o líder na mesma transação. Devolve o cargo dado.
+	PromoteOfflineGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, targetName string, cost int32) (uint8, GuildPromoteRefusal, error)
 	PromoteGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, accountID int64, slot int, cost int32) (uint8, bool, error)
 	TransferGuildLeader(ctx context.Context, guildID uint16, oldAccountID int64, oldSlot int, newAccountID int64, newSlot int) error
 	SetGuildRelation(ctx context.Context, guildID, targetGuildID uint16, kind GuildRelationKind) error
@@ -906,8 +912,20 @@ func (NopPersistence) SetGuildMember(context.Context, int64, int, string, uint16
 	return errNoPersistence
 }
 
+// KickOfflineGuildMember is unsupported without a backend.
+func (NopPersistence) KickOfflineGuildMember(context.Context, uint16, int64, int, string) (GuildKickRefusal, error) {
+	return GuildKickRefusalUnknown, errNoPersistence
+}
+
+// PromoteOfflineGuildMember is unsupported without a backend.
+func (NopPersistence) PromoteOfflineGuildMember(context.Context, uint16, int64, int, string, int32) (uint8, GuildPromoteRefusal, error) {
+	return 0, GuildPromoteRefusalUnknown, errNoPersistence
+}
+
 // LeaveGuild is unsupported without a backend.
-func (NopPersistence) LeaveGuild(context.Context, int64, int) error { return errNoPersistence }
+func (NopPersistence) LeaveGuild(context.Context, int64, int) (uint16, error) {
+	return 0, errNoPersistence
+}
 
 // PromoteGuildMember is unsupported without a backend.
 func (NopPersistence) PromoteGuildMember(context.Context, uint16, int64, int, int64, int, int32) (uint8, bool, error) {
@@ -1114,6 +1132,31 @@ type TradeRecord struct {
 // frase para todas — "confira se o nome já não existe". Para três delas isso era mentira,
 // e foi essa mentira que escondeu um defeito de ouro por horas em 25/09/2026.
 type GuildRefusal uint8
+
+// GuildKickRefusal é por que o dbServer não expulsou um membro offline.
+// GuildKickRefusalNone é a expulsão feita.
+type GuildKickRefusal uint8
+
+// Os motivos de recusa do expulsar offline.
+const (
+	GuildKickRefusalNone GuildKickRefusal = iota
+	GuildKickRefusalUnknown
+	GuildKickRefusalNotMember
+	GuildKickRefusalOutranked
+)
+
+// GuildPromoteRefusal é por que o dbServer não promoveu um membro offline.
+// GuildPromoteRefusalNone é a promoção feita.
+type GuildPromoteRefusal uint8
+
+// Os motivos de recusa da promoção offline.
+const (
+	GuildPromoteRefusalNone GuildPromoteRefusal = iota
+	GuildPromoteRefusalUnknown
+	GuildPromoteRefusalNotMember
+	GuildPromoteRefusalAlreadyRanked
+	GuildPromoteRefusalNoFreeRank
+)
 
 const (
 	// GuildRefusalUnknown: o dbServer não disse, ou disse algo que esta versão não

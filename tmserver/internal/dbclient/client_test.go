@@ -199,6 +199,12 @@ func (f *fakeAPI) CreateGuild(_ context.Context, _ *dbv1.CreateGuildRequest, _ .
 func (f *fakeAPI) SetGuildMember(_ context.Context, _ *dbv1.SetGuildMemberRequest, _ ...grpc.CallOption) (*dbv1.SetGuildMemberResponse, error) {
 	return &dbv1.SetGuildMemberResponse{Ok: true}, nil
 }
+func (f *fakeAPI) KickOfflineGuildMember(_ context.Context, _ *dbv1.KickOfflineGuildMemberRequest, _ ...grpc.CallOption) (*dbv1.KickOfflineGuildMemberResponse, error) {
+	return &dbv1.KickOfflineGuildMemberResponse{Ok: true}, nil
+}
+func (f *fakeAPI) PromoteOfflineGuildMember(_ context.Context, _ *dbv1.PromoteOfflineGuildMemberRequest, _ ...grpc.CallOption) (*dbv1.PromoteOfflineGuildMemberResponse, error) {
+	return &dbv1.PromoteOfflineGuildMemberResponse{Ok: true, GuildLevel: 6}, nil
+}
 func (f *fakeAPI) LeaveGuild(_ context.Context, _ *dbv1.LeaveGuildRequest, _ ...grpc.CallOption) (*dbv1.SetGuildMemberResponse, error) {
 	return &dbv1.SetGuildMemberResponse{Ok: true}, nil
 }

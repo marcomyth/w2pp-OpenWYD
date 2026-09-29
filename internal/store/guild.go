@@ -127,32 +127,207 @@ func (s *Store) SetGuildMember(ctx context.Context, accountID int64, slot int, c
 	return nil
 }
 
-// LeaveGuild removes a character from its guild.
-func (s *Store) LeaveGuild(ctx context.Context, accountID int64, slot int) error {
+// LeaveGuild removes a character from its guild and, when that was the last
+// member, deletes the guild too. The returned id is the guild that was deleted
+// (0 when none was), so tmServer can drop what it keeps of it in memory.
+//
+// A GUILDA SEM NINGUÉM SAI JUNTO, desde 28/09/2026. Antes a linha de guild ficava
+// para sempre: em produção, uma guilda criada para gravar propaganda continuou na
+// lista "Guilds do Server" com zero membros depois que a criadora saiu, e segurava
+// o nome — ninguém mais podia criar uma "Teste".
+func (s *Store) LeaveGuild(ctx context.Context, accountID int64, slot int) (uint16, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("store: begin leave guild: %w", err)
+		return 0, fmt.Errorf("store: begin leave guild: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	var charID int64
+	var guildID int
 	err = tx.QueryRow(ctx,
-		`SELECT id FROM character WHERE account_id = $1 AND slot = $2 FOR UPDATE`,
+		`SELECT id, guild_id FROM character WHERE account_id = $1 AND slot = $2 FOR UPDATE`,
 		accountID, slot,
-	).Scan(&charID)
+	).Scan(&charID, &guildID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, fmt.Errorf("store: lock character for leave guild: %w", err)
+	}
+	// A GUILDA VEM DE guild_member, e character.guild_id é só o reserva. O tmServer
+	// zera a guilda na memória e manda salvar o personagem ANTES de pedir a saída, e
+	// esse save pode chegar primeiro: aí character.guild_id já é 0 e só guild_member
+	// ainda sabe de onde a pessoa está saindo.
+	var membroDe int
+	err = tx.QueryRow(ctx,
+		`SELECT guild_id FROM guild_member WHERE character_id = $1`, charID,
+	).Scan(&membroDe)
+	switch {
+	case err == nil:
+		guildID = membroDe
+	case !errors.Is(err, pgx.ErrNoRows):
+		return 0, fmt.Errorf("store: read guild of leaving character: %w", err)
+	}
+	if err := setGuildMemberTx(ctx, tx, accountID, slot, charID, "", 0, 0); err != nil {
+		return 0, err
+	}
+	apagada, err := apagaGuildaVaziaTx(ctx, tx, guildID)
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("store: commit leave guild: %w", err)
+	}
+	return apagada, nil
+}
+
+// apagaGuildaVaziaTx apaga a guilda se ela não tem mais ninguém, e devolve o id
+// apagado (0 quando ficou).
+//
+// A LINHA DA GUILDA É TRAVADA ANTES DE CONTAR. Dois últimos membros saindo ao
+// mesmo tempo passam os dois por aqui: com a trava, o segundo espera o primeiro
+// terminar e conta de novo já sem ele, então um dos dois apaga — e nunca os dois
+// deixam a guilda para trás achando que o outro ainda está lá.
+//
+// CONTA NAS DUAS TABELAS. guild_member é a lista do painel, mas personagem vindo
+// da conversão do legado pode ter só character.guild_id; apagar a guilda de alguém
+// assim seria tirar dele uma guilda que ele ainda vê na cabeça.
+//
+// A CIDADE, A TORRE E O KEFRA FICAM SEM DONO, na mesma transação. Essas colunas
+// guardam o id sem chave estrangeira, e o alocador reaproveita o maior número
+// livre: se ficassem apontando, a próxima guilda nascida com aquele número
+// herdaria a cidade. A primeira versão deixava a guilda de pé nesses casos, e foi
+// assim que na preview, em 28/09/2026, uma guilda dona de Armia continuou existindo
+// com zero membros — "0 players = apagada" não tem exceção.
+//
+// O tmServer faz a mesma limpeza na memória ao saber da guilda apagada
+// (esqueceGuildaApagada): ele regrava a cidade INTEIRA a cada mudança de imposto, e
+// devolveria o id velho ao banco.
+func apagaGuildaVaziaTx(ctx context.Context, tx pgx.Tx, guildID int) (uint16, error) {
+	if guildID == 0 {
+		return 0, nil
+	}
+	var id int
+	err := tx.QueryRow(ctx, `SELECT id FROM guild WHERE id = $1 FOR UPDATE`, guildID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("store: lock guild %d to check if empty: %w", guildID, err)
+	}
+	var ocupada bool
+	err = tx.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM guild_member WHERE guild_id = $1)
+		    OR EXISTS (SELECT 1 FROM character WHERE guild_id = $1)`,
+		guildID,
+	).Scan(&ocupada)
+	if err != nil {
+		return 0, fmt.Errorf("store: check guild %d empty: %w", guildID, err)
+	}
+	if ocupada {
+		return 0, nil
+	}
+	// O lance de desafio de uma guilda que deixou de existir sai junto: não há a
+	// quem devolver, e um desafiante fantasma travaria a cidade.
+	for _, q := range []string{
+		`UPDATE guild_zone SET charge_guild = 0, updated_at = now() WHERE charge_guild = $1`,
+		`UPDATE guild_zone SET challenge_guild = 0, challenge_money = 0, updated_at = now() WHERE challenge_guild = $1`,
+		`UPDATE guild_tower_state SET owner_guild = 0 WHERE owner_guild = $1`,
+		`UPDATE world_event_config SET kefra_guild_id = 0 WHERE kefra_guild_id = $1`,
+	} {
+		if _, err := tx.Exec(ctx, q, guildID); err != nil {
+			return 0, fmt.Errorf("store: release world refs of guild %d: %w", guildID, err)
+		}
+	}
+	// O resto (relações, buffs, escalação das cidades, emblema) sai em cascata:
+	// ou é ON DELETE CASCADE, ou é coluna da própria linha.
+	if _, err := tx.Exec(ctx, `DELETE FROM guild WHERE id = $1`, guildID); err != nil {
+		return 0, fmt.Errorf("store: delete empty guild %d: %w", guildID, err)
+	}
+	return uint16(guildID), nil
+}
+
+// KickOfflineGuildMember tira da guilda um membro que NÃO está no jogo.
+//
+// EXISTE PORQUE O EXPULSAR SÓ FUNCIONAVA COM O ALVO ONLINE: o comando herdado do
+// legado procura a pessoa entre as sessões, e quem está desconectado não tem
+// sessão. Uma guilda com membro que nunca mais volta — um bot, uma conta
+// abandonada — ficava com ele para sempre.
+//
+// As regras são as mesmas do expulsar online, conferidas no BANCO e numa
+// transação só: quem expulsa tem de ser desta guilda e ter cargo MAIOR que o do
+// alvo. ErrNotFound quando o nome não é membro desta guilda; ErrConflict quando o
+// cargo não deixa.
+//
+// Quem chama garante que o alvo está offline. Com ele online, a memória do
+// tmServer é a dona do personagem e o próximo save dele desfaria isto.
+func (s *Store) KickOfflineGuildMember(ctx context.Context, guildID uint16, kickerAccountID int64, kickerSlot int, targetName string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("store: begin kick guild member: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	_, _, kickerGuild, kickerLevel, err := lockGuildCharacter(ctx, tx, kickerAccountID, kickerSlot)
+	if err != nil {
+		return err
+	}
+	if kickerGuild != int(guildID) || kickerLevel == 0 {
+		return ErrConflict
+	}
+	var charID, accountID int64
+	var slot, guildLevel int
+	err = tx.QueryRow(ctx, `
+		SELECT id, account_id, slot, guild_level
+		  FROM character
+		 WHERE name = $1 AND guild_id = $2
+		 FOR UPDATE`,
+		targetName, int32(guildID),
+	).Scan(&charID, &accountID, &slot, &guildLevel)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
 	if err != nil {
-		return fmt.Errorf("store: lock character for leave guild: %w", err)
+		return fmt.Errorf("store: lock guild member %q to kick: %w", targetName, err)
+	}
+	if kickerLevel <= guildLevel {
+		return ErrConflict
 	}
 	if err := setGuildMemberTx(ctx, tx, accountID, slot, charID, "", 0, 0); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("store: commit leave guild: %w", err)
+		return fmt.Errorf("store: commit kick guild member: %w", err)
 	}
 	return nil
+}
+
+// ErrGuildRanked recusa promover quem já tem cargo: só membro comum vira sub-líder.
+var ErrGuildRanked = errors.New("store: guild member already ranked")
+
+// PromoteOfflineGuildMember promove a sub-líder um membro que não está no jogo.
+// O tmServer só conhece quem está online, então o alvo chega pelo nome e a conta e
+// o slot saem daqui. A promoção em si é a mesma do PromoteGuildMember, que trava as
+// linhas e reconfere guilda e cargo: o que se lê aqui só escolhe o personagem.
+func (s *Store) PromoteOfflineGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, targetName string, cost int32) (uint8, error) {
+	var accountID int64
+	var slot, level int
+	err := s.pool.QueryRow(ctx, `
+		SELECT account_id, slot, guild_level
+		  FROM character
+		 WHERE name = $1 AND guild_id = $2`,
+		targetName, int32(guildID),
+	).Scan(&accountID, &slot, &level)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, ErrNotFound
+	}
+	if err != nil {
+		return 0, fmt.Errorf("store: find offline guild member: %w", err)
+	}
+	if level != 0 {
+		return 0, ErrGuildRanked
+	}
+	return s.PromoteGuildMember(ctx, guildID, leaderAccountID, leaderSlot, accountID, slot, cost)
 }
 
 // PromoteGuildMember assigns the first available sub-leader level (6, 7, 8) and

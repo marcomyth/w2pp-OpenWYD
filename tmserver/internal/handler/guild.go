@@ -247,7 +247,12 @@ func (d *Dispatcher) subcreate(w *world.World, s *world.Session, args []byte) {
 		return
 	}
 	targetSession, target := w.SessionByName(fields[0])
-	if targetSession == nil || target == nil || target.ID == s.Conn {
+	if targetSession == nil || target == nil {
+		// Fora do jogo: o banco acha o membro pelo nome, como no expulsar.
+		d.subcreateOffline(w, s, fields[0])
+		return
+	}
+	if target.ID == s.Conn {
 		d.notify(w, s, NoticeNotConnected)
 		return
 	}
@@ -348,6 +353,104 @@ func (d *Dispatcher) subcreate(w *world.World, s *world.Session, args []byte) {
 	})
 }
 
+// Frases da promoção de quem está fora do jogo. O comando nativo não tem nenhuma:
+// com o alvo online, a tag nova na cabeça dele já é a resposta.
+const (
+	msgGuildaSubOffline     = "%s agora é sub-líder da guilda."
+	msgGuildaJaTemCargo     = "%s já tem cargo na guilda."
+	msgGuildaSemCargoLivre  = "A guilda já tem três sub-líderes."
+	msgGuildaPromoverFalhou = "Não foi possível promover %s agora. Tente de novo."
+)
+
+// subcreateOffline promove a sub-líder um membro que não está no jogo. O caminho do
+// líder é o mesmo do subcreate (save antes, carga junto, sessão em espera), porque a
+// cobrança acontece no banco contra o ouro gravado. Do lado do alvo não há sessão:
+// o cargo fica no banco e ele o recebe ao entrar.
+func (d *Dispatcher) subcreateOffline(w *world.World, s *world.Session, name string) {
+	e := w.Entity(s.Conn)
+	if e == nil {
+		return
+	}
+	p := w.Persistence()
+	guildID := e.Guild
+	leaderConn, leaderSession := s.Conn, s
+	leaderAccountID, leaderSlot := s.AccountID, s.Slot
+	save := w.CharacterSaveFor(s, e)
+	carga, entregues, temCarga, seqDoPar := w.CargaParaOPar(s.AccountID)
+	epocaDoPar := w.EpocaDoPar()
+	s.Mode = world.UserWaitDB
+	w.GoDetached(func() func(*world.World) {
+		// A sessão devolvida é a do líder só se ainda for a mesma conexão.
+		lider := func(w *world.World) *world.Session {
+			ls := w.Session(leaderConn)
+			if ls != leaderSession {
+				return nil
+			}
+			if ls.Mode == world.UserWaitDB {
+				ls.Mode = world.UserPlay
+			}
+			return ls
+		}
+		if err := world.SalvarPar(context.Background(), p, save, carga, temCarga, entregues, epocaDoPar, seqDoPar, false); err != nil {
+			return func(w *world.World) {
+				d.log.Warn("subcreate offline: save do personagem falhou", "conn", leaderConn,
+					"target", name, "err", err)
+				if ls := lider(w); ls != nil {
+					d.notify(w, ls, NoticeDBError)
+				}
+			}
+		}
+		level, motivo, err := p.PromoteOfflineGuildMember(context.Background(), guildID, leaderAccountID, leaderSlot, name, guildSubCost)
+		return func(w *world.World) {
+			if temCarga {
+				w.EsqueceEntregues(leaderAccountID, entregues)
+			}
+			ls := lider(w)
+			if err != nil {
+				d.log.Warn("subcreate offline failed", "conn", leaderConn, "guild", guildID, "target", name, "err", err)
+				if ls != nil {
+					sendClientMessage(w, ls, fmt.Sprintf(msgGuildaPromoverFalhou, name))
+				}
+				return
+			}
+			if motivo != world.GuildPromoteRefusalNone || level < 6 || level > 8 {
+				if ls == nil {
+					return
+				}
+				switch motivo {
+				case world.GuildPromoteRefusalNotMember:
+					sendClientMessage(w, ls, fmt.Sprintf(msgGuildaNaoEMembro, name))
+				case world.GuildPromoteRefusalAlreadyRanked:
+					sendClientMessage(w, ls, fmt.Sprintf(msgGuildaJaTemCargo, name))
+				case world.GuildPromoteRefusalNoFreeRank:
+					sendClientMessage(w, ls, msgGuildaSemCargoLivre)
+				default:
+					sendClientMessage(w, ls, fmt.Sprintf(msgGuildaPromoverFalhou, name))
+				}
+				return
+			}
+			d.guildaEsqueceQuadro(guildID)
+			d.log.Info("guild member promoted offline", "conn", leaderConn, "guild", guildID,
+				"target", name, "level", level)
+			if ls != nil {
+				if le := w.Entity(leaderConn); le != nil {
+					le.Coin -= guildSubCost
+					d.sendEtc(w, ls, le)
+					w.SaveCharacterAsync(ls)
+				}
+				sendClientMessage(w, ls, fmt.Sprintf(msgGuildaSubOffline, name))
+			}
+			// Quem entrou no jogo enquanto o banco decidia carregou o cargo antigo; sem
+			// isto, o próximo save dele devolveria o membro comum ao banco.
+			if ts, te := w.SessionByName(name); ts != nil && te != nil && te.Guild == guildID && te.GuildLevel == 0 {
+				te.GuildLevel = level
+				d.refreshGuildTag(w, te.ID)
+				w.SaveCharacterAsync(ts)
+			}
+		}
+	})
+}
+
 func (d *Dispatcher) handoverGuild(w *world.World, s *world.Session, args []byte) {
 	e := w.Entity(s.Conn)
 	if e == nil || s.Mode != world.UserPlay || e.Guild == 0 || e.GuildLevel != guildLeaderLevel {
@@ -442,7 +545,10 @@ func (d *Dispatcher) kickGuild(w *world.World, s *world.Session, args []byte) {
 	}
 	targetSession, target := w.SessionByName(name)
 	if targetSession == nil || target == nil {
-		d.notify(w, s, NoticeNotConnected)
+		// FORA DO JOGO, A EXPULSÃO VAI PELO BANCO. Antes aqui era "não conectado"
+		// e fim: membro que nunca mais voltava (bot, conta largada) ficava na
+		// guilda para sempre.
+		d.kickOffline(w, s, e, name)
 		return
 	}
 	if target.Guild != e.Guild || target.ID == s.Conn || e.GuildLevel <= target.GuildLevel {
@@ -459,6 +565,49 @@ func (d *Dispatcher) kickGuild(w *world.World, s *world.Session, args []byte) {
 	// client read past the frame. The legacy says nothing here; a player who
 	// just lost their guild tag is owed the reason.
 	sendClientMessage(w, targetSession, fmt.Sprintf("Você foi expulso da guilda %s.", guildName))
+}
+
+// Frases do expulsar offline.
+const (
+	msgGuildaExpulsoOffline = "%s foi expulso da guilda."
+	msgGuildaNaoEMembro     = "%s não é membro da sua guilda."
+	msgGuildaCargoNaoDeixa  = "Você não pode expulsar %s: o cargo dele não é menor que o seu."
+	msgGuildaExpulsarFalhou = "Não foi possível expulsar %s agora. Tente de novo."
+)
+
+// kickOffline expulsa pelo dbServer um membro que não está no jogo. As regras de
+// cargo são conferidas lá, no banco, na mesma transação da expulsão.
+//
+// Aqui, diferente do online, QUEM EXPULSA OUVE O RESULTADO: não há etiqueta sumindo
+// da cabeça de ninguém para mostrar que funcionou, e a lista do painel só se
+// atualiza no próximo pedido.
+func (d *Dispatcher) kickOffline(w *world.World, s *world.Session, e *world.Entity, name string) {
+	guildID := e.Guild
+	accountID, slot := s.AccountID, s.Slot
+	p := w.Persistence()
+	w.Go(s, func() func(*world.World, *world.Session) {
+		motivo, err := p.KickOfflineGuildMember(context.Background(), guildID, accountID, slot, name)
+		return func(w *world.World, s *world.Session) {
+			if err != nil {
+				d.log.Warn("kick offline guild member failed", "conn", s.Conn, "guild", guildID,
+					"target", name, "err", err)
+				sendClientMessage(w, s, fmt.Sprintf(msgGuildaExpulsarFalhou, name))
+				return
+			}
+			switch motivo {
+			case world.GuildKickRefusalNone:
+				d.guildaEsqueceQuadro(guildID)
+				d.log.Info("guild member kicked offline", "conn", s.Conn, "guild", guildID, "target", name)
+				sendClientMessage(w, s, fmt.Sprintf(msgGuildaExpulsoOffline, name))
+			case world.GuildKickRefusalNotMember:
+				sendClientMessage(w, s, fmt.Sprintf(msgGuildaNaoEMembro, name))
+			case world.GuildKickRefusalOutranked:
+				sendClientMessage(w, s, fmt.Sprintf(msgGuildaCargoNaoDeixa, name))
+			default:
+				sendClientMessage(w, s, fmt.Sprintf(msgGuildaExpulsarFalhou, name))
+			}
+		}
+	})
 }
 
 func (d *Dispatcher) summonGuild(w *world.World, s *world.Session) {
@@ -638,13 +787,49 @@ func (d *Dispatcher) persistLeaveGuild(w *world.World, s *world.Session) {
 	accountID, slot := s.AccountID, s.Slot
 	p := w.Persistence()
 	w.Go(s, func() func(*world.World, *world.Session) {
-		err := p.LeaveGuild(context.Background(), accountID, slot)
-		return func(_ *world.World, _ *world.Session) {
+		apagada, err := p.LeaveGuild(context.Background(), accountID, slot)
+		return func(w *world.World, _ *world.Session) {
 			if err != nil {
 				d.log.Warn("persist leave guild failed", "account", accountID, "slot", slot, "err", err)
+				return
+			}
+			if apagada != 0 {
+				d.esqueceGuildaApagada(w, apagada)
 			}
 		}
 	})
+}
+
+// esqueceGuildaApagada solta o que o tmServer guarda de uma guilda que o
+// dbServer apagou por ter ficado sem ninguém: o nome (que o /create consulta),
+// os buffs ligados, o quadro do painel, e a posse de cidade, torre e Kefra.
+// Nenhum jogador a carrega mais, então não há etiqueta de ninguém para refazer.
+//
+// A POSSE É LIMPA AQUI SEM GRAVAR: o dbServer já zerou as mesmas colunas na
+// transação que apagou a guilda. O que importa é a memória não devolver o id
+// velho ao banco no próximo persistGuildZone, que grava a cidade inteira.
+func (d *Dispatcher) esqueceGuildaApagada(w *world.World, guilda uint16) {
+	nome := guildDisplayName(w, guilda)
+	w.ForgetGuild(guilda)
+	delete(d.guildaBuffs, guilda)
+	d.guildaEsqueceQuadro(guilda)
+	for i := range d.guildZones {
+		z := &d.guildZones[i]
+		if z.ChargeGuild == guilda {
+			z.ChargeGuild = 0
+		}
+		if z.ChallengeGuild == guilda {
+			z.ChallengeGuild, z.ChallengeMoney = 0, 0
+		}
+	}
+	if d.events.towerOwner == guilda {
+		d.events.towerOwner = 0
+		d.towerState.OwnerGuild = 0
+	}
+	if d.kefraGuildID == int32(guilda) {
+		d.kefraGuildID = 0
+	}
+	d.log.Info("guilda vazia apagada", "guild", nome, "id", guilda)
 }
 
 func (d *Dispatcher) persistGuildZone(w *world.World, s *world.Session, z world.GuildZone) {

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net"
 	"strings"
 	"testing"
@@ -806,4 +807,165 @@ func panelText(t *testing.T, c net.Conn) string {
 		runes[i] = rune(ch)
 	}
 	return string(runes)
+}
+
+// TestSairDaGuildaVaziaSoltaONome: quando o dbServer apaga a guilda que ficou sem
+// ninguém, o nome dela volta a ficar livre na hora — sem esperar um boot. Foi o
+// caso de 28/09/2026: a guilda "Teste", criada para gravar propaganda, ficou no
+// servidor sem membro nenhum depois que a criadora saiu.
+func TestSairDaGuildaVaziaSoltaONome(t *testing.T) {
+	db := newDB()
+	db.guildas = []world.GuildRecord{{ID: 5, Name: "Teste", Clan: 7, Citizen: 1}}
+	db.guildaApagadaNaSaida = 5
+	db.loads = map[int64]world.CharacterState{
+		7: {Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000, Clan: 7, Citizen: 1,
+			Coin: 100_000_000, GuildID: 5, GuildLevel: 9},
+	}
+	addr, stop, _ := startServerClock(t, db)
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+	drainRaw(t, a)
+
+	whisperFrame(t, a, "sair", "")
+	// O readMaybe espera o bastante para a volta do LeaveGuild entrar no laço.
+	if ty, _, ok := readMaybe(t, a); ok {
+		t.Fatalf("/sair produced %#x; want a silent handled command", ty)
+	}
+
+	// Com o nome ainda preso, o /create recusaria com "Já existe uma guilda
+	// chamada Teste." em vez de criar.
+	whisperFrame(t, a, "create", "Teste")
+	if ty, _, ok := readMaybe(t, a); !ok || ty != protocol.MsgUpdateEtc {
+		t.Fatalf("/create Teste got %#x ok=%v, want UpdateEtc (nome livre)", ty, ok)
+	}
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	if len(db.createdGuilds) != 1 || db.createdGuilds[0].Name != "Teste" {
+		t.Fatalf("created guilds = %+v, want Teste", db.createdGuilds)
+	}
+}
+
+// TestExpulsarMembroOffline: o alvo fora do jogo não é mais "não conectado" — a
+// expulsão vai pelo banco e quem expulsou ouve o resultado. Foi o caso de
+// 28/09/2026: bots numa guilda de teste que ninguém conseguia tirar.
+func TestExpulsarMembroOffline(t *testing.T) {
+	casos := []struct {
+		nome   string
+		recusa world.GuildKickRefusal
+		comeco string
+	}{
+		{"expulsa", world.GuildKickRefusalNone, "Bot01 foi expulso"},
+		{"nao e membro", world.GuildKickRefusalNotMember, "Bot01 não é membro"},
+		{"cargo", world.GuildKickRefusalOutranked, "Você não pode expulsar Bot01"},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			db := newDB()
+			db.recusaExpulsar = c.recusa
+			db.loads = map[int64]world.CharacterState{
+				7: {Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000, GuildID: 5, GuildLevel: 9},
+			}
+			addr, stop, _ := startServerClock(t, db)
+			defer stop()
+			a := enterWorldAs(t, addr, "tester")
+			defer a.Close()
+			drainRaw(t, a)
+
+			whisperFrame(t, a, "expulsar", "Bot01")
+			msg := decodePanel(expect(t, a, protocol.MsgMessagePanel))
+			if !strings.HasPrefix(msg, c.comeco) {
+				t.Fatalf("mensagem = %q, queria começar com %q", msg, c.comeco)
+			}
+			db.mu.Lock()
+			defer db.mu.Unlock()
+			if len(db.expulsosOffline) != 1 || db.expulsosOffline[0] != "Bot01" {
+				t.Fatalf("expulsos no banco = %v, queria [Bot01]", db.expulsosOffline)
+			}
+		})
+	}
+}
+
+// TestPromoverMembroOffline: sub-líder para quem não está no jogo vai pelo banco,
+// pelo nome, e o líder paga o mesmo custo do comando nativo.
+func TestPromoverMembroOffline(t *testing.T) {
+	casos := []struct {
+		nome   string
+		recusa world.GuildPromoteRefusal
+		frase  string
+		cobra  bool
+	}{
+		{"promove", world.GuildPromoteRefusalNone, "Bot01 agora é sub-líder da guilda.", true},
+		{"nao e membro", world.GuildPromoteRefusalNotMember, "Bot01 não é membro da sua guilda.", false},
+		{"ja tem cargo", world.GuildPromoteRefusalAlreadyRanked, "Bot01 já tem cargo na guilda.", false},
+		{"sem cargo livre", world.GuildPromoteRefusalNoFreeRank, "A guilda já tem três sub-líderes.", false},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			db := newDB()
+			db.recusaPromover = c.recusa
+			db.loads = map[int64]world.CharacterState{
+				7: {Slot: 0, Name: "Hero", X: 5, Y: 5, HP: 1000, MaxHP: 1000, GuildID: 5, GuildLevel: 9, Coin: 100_000_000},
+			}
+			addr, stop, _ := startServerClock(t, db)
+			defer stop()
+			a := enterWorldAs(t, addr, "tester")
+			defer a.Close()
+			drainRaw(t, a)
+
+			whisperFrame(t, a, "subcreate", "Bot01")
+			if c.cobra {
+				expect(t, a, protocol.MsgUpdateEtc) // o ouro já descontado
+			}
+			msg := decodePanel(expect(t, a, protocol.MsgMessagePanel))
+			if msg != c.frase {
+				t.Fatalf("mensagem = %q, queria %q", msg, c.frase)
+			}
+			db.mu.Lock()
+			defer db.mu.Unlock()
+			if len(db.promovidosOffline) != 1 || db.promovidosOffline[0] != "Bot01" {
+				t.Fatalf("promovidos no banco = %v, queria [Bot01]", db.promovidosOffline)
+			}
+			if c.cobra && (len(db.promoteCosts) != 1 || db.promoteCosts[0] != guildSubCost) {
+				t.Fatalf("custo = %v, queria [%d]", db.promoteCosts, guildSubCost)
+			}
+		})
+	}
+}
+
+// TestGuildaApagadaSoltaCidadeTorreEKefra: a guilda apagada por ficar vazia
+// deixa de ser dona de cidade, desafiante, dona da torre e matadora do Kefra
+// também na MEMÓRIA — senão o próximo persistGuildZone, que grava a cidade
+// inteira, devolveria o id velho ao banco.
+func TestGuildaApagadaSoltaCidadeTorreEKefra(t *testing.T) {
+	log := slog.New(slog.DiscardHandler)
+	d := New(Config{Log: log})
+	w := world.New(world.Config{GridDim: 16}, log, nil, d.Handle)
+	w.SetGuildName(5, "Teste")
+	d.guildZones[0].ChargeGuild = 5
+	d.guildZones[1].ChallengeGuild, d.guildZones[1].ChallengeMoney = 5, 5000
+	d.guildZones[2].ChargeGuild = 9 // de outra guilda: fica
+	d.events.towerOwner, d.towerState.OwnerGuild = 5, 5
+	d.kefraGuildID = 5
+
+	d.esqueceGuildaApagada(w, 5)
+
+	if d.guildZones[0].ChargeGuild != 0 {
+		t.Errorf("cidade 0 ainda é da guilda %d", d.guildZones[0].ChargeGuild)
+	}
+	if z := d.guildZones[1]; z.ChallengeGuild != 0 || z.ChallengeMoney != 0 {
+		t.Errorf("desafio da cidade 1 = guilda %d, lance %d; queria 0 e 0", z.ChallengeGuild, z.ChallengeMoney)
+	}
+	if d.guildZones[2].ChargeGuild != 9 {
+		t.Errorf("cidade de outra guilda mexida: dona = %d", d.guildZones[2].ChargeGuild)
+	}
+	if d.events.towerOwner != 0 || d.towerState.OwnerGuild != 0 {
+		t.Errorf("torre = %d/%d, queria sem dono", d.events.towerOwner, d.towerState.OwnerGuild)
+	}
+	if d.kefraGuildID != 0 {
+		t.Errorf("kefra = %d, queria 0", d.kefraGuildID)
+	}
+	if w.GuildNameTaken("Teste") {
+		t.Error("o nome continuou preso")
+	}
 }
