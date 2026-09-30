@@ -1267,6 +1267,10 @@ message GuildZone {
   // corner. Carried here because the value now comes from the database.
   int32 guild_spawn_x = 9;
   int32 guild_spawn_y = 10;
+
+  // Quando o imposto mudou pela última vez, em segundos Unix. Zero: nunca mudou.
+  // Fica no banco para a regra de uma troca por semana valer depois de um reinício.
+  int64 tax_changed_at_unix = 11;
 }
 
 message LoadGuildZonesRequest {}

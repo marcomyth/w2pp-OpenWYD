@@ -152,3 +152,79 @@ func TestGuildaImpostoAcimaDoTetoNaoMuda(t *testing.T) {
 		}
 	})
 }
+
+// O IMPOSTO MUDA UMA VEZ POR SEMANA, e a semana vira na segunda 00:00 de Brasília.
+// A segunda troca na mesma semana é recusada; na segunda seguinte, passa — mesmo
+// que a troca anterior tenha sido no sábado (a guerra é no domingo).
+func TestGuildaImpostoUmaVezPorSemana(t *testing.T) {
+	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), inicioDaVolta)
+	enterWorldAs(t, srv.addr, "tester")
+
+	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
+		// Sábado 03/10/2026, 20h de Brasília.
+		sabado := time.Date(2026, 10, 3, 23, 0, 0, 0, time.UTC)
+		d.now = func() time.Time { return sabado }
+		e.Guild, e.GuildLevel = guildaDoPainel, guildLeaderLevel
+		d.guildZones[2] = world.GuildZone{Zone: 2, ChargeGuild: guildaDoPainel, CityTax: 5}
+
+		d.guildaImposto(w, s, protocol.Header{}, []byte{2, 15})
+		if d.guildZones[2].CityTax != 15 || !d.guildZones[2].TaxChangedAt.Equal(sabado) {
+			t.Fatalf("a primeira troca não valeu: %d%% em %v", d.guildZones[2].CityTax, d.guildZones[2].TaxChangedAt)
+		}
+
+		// Domingo, ainda a mesma semana: recusada.
+		d.now = func() time.Time { return sabado.Add(24 * time.Hour) }
+		d.guildaImposto(w, s, protocol.Header{}, []byte{2, 20})
+		if d.guildZones[2].CityTax != 15 {
+			t.Errorf("mudou de novo na mesma semana: %d%%", d.guildZones[2].CityTax)
+		}
+
+		// Segunda 05/10 00:01 de Brasília: semana nova, passa.
+		d.now = func() time.Time { return time.Date(2026, 10, 5, 3, 1, 0, 0, time.UTC) }
+		d.guildaImposto(w, s, protocol.Header{}, []byte{2, 20})
+		if d.guildZones[2].CityTax != 20 {
+			t.Errorf("na segunda ficou em %d%%, quero 20%%", d.guildZones[2].CityTax)
+		}
+	})
+}
+
+// A ESPERA VEM DA HORA GUARDADA NA ZONA, e é ela que volta do banco num reinício.
+func TestGuildaImpostoEsperaSobreviveAoReinicio(t *testing.T) {
+	srv := startServerRelogioDasArenas(t, mortalDoCemiterio(), inicioDaVolta)
+	enterWorldAs(t, srv.addr, "tester")
+
+	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
+		quarta := time.Date(2026, 9, 30, 20, 0, 0, 0, time.UTC)
+		d.now = func() time.Time { return quarta }
+		e.Guild, e.GuildLevel = guildaDoPainel, guildLeaderLevel
+		d.guildZones[2] = world.GuildZone{Zone: 2, ChargeGuild: guildaDoPainel, CityTax: 5,
+			TaxChangedAt: quarta.Add(-24 * time.Hour)}
+		d.guildaImposto(w, s, protocol.Header{}, []byte{2, 15})
+		if d.guildZones[2].CityTax != 5 {
+			t.Errorf("a troca de ontem não segurou a de hoje: %d%%", d.guildZones[2].CityTax)
+		}
+	})
+}
+
+func TestPodeMudarImposto(t *testing.T) {
+	brt := func(dia, hora, minuto int) time.Time {
+		return time.Date(2026, 10, dia, hora+3, minuto, 0, 0, time.UTC) // hora de Brasília
+	}
+	for _, c := range []struct {
+		nome          string
+		ultima, agora time.Time
+		pode          bool
+	}{
+		{"nunca mudou", time.Time{}, brt(4, 12, 0), true},
+		{"sábado e domingo: mesma semana", brt(3, 20, 0), brt(4, 18, 0), false},
+		{"domingo 23:59 e segunda 00:00", brt(4, 23, 59), brt(5, 0, 0), true},
+		{"segunda e domingo seguinte", brt(5, 0, 0), brt(11, 23, 59), false},
+		{"segunda 00:00 e segunda 00:00 seguinte", brt(5, 0, 0), brt(12, 0, 0), true},
+		// Domingo 22h de Brasília já é segunda em UTC: a virada é pelo horário de Brasília.
+		{"domingo 22h BRT não é segunda", brt(3, 20, 0), brt(4, 22, 0), false},
+	} {
+		if got := podeMudarImposto(c.ultima, c.agora); got != c.pode {
+			t.Errorf("%s: podeMudarImposto = %v, quero %v", c.nome, got, c.pode)
+		}
+	}
+}
