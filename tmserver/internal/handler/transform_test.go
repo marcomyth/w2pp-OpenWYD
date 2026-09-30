@@ -58,9 +58,9 @@ func TestApplyTransformScore(t *testing.T) {
 		// 120..135 →135 (+35); HP 110..115 →115 (+150).
 		{"tita", 4, 200, 0, 110, 0, 35, 300, 0, 0, 50, 0, 25},
 		// Éden (no learned gate), Level 100: Dam10/Ac5/Hp10/Reg10; dam 115..130
-		// →122, +30 edenDanoExtra →152; AC 115..125 →120 (+20), then the flat
+		// →122, +35 edenDanoExtra →157; AC 115..125 →120 (+20), then the flat
 		// −200 floored at zero AC: +20−120 = −100; HP 115..125 →120 (+200).
-		{"eden", 5, 100, 0, 152, 0, -100, 400, 10, 3, 40, 6, 32},
+		{"eden", 5, 100, 0, 157, 0, -100, 400, 10, 3, 40, 6, 32},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

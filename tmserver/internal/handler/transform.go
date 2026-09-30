@@ -36,7 +36,8 @@ var transBonus = [5]struct {
 // O ÉDEN MAIS FORTE E MAIS FRÁGIL (30/09/2026, pedido do operador).
 //
 // Com o prêmio das duas armas em 50, o BateNeles transformado em Éden marcava
-// 3.000 de Ataque em jogo, e o alvo é 3.400 a 3.500. A simulação de 29/09
+// 3.000 de Ataque em jogo, e o alvo é 3.400 a 3.500 — 35 pontos dão 3.526,
+// com margem por cima, a pedido do operador. A simulação de 29/09
 // prometia 3.406 porque não vê a regra de combate do painel, que escala o
 // número final; por isso a conta aqui é de RAZÃO (+15% sobre o que o jogo
 // mostra), não de valor absoluto. Está em simulacao_natureza_duas_armas_test.go.
@@ -47,7 +48,7 @@ var transBonus = [5]struct {
 var (
 	// edenDanoExtra são pontos somados ao multiplicador de dano do Éden, por
 	// cima do pTransBonus do legado.
-	edenDanoExtra int32 = 30
+	edenDanoExtra int32 = 35
 
 	// edenDefesaPlana é a AC que o Éden tira, depois de todos os percentuais.
 	edenDefesaPlana int32 = 200
