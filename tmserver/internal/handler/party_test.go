@@ -265,3 +265,48 @@ func TestGuildInvite(t *testing.T) {
 		t.Errorf("leader got %#x ok=%v, want CreateMob (tag refresh)", ty, ok)
 	}
 }
+
+// O CONVITE PARA OUTRO REINO É RECUSADO, E AGORA O LÍDER SABE POR QUÊ.
+func TestGuildInviteOutroReinoAvisa(t *testing.T) {
+	db := guildDB()
+	recruta := db.loads[11]
+	recruta.Clan = 0
+	db.loads[11] = recruta
+	addr, stop, _ := startServerClock(t, db)
+	defer stop()
+	a := enterWorldAs(t, addr, "tester") // conn 1 (líder, reino 1)
+	defer a.Close()
+	b := enterWorldAs(t, addr, "tradeb") // conn 2 (sem reino)
+	defer b.Close()
+	drainRaw(t, a)
+	drainRaw(t, b)
+
+	send(t, a, protocol.MsgInviteGuild, protocol.EncodeStandardParm2(2, 0))
+	if got := panelText(t, a); !strings.Contains(got, "mesmo reino") {
+		t.Errorf("o líder leu %q, quero o aviso de reino", got)
+	}
+	if ty, _, ok := readMaybe(t, b); ok && ty == protocol.MsgMessagePanel {
+		t.Error("o convidado de outro reino recebeu boas-vindas")
+	}
+}
+
+// QUEM JÁ TEM GUILDA TAMBÉM É RECUSADO COM AVISO.
+func TestGuildInviteJaTemGuildaAvisa(t *testing.T) {
+	db := guildDB()
+	recruta := db.loads[11]
+	recruta.GuildID = 9
+	db.loads[11] = recruta
+	addr, stop, _ := startServerClock(t, db)
+	defer stop()
+	a := enterWorldAs(t, addr, "tester")
+	defer a.Close()
+	b := enterWorldAs(t, addr, "tradeb")
+	defer b.Close()
+	drainRaw(t, a)
+	drainRaw(t, b)
+
+	send(t, a, protocol.MsgInviteGuild, protocol.EncodeStandardParm2(2, 0))
+	if got := panelText(t, a); !strings.Contains(got, "já pertence a uma guilda") {
+		t.Errorf("o líder leu %q, quero o aviso de guilda", got)
+	}
+}
