@@ -207,8 +207,8 @@ func TestGuildaImpostoEsperaSobreviveAoReinicio(t *testing.T) {
 }
 
 func TestPodeMudarImposto(t *testing.T) {
-	brt := func(dia, hora, min int) time.Time {
-		return time.Date(2026, 10, dia, hora+3, min, 0, 0, time.UTC) // hora de Brasília
+	brt := func(dia, hora, minuto int) time.Time {
+		return time.Date(2026, 10, dia, hora+3, minuto, 0, 0, time.UTC) // hora de Brasília
 	}
 	for _, c := range []struct {
 		nome          string
