@@ -33,6 +33,26 @@ var transBonus = [5]struct {
 	{105, 120, 110, 120, 105, 115, 3, 20, 155}, // 4 Éden
 }
 
+// O ÉDEN MAIS FORTE E MAIS FRÁGIL (30/09/2026, pedido do operador).
+//
+// Com o prêmio das duas armas em 50, o BateNeles transformado em Éden marcava
+// 3.000 de Ataque em jogo, e o alvo é 3.400 a 3.500. A simulação de 29/09
+// prometia 3.406 porque não vê a regra de combate do painel, que escala o
+// número final; por isso a conta aqui é de RAZÃO (+15% sobre o que o jogo
+// mostra), não de valor absoluto. Está em simulacao_natureza_duas_armas_test.go.
+//
+// O ganho vai para o Éden de todo BM, não só para o da árvore Natureza: é a
+// forma que ficou fraca, e a troca é a defesa. A ponta de Destreza (DanoPRZ)
+// sobe junto e continua abaixo do teto de 9.000.
+var (
+	// edenDanoExtra são pontos somados ao multiplicador de dano do Éden, por
+	// cima do pTransBonus do legado.
+	edenDanoExtra int32 = 30
+
+	// edenDefesaPlana é a AC que o Éden tira, depois de todos os percentuais.
+	edenDefesaPlana int32 = 200
+)
+
 // LearnedSkill bits gating the per-beast flat adds (Basedef.cpp:4112-4114).
 const (
 	learnedWolf     = 0x20000
@@ -111,7 +131,7 @@ func applyTransformScore(e *world.Entity, af world.Affect) {
 		hpAdd, acAdd = 5, 10
 		attAdd = 30
 	case 32: // Éden (no learned-skill gate)
-		damAdd, acAdd, hpAdd, regAdd = 10, 5, 10, 10
+		damAdd, acAdd, hpAdd, regAdd = 10+edenDanoExtra, 5, 10, 10
 		attAdd = 20
 		criticalAdd = 6
 	}
@@ -144,4 +164,10 @@ func applyTransformScore(e *world.Entity, af world.Affect) {
 	// cima do que a forma já dá. Fica no fim do bloco, depois de todos os
 	// planos, porque ela é um acréscimo à transformação e não parte dela.
 	aplicarMetamorfoseSuperior(e, value)
+
+	// A defesa que o Éden paga pelo dano extra sai por último, para que nenhum
+	// percentual da forma a encolha ou a aumente; e nunca leva a AC abaixo de 0.
+	if value == 4 {
+		e.AffAC -= min(edenDefesaPlana, max(0, e.AC+e.AffAC))
+	}
 }
