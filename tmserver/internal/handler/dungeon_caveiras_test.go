@@ -83,7 +83,7 @@ func TestBossConjuradorSomeSemLuta(t *testing.T) {
 	}
 }
 
-// Uma Arma C dos monstros da sala da fonte sai com um add pedido — dano nas físicas, magia
+// Uma Arma C dos monstros da sala da fonte sai com um add da tropa — dano nas físicas, magia
 // nas lanças e cajados —, o refino do bônus fica e o segundo add sai; e todos os
 // degraus aparecem.
 func TestCaveirasCarimbamArmasC(t *testing.T) {
@@ -95,11 +95,11 @@ func TestCaveirasCarimbamArmasC(t *testing.T) {
 			efeito uint8
 			want   []int
 		}{
-			{armasCFisicas, efDamage, []int{45, 54, 63}},
-			{armasCMagicas, efMagic, []int{20, 24, 28}},
+			{armasCFisicas, efDamage, []int{27, 36, 45, 54, 63, 72}},
+			{armasCMagicas, efMagic, []int{12, 16, 20, 24, 28, 32}},
 		} {
 			visto := map[int]int{}
-			for i := range 600 {
+			for i := range 20000 {
 				arma := world.Item{Index: c.armas[i%len(c.armas)], Effects: [3]world.Effect{{Effect: efSanc, Value: 2}, {Effect: 26, Value: 3}, {Effect: efDamage, Value: 9}}}
 				d.caveirasFinish(w, m, &arma)
 				if arma.Effects[0] != (world.Effect{Effect: efSanc, Value: 2}) {
@@ -115,7 +115,7 @@ func TestCaveirasCarimbamArmasC(t *testing.T) {
 			}
 			for _, v := range c.want {
 				if visto[v] == 0 {
-					t.Errorf("%s: o add %d nunca saiu em 600 armas", mob, v)
+					t.Errorf("%s: o add %d nunca saiu em 20000 armas", mob, v)
 				}
 			}
 			if visto[c.want[0]] <= visto[c.want[len(c.want)-1]] {
@@ -289,7 +289,7 @@ func TestCaveirasMigracao(t *testing.T) {
 }
 
 // Ponta a ponta pela Mesa: a Arma C que a regra solta de uma Caveira Lanc da sala
-// chega na bolsa com o add pedido, e a mesma regra na Caveira Lanc do resto do
+// chega na bolsa com o add da tropa, e a mesma regra na Caveira Lanc do resto do
 // andar ou noutra caveira não carimba nada.
 func TestCaveirasArmaDaMesaChegaComAdd(t *testing.T) {
 	for _, c := range []struct {
@@ -303,7 +303,7 @@ func TestCaveirasArmaDaMesaChegaComAdd(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s: a Lâmina Espiritual da Mesa não chegou", c.mob)
 		}
-		carimbada := it.Effects[1].Effect == efDamage && slices.Contains([]int{45, 54, 63}, int(it.Effects[1].Value)) && it.Effects[2] == (world.Effect{})
+		carimbada := it.Effects[1].Effect == efDamage && slices.Contains([]int{27, 36, 45, 54, 63, 72}, int(it.Effects[1].Value)) && it.Effects[2] == (world.Effect{})
 		if carimbada != c.carimb {
 			t.Errorf("%s: arma %+v, want carimbada %v", c.mob, it.Effects, c.carimb)
 		}

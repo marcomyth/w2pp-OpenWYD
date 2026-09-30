@@ -104,14 +104,6 @@ func TestAcampamentoTrollTabelasDoDesign(t *testing.T) {
 	}
 }
 
-func pesoTotal(tab []addArma) int {
-	n := 0
-	for _, l := range tab {
-		n += l.peso
-	}
-	return n
-}
-
 // Toda arma que um monstro da quest solta sai refinável e com um add da tabela do
 // monstro; a skill só sai do Troll Enigma, e nele nem sempre.
 func TestAcampamentoTrollArmaSaiComAddDoDesign(t *testing.T) {

@@ -181,11 +181,20 @@ func (d *Dispatcher) acampamentoTrollFinish(w *world.World, mob *world.Entity, i
 
 // sortearAddArma escolhe uma linha pelo peso.
 func sortearAddArma(w *world.World, tabela []addArma) addArma {
+	return linhaDoPeso(tabela, w.Rand().Intn(pesoTotal(tabela)))
+}
+
+// pesoTotal soma os pesos da escada.
+func pesoTotal(tabela []addArma) int {
 	total := 0
 	for _, l := range tabela {
 		total += l.peso
 	}
-	n := w.Rand().Intn(total)
+	return total
+}
+
+// linhaDoPeso devolve a linha em que cai n, de 0 ao peso total menos 1.
+func linhaDoPeso(tabela []addArma, n int) addArma {
 	for _, l := range tabela {
 		if n < l.peso {
 			return l

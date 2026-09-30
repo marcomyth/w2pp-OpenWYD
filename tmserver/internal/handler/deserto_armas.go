@@ -7,8 +7,11 @@ import (
 
 // As Armas D do Deserto (pedido do Marco em 28/09/2026): a Mantícora, o Tauron
 // Adamantita, o Taron Assassino e o Verme soltam Armas D pelo template desde o
-// legado, e agora cada uma sai com o add do spot dos Ciclopes — dano 45 a 72 nas
-// físicas, magia 20 a 32 nas lanças e cajados — e com o dobro da chance.
+// legado, e agora cada uma sai com add — de dano nas físicas, de magia nas lanças
+// e cajados — e com o dobro da chance. Em 30/09 o add saiu da escada do spot dos
+// Ciclopes (45-72, com 30% das armas em 63 ou mais) para a da tropa
+// (armas_add_tropa.go, 27-72 com o alto raro), e a chance ficou em 1,5% de arma
+// por morte nos cinco (migração 0188).
 //
 // A chance mora na Mesa de Drops (migração 0180), e é por isso que o add é
 // carimbado aqui: o gancho de acabamento só roda em item que a Mesa soltou. As
@@ -60,15 +63,16 @@ var monstrosDasArmasD = map[string]bool{
 	droprule.Canonical("Verme_"):          true,
 }
 
-// carimbaAddArmaD põe numa Arma D do Deserto o add da escada dela, no lugar do
-// bônus de drop comum, e diz se a arma era da lista.
-func carimbaAddArmaD(w *world.World, it *world.Item) bool {
+// carimbaAddArmaD põe numa Arma D do Deserto um add da escada dada — fisica nas
+// armas de dano, magica nas de magia —, no lugar do bônus de drop comum, e diz se
+// a arma era da lista.
+func carimbaAddArmaD(w *world.World, it *world.Item, fisica, magica []addArma) bool {
 	var tabela []addArma
 	switch {
 	case armasDDoDesertoFisicas[it.Index]:
-		tabela = addCiclopeFisica
+		tabela = fisica
 	case armasDDoDesertoMagicas[it.Index]:
-		tabela = addCiclopeMagica
+		tabela = magica
 	default:
 		return false
 	}
@@ -82,11 +86,11 @@ func carimbaAddArmaD(w *world.World, it *world.Item) bool {
 	return true
 }
 
-// desertoFinish carimba o add de uma Arma D que um dos quatro monstros soltou
-// pela Mesa, depois do bônus de drop comum.
+// desertoFinish carimba o add da tropa numa Arma D que um dos cinco monstros
+// soltou pela Mesa, depois do bônus de drop comum.
 func (d *Dispatcher) desertoFinish(w *world.World, mob *world.Entity, it *world.Item) {
 	if !monstrosDasArmasD[droprule.Canonical(mob.TemplateName)] {
 		return
 	}
-	carimbaAddArmaD(w, it)
+	carimbaAddArmaD(w, it, addTropaFisica, addTropaMagica)
 }
