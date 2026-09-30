@@ -88,7 +88,8 @@ func TestCheckDoSpawnDeGuildCobreAGrade(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(b), "guild_spawn_x") {
+		// Só a migração que DEFINE o CHECK interessa; as que só gravam pontos não.
+		if !strings.Contains(string(b), "ADD CONSTRAINT guild_zone_spawn_check") {
 			continue
 		}
 		achou = true
