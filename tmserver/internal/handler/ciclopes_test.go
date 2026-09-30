@@ -44,8 +44,8 @@ func TestCiclopeTiranoNasceHorasDepoisDoBoot(t *testing.T) {
 	}
 }
 
-// Uma Arma C dos monstros do spot sai com o add pedido — dano 45 a 72 nas físicas,
-// magia 20 a 32 nas lanças e cajados —, o refino do bônus fica e o segundo add
+// Uma Arma C dos monstros do spot sai com o add da tropa — dano 27 a 72 nas
+// físicas, magia 12 a 32 nas lanças e cajados —, o refino do bônus fica e o segundo add
 // sai; todos os degraus aparecem, e o mais alto é o mais raro.
 func TestCiclopesCarimbamArmasC(t *testing.T) {
 	d, w, _ := mobKilledWorld(t)
@@ -56,11 +56,11 @@ func TestCiclopesCarimbamArmasC(t *testing.T) {
 			efeito uint8
 			want   []int
 		}{
-			{armasCFisicas, efDamage, []int{45, 54, 63, 72}},
-			{armasCMagicas, efMagic, []int{20, 24, 28, 32}},
+			{armasCFisicas, efDamage, []int{27, 36, 45, 54, 63, 72}},
+			{armasCMagicas, efMagic, []int{12, 16, 20, 24, 28, 32}},
 		} {
 			visto := map[int]int{}
-			for i := range 800 {
+			for i := range 20000 {
 				arma := world.Item{Index: c.armas[i%len(c.armas)], Effects: [3]world.Effect{{Effect: efSanc, Value: 1}, {Effect: 26, Value: 3}, {Effect: efDamage, Value: 9}}}
 				d.ciclopesFinish(w, m, &arma)
 				if arma.Effects[0] != (world.Effect{Effect: efSanc, Value: 1}) {
@@ -76,7 +76,7 @@ func TestCiclopesCarimbamArmasC(t *testing.T) {
 			}
 			for _, v := range c.want {
 				if visto[v] == 0 {
-					t.Errorf("%s: o add %d nunca saiu em 800 armas", mob, v)
+					t.Errorf("%s: o add %d nunca saiu em 20000 armas", mob, v)
 				}
 			}
 			if visto[c.want[0]] <= visto[c.want[len(c.want)-1]] {

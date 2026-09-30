@@ -43,9 +43,11 @@ var ciclopesDoSpot = map[string]bool{
 	droprule.Canonical(ciclopes.LanceiroZakumSpot): true,
 }
 
-// Os adds pedidos, nos degraus do bônus de drop (dano de 9 em 9, magia de 4 em 4):
-// dano 45 a 72 e magia 20 a 32. Quanto maior mais raro, como nas outras escadas;
-// os pesos são escolha daqui, o pedido deu só os valores.
+// A escada dos chefes Tiranos (o Ciclope e o Taron), nos degraus do bônus de drop
+// (dano de 9 em 9, magia de 4 em 4): dano 45 a 72 e magia 20 a 32, quanto maior
+// mais raro; os pesos são escolha daqui, o pedido deu só os valores. Até 30/09 os
+// monstros do spot também sorteavam dela, e 30% das Armas C saíam com 63 ou mais;
+// agora eles sorteiam a escada da tropa (armas_add_tropa.go).
 var (
 	addCiclopeFisica = []addArma{
 		{40, efDamage, 45},
@@ -67,7 +69,7 @@ func (d *Dispatcher) ciclopesFinish(w *world.World, mob *world.Entity, it *world
 	if !ciclopesDoSpot[droprule.Canonical(mob.TemplateName)] {
 		return
 	}
-	carimbaAddArmaC(w, it, addCiclopeFisica, addCiclopeMagica)
+	carimbaAddArmaC(w, it, addTropaFisica, addTropaMagica)
 }
 
 // isCiclopeTirano diz se o monstro é o Ciclope Tirano, pelo nome do arquivo do

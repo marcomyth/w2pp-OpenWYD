@@ -58,23 +58,11 @@ var (
 	}
 )
 
-// Os adds pedidos, nos degraus do bônus de drop (dano de 9 em 9, magia de 4 em
-// 4). Quanto maior o add mais raro, como nas outras escadas; os pesos são escolha
-// daqui, o pedido não os deu.
-//
-//	monstros   física 45 · 54 · 63     mágica 20 · 24 · 28
-//	chefe      física 72 · 81          mágica 32 · 36
+// O add do chefe, nos degraus do bônus de drop (dano de 9 em 9, magia de 4 em 4):
+// física 72 · 81, mágica 32 · 36. Os monstros da sala sorteiam a escada da tropa
+// (armas_add_tropa.go); até 30/09 tinham a sua, 45 · 54 · 63 com 40% das armas
+// em 54 ou mais.
 var (
-	addCaveiraFisica = []addArma{
-		{60, efDamage, 45},
-		{30, efDamage, 54},
-		{10, efDamage, 63},
-	}
-	addCaveiraMagica = []addArma{
-		{60, efMagic, 20},
-		{30, efMagic, 24},
-		{10, efMagic, 28},
-	}
 	addConjuradorFisica = []addArma{
 		{60, efDamage, 72},
 		{40, efDamage, 81},
@@ -115,7 +103,7 @@ func (d *Dispatcher) caveirasFinish(w *world.World, mob *world.Entity, it *world
 	if !caveirasDoSpot[droprule.Canonical(mob.TemplateName)] {
 		return
 	}
-	carimbaAddArmaC(w, it, addCaveiraFisica, addCaveiraMagica)
+	carimbaAddArmaC(w, it, addTropaFisica, addTropaMagica)
 }
 
 // isBossConjurador diz se o monstro é o Boss Conjurador, pelo nome do arquivo do

@@ -118,7 +118,7 @@ func TestChefesSoltamBarra100Mi(t *testing.T) {
 	}
 }
 
-// A Arma D que um dos quatro solta pela Mesa sai com o add do spot, mantendo o
+// A Arma D que um dos cinco solta pela Mesa sai com o add da tropa, mantendo o
 // refino do bônus de drop; o Escudo de Runas e os monstros de fora não mudam.
 func TestDesertoCarimbaArmasD(t *testing.T) {
 	d, w, _ := mobKilledWorld(t)
@@ -128,15 +128,15 @@ func TestDesertoCarimbaArmasD(t *testing.T) {
 			arma := world.Item{Index: id, Effects: [3]world.Effect{{Effect: efSanc, Value: 1}, {Effect: 26, Value: 3}, {Effect: efDamage, Value: 9}}}
 			d.desertoFinish(w, m, &arma)
 			if arma.Effects[0] != (world.Effect{Effect: efSanc, Value: 1}) || arma.Effects[1].Effect != efDamage ||
-				!slices.Contains([]int{45, 54, 63, 72}, int(arma.Effects[1].Value)) || arma.Effects[2] != (world.Effect{}) {
-				t.Fatalf("%s arma %d: %+v, want +1 e dano 45-72", mob, id, arma.Effects)
+				!slices.Contains([]int{27, 36, 45, 54, 63, 72}, int(arma.Effects[1].Value)) || arma.Effects[2] != (world.Effect{}) {
+				t.Fatalf("%s arma %d: %+v, want +1 e dano 27-72", mob, id, arma.Effects)
 			}
 		}
 		for id := range armasDDoDesertoMagicas {
 			arma := world.Item{Index: id}
 			d.desertoFinish(w, m, &arma)
-			if arma.Effects[1].Effect != efMagic || !slices.Contains([]int{20, 24, 28, 32}, int(arma.Effects[1].Value)) {
-				t.Fatalf("%s arma %d: %+v, want magia 20-32", mob, id, arma.Effects)
+			if arma.Effects[1].Effect != efMagic || !slices.Contains([]int{12, 16, 20, 24, 28, 32}, int(arma.Effects[1].Value)) {
+				t.Fatalf("%s arma %d: %+v, want magia 12-32", mob, id, arma.Effects)
 			}
 		}
 		escudo := world.Item{Index: 1710, Effects: [3]world.Effect{{Effect: efSanc, Value: 2}}}
@@ -290,8 +290,8 @@ func TestTaronTiranoTemplate(t *testing.T) {
 	}
 }
 
-// Pela morte: com a Mesa dando a Arma D a 100%, os quatro entregam a arma com o
-// add do spot. Prova a ligação do gancho no sorteio da Mesa, e não só o carimbo.
+// Pela morte: com a Mesa dando a Arma D a 100%, os cinco entregam a arma com o
+// add da tropa. Prova a ligação do gancho no sorteio da Mesa, e não só o carimbo.
 func TestDesertoArmaDPelaMorte(t *testing.T) {
 	for _, c := range []struct {
 		mob  string
@@ -313,9 +313,9 @@ func TestDesertoArmaDPelaMorte(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s não derrubou a arma %d a 100%%", c.mob, c.arma)
 		}
-		efeito, want := uint8(efDamage), []int{45, 54, 63, 72}
+		efeito, want := uint8(efDamage), []int{27, 36, 45, 54, 63, 72}
 		if armasDDoDesertoMagicas[c.arma] {
-			efeito, want = efMagic, []int{20, 24, 28, 32}
+			efeito, want = efMagic, []int{12, 16, 20, 24, 28, 32}
 		}
 		if it.Effects[0].Effect != efSanc || it.Effects[1].Effect != efeito || !slices.Contains(want, int(it.Effects[1].Value)) {
 			t.Errorf("%s arma %d saiu com %+v, want refino e efeito %d em %v", c.mob, c.arma, it.Effects, efeito, want)

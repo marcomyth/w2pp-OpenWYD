@@ -104,14 +104,6 @@ func TestAcampamentoTrollTabelasDoDesign(t *testing.T) {
 	}
 }
 
-func pesoTotal(tab []addArma) int {
-	n := 0
-	for _, l := range tab {
-		n += l.peso
-	}
-	return n
-}
-
 // Toda arma que um monstro da quest solta sai refinável e com um add da tabela do
 // monstro; a skill só sai do Troll Enigma, e nele nem sempre.
 func TestAcampamentoTrollArmaSaiComAddDoDesign(t *testing.T) {
@@ -619,6 +611,50 @@ func TestAcampamentoTrollMigracaoDosRestos(t *testing.T) {
 		for _, resto := range []int16{419, 420} {
 			if acampamentoTrollPacks[mob][resto] > 1 {
 				t.Errorf("%s solta Resto %d em pacote; o pedido é uma unidade", mob, resto)
+			}
+		}
+	}
+}
+
+// A 0189 (30/09/2026): a tropa e os Magos soltam metade das Armas D e o dobro de
+// âmago, e a tropa ganha o Fantasma; o Caos e o Enigma ficam de fora, e nenhum
+// âmago deles sai em pacote (o pacote é só do Caos).
+func TestAcampamentoTrollMenosArmaMaisAmago(t *testing.T) {
+	novas := linhasComZero(t, "0189_acampamento_troll_menos_arma_mais_amago.up.sql")
+	antigas := linhasComZero(t, "0064_acampamento_troll.up.sql")
+	armas := 0
+	for mob, l := range novas {
+		if !acampamentoTrollTemplates[droprule.Canonical(mob)] {
+			t.Errorf("%s não é monstro da quest", mob)
+		}
+		if mob == "ATroll_Caos" || mob == acampamentoTrollBoss {
+			t.Errorf("a 0189 mexe no %s, que devia ficar como está", mob)
+		}
+		for item, c := range l {
+			if acampamentoTrollPacks[droprule.Canonical(mob)][item] > 1 {
+				t.Errorf("%s item %d sairia em pacote", mob, item)
+			}
+			antes := antigas[mob][item]
+			switch {
+			case armasTrollFisicas[item] || armasTrollMagicas[item]:
+				armas++
+				if c*2 != antes {
+					t.Errorf("%s arma %d a %d, want metade dos %d da 0064", mob, item, c, antes)
+				}
+			case antes > 0 && c != 2*antes:
+				t.Errorf("%s âmago %d a %d, want o dobro dos %d da 0064", mob, item, c, antes)
+			case antes == 0 && c == 0:
+				t.Errorf("%s item %d a 0%%", mob, item)
+			}
+		}
+	}
+	if armas != 3*(len(armasTrollFisicas)+len(armasTrollMagicas)) {
+		t.Errorf("%d armas na 0189, want as 8 nos três monstros", armas)
+	}
+	for _, mob := range []string{"ATroll_Insano", "ATroll_Cacador"} {
+		for _, item := range []int16{2397, 2402} {
+			if novas[mob][item] == 0 {
+				t.Errorf("%s sem o âmago Fantasma %d", mob, item)
 			}
 		}
 	}

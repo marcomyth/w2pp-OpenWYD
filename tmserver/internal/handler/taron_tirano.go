@@ -72,7 +72,7 @@ func (d *Dispatcher) taronTiranoSaque(w *world.World, reward, mob *world.Entity)
 		arma := armasDDoTaronTirano[w.Rand().Intn(len(armasDDoTaronTirano))]
 		if !d.dropRules.Governs(mob.TemplateName, arma) {
 			it := world.Item{Index: arma}
-			carimbaAddArmaD(w, &it)
+			carimbaAddArmaD(w, &it, addCiclopeFisica, addCiclopeMagica)
 			d.putMobDrop(w, reward, it)
 		}
 	}
