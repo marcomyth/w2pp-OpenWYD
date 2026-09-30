@@ -308,7 +308,13 @@ func (d *Dispatcher) completeCharacterLogin(w *world.World, s *world.Session, st
 		// never seeded AND still at level 0 with no experience, which is how the
 		// dbserver creates one. An older character that merely has no gear keeps
 		// entering in its city.
-		loginX, loginY = pontoDeEntrada(st.LastCity, novo && st.Level == 0 && st.Exp == 0)
+		recemCriado := novo && st.Level == 0 && st.Exp == 0
+		loginX, loginY = pontoDeEntrada(st.LastCity, recemCriado)
+		// Quem é da guilda dona de uma cidade ENTRA no jogo na área da guild dela,
+		// como no legado (ProcessDBMessage.cpp:911-921), e não só renasce lá.
+		if gx, gy, ok := d.guildSpawnFor(st.GuildID); ok && !recemCriado {
+			loginX, loginY = gx, gy
+		}
 		if x, y, ok := w.EmptyCellNear(loginX, loginY); ok {
 			loginX, loginY = x, y
 		}
@@ -953,9 +959,9 @@ func (d *Dispatcher) recall(w *world.World, s *world.Session, e *world.Entity) {
 	e.QuestFlag = 0
 	rx, ry := world.CitySpawn(int(e.LastCity))
 	// Owning a city buys your guild its own respawn point, from anywhere on the
-	// map. The legacy meant to do this — Server.cpp:8514 reads GuildSpawnX/Y
-	// right here — but never assigned those fields, so its owning guild would
-	// have landed at (0,0). The point comes from the database instead.
+	// map (Server.cpp:8514). The legacy's points are the fixed g_pGuildZone table
+	// (Basedef.cpp:56-60), inside each city's guild area; here they come from the
+	// database (migration 0182), and login uses the same point (characterLogin).
 	if gx, gy, ok := d.guildSpawnFor(e.Guild); ok {
 		// A fixed tile needs a free neighbour: SetEntityPos overwrites whatever
 		// holds that grid cell, and a guild point is one exact tile that the
