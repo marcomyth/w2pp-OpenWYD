@@ -119,13 +119,13 @@ func TestSimulacaoNaturezaDuasArmas(t *testing.T) {
 	// transformado em Éden, e esta simulação dá 3.406: a regra de combate do
 	// painel escala o número final e fica fora do modelo. Como ela é um fator só,
 	// a RAZÃO vale — a janela em jogo é a simulada × 3.000 / o Éden de hoje.
-	const edenEmJogo, edenAlvoMin, edenAlvoMax = 3000, 3450, 3600
+	const edenEmJogo, edenAlvoMin, edenAlvoMax = 3000, 3550, 3700
 	edenDanoExtra = 0
 	edenHoje := sm.d.effectiveDamage(monta(fichas[0], planos[0], 5))
 	emJogo := func() int32 {
 		return sm.d.effectiveDamage(monta(fichas[0], planos[0], 5)) * edenEmJogo / edenHoje
 	}
-	for _, v := range []int32{0, 10, 20, 30, 35, 40} {
+	for _, v := range []int32{0, 10, 20, 30, 35, 40, 45} {
 		edenDanoExtra = v
 		fmt.Printf("Éden +%2d: BateNeles %d em jogo | %s %d\n", v, emJogo(),
 			fichas[1].nome, sm.d.effectiveDamage(monta(fichas[1], planos[1], fichas[1].forma)))
