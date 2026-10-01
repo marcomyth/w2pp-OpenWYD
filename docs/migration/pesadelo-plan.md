@@ -31,6 +31,10 @@ O legado escreve o mesmo bloco uma vez por tier, com números diferentes. Reduzi
 - Só o **líder de party** usa o pergaminho, e só na área de espera daquele tier.
 - Entrada é uma **escada de classe e nível** — ver §2.1.
 - No máximo **`maxNightmare` runs por janela por tier**, global do servidor.
+  **Exceção deste servidor** (decisão de 29/09/2026): o **Arch no Místico** fica fora do teto — não é
+  recusado por ele e a entrada dele não conta, então não gasta a vaga do Celestial até 40 que divide
+  o tier. Vale a classe de quem usa o pergaminho (o líder). Porta da staff, área, classe, nível e
+  janela seguem valendo para ele (`pesadeloRunCapExempt`).
 
 ### 2.1 A escada de entrada
 

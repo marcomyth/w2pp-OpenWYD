@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jeanluca/w2pp-openwyd/internal/dungeon"
 	"github.com/jeanluca/w2pp-openwyd/internal/level"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
@@ -856,5 +857,296 @@ func TestNigDizQuantoFaltaParaEntrar(t *testing.T) {
 	if got, quero := decodePanel(expect(t, c, protocol.MsgMessagePanel)),
 		"Pesadelo N: ABERTO, 210s para entrar"; got != quero {
 		t.Errorf("linha = %q, quero %q", got, quero)
+	}
+}
+
+// The M staging tile, well inside the (16,16) segment.
+const stageMX, stageMY = 16*128 + 40, 16*128 + 40
+
+// startPesadeloServerComRuns is startPesadeloServer with the run counters
+// already loaded, and it hands the dispatcher back so a test can read them
+// afterwards.
+//
+// The counters belong to the loop goroutine. They are written here before it
+// starts and must only be read after stop() has returned — pesaRunsDepois does
+// exactly that — or the read races the handler.
+func startPesadeloServerComRuns(t *testing.T, persist world.Persistence, vols map[int]int, now time.Time, runs [pesaTiers]int) (string, *Dispatcher, func()) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	d := New(Config{Log: log, ItemVolatiles: vols, Now: func() time.Time { return now }})
+	d.events.pesaRuns = runs
+	w := world.New(world.Config{GridDim: 2600}, log, persist, d.Handle)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { _ = w.Serve(ctx, ln); close(done) }()
+	return ln.Addr().String(), d, func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Error("server did not stop")
+		}
+	}
+}
+
+// pesaRunsDepois stops the server and only then reads the counters, so the read
+// happens after the loop goroutine is gone.
+func pesaRunsDepois(d *Dispatcher, stop func()) [pesaTiers]int {
+	stop()
+	return d.events.pesaRuns
+}
+
+// esperaEntradaNoPesadelo drains frames until the window countdown — the first
+// sign the character got in — and fails naming the refusal if one comes instead.
+// Without that a refused entry would only read as "the stream went quiet".
+func esperaEntradaNoPesadelo(t *testing.T, c net.Conn) {
+	t.Helper()
+	for i := 0; i < 12; i++ {
+		ty, p, ok := readMaybe(t, c)
+		if !ok {
+			t.Fatal("nenhum sinal de entrada depois de usar o pergaminho")
+		}
+		if ty == protocol.MsgStartTime {
+			return
+		}
+		if ty == protocol.MsgMessageBoxOk {
+			t.Fatalf("a entrada foi recusada com o aviso %v", noticeCode(t, p))
+		}
+	}
+	t.Fatal("não recebi o contador da janela")
+}
+
+// TestPesadeloMArchEntraComOTetoCheio is the owner's decision of 29/09/2026: for
+// the Arch the Pesadelo is unlimited, the server-wide cap of three runs per
+// window included. With the Místico counter already at the cap, the Arch still
+// gets in, the scroll is spent — and the counter does not move, because the run
+// that is not capped is also the run that is not counted.
+func TestPesadeloMArchEntraComOTetoCheio(t *testing.T) {
+	db := pesadeloDB(stageMX, stageMY, classMasterArch, itemPesadeloGrupoM)
+	addr, d, stop := startPesadeloServerComRuns(t, db,
+		map[int]int{itemPesadeloGrupoM: volPesadeloM}, at(5, 30),
+		[pesaTiers]int{pesaM: defaultMaxNightmare})
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	useItemFrame(t, c, 0)
+	esperaEntradaNoPesadelo(t, c)
+	if got := le16(expect(t, c, protocol.MsgSendItem)[4:6]); got != 0 {
+		t.Errorf("slot = %d, quero o pergaminho consumido na entrada", got)
+	}
+	if got := pesaRunsDepois(d, stop)[pesaM]; got != defaultMaxNightmare {
+		t.Errorf("pesaRuns[M] = %d, quero %d: a entrada do Arch não conta", got, defaultMaxNightmare)
+	}
+}
+
+// The other half of the Místico tier: the Celestial under 40 shares the door
+// with the Arch but not the exemption. At the cap it is refused with the legacy
+// notice and keeps the scroll. This is also the first test of the cap refusal
+// itself, which had none.
+func TestPesadeloMCelestialRecusadoNoTeto(t *testing.T) {
+	db := pesadeloDB(stageMX, stageMY, classMasterCelestial, itemPesadeloGrupoM)
+	db.loadResult.Level = pesaMCelestialMaxLevel
+	addr, d, stop := startPesadeloServerComRuns(t, db,
+		map[int]int{itemPesadeloGrupoM: volPesadeloM}, at(5, 30),
+		[pesaTiers]int{pesaM: defaultMaxNightmare})
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	useItemFrame(t, c, 0)
+	if got := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); got != NoticePesadeloLimited {
+		t.Errorf("notice = %v, want NoticePesadeloLimited", got)
+	}
+	if got := le16(expect(t, c, protocol.MsgSendItem)[4:6]); got != itemPesadeloGrupoM {
+		t.Errorf("slot = %d, quero o pergaminho devolvido intacto (%d)", got, itemPesadeloGrupoM)
+	}
+	if got := pesaRunsDepois(d, stop)[pesaM]; got != defaultMaxNightmare {
+		t.Errorf("pesaRuns[M] = %d, quero %d: uma recusa não conta", got, defaultMaxNightmare)
+	}
+}
+
+// The exemption is the Arch in the Místico tier and nothing else: a Mortal at
+// the Normal door with the Normal counter at the cap is still turned away.
+func TestPesadeloNMortalRecusadoNoTeto(t *testing.T) {
+	db := pesadeloDB(stageNX, stageNY, classMasterMortal, itemPesadeloGrupoN)
+	db.loadResult.Level = pesaNMortalMinLevel
+	addr, d, stop := startPesadeloServerComRuns(t, db,
+		map[int]int{itemPesadeloGrupoN: volPesadeloN}, at(0, 30),
+		[pesaTiers]int{pesaN: defaultMaxNightmare})
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	useItemFrame(t, c, 0)
+	if got := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); got != NoticePesadeloLimited {
+		t.Errorf("notice = %v, want NoticePesadeloLimited", got)
+	}
+	if got := le16(expect(t, c, protocol.MsgSendItem)[4:6]); got != itemPesadeloGrupoN {
+		t.Errorf("slot = %d, quero o pergaminho devolvido intacto (%d)", got, itemPesadeloGrupoN)
+	}
+	if got := pesaRunsDepois(d, stop)[pesaN]; got != defaultMaxNightmare {
+		t.Errorf("pesaRuns[N] = %d, quero %d: uma recusa não conta", got, defaultMaxNightmare)
+	}
+}
+
+// Below the cap both classes get in, and only one of them takes a slot. The
+// counter is shared by the whole tier, so an Arch that was let through but still
+// counted would spend the three runs the Celestials have.
+func TestPesadeloMSoOCelestialGastaVaga(t *testing.T) {
+	const antes = defaultMaxNightmare - 1
+	tests := []struct {
+		name        string
+		classMaster uint8
+		level       int
+		depois      int
+	}{
+		{"Celestial ate 40 conta", classMasterCelestial, pesaMCelestialMaxLevel, antes + 1},
+		{"Arch nao conta", classMasterArch, 0, antes},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			db := pesadeloDB(stageMX, stageMY, tc.classMaster, itemPesadeloGrupoM)
+			db.loadResult.Level = tc.level
+			addr, d, stop := startPesadeloServerComRuns(t, db,
+				map[int]int{itemPesadeloGrupoM: volPesadeloM}, at(5, 30),
+				[pesaTiers]int{pesaN: 1, pesaM: antes, pesaA: 1})
+			defer stop()
+			c := enterWorld(t, addr)
+			defer c.Close()
+
+			useItemFrame(t, c, 0)
+			esperaEntradaNoPesadelo(t, c)
+			if got := le16(expect(t, c, protocol.MsgSendItem)[4:6]); got != 0 {
+				t.Errorf("slot = %d, quero o pergaminho consumido na entrada", got)
+			}
+			// The neighbours are part of the assertion: an entry in M must never
+			// move the N or the A counter, whoever makes it.
+			want := [pesaTiers]int{pesaN: 1, pesaM: tc.depois, pesaA: 1}
+			if got := pesaRunsDepois(d, stop); got != want {
+				t.Errorf("pesaRuns = %v, quero %v", got, want)
+			}
+		})
+	}
+}
+
+// The exemption skips the run cap and only the run cap. With the Místico door
+// shut by staff the Arch is refused like anybody else, inside an open window,
+// and is told the door does not reopen on the schedule.
+func TestPesadeloMArchNaoFuraAPortaDaStaff(t *testing.T) {
+	db := pesadeloDB(stageMX, stageMY, classMasterArch, itemPesadeloGrupoM)
+	addr, stop := startPesadeloServerFechado(t, db,
+		map[int]int{itemPesadeloGrupoM: volPesadeloM}, at(5, 30), dungeon.PesadeloM)
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	useItemFrame(t, c, 0)
+	if got := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); got != NoticePesadeloClosed {
+		t.Errorf("notice = %v, want NoticePesadeloClosed", got)
+	}
+	if got, quero := decodePanel(expect(t, c, protocol.MsgMessagePanel)),
+		"Pesadelo M está fechado pela administração. Não abre no horário."; got != quero {
+		t.Errorf("panel = %q, want %q", got, quero)
+	}
+	if got := le16(expect(t, c, protocol.MsgSendItem)[4:6]); got != itemPesadeloGrupoM {
+		t.Errorf("slot = %d, quero o pergaminho devolvido intacto (%d)", got, itemPesadeloGrupoM)
+	}
+}
+
+// And the window still applies: outside the four minutes the Arch is refused,
+// with the cap nowhere near.
+func TestPesadeloMArchRecusadoForaDaJanela(t *testing.T) {
+	db := pesadeloDB(stageMX, stageMY, classMasterArch, itemPesadeloGrupoM)
+	// :10 is inside the A window, so M is firmly closed.
+	addr, stop := startPesadeloServer(t, db,
+		map[int]int{itemPesadeloGrupoM: volPesadeloM}, at(10, 0))
+	defer stop()
+	c := enterWorld(t, addr)
+	defer c.Close()
+
+	useItemFrame(t, c, 0)
+	if got := noticeCode(t, expect(t, c, protocol.MsgMessageBoxOk)); got != NoticePesadeloClosed {
+		t.Errorf("notice = %v, want NoticePesadeloClosed", got)
+	}
+	if got := le16(expect(t, c, protocol.MsgSendItem)[4:6]); got != itemPesadeloGrupoM {
+		t.Errorf("slot = %d, quero o pergaminho devolvido intacto (%d)", got, itemPesadeloGrupoM)
+	}
+}
+
+// In a party the rule follows whoever uses the scroll — the leader, the one
+// character every gate in usePesadeloScroll looks at. The members ride along
+// and never touched the counter.
+//
+// So, with the Místico counter at the cap: an Arch leader takes the Celestial in
+// the party in with them, and the run still does not count; a Celestial leader
+// is refused, and the Arch in the party stays out with them. Both follow from
+// "the rule is the leader's class" and neither is a rule of its own — this test
+// writes down what the code does, so a change to it is a decision and not an
+// accident.
+func TestPesadeloMGrupoSegueOLider(t *testing.T) {
+	tests := []struct {
+		name   string
+		lider  uint8
+		membro uint8
+		entram bool
+	}{
+		{"lider Arch leva o Celestial e nao conta", classMasterArch, classMasterCelestial, true},
+		{"lider Celestial e recusado e o Arch fica de fora", classMasterCelestial, classMasterArch, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			db := grupoNaPorta(stageMX, stageMY, itemPesadeloGrupoM, 0, tc.membro, 0)
+			lider := db.loads[7]
+			lider.ClassMaster = tc.lider
+			db.loads[7] = lider
+			addr, d, stop := startPesadeloServerComRuns(t, db,
+				map[int]int{itemPesadeloGrupoM: volPesadeloM}, at(5, 30),
+				[pesaTiers]int{pesaM: defaultMaxNightmare})
+			defer stop()
+			cLider, cMembro := formaGrupo(t, addr)
+			defer cLider.Close()
+			defer cMembro.Close()
+
+			useItemFrame(t, cLider, 0)
+			if got := recebeContador(t, cLider); got != tc.entram {
+				t.Errorf("o líder recebeu o contador = %v, esperado %v", got, tc.entram)
+			}
+			if got := recebeContador(t, cMembro); got != tc.entram {
+				t.Errorf("o membro recebeu o contador = %v, esperado %v", got, tc.entram)
+			}
+			if got := pesaRunsDepois(d, stop)[pesaM]; got != defaultMaxNightmare {
+				t.Errorf("pesaRuns[M] = %d, quero %d nos dois casos", got, defaultMaxNightmare)
+			}
+		})
+	}
+}
+
+// The rule in one table: who is outside the run cap.
+func TestPesadeloRunCapExempt(t *testing.T) {
+	tests := []struct {
+		name        string
+		tier        int
+		classMaster uint8
+		want        bool
+	}{
+		{"M: Arch fica fora do teto", pesaM, classMasterArch, true},
+		{"M: Celestial conta", pesaM, classMasterCelestial, false},
+		{"N: Mortal conta", pesaN, classMasterMortal, false},
+		{"N: Arch nem entra, e nao ganha isencao", pesaN, classMasterArch, false},
+		{"A: Celestial conta", pesaA, classMasterCelestial, false},
+		{"A: Arch nem entra, e nao ganha isencao", pesaA, classMasterArch, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := pesadeloRunCapExempt(tc.tier, tc.classMaster); got != tc.want {
+				t.Errorf("pesadeloRunCapExempt(tier %s, class %d) = %v, want %v",
+					pesaTierTable[tc.tier].name, tc.classMaster, got, tc.want)
+			}
+		})
 	}
 }
