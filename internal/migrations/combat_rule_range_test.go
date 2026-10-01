@@ -178,9 +178,9 @@ func TestGarnetNasceNoPadraoDecidido(t *testing.T) {
 	}
 }
 
-// TestPesoDaDefesaNasceNoLegado: a 0191 nasce em 150, o peso do legado, para o
-// deploy não mudar golpe nenhum — o número é escolhido depois, no painel.
-func TestPesoDaDefesaNasceNoLegado(t *testing.T) {
+// TestPesoDaDefesaNasceNoPadraoDecidido: a 0191 nasce no peso decidido (100),
+// não nos 150 do legado.
+func TestPesoDaDefesaNasceNoPadraoDecidido(t *testing.T) {
 	b, err := migrations.FS.ReadFile("0191_combat_rule_peso_da_defesa.up.sql")
 	if err != nil {
 		t.Fatal(err)
@@ -191,8 +191,7 @@ func TestPesoDaDefesaNasceNoLegado(t *testing.T) {
 		t.Fatalf("pvp_melee_armor_pct precisa de NOT NULL DEFAULT, achei: %s", def)
 	}
 	n, _ := strconv.Atoi(m[1])
-	if int32(n) != combatrule.Default().PvPMeleeArmorPct || n != combatrule.LegacyPvPMeleeArmorPct {
-		t.Errorf("DEFAULT de pvp_melee_armor_pct é %d, combatrule.Default() diz %d e o legado é %d",
-			n, combatrule.Default().PvPMeleeArmorPct, combatrule.LegacyPvPMeleeArmorPct)
+	if int32(n) != combatrule.Default().PvPMeleeArmorPct {
+		t.Errorf("DEFAULT de pvp_melee_armor_pct é %d, mas combatrule.Default() diz %d", n, combatrule.Default().PvPMeleeArmorPct)
 	}
 }

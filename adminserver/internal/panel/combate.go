@@ -203,7 +203,7 @@ func combateBotoes(r combatrule.Rules) []combateBotao {
 			Explica: "Quanto da defesa do alvo um golpe físico de OUTRO JOGADOR precisa atravessar: o golpe sai a " +
 				"(Ataque − defesa × este %), e depois é dividido por 4. 150% é o legado, de quando o Ataque não era " +
 				"escalado: hoje, com o Ataque em 61%, um BM de 2.700 tira 1 de uma HT de 2.100 de defesa, porque " +
-				"2.100 × 150% = 3.150. Com 100%, o mesmo peso que a skill enfrenta, esse golpe sai por ~160. " +
+				"2.100 × 150% = 3.150. Com 100%, o mesmo peso que a skill enfrenta e o padrão decidido, esse golpe sai por ~160. " +
 				"Não mexe em golpe de monstro, em golpe em monstro nem em skill.",
 			Agora: pctTexto(r.PvPMeleeArmorPct), Padrao: pctTexto(p.PvPMeleeArmorPct),
 			Kersef: pctTexto(k.PvPMeleeArmorPct), Mudado: r.PvPMeleeArmorPct != p.PvPMeleeArmorPct,

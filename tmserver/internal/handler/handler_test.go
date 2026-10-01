@@ -694,6 +694,10 @@ func (f *fakeDB) LoadCharacter(_ context.Context, accountID int64, _ int) (world
 func regraSemEscala() *combatrule.Rules {
 	r := combatrule.Default()
 	r.PhysicalDamagePct = 100
+	// O peso da defesa em PvP é o par da escala: o padrão decidido (100) só
+	// existe porque o Ataque foi escalado. Sem a escala, vale o peso do legado,
+	// que é o que os casos de paridade (TestAttackHitExact) conferem.
+	r.PvPMeleeArmorPct = combatrule.LegacyPvPMeleeArmorPct
 	return &r
 }
 

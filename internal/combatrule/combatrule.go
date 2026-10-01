@@ -93,6 +93,10 @@ type Rules struct {
 	// defence leaves nothing after 1,5 × AC, and every melee class landed 1 on
 	// every other (BM, TK and HT, measured in game on 01/10/2026). Player against
 	// player only — a monster's swing and a blow on a monster never read it.
+	//
+	// The decided default is 100, the weight a skill already faces (Marco,
+	// 01/10/2026): 150 × 61% is 92, so 100 puts attack and defence back at about
+	// the relation the legacy had before the attack was scaled.
 	PvPMeleeArmorPct int32
 }
 
@@ -131,7 +135,7 @@ const (
 func Default() Rules {
 	return Rules{WeaponIntMagicPct: 0, SpellDamageMulti: false, MobResistBase: 100, PvPSkillPct: 100, PvPMeleePct: 100,
 		SpellIntAccuracyPct: 50, MaxMissStreak: 2, WeaponDamageGrants: 1, DoubleCriticalMaxPct: 25, PhysicalDamagePct: 61, GarnetPct: 20,
-		PvPMeleeArmorPct: LegacyPvPMeleeArmorPct}
+		PvPMeleeArmorPct: 100}
 }
 
 // Kersef is the rule as ported, kept so the panel can show — and restore — what

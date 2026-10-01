@@ -31,6 +31,7 @@ func golpeFisicoEmJogador(d *Dispatcher, ataque, defesa int, critico uint8) int 
 // em jogo em 01/10/2026 — nenhum físico passava da defesa de outro.
 func TestPesoDaDefesaNoLegadoReproduzOJogo(t *testing.T) {
 	d := &Dispatcher{combatRules: combatrule.Default()}
+	d.combatRules.PvPMeleeArmorPct = combatrule.LegacyPvPMeleeArmorPct
 	casos := []struct {
 		nome            string
 		ataque, defesa  int
@@ -50,11 +51,14 @@ func TestPesoDaDefesaNoLegadoReproduzOJogo(t *testing.T) {
 	}
 }
 
-// TestPesoDaDefesaEm100DeixaOGolpePassar: com o peso da skill os mesmos golpes
-// ferem, e quem tem mais ataque que a defesa do outro tira mais.
+// TestPesoDaDefesaEm100DeixaOGolpePassar: com o peso da skill, que é o padrão
+// decidido, os mesmos golpes ferem, e quem tem mais ataque que a defesa do
+// outro tira mais.
 func TestPesoDaDefesaEm100DeixaOGolpePassar(t *testing.T) {
 	d := &Dispatcher{combatRules: combatrule.Default()}
-	d.combatRules.PvPMeleeArmorPct = 100
+	if d.combatRules.PvPMeleeArmorPct != 100 {
+		t.Fatalf("padrão = %d, want 100: o número decidido em 01/10/2026", d.combatRules.PvPMeleeArmorPct)
+	}
 	casos := []struct {
 		nome            string
 		ataque, defesa  int
@@ -83,6 +87,7 @@ func TestPesoDaDefesaSoValeEntreJogadores(t *testing.T) {
 	monstro := &world.Entity{ID: world.MaxUser + 5, AC: 3000}
 
 	d := &Dispatcher{combatRules: combatrule.Default()}
+	d.combatRules.PvPMeleeArmorPct = combatrule.LegacyPvPMeleeArmorPct
 	if got := d.defesaContraGolpeFisico(atacante, jogador, jogador.ID); got != 3000 {
 		t.Errorf("no legado (150): defesa %d, want 3000 intacta", got)
 	}

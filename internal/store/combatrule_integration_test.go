@@ -180,6 +180,7 @@ func TestLinhaAnteriorAoPvPContinuaValida(t *testing.T) {
 	quer.DoubleCriticalMaxPct = combatrule.Default().DoubleCriticalMaxPct
 	quer.PhysicalDamagePct = combatrule.Default().PhysicalDamagePct
 	quer.GarnetPct = combatrule.Default().GarnetPct
+	quer.PvPMeleeArmorPct = combatrule.Default().PvPMeleeArmorPct
 	if cfg.Rules != quer {
 		t.Errorf("leu %+v, quero %+v: o Kersef com o legado no PvP e a precisão no padrão decidido",
 			cfg.Rules, quer)
