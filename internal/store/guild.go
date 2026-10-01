@@ -804,6 +804,23 @@ func (s *Store) SetGuildSquad(ctx context.Context, guildID uint16, zone int, nam
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	// TRANCA A GUILDA ANTES DE MEXER, e a trava é a linha da guilda e não a da
+	// escalação.
+	//
+	// A escalação é "apaga tudo desta cidade e escreve a lista nova", e o 225 fez ela
+	// tirar a pessoa das OUTRAS cidades também. Duas gravações ao mesmo tempo — dois
+	// chefes da mesma guilda escalando cidades diferentes — se atropelam: a segunda
+	// apaga o que a primeira acabou de escrever noutra cidade, e ninguém vê erro
+	// nenhum. As duas dizem "gravado" e a metade do trabalho some.
+	//
+	// A LINHA DA GUILDA, e não as linhas da escalação, porque o que precisa ser
+	// serializado é a guilda inteira: as gravações tocam cidades DIFERENTES, então
+	// travar por cidade não as encontraria. Uma trava que não encontra as duas partes
+	// da corrida não é trava.
+	if _, err := tx.Exec(ctx, `SELECT id FROM guild WHERE id = $1 FOR UPDATE`, int32(guildID)); err != nil {
+		return fmt.Errorf("store: trancar a guilda %d: %w", guildID, err)
+	}
+
 	if _, err := tx.Exec(ctx,
 		`DELETE FROM guild_city_squad WHERE guild_id = $1 AND zone = $2`,
 		int32(guildID), int16(zone)); err != nil {

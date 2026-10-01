@@ -71,10 +71,17 @@ func armaPctEspadaMagica(e *world.Entity, itemAbility func(world.Item, uint8) in
 
 // ---------------------------------------------------------------------------
 // Crítico de mago, nas skills de dano da árvore — do TK Espada Mágica e da FM
-// Magia Negra (arvore_magia_negra.go, magoCritico): chance 10% + 15% × i, multiplicador sorteado de
-// ×2,0 até ×(2 + 2 × i), em passos de 0,1. A INT sobe a chance e o teto; o
-// sorteio dentro da faixa é a sorte.
-const espadaCritChanceBase = 10
+// Magia Negra (arvore_magia_negra.go, magoCritico). A CHANCE é o crítico do
+// próprio personagem, o mesmo byte que o golpe físico sorteia e que a janela
+// mostra (byte × 0,4%), com piso de 5%. O MULTIPLICADOR é sorteado de ×1,5 até
+// ×(1,5 + 1,0 × i), em passos de 0,1: a INT sobe o teto, e o sorteio dentro da
+// faixa é a sorte.
+//
+// A chance era 10% + 15% × i até 01/10/2026 — 25% fixos para toda Black e todo
+// TK Espada Mágica de INT cheia, sem relação com o equipamento. A TheLenda, de
+// 9,2% na janela, critava uma skill em cada 4. Pedido do Marco: o crítico do
+// personagem passa a ser a base.
+const espadaCritPisoByte = 13 // 13/255 = 5,1%
 
 // O CRÍTICO DE MAGO, cortado de ×2,0-×4,0 para ×1,5-×2,5 em 21/09/2026.
 //
@@ -91,18 +98,23 @@ const espadaCritChanceBase = 10
 // para 9.432 e a Fênix para 5.541, e as duas classes continuam de pé (TK-MAGO 47
 // vitórias, Black 56). Desligar de vez põe o TK-MAGO em 28 e o mata como classe.
 var (
-	espadaCritChanceIntAtual  = 15
 	espadaCritMultBase10Atual = 15
 	espadaCritMultIntAtual    = 10
 )
 
-// rolarCriticoDeMago devolve o multiplicador × 10 (20 a 40), ou 0 sem
+// chanceDoCriticoDeMago é o limiar em 255 do sorteio: o crítico do personagem,
+// nunca abaixo do piso.
+func chanceDoCriticoDeMago(e *world.Entity) int {
+	return max(int(effectiveCritical(e)), espadaCritPisoByte)
+}
+
+// rolarCriticoDeMago devolve o multiplicador × 10 (15 a 25), ou 0 sem
 // crítico.
 func rolarCriticoDeMago(r combat.Rand, e *world.Entity) int {
-	i := reguaDeInt(e)
-	if r.Intn(100) >= espadaCritChanceBase+espadaCritChanceIntAtual*i/1000 {
+	if r.Intn(255) >= chanceDoCriticoDeMago(e) {
 		return 0
 	}
+	i := reguaDeInt(e)
 	return espadaCritMultBase10Atual + r.Intn(max(espadaCritMultIntAtual*i/1000, 0)+1)
 }
 

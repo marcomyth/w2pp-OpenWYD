@@ -1,6 +1,9 @@
 package handler
 
-import "github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
+import (
+	"github.com/jeanluca/w2pp-openwyd/internal/combatrule"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
+)
 
 // The legacy's PvP block (_MSG_Attack.cpp:1299-1333 and 1494-1510): what happens
 // to a blow AFTER the formula, when the target is a player.
@@ -31,6 +34,31 @@ func perfuracao(target *world.Entity, tid, dmg, airBlade int) int {
 		dmg >>= 2
 	}
 	return max(dmg, 1)
+}
+
+// defesaContraGolpeFisico is the defence a player's melee swing faces: the
+// target's AC after the attacker's perfuração, and — on a PLAYER — weighed by
+// the panel's PvPMeleeArmorPct.
+//
+// The legacy triples the AC in PvP (ResolveHit) and BASE_GetDamage halves it,
+// so the blow loses 1,5 × AC. That was balanced for the attack of the original.
+// Since PhysicalDamagePct (12/09/2026) the Ataque is scaled to 61% and the
+// defence was left whole, so no melee class got through any other: measured in
+// game on 01/10/2026, a BM of 2.700 landed 1 on a Huntress of 2.100 of defence
+// and on a TK of 2.600, and a TK of 3.900 only hurt a BM of 3.500 on a critical.
+//
+// The weight is applied HERE, to the AC handed to ResolveHit, and not inside
+// the combat package: ResolveHit stays the legacy formula, golden-tested, and
+// at 150 the AC is returned untouched — bit for bit what it was. Below it the
+// AC shrinks by pct/150, which after the ×3 and the half is pct% of the AC.
+// A monster target never reads it (the legacy does not triple there either).
+func (d *Dispatcher) defesaContraGolpeFisico(attacker, target *world.Entity, tid int) int {
+	ac := d.defesaPerfurada(attacker, int(effectiveAC(target)))
+	pct := int(d.combatRules.PvPMeleeArmorPct)
+	if !world.IsPlayer(tid) || pct >= combatrule.LegacyPvPMeleeArmorPct || ac <= 0 {
+		return ac
+	}
+	return ac * max(pct, 0) / combatrule.LegacyPvPMeleeArmorPct
 }
 
 // applyPvPRule is the panel's share of a blow on a player

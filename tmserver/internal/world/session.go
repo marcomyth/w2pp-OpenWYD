@@ -156,14 +156,20 @@ type Session struct {
 	// Painel de Guilda que vai ao banco. É o freio contra um cliente remendado
 	// pedir o quadro em laço (handler/guildapainel.go).
 	GuildaPedidoEm time.Time
-	// RecusasDeAcesso conta quantas vezes ESTA conexão levou uma recusa de acesso
-	// restrito. É do laço, como todo o resto da sessão, e não precisa de trava.
+	// RecusasDeAcesso conta quantas recusas de login COM FECHAMENTO esta conexão
+	// levou. É do laço, como todo o resto da sessão, e não precisa de trava.
 	//
-	// Ele existe para o fechamento atrasado de uma recusa não derrubar o que veio
-	// DEPOIS dela: o cliente devolve os campos à pessoa e ela pode entrar de novo, com
-	// a conta certa, NO MESMO SOCKET. Sem o contador, o fechamento agendado pela
-	// recusa antiga chegaria em cima de uma sessão que agora é legítima.
+	// Ele é o teto: da terceira em diante o socket cai na hora, sem prazo. O cliente
+	// devolve os campos à pessoa depois de quatro segundos e ela pode tentar de novo NO
+	// MESMO SOCKET, o que é certo para quem errou a conta — mas um cliente remendado
+	// tentando em laço usaria isso para manter o socket de pé sem nunca entrar.
 	RecusasDeAcesso int
+	// FechamentoDeRecusa diz que JÁ EXISTE um fechamento atrasado esperando neste
+	// socket. É UM SÓ por conexão: cada agendamento é uma goroutine dormindo, e sem
+	// esta marca cada recusa criaria outra. Ela também é o que garante que o prazo
+	// conta da PRIMEIRA recusa, e não da última — senão a vida do socket seria
+	// esticada por quem repetisse a recusa.
+	FechamentoDeRecusa bool
 
 	TradeMode      int             // non-zero while in auto-trade (blocks attacks)
 	Trade          TradeState      // P2P direct-trade state (lote2-trade-autotrade.md)

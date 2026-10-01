@@ -493,7 +493,7 @@ func (d *Dispatcher) attack(w *world.World, s *world.Session, h protocol.Header,
 			}
 			dmg = combat.ResolveHit(w.Rand(), combat.HitInput{
 				AttackerDamage:   atkDamage,
-				TargetAC:         d.defesaPerfurada(e, int(effectiveAC(target))),
+				TargetAC:         d.defesaContraGolpeFisico(e, target, tid),
 				TargetIsPlayer:   world.IsPlayer(tid),
 				AttackerIsPlayer: true,
 				DoubleCritical:   doubleCritical,

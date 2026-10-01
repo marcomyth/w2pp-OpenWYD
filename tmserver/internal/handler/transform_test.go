@@ -58,8 +58,9 @@ func TestApplyTransformScore(t *testing.T) {
 		// 120..135 →135 (+35); HP 110..115 →115 (+150).
 		{"tita", 4, 200, 0, 110, 0, 35, 300, 0, 0, 50, 0, 25},
 		// Éden (no learned gate), Level 100: Dam10/Ac5/Hp10/Reg10; dam 115..130
-		// →122; AC 115..125 →120 (+20); HP 115..125 →120 (+200).
-		{"eden", 5, 100, 0, 122, 0, 20, 400, 10, 3, 40, 6, 32},
+		// →122, +40 edenDanoExtra →162; AC 115..125 →120 (+20), then the flat
+		// −200 floored at zero AC: +20−120 = −100; HP 115..125 →120 (+200).
+		{"eden", 5, 100, 0, 162, 0, -100, 400, 10, 3, 40, 6, 32},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -91,6 +92,26 @@ func TestApplyTransformScore(t *testing.T) {
 				t.Errorf("equipVisual[0] = %d, want %d (beast mesh)", v[0], tt.wantVis)
 			}
 		})
+	}
+}
+
+// TestEdenDefesaPlana: o Éden tira 200 de AC depois dos percentuais da forma,
+// e só ele — o Titã, a forma da defesa, não perde nada.
+func TestEdenDefesaPlana(t *testing.T) {
+	forma := func(value uint8) *world.Entity {
+		e := bmEntity(0)
+		e.AC = 2000
+		e.Affect[0] = world.Affect{Type: 16, Value: value, Level: 100, Time: 10}
+		applyAffectScore(e)
+		return e
+	}
+	// Éden: AC 115..125 →120, +400 sobre 2.000, e os −200 planos.
+	if got := forma(5).AffAC; got != 200 {
+		t.Errorf("Éden: AffAC = %d, want 200 (+400 da forma −200 planos)", got)
+	}
+	// Titã: AC 120..135 →127, +540, sem desconto.
+	if got := forma(4).AffAC; got != 540 {
+		t.Errorf("Titã: AffAC = %d, want 540", got)
 	}
 }
 

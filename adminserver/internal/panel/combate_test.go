@@ -92,6 +92,7 @@ func TestTelaDeCombateMostraPadraoEKersef(t *testing.T) {
 		"Chance máxima do crítico duplo (%)", "com DES 500 ou mais TODO golpe sai dobrado",
 		"Ataque físico do jogador (%)", "Monstro e evocação nunca são escalados",
 		"Absorção da Garnet além da Esmeralda (%)", "0% = a Garnet só anula a Esmeralda",
+		"Peso da defesa contra golpe físico de jogador (%)", "150% é o legado",
 		"o erro cai para ~12%", "0 desliga (legado: cada sorteio vale sozinho)",
 		// a explicação dos dois de PvP
 		"dividido por 4 (a Perfuração)",
@@ -123,6 +124,7 @@ func TestTelaDeCombateComRegraGravada(t *testing.T) {
 	regra.DoubleCriticalMaxPct = 40
 	regra.PhysicalDamagePct = 70
 	regra.GarnetPct = 35
+	regra.PvPMeleeArmorPct = 110
 	c.cfg = combatrule.Config{Version: 4, Configured: true, Rules: regra}
 	get := signedIn(t, newTestPanelCombate(t, roleAdmin, c, newFakeAudit()))
 	corpo := get("/rates/combate").Body.String()
@@ -143,6 +145,7 @@ func TestTelaDeCombateComRegraGravada(t *testing.T) {
 		`name="critico_duplo" type="number"`, `required value="40"`,
 		`name="fisico" type="number"`, `required value="70"`,
 		`name="garnet" type="number"`, `required value="35"`,
+		`name="peso_defesa" type="number"`, `required value="110"`,
 	} {
 		if !strings.Contains(corpo, campo) {
 			t.Errorf("o formulário não veio preenchido: falta %s", campo)
@@ -172,7 +175,7 @@ func TestGravarARegraEAuditar(t *testing.T) {
 
 	rec := post("/rates/combate", url.Values{
 		"csrf": {token}, "arma": {"40"}, "multi": {"1"}, "resist": {"120"},
-		"pvp_skill": {"60"}, "pvp_melee": {"80"}, "precisao": {"30"}, "erros": {"4"}, "arma_fisico": {"2"}, "critico_duplo": {"40"}, "fisico": {"70"}, "garnet": {"35"},
+		"pvp_skill": {"60"}, "pvp_melee": {"80"}, "precisao": {"30"}, "erros": {"4"}, "arma_fisico": {"2"}, "critico_duplo": {"40"}, "fisico": {"70"}, "garnet": {"35"}, "peso_defesa": {"110"},
 	})
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d, corpo = %s", rec.Code, rec.Body.String())
@@ -185,6 +188,7 @@ func TestGravarARegraEAuditar(t *testing.T) {
 		DoubleCriticalMaxPct: 40,
 		PhysicalDamagePct:    70,
 		GarnetPct:            35,
+		PvPMeleeArmorPct:     110,
 	}
 	if got := c.atual(); !got.Configured || got.Rules != quer {
 		t.Fatalf("gravou %+v, quero %+v", got, quer)
@@ -205,7 +209,7 @@ func TestGravarARegraEAuditar(t *testing.T) {
 	if novo["magia_da_arma"] != "40%" || novo["multiplicador_na_magia"] != "ligado" ||
 		novo["resistencia_de_monstro"] != int32(120) ||
 		novo["skill_em_jogador"] != "60%" || novo["golpe_em_jogador"] != "80%" ||
-		novo["precisao_pela_int"] != "30%" || novo["erros_seguidos"] != int32(4) || novo["bonus_de_arma"] != "2×" || novo["critico_duplo_maximo"] != "40%" || novo["ataque_fisico"] != "70%" || novo["garnet"] != "35%" {
+		novo["precisao_pela_int"] != "30%" || novo["erros_seguidos"] != int32(4) || novo["bonus_de_arma"] != "2×" || novo["critico_duplo_maximo"] != "40%" || novo["ataque_fisico"] != "70%" || novo["garnet"] != "35%" || novo["peso_da_defesa"] != "110%" {
 		t.Errorf("a auditoria guardou %+v", novo)
 	}
 }
@@ -225,6 +229,7 @@ func TestAtalhoDoKersefGravaOKersef(t *testing.T) {
 		`name="critico_duplo" value="100"`,
 		`name="fisico" value="100"`,
 		`name="garnet" value="100"`,
+		`name="peso_defesa" value="150"`,
 	} {
 		if !strings.Contains(corpo, campo) {
 			t.Errorf("o atalho do Kersef não leva %s", campo)
@@ -234,7 +239,7 @@ func TestAtalhoDoKersefGravaOKersef(t *testing.T) {
 	post, token := signedInPost(t, h)
 	if rec := post("/rates/combate", url.Values{
 		"csrf": {token}, "arma": {"100"}, "multi": {"1"}, "resist": {"150"},
-		"pvp_skill": {"100"}, "pvp_melee": {"100"}, "precisao": {"0"}, "erros": {"0"}, "arma_fisico": {"3"}, "critico_duplo": {"100"}, "fisico": {"100"}, "garnet": {"100"},
+		"pvp_skill": {"100"}, "pvp_melee": {"100"}, "precisao": {"0"}, "erros": {"0"}, "arma_fisico": {"3"}, "critico_duplo": {"100"}, "fisico": {"100"}, "garnet": {"100"}, "peso_defesa": {"150"},
 	}); rec.Code != http.StatusSeeOther {
 		t.Fatalf("status = %d", rec.Code)
 	}
@@ -249,7 +254,7 @@ func TestRegraForaDaFaixaERecusada(t *testing.T) {
 
 	valido := url.Values{
 		"arma": {"0"}, "multi": {"0"}, "resist": {"100"}, "pvp_skill": {"100"}, "pvp_melee": {"100"},
-		"precisao": {"50"}, "erros": {"2"}, "arma_fisico": {"1"}, "critico_duplo": {"25"}, "fisico": {"61"}, "garnet": {"20"},
+		"precisao": {"50"}, "erros": {"2"}, "arma_fisico": {"1"}, "critico_duplo": {"25"}, "fisico": {"61"}, "garnet": {"20"}, "peso_defesa": {"150"},
 	}
 	casos := []struct {
 		nome  string
@@ -298,6 +303,9 @@ func TestRegraForaDaFaixaERecusada(t *testing.T) {
 		{"Garnet negativa", "garnet", "-1"},
 		{"Garnet acima de 100", "garnet", "101"},
 		{"Garnet ausente", "garnet", ""},
+		{"peso da defesa negativo", "peso_defesa", "-1"},
+		{"peso da defesa acima de 150", "peso_defesa", "151"},
+		{"peso da defesa ausente", "peso_defesa", ""},
 	}
 	for _, caso := range casos {
 		t.Run(caso.nome, func(t *testing.T) {
@@ -353,7 +361,7 @@ func TestModeradorNaoMexeNaRegraDeCombate(t *testing.T) {
 	post, token := signedInPost(t, h)
 	if rec := post("/rates/combate", url.Values{
 		"csrf": {token}, "arma": {"100"}, "multi": {"1"}, "resist": {"150"},
-		"pvp_skill": {"100"}, "pvp_melee": {"100"}, "precisao": {"0"}, "erros": {"0"}, "arma_fisico": {"3"}, "critico_duplo": {"100"}, "fisico": {"100"}, "garnet": {"100"},
+		"pvp_skill": {"100"}, "pvp_melee": {"100"}, "precisao": {"0"}, "erros": {"0"}, "arma_fisico": {"3"}, "critico_duplo": {"100"}, "fisico": {"100"}, "garnet": {"100"}, "peso_defesa": {"150"},
 	}); rec.Code != http.StatusForbidden {
 		t.Fatalf("gravar: status = %d, quero 403", rec.Code)
 	}

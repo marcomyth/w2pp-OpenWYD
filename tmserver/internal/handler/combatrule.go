@@ -53,7 +53,8 @@ func (d *Dispatcher) setCombatRules(r combatrule.Rules) bool {
 			"weapon_int_magic_pct", r.WeaponIntMagicPct, "mob_resist_base", r.MobResistBase,
 			"pvp_skill_pct", r.PvPSkillPct, "pvp_melee_pct", r.PvPMeleePct,
 			"spell_int_accuracy_pct", r.SpellIntAccuracyPct, "max_miss_streak", r.MaxMissStreak,
-			"weapon_damage_grants", r.WeaponDamageGrants, "double_critical_max_pct", r.DoubleCriticalMaxPct, "physical_damage_pct", r.PhysicalDamagePct, "garnet_pct", r.GarnetPct)
+			"weapon_damage_grants", r.WeaponDamageGrants, "double_critical_max_pct", r.DoubleCriticalMaxPct, "physical_damage_pct", r.PhysicalDamagePct, "garnet_pct", r.GarnetPct,
+			"pvp_melee_armor_pct", r.PvPMeleeArmorPct)
 		return false
 	}
 	if r == d.combatRules {
@@ -92,7 +93,7 @@ func (d *Dispatcher) applyCombatRules(w *world.World, r combatrule.Rules) {
 		"pvp_skill_pct", r.PvPSkillPct, "pvp_melee_pct", r.PvPMeleePct,
 		"spell_int_accuracy_pct", r.SpellIntAccuracyPct, "max_miss_streak", r.MaxMissStreak,
 		"weapon_damage_grants", r.WeaponDamageGrants, "double_critical_max_pct", r.DoubleCriticalMaxPct, "physical_damage_pct", r.PhysicalDamagePct, "garnet_pct", r.GarnetPct,
-		"scores_refreshed", n)
+		"pvp_melee_armor_pct", r.PvPMeleeArmorPct, "scores_refreshed", n)
 }
 
 // pushCombatScore re-derives one player's score under the rule now in force and
@@ -133,7 +134,8 @@ func (d *Dispatcher) ApplyCombatRulesBoot() {
 		"weapon_damage_grants", d.combatRules.WeaponDamageGrants,
 		"double_critical_max_pct", d.combatRules.DoubleCriticalMaxPct,
 		"physical_damage_pct", d.combatRules.PhysicalDamagePct,
-		"garnet_pct", d.combatRules.GarnetPct)
+		"garnet_pct", d.combatRules.GarnetPct,
+		"pvp_melee_armor_pct", d.combatRules.PvPMeleeArmorPct)
 }
 
 // pollCombatRules reloads the rule when the version moves. Called from the
