@@ -81,6 +81,44 @@ func (m *LojaPedeBody) Encode() []byte {
 // LojaOfertaSize é o tamanho de uma oferta na linha: 32 bytes.
 const LojaOfertaSize = 32
 
+// LojaEfeitosSize são os três pares de efeito de um item: 6 bytes.
+const LojaEfeitosSize = 6
+
+// LojaEfeitos são os três pares (efeito, valor) do STRUCT_ITEM, na ordem dele.
+//
+// É ISTO QUE O JOGADOR CHAMA DE "OS ADDS", e era o que faltava: a lojinha mostrava o
+// item certo, com refino e quantidade certos, e nenhum add — porque eles nunca saíam
+// do servidor. Quem comprava só descobria o que tinha comprado depois de pagar.
+//
+// OS BYTES VÃO NUM BLOCO NO FIM DO PACOTE, e não dentro de cada linha, e isso é o
+// contrato combinado com quem cuida do cliente: o cliente antigo mede o pacote e
+// ignora o que sobra, então nada do que já existe muda de posição nem de valor, e o
+// cliente novo reconhece o bloco pelo tamanho exato. Mexer na linha de 32 bytes
+// quebraria o cliente que está na rua hoje.
+//
+// MAS OS CAMPOS MORAM DENTRO DO ITEM, e não numa lista paralela. O contrato exige "na
+// mesma ordem das ofertas", e uma lista paralela é exatamente o jeito de essa ordem se
+// perder: basta alguém filtrar, ordenar ou pular um slot num lugar e não no outro, e
+// cada item passa a mostrar os adds do vizinho. Guardados no item, eles não têm como
+// se separar dele; a separação existe só na hora de escrever os bytes.
+type LojaEfeitos struct {
+	Ef1, V1 uint8
+	Ef2, V2 uint8
+	Ef3, V3 uint8
+}
+
+func (e *LojaEfeitos) encode(b []byte) {
+	b[0], b[1] = e.Ef1, e.V1
+	b[2], b[3] = e.Ef2, e.V2
+	b[4], b[5] = e.Ef3, e.V3
+}
+
+func (e *LojaEfeitos) decode(b []byte) {
+	e.Ef1, e.V1 = b[0], b[1]
+	e.Ef2, e.V2 = b[2], b[3]
+	e.Ef3, e.V3 = b[4], b[5]
+}
+
 // LojaOferta é um item à venda numa barraca aberta. Vendedor é o id da barraca
 // (o mesmo que o cliente usa para pedir a lista dela e para comprar), e Slot é a
 // posição dentro da barraca — os dois juntos são o que a compra precisa.
@@ -97,6 +135,10 @@ type LojaOferta struct {
 	// proximidade, então o painel precisa saber o que dá para levar agora.
 	Perto uint8
 	Preco int32
+	// Efeitos são os adds. Eles NÃO entram nos 32 bytes desta linha: viajam num
+	// bloco no fim do pacote (ver LojaEfeitos). Moram aqui para não se separarem do
+	// item que descrevem.
+	Efeitos LojaEfeitos
 }
 
 func (o *LojaOferta) encode(b []byte) {
@@ -205,10 +247,18 @@ type LojaCargoItem struct {
 	Indice int16
 	Refino uint8
 	Qtd    uint8
+	// Efeitos são os adds, fora dos 8 bytes desta linha — ver LojaEfeitos.
+	Efeitos LojaEfeitos
 }
 
-// LojaCargoListaBodySize é o corpo da resposta do cofre.
-const LojaCargoListaBodySize = 4 + LojaCargoMax*LojaCargoItemSize
+// lojaCofreSemEfeitos é o corpo do cofre como ele era antes do bloco de adds.
+const lojaCofreSemEfeitos = 4 + LojaCargoMax*LojaCargoItemSize
+
+// LojaCargoListaBodySize é o corpo da resposta do cofre, com o bloco de adds.
+//
+// 4 + 128*8 + 128*6 = 1796, e com os 12 do cabeçalho dá 1808 no fio. Cabe nos 8192 do
+// ReadMessage, e há teste que falha se deixar de caber.
+const LojaCargoListaBodySize = lojaCofreSemEfeitos + LojaCargoMax*LojaEfeitosSize
 
 // LojaCargoListaBody é o cofre inteiro, só com os slots ocupados.
 type LojaCargoListaBody struct {
@@ -225,6 +275,7 @@ func (m *LojaCargoListaBody) Encode() []byte {
 		binary.LittleEndian.PutUint16(b[o+2:], uint16(m.Itens[i].Indice))
 		b[o+4] = m.Itens[i].Refino
 		b[o+5] = m.Itens[i].Qtd
+		m.Itens[i].Efeitos.encode(b[lojaCofreSemEfeitos+i*LojaEfeitosSize:])
 	}
 	return b
 }
@@ -240,6 +291,7 @@ func (m *LojaCargoListaBody) Decode(b []byte) error {
 		m.Itens[i].Indice = int16(binary.LittleEndian.Uint16(b[o+2:]))
 		m.Itens[i].Refino = b[o+4]
 		m.Itens[i].Qtd = b[o+5]
+		m.Itens[i].Efeitos.decode(b[lojaCofreSemEfeitos+i*LojaEfeitosSize:])
 	}
 	return nil
 }
@@ -319,8 +371,20 @@ func (m *LojaAbriuBody) Decode(b []byte) error {
 	return nil
 }
 
-// LojaListaBodySize é o corpo da resposta: o cabeçalho da página e as ofertas.
-const LojaListaBodySize = lojaCabecalhoLista + LojaPorPagina*LojaOfertaSize
+// lojaListaSemEfeitos é o corpo como ele era antes do bloco de adds.
+//
+// FICA NOMEADO, e não embutido na conta abaixo, porque é ele que o teste usa para
+// provar que o prefixo não mudou um byte. Um número solto no teste seria um número
+// que alguém atualiza junto com o código, e aí ele deixa de provar qualquer coisa.
+const lojaListaSemEfeitos = lojaCabecalhoLista + LojaPorPagina*LojaOfertaSize
+
+// LojaListaBodySize é o corpo da resposta: o cabeçalho, as ofertas e o bloco de adds.
+//
+// 20 + 35*32 + 35*6 = 1350, e com os 12 do cabeçalho de rede dá 1362 no fio. O
+// ReadMessage do cliente aceita de 12 a 8192 bytes (medido no WYD.exe 384eaeac, na
+// checagem em 0x4251E2), então cabe com folga — e há teste que falha se deixar de
+// caber.
+const LojaListaBodySize = lojaListaSemEfeitos + LojaPorPagina*LojaEfeitosSize
 
 // LojaListaBody é uma página da vitrine. Total é quantas ofertas existem no
 // filtro pedido (não só nesta página), para o painel montar o "1/3".
@@ -351,6 +415,9 @@ func (m *LojaListaBody) Encode() []byte {
 	binary.LittleEndian.PutUint32(b[16:], uint32(m.RMT))
 	for i := 0; i < LojaPorPagina; i++ {
 		m.Ofertas[i].encode(b[lojaCabecalhoLista+i*LojaOfertaSize:])
+		// O BLOCO VEM DEPOIS DE TODAS AS OFERTAS, e não intercalado: é o que deixa o
+		// prefixo byte a byte igual ao de antes para o cliente que está na rua.
+		m.Ofertas[i].Efeitos.encode(b[lojaListaSemEfeitos+i*LojaEfeitosSize:])
 	}
 	return b
 }
@@ -368,6 +435,7 @@ func (m *LojaListaBody) Decode(b []byte) error {
 	m.RMT = int32(binary.LittleEndian.Uint32(b[16:]))
 	for i := 0; i < LojaPorPagina; i++ {
 		m.Ofertas[i].decode(b[lojaCabecalhoLista+i*LojaOfertaSize:])
+		m.Ofertas[i].Efeitos.decode(b[lojaListaSemEfeitos+i*LojaEfeitosSize:])
 	}
 	return nil
 }

@@ -72,6 +72,7 @@ func lojaOfertasAbertas(w *world.World, quem *world.Session, filtro int16) []pro
 			Moeda:    o.Moeda,
 			Perto:    o.Perto,
 			Preco:    o.Preco,
+			Efeitos:  efeitosDaLoja(o.Efeitos),
 		})
 	}
 	return ofertas
@@ -274,3 +275,15 @@ const msgMoedaRMTSoNaMontagem = "Para vender por dinheiro real, monte a barraca 
 // msgAnuncioVivoNaPrateleira é o que o vendedor lê ao tentar tirar de dinheiro
 // real uma prateleira que já tem anúncio de pé.
 const msgAnuncioVivoNaPrateleira = "Esse item está anunciado por dinheiro real. Feche a barraca para cancelar o anúncio."
+
+// efeitosDaLoja traduz os três pares do item para o que vai no fio.
+//
+// UMA FUNÇÃO SÓ para a vitrine e para o cofre, porque a ordem dos três pares é a
+// mesma nos dois e escrever duas vezes é deixar uma desatualizar depois.
+func efeitosDaLoja(e [3]world.Effect) protocol.LojaEfeitos {
+	return protocol.LojaEfeitos{
+		Ef1: e[0].Effect, V1: e[0].Value,
+		Ef2: e[1].Effect, V2: e[1].Value,
+		Ef3: e[2].Effect, V3: e[2].Value,
+	}
+}

@@ -43,6 +43,9 @@ func (d *Dispatcher) lojaCargo(w *world.World, s *world.Session, _ protocol.Head
 			Indice: it.Index,
 			Refino: lojaRefino(it),
 			Qtd:    lojaQuantidade(it),
+			// Os adds do item do cofre: é com eles que o painel monta a barraca
+			// sabendo o que está pondo na prateleira.
+			Efeitos: efeitosDaLoja(it.Effects),
 		}
 		corpo.Qtd++
 	}
