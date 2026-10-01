@@ -375,7 +375,6 @@ type Dispatcher struct {
 	serverIndex       int                          // legacy guild id high bits
 	guildZones        [5]world.GuildZone           // loop-owned city/guild-zone cache
 	mercadoVersao     int32                        // sobe a cada mudanca do mercado; vai no bilhete de aviso
-	taxChangedAt      [5]time.Time                 // day each zone's guildtax last changed (one change/day, lote2-chat.md)
 	guildWars         map[uint16]uint16            // directed guild -> current war target
 	guildAllies       map[uint16]uint16            // directed guild -> current ally target
 	// O Painel de Guilda (guildapainel.go): o quadro de membros lido do banco,

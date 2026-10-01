@@ -585,16 +585,61 @@ func (c *Client) SetGuildMember(ctx context.Context, accountID int64, slot int, 
 	return nil
 }
 
-// LeaveGuild clears one character's persistent guild membership.
-func (c *Client) LeaveGuild(ctx context.Context, accountID int64, slot int) error {
+// LeaveGuild clears one character's persistent guild membership. The id is the
+// guild dbServer deleted because it was left empty (0 when none was).
+func (c *Client) LeaveGuild(ctx context.Context, accountID int64, slot int) (uint16, error) {
 	resp, err := c.api.LeaveGuild(ctx, &dbv1.LeaveGuildRequest{AccountId: accountID, Slot: int32(slot)})
 	if err != nil {
-		return fmt.Errorf("dbclient: leave guild: %w", err)
+		return 0, fmt.Errorf("dbclient: leave guild: %w", err)
 	}
 	if !resp.GetOk() {
-		return fmt.Errorf("dbclient: leave guild rejected")
+		return 0, fmt.Errorf("dbclient: leave guild rejected")
 	}
-	return nil
+	return uint16(resp.GetDissolvedGuildId()), nil
+}
+
+// KickOfflineGuildMember expulsa pelo banco um membro que não está no jogo.
+func (c *Client) KickOfflineGuildMember(ctx context.Context, guildID uint16, kickerAccountID int64, kickerSlot int, targetName string) (world.GuildKickRefusal, error) {
+	resp, err := c.api.KickOfflineGuildMember(ctx, &dbv1.KickOfflineGuildMemberRequest{
+		GuildId: uint32(guildID), KickerAccountId: kickerAccountID,
+		KickerSlot: int32(kickerSlot), TargetName: targetName,
+	})
+	if err != nil {
+		return world.GuildKickRefusalUnknown, fmt.Errorf("dbclient: kick offline guild member: %w", err)
+	}
+	if resp.GetOk() {
+		return world.GuildKickRefusalNone, nil
+	}
+	switch resp.GetRefusal() {
+	case dbv1.KickGuildRefusal_KICK_GUILD_REFUSAL_NOT_MEMBER:
+		return world.GuildKickRefusalNotMember, nil
+	case dbv1.KickGuildRefusal_KICK_GUILD_REFUSAL_OUTRANKED:
+		return world.GuildKickRefusalOutranked, nil
+	}
+	return world.GuildKickRefusalUnknown, nil
+}
+
+// PromoteOfflineGuildMember promove pelo banco um membro que não está no jogo.
+func (c *Client) PromoteOfflineGuildMember(ctx context.Context, guildID uint16, leaderAccountID int64, leaderSlot int, targetName string, cost int32) (uint8, world.GuildPromoteRefusal, error) {
+	resp, err := c.api.PromoteOfflineGuildMember(ctx, &dbv1.PromoteOfflineGuildMemberRequest{
+		GuildId: uint32(guildID), LeaderAccountId: leaderAccountID,
+		LeaderSlot: int32(leaderSlot), TargetName: targetName, Cost: cost,
+	})
+	if err != nil {
+		return 0, world.GuildPromoteRefusalUnknown, fmt.Errorf("dbclient: promote offline guild member: %w", err)
+	}
+	if resp.GetOk() {
+		return uint8(resp.GetGuildLevel()), world.GuildPromoteRefusalNone, nil
+	}
+	switch resp.GetRefusal() {
+	case dbv1.PromoteGuildRefusal_PROMOTE_GUILD_REFUSAL_NOT_MEMBER:
+		return 0, world.GuildPromoteRefusalNotMember, nil
+	case dbv1.PromoteGuildRefusal_PROMOTE_GUILD_REFUSAL_ALREADY_RANKED:
+		return 0, world.GuildPromoteRefusalAlreadyRanked, nil
+	case dbv1.PromoteGuildRefusal_PROMOTE_GUILD_REFUSAL_NO_FREE_RANK:
+		return 0, world.GuildPromoteRefusalNoFreeRank, nil
+	}
+	return 0, world.GuildPromoteRefusalUnknown, nil
 }
 
 // PromoteGuildMember assigns the first available sub-leader rank and charges the
@@ -951,18 +996,35 @@ func relationFromProto(r *dbv1.GuildRelation) world.GuildRelation {
 	}
 }
 
+// unixOuZero leva a hora zero do Go para 0, e não para o Unix de 0001-01-01.
+func unixOuZero(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.Unix()
+}
+
+// horaDoUnix é o inverso: 0 volta a ser a hora zero ("nunca").
+func horaDoUnix(u int64) time.Time {
+	if u == 0 {
+		return time.Time{}
+	}
+	return time.Unix(u, 0).UTC()
+}
+
 func zoneToProto(z world.GuildZone) *dbv1.GuildZone {
 	return &dbv1.GuildZone{
-		Zone:           int32(z.Zone),
-		ChargeGuild:    uint32(z.ChargeGuild),
-		ChallengeGuild: uint32(z.ChallengeGuild),
-		Clan:           int32(z.Clan),
-		Victory:        int32(z.Victory),
-		CityTax:        int32(z.CityTax),
-		ChallengeMoney: z.ChallengeMoney,
-		TaxVault:       z.TaxVault,
-		GuildSpawnX:    z.GuildSpawnX,
-		GuildSpawnY:    z.GuildSpawnY,
+		Zone:             int32(z.Zone),
+		ChargeGuild:      uint32(z.ChargeGuild),
+		ChallengeGuild:   uint32(z.ChallengeGuild),
+		Clan:             int32(z.Clan),
+		Victory:          int32(z.Victory),
+		CityTax:          int32(z.CityTax),
+		ChallengeMoney:   z.ChallengeMoney,
+		TaxVault:         z.TaxVault,
+		GuildSpawnX:      z.GuildSpawnX,
+		GuildSpawnY:      z.GuildSpawnY,
+		TaxChangedAtUnix: unixOuZero(z.TaxChangedAt),
 	}
 }
 
@@ -981,6 +1043,7 @@ func zoneFromProto(z *dbv1.GuildZone) world.GuildZone {
 		TaxVault:       z.GetTaxVault(),
 		GuildSpawnX:    z.GetGuildSpawnX(),
 		GuildSpawnY:    z.GetGuildSpawnY(),
+		TaxChangedAt:   horaDoUnix(z.GetTaxChangedAtUnix()),
 	}
 }
 

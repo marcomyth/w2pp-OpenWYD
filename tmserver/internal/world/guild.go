@@ -62,6 +62,14 @@ func (w *World) SetGuildFame(id uint16, fame int32) {
 	w.guilds[id] = gi
 }
 
+// ForgetGuild drops a guild dbServer deleted. Loop-only.
+//
+// Sem isto o nome continuaria "em uso" até o próximo boot: GuildNameTaken lê
+// este mapa, e o /create recusaria o nome de uma guilda que já não existe.
+func (w *World) ForgetGuild(id uint16) {
+	delete(w.guilds, id)
+}
+
 // GuildNameTaken reports whether a guild this process knows already has exactly
 // this name — the same rule as the guild table's UNIQUE constraint, checked here
 // so /create can say so instead of losing the answer inside dbServer's ok=false.

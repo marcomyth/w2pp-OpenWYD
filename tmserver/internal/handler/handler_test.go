@@ -33,6 +33,8 @@ type fakeAccount struct {
 
 type fakeDB struct {
 	world.NopPersistence
+	// zonas é o que LoadGuildZones devolve no boot (dono e ponto de cada cidade).
+	zonas       []world.GuildZone
 	semChavePix bool
 	erroAnuncio error
 	// portaoAnuncio segura a ida ao banco até o teste mandar soltar, que é o
@@ -94,7 +96,19 @@ type fakeDB struct {
 	trades            []world.TradeRecord // captured RecordTrade calls (0025_trade_log)
 	grounds           []world.GroundEvent // captured RecordGround calls (0031_ground_log)
 
-	createdGuilds            []world.GuildRecord
+	createdGuilds []world.GuildRecord
+	// guildas é o que ListGuilds devolve no boot; guildaApagadaNaSaida é a guilda
+	// que o LeaveGuild diz ter apagado por ter ficado vazia.
+	guildas              []world.GuildRecord
+	guildaApagadaNaSaida uint16
+	// expulsosOffline registra quem o expulsar offline pediu ao banco;
+	// recusaExpulsar é o motivo que o fake devolve.
+	expulsosOffline []string
+	recusaExpulsar  world.GuildKickRefusal
+	// promovidosOffline registra quem a promoção offline pediu ao banco;
+	// recusaPromover é o motivo que o fake devolve.
+	promovidosOffline        []string
+	recusaPromover           world.GuildPromoteRefusal
 	recusaDeGuilda           world.GuildRefusal
 	guildaConfereOuroGravado bool
 	recusaGuilda             bool
@@ -364,7 +378,29 @@ func (f *fakeDB) SetGuildMember(context.Context, int64, int, string, uint16, uin
 	return nil
 }
 
-func (f *fakeDB) LeaveGuild(context.Context, int64, int) error { return nil }
+func (f *fakeDB) KickOfflineGuildMember(_ context.Context, _ uint16, _ int64, _ int, nome string) (world.GuildKickRefusal, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.expulsosOffline = append(f.expulsosOffline, nome)
+	return f.recusaExpulsar, nil
+}
+
+func (f *fakeDB) LeaveGuild(context.Context, int64, int) (uint16, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.guildaApagadaNaSaida, nil
+}
+
+func (f *fakeDB) PromoteOfflineGuildMember(_ context.Context, _ uint16, _ int64, _ int, nome string, cost int32) (uint8, world.GuildPromoteRefusal, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.promovidosOffline = append(f.promovidosOffline, nome)
+	if f.recusaPromover != world.GuildPromoteRefusalNone {
+		return 0, f.recusaPromover, nil
+	}
+	f.promoteCosts = append(f.promoteCosts, cost)
+	return 6, world.GuildPromoteRefusalNone, nil
+}
 
 func (f *fakeDB) PromoteGuildMember(_ context.Context, _ uint16, _ int64, _ int, _ int64, _ int, cost int32) (uint8, bool, error) {
 	f.mu.Lock()
@@ -386,13 +422,17 @@ func (f *fakeDB) SetGuildRelation(context.Context, uint16, uint16, world.GuildRe
 	return nil
 }
 
-func (f *fakeDB) ListGuilds(context.Context) ([]world.GuildRecord, error) { return nil, nil }
+func (f *fakeDB) ListGuilds(context.Context) ([]world.GuildRecord, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.guildas, nil
+}
 
 func (f *fakeDB) ListGuildRelations(context.Context) ([]world.GuildRelation, error) {
 	return nil, nil
 }
 
-func (f *fakeDB) LoadGuildZones(context.Context) ([]world.GuildZone, error) { return nil, nil }
+func (f *fakeDB) LoadGuildZones(context.Context) ([]world.GuildZone, error) { return f.zonas, nil }
 
 func (f *fakeDB) SaveGuildZone(context.Context, world.GuildZone) error { return nil }
 
@@ -1308,5 +1348,33 @@ func TestCharacterLoginBadSlot(t *testing.T) {
 	send(t, c, protocol.MsgCharacterLogin, body.Encode())
 	if ty, p := read(t, c); ty != protocol.MsgMessageBoxOk || noticeCode(t, p) != NoticeSelectCharacter {
 		t.Errorf("got %#x/%d, want select-character notice", ty, noticeCode(t, p))
+	}
+}
+
+// QUEM É DA GUILDA DONA ENTRA NO JOGO NA ÁREA DA GUILD, e não no spawn da última
+// cidade (ProcessDBMessage.cpp:911-921). Aqui a guilda 5 domina Azran e o
+// personagem tinha saído em Erion: entra no ponto de Azran, dentro da área.
+func TestCharacterLoginGuildaDonaEntraNaAreaDaGuild(t *testing.T) {
+	db := newDB()
+	db.loadResult = world.CharacterState{Slot: 0, Name: "Hero", Class: 1, Level: 120, Exp: 1,
+		LastCity: 2, HP: 1200, MaxHP: 1200, GuildID: 5, GuildLevel: 1}
+	db.zonas = []world.GuildZone{{Zone: 1, ChargeGuild: 5, GuildSpawnX: 2531, GuildSpawnY: 1700}}
+	tmpl := make([]byte, content.BaseMobSize)
+	copy(tmpl[0:16], "Template")
+	addr, stop := startServerBaseMobs(t, db, map[int][]byte{1: tmpl})
+	defer stop()
+	c := loginAndSelect(t, addr)
+	defer c.Close()
+
+	var body protocol.MsgCharacterLoginBody
+	send(t, c, protocol.MsgCharacterLogin, body.Encode())
+	ty, payload := read(t, c)
+	if ty != protocol.MsgCNFCharacterLogin {
+		t.Fatalf("got %#x, want CNFCharacterLogin", ty)
+	}
+	x := int16(binary.LittleEndian.Uint16(payload[0:]))
+	y := int16(binary.LittleEndian.Uint16(payload[2:]))
+	if dx, dy := x-2531, y-1700; dx < -3 || dx > 3 || dy < -3 || dy > 3 {
+		t.Fatalf("entrou em %d,%d; quero junto do ponto da guild em Azran (2531,1700)", x, y)
 	}
 }
