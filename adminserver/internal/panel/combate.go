@@ -67,6 +67,9 @@ type combateView struct {
 	MaxFisico   int32
 	MinGarnet   int32
 	MaxGarnet   int32
+	// Peso da defesa contra golpe físico de jogador.
+	MinPesoDefesa int32
+	MaxPesoDefesa int32
 }
 
 func pctTexto(v int32) string { return fmt.Sprintf("%d%%", v) }
@@ -195,6 +198,16 @@ func combateBotoes(r combatrule.Rules) []combateBotao {
 			Agora: pctTexto(r.GarnetPct), Padrao: pctTexto(p.GarnetPct),
 			Kersef: pctTexto(k.GarnetPct), Mudado: r.GarnetPct != p.GarnetPct,
 		},
+		{
+			Nome: "Peso da defesa contra golpe físico de jogador (%)",
+			Explica: "Quanto da defesa do alvo um golpe físico de OUTRO JOGADOR precisa atravessar: o golpe sai a " +
+				"(Ataque − defesa × este %), e depois é dividido por 4. 150% é o legado, de quando o Ataque não era " +
+				"escalado: hoje, com o Ataque em 61%, um BM de 2.700 tira 1 de uma HT de 2.100 de defesa, porque " +
+				"2.100 × 150% = 3.150. Com 100%, o mesmo peso que a skill enfrenta e o padrão decidido, esse golpe sai por ~160. " +
+				"Não mexe em golpe de monstro, em golpe em monstro nem em skill.",
+			Agora: pctTexto(r.PvPMeleeArmorPct), Padrao: pctTexto(p.PvPMeleeArmorPct),
+			Kersef: pctTexto(k.PvPMeleeArmorPct), Mudado: r.PvPMeleeArmorPct != p.PvPMeleeArmorPct,
+		},
 	}
 }
 
@@ -231,6 +244,7 @@ func (h *Handler) combate(w http.ResponseWriter, r *http.Request) {
 			MinCritDup: combatrule.MinDoubleCriticalPct, MaxCritDup: combatrule.MaxDoubleCriticalPct,
 			MinFisico: combatrule.MinPhysicalDamagePct, MaxFisico: combatrule.MaxPhysicalDamagePct,
 			MinGarnet: combatrule.MinGarnetPct, MaxGarnet: combatrule.MaxGarnetPct,
+			MinPesoDefesa: combatrule.MinPvPMeleeArmorPct, MaxPesoDefesa: combatrule.MaxPvPMeleeArmorPct,
 		},
 		Historico: h.combateHistorico(r.Context()),
 	})
@@ -278,10 +292,10 @@ func (h *Handler) setCombate(w http.ResponseWriter, r *http.Request) {
 	h.voltarParaCombate(w, r, fmt.Sprintf(
 		"Regra gravada: magia da arma por INT %d%%, multiplicador na magia %s, "+
 			"resistência de monstro %d, skill em jogador %d%%, golpe físico em jogador %d%%, "+
-			"precisão da magia pela INT %d%%, máximo de erros seguidos %s, bônus de arma %s, crítico duplo até %d%%, ataque físico %d%%, Garnet %d%%. "+
+			"precisão da magia pela INT %d%%, máximo de erros seguidos %s, bônus de arma %s, crítico duplo até %d%%, ataque físico %d%%, Garnet %d%%, peso da defesa %d%%. "+
 			"O jogo passa a usar em até 15 segundos.",
 		regra.WeaponIntMagicPct, ligadoTexto(regra.SpellDamageMulti), regra.MobResistBase,
-		regra.PvPSkillPct, regra.PvPMeleePct, regra.SpellIntAccuracyPct, errosTexto(regra.MaxMissStreak), vezesTexto(regra.WeaponDamageGrants), regra.DoubleCriticalMaxPct, regra.PhysicalDamagePct, regra.GarnetPct))
+		regra.PvPSkillPct, regra.PvPMeleePct, regra.SpellIntAccuracyPct, errosTexto(regra.MaxMissStreak), vezesTexto(regra.WeaponDamageGrants), regra.DoubleCriticalMaxPct, regra.PhysicalDamagePct, regra.GarnetPct, regra.PvPMeleeArmorPct))
 }
 
 // limparCombate drops the row, back to the decided default.
@@ -377,6 +391,11 @@ func combateDoForm(r *http.Request) (combatrule.Rules, string) {
 		return combatrule.Rules{}, fmt.Sprintf("A absorção da Garnet precisa ser um número entre %d e %d por cento.",
 			combatrule.MinGarnetPct, combatrule.MaxGarnetPct)
 	}
+	pesoDefesa, ok := faixaDoForm(r, "peso_defesa", combatrule.MinPvPMeleeArmorPct, combatrule.MaxPvPMeleeArmorPct)
+	if !ok {
+		return combatrule.Rules{}, fmt.Sprintf("O peso da defesa contra golpe físico precisa ser um número entre %d e %d por cento.",
+			combatrule.MinPvPMeleeArmorPct, combatrule.MaxPvPMeleeArmorPct)
+	}
 	return combatrule.Rules{
 		WeaponIntMagicPct: int32(arma), SpellDamageMulti: multi, MobResistBase: int32(resist),
 		PvPSkillPct: pvpSkill, PvPMeleePct: pvpMelee,
@@ -385,6 +404,7 @@ func combateDoForm(r *http.Request) (combatrule.Rules, string) {
 		DoubleCriticalMaxPct: critDup,
 		PhysicalDamagePct:    fisico,
 		GarnetPct:            garnet,
+		PvPMeleeArmorPct:     pesoDefesa,
 	}, ""
 }
 
@@ -420,6 +440,7 @@ func combateParaAudit(c combatrule.Config) map[string]any {
 		"critico_duplo_maximo":   pctTexto(c.Rules.DoubleCriticalMaxPct),
 		"ataque_fisico":          pctTexto(c.Rules.PhysicalDamagePct),
 		"garnet":                 pctTexto(c.Rules.GarnetPct),
+		"peso_da_defesa":         pctTexto(c.Rules.PvPMeleeArmorPct),
 	}
 }
 

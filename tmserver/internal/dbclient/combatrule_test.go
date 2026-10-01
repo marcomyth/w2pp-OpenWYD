@@ -37,6 +37,7 @@ func TestCombatRuleFetch(t *testing.T) {
 				DoubleCriticalMaxPct: proto.Int32(40),
 				PhysicalDamagePct:    proto.Int32(70),
 				GarnetPct:            proto.Int32(35),
+				PvpMeleeArmorPct:     proto.Int32(110),
 			},
 			want: combatrule.Config{Version: 6, Configured: true, Rules: combatrule.Rules{
 				WeaponIntMagicPct: 30, SpellDamageMulti: true, MobResistBase: 120,
@@ -46,6 +47,7 @@ func TestCombatRuleFetch(t *testing.T) {
 				DoubleCriticalMaxPct: 40,
 				PhysicalDamagePct:    70,
 				GarnetPct:            35,
+				PvPMeleeArmorPct:     110,
 			}},
 		},
 		{
@@ -85,6 +87,7 @@ func TestCombatRuleFetch(t *testing.T) {
 				DoubleCriticalMaxPct: proto.Int32(100),
 				PhysicalDamagePct:    proto.Int32(100),
 				GarnetPct:            proto.Int32(100),
+				PvpMeleeArmorPct:     proto.Int32(150),
 			},
 			want: combatrule.Config{Version: 9, Configured: true, Rules: combatrule.Kersef()},
 		},
@@ -127,6 +130,7 @@ func kersefComPrecisaoPadrao() combatrule.Rules {
 	r.DoubleCriticalMaxPct = combatrule.Default().DoubleCriticalMaxPct
 	r.PhysicalDamagePct = combatrule.Default().PhysicalDamagePct
 	r.GarnetPct = combatrule.Default().GarnetPct
+	r.PvPMeleeArmorPct = combatrule.Default().PvPMeleeArmorPct
 	return r
 }
 

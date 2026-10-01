@@ -13356,9 +13356,13 @@ type GetCombatRuleResponse struct {
 	// 0..100: the most a Garnet takes of a blow on a player BEYOND the attacker's
 	// Esmeralda, which it always cancels first. 100 is the legacy flat subtraction.
 	// `optional` because 0 is a real value: absence alone says an older dbServer.
-	GarnetPct     *int32 `protobuf:"varint,13,opt,name=garnet_pct,json=garnetPct,proto3,oneof" json:"garnet_pct,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	GarnetPct *int32 `protobuf:"varint,13,opt,name=garnet_pct,json=garnetPct,proto3,oneof" json:"garnet_pct,omitempty"`
+	// 0..150: how much of a PLAYER's defence a melee blow from another player
+	// faces, in percent of the AC. 150 is the legacy (AC tripled, then halved).
+	// `optional` because 0 is a real value: absence alone says an older dbServer.
+	PvpMeleeArmorPct *int32 `protobuf:"varint,14,opt,name=pvp_melee_armor_pct,json=pvpMeleeArmorPct,proto3,oneof" json:"pvp_melee_armor_pct,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetCombatRuleResponse) Reset() {
@@ -13478,6 +13482,13 @@ func (x *GetCombatRuleResponse) GetPhysicalDamagePct() int32 {
 func (x *GetCombatRuleResponse) GetGarnetPct() int32 {
 	if x != nil && x.GarnetPct != nil {
 		return *x.GarnetPct
+	}
+	return 0
+}
+
+func (x *GetCombatRuleResponse) GetPvpMeleeArmorPct() int32 {
+	if x != nil && x.PvpMeleeArmorPct != nil {
+		return *x.PvpMeleeArmorPct
 	}
 	return 0
 }
@@ -15905,7 +15916,7 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x18CombatRuleVersionRequest\"5\n" +
 	"\x19CombatRuleVersionResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\"\x16\n" +
-	"\x14GetCombatRuleRequest\"\xde\x05\n" +
+	"\x14GetCombatRuleRequest\"\xaa\x06\n" +
 	"\x15GetCombatRuleResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\x12\x1e\n" +
 	"\n" +
@@ -15923,13 +15934,15 @@ const file_api_db_v1_db_proto_rawDesc = "" +
 	"\x17double_critical_max_pct\x18\v \x01(\x05H\x03R\x14doubleCriticalMaxPct\x88\x01\x01\x123\n" +
 	"\x13physical_damage_pct\x18\f \x01(\x05H\x04R\x11physicalDamagePct\x88\x01\x01\x12\"\n" +
 	"\n" +
-	"garnet_pct\x18\r \x01(\x05H\x05R\tgarnetPct\x88\x01\x01B\x19\n" +
+	"garnet_pct\x18\r \x01(\x05H\x05R\tgarnetPct\x88\x01\x01\x122\n" +
+	"\x13pvp_melee_armor_pct\x18\x0e \x01(\x05H\x06R\x10pvpMeleeArmorPct\x88\x01\x01B\x19\n" +
 	"\x17_spell_int_accuracy_pctB\x12\n" +
 	"\x10_max_miss_streakB\x17\n" +
 	"\x15_weapon_damage_grantsB\x1a\n" +
 	"\x18_double_critical_max_pctB\x16\n" +
 	"\x14_physical_damage_pctB\r\n" +
-	"\v_garnet_pct\"\x1c\n" +
+	"\v_garnet_pctB\x16\n" +
+	"\x14_pvp_melee_armor_pct\"\x1c\n" +
 	"\x1aGeneratorOffVersionRequest\"7\n" +
 	"\x1bGeneratorOffVersionResponse\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x03R\aversion\"\x19\n" +

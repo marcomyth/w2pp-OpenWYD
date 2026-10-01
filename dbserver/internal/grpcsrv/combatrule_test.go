@@ -41,6 +41,7 @@ func TestCombatRuleServerCarriesEveryKnob(t *testing.T) {
 	regra.DoubleCriticalMaxPct = 40
 	regra.PhysicalDamagePct = 70
 	regra.GarnetPct = 35
+	regra.PvPMeleeArmorPct = 110
 	s := NewCombatRule(&fakeCombatRuleStore{cfg: combatrule.Config{
 		Version: 4, Configured: true, Rules: regra,
 	}})
@@ -76,6 +77,9 @@ func TestCombatRuleServerCarriesEveryKnob(t *testing.T) {
 	}
 	if resp.GarnetPct == nil || resp.GetGarnetPct() != 35 {
 		t.Errorf("Garnet chegou como %v, quero presente e 35", resp.GarnetPct)
+	}
+	if resp.PvpMeleeArmorPct == nil || resp.GetPvpMeleeArmorPct() != 110 {
+		t.Errorf("peso da defesa chegou como %v, quero presente e 110", resp.PvpMeleeArmorPct)
 	}
 }
 

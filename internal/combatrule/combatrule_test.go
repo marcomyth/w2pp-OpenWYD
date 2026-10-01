@@ -39,6 +39,11 @@ func TestValid(t *testing.T) {
 		// 0: a Garnet só anula a Esmeralda. 100: o legado, sem teto.
 		{"Garnet no piso", com(func(r *Rules) { r.GarnetPct = MinGarnetPct }), true},
 		{"Garnet no teto (legado)", com(func(r *Rules) { r.GarnetPct = MaxGarnetPct }), true},
+		{"peso da defesa negativo", com(func(r *Rules) { r.PvPMeleeArmorPct = -1 }), false},
+		{"peso da defesa acima do legado", com(func(r *Rules) { r.PvPMeleeArmorPct = 151 }), false},
+		// 0: o golpe físico ignora a defesa do jogador. 150: o legado.
+		{"peso da defesa no piso", com(func(r *Rules) { r.PvPMeleeArmorPct = MinPvPMeleeArmorPct }), true},
+		{"peso da defesa no teto (legado)", com(func(r *Rules) { r.PvPMeleeArmorPct = MaxPvPMeleeArmorPct }), true},
 		{"valor zero não é regra", Rules{}, false},
 	}
 	for _, tt := range tests {

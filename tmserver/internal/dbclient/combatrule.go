@@ -60,6 +60,7 @@ func (c *CombatRuleSource) Fetch(ctx context.Context) (combatrule.Config, error)
 			DoubleCriticalMaxPct: presentOr(resp.DoubleCriticalMaxPct, padrao.DoubleCriticalMaxPct),
 			PhysicalDamagePct:    presentOr(resp.PhysicalDamagePct, padrao.PhysicalDamagePct),
 			GarnetPct:            presentOr(resp.GarnetPct, padrao.GarnetPct),
+			PvPMeleeArmorPct:     presentOr(resp.PvpMeleeArmorPct, padrao.PvPMeleeArmorPct),
 		},
 	}, nil
 }
