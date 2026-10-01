@@ -61,6 +61,32 @@ const (
 // quem nunca vai passar do login.
 const limiteDeRecusasNoSocket = 3
 
+// momentoDaRecusa diz DE ONDE a recusa com fechamento vem, que é o que decide em que
+// estado a sessão tem de estar para o fechamento poder ser atrasado.
+type momentoDaRecusa uint8
+
+const (
+	// recusaNaChegada é a recusa dada pelo próprio 0x20D, antes de qualquer pedido ao
+	// banco. Só é uma sessão de ninguém se estiver em UserAccept.
+	recusaNaChegada momentoDaRecusa = iota
+	// recusaNaVoltaDoBanco é a recusa dada pelo completeAccountLogin. Lá a sessão está em
+	// UserLogin, e o login pendente que esse estado anuncia é o que acabou de voltar:
+	// depois dele não sobra nada por chegar.
+	recusaNaVoltaDoBanco
+)
+
+// ehDeNinguem diz se a sessão ainda está na tela de login, sem conta e sem nada pendente
+// — o único caso em que o fechamento atrasado pode desfazer o login.
+func (m momentoDaRecusa) ehDeNinguem(s *world.Session) bool {
+	if s.AccountID != 0 {
+		return false
+	}
+	if m == recusaNaVoltaDoBanco {
+		return s.Mode == world.UserLogin
+	}
+	return s.Mode == world.UserAccept
+}
+
 // recusaEFecha é a recusa que TERMINA a conexão: diz o motivo, devolve a sessão ao
 // estado de antes do login e agenda a queda do socket.
 //
@@ -72,14 +98,38 @@ const limiteDeRecusasNoSocket = 3
 //
 // Por isso o reset está no helper e não em cada caminho. Uma regra que cada chamador tem
 // de lembrar de repetir é uma regra que um deles vai esquecer.
-func (d *Dispatcher) recusaEFecha(w *world.World, s *world.Session, n Notice, reserva string) {
+func (d *Dispatcher) recusaEFecha(w *world.World, s *world.Session, m momentoDaRecusa, n Notice, reserva string) {
 	d.recusaLogin(w, s, n, reserva)
-	d.fechaPorRecusa(w, s)
+	d.fechaPorRecusa(w, s, m)
 }
 
 // fechaPorRecusa é a segunda metade do recusaEFecha, separada porque o acesso restrito
 // manda o texto dele próprio (não é um Notice do cliente) e precisa do mesmo tratamento.
-func (d *Dispatcher) fechaPorRecusa(w *world.World, s *world.Session) {
+//
+// O RESET SÓ VALE PARA UMA SESSÃO QUE NÃO É DE NINGUÉM, e a guarda mora AQUI pelo mesmo
+// motivo de o reset morar: o segundo erro deste arquivo foi zerar a sessão de quem já
+// estava jogando. A checagem de versão roda antes da de modo, então um 0x20D com a versão
+// errada chega aqui em QUALQUER estado, e zerar a conta e o modo de uma sessão viva tem
+// três estragos, os três medidos:
+//
+//   - o World só grava a saída de quem está em UserPlay com conta, e só solta a carga de
+//     quem tem conta. A sessão zerada caía pelo prazo SEM GRAVAR personagem nem carga;
+//   - com o socket ainda de pé, um login certo recarregava a conta do banco por cima do
+//     que não foi gravado: rollback a pedido do cliente;
+//   - com um login no banco, o Mode voltava a UserAccept com a resposta por chegar. Ela
+//     punha a sessão na tela de personagens e o fechaDepois desistia de fechar.
+//
+// Fora da tela de login não há o que atrasar nem o que desfazer: o texto já saiu, e a
+// conexão cai NA HORA pelo Close de sempre, com a sessão INTACTA — é ele que grava o
+// personagem e a carga, solta a posse da conta e descarta a resposta de um login que
+// ainda esteja no banco. É o que a recusa de versão fazia antes de existir o prazo.
+func (d *Dispatcher) fechaPorRecusa(w *world.World, s *world.Session, m momentoDaRecusa) {
+	if !m.ehDeNinguem(s) {
+		d.log.Warn("recusa de login fora da tela de login: fechando na hora, com a sessao intacta",
+			"conn", s.Conn, "account", s.AccountName, "mode", s.Mode)
+		w.Close(s)
+		return
+	}
 	s.AccountName = ""
 	s.AccountID = 0
 	s.Mode = world.UserAccept

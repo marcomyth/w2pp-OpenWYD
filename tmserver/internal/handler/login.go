@@ -39,11 +39,11 @@ func (d *Dispatcher) accountLogin(w *world.World, s *world.Session, _ protocol.H
 		// já fazia assim e é o caminho que funciona.
 		//
 		// ESTA CHECAGEM VEM ANTES DA DO Mode, então aqui a sessão pode estar em qualquer
-		// estado — inclusive logada, se um cliente remendado mandar um login com a versão
-		// errada depois de entrar. O recusaEFecha devolve a sessão ao estado de antes do
-		// login, que é o que o fechamento exige e o que impede a pessoa de seguir jogando
-		// numa sessão que acabou de ser recusada.
-		d.recusaEFecha(w, s, NoticeVersionMismatch, msgLoginVersao)
+		// estado — inclusive em jogo, ou com um login no banco, se um cliente remendado
+		// mandar um login com a versão errada depois de entrar. O prazo é só para quem
+		// ainda está na tela de login: fora dela o recusaEFecha manda o texto e fecha na
+		// hora, com a sessão intacta, para a saída ser gravada como qualquer outra.
+		d.recusaEFecha(w, s, recusaNaChegada, NoticeVersionMismatch, msgLoginVersao)
 		return
 	}
 	if s.Mode != world.UserAccept {
@@ -88,7 +88,7 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		d.log.Error("account login backend error", "conn", s.Conn, "account", s.AccountName, "err", err)
 		// Por prazo, pelo mesmo motivo da versão: a pessoa tem de LER que foi erro do
 		// servidor, senão ela tenta a senha de novo achando que errou.
-		d.recusaEFecha(w, s, NoticeDBError, msgLoginErroDeBanco)
+		d.recusaEFecha(w, s, recusaNaVoltaDoBanco, NoticeDBError, msgLoginErroDeBanco)
 		return
 	}
 	switch out.Result {
@@ -119,7 +119,7 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 				"conn", s.Conn, "account", s.AccountName)
 			sendClientMessage(w, s, "Servidor de teste, acesso restrito.")
 			// O fechaPorRecusa é que zera a conta e o modo, e conta a recusa para o teto.
-			d.fechaPorRecusa(w, s)
+			d.fechaPorRecusa(w, s, recusaNaVoltaDoBanco)
 			return
 		}
 		delete(d.fails, s.AccountName)
@@ -195,7 +195,7 @@ func (d *Dispatcher) completeAccountLogin(w *world.World, s *world.Session, out 
 		// AQUI O Mode AINDA É UserLogin, posto pelo accountLogin quando o pedido saiu
 		// para o banco, e era exatamente isso que deixava o socket aberto para sempre: a
 		// guarda do fechaDepois exige UserAccept. Quem devolve é o recusaEFecha.
-		d.recusaEFecha(w, s, NoticeBlocked, msgLoginBloqueada)
+		d.recusaEFecha(w, s, recusaNaVoltaDoBanco, NoticeBlocked, msgLoginBloqueada)
 	case world.LoginAlreadyPlaying:
 		// AGORA O dbServer RESPONDE ISTO, e o caso é o da posse da conta: outra
 		// execução do tmServer está com ela. Durante a sobreposição de um deploy,
