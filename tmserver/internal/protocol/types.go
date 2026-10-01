@@ -138,6 +138,11 @@ const (
 	// Pontos em lote na janela de Personagem (protocol/pontos_em_lote.go).
 	MsgPontosEmLote Type = 0x0F30 // C->S  gastar N pontos de uma vez num campo
 
+	// Painel de up da montaria adulta (protocol/montaria.go): várias pilhas de
+	// âmago num pedido só. 0x0F60/0x0F61 ficam reservados para uma consulta.
+	MsgMontariaPede      Type = 0x0F62 // C->S  dê este âmago à montaria vestida, N pilhas
+	MsgMontariaResultado Type = 0x0F63 // S->C  usados, subiu, falhou, voltou, e por que parou
+
 	// Painel de Guilda (protocol/guildapainel.go). Os buffs não têm pacote de
 	// ativação: quem liga um buff é um item de cash, usado pelo caminho normal.
 	MsgGuildaPede     Type = 0x0F40 // C->S  me manda esta aba do painel
@@ -162,6 +167,15 @@ const (
 	// algo tivesse mudado de lugar, e perderia a troca na primeira linha.
 	MsgLixeiraApaga     Type = 0x0F50 // C->S  apaga estes itens da mochila
 	MsgLixeiraResultado Type = 0x0F51 // S->C  quantos foram, e por que os outros nao
+
+	// Painel de refino (protocol/refino.go): várias poeiras num pedido só.
+	//
+	// 0x0F52/0x0F53, E NÃO 0x0F50/0x0F51: o painel nasceu numa branch com o par
+	// 50/51, e a lixeira em lote (logo acima) chegou à main antes, com o mesmo par,
+	// e o cliente publicado já fala com ela. Com dois nomes no mesmo número a tabela
+	// de rotas fica com um só, calada. O cliente (refinorede.h) usa este par.
+	MsgRefinoPede      Type = 0x0F52 // C->S  refine este item com esta poeira até +N
+	MsgRefinoResultado Type = 0x0F53 // S->C  quantas foram, quantas deram certo, e por que parou
 
 	MsgRestart          Type = 0x0289 // 649
 	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)

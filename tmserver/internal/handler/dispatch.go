@@ -825,6 +825,8 @@ func New(cfg Config) *Dispatcher {
 	// no NPC, que chega como MsgReqShopList.
 	d.routes[protocol.MsgHonraCompra] = d.honraCompra
 	d.routes[protocol.MsgHonraFecha] = d.honraFecha
+	// Painel de refino (refino_lote.go): várias poeiras num pedido só.
+	d.routes[protocol.MsgRefinoPede] = d.refinoLote
 	// Batch 6 — combine/refine (one engine, all Item[]-based variants).
 	for _, ty := range combineItemTypes {
 		d.routes[ty] = d.combineItem
@@ -857,6 +859,8 @@ func New(cfg Config) *Dispatcher {
 	d.routes[protocol.MsgMessageWhisper] = d.messageWhisper
 	d.routes[protocol.MsgApplyBonus] = d.applyBonus
 	d.routes[protocol.MsgPontosEmLote] = d.pontosEmLote
+	// Painel de up da montaria (montaria_lote.go): várias pilhas de âmago num pedido.
+	d.routes[protocol.MsgMontariaPede] = d.montariaLote
 	// Painel de Guilda (guildapainel.go). Os buffs não têm rota de ativação: quem
 	// liga um buff é um item de cash, pelo caminho normal de usar item.
 	d.routes[protocol.MsgGuildaPede] = d.guildaPede

@@ -131,6 +131,16 @@ func (d *Dispatcher) useAmago(w *world.World, s *world.Session, e *world.Entity,
 			capped = true
 			break
 		}
+		// The adult's feed is the one the mount panel repeats (montaria_lote.go);
+		// both go through amagoTentativa so the two can never drift.
+		if adult {
+			if subiu, _ := d.amagoTentativa(w, e, dst, src); subiu {
+				fed++
+			} else {
+				failed++
+			}
+			continue
+		}
 
 		// The feed lands before any growth roll: even a failed one leaves the mount
 		// fed (:1596-1598).
@@ -138,19 +148,8 @@ func (d *Dispatcher) useAmago(w *world.World, s *world.Session, e *world.Entity,
 		dst.Effects[2].Effect = mountFedEffect
 		consumeOneItem(&e.Carry[src])
 
-		// Only an adult can fail. A cria grows on every feed, which is what makes
-		// the early mount levels deterministic.
-		// A Alquimia da Huntress (alquimia.go) soma à curva da montaria, com teto 100.
-		growth, _ := chanceComAlquimia(e, d.amagoGrowthRate(*dst))
-		if adult && w.Rand().Intn(101) > growth {
-			failed++
-			// One feed in five costs the adult a level (:1633).
-			if w.Rand().Intn(5) == 0 && dst.Effects[1].Effect > 0 {
-				dst.Effects[1].Effect--
-			}
-			continue
-		}
-
+		// Only an adult can fail (amagoTentativa). A cria grows on every feed, which
+		// is what makes the early mount levels deterministic.
 		fed++
 		level += mountLevelUp
 		dst.Effects[1].Effect = uint8(level)
@@ -188,6 +187,33 @@ func (d *Dispatcher) useAmago(w *world.World, s *world.Session, e *world.Entity,
 		"conn", s.Conn, "account", s.AccountName, "mount", dst.Index,
 		"fed", fed, "failed", failed, "grew", grew, "capped", capped,
 		"level", dst.Effects[1].Effect)
+}
+
+// amagoTentativa gives ONE âmago from carry slot src to the adult mount dst: it
+// writes the item and the stack and nothing else — no packet, no notice.
+//
+// The order is the legacy's and it is load-bearing: the feed lands first (a
+// failed roll still leaves the mount fed, :1596-1598), then the growth roll,
+// then — only on a failure — the one-in-five roll that costs a level (:1633).
+// The drag and the panel both spend the random stream through here, which is
+// what keeps a batch from the panel identical to the same number of drags.
+func (d *Dispatcher) amagoTentativa(w *world.World, e *world.Entity, dst *world.Item, src int) (subiu, caiu bool) {
+	putShort(&dst.Effects[0], mountFedValue)
+	dst.Effects[2].Effect = mountFedEffect
+	consumeOneItem(&e.Carry[src])
+
+	// A Alquimia da Huntress (alquimia.go) soma à curva da montaria, com teto 100.
+	growth, _ := chanceComAlquimia(e, d.amagoGrowthRate(*dst))
+	if w.Rand().Intn(101) > growth {
+		if w.Rand().Intn(5) == 0 && dst.Effects[1].Effect > 0 {
+			dst.Effects[1].Effect--
+			caiu = true
+		}
+		return false, caiu
+	}
+	dst.Effects[1].Effect += mountLevelUp
+	dst.Effects[2].Value = 1
+	return true, false
 }
 
 // amagoTally is the one line a batch reports. The mount's level rides along
