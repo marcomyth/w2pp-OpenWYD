@@ -218,6 +218,7 @@ func TestMontariaLoteRecusasNaoMexemEmNada(t *testing.T) {
 		motivo uint8
 	}{
 		{"troca aberta", func(f *montariaFixture) { f.s.Trade.Active = true }, protocol.MontariaOcupado},
+		{"loja aberta", func(f *montariaFixture) { f.s.TradeMode = 1 }, protocol.MontariaOcupado},
 		{"sem montaria", func(f *montariaFixture) { f.e.Equip[mountEquipSlot] = world.Item{} }, protocol.MontariaNaoAdulta},
 		{"cria", func(f *montariaFixture) { f.e.Equip[mountEquipSlot].Index = itemCriaAndaluzN }, protocol.MontariaNaoAdulta},
 		{"morta", func(f *montariaFixture) { putShort(&f.e.Equip[mountEquipSlot].Effects[0], 0) }, protocol.MontariaMorta},
@@ -243,7 +244,9 @@ func TestMontariaLoteRecusasNaoMexemEmNada(t *testing.T) {
 	}
 	// Slot fora da mochila.
 	f := newMontariaFixture(t, nil, 30)
-	if r := f.lote(-1, 0); r.Motivo != protocol.MontariaInvalido {
-		t.Errorf("slot -1: motivo %d, want INVALIDO", r.Motivo)
+	for _, slot := range []int16{-1, 999} {
+		if r := f.lote(slot, 0); r.Motivo != protocol.MontariaInvalido {
+			t.Errorf("slot %d: motivo %d, want INVALIDO", slot, r.Motivo)
+		}
 	}
 }
