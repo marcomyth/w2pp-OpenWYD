@@ -963,7 +963,7 @@ func (d *Dispatcher) recall(w *world.World, s *world.Session, e *world.Entity) {
 	// Owning a city buys your guild its own respawn point, from anywhere on the
 	// map (Server.cpp:8514). The legacy's points are the fixed g_pGuildZone table
 	// (Basedef.cpp:56-60), inside each city's guild area; here they come from the
-	// database (migration 0182), and login uses the same point (characterLogin).
+	// database (migration 0193), and login uses the same point (characterLogin).
 	if gx, gy, ok := d.guildSpawnFor(e.Guild); ok {
 		// A fixed tile needs a free neighbour: SetEntityPos overwrites whatever
 		// holds that grid cell, and a guild point is one exact tile that the

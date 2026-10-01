@@ -667,7 +667,7 @@ func (s *Store) SaveGuildZone(ctx context.Context, z domain.GuildZone) error {
 		              guild_spawn_x = EXCLUDED.guild_spawn_x,
 		              guild_spawn_y = EXCLUDED.guild_spawn_y,
 		              -- Dono novo começa sem a espera do anterior: o gatilho da
-		              -- migração 0181 zera tax_changed_at quando charge_guild muda.
+		              -- migração 0192 zera tax_changed_at quando charge_guild muda.
 		              tax_changed_at = EXCLUDED.tax_changed_at,
 		              updated_at = now()`,
 		z.Zone, z.ChargeGuild, z.ChallengeGuild, z.Clan, z.Victory, z.CityTax, z.ChallengeMoney, z.TaxVault,
