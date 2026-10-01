@@ -601,6 +601,22 @@ func (d *Dispatcher) guildaDesigna(w *world.World, s *world.Session, _ protocol.
 	if int(corpo.Zona) >= protocol.GuildaCidades {
 		return
 	}
+	// SÓ O LÍDER E OS SUB-LÍDERES ESCALAM, conferido AQUI e não no cliente.
+	//
+	// Decisão da Hanna em 29/09/2026. Sem esta linha qualquer membro da guilda escalava
+	// para as cidades — o painel esconde o botão de quem não pode, e esconder é tudo o
+	// que ele faz: o pacote continua chegando de quem o montar à mão. Quem decide é o
+	// servidor, e é por isso que esta conferência existe mesmo com o botão escondido.
+	//
+	// O LOG SAI JUNTO, e não é ruído: um pedido destes de quem não é chefe só chega de
+	// um cliente montado à mão, e é o tipo de coisa que alguém vai querer achar depois.
+	if !guildaPodeEscalar(e.GuildLevel) {
+		d.log.Info("painel de guilda: escalacao recusada por cargo",
+			"conn", s.Conn, "guilda", e.Guild, "cargo", e.GuildLevel, "zona", corpo.Zona)
+		sendClientMessage(w, s, msgGuildaSoChefeEscala)
+		return
+	}
+
 	guilda, zona := e.Guild, int(corpo.Zona)
 	pedidos := corpo.Nomes
 
@@ -638,6 +654,17 @@ func (d *Dispatcher) guildaDesigna(w *world.World, s *world.Session, _ protocol.
 				d.guildaEsqueceQuadro(guilda)
 				if e := w.Entity(s.Conn); e != nil {
 					d.guildaMandaEsquadra(w, s, e, uint8(zona))
+					// ZERA O FREIO ANTES DE MANDAR A INFO, senão o painel não
+					// atualiza.
+					//
+					// O guildaMandaInfo tem um freio de 500 ms para o cliente não
+					// pedir a info em rajada. Aqui a info É a consequência da
+					// gravação: se o pedido anterior foi há menos de meio segundo —
+					// e foi, porque o próprio clique de escalar acabou de pedir —, o
+					// freio engole justamente a atualização que a pessoa está
+					// esperando ver. Ela grava, nada muda na tela, e ela grava de
+					// novo.
+					s.GuildaPedidoEm = time.Time{}
 					d.guildaMandaInfo(w, s, e)
 				}
 			}
@@ -716,3 +743,18 @@ func (d *Dispatcher) guildaImposto(w *world.World, s *world.Session, _ protocol.
 		"zona_pedida", corpo.Zona, "taxa", corpo.Ticks)
 	d.guildTax(w, s, fmt.Sprintf("guildtax %d", corpo.Ticks))
 }
+
+// guildaPodeEscalar diz se este cargo de guilda escala para as cidades.
+//
+// LÍDER (9) E SUB-LÍDERES (6, 7 e 8), que são os cargos que o /subcreate emite. Membro
+// comum é 0 e não escala.
+//
+// EXISTE COMO FUNÇÃO, e não como um if solto, porque a pergunta vai voltar: escalar não
+// é a única coisa que só chefe faz, e quando a segunda aparecer é melhor que as duas
+// leiam a mesma régua do que divergirem no dia em que só uma for corrigida.
+func guildaPodeEscalar(cargo uint8) bool {
+	return cargo == guildLeaderLevel || (cargo >= 6 && cargo <= 8)
+}
+
+// msgGuildaSoChefeEscala é a recusa por cargo. Cabe em 94 bytes em cp1252, e há teste.
+const msgGuildaSoChefeEscala = "Só o líder e os sub-líderes escalam para as cidades."
