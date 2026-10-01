@@ -26,7 +26,9 @@ import (
 //   - Entry is a ladder of class AND level, the same one the Pergaminho da Água
 //     uses: N is Mortal, M is Arch (plus a Celestial still under 40), A is
 //     Celestial up to 150 — past that the progression moves to the Água A chain.
-//   - At most maxNightmare runs per window per tier, server-wide.
+//   - At most maxNightmare runs per window per tier, server-wide — except for
+//     an Arch in the Místico tier, who is neither refused by the cap nor counted
+//     against it (pesadeloRunCapExempt).
 //
 // The countdown the client shows is what remains of the four-minute window at
 // the moment of entry, not a fresh four minutes — enter at :23:30 and you get
@@ -287,6 +289,28 @@ func pesadeloAllowed(tier int, classMaster uint8, level int32) bool {
 		level <= pesadeloLevelCap(tier, classMaster)
 }
 
+// pesadeloRunCapExempt reports whether a run opened by this class in this tier
+// stays outside the per-window run cap: it is not refused when the cap is
+// reached, and it does not take a slot from it either.
+//
+// DELIBERATE DIVERGENCE (owner's decision, 29/09/2026): for the Arch the
+// Pesadelo is unlimited, the server-wide maxNightmare included. The legacy caps
+// every tier alike. The exemption is the Arch in the Místico tier and nothing
+// else — the Celestial who shares that tier while under 40 still counts and is
+// still capped, and so are N and A.
+//
+// Not counting matters as much as not refusing: the counter is shared by the
+// whole tier, so an Arch who was let through but still counted would use up the
+// three runs the Celestials have, and "unlimited for the Arch" would have closed
+// the door on somebody else.
+//
+// The class is that of whoever uses the scroll, the party leader — the same
+// character every other gate in usePesadeloScroll looks at. The members who ride
+// along never touched the counter and still do not.
+func pesadeloRunCapExempt(tier int, classMaster uint8) bool {
+	return tier == pesaM && classMaster == classMasterArch
+}
+
 // refusePesadelo answers a rejected use: notify, then resend the slot so the
 // client never shows the scroll as consumed (the legacy SendItem on every
 // refusal path).
@@ -404,7 +428,11 @@ func (d *Dispatcher) usePesadeloScroll(w *world.World, s *world.Session, e *worl
 		d.refusePesadelo(w, s, e, src, t, NoticePesadeloClosed)
 		return
 	}
-	if d.events.pesaRuns[tier] >= d.maxNightmare {
+	// The run cap is the last gate, and the only one an Arch in the Místico tier
+	// skips. Everything above — the staff door, the area, the leader, the class,
+	// the level and the window — applies to them like to anybody else.
+	capExempt := pesadeloRunCapExempt(tier, e.ClassMaster)
+	if !capExempt && d.events.pesaRuns[tier] >= d.maxNightmare {
 		d.log.Info("pesadelo refused: run cap reached",
 			"account", s.AccountName, "tier", t.name, "runs", d.events.pesaRuns[tier], "cap", d.maxNightmare)
 		d.refusePesadelo(w, s, e, src, t, NoticePesadeloLimited)
@@ -412,8 +440,12 @@ func (d *Dispatcher) usePesadeloScroll(w *world.World, s *world.Session, e *worl
 	}
 
 	// A solo scroll still counts against the cap in the legacy: the counter is
-	// incremented before the party branch, for every tier.
-	d.events.pesaRuns[tier]++
+	// incremented before the party branch, for every tier. The exempt run is the
+	// one that does not count, so it leaves the tier's slots to those who are
+	// capped.
+	if !capExempt {
+		d.events.pesaRuns[tier]++
+	}
 	withParty := e.Carry[src].Index == t.groupItem
 
 	d.enterPesadelo(w, s, e, tier, secondsLeft, withParty)
@@ -422,7 +454,7 @@ func (d *Dispatcher) usePesadeloScroll(w *world.World, s *world.Session, e *worl
 	d.sendSlot(w, s, world.ItemPlaceCarry, src, e.Carry[src])
 	d.log.Info("pesadelo entered",
 		"account", s.AccountName, "tier", t.name, "party", withParty,
-		"seconds", secondsLeft, "runs", d.events.pesaRuns[tier])
+		"seconds", secondsLeft, "runs", d.events.pesaRuns[tier], "cap_exempt", capExempt)
 }
 
 // enterPesadelo moves the leader in, then any eligible party member, arming each
