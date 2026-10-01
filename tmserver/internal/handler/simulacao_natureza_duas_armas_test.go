@@ -31,8 +31,8 @@ func TestSimulacaoNaturezaDuasArmas(t *testing.T) {
 		t.Skipf("ItemList: %v", err)
 	}
 	sm.d.itemPos, sm.d.itemUnique, sm.d.itemNames = items.Positions(), items.Uniques(), items.Names()
-	atual := naturezaDanoDuasArmasAtual
-	defer func() { naturezaDanoDuasArmasAtual = atual }()
+	atual, edenAtual := naturezaDanoDuasArmasAtual, edenDanoExtra
+	defer func() { naturezaDanoDuasArmasAtual, edenDanoExtra = atual, edenAtual }()
 
 	type ficha struct {
 		nome          string
@@ -46,9 +46,10 @@ func TestSimulacaoNaturezaDuasArmas(t *testing.T) {
 		min, max      int32 // onde a ficha tem de cair com o prêmio de hoje
 	}
 	fichas := []ficha{
-		// O print de 29/09 é humano, montado; a faixa de 3.200 a 3.600 é a do
-		// BM TRANSFORMADO, cobrada no Éden, a forma da 8ª.
-		{"BateNeles", 353, 1722, 637, 300, [4]int16{125, 146, 234, 289}, 9, 0, 2313, 5, 3200, 3600},
+		// O print de 29/09 é humano, montado. A faixa do Éden deixou de ser
+		// absoluta em 30/09 (o jogo mostrou 3.000 onde isto dava 3.406) e é
+		// cobrada pela razão, no fim do teste.
+		{"BateNeles", 353, 1722, 637, 300, [4]int16{125, 146, 234, 289}, 9, 0, 2313, 5, 0, 0},
 		// O print de 20/09 (simulacao_natureza_test.go): a ponta de Destreza,
 		// em Éden, é a que mais se aproxima do teto de 9.000.
 		{"DanoPRZ", 400, 6, 2569, 805, [4]int16{198, 294, 294, 349}, simRefino11, 5, 4787, 5, 0, 9000},
@@ -76,6 +77,8 @@ func TestSimulacaoNaturezaDuasArmas(t *testing.T) {
 		return e
 	}
 
+	// As fichas foram calibradas antes do Éden ganhar dano extra.
+	edenDanoExtra = 0
 	naturezaDanoDuasArmasAtual = 0
 	planos := make([]int32, len(fichas))
 	for i, f := range fichas {
@@ -104,8 +107,31 @@ func TestSimulacaoNaturezaDuasArmas(t *testing.T) {
 
 	naturezaDanoDuasArmasAtual = atual
 	for i, f := range fichas {
+		if f.max == 0 {
+			continue // cobrada pela razão, logo abaixo
+		}
 		if got := sm.d.effectiveDamage(monta(f, planos[i], f.formaAlvo)); got < f.min || got > f.max {
 			t.Errorf("%s com o prêmio em %d: janela %d, want %d..%d", f.nome, atual, got, f.min, f.max)
 		}
+	}
+
+	// O ÉDEN EM JOGO (30/09/2026). Com o prêmio em 50 o BateNeles marcou 3.000
+	// transformado em Éden, e esta simulação dá 3.406: a regra de combate do
+	// painel escala o número final e fica fora do modelo. Como ela é um fator só,
+	// a RAZÃO vale — a janela em jogo é a simulada × 3.000 / o Éden de hoje.
+	const edenEmJogo, edenAlvoMin, edenAlvoMax = 3000, 3550, 3700
+	edenDanoExtra = 0
+	edenHoje := sm.d.effectiveDamage(monta(fichas[0], planos[0], 5))
+	emJogo := func() int32 {
+		return sm.d.effectiveDamage(monta(fichas[0], planos[0], 5)) * edenEmJogo / edenHoje
+	}
+	for _, v := range []int32{0, 10, 20, 30, 35, 40, 45} {
+		edenDanoExtra = v
+		fmt.Printf("Éden +%2d: BateNeles %d em jogo | %s %d\n", v, emJogo(),
+			fichas[1].nome, sm.d.effectiveDamage(monta(fichas[1], planos[1], fichas[1].forma)))
+	}
+	edenDanoExtra = edenAtual
+	if got := emJogo(); got < edenAlvoMin || got > edenAlvoMax {
+		t.Errorf("Éden com %d pontos extras: BateNeles %d em jogo, want %d..%d", edenAtual, got, edenAlvoMin, edenAlvoMax)
 	}
 }
