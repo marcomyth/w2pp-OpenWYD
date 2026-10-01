@@ -63,6 +63,7 @@ func TestCombatRuleCRUD(t *testing.T) {
 		WeaponIntMagicPct: 40, SpellDamageMulti: false, MobResistBase: 120,
 		PvPSkillPct: 60, PvPMeleePct: 80,
 		SpellIntAccuracyPct: 30, MaxMissStreak: 4, WeaponDamageGrants: 2, DoubleCriticalMaxPct: 40, PhysicalDamagePct: 70, GarnetPct: 35,
+		PvPMeleeArmorPct: 110,
 	}
 	antes, err = s.SetCombatRule(ctx, meio, 0)
 	if err != nil {
@@ -121,6 +122,8 @@ func TestCombatRuleRecusaValorForaDaFaixa(t *testing.T) {
 		com(func(r *combatrule.Rules) { r.PhysicalDamagePct = 201 }),
 		com(func(r *combatrule.Rules) { r.GarnetPct = -1 }),
 		com(func(r *combatrule.Rules) { r.GarnetPct = 101 }),
+		com(func(r *combatrule.Rules) { r.PvPMeleeArmorPct = -1 }),
+		com(func(r *combatrule.Rules) { r.PvPMeleeArmorPct = 151 }),
 	} {
 		if _, err := s.SetCombatRule(ctx, r, 0); !errors.Is(err, ErrInvalidCombatRule) {
 			t.Errorf("SetCombatRule(%+v) = %v, quero ErrInvalidCombatRule", r, err)

@@ -83,6 +83,17 @@ type Rules struct {
 	// that legacy; 0 leaves the Garnet only cancelling Esmeralda. Decided
 	// 2026-09-17 by simulation (docs/balanceamento/garnet-esmeralda-2026-09-17.md).
 	GarnetPct int32
+	// PvPMeleeArmorPct is how much of a PLAYER's defence a melee blow from another
+	// player has to get through, in percent of the AC. The legacy triples the AC
+	// in PvP (_MSG_Attack.cpp:454-455) and BASE_GetDamage halves it, so 150 is
+	// the legacy: dam − 1,5 × AC. A skill faces the AC once (100).
+	//
+	// It exists because PhysicalDamagePct scaled the attack down to 61% and left
+	// the defence whole: an Ataque of 2.650 to 3.900 against 2.100 to 3.500 of
+	// defence leaves nothing after 1,5 × AC, and every melee class landed 1 on
+	// every other (BM, TK and HT, measured in game on 01/10/2026). Player against
+	// player only — a monster's swing and a blow on a monster never read it.
+	PvPMeleeArmorPct int32
 }
 
 // The ranges each knob may take. They are what makes sense for the formula, not
@@ -107,22 +118,28 @@ const (
 	MaxPhysicalDamagePct  = 200
 	MinGarnetPct          = 0
 	MaxGarnetPct          = 100
+	MinPvPMeleeArmorPct   = 0
+	MaxPvPMeleeArmorPct   = 150
 
 	// LegacyMobResistBase is the constant the original applies to everyone.
 	LegacyMobResistBase = 150
+	// LegacyPvPMeleeArmorPct is the original's weight: the AC tripled, then halved.
+	LegacyPvPMeleeArmorPct = 150
 )
 
 // Default is the rule in force when nobody has configured one.
 func Default() Rules {
 	return Rules{WeaponIntMagicPct: 0, SpellDamageMulti: false, MobResistBase: 100, PvPSkillPct: 100, PvPMeleePct: 100,
-		SpellIntAccuracyPct: 50, MaxMissStreak: 2, WeaponDamageGrants: 1, DoubleCriticalMaxPct: 25, PhysicalDamagePct: 61, GarnetPct: 20}
+		SpellIntAccuracyPct: 50, MaxMissStreak: 2, WeaponDamageGrants: 1, DoubleCriticalMaxPct: 25, PhysicalDamagePct: 61, GarnetPct: 20,
+		PvPMeleeArmorPct: LegacyPvPMeleeArmorPct}
 }
 
 // Kersef is the rule as ported, kept so the panel can show — and restore — what
 // the server did before the decision.
 func Kersef() Rules {
 	return Rules{WeaponIntMagicPct: 100, SpellDamageMulti: true, MobResistBase: LegacyMobResistBase, PvPSkillPct: 100, PvPMeleePct: 100,
-		SpellIntAccuracyPct: 0, MaxMissStreak: 0, WeaponDamageGrants: MaxWeaponDamageGrants, DoubleCriticalMaxPct: MaxDoubleCriticalPct, PhysicalDamagePct: 100, GarnetPct: MaxGarnetPct}
+		SpellIntAccuracyPct: 0, MaxMissStreak: 0, WeaponDamageGrants: MaxWeaponDamageGrants, DoubleCriticalMaxPct: MaxDoubleCriticalPct, PhysicalDamagePct: 100, GarnetPct: MaxGarnetPct,
+		PvPMeleeArmorPct: LegacyPvPMeleeArmorPct}
 }
 
 // Valid reports whether every knob is inside its range.
@@ -136,7 +153,8 @@ func (r Rules) Valid() bool {
 		r.WeaponDamageGrants >= MinWeaponDamageGrants && r.WeaponDamageGrants <= MaxWeaponDamageGrants &&
 		r.DoubleCriticalMaxPct >= MinDoubleCriticalPct && r.DoubleCriticalMaxPct <= MaxDoubleCriticalPct &&
 		r.PhysicalDamagePct >= MinPhysicalDamagePct && r.PhysicalDamagePct <= MaxPhysicalDamagePct &&
-		r.GarnetPct >= MinGarnetPct && r.GarnetPct <= MaxGarnetPct
+		r.GarnetPct >= MinGarnetPct && r.GarnetPct <= MaxGarnetPct &&
+		r.PvPMeleeArmorPct >= MinPvPMeleeArmorPct && r.PvPMeleeArmorPct <= MaxPvPMeleeArmorPct
 }
 
 // Config is the rule as the panel left it (migration 0044_combat_rule), plus the

@@ -1931,6 +1931,10 @@ message GetCombatRuleResponse {
   // Esmeralda, which it always cancels first. 100 is the legacy flat subtraction.
   // `optional` because 0 is a real value: absence alone says an older dbServer.
   optional int32 garnet_pct = 13;
+  // 0..150: how much of a PLAYER's defence a melee blow from another player
+  // faces, in percent of the AC. 150 is the legacy (AC tripled, then halved).
+  // `optional` because 0 is a real value: absence alone says an older dbServer.
+  optional int32 pvp_melee_armor_pct = 14;
 }
 
 // NpcGeneratorService is the staff switch per NPCGener block
