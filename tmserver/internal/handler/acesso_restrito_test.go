@@ -239,8 +239,8 @@ func TestOFechamentoDaRecusaNaoMataAEntradaSeguinte(t *testing.T) {
 	}
 }
 
-// E DUAS RECUSAS SEGUIDAS não fazem o fechamento da primeira matar a espera da
-// segunda: quem manda é sempre a última.
+// E DUAS RECUSAS SEGUIDAS não se atropelam: o socket tem UM agendamento só, o da
+// primeira, e a segunda não cria outro nem estica o prazo. Quem fecha é o da primeira.
 func TestDuasRecusasSeguidasNaoSeAtropelam(t *testing.T) {
 	db := newDB()
 	addr, stop := servidorTrancadoComPrazo(t, db, true, 300*time.Millisecond)
@@ -254,7 +254,7 @@ func TestDuasRecusasSeguidasNaoSeAtropelam(t *testing.T) {
 			t.Fatalf("recusa %d: texto = %q", i+1, texto)
 		}
 	}
-	// A conexão acaba caindo, pela última recusa, e isso é o certo: ela nunca foi de
-	// ninguém.
+	// A conexão acaba caindo, pelo prazo da primeira recusa, e isso é o certo: ela nunca
+	// foi de ninguém.
 	expectClosed(t, c)
 }
