@@ -8,8 +8,8 @@ party e as decisões ficam no artefato "Atlas de Quests W2PP".
 ## Estado
 
 ✅ Os nove monstros da quest (templates `COrc_*`) <br/>
-✅ O saque e a chave na Mesa de Drops (migrações `0053_castelo_orc_drops` e
-`0063_castelo_orc_guardioes`) <br/>
+✅ O saque e a chave na Mesa de Drops (migrações `0053_castelo_orc_drops`,
+`0063_castelo_orc_guardioes` e `0190_castelo_orc_ouro_menos_40`) <br/>
 ✅ Visual de 14/09: Manto de Shiner em todos, armas novas, guardiões montados <br/>
 ✅ Pacote de 20 Classe D nos guardiões <br/>
 ✅ 0 XP para os monstros da quest <br/>
@@ -254,7 +254,7 @@ na última sala).
 
 | Meta por entrada | Quem dropa | Chance |
 |---|---|---|
-| 10 Moedas de Prata (1Mi) 4026 | tropa e guardiões | 16% |
+| 10 Moedas de Prata (1Mi) 4026 | tropa e guardiões | 9,6% (era 16% até 01/10) |
 | 10 Repletion: Classe C 4018 + Classe D 4019 | tropa e guardiões | 9,5% + 6,5% |
 | 15 Âmagos de Lobo 2392 | tropa e guardiões | 24% |
 | 12 Âmagos de Dragão Menor 2393 | tropa e guardiões · seguidores | 10% · 13% |
@@ -268,6 +268,16 @@ na última sala).
 
 - **Moedas, Repletion e Âmago de Lobo** caem só da tropa e dos guardiões, que são
   sempre 63. Assim a meta não depende de quanto tempo o grupo fica na última sala.
+- **Essa conta de 63 não vale mais.** Desde 16/09 a tropa renasce a cada 30 s e o
+  Grão-Lorde só vem no 100º abate; um grupo que fica os 15 minutos derruba mais
+  de mil orcs. A corrida de 6 contas de 01/10/2026 soltou ~170 Moedas de Prata
+  (1Mi) em 11 minutos e meio (log `drop table hit` de produção), contra a meta
+  de 10 por entrada.
+- **01/10/2026, ouro −40%** (pedido do Marco, migração `0190`): a Moeda de Prata
+  (1Mi) cai de 16% para 9,6% na tropa e nos guardiões, e a de 5Mi de 10% para 6%
+  no Sentinela e no Capitão. A Mesa paga 4/3,2768 do escrito abaixo de 27,68%,
+  antes e depois, então o corte real é o do número escrito. O renascimento não
+  mudou: a corrida inteira ainda rende várias vezes a meta do design.
 - **Cavalo s/ Sela não cai**: só os ovos.
 
 **Os dois primeiros guardiões** (Sentinela e Capitão, migração `0063`) soltam,
@@ -277,7 +287,7 @@ além do saque acima:
 |---|---|---|
 | Âmago de Cav. s/ Sela N 2396 | pacote de 10 | 5% |
 | Âmago de Cav. s/ Sela B 2401 | pacote de 10 | 5% |
-| Moeda de Prata (5Mi) 4027 | 1 | 10% |
+| Moeda de Prata (5Mi) 4027 | 1 | 6% (era 10% até 01/10) |
 | Pergaminho da Água (N) LV1 3173 | pacote de 3 | 5% |
 | Classe D 4019 | pacote de 20 | 10% (era 6,5%) |
 
