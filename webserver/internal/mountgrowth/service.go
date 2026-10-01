@@ -21,14 +21,14 @@ import (
 // Store is the persistence this service needs (satisfied by *store.Store).
 type Store interface {
 	ListMountGrowthRates(ctx context.Context) ([]domain.MountGrowthRate, error)
-	SetMountGrowthCurve(ctx context.Context, mountIndex int16, rates []int16, moderatorID int64, moderator string) error
-	ClearMountGrowthCurve(ctx context.Context, mountIndex int16, moderatorID int64) error
+	SetMountGrowthCurve(ctx context.Context, mountIndex int16, rates []int16, ator domain.Ator, moderator string) error
+	ClearMountGrowthCurve(ctx context.Context, mountIndex int16, ator domain.Ator) error
 	ListMountAbsorb(ctx context.Context) ([]domain.MountAbsorb, error)
-	SetMountAbsorb(ctx context.Context, mountIndex, pvp, pve int16, moderatorID int64, moderator string) error
-	ClearMountAbsorb(ctx context.Context, mountIndex int16, moderatorID int64) error
+	SetMountAbsorb(ctx context.Context, mountIndex, pvp, pve int16, ator domain.Ator, moderator string) error
+	ClearMountAbsorb(ctx context.Context, mountIndex int16, ator domain.Ator) error
 	ListMountBonus(ctx context.Context) ([]domain.MountBonus, error)
-	SetMountBonus(ctx context.Context, b domain.MountBonus, moderatorID int64, moderator string) error
-	ClearMountBonus(ctx context.Context, mountIndex int16, moderatorID int64) error
+	SetMountBonus(ctx context.Context, b domain.MountBonus, ator domain.Ator, moderator string) error
+	ClearMountBonus(ctx context.Context, mountIndex int16, ator domain.Ator) error
 	MountConfigVersion(ctx context.Context) (int64, error)
 }
 
@@ -40,6 +40,9 @@ type CatalogReader func(itemIndex int32) (itemcatalog.Entry, bool)
 type Service struct {
 	store   Store
 	catalog CatalogReader
+	// cargos confere o cargo de quem pede. Nulo = o servico recusa toda escrita
+	// (autorizacao.go explica por que falhar fechado).
+	cargos LeitorDeCargo
 }
 
 // New builds the service over the given store.
@@ -108,7 +111,11 @@ func (s *Service) List(ctx context.Context) ([]Curve, error) {
 
 // Set writes one lineage's whole curve.
 func (s *Service) Set(ctx context.Context, moderatorID int64, moderator string, mountIndex int16, rates []int16) error {
-	if err := s.store.SetMountGrowthCurve(ctx, mountIndex, rates, moderatorID, moderator); err != nil {
+	ator, err := s.autorizaEscrita(ctx, moderatorID)
+	if err != nil {
+		return err
+	}
+	if err = s.store.SetMountGrowthCurve(ctx, mountIndex, rates, ator, moderator); err != nil {
 		return fmt.Errorf("mountgrowth: set %d: %w", mountIndex, err)
 	}
 	return nil
@@ -116,7 +123,11 @@ func (s *Service) Set(ctx context.Context, moderatorID int64, moderator string, 
 
 // Clear drops the lineage's rows so the compiled default applies again.
 func (s *Service) Clear(ctx context.Context, moderatorID int64, mountIndex int16) error {
-	if err := s.store.ClearMountGrowthCurve(ctx, mountIndex, moderatorID); err != nil {
+	ator, err := s.autorizaEscrita(ctx, moderatorID)
+	if err != nil {
+		return err
+	}
+	if err = s.store.ClearMountGrowthCurve(ctx, mountIndex, ator); err != nil {
 		return fmt.Errorf("mountgrowth: clear %d: %w", mountIndex, err)
 	}
 	return nil
@@ -220,7 +231,11 @@ func (s *Service) ListAbsorb(ctx context.Context) ([]Absorb, error) {
 
 // SetAbsorb writes one lineage's pair.
 func (s *Service) SetAbsorb(ctx context.Context, moderatorID int64, moderator string, mountIndex, pvp, pve int16) error {
-	if err := s.store.SetMountAbsorb(ctx, mountIndex, pvp, pve, moderatorID, moderator); err != nil {
+	ator, err := s.autorizaEscrita(ctx, moderatorID)
+	if err != nil {
+		return err
+	}
+	if err = s.store.SetMountAbsorb(ctx, mountIndex, pvp, pve, ator, moderator); err != nil {
 		return fmt.Errorf("mountgrowth: set absorb %d: %w", mountIndex, err)
 	}
 	return nil
@@ -228,7 +243,11 @@ func (s *Service) SetAbsorb(ctx context.Context, moderatorID int64, moderator st
 
 // ClearAbsorb drops the lineage's row so the compiled default applies again.
 func (s *Service) ClearAbsorb(ctx context.Context, moderatorID int64, mountIndex int16) error {
-	if err := s.store.ClearMountAbsorb(ctx, mountIndex, moderatorID); err != nil {
+	ator, err := s.autorizaEscrita(ctx, moderatorID)
+	if err != nil {
+		return err
+	}
+	if err = s.store.ClearMountAbsorb(ctx, mountIndex, ator); err != nil {
 		return fmt.Errorf("mountgrowth: clear absorb %d: %w", mountIndex, err)
 	}
 	return nil
@@ -282,8 +301,12 @@ func (s *Service) ListBonus(ctx context.Context) ([]Bonus, error) {
 
 // SetBonus writes one lineage's four numbers.
 func (s *Service) SetBonus(ctx context.Context, moderatorID int64, moderator string, mountIndex int16, b mountbonus.Bonus) error {
+	ator, err := s.autorizaEscrita(ctx, moderatorID)
+	if err != nil {
+		return err
+	}
 	row := domain.MountBonus{MountIndex: mountIndex, Attack: b.Attack, Magic: b.Magic, Evasion: b.Evasion, Resist: b.Resist}
-	if err := s.store.SetMountBonus(ctx, row, moderatorID, moderator); err != nil {
+	if err = s.store.SetMountBonus(ctx, row, ator, moderator); err != nil {
 		return fmt.Errorf("mountgrowth: set bonus %d: %w", mountIndex, err)
 	}
 	return nil
@@ -291,7 +314,11 @@ func (s *Service) SetBonus(ctx context.Context, moderatorID int64, moderator str
 
 // ClearBonus drops the lineage's row so the compiled table applies again.
 func (s *Service) ClearBonus(ctx context.Context, moderatorID int64, mountIndex int16) error {
-	if err := s.store.ClearMountBonus(ctx, mountIndex, moderatorID); err != nil {
+	ator, err := s.autorizaEscrita(ctx, moderatorID)
+	if err != nil {
+		return err
+	}
+	if err = s.store.ClearMountBonus(ctx, mountIndex, ator); err != nil {
 		return fmt.Errorf("mountgrowth: clear bonus %d: %w", mountIndex, err)
 	}
 	return nil

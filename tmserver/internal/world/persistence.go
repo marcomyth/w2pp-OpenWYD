@@ -195,6 +195,7 @@ type CharacterState struct {
 	NewbieQuest        uint8  // QuestInfo.Mortal.Newbie: training-field trainer step (0..4)
 	MolarGargula       uint8  // QuestInfo.Mortal: Molar de Gargula ja usado (0093)
 	NivelRetroativo    uint16 // pecas de nivel retroativas entregues ate este nivel (0172)
+	Hold               uint32 // extra.Hold: divida de experiencia das mortes em PvP (0187)
 	ArchLv355          uint8
 	ArchLv370          uint8
 	MortalLevel        uint16
@@ -316,6 +317,7 @@ type CharacterSave struct {
 	NewbieQuest        uint8
 	MolarGargula       uint8
 	NivelRetroativo    uint16
+	Hold               uint32
 	ArchLv355          uint8
 	ArchLv370          uint8
 	MortalLevel        uint16

@@ -201,6 +201,10 @@ func run(logger *slog.Logger) error {
 	mobTemplateAdmin := mobtemplateadmin.New(st)
 	itemStatAdmin := itemstatadmin.New(st)
 	mountGrowthAdmin := mountgrowth.New(st)
+	// LIGAR O CONFERIDOR DE CARGO NÃO É OPCIONAL: sem esta linha o serviço RECUSA toda
+	// escrita de montaria, para todo mundo. Ele falha fechado de propósito (ver
+	// mountgrowth/autorizacao.go), e esta linha é a outra metade dessa escolha.
+	mountGrowthAdmin.ComCargos(st)
 	donate := donateshop.New(st)
 	dailyRwd := dailyreward.New(st)
 	topup := donatetopup.New(st).ComLog(logger)

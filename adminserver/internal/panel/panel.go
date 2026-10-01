@@ -200,8 +200,8 @@ type Personagens interface {
 // same path the game uses, and never through the form.
 type Eventos interface {
 	WorldEventConfig(ctx context.Context) (domain.WorldEventConfig, error)
-	UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEventConfig, moderatorID int64) error
-	SetKefraState(ctx context.Context, live bool, guildID int32, fonte string, accountID int64) (int64, error)
+	UpsertWorldEventConfig(ctx context.Context, cfg domain.WorldEventConfig, ator domain.Ator) error
+	SetKefraState(ctx context.Context, live bool, guildID int32, fonte string, ator domain.Ator) (int64, error)
 }
 
 // Guildas is the guild and city state, READ ONLY.

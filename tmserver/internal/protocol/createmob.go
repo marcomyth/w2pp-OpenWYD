@@ -59,6 +59,9 @@ type CreateMobData struct {
 	// already in CP1252. Putting it through ClientText would decode it as UTF-8
 	// first, and every accented letter would come back a "?".
 	Tab []byte
+	// Hold is extra.Hold, the PvP-death experience debt (GetFunc.cpp:1139). Mobs
+	// and NPCs carry none.
+	Hold uint32
 }
 
 func writeCreateMobScore(b []byte, d CreateMobData) {
@@ -143,6 +146,7 @@ func EncodeCreateMobBody(d CreateMobData) []byte {
 	// o campo existia na struct e nada o escrevia, então o texto do /tab não tinha
 	// onde cair nem depois de o comando existir. O último byte fica NUL.
 	copy(b[190:190+createMobTabLen-1], d.Tab)
+	le.PutUint32(b[216:], d.Hold) // Hold @abs228 → body216, the last field
 	return b
 }
 

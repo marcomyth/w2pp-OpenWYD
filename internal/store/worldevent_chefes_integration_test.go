@@ -27,7 +27,7 @@ func TestRenascimentoDosChefesNoBanco(t *testing.T) {
 
 	cfg := domain.DefaultWorldEventConfig()
 	cfg.BossRespawnHours = 12
-	if err := st.UpsertWorldEventConfig(ctx, cfg, 0); err != nil {
+	if err := st.UpsertWorldEventConfig(ctx, cfg, atorDeTeste(ctx, t, st)); err != nil {
 		t.Fatalf("UpsertWorldEventConfig: %v", err)
 	}
 	got, err := st.WorldEventConfig(ctx)
@@ -38,7 +38,7 @@ func TestRenascimentoDosChefesNoBanco(t *testing.T) {
 	for _, horas := range []int32{0, 169} {
 		ruim := domain.DefaultWorldEventConfig()
 		ruim.BossRespawnHours = horas
-		if err := st.UpsertWorldEventConfig(ctx, ruim, 0); err == nil {
+		if err := st.UpsertWorldEventConfig(ctx, ruim, atorDeTeste(ctx, t, st)); err == nil {
 			t.Errorf("o banco aceitou os chefes em %d h", horas)
 		}
 	}

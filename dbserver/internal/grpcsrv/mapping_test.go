@@ -66,12 +66,15 @@ func TestItemVazioAtravessaVazio(t *testing.T) {
 // Molar de Gárgula não atravessava: o tmServer mandava a marca, e o conversor a
 // deixava para trás.
 func TestMarcasDoPersonagemAtravessamAFronteira(t *testing.T) {
-	ch := domain.Character{MolarGargula: 1, NivelRetroativo: 1000}
+	ch := domain.Character{MolarGargula: 1, NivelRetroativo: 1000, Hold: 3_000_000_000}
 	got := protoToCharacter(characterToProto(ch))
 	if got.MolarGargula != ch.MolarGargula {
 		t.Errorf("MolarGargula = %d, queria %d", got.MolarGargula, ch.MolarGargula)
 	}
 	if got.NivelRetroativo != ch.NivelRetroativo {
 		t.Errorf("NivelRetroativo = %d, queria %d", got.NivelRetroativo, ch.NivelRetroativo)
+	}
+	if got.Hold != ch.Hold {
+		t.Errorf("Hold = %d, queria %d", got.Hold, ch.Hold)
 	}
 }

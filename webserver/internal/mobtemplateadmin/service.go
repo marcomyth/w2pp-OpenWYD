@@ -27,9 +27,9 @@ type Store interface {
 	AccountRole(ctx context.Context, id int64) (string, error)
 	ListMobTemplateStats(ctx context.Context) ([]domain.MobTemplateStat, error)
 	GetMobTemplateStat(ctx context.Context, templateName string) (domain.MobTemplateStat, error)
-	UpsertMobTemplateStat(ctx context.Context, st domain.MobTemplateStat, moderatorID int64) error
-	SetMobTemplateEquip(ctx context.Context, templateName string, items []domain.MobTemplateEquipItem, moderatorID int64) error
-	DeleteMobTemplateStat(ctx context.Context, templateName string, moderatorID int64) error
+	UpsertMobTemplateStat(ctx context.Context, st domain.MobTemplateStat, ator domain.Ator) error
+	SetMobTemplateEquip(ctx context.Context, templateName string, items []domain.MobTemplateEquipItem, ator domain.Ator) error
+	DeleteMobTemplateStat(ctx context.Context, templateName string, ator domain.Ator) error
 }
 
 // TemplateReader resolves a template_name to its raw STRUCT_MOB bytes, read
@@ -180,13 +180,14 @@ func (s *Service) FileStat(ctx context.Context, moderatorID int64, templateName 
 // store.UpsertMobTemplateStat), so it needs the same slot validation SetEquip
 // applies; otherwise this path could write equip data SetEquip would reject.
 func (s *Service) Upsert(ctx context.Context, moderatorID int64, st domain.MobTemplateStat) (Result, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, err
 	}
 	if st.TemplateName == "" || !validEquip(st.Equip) {
 		return Invalid, nil
 	}
-	if err := s.store.UpsertMobTemplateStat(ctx, st, moderatorID); err != nil {
+	if err := s.store.UpsertMobTemplateStat(ctx, st, ator); err != nil {
 		return Invalid, fmt.Errorf("mobtemplateadmin: upsert %q: %w", st.TemplateName, err)
 	}
 	return OK, nil
@@ -195,13 +196,14 @@ func (s *Service) Upsert(ctx context.Context, moderatorID int64, st domain.MobTe
 // SetEquip replaces a template's Equip[] slot overrides after validating the
 // slots. Requires a stat override to already exist for template_name.
 func (s *Service) SetEquip(ctx context.Context, moderatorID int64, templateName string, items []domain.MobTemplateEquipItem) (Result, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, err
 	}
 	if !validEquip(items) {
 		return Invalid, nil
 	}
-	err := s.store.SetMobTemplateEquip(ctx, templateName, items, moderatorID)
+	err = s.store.SetMobTemplateEquip(ctx, templateName, items, ator)
 	return classifyWrite(err, "set equip")
 }
 
@@ -223,10 +225,11 @@ func validEquip(items []domain.MobTemplateEquipItem) bool {
 // defaults (never touches the underlying file — Release/ is read-only in
 // production).
 func (s *Service) Delete(ctx context.Context, moderatorID int64, templateName string) (Result, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, err
 	}
-	err := s.store.DeleteMobTemplateStat(ctx, templateName, moderatorID)
+	err = s.store.DeleteMobTemplateStat(ctx, templateName, ator)
 	return classifyWrite(err, "delete")
 }
 
@@ -272,4 +275,40 @@ func classifyWrite(err error, op string) (Result, error) {
 	default:
 		return Invalid, fmt.Errorf("mobtemplateadmin: %s: %w", op, err)
 	}
+}
+
+// autorizaEscrita e o authorize das ESCRITAS: alem de dizer se PODE, diz QUEM E.
+//
+// EXISTE SEPARADO DO authorize porque as leituras nao precisam de ator, e misturar as
+// duas coisas faria cada pagina de consulta carregar um ator que ela nao usa.
+//
+// AS DUAS JUNTAS SAO RECUSA, e nenhuma delas ganha da outra. Se nao houver nenhuma, o
+// ator sai vazio e o internal/store recusa antes de escrever -- ninguem grava
+// "conta 0".
+func (s *Service) autorizaEscrita(ctx context.Context, moderatorID int64) (domain.Ator, Result, error) {
+	r, err := s.authorize(ctx, moderatorID)
+	if r != OK || err != nil {
+		return domain.Ator{}, r, err
+	}
+	a, doPainel := painelator.Do(ctx)
+	// OS DOIS JUNTOS SAO RECUSA, e nao empate a ser desempatado.
+	//
+	// Antes eu dava preferencia a conta de jogo. Estava errado: preferir e DESCARTAR
+	// o outro em silencio, e a linha de auditoria sairia dizendo que uma pessoa fez o
+	// que duas informacoes reivindicam. Numa tabela cuja unica razao de existir e
+	// dizer QUEM fez, "eu escolhi um dos dois" e a pior resposta possivel.
+	//
+	// E nao e so teoria: a chamada so tem os dois se alguem montou um pedido
+	// estranho, e um pedido estranho e exatamente o que nao deve virar uma gravacao
+	// com autor plausivel.
+	if moderatorID > 0 && doPainel {
+		return domain.Ator{}, Forbidden, nil
+	}
+	if moderatorID > 0 {
+		return domain.AtorDaConta(moderatorID), OK, nil
+	}
+	if doPainel {
+		return domain.AtorDoPainel(a.ID), OK, nil
+	}
+	return domain.Ator{}, Forbidden, nil
 }

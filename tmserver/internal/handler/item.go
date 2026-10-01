@@ -3652,7 +3652,8 @@ func (d *Dispatcher) sendScoreSelf(w *world.World, s *world.Session, e *world.En
 // STRUCT_SCORE/UpdateScore does NOT carry these, so this packet is the only
 // refresh path. It is the full struct (not coin-only) because the original
 // always sends all fields; a partial refresh would zero the client's state.
-// Hold is not modeled yet (0).
+// Hold is the PvP-death experience debt (pvpkilled.go), shown by the client
+// beside the experience.
 func (d *Dispatcher) sendEtc(w *world.World, s *world.Session, e *world.Entity) {
 	w.Send(s, protocol.MsgUpdateEtc, protocol.EncodeUpdateEtc(etcData(e)))
 }
@@ -3660,6 +3661,7 @@ func (d *Dispatcher) sendEtc(w *world.World, s *world.Session, e *world.Entity) 
 // etcData is the MSG_UpdateEtc payload for a player.
 func etcData(e *world.Entity) protocol.UpdateEtcData {
 	return protocol.UpdateEtcData{
+		Hold:         e.Hold,
 		Exp:          e.Exp,
 		Learn:        int64(e.LearnedSkill),
 		ScoreBonus:   e.ScoreBonus,

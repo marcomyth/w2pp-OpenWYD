@@ -34,7 +34,7 @@ func TestGetNPCDefinitionLePrecoEmPontos(t *testing.T) {
 	id, err := s.UpsertNPCDefinition(ctx, domain.NPCDefinition{
 		Slug: "honra-int-1", TemplateName: "God_of_War", DisplayName: "Honor Store",
 		Enabled: true, PosX: 2130, PosY: 2088, Merchant: 104,
-	}, modID)
+	}, domain.AtorDaConta(modID))
 	if err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestGetNPCDefinitionLePrecoEmPontos(t *testing.T) {
 	if err := s.SetNPCShop(ctx, id, []domain.NPCShopItem{
 		{Slot: 0, ItemIndex: 413, Quantity: 1, PricePoints: &cem},
 		{Slot: 1, ItemIndex: 1100, Quantity: 1}, // em ouro
-	}, modID); err != nil {
+	}, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("set shop: %v", err)
 	}
 

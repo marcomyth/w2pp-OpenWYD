@@ -65,13 +65,15 @@ func scanTargets(st *domain.ItemStat) []any {
 }
 
 // insertArgs returns values in the same order, for Exec.
-func insertArgs(st domain.ItemStat, moderatorID int64) []any {
+func insertArgs(st domain.ItemStat, ator domain.Ator) []any {
 	out := make([]any, 0, len(domain.ItemStatFields)+2)
 	out = append(out, st.ItemIndex)
 	for _, f := range domain.ItemStatFields {
 		out = append(out, *f.Ptr(&st))
 	}
-	return append(out, moderatorID)
+	// updated_by guarda a CONTA que editou, e o usuario do painel nao tem conta:
+	// nesse caso a coluna fica NULA e quem fez continua registrado na auditoria.
+	return append(out, nullableID(ator.ContaID))
 }
 
 // ListItemStats returns every item stat override, ordered by item index. This is
@@ -114,25 +116,25 @@ func (s *Store) GetItemStat(ctx context.Context, itemIndex int32) (domain.ItemSt
 }
 
 // UpsertItemStat writes an item's override whole and records who did it.
-func (s *Store) UpsertItemStat(ctx context.Context, st domain.ItemStat, moderatorID int64) error {
+func (s *Store) UpsertItemStat(ctx context.Context, st domain.ItemStat, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		before, err := fetchItemStatJSON(ctx, tx, st.ItemIndex)
 		if err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, itemStatInsert, insertArgs(st, moderatorID)...); err != nil {
+		if _, err := tx.Exec(ctx, itemStatInsert, insertArgs(st, ator)...); err != nil {
 			return fmt.Errorf("store: upsert item stat %d: %w", st.ItemIndex, err)
 		}
 		after, err := fetchItemStatJSON(ctx, tx, st.ItemIndex)
 		if err != nil {
 			return err
 		}
-		return auditAndBump(ctx, tx, nil, moderatorID, "upsert_item_stat", before, after)
+		return auditAndBump(ctx, tx, nil, ator, "upsert_item_stat", before, after)
 	})
 }
 
 // DeleteItemStat drops an override so the catalog's own numbers apply again.
-func (s *Store) DeleteItemStat(ctx context.Context, itemIndex int32, moderatorID int64) error {
+func (s *Store) DeleteItemStat(ctx context.Context, itemIndex int32, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		before, err := fetchItemStatJSON(ctx, tx, itemIndex)
 		if err != nil {
@@ -144,7 +146,7 @@ func (s *Store) DeleteItemStat(ctx context.Context, itemIndex int32, moderatorID
 		if _, err := tx.Exec(ctx, `DELETE FROM item_stat WHERE item_index = $1`, itemIndex); err != nil {
 			return fmt.Errorf("store: delete item stat %d: %w", itemIndex, err)
 		}
-		return auditAndBump(ctx, tx, nil, moderatorID, "delete_item_stat", before, nil)
+		return auditAndBump(ctx, tx, nil, ator, "delete_item_stat", before, nil)
 	})
 }
 

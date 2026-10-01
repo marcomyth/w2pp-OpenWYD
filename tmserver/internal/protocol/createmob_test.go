@@ -14,6 +14,7 @@ func TestCreateMobBodyLayout(t *testing.T) {
 		MobID: 1001, Name: "Ciclope", PosX: 100, PosY: 200,
 		Guild: 7, GuildMemberType: 3, Level: 171, Hp: 15000, MaxHp: 15000,
 		Merchant: 1, AttackRun: 82, CreateType: 2,
+		Hold: 30000,
 	}
 	d.Equip[0] = 831
 	d.Affect[0] = PackAffect(AffectData{Type: 31, Time: 7})
@@ -57,6 +58,9 @@ func TestCreateMobBodyLayout(t *testing.T) {
 	}
 	if got := b[174]; got != 43 { // AnctCode[0] @abs186 → body174
 		t.Errorf("AnctCode[0] = %d, want 43", got)
+	}
+	if got := le.Uint32(b[216:]); got != 30000 { // Hold @abs228 → body216
+		t.Errorf("Hold = %d, want 30000", got)
 	}
 }
 

@@ -169,7 +169,7 @@ func (sm *simulador) aplicar(l *lado, alvo *world.Entity, dmg, airBlade int, ski
 	dmg = danoEmEvocacao(alvo, dmg)
 	if pvp {
 		dmg = sm.d.applyPvPRule(dmg, skill)
-		dmg = danoDoTransContraHT(l.e, alvo, dmg)
+		dmg = danoDoTransContraHT(l.e, alvo, dmg, skill)
 	}
 	dmg = applyForceDamage(l.e, alvo, alvo.ID, dmg)
 	if pvp {

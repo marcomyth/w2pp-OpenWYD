@@ -19,20 +19,20 @@ type fakeStore struct {
 func (f *fakeStore) ListMountGrowthRates(context.Context) ([]domain.MountGrowthRate, error) {
 	return f.rows, nil
 }
-func (f *fakeStore) SetMountGrowthCurve(context.Context, int16, []int16, int64, string) error {
+func (f *fakeStore) SetMountGrowthCurve(context.Context, int16, []int16, domain.Ator, string) error {
 	return nil
 }
-func (f *fakeStore) ClearMountGrowthCurve(context.Context, int16, int64) error { return nil }
+func (f *fakeStore) ClearMountGrowthCurve(context.Context, int16, domain.Ator) error { return nil }
 
 func (f *fakeStore) ListMountAbsorb(context.Context) ([]domain.MountAbsorb, error) {
 	return f.absorb, nil
 }
-func (f *fakeStore) SetMountAbsorb(_ context.Context, mountIndex, pvp, pve int16, _ int64, _ string) error {
+func (f *fakeStore) SetMountAbsorb(_ context.Context, mountIndex, pvp, pve int16, _ domain.Ator, _ string) error {
 	f.salvo = append(f.salvo, domain.MountAbsorb{MountIndex: mountIndex, PvP: pvp, PvE: pve})
 	return nil
 }
 func (f *fakeStore) MountConfigVersion(context.Context) (int64, error) { return f.versao, nil }
-func (f *fakeStore) ClearMountAbsorb(_ context.Context, mountIndex int16, _ int64) error {
+func (f *fakeStore) ClearMountAbsorb(_ context.Context, mountIndex int16, _ domain.Ator) error {
 	f.limpo = append(f.limpo, mountIndex)
 	return nil
 }
@@ -161,11 +161,11 @@ func TestBandLabel(t *testing.T) {
 func (f *fakeStore) ListMountBonus(context.Context) ([]domain.MountBonus, error) {
 	return f.bonus, nil
 }
-func (f *fakeStore) SetMountBonus(_ context.Context, b domain.MountBonus, _ int64, _ string) error {
+func (f *fakeStore) SetMountBonus(_ context.Context, b domain.MountBonus, _ domain.Ator, _ string) error {
 	f.bonus = append(f.bonus, b)
 	return nil
 }
-func (f *fakeStore) ClearMountBonus(context.Context, int16, int64) error { return nil }
+func (f *fakeStore) ClearMountBonus(context.Context, int16, domain.Ator) error { return nil }
 
 // TestAtributosMostramOPadraoAoLado pins what the screen needs to make a
 // decision: every lineage, configured or not, with the compiled default beside

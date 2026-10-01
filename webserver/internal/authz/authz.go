@@ -155,14 +155,24 @@ func Interceptor(c Chaves, painel *painelator.Leitor) grpc.UnaryServerIntercepto
 			if err != nil {
 				return nil, err
 			}
-			// ENQUANTO A AUDITORIA NÃO CONHECE O USUÁRIO DO PAINEL, ele só lê.
+			// A AUDITORIA JÁ CONHECE O USUÁRIO DO PAINEL, então ele também ESCREVE.
 			//
-			// As escritas gravam o autor no internal/store com a conta de jogo, e as
-			// tabelas de auditoria guardam esse número SEM chave estrangeira — a
-			// escrita passaria e registraria "conta 0" como autor. Edição que funciona
-			// e mente sobre quem a fez é pior que edição recusada.
+			// Antes esta linha recusava toda escrita dele, e o motivo era bom: o autor
+			// ia para o internal/store como conta de JOGO, num BIGINT sem chave
+			// estrangeira, e um usuário do painel não tem conta — a escrita passaria e
+			// gravaria "conta 0". Desde a 0181 e o domain.Ator, o autor certo é
+			// gravado e "escrita sem autor" nem é representável.
+			//
+			// A LISTA CONTINUA, E CONTINUA FECHANDO POR PADRÃO. Ela agora diz quais
+			// métodos são DO PAINEL, leitura e escrita. Apagá-la abriria para o painel
+			// todo o resto do webServer — emblema, recarga, mercado, personagens,
+			// ranking —, que é do jogador e não confere cargo nenhum.
+			//
+			// O CARGO NÃO É CONFERIDO AQUI. Esta pergunta é "o método é do painel?"; a
+			// pergunta "esta pessoa pode esta ação?" é de cada serviço, com a régua que
+			// já valia para o moderador.
 			if _, doPainel := painelator.Do(ctx2); doPainel && !PainelPodeChamar(info.FullMethod) {
-				return nil, status.Error(codes.PermissionDenied, MsgEscritaAindaNao)
+				return nil, status.Error(codes.PermissionDenied, MsgForaDoPainel)
 			}
 			return handler(ctx2, req)
 		case confere(token, c.Site):

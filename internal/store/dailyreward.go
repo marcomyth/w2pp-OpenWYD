@@ -76,7 +76,7 @@ func scanDailyRewardItem(row scanRow) (domain.DailyRewardItem, error) {
 // UpsertDailyRewardItem inserts a new offer (d.ID == 0) or updates the
 // existing one by id, writing an audit row in the same transaction. Returns
 // the offer id; updating a missing id returns ErrNotFound.
-func (s *Store) UpsertDailyRewardItem(ctx context.Context, d domain.DailyRewardItem, moderatorID int64) (int64, error) {
+func (s *Store) UpsertDailyRewardItem(ctx context.Context, d domain.DailyRewardItem, ator domain.Ator) (int64, error) {
 	var id int64
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		if d.ID == 0 {
@@ -86,12 +86,12 @@ func (s *Store) UpsertDailyRewardItem(ctx context.Context, d domain.DailyRewardI
 				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now())
 				RETURNING id`,
 				d.ItemIndex, d.Eff1, d.EffV1, d.Eff2, d.EffV2, d.Eff3, d.EffV3,
-				d.Title, d.Description, d.Enabled, d.ExpiresDays, nullableID(moderatorID),
+				d.Title, d.Description, d.Enabled, d.ExpiresDays, nullableID(ator.ContaID),
 			).Scan(&id); err != nil {
 				return fmt.Errorf("store: insert daily reward item: %w", err)
 			}
 			after, _ := fetchDailyRewardItemJSON(ctx, tx, id)
-			return dailyRewardAudit(ctx, tx, &id, moderatorID, "create", nil, after)
+			return dailyRewardAudit(ctx, tx, &id, ator, "create", nil, after)
 		}
 
 		before, _ := fetchDailyRewardItemJSON(ctx, tx, d.ID)
@@ -106,19 +106,19 @@ func (s *Store) UpsertDailyRewardItem(ctx context.Context, d domain.DailyRewardI
 				updated_by=$13, updated_at=now()
 			WHERE id=$1`,
 			id, d.ItemIndex, d.Eff1, d.EffV1, d.Eff2, d.EffV2, d.Eff3, d.EffV3,
-			d.Title, d.Description, d.Enabled, d.ExpiresDays, nullableID(moderatorID),
+			d.Title, d.Description, d.Enabled, d.ExpiresDays, nullableID(ator.ContaID),
 		); err != nil {
 			return fmt.Errorf("store: update daily reward item %d: %w", id, err)
 		}
 		after, _ := fetchDailyRewardItemJSON(ctx, tx, id)
-		return dailyRewardAudit(ctx, tx, &id, moderatorID, "update", before, after)
+		return dailyRewardAudit(ctx, tx, &id, ator, "update", before, after)
 	})
 	return id, err
 }
 
 // SetDailyRewardItemEnabled toggles whether an offer is claimable. Returns
 // ErrNotFound if the offer does not exist.
-func (s *Store) SetDailyRewardItemEnabled(ctx context.Context, id int64, enabled bool, moderatorID int64) error {
+func (s *Store) SetDailyRewardItemEnabled(ctx context.Context, id int64, enabled bool, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		before, _ := fetchDailyRewardItemJSON(ctx, tx, id)
 		if before == nil {
@@ -126,16 +126,16 @@ func (s *Store) SetDailyRewardItemEnabled(ctx context.Context, id int64, enabled
 		}
 		if _, err := tx.Exec(ctx,
 			`UPDATE daily_reward_item SET enabled=$2, updated_by=$3, updated_at=now() WHERE id=$1`,
-			id, enabled, nullableID(moderatorID)); err != nil {
+			id, enabled, nullableID(ator.ContaID)); err != nil {
 			return fmt.Errorf("store: set daily reward item %d enabled: %w", id, err)
 		}
 		after, _ := fetchDailyRewardItemJSON(ctx, tx, id)
-		return dailyRewardAudit(ctx, tx, &id, moderatorID, "set_enabled", before, after)
+		return dailyRewardAudit(ctx, tx, &id, ator, "set_enabled", before, after)
 	})
 }
 
 // DeleteDailyRewardItem removes an offer. Returns ErrNotFound if absent.
-func (s *Store) DeleteDailyRewardItem(ctx context.Context, id int64, moderatorID int64) error {
+func (s *Store) DeleteDailyRewardItem(ctx context.Context, id int64, ator domain.Ator) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		before, _ := fetchDailyRewardItemJSON(ctx, tx, id)
 		if before == nil {
@@ -144,7 +144,7 @@ func (s *Store) DeleteDailyRewardItem(ctx context.Context, id int64, moderatorID
 		if _, err := tx.Exec(ctx, `DELETE FROM daily_reward_item WHERE id = $1`, id); err != nil {
 			return fmt.Errorf("store: delete daily reward item %d: %w", id, err)
 		}
-		return dailyRewardAudit(ctx, tx, &id, moderatorID, "delete", before, nil)
+		return dailyRewardAudit(ctx, tx, &id, ator, "delete", before, nil)
 	})
 }
 
@@ -225,7 +225,7 @@ func (s *Store) ClaimDailyReward(ctx context.Context, accountID, rewardItemID in
 		after, _ := json.Marshal(map[string]any{
 			"account_id": accountID, "reward_item_id": it.ID,
 		})
-		return dailyRewardAudit(ctx, tx, &it.ID, accountID, "claim", nil, after)
+		return dailyRewardAudit(ctx, tx, &it.ID, domain.AtorDaConta(accountID), "claim", nil, after)
 	})
 }
 
@@ -248,11 +248,20 @@ func classifyClaimInsertErr(err error) error {
 
 // --- helpers ---
 
-func dailyRewardAudit(ctx context.Context, tx pgx.Tx, rewardItemID *int64, accountID int64, action string, before, after []byte) error {
+// dailyRewardAudit escreve uma linha de daily_reward_audit.
+//
+// O ATOR AQUI NAO E SO DE STAFF: a mesma tabela guarda o RESGATE do jogador, e nesse
+// caso o ator e a conta dele. E por isso que a trava da 0181 e "exatamente um dos
+// dois" e nao "tem de ser usuario do painel".
+func dailyRewardAudit(ctx context.Context, tx pgx.Tx, rewardItemID *int64, ator domain.Ator, action string, before, after []byte) error {
+	if err := ator.Conferir(); err != nil {
+		return fmt.Errorf("store: auditoria da recompensa diaria: %w", err)
+	}
+	conta, painel := ator.ParaSQL()
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO daily_reward_audit (reward_item_id, account_id, action, before, after)
-		VALUES ($1,$2,$3,$4,$5)`,
-		rewardItemID, accountID, action, nullableJSON(before), nullableJSON(after)); err != nil {
+		INSERT INTO daily_reward_audit (reward_item_id, account_id, actor_painel_usuario_id, action, before, after)
+		VALUES ($1,$2,$3,$4,$5,$6)`,
+		rewardItemID, conta, painel, action, nullableJSON(before), nullableJSON(after)); err != nil {
 		return fmt.Errorf("store: write daily reward audit: %w", err)
 	}
 	return nil

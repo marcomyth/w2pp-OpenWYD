@@ -46,20 +46,20 @@ func TestNPCConfigCRUD(t *testing.T) {
 	id, err := s.UpsertNPCDefinition(ctx, domain.NPCDefinition{
 		Slug: "shop-int-1", TemplateName: "Keeper", DisplayName: "Keeper",
 		Enabled: true, PosX: 100, PosY: 200, Merchant: 1,
-	}, modID)
+	}, domain.AtorDaConta(modID))
 	if err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
 
 	if err := s.SetNPCShop(ctx, id, []domain.NPCShopItem{
 		{Slot: 0, ItemIndex: 1100, Quantity: 120}, {Slot: 5, ItemIndex: 1101, Eff1: 1, EffV1: 9},
-	}, modID); err != nil {
+	}, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("set shop: %v", err)
 	}
-	if err := s.SetNPCVisibility(ctx, id, false, modID); err != nil {
+	if err := s.SetNPCVisibility(ctx, id, false, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("set visibility: %v", err)
 	}
-	if err := s.SetItemPrice(ctx, 1100, 777, modID); err != nil {
+	if err := s.SetItemPrice(ctx, 1100, 777, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("set item price: %v", err)
 	}
 
@@ -97,7 +97,7 @@ func TestNPCConfigCRUD(t *testing.T) {
 	}
 
 	// Delete cascades the shop rows.
-	if err := s.DeleteNPCDefinition(ctx, id, modID); err != nil {
+	if err := s.DeleteNPCDefinition(ctx, id, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	defs, _ = s.ListNPCDefinitions(ctx)
@@ -194,7 +194,7 @@ func TestSeedKeepsSlotsEmptiedInThePanel(t *testing.T) {
 	// The panel empties slot 1 and replaces slot 2.
 	if err := s.SetNPCShop(ctx, id, []domain.NPCShopItem{
 		{Slot: 0, ItemIndex: 10}, {Slot: 2, ItemIndex: 99},
-	}, 0); err != nil {
+	}, atorDeTeste(ctx, t, s)); err != nil {
 		t.Fatalf("set shop: %v", err)
 	}
 	if _, _, err := s.SeedNPCDefinitions(ctx, defs); err != nil {
@@ -224,7 +224,7 @@ func TestSeedKeepsSlotsEmptiedInThePanel(t *testing.T) {
 	// shop later records every slot — including through an empty list.
 	if err := s.SetNPCShop(ctx, id, []domain.NPCShopItem{
 		{Slot: 0, ItemIndex: 10}, {Slot: 1, ItemIndex: 50}, {Slot: 2, ItemIndex: 99},
-	}, 0); err != nil {
+	}, atorDeTeste(ctx, t, s)); err != nil {
 		t.Fatalf("refill: %v", err)
 	}
 	var marcas int
@@ -234,7 +234,7 @@ func TestSeedKeepsSlotsEmptiedInThePanel(t *testing.T) {
 	if marcas != 0 {
 		t.Errorf("records after refilling = %d, want 0", marcas)
 	}
-	if err := s.SetNPCShop(ctx, id, nil, 0); err != nil {
+	if err := s.SetNPCShop(ctx, id, nil, atorDeTeste(ctx, t, s)); err != nil {
 		t.Fatalf("empty shop: %v", err)
 	}
 	if _, _, err := s.SeedNPCDefinitions(ctx, defs); err != nil {
@@ -289,7 +289,7 @@ func TestDeleteNPCDefinitionContentOwned(t *testing.T) {
 		t.Fatalf("version: %v", err)
 	}
 
-	if err := s.DeleteNPCDefinition(ctx, npcID, modID); !errors.Is(err, ErrContentOwned) {
+	if err := s.DeleteNPCDefinition(ctx, npcID, domain.AtorDaConta(modID)); !errors.Is(err, ErrContentOwned) {
 		t.Fatalf("delete = %v, want ErrContentOwned", err)
 	}
 
@@ -318,7 +318,7 @@ func TestDeleteNPCDefinitionContentOwned(t *testing.T) {
 	}
 
 	// Hiding it is the supported alternative and must still work.
-	if err := s.SetNPCVisibility(ctx, npcID, false, modID); err != nil {
+	if err := s.SetNPCVisibility(ctx, npcID, false, domain.AtorDaConta(modID)); err != nil {
 		t.Errorf("set visibility on content NPC: %v", err)
 	}
 }
@@ -476,7 +476,7 @@ func TestSeedNPCDefinitionsKeepsCustomNPCs(t *testing.T) {
 	if _, err := s.UpsertNPCDefinition(ctx, domain.NPCDefinition{
 		Slug: "prune-custom-1", TemplateName: "A", Enabled: true, Merchant: 1,
 		MapID: 0, PosX: 100, PosY: 100,
-	}, 0); err != nil {
+	}, atorDeTeste(ctx, t, s)); err != nil {
 		t.Fatalf("upsert custom: %v", err)
 	}
 	if _, _, err := s.SeedNPCDefinitions(ctx, []domain.NPCDefinition{

@@ -52,7 +52,7 @@ func TestItemStatCRUD(t *testing.T) {
 		}
 	}
 
-	if err := s.UpsertItemStat(ctx, want, modID); err != nil {
+	if err := s.UpsertItemStat(ctx, want, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("UpsertItemStat: %v", err)
 	}
 
@@ -68,7 +68,7 @@ func TestItemStatCRUD(t *testing.T) {
 	// not leave the first row behind.
 	danoAntes := want.Damage
 	want.Damage = 999
-	if err := s.UpsertItemStat(ctx, want, modID); err != nil {
+	if err := s.UpsertItemStat(ctx, want, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("second UpsertItemStat: %v", err)
 	}
 	all, err := s.ListItemStats(ctx)
@@ -108,13 +108,13 @@ func TestItemStatCRUD(t *testing.T) {
 		t.Errorf("audit before.damage = %d, want %d (what the first write stored)", *beforeDamage, danoAntes)
 	}
 
-	if err := s.DeleteItemStat(ctx, 1415, modID); err != nil {
+	if err := s.DeleteItemStat(ctx, 1415, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("DeleteItemStat: %v", err)
 	}
 	if _, err := s.GetItemStat(ctx, 1415); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Get after delete = %v, want ErrNotFound", err)
 	}
-	if err := s.DeleteItemStat(ctx, 1415, modID); !errors.Is(err, ErrNotFound) {
+	if err := s.DeleteItemStat(ctx, 1415, domain.AtorDaConta(modID)); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("second delete = %v, want ErrNotFound", err)
 	}
 }

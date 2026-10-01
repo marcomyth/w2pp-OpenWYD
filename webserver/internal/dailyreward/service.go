@@ -23,9 +23,9 @@ type Store interface {
 	AccountRole(ctx context.Context, id int64) (string, error)
 	ListDailyRewardItems(ctx context.Context) ([]domain.DailyRewardItem, error)
 	ListEnabledDailyRewardItems(ctx context.Context) ([]domain.DailyRewardItem, error)
-	UpsertDailyRewardItem(ctx context.Context, d domain.DailyRewardItem, moderatorID int64) (int64, error)
-	SetDailyRewardItemEnabled(ctx context.Context, id int64, enabled bool, moderatorID int64) error
-	DeleteDailyRewardItem(ctx context.Context, id int64, moderatorID int64) error
+	UpsertDailyRewardItem(ctx context.Context, d domain.DailyRewardItem, ator domain.Ator) (int64, error)
+	SetDailyRewardItemEnabled(ctx context.Context, id int64, enabled bool, ator domain.Ator) error
+	DeleteDailyRewardItem(ctx context.Context, id int64, ator domain.Ator) error
 	DailyRewardClaimedToday(ctx context.Context, accountID int64) (claimed bool, itemID int64, title string, err error)
 	ClaimDailyReward(ctx context.Context, accountID, rewardItemID int64) error
 }
@@ -84,13 +84,14 @@ func (s *Service) List(ctx context.Context, moderatorID int64) (Result, []domain
 // Upsert creates (d.ID == 0) or updates an offer after validating it. Unlike
 // donateshop.Upsert there is no price check — daily rewards are free.
 func (s *Service) Upsert(ctx context.Context, moderatorID int64, d domain.DailyRewardItem) (Result, int64, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, 0, err
 	}
 	if d.ItemIndex <= 0 || d.ExpiresDays < 0 {
 		return Invalid, 0, nil
 	}
-	id, err := s.store.UpsertDailyRewardItem(ctx, d, moderatorID)
+	id, err := s.store.UpsertDailyRewardItem(ctx, d, ator)
 	if errors.Is(err, store.ErrNotFound) {
 		return NotFound, 0, nil
 	}
@@ -102,18 +103,20 @@ func (s *Service) Upsert(ctx context.Context, moderatorID int64, d domain.DailyR
 
 // SetEnabled toggles whether an offer is claimable.
 func (s *Service) SetEnabled(ctx context.Context, moderatorID, itemID int64, enabled bool) (Result, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, err
 	}
-	return classifyWrite(s.store.SetDailyRewardItemEnabled(ctx, itemID, enabled, moderatorID), "set enabled")
+	return classifyWrite(s.store.SetDailyRewardItemEnabled(ctx, itemID, enabled, ator), "set enabled")
 }
 
 // Delete removes an offer.
 func (s *Service) Delete(ctx context.Context, moderatorID, itemID int64) (Result, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, err
 	}
-	return classifyWrite(s.store.DeleteDailyRewardItem(ctx, itemID, moderatorID), "delete")
+	return classifyWrite(s.store.DeleteDailyRewardItem(ctx, itemID, ator), "delete")
 }
 
 // --- player surface ---
@@ -200,4 +203,40 @@ func classifyWrite(err error, op string) (Result, error) {
 	default:
 		return Invalid, fmt.Errorf("dailyreward: %s: %w", op, err)
 	}
+}
+
+// autorizaEscrita e o authorize das ESCRITAS: alem de dizer se PODE, diz QUEM E.
+//
+// EXISTE SEPARADO DO authorize porque as leituras nao precisam de ator, e misturar as
+// duas coisas faria cada pagina de consulta carregar um ator que ela nao usa.
+//
+// AS DUAS JUNTAS SAO RECUSA, e nenhuma delas ganha da outra. Se nao houver nenhuma, o
+// ator sai vazio e o internal/store recusa antes de escrever -- ninguem grava
+// "conta 0".
+func (s *Service) autorizaEscrita(ctx context.Context, moderatorID int64) (domain.Ator, Result, error) {
+	r, err := s.authorize(ctx, moderatorID)
+	if r != OK || err != nil {
+		return domain.Ator{}, r, err
+	}
+	a, doPainel := painelator.Do(ctx)
+	// OS DOIS JUNTOS SAO RECUSA, e nao empate a ser desempatado.
+	//
+	// Antes eu dava preferencia a conta de jogo. Estava errado: preferir e DESCARTAR
+	// o outro em silencio, e a linha de auditoria sairia dizendo que uma pessoa fez o
+	// que duas informacoes reivindicam. Numa tabela cuja unica razao de existir e
+	// dizer QUEM fez, "eu escolhi um dos dois" e a pior resposta possivel.
+	//
+	// E nao e so teoria: a chamada so tem os dois se alguem montou um pedido
+	// estranho, e um pedido estranho e exatamente o que nao deve virar uma gravacao
+	// com autor plausivel.
+	if moderatorID > 0 && doPainel {
+		return domain.Ator{}, Forbidden, nil
+	}
+	if moderatorID > 0 {
+		return domain.AtorDaConta(moderatorID), OK, nil
+	}
+	if doPainel {
+		return domain.AtorDoPainel(a.ID), OK, nil
+	}
+	return domain.Ator{}, Forbidden, nil
 }

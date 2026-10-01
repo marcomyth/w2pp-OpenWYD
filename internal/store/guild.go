@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -791,6 +792,11 @@ func (s *Store) ListGuildSquads(ctx context.Context, guildID uint16) ([]domain.G
 //
 // É aqui que as linhas órfãs de quem saiu da guilda desaparecem: a tela só
 // oferece membros atuais, então a regravação não os traz de volta.
+//
+// E quem entra nesta cidade SAI das outras quatro, na mesma transação. Convocar
+// para uma cidade é mandar a pessoa para lá: a Josiel escalava alguém em Armia,
+// queria mandá-lo para Azran, e ele ficava nas duas sem ter como tirar. Um
+// jogador defende uma cidade só.
 func (s *Store) SetGuildSquad(ctx context.Context, guildID uint16, zone int, names []string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -813,6 +819,23 @@ func (s *Store) SetGuildSquad(ctx context.Context, guildID uint16, zone int, nam
 			ON CONFLICT (guild_id, zone, name) DO NOTHING`,
 			int32(guildID), int16(zone), n); err != nil {
 			return fmt.Errorf("store: insert guild squad %d/%d: %w", guildID, zone, err)
+		}
+	}
+	// A comparação é sem caixa, como a do handler que confere os nomes contra o
+	// quadro: o mesmo personagem não pode sobrar em outra cidade por uma letra
+	// maiúscula.
+	minusculos := make([]string, 0, len(names))
+	for _, n := range names {
+		if n != "" {
+			minusculos = append(minusculos, strings.ToLower(n))
+		}
+	}
+	if len(minusculos) > 0 {
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM guild_city_squad
+			WHERE guild_id = $1 AND zone <> $2 AND lower(name) = ANY($3)`,
+			int32(guildID), int16(zone), minusculos); err != nil {
+			return fmt.Errorf("store: move guild squad %d/%d: %w", guildID, zone, err)
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {

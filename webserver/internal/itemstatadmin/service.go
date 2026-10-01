@@ -28,8 +28,8 @@ import (
 type Store interface {
 	AccountRole(ctx context.Context, id int64) (string, error)
 	GetItemStat(ctx context.Context, itemIndex int32) (domain.ItemStat, error)
-	UpsertItemStat(ctx context.Context, st domain.ItemStat, moderatorID int64) error
-	DeleteItemStat(ctx context.Context, itemIndex int32, moderatorID int64) error
+	UpsertItemStat(ctx context.Context, st domain.ItemStat, ator domain.Ator) error
+	DeleteItemStat(ctx context.Context, itemIndex int32, ator domain.Ator) error
 }
 
 // CatalogReader resolves an item index to its ItemList.csv row.
@@ -108,7 +108,8 @@ func (s *Service) Get(ctx context.Context, moderatorID int64, itemIndex int32) (
 
 // Upsert writes an item's override whole.
 func (s *Service) Upsert(ctx context.Context, moderatorID int64, st domain.ItemStat) (Result, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, err
 	}
 	if st.ItemIndex < 0 {
@@ -123,7 +124,7 @@ func (s *Service) Upsert(ctx context.Context, moderatorID int64, st domain.ItemS
 			return Invalid, nil
 		}
 	}
-	if err := s.store.UpsertItemStat(ctx, st, moderatorID); err != nil {
+	if err := s.store.UpsertItemStat(ctx, st, ator); err != nil {
 		return Invalid, fmt.Errorf("itemstatadmin: upsert %d: %w", st.ItemIndex, err)
 	}
 	return OK, nil
@@ -132,10 +133,11 @@ func (s *Service) Upsert(ctx context.Context, moderatorID int64, st domain.ItemS
 // Delete removes the override, reverting the item to its catalog values. It
 // never touches ItemList.csv — Release/ is read-only in production.
 func (s *Service) Delete(ctx context.Context, moderatorID int64, itemIndex int32) (Result, error) {
-	if r, err := s.authorize(ctx, moderatorID); r != OK || err != nil {
+	ator, r, err := s.autorizaEscrita(ctx, moderatorID)
+	if r != OK || err != nil {
 		return r, err
 	}
-	err := s.store.DeleteItemStat(ctx, itemIndex, moderatorID)
+	err = s.store.DeleteItemStat(ctx, itemIndex, ator)
 	switch {
 	case err == nil:
 		return OK, nil
@@ -215,4 +217,40 @@ func statFromCatalog(e itemcatalog.Entry) domain.ItemStat {
 		*f.Ptr(&st) = porID[id]
 	}
 	return st
+}
+
+// autorizaEscrita e o authorize das ESCRITAS: alem de dizer se PODE, diz QUEM E.
+//
+// EXISTE SEPARADO DO authorize porque as leituras nao precisam de ator, e misturar as
+// duas coisas faria cada pagina de consulta carregar um ator que ela nao usa.
+//
+// AS DUAS JUNTAS SAO RECUSA, e nenhuma delas ganha da outra. Se nao houver nenhuma, o
+// ator sai vazio e o internal/store recusa antes de escrever -- ninguem grava
+// "conta 0".
+func (s *Service) autorizaEscrita(ctx context.Context, moderatorID int64) (domain.Ator, Result, error) {
+	r, err := s.authorize(ctx, moderatorID)
+	if r != OK || err != nil {
+		return domain.Ator{}, r, err
+	}
+	a, doPainel := painelator.Do(ctx)
+	// OS DOIS JUNTOS SAO RECUSA, e nao empate a ser desempatado.
+	//
+	// Antes eu dava preferencia a conta de jogo. Estava errado: preferir e DESCARTAR
+	// o outro em silencio, e a linha de auditoria sairia dizendo que uma pessoa fez o
+	// que duas informacoes reivindicam. Numa tabela cuja unica razao de existir e
+	// dizer QUEM fez, "eu escolhi um dos dois" e a pior resposta possivel.
+	//
+	// E nao e so teoria: a chamada so tem os dois se alguem montou um pedido
+	// estranho, e um pedido estranho e exatamente o que nao deve virar uma gravacao
+	// com autor plausivel.
+	if moderatorID > 0 && doPainel {
+		return domain.Ator{}, Forbidden, nil
+	}
+	if moderatorID > 0 {
+		return domain.AtorDaConta(moderatorID), OK, nil
+	}
+	if doPainel {
+		return domain.AtorDoPainel(a.ID), OK, nil
+	}
+	return domain.Ator{}, Forbidden, nil
 }

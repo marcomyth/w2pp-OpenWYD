@@ -35,7 +35,7 @@ func efeitoDoCatalogo(e content.ItemEntry, nome string) int {
 	return -1
 }
 
-// As dezesseis armas da lista são Armas D no catálogo, e a escada de cada uma
+// As dezenove armas da lista são Armas D no catálogo, e a escada de cada uma
 // bate com o que ela é: EF_MAGIC leva magia, o resto dano.
 func TestArmasDDoDesertoBatemComOCatalogo(t *testing.T) {
 	items, err := content.LoadItemList(filepath.Join(releaseDir(t), "Common", "ItemList.csv"))
@@ -59,8 +59,8 @@ func TestArmasDDoDesertoBatemComOCatalogo(t *testing.T) {
 	}
 	checa(armasDDoDesertoFisicas, false)
 	checa(armasDDoDesertoMagicas, true)
-	if n := len(armasDDoDesertoFisicas) + len(armasDDoDesertoMagicas); n != 16 {
-		t.Errorf("%d Armas D na lista, want 16", n)
+	if n := len(armasDDoDesertoFisicas) + len(armasDDoDesertoMagicas); n != 19 {
+		t.Errorf("%d Armas D na lista, want 19", n)
 	}
 }
 
@@ -122,7 +122,7 @@ func TestChefesSoltamBarra100Mi(t *testing.T) {
 // refino do bônus de drop; o Escudo de Runas e os monstros de fora não mudam.
 func TestDesertoCarimbaArmasD(t *testing.T) {
 	d, w, _ := mobKilledWorld(t)
-	for _, mob := range []string{"Taron_Assassino", "Adamant_Tauron", "Manticora", "Verme_"} {
+	for _, mob := range []string{"Taron_Assassino", "Adamant_Tauron", "Aeon_Tauron", "Manticora", "Verme_"} {
 		m := spawnNamed(t, w, expMobTemplate(370, 0, 0), mob)
 		for id := range armasDDoDesertoFisicas {
 			arma := world.Item{Index: id, Effects: [3]world.Effect{{Effect: efSanc, Value: 1}, {Effect: 26, Value: 3}, {Effect: efDamage, Value: 9}}}
@@ -302,6 +302,9 @@ func TestDesertoArmaDPelaMorte(t *testing.T) {
 		{"Adamant_Tauron", 936},
 		{"Manticora", 870},
 		{"Verme_", 885},
+		{"Aeon_Tauron", 900},    // Fúria Divina (0186)
+		{"Adamant_Tauron", 935}, // Martelo Psíquico (0186)
+		{"Manticora", 869},      // Gram (0186)
 	} {
 		d, w, killer := mobKilledWorld(t)
 		d.dropRules = droprule.NewTable([]droprule.Rule{{Mob: c.mob, Item: c.arma, Chance: droprule.MaxChance}})

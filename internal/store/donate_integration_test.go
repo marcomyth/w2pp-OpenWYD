@@ -36,7 +36,7 @@ func TestDonateShopCRUD(t *testing.T) {
 	id, err := s.UpsertDonateShopItem(ctx, domain.DonateShopItem{
 		ItemIndex: 3540, Eff1: 1, EffV1: 9, Price: 100, Title: "Set Celestial",
 		Description: "shiny", Enabled: true, ExpiresDays: 30,
-	}, modID)
+	}, domain.AtorDaConta(modID))
 	if err != nil {
 		t.Fatalf("upsert create: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestDonateShopCRUD(t *testing.T) {
 	// Update in place (same id).
 	got.Price = 250
 	got.Title = "Set Celestial +11"
-	if _, err := s.UpsertDonateShopItem(ctx, got, modID); err != nil {
+	if _, err := s.UpsertDonateShopItem(ctx, got, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("upsert update: %v", err)
 	}
 	if updated, _ := s.GetDonateShopItem(ctx, id); updated.Price != 250 || updated.Title != "Set Celestial +11" {
@@ -60,11 +60,11 @@ func TestDonateShopCRUD(t *testing.T) {
 	}
 
 	// Updating a missing id is NotFound.
-	if _, err := s.UpsertDonateShopItem(ctx, domain.DonateShopItem{ID: 999999, ItemIndex: 1, Price: 1}, modID); !errors.Is(err, ErrNotFound) {
+	if _, err := s.UpsertDonateShopItem(ctx, domain.DonateShopItem{ID: 999999, ItemIndex: 1, Price: 1}, domain.AtorDaConta(modID)); !errors.Is(err, ErrNotFound) {
 		t.Errorf("upsert missing id err = %v, want ErrNotFound", err)
 	}
 
-	if err := s.SetDonateShopItemEnabled(ctx, id, false, modID); err != nil {
+	if err := s.SetDonateShopItemEnabled(ctx, id, false, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("set enabled: %v", err)
 	}
 	all, err := s.ListDonateShopItems(ctx)
@@ -75,7 +75,7 @@ func TestDonateShopCRUD(t *testing.T) {
 		t.Errorf("enabled list = %d, want 0 (offer disabled)", len(enabled))
 	}
 
-	if err := s.DeleteDonateShopItem(ctx, id, modID); err != nil {
+	if err := s.DeleteDonateShopItem(ctx, id, domain.AtorDaConta(modID)); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	if _, err := s.GetDonateShopItem(ctx, id); !errors.Is(err, ErrNotFound) {
@@ -102,14 +102,14 @@ func TestDonateCreditAndBuy(t *testing.T) {
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `DELETE FROM account WHERE id = $1`, accID) })
 
 	// Credit the wallet.
-	if bal, err := s.CreditDonateBalance(ctx, accID, 300, 0, "manual grant"); err != nil || bal != 300 {
+	if bal, err := s.CreditDonateBalance(ctx, accID, 300, atorDeTeste(ctx, t, s), "manual grant"); err != nil || bal != 300 {
 		t.Fatalf("credit = (%d, %v), want (300, nil)", bal, err)
 	}
 
 	// One enabled offer at price 100 (with an effect + 7-day expiry).
 	itemID, err := s.UpsertDonateShopItem(ctx, domain.DonateShopItem{
 		ItemIndex: 1234, Eff1: 2, EffV1: 5, Price: 100, Enabled: true, ExpiresDays: 7,
-	}, 0)
+	}, atorDeTeste(ctx, t, s))
 	if err != nil {
 		t.Fatalf("upsert offer: %v", err)
 	}
@@ -143,8 +143,8 @@ func TestDonateCreditAndBuy(t *testing.T) {
 	}
 
 	// A disabled offer rejects the purchase.
-	disabledID, _ := s.UpsertDonateShopItem(ctx, domain.DonateShopItem{ItemIndex: 5, Price: 1, Enabled: false}, 0)
-	if _, err := s.CreditDonateBalance(ctx, accID, 10, 0, "topup"); err != nil {
+	disabledID, _ := s.UpsertDonateShopItem(ctx, domain.DonateShopItem{ItemIndex: 5, Price: 1, Enabled: false}, atorDeTeste(ctx, t, s))
+	if _, err := s.CreditDonateBalance(ctx, accID, 10, atorDeTeste(ctx, t, s), "topup"); err != nil {
 		t.Fatalf("topup: %v", err)
 	}
 	if _, err := s.BuyDonateItem(ctx, accID, disabledID); !errors.Is(err, ErrShopItemDisabled) {
