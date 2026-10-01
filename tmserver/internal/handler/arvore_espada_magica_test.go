@@ -78,13 +78,13 @@ func TestArmaDaEspadaMagica(t *testing.T) {
 	}
 }
 
-// Chance 10% + espadaCritChanceIntAtual × i; multiplicador do piso da faixa até
-// o piso + espadaCritMultIntAtual × i.
+// A chance é o crítico do personagem (limiar em 255, como o golpe físico), com
+// piso de 5% (byte 13); o multiplicador vai do piso da faixa até o piso +
+// espadaCritMultIntAtual × i.
 //
-// Os números esperados saem dos BOTÕES, não de literais: a faixa foi cortada de
-// ×2,0-×4,0 para ×1,5-×2,5 em 21/09/2026 (era o que restava matando de um golpe
-// depois da correção da resistência), e um teste que fixasse os valores antigos
-// só amarraria a regra à calibragem do dia.
+// Os multiplicadores esperados saem dos BOTÕES, não de literais: a faixa foi
+// cortada de ×2,0-×4,0 para ×1,5-×2,5 em 21/09/2026, e um teste que fixasse os
+// valores antigos só amarraria a regra à calibragem do dia.
 func TestCriticoDaEspadaMagica(t *testing.T) {
 	var (
 		piso  = espadaCritMultBase10Atual                            // sorte mínima, qualquer INT
@@ -93,23 +93,31 @@ func TestCriticoDaEspadaMagica(t *testing.T) {
 		sorte = espadaCritMultIntAtual                               // a maior rolagem que a INT cheia permite
 	)
 	cases := []struct {
-		name  string
-		intel int16
-		rolls rolagens
-		want  int
+		name   string
+		intel  int16
+		critic uint8
+		rolls  rolagens
+		want   int
 	}{
-		{"INT cheia, pega (24 < 25), sorte máxima", 2848, rolagens{24, sorte}, teto},
-		{"INT cheia, pega, sorte mínima", 2848, rolagens{0, 0}, piso},
-		{"INT cheia, não pega (25)", 2848, rolagens{25}, 0},
-		{"INT 1250, pega (16 < 17), meio da faixa", 1250, rolagens{16, sorte / 2}, meio},
-		{"INT 1250, não pega (17)", 1250, rolagens{17}, 0},
-		{"sem INT, pega (9 < 10), só o piso", 0, rolagens{9, 0}, piso},
+		{"crítico 23 (9,2% na janela), pega (22 < 23), sorte máxima", 2848, 23, rolagens{22, sorte}, teto},
+		{"crítico 23, não pega (23) — a INT cheia não dá chance", 2848, 23, rolagens{23}, 0},
+		{"crítico 23, INT cheia, sorte mínima", 2848, 23, rolagens{0, 0}, piso},
+		{"crítico 23, INT 1250, meio da faixa", 1250, 23, rolagens{5, sorte / 2}, meio},
+		{"sem crítico: o piso de 5% pega (12 < 13)", 2848, 0, rolagens{12, 0}, piso},
+		{"sem crítico: o piso não pega (13)", 2848, 0, rolagens{13}, 0},
+		{"crítico alto (100 = 40% na janela), pega (99)", 2848, 100, rolagens{99, 0}, piso},
+		{"sem INT, pega, só o piso da faixa", 0, 23, rolagens{0, 0}, piso},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			r := c.rolls
-			if got := rolarCriticoDeMago(&r, tkDaEspadaMagica(c.intel, learnedTempestadeDeGelo, 255)); got != c.want {
+			e := tkDaEspadaMagica(c.intel, learnedTempestadeDeGelo, 255)
+			e.Critical = c.critic
+			if got := rolarCriticoDeMago(&r, e); got != c.want {
 				t.Errorf("multiplicador = %d, want %d", got, c.want)
+			}
+			if len(r) != 0 {
+				t.Errorf("sobraram %d rolagens: o sorteio consumiu menos do que o esperado", len(r))
 			}
 		})
 	}
@@ -184,6 +192,9 @@ func espadaMagicaNoFio(t *testing.T, skill int, hp, maxHP int32) (net.Conn, *wor
 		Slot: 0, Name: "TKMago", Class: 0, X: 5, Y: 5,
 		HP: hp, MaxHP: maxHP, MP: 20_000, MaxMP: 20_000, Level: 100, Int: 2500,
 		LearnedSkill: 1<<skill | learnedTempestadeDeGelo, BaseSpecial: [4]int16{0, 0, 0, 255},
+		// O crítico de mago sorteia pelo crítico do personagem (01/10/2026): o colar
+		// de EF_CRITICAL2 255 dá o byte 63, 25% — a chance que a INT cheia dava antes.
+		Equip: [world.MaxEquip]world.Item{2: {Index: 701, Effects: [3]world.Effect{{}, {Effect: efCritical2, Value: 255}}}},
 	}
 	spells := content.NewSkillData([]content.Spell{{
 		Index: skill, TargetType: 1, Range: 5, InstanceType: 1, InstanceValue: 65, Aggressive: 1, MaxTarget: 1,
@@ -249,14 +260,17 @@ func TestEspadaMagicaCritaERoubaVidaNoGolpe(t *testing.T) {
 		t.Fatalf("ecos = %d, want 30", len(danos))
 	}
 	if criticos == 0 {
-		t.Error("nenhum crítico em 30 golpes (25% de chance cada)")
+		t.Error("nenhum crítico em 30 golpes (25% de chance cada, pelo colar)")
 	}
 	// Dentro do laço: o mundo é de dono único e ler a ficha da goroutine do teste
 	// corre com o desmonte da sessão. A asserção é a mesma.
 	var hp int32
 	noLaco(t, w, func(w *world.World) { hp = w.Entity(1).HP })
-	if hp < 4000 {
-		t.Errorf("HP do TK = %d, want o roubo de vida acima de 4.000 (começou em 1.000)", hp)
+	// O piso é 2.500, e não um número da sorte: o sorteio do crítico passou a
+	// consumir rand()%255 em 01/10/2026, e a sequência de roubos mudou junto (deu
+	// 3.555). O que se prova é que a vida SOBE, e de 1.000 ela sobe muito.
+	if hp < 2500 {
+		t.Errorf("HP do TK = %d, want o roubo de vida acima de 2.500 (começou em 1.000)", hp)
 	}
 }
 

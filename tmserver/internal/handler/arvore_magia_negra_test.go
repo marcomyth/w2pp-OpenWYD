@@ -154,6 +154,9 @@ func TestMagiaNegraCritaERoubaManaNoGolpe(t *testing.T) {
 		Slot: 0, Name: "Black", Class: 1, X: 5, Y: 5,
 		HP: 50_000, MaxHP: 50_000, MP: 1000, MaxMP: 20_000, Level: 100, Int: 3148,
 		LearnedSkill: 1<<(nevasca%24) | learnedInferno, BaseSpecial: [4]int16{0, 0, 255, 0},
+		// O crítico de mago sorteia pelo crítico do personagem (01/10/2026): o colar
+		// de EF_CRITICAL2 255 dá o byte 63, 25% — a chance que a INT cheia dava antes.
+		Equip: [world.MaxEquip]world.Item{2: {Index: 701, Effects: [3]world.Effect{{}, {Effect: efCritical2, Value: 255}}}},
 	}
 	spells := content.NewSkillData([]content.Spell{{
 		Index: nevasca, TargetType: 1, Range: 5, InstanceType: 3, InstanceValue: 200, Aggressive: 1, MaxTarget: 1,
@@ -208,6 +211,9 @@ func TestTrovaoDaMagiaNegra(t *testing.T) {
 		// a Foema zerava a vida no primeiro golpe. Morta, ela não lança mais o
 		// Trovão (affect_tick.go), e a rodada media só o primeiro tique.
 		fm.X, fm.Y, fm.HP, fm.MaxHP, fm.MP, fm.MaxMP, fm.Level = 5, 5, 1000, 1000, 1000, 20_000, 100
+		// A chance do crítico de mago é o crítico do personagem (desde 01/10/2026):
+		// 64 é 25% na janela, a chance que a INT cheia dava antes.
+		fm.Critical = 64
 		for range 200 {
 			mob.HP, mob.MaxHP = 50_000_000, 50_000_000
 			d.applyThunderTick(w, s, fm, 100)
