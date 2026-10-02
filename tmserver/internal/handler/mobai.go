@@ -47,6 +47,7 @@ func (d *Dispatcher) Tick(w *world.World) {
 	d.ensureGuildStateLoaded(w)
 	d.tickShopPoints(w)
 	d.tickBuffsDeGuilda(w) // os buffs de guilda que venceram (guildabuffs.go)
+	d.tickTravaDeSenha()   // a trava das três senhas erradas solta sozinha (login_trava.go)
 
 	// Dormancy gate: snapshot the (few) in-play player positions once, so the
 	// ~10k idle mobs far from any player skip the 81-cell aggro scan. The scratch

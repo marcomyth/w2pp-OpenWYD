@@ -10,7 +10,9 @@
    `_NN_Version_Not_Match_Rerun` + `CloseUser` (`:44-54`). (Em `_PACKET_DEBUG` a versão não é checada.)
 3. `pUser[conn].Mode == USER_ACCEPT` — senão "Login now, wait a moment." + `CrackLog` (`:56-63`).
 4. `CheckFailAccount(AccountName) < 3` — 3+ falhas de senha bloqueiam temporariamente
-   (`_NN_3_Tims_Wrong_Pass`, `:82-90`).
+   (`_NN_3_Tims_Wrong_Pass`, `:82-90`). "Temporariamente" é a lista inteira zerada a cada
+   10 passadas do `ProcessMinTimer` (`ProcessSecMinTimer.cpp:2645-2646`; a passada é de
+   12 s, `Server.cpp:4087`): 120 s, e não um prazo contado por conta.
 
 ## Efeitos colaterais
 - Captura MAC: copia `m->AdapterName` para `pUser[conn].Mac` (ou `0xFF` se pacote curto) (`:67-70`).

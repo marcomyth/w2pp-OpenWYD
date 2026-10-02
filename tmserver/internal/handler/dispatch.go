@@ -327,7 +327,9 @@ type Dispatcher struct {
 	cfg    Config
 	log    *slog.Logger
 	routes map[protocol.Type]handlerFunc
-	fails  map[string]int // wrong-password count per account (CheckFailAccount)
+	// fails: wrong-password count per account (CheckFailAccount). Zerado inteiro a
+	// cada 120 s pelo tickTravaDeSenha, como o legado faz (login_trava.go).
+	fails map[string]int
 	// Grupo com senha (grupo_com_senha.go). Fora da Entity de proposito: conn e
 	// reciclado para o proximo jogador, e uma senha deixada na Entity viraria a senha
 	// do grupo de um estranho. Limpos em SessionEnd.
