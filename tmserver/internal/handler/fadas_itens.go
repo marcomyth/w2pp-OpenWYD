@@ -25,11 +25,9 @@ type fadaItem struct {
 }
 
 // fadasMontaIndice refaz, junto com o catálogo de monstros, o índice inverso:
-// para cada item, os monstros que o dão (quemDropa) e, entre eles, os que o dão
-// pelo sorteio comum de adicionais (quemSorteia, ver fadasSorteioComum).
+// para cada item, os monstros que o dão.
 func (d *Dispatcher) fadasMontaIndice(w *world.World, c *fadaCatalogo) {
 	c.quemDropa = map[int16][]int{}
-	c.quemSorteia = map[int16][]int{}
 	for i := range c.lista {
 		m := &c.lista[i]
 		molde, mesa, especial := d.fadasFontes(w, m)
@@ -37,9 +35,6 @@ func (d *Dispatcher) fadasMontaIndice(w *world.World, c *fadaCatalogo) {
 		slices.Sort(todos)
 		for _, idx := range slices.Compact(todos) {
 			c.quemDropa[idx] = append(c.quemDropa[idx], i)
-		}
-		for _, idx := range fadasSorteioComum(m, molde, mesa, especial) {
-			c.quemSorteia[idx] = append(c.quemSorteia[idx], i)
 		}
 	}
 	c.itens = c.itens[:0]
@@ -56,20 +51,6 @@ func (d *Dispatcher) fadasMontaIndice(w *world.World, c *fadaCatalogo) {
 		}
 		return int(a.indice) - int(b.indice)
 	})
-}
-
-// fadasSorteioComum são os itens de um monstro cujos adicionais saem do sorteio
-// comum (refine.Tabelas.Drop): os do molde, e os da Mesa quando o lugar não
-// carimba os próprios adicionais. O que também vem do saque de chefe fica de
-// fora, porque aquela cópia usa a tabela do chefe.
-func fadasSorteioComum(m *fadaMonstro, molde, mesa, especial []int16) []int16 {
-	itens := slices.Clone(molde)
-	if !fadasAddsDoLugar(m.molde) {
-		itens = append(itens, mesa...)
-	}
-	slices.Sort(itens)
-	itens = slices.Compact(itens)
-	return slices.DeleteFunc(itens, func(idx int16) bool { return slices.Contains(especial, idx) })
 }
 
 // fadasBaseDoItem é o que o sorteio de adicionais precisa saber do item.
@@ -93,29 +74,14 @@ func (d *Dispatcher) fadasPossiveis() *refine.Possiveis {
 
 // fadasFaixaLarga é a faixa de adicional de um item SEM monstro escolhido (aba
 // Filtro, e o item recém-escolhido na aba Itens): a mais larga entre todos os
-// monstros que o dão pelo sorteio comum — o menor dos mínimos e o maior dos
-// máximos de cada efeito.
-func (d *Dispatcher) fadasFaixaLarga(c *fadaCatalogo, idx int16) []protocol.FadasFaixa {
-	base := d.fadasBaseDoItem(idx)
-	p := d.fadasPossiveis()
+// monstros que o dão — o menor dos mínimos e o maior dos máximos de cada efeito.
+func (d *Dispatcher) fadasFaixaLarga(w *world.World, c *fadaCatalogo, idx int16) []protocol.FadasFaixa {
 	var out []protocol.FadasFaixa
-	visto := map[uint16]bool{} // um nível de monstro só é contado uma vez
-	for _, i := range c.quemSorteia[idx] {
-		nivel := c.lista[i].nivel
-		if visto[nivel] {
-			continue
-		}
-		visto[nivel] = true
-		for _, f := range p.Do(base, int(nivel)) {
-			k := slices.IndexFunc(out, func(o protocol.FadasFaixa) bool { return o.Efeito == f.Efeito })
-			if k < 0 {
-				out = append(out, protocol.FadasFaixa{Efeito: f.Efeito, Min: f.Min, Max: f.Max})
-				continue
-			}
-			out[k].Min, out[k].Max = min(out[k].Min, f.Min), max(out[k].Max, f.Max)
-		}
+	for _, i := range c.quemDropa[idx] {
+		m := &c.lista[i]
+		molde, mesa, especial := d.fadasFontes(w, m)
+		out = uneFaixas(out, d.fadasFaixasDoPar(m, idx, molde, mesa, especial))
 	}
-	slices.SortFunc(out, func(a, b protocol.FadasFaixa) int { return int(a.Efeito) - int(b.Efeito) })
 	return out
 }
 
@@ -124,7 +90,7 @@ func (d *Dispatcher) fadasMandaFaixasLargas(w *world.World, s *world.Session, it
 	c := d.fadasCatalogo(w)
 	var linhas []protocol.FadasFaixasItem
 	for _, idx := range itens {
-		if f := d.fadasFaixaLarga(c, idx); len(f) > 0 {
+		if f := d.fadasFaixaLarga(w, c, idx); len(f) > 0 {
 			linhas = append(linhas, protocol.FadasFaixasItem{Item: idx, Faixas: f})
 		}
 	}

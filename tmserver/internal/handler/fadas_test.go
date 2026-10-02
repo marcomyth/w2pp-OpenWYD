@@ -509,27 +509,25 @@ func TestFadasMonstrosLevaTipoERegiao(t *testing.T) {
 	}
 }
 
-// As faixas de adicional: só para o item que passa pelo sorteio comum. O saque de
-// chefe e o item da Mesa num lugar com tabela própria ficam sem faixa.
-func TestFadasFaixasSoDoSorteioComum(t *testing.T) {
+// As faixas de adicional de cada fonte: o sorteio comum (molde, e Mesa num
+// monstro comum), a tabela do lugar (Mesa no Castelo Orc) e a do chefe.
+func TestFadasFaixasDeCadaFonte(t *testing.T) {
 	const espada, luva int16 = 2000, 2001
-	prepara := func(d *Dispatcher) {
-		armaC := int(armasCFisicas[0])
-		d.itemPos = map[int]int{int(espada): 64, int(luva): 16, armaC: 64}
-		d.itemUnique = map[int]int{int(espada): 41, armaC: 41}
-		d.itemReqs = map[int]content.ItemReq{int(espada): {Lvl: 100}, int(luva): {Lvl: 100}}
-	}
-	mesa := droprule.NewTable([]droprule.Rule{
-		{Mob: "Bicho", Item: luva, Chance: 1},
-		{Mob: "COrc_Guarda", Item: luva, Chance: 1},
-	})
+	anel := int16(itemRingFirst)
+	armaC := armasCFisicas[0]
 	d, w, _ := mundoDasFadas(t, 0,
 		blocoDaFada("Bicho", moldeDaFada("Bicho", 150, map[int]int16{3: espada, 4: itemFadaTesteC})),
 		blocoDaFada("COrc_Guarda", moldeDaFada("Orc", 150, map[int]int16{3: espada})),
 		blocoDaFada(bossConjuradorTemplate, moldeDaFada("Conjurador", 300, nil)),
 	)
-	prepara(d)
-	d.dropRules = mesa
+	d.itemPos = map[int]int{int(espada): 64, int(luva): 16, int(armaC): 64}
+	d.itemUnique = map[int]int{int(espada): 41, int(armaC): 41}
+	d.itemReqs = map[int]content.ItemReq{int(espada): {Lvl: 100}, int(luva): {Lvl: 100}}
+	d.dropRules = droprule.NewTable([]droprule.Rule{
+		{Mob: "Bicho", Item: luva, Chance: 1},
+		{Mob: "COrc_Guarda", Item: luva, Chance: 1},
+		{Mob: "COrc_Guarda", Item: anel, Chance: 1},
+	})
 	cat := d.fadasCatalogo(w)
 	faixasDe := func(molde string) map[int16][]protocol.FadasFaixa {
 		out := map[int16][]protocol.FadasFaixa{}
@@ -546,18 +544,7 @@ func TestFadasFaixasSoDoSorteioComum(t *testing.T) {
 	if _, tem := bicho[itemFadaTesteC]; tem {
 		t.Error("a poeira (material) veio com faixa de adicional")
 	}
-	orc := faixasDe("COrc_Guarda")
-	if len(orc[espada]) == 0 {
-		t.Error("Castelo Orc: a espada do molde devia ter a faixa do sorteio comum")
-	}
-	if _, tem := orc[luva]; tem {
-		t.Error("Castelo Orc: o item da Mesa recebe a tabela do lugar e não pode levar a faixa comum")
-	}
-	if chefe := faixasDe(bossConjuradorTemplate); len(chefe) != 0 {
-		t.Errorf("saque de chefe veio com faixa: %v", chefe)
-	}
-
-	// E a faixa é a do sorteio: uma espada de monstro 50 níveis acima.
+	// A faixa do sorteio comum é a do refine.Possiveis.
 	ref := refine.NovoPossiveis(d.dropBonus).Do(refine.Base{Unique: 41, ReqLvl: 100, Pos: 64, Indice: int(espada)}, 150)
 	if len(ref) != len(bicho[espada]) {
 		t.Fatalf("faixas da espada: %v, o sorteio dá %v", bicho[espada], ref)
@@ -566,6 +553,107 @@ func TestFadasFaixasSoDoSorteioComum(t *testing.T) {
 		if g := bicho[espada][i]; g.Efeito != f.Efeito || g.Min != f.Min || g.Max != f.Max {
 			t.Errorf("faixa %d: %+v, o sorteio dá %+v", i, g, f)
 		}
+	}
+
+	orc := faixasDe("COrc_Guarda")
+	// A luva da Mesa: o Castelo Orc só carimba anel e amuleto, então vale o comum.
+	if len(orc[luva]) == 0 || len(orc[espada]) == 0 {
+		t.Errorf("Castelo Orc: luva %v, espada %v; as duas são do sorteio comum", orc[luva], orc[espada])
+	}
+	if want := faixasDoAcessorio(casteloOrcRingAdds); !slices.Equal(orc[anel], want) {
+		t.Errorf("Castelo Orc: o anel da Mesa = %v, a tabela do lugar dá %v", orc[anel], want)
+	}
+	if want := faixasDaTabela(addConjuradorFisica); !slices.Equal(faixasDe(bossConjuradorTemplate)[armaC], want) {
+		t.Errorf("Boss Conjurador: a Arma C = %v, a tabela do chefe dá %v", faixasDe(bossConjuradorTemplate)[armaC], want)
+	}
+}
+
+// A DICA NÃO MENTE NOS LUGARES DE TABELA PRÓPRIA. O saque de verdade (mobKilled),
+// muitas vezes, para um monstro de cada carimbo: todo adicional que sai está
+// dentro da faixa que o painel manda para aquele item.
+func TestFadasFaixasCobremOCarimbo(t *testing.T) {
+	armaC, armaCMag := armasCFisicas[0], armasCMagicas[0]
+	var armaTroll, armaAmon, armaD int16
+	for idx := range armasTrollFisicas {
+		armaTroll = idx
+		break
+	}
+	for idx := range armasAmonFisicas {
+		armaAmon = idx
+		break
+	}
+	for idx := range armasDDoDesertoFisicas {
+		armaD = idx
+		break
+	}
+	var amonMolde, dMolde string
+	for m := range geloAmon {
+		amonMolde = m
+		break
+	}
+	for m := range monstrosDasArmasD {
+		dMolde = m
+		break
+	}
+	casos := []struct {
+		molde  string
+		x, y   int16 // onde o bloco nasce (o Amon só carimba no Gelo)
+		mesa   []int16
+		chefe  bool
+		vigiar []int16
+	}{
+		{"COrc_Guarda", 6, 5, []int16{int16(itemRingFirst), int16(itemAmuletFirst)}, false, []int16{int16(itemRingFirst), int16(itemAmuletFirst)}},
+		{acampamentoTrollBoss, 6, 5, []int16{armaTroll}, false, []int16{armaTroll}},
+		{"ATroll_Caos", 6, 5, []int16{armaTroll}, false, []int16{armaTroll}},
+		{amonMolde, 3500, 2800, []int16{armaAmon}, false, []int16{armaAmon}},
+		{"Caveira_Lanc_Fonte", 6, 5, []int16{armaC, armaCMag}, false, []int16{armaC, armaCMag}},
+		{dMolde, 6, 5, []int16{armaD}, false, []int16{armaD}},
+		{bossConjuradorTemplate, 6, 5, nil, true, slices.Concat(armasCFisicas, armasCMagicas)},
+	}
+	for _, c := range casos {
+		t.Run(c.molde, func(t *testing.T) {
+			g := blocoDaFadaEm(c.molde, moldeDaFada("Teste", 200, nil), c.x, c.y)
+			d, w, killer := mundoDasFadas(t, 0, g)
+			var regras []droprule.Rule
+			for _, idx := range c.mesa {
+				regras = append(regras, droprule.Rule{Mob: c.molde, Item: idx, Chance: droprule.MaxChance})
+			}
+			d.dropRules = droprule.NewTable(regras)
+			cat := d.fadasCatalogo(w)
+			faixas := map[int16][]protocol.FadasFaixa{}
+			for _, f := range d.fadasFaixas(w, &cat.lista[0]) {
+				faixas[f.Item] = f.Faixas
+			}
+			vistos := 0
+			for range 400 {
+				id := w.SpawnMobAt(world.MobSpawn{Template: g.LeaderTmpl, TemplateName: c.molde, X: c.x, Y: c.y, GenIndex: 0})
+				if id < 0 {
+					t.Fatal("SpawnMobAt falhou")
+				}
+				d.mobKilled(w, killer, w.Entity(id))
+				for i := range killer.Carry {
+					it := killer.Carry[i]
+					killer.Carry[i] = world.Item{}
+					if !slices.Contains(c.vigiar, it.Index) {
+						continue
+					}
+					vistos++
+					for _, vaga := range []int{1, 2} {
+						e := it.Effects[vaga]
+						if e.Effect == 0 || e.Effect == efUnique || e.Value == 0 {
+							continue
+						}
+						k := slices.IndexFunc(faixas[it.Index], func(f protocol.FadasFaixa) bool { return f.Efeito == e.Effect })
+						if k < 0 || e.Value < faixas[it.Index][k].Min || e.Value > faixas[it.Index][k].Max {
+							t.Fatalf("item %d saiu com efeito %d valor %d, fora da faixa %v", it.Index, e.Effect, e.Value, faixas[it.Index])
+						}
+					}
+				}
+			}
+			if vistos == 0 {
+				t.Fatalf("nenhum item vigiado caiu em 400 mortes: o teste não provou nada")
+			}
+		})
 	}
 }
 
@@ -619,7 +707,7 @@ func TestFadasIndiceDeItens(t *testing.T) {
 	}
 
 	// A faixa larga é a união das faixas de cada monstro que dá o item.
-	larga := d.fadasFaixaLarga(cat, espada)
+	larga := d.fadasFaixaLarga(w, cat, espada)
 	p := refine.NovoPossiveis(d.dropBonus)
 	base := refine.Base{Unique: 41, ReqLvl: 100, Pos: 64, Indice: int(espada)}
 	for _, nivel := range []int{60, 150} {
@@ -630,7 +718,7 @@ func TestFadasIndiceDeItens(t *testing.T) {
 			}
 		}
 	}
-	if len(d.fadasFaixaLarga(cat, itemFadaTesteC)) != 0 {
+	if len(d.fadasFaixaLarga(w, cat, itemFadaTesteC)) != 0 {
 		t.Error("a poeira veio com faixa larga")
 	}
 
