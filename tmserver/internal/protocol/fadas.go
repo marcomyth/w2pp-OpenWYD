@@ -83,11 +83,13 @@ func DecodeFadasPede(b []byte) (FadasPedeBody, error) {
 	}, nil
 }
 
-// FadasMonstro é uma linha da lista de monstros.
+// FadasMonstro é uma linha da lista de monstros. O nível do monstro NÃO viaja: a
+// tela mostra o tipo do lugar no lugar dele (pedido da dona, 02/10/2026).
 type FadasMonstro struct {
 	Numero uint16 // posição no catálogo desta Versao
-	Nivel  uint16
+	Tipo   uint8  // regiao.Tipo: 0 mapa aberto, 1 quest, 2 masmorra
 	Nome   string // os bytes do nome do molde (CP1252)
+	Regiao string // o nome da região, em UTF-8; vai para o fio em CP1252
 }
 
 // FadasMonstrosBody é o 0x0F71.
@@ -98,7 +100,7 @@ type FadasMonstro struct {
 //	+4  total  u16  quantos monstros a lista inteira tem
 //	+6  n      u8
 //	+7  (1)
-//	+8  n × { numero u16, nivel u16, nome [16] }
+//	+8  n × { numero u16, tipo u8, (1), nome [16], regiao [24] }
 type FadasMonstrosBody struct {
 	Versao   uint16
 	Tipo     uint8
@@ -107,7 +109,10 @@ type FadasMonstrosBody struct {
 	Monstros []FadasMonstro
 }
 
-const fadasMonstroSize = 4 + FadasNome
+// FadasRegiao é o campo do nome da região: 23 letras e o zero do fim.
+const FadasRegiao = 24
+
+const fadasMonstroSize = 4 + FadasNome + FadasRegiao
 
 // Encode escreve o 0x0F71.
 func (m *FadasMonstrosBody) Encode() []byte {
@@ -120,9 +125,10 @@ func (m *FadasMonstrosBody) Encode() []byte {
 	for i := 0; i < n; i++ {
 		p := 8 + i*fadasMonstroSize
 		le.PutUint16(b[p:], m.Monstros[i].Numero)
-		le.PutUint16(b[p+2:], m.Monstros[i].Nivel)
+		b[p+2] = m.Monstros[i].Tipo
 		// 15 bytes e o zero do fim: o cliente lê como texto C.
 		copy(b[p+4:p+4+FadasNome-1], m.Monstros[i].Nome)
+		copy(b[p+4+FadasNome:p+4+FadasNome+FadasRegiao-1], paraCP1252(m.Monstros[i].Regiao))
 	}
 	return b
 }
@@ -145,6 +151,20 @@ func EncodeFadasDrops(versao, monstro uint16, itens []int16) []byte {
 		le.PutUint16(b[8+2*i:], uint16(itens[i]))
 	}
 	return b
+}
+
+// paraCP1252 leva um texto do servidor (UTF-8) aos bytes que o cliente desenha.
+// As letras do português estão na faixa 0xA0..0xFF, igual em Latin-1 e CP1252; o
+// que não couber num byte vira '?'.
+func paraCP1252(s string) []byte {
+	out := make([]byte, 0, len(s))
+	for _, r := range s {
+		if r > 0xFF {
+			r = '?'
+		}
+		out = append(out, byte(r))
+	}
+	return out
 }
 
 // FadasMudaBody é o 0x0F73.
@@ -185,5 +205,57 @@ func EncodeFadasFiltro(ligado, temFada bool, motivo uint8, itens []int16) []byte
 	for i := 0; i < n; i++ {
 		le.PutUint16(b[4+2*i:], uint16(itens[i]))
 	}
+	return b
+}
+
+// FadasFaixa é o menor e o maior valor de um efeito adicional.
+type FadasFaixa struct {
+	Efeito, Min, Max uint8
+}
+
+// FadasFaixasItem são as faixas de adicional de um item.
+type FadasFaixasItem struct {
+	Item   int16
+	Faixas []FadasFaixa
+}
+
+const (
+	// FadasFaixasPorItem é quantas faixas um item leva: a luva, a peça com mais
+	// efeitos possíveis, tem cinco.
+	FadasFaixasPorItem = 6
+	// FadasFaixasBytes é o teto do corpo do 0x0F76. O que não couber fica sem
+	// faixa na dica, o que é só uma linha a menos.
+	FadasFaixasBytes = 1200
+)
+
+// EncodeFadasFaixas escreve o 0x0F76: as faixas de adicional dos itens que um
+// monstro pode dar. Vem logo depois do 0x0F72 do mesmo monstro. Só o menor e o
+// maior valor de cada efeito: a chance de sair não viaja.
+//
+//	+0  versao  u16
+//	+2  monstro u16
+//	+4  n       u16  itens
+//	+6  (2)
+//	+8  n × { item u16, k u8, (1), k × { efeito u8, min u8, max u8 } }
+func EncodeFadasFaixas(versao, monstro uint16, itens []FadasFaixasItem) []byte {
+	b := make([]byte, 8, 8+len(itens)*8)
+	le.PutUint16(b[0:], versao)
+	le.PutUint16(b[2:], monstro)
+	n := 0
+	for _, it := range itens {
+		k := min(len(it.Faixas), FadasFaixasPorItem)
+		if k == 0 {
+			continue
+		}
+		if len(b)+4+3*k > FadasFaixasBytes {
+			break
+		}
+		b = append(b, byte(uint16(it.Item)), byte(uint16(it.Item)>>8), byte(k), 0)
+		for _, f := range it.Faixas[:k] {
+			b = append(b, f.Efeito, f.Min, f.Max)
+		}
+		n++
+	}
+	le.PutUint16(b[4:], uint16(n))
 	return b
 }
