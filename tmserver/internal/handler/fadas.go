@@ -11,7 +11,6 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/droprule"
 	"github.com/jeanluca/w2pp-openwyd/internal/regiao"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
-	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/refine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -55,6 +54,12 @@ type fadaCatalogo struct {
 	lista      []fadaMonstro
 	porMolde   map[string]int
 	conferido  time.Time
+
+	// O índice inverso da aba Itens (fadas_itens.go): os itens que algum monstro
+	// dá, em ordem de nome, e para cada item os monstros que o dão.
+	itens       []fadaItem
+	quemDropa   map[int16][]int
+	quemSorteia map[int16][]int
 }
 
 // fadasCatalogoValidade é de quanto em quanto o catálogo é conferido contra os
@@ -72,7 +77,10 @@ func (d *Dispatcher) fadasCatalogo(w *world.World) *fadaCatalogo {
 		return c
 	}
 	c.conferido = agora
-	if sig := fadasAssinatura(w); c.porMolde == nil || sig != c.assinatura {
+	// A Mesa de Drops recarrega sozinha e muda o que cada monstro dá: a versão
+	// dela entra na assinatura, ou o índice inverso envelheceria.
+	sig := fadasAssinatura(w) ^ (uint64(d.dropRuleVersion)*1099511628211 + uint64(d.dropRules.Len()))
+	if c.porMolde == nil || sig != c.assinatura {
 		c.assinatura = sig
 		c.lista = fadasMontaCatalogo(w)
 		c.porMolde = make(map[string]int, len(c.lista))
@@ -83,6 +91,7 @@ func (d *Dispatcher) fadasCatalogo(w *world.World) *fadaCatalogo {
 		if c.versao == 0 {
 			c.versao = 1
 		}
+		d.fadasMontaIndice(w, c)
 		d.log.Info("painel das fadas: catálogo de monstros", "versao", c.versao, "monstros", len(c.lista))
 	}
 	return c
@@ -339,31 +348,11 @@ func fadasAddsDoLugar(molde string) bool {
 // chefe usam tabela do lugar: esses ficam SEM faixa, em vez de mostrar a do
 // sorteio comum, que seria mentira.
 func (d *Dispatcher) fadasFaixas(w *world.World, m *fadaMonstro) []protocol.FadasFaixasItem {
-	if d.possiveis == nil || d.possiveis.Tabelas() != d.dropBonus {
-		d.possiveis = refine.NovoPossiveis(d.dropBonus)
-	}
+	p := d.fadasPossiveis()
 	molde, mesa, especial := d.fadasFontes(w, m)
-	itens := molde
-	if !fadasAddsDoLugar(m.molde) {
-		itens = slices.Concat(molde, mesa)
-	}
-	slices.Sort(itens)
-	itens = slices.Compact(itens)
 	var out []protocol.FadasFaixasItem
-	for _, idx := range itens {
-		// O mesmo item também vem do saque de chefe: a faixa do sorteio comum
-		// não vale para aquela cópia.
-		if slices.Contains(especial, idx) {
-			continue
-		}
-		i := int(idx)
-		faixas := d.possiveis.Do(refine.Base{
-			Unique:  d.itemUnique[i],
-			ReqLvl:  int(d.itemReqs[i].Lvl),
-			Pos:     d.itemPos[i],
-			Efeitos: d.itemEffects[i],
-			Indice:  i,
-		}, int(m.nivel))
+	for _, idx := range fadasSorteioComum(m, molde, mesa, especial) {
+		faixas := p.Do(d.fadasBaseDoItem(idx), int(m.nivel))
 		if len(faixas) == 0 {
 			continue
 		}
@@ -460,13 +449,20 @@ func (d *Dispatcher) fadasPede(w *world.World, s *world.Session, _ protocol.Head
 		return
 	}
 	switch corpo.Tipo {
-	case protocol.FadasPedeProximos, protocol.FadasPedeBusca:
+	case protocol.FadasPedeProximos, protocol.FadasPedeBusca, protocol.FadasPedeItens, protocol.FadasPedeQuemDropa:
 		agora := d.now()
 		if !s.FadasPedidoEm.IsZero() && !agora.Before(s.FadasPedidoEm) && agora.Sub(s.FadasPedidoEm) < fadasPedeIntervalo {
 			return
 		}
 		s.FadasPedidoEm = agora
-		d.fadasMandaMonstros(w, s, corpo)
+		switch corpo.Tipo {
+		case protocol.FadasPedeItens:
+			d.fadasMandaItens(w, s, corpo)
+		case protocol.FadasPedeQuemDropa:
+			d.fadasMandaQuemDropa(w, s, corpo)
+		default:
+			d.fadasMandaMonstros(w, s, corpo)
+		}
 	case protocol.FadasPedeDrops:
 		d.fadasMandaDrops(w, s, corpo)
 	case protocol.FadasPedeFiltro:

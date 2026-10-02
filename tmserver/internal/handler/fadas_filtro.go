@@ -91,6 +91,9 @@ func (d *Dispatcher) fadaDescarta(w *world.World, reward, mob *world.Entity, idx
 func (d *Dispatcher) fadasMandaFiltro(w *world.World, s *world.Session, e *world.Entity, motivo uint8) {
 	w.Send(s, protocol.MsgFadasFiltro,
 		protocol.EncodeFadasFiltro(e.FadaFiltroLigado, fadaTemFiltro(e), motivo, e.FadaFiltro))
+	// Na aba Filtro não há monstro escolhido: a dica de cada Item Protegido mostra
+	// a faixa de adicional mais larga entre os monstros que o dão.
+	d.fadasMandaFaixasLargas(w, s, e.FadaFiltro)
 }
 
 // fadasMuda atende o 0x0F73: pôr e tirar item da lista, ligar e desligar.
