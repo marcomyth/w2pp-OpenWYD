@@ -57,9 +57,8 @@ type fadaCatalogo struct {
 
 	// O índice inverso da aba Itens (fadas_itens.go): os itens que algum monstro
 	// dá, em ordem de nome, e para cada item os monstros que o dão.
-	itens       []fadaItem
-	quemDropa   map[int16][]int
-	quemSorteia map[int16][]int
+	itens     []fadaItem
+	quemDropa map[int16][]int
 }
 
 // fadasCatalogoValidade é de quanto em quanto o catálogo é conferido contra os
@@ -331,36 +330,19 @@ func (d *Dispatcher) fadasFontes(w *world.World, m *fadaMonstro) (molde, mesa, e
 	return molde, mesa, especial
 }
 
-// fadasAddsDoLugar diz se o lugar do monstro troca os adicionais do drop da Mesa
-// por uma tabela própria (as funções ...Finish de dropTableRolls).
-func fadasAddsDoLugar(molde string) bool {
-	return casteloOrcTemplates[molde] || acampamentoTrollTemplates[molde] || geloAmon[molde] ||
-		caveirasDoSpot[molde] || ciclopesDoSpot[molde] || monstrosDasArmasD[molde]
-}
-
 // fadasFaixas são as faixas de adicional de cada item que o monstro pode dar,
 // para a dica do painel: o menor e o maior valor de cada efeito, nunca a chance.
-//
-// SÓ ONDE A FAIXA É CERTA. O item do molde, e o da Mesa num monstro comum, passam
-// pelo sorteio de refine.Tabelas.Drop, e a faixa sai dele (refine.Possiveis). O
-// item da Mesa num lugar que carimba os próprios adicionais (Castelo Orc,
-// Acampamento Troll, Amon, Caveiras, Ciclopes, Armas D do Deserto) e o saque de
-// chefe usam tabela do lugar: esses ficam SEM faixa, em vez de mostrar a do
-// sorteio comum, que seria mentira.
+// Cada item junta as fontes por onde pode vir (fadasFaixasDoPar): o sorteio
+// comum, a tabela do lugar e a do chefe.
 func (d *Dispatcher) fadasFaixas(w *world.World, m *fadaMonstro) []protocol.FadasFaixasItem {
-	p := d.fadasPossiveis()
 	molde, mesa, especial := d.fadasFontes(w, m)
+	itens := slices.Concat(molde, mesa, especial)
+	slices.Sort(itens)
 	var out []protocol.FadasFaixasItem
-	for _, idx := range fadasSorteioComum(m, molde, mesa, especial) {
-		faixas := p.Do(d.fadasBaseDoItem(idx), int(m.nivel))
-		if len(faixas) == 0 {
-			continue
+	for _, idx := range slices.Compact(itens) {
+		if f := d.fadasFaixasDoPar(m, idx, molde, mesa, especial); len(f) > 0 {
+			out = append(out, protocol.FadasFaixasItem{Item: idx, Faixas: f})
 		}
-		linha := protocol.FadasFaixasItem{Item: idx}
-		for _, f := range faixas {
-			linha.Faixas = append(linha.Faixas, protocol.FadasFaixa{Efeito: f.Efeito, Min: f.Min, Max: f.Max})
-		}
-		out = append(out, linha)
 	}
 	return out
 }
