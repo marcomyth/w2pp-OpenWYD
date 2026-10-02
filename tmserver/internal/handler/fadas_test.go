@@ -402,7 +402,7 @@ func TestFadasRespondePeloFio(t *testing.T) {
 		t.Errorf("depois de pôr: % x", b)
 	}
 
-	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
+	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, _ *world.Entity) {
 		d.fadasMuda(w, s, protocol.Header{}, muda(protocol.FadasMudaLiga, 0))
 	})
 	if b := espera(protocol.MsgFadasFiltro); b[0] != 1 || b[2] != 0 {
@@ -410,7 +410,7 @@ func TestFadasRespondePeloFio(t *testing.T) {
 	}
 
 	// Sem a fada, ligar é recusado com o motivo.
-	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
+	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, _ *world.Entity) {
 		d.fadasMuda(w, s, protocol.Header{}, muda(protocol.FadasMudaDesliga, 0))
 	})
 	espera(protocol.MsgFadasFiltro)
@@ -426,7 +426,7 @@ func TestFadasRespondePeloFio(t *testing.T) {
 	pede := make([]byte, 8+protocol.FadasNome)
 	pede[0] = protocol.FadasPedeBusca
 	copy(pede[8:], "zzzznenhum")
-	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
+	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, _ *world.Entity) {
 		d.fadasPede(w, s, protocol.Header{}, pede)
 	})
 	if b := espera(protocol.MsgFadasMonstros); b[2] != protocol.FadasPedeBusca || b[6] != 0 {
