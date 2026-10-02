@@ -18,6 +18,10 @@ const (
 	FadasPedeBusca    uint8 = 2 // monstros pelo nome
 	FadasPedeDrops    uint8 = 3 // o que um monstro pode dar
 	FadasPedeFiltro   uint8 = 4 // o meu filtro
+	// A aba Itens: procurar um item pelo nome, e ver quem o dá. No segundo, o
+	// campo Monstro do pedido leva o índice do ITEM.
+	FadasPedeItens     uint8 = 5
+	FadasPedeQuemDropa uint8 = 6
 )
 
 // As mudanças do 0x0F73.
@@ -204,6 +208,53 @@ func EncodeFadasFiltro(ligado, temFada bool, motivo uint8, itens []int16) []byte
 	b[2], b[3] = motivo, uint8(n)
 	for i := 0; i < n; i++ {
 		le.PutUint16(b[4+2*i:], uint16(itens[i]))
+	}
+	return b
+}
+
+// FadasFaixasLargas é o número de "monstro" do 0x0F76 quando as faixas não são
+// de um monstro, e sim as mais largas entre todos os que dão cada item (os Itens
+// Protegidos da aba Filtro, e o item escolhido na aba Itens).
+const FadasFaixasLargas = 0xFFFE
+
+// FadasItemNome é o campo do nome do item: 27 letras e o zero do fim.
+const FadasItemNome = 28
+
+// FadasItem é uma linha da lista de itens da busca.
+type FadasItem struct {
+	Indice int16
+	Nome   string // já nos bytes CP1252
+}
+
+// FadasItensBody é o 0x0F75: uma página dos itens que batem com a busca, em
+// ordem de nome.
+//
+//	+0  versao u16
+//	+2  pagina u8
+//	+3  n      u8
+//	+4  total  u16  quantos itens a busca inteira achou
+//	+6  (2)
+//	+8  n × { indice u16, (2), nome [28] }
+type FadasItensBody struct {
+	Versao uint16
+	Pagina uint8
+	Total  uint16
+	Itens  []FadasItem
+}
+
+const fadasItemSize = 4 + FadasItemNome
+
+// Encode escreve o 0x0F75.
+func (m *FadasItensBody) Encode() []byte {
+	n := min(len(m.Itens), FadasMonstrosPorPagina)
+	b := make([]byte, 8+n*fadasItemSize)
+	le.PutUint16(b[0:], m.Versao)
+	b[2], b[3] = m.Pagina, uint8(n)
+	le.PutUint16(b[4:], m.Total)
+	for i := 0; i < n; i++ {
+		p := 8 + i*fadasItemSize
+		le.PutUint16(b[p:], uint16(m.Itens[i].Indice))
+		copy(b[p+4:p+4+FadasItemNome-1], m.Itens[i].Nome)
 	}
 	return b
 }

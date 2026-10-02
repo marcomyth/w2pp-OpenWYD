@@ -585,3 +585,110 @@ func TestFadasFaixasNoFio(t *testing.T) {
 		t.Errorf("corpo = % x", b[8:])
 	}
 }
+
+// --- a aba Itens: busca por item e quem o dá -------------------------------------
+
+// O índice inverso lista só o item que algum monstro dá, em ordem de nome, e para
+// cada item os monstros que o dão, em ordem de nome também. Nunca por chance.
+func TestFadasIndiceDeItens(t *testing.T) {
+	const espada, luva int16 = 2000, 2001
+	d, w, _ := mundoDasFadas(t, 0,
+		blocoDaFada("Zumbi", moldeDaFada("Zumbi", 150, map[int]int16{20: espada, 11: itemFadaTesteC})),
+		blocoDaFada("Aranha", moldeDaFada("Aranha", 60, map[int]int16{3: espada})),
+		blocoDaFada("Lobo", moldeDaFada("Lobo", 10, map[int]int16{3: luva})),
+	)
+	d.itemNames = map[int]string{int(espada): "Espada Élfica", int(luva): "Luva de Couro", int(itemFadaTesteC): "Poeira", 3000: "Ninguém Dá"}
+	d.itemPos = map[int]int{int(espada): 64, int(luva): 16}
+	d.itemUnique = map[int]int{int(espada): 41}
+	d.itemReqs = map[int]content.ItemReq{int(espada): {Lvl: 100}, int(luva): {Lvl: 1}}
+	cat := d.fadasCatalogo(w)
+
+	var nomes []string
+	for _, it := range cat.itens {
+		nomes = append(nomes, it.nome)
+	}
+	if want := []string{"Espada Élfica", "Luva de Couro", "Poeira"}; !slices.Equal(nomes, want) {
+		t.Fatalf("itens = %v, quero %v", nomes, want)
+	}
+	var quem []string
+	for _, i := range cat.quemDropa[espada] {
+		quem = append(quem, cat.lista[i].nome)
+	}
+	if want := []string{"Aranha", "Zumbi"}; !slices.Equal(quem, want) {
+		t.Errorf("quem dá a espada = %v, quero %v (ordem de nome, não da casa do molde)", quem, want)
+	}
+
+	// A faixa larga é a união das faixas de cada monstro que dá o item.
+	larga := d.fadasFaixaLarga(cat, espada)
+	p := refine.NovoPossiveis(d.dropBonus)
+	base := refine.Base{Unique: 41, ReqLvl: 100, Pos: 64, Indice: int(espada)}
+	for _, nivel := range []int{60, 150} {
+		for _, f := range p.Do(base, nivel) {
+			k := slices.IndexFunc(larga, func(o protocol.FadasFaixa) bool { return o.Efeito == f.Efeito })
+			if k < 0 || larga[k].Min > f.Min || larga[k].Max < f.Max {
+				t.Errorf("faixa larga %v não cobre %+v do monstro de nível %d", larga, f, nivel)
+			}
+		}
+	}
+	if len(d.fadasFaixaLarga(cat, itemFadaTesteC)) != 0 {
+		t.Error("a poeira veio com faixa larga")
+	}
+
+	// A Mesa muda o que cada monstro dá: o índice acompanha a versão dela.
+	d.dropRules = droprule.NewTable([]droprule.Rule{{Mob: "Lobo", Item: espada, Chance: 1}})
+	d.dropRuleVersion++
+	d.fadas.conferido = d.fadas.conferido.Add(-2 * fadasCatalogoValidade)
+	if got := len(d.fadasCatalogo(w).quemDropa[espada]); got != 3 {
+		t.Errorf("depois da regra da Mesa, %d monstros dão a espada; quero 3", got)
+	}
+}
+
+// A busca de itens e o "quem dropa" pelo fio: página de itens com o nome em
+// CP1252, e a lista de monstros no mesmo 0x0F71, seguida da faixa larga.
+func TestFadasItensPeloFio(t *testing.T) {
+	srv, c := mesaDaLixeira(t)
+	espera := func(tipo protocol.Type) []byte {
+		t.Helper()
+		_, corpo, ok := quadroAte(t, c, 2*time.Second, func(h protocol.Header, _ []byte) bool { return h.Type == tipo })
+		if !ok {
+			t.Fatalf("o servidor não respondeu o 0x%04X", uint16(tipo))
+		}
+		return corpo
+	}
+	pede := func(tipo uint8, item uint16, texto string) []byte {
+		b := make([]byte, 8+protocol.FadasNome)
+		b[0] = tipo
+		binary.LittleEndian.PutUint16(b[4:], item)
+		copy(b[8:], texto)
+		return b
+	}
+	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, _ *world.Entity) {
+		d.fadasPede(w, s, protocol.Header{}, pede(protocol.FadasPedeItens, 0, "zzzznada"))
+	})
+	if b := espera(protocol.MsgFadasItens); len(b) != 8 || b[3] != 0 {
+		t.Errorf("busca de item sem resultado: % x", b)
+	}
+	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, _ *world.Entity) {
+		s.FadasPedidoEm = time.Time{}
+		d.fadasPede(w, s, protocol.Header{}, pede(protocol.FadasPedeQuemDropa, 32000, ""))
+	})
+	if b := espera(protocol.MsgFadasMonstros); b[2] != protocol.FadasPedeQuemDropa || b[6] != 0 {
+		t.Errorf("quem dropa um item que ninguém dá: % x", b)
+	}
+	if b := espera(protocol.MsgFadasFaixas); binary.LittleEndian.Uint16(b[2:]) != protocol.FadasFaixasLargas {
+		t.Errorf("faixa larga: % x", b)
+	}
+}
+
+// O 0x0F75 leva só índice e nome, em ordem de nome.
+func TestFadasItensNoFio(t *testing.T) {
+	b := (&protocol.FadasItensBody{Versao: 2, Pagina: 1, Total: 11,
+		Itens: []protocol.FadasItem{{Indice: 2000, Nome: fadasParaOFio("Espada Élfica")}},
+	}).Encode()
+	if len(b) != 8+4+protocol.FadasItemNome || b[2] != 1 || b[3] != 1 || binary.LittleEndian.Uint16(b[4:]) != 11 {
+		t.Fatalf("cabeçalho: % x", b[:8])
+	}
+	if binary.LittleEndian.Uint16(b[8:]) != 2000 || string(b[12:19]) != "Espada " || b[19] != 0xC9 {
+		t.Errorf("linha: % x", b[8:24])
+	}
+}
