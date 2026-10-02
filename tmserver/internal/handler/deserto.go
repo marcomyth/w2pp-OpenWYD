@@ -64,7 +64,7 @@ func (d *Dispatcher) agmoAmago(w *world.World, reward, mob *world.Entity) {
 	if isSplittable(it.Index) {
 		setItemAmount(&it, 1)
 	}
-	d.putMobDrop(w, reward, it)
+	d.putMobDrop(w, reward, mob, it)
 }
 
 // O Boss Mantícora (template Boss_Manticora, bloco 6145 do NPCGener) é o chefe
@@ -161,5 +161,5 @@ func (d *Dispatcher) entregaPremioDeChefe(w *world.World, reward, mob *world.Ent
 	if isSplittable(it.Index) {
 		setItemAmount(&it, p.quantidade)
 	}
-	d.putMobDrop(w, reward, it)
+	d.putMobDrop(w, reward, mob, it)
 }

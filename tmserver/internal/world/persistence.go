@@ -249,6 +249,10 @@ type CharacterState struct {
 
 	Equip [MaxEquip]Item // equipped gear
 	Carry [MaxCarry]Item // inventory
+
+	// O filtro de drop das fadas (0183): so vem na carga; grava-se por SaveFadaFiltro.
+	FadaFiltroLigado bool
+	FadaFiltroItens  []int16
 }
 
 // SavedItem is one positional inventory/equip slot in a CharacterSave. Slot is
@@ -501,6 +505,9 @@ type Persistence interface {
 	// SetPin sets/changes the account's numeric PIN (hashed argon2id on the
 	// dbServer). VerifyPin checks a PIN. Both run off the loop via World.Go.
 	SetPin(ctx context.Context, accountID int64, pin string) (bool, error)
+	// SaveFadaFiltro grava o filtro de drop das fadas do personagem (a lista
+	// inteira). Chamada FORA do laço, na hora em que o jogador muda o filtro.
+	SaveFadaFiltro(ctx context.Context, accountID int64, slot int, ligado bool, itens []int16) error
 	VerifyPin(ctx context.Context, accountID int64, pin string) (PinResult, error)
 	LoadCharacter(ctx context.Context, accountID int64, slot int) (CharacterState, error)
 	LoadCargo(ctx context.Context, accountID int64) (CargoState, error)
@@ -740,6 +747,9 @@ func (NopPersistence) CreateArchCharacter(context.Context, int64, string, int, i
 func (NopPersistence) DeleteCharacter(context.Context, int64, int, string, string) (bool, error) {
 	return false, errNoPersistence
 }
+
+// SaveFadaFiltro não grava nada sem backend.
+func (NopPersistence) SaveFadaFiltro(context.Context, int64, int, bool, []int16) error { return nil }
 
 // SetPin is unsupported without a backend.
 func (NopPersistence) SetPin(context.Context, int64, string) (bool, error) {

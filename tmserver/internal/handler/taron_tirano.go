@@ -61,10 +61,10 @@ func (d *Dispatcher) taronTiranoSaque(w *world.World, reward, mob *world.Entity)
 		it := world.Item{Index: itemBarraPrata10Mi}
 		if isSplittable(it.Index) {
 			setItemAmount(&it, tiranoBarras)
-			d.putMobDrop(w, reward, it)
+			d.putMobDrop(w, reward, mob, it)
 		} else {
 			for range tiranoBarras {
-				d.putMobDrop(w, reward, it)
+				d.putMobDrop(w, reward, mob, it)
 			}
 		}
 	}
@@ -73,12 +73,12 @@ func (d *Dispatcher) taronTiranoSaque(w *world.World, reward, mob *world.Entity)
 		if !d.dropRules.Governs(mob.TemplateName, arma) {
 			it := world.Item{Index: arma}
 			carimbaAddArmaD(w, &it)
-			d.putMobDrop(w, reward, it)
+			d.putMobDrop(w, reward, mob, it)
 		}
 	}
 	for _, ovo := range []int16{itemOvoCavaloLeveN, itemOvoCavaloLeveB} {
 		if w.Rand().Intn(100) < tiranoOvoPct && !d.dropRules.Governs(mob.TemplateName, ovo) {
-			d.putMobDrop(w, reward, world.Item{Index: ovo})
+			d.putMobDrop(w, reward, mob, world.Item{Index: ovo})
 		}
 	}
 }

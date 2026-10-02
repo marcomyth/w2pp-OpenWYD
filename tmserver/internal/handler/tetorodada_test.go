@@ -124,7 +124,7 @@ func TestTrofeuCaiSemTrava(t *testing.T) {
 		k := donoDe(s)
 		d.xpDaRodada = map[donoDaEntrada]xpDaRodada{k: {total: tetoFaixa99, avisado: true}}
 		for i := range 20 {
-			if !d.putMobDrop(w, e, world.Item{Index: itemQuestRewardBase}) {
+			if !d.putMobDrop(w, e, nil, world.Item{Index: itemQuestRewardBase}) {
 				t.Fatalf("o troféu %d não caiu com a rodada cheia", i+1)
 			}
 		}

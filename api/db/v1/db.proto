@@ -60,6 +60,9 @@ service AccountService {
   // SetPin sets (or changes) the account's numeric PIN, stored as an argon2id
   // hash — never plaintext (legacy _MSG_AccountSecure change path).
   rpc SetPin(SetPinRequest) returns (SetPinResponse);
+  // SaveFadaFiltro grava o filtro de drop das fadas de um personagem, a lista
+  // inteira de uma vez, na hora em que o jogador a muda.
+  rpc SaveFadaFiltro(SaveFadaFiltroRequest) returns (SaveFadaFiltroResponse);
   // VerifyPin checks a numeric PIN against the stored hash (legacy
   // _MSG_AccountSecure verify path); NOT_SET means the account has no PIN yet.
   rpc VerifyPin(VerifyPinRequest) returns (VerifyPinResponse);
@@ -493,6 +496,10 @@ message Character {
   // entregar (0172): 0 nada, 1-399 até aquele nível, 1000 concluído. A entrega
   // é no login, e a marca tem de sobreviver ao relog para não repetir.
   int32 nivel_retroativo = 57;
+  // O filtro de drop das fadas (0183). SO LEITURA: vem com o LoadCharacter e o
+  // SaveCharacter ignora os dois; quem grava e o SaveFadaFiltro.
+  bool fada_filtro_ligado = 58;
+  repeated int32 fada_filtro_itens = 59;
 }
 
 message Item {
@@ -686,6 +693,14 @@ message SetPinRequest {
   string pin = 2; // hashed with argon2id server-side; never stored in plaintext
 }
 message SetPinResponse { bool ok = 1; }
+
+message SaveFadaFiltroRequest {
+  int64 account_id = 1;
+  int32 slot = 2;
+  bool ligado = 3;
+  repeated int32 itens = 4; // indices de item, sem repetir, no maximo 60
+}
+message SaveFadaFiltroResponse {}
 
 message VerifyPinRequest {
   int64 account_id = 1;

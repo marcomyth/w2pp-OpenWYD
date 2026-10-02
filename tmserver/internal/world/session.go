@@ -59,6 +59,15 @@ func (a AccessLevel) String() string {
 	}
 }
 
+// FadaFiltroSalvo é um estado do filtro de drop das fadas à espera de gravação:
+// de quem é, e o que gravar.
+type FadaFiltroSalvo struct {
+	Conta  int64
+	Slot   int
+	Ligado bool
+	Itens  []int16
+}
+
 // Session is a player's connection/session state (CUser subset,
 // domain-model.md §2.1). It is owned by the loop goroutine; the conn/out/closeCh
 // plumbing is shared with this session's reader and writer goroutines only.
@@ -156,6 +165,13 @@ type Session struct {
 	// Painel de Guilda que vai ao banco. É o freio contra um cliente remendado
 	// pedir o quadro em laço (handler/guildapainel.go).
 	GuildaPedidoEm time.Time
+	// O Painel de Drop das Fadas (handler/fadas.go e fadas_filtro.go).
+	// FadasPedidoEm freia os pedidos de lista (a busca manda um a cada pausa de
+	// digitação). FadasGravando diz que há uma gravação do filtro a caminho do
+	// banco, e FadasPendente guarda o estado mais novo, que entra na fila atrás dela.
+	FadasPedidoEm time.Time
+	FadasGravando bool
+	FadasPendente *FadaFiltroSalvo
 	// RecusasDeAcesso conta quantas vezes ESTA conexão levou uma recusa de acesso
 	// restrito. É do laço, como todo o resto da sessão, e não precisa de trava.
 	//
@@ -413,7 +429,13 @@ type Entity struct {
 	// NivelRetroativo e ate onde o personagem recebeu as pecas de nivel que o
 	// jogo deixou de entregar (0172): 0 nada, 1-399 ate aquele nivel, 1000
 	// concluido. Persistido, para a entrega do login nao se repetir.
-	NivelRetroativo      uint16
+	NivelRetroativo uint16
+	// O filtro de drop das fadas (handler/fadas_filtro.go). FadaFiltro é a lista
+	// de Itens Protegidos, em ordem de índice e sem repetir; FadaFiltroLigado só
+	// vale com a Fada Azul ou a Vermelha vestida. Vem do banco no login e é
+	// gravado na hora em que o jogador muda (tabela fada_filtro, 0183).
+	FadaFiltroLigado     bool
+	FadaFiltro           []int16
 	ArchLv355, ArchLv370 uint8
 	MortalLevel          uint16
 	CelestialArchLevel   uint8

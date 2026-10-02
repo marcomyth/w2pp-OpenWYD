@@ -43,6 +43,7 @@ const (
 	AccountService_CreateArchCharacter_FullMethodName       = "/db.v1.AccountService/CreateArchCharacter"
 	AccountService_DeleteCharacter_FullMethodName           = "/db.v1.AccountService/DeleteCharacter"
 	AccountService_SetPin_FullMethodName                    = "/db.v1.AccountService/SetPin"
+	AccountService_SaveFadaFiltro_FullMethodName            = "/db.v1.AccountService/SaveFadaFiltro"
 	AccountService_VerifyPin_FullMethodName                 = "/db.v1.AccountService/VerifyPin"
 	AccountService_LoadCargo_FullMethodName                 = "/db.v1.AccountService/LoadCargo"
 	AccountService_SaveCargo_FullMethodName                 = "/db.v1.AccountService/SaveCargo"
@@ -151,6 +152,9 @@ type AccountServiceClient interface {
 	// SetPin sets (or changes) the account's numeric PIN, stored as an argon2id
 	// hash — never plaintext (legacy _MSG_AccountSecure change path).
 	SetPin(ctx context.Context, in *SetPinRequest, opts ...grpc.CallOption) (*SetPinResponse, error)
+	// SaveFadaFiltro grava o filtro de drop das fadas de um personagem, a lista
+	// inteira de uma vez, na hora em que o jogador a muda.
+	SaveFadaFiltro(ctx context.Context, in *SaveFadaFiltroRequest, opts ...grpc.CallOption) (*SaveFadaFiltroResponse, error)
 	// VerifyPin checks a numeric PIN against the stored hash (legacy
 	// _MSG_AccountSecure verify path); NOT_SET means the account has no PIN yet.
 	VerifyPin(ctx context.Context, in *VerifyPinRequest, opts ...grpc.CallOption) (*VerifyPinResponse, error)
@@ -566,6 +570,16 @@ func (c *accountServiceClient) SetPin(ctx context.Context, in *SetPinRequest, op
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(SetPinResponse)
 	err := c.cc.Invoke(ctx, AccountService_SetPin_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *accountServiceClient) SaveFadaFiltro(ctx context.Context, in *SaveFadaFiltroRequest, opts ...grpc.CallOption) (*SaveFadaFiltroResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SaveFadaFiltroResponse)
+	err := c.cc.Invoke(ctx, AccountService_SaveFadaFiltro_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -1155,6 +1169,9 @@ type AccountServiceServer interface {
 	// SetPin sets (or changes) the account's numeric PIN, stored as an argon2id
 	// hash — never plaintext (legacy _MSG_AccountSecure change path).
 	SetPin(context.Context, *SetPinRequest) (*SetPinResponse, error)
+	// SaveFadaFiltro grava o filtro de drop das fadas de um personagem, a lista
+	// inteira de uma vez, na hora em que o jogador a muda.
+	SaveFadaFiltro(context.Context, *SaveFadaFiltroRequest) (*SaveFadaFiltroResponse, error)
 	// VerifyPin checks a numeric PIN against the stored hash (legacy
 	// _MSG_AccountSecure verify path); NOT_SET means the account has no PIN yet.
 	VerifyPin(context.Context, *VerifyPinRequest) (*VerifyPinResponse, error)
@@ -1463,6 +1480,9 @@ func (UnimplementedAccountServiceServer) DeleteCharacter(context.Context, *Delet
 }
 func (UnimplementedAccountServiceServer) SetPin(context.Context, *SetPinRequest) (*SetPinResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method SetPin not implemented")
+}
+func (UnimplementedAccountServiceServer) SaveFadaFiltro(context.Context, *SaveFadaFiltroRequest) (*SaveFadaFiltroResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SaveFadaFiltro not implemented")
 }
 func (UnimplementedAccountServiceServer) VerifyPin(context.Context, *VerifyPinRequest) (*VerifyPinResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method VerifyPin not implemented")
@@ -1928,6 +1948,24 @@ func _AccountService_SetPin_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AccountServiceServer).SetPin(ctx, req.(*SetPinRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AccountService_SaveFadaFiltro_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SaveFadaFiltroRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AccountServiceServer).SaveFadaFiltro(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AccountService_SaveFadaFiltro_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AccountServiceServer).SaveFadaFiltro(ctx, req.(*SaveFadaFiltroRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2956,6 +2994,10 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetPin",
 			Handler:    _AccountService_SetPin_Handler,
+		},
+		{
+			MethodName: "SaveFadaFiltro",
+			Handler:    _AccountService_SaveFadaFiltro_Handler,
 		},
 		{
 			MethodName: "VerifyPin",

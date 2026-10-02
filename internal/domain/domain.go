@@ -114,6 +114,12 @@ type Character struct {
 	// NivelRetroativo marca até onde o personagem recebeu as peças de nível que o
 	// jogo deixou de entregar (0172): 0 nada, 1-399 até aquele nível, 1000 concluído.
 	NivelRetroativo uint16
+
+	// O filtro de drop das fadas (0183, tabela fada_filtro). Só é LIDO junto com o
+	// personagem: a gravação tem RPC própria (SaveFadaFiltro), na hora em que o
+	// jogador muda a lista, e o save geral não toca nela.
+	FadaFiltroLigado bool
+	FadaFiltroItens  []int16
 }
 
 // KingdomCapeQuote is the persisted, versioned sapphire price snapshot.

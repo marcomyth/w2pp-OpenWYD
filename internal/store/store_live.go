@@ -245,6 +245,9 @@ func (s *Store) LoadCharacter(ctx context.Context, accountID int64, slot int) (d
 	if ch.Affects, err = s.loadAffects(ctx, charID); err != nil {
 		return domain.Character{}, err
 	}
+	if ch.FadaFiltroLigado, ch.FadaFiltroItens, err = s.loadFadaFiltro(ctx, charID); err != nil {
+		return domain.Character{}, err
+	}
 	return ch, nil
 }
 

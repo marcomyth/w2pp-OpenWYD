@@ -219,7 +219,7 @@ func (d *Dispatcher) combineItemShany(w *world.World, s *world.Session, _ protoc
 		combineLost(w, s)
 		return
 	}
-	if !d.putMobDrop(w, e, world.Item{Index: 633}) {
+	if !d.entregaOuAvisa(w, e, world.Item{Index: 633}) {
 		sendCombineComplete(w, s, combineFailed)
 		return
 	}

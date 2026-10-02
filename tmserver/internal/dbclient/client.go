@@ -263,6 +263,30 @@ func (c *Client) DeleteCharacter(ctx context.Context, accountID int64, slot int,
 	return resp.GetOk(), nil
 }
 
+// SaveFadaFiltro grava o filtro de drop das fadas do personagem.
+func (c *Client) SaveFadaFiltro(ctx context.Context, accountID int64, slot int, ligado bool, itens []int16) error {
+	req := &dbv1.SaveFadaFiltroRequest{AccountId: accountID, Slot: int32(slot), Ligado: ligado}
+	for _, it := range itens {
+		req.Itens = append(req.Itens, int32(it))
+	}
+	if _, err := c.api.SaveFadaFiltro(ctx, req); err != nil {
+		return fmt.Errorf("dbclient: save fada filtro: %w", err)
+	}
+	return nil
+}
+
+// int32sParaInt16s traz uma lista de índices de item do proto.
+func int32sParaInt16s(in []int32) []int16 {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]int16, len(in))
+	for i, v := range in {
+		out[i] = int16(v)
+	}
+	return out
+}
+
 // SetPin sets/changes the account's numeric PIN (hashed argon2id on the dbServer).
 func (c *Client) SetPin(ctx context.Context, accountID int64, pin string) (bool, error) {
 	resp, err := c.api.SetPin(ctx, &dbv1.SetPinRequest{AccountId: accountID, Pin: pin})
@@ -1109,6 +1133,8 @@ func characterStateFromProto(c *dbv1.Character) world.CharacterState {
 		NewbieQuest:          uint8(c.GetMortalNewbie()),
 		MolarGargula:         uint8(c.GetMortalMolar()),
 		NivelRetroativo:      uint16(c.GetNivelRetroativo()),
+		FadaFiltroLigado:     c.GetFadaFiltroLigado(),
+		FadaFiltroItens:      int32sParaInt16s(c.GetFadaFiltroItens()),
 		Soul:                 uint8(c.GetSoul()),
 		Fame:                 c.GetFame(),
 		PKPoint:              uint8(c.GetPkPoint()),

@@ -103,6 +103,8 @@ func (f *fakeStore) PinHashByID(_ context.Context, id int64) (string, error) {
 	return f.pinHashes[id], nil
 }
 
+func (f *fakeStore) SaveFadaFiltro(context.Context, int64, int, bool, []int16) error { return nil }
+
 func (f *fakeStore) SetPinHash(_ context.Context, id int64, hash string) error {
 	if _, known := f.byID[id]; !known {
 		return store.ErrNotFound

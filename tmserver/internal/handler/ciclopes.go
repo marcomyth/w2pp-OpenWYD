@@ -95,10 +95,10 @@ func (d *Dispatcher) ciclopeTiranoSaque(w *world.World, reward, mob *world.Entit
 		it := world.Item{Index: itemBarraPrata10Mi}
 		if isSplittable(it.Index) {
 			setItemAmount(&it, tiranoBarras)
-			d.putMobDrop(w, reward, it)
+			d.putMobDrop(w, reward, mob, it)
 		} else {
 			for range tiranoBarras {
-				d.putMobDrop(w, reward, it)
+				d.putMobDrop(w, reward, mob, it)
 			}
 		}
 	}
@@ -107,7 +107,7 @@ func (d *Dispatcher) ciclopeTiranoSaque(w *world.World, reward, mob *world.Entit
 	}
 	for _, ovo := range []int16{itemOvoCavaloLeveN, itemOvoCavaloLeveB} {
 		if w.Rand().Intn(100) < tiranoOvoPct && !d.dropRules.Governs(mob.TemplateName, ovo) {
-			d.putMobDrop(w, reward, world.Item{Index: ovo})
+			d.putMobDrop(w, reward, mob, world.Item{Index: ovo})
 		}
 	}
 }
@@ -131,7 +131,7 @@ func (d *Dispatcher) entregaArmaDDoTirano(w *world.World, reward, mob *world.Ent
 	it := world.Item{Index: arma}
 	it.Effects[0] = world.Effect{Effect: efSanc, Value: 0}
 	it.Effects[1] = world.Effect{Effect: linha.efeito, Value: uint8(linha.valor)}
-	d.putMobDrop(w, reward, it)
+	d.putMobDrop(w, reward, mob, it)
 }
 
 // ApplyCiclopeTiranoBoot segura o Ciclope Tirano por ciclopeTiranoHoras depois que

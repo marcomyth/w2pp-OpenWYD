@@ -67,7 +67,7 @@ func (d *Dispatcher) reiTrollZumbiSaque(w *world.World, reward, mob *world.Entit
 		if p.quantidade > 1 && isSplittable(it.Index) {
 			setItemAmount(&it, p.quantidade)
 		}
-		d.putMobDrop(w, reward, it)
+		d.putMobDrop(w, reward, mob, it)
 	}
 }
 

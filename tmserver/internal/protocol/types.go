@@ -163,6 +163,14 @@ const (
 	MsgLixeiraApaga     Type = 0x0F50 // C->S  apaga estes itens da mochila
 	MsgLixeiraResultado Type = 0x0F51 // S->C  quantos foram, e por que os outros nao
 
+	// O Painel de Drop das Fadas (protocol/fadas.go). 0x0F70 em diante: 0x0F50-53
+	// e 0x0F60-63 ja tem dono em outras branches (lixeira, refino, montaria).
+	MsgFadasPede     Type = 0x0F70 // C->S  proximos, busca, drops de um monstro, meu filtro
+	MsgFadasMonstros Type = 0x0F71 // S->C  uma pagina de monstros
+	MsgFadasDrops    Type = 0x0F72 // S->C  os itens que um monstro pode dar (so indices)
+	MsgFadasMuda     Type = 0x0F73 // C->S  por, tirar, ligar, desligar
+	MsgFadasFiltro   Type = 0x0F74 // S->C  o estado do filtro
+
 	MsgRestart          Type = 0x0289 // 649
 	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)
 	MsgSendReqParty     Type = 0x037F // 895  invite to party
