@@ -92,7 +92,7 @@ func (d *Dispatcher) geloChefeSaque(w *world.World, reward, mob *world.Entity) {
 	if isSplittable(it.Index) {
 		setItemAmount(&it, p.quantidade)
 	}
-	d.putMobDrop(w, reward, it)
+	d.putMobDrop(w, reward, mob, it)
 }
 
 // geloChefeHoras é a espera entre a morte de um chefe do Gelo e a volta dele,

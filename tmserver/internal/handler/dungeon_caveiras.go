@@ -153,7 +153,7 @@ func (d *Dispatcher) entregaArmaCDeChefe(w *world.World, reward, mob *world.Enti
 	}
 	it := world.Item{Index: arma}
 	carimbaAddArmaC(w, &it, addConjuradorFisica, addConjuradorMagica)
-	d.putMobDrop(w, reward, it)
+	d.putMobDrop(w, reward, mob, it)
 }
 
 // ApplyBossConjuradorBoot segura o Boss Conjurador por conjuradorHoras depois que

@@ -184,11 +184,7 @@ func (w *World) SpawnMobAt(sp MobSpawn) int {
 	//
 	// E o Ciclope Cruel e as cópias do spot dele (internal/ciclopes): o mesmo 64
 	// no byte que este port lê, 0 no do legado.
-	e.NonCombatNPC = nonCombatNPC(e.Merchant, e.Clan, e.X, e.Y) &&
-		!IsWaterDungeonGenerator(int(sp.GenIndex)) &&
-		!campotreino.MonstroNoCampo(b.MobMerchant, int(x), int(y)) &&
-		!reinos.MonstroDoReino(b.MobMerchant, b.Clan, int(x), int(y)) &&
-		!ciclopes.MonstroDeCombate(sp.TemplateName, b.MobMerchant)
+	e.NonCombatNPC = MoldeNaoCombate(b, sp.TemplateName, int(sp.GenIndex), x, y)
 	for i, r := range b.Resist {
 		e.Resist[i] = int16(r)
 	}
@@ -764,4 +760,16 @@ func (w *World) GoDetached(work func() func(*World)) {
 		case <-w.done:
 		}
 	}()
+}
+
+// MoldeNaoCombate diz se um molde que nasce do bloco gen em (x, y) é um NPC que
+// não entra em combate (loja, serviço, guarda), e não um monstro. É a regra do
+// nascimento, com as exceções dela, num lugar só: o Painel de Drop das Fadas
+// (handler/fadas.go) lista só monstro, e tem de concordar com o que nasce.
+func MoldeNaoCombate(b protocol.MobBasics, arquivo string, gen int, x, y int16) bool {
+	return nonCombatNPC(b.Merchant, b.Clan, x, y) &&
+		!IsWaterDungeonGenerator(gen) &&
+		!campotreino.MonstroNoCampo(b.MobMerchant, int(x), int(y)) &&
+		!reinos.MonstroDoReino(b.MobMerchant, b.Clan, int(x), int(y)) &&
+		!ciclopes.MonstroDeCombate(arquivo, b.MobMerchant)
 }

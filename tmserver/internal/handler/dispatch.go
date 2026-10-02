@@ -488,6 +488,9 @@ type Dispatcher struct {
 	dropRulePolling  bool
 	dropRulePollTick int
 
+	// O catálogo de monstros do Painel de Drop das Fadas (fadas.go).
+	fadas fadaCatalogo
+
 	// The Mesa das Máquinas, read live the same way (combineratepoll.go).
 	// combineRates itself is declared above, next to the other combine tables.
 	combineRateSource   CombineRateSource
@@ -872,6 +875,8 @@ func New(cfg Config) *Dispatcher {
 	// desligamento do largar-no-chão, e não depois: sem uma das duas, o jogador fica
 	// sem nenhuma forma de descartar um item.
 	d.routes[protocol.MsgLixeiraApaga] = d.lixeiraApaga
+	d.routes[protocol.MsgFadasPede] = d.fadasPede
+	d.routes[protocol.MsgFadasMuda] = d.fadasMuda
 	d.routes[protocol.MsgSetShortSkill] = d.setShortSkill
 	d.routes[protocol.MsgAccountSecure] = d.accountSecure
 	d.routes[protocol.MsgQuest] = d.quest

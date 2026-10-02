@@ -513,7 +513,7 @@ func (d *Dispatcher) coliseuNMorto(w *world.World, reward, mob *world.Entity) {
 	}
 	it := world.Item{Index: coliseuNItens[sorteio]}
 	d.rolarBonusDrop(w, &it, 0, 0)
-	d.putMobDrop(w, reward, it)
+	d.putMobDrop(w, reward, mob, it)
 }
 
 // noticeAreaPainel é o SendNoticeArea do legado: SendClientMessage para quem

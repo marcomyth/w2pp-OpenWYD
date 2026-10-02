@@ -130,7 +130,7 @@ func (d *Dispatcher) mobKilled(w *world.World, killer, mob *world.Entity) {
 			// Ordinary legacy mob loot goes through PutItem: it is delivered
 			// directly to the killer's Carry and synchronized with SendItem. It is
 			// not a floor object and therefore must not use CreateGroundItem.
-			d.putMobDrop(w, reward, it)
+			d.putMobDrop(w, reward, mob, it)
 		}
 	}
 	d.dropTableRolls(w, reward, mob, bonusDrop)
@@ -195,7 +195,25 @@ func (d *Dispatcher) rolarBonusDrop(w *world.World, it *world.Item, nivelMob, bo
 //
 // It goes through putCarryItem, so a merging fairy piles the drop onto the stack
 // it belongs to instead of taking a new slot (carry.go).
-func (d *Dispatcher) putMobDrop(w *world.World, reward *world.Entity, it world.Item) bool {
+//
+// mob is the monster the loot came from, and it is what makes this the door of
+// the fairy filter: with the Fada Azul or Vermelha worn and the filter on, an item
+// outside the character's protected list is discarded here, after every roll has
+// been made (fadas_filtro.go). A nil mob is never filtered.
+func (d *Dispatcher) putMobDrop(w *world.World, reward, mob *world.Entity, it world.Item) bool {
+	if reward == nil {
+		return false
+	}
+	if d.fadaDescarta(w, reward, mob, it.Index) {
+		return false
+	}
+	return d.entregaOuAvisa(w, reward, it)
+}
+
+// entregaOuAvisa puts an item in the bag through putCarryItem and, when there is
+// no room, sends the no-space notice. It is putMobDrop without the fairy filter,
+// for an item that is not monster loot.
+func (d *Dispatcher) entregaOuAvisa(w *world.World, reward *world.Entity, it world.Item) bool {
 	if reward == nil {
 		return false
 	}

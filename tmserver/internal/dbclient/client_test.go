@@ -125,6 +125,9 @@ func (f *fakeAPI) CreateArchCharacter(_ context.Context, req *dbv1.CreateArchCha
 func (f *fakeAPI) DeleteCharacter(_ context.Context, _ *dbv1.DeleteCharacterRequest, _ ...grpc.CallOption) (*dbv1.DeleteCharacterResponse, error) {
 	return &dbv1.DeleteCharacterResponse{Ok: f.deleteOK}, nil
 }
+func (f *fakeAPI) SaveFadaFiltro(_ context.Context, _ *dbv1.SaveFadaFiltroRequest, _ ...grpc.CallOption) (*dbv1.SaveFadaFiltroResponse, error) {
+	return &dbv1.SaveFadaFiltroResponse{}, nil
+}
 func (f *fakeAPI) SetPin(_ context.Context, _ *dbv1.SetPinRequest, _ ...grpc.CallOption) (*dbv1.SetPinResponse, error) {
 	return &dbv1.SetPinResponse{Ok: f.pinSetOK}, nil
 }
