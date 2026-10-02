@@ -490,6 +490,8 @@ type Dispatcher struct {
 
 	// O catálogo de monstros do Painel de Drop das Fadas (fadas.go).
 	fadas fadaCatalogo
+	// As faixas de adicional já calculadas, para a dica do painel (fadas.go).
+	possiveis *refine.Possiveis
 
 	// The Mesa das Máquinas, read live the same way (combineratepoll.go).
 	// combineRates itself is declared above, next to the other combine tables.

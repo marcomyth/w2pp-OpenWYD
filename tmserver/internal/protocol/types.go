@@ -170,6 +170,7 @@ const (
 	MsgFadasDrops    Type = 0x0F72 // S->C  os itens que um monstro pode dar (so indices)
 	MsgFadasMuda     Type = 0x0F73 // C->S  por, tirar, ligar, desligar
 	MsgFadasFiltro   Type = 0x0F74 // S->C  o estado do filtro
+	MsgFadasFaixas   Type = 0x0F76 // S->C  as faixas de adicional dos itens de um monstro
 
 	MsgRestart          Type = 0x0289 // 649
 	MsgRemoveParty      Type = 0x037E // 894  leave/kick (MSG_STANDARDPARM)

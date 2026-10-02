@@ -9,7 +9,9 @@ import (
 
 	"github.com/jeanluca/w2pp-openwyd/internal/campotreino"
 	"github.com/jeanluca/w2pp-openwyd/internal/droprule"
+	"github.com/jeanluca/w2pp-openwyd/internal/regiao"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/refine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -28,7 +30,12 @@ type fadaMonstro struct {
 	molde string // nome do ARQUIVO do molde, canônico: a chave, como na Mesa de Drops
 	nome  string // o nome que o jogo mostra, com espaço no lugar de '_'
 	busca string // o nome sem acento e em minúsculas, para a pesquisa
-	nivel uint16
+	nivel uint16 // não vai para a tela: serve à conta dos adicionais
+
+	// O tipo do lugar (mapa aberto, quest, masmorra) e o nome da região onde o
+	// monstro nasce. Com mais de um lugar, vale o que tem mais blocos; empate, o
+	// primeiro em ordem de bloco. Só isto sai: nunca a coordenada.
+	lugar regiao.Lugar
 
 	// De onde ler os bytes do molde na hora de listar o saque. Não se guarda o
 	// vetor: a ficha de /monstros o troca no lugar (Generator.Rev não se mexe).
@@ -117,6 +124,13 @@ func fadasAssinatura(w *world.World) uint64 {
 // erro. Bloco desligado fica de fora, ou o painel anunciaria monstro que não existe.
 func fadasMontaCatalogo(w *world.World) []fadaMonstro {
 	porMolde := map[string]*fadaMonstro{}
+	// lugares conta, por molde, quantos blocos nascem em cada lugar, e guarda a
+	// ordem em que cada lugar apareceu (o desempate).
+	type contagem struct {
+		blocos map[regiao.Lugar]int
+		ordem  []regiao.Lugar
+	}
+	lugares := map[string]*contagem{}
 	junta := func(bloco int, g *world.Generator, tmpl []byte, arquivo string, seguidor bool) {
 		if len(tmpl) < fadasTamanhoDoMolde || arquivo == "" {
 			return
@@ -129,6 +143,16 @@ func fadasMontaCatalogo(w *world.World) []fadaMonstro {
 		noCampo := campotreino.Contem(x, y)
 		noColiseu := bloco >= coliseuNPrimeiroBloco && bloco <= coliseuNUltimoBloco
 		chave := droprule.Canonical(arquivo)
+		c := lugares[chave]
+		if c == nil {
+			c = &contagem{blocos: map[regiao.Lugar]int{}}
+			lugares[chave] = c
+		}
+		lugar := fadasLugarDoMolde(chave, int32(x), int32(y))
+		if c.blocos[lugar] == 0 {
+			c.ordem = append(c.ordem, lugar)
+		}
+		c.blocos[lugar]++
 		if m := porMolde[chave]; m != nil {
 			m.noCampo = m.noCampo || noCampo
 			m.noColiseu = m.noColiseu || noColiseu
@@ -151,7 +175,13 @@ func fadasMontaCatalogo(w *world.World) []fadaMonstro {
 		junta(i, g, g.FollowerTmpl, g.FollowerName, true)
 	}
 	lista := make([]fadaMonstro, 0, len(porMolde))
-	for _, m := range porMolde {
+	for chave, m := range porMolde {
+		c := lugares[chave]
+		for _, l := range c.ordem {
+			if c.blocos[l] > c.blocos[m.lugar] || m.lugar.Nome == "" {
+				m.lugar = l
+			}
+		}
 		lista = append(lista, *m)
 	}
 	slices.SortFunc(lista, func(a, b fadaMonstro) int {
@@ -164,6 +194,19 @@ func fadasMontaCatalogo(w *world.World) []fadaMonstro {
 		return strings.Compare(a.molde, b.molde)
 	})
 	return lista
+}
+
+// fadasLugarDoMolde é o lugar de um bloco. As duas quests de corrida são
+// reconhecidas pelo MOLDE, como o resto do código as reconhece (castelo_orc.go,
+// acampamento_troll.go): os monstros delas só existem lá dentro.
+func fadasLugarDoMolde(molde string, x, y int32) regiao.Lugar {
+	switch {
+	case casteloOrcTemplates[molde]:
+		return regiao.Lugar{Tipo: regiao.Quest, Nome: "Castelo Orc"}
+	case acampamentoTrollTemplates[molde]:
+		return regiao.Lugar{Tipo: regiao.Quest, Nome: "Acampamento Troll"}
+	}
+	return regiao.Em(x, y)
 }
 
 // fadasTamanhoDoMolde é o STRUCT_MOB canônico, de 816 bytes, que os blocos guardam.
@@ -245,7 +288,16 @@ func fadasMolde(w *world.World, m *fadaMonstro) []byte {
 // descartado (fadaDescarta), então esquecer uma fonte nesta lista deixa o item
 // passar, em vez de fazê-lo sumir sem o jogador ter como protegê-lo.
 func (d *Dispatcher) dropsVisiveis(w *world.World, m *fadaMonstro) []int16 {
-	var out []int16
+	molde, mesa, especial := d.fadasFontes(w, m)
+	out := slices.Concat(molde, mesa, especial)
+	slices.Sort(out)
+	return slices.Compact(out)
+}
+
+// fadasFontes separa o saque de um monstro pelas três fontes de mobKilled. A
+// separação importa para os adicionais: o item do molde passa pelo sorteio comum,
+// e o da Mesa e o de chefe podem receber a tabela própria do lugar.
+func (d *Dispatcher) fadasFontes(w *world.World, m *fadaMonstro) (molde, mesa, especial []int16) {
 	if tmpl := fadasMolde(w, m); tmpl != nil {
 		for _, c := range protocol.MobCarry(tmpl) {
 			idx := int16(c.Index)
@@ -255,20 +307,73 @@ func (d *Dispatcher) dropsVisiveis(w *world.World, m *fadaMonstro) []int16 {
 			if d.dropRules.Governs(m.molde, idx) {
 				continue
 			}
-			out = append(out, idx)
+			molde = append(molde, idx)
 		}
 	}
 	for _, r := range d.dropRules.Rolls(m.molde) {
-		out = append(out, r.Item)
+		mesa = append(mesa, r.Item)
 	}
 	for _, idx := range fadasSaqueEspecial(m) {
 		// O saque de chefe respeita a Mesa: item governado por ela não sai dele.
 		if !d.dropRules.Governs(m.molde, idx) {
-			out = append(out, idx)
+			especial = append(especial, idx)
 		}
 	}
-	slices.Sort(out)
-	return slices.Compact(out)
+	return molde, mesa, especial
+}
+
+// fadasAddsDoLugar diz se o lugar do monstro troca os adicionais do drop da Mesa
+// por uma tabela própria (as funções ...Finish de dropTableRolls).
+func fadasAddsDoLugar(molde string) bool {
+	return casteloOrcTemplates[molde] || acampamentoTrollTemplates[molde] || geloAmon[molde] ||
+		caveirasDoSpot[molde] || ciclopesDoSpot[molde] || monstrosDasArmasD[molde]
+}
+
+// fadasFaixas são as faixas de adicional de cada item que o monstro pode dar,
+// para a dica do painel: o menor e o maior valor de cada efeito, nunca a chance.
+//
+// SÓ ONDE A FAIXA É CERTA. O item do molde, e o da Mesa num monstro comum, passam
+// pelo sorteio de refine.Tabelas.Drop, e a faixa sai dele (refine.Possiveis). O
+// item da Mesa num lugar que carimba os próprios adicionais (Castelo Orc,
+// Acampamento Troll, Amon, Caveiras, Ciclopes, Armas D do Deserto) e o saque de
+// chefe usam tabela do lugar: esses ficam SEM faixa, em vez de mostrar a do
+// sorteio comum, que seria mentira.
+func (d *Dispatcher) fadasFaixas(w *world.World, m *fadaMonstro) []protocol.FadasFaixasItem {
+	if d.possiveis == nil || d.possiveis.Tabelas() != d.dropBonus {
+		d.possiveis = refine.NovoPossiveis(d.dropBonus)
+	}
+	molde, mesa, especial := d.fadasFontes(w, m)
+	itens := molde
+	if !fadasAddsDoLugar(m.molde) {
+		itens = slices.Concat(molde, mesa)
+	}
+	slices.Sort(itens)
+	itens = slices.Compact(itens)
+	var out []protocol.FadasFaixasItem
+	for _, idx := range itens {
+		// O mesmo item também vem do saque de chefe: a faixa do sorteio comum
+		// não vale para aquela cópia.
+		if slices.Contains(especial, idx) {
+			continue
+		}
+		i := int(idx)
+		faixas := d.possiveis.Do(refine.Base{
+			Unique:  d.itemUnique[i],
+			ReqLvl:  int(d.itemReqs[i].Lvl),
+			Pos:     d.itemPos[i],
+			Efeitos: d.itemEffects[i],
+			Indice:  i,
+		}, int(m.nivel))
+		if len(faixas) == 0 {
+			continue
+		}
+		linha := protocol.FadasFaixasItem{Item: idx}
+		for _, f := range faixas {
+			linha.Faixas = append(linha.Faixas, protocol.FadasFaixa{Efeito: f.Efeito, Min: f.Min, Max: f.Max})
+		}
+		out = append(out, linha)
+	}
+	return out
 }
 
 // fadasSaqueEspecial lista o que os saques escritos em código podem entregar para
@@ -409,7 +514,9 @@ func (d *Dispatcher) fadasMandaMonstros(w *world.World, s *world.Session, corpo 
 	fim := min(ini+protocol.FadasMonstrosPorPagina, len(achados))
 	for _, i := range achados[ini:fim] {
 		m := &cat.lista[i]
-		resp.Monstros = append(resp.Monstros, protocol.FadasMonstro{Numero: uint16(i), Nivel: m.nivel, Nome: m.nome})
+		resp.Monstros = append(resp.Monstros, protocol.FadasMonstro{
+			Numero: uint16(i), Tipo: uint8(m.lugar.Tipo), Nome: m.nome, Regiao: m.lugar.Nome,
+		})
 	}
 	w.Send(s, protocol.MsgFadasMonstros, resp.Encode())
 }
@@ -425,6 +532,8 @@ func (d *Dispatcher) fadasMandaDrops(w *world.World, s *world.Session, corpo pro
 		w.Send(s, protocol.MsgFadasDrops, protocol.EncodeFadasDrops(cat.versao, fadasSemMonstro, nil))
 		return
 	}
-	itens := d.dropsVisiveis(w, &cat.lista[corpo.Monstro])
-	w.Send(s, protocol.MsgFadasDrops, protocol.EncodeFadasDrops(cat.versao, corpo.Monstro, itens))
+	m := &cat.lista[corpo.Monstro]
+	w.Send(s, protocol.MsgFadasDrops, protocol.EncodeFadasDrops(cat.versao, corpo.Monstro, d.dropsVisiveis(w, m)))
+	// As faixas de adicional vão logo atrás, para a dica de cada item.
+	w.Send(s, protocol.MsgFadasFaixas, protocol.EncodeFadasFaixas(cat.versao, corpo.Monstro, d.fadasFaixas(w, m)))
 }

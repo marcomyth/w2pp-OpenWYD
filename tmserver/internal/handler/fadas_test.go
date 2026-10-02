@@ -7,7 +7,10 @@ import (
 	"time"
 
 	"github.com/jeanluca/w2pp-openwyd/internal/droprule"
+	"github.com/jeanluca/w2pp-openwyd/internal/regiao"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/content"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/refine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -441,5 +444,144 @@ func TestFadasRespondePeloFio(t *testing.T) {
 	})
 	if b := espera(protocol.MsgFadasDrops); binary.LittleEndian.Uint16(b[2:]) != fadasSemMonstro {
 		t.Errorf("drops com versão velha: % x", b)
+	}
+}
+
+// --- tipo do lugar, região e faixas de adicional (fase 2) ----------------------
+
+func blocoDaFadaEm(arquivo string, tmpl []byte, x, y int16) *world.Generator {
+	g := blocoDaFada(arquivo, tmpl)
+	g.SegX[0], g.SegY[0] = x, y
+	return g
+}
+
+// Todo monstro do catálogo tem tipo e região. Com mais de um lugar vale o que
+// tem mais blocos, e no empate o primeiro em ordem de bloco. As quests de corrida
+// são reconhecidas pelo molde.
+func TestFadasTipoERegiaoDoMonstro(t *testing.T) {
+	tmpl := moldeDaFada("X", 10, nil)
+	d, w, _ := mundoDasFadas(t, 0,
+		blocoDaFadaEm("Maioria", tmpl, 1200, 1700), // Deserto
+		blocoDaFadaEm("Maioria", tmpl, 1100, 3500), // Água Normal
+		blocoDaFadaEm("Maioria", tmpl, 1110, 3510), // Água Normal
+		blocoDaFadaEm("Empate", tmpl, 2300, 2100),  // Armia, primeiro
+		blocoDaFadaEm("Empate", tmpl, 1200, 1700),  // Deserto
+		blocoDaFadaEm("Arena", tmpl, 2400, 2100),   // Coveiro, dentro de Armia
+		blocoDaFadaEm("COrc_Guarda", tmpl, 2300, 2100),
+		blocoDaFadaEm("Perdido", tmpl, 5, 5),
+	)
+	cat := d.fadasCatalogo(w)
+	quero := map[string]regiao.Lugar{
+		"maioria":     {Tipo: regiao.Masmorra, Nome: "Água Normal"},
+		"empate":      {Tipo: regiao.MapaAberto, Nome: "Armia"},
+		"arena":       {Tipo: regiao.Quest, Nome: "Coveiro"},
+		"corc_guarda": {Tipo: regiao.Quest, Nome: "Castelo Orc"},
+		"perdido":     regiao.Padrao,
+	}
+	if len(cat.lista) != len(quero) {
+		t.Fatalf("catálogo com %d monstros, quero %d", len(cat.lista), len(quero))
+	}
+	for _, m := range cat.lista {
+		if m.lugar != quero[m.molde] {
+			t.Errorf("%s: lugar %+v, quero %+v", m.molde, m.lugar, quero[m.molde])
+		}
+	}
+}
+
+// A lista de monstros leva o tipo e a região, em CP1252, e não leva o nível.
+func TestFadasMonstrosLevaTipoERegiao(t *testing.T) {
+	b := (&protocol.FadasMonstrosBody{Versao: 3, Tipo: protocol.FadasPedeProximos, Total: 1,
+		Monstros: []protocol.FadasMonstro{{Numero: 9, Tipo: uint8(regiao.Masmorra), Nome: "Troll", Regiao: "Água Normal"}},
+	}).Encode()
+	if len(b) != 8+4+protocol.FadasNome+protocol.FadasRegiao {
+		t.Fatalf("pacote com %d bytes", len(b))
+	}
+	linha := b[8:]
+	if binary.LittleEndian.Uint16(linha) != 9 || linha[2] != uint8(regiao.Masmorra) {
+		t.Errorf("número ou tipo errado: % x", linha[:4])
+	}
+	if got := string(linha[4:9]); got != "Troll" {
+		t.Errorf("nome = %q", got)
+	}
+	// "Água" em CP1252: Á é um byte só, 0xC1.
+	if reg := linha[4+protocol.FadasNome:]; reg[0] != 0xC1 || string(reg[1:11]) != "gua Normal" || reg[11] != 0 {
+		t.Errorf("região = % x", reg[:12])
+	}
+}
+
+// As faixas de adicional: só para o item que passa pelo sorteio comum. O saque de
+// chefe e o item da Mesa num lugar com tabela própria ficam sem faixa.
+func TestFadasFaixasSoDoSorteioComum(t *testing.T) {
+	const espada, luva int16 = 2000, 2001
+	prepara := func(d *Dispatcher) {
+		armaC := int(armasCFisicas[0])
+		d.itemPos = map[int]int{int(espada): 64, int(luva): 16, armaC: 64}
+		d.itemUnique = map[int]int{int(espada): 41, armaC: 41}
+		d.itemReqs = map[int]content.ItemReq{int(espada): {Lvl: 100}, int(luva): {Lvl: 100}}
+	}
+	mesa := droprule.NewTable([]droprule.Rule{
+		{Mob: "Bicho", Item: luva, Chance: 1},
+		{Mob: "COrc_Guarda", Item: luva, Chance: 1},
+	})
+	d, w, _ := mundoDasFadas(t, 0,
+		blocoDaFada("Bicho", moldeDaFada("Bicho", 150, map[int]int16{3: espada, 4: itemFadaTesteC})),
+		blocoDaFada("COrc_Guarda", moldeDaFada("Orc", 150, map[int]int16{3: espada})),
+		blocoDaFada(bossConjuradorTemplate, moldeDaFada("Conjurador", 300, nil)),
+	)
+	prepara(d)
+	d.dropRules = mesa
+	cat := d.fadasCatalogo(w)
+	faixasDe := func(molde string) map[int16][]protocol.FadasFaixa {
+		out := map[int16][]protocol.FadasFaixa{}
+		for _, f := range d.fadasFaixas(w, &cat.lista[cat.porMolde[droprule.Canonical(molde)]]) {
+			out[f.Item] = f.Faixas
+		}
+		return out
+	}
+
+	bicho := faixasDe("Bicho")
+	if len(bicho[espada]) == 0 || len(bicho[luva]) == 0 {
+		t.Errorf("monstro comum: espada %v, luva %v; as duas deviam ter faixa", bicho[espada], bicho[luva])
+	}
+	if _, tem := bicho[itemFadaTesteC]; tem {
+		t.Error("a poeira (material) veio com faixa de adicional")
+	}
+	orc := faixasDe("COrc_Guarda")
+	if len(orc[espada]) == 0 {
+		t.Error("Castelo Orc: a espada do molde devia ter a faixa do sorteio comum")
+	}
+	if _, tem := orc[luva]; tem {
+		t.Error("Castelo Orc: o item da Mesa recebe a tabela do lugar e não pode levar a faixa comum")
+	}
+	if chefe := faixasDe(bossConjuradorTemplate); len(chefe) != 0 {
+		t.Errorf("saque de chefe veio com faixa: %v", chefe)
+	}
+
+	// E a faixa é a do sorteio: uma espada de monstro 50 níveis acima.
+	ref := refine.NovoPossiveis(d.dropBonus).Do(refine.Base{Unique: 41, ReqLvl: 100, Pos: 64, Indice: int(espada)}, 150)
+	if len(ref) != len(bicho[espada]) {
+		t.Fatalf("faixas da espada: %v, o sorteio dá %v", bicho[espada], ref)
+	}
+	for i, f := range ref {
+		if g := bicho[espada][i]; g.Efeito != f.Efeito || g.Min != f.Min || g.Max != f.Max {
+			t.Errorf("faixa %d: %+v, o sorteio dá %+v", i, g, f)
+		}
+	}
+}
+
+// O 0x0F76 só leva efeito, mínimo e máximo: três bytes por faixa, nenhuma chance.
+func TestFadasFaixasNoFio(t *testing.T) {
+	b := protocol.EncodeFadasFaixas(4, 2, []protocol.FadasFaixasItem{
+		{Item: 2000, Faixas: []protocol.FadasFaixa{{Efeito: 2, Min: 9, Max: 54}, {Efeito: 74, Min: 3, Max: 18}}},
+		{Item: 2001},
+	})
+	if len(b) != 8+4+2*3 {
+		t.Fatalf("pacote com %d bytes, quero %d", len(b), 8+4+2*3)
+	}
+	if n := binary.LittleEndian.Uint16(b[4:]); n != 1 {
+		t.Errorf("n = %d: o item sem faixa não devia ir", n)
+	}
+	if !slices.Equal(b[8:], []byte{0xD0, 0x07, 2, 0, 2, 9, 54, 74, 3, 18}) {
+		t.Errorf("corpo = % x", b[8:])
 	}
 }
