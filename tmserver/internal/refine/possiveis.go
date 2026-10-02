@@ -118,10 +118,10 @@ func (t Tabelas) enumera(base Base, nivel, dist int) []Faixa {
 			chamada, cem := 0, 0
 			roll := func(n int) int {
 				var ops []int
-				switch {
-				case n == 101:
+				switch n {
+				case 101:
 					ops = efeito
-				case n == 100:
+				case 100:
 					cem++
 					switch cem {
 					case 1:
@@ -131,9 +131,9 @@ func (t Tabelas) enumera(base Base, nivel, dist int) []Faixa {
 					default:
 						ops = refino
 					}
-				case n == 10:
+				case 10:
 					ops = tipos
-				case n == 128 || n == 256 || n == 4:
+				case 128, 256, 4:
 					ops = um
 				default:
 					// o valor do bônus especial: o menor e o maior
