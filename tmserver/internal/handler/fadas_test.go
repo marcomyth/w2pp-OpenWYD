@@ -439,7 +439,7 @@ func TestFadasRespondePeloFio(t *testing.T) {
 	// Drops com a versão errada: o servidor manda "peça a lista de novo".
 	pede[0] = protocol.FadasPedeDrops
 	binary.LittleEndian.PutUint16(pede[2:], 0xBEEF)
-	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
+	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, _ *world.Entity) {
 		d.fadasPede(w, s, protocol.Header{}, pede)
 	})
 	if b := espera(protocol.MsgFadasDrops); binary.LittleEndian.Uint16(b[2:]) != fadasSemMonstro {
