@@ -54,7 +54,7 @@ func TestEventoNoMapaNaoRenasce(t *testing.T) {
 		t.Fatalf("gerar aqui dentro do mapa pôs %d mobs, quer 1", len(ids))
 	}
 	w.DespawnMob(ids[0], 1)
-	if got := len(w.SpawnDueRespawns(^uint32(0))); got != 0 {
+	if got := len(w.SpawnDueRespawns(futuroDistante(w))); got != 0 {
 		t.Fatalf("mob do evento voltou pela fila: %d, quer 0", got)
 	}
 
@@ -64,7 +64,7 @@ func TestEventoNoMapaNaoRenasce(t *testing.T) {
 		t.Fatalf("setup fora do mapa: %d mobs", len(ids))
 	}
 	w.DespawnMob(ids[0], 1)
-	if got := len(w.SpawnDueRespawns(^uint32(0))); got != 1 {
+	if got := len(w.SpawnDueRespawns(futuroDistante(w))); got != 1 {
 		t.Fatalf("fora do mapa a fila devolveu %d, quer 1", got)
 	}
 }
