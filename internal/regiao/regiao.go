@@ -134,6 +134,16 @@ var tabela = []linha{
 	{3456, 3456, 3839, 3711, Lugar{Masmorra, "Lan Normal"}, ""},     // as gárgulas em volta da Lan
 }
 
+// Reserva diz se o lugar e um deposito de blocos, e nao um lugar de verdade. A
+// Monster City sao 824 blocos do NPCGener com um Tauron cada, todos no mesmo
+// ponto (320,320): blocos de reserva. Para o painel, um lugar de reserva so vale
+// quando o monstro nao nasce em nenhum outro; senao o Tauron, que nasce de
+// verdade no Deserto (53 blocos), apareceria como "Masmorra: Monster City"
+// (pedido da dona, 02/10/2026). E so o que o PAINEL mostra: o jogo nao muda.
+func Reserva(l Lugar) bool {
+	return l.Tipo == Masmorra && l.Nome == "Monster City"
+}
+
 // Em devolve o lugar de um ponto do mapa.
 func Em(x, y int32) Lugar {
 	for i := range tabela {

@@ -780,3 +780,22 @@ func TestFadasItensNoFio(t *testing.T) {
 		t.Errorf("linha: % x", b[8:24])
 	}
 }
+
+// A Monster City é depósito de blocos: o Tauron tem 824 lá e 53 no Deserto, e o
+// painel mostra o Deserto. Só quem nasce SÓ lá fica com ela.
+func TestFadasMonsterCityNaoGanhaDoLugarDeVerdade(t *testing.T) {
+	tmpl := moldeDaFada("X", 10, nil)
+	gens := []*world.Generator{blocoDaFadaEm("Tauron", tmpl, 1200, 1700)}
+	for range 5 {
+		gens = append(gens, blocoDaFadaEm("Tauron", tmpl, 320, 320))
+	}
+	gens = append(gens, blocoDaFadaEm("SoNaReserva", tmpl, 320, 320))
+	d, w, _ := mundoDasFadas(t, 0, gens...)
+	cat := d.fadasCatalogo(w)
+	if l := cat.lista[cat.porMolde["tauron"]].lugar; l != (regiao.Lugar{Tipo: regiao.MapaAberto, Nome: "Deserto"}) {
+		t.Errorf("Tauron: %+v, quero Mapa Aberto: Deserto", l)
+	}
+	if l := cat.lista[cat.porMolde["sonareserva"]].lugar; l.Nome != "Monster City" {
+		t.Errorf("quem só nasce na reserva ficou com %+v", l)
+	}
+}

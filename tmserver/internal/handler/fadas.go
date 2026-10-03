@@ -185,8 +185,12 @@ func fadasMontaCatalogo(w *world.World) []fadaMonstro {
 	lista := make([]fadaMonstro, 0, len(porMolde))
 	for chave, m := range porMolde {
 		c := lugares[chave]
+		// Lugar de reserva (regiao.Reserva) so vale se nao houver outro.
 		for _, l := range c.ordem {
-			if c.blocos[l] > c.blocos[m.lugar] || m.lugar.Nome == "" {
+			melhor := m.lugar.Nome == "" ||
+				(regiao.Reserva(m.lugar) && !regiao.Reserva(l)) ||
+				(regiao.Reserva(m.lugar) == regiao.Reserva(l) && c.blocos[l] > c.blocos[m.lugar])
+			if melhor {
 				m.lugar = l
 			}
 		}
