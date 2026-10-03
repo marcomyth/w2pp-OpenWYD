@@ -570,7 +570,7 @@ func TestMuroDeEspinhosDerrubadoNaoVolta(t *testing.T) {
 	}
 	id, _ := w.EntityAt(4, 4)
 	w.DespawnMob(id, 1)
-	if ids := w.SpawnDueRespawns(^uint32(0)); len(ids) != 0 {
+	if ids := w.SpawnDueRespawns(w.Now() + 1<<31 - 1); len(ids) != 0 {
 		t.Fatalf("o muro derrubado voltou: %v", ids)
 	}
 }

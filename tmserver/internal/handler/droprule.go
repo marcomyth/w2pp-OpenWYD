@@ -114,11 +114,20 @@ func (d *Dispatcher) dropTableRolls(w *world.World, reward, mob *world.Entity, b
 		if d.castleKeyDrop(w, reward, it) {
 			continue
 		}
-		d.putMobDrop(w, reward, it)
-		for range copias - 1 {
-			d.putMobDrop(w, reward, it)
+		entregues := 0
+		for range max(copias, 1) {
+			if d.putMobDrop(w, reward, mob, it) {
+				entregues++
+			}
 		}
-		d.log.Info("drop table hit", "mob", mob.TemplateName, "item", r.Item,
-			"chance", droprule.Percent(r.Chance), "killer", reward.Name)
+		// A linha diz o que aconteceu com o item: a Mesa acertar não é o item
+		// entrar. Fica de fora da mochila o que o filtro da fada descartou (com a
+		// linha própria dele, em putMobDrop) e o que não achou espaço.
+		msg := "drop table hit"
+		if entregues == 0 {
+			msg = "drop table hit, item not delivered"
+		}
+		d.log.Info(msg, "mob", mob.TemplateName, "item", r.Item,
+			"chance", droprule.Percent(r.Chance), "killer", reward.Name, "delivered", entregues)
 	}
 }

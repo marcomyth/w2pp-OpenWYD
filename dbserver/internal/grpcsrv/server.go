@@ -31,6 +31,7 @@ type Store interface {
 	DeleteCharacter(ctx context.Context, accountID int64, slot int) error
 	PinHashByID(ctx context.Context, id int64) (string, error)
 	SetPinHash(ctx context.Context, id int64, hash string) error
+	SaveFadaFiltro(ctx context.Context, accountID int64, slot int, ligado bool, itens []int16) error
 	SalvarPersonagemOrdenado(ctx context.Context, accountID int64, ch domain.Character, epoca, seq int64, soltarPosse bool) error
 	NovaEpocaDePar(ctx context.Context) (int64, error)
 	TomarPosseDaConta(ctx context.Context, accountID, epoca int64) error
@@ -1020,6 +1021,43 @@ func (s *Server) DeleteCharacter(ctx context.Context, req *dbv1.DeleteCharacterR
 		return nil, status.Errorf(codes.Internal, "delete character: %v", err)
 	}
 	return &dbv1.DeleteCharacterResponse{Ok: true}, nil
+}
+
+// SaveFadaFiltro grava o filtro de drop das fadas de um personagem.
+func (s *Server) SaveFadaFiltro(ctx context.Context, req *dbv1.SaveFadaFiltroRequest) (*dbv1.SaveFadaFiltroResponse, error) {
+	itens := int32sParaInt16s(req.GetItens())
+	err := s.store.SaveFadaFiltro(ctx, req.GetAccountId(), int(req.GetSlot()), req.GetLigado(), itens)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, status.Error(codes.NotFound, "character slot is empty")
+	}
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "save fada filtro: %v", err)
+	}
+	return &dbv1.SaveFadaFiltroResponse{}, nil
+}
+
+// int16sParaInt32s e int32sParaInt16s levam uma lista de índices de item pelo
+// proto, que não tem inteiro de 16 bits.
+func int16sParaInt32s(in []int16) []int32 {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]int32, len(in))
+	for i, v := range in {
+		out[i] = int32(v)
+	}
+	return out
+}
+
+func int32sParaInt16s(in []int32) []int16 {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]int16, len(in))
+	for i, v := range in {
+		out[i] = int16(v)
+	}
+	return out
 }
 
 // SetPin sets (or changes) the account's numeric PIN, stored only as an argon2id

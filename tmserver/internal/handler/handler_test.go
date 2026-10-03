@@ -77,6 +77,10 @@ type fakeDB struct {
 	pinSetOK     bool            // SetPin ok flag
 	pinSets      []string        // captured SetPin plaintext (test-only; prod never stores plaintext)
 
+	// gravações do filtro das fadas (SaveFadaFiltro)
+	fadaFiltros   []fadaFiltroSalvo
+	fadaFiltroErr error // quando não-nil, SaveFadaFiltro falha
+
 	mu                sync.Mutex
 	pontosLojinha     int32                 // carteira de pontos de lojinha (ver lojapontos_test.go)
 	savedChars        []world.CharacterSave // captured SaveOnShutdown calls
@@ -109,6 +113,21 @@ type duelResult struct{ winner, loser string }
 
 func (f *fakeDB) VerifyPin(_ context.Context, _ int64, _ string) (world.PinResult, error) {
 	return f.pinVerify, f.pinVerifyErr
+}
+
+// fadaFiltroSalvo é uma gravação do filtro das fadas, para os testes conferirem.
+type fadaFiltroSalvo struct {
+	conta  int64
+	slot   int
+	ligado bool
+	itens  []int16
+}
+
+func (f *fakeDB) SaveFadaFiltro(_ context.Context, conta int64, slot int, ligado bool, itens []int16) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.fadaFiltros = append(f.fadaFiltros, fadaFiltroSalvo{conta, slot, ligado, append([]int16(nil), itens...)})
+	return f.fadaFiltroErr
 }
 
 func (f *fakeDB) SetPin(_ context.Context, _ int64, pin string) (bool, error) {

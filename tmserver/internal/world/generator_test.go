@@ -205,7 +205,7 @@ func TestGenerateMobDeathAccounting(t *testing.T) {
 	if w.Entity(leader).PartyList[0] != 0 {
 		t.Fatal("dead follower still in the leader's PartyList")
 	}
-	if got := len(w.SpawnDueRespawns(^uint32(0))); got != 0 {
+	if got := len(w.SpawnDueRespawns(futuroDistante(w))); got != 0 {
 		t.Fatalf("timer-block death queued %d respawns, want 0 (the minute timer refills)", got)
 	}
 
@@ -239,7 +239,7 @@ func TestGenerateMobQueueFallback(t *testing.T) {
 	if g.CurrentNumMob != 0 {
 		t.Fatalf("CurrentNumMob after death = %d, want 0", g.CurrentNumMob)
 	}
-	respawned := w.SpawnDueRespawns(^uint32(0)) // far future: delay elapsed
+	respawned := w.SpawnDueRespawns(futuroDistante(w)) // far future: delay elapsed
 	if len(respawned) != 1 {
 		t.Fatalf("queue respawned %d mobs, want 1", len(respawned))
 	}
@@ -355,3 +355,13 @@ func TestEventOwnedGeneratorSkipsRespawnQueue(t *testing.T) {
 		t.Fatalf("respawnQueue len = %d, want the ordinary mob queued", len(w.respawnQueue))
 	}
 }
+
+// futuroDistante é um instante em que toda espera da fila de renascimento já
+// venceu, medido A PARTIR do relógio do mundo.
+//
+// Não pode ser ^uint32(0): a fila compara por diferença com sinal, porque o
+// relógio é de 32 bits em milissegundos e dá a volta a cada ~49,7 dias
+// (respawn.go). Na metade do ciclo logo depois da volta, o "tudo um" fica ATRÁS
+// do relógio, a fila não devolve ninguém, e o teste falha (ou passa calado, se
+// espera zero) conforme o dia em que roda. Foi o que aconteceu em 03/10/2026.
+func futuroDistante(w *World) uint32 { return w.Now() + 1<<31 - 1 }

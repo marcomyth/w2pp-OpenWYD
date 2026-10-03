@@ -143,10 +143,21 @@ func (w *World) gravacoesDeSaida() []gravacaoDeSaida {
 		cs, carga, unacked, temCarga, seq := w.parDeSalvamento(s)
 		conta := cs.AccountID
 		tratadas[conta] = true
+		// O filtro das fadas deste personagem que ainda não chegou ao banco vai NA
+		// FRENTE do par, na mesma gravação: o par solta a posse da conta, e o
+		// servidor novo pode carregar o personagem logo depois.
+		filtro := w.fadaFiltroDeSaida(fadaFiltroChave{cs.AccountID, cs.Slot})
 		gs = append(gs, gravacaoDeSaida{
 			conta: conta,
 			oQue:  "character",
 			grava: func(ctx context.Context) error {
+				if filtro != nil {
+					if err := filtro(ctx); err != nil {
+						// Falha própria, com nome próprio: o par é gravado de qualquer jeito.
+						w.savesFalhados.Add(1)
+						w.log.Warn("save on shutdown failed", "account", conta, "what", "fada filtro", "err", err)
+					}
+				}
 				// soltarPosse=TRUE, como no logout: é o save de saída. Sem isso a
 				// conta ficava presa a um processo morto até o prazo da posse vencer,
 				// e o jogador batia na porta do servidor novo por até 90 s.
@@ -179,6 +190,13 @@ func (w *World) gravacoesDeSaida() []gravacaoDeSaida {
 				return soltarPosse(ctx, p, conta, epoca)
 			},
 		})
+	}
+
+	// Os filtros das fadas de quem já saiu do jogo com a gravação a caminho.
+	for k := range w.fadaFiltros {
+		if filtro := w.fadaFiltroDeSaida(k); filtro != nil {
+			gs = append(gs, gravacaoDeSaida{conta: k.conta, oQue: "fada filtro", grava: filtro})
+		}
 	}
 
 	for _, s := range w.sessions {

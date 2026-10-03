@@ -59,6 +59,15 @@ func (a AccessLevel) String() string {
 	}
 }
 
+// FadaFiltroSalvo é um estado do filtro de drop das fadas: de quem é, e o que
+// gravar (world/fadafiltro.go).
+type FadaFiltroSalvo struct {
+	Conta  int64
+	Slot   int
+	Ligado bool
+	Itens  []int16
+}
+
 // Session is a player's connection/session state (CUser subset,
 // domain-model.md §2.1). It is owned by the loop goroutine; the conn/out/closeCh
 // plumbing is shared with this session's reader and writer goroutines only.
@@ -156,6 +165,16 @@ type Session struct {
 	// Painel de Guilda que vai ao banco. É o freio contra um cliente remendado
 	// pedir o quadro em laço (handler/guildapainel.go).
 	GuildaPedidoEm time.Time
+	// O Painel de Drop das Fadas (handler/fadas.go e fadas_filtro.go): os freios
+	// de pedido, um por tipo, porque o cliente manda o pedido do filtro e o da
+	// lista juntos ao abrir. FadasPedidoEm freia as listas (a busca manda um a
+	// cada pausa de digitação), FadasDropsEm os drops de um monstro, FadasFiltroEm
+	// o "meu filtro" e FadasMudaEm as mudanças (0x0F73). A gravação do filtro não
+	// mora aqui: é do mundo (world/fadafiltro.go), para sobreviver à sessão.
+	FadasPedidoEm time.Time
+	FadasDropsEm  time.Time
+	FadasFiltroEm time.Time
+	FadasMudaEm   time.Time
 	// RecusasDeAcesso conta quantas recusas de login COM FECHAMENTO esta conexão
 	// levou. É do laço, como todo o resto da sessão, e não precisa de trava.
 	//
@@ -423,7 +442,13 @@ type Entity struct {
 	// Hold e a divida de experiencia das mortes em PvP (extra.Hold, 0187): o
 	// legado nunca tira experiencia de quem morre para outro jogador, soma aqui,
 	// e os abates seguintes pagam a divida antes de encher a barra (payHold).
-	Hold                 uint32
+	Hold uint32
+	// O filtro de drop das fadas (handler/fadas_filtro.go). FadaFiltro é a lista
+	// de Itens Protegidos, em ordem de índice e sem repetir; FadaFiltroLigado só
+	// vale com a Fada Azul ou a Vermelha vestida. Vem do banco no login e é
+	// gravado na hora em que o jogador muda (tabela fada_filtro, 0183).
+	FadaFiltroLigado     bool
+	FadaFiltro           []int16
 	ArchLv355, ArchLv370 uint8
 	MortalLevel          uint16
 	CelestialArchLevel   uint8

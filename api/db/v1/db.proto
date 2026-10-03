@@ -60,6 +60,9 @@ service AccountService {
   // SetPin sets (or changes) the account's numeric PIN, stored as an argon2id
   // hash — never plaintext (legacy _MSG_AccountSecure change path).
   rpc SetPin(SetPinRequest) returns (SetPinResponse);
+  // SaveFadaFiltro grava o filtro de drop das fadas de um personagem, a lista
+  // inteira de uma vez, na hora em que o jogador a muda.
+  rpc SaveFadaFiltro(SaveFadaFiltroRequest) returns (SaveFadaFiltroResponse);
   // VerifyPin checks a numeric PIN against the stored hash (legacy
   // _MSG_AccountSecure verify path); NOT_SET means the account has no PIN yet.
   rpc VerifyPin(VerifyPinRequest) returns (VerifyPinResponse);
@@ -492,6 +495,10 @@ message Character {
   // extra.Hold: a dívida de experiência das mortes em PvP (0187). Os abates
   // seguintes pagam a dívida antes de a experiência entrar na barra.
   int64 hold = 58;
+  // O filtro de drop das fadas (0183_fada_filtro). SO LEITURA: vem com o LoadCharacter e o
+  // SaveCharacter ignora os dois; quem grava e o SaveFadaFiltro.
+  bool fada_filtro_ligado = 59;
+  repeated int32 fada_filtro_itens = 60;
 }
 
 message Item {
@@ -685,6 +692,14 @@ message SetPinRequest {
   string pin = 2; // hashed with argon2id server-side; never stored in plaintext
 }
 message SetPinResponse { bool ok = 1; }
+
+message SaveFadaFiltroRequest {
+  int64 account_id = 1;
+  int32 slot = 2;
+  bool ligado = 3;
+  repeated int32 itens = 4; // indices de item, sem repetir, no maximo 60
+}
+message SaveFadaFiltroResponse {}
 
 message VerifyPinRequest {
   int64 account_id = 1;

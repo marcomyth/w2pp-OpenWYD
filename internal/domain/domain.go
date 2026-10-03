@@ -118,6 +118,11 @@ type Character struct {
 	// Hold é a dívida de experiência das mortes em PvP (extra.Hold, 0187): os
 	// abates seguintes pagam a dívida antes de a experiência entrar na barra.
 	Hold int64
+	// O filtro de drop das fadas (0183, tabela fada_filtro). Só é LIDO junto com o
+	// personagem: a gravação tem RPC própria (SaveFadaFiltro), na hora em que o
+	// jogador muda a lista, e o save geral não toca nela.
+	FadaFiltroLigado bool
+	FadaFiltroItens  []int16
 }
 
 // KingdomCapeQuote is the persisted, versioned sapphire price snapshot.

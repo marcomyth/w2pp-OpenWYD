@@ -60,5 +60,5 @@ func (d *Dispatcher) repletionDoCampo(w *world.World, reward, mob *world.Entity)
 	if isSplittable(it.Index) {
 		setItemAmount(&it, 1)
 	}
-	d.putMobDrop(w, reward, it)
+	d.putMobDrop(w, reward, mob, it)
 }

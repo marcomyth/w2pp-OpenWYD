@@ -212,6 +212,10 @@ type World struct {
 	// select ↔ play), so it is keyed by account, not session/conn. Loop-owned.
 	cargo map[int64]*CargoState
 
+	// fadaFiltros são as gravações do filtro das fadas a caminho do banco, por
+	// personagem (fadafiltro.go). Loop-only.
+	fadaFiltros map[fadaFiltroChave]*fadaFiltroFila
+
 	// quitSaves counts, per account, the teardown saves (character and cargo) of
 	// a session that has already closed but whose writes have not returned yet.
 	// While it is non-zero the account is still in use, exactly as the legacy
@@ -336,17 +340,18 @@ func New(cfg Config, log *slog.Logger, persist Persistence, handler Handler) *Wo
 		handler = func(*World, *Session, protocol.Header, []byte) {}
 	}
 	return &World{
-		cfg:       cfg,
-		log:       log,
-		marcavel:  cfg.Marcavel,
-		persist:   persist,
-		billing:   AllowAllBilling{},
-		handler:   handler,
-		sessions:  make([]*Session, MaxUser),
-		entities:  make([]*Entity, MaxMob),
-		ground:    make([]*GroundItem, MaxItem),
-		cargo:     make(map[int64]*CargoState),
-		quitSaves: make(map[int64]int),
+		cfg:         cfg,
+		log:         log,
+		marcavel:    cfg.Marcavel,
+		persist:     persist,
+		billing:     AllowAllBilling{},
+		handler:     handler,
+		sessions:    make([]*Session, MaxUser),
+		entities:    make([]*Entity, MaxMob),
+		ground:      make([]*GroundItem, MaxItem),
+		cargo:       make(map[int64]*CargoState),
+		fadaFiltros: make(map[fadaFiltroChave]*fadaFiltroFila),
+		quitSaves:   make(map[int64]int),
 
 		deliveryPlaced:  make(map[int64]map[int64]bool),
 		deliveryUnacked: make(map[int64][]int64),
