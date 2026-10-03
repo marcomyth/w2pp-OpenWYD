@@ -78,7 +78,8 @@ type fakeDB struct {
 	pinSets      []string        // captured SetPin plaintext (test-only; prod never stores plaintext)
 
 	// gravações do filtro das fadas (SaveFadaFiltro)
-	fadaFiltros []fadaFiltroSalvo
+	fadaFiltros   []fadaFiltroSalvo
+	fadaFiltroErr error // quando não-nil, SaveFadaFiltro falha
 
 	mu                sync.Mutex
 	pontosLojinha     int32                 // carteira de pontos de lojinha (ver lojapontos_test.go)
@@ -126,7 +127,7 @@ func (f *fakeDB) SaveFadaFiltro(_ context.Context, conta int64, slot int, ligado
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.fadaFiltros = append(f.fadaFiltros, fadaFiltroSalvo{conta, slot, ligado, append([]int16(nil), itens...)})
-	return nil
+	return f.fadaFiltroErr
 }
 
 func (f *fakeDB) SetPin(_ context.Context, _ int64, pin string) (bool, error) {

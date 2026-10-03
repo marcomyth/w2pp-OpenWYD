@@ -59,8 +59,8 @@ func (a AccessLevel) String() string {
 	}
 }
 
-// FadaFiltroSalvo é um estado do filtro de drop das fadas à espera de gravação:
-// de quem é, e o que gravar.
+// FadaFiltroSalvo é um estado do filtro de drop das fadas: de quem é, e o que
+// gravar (world/fadafiltro.go).
 type FadaFiltroSalvo struct {
 	Conta  int64
 	Slot   int
@@ -165,13 +165,16 @@ type Session struct {
 	// Painel de Guilda que vai ao banco. É o freio contra um cliente remendado
 	// pedir o quadro em laço (handler/guildapainel.go).
 	GuildaPedidoEm time.Time
-	// O Painel de Drop das Fadas (handler/fadas.go e fadas_filtro.go).
-	// FadasPedidoEm freia os pedidos de lista (a busca manda um a cada pausa de
-	// digitação). FadasGravando diz que há uma gravação do filtro a caminho do
-	// banco, e FadasPendente guarda o estado mais novo, que entra na fila atrás dela.
+	// O Painel de Drop das Fadas (handler/fadas.go e fadas_filtro.go): os freios
+	// de pedido, um por tipo, porque o cliente manda o pedido do filtro e o da
+	// lista juntos ao abrir. FadasPedidoEm freia as listas (a busca manda um a
+	// cada pausa de digitação), FadasDropsEm os drops de um monstro, FadasFiltroEm
+	// o "meu filtro" e FadasMudaEm as mudanças (0x0F73). A gravação do filtro não
+	// mora aqui: é do mundo (world/fadafiltro.go), para sobreviver à sessão.
 	FadasPedidoEm time.Time
-	FadasGravando bool
-	FadasPendente *FadaFiltroSalvo
+	FadasDropsEm  time.Time
+	FadasFiltroEm time.Time
+	FadasMudaEm   time.Time
 	// RecusasDeAcesso conta quantas recusas de login COM FECHAMENTO esta conexão
 	// levou. É do laço, como todo o resto da sessão, e não precisa de trava.
 	//

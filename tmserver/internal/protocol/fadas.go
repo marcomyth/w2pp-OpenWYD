@@ -40,7 +40,10 @@ const (
 	FadasMotivoListaVazia uint8 = 2 // ligar sem nenhum Item Protegido
 	FadasMotivoListaCheia uint8 = 3 // pôr com a lista no teto
 	FadasMotivoItemRuim   uint8 = 4 // índice fora do catálogo
-	FadasMotivoNaoGravou  uint8 = 5 // o banco não respondeu; o estado é o anterior
+	FadasMotivoNaoGravou  uint8 = 5 // o banco não respondeu; o estado que vai é o do banco, o anterior
+	// O pedido chegou rápido demais e NÃO foi aplicado; o estado que vai é o que
+	// vale. O cliente que não conhece o número não mostra aviso nenhum.
+	FadasMotivoDevagar uint8 = 6
 )
 
 const (

@@ -205,6 +205,14 @@ func (d *Dispatcher) putMobDrop(w *world.World, reward, mob *world.Entity, it wo
 		return false
 	}
 	if d.fadaDescarta(w, reward, mob, it.Index) {
+		// O rastro: é a única regra que apaga saque, e sem esta linha um "o item
+		// não caiu" não teria como ser conferido.
+		var conta int64
+		if s := w.Session(reward.ID); s != nil {
+			conta = s.AccountID
+		}
+		d.log.Info("filtro da fada: saque descartado", "char", reward.Name, "conta", conta,
+			"mob", mob.TemplateName, "item", it.Index)
 		return false
 	}
 	return d.entregaOuAvisa(w, reward, it)

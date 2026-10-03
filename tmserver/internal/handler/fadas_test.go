@@ -406,6 +406,7 @@ func TestFadasRespondePeloFio(t *testing.T) {
 	}
 
 	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, _ *world.Entity) {
+		s.FadasMudaEm = time.Time{} // o teste clica mais rápido que o freio
 		d.fadasMuda(w, s, protocol.Header{}, muda(protocol.FadasMudaLiga, 0))
 	})
 	if b := espera(protocol.MsgFadasFiltro); b[0] != 1 || b[2] != 0 {
@@ -414,11 +415,13 @@ func TestFadasRespondePeloFio(t *testing.T) {
 
 	// Sem a fada, ligar é recusado com o motivo.
 	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, _ *world.Entity) {
+		s.FadasMudaEm = time.Time{} // o teste clica mais rápido que o freio
 		d.fadasMuda(w, s, protocol.Header{}, muda(protocol.FadasMudaDesliga, 0))
 	})
 	espera(protocol.MsgFadasFiltro)
 	naContaDoRelogio(t, srv, 7, func(w *world.World, d *Dispatcher, s *world.Session, e *world.Entity) {
 		e.Equip[fairyEquipSlot] = world.Item{}
+		s.FadasMudaEm = time.Time{} // o teste clica mais rápido que o freio
 		d.fadasMuda(w, s, protocol.Header{}, muda(protocol.FadasMudaLiga, 0))
 	})
 	if b := espera(protocol.MsgFadasFiltro); b[0] != 0 || b[1] != 0 || b[2] != protocol.FadasMotivoSemFada {

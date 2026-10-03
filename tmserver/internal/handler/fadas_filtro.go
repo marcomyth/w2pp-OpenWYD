@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"slices"
 	"time"
 
@@ -68,10 +67,27 @@ func fadaFiltroDoBanco(ligado bool, itens []int16) (bool, []int16) {
 	return ligado && len(limpo) > 0, limpo
 }
 
+// fadaFiltroDoLogin é o filtro com que o personagem entra no jogo: o que veio do
+// banco, a não ser que ainda haja uma mudança dele a caminho do banco
+// (world/fadafiltro.go). Quem sai e volta antes de a gravação terminar leria o
+// estado velho — e um filtro que ele desligou voltaria ligado.
+func fadaFiltroDoLogin(w *world.World, conta int64, slot int, ligado bool, itens []int16) (bool, []int16) {
+	if p, ok := w.FadaFiltroACaminho(conta, slot); ok {
+		ligado, itens = p.Ligado, p.Itens
+	}
+	return fadaFiltroDoBanco(ligado, itens)
+}
+
 // fadaDescarta diz se o filtro de quem recebe joga fora este item do saque de
 // mob. Chamada na entrega, com os sorteios todos já feitos.
 func (d *Dispatcher) fadaDescarta(w *world.World, reward, mob *world.Entity, idx int16) bool {
 	if reward == nil || mob == nil || !reward.FadaFiltroLigado || len(reward.FadaFiltro) == 0 || !fadaTemFiltro(reward) {
+		return false
+	}
+	// O que o jogador NÃO PODE proteger nunca some: fadaAplica recusa pôr este
+	// índice na lista, então descartá-lo seria tirar um item sem defesa possível
+	// (a Mesa de Drops e o saque de chefe podem dar índice fora da faixa do molde).
+	if !fadaItemValido(idx) {
 		return false
 	}
 	if _, protegido := slices.BinarySearch(reward.FadaFiltro, idx); protegido {
@@ -83,8 +99,20 @@ func (d *Dispatcher) fadaDescarta(w *world.World, reward, mob *world.Entity, idx
 	if !ok {
 		return false
 	}
-	_, mostrado := slices.BinarySearch(d.dropsVisiveis(w, &cat.lista[i]), idx)
+	_, mostrado := slices.BinarySearch(d.fadasDropsDoPainel(w, &cat.lista[i]), idx)
 	return mostrado
+}
+
+// fadasDropsDoPainel é dropsVisiveis cortado no que cabe num 0x0F72: a lista que
+// o cliente recebe de fato. O filtro consulta ESTA, e não a inteira: um item que
+// ficou além do corte não aparece no painel, não pode ser protegido, e por isso
+// nunca é descartado.
+func (d *Dispatcher) fadasDropsDoPainel(w *world.World, m *fadaMonstro) []int16 {
+	itens := d.dropsVisiveis(w, m)
+	if len(itens) > protocol.FadasDropsMax {
+		itens = itens[:protocol.FadasDropsMax]
+	}
+	return itens
 }
 
 // fadasMandaFiltro manda o 0x0F74: o estado do filtro do personagem.
@@ -105,18 +133,41 @@ func (d *Dispatcher) fadasMuda(w *world.World, s *world.Session, _ protocol.Head
 	if e == nil || s.Mode != world.UserPlay {
 		return
 	}
+	// O freio vem antes de tudo: cada mudança aceita custa uma cópia da lista, uma
+	// ida ao banco e duas respostas, tudo dentro do laço do jogo. O pedido freado
+	// NÃO é aplicado, mas é RESPONDIDO, com o estado que vale: o cliente desenha o
+	// que o servidor diz, e um pedido que sumisse calado o deixaria mostrando o
+	// que ele pediu, e não o que existe.
+	if fadasFreia(&s.FadasMudaEm, d.now(), fadasCliqueIntervalo) {
+		w.Send(s, protocol.MsgFadasFiltro,
+			protocol.EncodeFadasFiltro(e.FadaFiltroLigado, fadaTemFiltro(e), protocol.FadasMotivoDevagar, e.FadaFiltro))
+		return
+	}
 	corpo, err := protocol.DecodeFadasMuda(payload)
 	if err != nil {
 		d.log.Info("painel das fadas: mudança recusada", "conn", s.Conn, "erro", err)
 		return
 	}
+	antes := world.FadaFiltroSalvo{Conta: s.AccountID, Slot: s.Slot, Ligado: e.FadaFiltroLigado, Itens: e.FadaFiltro}
 	motivo, mudou := fadaAplica(e, corpo)
 	if mudou {
-		d.log.Info("filtro da fada", "conn", s.Conn, "char", e.Name, "acao", corpo.Acao,
+		// Debug: é uma linha por clique do jogador, e o que importa para auditar o
+		// saque é a linha do descarte (putMobDrop), não a de cada mudança da lista.
+		d.log.Debug("filtro da fada", "conn", s.Conn, "char", e.Name, "acao", corpo.Acao,
 			"item", corpo.Item, "ligado", e.FadaFiltroLigado, "itens", len(e.FadaFiltro))
-		d.fadasGrava(w, s, e)
+		d.fadasGrava(w, s, e, antes)
 	}
 	d.fadasMandaFiltro(w, s, e, motivo)
+}
+
+// fadasFreia diz se um pedido chegou antes do intervalo desde o último aceito do
+// mesmo tipo, e marca a hora quando o aceita. Relógio que andou para trás não freia.
+func fadasFreia(ultimo *time.Time, agora time.Time, intervalo time.Duration) bool {
+	if !ultimo.IsZero() && !agora.Before(*ultimo) && agora.Sub(*ultimo) < intervalo {
+		return true
+	}
+	*ultimo = agora
+	return false
 }
 
 // fadaAplica faz a mudança no personagem e diz o motivo da recusa, se houve, e
@@ -175,49 +226,18 @@ func fadaAplica(e *world.Entity, corpo protocol.FadasMudaBody) (motivo uint8, mu
 	return protocol.FadasMotivoNenhum, false
 }
 
-const fadasGravaTimeout = 5 * time.Second
-
-// fadasGrava leva o filtro do personagem ao banco, fora do laço.
+// fadasGrava leva o filtro do personagem ao banco, pela fila do mundo
+// (world/fadafiltro.go): uma gravação por vez por personagem, que termina mesmo
+// se o jogador sair, e que entra nas gravações do desligamento.
 //
-// UMA GRAVAÇÃO POR VEZ por sessão. Cliques seguidos virariam várias gravações no
-// ar, e a que chegasse por último ao banco mandaria, mesmo sendo a mais velha. Com
-// uma só, a mudança que chega durante a gravação fica guardada na sessão, e a
-// volta grava esse estado, o mais novo.
-func (d *Dispatcher) fadasGrava(w *world.World, s *world.Session, e *world.Entity) {
-	d.fadasGravaEstado(w, s, world.FadaFiltroSalvo{
-		Conta: s.AccountID, Slot: s.Slot, Ligado: e.FadaFiltroLigado, Itens: e.FadaFiltro,
-	})
-}
-
-func (d *Dispatcher) fadasGravaEstado(w *world.World, s *world.Session, estado world.FadaFiltroSalvo) {
-	p := w.Persistence()
-	if p == nil {
-		return
-	}
-	if s.FadasGravando {
-		s.FadasPendente = &estado
-		return
-	}
-	s.FadasGravando, s.FadasPendente = true, nil
-	w.Go(s, func() func(*world.World, *world.Session) {
-		ctx, cancel := context.WithTimeout(context.Background(), fadasGravaTimeout)
-		defer cancel()
-		err := p.SaveFadaFiltro(ctx, estado.Conta, estado.Slot, estado.Ligado, estado.Itens)
-		return func(w *world.World, s *world.Session) {
-			s.FadasGravando = false
-			if err != nil {
-				d.log.Error("filtro da fada: não gravou", "conn", s.Conn,
-					"conta", estado.Conta, "slot", estado.Slot, "err", err)
-				// Só avisa quem ainda é o mesmo personagem em jogo.
-				if e := w.Entity(s.Conn); e != nil && s.Mode == world.UserPlay &&
-					s.Slot == estado.Slot && s.AccountID == estado.Conta {
-					d.fadasMandaFiltro(w, s, e, protocol.FadasMotivoNaoGravou)
-				}
-			}
-			if prox := s.FadasPendente; prox != nil {
-				s.FadasPendente = nil
-				d.fadasGravaEstado(w, s, *prox)
-			}
-		}
+// antes é o estado da memória antes da mudança. Se a gravação falhar, a memória
+// VOLTA ao que o banco tem e o jogador é avisado com esse estado (motivo 5): o
+// que ele vê é o que vai valer depois do relogin. O lado seguro é o do banco —
+// um filtro que a tela mostrasse desligado e o banco guardasse ligado voltaria
+// descartando saque.
+func (d *Dispatcher) fadasGrava(w *world.World, s *world.Session, e *world.Entity, antes world.FadaFiltroSalvo) {
+	novo := world.FadaFiltroSalvo{Conta: s.AccountID, Slot: s.Slot, Ligado: e.FadaFiltroLigado, Itens: e.FadaFiltro}
+	w.GravaFadaFiltro(antes, novo, func(w *world.World, s *world.Session, e *world.Entity) {
+		d.fadasMandaFiltro(w, s, e, protocol.FadasMotivoNaoGravou)
 	})
 }

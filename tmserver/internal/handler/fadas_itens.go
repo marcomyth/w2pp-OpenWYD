@@ -75,13 +75,30 @@ func (d *Dispatcher) fadasPossiveis() *refine.Possiveis {
 // fadasFaixaLarga é a faixa de adicional de um item SEM monstro escolhido (aba
 // Filtro, e o item recém-escolhido na aba Itens): a mais larga entre todos os
 // monstros que o dão — o menor dos mínimos e o maior dos máximos de cada efeito.
+//
+// A conta fica GUARDADA no catálogo: ela roda fadasFontes para cada monstro que
+// dá o item, e o pedido do filtro a faz para até 60 itens, dentro do laço do
+// jogo. Sem guardar, um cliente em rajada atrasava o servidor inteiro.
 func (d *Dispatcher) fadasFaixaLarga(w *world.World, c *fadaCatalogo, idx int16) []protocol.FadasFaixa {
+	quem := c.quemDropa[idx]
+	if len(quem) == 0 {
+		return nil // ninguém dá: nada a calcular, e nada a guardar
+	}
+	agora := d.now()
+	if c.largas == nil || c.largasDe != d.dropBonus || agora.Before(c.largasEm) ||
+		agora.Sub(c.largasEm) >= fadasLargasValidade {
+		c.largas, c.largasEm, c.largasDe = map[int16][]protocol.FadasFaixa{}, agora, d.dropBonus
+	}
+	if f, ok := c.largas[idx]; ok {
+		return f
+	}
 	var out []protocol.FadasFaixa
-	for _, i := range c.quemDropa[idx] {
+	for _, i := range quem {
 		m := &c.lista[i]
 		molde, mesa, especial := d.fadasFontes(w, m)
 		out = uneFaixas(out, d.fadasFaixasDoPar(m, idx, molde, mesa, especial))
 	}
+	c.largas[idx] = out
 	return out
 }
 

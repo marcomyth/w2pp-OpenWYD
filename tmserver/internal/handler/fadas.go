@@ -11,6 +11,7 @@ import (
 	"github.com/jeanluca/w2pp-openwyd/internal/droprule"
 	"github.com/jeanluca/w2pp-openwyd/internal/regiao"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/protocol"
+	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/refine"
 	"github.com/jeanluca/w2pp-openwyd/tmserver/internal/world"
 )
 
@@ -59,7 +60,20 @@ type fadaCatalogo struct {
 	// dá, em ordem de nome, e para cada item os monstros que o dão.
 	itens     []fadaItem
 	quemDropa map[int16][]int
+
+	// As faixas largas já calculadas, por item (fadasFaixaLarga): a conta passa
+	// por todos os monstros que dão o item, e a aba Filtro a pede para até 60
+	// itens de uma vez. largasEm e largasDe dizem de quando e de quais tabelas de
+	// adicional são; vencido o prazo ou trocada a tabela, recomeça.
+	largas   map[int16][]protocol.FadasFaixa
+	largasEm time.Time
+	largasDe refine.Tabelas
 }
+
+// fadasLargasValidade é por quanto tempo uma faixa larga calculada vale. O molde
+// de um monstro pode ser trocado no lugar pela ficha de /monstros sem o catálogo
+// perceber; o prazo limita por quanto tempo a dica fica atrás.
+const fadasLargasValidade = 30 * time.Second
 
 // fadasCatalogoValidade é de quanto em quanto o catálogo é conferido contra os
 // blocos. A conferência passa por todos os blocos, e o descarte do filtro
@@ -91,6 +105,7 @@ func (d *Dispatcher) fadasCatalogo(w *world.World) *fadaCatalogo {
 			c.versao = 1
 		}
 		d.fadasMontaIndice(w, c)
+		c.largas = nil
 		d.log.Info("painel das fadas: catálogo de monstros", "versao", c.versao, "monstros", len(c.lista))
 	}
 	return c
@@ -423,6 +438,12 @@ func fadasSaqueEspecial(m *fadaMonstro) []int16 {
 // busca "em tempo real" manda um a cada pausa de digitação.
 const fadasPedeIntervalo = 150 * time.Millisecond
 
+// fadasCliqueIntervalo é o mínimo entre dois pedidos que nascem de um clique: os
+// drops de um monstro (0x0F70 tipo 3) e as mudanças do filtro (0x0F73). É menor
+// que o das listas para não comer o clique de quem clica rápido, e ainda corta a
+// rajada de um cliente remendado de 200 por segundo para 20.
+const fadasCliqueIntervalo = 50 * time.Millisecond
+
 // fadasPede atende o 0x0F70.
 func (d *Dispatcher) fadasPede(w *world.World, s *world.Session, _ protocol.Header, payload []byte) {
 	e := w.Entity(s.Conn)
@@ -436,11 +457,9 @@ func (d *Dispatcher) fadasPede(w *world.World, s *world.Session, _ protocol.Head
 	}
 	switch corpo.Tipo {
 	case protocol.FadasPedeProximos, protocol.FadasPedeBusca, protocol.FadasPedeItens, protocol.FadasPedeQuemDropa:
-		agora := d.now()
-		if !s.FadasPedidoEm.IsZero() && !agora.Before(s.FadasPedidoEm) && agora.Sub(s.FadasPedidoEm) < fadasPedeIntervalo {
+		if fadasFreia(&s.FadasPedidoEm, d.now(), fadasPedeIntervalo) {
 			return
 		}
-		s.FadasPedidoEm = agora
 		switch corpo.Tipo {
 		case protocol.FadasPedeItens:
 			d.fadasMandaItens(w, s, corpo)
@@ -450,8 +469,19 @@ func (d *Dispatcher) fadasPede(w *world.World, s *world.Session, _ protocol.Head
 			d.fadasMandaMonstros(w, s, corpo)
 		}
 	case protocol.FadasPedeDrops:
+		// Freio próprio: o cliente manda este pedido num clique, sozinho.
+		if fadasFreia(&s.FadasDropsEm, d.now(), fadasCliqueIntervalo) {
+			return
+		}
 		d.fadasMandaDrops(w, s, corpo)
 	case protocol.FadasPedeFiltro:
+		// Freio próprio, e não o das listas: ao abrir o painel o cliente manda este
+		// pedido e o da lista juntos. O pedido freado leva o estado, sem as faixas.
+		if fadasFreia(&s.FadasFiltroEm, d.now(), fadasPedeIntervalo) {
+			w.Send(s, protocol.MsgFadasFiltro,
+				protocol.EncodeFadasFiltro(e.FadaFiltroLigado, fadaTemFiltro(e), protocol.FadasMotivoNenhum, e.FadaFiltro))
+			return
+		}
 		d.fadasMandaFiltro(w, s, e, protocol.FadasMotivoNenhum)
 	}
 }
@@ -515,7 +545,7 @@ func (d *Dispatcher) fadasMandaDrops(w *world.World, s *world.Session, corpo pro
 		return
 	}
 	m := &cat.lista[corpo.Monstro]
-	w.Send(s, protocol.MsgFadasDrops, protocol.EncodeFadasDrops(cat.versao, corpo.Monstro, d.dropsVisiveis(w, m)))
+	w.Send(s, protocol.MsgFadasDrops, protocol.EncodeFadasDrops(cat.versao, corpo.Monstro, d.fadasDropsDoPainel(w, m)))
 	// As faixas de adicional vão logo atrás, para a dica de cada item.
 	w.Send(s, protocol.MsgFadasFaixas, protocol.EncodeFadasFaixas(cat.versao, corpo.Monstro, d.fadasFaixas(w, m)))
 }
